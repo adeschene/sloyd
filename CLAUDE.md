@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is feature callouts** (merge `ec438c9`, deployed as `f1773b4`, bundle `index-CaMRIw2a.js`, CSS `index-CovHntf8.css`);
-  rollback to plans balloons (`80520db`, `index-CCbseJx_.js`) or follow-ups 4 (`a9c678e`, `index-BxqTdZO2.js`) is free.
+- **Production is follow-ups 5** (merge `007ea3a`, deployed as `4e15e7d`, bundle `index-uIgR_wtf.js`, CSS `index-DrcAQ1SN.css`);
+  rollback to feature callouts (`0b2ae73`, `index-CaMRIw2a.js`) or plans balloons (`80520db`, `index-CCbseJx_.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -72,7 +72,7 @@ handicraft education tradition built around hand woodworking.
   `ec438c9`, deployed as `index-CaMRIw2a.js`; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
   its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
   (tags over dimension lines, for the user's eye; the real print).
-- **Follow-ups 5 (2026-10-16, merged as `007ea3a`, NOT deployed; no schema change)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
+- **Follow-ups 5 (2026-10-16, merged as `007ea3a`, deployed as `index-uIgR_wtf.js`; no schema change)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
   the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
   (no sliver cell; it was marked crossing). 151 fixed (row actions reveal on KEYBOARD focus) — the look owed to the user. 207
   looked at and left open (the remedy re-enables orbit mid-press; real mouse). Residue 382.

@@ -529,7 +529,9 @@ merge. **151**: KEYBOARD focus inside a project row reveals both actions (`:has(
 review — Duplicate focuses itself on click, so mouse users would have kept both lit); seen live both ways
 (`docs/img/fu151-row-focus.png`), the look owed to the user. **207 not changed**: its one remedy (`controls.dragging = false`) fires drei's `dragging-changed`, which re-enables
 orbit mid-press — judged only with a real mouse. Every new test watched fail first and every fix mutated. Merged as `007ea3a`
-(the merged tree built and passed 4627 tests across 156 files); not deployed. No schema change.
+(the merged tree built and passed 4627 tests across 156 files). Deployed as `4e15e7d` (`index-uIgR_wtf.js`, CSS
+`index-DrcAQ1SN.css`) on the user's word: hashes match `dist/` in-network and at the edge, old bundle and CSS 404, CSP correct,
+the edge CSS carries fu 151's rule, a real page load clean, its two keys removed and read back empty. No schema change.
 
 **What the feature callouts round did (2026-10-16)** (spec `2026-10-16-sloyd-feature-callouts-design.md`, plan
 `…-feature-callouts.md`, run inline; branch `feature-callouts` from master `b8e70fe`). Fu 333, 279, 362: the Plans sheet's
