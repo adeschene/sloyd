@@ -68,11 +68,15 @@ handicraft education tradition built around hand woodworking.
   `2cbfff4`, deployed as `index-CCbseJx_.js`; no schema change)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
   cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
   balance, for the user's eye; the real print).
+- **Feature callouts (2026-10-16, spec `2026-10-16-sloyd-feature-callouts-design.md`, plan `…-feature-callouts.md`; no schema
+  change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
+  its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
+  (tags over dimension lines, for the user's eye; the real print).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
-  under Open follow-ups below; `docs/follow-ups.md` is authoritative. The next real work is a feature spec — the feature
-  callouts (279, 333, 362) are the strongest candidate — or a small round over the open-as-work list.
+  under Open follow-ups below; `docs/follow-ups.md` is authoritative. The feature callouts (279, 333, 362) shipped as the
+  next round; what is left is another feature spec or a small round over the open-as-work list.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -158,6 +162,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | fu 96 | 10-16 | — | Sheet and board layouts: a part too small for its number gets a callout row beside the drawing, with a leader |
 | follow-ups 4 | 10-16 | — | Fu 127, 13, 54, 2 (test gaps), 98 (Saw kerf field), 154 (two tabs: pinned), 6 (spaced mixed lengths) |
 | plans balloons | 10-16 | — | One numbered balloon per cut-list row on the Plans sheet's exploded view; the cut list and its layouts print the row number (fu 252) |
+| feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
 
 ### The deployment rule
 
@@ -377,7 +382,9 @@ src/
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
 │   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
 │   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48)
-│   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16) plus hole lines from
+│   ├── featureKeys.ts    THE feature keys (feature callouts spec §3): partFeatures (identity, owned segment tags, key line —
+│   │                     a short bench line, no positions —, fault suffix, true axis/normal), featureTag, FAULT_SUFFIX
+│   ├── drawing.ts        drawView: exact hidden-line vector drawing; every segment TAGGED with its feature (`Seg2.feature`); edges from boardEdges (inv 16) plus hole lines from
 │   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry;
 │   │                     a curved part's edges come through `curveDrawEdges`, plus `silhouetteLines`
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
@@ -385,7 +392,7 @@ src/
 │   │                     sectionCaps (board-local caps minus bores, a per-part local cache), unionOutline
 │   │                     (moved to outline.ts and re-exported)
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
-│   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity)
+│   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity); `keyed` / pieceKeyed: which trio keys a part
 │   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44; chiralCurved);
 │                         curveFixtures.ts (TEST-ONLY ARCH, CORNER: never import a test module, it re-registers its suite);
 │                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
@@ -433,7 +440,8 @@ src/
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
 │                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map), diagramScale, diagramLabels (inv 19); planBalloons
-│                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); Popover (Claude ▾, More ▾),
+│                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); planKeys (a trio's
+│                     feature tags: chooseView, letters, anchors, merge and push; pure); Popover (Claude ▾, More ▾),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
@@ -492,6 +500,14 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   (`holdsIndex`) is a callout (fu 96): the number in a row outside the drawing's nearer long edge (`packRow`, measured boxes,
   ordered by the part's centre), a leader from the part's near edge to its own number; the row exists only when used, so a
   drawing with no callouts keeps its viewBox. A long leader across another part is accepted (the user's ruling).
+- **`featureKeys.ts` / `planKeys.ts`** (feature callouts): a key line is built only in `partFeatures` (hole sizes through
+  `holeSizeText`/`holePitchText`, the bench line's own home; the four-corner collapse through `curveLineEntries`), never in the
+  panel. A tag sits only on a segment `drawView` tagged for its feature (inv 16); tagging never changes a segment, its order
+  or the visible/hidden split (`drawingIdentity.test` hashes the drawing with tags stripped). Angle cuts are tagged by
+  plane membership (`keptHalfSpace`'s plane is `n·x + d = 0`), so `bodyEdges` is untouched. View order: true and visible,
+  visible, true and hidden, any hidden (ties Front, Side, Plan). A part's features are keyed by the innermost LISTED
+  assembly's trio (`keyed`), so each feature once per sheet; same-letter tags within a diameter merge, others are pushed out
+  along their leaders and clamped inside the figure, and a tag that still overlaps is not drawn and its letter is noted.
 - **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
   must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
   `concepts.ts`. **`concepts.ts`**' parse is all-or-nothing (never mixes planned and
@@ -821,7 +837,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent), placed by `EditLock`
     around EDITING regions only (fu 262): the ActionBar sits outside it and disables its own non-`view` actions (Hide others,
     Select copies stay live), as do Select linked and the guides footer's disclosure. The explode
-    offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and hole
+    offset is a render-time translation, never written back (inv 1). `drawView` TAGS each segment with the feature it is
+    drawn for (`Seg2.feature`, absent otherwise); the tag changes nothing else. Drawings take lines from `boardEdges` and hole
     lines from `holeDrawingSegments` (one list, one hidden-line pass), and occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
     solids is inside. The exploded set is
     lifted so its lowest part never goes below the assembled lowest point. Occluders are the HOLE-FREE bodies: you
@@ -967,7 +984,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4561 tests across 153 files
+npm test           # Vitest, currently 4601 tests across 155 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -976,7 +993,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–380). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–381). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
@@ -984,13 +1001,12 @@ This list is the triage's open set — when an entry's status changes, change it
   207 (gizmo after an abandon), 216 (a mm joinery cut's stored width an ulp off on a reversed axis — reach WIDENED by
   metric display; reproduce first, never round the row key), 234 (the concept planner is not taught assemblies), 269
   (packer heuristic: measure a losing case first).
-- **Feature-sized (need a spec):** feature callouts on the Plans sheet — 279 angles, 333 holes, 362 curves (they need the
-  drawing to tag its lines by feature); 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
+- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
   views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
-- **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 374 if a print shows the fold);
+- **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 381(3), 374 if a print shows the fold);
   real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 319, 380(1) column balance, 381(1) tags over dimension lines, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 163's residue (do not re-open

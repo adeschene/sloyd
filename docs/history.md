@@ -514,6 +514,23 @@ and 79.
 
 ## What each round did
 
+**What the feature callouts round did (2026-10-16)** (spec `2026-10-16-sloyd-feature-callouts-design.md`, plan
+`…-feature-callouts.md`, run inline; branch `feature-callouts` from master `b8e70fe`). Fu 333, 279, 362: the Plans sheet's
+elevation trios now key every hole row, angle cut and curve. The user's rulings: where in the piece, not full bench numbers
+(R1, from research into magazine plan practice: leader notes in shop words, positions on part views); the elevations only
+(R2); lettered tags with a key list under the trio (R3); hidden features keyed on their dashed lines (R4); each feature once,
+on the innermost listed assembly's trio (R5); every instance marked, coincident ones merged (R6); short bench words (R7).
+`featureKeys.ts` builds each key line (hole sizes through `holeSizeText`/`holePitchText`, now the bench line's one home);
+`drawView` tags each segment with its feature — holes by row, curves by chord and silhouette, angle cuts by plane membership,
+so `bodyEdges` is untouched — and the drawing is otherwise byte-for-byte master's (`drawingIdentity.test` hashes it with tags
+stripped: all four views equal master's hashes); `planKeys.ts` picks each feature's view, letters, anchors and places tags.
+Implementation rulings: the plane is `n·x + d = 0` (the plan had the sign wrong); two plan fixtures were wrong (a "compound"
+normal that was true in Plan; an anchor whose leader the clamp shortened); three plan tests could not fail as written and were
+tightened (silhouettes asserted in Side; both tags placed when there is room; a no-room test added). Live (dev server): a
+bookcase (arch in Front; inward shelf-pin rows hidden in every view, keyed on dashed rims in Side and merged, 2×), a table
+(miters in Plan 4×, tapers at the feet 8×), a metric cabinet assembly (hinge cups keyed on its trio only, in mm, 2×).
+Residue 381. No schema change.
+
 **What the 179–380 triage did (2026-10-16)** (docs only, on master, after the plans balloons deploy; the user's ask). Most of
 these entries already carried `**Status:**` lines, but several held more than one and the first often still read `open`; the
 LAST one governs. Three had none (187, 212, 260 — all closed long since) and four used non-standard words (242, 266, 318, 336).

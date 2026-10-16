@@ -79,7 +79,7 @@ sizes through `holeLengthText` (metric to 0.1 mm; imperial with the mm aside, ex
 | Feature | Key line |
 |---|---|
 | Hole | `Hole 1/4″ (6.4 mm) dia × 3/8″ deep` · `… × through` |
-| Hole row | `Row of 12 holes, 5 dia × 12 deep, every 32` (metric sheet: bare mm, inv 52) |
+| Hole row | `Row of 21 holes, 1/4" dia × 3/8" deep, every 1-17/64" (32 mm)` · metric `Row of 21 holes, 6.4 mm dia × 10 mm deep, every 32 mm` |
 | Miter | `Miter 45.0°` |
 | Bevel | `Bevel 15.0°` |
 | Chamfer | `Chamfer 1/4″` · unequal legs `Chamfer 1/4″ × 1/2″` · no chamfer fields `Chamfer 30.0°` |
@@ -90,6 +90,9 @@ sizes through `holeLengthText` (metric to 0.1 mm; imperial with the mm aside, ex
 | Rounded corner | `Rounded corner, 1″ radius` · four collapsed `Four rounded corners, 1″ radius` |
 | Any other curve | `Curve: 2 arcs and 3 lines` |
 
+- *Amended (plan ruling P1, approved 2026-10-16):* the key list is an HTML note like the part diagrams' notes, so it reads
+  the bench lines' own units (`12 mm`, `6.4 mm dia`), not the bare mm of SVG dimension labels; imperial prints the straight
+  `"` of `formatLength` (this table's `″` was typography).
 - **No positions** (R1): no "from the left end", no inset. The tag is the position.
 - **Through-dimension words** (`cut through the width`) are omitted: the view shows it.
 - **A faulted feature** (a hole with any `holeFaults`, a curve with any `curveFaults`, an angle cut a resize pushed past its
