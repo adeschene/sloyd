@@ -493,6 +493,14 @@ and 79.
 
 ## What each round did
 
+**What fu 96 did (2026-10-16)** (branch `fu-96` from master `4f64740`; the user's rulings). Measured first: a layout draws at
+1000/stock-length units per inch and an index number is 25 units tall, so any part under ~2.4" on a 96" sheet overflowed its
+number — every part on a 1×2 board strip did. `holdsIndex` (diagramLabels.ts) is the measured test; a part that fails it draws
+no number inside, and its number goes in a row just outside the drawing's nearer long edge (`packRow`, measured boxes) with a
+leader from the part. Shown live on the dev server (edge cleats, a 1×2 strip, an interior cleat whose leader crosses another
+part); the user accepted the long interior leader over a waste-space placement rule. A drawing with no callouts keeps its
+viewBox. Mutated: no callout branch, no margin growth, crossed leaders — each red. Real print owed (70/79/84).
+
 **What follow-ups 3 did (2026-10-16)** (branch `follow-ups-3` from master `847ed06`, merged as `11743cd`; the user asked for the
 triage's code-sized opens in order). 168: a failed Generate/Refine run reports what it spent (`spentOnFailure`; joinery already
 did) and a sub-cent spend reads `< $0.01` (`formatCost`). 53: the cut offset field refuses past `posDim - width` (refused, not
