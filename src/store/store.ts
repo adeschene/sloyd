@@ -1524,6 +1524,8 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAxis: null,
         explode: 0,
         section: null,
+        // Fu 3: a focus request for the replaced document's new part.
+        pendingLengthFocus: false,
         // Follow-up 148. NOT the same reason as the held points above: those
         // clear because the world they name has been replaced, while these
         // clear because a gesture belongs to the component that opened it and

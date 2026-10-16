@@ -353,6 +353,13 @@ describe('replaceDocument', () => {
     expect(s.selectedIds).toEqual([]);
     expect(s.canUndo()).toBe(false);
   });
+  // Fu 3: an Add-board focus request names a part of the document being replaced; it must not focus the next one's.
+  it('drops a pending Length focus', () => {
+    useStore.getState().addBoard();
+    expect(useStore.getState().pendingLengthFocus).toBe(true);
+    useStore.getState().replaceDocument(createDocument('Imported'));
+    expect(useStore.getState().pendingLengthFocus).toBe(false);
+  });
 });
 
 describe('gesture coalescing', () => {

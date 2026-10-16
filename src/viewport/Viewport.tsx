@@ -23,6 +23,7 @@ import { watchClickPairs } from './pointer';
 import { orthoDistance, orthoZoom, perspectiveDistance, subsetBounds, viewDirection } from './framing';
 import type { StandardView } from './framing';
 import type { Vec3 } from '../document/frames';
+import { isTextEntry } from '../textEntry';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#ebe3d4';
@@ -124,9 +125,8 @@ function CameraKeys({ suspended, viewRef }: {
   useEffect(() => {
     if (suspended) return;
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      // Never steal keys from a field the user is typing in.
-      if (target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
+      // Never steal keys from a field the user is typing in (App's own test, fu 9).
+      if (isTextEntry(e.target as HTMLElement)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       let subset: readonly Board[];

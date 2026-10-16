@@ -32,26 +32,12 @@ import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
+import { isTextEntry } from './textEntry';
 import type { SloydDocument } from './document/document';
 import type { CustomMaterial, MaterialKind } from './document/types';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
-
-/**
- * True for anything the user might be typing into. Keyboard shortcuts must
- * never fire while focus is here — most of all Backspace, which is bound to
- * delete-the-selected-board because that is what the Mac "delete" key sends.
- */
-function isTextEntry(el: HTMLElement | null): boolean {
-  if (!el) return false;
-  return (
-    el.tagName === 'INPUT' ||
-    el.tagName === 'SELECT' ||
-    el.tagName === 'TEXTAREA' ||
-    el.isContentEditable
-  );
-}
 
 export default function App() {
   const undo = useStore((s) => s.undo);
