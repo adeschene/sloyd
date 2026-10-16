@@ -4,7 +4,9 @@ import { partGeometry } from './bodies';
 import { worldBox } from './designCheck';
 import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
-import { holeDrawingSegments } from './holeDrawing';
+import { holeDrawingTagged } from './holeDrawing';
+import { keptHalfSpace } from './angleCuts';
+import { featureTag } from './featureKeys';
 import { curveDrawEdges, silhouetteLines } from './curveDrawing';
 
 /**
@@ -30,7 +32,9 @@ export const ISO: View = {
 };
 
 export type P2 = [number, number];
-export interface Seg2 { a: P2; b: P2; part: string }
+/** `feature`: the hole row, angle cut or curve the segment is drawn for (`featureTag`; feature callouts spec §4.1) — ABSENT,
+ *  not undefined, on every other segment, so a featureless part's drawing is byte-for-byte what it was. */
+export interface Seg2 { a: P2; b: P2; part: string; feature?: string }
 export interface Drawing { visible: Seg2[]; hidden: Seg2[]; bounds: { min: P2; max: P2 } }
 
 /**
@@ -149,22 +153,38 @@ const corners = (bx: { min: readonly number[]; max: readonly number[] }): Vec3[]
 
 /** One line to draw, world space, no explode offset: a chord and, on a curved part, the fine path along it (curves spec
  *  §5.1, ruling Q2: visibility is decided on the chord A→E; the path only changes what is drawn). */
-interface Seg3 { A: Vec3; E: Vec3; path?: { pts: Vec3[]; at: number[] }; lift?: Vec3 }
+interface Seg3 { A: Vec3; E: Vec3; path?: { pts: Vec3[]; at: number[] }; lift?: Vec3; feature?: string }
+
+/** The angle cut whose plane holds both board-local ends (feature callouts spec §4.1): the first in stored order. Edges
+ *  are NOT built from faces here, so `bodyEdges` stays byte-for-byte; plane membership is the whole test. */
+function angleTag(b: Board, p: readonly number[], q: readonly number[]): string | undefined {
+  for (const c of b.angleCuts) {
+    const h = keptHalfSpace(b, c);
+    if (!h) continue;
+    const on = (x: readonly number[]) => Math.abs(h.n[0] * x[0]! + h.n[1] * x[1]! + h.n[2] * x[2]! + h.d) <= DRAW_EPS;
+    if (on(p) && on(q)) return featureTag(b.id, 'angle', c.id);
+  }
+  return undefined;
+}
+/** `s` with its feature key, or `s` itself (no key at all) when it has none. */
+const withTag = <T extends object>(s: T, feature: string | undefined): T & { feature?: string } => (feature ? { ...s, feature } : s);
+const local = (s: { length: number; width: number; thickness: number }) => [s.length, s.width, s.thickness];
 
 function partSegments(b: Board, toward: readonly number[]): Seg3[] {
-  if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => ({ A: toWorld(b, p), E: toWorld(b, q) }));
+  if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   return curveDrawEdges(b).map((e) => {
     const A = W(e.p);
     const E = W(e.q);
-    if (!e.path) return { A, E };
+    const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q);
+    if (!e.path) return withTag({ A, E }, tag);
     const step = [e.p[0], e.p[1], e.p[2]];
     step[e.path.k] = step[e.path.k]! + 1;
     // Edge-on (ruling Q3): the outline's plane holds the view direction, so a fine path would fold over itself on
     // screen (holes chunk 2 R2) — the model chord stands.
     const n = W(step).map((x, i) => x - A[i]!);
-    if (Math.abs(dot(n, toward)) <= 1e-9) return { A, E };
-    return { A, E, path: { pts: e.path.pts.map(W), at: e.path.at } };
+    if (Math.abs(dot(n, toward)) <= 1e-9) return withTag({ A, E }, tag);
+    return withTag({ A, E, path: { pts: e.path.pts.map(W), at: e.path.at } }, tag);
   });
 }
 
@@ -213,8 +233,8 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
     const segments: Seg3[] = [
       ...partSegments(b, view.toward),
-      ...holeDrawingSegments(b, view.toward, visibleOnly).map(([A, E]) => ({ A, E })),
-      ...silhouetteLines(b, view.toward),
+      ...holeDrawingTagged(b, view.toward, visibleOnly).map(({ A, E, row }) => ({ A, E, feature: featureTag(b.id, 'hole', row) })),
+      ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
     ];
     for (const seg of segments) {
       const A = plus(seg.A, off);
@@ -258,11 +278,11 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
       };
       const push = (out: Seg2[], t0: number, t1: number) => {
         if ((t1 - t0) * length < DRAW_EPS) return;
-        if (!seg.path) { out.push({ a: at(t0), b: at(t1), part: b.id }); return; }
+        if (!seg.path) { out.push(withTag({ a: at(t0), b: at(t1), part: b.id }, seg.feature)); return; }
         const pts = [along(t0), ...pp!.filter((_, i) => seg.path!.at[i]! > t0 && seg.path!.at[i]! < t1), along(t1)];
         for (let i = 0; i + 1 < pts.length; i += 1) {
           const [p, q] = [pts[i]!, pts[i + 1]!];
-          if (Math.hypot(q[0] - p[0], q[1] - p[1]) >= 1e-12) out.push({ a: p, b: q, part: b.id });
+          if (Math.hypot(q[0] - p[0], q[1] - p[1]) >= 1e-12) out.push(withTag({ a: p, b: q, part: b.id }, seg.feature));
         }
       };
       let cur = 0;

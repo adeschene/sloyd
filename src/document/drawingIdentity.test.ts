@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createBoard, defaultHingeCup, defaultShelfPinRow } from './document';
-import { drawView, FRONT, SIDE, TOP, ISO } from './drawing';
+import { drawView, FRONT, SIDE, TOP, ISO, type Seg2 } from './drawing';
 import { chiralAngled } from './turnFixtures';
 
 /** Parts WITHOUT curves draw byte-for-byte what they drew before curves chunk 2 (spec §5.1): a holed, a dadoed and an
@@ -21,6 +21,9 @@ describe('drawView of parts without curves is unchanged (byte-for-byte)', () => 
     [TOP, 'a69502032b83e3680b13927be187e55d02b92f62c4179367ec8e5a0617318583'],
     [ISO, '9192f4759448270933c830bc06b0b859ba705c6eaa97d3a91ec351506ffda228'],
   ])('%#: %o', (view, hash) => {
-    expect(sha(drawView(scene, view))).toBe(hash);
+    // Feature callouts (spec §4.1) only TAG segments: with the tags removed, the drawing is still master's, byte for byte.
+    const strip = (segs: Seg2[]) => segs.map(({ feature: _f, ...s }) => s);
+    const d = drawView(scene, view);
+    expect(sha({ ...d, visible: strip(d.visible), hidden: strip(d.hidden) })).toBe(hash);
   });
 });
