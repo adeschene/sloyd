@@ -528,8 +528,8 @@ measured first — the ulp sliver was covered by both cuts and marked `crossing`
 merge. **151**: KEYBOARD focus inside a project row reveals both actions (`:has(:focus-visible)`; `:focus-within` was dropped after
 review — Duplicate focuses itself on click, so mouse users would have kept both lit); seen live both ways
 (`docs/img/fu151-row-focus.png`), the look owed to the user. **207 not changed**: its one remedy (`controls.dragging = false`) fires drei's `dragging-changed`, which re-enables
-orbit mid-press — judged only with a real mouse. Every new test watched fail first and every fix mutated. 4623 tests across
-156 files. No schema change.
+orbit mid-press — judged only with a real mouse. Every new test watched fail first and every fix mutated. Merged as `007ea3a`
+(the merged tree built and passed 4627 tests across 156 files); not deployed. No schema change.
 
 **What the feature callouts round did (2026-10-16)** (spec `2026-10-16-sloyd-feature-callouts-design.md`, plan
 `…-feature-callouts.md`, run inline; branch `feature-callouts` from master `b8e70fe`). Fu 333, 279, 362: the Plans sheet's

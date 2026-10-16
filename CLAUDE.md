@@ -72,7 +72,7 @@ handicraft education tradition built around hand woodworking.
   `ec438c9`, deployed as `index-CaMRIw2a.js`; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
   its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
   (tags over dimension lines, for the user's eye; the real print).
-- **Follow-ups 5 (2026-10-16, branch `follow-ups-5`; no schema change; NOT merged)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
+- **Follow-ups 5 (2026-10-16, merged as `007ea3a`, NOT deployed; no schema change)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
   the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
   (no sliver cell; it was marked crossing). 151 fixed (row actions reveal on KEYBOARD focus) — the look owed to the user. 207
   looked at and left open (the remedy re-enables orbit mid-press; real mouse). Residue 382.
@@ -993,7 +993,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4623 tests across 156 files
+npm test           # Vitest, currently 4627 tests across 156 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
