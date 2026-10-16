@@ -1201,6 +1201,8 @@ export const useStore = create<StoreState>((set, get) => {
 
     deleteBoards: (ids) => {
       if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
+      // Refused mid-gesture (fu 209): the drag's lazy snapshot is taken, so the delete would merge into its undo entry.
+      if (get().gesturing) return;
       // Ids are item paths: a part or an assembly, at any depth (assemblies spec §4.2).
       const paths = itemPaths(get().doc);
       const doomed = new Set(ids.filter((id) => paths.has(id)));
@@ -1535,7 +1537,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     undo: () => {
       const { past, future, doc, hiddenIds, selectedIds } = get();
-      if (past.length === 0 || get().explode > 0) return;
+      // Refused mid-gesture (fu 208), as a hide is (invariant 43): popping the drag's own entry left its later edits with
+      // none (the snapshot flag still set), and an undone resize slid under the gizmo's proxy.
+      if (past.length === 0 || get().explode > 0 || get().gesturing) return;
       const previous = past[past.length - 1]!;
       // Undo ends a run of eye toggles: popping a LATER entry can leave the run's
       // entry on top again, and the identity check would wrongly continue it.
@@ -1549,7 +1553,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     redo: () => {
       const { past, future, doc, hiddenIds, selectedIds } = get();
-      if (future.length === 0 || get().explode > 0) return;
+      if (future.length === 0 || get().explode > 0 || get().gesturing) return;   // refused mid-gesture, as undo (fu 208)
       const next = future[0]!;
       hideRunEntry = null; // a redo ends a run, like undo
       set({

@@ -47,8 +47,8 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   const none = angleCutRemovesNothing(board, cut) && (
     <p className="field-note" role="status">{`This ${cut.kind} removes nothing at this size.`}</p>
   );
-  if (cut.kind === 'miter') {
-    const m = miterFields(cut, board);
+  const m = cut.kind === 'miter' ? miterFields(cut, board) : null;
+  if (m) {
     // Returns the refusal (fu 339): a select shows it in the row's alert (`pick`), a field as its own error.
     const mExcess = board[m.across] * m.ratio - board.length;
     const setM = (patch: Partial<MiterFields>): string | void => {

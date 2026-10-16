@@ -48,6 +48,13 @@ describe('the Angles section', () => {
     expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('Starts')).toBeNull();
   });
+  it('a hand-edited OFFSET miter shows its line and Remove, no controls that would rewrite it (fu 297)', () => {
+    const c: AngleCut = { id: 'a1', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0.5], [2, 2.5]] };
+    open(leg({ angleCuts: [c] }));
+    expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Long point')).toBeNull();
+    expect(screen.queryByLabelText('Angle')).toBeNull();
+  });
   it('a taper past its thinned face may move to a face it overruns by less, never by more (fu 296)', async () => {
     const user = userEvent.setup();
     open(leg());

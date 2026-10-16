@@ -480,6 +480,14 @@ and 79.
 
 ## What each round did
 
+**What follow-ups 2 did (2026-10-16)** (branch `follow-ups-2` from master `fe5eba3`; the user approved fu 296's and 262's
+rulings and asked to keep going). The recent rounds' code-sized residue: 297 (`miterFields` returns null for an offset line,
+as `bevelFields` does), 290 (measured: no Float32-degenerate triangle over 17 fixtures; pinned, the skip itself unreachable),
+314 (closed unreachable: Generate writes no rectangular cuts), 287 and 292 (asked: record-only; the wording kept). Then the
+multi-select round's reachable bugs: an undo mid-drag popped the drag's snapshot and left its later edits with no entry, and a
+delete mid-drag merged into it — `undo`, `redo` and `deleteBoards` are refused while `gesturing` (208, 209); a mixed field
+emptied after typing no longer errors (210). Every fix test-first and mutated. No schema change.
+
 **What fu 368 did (2026-10-16)** (branch `perf-368` from master `4d2a4c7`; the user's choice after the follow-ups 1 deploy). A
 hand-edited non-convex waste (the L-shaped notch) rebuilt in ~52 ms. Each of the entry's three hypotheses was measured
 first: frozen bodies were not slower in fresh processes (dropped); `bodyEdges`' linear lookups were most of the edges (lines

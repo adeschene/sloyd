@@ -4341,15 +4341,27 @@ key.** The mid-drag abandon effect keys on the selection, so an undo that alters
 dimensions while the control is dragging leaves `commit` reading the new size against a proxy
 positioned for the old one. Pre-existing on the single-part path.
 - **Status:** open, low.
+- **Closed 2026-10-16 (follow-ups session 2).** Worse than recorded: an undo mid-drag popped the drag's own snapshot while
+  `gestureSnapshotTaken` stayed set, so the rest of the drag edited with no undo entry at all. `undo` and `redo` are now
+  refused while `gesturing`, as a hide is (inv 43). Ctrl+Z inside a field never reached them (`isTextEntry`), and the
+  toolbar's Undo blurs a focused field (ending its gesture) before its click. Tests: undo mid-drag changes nothing and the
+  drag stays one entry; redo is refused from the press, before the first edit; each guard mutated away is red.
+  **Status:** closed.
 
 **209. A Delete pressed mid-drag merges into the drag's undo entry.** The gesture's lazy snapshot is
 already taken, so the deletion shares the drag's single entry. Pre-existing on the single path.
 - **Status:** open, low.
+- **Closed 2026-10-16 (follow-ups session 2).** `deleteBoards` (and so `deleteBoard`) is refused while `gesturing`; the
+  delete after the drag gets its own entry. Test: delete mid-drag does nothing, the drag is one entry, a delete after it
+  another; mutated, red. **Status:** closed.
 
 **210. A mixed group field typed into, then cleared, shows a parse error on blur until Escape.** The
 blank draft in a field whose stored value is mixed reads as an unparseable entry. The single panel
 behaves the same way.
 - **Status:** open, low, cosmetic.
+- **Closed 2026-10-16 (follow-ups session 2).** A MIXED field (`value: null`) whose text is empty on blur or Enter is treated
+  as untouched: it stays mixed, writes nothing, shows no error. A field with a value, emptied, is still refused (empty is not
+  a length). Tests: cleared then blur, cleared then Enter, and the valued field's refusal; mutated, red. **Status:** closed.
 
 **211. Small coverage gaps the round judged fine to leave.** Record-only.
 - `duplicateBoards` collapsing a repeated id, and dropping a grab that is not a copy, has no test.
@@ -5158,6 +5170,10 @@ and finite station span, but a huge finite slope can still overflow the depth. *
 
 **287. Sloped snap corners carry ~1e-14 noise**, against invariant 25 (exact moves are never rounded) and
 `sameSnapPoint`'s exact comparison. **Status:** open; decide whether a snap tolerance or a canonical corner is wanted.
+- **Closed 2026-10-16 by the user's ruling: record-only.** Measured: on `chiralAngled` in every posture and turn, 16 of 936
+  snap coordinates sit one ulp off a 1/64" step (a turned part's corner at `13.124999999999998`). Deterministic (the same
+  arithmetic every time, so `sameSnapPoint` still matches its own points), rounded away by every display, and no size or
+  cut depends on it — only a snapped position stores it. **Status:** closed, record-only.
 
 **288. SLIVER / BODY_EPS sub-micro behaviour.** Hand-edited features below ~1e-6 in draw approximately (spec ruling);
 the coplanar test's absolute 1e-9 on |n.u| should be noted in the SLIVER comment; `boardEdges` has no output filter for
@@ -5171,12 +5187,19 @@ computed twice per sloped part in `boardSnapPoints` (ghost check and `boardEdges
 
 **290. Zero-area Float32 slivers in `bodyMesh`.** The absolute 1e-12 triangle skip misses ~BODY_EPS slivers that may
 collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:** open, cosmetic.
+- **Closed 2026-10-16 (follow-ups session 2), measured:** over 17 fixtures (split curves, holes, angle cuts, every posture)
+  `bodyMesh` emits 5788 triangles, none with two equal Float32 vertices or zero Float32 area. `bodyMeshSlivers.test.ts`
+  pins that. It does NOT pin the 1e-12 skip itself: with the skip removed the fixtures still emit no degenerate triangle
+  (no fixture reaches a sub-1e-12 one). Dropping such triangles was not adopted: a collinear sliver's edges can pair with
+  its neighbours', and removing it could reopen the cracks fu 369 closed. **Status:** closed.
 
 **291. `joineryEstimateUsd` is unguarded internally** (App guards the angled case). **Status:** open, record-only.
 
 **292. Wording: "a long-start taper on a short part".** A taper whose start station lies past the part's far end, or
 that deepens toward the far end, is phrased from its deep end (ruling at Task 9); the wording for odd hand-edited
 starts has not been reviewed by the user. **Status:** open, the user may prefer other wording.
+- **Closed 2026-10-16: the user kept the wording** (shown "Taper off the width face (min side): 3/4" at the length min end,
+  1/4" at the length max end" for a line starting past the far end, beside the normal form). **Status:** closed.
 
 ## From the angle cuts round (chunk 2, miters) — 2026-10-12
 
@@ -5209,6 +5232,10 @@ from the + Add menu on a part wider than long (Taper stays). The resize half sta
 **297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
 start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored
 form by its first row edit. **Status:** open, hand-edited files only.
+- **Closed 2026-10-16 (follow-ups session 2).** `miterFields` returns null for an offset line (depth 0 at neither side of
+  `along`), the same test `bevelFields` already made, so the row falls back to the bench line and Remove — the AngleCuts
+  per-file rule (a reader returns null for what its row cannot represent). Tests: the reader (an offset, a zero inside the
+  part, null; the canonical, not) and the row (Remove, no Long point or Angle); both red before. **Status:** closed.
 
 ## From the angle cuts round (chunk 3, bevels and chamfers) — 2026-10-12
 
@@ -5338,6 +5365,10 @@ Refine refuse such hand-made parts.
 **314. Parts with rectangular cuts are not turned.** `turnCandidates` returns none for a part carrying rectangular cuts,
 non-taper angle cuts or non-standard tapers, so such parts link only when already equal. Turning them would mean re-storing
 cuts through `axisFrame`'s crossings. **Status:** open, fails safe (the parts stay unlinked).
+- **Closed 2026-10-16 as unreachable (follow-ups session 2).** `turnCandidates` runs only inside `linkByRole`, whose one
+  caller is `designToDocument` (Generate and Refine), and the converter writes every part with `cuts: []`; holes and
+  curves are refused by both. Rectangular cuts arrive only through joinery, after linking, whose write-back keeps sharing
+  by geometry (`regroupShapes`, fu 316). Reopen if Generate ever authors dadoes. **Status:** closed.
 
 **315. Mirror-only matches need mirrored placements.** Legs that match only through a reflection cannot share a Shape by
 turns alone; they need fu 232's mirrored placements from Generate. **Status:** open (depends on 232).

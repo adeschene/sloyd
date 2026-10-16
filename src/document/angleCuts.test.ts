@@ -160,7 +160,7 @@ describe('miter fields (spec §7)', () => {
   it('round-trips exactly, and an edit of side or end keeps depth === run (Review Focus 1)', () => {
     const b = rail();
     const c = { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, b) };
-    const f = miterFields(c, b);
+    const f = miterFields(c, b)!;
     expect(f).toEqual({ end: 'max', across: 'width', longSide: 'min', ratio: 1 });
     const moved = miterCut({ ...f, longSide: 'max', end: 'min' }, b);
     expect(moved.points).toEqual([[0, 0], [2.5, 2.5]]);
@@ -173,6 +173,14 @@ describe('miter fields (spec §7)', () => {
     // Deep at station 0 from the width min side: the long point is on the width MAX side.
     const c = { id: 'h', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 2.5], [2.5, 0]] as [[number, number], [number, number]] };
     expect(miterFields(c, b)).toEqual({ end: 'max', across: 'width', longSide: 'max', ratio: 1 });
+  });
+
+  it('an OFFSET miter (its line reaching depth 0 on neither side; hand-edited) reads as null, never rewritten (fu 297)', () => {
+    const b = rail();
+    const mk = (points: [[number, number], [number, number]]) => ({ id: 'o', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points });
+    expect(miterFields(mk([[0, 0.5], [2.5, 3]]), b)).toBeNull();
+    expect(miterFields(mk([[0.5, 0], [2.5, 2]]), b)).toBeNull();       // zero inside the part, not at a side
+    expect(miterFields(mk([[0, 0], [2.5, 2.5]]), b)).not.toBeNull();
   });
 
   it('defaults to a 45° miter across the width at the length max end, long point on the min side', () => {
