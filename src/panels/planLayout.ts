@@ -1,3 +1,5 @@
+import type { Drawing, P2 } from '../document/drawing';
+
 /** SVG user units across a plans figure (cf. DRAW_WIDTH for the part diagrams). */
 export const PLAN_WIDTH = 1000;
 /** Room on each side of a view for one dimension level (line, ticks, label). */
@@ -53,3 +55,7 @@ export function layoutSingle(r: Rect2): { scale: number; width: number; height: 
   const scale = Math.min(byW, byH, MAX_PLAN_SCALE);
   return { scale, width: 2 * ISO_MARGIN + w(r) * scale, height: 2 * ISO_MARGIN + h(r) * scale, at: { x: ISO_MARGIN, y: ISO_MARGIN } };
 }
+
+/** Drawing coordinates to SVG: x from the view's min right, y flipped about its max up (SVG y runs down). */
+export const toSvg = (d: Drawing, at: Placement, scale: number) => (p: P2): P2 =>
+  [at.x + (p[0] - d.bounds.min[0]) * scale, at.y + (d.bounds.max[1] - p[1]) * scale];

@@ -6,7 +6,7 @@ import { dimensionView, type DimLine } from '../document/dimensions';
 import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
 import { fitChain } from './planDims';
-import { DIM_BAND, PLAN_WIDTH, layoutTrio, type Placement } from './planLayout';
+import { DIM_BAND, PLAN_WIDTH, layoutTrio, toSvg, type Placement } from './planLayout';
 import { buildCutList, flatDocument } from '../document/document';
 import { anchorsFor, layoutBalloons, numberList, type PlacedBalloon } from './planBalloons';
 import { LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
@@ -20,9 +20,7 @@ const TICK = 6;
 const pageWidth = (width: number) => ({ width: `${(Math.min(width, PLAN_WIDTH) / PLAN_WIDTH) * 100}%` });
 const EXT_GAP = 4;
 
-type ToSvg = (p: P2) => P2;
-const mapper = (d: Drawing, at: Placement, scale: number): ToSvg =>
-  (p) => [at.x + (p[0] - d.bounds.min[0]) * scale, at.y + (d.bounds.max[1] - p[1]) * scale];
+type ToSvg = ReturnType<typeof toSvg>;
 
 /** Inches, in drawing coordinates: a segment starting where the previous one ended continues its subpath. */
 const CHAIN_EPS = 1e-9;
@@ -79,7 +77,7 @@ interface Fitted { overall: DimLine | null; chain: DimLine[] }
 
 /** One elevation with its dimensions: chain above/left, overall below/right (spec §5.4). */
 function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: number; h: Fitted; v: Fitted }) {
-  const map = mapper(d, at, scale);
+  const map = toSvg(d, at, scale);
   const left = at.x;
   const right = at.x + (d.bounds.max[0] - d.bounds.min[0]) * scale;
   const top = at.y;
@@ -173,7 +171,7 @@ export const ExplodedFigure = memo(function ExplodedFigure({ doc, amount }: { do
     <figure className="plans-figure-wrap">
       <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} role="img"
         aria-label="Exploded view" data-amount={amount} {...(lay.placed.length > 0 ? { fontSize: LABEL_SIZE } : {})}>
-        <Lines d={d} map={mapper(d, lay.at, lay.scale)} hidden={false} />
+        <Lines d={d} map={toSvg(d, lay.at, lay.scale)} hidden={false} />
         {lay.placed.map((b) => <Balloon key={b.number} b={b} r={lay.radius} />)}
       </svg>
       {notes.length > 0 && <ul className="plans-notes">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
