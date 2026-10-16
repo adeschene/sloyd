@@ -6,8 +6,10 @@ import { dimensionView, type DimLine } from '../document/dimensions';
 import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
 import { fitChain } from './planDims';
-import { DIM_BAND, PLAN_WIDTH, layoutSingle, layoutTrio, type Placement } from './planLayout';
-import { LABEL_SIZE } from './diagramLabels';
+import { DIM_BAND, PLAN_WIDTH, layoutTrio, type Placement } from './planLayout';
+import { buildCutList, flatDocument } from '../document/document';
+import { anchorsFor, layoutBalloons, numberList, type PlacedBalloon } from './planBalloons';
+import { LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
 
 const TICK = 6;
 
@@ -138,15 +140,43 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label }: { parts:
   );
 });
 
+/** The leader's end dot, in SVG units. */
+const DOT_R = 2.5;
+
+/** One balloon (plans balloons spec §3.3): a leader level from the circle's edge to its elbow, then to the anchor
+ *  (`PlacedBalloon`); a dot on the anchor; the circle; the number. */
+function Balloon({ b, r }: { b: PlacedBalloon; r: number }) {
+  const sx = b.centre[0] + Math.sign(b.elbow[0] - b.centre[0]) * r;
+  return (
+    <g className="plans-balloon" data-number={b.number}>
+      <path className="plans-leader" d={`M${sx} ${b.centre[1]}L${b.elbow[0]} ${b.elbow[1]}L${b.anchor[0]} ${b.anchor[1]}`} />
+      <circle className="plans-leader-dot" cx={b.anchor[0]} cy={b.anchor[1]} r={DOT_R} />
+      <circle className="plans-balloon-ring" cx={b.centre[0]} cy={b.centre[1]} r={r} />
+      <text x={b.centre[0]} y={b.centre[1] + (LABEL_ASCENT - LABEL_DESCENT) / 2} textAnchor="middle">{b.number}</text>
+    </g>
+  );
+}
+
 /** The isometric exploded view, visible lines only (spec §5.2 item 1; drawn without hidden lines, fu 344). Memoised on its
- *  props (fu 263): the sheet passes it a DEFERRED amount, so the slider's urgent render leaves it alone. */
+ *  props (fu 263): the sheet passes it a DEFERRED amount, so the slider's urgent render leaves it alone. One numbered
+ *  balloon per cut-list row, in columns beside the drawing (plans balloons spec §3–4). */
 export const ExplodedFigure = memo(function ExplodedFigure({ doc, amount }: { doc: SloydDocument; amount: number }) {
   const d = useMemo(() => drawView(worldParts(doc), ISO, explodeOffsets(doc, amount), { hiddenLines: false }), [doc, amount]);
-  const lay = layoutSingle(d.bounds);
+  // The cut list's own numbering (plans balloons spec §2): the sheet and the cut list cannot disagree.
+  const rows = useMemo(() => buildCutList(flatDocument(doc)).groups.flatMap((g) => g.rows), [doc]);
+  const plan = useMemo(() => anchorsFor(d, rows), [d, rows]);
+  const lay = useMemo(() => layoutBalloons(d, plan), [d, plan]);
+  const notes: string[] = [];
+  if (plan.hidden.length > 0) notes.push(`Not visible in this view: ${numberList(plan.hidden)}.`);
+  if (lay.unplaced.length > 0) notes.push(`Not ballooned (no room): ${numberList(lay.unplaced)}.`);
   return (
-    <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} role="img"
-      aria-label="Exploded view" data-amount={amount}>
-      <Lines d={d} map={mapper(d, lay.at, lay.scale)} hidden={false} />
-    </svg>
+    <figure className="plans-figure-wrap">
+      <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} role="img"
+        aria-label="Exploded view" data-amount={amount} {...(lay.placed.length > 0 ? { fontSize: LABEL_SIZE } : {})}>
+        <Lines d={d} map={mapper(d, lay.at, lay.scale)} hidden={false} />
+        {lay.placed.map((b) => <Balloon key={b.number} b={b} r={lay.radius} />)}
+      </svg>
+      {notes.length > 0 && <ul className="plans-notes">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+    </figure>
   );
 });

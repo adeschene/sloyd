@@ -5341,7 +5341,10 @@ real clicks in this round).
 
 **252. Numbered callouts linking the exploded figure to cut-list rows.** The exploded isometric names no part; a
 reader matches it to the cut list by eye. Spec §9, out of scope by decision.
-- **Status:** open.
+- **Status:** closed 2026-10-16 (plans balloons round, spec `2026-10-16-sloyd-plans-balloons-design.md`): one numbered balloon per
+  cut-list row on the exploded view, in columns beside it, a leader to a line drawn for the part; the cut list prints the row
+  number, and (the user's ruling) its sheet and board layouts label small parts with the same row number. Feature callouts
+  stay 333, 279, 362; residue 380.
 
 **253. User-placed dimensions.** The sheet's dimensions are automatic (overall plus chains, `document/dimensions.ts`).
 A dimension tool whose dimensions live in the document needs a schema bump (14) and a rollback cost; spec §9.
@@ -6274,3 +6277,20 @@ and the line's `vUp` are untested; X/Y closures are per iteration. (8) The plan'
 **379. drawView timing, and the real print (record).** A curved part's `drawView` costs about 6 ms per view (measured in Task 2:
 5.6 / 6.2 / 6.2 / 6.6 ms against the baseline 5.6 / 6.4 / 6.3 / 5.4), unchanged by chunk 2. The line weight of 96-chord arcs and
 the dash look on a real print are owed to the user's eye (with 254, 345, 357). **Status:** open for the user's print.
+
+## From the plans balloons round — 2026-10-16
+
+**380. Plans balloons residue.** (1) **Column balance, for the user's eye**: a column takes every anchor on its side of the
+drawing's centre, so a piece whose parts sit mostly right puts most balloons in one column (the live bookcase: 10 right, 2
+left) and its cascade slants the lower leaders steeply; moving the overflow to the emptier column, or ordering both columns
+around the drawing, would shorten them. (2) Leaders to anchors at different depths may cross (accepted in the spec). (3) An
+anchor is the midpoint of a part's longest visible segment, which can sit where another part's edge passes close by (the
+table's top and drawer front read fine; not measured on a dense piece). (4) The real print is owed with 254. (5) Balloons
+follow the exploded view only; the elevations and the viewport get none (R3). Final review's deferred minors: (6) anchors at
+EXACTLY one height are ordered by row number, not by x, so their leaders can cross; (7) `SheetLayout`'s comment still says its
+key reads 1, 2, 3 — with row numbers it reads sparse numbers in sheet-part order (and two parts of a row repeat theirs, as
+ruled); sorting the key by number is a look for the user's eye; (8) `ExplodedFigure` builds the full cut list (diagrams,
+nesting) for the numbers — once per document, unmeasured on a heavy holed/curved project; (9) the copies/mirrored sheet test
+checks unique, real numbers, not that every visible row got one or that its anchor is on its own part; (10) when one column
+passes the height cap its lowest rows go to the note even if the other column has room (with (1)). **Status:** open for (1)
+and (4); the rest record-only.

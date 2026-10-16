@@ -250,3 +250,28 @@ describe('the Saw kerf field (fu 98)', () => {
     expect(useStore.getState().doc.stock.kerf).toBe(0.125);
   });
 });
+
+// Plans balloons spec §2.1: each row leads with its number, the one a Plans sheet balloon cites.
+describe('row numbers (plans balloons §2.1)', () => {
+  it('leads each row with its number, in display order', () => {
+    load({ name: 'Short', length: 12 }, { name: 'Long', length: 30 });
+    const { container } = render(<CutList onClose={() => {}} />);
+    const nums = [...container.querySelectorAll('.cutlist-row > .cutlist-num')].map((e) => e.textContent);
+    expect(nums).toEqual(['1', '2']);
+    expect(container.querySelector('.cutlist-row')!.firstElementChild).toHaveClass('cutlist-num');
+  });
+  // The user's ruling (plan Task 2): a layout's small parts carry their ROW number, one series with the column.
+  it('a layout key cites the cut-list row number, not its own count', () => {
+    load(
+      { material: 'plywood', thickness: 0.75, length: 30, width: 11.25, name: 'Side' },
+      { material: 'plywood', thickness: 0.75, length: 30, width: 1.5, name: 'Cleat A' },
+      { material: 'plywood', thickness: 0.75, length: 30, width: 1.5, name: 'Cleat B' },
+    );
+    const { container } = render(<CutList onClose={() => {}} />);
+    const cleatRow = [...container.querySelectorAll('.cutlist-row')].find((r) => r.textContent!.includes('Cleat A'))!;
+    const n = cleatRow.querySelector('.cutlist-num')!.textContent;
+    expect(n).toBe('2');
+    const key = [...container.querySelectorAll('.cutlist-layout-key li')].map((li) => li.textContent);
+    expect(key).toEqual([`${n}. Cleat A — 30" × 1-1/2"`, `${n}. Cleat B — 30" × 1-1/2"`]);
+  });
+});

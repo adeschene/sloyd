@@ -46,6 +46,8 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
   // The flat document: placed parts named by their display paths (assemblies spec §6).
   const flat = flatDocument(doc);
   const list = buildCutList(flat);
+  // Each part's row number, so its layouts label small parts in the cut list's own series (plans balloons).
+  const rowNumbers = new Map(list.groups.flatMap((g) => g.rows).flatMap((r) => r.boardIds.map((id) => [id, r.number] as const)));
   const purchase = buildPurchase(flat, list, shop);
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
@@ -133,6 +135,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
               <ul className="cutlist-rows">
                 {group.rows.map((row) => (
                   <li className="cutlist-row" key={row.key}>
+                    <span className="cutlist-num">{row.number}</span>
                     <span className="cutlist-qty">{row.qty} ×</span>
                     <span className="cutlist-dims">{row.dims}</span>
                     <span className="cutlist-names">
@@ -170,7 +173,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                 <span className="cutlist-stock">{group.stock}</span>
               </p>
               {layouts && group.nesting && group.nesting.sheets.length > 0 && (
-                <SheetLayout nesting={group.nesting} stock={group.sheet!} />
+                <SheetLayout nesting={group.nesting} stock={group.sheet!} numbers={rowNumbers} />
               )}
             </section>
           ))
@@ -184,7 +187,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                 <h4>{e.label}</h4>
                 {e.lines.map((line, i) => <p className="cutlist-buying-line" key={`l${i}`}>{line}</p>)}
                 {e.notes.map((note, i) => <p className="cutlist-buying-note" key={`n${i}`}>{note}</p>)}
-                {layouts && e.layouts.map((l) => <SheetLayout key={l.key} nesting={l.nesting} stock={l.stock} noun={l.title} />)}
+                {layouts && e.layouts.map((l) => <SheetLayout key={l.key} nesting={l.nesting} stock={l.stock} noun={l.title} numbers={rowNumbers} />)}
               </div>
             ))}
             <p className="cutlist-buying-total">{purchase.totalLabel}</p>

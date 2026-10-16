@@ -76,6 +76,8 @@ visible segments, each tagged with its `part`), the rows (`number`, `boardIds`),
 - A circle whose radius fits the widest number on the figure, measured (`labelWidth`, `labelHeight`; inv 19), plus a
   pad — every balloon on a figure is one size. The number is centred in it.
 - A leader runs from the circle's edge toward the anchor and ends in a small dot ON the anchor.
+  *Amended (final review, 2026-10-16):* the leader runs LEVEL from the circle to an elbow in the `COLUMN_CLEAR` strip, then
+  straight to the anchor — a straight leader from a cascaded balloon passed through its neighbours' circles.
 
 ### 3.4 Room
 
