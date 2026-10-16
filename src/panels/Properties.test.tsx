@@ -1692,3 +1692,20 @@ describe('the cut offset field keeps the cut on the part (fu 53)', () => {
     expect(worldParts(useStore.getState().doc)[0].cuts[0].offset).toBe(20 / 25.4);
   });
 });
+
+// Fu 2: Add board focuses the new part's Length (once): consumed on mount, so selecting another part later does not
+// steal focus. MUTATE: drop the consume (focus on every mount) — the second half is red; drop the focus — the first is.
+describe('Add board focuses Length once (fu 2)', () => {
+  it('focuses the new part\'s Length, and a later selection does not', () => {
+    render(<Properties />);
+    act(() => useStore.getState().addBoard());
+    expect(document.activeElement).toBe(screen.getByLabelText('Length'));
+    act(() => { (document.activeElement as HTMLElement).blur(); });
+    const first = worldParts(useStore.getState().doc)[0].id;
+    act(() => useStore.getState().addBoard());
+    expect(document.activeElement).toBe(screen.getByLabelText('Length'));
+    act(() => { (document.activeElement as HTMLElement).blur(); });
+    act(() => useStore.getState().selectBoard(first));
+    expect(document.activeElement).not.toBe(screen.getByLabelText('Length'));
+  });
+});

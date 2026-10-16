@@ -247,6 +247,33 @@ describe('importProject', () => {
 
     await expect(promise).resolves.toEqual(doc);
   });
+
+  // Fu 2: the fallback timer is cleared the instant a selection arrives. The test above cannot see it — its file reads
+  // in a microtask, long before 300 ms. Here the read takes 500 ms (a large file), so an uncleared timer rejects the import
+  // as "cancelled" mid-read, and FileMenu swallows a cancel silently. MUTATE: drop onChange's clearTimeout — red.
+  it('a slow file read is not cut off by the focus-fallback', async () => {
+    vi.useFakeTimers();
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    const doc = docWithBoard();
+    const file = new File([JSON.stringify(doc)], 'bench.sloyd', { type: 'application/json' });
+    const json = JSON.stringify(doc);
+    Object.defineProperty(file, 'text', { value: () => new Promise<string>((r) => setTimeout(() => r(json), 500)) });
+
+    let capturedInput: HTMLInputElement | undefined;
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
+      this: HTMLInputElement,
+    ) {
+      capturedInput = this;
+      Object.defineProperty(this, 'files', { value: [file], configurable: true });
+    });
+
+    const promise = a.importProject();
+    const assertion = expect(promise).resolves.toEqual(doc);
+    window.dispatchEvent(new Event('focus'));
+    capturedInput!.dispatchEvent(new Event('change'));
+    await vi.advanceTimersByTimeAsync(600);
+    await assertion;
+  });
 });
 
 describe('exportProject', () => {
