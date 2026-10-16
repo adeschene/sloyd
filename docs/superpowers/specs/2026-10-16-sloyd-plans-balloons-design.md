@@ -1,7 +1,7 @@
 # Sloyd — Plans sheet part balloons (design)
 
-Date: 2026-10-16. Follow-up 252 ("Numbered callouts linking the exploded figure to cut-list rows"). Status: written for
-the user's review.
+Date: 2026-10-16. Follow-up 252 ("Numbered callouts linking the exploded figure to cut-list rows"). Status: approved 2026-10-16;
+plan `docs/superpowers/plans/2026-10-16-sloyd-plans-balloons.md`.
 
 ## 1. Purpose and rulings
 
