@@ -7,6 +7,20 @@ export interface WorldBox { min: V3; max: V3 }
 
 const EPS = 1e-9;
 
+/**
+ * A stored number within EPS of a 1/64" or a 0.1 mm grid point, as that point's exact float (fu 216); anything else as
+ * computed. A box reaches a part through differences of world coordinates, and through a reflection on a reversed axis,
+ * so the same physical cut came out an ulp apart by turn and by position, and the cut list's EXACT row key (inv 18)
+ * split parts that print the same. Dyadic first (exact); 0.1 mm as `parseLength` stores a typed `x.y` mm. Never applied
+ * to the row key: this is where the cut is stored.
+ */
+function onGrid(v: number): number {
+  const d = Math.round(v * 64) / 64;
+  if (Math.abs(v - d) <= EPS) return d;
+  const m = Math.round(v * 254) / 10 / 25.4;
+  return Math.abs(v - m) <= EPS ? m : v;
+}
+
 /** A part's own box in world space (invariant 2: position is the min corner). */
 export function boxOf(b: Board): WorldBox {
   const e = boardExtents(b);
@@ -69,11 +83,11 @@ export function pocketFor(board: Board, box: WorldBox): Cut {
   const cut: Cut = {
     id: nextId(),
     face, from, across,
-    offset: local[pos][0],
-    width: local[pos][1] - local[pos][0],
-    depth,
-    stopMin: local[across][0],
-    stopMax: board[across] - local[across][1],
+    offset: onGrid(local[pos][0]),
+    width: onGrid(local[pos][1] - local[pos][0]),
+    depth: onGrid(depth),
+    stopMin: onGrid(local[across][0]),
+    stopMax: onGrid(board[across] - local[across][1]),
   };
   // Stored the way the cut sheet reads it (cut-storage spec §3.2). The board's
   // existing cuts matter: another cut can open one of this cut's ends (the
