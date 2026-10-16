@@ -531,7 +531,8 @@ bookcase (arch in Front; inward shelf-pin rows hidden in every view, keyed on da
 (miters in Plan 4×, tapers at the feet 8×), a metric cabinet assembly (hinge cups keyed on its trio only, in mm, 2×).
 Residue 381. No schema change. Final review (opus): a densely drilled part (~450 holes on one panel) overflowed the stack in
 `planKeys` and blanked the app — fixed (centres one loop per view); a no-op angle cut was keyed — fixed; a never-listed definition
-under two listed assemblies keyed twice — kept, for the user (381(4)). Merged as `ec438c9`, 4604 tests across 155 files.
+under two listed assemblies keyed twice — kept, for the user (381(4)). Merged as `ec438c9`, 4604 tests across 155 files. Deployed as `f1773b4` (`index-CaMRIw2a.js`, CSS `index-CovHntf8.css`): hashes
+match `dist/` in-network and at the edge, old bundle 404s, CSP correct, a real page load clean, its keys removed.
 
 **What the 179–380 triage did (2026-10-16)** (docs only, on master, after the plans balloons deploy; the user's ask). Most of
 these entries already carried `**Status:**` lines, but several held more than one and the first often still read `open`; the

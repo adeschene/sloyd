@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is plans balloons** (merge `2cbfff4`, deployed as `80520db`, bundle `index-CCbseJx_.js`, CSS `index-CfI7jQOq.css`);
-  rollback to follow-ups 4 (`a9c678e`, `index-BxqTdZO2.js`) or fu 96 (`bcd2715`, `index-BspJH3pS.js`) is free.
+- **Production is feature callouts** (merge `ec438c9`, deployed as `f1773b4`, bundle `index-CaMRIw2a.js`, CSS `index-CovHntf8.css`);
+  rollback to plans balloons (`80520db`, `index-CCbseJx_.js`) or follow-ups 4 (`a9c678e`, `index-BxqTdZO2.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -69,7 +69,7 @@ handicraft education tradition built around hand woodworking.
   cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
   balance, for the user's eye; the real print).
 - **Feature callouts (2026-10-16, spec `2026-10-16-sloyd-feature-callouts-design.md`, plan `…-feature-callouts.md`, merged as
-  `ec438c9`, NOT deployed; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
+  `ec438c9`, deployed as `index-CaMRIw2a.js`; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
   its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
   (tags over dimension lines, for the user's eye; the real print).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
