@@ -253,11 +253,16 @@ function curveSignature(board: Board): string {
  * from one running along its length, so collapsing those would produce a row
  * you cannot cut as a batch.
  */
+/** A board's GROUP: material and displayed thickness. The row key BEGINS with these, so a group can never hold a board its
+ *  row does not (fu 54: two hand-written lists could drift into an empty group heading). */
+function groupFields(board: Board, units: Units): string[] {
+  return [board.material, formatLength(board.thickness, units)];
+}
+
 function rowKey(board: Board, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   return [
-    board.material,
-    f(board.thickness),
+    ...groupFields(board, units),
     f(board.length),
     f(board.width),
     board.grain,
@@ -300,7 +305,7 @@ export function buildCutList(doc: FlatDocument): CutList {
   const groupBoards = new Map<CutListGroup, Board[]>();
 
   for (const board of doc.boards) {
-    const groupKey = `${board.material}|${formatLength(board.thickness, units)}`;
+    const groupKey = groupFields(board, units).join('|');
     let group = groups.get(groupKey);
     if (!group) {
       group = {
