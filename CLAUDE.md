@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is follow-ups 2** (merge `0f4d732`, deployed as `4ad8881`, bundle `index-BFCf2c3f.js`); rollback to fu 368
-  (`676225c`, `index-DG6bkBPk.js`) or follow-ups 1 (`558187f`, `index-LdkILHkB.js`) is free.
+- **Production is follow-ups 3** (merge `11743cd`, deployed as `d07cbaa`, bundle `index-DwWqjN7c.js`, CSS `index-BiANCUDt.css`);
+  rollback to follow-ups 2 (`4ad8881`, `index-BFCf2c3f.js`) or fu 368 (`676225c`, `index-DG6bkBPk.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -53,7 +53,7 @@ handicraft education tradition built around hand woodworking.
 - **Follow-ups 2 (2026-10-16, merged as `0f4d732`, deployed as `index-BFCf2c3f.js`; no schema change)**: closed 297 (offset miters read-only),
   290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
   kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
-- **Follow-ups 3 (2026-10-16, merged as `11743cd`, NOT deployed; no schema change, so deploying or rolling back is free)**: from the 1–178 triage, closed 168 (a
+- **Follow-ups 3 (2026-10-16, merged as `11743cd`, deployed as `index-DwWqjN7c.js`; no schema change)**: from the 1–178 triage, closed 168 (a
   failed run's spend reported, `< $0.01`), 53 (offset refused past `posDim - width`), 152 (Escape returns focus to the caret), 95
   (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
   and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). The user's rulings (2026-10-16): 37
