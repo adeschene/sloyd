@@ -68,8 +68,8 @@ handicraft education tradition built around hand woodworking.
   `2cbfff4`, deployed as `index-CCbseJx_.js`; no schema change)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
   cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
   balance, for the user's eye; the real print).
-- **Feature callouts (2026-10-16, spec `2026-10-16-sloyd-feature-callouts-design.md`, plan `…-feature-callouts.md`; no schema
-  change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
+- **Feature callouts (2026-10-16, spec `2026-10-16-sloyd-feature-callouts-design.md`, plan `…-feature-callouts.md`, merged as
+  `ec438c9`, NOT deployed; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
   its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
   (tags over dimension lines, for the user's eye; the real print).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
