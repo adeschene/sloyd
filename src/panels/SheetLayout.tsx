@@ -1,6 +1,6 @@
 import type { Nesting, NestedSheet, SheetStock } from '../document/document';
 import { DRAW_WIDTH } from './diagramScale';
-import { fitLabel, labelHeight, LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
+import { fitLabel, holdsIndex, labelHeight, labelWidth, packRow, LABEL_ASCENT, LABEL_BOX_H, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
 
 /**
  * Clearance between a label and its rectangle's edge, in drawing units.
@@ -11,6 +11,11 @@ import { fitLabel, labelHeight, LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from '
  * `LABEL_SIZE`, one constant over.
  */
 export const PAD = 6;
+
+/** Fu 96: the clearance between the drawing's edge and a callout number's box, and between numbers in a row. */
+export const CALLOUT_GAP = 8;
+/** One callout row: the gap, a label's height, and the gap again before anything beyond the drawing. */
+const CALLOUT_ROW = CALLOUT_GAP + LABEL_BOX_H + CALLOUT_GAP;
 
 /**
  * One sheet of stock with the parts laid out on it.
@@ -45,32 +50,62 @@ function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: Sheet
   // so it stays correct even though `keyed.push` happens after this read.
   let nextIndex = 1;
 
+  // One pass decides every part's tier, number and whether that number is a callout; the drawing reads it below.
+  const placed = sheet.parts.map((p) => {
+    const x = p.x * s;
+    const y = p.y * s;
+    const w = p.w * s;
+    const ph = p.h * s;
+    // `requireDetail: p.turned` — follow-up 161. The `name` tier prints
+    // the name alone, so a turned part whose rect fits its name but not
+    // its dimension line would print neither its dimensions nor the word
+    // 92 put on that line. Demoting it to `index` trades a name in place
+    // for a key entry carrying all three, which is strictly more.
+    // The BOOLEAN is what travels, never a search of `p.dims` for the
+    // word: `nesting.ts` keeps the fact beside the string so nobody has
+    // to parse it back out.
+    const tier = fitLabel([p.name, p.dims], w - 2 * PAD, ph - 2 * PAD, {
+      requireDetail: p.turned,
+    });
+    let indexLabel: number | null = null;
+    if (tier === 'index') {
+      indexLabel = nextIndex;
+      nextIndex += 1;
+      keyed.push({ n: indexLabel, name: `${p.name} — ${p.dims}` });
+    }
+    // Fu 96: a rectangle that cannot hold even its number calls it out beside the drawing, on the nearer long edge.
+    const callout: 'above' | 'below' | null = indexLabel !== null && !holdsIndex(String(indexLabel), w - 2 * PAD, ph - 2 * PAD)
+      ? (y + ph / 2 > h / 2 ? 'below' : 'above')
+      : null;
+    return { p, x, y, w, ph, tier, indexLabel, callout };
+  });
+
+  // The callout rows: each number packed along its edge (`packRow`: measured boxes, left-to-right by the part's centre, so
+  // a crowded row cascades instead of overlapping), a leader from the part's near edge to its own number.
+  const rows = (['above', 'below'] as const).map((side) => {
+    const items = placed
+      .filter((q) => q.callout === side)
+      .sort((a, b) => (a.x + a.w / 2) - (b.x + b.w / 2));
+    const centres = packRow(
+      items.map((q) => ({ centre: q.x + q.w / 2, width: labelWidth(String(q.indexLabel)) })),
+      0, DRAW_WIDTH, CALLOUT_GAP,
+    );
+    return { side, items, centres };
+  });
+  const above = rows[0].items.length > 0 ? CALLOUT_ROW : 0;
+  const below = rows[1].items.length > 0 ? CALLOUT_ROW : 0;
+
   return (
     <figure className="cutlist-layout">
       <figcaption className="cutlist-layout-head">{noun} {index + 1}</figcaption>
       <svg
-        viewBox={`0 0 ${DRAW_WIDTH} ${h}`}
+        viewBox={`0 ${-above} ${DRAW_WIDTH} ${h + above + below}`}
         fontSize={LABEL_SIZE}
         role="img"
         aria-label={`${noun} ${index + 1}, ${sheet.parts.length} part${sheet.parts.length === 1 ? '' : 's'}`}
       >
         <rect className="cutlist-layout-sheet" x={0} y={0} width={DRAW_WIDTH} height={h} />
-        {sheet.parts.map((p) => {
-          const x = p.x * s;
-          const y = p.y * s;
-          const w = p.w * s;
-          const ph = p.h * s;
-          // `requireDetail: p.turned` — follow-up 161. The `name` tier prints
-          // the name alone, so a turned part whose rect fits its name but not
-          // its dimension line would print neither its dimensions nor the word
-          // 92 put on that line. Demoting it to `index` trades a name in place
-          // for a key entry carrying all three, which is strictly more.
-          // The BOOLEAN is what travels, never a search of `p.dims` for the
-          // word: `nesting.ts` keeps the fact beside the string so nobody has
-          // to parse it back out.
-          const tier = fitLabel([p.name, p.dims], w - 2 * PAD, ph - 2 * PAD, {
-            requireDetail: p.turned,
-          });
+        {placed.map(({ p, x, y, w, ph, tier, indexLabel, callout }) => {
           const cx = x + w / 2;
           const cy = y + ph / 2;
           // (LABEL_ASCENT - LABEL_DESCENT) / 2 centres the measured glyph box
@@ -78,12 +113,6 @@ function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: Sheet
           // alone — the earlier arithmetic here — biased every label toward
           // the bottom of its box by DESCENT/2 (finding 3).
           const base = cy + (LABEL_ASCENT - LABEL_DESCENT) / 2;
-          let indexLabel: number | null = null;
-          if (tier === 'index') {
-            indexLabel = nextIndex;
-            nextIndex += 1;
-            keyed.push({ n: indexLabel, name: `${p.name} — ${p.dims}` });
-          }
           return (
             <g key={p.boardId}>
               <rect className="cutlist-layout-part" x={x} y={y} width={w} height={ph} />
@@ -94,10 +123,23 @@ function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: Sheet
                 </>
               )}
               {tier === 'name' && <text x={cx} y={base} textAnchor="middle">{p.name}</text>}
-              {tier === 'index' && <text x={cx} y={base} textAnchor="middle">{indexLabel}</text>}
+              {tier === 'index' && callout === null && <text x={cx} y={base} textAnchor="middle">{indexLabel}</text>}
             </g>
           );
         })}
+        {rows.map(({ side, items, centres }) => items.map((q, i) => {
+          // The number's measured box sits CALLOUT_GAP outside the sheet's edge; the leader runs from the part's near edge
+          // to the box's near edge.
+          const top = side === 'below' ? h + CALLOUT_GAP : -CALLOUT_GAP - labelHeight();
+          const partEdge = side === 'below' ? q.y + q.ph : q.y;
+          const boxEdge = side === 'below' ? top : top + labelHeight();
+          return (
+            <g key={`callout-${q.p.boardId}`}>
+              <line className="cutlist-layout-leader" x1={q.x + q.w / 2} y1={partEdge} x2={centres[i]} y2={boxEdge} />
+              <text x={centres[i]} y={top + LABEL_ASCENT} textAnchor="middle">{q.indexLabel}</text>
+            </g>
+          );
+        }))}
       </svg>
       {keyed.length > 0 && (
         <ul className="cutlist-layout-key">

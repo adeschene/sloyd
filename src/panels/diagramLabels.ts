@@ -120,6 +120,14 @@ export const LABEL_BOX_H = LABEL_ASCENT + LABEL_DESCENT;
  */
 export const labelHeight = (): number => LABEL_BOX_H;
 
+/**
+ * Whether a rectangle holds an index NUMBER (fu 96) — measured as `fitLabel`'s tiers are, on the number's own string. The
+ * `index` tier is the ladder's last rung and carries no check of its own; a part that cannot hold even its number is drawn
+ * as a CALLOUT beside the drawing instead (SheetLayout), and keeps its key entry.
+ */
+export const holdsIndex = (n: string, boxW: number, boxH: number): boolean =>
+  labelWidth(n) <= boxW && labelHeight() <= boxH;
+
 /** Which of a sheet-layout label's three tiers a part's rectangle can hold. */
 export type LabelTier = 'full' | 'name' | 'index';
 

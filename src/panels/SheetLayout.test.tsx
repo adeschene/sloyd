@@ -115,3 +115,62 @@ describe('SheetLayout label tiers', () => {
     ]);
   });
 });
+
+/**
+ * Fu 96: a part too small to hold even its index number (a 1-1/2" rip on a sheet, any part on a 1×2 board) used to draw
+ * the number anyway, overflowing its rectangle. It becomes a CALLOUT: the number in a row just outside the drawing's
+ * nearer long edge, with a leader to the part, and its key entry as before. The sheet's own rectangle never moves.
+ */
+describe('callouts for parts too small for their number (fu 96)', () => {
+  const H = STOCK.width * SCALE;
+  // A rip whose rectangle cannot hold a label's height: 1-1/2" is ~15.6 units against labelHeight() + 2 * PAD.
+  const strip = (over: Partial<PlacedPart>) => part({ name: 'Cleat', dims: '24" × 1-1/2"', w: 24, h: 1.5, ...over });
+  const svg = () => document.querySelector('svg')!;
+  const leaders = () => [...document.querySelectorAll('line.cutlist-layout-leader')];
+  const textAt = (n: string) => [...document.querySelectorAll('svg text')].filter((t) => t.textContent === n);
+
+  it('puts a number below the sheet for a part in its lower half, with a leader to the part', () => {
+    draw([strip({ y: 40 })]);
+    const [, y0, , vh] = svg().getAttribute('viewBox')!.split(' ').map(Number);
+    expect(y0).toBe(0);
+    expect(vh).toBeGreaterThan(H);
+    const [label] = textAt('1');
+    expect(Number(label.getAttribute('y'))).toBeGreaterThan(H);
+    expect(leaders()).toHaveLength(1);
+    const l = leaders()[0];
+    // From the part's near (bottom) edge, at its centre, to the number.
+    expect(Number(l.getAttribute('x1'))).toBeCloseTo((0 + 24 / 2) * SCALE);
+    expect(Number(l.getAttribute('y1'))).toBeCloseTo((40 + 1.5) * SCALE);
+    expect(Number(l.getAttribute('x2'))).toBeCloseTo(Number(label.getAttribute('x')));
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual(['1. Cleat — 24" × 1-1/2"']);
+  });
+
+  it('puts it above the sheet for a part in its upper half', () => {
+    draw([strip({ y: 2 })]);
+    const [, y0, , vh] = svg().getAttribute('viewBox')!.split(' ').map(Number);
+    expect(y0).toBeLessThan(0);
+    expect(y0 + vh).toBe(H);
+    expect(Number(textAt('1')[0].getAttribute('y'))).toBeLessThan(0);
+    expect(Number(leaders()[0].getAttribute('y1'))).toBeCloseTo(2 * SCALE);
+  });
+
+  it('leaves a sheet with no callouts exactly as it was: no row, no leader', () => {
+    draw([part({})]);
+    expect(svg().getAttribute('viewBox')).toBe(`0 0 ${DRAW_WIDTH} ${H}`);
+    expect(leaders()).toHaveLength(0);
+  });
+
+  it('keeps each leader on its own number when a crowded row shifts them (fu 71)', () => {
+    // Three strips side by side, each narrower than three numbers' width: packRow must cascade them.
+    const w = 0.5;
+    draw([0, 1, 2].map((i) => strip({ boardId: `s${i}`, name: `Rip ${i}`, x: 10 + i * w, y: 20, w, h: 24 })));
+    expect(leaders()).toHaveLength(3);
+    const xs = ['1', '2', '3'].map((n) => Number(textAt(n)[0].getAttribute('x')));
+    leaders().forEach((l, i) => {
+      expect(Number(l.getAttribute('x1'))).toBeCloseTo((10 + i * w + w / 2) * SCALE);
+      expect(Number(l.getAttribute('x2'))).toBeCloseTo(xs[i]);
+    });
+    // Measured, not merely ordered: no two numbers' boxes overlap.
+    for (let i = 1; i < 3; i += 1) expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(labelWidth(String(i + 1)));
+  });
+});

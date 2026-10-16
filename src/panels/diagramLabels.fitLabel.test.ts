@@ -1,4 +1,4 @@
-import { fitLabel, labelWidth, labelHeight } from './diagramLabels';
+import { fitLabel, holdsIndex, labelWidth, labelHeight } from './diagramLabels';
 
 const NAME = 'Side Panel';
 // Fractional-inch, not whole-inch: both more representative of what the cut
@@ -104,5 +104,18 @@ describe('fitLabel', () => {
     expect(fitLabel([NAME, DIMS], labelWidth(NAME) + 1, tall)).toBe('name');
     expect(fitLabel([NAME, DIMS], labelWidth(NAME) + 1, tall, { requireDetail: false }))
       .toBe('name');
+  });
+});
+
+describe('holdsIndex (fu 96: a part too small for even its number becomes a callout)', () => {
+  it('holds the number when both the measured width and the label height fit', () => {
+    expect(holdsIndex('12', labelWidth('12'), labelHeight())).toBe(true);
+  });
+  it('does not when the box is a unit too short', () => {
+    expect(holdsIndex('1', 100, labelHeight() - 1)).toBe(false);
+  });
+  it('does not when the box is a unit too narrow for THIS number', () => {
+    expect(holdsIndex('12', labelWidth('12') - 1, 100)).toBe(false);
+    expect(holdsIndex('1', labelWidth('12') - 1, 100)).toBe(true);
   });
 });

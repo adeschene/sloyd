@@ -1270,6 +1270,13 @@ select.input { cursor: pointer; }
   stroke-width: 2;
 }
 
+/* Fu 96: a callout's leader, from a part too small for its number to that number beside the drawing. Thinner and
+   dimmer than a part's outline, so it reads as annotation rather than as another part's edge. */
+.cutlist-layout-leader {
+  stroke: var(--ink-dim);
+  stroke-width: 1.5;
+}
+
 /* NO MARKER, and the number stays in the TEXT (follow-up 162). Each <li>
    already begins with its own `n. `, taken from the same `nextIndex` counter
    that drew the number inside the part's rectangle, so the default disc
@@ -1429,6 +1436,7 @@ select.input { cursor: pointer; }
   .cutlist-layout svg { fill: #000; }
   .cutlist-layout-part { fill: #fff; stroke: #000; }
   .cutlist-layout-sheet { stroke: #000; }
+  .cutlist-layout-leader { stroke: #000; }
   .cutlist-unplaceable { color: #000; font-weight: 600; }
   .cutlist-layout { break-inside: avoid; }
 
