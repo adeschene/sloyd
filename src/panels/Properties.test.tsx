@@ -1642,3 +1642,53 @@ describe('Properties in a metric project', () => {
     expect(width).toHaveValue('120 mm');
   });
 });
+
+describe('the cut offset field keeps the cut on the part (fu 53)', () => {
+  const setupCut = () => {
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    act(() => {
+      const st = useStore.getState();
+      st.addCut(id);
+      const [c] = worldParts(useStore.getState().doc)[0].cuts;
+      st.updateCut(id, c.id, { face: 'thickness', from: 'min', across: 'width', offset: 6, width: 6, depth: 0.25, stopMin: 0, stopMax: 0 });
+    });
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    return () => worldParts(useStore.getState().doc)[0].cuts[0];
+  };
+  it('refuses an offset that would push the cut past the end, and keeps the width field satisfiable', async () => {
+    const cut = setupCut();
+    const offset = screen.getByLabelText('From the end');
+    await userEvent.clear(offset); await userEvent.type(offset, '20{Enter}');
+    expect(screen.getByText(/Must be at most/)).toBeInTheDocument();
+    expect(cut().offset).toBe(6);
+    expect(cut().width).toBe(6);
+  });
+  it('takes an offset that puts the cut flush with the far end', async () => {
+    const cut = setupCut();
+    const offset = screen.getByLabelText('From the end');
+    await userEvent.clear(offset); await userEvent.type(offset, '18{Enter}');
+    expect(screen.queryByText(/Must be at most/)).toBeNull();
+    expect(cut().offset).toBe(18);
+    expect(cut().width).toBe(6);
+  });
+  it('takes a typed offset equal to the displayed max in metric: a 140 mm part, a 120 mm cut, offset 20', async () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    act(() => {
+      const st = useStore.getState();
+      st.updateBoard(id, { length: 140 / 25.4 });
+      st.addCut(id);
+      const [c] = worldParts(useStore.getState().doc)[0].cuts;
+      st.updateCut(id, c.id, { face: 'thickness', from: 'max', across: 'width', offset: 5 / 25.4, width: 120 / 25.4, depth: 0.25, stopMin: 0, stopMax: 0 });
+    });
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    const offset = screen.getByLabelText('From the end');
+    await userEvent.clear(offset); await userEvent.type(offset, '20{Enter}');
+    expect(screen.queryByText(/Must be at most/)).toBeNull();
+    expect(worldParts(useStore.getState().doc)[0].cuts[0].offset).toBe(20 / 25.4);
+  });
+});

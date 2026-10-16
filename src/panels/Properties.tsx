@@ -253,8 +253,10 @@ function CutRow({ board, cut, units, solids }: { board: Board; cut: Cut; units: 
         value={cut.stopMax} min={0} max={Math.max(0, acrossDim - cut.stopMin)}
         onCommit={(v) => set({ stopMax: v })} />
 
+      {/* offset + width <= posDim, refused from either field (fu 53): an offset past `posDim - width` would leave the
+          width field's max at 0, refusing every value until the offset came back. */}
       <DimensionField key={`offset-${attempt}`} label="From the end" units={units} value={cut.offset}
-        min={0} max={posDim} onCommit={(v) => set({ offset: v })} />
+        min={0} max={Math.max(0, posDim - cut.width)} onCommit={(v) => set({ offset: v })} />
       <DimensionField key={`width-${attempt}`} label="Cut width" units={units} value={cut.width}
         max={Math.max(0, posDim - cut.offset)} onCommit={(v) => set({ width: v })} />
       <DimensionField key={`depth-${attempt}`} label="Depth" units={units} value={cut.depth}
