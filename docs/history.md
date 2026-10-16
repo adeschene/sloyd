@@ -507,6 +507,17 @@ and 79.
 
 ## What each round did
 
+**What the plans balloons round did (2026-10-16)** (spec `2026-10-16-sloyd-plans-balloons-design.md`, plan `…-plans-balloons.md`,
+run inline (the user's choice), branch `plans-balloons` from master `4d017c4`). Fu 252: `buildCutList` numbers every row in
+display order and carries its parts' ids; the cut list leads each row with the number; `planBalloons.ts` anchors each row on the
+midpoint of its most visible part's longest visible segment and packs balloons in left/right columns beside the exploded view
+(`packRow`; the figure grows toward `TRIO_MAX_HEIGHT` only for a tall column; with no balloons the layout is `layoutSingle`'s);
+rows with nothing visible, or past the cap, are listed in a note. The user's ruling at Task 2 (screenshot of the clash): the
+sheet and board layouts label small parts with their ROW number, not their own 1, 2, 3 — one series. Plan defects ruled and
+ledgered: a numbering fixture already in display order (its mutation could not fail), a dead zero-length guard, a leader test
+whose anchors all coincided. Live: a side table (5 rows) and a 13-row bookcase on the dev server, print emulation (black ink).
+Residue 380 (column balance; the real print). 4559 tests. No schema change.
+
 **What follow-ups 4 did (2026-10-16)** (branch `follow-ups-4` from master `b16deb9`, merged as `c27f8ff`; the user asked for the
 triage's remaining test gaps and small items in order). Test gaps: 127 (an added cut consuming an older cut's held shoulder; a
 grab surviving another cut's edit), 13 (negative feet-and-inches; a throwing autosave read — the third branch is
