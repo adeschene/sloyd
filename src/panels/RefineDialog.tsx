@@ -6,7 +6,7 @@ import { MAX_REPAIRS } from '../generate/run';
 import { shownText } from '../document/designCheck';
 import type { RefineSettings } from '../generate/refine';
 import type { RefineRun } from '../useRefine';
-import { formatCostRange } from '../generate/estimate';
+import { formatCost, formatCostRange } from '../generate/estimate';
 import type { CostRange } from '../generate/estimate';
 import { parseLimit } from './GenerateDialog';
 
@@ -120,7 +120,7 @@ export function RefineDialog(p: Props) {
         {p.run && (
           <div className={`generate-run generate-run-${p.run.status}`}>
             <span className="generate-run-status">{statusText(p.run)}</span>
-            {p.run.costUsd !== null && <span className="generate-run-cost">{`≈ $${p.run.costUsd.toFixed(2)}`}</span>}
+            {p.run.costUsd !== null && <span className="generate-run-cost">{formatCost(p.run.costUsd)}</span>}
           </div>
         )}
         {out && p.run && (

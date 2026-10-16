@@ -73,6 +73,36 @@ describe('useRefine', () => {
     expect(createProject).not.toHaveBeenCalled();
     expect(result.current.run).toMatchObject({ status: 'failed', error: 'API key was rejected — check Settings.' });
   });
+  // fu 168: an attempt that answered, then a call that failed — the first call's tokens were spent and are reported.
+  it('reports what was spent before a failing call (fu 168)', async () => {
+    const { result } = setup();
+    let n = 0;
+    const c: LlmClient = {
+      complete: vi.fn(async () => {
+        n += 1;
+        if (n === 1) return { json: {}, assistantTurn: {}, usage: { ...usage, inputTokens: 300 } };
+        throw new LlmError('network', 'Network error.');
+      }),
+      userTurn: (t) => t,
+      estimateCostUsd: (u) => u.inputTokens / 100,
+    };
+    act(() => result.current.start(c, doc, S));
+    await waitFor(() => expect(result.current.live).toBe(false));
+    expect(result.current.run).toMatchObject({ status: 'failed', costUsd: 3 });
+  });
+
+  it('reports no cost when the first call fails (fu 168)', async () => {
+    const { result } = setup();
+    const c: LlmClient = {
+      complete: vi.fn(async () => { throw new LlmError('network', 'Network error.'); }),
+      userTurn: (t) => t,
+      estimateCostUsd: (u) => u.inputTokens / 100,
+    };
+    act(() => result.current.start(c, doc, S));
+    await waitFor(() => expect(result.current.live).toBe(false));
+    expect(result.current.run).toMatchObject({ status: 'failed', costUsd: null });
+  });
+
 });
 
 describe('progressPatch', () => {

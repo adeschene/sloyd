@@ -6,7 +6,7 @@ import { MAX_REPAIRS } from '../generate/run';
 import { shownText } from '../document/designCheck';
 import type { JointKind } from '../generate/joints/sites';
 import type { JoineryRun } from '../useJoinery';
-import { formatCostRange } from '../generate/estimate';
+import { formatCost, formatCostRange } from '../generate/estimate';
 import type { CostRange } from '../generate/estimate';
 
 interface Props {
@@ -109,7 +109,7 @@ export function JoineryDialog(p: Props) {
         {p.run && (
           <div className={`generate-run generate-run-${p.run.status}`}>
             <span className="generate-run-status">{statusText(p.run)}</span>
-            {p.run.costUsd !== null && <span className="generate-run-cost">{`≈ $${p.run.costUsd.toFixed(2)}`}</span>}
+            {p.run.costUsd !== null && <span className="generate-run-cost">{formatCost(p.run.costUsd)}</span>}
           </div>
         )}
         {out && p.run && (

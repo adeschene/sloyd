@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { RunFailed, runRefine } from './generate/run';
+import { runRefine, spentOnFailure } from './generate/run';
 import type { RefineOutcome, RefineProgress } from './generate/run';
 import type { RefineSettings } from './generate/refine';
 import type { SloydDocument } from './document/document';
@@ -60,7 +60,8 @@ export function useRefine(opts: { onCreated: (id: string) => void; onStorageVerd
         optsRef.current.onCreated(id);
         setRun({ status: 'ready', projectId: id, projectName: name, outcome: out, costUsd });
       } catch (e) {
-        const costUsd = e instanceof RunFailed ? client.estimateCostUsd(e.usage) : null;
+        const spentUsage = spentOnFailure(e);
+        const costUsd = spentUsage ? client.estimateCostUsd(spentUsage) : null;
         if (e instanceof LlmError && e.kind === 'cancelled') setRun({ status: 'cancelled', costUsd });
         else setRun({ status: 'failed', error: e instanceof Error ? e.message : 'Unexpected error.', costUsd });
       } finally {

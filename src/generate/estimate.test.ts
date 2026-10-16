@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { LlmUsage } from '../llm/types';
-import { CHARS_PER_TOKEN, HIGH_OUTPUT_HEADROOM, REPAIR_MESSAGE_TOKENS, costRange, formatCostRange, withOptional } from './estimate';
+import { CHARS_PER_TOKEN, HIGH_OUTPUT_HEADROOM, REPAIR_MESSAGE_TOKENS, costRange, formatCost, formatCostRange, withOptional } from './estimate';
 
 // A price table whose four rates differ, so a token billed at the wrong rate changes the sum.
 const price = (u: LlmUsage) => u.inputTokens * 1 + u.outputTokens * 10 + u.cacheReadTokens * 0.1 + u.cacheWriteTokens * 1.25;
@@ -57,4 +57,13 @@ describe('withOptional', () => {
 describe('formatCostRange', () => {
   it('shows both ends', () => { expect(formatCostRange({ low: 0.05, high: 0.4 })).toBe('≈ $0.05–$0.40'); });
   it('one figure when both ends round alike', () => { expect(formatCostRange({ low: 0.051, high: 0.054 })).toBe('≈ $0.05'); });
+});
+
+describe('formatCost (fu 168)', () => {
+  it('shows cents', () => { expect(formatCost(0.123)).toBe('≈ $0.12'); });
+  it('a run that spent under half a cent never reads as free', () => {
+    expect(formatCost(0.004)).toBe('< $0.01');
+    expect(formatCost(0.0001)).toBe('< $0.01');
+  });
+  it('half a cent and up rounds as cents', () => { expect(formatCost(0.005)).toBe('≈ $0.01'); });
 });

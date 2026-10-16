@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { FALLBACK_CONCEPTS, planConcepts } from './generate/concepts';
-import { runGeneration, RunFailed } from './generate/run';
+import { runGeneration, spentOnFailure } from './generate/run';
 import type { RunProgress } from './generate/run';
 import type { Concept, GenerateSettings } from './generate/prompt';
 import { LlmError } from './llm/types';
@@ -122,7 +122,8 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
             authError = e.message;
             ctl.abort();
           }
-          const costUsd = e instanceof RunFailed ? client.estimateCostUsd(e.usage) : null;
+          const spentUsage = spentOnFailure(e);
+          const costUsd = spentUsage ? client.estimateCostUsd(spentUsage) : null;
           if (authError) patch(key, { status: 'failed', error: authError, costUsd });
           else if (e instanceof LlmError && e.kind === 'cancelled') patch(key, { status: 'cancelled', costUsd });
           else patch(key, { status: 'failed', error: e instanceof Error ? e.message : 'Unexpected error.', costUsd });
