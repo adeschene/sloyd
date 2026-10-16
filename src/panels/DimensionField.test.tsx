@@ -256,6 +256,34 @@ describe('DimensionField — mixed (value null)', () => {
     expect(onCommit).toHaveBeenCalledWith(0.75);
   });
 
+  it('typed into, then cleared: blur leaves it mixed — no error, nothing written (fu 210)', async () => {
+    const { onCommit, input } = setup({ value: null });
+    await userEvent.type(input, '3/4');
+    await userEvent.clear(input);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+    expect(input).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('typed into, then cleared: Enter leaves it mixed too (fu 210)', async () => {
+    const { onCommit, input } = setup({ value: null });
+    await userEvent.type(input, '3/4');
+    await userEvent.clear(input);
+    await userEvent.keyboard('{Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('a field WITH a value, cleared and blurred, is still refused (empty is not a length)', async () => {
+    const { onCommit, input } = setup({ value: 1.5 });
+    await userEvent.clear(input);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
+
   it('Escape reverts a draft to the empty mixed box', async () => {
     const { onCommit, input } = setup({ value: null });
     await userEvent.type(input, '3/4{Escape}');

@@ -372,6 +372,50 @@ describe('gesture coalescing', () => {
     expect(worldParts(useStore.getState().doc)[0].position).toEqual([0, 0, 0]);
   });
 
+  it('undo and redo are refused mid-gesture, so the drag keeps its one entry (fu 208)', () => {
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    useStore.getState().updateBoard(id, { length: 30 });            // something to undo before the drag
+    const before = useStore.getState().past.length;
+    useStore.getState().beginGesture();
+    useStore.getState().updateBoard(id, { position: [1, 0, 0] });
+    useStore.getState().undo();                                       // pressed mid-drag: nothing happens
+    expect(worldParts(useStore.getState().doc)[0]).toMatchObject({ position: [1, 0, 0], length: 30 });
+    useStore.getState().updateBoard(id, { position: [2, 0, 0] });
+    useStore.getState().redo();
+    useStore.getState().endGesture();
+    expect(useStore.getState().past.length).toBe(before + 1);
+    useStore.getState().undo();                                       // the drag, whole
+    expect(worldParts(useStore.getState().doc)[0]).toMatchObject({ position: [0, 0, 0], length: 30 });
+  });
+
+  it('redo is refused once a gesture has begun, even before its first edit (fu 208)', () => {
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    useStore.getState().updateBoard(id, { length: 30 });
+    useStore.getState().undo();
+    useStore.getState().beginGesture();                               // pressed, not yet moved
+    useStore.getState().redo();
+    expect(worldParts(useStore.getState().doc)[0]!.length).not.toBe(30);
+    useStore.getState().endGesture();
+    useStore.getState().redo();
+    expect(worldParts(useStore.getState().doc)[0]!.length).toBe(30);
+  });
+
+  it('a delete is refused mid-gesture, so it never merges into the drag\'s entry (fu 209)', () => {
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    const before = useStore.getState().past.length;
+    useStore.getState().beginGesture();
+    useStore.getState().updateBoard(id, { position: [1, 0, 0] });
+    useStore.getState().deleteBoards([id]);
+    expect(worldParts(useStore.getState().doc)).toHaveLength(1);
+    useStore.getState().endGesture();
+    expect(useStore.getState().past.length).toBe(before + 1);
+    useStore.getState().deleteBoards([id]);                           // after the drag: its own entry
+    expect(useStore.getState().past.length).toBe(before + 2);
+  });
+
   it('records nothing for a gesture that made no edit', () => {
     useStore.getState().addBoard();
     const before = useStore.getState().past.length;

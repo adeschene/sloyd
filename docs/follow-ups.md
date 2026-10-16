@@ -4341,15 +4341,27 @@ key.** The mid-drag abandon effect keys on the selection, so an undo that alters
 dimensions while the control is dragging leaves `commit` reading the new size against a proxy
 positioned for the old one. Pre-existing on the single-part path.
 - **Status:** open, low.
+- **Closed 2026-10-16 (follow-ups session 2).** Worse than recorded: an undo mid-drag popped the drag's own snapshot while
+  `gestureSnapshotTaken` stayed set, so the rest of the drag edited with no undo entry at all. `undo` and `redo` are now
+  refused while `gesturing`, as a hide is (inv 43). Ctrl+Z inside a field never reached them (`isTextEntry`), and the
+  toolbar's Undo blurs a focused field (ending its gesture) before its click. Tests: undo mid-drag changes nothing and the
+  drag stays one entry; redo is refused from the press, before the first edit; each guard mutated away is red.
+  **Status:** closed.
 
 **209. A Delete pressed mid-drag merges into the drag's undo entry.** The gesture's lazy snapshot is
 already taken, so the deletion shares the drag's single entry. Pre-existing on the single path.
 - **Status:** open, low.
+- **Closed 2026-10-16 (follow-ups session 2).** `deleteBoards` (and so `deleteBoard`) is refused while `gesturing`; the
+  delete after the drag gets its own entry. Test: delete mid-drag does nothing, the drag is one entry, a delete after it
+  another; mutated, red. **Status:** closed.
 
 **210. A mixed group field typed into, then cleared, shows a parse error on blur until Escape.** The
 blank draft in a field whose stored value is mixed reads as an unparseable entry. The single panel
 behaves the same way.
 - **Status:** open, low, cosmetic.
+- **Closed 2026-10-16 (follow-ups session 2).** A MIXED field (`value: null`) whose text is empty on blur or Enter is treated
+  as untouched: it stays mixed, writes nothing, shows no error. A field with a value, emptied, is still refused (empty is not
+  a length). Tests: cleared then blur, cleared then Enter, and the valued field's refusal; mutated, red. **Status:** closed.
 
 **211. Small coverage gaps the round judged fine to leave.** Record-only.
 - `duplicateBoards` collapsing a repeated id, and dropping a grab that is not a copy, has no test.

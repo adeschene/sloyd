@@ -476,6 +476,7 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`useGenerations.ts`**: auth or cancel during planning starts no run; a cancel landing
   as planning resolves is caught before the runs (its test asserts run CALLS).
 - **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
+  `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
 - **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
   post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
@@ -486,7 +487,7 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   is a no-op); `selectable` is required so Move's commit click cannot select its target.
 - **`Viewport.tsx`**: the projection swap re-frames only once `controls.object === camera`,
   or it aims the new camera at the origin.
-- **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. Enter commits
+- **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. A mixed field emptied after typing is untouched (fu 210). Enter commits
   and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
   it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
   until its own next commit or an external resync — no sibling clears it (holes chunk 1 R7, R8). AngleCuts' Angle fields return their refusal too (fu 339; unreachable through today's bounds).

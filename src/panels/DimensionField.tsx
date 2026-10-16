@@ -101,6 +101,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   // Parses/validates/normalises the text unconditionally. Callers decide
   // whether a commit should happen at all (see the `dirty` guard on blur).
   // False when the entry was refused.
+  const clearedMixed = () => value === null && text.trim() === '';
   const commit = (): boolean => {
     const parsed = parse ? parse(text) : parseLength(text, units);
     if (parsed === null) {
@@ -176,7 +177,10 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
           // skips while editing, and its deps don't fire again once
           // editing.current goes false, so nothing else will ever resync
           // the display. Do that here, without committing.
-          if (!dirty.current) {
+          // A MIXED field typed into and then emptied is back where it started (fu 210): it stays mixed, writes nothing
+          // and shows no error. A field with a value, emptied, is still refused below — empty is not a length.
+          if (!dirty.current || clearedMixed()) {
+            dirty.current = false;
             setText(display(value));
             setError(null);
             return;
@@ -189,7 +193,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
           // input's. A refused entry keeps focus so it can be fixed. An
           // untouched Enter just blurs, through the ordinary untouched path.
           if (e.key === 'Enter') {
-            if (dirty.current) {
+            if (dirty.current && !clearedMixed()) {
               if (!commit()) return;
               blurHandled.current = true;
             }
