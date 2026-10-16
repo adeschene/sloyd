@@ -4,6 +4,7 @@ import { buildCutList, flatDocument } from '../document/document';
 import { isMetric } from '../units/length';
 import { PartDiagram } from './PartDiagram';
 import { SheetLayout } from './SheetLayout';
+import { DimensionField } from './DimensionField';
 import { buildPurchase, defaultShop, type ShopSettings } from '../document/purchase';
 
 const DEFAULT_SHOP = defaultShop();
@@ -41,6 +42,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
   suspended?: boolean;
 }) {
   const doc = useStore((s) => s.doc);
+  const setKerf = useStore((s) => s.setKerf);
   // The flat document: placed parts named by their display paths (assemblies spec §6).
   const flat = flatDocument(doc);
   const list = buildCutList(flat);
@@ -92,6 +94,12 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                 <option value="all">All parts</option>
               </select>
             </label>
+            {/* Fu 98: the project's saw kerf, read by the sheet and board packers. Max 1/2" — no saw cuts wider, and the
+                store refuses anything the loader would not keep (< 1"). */}
+            <div className="cutlist-kerf">
+              <DimensionField label="Saw kerf" units={doc.units} value={doc.stock.kerf} min={0} max={0.5}
+                onCommit={(v) => setKerf(v)} />
+            </div>
             <label className="checkbox cutlist-layout-mode">
               <input
                 type="checkbox"

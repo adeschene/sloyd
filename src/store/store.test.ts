@@ -3328,3 +3328,26 @@ describe('duplicating a curved part (curves spec §6.2)', () => {
     expect(b!.curves[0]!.segments).not.toBe(a!.curves[0]!.segments);
   });
 });
+
+// Fu 98: the saw kerf is a project setting the sheet packer reads; it had no control.
+describe('setKerf (fu 98)', () => {
+  beforeEach(() => { useStore.getState().replaceDocument(createDocument('Kerf')); });
+  it('writes the kerf as one undoable edit', () => {
+    useStore.getState().setKerf(0.25);
+    expect(useStore.getState().doc.stock.kerf).toBe(0.25);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.stock.kerf).toBe(0.125);
+  });
+  it('pushes no entry for the kerf it already has', () => {
+    const past = useStore.getState().past.length;
+    useStore.getState().setKerf(0.125);
+    expect(useStore.getState().past.length).toBe(past);
+  });
+  // The loader DEFAULTS a kerf outside [0, 1) (Versioning: 4→5), so storing one would be silently replaced on the next
+  // open. Refused, never clamped.
+  it.each([-0.01, 1, 2, Number.NaN, Number.POSITIVE_INFINITY])('refuses %f, which the loader would not keep', (k) => {
+    useStore.getState().setKerf(k);
+    expect(useStore.getState().doc.stock.kerf).toBe(0.125);
+    expect(useStore.getState().canUndo()).toBe(false);
+  });
+});
