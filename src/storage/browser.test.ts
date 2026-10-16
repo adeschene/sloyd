@@ -996,6 +996,29 @@ describe('project CRUD', () => {
   });
 });
 
+// Fu 154: two tabs are two adapters over ONE storage. Every index write re-reads the index (`readIndexForWrite`), so a
+// tab never writes from the copy it last saw and cannot drop the other tab's row. MUTATE: cache the index in the adapter
+// after its first read — tab A's project vanishes from the list, red.
+describe('two tabs on one origin (fu 154)', () => {
+  it('a project each tab creates keeps its row, and a delete in one tab is seen by the other', async () => {
+    const store = new FakeStorage();
+    const tabA = new BrowserStorageAdapter(store);
+    const tabB = new BrowserStorageAdapter(store);
+    const { activeId: first } = await tabA.openLibrary();
+    await tabB.openLibrary();
+    // Interleaved: B writes, A writes, B writes again — B's second write must start from A's row, not B's last read.
+    const fromB0 = await tabB.createProject(createDocument('From B first'), { activate: false });
+    const fromA = await tabA.createProject(createDocument('From A'), { activate: false });
+    const fromB = await tabB.createProject(createDocument('From B'), { activate: false });
+    expect((await tabA.listProjects()).map((p) => p.id).sort()).toEqual([first, fromB0, fromA, fromB].sort());
+    await tabA.deleteProject(fromB!);
+    expect((await tabB.listProjects()).map((p) => p.id)).not.toContain(fromB);
+    // Tab B, still holding the deleted project, cannot write it back into a row (autoSave refuses an id with no row).
+    await tabB.autoSave(fromB!, createDocument('From B'));
+    expect((await tabA.listProjects()).map((p) => p.id)).not.toContain(fromB);
+  });
+});
+
 describe('readProject: why a project cannot be opened (fu 35)', () => {
   it('returns the document when it reads', async () => {
     const store = new FakeStorage();
