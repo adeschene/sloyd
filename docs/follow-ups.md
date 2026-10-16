@@ -3541,6 +3541,7 @@ record rather than retune. Recorded now because the argument for the current sta
 
 **Status:** open (hygiene, one CSS rule; a visual change for the user's nod): no `.project-row:focus-within` reveal. (triaged 2026-10-16)
 **Status:** fixed on the branch 2026-10-16 (follow-ups 5); THE LOOK IS OWED TO THE USER. `.project-row:has(:focus-visible) .project-row-action` joins the hover reveal — KEYBOARD focus only (`:focus-within` was tried first and dropped: Duplicate focuses itself on click, so a mouse user would have kept both lit). A CSS test pins the rule and the absence of `:focus-within`. Seen live: a menu opened by mouse shows no actions; Tab onto the row shows both, and onto Duplicate both with its ring (`docs/img/fu151-row-focus.png`); a fresh mouse-only load, a real click on Duplicate, pointer moved away: none lit, `:focus-visible` false. (A click after earlier Tabs in the same page does read `:focus-visible` — Chromium carries the last modality into a programmatic `focus()`; accepted, it is the keyboard user's page.)
+**Status:** CLOSED 2026-10-16 — the user looked at the deployed row actions and approved: "The row actions look fine."
 
 **152. Escape closes the project menu and leaves focus on `<body>` rather than returning it
 to the caret.** Confirmed live: `document.activeElement` after an Escape from an armed delete
@@ -4721,6 +4722,7 @@ committed meanwhile; `commit` and `onMouseUp` ignore the abandoned drag.
 - **Status:** open, low, no data harm. Pending the live check's view of it (item 9).
 **Status:** open (cosmetic; real hardware): unchanged — after an abandon, three-stdlib's own drag still runs to mouse-up; `Gizmo.tsx`'s abandon comment names it. Nothing is committed. (triaged 2026-10-16)
 **Status:** open (follow-ups 5 looked, 2026-10-16; real hardware): the only remedy is three-stdlib's public `controls.dragging = false` (+ `axis = null`) on abandon, which stops `pointerMove` — but `dragging` is a defineProperty whose setter dispatches `dragging-changed`, and drei answers it by RE-ENABLING the orbit controls mid-press; if the orbit controls took that pointerdown, the camera would start orbiting with the pointer, worse than today's cosmetic follow. Not applied: needs a real mouse to judge. Nothing is committed either way.
+**Status:** record-only by the user's ruling 2026-10-16: "the gizmo glitch is real but it's probably going to be a rare sequence of actions, so maybe not worth chasing unless it's simple to fix." It is not simple (the one remedy risks orbiting the camera mid-press; previous Status). Do not re-open unasked.
 
 **208. Undo/redo pressed mid-drag can change a selected part's size without changing the selection
 key.** The mid-drag abandon effect keys on the selection, so an undo that alters a selected part's

@@ -74,8 +74,8 @@ handicraft education tradition built around hand woodworking.
   (tags over dimension lines, for the user's eye; the real print).
 - **Follow-ups 5 (2026-10-16, merged as `007ea3a`, deployed as `index-uIgR_wtf.js`; no schema change)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
   the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
-  (no sliver cell; it was marked crossing). 151 fixed (row actions reveal on KEYBOARD focus) — the look owed to the user. 207
-  looked at and left open (the remedy re-enables orbit mid-press; real mouse). Residue 382.
+  (no sliver cell; it was marked crossing), 151 (row actions reveal on KEYBOARD focus; the user approved the look). 207
+  record-only by the user's ruling (rare; the one remedy re-enables orbit mid-press). Residue 382.
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -1007,17 +1007,16 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Open as work (code-sized, all low):** 8, 12, 17, 19, 27, 31, 126, 128, 169, 175 (1–178); 234 (the concept planner is
-  not taught assemblies), 269 (packer heuristic: measure a losing case first). 207 (gizmo after an abandon) needs a real mouse:
-  its one remedy re-enables orbit mid-press (fu 207's last Status).
+  not taught assemblies), 269 (packer heuristic: measure a losing case first).
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
   views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
 - **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 381(3), 374 if a print shows the fold);
   real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 151 (row actions on keyboard focus), 319, 380(1) column balance, 381(1) tags over dimension lines, 381(4) a shared unlisted definition keyed twice, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 319, 380(1) column balance, 381(1) tags over dimension lines, 381(4) a shared unlisted definition keyed twice, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.
-- **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 163's residue (do not re-open
+- **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
   unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
