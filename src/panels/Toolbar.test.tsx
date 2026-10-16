@@ -20,7 +20,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       onOpenPlans={noop}
       libraryAvailable={false}
       activeId=""
-      onOpenProject={noop}
+      onOpenProject={async () => null}
       onNewProject={noop}
       onDuplicateProject={asyncOk}
       onDeleteProject={asyncNoop}

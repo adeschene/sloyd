@@ -86,6 +86,27 @@ describe('ProjectMenu', () => {
     expect(onDelete).not.toHaveBeenCalled();
   });
 
+  // Fu 35: a project that cannot be opened (saved by a newer version, unreadable) used to do nothing at all.
+  it('a row that cannot be opened stays in the open menu and says why', async () => {
+    const onOpen = vi.fn().mockResolvedValue('This project was saved by a newer version of Sloyd (file version 18).');
+    render(<ProjectMenu activeId="a" onOpen={onOpen} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
+    const user = await open();
+    await screen.findAllByText('Workbench');
+    await user.click(openRows()[0]);
+    expect(onOpen).toHaveBeenCalledWith('b');
+    expect(await screen.findByText(/saved by a newer version of Sloyd/)).toBeInTheDocument();
+    expect(screen.getByText('Shaker end table')).toBeInTheDocument();
+  });
+
+  it('a row that opens closes the menu', async () => {
+    const onOpen = vi.fn().mockResolvedValue(null);
+    render(<ProjectMenu activeId="a" onOpen={onOpen} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
+    const user = await open();
+    await screen.findAllByText('Workbench');
+    await user.click(openRows()[0]);
+    await waitFor(() => expect(screen.queryByText('Workbench')).toBeNull());
+  });
+
   it('closes on Escape without opening anything', async () => {
     const onOpen = vi.fn();
     render(<ProjectMenu activeId="a" onOpen={onOpen} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);

@@ -70,6 +70,8 @@ export interface StorageAdapter {
   openLibrary(): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>;
   /** One project's document, or null if its key is missing or unusable. */
   loadProject(id: string): Promise<SloydDocument | null>;
+  /** One project's document, or why it cannot be opened — a newer version's refusal names itself (fu 35). */
+  readProject(id: string): Promise<{ doc: SloydDocument } | { error: string }>;
   /** Every project, most recently saved first. */
   listProjects(): Promise<ProjectEntry[]>;
   /**

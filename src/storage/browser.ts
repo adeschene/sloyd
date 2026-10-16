@@ -14,6 +14,8 @@ export const LLM_KEY = 'sloyd.llm.v1';
 /** Browser-level lumber and price settings (lumber yield and cost spec §2). Never part of a project. */
 export const SHOP_KEY = 'sloyd.shop.v1';
 export const PROJECT_PREFIX = 'sloyd.project.';
+/** Why a project whose key is missing or not JSON cannot be opened (fu 35). */
+export const UNREADABLE_PROJECT = "Couldn't open — this project can't be read.";
 /** The browser's custom-material library (custom materials spec §2.4). Never part of a project. */
 export const MATERIALS_KEY = 'sloyd.materials.v1';
 const MATERIALS_LAYOUT = 1;
@@ -483,13 +485,20 @@ export class BrowserStorageAdapter implements StorageAdapter {
   }
 
   async loadProject(id: string): Promise<SloydDocument | null> {
-    if (!this.store || !id) return null;
+    const r = await this.readProject(id);
+    return 'doc' in r ? r.doc : null;
+  }
+
+  async readProject(id: string): Promise<{ doc: SloydDocument } | { error: string }> {
+    if (!this.store || !id) return { error: UNREADABLE_PROJECT };
     const raw = readJSON(this.store, PROJECT_PREFIX + id);
-    if (raw === null) return null;
+    if (raw === null) return { error: UNREADABLE_PROJECT };
     try {
-      return migrateDocument(raw);
-    } catch {
-      return null;
+      return { doc: migrateDocument(raw) };
+    } catch (e) {
+      // A DocumentError's message is written for the user (the import path shows it too): a newer version's refusal names
+      // itself. Anything else is a bug, and reads as unreadable rather than as its stack.
+      return { error: e instanceof DocumentError ? e.message : UNREADABLE_PROJECT };
     }
   }
 

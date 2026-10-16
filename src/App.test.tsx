@@ -257,6 +257,10 @@ vi.mock('./storage/browser', () => ({
     capabilities: { recentFiles: false, realPaths: false },
     openLibrary: () => openLibrary(),
     loadProject: (...args: unknown[]) => loadProject(...(args as [string])),
+    readProject: async (...args: unknown[]) => {
+      const doc = await loadProject(...(args as [string]));
+      return doc ? { doc } : { error: "Couldn't open — this project can't be read." };
+    },
     listProjects: () => listProjects(),
     createProject: (...args: unknown[]) =>
       createProject(...(args as [SloydDocument, { activate?: boolean }?])),
@@ -799,6 +803,21 @@ describe('App project switching', () => {
 
     expect(useStore.getState().doc.name).toBe('Untitled');
     expect(setActiveProject).not.toHaveBeenCalledWith(idA);
+  });
+
+  // Fu 35: a project that cannot be opened (here: its load fails) used to do nothing; the menu now says why.
+  it('a project that cannot be opened stays put and says why in the menu', async () => {
+    fake.seed(createDocument('Future'), 'pF');
+    fake.seed(createDocument('Home'), 'pHome');
+    render(<App />);
+    await settle();
+    const before = useStore.getState().doc.name;
+    loadProject.mockImplementation(async () => null);
+    await openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /^Future/ }));
+    await settle();
+    expect(useStore.getState().doc.name).toBe(before);
+    expect(screen.getByText("Couldn't open — this project can't be read.")).toBeInTheDocument();
   });
 
   it('ends on the row the user clicked last when two loads resolve out of order', async () => {
