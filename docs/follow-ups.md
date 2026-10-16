@@ -5158,6 +5158,10 @@ and finite station span, but a huge finite slope can still overflow the depth. *
 
 **287. Sloped snap corners carry ~1e-14 noise**, against invariant 25 (exact moves are never rounded) and
 `sameSnapPoint`'s exact comparison. **Status:** open; decide whether a snap tolerance or a canonical corner is wanted.
+- **Closed 2026-10-16 by the user's ruling: record-only.** Measured: on `chiralAngled` in every posture and turn, 16 of 936
+  snap coordinates sit one ulp off a 1/64" step (a turned part's corner at `13.124999999999998`). Deterministic (the same
+  arithmetic every time, so `sameSnapPoint` still matches its own points), rounded away by every display, and no size or
+  cut depends on it — only a snapped position stores it. **Status:** closed, record-only.
 
 **288. SLIVER / BODY_EPS sub-micro behaviour.** Hand-edited features below ~1e-6 in draw approximately (spec ruling);
 the coplanar test's absolute 1e-9 on |n.u| should be noted in the SLIVER comment; `boardEdges` has no output filter for
@@ -5182,6 +5186,8 @@ collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:*
 **292. Wording: "a long-start taper on a short part".** A taper whose start station lies past the part's far end, or
 that deepens toward the far end, is phrased from its deep end (ruling at Task 9); the wording for odd hand-edited
 starts has not been reviewed by the user. **Status:** open, the user may prefer other wording.
+- **Closed 2026-10-16: the user kept the wording** (shown "Taper off the width face (min side): 3/4" at the length min end,
+  1/4" at the length max end" for a line starting past the far end, beside the normal form). **Status:** closed.
 
 ## From the angle cuts round (chunk 2, miters) — 2026-10-12
 
