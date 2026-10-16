@@ -1,6 +1,7 @@
 import { cabinetsDoc } from './treeFixtures';
 import { createBoard, createDocument } from './document';
-import { planAssemblies } from './plans';
+import { pieceKeyed, planAssemblies } from './plans';
+import { worldParts } from './tree';
 import type { SloydDocument } from './types';
 
 describe('planAssemblies', () => {
@@ -67,5 +68,35 @@ describe('planAssemblies', () => {
     // Now drop the loose copy: dd's only placement is dx's sole child → skipped; dx still kept.
     const only = { ...doc, instances: doc.instances.filter((i) => i.id !== 'L') };
     expect(planAssemblies(only).map((a) => a.definition)).toEqual(['dx']);
+  });
+});
+
+describe('keyed parts (feature callouts spec §2.1)', () => {
+  it('each part is keyed by its innermost LISTED assembly; the piece trio keys only loose parts', () => {
+    const doc = cabinetsDoc();
+    const as = planAssemblies(doc);
+    expect([...pieceKeyed(doc, as)]).toEqual(['r']);
+    const by = new Map(as.map((a) => [a.definition, [...a.keyed]]));
+    expect(by.get('dc')).toEqual(['side']);    // dr/front belongs to dd, listed and deeper
+    expect(by.get('dd')).toEqual(['front']);
+    expect(by.get('ds')).toEqual(['only']);
+  });
+  it('every world part is keyed exactly once across the sheet (an assembly placed 3 times keys once)', () => {
+    const doc = cabinetsDoc();
+    const as = planAssemblies(doc);
+    const owners = worldParts(doc).map((p) => p.id.split('/').at(-1)!);
+    const keyedIds = [...pieceKeyed(doc, as), ...as.flatMap((a) => [...a.keyed])];
+    expect(new Set(keyedIds)).toEqual(new Set(owners));
+    expect(keyedIds).toHaveLength(new Set(keyedIds).size);
+  });
+  it('a sole-child wrapper is not listed, so its parts are keyed by the trio above', () => {
+    const doc: SloydDocument = {
+      ...createDocument('W'),
+      instances: [{ id: 'w', name: 'Wrap', definition: 'dw', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'dw', boards: [createBoard({ id: 'b', name: 'B' })], instances: [] }],
+    };
+    const as = planAssemblies(doc);
+    expect(as).toEqual([]);
+    expect([...pieceKeyed(doc, as)]).toEqual(['w/b']);
   });
 });
