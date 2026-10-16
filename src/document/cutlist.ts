@@ -33,6 +33,11 @@ export interface CutListRow {
   /** The identity string this row was grouped by. Stable, and the React key. */
   key: string;
   qty: number;
+  /** 1-based position in display order across every group (plans balloons spec §2): the ONE row number, printed on
+   *  the cut list and on the Plans sheet's balloons. Assigned once, after the sort below; never stored. */
+  number: number;
+  /** The ids of the row's boards, in document order (`flatDocument` ids, which are `worldParts` ids). */
+  boardIds: string[];
   /** Board names, in document order. Unique per invariant 8. */
   names: string[];
   length: number;
@@ -328,7 +333,9 @@ export function buildCutList(doc: FlatDocument): CutList {
       row = {
         key,
         qty: 0,
+        number: 0,
         names: [],
+        boardIds: [],
         length: board.length,
         width: board.width,
         thickness: board.thickness,
@@ -358,6 +365,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     if (row.qty > 0 && row.nominal !== null && nominalName(board.thickness, board.width, units) !== row.nominal) row.nominal = null;
     row.qty += 1;
     row.names.push(board.name);
+    row.boardIds.push(board.id);
 
     // Accumulated HERE, in the same visit that increments `qty`, and from this
     // board's own exact dimensions — see stockInches' doc comment. Adding to
@@ -394,5 +402,8 @@ export function buildCutList(doc: FlatDocument): CutList {
       catalog.label(a.material).localeCompare(catalog.label(b.material)) ||
       b.thickness - a.thickness,
   );
+  // The ONE numbering (plans balloons spec §2): display order, after both sorts.
+  let n = 0;
+  for (const group of out) for (const row of group.rows) row.number = ++n;
   return { groups: out };
 }

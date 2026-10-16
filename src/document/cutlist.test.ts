@@ -876,3 +876,41 @@ describe('every group has its rows (fu 54)', () => {
     expect(list.groups.flatMap((g) => g.rows).reduce((n, r) => n + r.qty, 0)).toBe(doc.boards.length);
   });
 });
+
+// Plans balloons spec §2: one number per row, in display order, assigned once by buildCutList.
+describe('row numbers and board ids (plans balloons §2)', () => {
+  const mixed = () => {
+    const doc = createDocument('Numbers');
+    const b = (o: Partial<Board>) => createBoard({ length: 24, width: 6, thickness: 0.75, ...o });
+    // Document order is NOT display order (pine first): numbering before the group sort would show.
+    doc.boards.push(
+      b({ name: 'Pine long', material: 'pine', length: 30 }),
+      b({ name: 'Oak short', material: 'oak', length: 12 }),
+      b({ name: 'Oak long', material: 'oak', length: 30 }),
+      b({ name: 'Pine long 2', material: 'pine', length: 30 }),
+      b({ name: 'Panel', material: 'plywood', length: 30, width: 20 }),
+    );
+    return doc;
+  };
+  it('numbers rows 1..N in the order the cut list displays them, across groups', () => {
+    const list = buildCutList(mixed());
+    const rows = list.groups.flatMap((g) => g.rows);
+    expect(rows.map((r) => r.number)).toEqual(rows.map((_, i) => i + 1));
+    // Display order: groups by material label (Oak, Pine, Plywood), rows by length descending.
+    expect(rows.map((r) => r.names.join('+'))).toEqual(['Oak long', 'Oak short', 'Pine long+Pine long 2', 'Panel']);
+  });
+  it('lists every board in exactly one row, by id, in document order', () => {
+    const doc = mixed();
+    const rows = buildCutList(doc).groups.flatMap((g) => g.rows);
+    expect(rows.flatMap((r) => r.boardIds).sort()).toEqual(doc.boards.map((b) => b.id).sort());
+    const pine = rows.find((r) => r.qty === 2)!;
+    expect(pine.boardIds).toEqual([doc.boards[0].id, doc.boards[3].id]);
+  });
+  it('renumbers when an edit re-sorts the rows', () => {
+    const doc = mixed();
+    const before = buildCutList(doc).groups.flatMap((g) => g.rows).find((r) => r.names[0] === 'Oak short')!.number;
+    doc.boards[1] = { ...doc.boards[1], length: 40 }; // Oak short becomes the longest oak row
+    const after = buildCutList(doc).groups.flatMap((g) => g.rows).find((r) => r.names[0] === 'Oak short')!.number;
+    expect([before, after]).toEqual([2, 1]);
+  });
+});
