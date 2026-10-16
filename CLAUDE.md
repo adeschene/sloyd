@@ -64,8 +64,8 @@ handicraft education tradition built around hand woodworking.
   test gaps 127, 13, 54 (`groupFields`: the group key is the row key's prefix), 2 (an import test that could not fail, fixed);
   98 (a Saw kerf field in the cut list header, `setKerf`), 154 (closed: the index is re-read on every write; pinned with two
   adapters), 6 (`1  1/2`, `1 - 1/2` parse).
-- **Plans balloons (2026-10-16, spec `2026-10-16-sloyd-plans-balloons-design.md`, plan `…-plans-balloons.md`, branch `plans-balloons`,
-  NOT deployed; no schema change)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
+- **Plans balloons (2026-10-16, spec `2026-10-16-sloyd-plans-balloons-design.md`, plan `…-plans-balloons.md`, merged as
+  `2cbfff4`, NOT deployed; no schema change, so deploying or rolling back is free)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
   cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
   balance, for the user's eye; the real print).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
