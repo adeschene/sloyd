@@ -18,7 +18,13 @@
 
 ## Deployment record
 
-**Production matches `master` as of 2026-10-16 with fu 368 live** (`index-DG6bkBPk.js`, CSS unchanged, deployed commit `676225c`,
+**Production matches `master` as of 2026-10-16 with follow-ups 2 live** (`index-BFCf2c3f.js`, CSS unchanged, deployed commit
+`4ad8881`, merge `0f4d732`, schema 17 unchanged — rollback to fu 368, `676225c` / `index-DG6bkBPk.js`, is free). Deployed on the
+user's word (4482 tests, build clean). Verified as below: `200` on `/` and a deep route in-network and at the edge, the edge
+bundle's sha256 matching `dist/`, the old bundle 404 in-network, the CSP at the edge, a real-browser load (0 errors, "+ Add
+board" present), its two keys removed from a plain asset page and read back empty after 3s.
+
+The previous deployment: **fu 368 live** (`index-DG6bkBPk.js`, CSS unchanged, deployed commit `676225c`,
 merge `1015f08`, schema 17 unchanged — rollback to follow-ups 1, `558187f` / `index-LdkILHkB.js`, is free). Deployed on the
 user's word (4473 tests, build clean). Verified as follow-ups 1 was below: `200` in-network and at the edge, the edge bundle's
 sha256 matching `dist/`, the old bundle 404 in-network, the CSP at the edge, a real-browser load (0 errors), its keys cleared.
