@@ -1882,7 +1882,7 @@ and specifically the height axis the width-only fixtures never exercised — the
 defect class `fitLabel` exists to close for the other two tiers, left open on the one
 tier that has no fallback beneath it.
 
-**Status:** open (latent defect, REACHABLE — the user ruled 2026-10-16: draw the number BESIDE the part with a short leader, key entry kept): the sheet draws at 1000/96 ≈ 10.4 units per inch and the index label is 25 units tall, so any part under ~2.4" in its short dimension (a 24 × 1-1/2" plywood cleat) overflows its number out of its rectangle. What to draw instead (a key-only entry, a leader to the margin, a rotated label) is a design choice; a smaller font is ruled out by inv 19. (triaged 2026-10-16; updated by follow-ups 3)
+**Status:** closed 2026-10-16 (fu 96, the user's rulings): a part whose rectangle cannot hold even its index number (`holdsIndex`, diagramLabels.ts, measured as `fitLabel`'s tiers) draws no number inside; the number sits in a row just outside the drawing's nearer long edge, packed by `packRow` on measured boxes, with a leader from the part's near edge, and keeps its key entry. The user chose the number beside the part, then accepted a long leader for a part packed in a sheet's interior (it may cross another part) over a waste-space placement rule. A drawing with no callouts is unchanged. Checked live: a sheet's edge cleats, a 1×2 board strip, an interior cleat. Real print owed with 70/79/84. (triaged 2026-10-16; updated by fu 96)
 
 **97. CLOSED 2026-08-31, together with 131 — `takeId` in `document.ts`.** The repair is the
 one `validateCuts` already had, given a name and two more callers: the first occurrence of an

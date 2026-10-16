@@ -57,12 +57,13 @@ handicraft education tradition built around hand woodworking.
   failed run's spend reported, `< $0.01`), 53 (offset refused past `posDim - width`), 152 (Escape returns focus to the caret), 95
   (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
   and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). The user's rulings (2026-10-16): 37
-  record-only (the new centre seed's band crossed its neighbour; reverted); 96 (an index label overflowing a part under ~2.4")
-  draws the number BESIDE the part with a short leader — NEXT.
+  record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
+- **Fu 96 (2026-10-16, branch `fu-96`, NOT deployed; no schema change)**: a sheet or board layout part too small for its index
+  number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
   the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
   `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber): 65 closed, 69 record-only,
-  15 owed or open by decision, 40 open as work (follow-ups 3 closed 13 of them; 37 record-only by ruling; 96 next). `docs/follow-ups.md` is authoritative: an open entry reads
+  15 owed or open by decision, 40 open as work (follow-ups 3 closed 13 of them, fu 96 one more; 37 record-only by ruling). `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
@@ -150,6 +151,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | fu 368 | 10-16 | — | A non-convex waste rebuilds ~52 → ~6 ms: `bodyEdges` lookups indexed (byte-identical), convex pieces merged (Hertel–Mehlhorn) |
 | follow-ups 2 | 10-16 | — | Fu 297, 290, 314, 287/292 (rulings), 208/209 (undo, redo, delete refused mid-drag), 210 |
 | follow-ups 3 | 10-16 | — | From the 1–178 triage: fu 168 (failed run's spend), 53, 152, 95, 35 (unopenable project says why), 3, 18, 9, 23, 40, 14, 57, 11 |
+| fu 96 | 10-16 | — | Sheet and board layouts: a part too small for its number gets a callout row beside the drawing, with a leader |
 
 ### The deployment rule
 
@@ -479,7 +481,10 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   `unplaceable`, never dropped. The word `turned` rides on `dims` (inv 19).
 - **`SheetLayout.tsx`** is the only caller of `fitLabel`'s `requireDetail`; the tier
   decision stays in `fitLabel`, not as a panel override. The sheet key list is NOT an
-  `<ol>` (the number comes from `nextIndex`, not DOM position; fu 162).
+  `<ol>` (the number comes from `nextIndex`, not DOM position; fu 162). A part that cannot hold even its NUMBER
+  (`holdsIndex`) is a callout (fu 96): the number in a row outside the drawing's nearer long edge (`packRow`, measured boxes,
+  ordered by the part's centre), a leader from the part's near edge to its own number; the row exists only when used, so a
+  drawing with no callouts keeps its viewBox. A long leader across another part is accepted (the user's ruling).
 - **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
   must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
   `concepts.ts`. **`concepts.ts`**' parse is all-or-nothing (never mixes planned and
