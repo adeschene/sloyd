@@ -153,6 +153,15 @@ describe('buildNesting', () => {
     expect(n.unplaceable[0].dims).toBe('100" × 30"');
   });
 
+  // Fu 95: the group's square feet include every part (the subtotal is its rows' sum), so the sheet count says which
+  // parts it leaves out rather than reading as the whole group's purchase.
+  it('says the sheet count leaves out a part that fits no sheet (fu 95)', () => {
+    const tooBig = createBoard({ name: 'Back Panel', length: 100, width: 30, thickness: 0.75, grain: 'width', material: 'plywood' });
+    expect(buildNesting([tooBig], PLY, 0, IMPERIAL).label).toBe('0 sheets (96" × 48"), not counting 1 part too big for one');
+    expect(buildNesting([tooBig, tooBig, part(24, 12, 'A')], PLY, 0, IMPERIAL).label)
+      .toBe('1 sheet (96" × 48"), not counting 2 parts too big for one');
+  });
+
   // Pins the coordinates for the kerf test below to build on. NOT the epsilon
   // case: 24 × 4 = 96 is exactly representable in binary, so this fixture
   // never touches EPS — see the real epsilon fixture further down and EPS's
