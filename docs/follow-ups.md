@@ -32,14 +32,20 @@ it('autosave still arms after loadAutoSaved rejects', async () => {
 });
 ```
 
+**Status:** closed — superseded: boot reads `storage.openLibrary()` (never-throws contract; App.tsx's restore comment names the replacement), not `loadAutoSaved`. (triaged 2026-10-16)
+
 **2. Several correct fixes are unpinned by tests.** The Add-board focus behaviour, the
 import focus-timer clear, and the adopt-external error clear were each verified by
 mutation testing during review, but no committed test would catch a regression. If v2
 refactors `DimensionField` or `App`'s effects, these break silently.
 
+**Status:** open (test gap, partly closed): the adopt-external error clear is pinned (`reports false when an external change clears the error`, DimensionField.test.tsx); Add-board's Length focus (`consumeLengthFocus`) and the import focus-timer clear are still unpinned. (triaged 2026-10-16)
+
 **3. `pendingLengthFocus` is not reset by `replaceDocument`.** It is store view-state, so
 it can survive across tests in files that never mount `Properties`. Harmless today; a
 trap once more component tests exist.
+
+**Status:** open (hygiene, code-sized): `replaceDocument` still does not reset `pendingLengthFocus`. (triaged 2026-10-16)
 
 ## Real but narrow
 
@@ -51,24 +57,34 @@ and it contradicts the project's rule that stored values are exact and never sil
 rewritten — the argument for leaving it was that an explicit keypress is not "silent".
 One-line fix: apply the same `!dirty.current` guard to the Enter branch.
 
+**Status:** closed — fixed: Enter carries the `dirty` guard (DimensionField.tsx); pinned by `does not commit on Enter for an untouched value off the 1/16" grid`. (triaged 2026-10-16)
+
 **5. ~~`migrateDocument` does not reject `version < 1` or fractional versions.~~
 CLOSED — folded into the v2 schema work, since it sits inside the version gate that
 work was already editing.** The gate now rejects `version < 1` and non-integer
 versions with a clear `DocumentError` before any migration step runs.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **6. `units` rejects some plausible shop input.** `MIXED_RE` matches exactly one
 space-or-hyphen between whole and fraction, so `1  1/2` (double space) and `1 - 1/2`
 return `null`. Degrades to a clear rejection, never a wrong number.
 
+**Status:** open (narrow, code-sized): `MIXED_RE` (units/length.ts) still takes exactly one space or hyphen. (triaged 2026-10-16)
+
 **7. `sanitizeFilename` does not guard Windows reserved device names.** A project named
 `con`, `prn`, `aux`, `nul`, `com1`… exports as e.g. `con.sloyd`, invalid on Windows.
 Only matters for a future desktop build.
+
+**Status:** open (latent, desktop builds only): `sanitizeFilename` has no reserved-device-name guard. (triaged 2026-10-16)
 
 **8. The `storage` singleton is imported from the concrete module.** `App.tsx` and
 `FileMenu.tsx` both `import { storage } from '../storage/browser'`, and both test files
 mock that same concrete path. A desktop build is therefore "a second `StorageAdapter`"
 *plus* edits at two import sites and two mock paths. A three-line `src/storage/index.ts`
 re-exporting the chosen singleton would make the seam's promise literally true.
+
+**Status:** open (hygiene): no `storage/index.ts`; about 13 sites import `./storage/browser` directly. (triaged 2026-10-16)
 
 ## Cosmetic / hygiene
 
@@ -77,21 +93,33 @@ each install a window listener opening with a copy-pasted
 `tagName === 'INPUT' || 'SELECT'` check. Neither handles `TEXTAREA` or `contenteditable`
 — no such element exists today. A shared `isTypingTarget(e)` helper would settle it.
 
+**Status:** open (hygiene, code-sized): App has `isTextEntry` (TEXTAREA, contenteditable); Viewport's camera-key guard still checks INPUT/SELECT only (latent: dialogs with textareas suspend camera keys). (triaged 2026-10-16)
+
 **10. `--alert-bg` token is declared and never referenced,** while `.input.invalid`
 hardcodes the same `#2c1c19`. Tokenization left half-done.
+
+**Status:** closed — fixed: `.input.invalid` reads `var(--alert-bg)`. (triaged 2026-10-16)
 
 **11. `raycast={() => null}` on the shadow receiver** passes R3F's `!== null` gate, so a
 pointer handler deliberately added to that mesh later would register and silently never
 fire. `raycast={null}` is the idiomatic opt-out.
 
+**Status:** open (hygiene, code-sized): still `raycast={() => null}` (Viewport, TapeTool, SnapMarker), and Viewport's comment now claims the opposite of this entry. (triaged 2026-10-16)
+
 **12. Orthographic `zoom={12}` is an initial value only.** Toggling to ortho on an empty
 document then adding a large board needs a manual `Home` press to frame it.
+
+**Status:** open (cosmetic): a projection swap re-frames now, but an EMPTY document's ortho swap still keeps `zoom={12}` (`frame()` returns early with no bounds). (triaged 2026-10-16)
 
 **13. Untested edge branches:** `loadAutoSaved`'s `getItem`-throws path; the
 `nextFuture = future` branch in the store's gesture-coalescing `edit()`; negative
 feet-and-inches input (`-2'6"`) in `units`.
 
+**Status:** open (test gap): none of the three branches is tested yet. (triaged 2026-10-16)
+
 **14. `src/smoke.test.ts` is redundant** now that 123 real tests exist.
+
+**Status:** open (hygiene, code-sized): `src/smoke.test.ts` still exists. (triaged 2026-10-16)
 
 ## From the v1 polish pass
 
@@ -108,9 +136,13 @@ is not — which is why zooming never shimmered while rotating and panning alway
 is not evidence, and the one bracketing experiment that would have caught this
 (`enableDamping={false}`) was reasoned about rather than run.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **16. ~~Neither `dampingFactor = 0.3` nor `fadeDistance = 150` was swept to a
 minimum.~~ MOOT.** Both values are gone — damping is off and the grid no longer fades
 at all.
+
+**Status:** closed (moot). (triaged 2026-10-16)
 
 **17. The gizmo patch machinery is ~90 lines sitting above a 63-line component** in
 `src/viewport/Gizmo.tsx`. Extracting it to a sibling module under `src/viewport/`
@@ -119,20 +151,28 @@ arithmetic went straight into `gizmoScale.ts` rather than being added to the pil
 the file did not grow by the ~90 lines that work would otherwise have cost. The
 flip-fix machinery itself is still in `Gizmo.tsx` and is what this item is about.
 
+**Status:** open (hygiene, not small): the patch machinery is still in Gizmo.tsx. (triaged 2026-10-16)
+
 **18. The gizmo patch's effect dependencies omit drei's other recreation key.** drei
 recreates its `TransformControls` instance via a `useMemo` keyed on both the camera
 and `explDomElement`; the effect in `Gizmo.tsx` depends on the camera only, so a
 change of `events.connected` would silently drop the patch. Same class of bug as the
 projection-toggle case that was found and fixed during this pass.
 
+**Status:** open (latent, code-sized): the patch effect's deps are `[selectionKey, camera, hidden]`; drei's other recreation key is still omitted. (triaged 2026-10-16)
+
 **19. The gizmo patch writes `visible` unconditionally,** discarding the library's own
 `showX`/`showY`/`showZ` gating. Latent only — Sloyd never sets those props.
+
+**Status:** open (latent): `visible` still written unconditionally; Sloyd still never sets showX/Y/Z. (triaged 2026-10-16)
 
 **20. The gizmo patch is coupled to `three-stdlib`'s internal shape,** which is a
 transitive dependency under a caret-ranged `@react-three/drei`, so it can move on a
 plain `npm install`. It has a shape guard and a latching `try/catch` so it degrades to
 library behaviour rather than throwing, but it must be re-verified on any `three` /
 `three-stdlib` / `drei` bump.
+
+**Status:** record-only (standing caution: re-verify the patch on any drei/three-stdlib bump; drei is caret-ranged). (triaged 2026-10-16)
 
 **21. At the default camera the two positive ground axes are nearly invisible,**
 because they run toward and past the camera and leave the frame within a few pixels of
@@ -141,8 +181,12 @@ default-camera tweak would fix it. Still open, and it constrains `NEGATIVE_OPACI
 `OriginAxes.tsx`: since the halves actually on screen by default are the negative ones,
 they cannot be dimmed as far as the positive/negative distinction alone would suggest.
 
+**Status:** open (cosmetic; real hardware): the default camera is unchanged. (triaged 2026-10-16)
+
 **22. `uniqueName`'s next-free-number search is unbounded.** Fine at board-list sizes;
 worth a note if it is ever called on unbounded input.
+
+**Status:** record-only (bounded by |taken|+1). (triaged 2026-10-16)
 
 **23. `duplicateBoard` passes `rest` (still carrying `name`) into `createBoard`,**
 then immediately overwrites the name with the deduplicated one — a harmless dead
@@ -150,15 +194,21 @@ value, since `createBoard` never reads it, but it reads as if the name survives 
 call. Destructuring `name` out of `rest` alongside `id` would make the intent obvious
 (`src/store/store.ts:133-137`).
 
+**Status:** open (hygiene, code-sized): `copyBoard` still passes `name` in `rest` to `createBoard`, then overwrites it. (triaged 2026-10-16)
+
 **24. The `editing`-cleared-before-`commit()` ordering in `NameField`'s blur handler
 is correct but not pinned by any test.** React batches the event handler, so swapping
 the two lines would not fail the suite. The untestability is inherent to the
 batching, not an oversight.
 
+**Status:** record-only (untestable by nature, per its own text). This is the FIRST of two entries numbered 24. (triaged 2026-10-16)
+
 **25. Modifier handling is asymmetric between the Ctrl+Z branch (ctrl/meta) and the
 Delete branch (ctrl/meta/alt) in `src/App.tsx`.** Intentional per shortcut — each
 guards against a different accidental trigger — but worth a comment if a third
 shortcut is ever added.
+
+**Status:** record-only (intentional; each shortcut branch now carries its own modifier comment). This is the FIRST of two entries numbered 25. (triaged 2026-10-16)
 
 ## Deliberately out of scope, not defects
 
@@ -184,6 +234,8 @@ strong far-field aliasing measures 0.31% — but the principled fix is a grid sh
 chooses its tier per fragment from the local derivative, which drei's `<Grid>` does not
 do. Revisit only if the floor ever needs to be much larger.
 
+**Status:** record-only (design record). This is the SECOND entry numbered 24. (triaged 2026-10-16)
+
 **25. `dpr={[2, 3]}` renders four times the fragments of `dpr=1`.** This is what makes
 an unfaded grid viable, and the scene is trivial enough that it does not matter here —
 but it is a real cost that would matter if the viewport ever gains post-processing or a
@@ -191,6 +243,8 @@ much heavier scene. It also means every line weight in the viewport is now tuned
 a supersampled buffer: `cellThickness`/`sectionThickness` were doubled to compensate,
 and the origin axes had to move to drei's mesh-based `<Line>` because native GL lines
 ignore `linewidth` and would render at half weight.
+
+**Status:** record-only (cost record). This is the SECOND entry numbered 25. (triaged 2026-10-16)
 
 **26a. `pow(0.0, 0.0)` in a shader is undefined, and a software renderer will lie
 about it.** The grid's first unfaded version used `fadeStrength={0}` and inherited
@@ -202,12 +256,16 @@ exponent. The general lesson: browser verification on this host runs on software
 anything resting on undefined or precision-sensitive shader behaviour needs a check on
 real hardware.
 
+**Status:** open (owed to the user: real hardware, CLAUDE.md's 26a). (triaged 2026-10-16)
+
 **26. The bounded 20ft floor has a visible hard edge.** Deliberate — an infinite grid
 piles into an unreadable haze at the horizon, which is what the old distance fade was
 really hiding — but it does mean zooming far out shows the floor ending in space rather
 than continuing. If that reads badly, the options are a larger extent (at the aliasing
 cost measured above) or fading only the outermost ring, which reintroduces a softer
 version of what was just removed.
+
+**Status:** record-only (deliberate). (triaged 2026-10-16)
 
 **27. Two viewport behaviours are verified only by hand.** `BoardMesh` ignores clicks
 that travelled more than `CLICK_DRAG_SLOP_PX` (2px), which is what stops a gizmo drag or
@@ -219,11 +277,15 @@ tests by design — so a refactor could drop either silently. Dropping the dash 
 particular would not look broken immediately; it would reintroduce the flicker only once
 the camera got far enough away.
 
+**Status:** open (test gap; viewport has no unit tests by design): the click-drag slop gate and the per-frame dash scale are still hand-verified only. (triaged 2026-10-16)
+
 **28. The gizmo's hover highlight is too close to the board's selection colour.**
 Reported and consciously skipped as a nit: three-stdlib highlights a hovered axis in
 `0xffff00` while a selected board is brass `#c99a4e`, both warm yellows, so it is not
 obvious which axis a click will grab. The gizmo materials are already reachable from the
 patch in `Gizmo.tsx`, so recolouring the hover state is cheap when it becomes annoying.
+
+**Status:** open (cosmetic, real hardware): no hover recolour yet. (triaged 2026-10-16)
 
 **29. ~~The gizmo grows without limit as the camera pulls back.~~ CLOSED — clamped
 through `size`, which is an input rather than an output, so the re-bake caveat never
@@ -296,6 +358,8 @@ frame, so there is an obvious place to clamp `handle.scale` after the library se
 and the same re-bake caveat applies: the correction has to land before the matrices are
 composed, or it will silently do nothing (see the round-2 history in that file).
 
+**Status:** closed. (triaged 2026-10-16)
+
 **30. ~~Origin line visibility needs its own checkbox.~~ CLOSED.** Done exactly as
 described: `showAxes` beside `showGrid` in `App.tsx`, a second toolbar checkbox labelled
 "Origin", `{showAxes && <OriginAxes />}` in `Viewport`. Four tests rather than three —
@@ -314,6 +378,8 @@ pattern to copy exactly: view state held in `App`, passed to both `Toolbar` and
 undo stack. `Toolbar.test.tsx` already covers that last property for the grid and the
 same three tests should cover the axes.
 
+**Status:** closed. (triaged 2026-10-16)
+
 ## From v2
 
 Found while shipping two-state grain orientation, the schema v2 migration, the
@@ -331,10 +397,14 @@ board-list sizes, but it is redone on every render of every board, not just on t
 changes that actually affect it (rotation, posture, grain, material, dimensions). A
 `useMemo` keyed on those fields would make the cost match the actual invalidation.
 
+**Status:** open (perf hygiene, code-sized): `boardExtents`/`boardCenter`/`faceGrainKinds` still run unmemoised per render in BoardMesh. (triaged 2026-10-16)
+
 **32. ~~`grainTexture`'s `hash()` and `seededRandom()` are pure, DOM-free functions that
 could have had cheap unit tests without a canvas.~~ CLOSED in v3.** Both moved to
 `src/viewport/grainLog.ts` — the module `grainTexture.ts` now imports them from — and
 are unit-tested there alongside the rest of the log maths.
+
+**Status:** closed. (triaged 2026-10-16)
 
 **33. End-grain rings share one drawn centre across every board. Still open —
 checked against the v3 log rewrite, which did not change this.** `woodEnd` in
@@ -347,11 +417,15 @@ from. Visually fine per board since only a small window of a much larger circle 
 ever visible, but it means no two boards' end grain can look like they came from
 different trees.
 
+**Status:** open (cosmetic, not small): the pith is a canvas constant and the texture cache is keyed `family:kind`. (triaged 2026-10-16)
+
 **34. The grain constants (streak counts, alpha ranges, tile sizes) have not been
 tuned on real hardware.** They were chosen and screenshotted on this host's software GL
 (llvmpipe, no GPU) — see 26a on why that is not sufficient by itself for anything visual
 — so the aesthetic judgement (does it read as wood at actual viewing distance, is the
 end-grain ring density right) is still open pending a check on real hardware.
+
+**Status:** open (owed to the user: grain constants judged on real hardware). (triaged 2026-10-16)
 
 **35. `loadAutoSaved`'s catch swallows the schema-too-new case exactly like a corrupt-JSON
 one, and only v2 makes that reachable.** `src/storage/browser.ts` catches everything —
@@ -370,6 +444,8 @@ branch on `err instanceof DocumentError` in the catch and surface "this project 
 by a newer version of Sloyd" (the import dialog's own copy is the model) instead of
 silently starting clean; a corrupt-JSON `SyntaxError` still degrades to `null` the way it
 does today.
+
+**Status:** open (narrowed): the data-loss half is superseded by the library (`sloyd.autosave.v1` is never written after adoption; a too-new project is skipped, not overwritten); the SILENT half remains — opening a too-new project returns with no message. (triaged 2026-10-16)
 
 ## From v3
 
@@ -401,6 +477,8 @@ values with display-rounded ones. See invariant 5 for the shared shape with
 `.superpowers/sdd/2026-07-31-sloyd-v3/screenshots/`; that directory was deleted when
 the v3 branch merged and no longer exists.)
 
+**Status:** closed. (triaged 2026-10-16)
+
 **37. `Math.abs(k) % half` in `grainTexture.ts`'s `woodCut` maps `k = 0` to the same
 seed bucket as the two edge bands (`k = -half` and `k = +half`), a three-way
 collision where a pair was intended.** The centre band ends up sharing its width,
@@ -409,6 +487,8 @@ seam invariant (14) — the edge bands still match each other, which is all that
 property requires — and the centre band is spatially far from the edges, so it reads
 as cosmetic. A distinct seed for `k === 0` is the fix, worth doing the next time this
 file is touched.
+
+**Status:** open (cosmetic, code-sized): `band:${Math.abs(k) % half}` still maps k = 0 onto the edge bands' seed. (triaged 2026-10-16)
 
 **38. The "no board misses the cathedral arch" guarantee in `grainTiling.ts`'s face
 tile size (6in) was worked out for boards around 5-1/2in wide.** Much narrower boards
@@ -421,17 +501,23 @@ id-derived offset. A 1-1/2in leg sees only 25% of the tile. Not obviously worth
 fixing on its own: narrow stock is often straight-grained anyway, so missing the
 arch there is physically defensible, not just a numerical gap.
 
+**Status:** record-only (calibration record). (triaged 2026-10-16)
+
 **39. The grain constants introduced or changed in v3 (wobble amplitude, the face
 v-tile size, band width/alpha ranges) have not been judged on real hardware.** Same
 caveat as follow-up 34, now covering the ring maths too — chosen and screenshotted on
 this host's software GL (llvmpipe, no GPU; see 26a). The final aesthetic call — does
 it read as wood at actual viewing distance — is the user's, on real hardware.
 
+**Status:** open (owed to the user: v3 grain constants on real hardware). (triaged 2026-10-16)
+
 **40. `DIMENSION_ORDER` in `src/document/geometry.ts` is exported mutable** (not
 `readonly` or `as const`), though it is now the single source every board's geometry
 flows through — `axisDimensions`, `boardExtents`, and `grainTiling.ts`'s `ranks` all
 read it. Nothing in the codebase mutates it today; the risk is purely that nothing
 stops a future caller from doing so.
+
+**Status:** open (hygiene, code-sized): `DIMENSION_ORDER` is still a mutable `Dimension[]`; mirrorCut.ts casts it. (triaged 2026-10-16)
 
 **41. ~~`validateBoard`'s posture and grain fallback branches have no unit test, and
 `createBoard`'s `grain` default is unasserted.~~ CLOSED in the final v3 review pass.**
@@ -446,6 +532,8 @@ Posture, Turn and Grain — setting a board's orientation directly on the store 
 asserting the select's `value`, which is what would catch a control that commits
 correctly but displays wrong after an undo or a selection change.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **42. The `FIT` scale argument on large end faces is calibrated for a ~5-1/2in end,
 and degrades linearly with face size.** `grainTiling.ts`'s `FIT` puts exactly one ring
 pattern across an end face whatever its size — right for a typical ~5-1/2in end
@@ -454,6 +542,8 @@ broad face (18 × 12) the same one-ring-set stretches to roughly 0.9in per ring,
 reads as coarse. The alternative is worse: concentric rings cannot tile without a hard
 discontinuity mid-face, so `FIT` stays — this is recording the calibration, not
 proposing a fix. Revisit if end-grain cutting-board-scale parts become common.
+
+**Status:** record-only (calibration record; no fix proposed). (triaged 2026-10-16)
 
 **43. A v2 file with its `version` field hand-edited to `3` skips the v2→v3 migration
 step entirely, and `standing` silently becomes `posture: 'flat'`.** `migrateDocument`
@@ -468,6 +558,8 @@ ordering argument describes: the chain protects every version transition it know
 making, and nothing more. Worth writing down as the edge of what the chain covers, not
 worth defending against — there is no way to distinguish a genuinely-empty v3 board from
 a mislabeled v2 one once the version number itself is wrong.
+
+**Status:** record-only (the migration chain's edge; not worth defending against). (triaged 2026-10-16)
 
 **44. ~~Plywood with `grain: 'thickness'` stacked its plies across the board's width
 instead of its thickness.~~ CLOSED in the final v3 review pass.** `grainTiling.ts`'s
@@ -490,6 +582,8 @@ re-verified unchanged).
 **This fix over-corrected — see follow-up 46 in the post-v3 section below.** Scoping
 the grain-first rank to solid wood only also made sheet goods ignore `board.grain`
 entirely, which removed the veneer rotation on plywood's face along with the bug.
+
+**Status:** closed. (triaged 2026-10-16)
 
 ## From the post-v3 fixes pass
 
@@ -517,6 +611,8 @@ resyncing from `value` without committing when `!dirty.current`, `Enter` guarded
 same way, and `dirty` cleared on both `commit()`'s revert and normal-commit paths. See
 invariant 9 for the write-vs-display distinction.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **46. ~~Plywood's grain control stopped changing anything visible.~~ CLOSED.** A
 regression from follow-up 44's own fix (`fe4deed`). That commit was solving a real
 bug — plywood with `grain: 'thickness'` stacked its plies across the board's *width*
@@ -543,6 +639,8 @@ constructing a `Board` directly rather than through the validator — so a futur
 refactor that moves where validation happens cannot silently reopen this by
 rearranging things `ranks()` was quietly depending on.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **47. The toolbar's project-name field is the remaining component that reads/writes
 document state through an `<input>` and had not been checked against the
 `DimensionField`/`NameField` display-staleness shape (invariant 5) — now checked, and
@@ -557,6 +655,8 @@ Left open rather than closed: this is a recorded finding, not a fix, and it is w
 rechecking if this field is ever changed to buffer input locally (e.g. to debounce
 keystrokes rewriting the store on every keystroke) — the staleness shape only exists
 where a component keeps its own copy of the value.
+
+**Status:** record-only (a finding that the toolbar name field is clean: still a plain controlled input). (triaged 2026-10-16)
 
 ## From joinery
 
@@ -637,12 +737,16 @@ of the board's AABB, say) whenever `boardSolids` is empty, so the part stays sel
 and the situation is legible. The second is probably better — it also covers any future
 path that reaches an empty solid set.
 
+**Status:** closed (the "48 and 49 are CLOSED" note above). (triaged 2026-10-16)
+
 **49. `boardSolids` returning `[]` is reachable through two individually-legal cuts.**
 `validateCuts`'s full-removal guard is per-cut, so two cuts that each leave stock but
 jointly remove everything (`offset 0, width 12, depth 3/4` plus `offset 12, width 12,
 depth 3/4` on a 24" board) both survive load. This is the same end state as 48 by a
 different route, and the same placeholder fix would cover it. Documented and tested in
 `cuts.ts` as correct behaviour rather than left to be discovered.
+
+**Status:** closed (the "48 and 49 are CLOSED" note above). (triaged 2026-10-16)
 
 **50. The merge in `boardSolids` is not proven maximal.** `mergeAlong` runs once per
 axis in `DIMENSION_ORDER`, which is deterministic and always correct — every merge
@@ -653,10 +757,14 @@ missed merge costs draw calls, never correctness, and edge lines come from the g
 if it is ever revisited, the thing to measure is solid count on a realistic multi-cut
 part, not the algorithm's elegance.
 
+**Status:** record-only (deliberate; `boardSolids` is now `pocketCells`, the merge unchanged). (triaged 2026-10-16)
+
 **51. Cut ids share the `b_` prefix with board ids.** `addCut` mints ids with the same
 `nextId()` counter the boards use, which is what guarantees uniqueness within a board
 and matches how `validateCuts` re-mints on load. The prefix is now just cosmetically
 misleading. Grepped when it was introduced: nothing depends on the prefix.
+
+**Status:** open (cosmetic): `nextId` still mints `b_` for every kind of id; ids are opaque and nothing reads the prefix. (triaged 2026-10-16)
 
 **52. `DimensionField`'s new `min`/`max` props have no direct unit tests.** They are
 exercised indirectly through the Cuts panel tests (offset 0 must be accepted, depth past
@@ -664,6 +772,8 @@ the board must be refused), but `DimensionField.test.tsx` itself does not cover 
 including the specific reason `min` exists rather than reusing `allowNegative`, which is
 that `min={0}` must still refuse a negative. This is the "correct but untested" shape
 that the top of this file warns about.
+
+**Status:** closed — fixed: DimensionField.test.tsx tests min/max refusal directly (`still refuses a whole mm over a difference max, and a value under a difference min`, `accepts a value equal to a difference MIN …`). (triaged 2026-10-16)
 
 **53. The offset field is the one edit path that does not maintain `offset + width
 <= posDim`.** `src/panels/Properties.tsx` gives the offset field `max={posDim}`,
@@ -679,6 +789,8 @@ to 1 and the same cell is removed — but the label flips dado→rabbet. `offset
 geometry divergence and nothing the user can see is lost mid-session, which is
 why this is Minor. The natural fix is the same shape as `repositionForAxes`:
 clamp the *pair* when either member changes.
+
+**Status:** open (minor defect, code-sized): the dado→rabbet word flip is gone (words come from `cutShape`/`clippedRegion`) and a cut past the end is noted (fu 178), but the offset field's `max` is still `posDim` and nothing clamps the pair, so the width field's `max` can reach 0 and refuse everything. (triaged 2026-10-16)
 
 Also worth recording, since it is a lesson rather than a defect: **seven of joinery's
 defects were in code the plan supplied verbatim**, not in transcription. In the order
@@ -748,6 +860,8 @@ group is non-empty. The cheap fix is still to derive the group key as a prefix o
 row key rather than writing it twice; the cheaper interim one is a test asserting every
 group has at least one row.
 
+**Status:** open (latent, code-sized): `rowKey` and `groupKey` are still two hand-written lists; no test asserts every group has a row. (triaged 2026-10-16)
+
 **55. A row's exact numbers are a representative, not a consensus.** `CutListRow`
 carries raw `length`/`width`/`thickness` floats alongside its formatted `dims` string,
 and those floats come from whichever board landed in the row *first*. That is correct
@@ -761,6 +875,8 @@ rule the floats are downstream of. `CutListGroup.thickness` is the same represen
 and now carries the same caveat in its doc comment — it originally had a bare
 "Exact inches", which is how a consumer would have found the caveat only on whichever
 field happened to be documented more carefully.
+
+**Status:** record-only. (triaged 2026-10-16)
 
 **55a. The same representative rule reaches one printed word, and there it is
 visible.** A row's setup lines come from the first board too, and the row's cuts really
@@ -777,6 +893,8 @@ the label per board and splitting the row when they disagree, would split a row 
 difference no saw can hold, which is exactly what invariant 18 rules out for dimensions.
 Recorded here and in a comment at the `setup:` line so a future reader who notices the
 mismatch finds it decided rather than missed.
+
+**Status:** record-only (the user's ruling, reaffirmed at fu 200's family). (triaged 2026-10-16)
 
 **56. CLOSED — the cut-list modal had no focus trap and no initial-focus management.**
 Closed in the branch's final review pass, and closed as a *data* defect rather than the
@@ -803,6 +921,8 @@ that is missing. Low urgency for a single-user shop tool driven mostly by mouse,
 it is the one part of the panel that a screen-reader user would find genuinely
 confusing, and the fix (focus the sheet on mount, cycle Tab within it) is small.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **57. The overlay scrim is a hardcoded colour, not a token.** `.cutlist-overlay` uses
 `rgba(12, 14, 16, 0.72)` directly because `:root` defines no scrim or alpha-surface
 custom property — there has never been a second overlay to justify one. The print
@@ -810,6 +930,8 @@ block's `#fff`/`#ccc`/`#999` are deliberately outside the token system (ink on p
 not the screen palette) and should stay that way; the scrim is the one value that
 *should* be a token the moment a second overlay exists. Brief-origin, kept verbatim,
 recorded rather than quietly changed.
+
+**Status:** open (hygiene, code-sized): the trigger has happened — `.modal-overlay` is a second overlay, and both hardcode `rgba(20, 15, 11, 0.72)`. (triaged 2026-10-16)
 
 **58. CLOSED — `body` kept its dark background under `@media print`.** Closed in the
 branch's final review pass by exactly the one-line `body { background: #fff; }` this
@@ -837,6 +959,8 @@ has, so it appears on the sheet with correct dimensions and setup lines even whi
 invisible in the viewport. The sheet is arguably the one place the part is currently
 still legible, but that is a coincidence of what the cut list reports, not a fix, and
 the placeholder-render fix those two items call for is still the right one.
+
+**Status:** closed. (triaged 2026-10-16)
 
 ## From the cut list diagrams
 
@@ -894,6 +1018,8 @@ rather than a DOM measurement, and why the packer is unit-testable at all. See
 `docs/superpowers/specs/2026-08-01-sloyd-diagram-label-layout-design.md` §2 for the
 `--font-num` measurement this rests on, and the new invariant in `CLAUDE.md` for why
 that constant has exactly one home.
+
+**Status:** closed. (triaged 2026-10-16)
 
 ### The diagnosis, stated once — 2026-08-01, from a measured sweep
 
@@ -970,6 +1096,8 @@ and the following `24" × 5-1/2"` board's row — with no drawn diagram split ac
 boundary and no row's text separated from its own figure. **PASS**, confirming
 `break-inside: avoid` holds on both `.cutlist-row` and `.cutlist-diagram`.
 
+**Status:** record-only. (triaged 2026-10-16)
+
 **60. `MAX_ASPECT` (8), `MAX_HEIGHT` (420) and `MIN_WIDTH` are browser-settled, not
 test-settled — amended 2026-08-01, the label layout round's Task 6.** The unit tests
 pin `fitView`'s *behaviour* — that a sliver clamps, that a tall drawing shrinks
@@ -996,6 +1124,8 @@ proportions, or a screen/print size this pass did not check, could still call th
 constants into question, and they stay named exports in `diagramScale.ts` for exactly
 that reason.
 
+**Status:** record-only (browser-settled by decision). (triaged 2026-10-16)
+
 **61. §2's "one view per `(face, across)` pair, not per face" non-goal was checked
 against the panel, not just against `diagram.ts`'s tests, and it holds — the case it
 protects against cannot currently be reached through the UI.** The concern is a cut
@@ -1009,6 +1139,8 @@ degenerate cut in the first place. Reads as a non-goal that survived verificatio
 a bug: the browser check confirmed the *panel* path is already closed, which is what
 makes `diagram.ts`'s own guard belt-and-suspenders rather than load-bearing today.
 
+**Status:** closed — superseded by the per-face diagrams round (views keyed per face). (triaged 2026-10-16)
+
 **62. `band()` has no ordering guard on its `Span` argument — CLOSED, 2026-08-01, the
 label layout round's Task 2.** A `Span` with `[max, min]` instead of `[min, max]`
 would have produced a negative `width`, which the `width < MIN_FEATURE` branch would
@@ -1020,6 +1152,8 @@ open cost nothing extra. Every current producer of a `Span` reaching `band()` is
 `cutRegion`, which always emits min-then-max, so this was latent rather than live even
 before the fix; the guard exists for a future hand-built `Span` that skips
 `cutRegion`'s contract.
+
+**Status:** closed. (triaged 2026-10-16)
 
 **63. `DiagramCut.v`, `DiagramCut.kind`, and `DiagramFit.sy` are carried but unused by
 their only consumer — amended 2026-08-01.** `v` is redundant by construction — every
@@ -1038,6 +1172,8 @@ reading `kind` to label a band "dado" vs "rabbet" directly, or `sy` to document/
 non-uniform scaling, is a plausible next use rather than a hypothetical one. Left as
 is — trimming any of the three would save nothing `PartDiagram` currently needs and
 would narrow a tested, documented shape for no behavioural gain.
+
+**Status:** record-only (left as is; since then `v` and `sy` ARE read by PartDiagram — only `kind` is unread). (triaged 2026-10-16)
 
 **64. Task 4's layout constants were wrong as the plan supplied them — a lesson,
 same shape as joinery's "seven defects were in code the plan supplied verbatim."**
@@ -1068,6 +1204,8 @@ this ratio) nor the browser pass (which checked the two extremes the plan named,
 follow-up 60, but not this one) reached the path. Two plan-supplied defects in one
 feature is the point worth recording: a plan's own stated guards are not proof it
 checked every direction they imply.
+
+**Status:** record-only (lesson). (triaged 2026-10-16)
 
 **65. `docs/diagram-overlap-sweep.js` — the text-collision harness. Not a defect; the
 artifact a refinement round starts from.** A browser-pasteable diagnostic that reads
@@ -1110,6 +1248,8 @@ and came back **ALL CLEAN: 0 issues** at `TOL = 0.1`. They are seeded by writing
 document straight to `localStorage` under `sloyd.autosave.v1` and reloading, which is
 faster and more repeatable than building parts through the UI.
 
+**Status:** record-only (harness). (triaged 2026-10-16)
+
 ## From the label layout round
 
 Design in `docs/superpowers/specs/2026-08-01-sloyd-diagram-label-layout-design.md`.
@@ -1133,6 +1273,8 @@ crowding case on a different machine — this is recorded so a future "labels lo
 little tight in Chrome on Windows" report is read as this risk landing, not as a new
 defect.
 
+**Status:** record-only (bounded risk; `LABEL_EM` unchanged). (triaged 2026-10-16)
+
 **67. `packRow`'s lower bound is now `fit.offsetX`, narrowing its left-shift headroom
 — latent, not live.** Task 5's fix (binding both `packRow` call sites' minimum to the
 board's own left edge rather than the viewBox's) closed a real P3 (an offset label
@@ -1144,6 +1286,8 @@ needing the old, wider left-shift range. Unreachable today rather than deferred,
 the same spirit as follow-ups 62 and 63: a small pure function whose contract a future
 caller could violate without reading it first, this time by feeding `packRow` a wider
 label set or a narrower board than any case this round exercised.
+
+**Status:** record-only (latent headroom note; nothing to fix). (triaged 2026-10-16)
 
 **68. LESSON — this round produced the THIRD and FOURTH instances of plan-supplied
 code being wrong; follow-up 64 already records the first two.** The pattern across all
@@ -1175,6 +1319,8 @@ is not more trustworthy than hand-written code, and a test that asserts the guar
 own bound proves the guard fires — it does not prove the guard protects the thing it
 was written for.
 
+**Status:** record-only (lesson). (triaged 2026-10-16)
+
 **69. What the sweep's green does and does not mean — recorded so a future clean run
 is not over-trusted.** `docs/diagram-overlap-sweep.js` collects only `<text>` elements
 and checks their bounding boxes for overlap, viewBox escape, and left-of-edge
@@ -1187,6 +1333,8 @@ collides; it does not mean the drawing reads correctly.** Anything about a diagr
 that a person perceives through relationships between *lines*, not just where *text*
 sits, needs the same browser-eyes verification the sweep was built to reduce, not
 replace.
+
+**Status:** record-only. (triaged 2026-10-16)
 
 **70. NOT verified this round: an actual print-to-PDF render.** The Playwright MCP on
 this host exposes no `pdf()` call, so no PDF was produced or inspected. What *was*
@@ -1210,6 +1358,8 @@ was not re-verified as a defect risk: `break-inside: avoid` on `.cutlist-row` an
 `.cutlist-diagram` is untouched by this round's `src/` changes and very likely still
 holds — but that is an expectation carried over from 59a, not a fresh verification. Do
 not read either fact as "the print output was checked" — it was not.
+
+**Status:** open (owed to the user: a real print, CLAUDE.md's 70/79/84). (triaged 2026-10-16)
 
 **71. `packRow`'s left-shift phase is real, reachable, and pulls a label away from the
 band it names — recorded from a final-review re-derivation, open rather than fixed.**
@@ -1241,6 +1391,8 @@ geometry," which is what goal 3 actually asks for and what a human has to judge.
 as an open follow-up rather than silently treated as covered by the existing test
 layers.
 
+**Status:** open (test gap; judgement): the left-shift phase remains and no test bounds a label's distance from its band. (triaged 2026-10-16)
+
 ## From the per-face diagrams round
 
 Design in `docs/superpowers/specs/2026-08-01-sloyd-per-face-diagrams-design.md`.
@@ -1269,6 +1421,8 @@ the crossing as its own kind of cell (maximum depth, `crossing: true`) — emitt
 per-cell rects with no merge step, since the `<pattern>` hatch already renders adjacent
 equal-depth cells as one continuous region.
 
+**Status:** closed (views keyed `(face, from)`). (triaged 2026-10-16)
+
 **73. `hasFar`, `DiagramCut.side`, and the far-side dash were retired one round after
 being added — not a regression.** The dashed leader line and the near/far hatch
 distinction were added in the label layout round as the replacement encoding for
@@ -1278,6 +1432,8 @@ left for a second encoding to distinguish within a single drawing — the near/f
 question is answered by which figure you're looking at, not by a mark inside it. A
 reviewer checking this round should confirm the fields and the dash are **gone**, not
 that they survived; their removal is the point, not an oversight.
+
+**Status:** record-only (retired on purpose). (triaged 2026-10-16)
 
 **74. `getBBox()` ignores an element's own transform — a standing trap for anyone
 extending the sweep harness.** The rotated leader columns (design §7) rotate their
@@ -1292,6 +1448,8 @@ code (or any code anywhere that calls `getBBox()` on rotated content) must compo
 element's computed transform (its CTM relative to the SVG root) with the raw box before
 trusting the numbers — `getBBox()` alone is only correct for unrotated elements, which is
 every element this codebase drew before this round.
+
+**Status:** record-only (harness trap). (triaged 2026-10-16)
 
 **75. HARNESS LESSON, not a defect: the fix for follow-up 74 was itself written
 backwards on the first attempt, and it produced false failures rather than an obvious
@@ -1312,6 +1470,8 @@ that — the unrotated control kept reading correctly throughout, which is what 
 backwards multiply detectable at all rather than simply producing plausible-looking
 wrong numbers everywhere.
 
+**Status:** record-only (lesson). (triaged 2026-10-16)
+
 **76. NEGATIVE BROWSER FINDING, recorded honestly: hatch versus cross-hatch is not
 reliably distinguishable at screen size.** Same category as follow-up 60
 (browser-settled, not test-settled). Design §7 chose two fills — hatch for an ordinary
@@ -1328,6 +1488,8 @@ the fill alone does not. Recorded as evidence for a future design decision, not 
 defect to fix now — the legend line means the sheet is not wrong, only that the fill by
 itself is not pulling its weight.
 
+**Status:** record-only (the legend carries it). (triaged 2026-10-16)
+
 **77. Sheet length rises with view count — real but mild, confirming design §10.** The
 twelve-cut worst case (follow-up 72's board) now draws **2 figures at 1122px** combined,
 against roughly **299px** for a simple cut-free part. A ten-part sheet carrying a mix of
@@ -1335,6 +1497,8 @@ plain and heavily-joined parts measured at **4654px total**. Long, but not impra
 scrolling a sheet, not paginating past a reasonable print length. Design §10 flagged
 view count as a risk worth a browser look before calling the round done; this is that
 look, and the risk is confirmed real but mild rather than disproved or escalated.
+
+**Status:** record-only (mild, confirmed). (triaged 2026-10-16)
 
 **78. `boundaries()`'s exact-equality dedup can leave an invisible extra cell —
 benign, recorded next to invariant 18's reasoning.** `depthField.ts`'s `boundaries()`
@@ -1350,11 +1514,15 @@ in the current cut-construction path (the panel only ever writes cut boundaries 
 plain stored numbers, never as a sum) reaches the case that would produce it — the same
 "latent, not live" shape as follow-ups 62 and 67.
 
+**Status:** open (latent, benign): `boundaries()` still dedups by exact equality (depthField.ts); the sliver it allows is invisible. (triaged 2026-10-16)
+
 **79. Print-to-PDF is still not verified on this host.** Carried forward again, not
 re-promised: the Playwright MCP available here exposes no `pdf()` call, so no PDF was
 produced or inspected for the rotated leader columns, the depth field's fills, or the
 crossing legend. This is the same tooling limitation recorded at follow-up 70
 (the label layout round) and it applies unchanged to this round's renderer changes.
+
+**Status:** open (owed to the user: a real print). (triaged 2026-10-16)
 
 **80. LESSON — this round produced a fifth instance of a plan-supplied constant being
 wrong, and a stale justification for it in the same report.** Follow-up 64 records the
@@ -1375,6 +1543,8 @@ the report's arithmetic on its own. Read together, follow-ups 64, 68 and 80 are 
 instances across three different rounds of the same failure shape — plan-supplied code
 and plan-supplied justifications are not more trustworthy than hand-written ones, and a
 green suite proves a guard fires, not that it protects the thing it was written for.
+
+**Status:** record-only (lesson). (triaged 2026-10-16)
 
 ## From the board-feet round
 
@@ -1415,6 +1585,8 @@ whatever it's overriding," which a purely textual review of the CSS diff has no 
 catch, because both rules were plainly present and legible in the file — the failure
 was in their relative specificity, not their existence.
 
+**Status:** closed (`a54a086`: the two-class print override). (triaged 2026-10-16)
+
 **82. The third instance of the 55/55a representative-row shape, resolved the *other*
 way — recorded here because a future reader who "fixes" the discrepancy will be
 reversing a deliberate decision, not restoring an oversight.** Follow-ups 55/55a
@@ -1447,6 +1619,8 @@ group subtotal prints `2.73` — correctly, because the true total is `393.75 / 
 discrepancy: rounding the subtotal to make the sheet internally self-consistent was
 rejected in the design because it would make the purchasing number wrong.
 
+**Status:** record-only (decision). (triaged 2026-10-16)
+
 **83. What `formatBoardFeet`/`formatSquareFeet` deliberately do not do — recorded so a
 future request to add any of these reads as a re-proposal, not a gap.** No rounding up
 to a whole or a yard's typical sale unit (design §5: "the true number, let the user
@@ -1460,6 +1634,8 @@ happens to typecheck (design §5). No document-wide grand total (design §3: pin
 walnut board feet sum to a real number but not a useful one, and board feet and square
 feet can't be summed at all).
 
+**Status:** record-only (non-goals). (triaged 2026-10-16)
+
 **84. The browser pass used media emulation, not a real PDF render — same tooling
 limitation as follow-ups 70 and 79, applies unchanged here.** `page.emulateMedia({
 media: 'print' })` plus a full-page screenshot is what this host's Playwright can do;
@@ -1471,6 +1647,8 @@ new fourth grid column right-aligned cleanly against the existing three without
 colliding with the multi-name list (`Leg 1, Leg 2`), and — after the follow-up 81 fix —
 both row and subtotal figures render `rgb(0, 0, 0)` under print media by
 `getComputedStyle`, matching what the screenshot showed by eye.
+
+**Status:** open (owed to the user: a real print). (triaged 2026-10-16)
 
 ## From the sheet-nesting round
 
@@ -1487,6 +1665,8 @@ was picked *because* it corresponds to how the material is actually broken down,
 because it was the simpler option available. The loss is bounded by the sort putting
 like heights together before packing begins (design §4, §7).
 
+**Status:** record-only (design choice; fu 269 measures before optimising). (triaged 2026-10-16)
+
 **86. What `buildNesting` deliberately does not do, carrying follow-up 83's rule
 forward from board feet to sheets.** No offcut or remnant tracking — "you'll have a
 96×11 strip left over" is a real want and a different feature, needing a notion of
@@ -1500,6 +1680,8 @@ derived drawing, not a document, and making it editable would put geometry state
 outside the document (invariant 1). No mixed sheet sizes within one material — one
 `SheetStock` per material entry; "some of my plywood is 5×5" belongs to the
 custom-materials round's own document-level sizing, not a list bolted on here.
+
+**Status:** record-only (non-goals). (triaged 2026-10-16)
 
 **87. The sixth instance of the plan-supplied-justification lesson (follow-ups 64, 68,
 80) and the first one caught by a mutation sweep rather than by eye.** The plan's own
@@ -1519,6 +1701,8 @@ Closed by replacing the mischaracterized fixture's comment (it now pins coordina
 the kerf test, nothing more) and adding the real epsilon fixture, confirmed by mutation
 (deleting `EPS` fails the new test and only the new test).
 
+**Status:** closed — fixed: `tolerates float error from decimal-inch summation, not sixteenths` (nesting.test.ts). (triaged 2026-10-16)
+
 **88. The guillotine-cuttability test could not fail, and no fixture alone could have
 fixed it — the bound had to stop being self-derived.** The property the whole algorithm
 exists to guarantee (§4 of the design) is that every part's across-sheet interval falls
@@ -1534,6 +1718,8 @@ test produced, plus a dedicated MDF fixture (a 90×10 rail opening a shelf, a 30
 whose flipped orientation is 4×30 tall) that fails without the guard and passes with
 it.
 
+**Status:** closed — fixed: `places every part inside exactly one disjoint shelf band`, `does not stand a part taller than the shelf it would ride` (nesting.test.ts). (triaged 2026-10-16)
+
 **89. A pure derivation gained a `throw` during the round's first review-fix pass, and
 that was itself a defect — fixed by collapsing two paths into one rather than trusting
 the throw to never fire.** `buildNesting` is called by `buildCutList` on every render
@@ -1546,6 +1732,8 @@ removed the throw and the separate pre-check together: try existing sheets, then
 exactly one fresh sheet, and let *that* attempt's own result decide placed versus
 unplaceable — there is now only one `placeOn` call deciding the outcome, so there is
 nothing left for a second predicate to diverge from.
+
+**Status:** closed — fixed: the throw is gone; `records a part too big for any sheet without opening one`. (triaged 2026-10-16)
 
 **90. Task 7's `SheetLayout.tsx` formatted a placed part's dimensions from raw floats,
 so the same board could print two different strings on one sheet.** The cut-list row
@@ -1560,6 +1748,8 @@ the row's `48" × 24"` for the identical board. Fixed by moving `dims` into
 `UnplaceablePart.dims` already used. `SheetLayout.tsx` now formats nothing, matching
 `CutList.tsx` and `PartDiagram.tsx`.
 
+**Status:** closed — fixed: `PlacedPart.dims` formatted in nesting.ts; `formats a placed part's dims, not the raw float`. (triaged 2026-10-16)
+
 **91. A label-centring finding filed MINOR was, on inspection, load-bearing: the old
 baseline placed ink past the very budget `fitLabel` had just checked against.** The
 original arithmetic centred a label at `cy + LABEL_ASCENT / 2`. `fitLabel` measures a
@@ -1573,6 +1763,8 @@ round's fixtures actually overflowed visibly, which is why the finding read as
 cosmetic; the mechanism is not cosmetic, because it is exactly the shape that would let
 `fitLabel`'s tier decision silently disagree with what renders. Fixed to
 `cy + (LABEL_ASCENT - LABEL_DESCENT) / 2`.
+
+**Status:** closed — fixed (SheetLayout's baseline). (triaged 2026-10-16)
 
 **92. Two deferred minors, left open rather than fixed, because neither has a known
 failure case yet.** First: in `nesting.ts` the formatted-dims expression
@@ -1626,6 +1818,8 @@ smaller label tier sooner than an unturned one. Verified live at all three tiers
 and the overflow measurements. Mutation: never appending (2 red), always appending (3 red),
 and transposing inside `formatDims` (7 red).
 
+**Status:** closed. (triaged 2026-10-16)
+
 **93. The Task 8 browser pass found no defects, and specifically re-checked the exact
 selector shape that broke twice before.** Follow-up 81's defect — a more specific
 two-class screen rule outranking a correctly-enumerated single-class print override —
@@ -1645,6 +1839,8 @@ print-colour defect was found; the styles.css comment near the `@media print` bl
 already names follow-ups 58 and 81 and this pass confirmed that reasoning holds
 rendered, rather than surfacing a new instance.
 
+**Status:** record-only. (triaged 2026-10-16)
+
 **94. What the Task 8 pass did not check, carried forward rather than newly
 discovered.** A real print-to-PDF render remains unverified — this host's Playwright
 exposes no `pdf()`, so `emulateMedia` plus a screenshot is the closest available check,
@@ -1655,6 +1851,8 @@ in the browser fixture (it produced at most two shelves per sheet) — the packi
 at that density was not eyeballed. Real (non-software) GL was not exercised either,
 though it is not applicable here: `SheetLayout`/`buildNesting` touch no shader or
 WebGL path, so invariant 26a's warning does not reach this round's own code.
+
+**Status:** open (owed to the user: a real print, with 70/79/84). (triaged 2026-10-16)
 
 **95. An unplaceable part is counted in square feet but not in sheets.**
 `cutlist.ts`'s grouping loop adds every board's own `stockInchesOf` to `group.stockInches`
@@ -1669,6 +1867,8 @@ line immediately below the heading, so a reader sees *why* the sheet count reads
 right next to the number that does — but the two numbers themselves still disagree on
 what they're counting.
 
+**Status:** open (defect, mitigated): a sheet-goods group's square feet still include unplaceable parts (cutlist.ts adds every board) while its sheet count does not. (triaged 2026-10-16)
+
 **96. `fitLabel`'s terminal `index` tier has no height check.** `src/panels/
 diagramLabels.ts:147` returns `'index'` unconditionally as the last case in the
 tier ladder, with no comparison against `boxH` the way the `'full'` and `'name'` tiers
@@ -1681,6 +1881,8 @@ sheet-nesting.md`), which clears comfortably; this is the residual below that wi
 and specifically the height axis the width-only fixtures never exercised — the same
 defect class `fitLabel` exists to close for the other two tiers, left open on the one
 tier that has no fallback beneath it.
+
+**Status:** open (latent defect, code-sized): `fitLabel`'s `index` tier still has no height check. (triaged 2026-10-16)
 
 **97. CLOSED 2026-08-31, together with 131 — `takeId` in `document.ts`.** The repair is the
 one `validateCuts` already had, given a name and two more callers: the first occurrence of an
@@ -1711,6 +1913,8 @@ distinctness alone cannot), and cut ids sharing one document-wide set instead of
 
 The original entry follows unedited.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **97. Board `id` uniqueness is newly load-bearing but never enforced.**
 `buildNesting`'s sort tiebreak (`a.id.localeCompare(b.id)` in `nesting.ts`) and
 `SheetLayout.tsx`'s `<g key={p.boardId}>` both now depend on every board in a document
@@ -1725,6 +1929,8 @@ plus a React duplicate-key console warning from `SheetLayout`. Pre-existing gap 
 `validateBoard`, newly depended upon by this round rather than introduced by it — the
 obvious fix is to give `id` the same dedupe-on-load treatment invariant 8 already gives
 `name`.
+
+**Status:** closed (the note above: `takeId`). This is the SECOND entry numbered 97. (triaged 2026-10-16)
 
 **98. There is no UI for editing `stock.kerf`, and the default's error is
 asymmetric.** `stock.kerf` is migrated, defaulted, validated (`document.ts`) and used
@@ -1742,6 +1948,8 @@ too little material, with no way to correct it short of hand-editing the file.
 Over-counting — a thin-kerf blade or a track saw, where the true kerf is narrower than
 the default — is harmless, since it only ever buys a spare sheet. An under-count is the
 direction that costs a trip back to the yard mid-project.
+
+**Status:** open (feature gap): still no kerf control; `stock.kerf` is set only by the loader's default. (triaged 2026-10-16)
 
 ## From the snap-move round
 
@@ -1822,6 +2030,8 @@ second *provider* over the same board, a function returning `SnapPoint[]` that
 `MoveTool` concatenates onto `boardSnapPoints`' output — not a change to
 `pickSnapPoint`, which never sees a `Board` and never needs to. See the design's §2.3.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **100. No free movement, and the second click cancels rather than dropping.** Away
 from a candidate the board does not move at all; a click in empty space with a grab
 held cancels the grab. Free-hand positioning stays the gizmo's job, which is why the
@@ -1833,6 +2043,8 @@ no plane to hit, and — because the result would no longer be determined by a m
 already on screen — a live preview to make the landing position legible before
 committing. Three pieces of work, none of which the snap-targets-only tool needs.
 
+**Status:** record-only (decision). (triaged 2026-10-16)
+
 **101. No axis inference and no axis locking**, because there is no free movement to
 constrain. SketchUp constrains a move to the red/green/blue axis when the drag runs
 near one and locks it with an arrow key; both exist to make an otherwise-unconstrained
@@ -1841,6 +2053,8 @@ so there is nothing for a constraint to add. This entry is recorded rather than 
 unsaid because "SketchUp has axis locking and this doesn't" reads as a missing feature
 until you notice it is downstream of 100 — it becomes worth building the moment free
 movement does, and not before.
+
+**Status:** record-only (decision). (triaged 2026-10-16)
 
 **102. No ghost preview of the landing position.** Rejected with the user rather than
 skipped: with snap-targets-only, the result is fully determined by the marker already
@@ -1851,6 +2065,8 @@ pointer move. If 100 ever lands, this one lands with it: a free move genuinely i
 legible without a preview, which is why the two are recorded as one decision made
 twice rather than as two independent deferrals.
 
+**Status:** record-only (decision). (triaged 2026-10-16)
+
 **103. Single-board moves only.** The store holds one `selectedId`, and the grab holds
 one `SnapPoint` whose `owner` names one board. Moving several parts at once is a
 selection-model change — a set of ids, a rule for what the parts list shows, a rule for
@@ -1858,6 +2074,8 @@ what the Properties panel shows when two parts disagree — not a tool change.
 `commitSnapMove` would need almost nothing new (it already applies a delta rather than
 an absolute position, so it would loop), which is precisely why this is filed as
 depending on selection rather than on the tool.
+
+**Status:** closed — superseded: multi-select and group moves (`selectedIds`, `moveGroupTo`). (triaged 2026-10-16)
 
 **104. Occluded candidates are pickable on purpose.** A candidate hidden behind another
 board is still picked if it is nearest on screen, and its marker draws on top
@@ -1869,6 +2087,8 @@ camera angles the silhouetted corner that screen-space picking exists to make re
 *is* the occluded one. Task 9 confirmed the case is not merely permitted but usable —
 an upright plywood board's bottom corner, deliberately buried inside a pine board's
 footprint, picked cleanly with its marker drawn over pine's solid surface.
+
+**Status:** record-only (decision). (triaged 2026-10-16)
 
 **105. The tape measure, guide points and guide lines.** Named by the user as the
 intended follow-ups to this round and deliberately not designed here. Guides persist —
@@ -1882,6 +2102,8 @@ adds a member and a provider instead of reopening the picker's signature. The
 alternative the union exists to prevent is worth naming: with a bare id, the cheapest
 way to carry a guide point through the picker would be to synthesise a fake `Board` for
 it, which would put a lie in the document layer.
+
+**Status:** closed (fu 130: the tape and guide points shipped; guide lines set aside). (triaged 2026-10-16)
 
 **106. HARNESS ENTRY, in the shape of follow-ups 74 and 75: everything Task 9 drove was
 a synthetic `PointerEvent`, and that is a real bound on what the pass proves.** Board
@@ -1905,6 +2127,8 @@ three.js's `lookAt` argument order. That weakens nothing above — every hover w
 confirmed by a screenshot showing the correct marker, never assumed from projection
 maths — but it means no independent numeric check of the projection exists.
 
+**Status:** open (owed to the user: a touch/pen input pass; the other half closed by 115). (triaged 2026-10-16)
+
 **107. LESSON — the seventh instance of the plan-supplied-code chain (follow-ups 64, 68
 twice, 80, 87, 88), and the cleanest example yet of the working agreement doing its
 job.** The plan's Task 3 test file contained a case asserting that a committed snap move
@@ -1921,6 +2145,8 @@ assertion to match what the code did, which is exactly what joinery's lesson ask
 expectation is itself wrong") — here the third possibility, a wrong *setup* under a
 correct expectation, which neither the code nor the assertion would have revealed.
 Closed by fixing the plan (`1110d32`), not the test's expectation.
+
+**Status:** record-only (lesson). (triaged 2026-10-16)
 
 **108. LESSON — Task 9's verification report claimed broader marker coverage than it had
 actually checked, and the fix was to take the missing screenshots rather than to narrow
@@ -1941,6 +2167,8 @@ overclaim anywhere else in this repo. See `docs/browser-verification-snap-move.m
 where both the original paragraph and its correction are left in place rather than
 rewritten into a clean claim — the correction is the record.
 
+**Status:** record-only (lesson). (triaged 2026-10-16)
+
 ## From the selected-board grabs round
 
 **109. NON-GOAL — no click-to-select in Move mode, and this is the decision that keeps
@@ -1956,6 +2184,8 @@ the kind this round exists to remove: a click on a board face can also be a clic
 things depending on sub-pixel distance. Consecutive moves of one board already need no
 trip to the parts list — `commitSnapMove` selects the board it just moved.
 
+**Status:** record-only (non-goal). (triaged 2026-10-16)
+
 **110. NON-GOAL — the TARGET set is deliberately not restricted, and "restrict targets
 too, for symmetry" is the obvious wrong next step.** Design §3: two coincident *target*
 points produce the identical delta, so which one `pickSnapPoint` returns is
@@ -1966,11 +2196,15 @@ than merely redundant: the board being moved is by definition the selected one, 
 selected-only target set would leave nothing to snap **to**. Verified in the browser —
 with A grabbed, B's points are offered as targets and the move lands exactly.
 
+**Status:** record-only (non-goal). (triaged 2026-10-16)
+
 **111. NON-GOAL — still one board per gesture.** Multi-board moves remain a
 selection-model change (a multi-selection, and a rule for what a grabbed point means
 when it belongs to one member of a set), not a tool change. Carried forward unchanged
 from follow-up 103; this round narrows what a *single* selection offers and does not
 touch how many things can be selected.
+
+**Status:** closed — superseded: multi-select group moves. (triaged 2026-10-16)
 
 **112. NON-GOAL — no change to the gizmo or to any of the four gates the snap-move round
 installed.** The gizmo is still absent in Move mode, board click-to-select is still off,
@@ -1979,6 +2213,8 @@ point is carried. All four were re-driven as a regression check
 (`docs/browser-verification-selected-board-grabs.md`, Step 7) rather than assumed, and
 all four hold. No schema change either — `CURRENT_VERSION` stays 5, so a rollback past
 this round costs the behaviour and nothing else.
+
+**Status:** record-only (non-goal). (triaged 2026-10-16)
 
 **113. COMPOSITION — the guide-points design's §3.1 filter is SUBSUMED by this round's,
 and whichever ships second must merge them into one expression rather than stacking two.**
@@ -1993,6 +2229,8 @@ that reads as load-bearing. Note the branch structure this has to live in: the m
 deliberately *two sets rather than one set with a filter* (pre-grab and post-grab), and
 §3.1's rule belongs only to the pre-grab branch.
 
+**Status:** record-only (composition; 125 closed by 132). (triaged 2026-10-16)
+
 **114. The browser pass found NO defect, and that sentence is the whole finding.**
 `docs/browser-verification-selected-board-grabs.md` records what was checked — the same
 pixel marking A's corner or B's edge midpoint depending only on the selection, the
@@ -2006,6 +2244,8 @@ section, and the two gaps worth carrying are touch/pen input and the fact that t
 pre-fix behaviour was not re-driven (that would require reverting `src/`, which the
 verification task does not touch — the diagnosis rests on design §1 and the store unit
 tests).
+
+**Status:** record-only. (triaged 2026-10-16)
 
 **115. HARNESS — follow-up 106 is now HALF closed, and the half that closed is worth
 copying into the next viewport round.** 106 recorded that every interaction the snap-move
@@ -2042,6 +2282,8 @@ have no DOM presence — the pointer goes to a *computed* coordinate, so the pro
 being validated against a rendered marker is what stands in for a locator, not a
 substitute for one.
 
+**Status:** record-only (harness; the open half is 106). (triaged 2026-10-16)
+
 **116. Marker colour encodes KIND, not owner — which is why the fixture was built with a
 shared point that is a corner of one board and an edge midpoint of the other.** Worth
 recording as a verification-design note, because the obvious fixture (two boards sharing
@@ -2054,6 +2296,8 @@ a screenshot into evidence instead of an illustration. The numeric read (which b
 all. The general shape: when an indicator's colour encodes a property other than the one
 under test, build the fixture so the two cases differ in the property the indicator
 *does* encode.
+
+**Status:** record-only. (triaged 2026-10-16)
 
 **117. The toolbar hint has NO unit test, and that is a decision rather than a gap in
 coverage.** `panels/` is the one layer above `document` this repo does unit-test with
@@ -2070,6 +2314,8 @@ zero grabs) and screenshotted the hint alongside. An RTL test would have added a
 weaker check of the easy half. If the hint later grows conditions — a different string
 per state, or a dependence on something beyond `tool && !selectedId` — that reasoning
 expires and it should get one.
+
+**Status:** closed — superseded: the hint lives in ViewportControls and is tested (`shows "Select a part to move" in the Move tool exactly while nothing is selected`). (triaged 2026-10-16)
 
 **118. LESSON — a review finding whose justification did not reproduce, and the FIRST in
 this chain sourced from a reviewer rather than from a plan.** Follow-ups 64, 68 (twice),
@@ -2107,6 +2353,8 @@ not to run the suite, which makes reasoning the only option available to them an
 running it the reader's job — not a criticism of the review, but the reason a finding of
 this shape gets verified before it gets implemented.
 
+**Status:** record-only (lesson). (triaged 2026-10-16)
+
 ## From the cut-aware snap points round
 
 Design in `docs/superpowers/specs/2026-08-03-sloyd-cut-snap-points-design.md`, browser
@@ -2130,6 +2378,8 @@ what keeps §3.1's kind rule simple: because no point ever sits at mid-depth, th
 never contributes a `mid`, so counting mids among the two *in-plane* axes is the whole rule
 and the three existing `SnapKind`s cover all 15.
 
+**Status:** record-only (non-goal). (triaged 2026-10-16)
+
 **120. NON-GOAL — no de-duplication against the box lattice, and the subtlety is in the
 COLOUR rather than in the move.** A cut point can land exactly on a board lattice point: a
 rabbet with `depth = thickness / 2` puts its flush floor corner precisely on the board's
@@ -2151,6 +2401,8 @@ was **not driven in a browser**: the pass's fixture used a ¼"-deep cut, which n
 follow-up 122 is a *position* coincidence, a different thing from the *kind* coincidence
 this entry is about.
 
+**Status:** record-only (non-goal). (triaged 2026-10-16)
+
 **121. NON-GOAL — no fourth `SnapKind`, and `SnapMarker.tsx` is unchanged.** A cut-owned
 kind was considered and rejected. Hue encodes *which kind of point*, and it still does
 after this round: a floor corner is green like a board corner, a shoulder-line midpoint
@@ -2166,6 +2418,8 @@ without hiding it, shape cannot carry a distinction, which is why hue was chosen
 first place. The browser pass re-checked all three hues on a *cut floor* — which is shaded
 rather than lit, the condition they were never settled against — on pine, walnut and
 plywood, nine checks, and retuned nothing.
+
+**Status:** record-only (non-goal). (triaged 2026-10-16)
 
 **122. The round's own governing constraint was failing on the OLDEST code in the feature,
 and the browser pass is what found it — CLOSED in-branch by `999ca29`, design §5.1.** This
@@ -2210,6 +2464,8 @@ neighbour was inside the radius. Positive controls in the same session on the ra
 other, non-flush shoulder; a plain mid-face dado still offering all 26, every one hovered
 individually; the consumed ghost still offering all 26 and no cut points.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **123. The ¼" pick ambiguity at default zoom is REAL, MEASURED, and ACCEPTED with the user
 rather than fixed.** Design §9.1 flagged clustering against `PICK_RADIUS_PX` as the
 round's one genuine feel risk and asked for it to be checked at working zoom. It was, and
@@ -2245,6 +2501,8 @@ candidates, or accepting that this operation is done zoomed in, which is what an
 at a ¼" feature would do anyway. **The user adjudicated this as ACCEPT: follow-up only, no
 code change.** The point set was not shrunk to work around it either; the numbers above are
 the record so a future round can start from them rather than re-measuring.
+
+**Status:** record-only (accepted by the user). (triaged 2026-10-16)
 
 **124. What the two browser passes did NOT check.** Collected from both reports so the
 gaps are in one place rather than split across a pass and its re-check.
@@ -2292,6 +2550,8 @@ gaps are in one place rather than split across a pass and its re-check.
 - **Production.** The dev server only, per the standing rule: `sloyd.autosave.v1` in a real
   browser *is* someone's project.
 
+**Status:** record-only (its owed items are 106, 26a and 70/79/84). (triaged 2026-10-16)
+
 **125. COMPOSITION — follow-up 113's branch now has a THIRD contributor, and the guides
 round's plan still needs its revision pass before it starts.** The guide-points design's
 §3.1 filters grabbable candidates to *board-owned* points; the selected-board grabs round
@@ -2309,6 +2569,8 @@ pre-grab branch, and guides will introduce the first category of point that is d
 against a moving one. This round applied 113's own rule to itself pre-emptively rather than
 after the fact: `snapPointsFor` is one exported function called in both branches, not two
 concatenations that could drift.
+
+**Status:** closed (by 132). (triaged 2026-10-16)
 
 **126. LESSON — a test whose title names a property nothing in the suite pins. The newest
 link in the chain (follow-ups 64, 68 twice, 80, 87, 88, 107, 118), and the first sourced
@@ -2330,6 +2592,8 @@ pin would need to observe the grid *not* being built — a spy on the private `g
 is unexported on purpose — so the correct resolution is probably the honest title rather
 than the machinery.
 
+**Status:** open (hygiene, code-sized): the title `leaves all 26 for a board with no cuts (fast path, no grid built)` still names a property nothing pins. (triaged 2026-10-16)
+
 **127. Two grab-clearing cases the store tests do not reach.** Both minor, both deferred
 with the reasoning rather than dropped, because `dropGrabIfGone`'s precision is the whole
 point of design §7.2 and these are the two edges of it.
@@ -2344,6 +2608,8 @@ point of design §7.2 and these are the two edges of it.
   reasoned correct and unpinned. It is the case that distinguishes point-precise clearing
   from board-precise clearing on a *multi-cut* board, which is the direction the rule is
   most likely to be simplified in by someone who does not know why it is narrow.
+
+**Status:** open (test gap): no `addCut` test where the new cut consumes a held point, and no grab-on-cut-A-survives-edit-to-cut-B test. (triaged 2026-10-16)
 
 **128. Three hygiene minors carried out of the reviews.** None affects behaviour; all three
 are recorded so a later reader does not re-derive them.
@@ -2365,6 +2631,8 @@ are recorded so a later reader does not re-derive them.
   remains in its middle — which has to be constructed deliberately. The explicit check is
   the rule the design states, and it is kept for that reason rather than because a test
   demands it.
+
+**Status:** open (hygiene): all three minors still stand. (triaged 2026-10-16)
 
 **129. LESSON — three documents illustrated `dropGrabIfGone`'s rule with a claim the
 round's own Task 6b had already made false, and the seam between the two tasks is exactly
@@ -2397,6 +2665,8 @@ the case Task 6b introduced (a flush cut consumes the corner and the grab drops)
 than asserting only the first as if the second could not occur. A store test pins the
 second half directly, alongside the existing test for the first (both in
 `src/store/store.test.ts`, `describe('the Move tool')`).
+
+**Status:** record-only (lesson; the behaviour is pinned). (triaged 2026-10-16)
 
 ## From the guide-points round
 
@@ -2445,6 +2715,8 @@ The rest of §9, each looked at and deferred with a reason:
   `THREE.Line`/marker raycasting registers a hit only within an inch of what is drawn and
   a guide's marker is far smaller than a board.
 
+**Status:** open by decision (semi-infinite construction lines: ask before assuming they are wanted; real hardware). (triaged 2026-10-16)
+
 **131. CLOSED 2026-08-31 with 97, which is exactly how this entry asked to be closed.** It
 said enforcing guide ids while leaving boards unenforced would be the inconsistent
 half-measure, so both were left to whichever round closed 97 — and one round closed both,
@@ -2454,6 +2726,8 @@ DROPPED rather than minted, because that is malformed data under `validateGuides
 rule, while a duplicate is a well-formed guide wearing a taken label. Invariant 33.
 
 The original entry follows unedited.
+
+**Status:** closed. (triaged 2026-10-16)
 
 **131. Guide ids are not deduplicated, and this is a knowing choice.** `validateGuides`
 keeps a guide whose `at` is three finite numbers and whose `id` is a non-empty string, and
@@ -2465,6 +2739,8 @@ never being enforced the way `dedupeNames` enforces names; guides inherit exactl
 exposure — a duplicate id would make `removeGuide` delete two rows at once and hand React
 two identical keys. Enforcing it for guides while leaving boards unenforced would be the
 inconsistent half-measure, so both are left to whichever round closes 97.
+
+**Status:** closed (the note above: `takeId`). This is the SECOND entry numbered 131. (triaged 2026-10-16)
 
 **132. Follow-up 125 is CLOSED, and by a document rather than by code — which is why a
 reader looking for the merged predicate will not find one.** 125 asked whoever shipped
@@ -2482,6 +2758,8 @@ pre-grab branch in `MoveTool.tsx` carries only a comment where 125 might lead so
 expect a predicate. Guides join the **post-grab** branch only, beside `showGuides`, with
 `guides`/`showGuides` added to the dependency list *beside* the existing `selectedId` —
 dropping it there is invariant 15's failure mode and would have looked like it worked.
+
+**Status:** record-only. (triaged 2026-10-16)
 
 **133. Follow-up 120 gained a REACHABLE instance, at zero separation rather than 3.6 px —
 and it came out stable, with the mechanism confirmed in code rather than inferred from the
@@ -2508,6 +2786,8 @@ ordering**: nothing pins that order across a document edit, so this is stability
 unchanged candidate list, not a guarantee. If it ever does read as flicker, the fix is a
 deterministic ordering rule — which is what 120 already names — and **not** a
 de-duplication step, which would delete a real candidate.
+
+**Status:** record-only (accepted). (triaged 2026-10-16)
 
 **134. THE `grabbed` / `tapeAnchor` ASYMMETRY AT `updateBoard`, named here and in CLAUDE.md
 invariant 24 because it is a documentation trap in both directions.** After this round the
@@ -2536,6 +2816,8 @@ are silent:
   re-break the rename case**, and the store tests that catch it are the two "keeps"
   cases (`keeps a latched hover when the hovered board is only RENAMED`, and the anchor's
   mirror), not the "drops" cases, which pass either way.
+
+**Status:** record-only (invariant 24 makes `grabbed` board-precise at `updateBoard` on purpose). (triaged 2026-10-16)
 
 **135. `BoardSnapPoint` replaced eight remembered checks with one type — and what it does
 NOT cover is worth knowing before the next held-point field is added.** Widening `SnapOwner`
@@ -2575,6 +2857,8 @@ Its limits, all three verified against the code rather than argued:
   `deleteBoard`, two in `removeGuide`. A future held-point field typed `SnapPoint` inherits
   that, and the type buys it nothing.
 
+**Status:** record-only. (triaged 2026-10-16)
+
 **136. Neither browser-settled constant was retuned, and the evidence for each is
 different.** Both are follow-up 60 constants — judgements a test cannot make — and Task 10
 carried the obligation the code comments assign it. `src/viewport/SnapMarker.tsx` is
@@ -2596,6 +2880,8 @@ carried the obligation the code comments assign it. `src/viewport/SnapMarker.tsx
   each demonstrate directly. Check 9 is deliberately *not* cited: its control hovers a board
   corner, and board points have no resting representation at all — see 141.
 
+**Status:** record-only. (triaged 2026-10-16)
+
 **137. Task 10's three self-flagged concerns.** The implementer raised all three unprompted;
 none was found by review, and the first is the most likely thing in the report to misread.
 
@@ -2615,6 +2901,8 @@ none was found by review, and the first is the most likely thing in the report t
   genuinely different states. Full-page captures after a 1 s settle, cropped offline, were
   reliable. Anyone re-running check 1b should use the latter.
 
+**Status:** record-only. (triaged 2026-10-16)
+
 **138. What the browser pass did NOT check**, collected so the gaps sit in one place.
 Touch and pen (follow-up 106's remaining half — every interaction was real
 `page.mouse`/`page.keyboard`, so there is no synthetic-dispatch caveat this time, but
@@ -2627,6 +2915,8 @@ this round's own point-precise anchor/hover clearing at
 `updateBoard`/`addCut`/`updateCut`/`removeCut`, which is unit-tested thoroughly but never
 driven in the app.
 
+**Status:** record-only (its owed items are 106, 26a and 70/79/84). (triaged 2026-10-16)
+
 **139. Two store tests cannot fail, and they are honest empty slots rather than false
 ones.** `src/store/store.test.ts:1104` and `:1314` each assert a held-point field is `null`
 after a cut edit made with nothing held — and both fields were already `null`. They pin the
@@ -2636,6 +2926,8 @@ which is follow-up 126's lesson applied at the point of writing rather than afte
 "strengthen" them with an ESM spy on the private grid builder** — that was weighed and
 rejected, for 126's own reason: the correct resolution of an unpinnable performance claim is
 an honest title, not machinery. The guard-first shape is verified by reading it.
+
+**Status:** record-only (honest empty slots; their titles claim nothing). (triaged 2026-10-16)
 
 **140. A PRE-EXISTING test flake, newly diagnosed — not this round's, and not a merge
 blocker.** `src/document/depthField.agreement.test.ts` > *"rabbets on all four edges plus
@@ -2695,6 +2987,8 @@ code and justifications supplied by a plan, a spec or a reviewer, turned on the 
 itself. Both remedies here were reasonable when written and would have worked, in the sense
 that the suite would have gone green; neither would have found that the test was doing
 4,650× the work it needed to. **Measure before adopting the remedy an entry names.**
+
+**Status:** closed. (triaged 2026-10-16)
 
 **141. LESSON — the plan-supplied-code chain gained FOUR instances in one round, plus a
 fifth from a brief-supplied COMMENT, and three fixtures that passed for the wrong reason.
@@ -2766,6 +3060,8 @@ to grab in a fixture is the one point that survives the edit you are testing.** 
 that reaches for index 0 of a point provider is reaching for the corner most likely to be
 invariant under the very change the test exists to detect.
 
+**Status:** record-only (lesson). (triaged 2026-10-16)
+
 ## From the type-anywhere round
 
 **142. A guide hovered as the TAPE'S TARGET draws the same size and the same hue as the
@@ -2784,6 +3080,8 @@ narrows the round's existing legibility deferral rather than adding to it — th
 question is only whether *which is which* reads without thinking, and it is a browser
 question, in the sense of follow-up 60. Cheapest remedies if it ever needs one, in order:
 drop the preview's ring, or draw the hovered marker resting-sized while a preview exists.
+
+**Status:** open (owed to the user's eye: a guide hovered as the tape's target vs the typed preview). (triaged 2026-10-16)
 
 **143. `tapeTyped`'s anchor-loss clear is owned by a PANEL EFFECT, not by the store, so the
 field outlives the anchor by one render — and the correctness of that rests on
@@ -2815,6 +3113,8 @@ would close it if it ever bites: clear `tapeTyped` beside every `tapeAnchor: nul
 store (rejected today — it puts a fact about a text box into seven store actions), or keep
 the mount unconditional and say so where it is written. The second is what is in place.
 
+**Status:** closed (the unconditional mount is stated where it is written, App.tsx). (triaged 2026-10-16)
+
 **144. CLOSED by the cardinal guides round (2026-08-04).** `error` now carries its cause —
 `type TapeError = 'no-direction' | 'unparseable' | 'degenerate' | null` in
 `TapeReadout.tsx` — and the single over-wide effect split into two, one keyed on `[text]`
@@ -2836,6 +3136,8 @@ leaves an unparseable number marked, a character change clears it, and `degenera
 observed live by name. See `docs/browser-verification-cardinal-guides.md`. The original
 entry follows, unedited, because the reasoning it records about what one bit can and
 cannot express is what produced the union.
+
+**Status:** closed. (triaged 2026-10-16)
 
 **144 (original). The error-clearing effect was WIDENED to `[text, hovered]` and now clears a refusal
 it does not cure — introduced by that widening, not pre-existing.** `commit()` refuses for
@@ -2861,6 +3163,8 @@ no-target refusal stays marked until an unrelated character is typed) or too wid
 and there is no third option that does not add the cause. Whoever picks this up should also
 consider whether the cause is worth *printing* — the box says "wrong" and never says what,
 which is the same complaint that produced this whole round about the placeholder.
+
+**Status:** closed (the note above). (triaged 2026-10-16)
 
 ## The chosen successor — 2026-08-04
 
@@ -2899,6 +3203,8 @@ asked below, so nobody re-derives one from the question alone:
 **No schema change, as predicted below**: `CURRENT_VERSION` stays 6, `validateGuides` is
 untouched, no migration step, and both round-2 mechanisms were extended rather than
 duplicated. The original entry follows unedited.
+
+**Status:** closed (shipped). (triaged 2026-10-16)
 
 **145. CARDINAL-DIRECTION GUIDE PLACEMENT is the next line of work — CHOSEN, not
 proposed.** The user named it immediately after confirming in real use that both tape
@@ -2981,6 +3287,8 @@ construction. A second capture or a second preview would be two places for one r
 disagree — follow-ups 113 and 125's shape, arriving before the code exists rather than
 after.
 
+**Status:** closed (shipped; the note above). (triaged 2026-10-16)
+
 ## From the cardinal guides round
 
 **146. Design §5.2's ILLUSTRATION is contradicted by its own §3.1, and the browser is what
@@ -3032,6 +3340,8 @@ existed** and survived six task reviews, because every individual task's code wa
 Only running the sentence end to end in a browser could catch the claim, and only a review
 sweeping for the *sentence* rather than for the behaviour could catch its third copy.
 
+**Status:** record-only (the code comments are fixed; the design is kept as history). (triaged 2026-10-16)
+
 **147. Should the axis outlive a COMMIT? Open BY RULING rather than by default — the user
 was asked and chose to ship as-is (2026-08-04).** The ruling: the single-sentence rule below
 is worth one keystroke per guide, and the question is worth revisiting only with real use
@@ -3058,6 +3368,8 @@ ending the measurement), and is therefore its own design question rather than a 
 not resolve this by adding `tapeAxis` back into a `set()` beside a `clearTapeAnchor()` call
 without amending §3.1 and the `tapeAxis` declaration together; the rule and the code have
 to keep agreeing, which is what 146 is about.
+
+**Status:** open by decision (the user ruled ship as-is). (triaged 2026-10-16)
 
 **148. `gesturing` and `gestureSnapshotTaken` are MODULE-LEVEL closure variables that
 `replaceDocument` does not reset, and in tests that leaks across files' worth of state.**
@@ -3129,6 +3441,8 @@ and said a leak lasts "forever", was corrected on both counts — and the guard 
 primary, because nothing about a mid-drag unmount implies a document is about to be
 replaced.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **149. NON-GOALS — design §8, recorded as decisions rather than omissions.**
 
 - **No schema change**, and none was needed. `GuidePoint` is `{ id, at }` with `at` a bare
@@ -3156,6 +3470,8 @@ replaced.
   is not a second capture path: it exists because `isTextEntry` stops `App`'s listener
   seeing anything once the box has focus, it calls the same `tapeAxisFromKey`, and Escape
   had already set the precedent for exactly that reason.
+
+**Status:** record-only (non-goals). (triaged 2026-10-16)
 
 **150. What the browser pass found and what it could not reach** — full report in
 `docs/browser-verification-cardinal-guides.md`. All 8 checks were run. **No defect was
@@ -3202,6 +3518,8 @@ unparseable refusal* probe reported the refusal still present at 150 ms and abse
 re-read. The behaviour is correct; the sample was early. Both are recorded because either
 shape would read as a defect in a longer check that was not repeated.
 
+**Status:** record-only. (triaged 2026-10-16)
+
 ## From the project library round
 
 **151. The row's two controls reveal INDEPENDENTLY on keyboard focus, so a keyboard user
@@ -3217,6 +3535,8 @@ nobody has looked at on real hardware and this round's ruling everywhere else ha
 record rather than retune. Recorded now because the argument for the current state is
 "nobody noticed", which is not an argument.
 
+**Status:** open (hygiene, one CSS rule; a visual change for the user's nod): no `.project-row:focus-within` reveal. (triaged 2026-10-16)
+
 **152. Escape closes the project menu and leaves focus on `<body>` rather than returning it
 to the caret.** Confirmed live: `document.activeElement` after an Escape from an armed delete
 is the body element. The popup unmounts the focused button and nothing restores focus to the
@@ -3227,6 +3547,8 @@ handler this round argued *out* of invariant 27's scope (design §4.1), and doin
 docs-only task would put an unreviewed edit on that file. Note the two closing paths differ:
 the focusout close happens *because* focus went somewhere sensible, so it has nothing to
 restore — only the Escape path is affected.
+
+**Status:** open (a11y defect, code-sized): Escape still only closes the menu; focus is not returned to the caret. (triaged 2026-10-16)
 
 **153. A genuinely full `localStorage` was never produced in a browser.** `available` goes
 false down two routes: an unrecognised or corrupt index (driven live, see
@@ -3239,6 +3561,8 @@ and *before* it is committed, and what the user sees depends on `autoSave`'s ord
 what it cannot show is how the app reads to a person once a real browser starts refusing
 writes mid-session. Filling a real origin to its quota and driving a few edits is the
 remedy.
+
+**Status:** open (owed: a real browser at quota). (triaged 2026-10-16)
 
 **154. Two tabs of Sloyd on one origin is now a materially different situation, and nothing
 was designed or driven for it.** Before this round two tabs fought over one key and the loser
@@ -3253,6 +3577,8 @@ which orphans the `sloyd.project.<id>` key rather than deleting it, so it is rec
 hand. Not driven in the browser pass and not modelled by any test. The honest small remedy is
 a `storage`-event listener that re-reads the index; the honest large one is a lock, which is
 more machinery than a single-user woodworking app has earned.
+
+**Status:** open (latent): nothing listens for the `storage` event; see also fu 325 (library and prices). (triaged 2026-10-16)
 
 **155. SIX DISTINCT plan-supplied tests in this round could not fail, and one of them was
 hiding a real shipped bug.** Say *distinct*, because the ledger's own running count and this
@@ -3290,6 +3616,8 @@ end state and cannot see the step that was skipped. Invariant 23 said this about
 this round says it about orderings and refusals too, and invariant 31 carries it for the
 storage seam.
 
+**Status:** record-only (lesson). (triaged 2026-10-16)
+
 **156. `App.test.tsx`'s fake still does not model `activeId` on duplicate.** Left as it is,
 knowingly. After R21's fix the fake is *coincidentally* correct — the real adapter's
 `duplicateProject` passes `{ activate: false }`, and the fake never touched `activeId` either
@@ -3305,6 +3633,8 @@ carrying enough approximation that the next person to add a test against it shou
 it actually models before trusting a green.
 
 ---
+
+**Status:** record-only. (triaged 2026-10-16)
 
 **157. CLOSED 2026-08-31 — one shared in-flight token, and the boolean guard it replaced
 was itself wrong.** `App` now holds ONE `switchToken` ref; all four adopting handlers
@@ -3345,6 +3675,8 @@ divergence in the list 156 keeps (now taught to the fake rather than left silent
 
 The original entry follows unedited.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **157. The three async handlers beside `openProject` are unguarded, and the persisted
 `activeId` can end on the loser.** `openProject` got an in-flight guard in the final fix
 wave; `onNewProject`, `onDeleteProject` and `importIntoLibrary` are now all
@@ -3368,6 +3700,8 @@ was rightly wary of. The technique was already proven in this round on `ProjectM
 await-before-refresh test. **"This cannot be tested" meaning "I did not find the technique"
 is itself one of this round's recurring findings.**
 
+**Status:** closed (the note above). This is the SECOND entry numbered 157. (triaged 2026-10-16)
+
 **158. CLOSED 2026-08-31 — both, and the second one has a `tsc` receipt.**
 
 - The `App.tsx` comment now states the rule **and its one known limit**: `onDuplicateProject`
@@ -3386,6 +3720,8 @@ is itself one of this round's recurring findings.**
 
 The original entry follows unedited.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **158. Two comments overstate what the code does, both in the same fix wave that narrowed
 invariant 31 for exactly this reason.** Neither changes behaviour; both are the failure mode
 this repo has now logged five times in one round, which is why they are written down rather
@@ -3402,6 +3738,8 @@ than left to be rediscovered.
   forbids — passes all 51 `App.test.tsx` tests. The invariant is correct and the code obeys
   it; nothing makes the code keep obeying it. A type that pairs the id and document at the
   point they are captured would enforce what the sentence currently only asks for.
+
+**Status:** closed (the note above). This is the SECOND entry numbered 158. (triaged 2026-10-16)
 
 ## From the 157/158 correctness round — 2026-08-31
 
@@ -3469,6 +3807,8 @@ only one project key present, which is the state 154 or a hand edit produces:
 and a fake store, so they pin the wiring; only the browser pass shows the real adapter taking
 the null branch for a key that is really absent, the banner correctly staying away, and
 nothing being written.
+
+**Status:** closed. (triaged 2026-10-16)
 
 **160. `onDeleteProject`'s in-flight token covers its ADOPTION, not the index write, and that
 residue is deliberate.** The other three handlers can be made to move the persisted `activeId`
@@ -3538,6 +3878,8 @@ turns the last-project one red on its own, which is what shows that test covers 
 rather than the caller. No other test in the file caught either mutation, so nothing else was
 holding this.
 
+**Status:** closed. (triaged 2026-10-16)
+
 ## From the turned-label round — 2026-08-31
 
 **161. The `name` tier still says nothing about a turned part, and the remedy is a design
@@ -3605,6 +3947,8 @@ Verified against the dev server on a fixture where the geometry decides nothing:
 187.5 × 156.25, and a third part `Rail` is unturned at the `name` tier to show the rung
 survives. `docs/browser-verification-turned-index.md`.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **162. The sheet's key list draws a bullet in front of a line that already numbers itself.**
 `.cutlist-layout-key` sets `color`, `margin` and `padding-left` but never `list-style`, so the
 browser's default marker stands in front of an `<li>` whose text begins `1. `, and the entry
@@ -3639,6 +3983,8 @@ real browser, not by asserting on a stylesheet. The pass used a **two-entry** ke
 fourth turned part added to 161's fixture), because a one-line list can show neither alignment
 nor numbering. Print carries the change unchanged: the `@media print` block sets `color` on
 this class and nothing else. Addendum in `docs/browser-verification-turned-index.md`.
+
+**Status:** closed. (triaged 2026-10-16)
 
 
 **163. `FACE_AXES` discarded the SIGN of each UV axis, so a solid's sub-range landed on the
@@ -3706,6 +4052,8 @@ said the layers look even to them, so it is open by decision, not by oversight.*
 is a taste call about how a plywood edge should read and wants asking first, the way 161 was
 asked.
 
+**Status:** closed; the ply-legibility residue is open by decision (do not re-open unasked). (triaged 2026-10-16)
+
 ## From the Generate round — 2026-10-03
 
 **164. The generations in one batch converge on the same design, and variety was the point
@@ -3743,6 +4091,8 @@ seat over aprons in both. The planner can also return near-identical concepts, a
 rejects them. Both were seen and set aside: the user judged the batches distinct, and a
 duplicate check would be code for a case not yet observed. If a future live pass shows
 duplicates, the cheap remedy is a re-ask with the duplicates named, inside `planConcepts`.
+
+**Status:** closed. (triaged 2026-10-16)
 
 **165. `checkDesign`'s support rule is topological, not structural, and the user found a
 piece it passes that is not properly supported.** The workbench (Sonnet 5.5, Shop,
@@ -3785,12 +4135,16 @@ The live pass (`docs/browser-verification-held-and-stable.md`):
 - All four designs check clean against the shipped code.
 - No `hangs` or `tips` message was ever sent.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **166. Centring a design whose coordinates are near 1e307 overflows.** This is ruling 19
 from the round's ledger. `designToDocument` translates the design onto the floor and
 centres it; for parts near the top of the double range the translation sum overflows. The
 finiteness re-check after snapping (`3600252`) catches the snap case but not this one. Real
 model output does not reach these values, and the failure is loud: the generation fails
 with an odd message instead of writing garbage.
+
+**Status:** closed — fixed: `MAX_MAGNITUDE` rejects it (generated.ts); `rejects a loose part at 1.1e307 (centring overflow) and keeps the rest (F3)`. (triaged 2026-10-16)
 
 **167. Prompt caching was never observed working.** The system prompt carries
 `cache_control`, but it is probably below the minimum cacheable prefix for both models. If
@@ -3817,6 +4171,8 @@ live gap is narrower: a batch's runs could share one cache write if one run (or 
 call, if it shared the prefix) went first. At these prices that is still well under a cent
 per batch, so the LOW VALUE verdict above stands; only its reason changed.
 
+**Status:** closed — moot: caching was later observed working. (triaged 2026-10-16)
+
 **168. The cost estimate has not been checked against a real bill, and loses money on two
 paths.** The live pass did not record the per-row estimates. The console's token counts
 priced at the app's own rates give $0.075 for the Opus pair and $0.120 for the Sonnet four.
@@ -3825,6 +4181,8 @@ price table is wrong, not the arithmetic. Separately, the cost of any
 calls made before an `LlmError` (auth, rate limit, network) is dropped rather than reported,
 because `RunFailed` carries usage and `LlmError` does not. A sub-cent run also prints
 "≈ $0.00", which reads as free.
+
+**Status:** open (defect, code-sized): the bill comparison is superseded by fu 236's measured ranges, but usage spent before an `LlmError` is still dropped (useGenerations.ts, useRefine.ts — `spentBefore` exists in run.ts) and a sub-cent run still prints "≈ $0.00". (triaged 2026-10-16)
 
 **169. Deferred minors from the round's reviews, each judged not worth a fix round:**
 
@@ -3838,6 +4196,8 @@ because `RunFailed` carries usage and `LlmError` does not. A sub-cent run also p
 - Starting a new batch replaces the previous batch's rows in the dialog. The projects
   themselves are untouched.
 
+**Status:** open (hygiene, low): the minors stand. (triaged 2026-10-16)
+
 **170. The Generate dialog's form layout is off in two places (cosmetic).** From the
 browser-pass screenshot (`docs/img/generate-dialog-no-key.png`):
 
@@ -3849,6 +4209,8 @@ browser-pass screenshot (`docs/img/generate-dialog-no-key.png`):
   narrow.
 
 Both are CSS in `.generate-*`. Neither affects function.
+
+**Status:** closed — superseded by the ui-polish round's dialog layout. (triaged 2026-10-16)
 
 **171. Phase 2: refine and joinery, the planned successor to this round.** Option B from
 the design discussion: take a generated design and sharpen it, adding real joints as
@@ -3867,15 +4229,21 @@ stopped dados exist. The "overlap not accounted for by a cut" rule can be writte
 tenon sitting in a mortise rather than only in a through slot. Angled and round joinery are
 still out.
 
+**Status:** closed (shipped: joinery 2026-10-04, refine 2026-10-09). (triaged 2026-10-16)
+
 **172. A design-quality eval set.** The live pass is three prompts judged by eye. Tuning the
 prompt, the effort level or the repair messages (164, 165, 167) needs a fixed prompt set and
 a grading rule, or every change is judged on a different sample. Costs real money per run,
 so get approval for each run.
 
+**Status:** open (owed to the user: paid eval runs). (triaged 2026-10-16)
+
 **173. Settings deferred by decision during the design discussion:** a budget cap per batch,
 "use what I have" (generate from a stock inventory), and providers other than Claude. The
 `LlmClient` interface in `src/llm/types.ts` is the seam for the last one. `LlmMessage` is
 opaque precisely so a second provider cannot be made to share the first one's turn shape.
+
+**Status:** record-only (by decision). (triaged 2026-10-16)
 
 ## From the batch variety round — 2026-10-03
 
@@ -3912,6 +4280,8 @@ a prefix rule turns six tests red. **One test case was corrected while writing i
 break cannot be the bad character, because a single-line `<input>` strips LF and CR itself,
 so the test uses a tab.
 
+**Status:** closed. (triaged 2026-10-16)
+
 **175. Deferred minors from the batch variety round's reviews**, each judged not worth a fix
 round:
 
@@ -3930,6 +4300,8 @@ round:
   unreachable today, because `AnthropicClient.estimateCostUsd` is arithmetic that returns
   `null` for an unknown model. It only matters for a future client whose cost function can
   throw.
+
+**Status:** open (test gaps / hygiene, low): the minors stand. (triaged 2026-10-16)
 
 ## From the held and stable round — 2026-10-03
 
@@ -3957,12 +4329,16 @@ the case is unseen or by design:
 - **One-word part names in two test helpers.** The `names` helpers in the `hangs` tests take
   the message's first words, which assumes one-word part names.
 
+**Status:** open (known limits). (triaged 2026-10-16)
+
 **177. A live round trip of a `hangs` or `tips` repair has not been seen.** In the live pass,
 five design calls drew no message from either rule: the model obeyed the two prompt lines
 up front. The checks and their exact messages are unit-tested (the user's own workbench is
 a fixture, and its message text is pinned), but whether the model *repairs* well from
 "X sides are covered 19% and 19% …" is unobserved. The next paid run that triggers one
 should record the round trip. Chasing it with extra batches was judged not worth the money.
+
+**Status:** open (owed: a live repair, a paid run). (triaged 2026-10-16)
 
 ## From the stopped cuts round — 2026-10-04
 
@@ -4005,6 +4381,8 @@ growing it back is ordinary while sizing a part, and dropping would lose the joi
   last sentence is true: the loader drops every case the predicate reaches in the app. The
   row's label still names the stored shape ("Dado"), which the user saw live and passed.
 - **Live pass:** `docs/browser-verification-phantom-cut.md`.
+
+**Status:** closed. (triaged 2026-10-16)
 
 ## From the joinery round — 2026-10-04
 

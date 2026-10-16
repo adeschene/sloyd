@@ -486,6 +486,15 @@ and 79.
 
 ## What each round did
 
+**What the 1–178 triage did (2026-10-16)** (docs only, on master, after the follow-ups 2 deploy; the user's ask). The oldest
+follow-ups predated the `**Status:**` convention. Five read-only agents checked each entry against the current code, a sample of
+their closures and defect claims was re-verified by hand (1, 3, 4, 6, 14, 37, 53, 95, 96, 98, 152, 168), and one proposal was
+overruled (134 reopened against invariant 24: the board-precise `grabbed` clause is deliberate, so record-only). Every entry
+(189 headers counting the closure notes and the six doubled numbers) gained a `**Status:**` line tagged `(triaged 2026-10-16)`;
+no entry text changed. 65 closed (fixed, superseded or moot, each with its evidence), 69 record-only (lessons, non-goals,
+decisions), 15 owed to the user or open by decision (real hardware 26a/34/39, real prints 70/79/84/94, touch/pen 106, 130, 147,
+153, 172, 176/177), 40 open as work. No code changed.
+
 **What follow-ups 2 did (2026-10-16)** (branch `follow-ups-2` from master `fe5eba3`; the user approved fu 296's and 262's
 rulings and asked to keep going). The recent rounds' code-sized residue: 297 (`miterFields` returns null for an offset line,
 as `bevelFields` does), 290 (measured: no Float32-degenerate triangle over 17 fixtures; pinned, the skip itself unreachable),

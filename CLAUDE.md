@@ -54,7 +54,10 @@ handicraft education tradition built around hand woodworking.
   290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
   kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
-  the user's eye. The oldest entries (1–178) predate the `**Status:**` convention and have not been triaged. `docs/follow-ups.md` is authoritative: an open entry reads
+  the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
+  `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber): 65 closed, 69 record-only,
+  15 owed or open by decision, 40 open as work — the code-sized defects 168 (cost before an LlmError dropped, "≈ $0.00"), 53
+  (offset field leaves width unsatisfiable), 152 (Escape loses focus), 95, 96, 35 (silent too-new open), 3, 18. `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
