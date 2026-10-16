@@ -470,9 +470,12 @@ export function Viewport({
         handlers (see internal.interaction in @react-three/fiber's events
         module), and this mesh has none, so today it is already excluded from
         click hit-testing and click-to-deselect is unaffected either way.
-        raycast={() => null} is kept anyway as belt-and-braces: it makes the
-        exclusion explicit and correct regardless of R3F's internal event
-        wiring, and protects against a future edit that adds a handler here.
+        raycast={() => null} makes that exclusion explicit: a handler added here
+        later would register and never fire — the intent for a shadow catcher.
+        NOT `raycast={null}`, though R3F reads null as the opt-out (fu 11):
+        three's own Raycaster calls `object.raycast()` unconditionally, so a null
+        would throw the first time anything raycast the scene directly. The
+        same holds for every `() => null` in viewport/.
       */}
       <mesh
         receiveShadow
