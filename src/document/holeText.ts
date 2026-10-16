@@ -66,16 +66,26 @@ export function holeLine(board: Board, r: HoleRow, units: Units): string {
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
+/** A hole's size as the bench line prints it (`1/4" dia × 3/8" deep`; imperial with the mm aside): ONE home, read by the
+ *  bench line and the Plans sheet's key lines (feature callouts spec §3). */
+export function holeSizeText(r: HoleRow, units: Units): string {
+  const dia = `${holeLengthText(r.diameter, units, 'diameter')}${isMetric(units) ? '' : mm(r.diameter)}`;
+  return `${dia} dia × ${r.depth === 'through' ? 'through' : `${formatLength(r.depth, units)} deep`}`;
+}
+
+/** A row's pitch as the bench line prints it (1/64 at least; imperial with the mm aside). */
+export function holePitchText(r: HoleRow, units: Units): string {
+  return `${holeLengthText(r.pitch, units, 'pitch')}${isMetric(units) ? '' : mm(r.pitch)}`;
+}
+
 function holeLineBase(r: HoleRow, units: Units): string {
-  const metric = isMetric(units);
   const f = (n: number) => formatLength(n, units);
-  const dia = (n: number) => `${holeLengthText(n, units, 'diameter')}${metric ? '' : mm(n)}`;
-  const size = `${dia(r.diameter)} dia × ${r.depth === 'through' ? 'through' : `${f(r.depth)} deep`}`;
+  const size = holeSizeText(r, units);
   const where = `in ${faceName(r.face, r.from)}`;
   const across = acrossOf(r);
   const inset = `${f(r.inset)} in from the ${across} ${r.acrossFrom} ${end(across)}`;
   if (r.count === 1) return `Hole ${size} ${where}, ${f(r.station)} from the ${r.along} ${r.alongFrom} ${end(r.along)}, ${inset}`;
-  const pitch = `${holeLengthText(r.pitch, units, 'pitch')}${metric ? '' : mm(r.pitch)}`;
+  const pitch = holePitchText(r, units);
   const last = r.station + (r.count - 1) * r.pitch;
   return `Row of ${r.count} holes ${size} ${where}, along the ${r.along}: first ${f(r.station)} from the ${r.alongFrom} ${end(r.along)}, every ${pitch}, last at ${f(last)}; ${inset}`;
 }
