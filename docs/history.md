@@ -18,7 +18,14 @@
 
 ## Deployment record
 
-**Production matches `master` as of 2026-10-16 with follow-ups 3 live** (`index-DwWqjN7c.js`, CSS `index-BiANCUDt.css` — changed:
+**Production matches `master` as of 2026-10-16 with fu 96 live** (`index-BspJH3pS.js`, CSS `index-JL_iwVLq.css` — changed: the
+leader style —, deployed commit `bcd2715`, merge `9a31093`, schema 17 unchanged — rollback to follow-ups 3, `d07cbaa` /
+`index-DwWqjN7c.js`, is free). Deployed on the user's word (4512 tests, build clean). Verified: `200` on `/` and a deep route
+in-network and at the edge, the edge bundle's and CSS's sha256 matching `dist/`, the old bundle and CSS 404 in-network, the CSP
+at the edge, the edge CSS carrying `.cutlist-layout-leader`, a real-browser load (0 errors, "+ Add board" present), its two keys
+removed from a plain asset page and read back empty after 3s.
+
+The previous deployment: **follow-ups 3 live** (`index-DwWqjN7c.js`, CSS `index-BiANCUDt.css` — changed:
 the `--scrim` token —, deployed commit `d07cbaa`, merge `11743cd`, schema 17 unchanged — rollback to follow-ups 2, `4ad8881` /
 `index-BFCf2c3f.js`, is free). Deployed on the user's word (4505 tests, build clean). Verified: `200` on `/` and a deep route
 in-network and at the edge, the edge bundle's and CSS's sha256 matching `dist/`, the old bundle and CSS 404 in-network, the CSP

@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is follow-ups 3** (merge `11743cd`, deployed as `d07cbaa`, bundle `index-DwWqjN7c.js`, CSS `index-BiANCUDt.css`);
-  rollback to follow-ups 2 (`4ad8881`, `index-BFCf2c3f.js`) or fu 368 (`676225c`, `index-DG6bkBPk.js`) is free.
+- **Production is fu 96** (merge `9a31093`, deployed as `bcd2715`, bundle `index-BspJH3pS.js`, CSS `index-JL_iwVLq.css`);
+  rollback to follow-ups 3 (`d07cbaa`, `index-DwWqjN7c.js`) or follow-ups 2 (`4ad8881`, `index-BFCf2c3f.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -58,7 +58,7 @@ handicraft education tradition built around hand woodworking.
   (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
   and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). The user's rulings (2026-10-16): 37
   record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
-- **Fu 96 (2026-10-16, merged as `9a31093`, NOT deployed; no schema change, so deploying or rolling back is free)**: a sheet or board layout part too small for its index
+- **Fu 96 (2026-10-16, merged as `9a31093`, deployed as `index-BspJH3pS.js`; no schema change)**: a sheet or board layout part too small for its index
   number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
   the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
