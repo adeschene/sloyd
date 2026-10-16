@@ -5750,6 +5750,19 @@ bodies slow `bodyEdges` about threefold (A/B in one process: unfrozen 14.5 ms, f
 appears to leave the call sites slow afterwards, so unfrozen timings are only valid in a clean process). Also: the presets
 measure ~7–13 ms (arch), ~7 (four corners) and 15–22 (two through axes, the least margin under a 16 ms frame in node and
 the 40 ms bound) on a loaded machine; the guard is wall-clock (fu 340's caveat). **Status:** open.
+- **Closed 2026-10-16 (branch `perf-368`), each hypothesis measured first** (min of 12, fresh processes): bodies ~2–3 ms,
+  edges ~35, mesh ~10. **(3) did not reproduce:** frozen and unfrozen bodies time the same edges in fresh processes (34 vs
+  35 ms). **(2) confirmed:** the profile put nearly all of `curvedEdges` in `bodyEdges` — a linear line search per
+  polygon edge (1866 edges) and an all-faces coplanar filter per line (477 faces, 33 distinct planes). Lines are now
+  bucketed by their point nearest the origin (cells 1e-5, 27 searched; the earliest-created line passing the SAME test
+  wins), faces grouped by normal and sorted by plane offset (the same exact test on the few candidates, in face order),
+  each face's edges computed once: output byte-identical to the original over 21 fixtures (curved, angled, holed, every
+  posture; an A/B against a saved copy), edges 35 → 19 ms. **(1) confirmed:** `convexPieces` merges the ear-clip triangles
+  across diagonals while the piece stays strictly convex at both ends (Hertel–Mehlhorn): the L-notch's 14 pieces → 2, 83
+  bodies → 16, the whole rebuild ~6 ms. Same wood (the clip/split agreement tests), watertight, every suite green; tests:
+  an L is 2 pieces, a comb fewer than its triangles, every piece strictly convex, area whole; mutated (no merging; merging
+  without the convexity check) red. The guard's bound is 40 ms now, as every other case. A Bow on a part lengthened past it
+  (the one preset on the split path) looked whole in the dev browser. **Status:** closed.
 
 **369. A holed face of a curved part keeps T-junctions (final fix wave limit).** The watertight pass (inv 50) inserts
 vertices and fans from the centroid on every face of a curved part EXCEPT one a hole reaches: that face keeps

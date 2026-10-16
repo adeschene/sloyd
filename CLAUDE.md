@@ -29,7 +29,7 @@ handicraft education tradition built around hand woodworking.
 - **Curves chunk 1 (spec `2026-10-15-sloyd-curves-design.md`, plan `…-curves-chunk1.md`, inv 53)**: deployed. Arch,
   Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, edges, section caps, snap points, cut list, Properties.
   The execution rulings marked *Amended (implementation, chunk 1)* in the spec await the user's review. Open near it:
-  361 closed (chunk 2), 362–367 (spec §12), 368–373 (residue; 370 real-hardware looks: smooth shading, the grain seam).
+  361 closed (chunk 2), 362–367 (spec §12), 368 closed 2026-10-16, 369–373 (residue; 370 real-hardware looks: smooth shading, the grain seam).
 - **Curves chunk 2 (drawings; plan `…-curves-chunk2.md`, inv 47/53, fu 361 closed)**: deployed (merge `1e16c01`). **No schema change** (17). The Plans sheet draws arcs at 0.001" and the silhouettes of curved surfaces (a live defect on master: open rounded-top
   ends, no arch crown); part diagrams draw the waste, sharp-vertex lines and curve notes. Rulings Q1–Q6 (marked *Amended
   (implementation, chunk 2)* in the spec) await the user's review. Open near it: 374–379 (residue).
@@ -46,8 +46,10 @@ handicraft education tradition built around hand woodworking.
   user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Two rulings made in implementation await the user: 296
   (angle-cuts spec §7 marked *Amended (implementation, follow-ups 2026-10-15)*) and 262's set of view-only actions (Hide
   others, Select copies, Select linked, the guides disclosure).
-- **NEXT: 368** (the user's choice, 2026-10-15: hand-edited non-convex waste perf; its three causes are hypotheses to
-  measure), then ask. `docs/follow-ups.md` is authoritative: an open entry reads
+- **Fu 368 (2026-10-16, branch `perf-368`)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
+  coplanar lookups indexed (byte-identical, A/B over 21 fixtures), ear-clip triangles merged into convex pieces
+  (Hertel–Mehlhorn; 83 bodies → 16); the frozen-bodies hypothesis did not reproduce. No schema change.
+- **NEXT: ask.** `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, …)* in the curves and angle-cuts specs; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
@@ -132,6 +134,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | curves (chunk 1) | 10-15 | 17 | `Board.curves` (`CurveCut`: a closed waste outline of lines and minor arcs in a face's (u, v), cut clean through one dimension; inv 53): clipped or split bodies, built edges, smooth normals, a watertight mesh and cap; arc snap points; bench lines and grouping; Curves section (Arch, Half-round notch, Bow, Rounded corner(s)); holes into a curve's waste fault; joinery/Refine/Repair refuse curved projects; an unknown segment type refuses the document |
 | curves (chunk 2) | 10-15 | — | Plans sheet: arcs at `DRAWING_CURVE_TOLERANCE` 0.001" (≤96 chords) through `curveDrawEdges`, visibility on the model chord, edge-on views unrefined; silhouettes of curved surfaces (`silhouetteLines`; fixes open rounded-top ends and the missing arch crown). Part diagrams: hatched waste, sharp-vertex lines on their own face, curve notes (`curveLineEntries`). Fu 361 |
 | follow-ups 1 | 10-15 | — | Fu 369 (a curved part's holed planes as one region: watertight, ~3x faster), 375, 339, 262 (+261), 338/359 (the user's rulings), 335, 348, 344 + 263, 316, 296 |
+| fu 368 | 10-16 | — | A non-convex waste rebuilds ~52 → ~6 ms: `bodyEdges` lookups indexed (byte-identical), convex pieces merged (Hertel–Mehlhorn) |
 
 ### The deployment rule
 
@@ -815,7 +818,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     straight side lies on the face boundary, AND the arcs form ONE run with the wood convex at every off-boundary vertex and
     arc–arc join — the
     strengthened P6; without that guard two arcs meeting in a reflex wood corner lost real wood), else SPLIT along the
-    waste's ear-clipped convex pieces (`convexPieces`; a body wholly outside any one piece plane stays whole). Both give the
+    waste's ear-clipped convex pieces, merged across diagonals while convex (`convexPieces`, fu 368; a body wholly outside any one piece plane stays whole). Both give the
     same wood (volume and containment, pinned). A chord face carries `curve: <id>`. A body no curve touches is unchanged.
 
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
@@ -917,7 +920,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     segment `type` refuses the whole document** with the newer-version message (a spline needs no schema bump). Joinery,
     Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
     checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
-    ≤100 ms for a hand-edited non-convex waste — fu 368; MINIMUM of 9, wall-clock).
+    a hand-edited non-convex waste too since fu 368; MINIMUM of 9, wall-clock).
     **On paper:** `DRAWING_CURVE_TOLERANCE` 0.001" and `DRAWING_CURVE_SEGMENTS_MAX` 96 (`curveDrawing.ts`;
     inv 47 for edges and silhouettes). **Part diagrams:** the waste is hatched in the through-face view (clipped to the part); a
     curve opens its through face's MIN view only when neither side exists, decided after holes' entry views; a sharp-vertex
@@ -930,7 +933,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4472 tests across 151 files
+npm test           # Vitest, currently 4473 tests across 151 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1002,8 +1005,8 @@ knowing without opening it:
   to 0.005" off the arc, Q4; Q2's split likewise; record-only), 377 (the unreachable (0, 1) node guard; record-only), 378
   (chunk 2 deferred minors; record-only), 379 (drawView timing ~6 ms/view, unchanged). Chunk 1: 362 (curve callouts; with 252, 333), 363 (Claude
   features on curves: joinery/Repair, Generate/Refine, the design checks), 364 (splines: a segment type, no bump), 365
-  (stopped curves, edge profiles), 366 (compound curves), 367 (a row control to change kind); residue — 368 (a non-convex
-  waste rebuilds in ~65 ms: merge ear-clip triangles, bucket bodyEdges' line lookup, frozen bodies slow bodyEdges), 369 closed
+  (stopped curves, edge profiles), 366 (compound curves), 367 (a row control to change kind); residue — 368 closed
+  2026-10-16 (a non-convex waste ~52 → ~6 ms), 369 closed
   2026-10-15 (a holed plane drawn as one region, watertight), 370 (real-hardware looks owed: smooth shading, the grain seam, arch-end
   lines, a faded curved part beside a dado), 371–373 (record-only minors). The curved-face grain seam is filed with **336**.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.

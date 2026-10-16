@@ -475,6 +475,13 @@ and 79.
 
 ## What each round did
 
+**What fu 368 did (2026-10-16)** (branch `perf-368` from master `4d2a4c7`; the user's choice after the follow-ups 1 deploy). A
+hand-edited non-convex waste (the L-shaped notch) rebuilt in ~52 ms. Each of the entry's three hypotheses was measured
+first: frozen bodies were not slower in fresh processes (dropped); `bodyEdges`' linear lookups were most of the edges (lines
+bucketed, faces grouped by plane — output byte-identical, A/B over 21 fixtures; 35 → 19 ms); the unmerged ear-clip
+triangles multiplied the bodies (Hertel–Mehlhorn in `convexPieces`: 83 bodies → 16, the rebuild ~6 ms, the guard's bound
+100 → 40 ms). No schema change.
+
 **What follow-ups 1 did (2026-10-15)** (branch `follow-ups-1` from master `8dd789a`; the user asked for the follow-ups from the
 recent feature-gap rounds "in priority order"; no ranking was written down, so it was ranked: real defects, then latent
 bugs, the user's rulings, performance, fail-safe losses). **No schema change** (17). Each entry's closure in

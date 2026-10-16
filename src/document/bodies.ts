@@ -284,20 +284,50 @@ export function bodyEdges(
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
   // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
   // left out of the inside test it would "contain" every point on the line: it is not a face here.
-  const faces = bodies.flatMap((b) => b.faces).filter((f) => edgesOf(f).length >= 3);
+  const all = bodies.flatMap((b) => b.faces);
+  const allEdges = all.map(edgesOf);
+  const kept = all.map((_, i) => i).filter((i) => allEdges[i]!.length >= 3);
+  const faces = kept.map((i) => all[i]!);
+  const fEdges = kept.map((i) => allEdges[i]!);   // each face's edges once (fu 368: they were rebuilt per line and per test)
   const cents = faces.map((f) => scale(f.verts.reduce((s, p) => add(s, p), [0, 0, 0] as V3), 1 / f.verts.length));
 
   // 1. Lines: every polygon edge, grouped by the line it lies on (direction signed so grouping ignores winding).
+  // fu 368: the line an edge joins is the EARLIEST-created line passing the same test as ever (directions within
+  // BODY_EPS, the edge's start within BODY_EPS of it), but only lines whose point nearest the origin lies in the 27 cells
+  // around the edge's are tried. Two lines passing the test have nearest points at most 2|a|·BODY_EPS + 2·BODY_EPS apart
+  // (2e-6 at 1000"), well inside one LINE_CELL; a linear scan of every line per edge was most of a split curve's edges.
   interface Line { o: V3; u: V3; ts: number[]; spans: [number, number][] }
   const lines: Line[] = [];
-  for (const f of faces) {
-    for (const [a, b] of edgesOf(f)) {
+  const cells = new Map<string, number[]>();
+  const LINE_CELL = 1e-5;
+  const cellOf = (a: V3, u: V3) => { const k = dot(a, u); return [a[0] - k * u[0], a[1] - k * u[1], a[2] - k * u[2]].map((x) => Math.floor(x / LINE_CELL)); };
+  const findLine = (a: V3, u: V3): Line | undefined => {
+    const [x, y, z] = cellOf(a, u) as [number, number, number];
+    let best = -1;
+    for (let i = x - 1; i <= x + 1; i += 1) for (let j = y - 1; j <= y + 1; j += 1) for (let k = z - 1; k <= z + 1; k += 1) {
+      for (const id of cells.get(`${i},${j},${k}`) ?? []) {
+        if (best !== -1 && id >= best) continue;
+        const l = lines[id]!;
+        if (len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS) best = id;
+      }
+    }
+    return best === -1 ? undefined : lines[best];
+  };
+  for (let fi = 0; fi < faces.length; fi += 1) {
+    const f = faces[fi]!;
+    for (const [a, b] of fEdges[fi]!) {
       let u = unit(sub(b, a));
       const lead = Math.abs(u[0]) > BODY_EPS ? u[0] : Math.abs(u[1]) > BODY_EPS ? u[1] : u[2];
       if (lead < 0) u = scale(u, -1);
       if (keep && !keep(a, u, f.n)) continue;
-      let line = lines.find((l) => len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS);
-      if (!line) { line = { o: a, u, ts: [], spans: [] }; lines.push(line); }
+      let line = findLine(a, u);
+      if (!line) {
+        line = { o: a, u, ts: [], spans: [] };
+        const key = (cellOf(a, u) as number[]).join(',');
+        const ids = cells.get(key);
+        if (ids) ids.push(lines.length); else cells.set(key, [lines.length]);
+        lines.push(line);
+      }
       const ta = dot(sub(a, line.o), line.u);
       const tb = dot(sub(b, line.o), line.u);
       line.ts.push(ta, tb);
@@ -305,14 +335,40 @@ export function bodyEdges(
     }
   }
 
+  // fu 368: faces grouped by normal (rounded to 1e-6, so a group's normals agree within ~2e-6), each group sorted by its
+  // plane offset along the group's first normal. A line asks only the groups square to it (within 1e-5) and, in each,
+  // the faces whose offset is within 1e-3 of its own (2e-6 × the part's size, with room), then the same exact test as
+  // ever, in face order — a filter of all 477 faces per line was the rest of a split curve's edges.
+  const groups = new Map<string, { n: V3; at: { d: number; i: number }[] }>();
+  faces.forEach((f, i) => {
+    const key = f.n.map((x) => Math.round(x * 1e6)).join(',');
+    let g = groups.get(key);
+    if (!g) { g = { n: f.n, at: [] }; groups.set(key, g); }
+    g.at.push({ d: dot(g.n, f.verts[0]!), i });
+  });
+  for (const g of groups.values()) g.at.sort((x, y) => x.d - y.d);
+  const coplanarTo = (o: V3, u: V3): number[] => {
+    const hit: number[] = [];
+    for (const g of groups.values()) {
+      if (Math.abs(dot(g.n, u)) > 1e-5) continue;
+      const d = dot(g.n, o);
+      let lo = 0, hi = g.at.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (g.at[m]!.d < d - 1e-3) lo = m + 1; else hi = m; }
+      for (let k = lo; k < g.at.length && g.at[k]!.d <= d + 1e-3; k += 1) {
+        const f = faces[g.at[k]!.i]!;
+        if (Math.abs(dot(f.n, u)) <= BODY_EPS && Math.abs(dot(f.n, sub(o, f.verts[0]!))) <= BODY_EPS) hit.push(g.at[k]!.i);
+      }
+    }
+    return hit.sort((x, y) => x - y);
+  };
+
   const out: [V3, V3][] = [];
   for (const line of lines) {
     // 2. Faces whose plane holds the line, and where the line crosses their boundaries.
-    const coplanar = faces.map((f, i) => ({ f, i })).filter(({ f }) =>
-      Math.abs(dot(f.n, line.u)) <= BODY_EPS && Math.abs(dot(f.n, sub(line.o, f.verts[0]!))) <= BODY_EPS);
+    const coplanar = coplanarTo(line.o, line.u).map((i) => ({ f: faces[i]!, i }));
     const ts = [...line.ts];
-    for (const { f } of coplanar) {
-      for (const [a, b] of edgesOf(f)) {
+    for (const { f, i } of coplanar) {
+      for (const [a, b] of fEdges[i]!) {
         const e = sub(b, a);
         // In the face's plane, o + t·u meets a + s·e where (o + t·u − a)·(n × e) = 0.
         const m = unit(cross(f.n, e));
@@ -338,7 +394,7 @@ export function bodyEdges(
         const c = cents[i]!;
         let inside = true;
         let onEdge = false;
-        for (const [a, b] of edgesOf(f)) {
+        for (const [a, b] of fEdges[i]!) {
           let e = unit(cross(f.n, sub(b, a)));
           if (dot(e, sub(c, a)) < 0) e = scale(e, -1); // inward
           const dist = dot(e, sub(mid, a));
