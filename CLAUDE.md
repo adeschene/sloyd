@@ -60,6 +60,10 @@ handicraft education tradition built around hand woodworking.
   record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
 - **Fu 96 (2026-10-16, merged as `9a31093`, deployed as `index-BspJH3pS.js`; no schema change)**: a sheet or board layout part too small for its index
   number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
+- **Follow-ups 4 (2026-10-16, branch `follow-ups-4`, NOT deployed; no schema change)**: the triage's last code-sized opens —
+  test gaps 127, 13, 54 (`groupFields`: the group key is the row key's prefix), 2 (an import test that could not fail, fixed);
+  98 (a Saw kerf field in the cut list header, `setKerf`), 154 (closed: the index is re-read on every write; pinned with two
+  adapters), 6 (`1  1/2`, `1 - 1/2` parse).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
   the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
   `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber): 65 closed, 69 record-only,
@@ -152,6 +156,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | follow-ups 2 | 10-16 | — | Fu 297, 290, 314, 287/292 (rulings), 208/209 (undo, redo, delete refused mid-drag), 210 |
 | follow-ups 3 | 10-16 | — | From the 1–178 triage: fu 168 (failed run's spend), 53, 152, 95, 35 (unopenable project says why), 3, 18, 9, 23, 40, 14, 57, 11 |
 | fu 96 | 10-16 | — | Sheet and board layouts: a part too small for its number gets a callout row beside the drawing, with a leader |
+| follow-ups 4 | 10-16 | — | Fu 127, 13, 54, 2 (test gaps), 98 (Saw kerf field), 154 (two tabs: pinned), 6 (spaced mixed lengths) |
 
 ### The deployment rule
 
@@ -459,7 +464,7 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   half the board, plausibly. Pin with a rotated, non-flat pose. `towardFor` is the tape's
   ONE direction source (preview and commit); a locked axis wins over a hover, never falls
   back to it. `sameSnapPoint` lives here because the store needs it.
-- **`cutlist.ts` / `diagram.ts`**: format from `cutShape`, never from stored
+- **`cutlist.ts` / `diagram.ts`**: a group's key is its rows' key prefix (`groupFields`; fu 54). Format from `cutShape`, never from stored
   `across`/`offset`/`width`/stops (fu 192). The cut list accumulates EXACT stock, never
   qty × rounded dimensions, and ignores cuts (stock, not remainder). `storedAsShape`
   returns an already-aligned cut as the same object.
@@ -498,6 +503,7 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   error, null when nothing was spent; every spent cost prints through `formatCost` (`< $0.01`, never `≈ $0.00`; fu 168).
 - **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
   `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
+  `setKerf` refuses a kerf outside [0, 1) — the loader DEFAULTS one there, so storing it would be silently replaced (fu 98).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
 - **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
   post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets

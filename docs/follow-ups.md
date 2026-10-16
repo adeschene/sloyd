@@ -39,7 +39,7 @@ import focus-timer clear, and the adopt-external error clear were each verified 
 mutation testing during review, but no committed test would catch a regression. If v2
 refactors `DimensionField` or `App`'s effects, these break silently.
 
-**Status:** open (test gap, partly closed): the adopt-external error clear is pinned (`reports false when an external change clears the error`, DimensionField.test.tsx); Add-board's Length focus (`consumeLengthFocus`) and the import focus-timer clear are still unpinned. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4): Add board's one-shot Length focus pinned in Properties.test.tsx (consume and focus each mutated), and the import picker's fallback-timer clear pinned with a 500 ms file read — the existing test read its file in a microtask, so dropping the clear never failed it. (triaged 2026-10-16; updated by follow-ups 4)
 
 **3. `pendingLengthFocus` is not reset by `replaceDocument`.** It is store view-state, so
 it can survive across tests in files that never mount `Properties`. Harmless today; a
@@ -70,7 +70,7 @@ versions with a clear `DocumentError` before any migration step runs.
 space-or-hyphen between whole and fraction, so `1  1/2` (double space) and `1 - 1/2`
 return `null`. Degrades to a clear rejection, never a wrong number.
 
-**Status:** open (narrow, code-sized): `MIXED_RE` (units/length.ts) still takes exactly one space or hyphen. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4): `MIXED_RE` takes spaces around its separator (`1  1/2`, `1 - 1/2`, `1- 1/2"`), still ONE hyphen (`1--1/2` refused); an over-loose mutation is red. (triaged 2026-10-16; updated by follow-ups 4)
 
 **7. `sanitizeFilename` does not guard Windows reserved device names.** A project named
 `con`, `prn`, `aux`, `nul`, `com1`… exports as e.g. `con.sloyd`, invalid on Windows.
@@ -115,7 +115,7 @@ document then adding a large board needs a manual `Home` press to frame it.
 `nextFuture = future` branch in the store's gesture-coalescing `edit()`; negative
 feet-and-inches input (`-2'6"`) in `units`.
 
-**Status:** open (test gap): none of the three branches is tested yet. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4): negative feet-and-inches (`-2'6"`, `-2'`, `-2' 6-1/2"`) and a throwing autosave read (null, `available` false) pinned and mutated. The third branch, edit()'s `nextFuture = future`, is indistinguishable since fu 208 (a gesture's first edit empties `future` and redo is refused mid-gesture), so a test of it could not fail. (triaged 2026-10-16; updated by follow-ups 4)
 
 **14. `src/smoke.test.ts` is redundant** now that 123 real tests exist.
 
@@ -860,7 +860,7 @@ group is non-empty. The cheap fix is still to derive the group key as a prefix o
 row key rather than writing it twice; the cheaper interim one is a test asserting every
 group has at least one row.
 
-**Status:** open (latent, code-sized): `rowKey` and `groupKey` are still two hand-written lists; no test asserts every group has a row. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4): `groupFields` (cutlist.ts) is the group key AND the row key's prefix, so no field can split a group from its rows; a test asserts every group has a row and every board is counted once. Mutated (a field in the group key only) — red. (triaged 2026-10-16; updated by follow-ups 4)
 
 **55. A row's exact numbers are a representative, not a consensus.** `CutListRow`
 carries raw `length`/`width`/`thickness` floats alongside its formatted `dims` string,
@@ -1949,7 +1949,7 @@ Over-counting — a thin-kerf blade or a track saw, where the true kerf is narro
 the default — is harmless, since it only ever buys a spare sheet. An under-count is the
 direction that costs a trip back to the yard mid-project.
 
-**Status:** open (feature gap): still no kerf control; `stock.kerf` is set only by the loader's default. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4): a Saw kerf field in the cut list header (beside Layouts; the entry's settings-surface idea set aside because the Materials dialog's save plan is unrelated to it) writes `setKerf`, one undoable edit, refused outside [0, 1) in the store (the loader defaults anything else), field max 1/2". The header now wraps between controls. Checked live: four 48 × 24 panels, 4 sheets at 1/8", 1 at 0; Buying follows. (triaged 2026-10-16; updated by follow-ups 4)
 
 ## From the snap-move round
 
@@ -2609,7 +2609,7 @@ point of design §7.2 and these are the two edges of it.
   from board-precise clearing on a *multi-cut* board, which is the direction the rule is
   most likely to be simplified in by someone who does not know why it is narrow.
 
-**Status:** open (test gap): no `addCut` test where the new cut consumes a held point, and no grab-on-cut-A-survives-edit-to-cut-B test. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4): both edges pinned in store.test.ts — an older cut's shoulder that a newly ADDED deeper cut consumes drops the grab (addCut judges after its edit), and a grab on cut A's point survives an edit to cut B. Mutated: judgeHeld before edit, and a board-precise clear in updateCut — each red. (triaged 2026-10-16; updated by follow-ups 4)
 
 **128. Three hygiene minors carried out of the reviews.** None affects behaviour; all three
 are recorded so a later reader does not re-derive them.
@@ -3578,7 +3578,7 @@ hand. Not driven in the browser pass and not modelled by any test. The honest sm
 a `storage`-event listener that re-reads the index; the honest large one is a lock, which is
 more machinery than a single-user woodworking app has earned.
 
-**Status:** open (latent): nothing listens for the `storage` event; see also fu 325 (library and prices). (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 4) — the reach the entry described is closed: every index write re-reads the index from storage (`readIndexForWrite`), so a tab never writes from the copy it last saw, and a project deleted in another tab is refused as an autosave target. Pinned with two adapters over one storage, writes interleaved; mutated (cache the index) — red. No `storage` listener was needed. The library and prices (fu 325) are separate and stay record-only. (triaged 2026-10-16; updated by follow-ups 4)
 
 **155. SIX DISTINCT plan-supplied tests in this round could not fail, and one of them was
 hiding a real shipped bug.** Say *distinct*, because the ledger's own running count and this

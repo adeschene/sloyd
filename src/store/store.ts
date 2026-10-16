@@ -336,6 +336,8 @@ interface StoreState {
   setDocumentName: (name: string) => void;
   /** The project's length display (metric-display spec §2, R1): one document edit, moves no number. A no-op when unchanged. */
   setUnitsDisplay: (display: LengthDisplay) => void;
+  /** The project's saw kerf (fu 98): one edit; refused outside [0, 1), the range the loader keeps. */
+  setKerf: (kerf: number) => void;
   replaceDocument: (doc: SloydDocument) => void;
   undo: () => void;
   redo: () => void;
@@ -1497,6 +1499,12 @@ export const useStore = create<StoreState>((set, get) => {
     setUnitsDisplay: (display) => {
       if (get().doc.units.display === display) return;
       edit((doc) => ({ ...doc, units: { ...doc.units, display } }));
+    },
+    setKerf: (kerf) => {
+      // The loader DEFAULTS a kerf outside [0, 1) (v4→v5), so one stored there would be silently replaced on the next
+      // open: refused here, never clamped.
+      if (!Number.isFinite(kerf) || kerf < 0 || kerf >= 1 || get().doc.stock.kerf === kerf) return;
+      edit((doc) => ({ ...doc, stock: { ...doc.stock, kerf } }));
     },
 
     // `tapeHover` goes with the anchor in all three wholesale-rewrite actions

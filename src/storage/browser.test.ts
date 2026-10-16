@@ -92,6 +92,16 @@ describe('autoSave / loadAutoSaved', () => {
     expect(await a.loadProject('some-id')).toEqual(doc);
   });
 
+  // fu 13: a storage that throws on READ (Safari's blocked storage, a privacy setting) reads as nothing saved and flips
+  // the adapter's `available`, rather than throwing out of boot.
+  it('reads nothing and reports storage unavailable when getItem throws', async () => {
+    const fake = new FakeStorage();
+    fake.getItem = () => { throw new Error('SecurityError'); };
+    const a = new BrowserStorageAdapter(fake);
+    expect(await a.loadAutoSaved()).toBeNull();
+    expect(a.available).toBe(false);
+  });
+
   it('returns null when nothing has been saved', async () => {
     const a = new BrowserStorageAdapter(new FakeStorage());
     expect(await a.loadAutoSaved()).toBeNull();
@@ -236,6 +246,33 @@ describe('importProject', () => {
     await vi.advanceTimersByTimeAsync(400);
 
     await expect(promise).resolves.toEqual(doc);
+  });
+
+  // Fu 2: the fallback timer is cleared the instant a selection arrives. The test above cannot see it — its file reads
+  // in a microtask, long before 300 ms. Here the read takes 500 ms (a large file), so an uncleared timer rejects the import
+  // as "cancelled" mid-read, and FileMenu swallows a cancel silently. MUTATE: drop onChange's clearTimeout — red.
+  it('a slow file read is not cut off by the focus-fallback', async () => {
+    vi.useFakeTimers();
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    const doc = docWithBoard();
+    const file = new File([JSON.stringify(doc)], 'bench.sloyd', { type: 'application/json' });
+    const json = JSON.stringify(doc);
+    Object.defineProperty(file, 'text', { value: () => new Promise<string>((r) => setTimeout(() => r(json), 500)) });
+
+    let capturedInput: HTMLInputElement | undefined;
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
+      this: HTMLInputElement,
+    ) {
+      capturedInput = this;
+      Object.defineProperty(this, 'files', { value: [file], configurable: true });
+    });
+
+    const promise = a.importProject();
+    const assertion = expect(promise).resolves.toEqual(doc);
+    window.dispatchEvent(new Event('focus'));
+    capturedInput!.dispatchEvent(new Event('change'));
+    await vi.advanceTimersByTimeAsync(600);
+    await assertion;
   });
 });
 
@@ -956,6 +993,29 @@ describe('project CRUD', () => {
     await adapter.setActiveProject(activeId);
 
     expect(JSON.parse(store.getItem(LIBRARY_KEY)!).activeId).toBe(activeId);
+  });
+});
+
+// Fu 154: two tabs are two adapters over ONE storage. Every index write re-reads the index (`readIndexForWrite`), so a
+// tab never writes from the copy it last saw and cannot drop the other tab's row. MUTATE: cache the index in the adapter
+// after its first read — tab A's project vanishes from the list, red.
+describe('two tabs on one origin (fu 154)', () => {
+  it('a project each tab creates keeps its row, and a delete in one tab is seen by the other', async () => {
+    const store = new FakeStorage();
+    const tabA = new BrowserStorageAdapter(store);
+    const tabB = new BrowserStorageAdapter(store);
+    const { activeId: first } = await tabA.openLibrary();
+    await tabB.openLibrary();
+    // Interleaved: B writes, A writes, B writes again — B's second write must start from A's row, not B's last read.
+    const fromB0 = await tabB.createProject(createDocument('From B first'), { activate: false });
+    const fromA = await tabA.createProject(createDocument('From A'), { activate: false });
+    const fromB = await tabB.createProject(createDocument('From B'), { activate: false });
+    expect((await tabA.listProjects()).map((p) => p.id).sort()).toEqual([first, fromB0, fromA, fromB].sort());
+    await tabA.deleteProject(fromB!);
+    expect((await tabB.listProjects()).map((p) => p.id)).not.toContain(fromB);
+    // Tab B, still holding the deleted project, cannot write it back into a row (autoSave refuses an id with no row).
+    await tabB.autoSave(fromB!, createDocument('From B'));
+    expect((await tabA.listProjects()).map((p) => p.id)).not.toContain(fromB);
   });
 });
 

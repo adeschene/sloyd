@@ -1027,9 +1027,13 @@ select.input { cursor: pointer; }
 
 .cutlist-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
 }
+/* A crowded header wraps between controls, never inside one ("Materials & prices…" broke over three lines; fu 98). */
+.cutlist-actions button { white-space: nowrap; }
 
 .cutlist-diagram-mode {
   display: flex;
@@ -1038,6 +1042,19 @@ select.input { cursor: pointer; }
   font-size: 0.85em;
   color: var(--ink-dim);
 }
+
+/* Fu 98: the Saw kerf field reads inline like the Diagrams select beside it. */
+.cutlist-kerf .field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+.cutlist-kerf .field label { font-size: inherit; color: inherit; white-space: nowrap; }
+.cutlist-kerf .input { width: 5.5em; }
 
 .cutlist-group {
   margin-top: 28px;

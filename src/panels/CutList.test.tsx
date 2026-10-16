@@ -225,3 +225,28 @@ describe('CutList', () => {
     expect(row.querySelector('.cutlist-names')?.textContent).toBe('1×4 Rail');
   });
 });
+
+// Fu 98: the saw kerf had no control. Four 48 × 24 panels fill a 96 × 48 sheet exactly with no kerf; at the default
+// 1/8" no two fit side by side or stacked (48 + 1/8 + 48 > 96), so each needs its own sheet. The field is the project's kerf,
+// one undoable edit.
+describe('the Saw kerf field (fu 98)', () => {
+  const panels = () => load(...[1, 2, 3, 4].map((i) => ({ material: 'plywood', thickness: 0.75, length: 48, width: 24, name: `Panel ${i}` })));
+  it('shows the project kerf and re-packs the sheets when it changes', async () => {
+    panels();
+    const { container } = render(<CutList onClose={() => {}} />);
+    const field = screen.getByLabelText('Saw kerf');
+    expect(field).toHaveValue('1/8"');
+    expect(container.textContent).toContain('4 sheets (96" × 48")');
+    await userEvent.clear(field); await userEvent.type(field, '0{Enter}');
+    expect(useStore.getState().doc.stock.kerf).toBe(0);
+    expect(container.textContent).toContain('1 sheet (96" × 48")');
+  });
+  it('refuses a kerf no saw cuts, keeping the stored one', async () => {
+    panels();
+    render(<CutList onClose={() => {}} />);
+    const field = screen.getByLabelText('Saw kerf');
+    await userEvent.clear(field); await userEvent.type(field, '1{Enter}');
+    expect(screen.getByText(/Must be at most/)).toBeInTheDocument();
+    expect(useStore.getState().doc.stock.kerf).toBe(0.125);
+  });
+});

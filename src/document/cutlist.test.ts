@@ -858,3 +858,21 @@ describe('curves on the cut list (spec §4)', () => {
     expect(row.width).toBe(5);
   });
 });
+
+// Fu 54: a group's key is its rows' key prefix, so no field can split boards into two groups while one row holds them —
+// which would print a group heading with no rows under it.
+describe('every group has its rows (fu 54)', () => {
+  it('no group is empty and every board is counted once, across materials, thicknesses, names and grain', () => {
+    const doc = createDocument('Mix');
+    const b = (o: Partial<Board>) => createBoard({ length: 24, width: 6, thickness: 0.75, ...o });
+    doc.boards.push(
+      b({ name: 'Left', material: 'pine' }), b({ name: 'Right', material: 'pine' }),
+      b({ name: 'Thick', material: 'pine', thickness: 1.5 }),
+      b({ name: 'Oak', material: 'oak' }), b({ name: 'Oak across', material: 'oak', grain: 'width' }),
+      b({ name: 'Panel', material: 'plywood', length: 30, width: 20 }), b({ name: 'Panel 2', material: 'plywood', length: 30, width: 20 }),
+    );
+    const list = buildCutList(doc);
+    for (const g of list.groups) expect(g.rows.length, g.label).toBeGreaterThan(0);
+    expect(list.groups.flatMap((g) => g.rows).reduce((n, r) => n + r.qty, 0)).toBe(doc.boards.length);
+  });
+});

@@ -861,6 +861,55 @@ describe('the Move tool', () => {
     expect(useStore.getState().grabbed).toBeNull();
   });
 
+  // Fu 127, the two unpinned edges of point-precise clearing.
+  // (1) addCut judges held points AFTER its edit: a new, deeper cut can consume an older cut's shoulder, and only the
+  // post-edit board knows. MUTATE: move judgeHeld() above edit() in addCut — the grab survives, red.
+  it('drops a grab on an older cut\'s shoulder that a newly added cut consumes', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    const board0 = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const L = board0.length;
+    const oldId = board0.cuts[0].id;
+    // A shallow cut straddling where the next default cut (offset L/4, width 0.75, depth T/2) will go.
+    useStore.getState().updateCut(a.id, oldId, { offset: L / 4 - 0.25, width: 0.5, depth: 0.1 });
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const next = { ...board.cuts[0], id: 'next', offset: L / 4, width: 0.75, depth: board.thickness / 2 };
+    const after = { ...board, cuts: [...board.cuts, next] };
+    const offered = [...boardSnapPoints(after), ...cutSnapPoints(after)];
+    const consumed = cutSnapPoints(board).find((p) => !offered.some((q) => sameSnapPoint(p, q)));
+    expect(consumed, 'fixture: the new cut must consume one of the old cut\'s points').toBeDefined();
+    useStore.getState().grabSnapPoint(consumed!);
+    expect(useStore.getState().grabbed).not.toBeNull();
+
+    useStore.getState().addCut(a.id);
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts).toHaveLength(2);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  // (2) A grab on cut A's shoulder survives an edit to cut B on the same board: the clear is point-precise, not
+  // board-precise. MUTATE: clear `grabbed` whenever the board's cuts change — red.
+  it('KEEPS a grab on one cut\'s shoulder when another cut on the same board is edited', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    useStore.getState().addCut(a.id);
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const [cutA, cutB] = board.cuts;
+    useStore.getState().updateCut(a.id, cutB.id, { offset: board.length / 2 });
+    // Points name the BOARD, not the cut: A's are those the board offers with A alone and not with B alone.
+    const now = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const onlyB = cutSnapPoints({ ...now, cuts: [now.cuts[1]] });
+    const shoulder = cutSnapPoints({ ...now, cuts: [now.cuts[0]] })
+      .find((p) => !onlyB.some((q) => sameSnapPoint(p, q)) && cutSnapPoints(now).some((q) => sameSnapPoint(p, q)));
+    expect(now.cuts[0].id).toBe(cutA.id);
+    expect(shoulder, 'fixture: cut A must offer a point').toBeDefined();
+    useStore.getState().grabSnapPoint(shoulder!);
+
+    useStore.getState().updateCut(a.id, cutB.id, { depth: 0.2 });
+    expect(useStore.getState().grabbed).toEqual(shoulder);
+  });
+
   /** Points of a's cut that a stopMin edit to 1 removes, and ones it keeps. */
   const stopEditSplit = (id: string) => {
     const board = worldParts(useStore.getState().doc).find((x) => x.id === id)!;
@@ -3277,5 +3326,28 @@ describe('duplicating a curved part (curves spec §6.2)', () => {
     expect(b!.curves[0]!.id).not.toBe(a!.curves[0]!.id);
     expect(sameCurve(a!.curves[0]!, b!.curves[0]!)).toBe(true);
     expect(b!.curves[0]!.segments).not.toBe(a!.curves[0]!.segments);
+  });
+});
+
+// Fu 98: the saw kerf is a project setting the sheet packer reads; it had no control.
+describe('setKerf (fu 98)', () => {
+  beforeEach(() => { useStore.getState().replaceDocument(createDocument('Kerf')); });
+  it('writes the kerf as one undoable edit', () => {
+    useStore.getState().setKerf(0.25);
+    expect(useStore.getState().doc.stock.kerf).toBe(0.25);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.stock.kerf).toBe(0.125);
+  });
+  it('pushes no entry for the kerf it already has', () => {
+    const past = useStore.getState().past.length;
+    useStore.getState().setKerf(0.125);
+    expect(useStore.getState().past.length).toBe(past);
+  });
+  // The loader DEFAULTS a kerf outside [0, 1) (Versioning: 4→5), so storing one would be silently replaced on the next
+  // open. Refused, never clamped.
+  it.each([-0.01, 1, 2, Number.NaN, Number.POSITIVE_INFINITY])('refuses %f, which the loader would not keep', (k) => {
+    useStore.getState().setKerf(k);
+    expect(useStore.getState().doc.stock.kerf).toBe(0.125);
+    expect(useStore.getState().canUndo()).toBe(false);
   });
 });
