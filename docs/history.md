@@ -514,6 +514,21 @@ and 79.
 
 ## What each round did
 
+**What follow-ups 5 did (2026-10-16)** (the user's pick: a small round led by 216; branch `follow-ups-5` from master
+`0b2ae73`; no spec, the fixes were written down). **216 reproduced, then closed**: a probe of 4008 mm dados found 2591 storing
+a different offset or width at 180° than at 0°, and turn 0 was not exact either (`mm(37) − mm(12)` need not equal `mm(25)`), so
+a part's POSITION split rows too; two rails cut alike, one turned, printed as two rows of 1. No float order makes a reflected
+difference exact, so the remedy is where the cut is stored, as the entry said: `pocketFor` stores each number within its own
+EPS of a 1/64" or 0.1 mm grid point as that point's float (dyadic first; 0.1 mm as `parseLength` stores a typed mm). Generate's
+dyadic cuts are unchanged byte-for-byte (the whole suite, joinery fixtures included, passed untouched). `rebaseCuts`' own
+arithmetic is residue 382(1). **7**: device filenames get `-project`. **51**: `nextId` mints `id_` (a kind per call site judged
+not worth 33 sites of plumbing). **71**: sweep case 4 pins that the shifted `3/4"` label still reaches its band. **78**:
+measured first — the ulp sliver was covered by both cuts and marked `crossing` at different depths; boundaries within 1e-9
+merge. **151**: focus inside a project row reveals both actions; seen live (`docs/img/fu151-row-focus.png`), the look for the
+user's eye. **207 not changed**: its one remedy (`controls.dragging = false`) fires drei's `dragging-changed`, which re-enables
+orbit mid-press — judged only with a real mouse. Every new test watched fail first and every fix mutated. 4623 tests across
+156 files. No schema change.
+
 **What the feature callouts round did (2026-10-16)** (spec `2026-10-16-sloyd-feature-callouts-design.md`, plan
 `…-feature-callouts.md`, run inline; branch `feature-callouts` from master `b8e70fe`). Fu 333, 279, 362: the Plans sheet's
 elevation trios now key every hole row, angle cut and curve. The user's rulings: where in the piece, not full bench numbers

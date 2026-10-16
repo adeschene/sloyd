@@ -72,6 +72,10 @@ handicraft education tradition built around hand woodworking.
   `ec438c9`, deployed as `index-CaMRIw2a.js`; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
   its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
   (tags over dimension lines, for the user's eye; the real print).
+- **Follow-ups 5 (2026-10-16, branch `follow-ups-5`; no schema change; NOT merged)**: closed 216 (`pocketFor` stores a mm cut's numbers on
+  the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
+  (no sliver cell; it was marked crossing), 151 (row actions reveal on focus; a look for the user's eye). 207 looked at and left
+  open (the remedy re-enables orbit mid-press; real mouse). Residue 382.
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -163,6 +167,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | follow-ups 4 | 10-16 | — | Fu 127, 13, 54, 2 (test gaps), 98 (Saw kerf field), 154 (two tabs: pinned), 6 (spaced mixed lengths) |
 | plans balloons | 10-16 | — | One numbered balloon per cut-list row on the Plans sheet's exploded view; the cut list and its layouts print the row number (fu 252) |
 | feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
+| follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78, 151 |
 
 ### The deployment rule
 
@@ -508,6 +513,9 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   visible, true and hidden, any hidden (ties Front, Side, Plan). A part's features are keyed by the innermost LISTED
   assembly's trio (`keyed`), so each feature once per sheet; same-letter tags within a diameter merge, others are pushed out
   along their leaders and clamped inside the figure, and a tag that still overlaps is not drawn and its letter is noted.
+- **`pocket.ts`**: `pocketFor` stores every number within EPS of a 1/64" or 0.1 mm grid point AS that point's float
+  (`onGrid`, dyadic first; fu 216) — a box arrives through world differences and reflections, and the cut list compares
+  stored cuts exactly. This is the storage remedy inv 18 allows; never round the row key instead.
 - **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
   must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
   `concepts.ts`. **`concepts.ts`**' parse is all-or-nothing (never mixes planned and
@@ -984,7 +992,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4604 tests across 155 files
+npm test           # Vitest, currently 4623 tests across 156 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -993,14 +1001,13 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–381). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–382). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Open as work (code-sized, all low):** 7, 8, 12, 17, 19, 27, 31, 51, 71, 78, 126, 128, 151, 169, 175 (1–178);
-  207 (gizmo after an abandon), 216 (a mm joinery cut's stored width an ulp off on a reversed axis — reach WIDENED by
-  metric display; reproduce first, never round the row key), 234 (the concept planner is not taught assemblies), 269
-  (packer heuristic: measure a losing case first).
+- **Open as work (code-sized, all low):** 8, 12, 17, 19, 27, 31, 126, 128, 169, 175 (1–178); 234 (the concept planner is
+  not taught assemblies), 269 (packer heuristic: measure a losing case first). 207 (gizmo after an abandon) needs a real mouse:
+  its one remedy re-enables orbit mid-press (fu 207's last Status).
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
   views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
