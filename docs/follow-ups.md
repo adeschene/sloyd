@@ -6402,3 +6402,9 @@ its ulp rulings (fu 200, the user's) decide which side of a flush boundary a re-
 **383. The printed cut list splits across pages messily.** The user, after a real print 2026-10-16: "A real print looks good, although the cut list should probably try to start new sections on new pages because right now the way it splits things up across pages is very messy". Today only a drawn
 diagram, a sheet layout and a Buying entry avoid breaking inside; a material group, its heading, its rows and its subtotal
 flow across page breaks wherever they land. **Status:** open (work; design to be approved).
+**Status:** CLOSED 2026-10-16 (the user's ruling: "yes, new page per section"). Print rules in `styles.css`: each `.cutlist-group`
+after the first and `.cutlist-buying` take `break-before: page`; section and Buying-entry headings `break-after: avoid`;
+`.cutlist-subtotal` `break-before: avoid`; rows already never split. Four CSS tests plus a sibling-structure test
+(`CutList.test.tsx`), every rule mutated. Verified with a REAL Chromium PDF (`page.pdf()` through the code runner — possible
+after all, see fu 70): a 29-part, three-material project printed 7 Letter pages — Pine 1–4 (each page starting on a whole
+row, its subtotal beside row 22), Plywood with its sheet layout 5, Walnut 6, Buying 7 (`docs/img/fu383-cutlist-pages.png`).

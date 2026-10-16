@@ -518,7 +518,11 @@ and 79.
 345, 374, 379, 380(4) and 381(3) closed. 381(1) tags on dimension lines approved. 381(4) changed by ruling ("no we don't need to
 label duplicate assemblies (too busy on the plans sheet)"): `keyedHere` claims each stored part for the first trio that keys it.
 151's look approved; 207 record-only ("a rare sequence of actions"). New fu 383: the printed cut list splits across pages
-messily — sections should start on new pages (design for the user's approval).
+messily. Design approved in chat ("yes, new page per section", over keeping a section whole when it fits) and closed the same
+day: print rules start every material section after the first, and Buying, on a new page; headings never end a page; the
+subtotal never starts one. Checked with a REAL Chromium PDF — `page.pdf()` works through the Playwright code runner, which
+earlier rounds (fu 70, 79, 254) wrongly thought impossible: 29 parts, three materials, 7 pages, every break clean
+(`docs/img/fu383-cutlist-pages.png`).
 
 **What follow-ups 5 did (2026-10-16)** (the user's pick: a small round led by 216; branch `follow-ups-5` from master
 `0b2ae73`; no spec, the fixes were written down). **216 reproduced, then closed**: a probe of 4008 mm dados found 2591 storing

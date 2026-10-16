@@ -1447,6 +1447,14 @@ select.input { cursor: pointer; }
     break-inside: avoid;
   }
 
+  /* Fu 383 (the user's ruling): each material section after the first, and Buying, starts a new page — the first follows the
+     title. A heading never ends a page and a subtotal never starts one; a section longer than a page splits between rows. */
+  .cutlist-group + .cutlist-group,
+  .cutlist-buying { break-before: page; }
+  .cutlist-group h3,
+  .cutlist-buying h3,
+  .cutlist-buying-entry h4 { break-after: avoid; }
+  .cutlist-subtotal { break-before: avoid; }
   .cutlist-setup { border-left-color: #999; }
 
   /* .cutlist-subtotal .cutlist-stock (screen rule, specificity 0,2,0) beats

@@ -76,6 +76,10 @@ handicraft education tradition built around hand woodworking.
   the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
   (no sliver cell; it was marked crossing), 151 (row actions reveal on KEYBOARD focus; the user approved the look). 207
   record-only by the user's ruling (rare; the one remedy re-enables orbit mid-press). Residue 382.
+- **Fu 383 + 381(4) (2026-10-16, on master after follow-ups 5; no schema change; NOT deployed)**: the printed cut list starts each
+  material section and Buying on a new page (the user's ruling), checked with a real Chromium PDF (`page.pdf()` via the
+  Playwright code runner — a real print IS possible on this host); a stored part is keyed once on the Plans sheet (381(4)).
+  The user's real print closed 70, 79, 84, 94, 254, 345, 374, 379, 380(4), 381(3).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -168,6 +172,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | plans balloons | 10-16 | — | One numbered balloon per cut-list row on the Plans sheet's exploded view; the cut list and its layouts print the row number (fu 252) |
 | feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
 | follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78; 151 (row actions on keyboard focus) |
+| print sections | 10-16 | — | Fu 383: each cut-list section and Buying prints on a new page; 381(4) a part keyed once |
 
 ### The deployment rule
 
@@ -995,7 +1000,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4628 tests across 156 files
+npm test           # Vitest, currently 4632 tests across 156 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1008,7 +1013,6 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Open as work:** 383 (the printed cut list's page splitting — the user's ask; design first).
 - **Open as work (code-sized, all low):** 8, 12, 17, 19, 27, 31, 126, 128, 169, 175 (1–178); 234 (the concept planner is
   not taught assemblies), 269 (packer heuristic: measure a losing case first).
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section

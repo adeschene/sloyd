@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
@@ -273,5 +274,44 @@ describe('row numbers (plans balloons §2.1)', () => {
     expect(n).toBe('2');
     const key = [...container.querySelectorAll('.cutlist-layout-key li')].map((li) => li.textContent);
     expect(key).toEqual([`${n}. Cleat A — 30" × 1-1/2"`, `${n}. Cleat B — 30" × 1-1/2"`]);
+  });
+});
+
+// Fu 383, the user's ruling 2026-10-16 ("yes, new page per section"): a printed cut list split its material sections across
+// pages wherever they fell. Not `?raw`: Vitest hands CSS back as '' (palette.test.ts reads it the same way).
+describe('printed page breaks (fu 383)', () => {
+  const css = readFileSync('src/styles.css', 'utf8');
+  const print = css.slice(css.indexOf('@media print {'));
+  // Every print rule naming `selector` (one selector may sit in several lists), their bodies joined.
+  const rule = (selector: string) => {
+    const re = new RegExp(`(^|[,}\\s])${selector.replace(/[.+*()]/g, '\\$&')}\\s*[,{]`, 'gm');
+    const bodies = [...print.matchAll(re)].map((m) => print.slice(print.indexOf('{', m.index), print.indexOf('}', m.index) + 1));
+    expect(bodies.length, `${selector} has a print rule`).toBeGreaterThan(0);
+    return bodies.join(' ');
+  };
+
+  it('every material section after the first, and Buying, starts a new page', () => {
+    expect(rule('.cutlist-group + .cutlist-group')).toMatch(/break-before:\s*page/);
+    expect(rule('.cutlist-buying')).toMatch(/break-before:\s*page/);
+  });
+
+  it('the first section follows the title, not a blank page', () => {
+    expect(print).not.toMatch(/(^|[,}\s])\.cutlist-group\s*\{[^}]*break-before/m);
+  });
+
+  it('a section heading never ends a page, and a subtotal never starts one', () => {
+    expect(rule('.cutlist-group h3')).toMatch(/break-after:\s*avoid/);
+    expect(rule('.cutlist-buying h3')).toMatch(/break-after:\s*avoid/);
+    expect(rule('.cutlist-buying-entry h4')).toMatch(/break-after:\s*avoid/);
+    expect(rule('.cutlist-subtotal')).toMatch(/break-before:\s*avoid/);
+  });
+
+  it('the sections are siblings, so `+` reaches every one after the first', () => {
+    load({ name: 'A', material: 'pine' }, { name: 'B', material: 'walnut' }, { name: 'C', material: 'oak' });
+    const { container } = render(<CutList onClose={() => {}} />);
+    const groups = [...container.querySelectorAll('.cutlist-group')];
+    expect(groups).toHaveLength(3);
+    for (const g of groups.slice(1)) expect(g.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
+    expect(container.querySelector('.cutlist-buying')?.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
   });
 });
