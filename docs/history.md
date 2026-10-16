@@ -18,7 +18,12 @@
 
 ## Deployment record
 
-**Production matches `master` as of 2026-10-15 with follow-ups 1 live** (`index-LdkILHkB.js`, CSS `index-DdiQhqkN.css`
+**Production matches `master` as of 2026-10-16 with fu 368 live** (`index-DG6bkBPk.js`, CSS unchanged, deployed commit `676225c`,
+merge `1015f08`, schema 17 unchanged — rollback to follow-ups 1, `558187f` / `index-LdkILHkB.js`, is free). Deployed on the
+user's word (4473 tests, build clean). Verified as follow-ups 1 was below: `200` in-network and at the edge, the edge bundle's
+sha256 matching `dist/`, the old bundle 404 in-network, the CSP at the edge, a real-browser load (0 errors), its keys cleared.
+
+The previous deployment: **follow-ups 1 live** (`index-LdkILHkB.js`, CSS `index-DdiQhqkN.css`
 unchanged, deployed commit `558187f`, merge `333bddf`, schema 17 unchanged — a rollback to curves chunk 2, `1e16c01` /
 `index-C-5a29hA.js`, is free). Deployed on the user's word (4472 tests, build clean on the merged tree). Verified per the
 deployment rule: `200` on `/` and a deep route in-network and at the edge; the edge bundle's sha256 matches `dist/`; the old

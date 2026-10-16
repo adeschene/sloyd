@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is follow-ups 1** (merge `333bddf`, deployed as `558187f`, bundle `index-LdkILHkB.js`); **master is AHEAD with
-  fu 368 (merge `1015f08`), not deployed** — no schema change, so deploying or rolling it back is free.
+- **Production matches `master`** as of 2026-10-16: fu 368 (merge `1015f08`, deployed as `676225c`) — bundle `index-DG6bkBPk.js`;
+  rollback to follow-ups 1 (`558187f`, `index-LdkILHkB.js`) or curves chunk 2 (`1e16c01`, `index-C-5a29hA.js`) is free.
   rollback to curves chunk 2 (`1e16c01`, `index-C-5a29hA.js`) is free. Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -47,7 +47,7 @@ handicraft education tradition built around hand woodworking.
   user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Two rulings made in implementation await the user: 296
   (angle-cuts spec §7 marked *Amended (implementation, follow-ups 2026-10-15)*) and 262's set of view-only actions (Hide
   others, Select copies, Select linked, the guides disclosure).
-- **Fu 368 (2026-10-16, merged as `1015f08`, NOT deployed)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
+- **Fu 368 (2026-10-16, merged as `1015f08`, deployed as `index-DG6bkBPk.js`)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
   coplanar lookups indexed (byte-identical, A/B over 21 fixtures), ear-clip triangles merged into convex pieces
   (Hertel–Mehlhorn; 83 bodies → 16); the frozen-bodies hypothesis did not reproduce. No schema change.
 - **NEXT: ask.** `docs/follow-ups.md` is authoritative: an open entry reads
