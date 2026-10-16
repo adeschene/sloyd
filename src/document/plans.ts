@@ -1,5 +1,5 @@
 import type { Board, Instance, SloydDocument, StoredBoard } from './types';
-import { NAME_SEPARATOR, partsBelow, placementsOf } from './tree';
+import { NAME_SEPARATOR, PATH_SEPARATOR, partsBelow, placementsOf } from './tree';
 
 /** One assembly drawing on the plans sheet (spec §5.2 item 3). */
 export interface PlanAssembly {
@@ -12,6 +12,35 @@ export interface PlanAssembly {
   mirroredCopies: number;
   /** The definition's parts in its OWN frame. */
   parts: Board[];
+  /** The ids among `parts` whose features THIS trio keys (feature callouts spec §2.1): a part is keyed by the innermost
+   *  listed assembly on its path, so a deeper listed definition's parts are left to its own trio. */
+  keyed: ReadonlySet<string>;
+}
+
+type Container = { boards: StoredBoard[]; instances: Instance[] };
+
+/** The ids among `parts` (paths relative to `c`) that the trio drawing `c` keys (spec §2.1): walking each part's path,
+ *  a LISTED definition below `c` takes the part. */
+function keyedHere(doc: SloydDocument, c: Container, parts: readonly Board[], listed: ReadonlySet<string>): Set<string> {
+  const defs = new Map(doc.definitions.map((d) => [d.id, d]));
+  const out = new Set<string>();
+  for (const b of parts) {
+    let cur: Container = c;
+    let mine = true;
+    for (const seg of b.id.split(PATH_SEPARATOR).slice(0, -1)) {
+      const d = defs.get(cur.instances.find((i) => i.id === seg)?.definition ?? '');
+      if (!d) break;
+      if (listed.has(d.id)) { mine = false; break; }
+      cur = d;
+    }
+    if (mine) out.add(b.id);
+  }
+  return out;
+}
+
+/** The ids of the whole piece's parts (`worldParts`) whose features the piece trio keys: those in no listed assembly. */
+export function pieceKeyed(doc: SloydDocument, assemblies: readonly PlanAssembly[]): ReadonlySet<string> {
+  return keyedHere(doc, doc, partsBelow(doc, doc), new Set(assemblies.map((a) => a.definition)));
 }
 
 /**
@@ -35,7 +64,7 @@ export function planAssemblies(doc: SloydDocument): PlanAssembly[] {
       repeatsParent.set(d.id, (repeatsParent.get(d.id) ?? true) && sole);
       let entry = out.get(d.id);
       if (!entry) {
-        entry = { definition: d.id, title, copies: counts.get(d.id) ?? 1, mirroredCopies: 0, parts: partsBelow(doc, d) };
+        entry = { definition: d.id, title, copies: counts.get(d.id) ?? 1, mirroredCopies: 0, parts: partsBelow(doc, d), keyed: new Set() };
         out.set(d.id, entry);
       }
       if (mirrored) entry.mirroredCopies += 1;
@@ -43,5 +72,7 @@ export function planAssemblies(doc: SloydDocument): PlanAssembly[] {
     }
   };
   walk(doc, '', false, new Set());
-  return [...out.values()].filter((a) => a.parts.length > 0 && !repeatsParent.get(a.definition));
+  const list = [...out.values()].filter((a) => a.parts.length > 0 && !repeatsParent.get(a.definition));
+  const listed = new Set(list.map((a) => a.definition));
+  return list.map((a) => ({ ...a, keyed: keyedHere(doc, defs.get(a.definition)!, a.parts, listed) }));
 }

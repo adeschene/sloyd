@@ -2,7 +2,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { isMetric } from '../units/length';
 import { worldParts } from '../document/tree';
-import { planAssemblies } from '../document/plans';
+import { pieceKeyed, planAssemblies } from '../document/plans';
 import { EXPLODE_SPREAD } from '../document/explode';
 import { ExplodedFigure, PlanTrio } from './PlanFigure';
 
@@ -21,6 +21,8 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
   const parts = worldParts(doc);
   const assemblies = useMemo(() => planAssemblies(doc), [doc]);
+  // Stable across the slider's ticks, so PlanTrio's memo holds (fu 263).
+  const pieceKeys = useMemo(() => pieceKeyed(doc, assemblies), [doc, assemblies]);
   const [amount, setAmount] = useState(SHEET_EXPLODE);
   // The figure follows the slider at low priority (fu 263): an isometric of a furniture piece takes 100 ms and more to
   // draw, so the thumb moves at once and the figure catches up with the latest value, skipping the ones in between.
@@ -63,12 +65,12 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>
-              <PlanTrio parts={parts} units={doc.units} label={doc.name} />
+              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} />
             </section>
             {assemblies.map((a) => (
               <section className="plans-section" key={a.definition}>
                 <h3>{a.title}{a.copies > 1 ? ` × ${a.copies}` : ''}{mirroredNote(a.mirroredCopies)}</h3>
-                <PlanTrio parts={a.parts} units={doc.units} label={a.title} />
+                <PlanTrio parts={a.parts} units={doc.units} label={a.title} keyed={a.keyed} />
               </section>
             ))}
           </>

@@ -29,12 +29,17 @@ const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]
  * into air).
  */
 export function holeDrawingSegments(b: Board, toward: readonly number[], visibleOnly = false): [Vec3, Vec3][] {
+  return holeDrawingTagged(b, toward, visibleOnly).map(({ A, E }) => [A, E]);
+}
+
+/** `holeDrawingSegments` with each segment's ROW id, so the Plans sheet can key a row's lines (feature callouts spec §4.1). */
+export function holeDrawingTagged(b: Board, toward: readonly number[], visibleOnly = false): { A: Vec3; E: Vec3; row: string }[] {
   const holes = partGeometry(b).holes;
   if (holes.length === 0) return [];
   const checks = visibleOnly ? stockChecks(b) : null;
   const inside = (h: (typeof holes)[number]) => checks !== null && holeInStock(b, h, checks);
   const P = (p: readonly number[]): Vec3 => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
-  const out: [Vec3, Vec3][] = [];
+  const out: { A: Vec3; E: Vec3; row: string }[] = [];
   // Each hole's world frame, from mapped points only: centre C, axis A (entry to far rim), silhouette radial r (null when
   // the view looks down the axis), and whether the rim's plane is edge-on to the view.
   const frames = holes.map((h) => {
@@ -65,21 +70,22 @@ export function holeDrawingSegments(b: Board, toward: readonly number[], visible
         // along one line, so a hidden rim reads dashed on the sheet.
         const k = t / h.depth;
         const c = [C[0] + k * A[0]!, C[1] + k * A[1]!, C[2] + k * A[2]!];
-        out.push([
-          [c[0]! - r[0]!, c[1]! - r[1]!, c[2]! - r[2]!],
-          [c[0]! + r[0]!, c[1]! + r[1]!, c[2]! + r[2]!],
-        ]);
+        out.push({
+          A: [c[0]! - r[0]!, c[1]! - r[1]!, c[2]! - r[2]!],
+          E: [c[0]! + r[0]!, c[1]! + r[1]!, c[2]! + r[2]!],
+          row: h.row,
+        });
         continue;
       }
       const ring = holeRing(h, t, DRAWING_HOLE_SEGMENTS).map(P);
-      for (let i = 0; i < ring.length; i += 1) out.push([ring[i]!, ring[(i + 1) % ring.length]!]);
+      for (let i = 0; i < ring.length; i += 1) out.push({ A: ring[i]!, E: ring[(i + 1) % ring.length]!, row: h.row });
     }
   }
-  for (const { C, A, r, clean } of frames) {
+  for (const { h, C, A, r, clean } of frames) {
     if (!r || clean) continue;   // visibleOnly: a clean hole's wall is always hidden
     for (const s of [1, -1]) {
       const p0: Vec3 = [C[0] + s * r[0]!, C[1] + s * r[1]!, C[2] + s * r[2]!];
-      out.push([p0, [p0[0] + A[0]!, p0[1] + A[1]!, p0[2] + A[2]!]]);
+      out.push({ A: p0, E: [p0[0] + A[0]!, p0[1] + A[1]!, p0[2] + A[2]!], row: h.row });
     }
   }
   return out;

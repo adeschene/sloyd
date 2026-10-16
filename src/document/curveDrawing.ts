@@ -23,7 +23,7 @@ const ON_CHORD = 1e-7;
  * p and q themselves first and last (a split end stays where the model put it, ruling Q4), the nodes between ON the
  * true arc; at[i] is pts[i]'s parameter along p→q (0 … 1, increasing); k the through axis — the plane's normal.
  */
-export interface DrawEdge { p: V3; q: V3; path?: { pts: V3[]; at: number[]; k: number } }
+export interface DrawEdge { p: V3; q: V3; path?: { pts: V3[]; at: number[]; k: number }; curve?: string }
 
 const v3 = (p: Segment[0]): V3 => [p.length, p.width, p.thickness];
 const memo = new WeakMap<readonly Segment[], readonly DrawEdge[]>();
@@ -62,7 +62,7 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
       if (s.kind !== 'arc') return [];
       const n = arcChords(s, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
       const m = perChord(s, n);
-      return Array.from({ length: n }, (_, j) => ({ arc: s, n, m, j, P: arcPoint(s, j / n), Q: arcPoint(s, (j + 1) / n), ui, vi, k }));
+      return Array.from({ length: n }, (_, j) => ({ arc: s, n, m, j, P: arcPoint(s, j / n), Q: arcPoint(s, (j + 1) / n), ui, vi, k, curve: c.id }));
     });
   });
   const out: DrawEdge[] = edges.map(([P0, Q0]) => {
@@ -92,7 +92,7 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
       nodes.splice(0, nodes.length, ...nodes.filter((x) => param(x) > 0 && param(x) < 1));
       nodes.sort((x, y) => param(x) - param(y));
       const lift = (x: P2): V3 => { const r: V3 = [p[0], p[1], p[2]]; r[ch.ui] = x[0]; r[ch.vi] = x[1]; return r; };
-      return { p, q, path: { pts: [p, ...nodes.map(lift), q], at: [0, ...nodes.map(param), 1], k: ch.k } };
+      return { p, q, path: { pts: [p, ...nodes.map(lift), q], at: [0, ...nodes.map(param), 1], k: ch.k }, curve: ch.curve };
     }
     return { p, q };
   });
@@ -170,8 +170,8 @@ const PROBE = 4e-6; // 4 x drawing.ts' DRAW_EPS (1e-6), not imported: drawing.ts
  * face edge-on to the view, or facing away, contributes nothing, so a line hidden only by grazing, or one that lies
  * behind wood it seams against, stays hidden (spec 2.3).
  */
-export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3 }[] {
-  const out: { A: V3; E: V3; lift: V3 }[] = [];
+export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3; curve: string }[] {
+  const out: { A: V3; E: V3; lift: V3; curve: string }[] = [];
   const planes = board.curves.length > 0 ? partGeometry(board).bodies.map((b) => bodyPlanes(b.faces)) : [];
   for (const c of board.curves) {
     const [u, v] = uvDims(c.through);
@@ -215,7 +215,7 @@ export function silhouetteLines(board: Board, toward: readonly number[]): { A: V
         if (n[0] * d[0] + n[1] * d[1] <= 1e-9) continue; // edge-on or facing away
         for (let j = 0; j < 3; j++) lift[j] += PROBE * (n[0] * wu[j]! + n[1] * wv[j]!);
       }
-      for (const [t0, t1] of onWood(planes, q, ui, vi, k, board[c.through])) out.push({ A: W(q, t0), E: W(q, t1), lift });
+      for (const [t0, t1] of onWood(planes, q, ui, vi, k, board[c.through])) out.push({ A: W(q, t0), E: W(q, t1), lift, curve: c.id });
     });
   }
   return out;

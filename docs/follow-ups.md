@@ -5545,6 +5545,7 @@ edges and a flat 45° picture frame; one Refine changed only the top's chamfers.
 
 **279. Angle callouts on the Plans sheet** (see fu 252). **Status:** open.
 **Status:** open (feature; needs a spec) (feature callouts, with 333 and 362; 252 closed). (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (feature callouts round, spec `2026-10-16-sloyd-feature-callouts-design.md`): every angle cut gets a lettered tag on its trio, in the view where its slope is edge-on, keyed `Miter 45.0°`, `Bevel 15.0°`, `Chamfer 1/4"`, `Taper 1/2" over 20"`; seen live on a mitered, tapered table. Residue 381.
 
 **280. Compound angles** (an angle cut that is sloped in two axes). **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
@@ -5933,6 +5934,7 @@ the hardware bill of materials (fu 267). **Status:** open (spec §11).
 **333. Hole callouts on the Plans sheet.** Dimensioned hole positions and sizes on the sheet; joins fu 252 (callouts).
 **Status:** open (spec §11).
 **Status:** open (feature; needs a spec) (feature callouts, with 279 and 362; 252 closed). (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (feature callouts round): every hole row gets a lettered tag on its trio, in the view looking down its axis (on its dashed rims when hidden everywhere, R4 — seen live on a bookcase's inward shelf-pin rows), keyed with its size and pitch, no positions (R1: the part diagrams keep the stations). Residue 381.
 
 **334. Pointed bottoms.** Twist and brad-point bits leave a cone; chunk 1's holes are flat-bottomed. **Status:** open
 (spec §11).
@@ -6194,6 +6196,7 @@ software GL; the real print is owed (fu 254, 345, 357, 379).
 **362. Dimension callouts on curves.** Radius and rise on the Plans sheet. Joins fu 252 (callouts) and 333 (hole
 callouts). **Status:** open (spec §12).
 **Status:** open (feature; needs a spec) (feature callouts, with 279 and 333). (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (feature callouts round): every curve (four collapsed corners as one) gets a lettered tag in the view through its outline, keyed `Arch, 18-1/2" span, 1-1/4" rise (radius 34-7/8")`, `Bow …`, `Rounded corner, … radius`; seen live on an arched apron. Residue 381.
 
 **363. Claude features on curves.** Add joinery and Repair accepting curved parts (refusing only a joint a curve runs into,
 as angle cuts do, inv 41), Generate and Refine reading and writing curves (a `DESIGN_SCHEMA` change: one live compile first,
@@ -6362,3 +6365,8 @@ checks unique, real numbers, not that every visible row got one or that its anch
 passes the height cap its lowest rows go to the note even if the other column has room (with (1)). **Status:** open for (1)
 and (4); the rest record-only.
 **Status:** open (owed to the user, not code): (1) column balance by eye, (4) a real print; the rest record-only. (triaged 2026-10-16)
+
+
+## From the feature callouts round — 2026-10-16
+
+**381. Feature callouts residue.** Rulings made while writing the plan (approved by the user 2026-10-16): **P1** the key list reads the bench lines' units (`6.4 mm dia × 10 mm deep, every 32 mm`; imperial's straight `"`), not bare mm — spec §3's metric example amended; **P2** a feature with no true view whose lines are all hidden (a hand-edited compound angle cut) is keyed on its hidden lines in tie order, not listed as not shown; **P3** a curve's straight sides off the face boundary carry no tag (`curveDrawEdges` knows only arc chords), so a hand-made curve of lines only is listed "Not shown". Live-pass notes: (1) **for the user's eye**: tags can sit on dimension lines (the table's B tags on the overall dimensions under Front and Side; allowed by spec §4.4, the paper fill masks the line); (2) at screen scale a hidden 1/4" rim's dash reads solid (as fu 337), so a tag on dashed rims looks like one on visible rims; (3) the real print is owed with 254 (page fit with the key list added under a capped trio). Final review (fixed: a densely drilled part — ~450 holes on one panel — overflowed the stack and blanked the app; an angle cut that removes nothing was keyed and tagged the part's own face edges): (4) **ruling, for the user**: a definition that is never listed (every placement a sole child) but sits under two different listed assemblies has its features keyed in BOTH trios, against R5's "once" — kept, since each trio draws the part; (5) the tag's leader reuses the balloons' `plans-leader` class where spec §4.5 names `plans-key-leader` (same look); (6) when the clamp pulls a tag to within its radius of the anchor, the leader is drawn backwards (cosmetic); (7) `(N×)` counts instances while merged tags draw fewer circles (the spec's rule; for the user's eye). **Status:** open for (1), (3) and (4); the rest record-only.

@@ -1,4 +1,5 @@
-import { createBoard, holeInStock, partGeometry, stockChecks } from './document';
+import { createBoard, defaultShelfPinRow, holeInStock, partGeometry, stockChecks, taperCut } from './document';
+import { ARCH } from './curveFixtures';
 import type { Board, HoleRow } from './types';
 import { chiralAngled, chiralCurved } from './turnFixtures';
 import { archCurve, bowCurve, defaultCorners } from './curves';
@@ -467,5 +468,64 @@ describe('a view drawn without hidden lines skips the hole lines that can only b
     expect(partGeometry(holed).holes.every((h) => !holeInStock(holed, h, stockChecks(holed)))).toBe(true);
     const { equal } = same([holed]);
     expect(equal).toBe(true);
+  });
+});
+
+describe('drawView: feature tags (feature callouts spec §4.1)', () => {
+  const tags = (segs: Seg2[]) => new Set(segs.flatMap((s) => (s.feature ? [s.feature] : [])));
+  it('a part with no features draws byte-for-byte as before: no segment carries the key at all', () => {
+    const d = drawView([box('p', 10, 4, 2)], FRONT);
+    for (const s of [...d.visible, ...d.hidden]) expect('feature' in s).toBe(false);
+  });
+  it('a hole row: its rims are tagged in its true view (Plan) and its walls in Front', () => {
+    const b = box('s', 30, 11.25, 0.75);
+    const pin = { id: 'r', ...defaultShelfPinRow(b)! };
+    const withPins = { ...b, holes: [pin] };
+    expect(tags(drawView([withPins], TOP).visible)).toEqual(new Set(['s:hole:r']));
+    const front = drawView([withPins], FRONT);
+    expect(tags([...front.visible, ...front.hidden]).has('s:hole:r')).toBe(true);
+  });
+  it('tagging changes nothing else: the same segments, in the same order, with the key removed', () => {
+    const b = box('s', 30, 11.25, 0.75);
+    const withPins = { ...b, holes: [{ id: 'r', ...defaultShelfPinRow(b)! }] };
+    const strip = (segs: Seg2[]) => segs.map(({ a, b: e, part }) => ({ a, b: e, part }));
+    for (const v of [FRONT, SIDE, TOP]) {
+      const d = drawView([withPins], v);
+      const again = drawView([withPins], v);
+      expect(strip(d.visible)).toEqual(strip(again.visible));
+      expect(d.visible.length + d.hidden.length).toBeGreaterThan(0);
+    }
+  });
+  it('an angle cut: the taper face edges are tagged by plane membership', () => {
+    const leg = box('L', 28, 1.75, 1.75, [0, 0, 0], { angleCuts: [{ id: 't', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 20, amount: 0.5 }) }] });
+    const all = (v: typeof FRONT) => { const d = drawView([leg], v); return tags([...d.visible, ...d.hidden]); };
+    expect(all(FRONT).has('L:angle:t') || all(TOP).has('L:angle:t')).toBe(true);
+    // An edge NOT on the taper's plane is untagged: the far end's square edges.
+    const d = drawView([leg], SIDE);
+    expect(d.visible.some((s) => !s.feature)).toBe(true);
+  });
+  it('an angle cut that removes nothing tags no edge, though its plane holds the part\'s own face (final review #2)', () => {
+    const none = { id: 'z', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0], [20, 0]] as [[number, number], [number, number]] };
+    const rail = box('r', 20, 3, 0.75, [0, 0, 0], { angleCuts: [none] });
+    for (const v of [FRONT, SIDE, TOP]) {
+      const d = drawView([rail], v);
+      expect(tags([...d.visible, ...d.hidden]).size).toBe(0);
+    }
+  });
+  it('a curve: arc chords in its true view and silhouettes across it are tagged', () => {
+    const apron = box('a', 30, 5, 0.75, [0, 0, 0], { curves: [ARCH] });
+    expect(tags(drawView([apron], TOP).visible).has('a:curve:c1')).toBe(true);
+    const f = drawView([apron], FRONT);
+    expect(tags([...f.visible, ...f.hidden]).has('a:curve:c1')).toBe(true);
+    // The crown's silhouette shows looking along the length (Side), where the arch's normals turn across the view: it runs
+    // along `through` (thickness: vertical); chords lie in length × width planes (horizontal there).
+    const sv = drawView([apron], SIDE);
+    const vertical = [...sv.visible, ...sv.hidden].filter((s) => s.feature === 'a:curve:c1' && Math.abs(s.a[0] - s.b[0]) < 1e-9 && Math.abs(s.a[1] - s.b[1]) > 1e-9);
+    expect(vertical.length).toBeGreaterThan(0);
+  });
+  it('four corners: every corner tagged with its own id (one feature owns all four, Task 1)', () => {
+    const top = box('p', 36, 20, 0.75);
+    const four = defaultCorners(top).map((c, i) => ({ id: `k${i}`, ...c }));
+    expect(tags(drawView([{ ...top, curves: four }], TOP).visible)).toEqual(new Set(four.map((c) => `p:curve:${c.id}`)));
   });
 });

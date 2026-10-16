@@ -1,6 +1,6 @@
 import { IMPERIAL } from '../units/length';
 import { render, screen } from '@testing-library/react';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, defaultShelfPinRow } from '../document/document';
 import type { HoleRow } from '../document/types';
 import { PlanTrio, ExplodedFigure, pathOf } from './PlanFigure';
 
@@ -115,5 +115,31 @@ describe('PlanTrio in metric (chunk 2)', () => {
     rerender(<PlanTrio parts={parts} units={MM} label="Shelf unit" />);
     expect(texts(container)).toContain('762');
     expect(texts(container).join(' ')).not.toContain('"');
+  });
+});
+
+describe('PlanTrio: feature keys (feature callouts spec §4.5)', () => {
+  // Two case sides on edge (posture so the pin rows face each other is NOT needed: rows in each side's thickness face).
+  const sideAt = (id: string, x: number) => {
+    const b = createBoard({ id, name: id, length: 30, width: 11.25, thickness: 0.75, position: [x, 0, 0] });
+    return { ...b, holes: [{ id: 'r', ...defaultShelfPinRow(b)! }] };
+  };
+  const parts = [sideAt('L', 0), sideAt('R', 40)];
+  it('without keyed, nothing changes: no tags, no key list', () => {
+    const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Sides" />);
+    expect(container.querySelector('.plans-key-mark')).toBeNull();
+    expect(container.querySelector('.plans-key')).toBeNull();
+  });
+  it('keyed: one letter for the two identical rows, counted (2×), a tag per side', () => {
+    const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Sides" keyed={new Set(['L', 'R'])} />);
+    const items = [...container.querySelectorAll('.plans-key li')].map((li) => li.textContent);
+    expect(items).toEqual(['A Row of 21 holes, 1/4" dia × 3/8" deep, every 1-17/64" (32 mm) (2×)']);
+    const letters = [...container.querySelectorAll('.plans-key-mark text')].map((t) => t.textContent);
+    expect(letters).toEqual(['A', 'A']);
+  });
+  it('a part not keyed here draws no tag', () => {
+    const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Sides" keyed={new Set(['L'])} />);
+    expect(container.querySelectorAll('.plans-key-mark')).toHaveLength(1);
+    expect(container.querySelector('.plans-key li')!.textContent).not.toMatch(/×\)$/);
   });
 });
