@@ -16,7 +16,7 @@ interface Props {
    */
   libraryAvailable: boolean;
   activeId: string;
-  onOpenProject: (id: string) => void;
+  onOpenProject: (id: string) => Promise<string | null>;
   onNewProject: () => void;
   onDuplicateProject: (id: string) => Promise<DuplicateFailure | null>;
   onDeleteProject: (id: string) => Promise<void>;

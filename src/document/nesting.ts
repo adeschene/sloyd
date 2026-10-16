@@ -334,7 +334,9 @@ export function buildNesting(
   return {
     sheets: sheets.map((s) => ({ parts: s.parts })),
     unplaceable,
-    label: `${count} sheet${count === 1 ? '' : 's'} (${sheet})`,
+    // Fu 95: the group's square feet count every part, this count only the placed ones — so it says what it leaves out.
+    label: `${count} sheet${count === 1 ? '' : 's'} (${sheet})${unplaceable.length === 0 ? ''
+      : `, not counting ${unplaceable.length} part${unplaceable.length === 1 ? '' : 's'} too big for one`}`,
     sheet,
   };
 }

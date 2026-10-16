@@ -60,6 +60,12 @@ export class RunFailed extends Error {
 /** Usage spent before a loop rethrew an error, so a caller that recovers can still report it. */
 const spent = new WeakMap<object, LlmUsage>();
 export const spentBefore = (e: unknown): LlmUsage => (typeof e === 'object' && e !== null ? spent.get(e) : undefined) ?? ZERO_USAGE;
+/** What a failed run spent, for the cost display (fu 168): a `RunFailed`'s usage, or the calls made before an error the
+ * loop rethrew; null when nothing was spent (the first call failed). */
+export function spentOnFailure(e: unknown): LlmUsage | null {
+  const u = e instanceof RunFailed ? e.usage : spentBefore(e);
+  return u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens > 0 ? u : null;
+}
 
 export interface LoopAdapter<T extends { doc: SloydDocument; violations: Violation[] }> {
   system: string;

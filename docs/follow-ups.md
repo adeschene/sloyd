@@ -45,7 +45,7 @@ refactors `DimensionField` or `App`'s effects, these break silently.
 it can survive across tests in files that never mount `Properties`. Harmless today; a
 trap once more component tests exist.
 
-**Status:** open (hygiene, code-sized): `replaceDocument` still does not reset `pendingLengthFocus`. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): `replaceDocument` resets `pendingLengthFocus`; pinned. (triaged 2026-10-16; updated by follow-ups 3)
 
 ## Real but narrow
 
@@ -93,7 +93,7 @@ each install a window listener opening with a copy-pasted
 `tagName === 'INPUT' || 'SELECT'` check. Neither handles `TEXTAREA` or `contenteditable`
 — no such element exists today. A shared `isTypingTarget(e)` helper would settle it.
 
-**Status:** open (hygiene, code-sized): App has `isTextEntry` (TEXTAREA, contenteditable); Viewport's camera-key guard still checks INPUT/SELECT only (latent: dialogs with textareas suspend camera keys). (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): one `isTextEntry` (`src/textEntry.ts`) for App and the viewport's camera keys; pinned. (triaged 2026-10-16; updated by follow-ups 3)
 
 **10. `--alert-bg` token is declared and never referenced,** while `.input.invalid`
 hardcodes the same `#2c1c19`. Tokenization left half-done.
@@ -104,7 +104,7 @@ hardcodes the same `#2c1c19`. Tokenization left half-done.
 pointer handler deliberately added to that mesh later would register and silently never
 fire. `raycast={null}` is the idiomatic opt-out.
 
-**Status:** open (hygiene, code-sized): still `raycast={() => null}` (Viewport, TapeTool, SnapMarker), and Viewport's comment now claims the opposite of this entry. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3) — the named remedy REJECTED after measuring: R3F does gate on `raycast !== null`, but three's `Raycaster.intersectObject` calls `object.raycast()` unconditionally, so `raycast={null}` would throw on any direct scene raycast; `() => null` stays, and Viewport's comment that overstated it now says this. (triaged 2026-10-16; updated by follow-ups 3)
 
 **12. Orthographic `zoom={12}` is an initial value only.** Toggling to ortho on an empty
 document then adding a large board needs a manual `Home` press to frame it.
@@ -119,7 +119,7 @@ feet-and-inches input (`-2'6"`) in `units`.
 
 **14. `src/smoke.test.ts` is redundant** now that 123 real tests exist.
 
-**Status:** open (hygiene, code-sized): `src/smoke.test.ts` still exists. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): `src/smoke.test.ts` removed. (triaged 2026-10-16; updated by follow-ups 3)
 
 ## From the v1 polish pass
 
@@ -159,7 +159,7 @@ and `explDomElement`; the effect in `Gizmo.tsx` depends on the camera only, so a
 change of `events.connected` would silently drop the patch. Same class of bug as the
 projection-toggle case that was found and fixed during this pass.
 
-**Status:** open (latent, code-sized): the patch effect's deps are `[selectionKey, camera, hidden]`; drei's other recreation key is still omitted. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): the patch effect depends on drei's event target too (`events.connected || gl.domElement`); stable today, so no behaviour change (gizmo checked live). (triaged 2026-10-16; updated by follow-ups 3)
 
 **19. The gizmo patch writes `visible` unconditionally,** discarding the library's own
 `showX`/`showY`/`showZ` gating. Latent only — Sloyd never sets those props.
@@ -194,7 +194,7 @@ value, since `createBoard` never reads it, but it reads as if the name survives 
 call. Destructuring `name` out of `rest` alongside `id` would make the intent obvious
 (`src/store/store.ts:133-137`).
 
-**Status:** open (hygiene, code-sized): `copyBoard` still passes `name` in `rest` to `createBoard`, then overwrites it. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): `copyBoard` passes the copy's name to `createBoard`. (triaged 2026-10-16; updated by follow-ups 3)
 
 **24. The `editing`-cleared-before-`commit()` ordering in `NameField`'s blur handler
 is correct but not pinned by any test.** React batches the event handler, so swapping
@@ -445,7 +445,7 @@ by a newer version of Sloyd" (the import dialog's own copy is the model) instead
 silently starting clean; a corrupt-JSON `SyntaxError` still degrades to `null` the way it
 does today.
 
-**Status:** open (narrowed): the data-loss half is superseded by the library (`sloyd.autosave.v1` is never written after adoption; a too-new project is skipped, not overwritten); the SILENT half remains — opening a too-new project returns with no message. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): `storage.readProject` returns the document or why it cannot be opened (a newer version's `DocumentError` in its own words; `UNREADABLE_PROJECT` for a missing or non-JSON key); `openProject` asks for the reason only on failure and returns it; the project menu closes on a row click as before and, on a failure, reopens on that row with the message, focus on the caret. Checked live with a version-999 project. The boot fallback to another project is still silent; the menu now explains the skipped one when it is clicked. (triaged 2026-10-16; updated by follow-ups 3)
 
 ## From v3
 
@@ -488,7 +488,7 @@ property requires — and the centre band is spatially far from the edges, so it
 as cosmetic. A distinct seed for `k === 0` is the fix, worth doing the next time this
 file is touched.
 
-**Status:** open (cosmetic, code-sized): `band:${Math.abs(k) % half}` still maps k = 0 onto the edge bands' seed. (triaged 2026-10-16)
+**Status:** open (cosmetic; held for the user's eye, 2026-10-16): a distinct centre seed was made and rendered before/after on the dev server — in the edge texture the new centre band CROSSES its neighbour, which real rings never do, so the change was reverted rather than shipped. Keep, retune, or close as record-only is the user's call. (triaged 2026-10-16; updated by follow-ups 3)
 
 **38. The "no board misses the cathedral arch" guarantee in `grainTiling.ts`'s face
 tile size (6in) was worked out for boards around 5-1/2in wide.** Much narrower boards
@@ -517,7 +517,7 @@ flows through — `axisDimensions`, `boardExtents`, and `grainTiling.ts`'s `rank
 read it. Nothing in the codebase mutates it today; the risk is purely that nothing
 stops a future caller from doing so.
 
-**Status:** open (hygiene, code-sized): `DIMENSION_ORDER` is still a mutable `Dimension[]`; mirrorCut.ts casts it. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): `DIMENSION_ORDER` is `readonly Dimension[]`; nothing mutated it (a compile, not a test, holds it). (triaged 2026-10-16; updated by follow-ups 3)
 
 **41. ~~`validateBoard`'s posture and grain fallback branches have no unit test, and
 `createBoard`'s `grain` default is unasserted.~~ CLOSED in the final v3 review pass.**
@@ -790,7 +790,7 @@ geometry divergence and nothing the user can see is lost mid-session, which is
 why this is Minor. The natural fix is the same shape as `repositionForAxes`:
 clamp the *pair* when either member changes.
 
-**Status:** open (minor defect, code-sized): the dado→rabbet word flip is gone (words come from `cutShape`/`clippedRegion`) and a cut past the end is noted (fu 178), but the offset field's `max` is still `posDim` and nothing clamps the pair, so the width field's `max` can reach 0 and refuse everything. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): the offset field's max is `posDim - width`, so the pair is refused from either field — refused, not clamped (DimensionField's rule; the entry's named clamp was not adopted). Imperial and metric tests; red before the fix; checked live. (triaged 2026-10-16; updated by follow-ups 3)
 
 Also worth recording, since it is a lesson rather than a defect: **seven of joinery's
 defects were in code the plan supplied verbatim**, not in transcription. In the order
@@ -931,7 +931,7 @@ not the screen palette) and should stay that way; the scrim is the one value tha
 *should* be a token the moment a second overlay exists. Brief-origin, kept verbatim,
 recorded rather than quietly changed.
 
-**Status:** open (hygiene, code-sized): the trigger has happened — `.modal-overlay` is a second overlay, and both hardcode `rgba(20, 15, 11, 0.72)`. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): one `--scrim` token for both overlays (checked live: the same colour). (triaged 2026-10-16; updated by follow-ups 3)
 
 **58. CLOSED — `body` kept its dark background under `@media print`.** Closed in the
 branch's final review pass by exactly the one-line `body { background: #fff; }` this
@@ -1867,7 +1867,7 @@ line immediately below the heading, so a reader sees *why* the sheet count reads
 right next to the number that does — but the two numbers themselves still disagree on
 what they're counting.
 
-**Status:** open (defect, mitigated): a sheet-goods group's square feet still include unplaceable parts (cutlist.ts adds every board) while its sheet count does not. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): the subtotal stays its rows' sum (every part); the sheet count now says what it leaves out — `0 sheets (96" × 48"), not counting 1 part too big for one`. Checked live. (triaged 2026-10-16; updated by follow-ups 3)
 
 **96. `fitLabel`'s terminal `index` tier has no height check.** `src/panels/
 diagramLabels.ts:147` returns `'index'` unconditionally as the last case in the
@@ -1882,7 +1882,7 @@ and specifically the height axis the width-only fixtures never exercised — the
 defect class `fitLabel` exists to close for the other two tiers, left open on the one
 tier that has no fallback beneath it.
 
-**Status:** open (latent defect, code-sized): `fitLabel`'s `index` tier still has no height check. (triaged 2026-10-16)
+**Status:** open (latent defect, REACHABLE — needs a ruling, 2026-10-16): the sheet draws at 1000/96 ≈ 10.4 units per inch and the index label is 25 units tall, so any part under ~2.4" in its short dimension (a 24 × 1-1/2" plywood cleat) overflows its number out of its rectangle. What to draw instead (a key-only entry, a leader to the margin, a rotated label) is a design choice; a smaller font is ruled out by inv 19. (triaged 2026-10-16; updated by follow-ups 3)
 
 **97. CLOSED 2026-08-31, together with 131 — `takeId` in `document.ts`.** The repair is the
 one `validateCuts` already had, given a name and two more callers: the first occurrence of an
@@ -3548,7 +3548,7 @@ docs-only task would put an unreviewed edit on that file. Note the two closing p
 the focusout close happens *because* focus went somewhere sensible, so it has nothing to
 restore — only the Escape path is affected.
 
-**Status:** open (a11y defect, code-sized): Escape still only closes the menu; focus is not returned to the caret. (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): Escape focuses the caret before closing (as Popover does); pinned and mutated; checked live. (triaged 2026-10-16; updated by follow-ups 3)
 
 **153. A genuinely full `localStorage` was never produced in a browser.** `available` goes
 false down two routes: an unrecognised or corrupt index (driven live, see
@@ -4182,7 +4182,7 @@ calls made before an `LlmError` (auth, rate limit, network) is dropped rather th
 because `RunFailed` carries usage and `LlmError` does not. A sub-cent run also prints
 "≈ $0.00", which reads as free.
 
-**Status:** open (defect, code-sized): the bill comparison is superseded by fu 236's measured ranges, but usage spent before an `LlmError` is still dropped (useGenerations.ts, useRefine.ts — `spentBefore` exists in run.ts) and a sub-cent run still prints "≈ $0.00". (triaged 2026-10-16)
+**Status:** closed 2026-10-16 (follow-ups 3): a failed Generate or Refine run prices what it spent before the error (`spentOnFailure`, run.ts: a `RunFailed`'s usage or `spentBefore`; null when nothing was spent), and a run under half a cent reads `< $0.01` (`formatCost`, estimate.ts, the one run-cost string). Joinery already reported its fallback's usage. The bill comparison is superseded by fu 236's measured ranges. Mutated: both halves red. (triaged 2026-10-16; updated by follow-ups 3)
 
 **169. Deferred minors from the round's reviews, each judged not worth a fix round:**
 

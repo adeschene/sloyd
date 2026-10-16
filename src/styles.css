@@ -51,6 +51,9 @@
   --accent-dim: #7d5a33;
   --on-accent: #23190f;
 
+  /* The dim behind a modal sheet or dialog: one value for every overlay (fu 57). */
+  --scrim: rgba(20, 15, 11, 0.72);
+
   /* Alerts and warnings (values re-checked against walnut). */
   --alert: #e8806a;
   --alert-bg: #2c1c19;
@@ -992,7 +995,7 @@ select.input { cursor: pointer; }
   justify-content: center;
   padding: 32px 16px;
   overflow: auto;
-  background: rgba(20, 15, 11, 0.72);
+  background: var(--scrim);
 }
 
 .sheet-units-note {
@@ -1458,7 +1461,7 @@ select.input { cursor: pointer; }
   align-items: flex-start;
   padding: 48px 16px;
   overflow: auto;
-  background: rgba(20, 15, 11, 0.72);
+  background: var(--scrim);
 }
 .modal-sheet {
   width: min(560px, 100%);

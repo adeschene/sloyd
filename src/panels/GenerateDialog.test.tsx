@@ -98,6 +98,17 @@ describe('GenerateDialog', () => {
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
+  it('a failed run shows what it spent, and a sub-cent spend never reads as free (fu 168)', () => {
+    const rows: RunRow[] = [
+      { key: 1, letter: 'A', status: 'failed', error: 'Network error.', costUsd: 0.034 },
+      { key: 2, letter: 'B', status: 'failed', error: 'Network error.', costUsd: 0.003 },
+    ];
+    render(<GenerateDialog {...props({ rows })} />);
+    expect(screen.getByText('≈ $0.03')).toBeInTheDocument();
+    expect(screen.getByText('< $0.01')).toBeInTheDocument();
+    expect(screen.queryByText('≈ $0.00')).toBeNull();
+  });
+
   it('shows the planning cost when known', () => {
     const rows: RunRow[] = [{ key: 1, letter: 'A', status: 'waiting', costUsd: null }];
     render(<GenerateDialog {...props({ plan: { status: 'ready', costUsd: 0.012 }, rows })} />);

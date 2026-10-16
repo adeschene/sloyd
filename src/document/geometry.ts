@@ -2,7 +2,7 @@ import type { Units } from '../units/length';
 import type { Board, Dimension, Posture, Span } from './types';
 
 /** The order two dimensions are considered in when they share the floor. */
-export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
+export const DIMENSION_ORDER: readonly Dimension[] = ['length', 'width', 'thickness'];
 
 /**
  * The 1/16" grid a FREE value is rounded to — a gizmo drag, or a model's

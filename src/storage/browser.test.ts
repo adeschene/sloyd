@@ -1,4 +1,4 @@
-import { BrowserStorageAdapter, AUTOSAVE_KEY, LIBRARY_KEY, LLM_KEY, PROJECT_PREFIX } from './browser';
+import { BrowserStorageAdapter, AUTOSAVE_KEY, LIBRARY_KEY, LLM_KEY, PROJECT_PREFIX, UNREADABLE_PROJECT } from './browser';
 import { createBoard, createDocument, DocumentError } from '../document/document';
 import { LAYOUT_VERSION } from './libraryIndex';
 
@@ -956,6 +956,30 @@ describe('project CRUD', () => {
     await adapter.setActiveProject(activeId);
 
     expect(JSON.parse(store.getItem(LIBRARY_KEY)!).activeId).toBe(activeId);
+  });
+});
+
+describe('readProject: why a project cannot be opened (fu 35)', () => {
+  it('returns the document when it reads', async () => {
+    const store = new FakeStorage();
+    seedIndex(store, 'p');
+    const a = new BrowserStorageAdapter(store);
+    const doc = docWithBoard();
+    await a.autoSave('p', doc);
+    expect(await a.readProject('p')).toEqual({ doc });
+  });
+  it('says a project saved by a newer version was, in the loader\'s own words', async () => {
+    const store = new FakeStorage();
+    store.setItem(PROJECT_PREFIX + 'p', JSON.stringify({ ...createDocument('Future'), version: 999 }));
+    const r = await new BrowserStorageAdapter(store).readProject('p');
+    expect(r).toEqual({ error: expect.stringContaining('saved by a newer version of Sloyd') });
+    expect(await new BrowserStorageAdapter(store).loadProject('p')).toBeNull();
+  });
+  it('says an unreadable or missing project cannot be read', async () => {
+    const store = new FakeStorage();
+    store.setItem(PROJECT_PREFIX + 'p', '{not json');
+    expect(await new BrowserStorageAdapter(store).readProject('p')).toEqual({ error: UNREADABLE_PROJECT });
+    expect(await new BrowserStorageAdapter(store).readProject('gone')).toEqual({ error: UNREADABLE_PROJECT });
   });
 });
 

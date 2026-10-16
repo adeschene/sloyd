@@ -32,26 +32,12 @@ import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
+import { isTextEntry } from './textEntry';
 import type { SloydDocument } from './document/document';
 import type { CustomMaterial, MaterialKind } from './document/types';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
-
-/**
- * True for anything the user might be typing into. Keyboard shortcuts must
- * never fire while focus is here — most of all Backspace, which is bound to
- * delete-the-selected-board because that is what the Mac "delete" key sends.
- */
-function isTextEntry(el: HTMLElement | null): boolean {
-  if (!el) return false;
-  return (
-    el.tagName === 'INPUT' ||
-    el.tagName === 'SELECT' ||
-    el.tagName === 'TEXTAREA' ||
-    el.isContentEditable
-  );
-}
 
 export default function App() {
   const undo = useStore((s) => s.undo);
@@ -391,12 +377,18 @@ export default function App() {
   // "last click wins" holds uniformly: clicking the already-open row while a
   // switch to another project is out means "stay here", and cancels it.
   const switchToken = useRef(0);
-  const openProject = useCallback(async (id: string) => {
+  // Resolves null when the project opened (or the click was superseded or a no-op), else why it cannot be opened (fu 35).
+  const openProject = useCallback(async (id: string): Promise<string | null> => {
     const token = ++switchToken.current;
-    if (id === activeId) return;
+    if (id === activeId) return null;
     await flushAutoSave();
     const next = await storage.loadProject(id);
-    if (!next || token !== switchToken.current) return;
+    if (token !== switchToken.current) return null;
+    if (!next) {
+      // Only on failure, a second read for the reason: the switch path keeps `loadProject`, which the race tests hang.
+      const r = await storage.readProject(id);
+      return 'error' in r ? r.error : null;
+    }
     setActiveId(id);
     // Opening a project is what "not yet opened" ends, by whatever route —
     // the dialog's Open, or the project menu's row. Here rather than in the
@@ -418,6 +410,7 @@ export default function App() {
     // `setActiveProject`'s, and that call only happens when it wins. Reporting
     // above the check would report nothing.
     setAvailable(storage.available);
+    return null;
   }, [activeId, replaceDocument, flushAutoSave]);
 
   // Creates a fresh project, makes it the active one, and swaps the document

@@ -23,6 +23,7 @@ import { watchClickPairs } from './pointer';
 import { orthoDistance, orthoZoom, perspectiveDistance, subsetBounds, viewDirection } from './framing';
 import type { StandardView } from './framing';
 import type { Vec3 } from '../document/frames';
+import { isTextEntry } from '../textEntry';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#ebe3d4';
@@ -124,9 +125,8 @@ function CameraKeys({ suspended, viewRef }: {
   useEffect(() => {
     if (suspended) return;
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      // Never steal keys from a field the user is typing in.
-      if (target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
+      // Never steal keys from a field the user is typing in (App's own test, fu 9).
+      if (isTextEntry(e.target as HTMLElement)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       let subset: readonly Board[];
@@ -470,9 +470,12 @@ export function Viewport({
         handlers (see internal.interaction in @react-three/fiber's events
         module), and this mesh has none, so today it is already excluded from
         click hit-testing and click-to-deselect is unaffected either way.
-        raycast={() => null} is kept anyway as belt-and-braces: it makes the
-        exclusion explicit and correct regardless of R3F's internal event
-        wiring, and protects against a future edit that adds a handler here.
+        raycast={() => null} makes that exclusion explicit: a handler added here
+        later would register and never fire — the intent for a shadow catcher.
+        NOT `raycast={null}`, though R3F reads null as the opt-out (fu 11):
+        three's own Raycaster calls `object.raycast()` unconditionally, so a null
+        would throw the first time anything raycast the scene directly. The
+        same holds for every `() => null` in viewport/.
       */}
       <mesh
         receiveShadow

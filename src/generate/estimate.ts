@@ -52,3 +52,9 @@ export function formatCostRange(r: CostRange): string {
   const [lo, hi] = [r.low.toFixed(2), r.high.toFixed(2)];
   return lo === hi ? `≈ $${lo}` : `≈ $${lo}–$${hi}`;
 }
+
+/** What a run spent: `≈ $0.12`; under half a cent `< $0.01`, never `≈ $0.00`, which reads as free (fu 168). */
+export function formatCost(usd: number): string {
+  const cents = usd.toFixed(2);
+  return cents === '0.00' ? '< $0.01' : `≈ $${cents}`;
+}

@@ -279,6 +279,10 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   // to reapply whenever the camera identity changes — not just on selection
   // change — or a projection toggle silently drops the fix.
   const camera = useThree((s) => s.camera);
+  // drei's OTHER recreation key (fu 18): its memo is keyed on the camera AND `domElement || events.connected ||
+  // gl.domElement`. Sloyd passes no domElement and never reconnects events, so this is stable today; it is a dep so a
+  // future reconnect re-applies the patch instead of silently dropping it.
+  const eventTarget = useThree((s) => s.events.connected || s.gl.domElement);
 
   // The longest edge of what the gizmo moves, kept current every render so the size ceiling
   // tracks edits made in the Properties panel while the board stays selected.
@@ -294,7 +298,7 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
     // `hidden` because the capture's clean frame unmounts <TransformControls>, and drei builds a FRESH
     // controls instance when it comes back: without it the gizmo returns unpatched (no size ceiling, the
     // 'bwd' handles, the flip) until the selection or camera next changes (standard-views final review).
-  }, [selectionKey, camera, hidden]);
+  }, [selectionKey, camera, eventTarget, hidden]);
 
   // A selection change mid-drag ENDS the drag. Ctrl/Cmd+A or Delete can land
   // while an arrow is held. With one part selected the old code got this by

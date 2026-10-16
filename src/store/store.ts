@@ -858,16 +858,16 @@ export const useStore = create<StoreState>((set, get) => {
     // in-place Cut mutation can't corrupt the source board and every undo
     // snapshot holding it simultaneously. `angleCuts` need the same treatment:
     // fresh ids, and copyAngleCut for an independent `points` array. `holes` and `curves` likewise: fresh ids.
-    const { id: _sourceId, ...rest } = source;
-    const fresh = createBoard({
+    const { id: _sourceId, name: _sourceName, ...rest } = source;
+    return createBoard({
       ...rest,
+      name,
       position: [...position],
       cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
       angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
       holes: source.holes.map((r) => ({ ...copyHoleRow(r), id: nextId() })),
       curves: source.curves.map((c) => ({ ...copyCurve(c), id: nextId() })),
     });
-    return { ...fresh, name };
   };
 
   /** Every OTHER world part using a shape one of the given parts uses. Read
@@ -1524,6 +1524,8 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAxis: null,
         explode: 0,
         section: null,
+        // Fu 3: a focus request for the replaced document's new part.
+        pendingLengthFocus: false,
         // Follow-up 148. NOT the same reason as the held points above: those
         // clear because the world they name has been replaced, while these
         // clear because a gesture belongs to the component that opened it and

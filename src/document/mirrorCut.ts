@@ -36,7 +36,7 @@ export function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknow
     return c.from === 'min' ? { ...c, from: 'max' } : c.from === 'max' ? { ...c, from: 'min' } : raw;
   }
   if (c.across === d) return { ...c, stopMin: c.stopMax, stopMax: c.stopMin };
-  const dims = DIMENSION_ORDER as string[];
+  const dims: readonly string[] = DIMENSION_ORDER;
   if (!dims.includes(c.face as string) || !dims.includes(c.across as string)) return raw;
   if (typeof c.offset !== 'number' || !Number.isFinite(c.offset)) return raw;
   if (typeof c.width !== 'number' || !Number.isFinite(c.width)) return raw;

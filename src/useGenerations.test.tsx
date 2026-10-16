@@ -176,6 +176,36 @@ describe('useGenerations', () => {
     expect(result.current.rows[0]).toMatchObject({ status: 'failed', error: expect.stringMatching(/storage/i) });
     expect(onStorageVerdict).toHaveBeenCalled();
   });
+  // fu 168: an attempt that answered, then a call that failed — the first call's tokens were spent and are reported.
+  it('reports what was spent before a failing call (fu 168)', async () => {
+    const { result } = setup();
+    let n = 0;
+    const c: LlmClient = {
+      complete: vi.fn(async () => {
+        n += 1;
+        if (n === 1) return { json: {}, assistantTurn: {}, usage: { ...usage, inputTokens: 300 } };
+        throw new LlmError('network', 'Network error.');
+      }),
+      userTurn: (t) => t,
+      estimateCostUsd: (u) => u.inputTokens / 100,
+    };
+    act(() => result.current.start(c, settings, 1));
+    await waitFor(() => expect(result.current.live).toBe(0));
+    expect(result.current.rows[0]).toMatchObject({ status: 'failed', costUsd: 3 });
+  });
+
+  it('reports no cost when the first call fails (fu 168)', async () => {
+    const { result } = setup();
+    const c: LlmClient = {
+      complete: vi.fn(async () => { throw new LlmError('network', 'Network error.'); }),
+      userTurn: (t) => t,
+      estimateCostUsd: (u) => u.inputTokens / 100,
+    };
+    act(() => result.current.start(c, settings, 1));
+    await waitFor(() => expect(result.current.live).toBe(0));
+    expect(result.current.rows[0]).toMatchObject({ status: 'failed', costUsd: null });
+  });
+
 });
 
 describe('useGenerations — batch planning (fu 164)', () => {

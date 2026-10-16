@@ -4,6 +4,7 @@ import { MATERIALS } from '../document/types';
 import { DETAIL_CAPS, STYLES } from '../generate/prompt';
 import type { Detail, GenerateSettings, Style } from '../generate/prompt';
 import { MAX_REPAIRS } from '../generate/run';
+import { formatCost } from '../generate/estimate';
 import type { PlanLine, RunRow } from '../useGenerations';
 
 interface Props {
@@ -145,7 +146,7 @@ export function GenerateDialog(p: Props) {
             {p.plan && (
               <p className={`generate-plan generate-plan-${p.plan.status}`}>
                 <span className="generate-run-status">{planText(p.plan, p.rows.length)}</span>
-                {p.plan.costUsd !== null && <span className="generate-run-cost">{`≈ $${p.plan.costUsd.toFixed(2)}`}</span>}
+                {p.plan.costUsd !== null && <span className="generate-run-cost">{formatCost(p.plan.costUsd)}</span>}
               </p>
             )}
             <ul className="generate-runs">
@@ -154,7 +155,7 @@ export function GenerateDialog(p: Props) {
                   {r.letter && <span className="generate-run-letter">{r.letter}</span>}
                   {r.concept && <span className="generate-run-concept">{r.concept}</span>}
                   <span className="generate-run-status">{statusText(r)}</span>
-                  {r.costUsd !== null && <span className="generate-run-cost">{`≈ $${r.costUsd.toFixed(2)}`}</span>}
+                  {r.costUsd !== null && <span className="generate-run-cost">{formatCost(r.costUsd)}</span>}
                   {r.status === 'ready' && r.projectId && (
                     <button aria-label={`Open ${r.projectName}`} onClick={() => p.onOpenProject(r.projectId!)}>Open</button>
                   )}

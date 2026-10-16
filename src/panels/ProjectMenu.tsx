@@ -24,7 +24,8 @@ const DUPLICATE_MESSAGE: Record<DuplicateFailure, string> = {
 
 interface Props {
   activeId: string;
-  onOpen: (id: string) => void;
+  /** Resolves null when the project opened, or why it cannot be (fu 35: a newer version's refusal names itself). */
+  onOpen: (id: string) => Promise<string | null>;
   onNew: () => void;
   /** Resolves null on success, or the reason it failed — see DuplicateFailure. */
   onDuplicate: (id: string) => Promise<DuplicateFailure | null>;
@@ -75,13 +76,14 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
   // keeps the project's name visible while you confirm, and this round
   // retires the app's only native dialog rather than adding a second.
   const [armed, setArmed] = useState<string | null>(null);
-  // Which row's duplicate failed, and why (follow-up 159). Per-row rather
+  // Which row's duplicate or open failed, and why (follow-ups 159, 35). Per-row rather
   // than one message for the popup: the error belongs to the thing that
   // failed, so two rows cannot be confused, and it dies with its row for
   // free — it renders inside `projects.map`, so an id that leaves the list
   // takes its message with it rather than leaving one attached to nothing.
-  const [failed, setFailed] = useState<{ id: string; cause: DuplicateFailure } | null>(null);
+  const [failed, setFailed] = useState<{ id: string; message: string } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const caret = useRef<HTMLButtonElement>(null);
   /** A pointer is down inside the root (fu 250); cleared on release anywhere. */
   const pressing = useRef(false);
 
@@ -126,6 +128,9 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
+        // Back to the caret, as Popover does (fu 152): the focused control unmounts with the popup, which left focus on
+        // <body>. The caret is inside `root`, so the focusout this causes does not close anything.
+        caret.current?.focus();
         setOpen(false);
       }
     };
@@ -189,6 +194,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
     <div className="project-menu" ref={root} onBlur={onFocusOut}
       onPointerDown={() => { pressing.current = true; }}>
       <button
+        ref={caret}
         className="project-menu-caret"
         aria-label="Open project menu"
         aria-expanded={open}
@@ -205,7 +211,17 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
               <button
                 aria-current={p.id === activeId ? 'true' : undefined}
                 className="project-row-open"
-                onClick={() => { setOpen(false); onOpen(p.id); }}
+                onClick={async () => {
+                  setOpen(false);
+                  // Fu 35: a project that cannot be opened (a newer version's, an unreadable one) reopens the menu on its
+                  // row, saying why, where a silent no-op left the user guessing. Closed first, as before, so a switch in
+                  // flight never holds the menu open; focus goes to the caret, the row's button having unmounted.
+                  const why = await onOpen(p.id);
+                  if (why === null) return;
+                  setOpen(true);
+                  setFailed({ id: p.id, message: why });
+                  caret.current?.focus();
+                }}
               >
                 <span className="project-dot" aria-hidden="true">{p.id === activeId ? '●' : ''}</span>
                 <span className="project-row-name">{p.name}</span>
@@ -225,7 +241,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
                   // one's message standing, and neither must a success on a
                   // DIFFERENT row — there is one error at a time, and it
                   // belongs to the last duplicate attempted.
-                  setFailed(cause ? { id: p.id, cause } : null);
+                  setFailed(cause ? { id: p.id, message: DUPLICATE_MESSAGE[cause] } : null);
                   refresh();
                 }}
               >
@@ -267,7 +283,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
               // `.field-error` is the app's existing inline-error class, not a
               // new one: it already serves fields and, with a scoped override,
               // the toolbar's export error.
-              <p className="field-error" role="status">{DUPLICATE_MESSAGE[failed.cause]}</p>
+              <p className="field-error" role="status">{failed.message}</p>
             )}
             </div>
             </Fragment>
