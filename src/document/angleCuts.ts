@@ -237,8 +237,12 @@ export function miterLongSide(c: AngleCut, board: Pick<Board, Dimension>): CutFr
  * The shop numbers of a stored miter. The long point is the side where the line is shallower; the ratio is read
  * straight off the stored points (no trigonometry), so editing only the end or side keeps it exactly. A miter whose
  * `along` is somehow `length` (hand-edited) reads as across the width. Editing rewrites it canonically via `miterCut`.
+ * Null for an OFFSET line (fu 297; hand-edited: depth 0 at neither side of `along`), as `bevelFields` is: the row then
+ * shows the line and Remove, never a control whose first edit would rewrite it into a different cut.
  */
-export function miterFields(c: AngleCut, board: Pick<Board, Dimension>): MiterFields {
+export function miterFields(c: AngleCut, board: Pick<Board, Dimension>): MiterFields | null {
+  const eps = 1e-9;   // local, as bevelFields' (bodies.ts imports this module)
+  if (!(Math.abs(depthAt(c, 0)) <= eps || Math.abs(depthAt(c, board[c.along])) <= eps)) return null;
   const across = c.along === 'thickness' ? 'thickness' : 'width';
   const [[s1, q1], [s2, q2]] = c.points;
   const ratio = Math.abs(q2 - q1) / Math.abs(s2 - s1);

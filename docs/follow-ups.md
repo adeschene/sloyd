@@ -5171,6 +5171,11 @@ computed twice per sloped part in `boardSnapPoints` (ghost check and `boardEdges
 
 **290. Zero-area Float32 slivers in `bodyMesh`.** The absolute 1e-12 triangle skip misses ~BODY_EPS slivers that may
 collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:** open, cosmetic.
+- **Closed 2026-10-16 (follow-ups session 2), measured:** over 17 fixtures (split curves, holes, angle cuts, every posture)
+  `bodyMesh` emits 5788 triangles, none with two equal Float32 vertices or zero Float32 area. `bodyMeshSlivers.test.ts`
+  pins that. It does NOT pin the 1e-12 skip itself: with the skip removed the fixtures still emit no degenerate triangle
+  (no fixture reaches a sub-1e-12 one). Dropping such triangles was not adopted: a collinear sliver's edges can pair with
+  its neighbours', and removing it could reopen the cracks fu 369 closed. **Status:** closed.
 
 **291. `joineryEstimateUsd` is unguarded internally** (App guards the angled case). **Status:** open, record-only.
 
@@ -5209,6 +5214,10 @@ from the + Add menu on a part wider than long (Taper stays). The resize half sta
 **297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
 start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored
 form by its first row edit. **Status:** open, hand-edited files only.
+- **Closed 2026-10-16 (follow-ups session 2).** `miterFields` returns null for an offset line (depth 0 at neither side of
+  `along`), the same test `bevelFields` already made, so the row falls back to the bench line and Remove — the AngleCuts
+  per-file rule (a reader returns null for what its row cannot represent). Tests: the reader (an offset, a zero inside the
+  part, null; the canonical, not) and the row (Remove, no Long point or Angle); both red before. **Status:** closed.
 
 ## From the angle cuts round (chunk 3, bevels and chamfers) — 2026-10-12
 
@@ -5338,6 +5347,10 @@ Refine refuse such hand-made parts.
 **314. Parts with rectangular cuts are not turned.** `turnCandidates` returns none for a part carrying rectangular cuts,
 non-taper angle cuts or non-standard tapers, so such parts link only when already equal. Turning them would mean re-storing
 cuts through `axisFrame`'s crossings. **Status:** open, fails safe (the parts stay unlinked).
+- **Closed 2026-10-16 as unreachable (follow-ups session 2).** `turnCandidates` runs only inside `linkByRole`, whose one
+  caller is `designToDocument` (Generate and Refine), and the converter writes every part with `cuts: []`; holes and
+  curves are refused by both. Rectangular cuts arrive only through joinery, after linking, whose write-back keeps sharing
+  by geometry (`regroupShapes`, fu 316). Reopen if Generate ever authors dadoes. **Status:** closed.
 
 **315. Mirror-only matches need mirrored placements.** Legs that match only through a reflection cannot share a Shape by
 turns alone; they need fu 232's mirrored placements from Generate. **Status:** open (depends on 232).
