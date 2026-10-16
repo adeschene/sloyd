@@ -861,6 +861,55 @@ describe('the Move tool', () => {
     expect(useStore.getState().grabbed).toBeNull();
   });
 
+  // Fu 127, the two unpinned edges of point-precise clearing.
+  // (1) addCut judges held points AFTER its edit: a new, deeper cut can consume an older cut's shoulder, and only the
+  // post-edit board knows. MUTATE: move judgeHeld() above edit() in addCut — the grab survives, red.
+  it('drops a grab on an older cut\'s shoulder that a newly added cut consumes', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    const board0 = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const L = board0.length;
+    const oldId = board0.cuts[0].id;
+    // A shallow cut straddling where the next default cut (offset L/4, width 0.75, depth T/2) will go.
+    useStore.getState().updateCut(a.id, oldId, { offset: L / 4 - 0.25, width: 0.5, depth: 0.1 });
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const next = { ...board.cuts[0], id: 'next', offset: L / 4, width: 0.75, depth: board.thickness / 2 };
+    const after = { ...board, cuts: [...board.cuts, next] };
+    const offered = [...boardSnapPoints(after), ...cutSnapPoints(after)];
+    const consumed = cutSnapPoints(board).find((p) => !offered.some((q) => sameSnapPoint(p, q)));
+    expect(consumed, 'fixture: the new cut must consume one of the old cut\'s points').toBeDefined();
+    useStore.getState().grabSnapPoint(consumed!);
+    expect(useStore.getState().grabbed).not.toBeNull();
+
+    useStore.getState().addCut(a.id);
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts).toHaveLength(2);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  // (2) A grab on cut A's shoulder survives an edit to cut B on the same board: the clear is point-precise, not
+  // board-precise. MUTATE: clear `grabbed` whenever the board's cuts change — red.
+  it('KEEPS a grab on one cut\'s shoulder when another cut on the same board is edited', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    useStore.getState().addCut(a.id);
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const [cutA, cutB] = board.cuts;
+    useStore.getState().updateCut(a.id, cutB.id, { offset: board.length / 2 });
+    // Points name the BOARD, not the cut: A's are those the board offers with A alone and not with B alone.
+    const now = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
+    const onlyB = cutSnapPoints({ ...now, cuts: [now.cuts[1]] });
+    const shoulder = cutSnapPoints({ ...now, cuts: [now.cuts[0]] })
+      .find((p) => !onlyB.some((q) => sameSnapPoint(p, q)) && cutSnapPoints(now).some((q) => sameSnapPoint(p, q)));
+    expect(now.cuts[0].id).toBe(cutA.id);
+    expect(shoulder, 'fixture: cut A must offer a point').toBeDefined();
+    useStore.getState().grabSnapPoint(shoulder!);
+
+    useStore.getState().updateCut(a.id, cutB.id, { depth: 0.2 });
+    expect(useStore.getState().grabbed).toEqual(shoulder);
+  });
+
   /** Points of a's cut that a stopMin edit to 1 removes, and ones it keeps. */
   const stopEditSplit = (id: string) => {
     const board = worldParts(useStore.getState().doc).find((x) => x.id === id)!;
