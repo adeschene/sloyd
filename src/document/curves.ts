@@ -304,8 +304,8 @@ export function isAir(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>, p:
 }
 
 /**
- * A simple polygon's convex pieces by ear clipping, each CCW, each edge flagged when it is an ORIGINAL arc chord
- * (diagonals never are). A convex input comes back whole (CCW). The pieces partition the polygon; a zero-area ear
+ * A simple polygon's convex pieces by ear clipping, the triangles then merged across diagonals while convex (fu 368),
+ * each CCW, each edge flagged when it is an ORIGINAL arc chord (diagonals never are). A convex input comes back whole (CCW). The pieces partition the polygon; a zero-area ear
  * (three collinear vertices — a straight side with a vertex on it, or a Bow's crown touching its edge) is dropped,
  * since it holds no waste.
  */
@@ -349,9 +349,38 @@ export function convexPieces(pts: P2[], arcEdge: boolean[]): { pts: P2[]; onArc:
   }
   if (idx.length === 3) tris.push([idx[0]!, idx[1]!, idx[2]!]);
   const edgeFlag = (a: number, b: number) => (b === (a + 1) % n ? flag[a]! : false);
-  return tris
-    .filter(([a, b, c]) => cross(P[a]!, P[b]!, P[c]!) > CURVE_EPS)
-    .map(([a, b, c]) => ({ pts: [P[a]!, P[b]!, P[c]!], onArc: [edgeFlag(a, b), edgeFlag(b, c), edgeFlag(c, a)] }));
+  // fu 368: the ear-clip triangles merged across their diagonals (Hertel–Mehlhorn) while the merged piece stays STRICTLY
+  // convex at both ends of the removed diagonal. Every piece's planes, extended, slice the part (boardBodies' SPLIT), so
+  // fewer pieces is fewer bodies: the L-shaped notch's 14 triangles were 83 bodies. Greedy in clip order: deterministic.
+  const polys: number[][] = tris.filter(([a, b, c]) => cross(P[a]!, P[b]!, P[c]!) > CURVE_EPS).map((t) => [...t]);
+  const convexAt = (poly: number[], k: number) =>
+    cross(P[poly[(k - 1 + poly.length) % poly.length]!]!, P[poly[k]!]!, P[poly[(k + 1) % poly.length]!]!) > CURVE_EPS;
+  for (let merged = true; merged;) {
+    merged = false;
+    for (let x = 0; x < polys.length && !merged; x += 1) {
+      const p = polys[x]!;
+      for (let e = 0; e < p.length && !merged; e += 1) {
+        const a = p[e]!, b = p[(e + 1) % p.length]!;
+        if (b === (a + 1) % n || a === (b + 1) % n) continue;   // an original edge, not a diagonal
+        const y = polys.findIndex((q, j) => j !== x && q.some((v, k) => v === b && q[(k + 1) % q.length] === a));
+        if (y < 0) continue;
+        const q = polys[y]!;
+        // p from b round to a, then q from a round to b without its ends: the diagonal a–b removed.
+        const pb = [...p.slice((e + 1) % p.length), ...p.slice(0, (e + 1) % p.length)];
+        const ka = q.indexOf(a);
+        const qa = [...q.slice(ka), ...q.slice(0, ka)];
+        const m = [...pb, ...qa.slice(1, -1)];
+        if (!convexAt(m, m.indexOf(a)) || !convexAt(m, m.indexOf(b))) continue;
+        polys[x] = m;
+        polys.splice(y, 1);
+        merged = true;
+      }
+    }
+  }
+  return polys.map((poly) => ({
+    pts: poly.map((i) => P[i]!),
+    onArc: poly.map((i, k) => edgeFlag(i, poly[(k + 1) % poly.length]!)),
+  }));
 }
 
 type Half = { n: V3; d: number };

@@ -60,19 +60,16 @@ describe('a curved part rebuilds inside a frame', () => {
   it('an arched apron with its arched edge rounded through the length (two through axes): at most 40 ms', () => {
     expect(minOf9((k) => createBoard({ length: 30 * k, width: 5, thickness: 0.75, curves: [arch, endCorner] }))).toBeLessThanOrEqual(40);
   });
-  // Bound 100 ms, not 40 (the holes guard's precedent for an unusual case): no preset authors a non-convex waste, only a
-  // hand-edited file can. Measured on partGeometry's frozen bodies (83 bodies, 477 faces): bodies ~4 ms, edges ~35 ms,
-  // mesh ~8 ms when the guard was written (~48–54 ms in all); since the watertight fix the mesh also welds and conforms
-  // every face (conform.ts), and the case measures ~62–72 ms in all (min of 9, a loaded machine). The upstream causes,
-  // fu 368: the ear-clip triangles are not merged into convex pieces (14 pieces, each sliced along its extended planes),
-  // bodyEdges finds a polygon edge's line by a linear lookup and filters every face per line, and frozen bodies slow
-  // bodyEdges about threefold.
-  it('an L-shaped notch with one arc (a non-convex waste, ear-clipped): at most 100 ms', () => {
+  // A hand-edited file only (no preset authors a non-convex waste). Measured before fu 368: 83 bodies, 477 faces, ~52 ms
+  // (bounded at 100). fu 368: bodyEdges' line and coplanar-face lookups indexed (~36 ms, output byte-identical), then the
+  // ear-clip triangles merged into convex pieces (Hertel–Mehlhorn: 14 pieces -> 2, 83 bodies -> 16): ~6 ms. Bound 40, as
+  // every other case; the frozen-bodies slowdown the entry suspected did not reproduce in fresh processes.
+  it('an L-shaped notch with one arc (a non-convex waste, ear-clipped and merged): at most 40 ms', () => {
     const board = (k: number) => createBoard({ length: 30 * k, width: 5, thickness: 0.75, curves: [notchL] });
     // The fixture is what it claims: the SPLIT path, more than one convex piece.
     const plan = curvePlan(board(1), notchL);
     expect(plan && !plan.clip && plan.pieces.length).toBeGreaterThan(1);
-    expect(minOf9(board)).toBeLessThanOrEqual(100);
+    expect(minOf9(board)).toBeLessThanOrEqual(40);
   });
   // fu 369: holes on a split arch's strips. Before the fix each strip a mouth crossed was wedge-split by every hole (the
   // side's bodies, edges and mesh measured ~55 ms, 51 of them mesh); each holed plane is now merged and triangulated once:

@@ -253,6 +253,20 @@ describe('convexPieces', () => {
     const flagged = pieces.flatMap((p) => p.pts.flatMap((a, i) => (p.onArc[i] ? [[a, p.pts[(i + 1) % p.pts.length]!]] : [])))
       .map(([a, b]) => [a!, b!].map((q) => q.join(',')).sort().join(' ')).sort();
     expect(flagged).toEqual(['0,1 2,0', '2,0 4,1']);
+  });  it('triangles are merged across diagonals while convex (fu 368): an L is two pieces, a comb fewer than its triangles', () => {
+    const strictlyConvex = (q: P2[]) => q.every((p, i) => {
+      const a = q[(i + 1) % q.length]!, b = q[(i + 2) % q.length]!;
+      return (a[0] - p[0]) * (b[1] - p[1]) - (a[1] - p[1]) * (b[0] - p[0]) > 1e-9;
+    });
+    // An L: the fewest convex pieces is 2.
+    const l = convexPieces([[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2]], [false, true, false, false, false, false]);
+    expect(l).toHaveLength(2);
+    // A comb with three teeth: 12 vertices, 10 triangles; merged, every piece strictly convex and CCW, the area whole.
+    const comb: P2[] = [[0, 0], [5, 0], [5, 2], [4, 2], [4, 1], [3, 1], [3, 2], [2, 2], [2, 1], [1, 1], [1, 2], [0, 2]];
+    const pieces = convexPieces(comb, comb.map(() => false));
+    expect(pieces.length).toBeLessThan(comb.length - 2);
+    expect(pieces.every((p) => strictlyConvex(p.pts))).toBe(true);
+    expect(pieces.reduce((s2, p) => s2 + twiceArea(p.pts) / 2, 0)).toBeCloseTo(twiceArea(comb) / 2, 12);
   });
 });
 
