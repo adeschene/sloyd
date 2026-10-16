@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useStore } from '../store/store';
-import { createBoard, createDocument } from '../document/document';
+import { buildCutList, createBoard, createDocument, flatDocument } from '../document/document';
 import { cabinetsDoc } from '../document/treeFixtures';
 import { PlansSheet } from './PlansSheet';
 
@@ -76,5 +76,47 @@ describe('PlansSheet in metric (chunk 2)', () => {
     expect(labels).toContain('762');
     expect(labels.some((t) => /^\d+$/.test(t))).toBe(true);
     expect(labels.join(' ')).not.toContain('"');
+  });
+});
+
+// Plans balloons spec §4: one balloon per cut-list row on the exploded view, none on the elevations.
+describe('part balloons (plans balloons §4)', () => {
+  const balloons = (fig: HTMLElement) => [...fig.querySelectorAll('.plans-balloon')].map((g) => Number(g.getAttribute('data-number')));
+  it('one balloon per row, numbered as the cut list numbers it, only in the exploded view', () => {
+    const doc = createDocument('Table');
+    doc.boards.push(
+      createBoard({ name: 'Top', length: 30, width: 18, thickness: 0.75, position: [0, 28, 0] }),
+      createBoard({ name: 'Leg A', length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [0, 0, 0] }),
+      createBoard({ name: 'Leg B', length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [28.5, 0, 0] }),
+    );
+    act(() => useStore.getState().replaceDocument(doc));
+    render(<PlansSheet onClose={() => {}} />);
+    const rows = buildCutList(flatDocument(useStore.getState().doc)).groups.flatMap((g) => g.rows);
+    const fig = screen.getByRole('img', { name: 'Exploded view' });
+    expect(balloons(fig).sort()).toEqual(rows.map((r) => r.number).sort());
+    for (const el of screen.getAllByRole('img').filter((e) => e !== fig)) expect(el.querySelector('.plans-balloon')).toBeNull();
+  });
+  it('a row hidden inside another part at explode 0 is named in the note, not ballooned', () => {
+    const doc = createDocument('Box');
+    doc.boards.push(
+      createBoard({ name: 'Block', length: 10, width: 10, thickness: 10, position: [0, 0, 0] }),
+      createBoard({ name: 'Inner', length: 2, width: 2, thickness: 2, position: [4, 4, 4] }),
+    );
+    act(() => useStore.getState().replaceDocument(doc));
+    render(<PlansSheet onClose={() => {}} />);
+    fireEvent.change(screen.getByRole('slider', { name: 'Explode' }), { target: { value: '0' } });
+    const inner = buildCutList(flatDocument(useStore.getState().doc)).groups.flatMap((g) => g.rows).find((r) => r.names[0] === 'Inner')!;
+    expect(balloons(screen.getByRole('img', { name: 'Exploded view' }))).not.toContain(inner.number);
+    expect(screen.getByText(`Not visible in this view: ${inner.number}.`)).toBeInTheDocument();
+  });
+  it('a row spread over assembly copies, one mirrored, still gets ONE balloon (Review Focus 5)', () => {
+    const d = cabinetsDoc();
+    d.instances = d.instances.map((i) => (i.id === 'c2' ? { ...i, mirrored: true } : i));
+    act(() => useStore.getState().replaceDocument(d));
+    render(<PlansSheet onClose={() => {}} />);
+    const nums = balloons(screen.getByRole('img', { name: 'Exploded view' }));
+    expect(new Set(nums).size).toBe(nums.length);
+    const rows = buildCutList(flatDocument(useStore.getState().doc)).groups.flatMap((g) => g.rows);
+    expect(nums.every((n) => rows.some((r) => r.number === n))).toBe(true);
   });
 });
