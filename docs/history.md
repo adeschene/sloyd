@@ -500,6 +500,16 @@ and 79.
 
 ## What each round did
 
+**What follow-ups 4 did (2026-10-16)** (branch `follow-ups-4` from master `b16deb9`, merged as `c27f8ff`; the user asked for the
+triage's remaining test gaps and small items in order). Test gaps: 127 (an added cut consuming an older cut's held shoulder; a
+grab surviving another cut's edit), 13 (negative feet-and-inches; a throwing autosave read — the third branch is
+indistinguishable since fu 208), 54 (`groupFields`: the group key became the row key's prefix, and every group has a row), 2
+(Add board's one-shot focus; the import fallback-timer clear, whose existing test could not fail — a 500 ms read now pins it).
+Small items: 98, a Saw kerf field in the cut list header (`setKerf`, refused outside the loader's [0, 1)); the header now wraps
+between controls (checked live: 4 sheets at 1/8", 1 at 0). 154 measured closed — every index write re-reads storage — and
+pinned with two interleaved adapters. 6: spaced mixed lengths parse, one hyphen only. Every test red before its fix or
+mutated. 4539 tests. No schema change.
+
 **What fu 96 did (2026-10-16)** (branch `fu-96` from master `4f64740`; the user's rulings). Measured first: a layout draws at
 1000/stock-length units per inch and an index number is 25 units tall, so any part under ~2.4" on a 96" sheet overflowed its
 number — every part on a 1×2 board strip did. `holdsIndex` (diagramLabels.ts) is the measured test; a part that fails it draws

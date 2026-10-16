@@ -60,7 +60,7 @@ handicraft education tradition built around hand woodworking.
   record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
 - **Fu 96 (2026-10-16, merged as `9a31093`, deployed as `index-BspJH3pS.js`; no schema change)**: a sheet or board layout part too small for its index
   number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
-- **Follow-ups 4 (2026-10-16, branch `follow-ups-4`, NOT deployed; no schema change)**: the triage's last code-sized opens —
+- **Follow-ups 4 (2026-10-16, merged as `c27f8ff`, NOT deployed; no schema change, so deploying or rolling back is free)**: the triage's last code-sized opens —
   test gaps 127, 13, 54 (`groupFields`: the group key is the row key's prefix), 2 (an import test that could not fail, fixed);
   98 (a Saw kerf field in the cut list header, `setKerf`), 154 (closed: the index is re-read on every write; pinned with two
   adapters), 6 (`1  1/2`, `1 - 1/2` parse).
@@ -965,7 +965,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4512 tests across 152 files
+npm test           # Vitest, currently 4539 tests across 152 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
