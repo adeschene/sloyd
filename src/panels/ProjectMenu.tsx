@@ -82,6 +82,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
   // takes its message with it rather than leaving one attached to nothing.
   const [failed, setFailed] = useState<{ id: string; cause: DuplicateFailure } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  const caret = useRef<HTMLButtonElement>(null);
   /** A pointer is down inside the root (fu 250); cleared on release anywhere. */
   const pressing = useRef(false);
 
@@ -126,6 +127,9 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
+        // Back to the caret, as Popover does (fu 152): the focused control unmounts with the popup, which left focus on
+        // <body>. The caret is inside `root`, so the focusout this causes does not close anything.
+        caret.current?.focus();
         setOpen(false);
       }
     };
@@ -189,6 +193,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
     <div className="project-menu" ref={root} onBlur={onFocusOut}
       onPointerDown={() => { pressing.current = true; }}>
       <button
+        ref={caret}
         className="project-menu-caret"
         aria-label="Open project menu"
         aria-expanded={open}

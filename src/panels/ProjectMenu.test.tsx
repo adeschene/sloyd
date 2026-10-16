@@ -304,6 +304,17 @@ describe('ProjectMenu', () => {
       expect(screen.queryByText('Workbench')).toBeNull();
     });
 
+    // Follow-up 152. MUTATE: drop the caret focus in the Escape branch — activeElement is body, red.
+    it('Escape from inside the popup returns focus to the caret', async () => {
+      renderMenu();
+      await openByMouse();
+      const dup = screen.getByLabelText('Duplicate Workbench');
+      dup.focus();
+      fireEvent.keyDown(dup, { key: 'Escape' });
+      expect(screen.queryByText('Workbench')).toBeNull();
+      expect(document.activeElement).toBe(screen.getByLabelText('Open project menu'));
+    });
+
     // MUTATE: drop the guard — the popup closes and onDuplicate is never called;
     // drop the duplicate's focus() — activeElement is body, red.
     it('keeps the popup open through a duplicate, with focus inside for Escape', async () => {
