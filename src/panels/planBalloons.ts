@@ -20,8 +20,13 @@ export type BalloonSide = 'left' | 'right';
 /** A row's anchor, in DRAWING coordinates. */
 export interface Anchor { number: number; side: BalloonSide; at: P2 }
 export interface Anchors { anchors: Anchor[]; hidden: number[] }
-/** A placed balloon, in SVG coordinates: its centre and the anchor its leader ends on. */
-export interface PlacedBalloon { number: number; side: BalloonSide; centre: P2; anchor: P2 }
+/**
+ * A placed balloon, in SVG coordinates: its centre, the ELBOW its leader turns at, and the anchor it ends on. The leader
+ * runs level from the circle to the elbow — in the COLUMN_CLEAR strip between the column and the drawing — then straight
+ * to the anchor, so it never passes through another balloon of its column (final review #1: a straight leader from a
+ * cascaded balloon cut through its neighbours).
+ */
+export interface PlacedBalloon { number: number; side: BalloonSide; centre: P2; elbow: P2; anchor: P2 }
 export interface BalloonLayout {
   scale: number; width: number; height: number; at: Placement;
   radius: number; placed: PlacedBalloon[]; unplaced: number[];
@@ -106,7 +111,8 @@ export function layoutBalloons(d: Drawing, plan: Anchors): BalloonLayout {
     for (const x of col.slice(fit)) unplaced.push(x.a.number);
     const ys = packRow(kept.map((x) => ({ centre: x.svg[1], width: 2 * radius })), ISO_MARGIN, ISO_MARGIN + contentH, BALLOON_GAP);
     const cx = side === 'left' ? ISO_MARGIN + radius : width - ISO_MARGIN - radius;
-    kept.forEach((x, i) => placed.push({ number: x.a.number, side, centre: [cx, ys[i]!], anchor: x.svg }));
+    const ex = side === 'left' ? ISO_MARGIN + 2 * radius + COLUMN_CLEAR / 2 : width - ISO_MARGIN - 2 * radius - COLUMN_CLEAR / 2;
+    kept.forEach((x, i) => placed.push({ number: x.a.number, side, centre: [cx, ys[i]!], elbow: [ex, ys[i]!], anchor: x.svg }));
   }
   unplaced.sort((a, b) => a - b);
   return { scale, width, height, at, radius, placed, unplaced };

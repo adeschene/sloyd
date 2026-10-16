@@ -143,17 +143,13 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label }: { parts:
 /** The leader's end dot, in SVG units. */
 const DOT_R = 2.5;
 
-/** One balloon (plans balloons spec §3.3): a leader from the circle's edge to the anchor, a dot on the anchor, the circle,
- *  the number. */
+/** One balloon (plans balloons spec §3.3): a leader level from the circle's edge to its elbow, then to the anchor
+ *  (`PlacedBalloon`); a dot on the anchor; the circle; the number. */
 function Balloon({ b, r }: { b: PlacedBalloon; r: number }) {
-  const dx = b.anchor[0] - b.centre[0];
-  const dy = b.anchor[1] - b.centre[1];
-  const len = Math.hypot(dx, dy) || 1;
-  const sx = b.centre[0] + (dx / len) * r;
-  const sy = b.centre[1] + (dy / len) * r;
+  const sx = b.centre[0] + Math.sign(b.elbow[0] - b.centre[0]) * r;
   return (
     <g className="plans-balloon" data-number={b.number}>
-      <line className="plans-leader" x1={sx} y1={sy} x2={b.anchor[0]} y2={b.anchor[1]} />
+      <path className="plans-leader" d={`M${sx} ${b.centre[1]}L${b.elbow[0]} ${b.elbow[1]}L${b.anchor[0]} ${b.anchor[1]}`} />
       <circle className="plans-leader-dot" cx={b.anchor[0]} cy={b.anchor[1]} r={DOT_R} />
       <circle className="plans-balloon-ring" cx={b.centre[0]} cy={b.centre[1]} r={r} />
       <text x={b.centre[0]} y={b.centre[1] + (LABEL_ASCENT - LABEL_DESCENT) / 2} textAnchor="middle">{b.number}</text>

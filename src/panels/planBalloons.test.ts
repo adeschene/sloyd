@@ -97,3 +97,30 @@ describe('numberList', () => {
     expect(numberList([33, 34, 35, 36, 40, 41])).toBe('33–36, 40, 41');
   });
 });
+
+// Final review #1: a straight leader from a cascaded balloon ran back through its neighbours' circles. Each leader is
+// now a shoulder from its circle to the column's inner edge (the ELBOW, in COLUMN_CLEAR's strip), then a run to the anchor.
+// MUTATE: put the elbow at the balloon's centre (a straight leader) — red.
+describe('leaders keep clear of other balloons (final review #1)', () => {
+  const distToSeg = (p: [number, number], a: [number, number], b: [number, number]) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1];
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
+    return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+  };
+  it.each(['left', 'right'] as const)('eight balloons cascaded from one %s-edge anchor: no leader enters another circle', (side) => {
+    const edge = drawing([seg('E', side === 'left' ? [0, 10] : [40, 10], side === 'left' ? [0, 10.5] : [40, 10.5]), seg('X', [0, 0], [40, 20])]);
+    const rows = Array.from({ length: 8 }, (_, i) => ({ number: i + 1, boardIds: ['E'] }));
+    const lay = layoutBalloons(edge, anchorsFor(edge, rows));
+    expect(lay.placed.filter((p) => p.side === side)).toHaveLength(8);
+    for (const p of lay.placed) {
+      // The shoulder is horizontal, at the balloon's own height, ending outside every circle of the column.
+      expect(p.elbow[1]).toBe(p.centre[1]);
+      expect(Math.abs(p.elbow[0] - p.centre[0])).toBeGreaterThan(lay.radius);
+      for (const q of lay.placed) {
+        if (q === p) continue;
+        expect(distToSeg(q.centre, p.centre, p.elbow)).toBeGreaterThan(lay.radius);
+        expect(distToSeg(q.centre, p.elbow, p.anchor)).toBeGreaterThan(lay.radius);
+      }
+    }
+  });
+});

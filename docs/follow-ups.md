@@ -6286,5 +6286,11 @@ left) and its cascade slants the lower leaders steeply; moving the overflow to t
 around the drawing, would shorten them. (2) Leaders to anchors at different depths may cross (accepted in the spec). (3) An
 anchor is the midpoint of a part's longest visible segment, which can sit where another part's edge passes close by (the
 table's top and drawer front read fine; not measured on a dense piece). (4) The real print is owed with 254. (5) Balloons
-follow the exploded view only; the elevations and the viewport get none (R3). **Status:** open for (1) and (4); the rest
-record-only.
+follow the exploded view only; the elevations and the viewport get none (R3). Final review's deferred minors: (6) anchors at
+EXACTLY one height are ordered by row number, not by x, so their leaders can cross; (7) `SheetLayout`'s comment still says its
+key reads 1, 2, 3 — with row numbers it reads sparse numbers in sheet-part order (and two parts of a row repeat theirs, as
+ruled); sorting the key by number is a look for the user's eye; (8) `ExplodedFigure` builds the full cut list (diagrams,
+nesting) for the numbers — once per document, unmeasured on a heavy holed/curved project; (9) the copies/mirrored sheet test
+checks unique, real numbers, not that every visible row got one or that its anchor is on its own part; (10) when one column
+passes the height cap its lowest rows go to the note even if the other column has room (with (1)). **Status:** open for (1)
+and (4); the rest record-only.
