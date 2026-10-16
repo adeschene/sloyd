@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is follow-ups 4** (merge `c27f8ff`, deployed as `a9c678e`, bundle `index-BxqTdZO2.js`, CSS `index-BB3TDXsh.css`);
-  rollback to fu 96 (`bcd2715`, `index-BspJH3pS.js`) or follow-ups 3 (`d07cbaa`, `index-DwWqjN7c.js`) is free.
+- **Production is plans balloons** (merge `2cbfff4`, deployed as `80520db`, bundle `index-CCbseJx_.js`, CSS `index-CfI7jQOq.css`);
+  rollback to follow-ups 4 (`a9c678e`, `index-BxqTdZO2.js`) or fu 96 (`bcd2715`, `index-BspJH3pS.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -65,7 +65,7 @@ handicraft education tradition built around hand woodworking.
   98 (a Saw kerf field in the cut list header, `setKerf`), 154 (closed: the index is re-read on every write; pinned with two
   adapters), 6 (`1  1/2`, `1 - 1/2` parse).
 - **Plans balloons (2026-10-16, spec `2026-10-16-sloyd-plans-balloons-design.md`, plan `…-plans-balloons.md`, merged as
-  `2cbfff4`, NOT deployed; no schema change, so deploying or rolling back is free)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
+  `2cbfff4`, deployed as `index-CCbseJx_.js`; no schema change)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
   cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
   balance, for the user's eye; the real print).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
