@@ -742,8 +742,13 @@ function download(blob: Blob, filename: string): void {
   }
 }
 
+/** Windows refuses a file named for a device, whatever its extension or case (fu 7: `con.sloyd`); Microsoft's list has
+ *  COM0/LPT0 and superscript digits too; superscripts never survive the cleaning below. */
+const DEVICE_NAME = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+
 function sanitizeFilename(name: string): string {
   const cleaned = name.replace(/[^a-z0-9\-_ ]/gi, '').trim().replace(/\s+/g, '-');
+  if (DEVICE_NAME.test(cleaned)) return `${cleaned}-project`;
   return cleaned || 'sloyd-project';
 }
 

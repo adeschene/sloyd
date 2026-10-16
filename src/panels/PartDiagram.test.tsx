@@ -442,7 +442,17 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
   });
 
   it('4 flush-max — a rabbet flush at the max end', () => {
-    check(draw({ cuts: [dado({ offset: 23.25, width: 0.75 })] }));
+    const container = draw({ cuts: [dado({ offset: 23.25, width: 0.75 })] });
+    check(container);
+    // Fu 71: the row overflows, so packRow's second phase shifts the whole row left, and the `3/4"` label ends up mostly
+    // LEFT of the band it names (accepted drafting behaviour). It must still REACH the band: a label pushed clear of its
+    // feature reads as belonging to the next one.
+    const band = container.querySelector('.cutlist-diagram-cell')!;
+    const bandLeft = Number(band.getAttribute('x'));
+    const bandRight = bandLeft + Number(band.getAttribute('width'));
+    const label = boxes(container).find((b) => b.text === '3/4"')!;
+    expect(label.right, 'the label reaches its band').toBeGreaterThan(bandLeft);
+    expect(label.left).toBeLessThan(bandRight);
   });
 
   it('5 min-width — an edge groove, drawnV sliver-clamped (was a 0.7-unit near-miss)', () => {

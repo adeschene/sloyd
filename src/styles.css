@@ -367,6 +367,7 @@ button[aria-pressed='true'] {
 }
 
 .project-row:hover .project-row-action,
+.project-row:has(:focus-visible) .project-row-action,
 .project-row-action:focus-visible {
   opacity: 1;
 }

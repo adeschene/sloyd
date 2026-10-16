@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectMenu, relativeTime } from './ProjectMenu';
@@ -426,5 +427,18 @@ describe('ProjectMenu new badge', () => {
     const workbench = rows.find((r) => r.textContent?.includes('Workbench'))!;
     expect(shaker.querySelector('.project-row-new')).toHaveTextContent('new');
     expect(workbench.querySelector('.project-row-new')).toBeNull();
+  });
+});
+
+// Fu 151: Tabbing onto Duplicate showed Duplicate alone, so a keyboard user never saw that Delete follows. Keyboard focus
+// inside a row reveals both, as hover does. Not `?raw`: Vitest hands CSS back as '' (palette.test.ts reads it the same way).
+describe('the row actions reveal together', () => {
+  it('keyboard focus anywhere in a row shows both of its actions, as hover does', () => {
+    const css = readFileSync('src/styles.css', 'utf8');
+    const rule = css.match(/([^{}]*)\{\s*opacity:\s*1;\s*\}/g)?.find((r) => r.includes('.project-row:hover .project-row-action'));
+    expect(rule).toBeDefined();
+    // KEYBOARD focus only: `:focus-within` also lit both after a mouse click on Duplicate (it focuses itself).
+    expect(rule).toMatch(/\.project-row:has\(:focus-visible\) \.project-row-action\s*[,{]/);
+    expect(css).not.toMatch(/\.project-row:focus-within/);
   });
 });

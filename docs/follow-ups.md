@@ -77,6 +77,7 @@ return `null`. Degrades to a clear rejection, never a wrong number.
 Only matters for a future desktop build.
 
 **Status:** open (latent, desktop builds only): `sanitizeFilename` has no reserved-device-name guard. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 (follow-ups 5): `sanitizeFilename` gives a device name (CON, PRN, AUX, NUL, COM0-9, LPT0-9 — Microsoft's list includes the 0s —, any case, after cleaning) a `-project` suffix (`con-project.sloyd`); `console`, `com10`, `con table` untouched. Pinned in `browser.test.ts` (mutated: an unanchored pattern reds 3; `[1-9]` reds the two 0 cases).
 
 **8. The `storage` singleton is imported from the concrete module.** `App.tsx` and
 `FileMenu.tsx` both `import { storage } from '../storage/browser'`, and both test files
@@ -765,6 +766,7 @@ and matches how `validateCuts` re-mints on load. The prefix is now just cosmetic
 misleading. Grepped when it was introduced: nothing depends on the prefix.
 
 **Status:** open (cosmetic): `nextId` still mints `b_` for every kind of id; ids are opaque and nothing reads the prefix. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 (follow-ups 5): `nextId` mints `id_…`, a prefix naming no kind (threading a kind through 33 call sites and `takeId`'s generic repair was judged not worth it for an opaque id); files keep the ids they were minted with. `ids.test.ts`; seen live (`sloyd.project.id_…`).
 
 **52. `DimensionField`'s new `min`/`max` props have no direct unit tests.** They are
 exercised indirectly through the Cuts panel tests (offset 0 must be accepted, depth past
@@ -1392,6 +1394,7 @@ as an open follow-up rather than silently treated as covered by the existing tes
 layers.
 
 **Status:** open (test gap; judgement): the left-shift phase remains and no test bounds a label's distance from its band. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 (follow-ups 5): the left-shift phase stays (accepted drafting behaviour); sweep case 4 now asserts the shifted `3/4"` label still REACHES its band (`PartDiagram.test.tsx`; mutated: a 40-unit over-shift reds it, 930.4 < 968.75).
 
 ## From the per-face diagrams round
 
@@ -1515,6 +1518,7 @@ plain stored numbers, never as a sum) reaches the case that would produce it —
 "latent, not live" shape as follow-ups 62 and 67.
 
 **Status:** open (latent, benign): `boundaries()` still dedups by exact equality (depthField.ts); the sliver it allows is invisible. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 (follow-ups 5): `boundaries()` merges boundaries within `BOUNDARY_EPS` 1e-9 (inv 22), the lower standing for both and `extent` always standing. Measured first: the sliver was not merely invisible — covered by BOTH cuts, at different depths it was marked `crossing`. Two tests, each branch mutated.
 
 **79. Print-to-PDF is still not verified on this host.** Carried forward again, not
 re-promised: the Playwright MCP available here exposes no `pdf()` call, so no PDF was
@@ -3536,6 +3540,7 @@ record rather than retune. Recorded now because the argument for the current sta
 "nobody noticed", which is not an argument.
 
 **Status:** open (hygiene, one CSS rule; a visual change for the user's nod): no `.project-row:focus-within` reveal. (triaged 2026-10-16)
+**Status:** fixed on the branch 2026-10-16 (follow-ups 5); THE LOOK IS OWED TO THE USER. `.project-row:has(:focus-visible) .project-row-action` joins the hover reveal — KEYBOARD focus only (`:focus-within` was tried first and dropped: Duplicate focuses itself on click, so a mouse user would have kept both lit). A CSS test pins the rule and the absence of `:focus-within`. Seen live: a menu opened by mouse shows no actions; Tab onto the row shows both, and onto Duplicate both with its ring (`docs/img/fu151-row-focus.png`); a fresh mouse-only load, a real click on Duplicate, pointer moved away: none lit, `:focus-visible` false. (A click after earlier Tabs in the same page does read `:focus-visible` — Chromium carries the last modality into a programmatic `focus()`; accepted, it is the keyboard user's page.)
 
 **152. Escape closes the project menu and leaves focus on `<body>` rather than returning it
 to the caret.** Confirmed live: `document.activeElement` after an Escape from an armed delete
@@ -4715,6 +4720,7 @@ committed meanwhile; `commit` and `onMouseUp` ignore the abandoned drag.
   three-stdlib, and the viewport has no unit tests.
 - **Status:** open, low, no data harm. Pending the live check's view of it (item 9).
 **Status:** open (cosmetic; real hardware): unchanged — after an abandon, three-stdlib's own drag still runs to mouse-up; `Gizmo.tsx`'s abandon comment names it. Nothing is committed. (triaged 2026-10-16)
+**Status:** open (follow-ups 5 looked, 2026-10-16; real hardware): the only remedy is three-stdlib's public `controls.dragging = false` (+ `axis = null`) on abandon, which stops `pointerMove` — but `dragging` is a defineProperty whose setter dispatches `dragging-changed`, and drei answers it by RE-ENABLING the orbit controls mid-press; if the orbit controls took that pointerdown, the camera would start orbiting with the pointer, worse than today's cosmetic follow. Not applied: needs a real mouse to judge. Nothing is committed either way.
 
 **208. Undo/redo pressed mid-drag can change a selected part's size without changing the selection
 key.** The mid-drag abandon effect keys on the selection, so an undo that alters a selected part's
@@ -4825,6 +4831,7 @@ the same.
   wanted, belongs where the cut is stored.
 - **Status:** open, low, recorded.
 **Status:** open (latent): unchanged in `pocketFor`, and its reach has WIDENED — since metric display (inv 52) a metric project's whole-mm sizes are non-dyadic and can reach `pocketFor` through Add joinery. Not reproduced; reproduce before any remedy, and never by rounding the row key (inv 18). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 (follow-ups 5). Reproduced first: of 4008 probed mm dados, 2591 stored a different offset/width at 180° than at 0°; turn 0 was not exact either (`mm(37) − mm(12)` need not be `mm(25)`), so position split rows too, and a two-part cut list printed `[1, 1]`. `pocketFor` now stores each of ITS OWN numbers (offset, width, depth, stops) within its EPS (1e-9") of a 1/64" or 0.1 mm grid point as that point's exact float — dyadic first, 0.1 mm as `parseLength` stores a typed `x.y` mm; anything else as computed. When `storedAsShape` then re-stores the cut (another cut opens one of its ends), it recomputes from the region and the result is NOT the grid float (a 19 mm housing beside a back rabbet: width `0.74803149606298…` varying in the last digits with position along the part) — but it is a function of identical inputs, so both turns and every position still agree (pinned), and the row split is closed. A rabbet flush with the max end stays a rabbet reaching the end within EPS in both turns (pinned). The row key is untouched (inv 18). Tests in `pocket.test.ts`: both turns and three positions over a sweep, a stopped groove of every depth, the cut list's one row of 2, a flush-max rabbet, a re-stored housing, an off-grid number kept; all five fields and both branches mutated (without `onGrid` five tests red). Residue in fu 382.
 
 **217. Small test gaps the round judged fine to leave.** Record-only.
 - Joinery equivariance covers a 180° turn only. `pocketFor`'s pose test covers all four turns in
@@ -6370,3 +6377,12 @@ and (4); the rest record-only.
 ## From the feature callouts round — 2026-10-16
 
 **381. Feature callouts residue.** Rulings made while writing the plan (approved by the user 2026-10-16): **P1** the key list reads the bench lines' units (`6.4 mm dia × 10 mm deep, every 32 mm`; imperial's straight `"`), not bare mm — spec §3's metric example amended; **P2** a feature with no true view whose lines are all hidden (a hand-edited compound angle cut) is keyed on its hidden lines in tie order, not listed as not shown; **P3** a curve's straight sides off the face boundary carry no tag (`curveDrawEdges` knows only arc chords), so a hand-made curve of lines only is listed "Not shown". Live-pass notes: (1) **for the user's eye**: tags can sit on dimension lines (the table's B tags on the overall dimensions under Front and Side; allowed by spec §4.4, the paper fill masks the line); (2) at screen scale a hidden 1/4" rim's dash reads solid (as fu 337), so a tag on dashed rims looks like one on visible rims; (3) the real print is owed with 254 (page fit with the key list added under a capped trio). Final review (fixed: a densely drilled part — ~450 holes on one panel — overflowed the stack and blanked the app; an angle cut that removes nothing was keyed and tagged the part's own face edges): (4) **ruling, for the user**: a definition that is never listed (every placement a sole child) but sits under two different listed assemblies has its features keyed in BOTH trios, against R5's "once" — kept, since each trio draws the part; (5) the tag's leader reuses the balloons' `plans-leader` class where spec §4.5 names `plans-key-leader` (same look); (6) when the clamp pulls a tag to within its radius of the anchor, the leader is drawn backwards (cosmetic); (7) `(N×)` counts instances while merged tags draw fewer circles (the spec's rule; for the user's eye). **Status:** open for (1), (3) and (4); the rest record-only.
+
+## From follow-ups 5 — 2026-10-16
+
+**382. Follow-ups 5 residue.** (1) Joinery's `rebaseCuts` (`recipes.ts`) still does float arithmetic on stored cuts when a
+part grows (`offset += amount`, a stop `+= amount`), so a rebased mm cut may sit an ulp off the grid point `pocketFor` would
+store for the same opening. It applies the same LOCAL operation to congruent parts, so it cannot split two of them once
+`pocketFor`'s inputs agree (fu 216); not changed without a failing case. (2) Likewise `storedAsShape`'s re-store recomputes a
+re-stored cut's numbers off the grid (fu 216's last Status) — deterministic, so no split; snapping after it was declined because
+its ulp rulings (fu 200, the user's) decide which side of a flush boundary a re-store may land on. **Status:** record-only.

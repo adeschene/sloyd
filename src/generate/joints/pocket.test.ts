@@ -1,9 +1,10 @@
-import { createBoard, createDocument, migrateDocument, worldParts } from '../../document/document';
-import { stockProbe } from '../../document/cuts';
-import { axisDimensions, toWorldOffset } from '../../document/geometry';
-import type { Board, Posture, Rotation } from '../../document/types';
+import { buildCutList, createBoard, createDocument, migrateDocument, worldParts } from '../../document/document';
+import { flatDocument } from '../../document/tree';
+import { clippedRegion, cutShape, stockProbe } from '../../document/cuts';
+import { axisDimensions, axisFrame, toWorldOffset } from '../../document/geometry';
+import type { Board, Cut, Posture, Rotation } from '../../document/types';
 import { boxOf, pocketFor } from './pocket';
-import type { WorldBox } from './pocket';
+import type { V3, WorldBox } from './pocket';
 
 /**
  * The bound comes from OUTSIDE the code under test (invariant 23): a sample
@@ -115,5 +116,124 @@ describe('pocketFor', () => {
       max: [0, 1, 2].map((i) => b.position[i] + local[dims[i]][1]) as WorldBox['max'],
     };
     expect(pocketFor(b, box).across).toBe('width');
+  });
+
+  // Fu 216: a millimetre box reached a turned part through a reflection (`board[d] - u`), so the same physical cut stored
+  // an ulp-different offset or width at 180° than at 0° — and the cut list's EXACT row key split identical parts.
+  describe('a millimetre cut stores the same numbers in any turn and at any position (fu 216)', () => {
+    const mm = (k: number) => k / 25.4;
+    const fields = (c: Cut) => [c.face, c.from, c.across, c.offset, c.width, c.depth, c.stopMin, c.stopMax];
+    // The same dado: k mm from the part's own min end, w mm wide, 6 mm deep from the top.
+    const dado = (rotation: Rotation, P: number, k: number, w: number) => {
+      const b = createBoard({ length: mm(610), width: mm(90), thickness: mm(19), rotation, position: [mm(P), 0, 0] });
+      const e = boxOf(b);
+      const [x0, x1] = rotation === 0 ? [e.min[0] + mm(k), e.min[0] + mm(k + w)] : [e.max[0] - mm(k + w), e.max[0] - mm(k)];
+      return pocketFor(b, { min: [x0, e.max[1] - mm(6), e.min[2] - 1], max: [x1, e.max[1] + 1, e.max[2] + 1] });
+    };
+
+    it('turn 0 and turn 180 agree exactly, and every number is the typed millimetre value', () => {
+      for (const P of [0, 7, 33]) for (let k = 1; k < 500; k += 7) for (const w of [6, 12.5, 19]) {
+        const a = dado(0, P, k, w);
+        expect(fields(dado(180, P, k, w)), `P ${P} k ${k} w ${w}`).toEqual(fields(a));
+        expect(a.offset, `P ${P} k ${k} w ${w}`).toBe(k / 25.4);
+        expect(a.width, `P ${P} k ${k} w ${w}`).toBe(w / 25.4);
+        expect(a.depth).toBe(6 / 25.4);
+      }
+    });
+
+    it('a stopped cut of any depth: the stops and the depth are the typed millimetre values in both turns', () => {
+      // A stopped groove along the length, s mm short of each end, d mm deep from the top, on a part at P mm.
+      const groove = (rotation: Rotation, P: number, s0: number, d: number) => {
+        const b = createBoard({ length: mm(610), width: mm(90), thickness: mm(19), rotation, position: [mm(P), mm(P), mm(P)] });
+        const e = boxOf(b);
+        return pocketFor(b, {
+          min: [e.min[0] + mm(s0), e.max[1] - mm(d), e.min[2] + mm(30)],
+          max: [e.max[0] - mm(s0 + 3), e.max[1] + 1, e.min[2] + mm(36)],
+        });
+      };
+      let checked = 0;
+      for (const P of [0, 11, 47]) for (let s0 = 2; s0 < 200; s0 += 9) for (let d = 1; d < 19; d += 2) {
+        const a = groove(0, P, s0, d);
+        const b = groove(180, P, s0, d);
+        const at = `P ${P} s ${s0} d ${d}`;
+        expect(a.depth, at).toBe(d / 25.4);
+        expect(b.depth, at).toBe(d / 25.4);
+        // Turned 180°, the min-end stop is the max-end stop.
+        expect([a.stopMin, a.stopMax], at).toEqual([s0 / 25.4, (s0 + 3) / 25.4]);
+        expect([b.stopMin, b.stopMax], at).toEqual([(s0 + 3) / 25.4, s0 / 25.4]);
+        checked++;
+      }
+      expect(checked).toBeGreaterThan(500);
+    });
+
+    it('two parts cut alike, one turned 180°, are one cut-list row', () => {
+      const parts = ([0, 180] as const).map((rotation, i) => {
+        const b = createBoard({ name: `Rail ${i}`, length: mm(610), width: mm(90), thickness: mm(19), rotation, position: [0, 0, mm(100 * i)] });
+        const e = boxOf(b);
+        const [x0, x1] = rotation === 0 ? [e.min[0] + mm(1), e.min[0] + mm(7)] : [e.max[0] - mm(7), e.max[0] - mm(1)];
+        return { ...b, cuts: [pocketFor(b, { min: [x0, e.max[1] - mm(6), e.min[2] - 1], max: [x1, e.max[1] + 1, e.max[2] + 1] })] };
+      });
+      const doc = { ...createDocument('Rails'), units: { display: 'metric-mm' as const, precision: 16 }, boards: parts };
+      const rows = buildCutList(flatDocument(doc)).groups.flatMap((g) => g.rows);
+      expect(rows.map((r) => r.qty)).toEqual([2]);
+    });
+
+    // A box given in the part's own mm coordinates, reached as joinery reaches it: through WORLD floats.
+    const viaWorld = (b: Board, local: Record<'length' | 'width' | 'thickness', [number, number]>): WorldBox => {
+      const dims = axisDimensions(b);
+      const at = (i: number, u: number) => b.position[i] + toWorldOffset(b, i, u);
+      const ends = [0, 1, 2].map((i) => [at(i, mm(local[dims[i]][0])), at(i, mm(local[dims[i]][1]))].sort((x, y) => x - y));
+      // Reaching past a face is how a recipe's box opens it: one mm beyond each end the box touches.
+      const pad = (i: number, j: 0 | 1) => {
+        const d = dims[i];
+        const touches = j === 0 ? local[d][j] === 0 : local[d][j] === Math.round(b[d] * 25.4);
+        const worldMin = (j === 0) !== axisFrame(b)[i].reversed;
+        return touches ? (worldMin ? -1 : 1) * mm(1) : 0;
+      };
+      return {
+        min: [0, 1, 2].map((i) => ends[i][0] + Math.min(0, pad(i, 0), pad(i, 1))) as V3,
+        max: [0, 1, 2].map((i) => ends[i][1] + Math.max(0, pad(i, 0), pad(i, 1))) as V3,
+      };
+    };
+
+    it('a rabbet flush with the max end: both turns agree, it is a rabbet, and it reaches the end', () => {
+      for (const P of [0, 13, 41]) for (let k = 3; k < 600; k += 11) for (const rotation of [0, 180] as const) {
+        const b = createBoard({ length: mm(610), width: mm(90), thickness: mm(19), rotation, position: [mm(P), mm(P), mm(P)] });
+        const c = pocketFor(b, viaWorld(b, { length: [k, 610], width: [0, 90], thickness: [13, 19] }));
+        const at = `P ${P} k ${k} turn ${rotation}`;
+        const turned = createBoard({ ...b, rotation: rotation === 0 ? 180 : 0 });
+        const other = pocketFor(turned, viaWorld(turned, { length: [k, 610], width: [0, 90], thickness: [13, 19] }));
+        expect(fields(other), at).toEqual(fields(c));
+        const cut = { ...b, cuts: [c] };
+        expect(cutShape(cut, c).word, at).toBe('rabbet');
+        const r = clippedRegion(cut, c);
+        expect(Math.abs(r.length[1] - b.length), at).toBeLessThanOrEqual(1e-9);
+        expect(Math.abs(r.length[0] - mm(k)), at).toBeLessThanOrEqual(1e-9);
+      }
+    });
+
+    it('a housing re-stored beside an existing rabbet (storedAsShape) agrees across turns and positions', () => {
+      // The mm version of the cut-storage §3.2 case above: a back rabbet opens the housing's width-min end, so the run is
+      // the width and `storedAsShape` re-stores what pocketFor first wrote.
+      const rabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: mm(10), width: mm(9), depth: mm(6), stopMin: 0, stopMax: 0 };
+      const seen = new Map<string, string>();
+      for (const P of [0, 17, 53]) for (let k = 40; k < 1700; k += 37) for (const rotation of [0, 180] as const) {
+        const b = createBoard({ length: mm(1830), width: mm(286), thickness: mm(19), rotation, position: [mm(P), mm(P), mm(P)], cuts: [rabbet] });
+        const c = pocketFor(b, viaWorld(b, { length: [k, k + 19], width: [6, 25], thickness: [13, 19] }));
+        expect(c.across).toBe('width');
+        const key = fields(c).join(':');
+        const prev = seen.get(String(k));
+        if (prev === undefined) seen.set(String(k), key);
+        else expect(key, `P ${P} k ${k} turn ${rotation}`).toBe(prev);
+      }
+    });
+
+    it('a number off both grids is stored as computed', () => {
+      const b = createBoard({ length: 6, width: 3, thickness: 1, position: [0, 0, 0] });
+      const c = pocketFor(b, { min: [1 / 3, 2 / 3, -1], max: [1 / 3 + 1 / 7, 4, 4] });
+      expect(c.offset).toBe(1 / 3);
+      expect(c.width).toBe(1 / 3 + 1 / 7 - 1 / 3);
+      expect(c.depth).toBe(1 - 2 / 3);
+    });
   });
 });
