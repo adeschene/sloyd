@@ -174,3 +174,18 @@ describe('callouts for parts too small for their number (fu 96)', () => {
     for (let i = 1; i < 3; i += 1) expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(labelWidth(String(i + 1)));
   });
 });
+
+// Plans balloons (the user's ruling at plan Task 2): a layout labels a part with its CUT-LIST ROW number when given
+// one, so the sheet, the cut list and the Plans balloons share one series. Two parts of one row share its number.
+describe('row numbers on the layout (plans balloons)', () => {
+  it('labels index-tier parts with their row numbers, in the drawing and the key', () => {
+    const tiny = (id: string, name: string, x: number) => part({ boardId: id, name, x, w: 0.5, h: 0.5, dims: '1/2" × 1/2"' });
+    render(<SheetLayout nesting={nesting([tiny('a', 'Peg A', 0), tiny('b', 'Peg B', 10), tiny('c', 'Wedge', 20)])} stock={STOCK}
+      numbers={new Map([['a', 7], ['b', 7], ['c', 9]])} />);
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      '7. Peg A — 1/2" × 1/2"', '7. Peg B — 1/2" × 1/2"', '9. Wedge — 1/2" × 1/2"',
+    ]);
+    const labels = [...document.querySelectorAll('svg text')].map((t) => t.textContent);
+    expect(labels.sort()).toEqual(['7', '7', '9']);
+  });
+});

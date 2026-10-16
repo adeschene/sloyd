@@ -39,11 +39,13 @@ const CALLOUT_ROW = CALLOUT_GAP + LABEL_BOX_H + CALLOUT_GAP;
  * diagram hatch — so they survive printing with Chrome's "Background graphics"
  * off. A CSS background would not.
  */
-function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: SheetStock; index: number; noun: string }) {
+function Sheet({ sheet, stock, index, noun, numbers }: {
+  sheet: NestedSheet; stock: SheetStock; index: number; noun: string; numbers?: ReadonlyMap<string, number>;
+}) {
   const s = DRAW_WIDTH / stock.length;
   const h = stock.width * s;
 
-  const keyed: { n: number; name: string }[] = [];
+  const keyed: { id: string; n: number; name: string }[] = [];
   // Counts only parts that actually fall to the index tier, so the key list
   // reads 1, 2, 3, ... — not the sparse sheet.parts positions of whichever
   // parts happened to need it (finding 4). Incremented, not `keyed.length + 1`,
@@ -69,9 +71,15 @@ function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: Sheet
     });
     let indexLabel: number | null = null;
     if (tier === 'index') {
-      indexLabel = nextIndex;
-      nextIndex += 1;
-      keyed.push({ n: indexLabel, name: `${p.name} — ${p.dims}` });
+      // The part's CUT-LIST ROW number when the caller has one (plans balloons, the user's ruling): one series on the
+      // cut list, its layouts and the Plans sheet; two parts of one row share it. Else this sheet's own counter.
+      const row = numbers?.get(p.boardId);
+      if (row !== undefined) indexLabel = row;
+      else {
+        indexLabel = nextIndex;
+        nextIndex += 1;
+      }
+      keyed.push({ id: p.boardId, n: indexLabel, name: `${p.name} — ${p.dims}` });
     }
     // Fu 96: a rectangle that cannot hold even its number calls it out beside the drawing, on the nearer long edge.
     const callout: 'above' | 'below' | null = indexLabel !== null && !holdsIndex(String(indexLabel), w - 2 * PAD, ph - 2 * PAD)
@@ -143,7 +151,7 @@ function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: Sheet
       </svg>
       {keyed.length > 0 && (
         <ul className="cutlist-layout-key">
-          {keyed.map((k) => <li key={k.n}>{k.n}. {k.name}</li>)}
+          {keyed.map((k) => <li key={k.id}>{k.n}. {k.name}</li>)}
         </ul>
       )}
     </figure>
@@ -154,11 +162,15 @@ function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: Sheet
  * `noun` names each drawing: `Sheet 1` for sheet goods; the by-the-piece Buying section passes the stock
  * size, e.g. `3/4" × 5-1/2" × 96" — board`, so a board strip reads as what it is (lumber yield spec §4).
  */
-export function SheetLayout({ nesting, stock, noun = 'Sheet' }: { nesting: Nesting; stock: SheetStock; noun?: string }) {
+export function SheetLayout({ nesting, stock, noun = 'Sheet', numbers }: {
+  nesting: Nesting; stock: SheetStock; noun?: string;
+  /** A part's cut-list row number, by board id (plans balloons): labels and key entries use it when present. */
+  numbers?: ReadonlyMap<string, number>;
+}) {
   return (
     <>
       {nesting.sheets.map((sheet, i) => (
-        <Sheet key={i} sheet={sheet} stock={stock} index={i} noun={noun} />
+        <Sheet key={i} sheet={sheet} stock={stock} index={i} noun={noun} numbers={numbers} />
       ))}
     </>
   );
