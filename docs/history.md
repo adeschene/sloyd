@@ -486,6 +486,18 @@ and 79.
 
 ## What each round did
 
+**What follow-ups 3 did (2026-10-16)** (branch `follow-ups-3` from master `847ed06`, merged as `11743cd`; the user asked for the
+triage's code-sized opens in order). 168: a failed Generate/Refine run reports what it spent (`spentOnFailure`; joinery already
+did) and a sub-cent spend reads `< $0.01` (`formatCost`). 53: the cut offset field refuses past `posDim - width` (refused, not
+the clamp the entry named). 152: Escape in the project menu focuses the caret. 95: the sheet count names the parts it leaves
+out (the subtotal stays its rows' sum). 35: `storage.readProject`; a project that cannot be opened reopens the menu on its row
+with the reason (a newer version's own message). Tidy-ups 3, 18, 9 (one `isTextEntry`), 23, 40, 14, 57 (`--scrim`); 11's named
+remedy was measured and rejected (three's Raycaster calls `raycast()` unconditionally, so `null` would throw). 96 was measured
+REACHABLE (any part under ~2.4" overflows its index label) and held for a design ruling; 37 was made, rendered before/after on
+the dev server, and reverted (the new centre band crosses its neighbour) for the user's eye. Checked live on the dev server: 35
+(a version-999 project), 152, 53, 95, 57, the gizmo (18) and F framing (9); the pass's three keys removed, read back empty. Every
+new test red before its fix or mutated. 4505 tests. No schema change.
+
 **What the 1–178 triage did (2026-10-16)** (docs only, on master, after the follow-ups 2 deploy; the user's ask). The oldest
 follow-ups predated the `**Status:**` convention. Five read-only agents checked each entry against the current code, a sample of
 their closures and defect claims was re-verified by hand (1, 3, 4, 6, 14, 37, 53, 95, 96, 98, 152, 168), and one proposal was

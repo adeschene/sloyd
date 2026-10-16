@@ -53,7 +53,7 @@ handicraft education tradition built around hand woodworking.
 - **Follow-ups 2 (2026-10-16, merged as `0f4d732`, deployed as `index-BFCf2c3f.js`; no schema change)**: closed 297 (offset miters read-only),
   290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
   kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
-- **Follow-ups 3 (2026-10-16, branch `follow-ups-3`, NOT deployed; no schema change)**: from the 1–178 triage, closed 168 (a
+- **Follow-ups 3 (2026-10-16, merged as `11743cd`, NOT deployed; no schema change, so deploying or rolling back is free)**: from the 1–178 triage, closed 168 (a
   failed run's spend reported, `< $0.01`), 53 (offset refused past `posDim - width`), 152 (Escape returns focus to the caret), 95
   (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
   and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). Held for the USER: 96 (sheet index
@@ -954,7 +954,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4482 tests across 152 files
+npm test           # Vitest, currently 4505 tests across 152 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
