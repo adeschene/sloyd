@@ -314,6 +314,23 @@ describe('exportProject', () => {
     expect(capturedAnchor?.download).toBe('My-Bench.sloyd');
   });
 
+  // Fu 7: Windows refuses a file named for a device (CON, PRN, AUX, NUL, COM1-9, LPT1-9), whatever its extension or case.
+  it.each([
+    ['con', 'con-project.sloyd'], ['PRN', 'PRN-project.sloyd'], ['Aux', 'Aux-project.sloyd'], ['nul', 'nul-project.sloyd'],
+    ['COM1', 'COM1-project.sloyd'], ['lpt9', 'lpt9-project.sloyd'], [' con! ', 'con-project.sloyd'],
+    ['console', 'console.sloyd'], ['com10', 'com10.sloyd'], ['con table', 'con-table.sloyd'],
+  ])('a project named %j exports as %j', async (name, file) => {
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    let capturedAnchor: HTMLAnchorElement | undefined;
+    vi.spyOn(document.body, 'appendChild').mockImplementation(function (this: HTMLElement, node: Node) {
+      if (node instanceof HTMLAnchorElement) capturedAnchor = node;
+      return HTMLElement.prototype.appendChild.call(this, node) as Node;
+    });
+    await a.exportProject({ ...docWithBoard(), name });
+    expect(capturedAnchor?.download).toBe(file);
+  });
+
   it('removes the anchor and revokes the object URL even when click() throws', async () => {
     const a = new BrowserStorageAdapter(new FakeStorage());
     const doc = docWithBoard();

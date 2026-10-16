@@ -742,8 +742,12 @@ function download(blob: Blob, filename: string): void {
   }
 }
 
+/** Windows refuses a file named for a device, whatever its extension or case (fu 7: `con.sloyd`). */
+const DEVICE_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
 function sanitizeFilename(name: string): string {
   const cleaned = name.replace(/[^a-z0-9\-_ ]/gi, '').trim().replace(/\s+/g, '-');
+  if (DEVICE_NAME.test(cleaned)) return `${cleaned}-project`;
   return cleaned || 'sloyd-project';
 }
 
