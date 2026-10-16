@@ -5036,7 +5036,8 @@ Properties, and the guides footer's own disclosure toggle.
   the merge: the Copy in a row form renders beside the bar, so moving the bar out of the lock left a form opened BEFORE
   exploding live (Apply then silently refused by `edit()`); it is wrapped in `EditLock` inside ActionBar (test: opened,
   then exploded — Apply and Count disabled; red without the wrapper). Its Cancel is locked with it (the form's one
-  fieldset); a selection change or Explode back to 0 frees it. **Status:** closed.
+  fieldset); a selection change or Explode back to 0 frees it. The view-only set was approved by the user 2026-10-16.
+  **Status:** closed.
 
 **263. The sheet slider recomputes the isometric synchronously.** About 130-250 ms per step at furniture scale
 (measured in node); consider `useDeferredValue`.
@@ -5202,7 +5203,8 @@ from the + Add menu on a part wider than long (Taper stays). The resize half sta
   already-consuming cut has no use. The resize itself is still not refused (the precedent). Tests: the shortened rail
   (note; Long point taken; Across to the thickness fits and clears the note; back across the width refused), a thinned
   bevel, a taper moved to a face it overruns by less (taken) and more (refused), a chamfer moved to an edge it overruns no
-  further; each kind's rule mutated back to the old refusal turns its test red. **Status:** closed.
+  further; each kind's rule mutated back to the old refusal turns its test red. The ruling was approved by the user
+  2026-10-16. **Status:** closed.
 
 **297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
 start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored

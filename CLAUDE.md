@@ -44,15 +44,15 @@ handicraft education tradition built around hand woodworking.
 - **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master as `333bddf` and DEPLOYED as `index-LdkILHkB.js`; no schema change, so
   rolling it back costs nothing)**: closed 369 (a curved part's holed planes drawn as one region: watertight, the pinned
   arched side ~52 → 16 ms), 375 (silhouettes clipped to the wood), 339, 262 (+261 not reproducible), 338 and 359 (the
-  user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Two rulings made in implementation await the user: 296
-  (angle-cuts spec §7 marked *Amended (implementation, follow-ups 2026-10-15)*) and 262's set of view-only actions (Hide
-  others, Select copies, Select linked, the guides disclosure).
+  user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Its two implementation rulings were APPROVED by the user
+  2026-10-16: 296 (angle-cuts spec §7 amended) and 262's set of view-only actions (Hide others, Select copies, Select
+  linked, the guides disclosure).
 - **Fu 368 (2026-10-16, merged as `1015f08`, deployed as `index-DG6bkBPk.js`)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
   coplanar lookups indexed (byte-identical, A/B over 21 fixtures), ear-clip triangles merged into convex pieces
   (Hertel–Mehlhorn; 83 bodies → 16); the frozen-bodies hypothesis did not reproduce. No schema change.
 - **NEXT: ask.** `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
-  of the spec amendments marked *Amended (implementation, …)* in the curves and angle-cuts specs; a real Brave print (254,
+  of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
   sheet slider's feel, 263; 336's grain seam is deferred to a texture/shader session). Other open items: 314, 315, 317–320,
   angle-cut residue 295, 297, 298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
@@ -973,7 +973,7 @@ knowing without opening it:
   hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
 - **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
   the matching miter, by decision), 296 closed 2026-10-15 (an overrun a resize caused is noted; edits that overrun no
-  further are taken — for the user's review), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
+  further are taken — approved by the user), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
 - **301–318** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
