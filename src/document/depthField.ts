@@ -18,14 +18,27 @@ export interface FaceCell {
   crossing: boolean;
 }
 
-/** Sorted, deduplicated boundaries, always including 0 and `extent`. */
+/** Boundaries closer than this are one boundary (fu 78; inv 22: one side of a shared edge may be a computed sum). */
+const BOUNDARY_EPS = 1e-9;
+
+/** Sorted, deduplicated boundaries, always including 0 and `extent`. Within BOUNDARY_EPS the lower one stands for both —
+ *  except that `extent` always stands — so no cell is a sliver an ulp wide. */
 function boundaries(extent: number, spans: Span[]): number[] {
   const set = new Set<number>([0, extent]);
   for (const [lo, hi] of spans) {
     if (lo > 0 && lo < extent) set.add(lo);
     if (hi > 0 && hi < extent) set.add(hi);
   }
-  return [...set].sort((a, b) => a - b);
+  const sorted = [...set].sort((a, b) => a - b);
+  const out: number[] = [];
+  for (const v of sorted) {
+    if (out.length > 0 && v - out[out.length - 1]! <= BOUNDARY_EPS) {
+      if (v === extent) out[out.length - 1] = extent;
+      continue;
+    }
+    out.push(v);
+  }
+  return out;
 }
 
 /**

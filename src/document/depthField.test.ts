@@ -17,6 +17,24 @@ describe('buildDepthField', () => {
     expect(field([])).toEqual([]);
   });
 
+  // Fu 78: a shared edge reached by different arithmetic (0.1 + 0.2 against a stored 0.3) is one boundary, not two an
+  // ulp apart: the sliver between them was covered by BOTH cuts and, at different depths, marked crossing.
+  it('merges two boundaries within a billionth of an inch into one, leaving no sliver cell', () => {
+    const cells = field([
+      cut({ id: 'a', offset: 0.1, width: 0.2, depth: 0.25 }),
+      cut({ id: 'b', offset: 0.3, width: 1, depth: 0.5 }),
+    ]);
+    expect(cells.map((c) => [c.h, c.depth, c.crossing])).toEqual([
+      [[0.1, 0.3], 0.25, false],
+      [[0.3, 1.3], 0.5, false],
+    ]);
+  });
+
+  it('a cut ending a hair short of the far edge ends AT it', () => {
+    const cells = field([cut({ id: 'a', offset: 20, width: 4 - 1e-12 })]);
+    expect(cells.map((c) => c.h)).toEqual([[20, 24]]);
+  });
+
   it('emits only cut cells, never the uncut remainder', () => {
     // A cut across the width at 6..6.75 covers the full width.
     const cells = field([cut({ id: 'a', across: 'width', offset: 6, width: 0.75 })]);
