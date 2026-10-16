@@ -17,6 +17,10 @@ describe('parseLength', () => {
     ['  3/4  ', 0.75],
     ['-3/4', -0.75],
     ['-1-1/2', -1.5],
+    // fu 13: the sign covers feet AND inches, not the feet alone.
+    [`-2'6"`, -30],
+    ["-2'", -24],
+    [`-2' 6-1/2"`, -30.5],
   ])('parses %j as %f inches', (input, expected) => {
     expect(parseLength(input, IMPERIAL)).toBeCloseTo(expected, 9);
   });

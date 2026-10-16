@@ -92,6 +92,16 @@ describe('autoSave / loadAutoSaved', () => {
     expect(await a.loadProject('some-id')).toEqual(doc);
   });
 
+  // fu 13: a storage that throws on READ (Safari's blocked storage, a privacy setting) reads as nothing saved and flips
+  // the adapter's `available`, rather than throwing out of boot.
+  it('reads nothing and reports storage unavailable when getItem throws', async () => {
+    const fake = new FakeStorage();
+    fake.getItem = () => { throw new Error('SecurityError'); };
+    const a = new BrowserStorageAdapter(fake);
+    expect(await a.loadAutoSaved()).toBeNull();
+    expect(a.available).toBe(false);
+  });
+
   it('returns null when nothing has been saved', async () => {
     const a = new BrowserStorageAdapter(new FakeStorage());
     expect(await a.loadAutoSaved()).toBeNull();
