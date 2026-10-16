@@ -50,7 +50,11 @@ handicraft education tradition built around hand woodworking.
 - **Fu 368 (2026-10-16, merged as `1015f08`, deployed as `index-DG6bkBPk.js`)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
   coplanar lookups indexed (byte-identical, A/B over 21 fixtures), ear-clip triangles merged into convex pieces
   (Hertel–Mehlhorn; 83 bodies → 16); the frozen-bodies hypothesis did not reproduce. No schema change.
-- **NEXT: ask.** `docs/follow-ups.md` is authoritative: an open entry reads
+- **Follow-ups 2 (2026-10-16, branch `follow-ups-2`, NOT deployed; no schema change)**: closed 297 (offset miters read-only),
+  290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
+  kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
+- **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
+  the user's eye. The oldest entries (1–178) predate the `**Status:**` convention and have not been triaged. `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
@@ -136,6 +140,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | curves (chunk 2) | 10-15 | — | Plans sheet: arcs at `DRAWING_CURVE_TOLERANCE` 0.001" (≤96 chords) through `curveDrawEdges`, visibility on the model chord, edge-on views unrefined; silhouettes of curved surfaces (`silhouetteLines`; fixes open rounded-top ends and the missing arch crown). Part diagrams: hatched waste, sharp-vertex lines on their own face, curve notes (`curveLineEntries`). Fu 361 |
 | follow-ups 1 | 10-15 | — | Fu 369 (a curved part's holed planes as one region: watertight, ~3x faster), 375, 339, 262 (+261), 338/359 (the user's rulings), 335, 348, 344 + 263, 316, 296 |
 | fu 368 | 10-16 | — | A non-convex waste rebuilds ~52 → ~6 ms: `bodyEdges` lookups indexed (byte-identical), convex pieces merged (Hertel–Mehlhorn) |
+| follow-ups 2 | 10-16 | — | Fu 297, 290, 314, 287/292 (rulings), 208/209 (undo, redo, delete refused mid-drag), 210 |
 
 ### The deployment rule
 
@@ -935,7 +940,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4473 tests across 151 files
+npm test           # Vitest, currently 4482 tests across 152 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -974,7 +979,7 @@ knowing without opening it:
   hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
 - **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
   the matching miter, by decision), 296 closed 2026-10-15 (an overrun a resize caused is noted; edits that overrun no
-  further are taken — approved by the user), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
+  further are taken — approved by the user), 297 closed 2026-10-16 (an offset miter is read-only).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
 - **301–318** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
@@ -982,7 +987,7 @@ knowing without opening it:
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 307 closed 2026-10-13 (`rebaseAngleCuts`), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 closed 2026-10-13 (tapers diffed face
   by face at display precision), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
   (`plainForRefine` calls `joineryRefusal`), 313 closed 2026-10-13 (test and wording residue; same face in two entries allowed by decision),
-  314 (parts with rectangular cuts are not turned), 315 (mirror-only matches need fu 232's mirrored placements), 316 closed 2026-10-15 (placements compare cuts in any order), 317 (record-only turned-links minors), 318 (a width-only edit on one turned linked leg grows legs along different axes; accepted by the user).
+  314 closed 2026-10-16 (unreachable), 315 (mirror-only matches need fu 232's mirrored placements), 316 closed 2026-10-15 (placements compare cuts in any order), 317 (record-only turned-links minors), 318 (a width-only edit on one turned linked leg grows legs along different axes; accepted by the user).
 - **319–320** — standard views + image export residue: 319 (the View group wraps even at 1440 px; open for the user's
   eye), 320 (record-only: no view shortcuts, one-frame selection blink, a saved PNG owed a real-hardware look).
 - **321** — AI angles chunk 1 minors (record-only): the receiving part's "reaches" test uses the entering face at 1e-9;
