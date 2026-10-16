@@ -56,13 +56,13 @@ handicraft education tradition built around hand woodworking.
 - **Follow-ups 3 (2026-10-16, merged as `11743cd`, NOT deployed; no schema change, so deploying or rolling back is free)**: from the 1–178 triage, closed 168 (a
   failed run's spend reported, `< $0.01`), 53 (offset refused past `posDim - width`), 152 (Escape returns focus to the caret), 95
   (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
-  and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). Held for the USER: 96 (sheet index
-  label overflows a part under ~2.4" — needs a design ruling) and 37 (the centre grain seed's before/after, reverted: the new
-  band crossed its neighbour).
+  and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). The user's rulings (2026-10-16): 37
+  record-only (the new centre seed's band crossed its neighbour; reverted); 96 (an index label overflowing a part under ~2.4")
+  draws the number BESIDE the part with a short leader — NEXT.
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
   the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
   `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber): 65 closed, 69 record-only,
-  15 owed or open by decision, 40 open as work (follow-ups 3 closed 13 of them; 96 and 37 await the user). `docs/follow-ups.md` is authoritative: an open entry reads
+  15 owed or open by decision, 40 open as work (follow-ups 3 closed 13 of them; 37 record-only by ruling; 96 next). `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans

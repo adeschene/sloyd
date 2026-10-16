@@ -488,7 +488,7 @@ property requires — and the centre band is spatially far from the edges, so it
 as cosmetic. A distinct seed for `k === 0` is the fix, worth doing the next time this
 file is touched.
 
-**Status:** open (cosmetic; held for the user's eye, 2026-10-16): a distinct centre seed was made and rendered before/after on the dev server — in the edge texture the new centre band CROSSES its neighbour, which real rings never do, so the change was reverted rather than shipped. Keep, retune, or close as record-only is the user's call. (triaged 2026-10-16; updated by follow-ups 3)
+**Status:** record-only (the user's ruling, 2026-10-16): a distinct centre seed was made and rendered before/after on the dev server — in the edge texture the new centre band CROSSES its neighbour, which real rings never do — so it was reverted, and the user closed the entry keeping today's texture. (triaged 2026-10-16; updated by follow-ups 3)
 
 **38. The "no board misses the cathedral arch" guarantee in `grainTiling.ts`'s face
 tile size (6in) was worked out for boards around 5-1/2in wide.** Much narrower boards
@@ -1882,7 +1882,7 @@ and specifically the height axis the width-only fixtures never exercised — the
 defect class `fitLabel` exists to close for the other two tiers, left open on the one
 tier that has no fallback beneath it.
 
-**Status:** open (latent defect, REACHABLE — needs a ruling, 2026-10-16): the sheet draws at 1000/96 ≈ 10.4 units per inch and the index label is 25 units tall, so any part under ~2.4" in its short dimension (a 24 × 1-1/2" plywood cleat) overflows its number out of its rectangle. What to draw instead (a key-only entry, a leader to the margin, a rotated label) is a design choice; a smaller font is ruled out by inv 19. (triaged 2026-10-16; updated by follow-ups 3)
+**Status:** open (latent defect, REACHABLE — the user ruled 2026-10-16: draw the number BESIDE the part with a short leader, key entry kept): the sheet draws at 1000/96 ≈ 10.4 units per inch and the index label is 25 units tall, so any part under ~2.4" in its short dimension (a 24 × 1-1/2" plywood cleat) overflows its number out of its rectangle. What to draw instead (a key-only entry, a leader to the margin, a rotated label) is a design choice; a smaller font is ruled out by inv 19. (triaged 2026-10-16; updated by follow-ups 3)
 
 **97. CLOSED 2026-08-31, together with 131 — `takeId` in `document.ts`.** The repair is the
 one `validateCuts` already had, given a name and two more callers: the first occurrence of an
