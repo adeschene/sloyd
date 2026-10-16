@@ -9,6 +9,8 @@ import { fitChain } from './planDims';
 import { DIM_BAND, PLAN_WIDTH, layoutTrio, toSvg, type Placement } from './planLayout';
 import { buildCutList, flatDocument } from '../document/document';
 import { anchorsFor, layoutBalloons, numberList, type PlacedBalloon } from './planBalloons';
+import { partFeatures } from '../document/featureKeys';
+import { planKeys, type KeyTag } from './planKeys';
 import { LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
 
 const TICK = 6;
@@ -75,6 +77,27 @@ function Dim({ a, b, label, vertical }: { a: P2; b: P2; label: string; vertical:
 
 interface Fitted { overall: DimLine | null; chain: DimLine[] }
 
+/** The leader's end dot, in SVG units. */
+const DOT_R = 2.5;
+
+/** One feature tag (feature callouts spec §4.3): a leader from a dot on the drawn line to the circle's edge, the circle
+ *  filled with the paper so the lines beneath are masked, the letter centred. */
+function KeyMark({ t, r }: { t: KeyTag; r: number }) {
+  const dx = t.centre[0] - t.anchor[0];
+  const dy = t.centre[1] - t.anchor[1];
+  const l = Math.hypot(dx, dy) || 1;
+  const ex = t.centre[0] - (dx / l) * r;
+  const ey = t.centre[1] - (dy / l) * r;
+  return (
+    <g className="plans-key-mark" data-letter={t.letter}>
+      <path className="plans-leader" d={`M${t.anchor[0]} ${t.anchor[1]}L${ex} ${ey}`} />
+      <circle className="plans-leader-dot" cx={t.anchor[0]} cy={t.anchor[1]} r={DOT_R} />
+      <circle className="plans-key-tag" cx={t.centre[0]} cy={t.centre[1]} r={r} />
+      <text x={t.centre[0]} y={t.centre[1] + (LABEL_ASCENT - LABEL_DESCENT) / 2} textAnchor="middle">{t.letter}</text>
+    </g>
+  );
+}
+
 /** One elevation with its dimensions: chain above/left, overall below/right (spec §5.4). */
 function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: number; h: Fitted; v: Fitted }) {
   const map = toSvg(d, at, scale);
@@ -109,9 +132,12 @@ function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: n
   );
 }
 
-/** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2). Memoised on its props (fu 263): a
- *  tick of the sheet's Explode slider re-renders the sheet, never these. */
-export const PlanTrio = memo(function PlanTrio({ parts, units, label }: { parts: readonly Board[]; units: Units; label: string }) {
+/** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2), and, when `keyed`, the features of
+ *  those parts as lettered tags with a key list (feature callouts spec §4). Memoised on its props (fu 263): a tick of the
+ *  sheet's Explode slider re-renders the sheet, never these — so `keyed` must be a stable set. */
+export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed }: {
+  parts: readonly Board[]; units: Units; label: string; keyed?: ReadonlySet<string>;
+}) {
   const views = useMemo(() => [FRONT, SIDE, TOP].map((view: View) => ({
     view, d: drawView(parts, view), dims: dimensionView(parts, view, units),
   })), [parts, units]);
@@ -127,19 +153,29 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label }: { parts:
       v={{ overall: x.dims.vertical.overall, chain: v.chain }} />;
   };
   const drawn = [draw(top, lay.top), draw(front, lay.front), draw(side, lay.side)];
+  const features = useMemo(() => (keyed ? parts.filter((b) => keyed.has(b.id)).flatMap((b) => partFeatures(b, units)) : []), [parts, units, keyed]);
+  // `lay` is a pure function of `views`.
+  const keys = useMemo(() => planKeys(features,
+    [{ view: TOP, d: top.d, at: lay.top }, { view: FRONT, d: front.d, at: lay.front }, { view: SIDE, d: side.d, at: lay.side }],
+    lay.scale, lay), [features, views]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (keys.notShown.length > 0) notes.push(`Not shown in these views: ${keys.notShown.join('; ')}.`);
+  if (keys.unkeyed.length > 0) notes.push(`Not keyed (no room): ${keys.unkeyed.join(', ')}.`);
   return (
     <figure className="plans-figure-wrap">
       <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} fontSize={LABEL_SIZE}
         role="img" aria-label={`${label}: front, side and plan`}>
         {drawn}
+        {keys.tags.map((t, n) => <KeyMark key={n} t={t} r={keys.radius} />)}
       </svg>
+      {keys.lines.length > 0 && (
+        <ul className="plans-key">
+          {keys.lines.map((l) => <li key={l.letter}><span className="plans-key-letter">{l.letter}</span> {l.shown}</li>)}
+        </ul>
+      )}
       {notes.length > 0 && <ul className="plans-notes">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
     </figure>
   );
 });
-
-/** The leader's end dot, in SVG units. */
-const DOT_R = 2.5;
 
 /** One balloon (plans balloons spec §3.3): a leader level from the circle's edge to its elbow, then to the anchor
  *  (`PlacedBalloon`); a dot on the anchor; the circle; the number. */

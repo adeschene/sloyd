@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useStore } from '../store/store';
-import { buildCutList, createBoard, createDocument, flatDocument } from '../document/document';
+import { buildCutList, createBoard, createDocument, defaultHole, flatDocument } from '../document/document';
+import { ARCH } from '../document/curveFixtures';
 import { cabinetsDoc } from '../document/treeFixtures';
 import { PlansSheet } from './PlansSheet';
 
@@ -118,5 +119,32 @@ describe('part balloons (plans balloons §4)', () => {
     expect(new Set(nums).size).toBe(nums.length);
     const rows = buildCutList(flatDocument(useStore.getState().doc)).groups.flatMap((g) => g.rows);
     expect(nums.every((n) => rows.some((r) => r.number === n))).toBe(true);
+  });
+});
+
+describe('PlansSheet: feature keys (feature callouts spec §2.1, §4.5)', () => {
+  const sections = (c: HTMLElement) => [...c.querySelectorAll('section.plans-section')]
+    .map((sec) => [sec.querySelector('h3')!.textContent, [...sec.querySelectorAll('.plans-key li')].map((li) => li.textContent)]);
+
+  it('a loose arched apron is keyed in the piece trio; the exploded view carries no tags', () => {
+    const apron = { ...createBoard({ id: 'a', name: 'Apron', length: 30, width: 5, thickness: 0.75 }), curves: [ARCH] };
+    act(() => useStore.getState().replaceDocument({ ...createDocument('Table'), boards: [apron] }));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    expect(sections(container)).toEqual([
+      ['Exploded view', []],
+      ['Table', ['A Arch, 24" span, 1-1/2" rise (radius 48-3/4")']],
+    ]);
+    expect(container.querySelector('[aria-label="Exploded view"] .plans-key-mark')).toBeNull();
+  });
+
+  it('a hole on the drawer front is keyed on the Drawer trio only', () => {
+    const doc = cabinetsDoc();
+    doc.definitions = doc.definitions.map((d) => (d.id !== 'dd' ? d : {
+      ...d, boards: d.boards.map((b) => ({ ...b, holes: [{ id: 'h', ...defaultHole(b as never) }] })),
+    }));
+    act(() => useStore.getState().replaceDocument(doc));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    const keyed = sections(container).filter(([, lines]) => (lines as string[]).length > 0);
+    expect(keyed.map(([h]) => h)).toEqual(['Cabinet › Drawer × 4']);
   });
 });
