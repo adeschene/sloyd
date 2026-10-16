@@ -58,7 +58,7 @@ handicraft education tradition built around hand woodworking.
   (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
   and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). The user's rulings (2026-10-16): 37
   record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
-- **Fu 96 (2026-10-16, branch `fu-96`, NOT deployed; no schema change)**: a sheet or board layout part too small for its index
+- **Fu 96 (2026-10-16, merged as `9a31093`, NOT deployed; no schema change, so deploying or rolling back is free)**: a sheet or board layout part too small for its index
   number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
   the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
@@ -959,7 +959,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4505 tests across 152 files
+npm test           # Vitest, currently 4512 tests across 152 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
