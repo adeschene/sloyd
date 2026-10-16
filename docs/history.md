@@ -514,6 +514,17 @@ and 79.
 
 ## What each round did
 
+**What the 179–380 triage did (2026-10-16)** (docs only, on master, after the plans balloons deploy; the user's ask). Most of
+these entries already carried `**Status:**` lines, but several held more than one and the first often still read `open`; the
+LAST one governs. Three had none (187, 212, 260 — all closed long since) and four used non-standard words (242, 266, 318, 336).
+Every entry whose last line was open or irregular was read, and the code-sized ones checked against the code: 213 and 221
+became record-only (221's `repairLinks` is retired; a below-v11 file's members now load as plain parts), seven "open,
+record-only" entries were normalised, 256's viewport half was found shipped (the section cut), and 216's reach was found
+WIDER than recorded (metric projects' whole-mm sizes reach `pocketFor` through Add joinery; not reproduced). 68 Status lines
+added, no entry text changed. Result for 179–380: 114 closed, 35 record-only, 29 feature-sized, 13 owed to the user, 7 by
+decision, 4 open as work (207, 216, 234, 269). CLAUDE.md's Open follow-ups section was rewritten as the triage's open set (it
+had drifted: 252, 297 and 314 still listed open). No code changed.
+
 **What the plans balloons round did (2026-10-16)** (spec `2026-10-16-sloyd-plans-balloons-design.md`, plan `…-plans-balloons.md`,
 run inline (the user's choice), branch `plans-balloons` from master `4d017c4`). Fu 252: `buildCutList` numbers every row in
 display order and carries its parts' ids; the cut list leads each row with the number; `planBalloons.ts` anchors each row on the

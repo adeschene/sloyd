@@ -68,15 +68,11 @@ handicraft education tradition built around hand woodworking.
   `2cbfff4`, deployed as `index-CCbseJx_.js`; no schema change)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
   cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
   balance, for the user's eye; the real print).
-- **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
-  the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
-  `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber): 65 closed, 69 record-only,
-  15 owed or open by decision, 40 open as work (follow-ups 3 closed 13 of them, fu 96 one more; 37 record-only by ruling). `docs/follow-ups.md` is authoritative: an open entry reads
-  `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
-  of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
-  345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
-  sheet slider's feel, 263; 336's grain seam is deferred to a texture/shader session). Other open items: 314, 315, 317–320,
-  angle-cut residue 295, 297, 298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+- **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
+  `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
+  29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
+  under Open follow-ups below; `docs/follow-ups.md` is authoritative. The next real work is a feature spec — the feature
+  callouts (279, 333, 362) are the strongest candidate — or a small round over the open-as-work list.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -980,83 +976,28 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–379, each with its closure). Read the entries
-for the area you are about to touch; several are "correct but untested". Open items worth
-knowing without opening it:
+**`docs/follow-ups.md` is authoritative** (1–380). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
+This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **179** is closed (refine shipped 2026-10-09); still read invs 38, 41 and fu 180–206 before
-  touching `generate/joints/`.
-- **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).
-- **225** — assemblies/components residue, out of scope by decision (its mirrored-instances item
-  shipped as schema 13). **232** — Generate emits no mirrored or nested assemblies, by decision;
-  since schema 13 a mirrored pair is expressible if prototypes come to need it.
-- **247** — the mirrored-instances residue: `sameSideFirst` is dead in `linkBoards` (still needed
-  for the shared posture write) and three texts overstate its role there; small unpinned guards.
-- **248–251** — ui-polish residue: 248 (viewport colours, the user approved them on real hardware), 249 (snap
-  markers recoloured to muted tones; keep the floors in `SnapMarker.tsx` if retuning) and 250 (Popover and
-  ProjectMenu focusout; simulated only, no Safari here) are closed; deferred minors (251) are record-only.
-- **252–264** — plans-sheet residue: 252 (callouts), 253 (user-placed dimensions, schema bump), 255 (explode constants
-  seen only on software GL), 256–258 (section views, joint-direction explode, live viewport dimensions) are open;
-  261–263 closed 2026-10-15 (follow-ups 1: 261 not reproducible; the lock wraps editing regions only; the sheet's figure
-  deferred); 260 (F/Home framed unexploded positions) closed 2026-10-13. 254 is open only for a real print (the tall-sheet overflow is fixed);
-  264 is closed; 259 is record-only.
-- **265–274** — lumber yield & cost residue: 265 (per-project price overrides),
-  267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
-  only), 271 (rough thickness classes), 272 (dialog length on a phone), 274 (end-grain parts are not priced by the
-  piece) are open; 273 is closed (the note), 266 closed 2026-10-14 (below).
-- **275–292** — angle-cuts residue: 275–280 (stopped angle cuts; 276 angle-aware joinery — open only for the joint kinds
-  (splined/biscuited miters): joinery accepts angled projects since AI angles chunk 1; 277 Generate emitting angles — closed
-  2026-10-14 (AI angles chunk 2); "taper all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 closed (approved on real
-  hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
-- **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
-  the matching miter, by decision), 296 closed 2026-10-15 (an overrun a resize caused is noted; edits that overrun no
-  further are taken — approved by the user), 297 closed 2026-10-16 (an offset miter is read-only).
-- **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
-  and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
-- **301–318** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
-  tip check's weight read a tapered part's real bodies), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
-  (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 307 closed 2026-10-13 (`rebaseAngleCuts`), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 closed 2026-10-13 (tapers diffed face
-  by face at display precision), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
-  (`plainForRefine` calls `joineryRefusal`), 313 closed 2026-10-13 (test and wording residue; same face in two entries allowed by decision),
-  314 closed 2026-10-16 (unreachable), 315 (mirror-only matches need fu 232's mirrored placements), 316 closed 2026-10-15 (placements compare cuts in any order), 317 (record-only turned-links minors), 318 (a width-only edit on one turned linked leg grows legs along different axes; accepted by the user).
-- **319–320** — standard views + image export residue: 319 (the View group wraps even at 1440 px; open for the user's
-  eye), 320 (record-only: no view shortcuts, one-frame selection blink, a saved PNG owed a real-hardware look).
-- **321** — AI angles chunk 1 minors (record-only): the receiving part's "reaches" test uses the entering face at 1e-9;
-  test gaps (no turned chamfer, no bevel case).
-- **323** — AI angles chunk 2 minors (record-only): generic `angle-joint` advice; refusal-kind found by text search; turned
-  candidates' angle-cut ids by index (latent); test gaps; multi-decimal angles fall back to 0.1°.
-- **322** — the design schema's compiled-grammar margin (record): the API caps the compiled schema (unpublished); the part
-  and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
-- **266** — closed 2026-10-14 (custom materials, both chunks). **324**/**326** — chunk 1/chunk 2 minors (record-only).
-  **325** — two tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
-- **327–342** — holes chunk 1 residue: 327 closed 2026-10-14 (chunk 2: drawings, Hinge cup), 328–335 (spec §11: holes through
-  joinery/Refine/Repair, Generate/Refine authoring them, counterbores/cam-and-bolt, half-holes, dowels as hardware, Plans
-  callouts, pointed bottoms; 335 closed — the metric round shows hole sizes in mm), 336 (wall-grain seam inside a bore, deferred by the user to a texture/shader
-  session), 337 (real-hardware looks owed: rims, drag smoothness, faded holed parts, overlapping holes), 338 and 339 closed
-  2026-10-15 (a count-1 row's pitch is not compared, the user's ruling; AngleCuts returns its refusal), 340 (the perf guard is wall-clock), 341–342
-  (record-only minors).
-- **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5) closed — the user kept it; 344
-  closed 2026-10-15 (the exploded view skips always-hidden hole lines), 345 (dash look of chained paths
-  and corner joins on a real print, for the user's eye; fu 254), 346 (record-only minors).
-- **361–379** — curves: 361 closed (chunk 2: arcs at 0.001", silhouettes — a live defect on master —, part
-  diagrams); residue 374 (the edge-on fold, Q3), 375 closed 2026-10-15 (clipped to the wood), 376 (a split chord's end up
-  to 0.005" off the arc, Q4; Q2's split likewise; record-only), 377 (the unreachable (0, 1) node guard; record-only), 378
-  (chunk 2 deferred minors; record-only), 379 (drawView timing ~6 ms/view, unchanged). Chunk 1: 362 (curve callouts; with 252, 333), 363 (Claude
-  features on curves: joinery/Repair, Generate/Refine, the design checks), 364 (splines: a segment type, no bump), 365
-  (stopped curves, edge profiles), 366 (compound curves), 367 (a row control to change kind); residue — 368 closed
-  2026-10-16 (a non-convex waste ~52 → ~6 ms), 369 closed
-  2026-10-15 (a holed plane drawn as one region, watertight), 370 (real-hardware looks owed: smooth shading, the grain seam, arch-end
-  lines, a faded curved part beside a dado), 371–373 (record-only minors). The curved-face grain seam is filed with **336**.
-- **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
-- **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
-  reason. Ask before assuming it's wanted; it needs real hardware (26a).
-- **147** — open by decision (the user ruled ship as-is).
-- **163's residue** — ply legibility at 3/4in, open by decision; do not re-open unasked.
-- **26a** — **read before touching the viewport.** Browser checks here run on software GL
-  (llvmpipe), which hides undefined/precision-sensitive shader behaviour; such changes need
-  a human on real hardware.
-- **70/79/84** — real print-to-PDF is unverified (only `emulateMedia`). **76**: hatch vs
-  cross-hatch is not distinguishable at screen size; the legend carries it.
+- **Open as work (code-sized, all low):** 7, 8, 12, 17, 19, 27, 31, 51, 71, 78, 126, 128, 151, 169, 175 (1–178);
+  207 (gizmo after an abandon), 216 (a mm joinery cut's stored width an ulp off on a reversed axis — reach WIDENED by
+  metric display; reproduce first, never round the row key), 234 (the concept planner is not taught assemblies), 269
+  (packer heuristic: measure a losing case first).
+- **Feature-sized (need a spec):** feature callouts on the Plans sheet — 279 angles, 333 holes, 362 curves (they need the
+  drawing to tag its lines by feature); 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
+  views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
+  271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
+- **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 374 if a print shows the fold);
+  real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
+  by eye — 142, 319, 380(1) column balance, 272 (a phone); 350 (a hand check of section markers); 106
+  (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
+  rulings.
+- **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 163's residue (do not re-open
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first).
+- **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
+  before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
+  legend carries it).
 
 ## Deployment
 

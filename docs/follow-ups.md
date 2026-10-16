@@ -4489,6 +4489,7 @@ re-review then found that the POSITION-axis half was wrong:
 - **Later (follow-up 199, 2026-10-05):** the rule now reads the cut's SHAPE, not its stored
   form: `rebaseCuts` re-stores each cut via `storedAsShape` (judged before the growth) before
   applying it, so "runs along the growth" and "positioned at the end" no longer depend on storage.
+**Status:** closed 2026-10-04 (the `across` half kept; the position half dropped by the user, `d55f1ab`; fu 199 reads the shape). (triaged 2026-10-16)
 
 **188. The default tenon cap's edges.** I1 caps a default tenon 1/16in short of another default
 tenon's cross-section inside the same part. Three recorded limits: the cap rounds DOWN to 1/16in
@@ -4713,6 +4714,7 @@ committed meanwhile; `commit` and `onMouseUp` ignore the abandoned drag.
 - **Possible remedy:** end the control's internal drag on abandon. Not attempted: unverified against
   three-stdlib, and the viewport has no unit tests.
 - **Status:** open, low, no data harm. Pending the live check's view of it (item 9).
+**Status:** open (cosmetic; real hardware): unchanged — after an abandon, three-stdlib's own drag still runs to mouse-up; `Gizmo.tsx`'s abandon comment names it. Nothing is committed. (triaged 2026-10-16)
 
 **208. Undo/redo pressed mid-drag can change a selected part's size without changing the selection
 key.** The mid-drag abandon effect keys on the selection, so an undo that alters a selected part's
@@ -4763,6 +4765,7 @@ group ones.
   - Mutations: 4 of 5 go red. The one that survives is dropping the flag in NameField: the adopt
     effect corrects the text, so only a one-frame flicker of the old name differs. Recorded, not
     tested.
+**Status:** closed 2026-10-05 (Enter commits and blurs, the user's ruling). (triaged 2026-10-16)
 
 ## From the hide/unhide round — 2026-10-05
 
@@ -4771,6 +4774,7 @@ group ones.
 document lacks the deleted parts while `hiddenIds` still names them. Harmless: every reader
 filters by id against the boards. Folding it into `edit()` would need an API change.
 - **Status:** open, low, no data harm.
+**Status:** record-only: unchanged (`reconcileHidden` is still a second `set()` after `edit()`); every reader filters by id, and folding it in needs an `edit()` API change. (triaged 2026-10-16)
 
 **214. Small gaps the round judged fine to leave.** Record-only.
 - `HISTORY_LIMIT` (50) is shared: many eye toggles each push an undo entry and can push real
@@ -4820,6 +4824,7 @@ the same.
 - **Do not "fix" it by rounding the row key**: that is invariant 18's prohibition. A remedy, if
   wanted, belongs where the cut is stored.
 - **Status:** open, low, recorded.
+**Status:** open (latent): unchanged in `pocketFor`, and its reach has WIDENED — since metric display (inv 52) a metric project's whole-mm sizes are non-dyadic and can reach `pocketFor` through Add joinery. Not reproduced; reproduce before any remedy, and never by rounding the row key (inv 18). (triaged 2026-10-16)
 
 **217. Small test gaps the round judged fine to leave.** Record-only.
 - Joinery equivariance covers a 180° turn only. `pocketFor`'s pose test covers all four turns in
@@ -4900,6 +4905,7 @@ reaches it.
 - **A remedy, if wanted,** would have to mint one id per (label, cut position) rather than per
   board, which is a second decider beside `takeId` (invariant 33). Not worth it for this reach.
 - **Status:** open, low, fails safe.
+**Status:** record-only: `repairLinks` is retired (inv 45); a below-v11 linked file's members now get per-board minted cut ids, and `linksToShapes` judges by `sameShared` (ids compared), so they load as plain parts. Fails safe; hand-edited pre-v11 files only. (triaged 2026-10-16)
 
 **222. Small gaps the round judged fine to leave.** Record-only.
 - ~~`sharedPatch` has no direct test.~~ It has one since the final-review fix wave (which also
@@ -4949,6 +4955,7 @@ definition exactly one instance, so none of these could arise yet.
 - **Free rotation.**
 - **Dragging items between assemblies** in the parts list. Ungroup and regroup does that job.
 - **Status:** open by decision (spec §1).
+**Status:** open by decision (its mirrored-instances item shipped as schema 13). (triaged 2026-10-16)
 
 **226. An assembly emptied by deleting its last part lingers.** It stays as an empty row with no
 geometry. Delete prunes only definitions that are no longer referenced, and an empty one still is.
@@ -5084,6 +5091,7 @@ emits only 0° and 90° parts (invariant 44).
   (`DESIGN_SCHEMA`) still has no mirror, and Refine refuses a mirrored assembly. Lifting it means a `mirrored`
   placement field in the design format and in `documentToDesign`.
 - **Status:** open by decision; revisit if prototypes need them.
+**Status:** open by decision. (triaged 2026-10-16)
 
 **233. A flat Simple design of 49+ parts gets two cap reports for one fault.** It fails both the
 distinct cap (`N distinct parts; the limit is 12…`) and checkDesign's placed ceiling
@@ -5098,6 +5106,7 @@ a fix would drop the ceiling report when distinct equals placed.
 on `userMessage`, so the planner reads "an assembly's parts count once", but `CONCEPTS_SYSTEM` never
 explains assemblies. Cosmetic: the planner only proposes directions.
 - **Status:** open, low.
+**Status:** open (cosmetic): `CONCEPTS_SYSTEM` still says nothing about assemblies while the planner reads `userMessage`'s assembly lines. (triaged 2026-10-16)
 
 **235. Small gaps the round judged fine to leave.** Closed 2026-10-10; the reviews' deferred minors.
 - **Untested.** A part named in a violation but missing from the authored index; a violation
@@ -5175,11 +5184,13 @@ original.
 limits) are always new by the user's limits ruling, so a refine of a design that already tipped
 spends repair calls on it each time.
 - **Status:** open by decision (a tipping design is a defect); revisit if it proves costly.
+**Status:** open by decision. (triaged 2026-10-16)
 
 **242. The join stage's repair text isn't labelled as joinery,** and the estimate note understates
 the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (see fu 236).
 - **Status:** the money half closed 2026-10-09 with fu 236 (a joined Refine's high end includes
   joinery's every round). The repair text CLOSED 2026-10-10 by the join-repair-text round: joinery's rounds in a joined Refine read "Choosing joints — fixing N issues…" / "— retrying…"; see `docs/history.md`.
+**Status:** closed (the money half 2026-10-09 with fu 236; the repair text 2026-10-10). (triaged 2026-10-16)
 
 **243. Small gaps the round judged fine to leave.** Record-only.
 - `gateUnjoin`'s unmapped-joint refusal is redundant with the compare; the named-part filter on
@@ -5349,6 +5360,7 @@ reader matches it to the cut list by eye. Spec §9, out of scope by decision.
 **253. User-placed dimensions.** The sheet's dimensions are automatic (overall plus chains, `document/dimensions.ts`).
 A dimension tool whose dimensions live in the document needs a schema bump (14) and a rollback cost; spec §9.
 - **Status:** open.
+**Status:** open (feature; needs a spec) (schema bump). (triaged 2026-10-16)
 
 **254. Real print-to-PDF of the Plans sheet is unverified.** Only `emulateMedia('print')` was driven (Playwright
 exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks and the ink on a real printer. The print
@@ -5362,23 +5374,28 @@ ink bug (F2) was found by the emulated pass and fixed. See `docs/browser-verific
   `PlanFigure.tsx`; the exploded figure too, whose own height cap had the same hole). Tests pin the bookcase case
   and the on-page width; both were mutated.
 - **Status:** open only for the real print dialog (page breaks and ink on a real printer); the overflow is closed.
+**Status:** open (owed to the user, not code): a real print. (triaged 2026-10-16)
 
 **255. The explode spread constants were approved only on software GL.** `EXPLODE_SPREAD` (1) and `EXPLODE_INNER`
 (0.5) in `document/explode.ts` were judged on llvmpipe (fu 26a). They are plain numbers feeding translations, not
 shader behaviour, so the 26a risk does not arise; what is unconfirmed is how the spread reads on real hardware and a
 real display. Retuning changes only those two constants (INNER must stay below 1, spec §3).
 - **Status:** open; a look on real hardware closes it.
+**Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
 
 **256. Section views (a clipping plane).** To see inside a joint on the sheet or in the viewport. Spec §9.
 - **Status:** open.
+**Status:** open (feature; needs a spec) for the SHEET half: the viewport half shipped as the section cut (2026-10-15, inv 51); section views on the Plans sheet remain. (triaged 2026-10-16)
 
 **257. Exploding along each joint's engagement direction.** The explode is hierarchical and radial from centres
 (spec §3, option B); option C moves parts along the direction they slide apart. Spec §9.
 - **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **258. Live dimension annotations in the viewport.** The sheet is the only place dimensions show; the viewport has the
 Tape tool and nothing automatic. Spec §9.
 - **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **259. Small gaps the plans-sheet round judged fine to leave.** Record-only; the task reviews' deferred minors.
 - **T1.** `hiddenSpan`'s positive-test comment says s=1 (it is s=sqrt(3)); `Math.max(0, s0)` / `Math.min(1, s1)` are
@@ -5406,6 +5423,7 @@ passing the explode offsets.
   `explodeOffsets` map, read at call time; at explode 0 the arithmetic is the old `THREE.Box3` path's. Pinned by
   `framing.test.ts` (offsets moved the box; `explodeOffsets` keys every `worldParts` id) and seen live
   (`docs/browser-verification-standard-views-image.md`).
+**Status:** closed 2026-10-13 (standard views round: `subsetBounds` takes the explode offsets). (triaged 2026-10-16)
 
 **261. Renaming in the parts list reverts silently while exploded.** `PartsList` is outside the edit lock (same class
 as F3); make it visibly disabled.
@@ -5455,29 +5473,37 @@ sheet draws that wrapper as a duplicate of the whole piece.
 
 **265. Per-project price overrides (the user's option C).** Prices are browser-level only; a project carries none, so
 an exported project does not say what it was priced at. Overrides would need a schema bump. **Status:** open.
+**Status:** open (feature; needs a spec) (schema bump). (triaged 2026-10-16)
 
 **266. Custom materials and nominal lumber names.** `MATERIALS` is still a fixed seven; ash, poplar, 5x5 Baltic birch
 and nominal names (2x4 = 1-1/2 x 3-1/2) are not expressible. `ShopSettings` is keyed by material, ready for more.
 **Status:** custom materials done 2026-10-14 (chunk 1, branch `custom-materials-1`; spec
 `docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, schema 15); nominal names done 2026-10-14 (chunk 2,
 merge `bfde00c`, deployed, no schema change). **Closed.** Residue: 324, 325, 326.
+**Status:** closed 2026-10-14 (custom materials, both chunks). Residue 324–326. (triaged 2026-10-16)
 
 **267. Edge banding and a hardware bill of materials** (`docs/feature-gaps.md` §3). **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **268. Glue-ups from narrow stock.** A part wider than every stock board is "too wide"; edge-gluing narrower boards is
 not modelled. **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **269. The by-the-piece packer is a heuristic.** Largest-first then swap-down is not an optimum; a mix of sizes that
 needs a different split across boards is not searched. **Status:** open; measure before reaching for an optimiser
 (the follow-ups 140/160 rule).
+**Status:** open (measure first): no case where swap-down loses to a better split has been measured; find one before any optimiser (fu 140/160). (triaged 2026-10-16)
 
 **270. US dollars only.** `formatMoney` is en-US `$`. **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **271. Rough thickness classes (4/4, 8/4) as named stock** for board-foot materials, and a thickness the user does not
 stock (a 5/8" walnut part is priced as 5/8" stock). **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **272. The Lumber & prices dialog is long on a small screen** (fourteen pine sizes; it scrolls). Not judged on a phone.
 **Status:** open, cosmetic.
+**Status:** open (owed to the user, not code): a phone look at Materials & prices (longer since custom materials). (triaged 2026-10-16)
 
 
 **273. Pricing one size pulls small parts onto it, with no hint (spec §3.2 step 4, for the user to decide).** With only
@@ -5495,16 +5521,19 @@ A note ("priced as 1x12; a 1x2x72 would hold it — no price set") is one option
 listed as not placed ("has end grain — not priced as pine stock") rather than priced as long grain, which would buy
 stock that cannot yield it (final review). Modelling it means the part's thickness runs along the stock and its
 length x width must fit the stock's thickness x width. **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 ## From the angle cuts round (chunk 1) — 2026-10-12
 
 **275. Stopped angle cuts** (a stopped chamfer, a two-stage taper). Spec §11. **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **276. Angle-aware joinery** (splined and biscuited miters). Add joinery, Refine and Repair joints refuse angled
 documents (spec §6). **Status:** open for the joint kinds (splined, biscuited, keyed miters). Accepting angled documents
 is the AI-angles spec (`2026-10-13-sloyd-ai-angles-design.md`): chunk 1 (2026-10-13) lets Add joinery and Repair run on
 mitered, beveled and chamfered projects, refusing only an angle cut that runs into a joint; chunk 2 (2026-10-14) lets Generate
 and Refine write them. Both chunks deployed; only the angle-aware joint kinds remain.
+**Status:** open (feature; needs a spec) (the joint kinds only). (triaged 2026-10-16)
 
 **277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** closed 2026-10-14 — tapers
 (AI tapers chunk 2) and miters, bevels and chamfers (AI-angles chunk 2, merge `a4914f1`, deployed 2026-10-14): Generate and Refine write them in
@@ -5512,10 +5541,13 @@ world words (`angleWorld.ts`); live: one Generate gave four chamfered legs linke
 edges and a flat 45° picture frame; one Refine changed only the top's chamfers.
 
 **278. A "taper all four faces" shortcut.** **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **279. Angle callouts on the Plans sheet** (see fu 252). **Status:** open.
+**Status:** open (feature; needs a spec) (feature callouts, with 333 and 362; 252 closed). (triaged 2026-10-16)
 
 **280. Compound angles** (an angle cut that is sloped in two axes). **Status:** open.
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **281. The short point formula is wrong for parallel end cuts (spec defect, for the user to decide).** Spec §4.2
 subtracts each end's deepest depth even when the two deepest points are at opposite edges. A 20 × 3-1/2 × 3/4 brace
@@ -5531,6 +5563,7 @@ lighting on sloped faces and grain continuity across a slope need the user's eye
 
 **283. Add joinery with an API key present on an angled project was not seen live** (no key in the dev profile). The
 refusal is pinned by tests (no mutation, no paid call). **Status:** open, needs a key.
+**Status:** open (owed to the user, not code): needs the user's key (a refusal, so no paid call). (triaged 2026-10-16)
 
 **284. Test-coverage gaps (record-only).** No bodies test with two or more angle cuts on one part (a cap clipped by a
 second cut); the mortise + taper test does not overlap the two regions; the drift check loops only `d1` entries (add a
@@ -5541,13 +5574,16 @@ committed occlusion/plane-containment test for on-edge or turns 90/270; zero-are
 field test; the plan's miter tie-break test cannot fail (comment pointing at the bevel tie test); duplicate document
 import in `grainTiling.test.ts`; `angleCuts: []` added to `after` spreads in `treeEdit.test.ts` unnecessarily.
 **Status:** open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 **285. The geometry cache goes cold after long resize drags or more than 256 distinct geometries.** `partGeometry`'s
 LRU is keyed by a board-local geometry signature and capped; past the cap it recomputes (slow, never wrong). **Status:**
 open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 **286. `depthAt` overflows for finite-but-huge slopes (hand-edited files only).** Validation requires a finite slope
 and finite station span, but a huge finite slope can still overflow the depth. **Status:** open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 **287. Sloped snap corners carry ~1e-14 noise**, against invariant 25 (exact moves are never rounded) and
 `sameSnapPoint`'s exact comparison. **Status:** open; decide whether a snap tolerance or a canonical corner is wanted.
@@ -5560,11 +5596,13 @@ and finite station span, but a huge finite slope can still overflow the depth. *
 the coplanar test's absolute 1e-9 on |n.u| should be noted in the SLIVER comment; `boardEdges` has no output filter for
 segments shorter than SLIVER; `boardEdges` with angle cuts costs ~35-100 ms per call on a heavily cut part before the
 cache (measure a heavily joined part on Plans). **Status:** open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 **289. Duplicated code.** `treeEdit` `copyDefinition` and `treeOps` repeat the same plain-part copy expression
 (pre-existing); the plane-collection one-liner is duplicated in `cuts.ts` and `snapPoints.ts`; `boardBodies` is
 computed twice per sloped part in `boardSnapPoints` (ghost check and `boardEdges`); `drawing.ts` uses a double cast
 `as unknown as Vec3` and computes box corners twice. **Status:** open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 **290. Zero-area Float32 slivers in `bodyMesh`.** The absolute 1e-12 triangle skip misses ~BODY_EPS slivers that may
 collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:** open, cosmetic.
@@ -5575,6 +5613,7 @@ collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:*
   its neighbours', and removing it could reopen the cracks fu 369 closed. **Status:** closed.
 
 **291. `joineryEstimateUsd` is unguarded internally** (App guards the angled case). **Status:** open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 **292. Wording: "a long-start taper on a short part".** A taper whose start station lies past the part's far end, or
 that deepens toward the far end, is phrased from its deep end (ruling at Task 9); the wording for odd hand-edited
@@ -5591,6 +5630,7 @@ starts has not been reviewed by the user. **Status:** open, the user may prefer 
 **295. A row control to add the matching miter at the other end of an edited miter.** Spec §7 amended (chunk 2): "both
 ends" is the add-menu preset only; a user who edits one miter adds the match as a second miter by hand. **Status:**
 open, by decision.
+**Status:** open by decision. (triaged 2026-10-16)
 
 **296. An edit is refused on a part shortened after its miter was stored, until the angle is reduced.** A resize is
 not checked against stored miter depths: the 24" rail resized to 2" kept both 45° miters (depth 2-1/2" > length), and
@@ -5628,6 +5668,7 @@ the long edges along the length, the ends along the width), which `chamferCut` s
 Size field writes equal legs and is a mixed field, `value: null`, on an unequal-leg chamfer). A "Raised panel" preset, or a
 second leg field, would close it. Found while writing the chunk 3 live check; not exercised live. **Status:** open, a
 feature gap.
+**Status:** open (feature; needs a spec) (a preset or a second leg field). (triaged 2026-10-16)
 
 **299. The chamfer Edge select's option text is clipped at the panel's width.** At the default 1726 px window the
 Properties panel shows `Width min / thickness min edge (along the lengt` under the caret (`docs/img/angle-cuts-chamfer-leg.png`).
@@ -5703,6 +5744,7 @@ kind keeps its wood exactly; a canonical cut is the same object. Pinned by the d
 **308. "Taper the other end" is impossible for a part joined at both ends.** The taper-at-joint refusal for a joint on the
 thin end advises tapering the other end; a part joined at both ends has no such option (only "remove it" applies).
 **Status:** open, record-only.
+**Status:** record-only (was "open, record-only"). (triaged 2026-10-16)
 
 ## From the AI tapers round (chunk 2, Generate and Refine) — 2026-10-13
 
@@ -5753,6 +5795,7 @@ cuts through `axisFrame`'s crossings. **Status:** open, fails safe (the parts st
 
 **315. Mirror-only matches need mirrored placements.** Legs that match only through a reflection cannot share a Shape by
 turns alone; they need fu 232's mirrored placements from Generate. **Status:** open (depends on 232).
+**Status:** open by decision (depends on 232). (triaged 2026-10-16)
 
 **316. `splitAssemblies`' `resultSignature` is order-sensitive.** Two placements whose joined cuts differ only in order
 split into two definitions: sharing is lost, geometry is right. The cut-order ruling covered `regroupShapes` and `sameJoined`
@@ -5775,11 +5818,13 @@ parts grow from their own min corner (existing rule); turned links store the leg
 two legs along X and two along Z (on the Shaker fixture, width 1-3/4" → 2" runs two legs into an apron). A square edit (width
 and thickness together) grows all four alike, as untapered linked legs do today. **Status:** accepted by the user 2026-10-13
 ("accept and record"); found by the turned-links final review.
+**Status:** record-only (accepted by the user 2026-10-13). (triaged 2026-10-16)
 
 **319. The View group wraps even at 1440 px.** With the standard views and Save image it holds five clusters; it wraps
 right-aligned (Save image on a second row at 1440, three rows at 1024) and never runs under the Tools group
 (`max-width: calc(100% - 220px)`, measured). Works; whether it reads well is the user's call by eye. **Status:** open
 (awaiting the user's look).
+**Status:** open (owed to the user, not code): the View group's wrap, by eye. (triaged 2026-10-16)
 
 **320. Standard views and image export minors (record-only).** No keyboard shortcuts for the views and no
 Back/Left/Bottom (spec §6, out of scope); the selection colour blinks off for one frame during a capture (accepted in
@@ -5866,25 +5911,32 @@ independent of row order); the Hinge cup runs along the longer in-face dimension
 **328. Holes through Add joinery, Repair and Refine.** Chunk 1 refuses a holed project at entry (`holedRefusal`, spec §6).
 Carrying holes through needs a rebase for rows measured from an end joinery grows or trims (as `rebaseAngleCuts`, fu 307),
 `readJoints`' exact undo of it, and a hole-in-pocket refusal (a hole meeting a mortise or tenon). **Status:** open (spec §11).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **329. Generate and Refine authoring holes.** Holes in world words in the design schema — a `DESIGN_SCHEMA` change, so one
 live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
 open (spec §11).
+**Status:** open (feature; needs a spec) (a `DESIGN_SCHEMA` change: one live compile, fu 322). (triaged 2026-10-16)
 
 **330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
 refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **331. Half-holes and holes breaking out of an edge.** `breaks-out` refuses them; they would need a hole to cross body
 edges (inv 50's convex bodies stay). **Status:** open (spec §11).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **332. Dowels as hardware.** A dowel joint is two holes placed by hand (the user's ruling); dowels as objects belong with
 the hardware bill of materials (fu 267). **Status:** open (spec §11).
+**Status:** open (feature; needs a spec) (with 267). (triaged 2026-10-16)
 
 **333. Hole callouts on the Plans sheet.** Dimensioned hole positions and sizes on the sheet; joins fu 252 (callouts).
 **Status:** open (spec §11).
+**Status:** open (feature; needs a spec) (feature callouts, with 279 and 362; 252 closed). (triaged 2026-10-16)
 
 **334. Pointed bottoms.** Twist and brad-point bits leave a cone; chunk 1's holes are flat-bottomed. **Status:** open
 (spec §11).
+**Status:** open (feature; needs a spec) (holes spec §11). (triaged 2026-10-16)
 
 **335. Metric display of hole sizes.** `units.display` is unchanged; a whole-millimetre diameter or pitch prints its mm in
 parentheses only (spec §4.1, amended). **Status:** open (spec §11).
@@ -5901,12 +5953,14 @@ session; chunk 1 ships with the seam. **Also covers curved faces (curves chunk 1
 chord face takes the plan of its nearest world axis (inv 35), so around an arc the grain switches partway with the same
 kind of seam — accepted by the user's ruling in the curves spec (§1, §3.4); the same cylindrical/triplanar remedy, the same
 session. Not yet seen on real hardware (fu 370).
+**Status:** open (deferred by the user to a texture/shader session; covers the curved-face seam too). (triaged 2026-10-16)
 
 **337. Real-hardware looks owed (26a).** Seen only on software GL: hole wall shading and grain; rim lines (indistinguishable
 at screenshot scale, as the part's own edges are; unit-tested only); drag smoothness on a drilled cabinet side (the
 in-browser timing was meaningless on llvmpipe: 1.5–7 s per edit with holes, 3–9 s without); a FADED (transparent) holed
 part, which no longer draws interior seam faces in its holed bodies while an unholed one still does (Task 11b); overlapping
 or coincident (faulted) holes, for cracks at the fallback split's T-junctions. **Status:** open (awaiting the user's look).
+**Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
 
 **338. Count-1 rows still compare `pitch` (ruling R18).** `HOLE_FIELDS` is every field but `id`, exact (spec §4.2), and a
 count-1 row stores a pitch it ignores; two identical single bores whose rows once had different pitches split into two
@@ -5984,6 +6038,7 @@ measure first: emit no silhouettes or blind-bottom rims when no hidden lines are
 subpath so it dashes continuously, and chaining also carries the dash phase around a part's own box corners, so a corner
 join may land mid-dash. Seen only on screen; real print-to-PDF is unavailable here (fu 254). **Status:**
 open — for the user's eye on paper.
+**Status:** open (owed to the user, not code): a real print. (triaged 2026-10-16)
 
 **346. Holes chunk 2 minors (record-only; task reviews 2 and 4).** (1) A duplicate row id would repeat a diagram note, and a
 zero-count row would open a diagram view — both unreachable (`takeId` makes row ids unique; validation keeps count ≥ 1).
@@ -5999,6 +6054,7 @@ On dark cherry the cap reads near-black and its outline (the part's edge colour)
 mortise cannot be told apart on screen. Also owed (fu 26a, software GL only here): z-fighting where a cap meets a
 clipped face, the clipped half casting no shadow (`clipShadows`), a cap receiving another part's shadow.
 **Status:** open — for the user's eye on real hardware; retune `CAP_DARKEN` and the cap outline colour together.
+**Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
 
 **348. Cap cost on drilled parts.** `sectionCaps` on a 42-pin cabinet side cut ACROSS its bores takes 13–14 ms (min of 9;
 the round's target was 10 ms): ~8 ms in `minusPrism` splitting the cap into ~2000 wedge pieces, ~5 ms in `unionOutline`.
@@ -6018,11 +6074,13 @@ instead of wedge-splitting. **Status:** open.
 
 **349. Snap points on caps.** The Tape and Move tools offer no points on a cap (a mortise's floor corner seen in
 section, a bore's centre on the cut). Spec §1 non-goal. **Status:** open — ask before assuming it is wanted.
+**Status:** open by decision: ask before assuming it is wanted. (triaged 2026-10-16)
 
 **350. Move/Tape markers on the removed side — owed a hand check.** Candidates on the removed side are filtered
 (`keptBySection`; guide points exempt by ruling, since guides are drawn unclipped), pinned by code review only: the live
 pass could not drive a snap marker reliably through Playwright hover (one marker in many tries, section on or off).
 **Status:** open — a two-minute check by hand.
+**Status:** open (owed to the user, not code): a two-minute hand check of Move/Tape markers with a section on. (triaged 2026-10-16)
 
 **351. Invariant 43's wording vs a boolean selector.** Inv 43 says never call `visibleBoards` in a selector. The Section
 toggle's "any part visible" test does, returning a BOOLEAN (stable snapshot, identity-keyed cache), which the rule's reason
@@ -6135,23 +6193,29 @@ software GL; the real print is owed (fu 254, 345, 357, 379).
 
 **362. Dimension callouts on curves.** Radius and rise on the Plans sheet. Joins fu 252 (callouts) and 333 (hole
 callouts). **Status:** open (spec §12).
+**Status:** open (feature; needs a spec) (feature callouts, with 279 and 333). (triaged 2026-10-16)
 
 **363. Claude features on curves.** Add joinery and Repair accepting curved parts (refusing only a joint a curve runs into,
 as angle cuts do, inv 41), Generate and Refine reading and writing curves (a `DESIGN_SCHEMA` change: one live compile first,
 fu 322), and the design checks (overlap, held, tip, contact) reading curved bodies. Chunk 1 refuses curved projects at entry
 (`curvedRefusal`, after holes'); `turnCandidates` returns none for a curved part. **Status:** open (spec §12).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **364. Splines and free curves.** A new segment type; no schema bump, because every build from 17 on refuses a document
 holding a segment type it cannot draw (spec §2.4). **Status:** open (spec §12).
+**Status:** open (feature; needs a spec) (no schema bump). (triaged 2026-10-16)
 
 **365. Stopped curved cuts and edge profiles.** A scooped seat or curved recess; roundovers, coves, ogees (chamfers exist as
 angle cuts). **Status:** open (spec §12).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **366. Compound curves.** A cabriole leg is two curves on two faces — allowed today, nothing designed for it. **Status:**
 open (spec §12).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **367. A row control to change a curve's kind.** Arch into Bow and so on; the user removes and re-adds this round.
 **Status:** open (spec §12).
+**Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **368. Rebuild cost of a non-convex waste (Task 8 ruling; final fix wave).** `curvesPerf.test.ts`' L-shaped notch (a
 hand-edited waste, ear-clipped into 14 pieces, sliced into 83 bodies and 477 faces) measured 48–54 ms (bodies ~4, edges ~35
@@ -6207,6 +6271,7 @@ distinguishable at screenshot scale); a FADED curved part beside a dado, which s
 path's control looks the same, so undetermined; the shadow and cap after the watertight fix (clean on llvmpipe, re-check on
 hardware); drag smoothness (there is no gizmo resize; in-browser frame times were set by llvmpipe, 1.1–1.4 s with or
 without the arch). **Status:** open (awaiting the user's look).
+**Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
 
 **371. Curves model and geometry minors (record-only; Tasks 1, 3–6).** (1) Validation's crossing test sees chords and
 crowns only: an arc crossing a straight side without its crown is not caught (documented). (2) No half-turn (uFrom = vFrom =
@@ -6245,6 +6310,7 @@ preset fits this part." and the `.curve-label` sentence-case rule are untested. 
 **374. The edge-on fold (Q3).** A view looking along an arch's plane (an arch's Side view) keeps chunk 1's 24-chord arc
 unrefined, because 96 chords fold back over themselves on screen. The 24-chord fold remains as chunk 1 had it; it almost
 always lies under the face's own visible edge line. **Status:** open (a dedicated edge-on rule, if a print shows it).
+**Status:** open (owed to the user, not code): only if a real print shows the fold. (triaged 2026-10-16)
 
 **375. A silhouette drawn through another cut's air.** `silhouetteLines` draws a smooth vertex's line along `through` for its
 whole length; where another cut (a dado, a hole) removes wood along that line, the line is drawn through air. **Status:** open
@@ -6277,6 +6343,7 @@ and the line's `vUp` are untested; X/Y closures are per iteration. (8) The plan'
 **379. drawView timing, and the real print (record).** A curved part's `drawView` costs about 6 ms per view (measured in Task 2:
 5.6 / 6.2 / 6.2 / 6.6 ms against the baseline 5.6 / 6.4 / 6.3 / 5.4), unchanged by chunk 2. The line weight of 96-chord arcs and
 the dash look on a real print are owed to the user's eye (with 254, 345, 357). **Status:** open for the user's print.
+**Status:** open (owed to the user, not code): a real print. (triaged 2026-10-16)
 
 ## From the plans balloons round — 2026-10-16
 
@@ -6294,3 +6361,4 @@ nesting) for the numbers — once per document, unmeasured on a heavy holed/curv
 checks unique, real numbers, not that every visible row got one or that its anchor is on its own part; (10) when one column
 passes the height cap its lowest rows go to the note even if the other column has room (with (1)). **Status:** open for (1)
 and (4); the rest record-only.
+**Status:** open (owed to the user, not code): (1) column balance by eye, (4) a real print; the rest record-only. (triaged 2026-10-16)
