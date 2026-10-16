@@ -21,6 +21,13 @@ describe('parseLength', () => {
     [`-2'6"`, -30],
     ["-2'", -24],
     [`-2' 6-1/2"`, -30.5],
+    // fu 6: whitespace around the separator, as people type it.
+    ['1  1/2', 1.5],
+    ['1 - 1/2', 1.5],
+    ['1 -1/2', 1.5],
+    ['1- 1/2"', 1.5],
+    [`2' 6  1/2"`, 30.5],
+    ['-1 - 1/2', -1.5],
   ])('parses %j as %f inches', (input, expected) => {
     expect(parseLength(input, IMPERIAL)).toBeCloseTo(expected, 9);
   });
@@ -41,6 +48,9 @@ describe('parseLength', () => {
     ['/4'],
     ['3/0'],
     ['1-1/2-1/2'],
+    // fu 6: one separator only — a doubled hyphen is not a typo the parser guesses through.
+    ['1--1/2'],
+    ['1 - - 1/2'],
     ['1/2/3'],
     ['12mmm'],
     ['NaN'],

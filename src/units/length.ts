@@ -10,7 +10,8 @@ export const isMetric = (u: Units) => u.display === 'metric-mm';
 
 const MM_RE = /^(-?(?:\d+\.?\d*|\.\d+))\s*mm$/;
 const FEET_RE = /^((?:\d+\.?\d*|\.\d+))\s*(?:'|ft)\s*/;
-const MIXED_RE = /^(\d+)[\s-](\d+)\/(\d+)$/;
+// Whole and fraction separated by spaces, or by ONE hyphen with optional spaces around it (fu 6: `1  1/2`, `1 - 1/2`).
+const MIXED_RE = /^(\d+)(?:\s+|\s*-\s*)(\d+)\/(\d+)$/;
 const FRACTION_RE = /^(\d+)\/(\d+)$/;
 const DECIMAL_RE = /^(?:\d+\.?\d*|\.\d+)$/;
 
