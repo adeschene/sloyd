@@ -5,7 +5,7 @@ import { worldBox } from './designCheck';
 import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
 import { holeDrawingTagged } from './holeDrawing';
-import { keptHalfSpace } from './angleCuts';
+import { angleCutRemovesNothing, keptHalfSpace } from './angleCuts';
 import { featureTag } from './featureKeys';
 import { curveDrawEdges, silhouetteLines } from './curveDrawing';
 
@@ -159,6 +159,8 @@ interface Seg3 { A: Vec3; E: Vec3; path?: { pts: Vec3[]; at: number[] }; lift?: 
  *  are NOT built from faces here, so `bodyEdges` stays byte-for-byte; plane membership is the whole test. */
 function angleTag(b: Board, p: readonly number[], q: readonly number[]): string | undefined {
   for (const c of b.angleCuts) {
+    // A cut that removes nothing has no feature (`partFeatures`), and its plane can be the part's own face.
+    if (angleCutRemovesNothing(b, c)) continue;
     const h = keptHalfSpace(b, c);
     if (!h) continue;
     const on = (x: readonly number[]) => Math.abs(h.n[0] * x[0]! + h.n[1] * x[1]! + h.n[2] * x[2]! + h.d) <= DRAW_EPS;

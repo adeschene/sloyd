@@ -119,6 +119,14 @@ describe('planKeys (spec §4.2–4.6)', () => {
     expect(k.notShown).toEqual(['Hole 1/4" dia × 3/8" deep']);
     expect(k.tags).toEqual([]);
   });
+  it('a densely drilled part (160k segments) does not overflow the stack (final review #1)', () => {
+    // ~190 segments per hole looking down its axis: 444 shelf-pin holes on one side panel gave 85k segments, and spreading
+    // every endpoint into Math.min/max threw RangeError, blanking the app.
+    const many: Seg2[] = [...box('p')];
+    for (let i = 0; i < 160_000; i += 1) many.push(seg([i % 10, 1], [i % 10, 2], 'p', 'p:hole:r'));
+    const k = planKeys([hole('p:hole:r')], views(drawing(many), empty, empty), 1, size);
+    expect(k.tags).toHaveLength(1);
+  });
   it('no features: an empty plan', () => {
     expect(planKeys([], views(empty, empty, empty), 1, size)).toMatchObject({ tags: [], lines: [], notShown: [], unkeyed: [] });
   });

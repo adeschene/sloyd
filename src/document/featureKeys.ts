@@ -6,7 +6,7 @@ import { toWorld } from './snapPoints';
 import { holeFaults } from './holeFaults';
 import { holePitchText, holeSizeText } from './holeText';
 import { angleDegrees } from './angleText';
-import { chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
+import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, curveFaults, localSegments } from './curves';
 import { curveLineEntries } from './curveText';
 
@@ -94,6 +94,8 @@ export function partFeatures(b: Board, units: Units): PartFeature[] {
   };
   for (const r of b.holes) push('hole', [r.id], holeText(r, units), holeFaults(b, r).length > 0, axisOf(b, r.face), null);
   for (const c of b.angleCuts) {
+    // A cut that removes nothing at this size is no feature on paper (the cut list ignores it too; final review #2).
+    if (angleCutRemovesNothing(b, c)) continue;
     const h = keptHalfSpace(b, c);
     push('angle', [c.id], angleText(b, c, units), overruns(b, c), null, h ? worldDir(b, h.n) : null);
   }

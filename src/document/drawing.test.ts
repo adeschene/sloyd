@@ -504,6 +504,14 @@ describe('drawView: feature tags (feature callouts spec §4.1)', () => {
     const d = drawView([leg], SIDE);
     expect(d.visible.some((s) => !s.feature)).toBe(true);
   });
+  it('an angle cut that removes nothing tags no edge, though its plane holds the part\'s own face (final review #2)', () => {
+    const none = { id: 'z', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0], [20, 0]] as [[number, number], [number, number]] };
+    const rail = box('r', 20, 3, 0.75, [0, 0, 0], { angleCuts: [none] });
+    for (const v of [FRONT, SIDE, TOP]) {
+      const d = drawView([rail], v);
+      expect(tags([...d.visible, ...d.hidden]).size).toBe(0);
+    }
+  });
   it('a curve: arc chords in its true view and silhouettes across it are tagged', () => {
     const apron = box('a', 30, 5, 0.75, [0, 0, 0], { curves: [ARCH] });
     expect(tags(drawView([apron], TOP).visible).has('a:curve:c1')).toBe(true);

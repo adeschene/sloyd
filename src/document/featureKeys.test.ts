@@ -83,6 +83,11 @@ describe('partFeatures: identity and true views', () => {
     const abs = (v: number[] | null) => v && v.map((x) => Math.abs(x).toFixed(9));
     expect(m.map((f) => [abs(f.trueAxis), abs(f.trueNormal), f.text])).toEqual(a.map((f) => [abs(f.trueAxis), abs(f.trueNormal), f.text]));
   });
+  it('an angle cut that removes nothing is not a feature (final review #2: the cut list ignores it too)', () => {
+    const rail = createBoard({ id: 'r', length: 20, width: 3, thickness: 0.75 });
+    const none = { id: 'z', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0], [20, 0]] as [[number, number], [number, number]] };
+    expect(partFeatures({ ...rail, angleCuts: [none] }, IMPERIAL)).toEqual([]);
+  });
   it('a featureless part has no features', () => {
     expect(partFeatures(side, IMPERIAL)).toEqual([]);
   });

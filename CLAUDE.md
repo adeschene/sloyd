@@ -984,7 +984,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4601 tests across 155 files
+npm test           # Vitest, currently 4604 tests across 155 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1006,7 +1006,7 @@ This list is the triage's open set — when an entry's status changes, change it
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
 - **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 381(3), 374 if a print shows the fold);
   real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 381(1) tags over dimension lines, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 319, 380(1) column balance, 381(1) tags over dimension lines, 381(4) a shared unlisted definition keyed twice, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 163's residue (do not re-open

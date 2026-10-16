@@ -48,6 +48,29 @@ export function chooseView(f: PartFeature, views: readonly KeyView[]): { i: numb
 
 const dist = (a: P2, b: P2) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
+const centreMemo = new WeakMap<Drawing, Map<string, P2>>();
+/** Each part's projected bounding-box centre in one view: one loop over the segments, memoised per drawing (final review
+ *  #1: spreading a densely drilled part's endpoints into Math.min/max overflowed the stack at ~130k arguments, and re-scanning
+ *  every segment per feature cost ~120 ms a trio). */
+function centresOf(d: Drawing): Map<string, P2> {
+  const hit = centreMemo.get(d);
+  if (hit) return hit;
+  const box = new Map<string, [number, number, number, number]>();
+  for (const s of [d.visible, d.hidden]) for (const g of s) {
+    const b = box.get(g.part) ?? [Infinity, Infinity, -Infinity, -Infinity];
+    for (const p of [g.a, g.b]) {
+      if (p[0] < b[0]) b[0] = p[0];
+      if (p[1] < b[1]) b[1] = p[1];
+      if (p[0] > b[2]) b[2] = p[0];
+      if (p[1] > b[3]) b[3] = p[1];
+    }
+    box.set(g.part, b);
+  }
+  const out = new Map<string, P2>([...box].map(([part, b]) => [part, [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2] as P2]));
+  centreMemo.set(d, out);
+  return out;
+}
+
 export function planKeys(features: readonly PartFeature[], views: readonly KeyView[], scale: number, size: { width: number; height: number }): KeyPlan {
   interface Inst { text: string; vi: number; anchor: P2; dir: P2 }
   const insts: Inst[] = [];
@@ -58,11 +81,7 @@ export function planKeys(features: readonly PartFeature[], views: readonly KeyVi
     const v = views[c.i]!;
     const map = toSvg(v.d, v.at, scale);
     const own = (c.hidden ? v.d.hidden : v.d.visible).filter(owns(f));
-    const all = [...v.d.visible, ...v.d.hidden].filter((s) => s.part === f.part).flatMap((s) => [s.a, s.b]);
-    const centre: P2 = [
-      (Math.min(...all.map((p) => p[0])) + Math.max(...all.map((p) => p[0]))) / 2,
-      (Math.min(...all.map((p) => p[1])) + Math.max(...all.map((p) => p[1]))) / 2,
-    ];
+    const centre = centresOf(v.d).get(f.part)!;
     let best = own[0]!.a;
     for (const s of own) for (const p of [s.a, s.b]) if (dist(p, centre) > dist(best, centre) + 1e-12) best = p;
     const A = map(best);
