@@ -1362,6 +1362,7 @@ holds — but that is an expectation carried over from 59a, not a fresh verifica
 not read either fact as "the print output was checked" — it was not.
 
 **Status:** open (owed to the user: a real print, CLAUDE.md's 70/79/84). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print: "A real print looks good, although the cut list should probably try to start new sections on new pages because right now the way it splits things up across pages is very messy". The page-splitting is fu 383.
 
 **71. `packRow`'s left-shift phase is real, reachable, and pulls a label away from the
 band it names — recorded from a final-review re-derivation, open rather than fixed.**
@@ -1527,6 +1528,7 @@ crossing legend. This is the same tooling limitation recorded at follow-up 70
 (the label layout round) and it applies unchanged to this round's renderer changes.
 
 **Status:** open (owed to the user: a real print). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print ("looks good"; see fu 70's last Status). The page-splitting is fu 383.
 
 **80. LESSON — this round produced a fifth instance of a plan-supplied constant being
 wrong, and a stale justification for it in the same report.** Follow-up 64 records the
@@ -1653,6 +1655,7 @@ both row and subtotal figures render `rgb(0, 0, 0)` under print media by
 `getComputedStyle`, matching what the screenshot showed by eye.
 
 **Status:** open (owed to the user: a real print). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print (see fu 70's last Status).
 
 ## From the sheet-nesting round
 
@@ -1857,6 +1860,7 @@ though it is not applicable here: `SheetLayout`/`buildNesting` touch no shader o
 WebGL path, so invariant 26a's warning does not reach this round's own code.
 
 **Status:** open (owed to the user: a real print, with 70/79/84). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print (see fu 70's last Status). The page-splitting is fu 383.
 
 **95. An unplaceable part is counted in square feet but not in sheets.**
 `cutlist.ts`'s grouping loop adds every board's own `stockInchesOf` to `group.stockInches`
@@ -5384,6 +5388,7 @@ ink bug (F2) was found by the emulated pass and fixed. See `docs/browser-verific
   and the on-page width; both were mutated.
 - **Status:** open only for the real print dialog (page breaks and ink on a real printer); the overflow is closed.
 **Status:** open (owed to the user, not code): a real print. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print ("A real print looks good"; see fu 70's last Status).
 
 **255. The explode spread constants were approved only on software GL.** `EXPLODE_SPREAD` (1) and `EXPLODE_INNER`
 (0.5) in `document/explode.ts` were judged on llvmpipe (fu 26a). They are plain numbers feeding translations, not
@@ -6050,6 +6055,7 @@ subpath so it dashes continuously, and chaining also carries the dash phase arou
 join may land mid-dash. Seen only on screen; real print-to-PDF is unavailable here (fu 254). **Status:**
 open — for the user's eye on paper.
 **Status:** open (owed to the user, not code): a real print. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print ("looks good"; see fu 70's last Status).
 
 **346. Holes chunk 2 minors (record-only; task reviews 2 and 4).** (1) A duplicate row id would repeat a diagram note, and a
 zero-count row would open a diagram view — both unreachable (`takeId` makes row ids unique; validation keeps count ≥ 1).
@@ -6323,6 +6329,7 @@ preset fits this part." and the `.curve-label` sentence-case rule are untested. 
 unrefined, because 96 chords fold back over themselves on screen. The 24-chord fold remains as chunk 1 had it; it almost
 always lies under the face's own visible edge line. **Status:** open (a dedicated edge-on rule, if a print shows it).
 **Status:** open (owed to the user, not code): only if a real print shows the fold. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16: the user's real print looked good and raised no fold (see fu 70's last Status).
 
 **375. A silhouette drawn through another cut's air.** `silhouetteLines` draws a smooth vertex's line along `through` for its
 whole length; where another cut (a dado, a hole) removes wood along that line, the line is drawn through air. **Status:** open
@@ -6356,6 +6363,7 @@ and the line's `vUp` are untested; X/Y closures are per iteration. (8) The plan'
 5.6 / 6.2 / 6.2 / 6.6 ms against the baseline 5.6 / 6.4 / 6.3 / 5.4), unchanged by chunk 2. The line weight of 96-chord arcs and
 the dash look on a real print are owed to the user's eye (with 254, 345, 357). **Status:** open for the user's print.
 **Status:** open (owed to the user, not code): a real print. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-16 by the user's real print ("looks good"; see fu 70's last Status).
 
 ## From the plans balloons round — 2026-10-16
 
@@ -6374,11 +6382,13 @@ checks unique, real numbers, not that every visible row got one or that its anch
 passes the height cap its lowest rows go to the note even if the other column has room (with (1)). **Status:** open for (1)
 and (4); the rest record-only.
 **Status:** open (owed to the user, not code): (1) column balance by eye, (4) a real print; the rest record-only. (triaged 2026-10-16)
+**Status:** record-only 2026-10-16: (4) closed by the user's real print ("looks good"; fu 70's last Status); (1) column balance stays for the user's eye.
 
 
 ## From the feature callouts round — 2026-10-16
 
 **381. Feature callouts residue.** Rulings made while writing the plan (approved by the user 2026-10-16): **P1** the key list reads the bench lines' units (`6.4 mm dia × 10 mm deep, every 32 mm`; imperial's straight `"`), not bare mm — spec §3's metric example amended; **P2** a feature with no true view whose lines are all hidden (a hand-edited compound angle cut) is keyed on its hidden lines in tie order, not listed as not shown; **P3** a curve's straight sides off the face boundary carry no tag (`curveDrawEdges` knows only arc chords), so a hand-made curve of lines only is listed "Not shown". Live-pass notes: (1) **for the user's eye**: tags can sit on dimension lines (the table's B tags on the overall dimensions under Front and Side; allowed by spec §4.4, the paper fill masks the line); (2) at screen scale a hidden 1/4" rim's dash reads solid (as fu 337), so a tag on dashed rims looks like one on visible rims; (3) the real print is owed with 254 (page fit with the key list added under a capped trio). Final review (fixed: a densely drilled part — ~450 holes on one panel — overflowed the stack and blanked the app; an angle cut that removes nothing was keyed and tagged the part's own face edges): (4) **ruling, for the user**: a definition that is never listed (every placement a sole child) but sits under two different listed assemblies has its features keyed in BOTH trios, against R5's "once" — kept, since each trio draws the part; (5) the tag's leader reuses the balloons' `plans-leader` class where spec §4.5 names `plans-key-leader` (same look); (6) when the clamp pulls a tag to within its radius of the anchor, the leader is drawn backwards (cosmetic); (7) `(N×)` counts instances while merged tags draw fewer circles (the spec's rule; for the user's eye). **Status:** open for (1), (3) and (4); the rest record-only.
+**Status:** CLOSED 2026-10-16. The user's rulings: (1) "letters sitting on dimension lines is ok"; (4) "no we don't need to label duplicate assemblies (too busy on the plans sheet)" — CHANGED: `keyedHere` claims each STORED part (container id + part id) for the first trio that keys it, so a never-listed definition under two listed assemblies is keyed only in the first (`plans.test.ts`, mutated); only assembly trios can share one (a part reached through unlisted definitions has one path from its trio, and the piece's unlisted chain cannot sit under a listed assembly without a cycle). (3) closed by the user's real print ("looks good"). The rest record-only.
 
 ## From follow-ups 5 — 2026-10-16
 
@@ -6388,3 +6398,7 @@ store for the same opening. It applies the same LOCAL operation to congruent par
 `pocketFor`'s inputs agree (fu 216); not changed without a failing case. (2) Likewise `storedAsShape`'s re-store recomputes a
 re-stored cut's numbers off the grid (fu 216's last Status) — deterministic, so no split; snapping after it was declined because
 its ulp rulings (fu 200, the user's) decide which side of a flush boundary a re-store may land on. **Status:** record-only.
+
+**383. The printed cut list splits across pages messily.** The user, after a real print 2026-10-16: "A real print looks good, although the cut list should probably try to start new sections on new pages because right now the way it splits things up across pages is very messy". Today only a drawn
+diagram, a sheet layout and a Buying entry avoid breaking inside; a material group, its heading, its rows and its subtotal
+flow across page breaks wherever they land. **Status:** open (work; design to be approved).

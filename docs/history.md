@@ -514,6 +514,12 @@ and 79.
 
 ## What each round did
 
+**The user's print and rulings (2026-10-16, after follow-ups 5's deploy).** A real print "looks good": fu 70, 79, 84, 94, 254,
+345, 374, 379, 380(4) and 381(3) closed. 381(1) tags on dimension lines approved. 381(4) changed by ruling ("no we don't need to
+label duplicate assemblies (too busy on the plans sheet)"): `keyedHere` claims each stored part for the first trio that keys it.
+151's look approved; 207 record-only ("a rare sequence of actions"). New fu 383: the printed cut list splits across pages
+messily — sections should start on new pages (design for the user's approval).
+
 **What follow-ups 5 did (2026-10-16)** (the user's pick: a small round led by 216; branch `follow-ups-5` from master
 `0b2ae73`; no spec, the fixes were written down). **216 reproduced, then closed**: a probe of 4008 mm dados found 2591 storing
 a different offset or width at 180° than at 0°, and turn 0 was not exact either (`mm(37) − mm(12)` need not equal `mm(25)`), so

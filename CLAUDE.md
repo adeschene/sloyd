@@ -505,6 +505,8 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   (`holdsIndex`) is a callout (fu 96): the number in a row outside the drawing's nearer long edge (`packRow`, measured boxes,
   ordered by the part's centre), a leader from the part's near edge to its own number; the row exists only when used, so a
   drawing with no callouts keeps its viewBox. A long leader across another part is accepted (the user's ruling).
+- **`plans.ts` keying**: a STORED part (container id + part id) is keyed by the first trio that keys it (`claimed`; fu 381(4),
+  the user's ruling: no duplicate labels) — only assembly trios can share one.
 - **`featureKeys.ts` / `planKeys.ts`** (feature callouts): a key line is built only in `partFeatures` (hole sizes through
   `holeSizeText`/`holePitchText`, the bench line's own home; the four-corner collapse through `curveLineEntries`), never in the
   panel. A tag sits only on a segment `drawView` tagged for its feature (inv 16); tagging never changes a segment, its order
@@ -993,7 +995,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4627 tests across 156 files
+npm test           # Vitest, currently 4628 tests across 156 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1002,18 +1004,18 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–382). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–383). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
+- **Open as work:** 383 (the printed cut list's page splitting — the user's ask; design first).
 - **Open as work (code-sized, all low):** 8, 12, 17, 19, 27, 31, 126, 128, 169, 175 (1–178); 234 (the concept planner is
   not taught assemblies), 269 (packer heuristic: measure a losing case first).
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
   views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
-- **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 381(3), 374 if a print shows the fold);
-  real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 381(1) tags over dimension lines, 381(4) a shared unlisted definition keyed twice, 272 (a phone); 350 (a hand check of section markers); 106
+- **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
+  by eye — 142, 319, 380(1) column balance, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open

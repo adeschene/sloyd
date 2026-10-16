@@ -89,6 +89,29 @@ describe('keyed parts (feature callouts spec §2.1)', () => {
     expect(new Set(keyedIds)).toEqual(new Set(owners));
     expect(keyedIds).toHaveLength(new Set(keyedIds).size);
   });
+  // Fu 381(4), the user's ruling 2026-10-16 ("no we don't need to label duplicate assemblies (too busy on the plans
+  // sheet)"): a never-listed definition sitting under two listed assemblies is keyed once, by the first trio on the sheet.
+  it('a stored part drawn in two trios is keyed only in the first', () => {
+    const at = (x: number): [number, number, number] => [x, 0, 0];
+    const doc: SloydDocument = {
+      ...createDocument('Shared'),
+      boards: [createBoard({ id: 'r', name: 'Rail' })],
+      instances: [
+        { id: 'a', name: 'Left', definition: 'dA', position: at(0), rotation: 0 },
+        { id: 'b', name: 'Right', definition: 'dB', position: at(40), rotation: 0 },
+      ],
+      definitions: [
+        { id: 'dA', boards: [], instances: [{ id: 'u', name: 'Hinge', definition: 'dU', position: at(0), rotation: 0 }] },
+        { id: 'dB', boards: [], instances: [{ id: 'u', name: 'Hinge', definition: 'dU', position: at(5), rotation: 0 }] },
+        { id: 'dU', boards: [createBoard({ id: 'cup', name: 'Cup' })], instances: [] },
+      ],
+    };
+    const as = planAssemblies(doc);
+    expect(as.map((a) => a.definition)).toEqual(['dA', 'dB']);
+    expect(as.map((a) => [...a.keyed])).toEqual([['u/cup'], []]);
+    expect([...pieceKeyed(doc, as)]).toEqual(['r']);
+  });
+
   it('a sole-child wrapper is not listed, so its parts are keyed by the trio above', () => {
     const doc: SloydDocument = {
       ...createDocument('W'),
