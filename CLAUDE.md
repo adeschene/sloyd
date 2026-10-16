@@ -23,7 +23,7 @@ handicraft education tradition built around hand woodworking.
 
 - **Production is follow-ups 2** (merge `0f4d732`, deployed as `4ad8881`, bundle `index-BFCf2c3f.js`); rollback to fu 368
   (`676225c`, `index-DG6bkBPk.js`) or follow-ups 1 (`558187f`, `index-LdkILHkB.js`) is free.
-  rollback to curves chunk 2 (`1e16c01`, `index-C-5a29hA.js`) is free. Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
+  Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
   is under Commands.
