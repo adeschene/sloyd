@@ -160,6 +160,11 @@ function onWood(planes: readonly (readonly { n: readonly number[]; d: number }[]
  *  by a wide margin. Along the face's own normal the clearance is this distance whatever the face's angle to the view
  *  (a toward-lift clears a shallow chord only by lift x n.toward, which vanishes with it). */
 const PROBE = 4e-6; // 4 x drawing.ts' DRAW_EPS (1e-6), not imported: drawing.ts imports this file
+/** A face whose outward normal meets the view within this (|n.d|) is EDGE-ON: neither facing nor away. One constant for
+ *  both the silhouette test and the lift, so they classify a face alike (fu 386: an edge-on chord face read as +2.8e-16
+ *  in the product test and as edge-on in the lift, so the silhouette took its far vertex with no lift and grazed hidden). */
+const EDGE_ON = 1e-9;
+const facing = (x: number) => (x > EDGE_ON ? 1 : x < -EDGE_ON ? -1 : 0);
 
 /**
  * curveSilhouettes with each line's `lift`: a world offset that drawView adds to the line ONLY when it judges what hides
@@ -207,12 +212,16 @@ export function silhouetteLines(board: Board, toward: readonly number[]): { A: V
       if (!smooth[i]) return;
       const n1 = normal(pts[(i - 1 + m) % m]!, q);
       const n2 = normal(q, pts[(i + 1) % m]!);
-      if ((n1[0] * d[0] + n1[1] * d[1]) * (n2[0] * d[0] + n2[1] * d[1]) > 0) return;
+      // Fu 386: classify by EDGE_ON, never the raw product. A 3/8" roundover's middle chord sits at exactly 45 degrees,
+      // edge-on to ISO; its n.d of +2.8e-16 skipped the NEAR vertex (facing | edge-on, lifted off the facing face) and kept
+      // only the far one (edge-on | away: no lift, hidden by grazing), so the whole silhouette drew hidden. Edge-on counts
+      // at both of the face's vertices, as it always did for an exactly-zero face (a rounded top's Front view).
+      if (facing(n1[0] * d[0] + n1[1] * d[1]) * facing(n2[0] * d[0] + n2[1] * d[1]) > 0) return;
       const wu = axis([1, 0]);
       const wv = axis([0, 1]);
       const lift: V3 = [0, 0, 0];
       for (const n of [n1, n2]) {
-        if (n[0] * d[0] + n[1] * d[1] <= 1e-9) continue; // edge-on or facing away
+        if (facing(n[0] * d[0] + n[1] * d[1]) <= 0) continue; // edge-on or facing away
         for (let j = 0; j < 3; j++) lift[j] += PROBE * (n[0] * wu[j]! + n[1] * wv[j]!);
       }
       for (const [t0, t1] of onWood(planes, q, ui, vi, k, board[c.through])) out.push({ A: W(q, t0), E: W(q, t1), lift, curve: c.id });
