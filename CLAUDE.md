@@ -99,14 +99,15 @@ handicraft education tradition built around hand woodworking.
   fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
   collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
   hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
-  profiles, schema 18), 387, 389, 390 (a profile following a curved edge). **Fu 388** (the Profile select greys a
+  profiles, schema 18), 387, 389, 390 (a profile following a curved edge), 391 (profile runs a1 residue; (1) before a2 ships). **Fu 388** (the Profile select greys a
   refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
 - **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, branch
   `profile-runs-a1`; NOT YET MERGED OR DEPLOYED; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
   of `curves` on every load; every geometry, word and fault reader goes through `geometryBoard`; a run this build cannot build (all
   round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
   same, checked live). **Rolling back below 18 refuses every project saved since — export first.** Next: a2 (stopped profiles, the
-  run-out), then b (following the outline; fu 390). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
+  run-out), then b (following the outline; fu 390). **Deploy a1 together with a2, never alone** (fu 391(1): a1 shows nothing new and its
+  loader's last gate hole closes in a2). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
@@ -222,7 +223,7 @@ removing them "is just a waste of time"); never clear the dev profile wholesale 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than `version: 16`
+**Rollback cost is a schema question.** A build understanding less than the file's version (18 since profile runs a1)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -640,7 +641,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
    edits have their own store actions. A future tool that moves *and* turns in one gesture
    must carry its own `position` in the same patch.
     `angleCuts` and `holes` are absent from the reorient predicate too (a slope or a bore moves nothing), and so are
-    `curves`.
+    `curves` and `profiles`.
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -676,7 +677,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     hand-written field list.** The signature is the same for every solid of a board, so
     don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
     the same failure. It includes every hole row (BoardMesh's memo keys on it) and every curve (its
-    id and `CURVE_FIELDS` values, as `geometryKey` does).
+    id and `CURVE_FIELDS` values, as `geometryKey` does) — profiles included, through `geometryBoard` (as chunk 1's curves).
 16. **Edge lines come from `boardEdges` (the cell grid's `pocketEdges`, or `bodyEdges` once a part has angle
     cuts), not from the solids.** General
     rule: a marker or line must sit on a feature that is actually drawn. A hole draws its rim on its entry face (and exit
@@ -983,7 +984,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep once). Joinery,
     Refine and Repair refuse a holed project at entry (`holedRefusal`); `turnCandidates` returns none for a holed part.
     A part with no holes keeps its geometry byte-for-byte (the `BoxGeometry` path included; a part with no
-    holes AND no curves — `drawsAsBox` is the ONE routing decision, `bodyMeshIdentity.test.ts` pins holed uncurved parts to
+    holes AND no curves (profiles count, through `geometryBoard`) — `drawsAsBox` is the ONE routing decision, `bodyMeshIdentity.test.ts` pins holed uncurved parts to
     master's bytes). `holeFaults`' `breaks-out` includes a hole meeting a curve's waste (`intoCurve`;
     touching is meeting; `holeInStock` counts it), keyed apart from an edge's (`faultKey` `:edge` / `:curve:<id>`, and
     `distinctFaults` on the SAME key, or a hole past an edge and in a curve could never be edited back). **A curved part's
@@ -1088,7 +1089,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–390). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–391). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
