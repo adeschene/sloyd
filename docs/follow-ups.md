@@ -6496,6 +6496,8 @@ watertight) — its shading on real hardware goes with fu 370. **Status:** open 
 
 **388. Should the Profile select grey a refused option and say why?** The Curves Kind select does (presets minors). The
 Profile select applies the change and refuses in the row's words instead (spec silent). **Status:** open (for the user's ruling).
+**Status:** open (code-sized). The user's ruling 2026-10-17: "greying out a choice makes sense" — the Profile select greys a
+refused option and says why, as the Curves Kind select does (judged on focus).
 
 **389. Draw the corner miter where two profiles meet at the paper tolerance.** Where two profiles meet at a corner, the miter
 lines (the intersection of the two curves' chord faces) are drawn as model chords, up to ~0.005" off the true curve, because spec
