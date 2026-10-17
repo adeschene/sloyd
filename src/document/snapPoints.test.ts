@@ -117,7 +117,9 @@ describe('boardSnapPoints', () => {
     }
   });
 
-  it('leaves all 26 for a board with no cuts (fast path, no grid built)', () => {
+  // The no-cuts early return (no grid built) is a performance path its output cannot reveal: this pins the 26, not the
+  // path (fu 126 — deleting the early return leaves the suite green; observing it would need the private grid).
+  it('leaves all 26 for a board with no cuts', () => {
     const b = posed([]);
     expect(boardSnapPoints(b)).toHaveLength(26);
     expect(snapPointsFor(b)).toEqual(boardSnapPoints(b));
@@ -407,21 +409,6 @@ describe('cutSnapPoints', () => {
     expect(points.filter((p) => p.at[0] === 10.25)).toHaveLength(9);
   });
 
-  it('does not de-duplicate a cut point that lands on a board lattice point', () => {
-    // depth = thickness/2 puts the rabbet's flush floor corner at thickness
-    // 0.5 -> X = 11 - 0.5 = 10.5 (the same either way up), which is also the board's own X midpoint. The board
-    // lattice calls that position an edge-mid (thickness at mid); the cut
-    // provider calls it a corner (no in-plane mids). Same position, same
-    // owner, so the DELTA is identical either way and the move is unaffected
-    // — which is the whole of the argument for not de-duplicating (design §9).
-    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
-    const b = posed([rabbet]);
-    const shared = [10.5, 2, 19]; // length 0 -> Z = 19 (Z reversed)
-    const hits = snapPointsFor(b).filter((p) => key(p.at) === key(shared));
-    expect(hits).toHaveLength(2);
-    expect(new Set(hits.map((p) => p.kind))).toEqual(new Set(['corner', 'edge-mid']));
-  });
-
   it('withholds the points a deeper overlapping cut has removed', () => {
     // B spans A entirely in both position (5..8 contains 6..6.75) and depth
     // (0.5..1 contains 0.75..1), so every one of A's 15 points sits in
@@ -526,6 +513,22 @@ describe('cutSnapPoints — stopped cuts', () => {
 });
 
 describe('snapPointsFor', () => {
+  // About the UNION of the two providers, the only place a coincidence can be seen (fu 128: it sat under cutSnapPoints).
+  it('does not de-duplicate a cut point that lands on a board lattice point', () => {
+    // depth = thickness/2 puts the rabbet's flush floor corner at thickness
+    // 0.5 -> X = 11 - 0.5 = 10.5 (the same either way up), which is also the board's own X midpoint. The board
+    // lattice calls that position an edge-mid (thickness at mid); the cut
+    // provider calls it a corner (no in-plane mids). Same position, same
+    // owner, so the DELTA is identical either way and the move is unaffected
+    // — which is the whole of the argument for not de-duplicating (design §9).
+    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
+    const b = posed([rabbet]);
+    const shared = [10.5, 2, 19]; // length 0 -> Z = 19 (Z reversed)
+    const hits = snapPointsFor(b).filter((p) => key(p.at) === key(shared));
+    expect(hits).toHaveLength(2);
+    expect(new Set(hits.map((p) => p.kind))).toEqual(new Set(['corner', 'edge-mid']));
+  });
+
   it('is exactly boardSnapPoints for a board with no cuts', () => {
     const b = posed([]);
     expect(snapPointsFor(b)).toEqual(boardSnapPoints(b));

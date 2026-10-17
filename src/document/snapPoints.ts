@@ -154,6 +154,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   const frame = axisFrame(board);
   const touchesStock = stockProbe(board);
   const lattice = points.filter((p) => {
+    // Complete only because `axisFrame` is a full permutation of the three dimensions — the cast cannot check it (fu 128).
     const local = {} as Point;
     for (let i = 0; i < 3; i += 1) {
       local[frame[i]!.dim] = fromWorldOffset(board, i, p.at[i]! - board.position[i]!);
@@ -263,7 +264,8 @@ function pointsOfCut(board: Board, cut: Cut): { at: Point; kind: SnapKind }[] {
   // No position axis exists when a cut names one dimension twice, so it
   // defines no rectangle. cutRegion guards the same case for the same reason,
   // and neither may lean on document.ts's validator dropping such a cut on
-  // load: a Board built directly can reach here without being validated.
+  // load: a Board built directly can reach here without being validated. It also carries the `as unknown as Point` cast
+  // below: with face === across that object would set only two of the three dimensions (fu 128).
   if (cut.face === cut.across) return [];
 
   const pos = positionAxisOf(cut.face, cut.across);
