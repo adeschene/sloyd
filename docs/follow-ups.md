@@ -6497,7 +6497,10 @@ watertight) — its shading on real hardware goes with fu 370. **Status:** open 
 **388. Should the Profile select grey a refused option and say why?** The Curves Kind select does (presets minors). The
 Profile select applies the change and refuses in the row's words instead (spec silent). **Status:** open (for the user's ruling).
 **Status:** open (code-sized). The user's ruling 2026-10-17: "greying out a choice makes sense" — the Profile select greys a
-refused option and says why, as the Curves Kind select does (judged on focus).
+refused option and says why, as the Curves Kind select does (judged on focus). **Status:** closed (2026-10-17). The Profile select's options are judged only while it has
+focus (afresh when the profile or part changes under it, dropped on blur); a refused one is disabled with the refusal's words
+up to its dash (`Cove — puts hole 1 into the cove`; `optionReason` in `curveRefusal.ts`, shared with Curves). 387(4)'s
+"not judged on focus" half is closed with it.
 
 **389. Draw the corner miter where two profiles meet at the paper tolerance.** Where two profiles meet at a corner, the miter
 lines (the intersection of the two curves' chord faces) are drawn as model chords, up to ~0.005" off the true curve, because spec
