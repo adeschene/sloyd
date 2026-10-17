@@ -29,6 +29,12 @@ User rulings (brainstorm, 2026-10-17):
 - **R5 Stop ends.** A stop ends as a router leaves it: the cutter's own run-out, not a squared end.
 - **R6 Sharp outside corners mitre**, as chunk 1's four-edge top does, so its wood is unchanged.
 
+- **R4a** *Amended (planning, the user's choice 2026-10-17)*: chunk (a) splits in two. **(a1)** schema 18, the `profiles` list,
+  migration and the existing rows, End to end only: a pure refactor, every drawing, mesh and word byte for byte as today. **(a2)**
+  stopped profiles with the run-out, which brings the doubly curved machinery of §5 (normals, two-way facet suppression,
+  facet-chain silhouettes) on that small surface, ready for (b). The run-out is itself doubly curved, so stops could not ship
+  without it.
+
 Rulings made while presenting the design, accepted with section 1:
 
 - **R7** Inside sharp corners mitre too (a real bearing leaves its own radius there; a later round may add it).
@@ -39,6 +45,26 @@ Rulings made while presenting the design, accepted with section 1:
 Non-goals: blind curved recesses; scooped or dished surfaces; following an inner loop; a bearing radius at inside corners; a
 bearing-size field; a pivoted (router-rounded) sharp corner; joinery, Refine or Repair on profiled parts (fu 363); Generate writing
 profiles; a grain fix (fu 336).
+
+**Planning rulings for chunk a1** (*Amended (planning)*):
+- **P1** a1 keeps the Profiles row as it is (the Edge select of eight edges, Facing's words); Face, Run and Side replace the Edge
+  select in a2, when Stopped arrives.
+- **P2** a1's loader accepts the full stored form and REFUSES, with the newer-version message, a profile whose run a1 cannot build
+  (a loop, a station end, ends on two sides). So a2 needs no further bump, and rolling a2 back to a1 refuses instead of drawing a
+  stopped profile full length.
+- **P3** An End to end run is stored `start: through 'min'`, `end: through 'max'`; mirroring it flips only `face` and the side
+  (a full side has no travel to reverse). Station runs swap on a mirror (a2).
+- **P4** Geometry, words and faults read profiles through ONE view, `geometryBoard`: the part's curves, then each profile as the
+  exact `CurveCut` chunk 1 stored (`profileAsCurve`). A part with profiles only is byte for byte chunk 1. In a part with both,
+  profiles now come after curves, so its bench-line order and body decomposition may differ (the same wood, pinned).
+- **P5** A symmetric profile stored in the facing-u point order (hand-made; the chunk-1 writers always wrote v) migrates to
+  `facing: 'face'`: the same wood, its bytes normalised.
+- **P6** The `overlap` fault (§4.1) arrives with runs, in a2: chunk 1's stacked identical profiles stay allowed in a1.
+- **P7** Profile ids share the part's curve id scope (`takeId`), so a geometry view never holds two curves with one id. A hole
+  into a profile keeps the `:curve:<id>` fault key in a1 (through the view), so §4.1's `:profile:<id>` key is dropped as
+  unnecessary.
+- **P8** A recognised profile curve is moved into `profiles` on EVERY load (idempotent), not only from v17, so no build path can
+  leave one in `curves`.
 
 ## 2. The probe (2026-10-17, throwaway)
 
