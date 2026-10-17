@@ -6253,6 +6253,10 @@ holding a segment type it cannot draw (spec §2.4). **Status:** open (spec §12)
 **365. Stopped curved cuts and edge profiles.** A scooped seat or curved recess; roundovers, coves, ogees (chamfers exist as
 angle cuts). **Status:** open (spec §12).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** chunk 1 shipped (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`): full-length profiles — roundover,
+cove, Roman ogee, bead, thumbnail, an optional fillet — as plain `CurveCut`s recognised by `profileFields`. **Open: chunk 2**
+(stopped profiles and blind curved recesses, one stored range along `through`, schema 18, its own spec). A scooped seat is
+out of scope (doubly curved).
 
 **366. Compound curves.** A cabriole leg is two curves on two faces — allowed today, nothing designed for it. **Status:**
 open (spec §12).
@@ -6463,3 +6467,36 @@ gives 24 visible segments, where the two long-edge roundovers alone give 58 and 
 (39) is plausible, so the loss appears when both axes have curves on opposite edges. Cause not yet diagnosed (suspect: the
 bodies split by curves on two axes making an occluder seam that hides the part's own edges). Live on master: Rounded corner
 with Through: Length/Width is reachable today. **Status:** open (bug; blocks edge profiles, fu 365).
+**Status:** closed (2026-10-17, edge profiles chunk 1, `84d0030`). The loss was NOT two-axis, and the suspected occluder seam
+is refuted (the top is one convex body). A 3/8" roundover has 5 model chords, so its middle chord face lies at exactly 45°,
+edge-on to the isometric: `silhouetteLines`' product test read that face's n·d as +2.8e-16 (facing) while the lift test read
+it as edge-on (≤ 1e-9), so the silhouette's near vertex was skipped and the far one drew hidden — for one roundover as for
+four (even chord counts were unaffected). On a four-edge top the end profiles legitimately remove the plane the long edges'
+arcs would sit on, which is why so few lines were left. Fix: one `EDGE_ON` (1e-9) / `facing()` shared by both tests.
+
+## From the edge profiles round (chunk 1) — 2026-10-17
+
+**387. Edge profiles residue.** Deferred review minors, record-only unless noted:
+(1) an edge-on chord face's far silhouette can draw hidden under the visible one (a dashed tail over a solid line is possible;
+**for the user's eye on a real print**); (2) a pre-chunk set of four through-length "Rounded corners" no longer collapses to one
+line (now four `Roundover` lines; the bytes are kept); (3) preset menu text: the ogee's detail has no noun (`1/2", on the top
+long edge`), and "top long edge" is wrong when width > length or the part is upright (spec-given wording); (4) the Profile
+select is not judged on focus as the Curves Kind select is, and a row's select-refusal error is not cleared by undo or a
+resize (the same as Curves); (5) `profileCurve` does not normalise a symmetric kind to facing `v` — every writer passes `v`;
+a bead with quirk 0 or a thumbnail with no depth must be validated by the caller; (6) test gaps: byte identity pinned on 1 of 8
+edges, facing `u` tested only for the ogee, no loader round-trip test, `drawingIdentity` has no curved fixture, the
+"curve-tagged segments are silhouettes only" comment is not pinned; (7) dead code: the corner collapse's `through` branch
+and group key after the profile filter, a redundant `k === 1` branch, a stale header comment in `profiles.ts`; (8) residue of
+the final fix pass: a face within ~5e-4 of edge-on still grazes under `curveEdgeLifts`' `LIFT_MAX` 1e-3; `bodyEdges`'
+`NEAR_LINE` face prefilter has a theoretical gap for a face whose sharpest angle is under ~2e-6 rad (no fixture changed);
+the four-edge cove top is the least improved (61 bodies from its concave facets, ~22–26 ms) and the ogee guard has ~25%
+margin on a loaded host; (9) final re-review: `drawing.ts`' probe comments still say "silhouettes only", no test pins that
+the along-view lift leaves another part's occlusion alone, and the fix pass re-triangulates every SPLIT-plan curve (same wood,
+watertight) — its shading on real hardware goes with fu 370. **Status:** open (for the user's eye: (1); the rest record-only).
+
+**388. Should the Profile select grey a refused option and say why?** The Curves Kind select does (presets minors). The
+Profile select applies the change and refuses in the row's words instead (spec silent). **Status:** open (for the user's ruling).
+
+**389. Draw the corner miter where two profiles meet at the paper tolerance.** Where two profiles meet at a corner, the miter
+lines (the intersection of the two curves' chord faces) are drawn as model chords, up to ~0.005" off the true curve, because spec
+§5.1 refines outline-plane lines only to `DRAWING_CURVE_TOLERANCE` (0.001"). New scope, found in fu 386's diagnosis. **Status:** open (candidate; ask first).

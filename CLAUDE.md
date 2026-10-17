@@ -94,7 +94,13 @@ handicraft education tradition built around hand woodworking.
   curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
 - **Presets minors (2026-10-17, merged to master as `e776ecc`; DEPLOYED as `index-fwemJPwC.js`; no schema change)**: the presets batch's three deferred review minors — the
   curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
-- **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch and presets minors since). **No follow-up is open as code-sized work**: the triage's
+- **Edge profiles chunk 1 (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`, plan `…-edge-profiles.md`, merged to master; NOT YET
+  DEPLOYED; no schema change)**: fu 365's full-length half and fu 386 closed — Roundover, Cove, Roman ogee, Bead, Thumbnail (an optional
+  fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
+  collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
+  hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
+  profiles, schema 18), 387–389.
+- **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
   list, 384(2) the newest), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
@@ -192,6 +198,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | section views | 10-17 | — | Plans sheet: the viewport's section as a hatched Section A–A of the assembled piece after its trio, the A–A line on one elevation (fu 256) |
 | presets batch | 10-17 | — | Taper two/four faces (fu 278); the Chamfer row edits each leg and a Raised panel preset (fu 298); a Kind select on curve rows, `curveAs` (fu 367) |
 | presets minors | 10-17 | — | The Kind select judged on focus (not every render) and a greyed option says why; preset menu details read the project's units |
+| edge profiles (chunk 1) | 10-17 | — | Full-length Roundover, Cove, Roman ogee, Bead, Thumbnail (+ fillet) as recognised `CurveCut`s; a Profiles section, bench lines, Plans keys (fu 365 half); fu 386 (`EDGE_ON`); curved edges no longer graze hidden; four-edge tops rebuild in a frame |
 
 ### The deployment rule
 
@@ -349,7 +356,8 @@ src/
 │   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units);
-│   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key)
+│   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
+│   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
 │   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
@@ -363,8 +371,14 @@ src/
 │   │                     Notch/Bow/Corner/Corners; runtime imports `geometry` only
 │   ├── curveDrawing.ts   curves on paper (inv 47, 53): DRAWING_CURVE_TOLERANCE 0.001 / DRAWING_CURVE_SEGMENTS_MAX 96,
 │   │                     curveDrawEdges (each model chord + a fine path of nodes ON the true arc; ends stay on the chord, Q4;
-│   │                     deep-frozen, memoised), curveSilhouettes / silhouetteLines (Q1; the probe offset); imports geometry, bodies, snapPoints, curves
-│   ├── curveText.ts      curveLine/curveLines (THE bench lines; four equal corners collapse), curveFaultText
+│   │                     deep-frozen, memoised), curveSilhouettes / silhouetteLines (Q1; the probe offset); EDGE_ON 1e-9 / facing (THE one
+│   │                     facing test, fu 386), outlineFaces, curveEdgeLifts (every model edge's along-view probe lift); imports geometry, bodies, snapPoints, curves
+│   ├── profiles.ts       edge profiles (inv 53): ProfileKind/PROFILE_KINDS, ProfileEdge/PROFILE_EDGES (8: long edges and ends, never through
+│   │                     the thickness), profileCurve (THE writer), profileFields (THE reader: rewrite + exact sameCurve; a thumbnail with
+│   │                     depth = size reads as a Roundover), profileAsymmetric (symmetric kinds stored at facing 'v'), defaultProfile
+│   │                     (scaled per axis), DEFAULT_PROFILE_EDGE
+│   ├── curveText.ts      curveLine/curveLines (THE bench lines; four equal corners collapse; four equal unfaulted profiles on one face
+│   │                     collapse; profileName, filletWords), curveFaultText
 │   │                     (THE fault words) (→ units)
 │   ├── curvedRefusal.ts  curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
 │   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
@@ -492,7 +506,11 @@ src/
 │                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers);
 │                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
 │                     corner, Rounded corners —; rows by derived kind; a Kind select (`curveAs`) whose options are judged ONLY while it has focus — never per render, every edit frame is one; refusalFor: half circle first, then an ADDED curve fault,
-│                     then a hole into the waste)
+│                     then a hole into the waste) — on curveRefusal.ts (Draft, Control, HALF_CIRCLE, pastHalfCircle, holeRefusal,
+│                     refusalFor: shared with Profiles); Curves skips profiles and offers Rounded corner through the thickness only;
+│                     Profiles (the Profiles section: "+ Add profile ▾" — a preset is withheld when its default would be refused; rows:
+│                     Edge, Profile (a change takes the new kind's default), the size, Depth (thumbnail), Fillet or Quirk (bead),
+│                     Facing for asymmetric kinds)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -891,7 +909,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     chord (Q4). **Curved surfaces' silhouettes come from `silhouetteLines`** (a line along `through` at each smooth model
     vertex whose faces turn opposite ways to the view, clipped to the part's bodies — fu 375: never through another cut's air), each probed from **4×`DRAW_EPS` along the outward normals of the
     viewer-facing adjacent faces** — never lifted toward the viewer (a fixed lift failed gentle bows) and never probed from the
-    vertex itself (DRAW_EPS grazing reads it hidden).
+    vertex itself (DRAW_EPS grazing reads it hidden). Facing is ONE test (`EDGE_ON` 1e-9, `facing()`) for the product test and the
+    lift alike (fu 386: an odd-chord arc's 45° chord read facing by one and edge-on by the other). **Every model edge of a curved part
+    carries a probe lift** (`curveEdgeLifts`): ALONG the view by `min(1e-3, PROBE / n·toward)` of its most viewer-facing face, so an
+    edge on a shallow face (n·toward ≲ 0.25) is not hidden by its own DRAW_EPS-grown body, while grazing OTHER wood still hides; the
+    drawn line never moves. A lift along the face normals (silhouettes' rule) stepped an end line off its grazing plane — not here.
 
 48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
@@ -910,7 +932,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     straight side lies on the face boundary, AND the arcs form ONE run with the wood convex at every off-boundary vertex and
     arc–arc join — the
     strengthened P6; without that guard two arcs meeting in a reflex wood corner lost real wood), else SPLIT along the
-    waste's ear-clipped convex pieces, merged across diagonals while convex (`convexPieces`, fu 368; a body wholly outside any one piece plane stays whole). Both give the
+    waste's ear-clipped convex pieces, merged across diagonals while convex (`convexPieces`, fu 368); a body that shares no volume with a piece stays whole
+    (`subtractPieces`, `DISJOINT_VOLUME` — a plane test alone missed 18 of 274 empty pairs), and a split waste's diagonals are peeled
+    LAST (`splitPieces`: a diagonal's extension otherwise cuts wood the waste never reaches). Both give the
     same wood (volume and containment, pinned). A chord face carries `curve: <id>`. A body no curve touches is unchanged.
 
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
@@ -1017,7 +1041,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     segment `type` refuses the whole document** with the newer-version message (a spline needs no schema bump). Joinery,
     Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
     checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
-    a hand-edited non-convex waste too since fu 368; MINIMUM of 9, wall-clock).
+    a hand-edited non-convex waste too since fu 368, the four-edge cove, bead and ogee tops since edge profiles; MINIMUM of 9, wall-clock).
+    **Edge profiles are curves**: a profile is a plain `CurveCut` through the length or width (never the thickness), recognised
+    structurally by `profileFields` (no stored kind, no schema change); its rows, words (`profileName`, `curveWord`) and keys read it
+    there.
     **On paper:** `DRAWING_CURVE_TOLERANCE` 0.001" and `DRAWING_CURVE_SEGMENTS_MAX` 96 (`curveDrawing.ts`;
     inv 47 for edges and silhouettes). **Part diagrams:** the waste is hatched in the through-face view (clipped to the part); a
     curve opens its through face's MIN view only when neither side exists, decided after holes' entry views; a sharp-vertex
@@ -1030,7 +1057,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4729 tests across 161 files
+npm test           # Vitest, currently 4824 tests across 164 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1039,21 +1066,21 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–385). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–389). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 edge banding / hardware BOM, 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363–366.
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 chunk 2 (stopped profiles, schema 18).
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings, and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 388 (the Profile select greying: the user's ruling), 389 (miter lines at the paper tolerance: ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
