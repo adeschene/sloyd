@@ -4,6 +4,7 @@ import { useStore } from '../store/store';
 import { archCurve, archFields, bowCurve, bowFields, cornerCurve, createBoard, createDocument } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
+import { refusalFor } from './curveRefusal';
 
 const apron = (over: Partial<Board> = {}) => createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -102,14 +103,12 @@ describe('the Curves section', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/^Runs past the thickness max side — reduce the Rise first\.$/);
   });
 
-  it('a select change that runs a Rounded corner off the part names its Radius (finding 3\'s twin)', async () => {
-    // A 1" corner through the thickness, re-seated through the width: the 3/4" thickness is now one of its legs' sides.
-    const user = userEvent.setup();
+  it('a select change that runs a Rounded corner off the part names its Radius (finding 3\'s twin)', () => {
+    // The corner row lost its Through select (edge profiles brief Task 6), so the sizer is asserted on refusalFor itself:
+    // a 1" corner through the thickness, re-seated through the width: the 3/4" thickness is now one of its legs' sides.
     const corner: CurveCut = { id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }) };
-    open(apron({ curves: [corner] }));
-    await user.selectOptions(screen.getByLabelText('Through'), 'width');
-    expect(curves()[0]).toEqual(corner);
-    expect(screen.getByRole('alert')).toHaveTextContent(/^A radius can't run past the thickness max side — reduce it first\.$/);
+    const next = cornerCurve({ through: 'width', uFrom: 'min', vFrom: 'min', radius: 1 });
+    expect(refusalFor(apron({ curves: [corner] }), corner, next, null)).toBe("A radius can't run past the thickness max side — reduce it first.");
   });
 
   it('a Rise that cuts through the part is refused in words', async () => {
@@ -328,5 +327,23 @@ describe('preset details read the project units (presets minors 3)', () => {
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
     await user.click(screen.getByRole('button', { name: '+ Add curve' }));
     expect(screen.getByText('A half circle 51 mm wide, centred')).toBeInTheDocument();
+  });
+});
+
+describe('Curves leaves profiles to the Profiles section (edge profiles spec §2.4)', () => {
+  it('a stored through-length corner is not listed in Curves (Review Focus 1)', () => {
+    open(apron({ curves: [{ id: 'c1', ...cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }) }] }));
+    expect(screen.queryByRole('button', { name: /^Remove curve/ })).toBeNull();
+    expect(screen.queryByText(/^Curves · /)).toBeNull();
+  });
+  it('the Rounded corner row has no Through select', () => {
+    open(apron({ curves: [{ id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }) }] }));
+    expect(screen.queryByLabelText('Through')).toBeNull();
+    expect(screen.getByLabelText('Radius')).toBeInTheDocument();
+  });
+  it('Kind offers Rounded corner only through the thickness', () => {
+    open(apron({ length: 30, width: 0.75, thickness: 5,
+      curves: [{ id: 'c1', ...archCurve({ through: 'width', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1 }) }] }));
+    expect(screen.queryByRole('option', { name: /^Rounded corner/ })).toBeNull();
   });
 });
