@@ -2,7 +2,8 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import {
-  cornerCurve, createBoard, createDocument, curveFaults, holeFaults, defaultProfile, profileCurve, profileFields, PROFILE_EDGES, PROFILE_KINDS,
+  cornerCurve, createBoard, createDocument, curveFaults, holeFaults, defaultProfile, profileCurve, profileFields, profileOf, profileFromFields, profileToFields, profileAsCurve, geometryBoard,
+  migrateDocument, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
@@ -18,7 +19,7 @@ const add = async (user: ReturnType<typeof userEvent.setup>, item: string) => {
   await user.click(screen.getByRole('button', { name: '+ Add profile' }));
   await user.click(screen.getByRole('button', { name: item }));
 };
-const curves = () => (useStore.getState().doc.boards[0] as Board).curves;
+const profiles = () => (useStore.getState().doc.boards[0] as Board).profiles;
 const typeInto = async (user: ReturnType<typeof userEvent.setup>, label: string, text: string) => {
   const el = screen.getByLabelText(label);
   await user.clear(el); await user.type(el, `${text}{Enter}`);
@@ -37,7 +38,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     const before = useStore.getState().past.length;
     await add(user, 'Roundover');
-    expect(profileFields(curves()[0]!)).toMatchObject({ kind: 'roundover', through: 'length', uFrom: 'max', vFrom: 'max', size: 0.25 });
+    expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'roundover', through: 'length', uFrom: 'max', vFrom: 'max', size: 0.25 });
     expect(useStore.getState().past.length).toBe(before + 1);
     expect(screen.getByText(/^Roundover 1\/4" on the edge between the width face \(max side\)/)).toBeInTheDocument();
     expect(screen.getByText(/^Profiles/)).toBeInTheDocument();
@@ -46,9 +47,20 @@ describe('the Profiles section (edge profiles spec §3)', () => {
 
   it('a stored through-length corner appears here as a Roundover (Review Focus 1)', () => {
     const c: CurveCut = { id: 'c1', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'max', radius: 0.375 }) };
-    open(top({ curves: [c] }));
+    open(top({ profiles: [{ id: 'c1', ...profileOf(c)! }] }));
     expect((screen.getByLabelText('Profile') as HTMLSelectElement).value).toBe('roundover');
-    expect(curves()[0]).toEqual(c);
+    expect(profileAsCurve(profiles()[0]!)).toEqual(c);
+  });
+
+  it('the stored through-length corner of a v17 file appears as a Roundover row after load', () => {
+    const c: CurveCut = { id: 'c1', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'max', radius: 0.375 }) };
+    const raw = JSON.parse(JSON.stringify({ ...createDocument('T'), version: 17, boards: [top({ curves: [c] })] }));
+    delete raw.boards[0].profiles;
+    useStore.getState().replaceDocument(migrateDocument(raw));
+    useStore.getState().selectBoard('top');
+    render(<Properties />);
+    expect(screen.getByRole('button', { name: /^Remove profile \(Roundover 3\/8"/ })).toBeInTheDocument();
+    expect((useStore.getState().doc.boards[0] as Board).curves).toEqual([]);
   });
 
   it('Remove removes the profile', async () => {
@@ -56,7 +68,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Cove');
     await user.click(screen.getByRole('button', { name: /^Remove profile \(/ }));
-    expect(curves()).toEqual([]);
+    expect(profiles()).toEqual([]);
   });
 
   it('Radius edits the size; Fillet shows Facing; Facing flips the top', async () => {
@@ -64,20 +76,20 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Roundover');
     await typeInto(user, 'Radius', '3/8');
-    expect(profileFields(curves()[0]!)!.size).toBe(0.375);
+    expect(profileToFields(profiles()[0]!)!.size).toBe(0.375);
     expect(screen.queryByLabelText('Facing')).toBeNull();
     await typeInto(user, 'Fillet', '1/16');
-    expect(profileFields(curves()[0]!)!.fillet).toBe(0.0625);
+    expect(profileToFields(profiles()[0]!)!.fillet).toBe(0.0625);
     await user.selectOptions(screen.getByLabelText('Facing'), 'u');
-    expect(profileFields(curves()[0]!)!.facing).toBe('u');
+    expect(profileToFields(profiles()[0]!)!.facing).toBe('u');
   });
 
   it('a filleted roundover facing u, set back to no fillet, is stored at facing v: byte-equal to the corner', async () => {
     const user = userEvent.setup();
     const p = { through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'u', size: 0.25, fillet: 0.0625 } as const;
-    open(top({ curves: [{ id: 'c1', ...profileCurve(p) }] }));
+    open(top({ profiles: [{ id: 'c1', ...profileFromFields(p) }] }));
     await typeInto(user, 'Fillet', '0');
-    expect(curves()[0]).toEqual({ id: 'c1', ...cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }) });
+    expect(profileAsCurve(profiles()[0]!)).toEqual({ id: 'c1', ...cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }) });
     expect(screen.queryByLabelText('Facing')).toBeNull();
   });
 
@@ -86,7 +98,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Cove');
     await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · thickness max side');
-    expect(profileFields(curves()[0]!)).toMatchObject({ kind: 'cove', through: 'width', uFrom: 'min', vFrom: 'max', size: 0.375 });
+    expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'cove', through: 'width', uFrom: 'min', vFrom: 'max', size: 0.375 });
   });
 
   it('an Edge change that would run off is refused in the sizer\'s words, nothing stored', async () => {
@@ -95,9 +107,9 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top({ length: 0.5, width: 20, thickness: 4 }));
     await add(user, 'Roundover');
     await typeInto(user, 'Radius', '3/4');
-    const stored = curves()[0]!;
+    const stored = profiles()[0]!;
     await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · thickness max side');
-    expect(curves()[0]).toEqual(stored);
+    expect(profiles()[0]).toEqual(stored);
     expect(screen.getByRole('alert')).toHaveTextContent("A radius can't run past");
     expect((screen.getByLabelText('Edge') as HTMLSelectElement).value).toBe(String(PROFILE_EDGES.findIndex((e) => e.through === 'length' && e.uFrom === 'max' && e.vFrom === 'max')));
   });
@@ -106,10 +118,10 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     const user = userEvent.setup();
     open(top());
     await add(user, 'Roundover');
-    const id = curves()[0]!.id;
+    const id = profiles()[0]!.id;
     await user.selectOptions(screen.getByLabelText('Profile'), 'thumbnail');
-    expect(profileFields(curves()[0]!)).toMatchObject({ kind: 'thumbnail', through: 'length', uFrom: 'max', vFrom: 'max', size: 0.75, depth: 0.25 });
-    expect(curves()[0]!.id).toBe(id);
+    expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'thumbnail', through: 'length', uFrom: 'max', vFrom: 'max', size: 0.75, depth: 0.25 });
+    expect(profiles()[0]!.id).toBe(id);
   });
 
   it('a Profile change from an ogee facing u to a Roundover is stored at facing v: byte-equal to the corner', async () => {
@@ -117,10 +129,10 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Roman ogee');
     await user.selectOptions(screen.getByLabelText('Facing'), 'u');
-    expect(profileFields(curves()[0]!)!.facing).toBe('u');
-    const id = curves()[0]!.id;
+    expect(profileToFields(profiles()[0]!)!.facing).toBe('u');
+    const id = profiles()[0]!.id;
     await user.selectOptions(screen.getByLabelText('Profile'), 'roundover');
-    expect(curves()[0]).toEqual({ id, ...cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }) });
+    expect(profileAsCurve(profiles()[0]!)).toEqual({ id, ...cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }) });
   });
 
   // The brief's "a Profile change whose default would fault" (Review Focus 4): UNREACHABLE as a curve fault. A default is
@@ -145,9 +157,9 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     expect(holeFaults(b, b.holes[0]!)).toEqual([]);
     open(b);
     await add(user, 'Roundover');
-    const stored = curves()[0]!;
+    const stored = profiles()[0]!;
     await user.selectOptions(screen.getByLabelText('Profile'), 'cove');
-    expect(curves()[0]).toEqual(stored);
+    expect(profiles()[0]).toEqual(stored);
     expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the cove — move it first.');
     expect((screen.getByLabelText('Profile') as HTMLSelectElement).value).toBe('roundover');
   });
@@ -177,12 +189,12 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     const user = userEvent.setup();
     open(top({ holes: [bore(0.3)] }));
     await add(user, 'Roundover');
-    const stored = curves()[0]!;
+    const stored = profiles()[0]!;
     act(() => profileSelect().focus());
     expect(screen.getByRole('option', { name: 'Cove — puts hole 1 into the cove' })).toBeDisabled();
     // Moved to the width MIN long edge, far from the bore: the cove fits there.
-    const moved = profileCurve({ ...profileFields(stored)!, uFrom: 'min' });
-    act(() => useStore.getState().updateCurve('top', stored.id, moved));
+    const moved = profileFromFields({ ...profileToFields(stored), uFrom: 'min' });
+    act(() => useStore.getState().updateProfile('top', stored.id, moved));
     expect(screen.getByRole('option', { name: 'Cove' })).toBeEnabled();
   });
 
@@ -191,7 +203,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Thumbnail');
     await typeInto(user, 'Depth', '1');
-    expect(profileFields(curves()[0]!)!.depth).toBe(0.25);
+    expect(profileToFields(profiles()[0]!)!.depth).toBe(0.25);
     expect(screen.getByRole('alert')).toHaveTextContent('Depth must be less than the reach');
   });
 
@@ -200,7 +212,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Thumbnail');
     await typeInto(user, 'Reach', '1/4');
-    expect(profileFields(curves()[0]!)!.size).toBe(0.75);
+    expect(profileToFields(profiles()[0]!)!.size).toBe(0.75);
     expect(screen.getByRole('alert')).toHaveTextContent('Reach must be more than the depth');
   });
 
@@ -209,22 +221,22 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     open(top());
     await add(user, 'Bead');
     await typeInto(user, 'Quirk', '0');
-    expect(profileFields(curves()[0]!)!.fillet).toBe(0.0625);
+    expect(profileToFields(profiles()[0]!)!.fillet).toBe(0.0625);
     expect(screen.getByRole('alert')).toHaveTextContent('Must be greater than zero');
     await typeInto(user, 'Radius', '1');
-    expect(profileFields(curves()[0]!)!.size).toBe(0.25);
+    expect(profileToFields(profiles()[0]!)!.size).toBe(0.25);
   });
 
   it('a fault a resize caused is kept and noted', () => {
-    const c: CurveCut = { id: 'c1', ...defaultProfile(top(), 'roundover') };
-    open(top({ thickness: 0.125, curves: [c] }));
-    expect(curves()[0]).toEqual(c);
+    const c = { id: 'c1', ...profileOf(defaultProfile(top(), 'roundover'))! };
+    open(top({ thickness: 0.125, profiles: [c] }));
+    expect(profiles()[0]).toEqual(c);
     expect(screen.getByRole('status')).toHaveTextContent(/at this size\.$/);
   });
 
   it('every preset is offered on a plain top', async () => {
     const user = userEvent.setup();
-    open(top({ curves: [], holes: [] }));
+    open(top({ profiles: [], holes: [] }));
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
     for (const item of ITEMS) expect(screen.getByRole('button', { name: item })).toBeInTheDocument();
   });
@@ -266,7 +278,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
 describe('holeRefusal names a profile by its own word (Task 7 fix round 1; R3)', () => {
   it('a roundover added over a bore reads the roundover, never the rounded corner', () => {
     const b = top({ holes: [bore(0.1)] });
-    const after = { ...b, curves: [{ id: 'p1', ...defaultProfile(b, 'roundover') }] };
+    const after = { ...b, profiles: [{ id: 'p1', ...profileOf(defaultProfile(b, 'roundover'))! }] };
     expect(holeRefusal(b, after)).toBe('Puts hole 1 into the roundover — move it first.');
   });
 });
@@ -282,11 +294,13 @@ describe('refusalFor with no control (a select change)', () => {
   });
   it('an ogee change names its Size; a thumbnail change its Reach', () => {
     const b = top();
-    const curve: CurveCut = { id: 'c1', ...defaultProfile(b, 'roundover') };
+    const profile = { id: 'c1', ...profileOf(defaultProfile(b, 'roundover'))! };
+    const curve = profileAsCurve(profile);
+    const view = geometryBoard({ ...b, profiles: [profile] });
     const at = { through: 'length', uFrom: 'max', vFrom: 'max', facing: 'v' } as const;
     const ogee = profileCurve({ ...at, kind: 'ogee', size: 2, fillet: 0 });
     const thumb = profileCurve({ ...at, facing: 'u', kind: 'thumbnail', size: 2, depth: 0.25 });
-    expect(refusalFor({ ...b, curves: [curve] }, curve, ogee, null)).toMatch(/^Runs past .* — reduce the Size first\.$/);
-    expect(refusalFor({ ...b, curves: [curve] }, curve, thumb, null)).toMatch(/^Runs past .* — reduce the Reach first\.$/);
+    expect(refusalFor(view, curve, ogee, null)).toMatch(/^Runs past .* — reduce the Size first\.$/);
+    expect(refusalFor(view, curve, thumb, null)).toMatch(/^Runs past .* — reduce the Reach first\.$/);
   });
 });
