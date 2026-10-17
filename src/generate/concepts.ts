@@ -21,7 +21,9 @@ Concepts that differ only in dimensions or proportions do not count as different
 
 Every concept must fit the description, the hard limits, and the style and material preferences it is given.
 
-The piece will be built only from rectangular boards touching face to face: no joinery, no curves, no turned or tapered parts. Propose only what can be built that way.
+The piece will be built from rectangular boards touching face to face. A board may be tapered (a leg narrowing toward the floor) or carry a miter, bevel or chamfer; there is no joinery (it is added afterwards), no curves and no turned parts. Propose only what can be built that way.
+
+A unit of several parts that repeats (drawers, doors, identical frames) or forms a natural unit (a base) is designed once as an assembly and placed wherever it appears; an assembly's parts count once toward the part limit, however many times it is placed. A concept may lean on that, for example a bank of identical drawers.
 
 For each concept give a title of a few words naming the idea (for example "Trestle base") and a brief: one sentence on its support, its construction and what distinguishes it.`;
 

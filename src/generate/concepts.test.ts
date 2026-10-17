@@ -40,6 +40,16 @@ describe('concepts', () => {
     expect(CONCEPTS_SYSTEM).toMatch(/no joinery/i);
   });
 
+  // Fu 234: the planner reads userMessage's assembly lines ("an assembly's parts count once") but was never told what an
+  // assembly is; and it still forbade tapered parts after the designer learned tapers and angle cuts (AI tapers/angles).
+  it('tells the planner what the designer can build: assemblies, and tapers and angle cuts', () => {
+    expect(CONCEPTS_SYSTEM).toMatch(/assembl/i);
+    expect(CONCEPTS_SYSTEM).toMatch(/count once/i);
+    expect(CONCEPTS_SYSTEM).not.toMatch(/no turned or tapered/i);
+    for (const word of ['taper', 'miter', 'bevel', 'chamfer']) expect(CONCEPTS_SYSTEM).toMatch(new RegExp(word, 'i'));
+    expect(CONCEPTS_SYSTEM).toMatch(/no curves/i);
+  });
+
   it('takes the first N of a longer list', () => {
     expect(parseConcepts({ concepts: [c('A'), c('B'), c('C')] }, 2)).toEqual([c('A'), c('B')]);
   });
