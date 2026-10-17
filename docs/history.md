@@ -540,8 +540,11 @@ test-first:
 Every new test was mutated. Measured on 60 dadoed parts: 8.0 ms plain, 7.6 ms sectioned.
 
 The live pass covered a table cut from the side, a dadoed bookcase cut from the front, a flipped Top cut and a metric table,
-plus a real Chromium PDF; it is recorded in `docs/browser-verification-section-views.md`. The residue is fu 384. Merged, not
-deployed; no schema change.
+plus a real Chromium PDF; it is recorded in `docs/browser-verification-section-views.md`. The residue is fu 384. Merged as
+`114f449` (the merged tree built and passed 4694 tests across 161 files); no schema change. Deployed 2026-10-17 on the
+user's word as `index-CosJqZi4.js` (CSS `index-gCtQCsSI.css`, changed: the cut-line and hatch rules): hashes match `dist/`
+in-network and at the edge, the old `index-D-v_Ne4g.js` 404s in-network, CSP correct at the edge, a real page load clean (0
+errors, the beacon present), its two keys removed from an asset page and read back empty.
 
 **What follow-ups 6 did (2026-10-17)** (the user: "Go ahead with the small items next"; branch `follow-ups-6`). The last
 code-sized opens. **8**: `storage/index.ts` is the one import site of the adapter; 14 files repointed, mocks included, and a

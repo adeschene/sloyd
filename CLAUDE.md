@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is follow-ups 6 + fu 269** (deployed as `8212cbe`, bundle `index-D-v_Ne4g.js`, CSS `index-BGMlD6Uu.css`);
-  rollback to print sections (`fd44b79`, `index-BGflwWYN.js`) or follow-ups 5 (`e81dd8d`, `index-uIgR_wtf.js`) is free.
+- **Production is section views (fu 256)** (deployed 2026-10-17 from `114f449`, bundle `index-CosJqZi4.js`, CSS `index-gCtQCsSI.css`);
+  rollback to follow-ups 6 + fu 269 (`8212cbe`, `index-D-v_Ne4g.js`) or print sections (`fd44b79`, `index-BGflwWYN.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -85,8 +85,8 @@ handicraft education tradition built around hand woodworking.
   retryable), 175 (a throwing cost function no longer strands a batch), 234 (the concept planner knows assemblies AND tapers);
   12 by decision, 31 by measurement. **269** (the user's go): priced by-the-piece Buying keeps the cheapest of a plan per
   preferred opener (was largest-first only: up to 44% dearer); unpriced stock unchanged (the user: "keep unpriced as is").
-- **Section views (2026-10-17, spec `2026-10-17-sloyd-section-views-design.md`, plan `…-section-views.md`, merged to master; NOT deployed; no
-  schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
+- **Section views (2026-10-17, spec `2026-10-17-sloyd-section-views-design.md`, plan `…-section-views.md`, merged to master as `114f449`; DEPLOYED as
+  `index-CosJqZi4.js`; no schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
   trio and draws a hatched Section A–A of the ASSEMBLED piece after it (`drawView`'s `section` option, `sectionView.ts`). Residue 384
   (hatch density and the cut line's weight for the user's eye on a real print).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
