@@ -224,6 +224,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
 /** The Curves section (curves spec §8): one row per stored curve, and + Add curve ▾. */
 export function Curves({ board }: { board: Board }) {
   const addCurves = useStore((s) => s.addCurves);
+  const units = useStore((s) => s.doc.units);
   // A preset whose default would fault on this part — a curve fault, or a hole it would put into the waste — is
   // withheld, not added and refused (the AngleCuts/Holes precedent).
   const fits = (cs: Draft[] | null): cs is Draft[] => {
@@ -240,7 +241,7 @@ export function Curves({ board }: { board: Board }) {
   const corners = defaultCorners(board);
   const items = [
     ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => addCurves(board.id, arch) }] : []),
-    ...(fits(notch) ? [{ label: 'Half-round notch', detail: 'A half circle 2" wide, centred', run: () => addCurves(board.id, notch) }] : []),
+    ...(fits(notch) ? [{ label: 'Half-round notch', detail: `A half circle ${formatLength(2, units)} wide, centred`, run: () => addCurves(board.id, notch) }] : []),
     ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => addCurves(board.id, bow) }] : []),
     ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
     ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),

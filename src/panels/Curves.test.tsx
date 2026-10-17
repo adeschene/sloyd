@@ -290,3 +290,16 @@ describe('the Kind select (fu 367)', () => {
     expect(archFields(curves()[0]!)).toEqual({ through: 'thickness', along: 'length', side: 'min', from: 'max', start: 3, span: 24, rise: 1.25 });
   });
 });
+
+describe('preset details read the project units (presets minors 3)', () => {
+  it('imperial keeps its text; metric reads mm', async () => {
+    const user = userEvent.setup();
+    open(apron());
+    await user.click(screen.getByRole('button', { name: '+ Add curve' }));
+    expect(screen.getByText('A half circle 2" wide, centred')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await user.click(screen.getByRole('button', { name: '+ Add curve' }));
+    expect(screen.getByText('A half circle 51 mm wide, centred')).toBeInTheDocument();
+  });
+});
