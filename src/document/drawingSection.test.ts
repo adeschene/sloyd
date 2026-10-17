@@ -69,6 +69,16 @@ describe('drawView with a section', () => {
     expect(area(d.caps![0]!.polys)).toBeCloseTo(30 * 0.75, 6);
   });
 
+  it('a removed part whose face lies on the plane draws nothing (review I1)', () => {
+    // K: X 0..10, Z 0..4, kept. R: X -5..15, Z 4..8, wider, wholly removed — its back face lies ON the plane z = 4.
+    const K = box('K', 10, 4, 2);
+    const R = box('R', 20, 4, 2, [-5, 0, 4]);
+    const d = drawView([K, R], FRONT, undefined, { section: { axis: 'front', at: 4, flip: false } });
+    expect(total(d.visible, 'R') + total(d.hidden, 'R')).toBe(0);
+    expect(d.caps!.map((c) => c.part)).toEqual(['K']);
+    expect(d.bounds).toEqual({ min: [0, 0], max: [10, 2] });
+  });
+
   it('caps a dadoed part with its notch, and gives no cap to a part the plane misses', () => {
     const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
     const side = box('side', 30, 11.25, 0.75, [0, 0, 0], { cuts: [dado] });

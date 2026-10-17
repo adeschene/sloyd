@@ -82,6 +82,12 @@ describe('cuttingLine', () => {
     expect(line.b).toEqual([30, 0.5]);
     close(line.sight, [0, -1]);
   });
+  it('is null when the plane lies off the piece in the marked view (review M2: no stray line over the dimensions)', () => {
+    expect(cuttingLine({ axis: 'front', at: 50, flip: false }, TOP, drawView(parts, TOP))).toBeNull();
+    expect(cuttingLine({ axis: 'side', at: -1, flip: false }, TOP, drawView(parts, TOP))).toBeNull();
+    // On the piece's own face it is still drawn.
+    expect(cuttingLine({ axis: 'side', at: 30, flip: false }, TOP, drawView(parts, TOP))).not.toBeNull();
+  });
   it('is null for a view that looks across the plane', () => {
     expect(cuttingLine({ axis: 'front', at: 5, flip: false }, FRONT, drawView(parts, FRONT))).toBeNull();
   });
@@ -101,5 +107,23 @@ describe('hatchPatterns', () => {
     expect(h.get('B')).toBe(1);
     expect(h.get('C')).toBe(2);
     expect(h.get('D')).toBe(0);
+  });
+});
+
+describe('hatchPatterns cost (review M1)', () => {
+  it('drilled caps apart are not compared segment by segment', () => {
+    // Four caps with 2000-segment outlines (a drilled panel's rings), 10" apart: a pair compare would take seconds.
+    const ring = (part: string, cx: number) => ({
+      part, polys: [],
+      outline: Array.from({ length: 2000 }, (_, i) => {
+        const a = (i / 2000) * 2 * Math.PI, b = ((i + 1) / 2000) * 2 * Math.PI;
+        return { a: [cx + Math.cos(a), Math.sin(a)] as [number, number], b: [cx + Math.cos(b), Math.sin(b)] as [number, number], part };
+      }),
+    });
+    const caps = [ring('a', 0), ring('b', 10), ring('c', 20), ring('d', 30)];
+    const t0 = performance.now();
+    const h = hatchPatterns(caps);
+    expect(performance.now() - t0).toBeLessThan(100);
+    expect([...h.values()]).toEqual([0, 0, 0, 0]);
   });
 });

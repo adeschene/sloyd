@@ -278,6 +278,9 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
 
   for (const b of parts) {
     const off = offsets?.get(b.id);
+    // A part with no kept wood draws nothing, even a face lying ON the plane (review I1: a cut typed exactly at a joint
+    // drew the removed neighbour's whole face over the section). The viewport keeps that face; paper does not.
+    if (section && !keptBox(boardBox(b, off), section)) continue;
     // Board edges (invariant 16) and hole lines (holes spec §3.4): one list, one hidden-line pass, the same occluders —
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
     const segments: Seg3[] = [
