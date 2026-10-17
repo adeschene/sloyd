@@ -101,8 +101,8 @@ handicraft education tradition built around hand woodworking.
   hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
   profiles, schema 18), 387, 389, 390 (a profile following a curved edge), 391 (profile runs a1 residue; (1) before a2 ships). **Fu 388** (the Profile select greys a
   refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
-- **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, branch
-  `profile-runs-a1`; NOT YET MERGED OR DEPLOYED; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
+- **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, merged to master as
+  `305934d`; NOT DEPLOYED — deploy with a2; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
   of `curves` on every load; every geometry, word and fault reader goes through `geometryBoard`; a run this build cannot build (all
   round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
   same, checked live). **Rolling back below 18 refuses every project saved since — export first.** Next: a2 (stopped profiles, the
@@ -1080,7 +1080,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4954 tests across 166 files
+npm test           # Vitest, currently 4963 tests across 166 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

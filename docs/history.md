@@ -537,7 +537,9 @@ branch `profile-runs-a1`; **schema 18**).
 7. **Live pass** (`docs/browser-verification-profile-runs-a1.md`): master and the branch side by side on one v17 fixture — the
    Properties rows, the cut list text and SVG, the Plans key list and sheet SVG hash identical (React `useId` ids aside); the branch
    autosaved the projects as v18.
-Suite 4954 tests across 166 files; build clean (the four-edge cove and ogee perf guards read 44 and 55 ms once in a full run at
+Final review (opus): one Important fixed — the schema-18 gate refused only the three run forms a1 knows (an unknown run key was
+drawn full length); now every later-build form refuses, its last hole recorded as fu 391(1) (deploy a1 with a2). Merged as
+`305934d`; suite 4963 tests across 166 files on the merged tree. Earlier on the branch: 4954 tests; build clean (the four-edge cove and ogee perf guards read 44 and 55 ms once in a full run at
 load 9.9 with a browser open, then 11/11 alone).
 
 **What fu 388 did (2026-10-17)** (the user's ruling after edge profiles chunk 1 went live: "greying out a choice makes sense";
