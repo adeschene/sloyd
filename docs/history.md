@@ -544,6 +544,11 @@ The live pass is recorded in `docs/browser-verification-presets-batch.md`: four-
 Plans sheet and in the cut list, metric, and the Kind round trip. It opened fu 385: the panel's end chamfers give a cut-list
 `Short point 17"`. Merged as `ec795fb` (the merged tree built and passed 4721 tests across 161 files). Deployed 2026-10-17 on the user's word as `index-D8voXrmI.js` (CSS unchanged): hashes match `dist/` in-network and at the edge, the old `index-CosJqZi4.js` 404s in-network, CSP correct at the edge, a real page load clean (0 errors, the beacon present), its two keys removed from an asset page and read back empty.
 
+Afterwards (2026-10-17), shown both cases in the dev browser, the user ruled on fu 385 ("Omit the short point for chamfers"): `shortPointLine`
+leaves out an end chamfer that keeps part of the end face standing; a full-depth one is a miter by geometry and still counts
+(`a37bc54`). R3 (Arch ↔ notch keeps the span) was reconfirmed. The bevels' look on real hardware was approved ("The shading and
+grain looks good"). Deployed as `index-JgTwUVAc.js`. The user also retired cleaning up test projects on the dev server.
+
 **What section views did (2026-10-17)** (the user: "start on section views (256)"; brainstormed, spec and plan approved;
 "go with native"; branch `section-views`). Fu 256's sheet half. The user's rulings: the viewport's cut is the source (no
 sheet control, nothing saved), the whole piece only, a full section. `drawView` gained a `section` option. Inside the one

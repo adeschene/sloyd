@@ -21,4 +21,5 @@ Fixture imported through Project ▾ → Import…: a 28 × 2 × 2 leg, a 20 × 
 - Console: 0 errors; the warnings are the known THREE deprecations and the software-GL ReadPixels stall.
 - Cleanup: the three `sloyd.*` keys this pass created were removed and `localStorage` read back empty from `/package.json`
   after leaving the app; the fixture file was deleted; the dev server was stopped.
-- Left for the user's eye on real hardware: the bevels' shading and grain (software GL).
+- Left for the user's eye on real hardware: the bevels' shading and grain (software GL). **Approved by the user 2026-10-17**
+  ("The shading and grain looks good").

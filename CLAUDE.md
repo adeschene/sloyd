@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is presets batch (fu 278, 298, 367)** (deployed 2026-10-17 from `387abfe`, bundle `index-D8voXrmI.js`, CSS `index-gCtQCsSI.css`);
-  rollback to section views (`853d12b`, `index-CosJqZi4.js`) or follow-ups 6 + fu 269 (`8212cbe`, `index-D-v_Ne4g.js`) is free.
+- **Production is presets batch + fu 385** (deployed 2026-10-17 from `b76f41a`, bundle `index-JgTwUVAc.js`, CSS `index-gCtQCsSI.css`);
+  rollback to presets batch (`387abfe`, `index-D8voXrmI.js`) or section views (`853d12b`, `index-CosJqZi4.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -91,7 +91,7 @@ handicraft education tradition built around hand woodworking.
   (hatch density and the cut line's weight for the user's eye on a real print).
 - **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
-  curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point).
+  curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
@@ -198,8 +198,9 @@ production would overwrite it with nothing to restore from. So new behaviour is 
 against the **dev server** (Claude drives the Playwright browser; the user can watch), and
 the deploy is confirmed by **bundle hash** at the edge and in-network, plus the edge's
 **CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server does
-not send. `localStorage` is confirmed cleared in the verifying browser afterward, checked
-rather than assumed. A paid Generate/joinery run needs the user's approval each time; the
+not send. On PRODUCTION, `localStorage` is confirmed cleared in the verifying browser afterward, checked
+rather than assumed. On the DEV server, test projects a check creates are LEFT in place (the user's ruling, 2026-10-17:
+removing them "is just a waste of time"); never clear the dev profile wholesale either (it holds the user's API key and projects). A paid Generate/joinery run needs the user's approval each time; the
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
