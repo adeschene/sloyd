@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is section views (fu 256)** (deployed 2026-10-17 from `114f449`, bundle `index-CosJqZi4.js`, CSS `index-gCtQCsSI.css`);
-  rollback to follow-ups 6 + fu 269 (`8212cbe`, `index-D-v_Ne4g.js`) or print sections (`fd44b79`, `index-BGflwWYN.js`) is free.
+- **Production is presets batch (fu 278, 298, 367)** (deployed 2026-10-17 from `387abfe`, bundle `index-D8voXrmI.js`, CSS `index-gCtQCsSI.css`);
+  rollback to section views (`853d12b`, `index-CosJqZi4.js`) or follow-ups 6 + fu 269 (`8212cbe`, `index-D-v_Ne4g.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -89,7 +89,7 @@ handicraft education tradition built around hand woodworking.
   `index-CosJqZi4.js`; no schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
   trio and draws a hatched Section A–A of the ASSEMBLED piece after it (`drawView`'s `section` option, `sectionView.ts`). Residue 384
   (hatch density and the cut line's weight for the user's eye on a real print).
-- **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; NOT YET DEPLOYED;
+- **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
   curve rows, `curveAs`) closed. Residue 385 (a raised panel's short point, for the user's ruling).
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch since). **No follow-up is open as code-sized work**: the triage's
