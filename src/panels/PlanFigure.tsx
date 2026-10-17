@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
 import type { Board, SloydDocument } from '../document/types';
 import { worldParts } from '../document/tree';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type View } from '../document/drawing';
@@ -6,7 +6,9 @@ import { dimensionView, type DimLine } from '../document/dimensions';
 import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
 import { fitChain } from './planDims';
-import { DIM_BAND, PLAN_WIDTH, layoutTrio, toSvg, type Placement } from './planLayout';
+import { DIM_BAND, ISO_MARGIN, PLAN_WIDTH, layoutTrio, toSvg, type Placement } from './planLayout';
+import type { Section } from '../document/section';
+import { cuttingLine, hatchPatterns, HATCHES, markedView, sectionTitle, sectionViewOf, type CuttingLine } from '../document/sectionView';
 import { buildCutList, flatDocument } from '../document/document';
 import { anchorsFor, layoutBalloons, numberList, type PlacedBalloon } from './planBalloons';
 import { partFeatures } from '../document/featureKeys';
@@ -132,15 +134,31 @@ function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: n
   );
 }
 
+/** The trio's three drawings, cached on the parts ARRAY (worldParts and planAssemblies hand out stable arrays), so the
+ *  section block reads the piece trio's scale without drawing it twice (section views spec §3.3, as amended). */
+const trioCache = new WeakMap<readonly Board[], readonly [Drawing, Drawing, Drawing]>();
+function trioDrawings(parts: readonly Board[]): readonly [Drawing, Drawing, Drawing] {
+  const hit = trioCache.get(parts);
+  if (hit) return hit;
+  const out = [drawView(parts, FRONT), drawView(parts, SIDE), drawView(parts, TOP)] as const;
+  trioCache.set(parts, out);
+  return out;
+}
+export function trioScale(parts: readonly Board[]): number {
+  const [f, s, t] = trioDrawings(parts);
+  return layoutTrio(f.bounds, s.bounds, t.bounds).scale;
+}
+
 /** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2), and, when `keyed`, the features of
  *  those parts as lettered tags with a key list (feature callouts spec §4). Memoised on its props (fu 263): a tick of the
  *  sheet's Explode slider re-renders the sheet, never these — so `keyed` must be a stable set. */
-export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed }: {
-  parts: readonly Board[]; units: Units; label: string; keyed?: ReadonlySet<string>;
+export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section }: {
+  parts: readonly Board[]; units: Units; label: string; keyed?: ReadonlySet<string>; section?: Section | null;
 }) {
-  const views = useMemo(() => [FRONT, SIDE, TOP].map((view: View) => ({
-    view, d: drawView(parts, view), dims: dimensionView(parts, view, units),
-  })), [parts, units]);
+  const views = useMemo(() => {
+    const ds = trioDrawings(parts);
+    return [FRONT, SIDE, TOP].map((view: View, i) => ({ view, d: ds[i]!, dims: dimensionView(parts, view, units) }));
+  }, [parts, units]);
   const [front, side, top] = views as [typeof views[0], typeof views[0], typeof views[0]];
   const lay = layoutTrio(front.d.bounds, side.d.bounds, top.d.bounds);
   const notes: string[] = [];
@@ -153,6 +171,8 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed }: {
       v={{ overall: x.dims.vertical.overall, chain: v.chain }} />;
   };
   const drawn = [draw(top, lay.top), draw(front, lay.front), draw(side, lay.side)];
+  const marked = section ? (markedView(section) === 'top' ? { x: top, at: lay.top } : { x: front, at: lay.front }) : null;
+  const line = section && marked ? cuttingLine(section, marked.x.view, marked.x.d) : null;
   const features = useMemo(() => (keyed ? parts.filter((b) => keyed.has(b.id)).flatMap((b) => partFeatures(b, units)) : []), [parts, units, keyed]);
   // `lay` is a pure function of `views`.
   const keys = useMemo(() => planKeys(features,
@@ -166,6 +186,7 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed }: {
         role="img" aria-label={`${label}: front, side and plan`}>
         {drawn}
         {keys.tags.map((t, n) => <KeyMark key={n} t={t} r={keys.radius} />)}
+        {line && marked && <CuttingMark line={line} map={toSvg(marked.x.d, marked.at, lay.scale)} view={marked.x.view.title} />}
       </svg>
       {keys.lines.length > 0 && (
         <ul className="plans-key">
@@ -174,6 +195,92 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed }: {
       )}
       {notes.length > 0 && <ul className="plans-notes">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
     </figure>
+  );
+});
+
+/** SVG units: the line's run past the view at each end, the arrow's length, its head. */
+const CUT_OVERRUN = 12;
+const CUT_ARROW = 22;
+const CUT_HEAD = 6;
+
+/** The cutting-plane line (section views spec §2.4): a heavy chain line past the view, an arrow at each end pointing in
+ *  the direction of sight, "A" beyond each arrow. Not a feature tag: tags may sit over it (fu 381's ruling). */
+function CuttingMark({ line, map, view }: { line: CuttingLine; map: ToSvg; view: string }) {
+  const a = map(line.a);
+  const b = map(line.b);
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const u: P2 = [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+  const A: P2 = [a[0] - u[0] * CUT_OVERRUN, a[1] - u[1] * CUT_OVERRUN];
+  const B: P2 = [b[0] + u[0] * CUT_OVERRUN, b[1] + u[1] * CUT_OVERRUN];
+  const s: P2 = [line.sight[0], -line.sight[1]]; // SVG y runs down
+  const end = (p: P2, key: string) => {
+    const tip: P2 = [p[0] + s[0] * CUT_ARROW, p[1] + s[1] * CUT_ARROW];
+    const back: P2 = [tip[0] - s[0] * CUT_HEAD, tip[1] - s[1] * CUT_HEAD];
+    const label: P2 = [tip[0] + s[0] * LABEL_SIZE * 0.8, tip[1] + s[1] * LABEL_SIZE * 0.8 + (LABEL_ASCENT - LABEL_DESCENT) / 2];
+    return (
+      <g key={key}>
+        <path className="plans-cut-arrow" d={`M${p[0]} ${p[1]}L${tip[0]} ${tip[1]}M${back[0] - s[1] * CUT_HEAD} ${back[1] + s[0] * CUT_HEAD}L${tip[0]} ${tip[1]}L${back[0] + s[1] * CUT_HEAD} ${back[1] - s[0] * CUT_HEAD}`} />
+        <text x={label[0]} y={label[1]} textAnchor="middle">A</text>
+      </g>
+    );
+  };
+  return (
+    <g className="plans-cut-mark" data-view={view}>
+      <path className="plans-cut-line" d={`M${A[0]} ${A[1]}L${B[0]} ${B[1]}`} />
+      {end(A, 'a')}
+      {end(B, 'b')}
+    </g>
+  );
+}
+
+const polysPath = (polys: P2[][], map: ToSvg) =>
+  polys.map((p) => `M${p.map((q) => map(q).map((n) => n.toFixed(2)).join(' ')).join('L')}Z`).join('');
+
+/** Section A–A (section views spec §2.3): the assembled piece cut by the viewport's plane, at the piece trio's scale —
+ *  hatched caps over a paper ground, the visible lines beyond, the cap outlines heavy. No dimensions, tags or hidden lines. */
+export const SectionBlock = memo(function SectionBlock({ parts, section, units, scale, exploded }: {
+  parts: readonly Board[]; section: Section; units: Units; scale: number; exploded: boolean;
+}) {
+  const pid = useId();
+  const d = useMemo(() => drawView(parts, sectionViewOf(section), undefined, { hiddenLines: false, section }), [parts, section]);
+  const caps = d.caps ?? [];
+  const hatch = useMemo(() => hatchPatterns(caps), [caps]);
+  const title = sectionTitle(section, parts, units);
+  const note = exploded && <ul className="plans-notes"><li>Cut through the assembled piece at the viewport's position.</li></ul>;
+  if (caps.length === 0) {
+    return (
+      <section className="plans-section">
+        <p className="plans-notes">Section A–A: the cut meets no part of the assembled piece.</p>
+        {note}
+      </section>
+    );
+  }
+  const width = (d.bounds.max[0] - d.bounds.min[0]) * scale + 2 * ISO_MARGIN;
+  const height = (d.bounds.max[1] - d.bounds.min[1]) * scale + 2 * ISO_MARGIN;
+  const map = toSvg(d, { x: ISO_MARGIN, y: ISO_MARGIN }, scale);
+  return (
+    <section className="plans-section">
+      <h3>{title}</h3>
+      <figure className="plans-figure-wrap">
+        <svg className="plans-figure" viewBox={`0 0 ${width} ${height}`} style={pageWidth(width)} role="img" aria-label={title}>
+          <defs>
+            {HATCHES.map((h, n) => (
+              <pattern key={n} id={`${pid}-h${n}`} patternUnits="userSpaceOnUse" width={h.gap} height={h.gap} patternTransform={`rotate(${h.angle})`}>
+                <line className="plans-hatch-line" x1={0} y1={0} x2={0} y2={h.gap} />
+              </pattern>
+            ))}
+          </defs>
+          {caps.map((c) => <path key={`g${c.part}`} className="plans-cap-ground" d={polysPath(c.polys, map)} />)}
+          {caps.map((c) => (
+            <path key={`h${c.part}`} className="plans-cap" data-hatch={hatch.get(c.part)}
+              style={{ fill: `url(#${CSS.escape(`${pid}-h${hatch.get(c.part)}`)})` }} d={polysPath(c.polys, map)} />
+          ))}
+          <Lines d={d} map={map} hidden={false} />
+          {caps.map((c) => <path key={`o${c.part}`} className="plans-cap-outline" d={pathOf(c.outline, map)} />)}
+        </svg>
+        {note}
+      </figure>
+    </section>
   );
 });
 

@@ -1258,6 +1258,13 @@ select.input { cursor: pointer; }
 .plans-key-letter { display: inline-block; min-width: 1.8em; font-family: var(--font-num); font-weight: 600; }
 .plans-key-mark text { fill: currentColor; stroke: none; font-family: var(--font-num); }
 .plans-key-tag { fill: var(--surface); stroke: var(--ink-dim); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+/* Section views (fu 256): the cutting line, the caps' paper ground and hatch, the section outline. */
+.plans-figure .plans-cut-line { stroke-width: 2.5; stroke-dasharray: 24 5 5 5; }
+.plans-figure .plans-cut-arrow { stroke-width: 1.5; }
+.plans-figure .plans-cap-ground { fill: var(--surface); stroke: none; }
+.plans-figure .plans-cap { stroke: none; }
+.plans-figure .plans-cap-outline { stroke-width: 2.5; }
+.plans-figure .plans-hatch-line { stroke-width: 0.75; }
 
 /* `.cutlist-sheet` is the printable modal itself — every class this round adds
    uses the `cutlist-layout-` prefix so the two never collide. */
@@ -1409,6 +1416,7 @@ select.input { cursor: pointer; }
   .plans-figure, .plans-notes, .plans-key { color: #000; }
   .plans-balloon-ring, .plans-key-tag, .plans-figure .plans-leader { stroke: #000; }
   .plans-key-tag { fill: #fff; }
+  .plans-figure .plans-cap-ground { fill: #fff; }
   .plans-leader-dot { fill: #000; }
 
   .cutlist-overlay,
