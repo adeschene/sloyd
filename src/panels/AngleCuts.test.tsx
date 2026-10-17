@@ -19,6 +19,19 @@ const addMenu = async (user: ReturnType<typeof userEvent.setup>, item: string) =
 const cuts = () => (useStore.getState().doc.boards[0] as Board).angleCuts;
 
 describe('the Angles section', () => {
+  it('Taper four faces adds four rows in one undo entry; Taper two faces adds two (fu 278)', async () => {
+    const user = userEvent.setup();
+    open(leg());
+    const before = useStore.getState().past.length;
+    await addMenu(user, 'Taper four faces');
+    expect(cuts().map((c) => `${c.face}|${c.from}`)).toEqual(['width|min', 'width|max', 'thickness|min', 'thickness|max']);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(screen.getAllByLabelText('Starts')).toHaveLength(4);
+    act(() => useStore.getState().undo());
+    expect(cuts()).toEqual([]);
+    await addMenu(user, 'Taper two faces');
+    expect(cuts().map((c) => `${c.face}|${c.from}`)).toEqual(['width|min', 'thickness|min']);
+  });
   it('adds a taper and edits it in shop numbers', async () => {
     const user = userEvent.setup();
     open(leg());

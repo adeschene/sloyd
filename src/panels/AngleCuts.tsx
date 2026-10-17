@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/store';
 import {
   CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
-  defaultMiter, defaultMiterPair, defaultTaper, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields,
+  defaultMiter, defaultMiterPair, defaultTaper, defaultTaperFaces, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields, TAPER_FOUR, TAPER_TWO,
 } from '../document/document';
 import { angleLine } from '../document/angleText';
 import type { AngleCut, BevelFields, Board, ChamferFields, CutFrom, Dimension, MiterFields } from '../document/document';
@@ -239,6 +239,9 @@ export function AngleCuts({ board }: { board: Board }) {
       <Popover className="add-angle" label={<>+ Add<span aria-hidden="true"> ▾</span></>} title="Add an angle cut"
         items={[
           { label: 'Taper', detail: 'Slope one face along the length', run: () => addAngleCuts(board.id, [defaultTaper(board)]) },
+          // fu 278: independent rows in one undo entry; never withheld (each removes at most ¼ of either cross dimension).
+          { label: 'Taper two faces', detail: "Slope two adjacent faces (a leg's inside faces)", run: () => addAngleCuts(board.id, defaultTaperFaces(board, TAPER_TWO)) },
+          { label: 'Taper four faces', detail: 'Slope all four faces along the length', run: () => addAngleCuts(board.id, defaultTaperFaces(board, TAPER_FOUR)) },
           // A 45° miter across the width is as deep as the width; deeper than the length is refused on edit, so don't offer it (fu 296).
           ...(board.width > board.length ? [] : [
             { label: 'Miter', detail: '45° across the width at one end', run: () => addAngleCuts(board.id, [defaultMiter(board)]) },

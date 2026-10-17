@@ -4,7 +4,7 @@ import { createBoard } from './document';
 import type { AngleCut, Board, Dimension, Region } from './types';
 import {
   ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, copyAngleCut, deriveKind, depthAt,
-  defaultTaper, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
+  defaultTaper, defaultTaperFaces, TAPER_FOUR, TAPER_TWO, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
   defaultMiter, defaultMiterPair, miterCut, miterDegrees, miterFields, miterRatio,
   bevelCut, bevelFields, bevelAcross, defaultBevel,
   CHAMFER_EDGES, chamferCut, chamferFields, defaultChamfer, splitRegion, touchedRegion,
@@ -404,5 +404,23 @@ describe('touchedRegion / splitRegion (AI-angles spec §2.1, §2.2)', () => {
     expect(splitRegion(slab, touchedRegion(b, c)!, c)).toEqual([]);
     const far: Region = { length: [0, 0], width: [0, 3], thickness: [0, 0.75] };
     expect(splitRegion(far, touchedRegion(b, c)!, c)).toEqual([far]);
+  });
+});
+
+describe('defaultTaperFaces (fu 278)', () => {
+  const sq = createBoard({ length: 28, width: 2, thickness: 2 });
+  it('four faces: one taper per face, same amount, from the min end over the last quarter', () => {
+    const cs = defaultTaperFaces(sq, TAPER_FOUR);
+    expect(cs.map((c) => `${c.face}|${c.from}`)).toEqual(['width|min', 'width|max', 'thickness|min', 'thickness|max']);
+    for (const c of cs) {
+      expect(c).toEqual(taperCut({ face: c.face as 'width' | 'thickness', from: c.from, end: 'min', start: 21, amount: 0.5 }));
+    }
+  });
+  it("two faces: the adjacent min faces (a leg's inside faces)", () => {
+    expect(defaultTaperFaces(sq, TAPER_TWO).map((c) => `${c.face}|${c.from}`)).toEqual(['width|min', 'thickness|min']);
+  });
+  it('one amount for every face, from the thinner cross dimension', () => {
+    const cs = defaultTaperFaces(createBoard({ length: 28, width: 2, thickness: 1 }), TAPER_FOUR);
+    expect(new Set(cs.map((c) => c.points[0]![1]))).toEqual(new Set([0.25]));
   });
 });

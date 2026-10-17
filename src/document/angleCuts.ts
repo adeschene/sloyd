@@ -208,6 +208,21 @@ export function defaultTaper(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'
   return taperCut({ face: 'width', from: 'min', end: 'min', start: board.length * 0.75, amount: board.width / 4 });
 }
 
+/** One face a taper shortcut slopes (fu 278). */
+export interface TaperFace { face: 'width' | 'thickness'; from: CutFrom }
+/** A leg's two inside faces: adjacent, both min. */
+export const TAPER_TWO: readonly TaperFace[] = [{ face: 'width', from: 'min' }, { face: 'thickness', from: 'min' }];
+export const TAPER_FOUR: readonly TaperFace[] = [
+  { face: 'width', from: 'min' }, { face: 'width', from: 'max' }, { face: 'thickness', from: 'min' }, { face: 'thickness', from: 'max' },
+];
+
+/** The taper shortcuts (fu 278): one plain taper per face, each from the min end over ¾ of the length, ONE amount — a
+ *  quarter of the thinner cross dimension — so a square leg stays square. Independent rows; no linked edit. */
+export function defaultTaperFaces(board: Pick<Board, Dimension>, faces: readonly TaperFace[]): Omit<AngleCut, 'id'>[] {
+  const amount = Math.min(board.width, board.thickness) / 4;
+  return faces.map(({ face, from }) => taperCut({ face, from, end: 'min', start: board.length * 0.75, amount }));
+}
+
 /** A miter as the shop reads it (spec §7). `ratio` is the stored slope (|Δdepth| / |Δstation|), NOT degrees, so an
  *  untouched angle never round-trips through atan/tan (45° is ratio 1, exactly — spec §2.3). */
 export interface MiterFields { end: CutFrom; across: 'width' | 'thickness'; longSide: CutFrom; ratio: number }
