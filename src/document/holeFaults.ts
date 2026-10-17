@@ -4,7 +4,7 @@ import { clippedRegion } from './cuts';
 import { keptHalfSpace } from './angleCuts';
 import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, uvDims, type CurveKind } from './curves';
 import { HOLE_EPS, holeInstances, type Hole } from './holes';
-import { profileFields, type ProfileKind } from './profiles';
+import { geometryBoard, profileFields, type ProfileKind } from './profiles';
 
 export type HoleFaultKind = 'breaks-out' | 'off-flat' | 'meets-hole' | 'too-deep';
 export interface FaultCurve { id: string; kind: CurveKind | null; profile?: ProfileKind }
@@ -56,6 +56,7 @@ function meets(A: Hole, B: Hole): boolean {
  *  degenerate one dropped) and every angle cut's kept half-space. */
 export interface StockChecks { regions: ReturnType<typeof clippedRegion>[]; planes: NonNullable<ReturnType<typeof keptHalfSpace>>[] }
 export function stockChecks(board: Board): StockChecks {
+  board = geometryBoard(board);
   return {
     regions: board.cuts.map((c) => clippedRegion(board, c)).filter((r) => DIMENSION_ORDER.every((d) => r[d][1] - r[d][0] > HOLE_EPS)),
     planes: board.angleCuts.flatMap((c) => { const h = keptHalfSpace(board, c); return h ? [h] : []; }),
@@ -75,6 +76,7 @@ export function breaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFro
 /** A hole meeting a curve's waste (curves spec §6.3; touching is meeting): along `through` its disc, square to it the
  *  rectangle it projects to on (u, v). The first such curve, or null. */
 export function intoCurve(board: Board, h: Hole): FaultCurve | null {
+  board = geometryBoard(board);
   for (const c of board.curves) {
     const [u, v] = uvDims(c.through);
     const iu = idx(u);
@@ -135,6 +137,7 @@ export function tooDeep(board: Board, h: Hole): boolean {
  * to the part's bodies (grainTiling's holeMesh). meets-hole does not matter for the wall.
  */
 export function holeInStock(board: Board, h: Hole, checks: StockChecks = stockChecks(board)): boolean {
+  board = geometryBoard(board);
   return !breaksOut(board, h) && !offFlat(checks, h) && !tooDeep(board, h) && !intoCurve(board, h);
 }
 
@@ -145,6 +148,7 @@ export function holeInStock(board: Board, h: Hole, checks: StockChecks = stockCh
  * tangent to an edge or a cut passes, touching another hole meets it.
  */
 export function holeFaults(board: Board, row: HoleRow): HoleFault[] {
+  board = geometryBoard(board);
   const mine = holeInstances(board, row);
   const others = board.holes.filter((r) => r.id !== row.id).flatMap((r) => holeInstances(board, r));
   const checks = stockChecks(board);

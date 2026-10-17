@@ -48,7 +48,7 @@ export function pastHalfCircle(next: Draft): boolean {
 
 /** The refusal for an edit that ADDS a curve fault, or a hole fault, the stored state lacks (spec §8), or null. `control`
  *  names the field the user changed, for "reduce the … first"; a select change passes null. */
-export function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control | null): string | null {
+export function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control | null, after?: Board): string | null {
   if (pastHalfCircle(next)) return HALF_CIRCLE;
   const had = new Set(curveFaults(board, curve).map((f) => f.kind));
   const added = curveFaults(board, next).find((f) => !had.has(f.kind));
@@ -63,8 +63,8 @@ export function refusalFor(board: Board, curve: CurveCut, next: Draft, control: 
       ? `A radius can't run past ${edgeName(added.edge!)} — reduce it first.`
       : `Runs past ${edgeName(added.edge!)} — reduce the ${sizer} first.`;
   }
-  const after: Board = { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
-  return holeRefusal(board, after);
+  const post: Board = after ?? { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
+  return holeRefusal(board, post);
 }
 
 /** A greyed select option's reason: the refusal's own words up to its dash (presets minors 2; fu 388), so

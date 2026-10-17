@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/store';
 import {
-  curveFaults, defaultProfile, profileAsymmetric, profileCurve, profileFields, uvDims, PROFILE_EDGES, PROFILE_KINDS,
+  curveFaults, defaultProfile, geometryBoard, profileAsCurve, profileAsymmetric, profileCurve, profileFields, profileFromFields,
+  profileOf, profileToFields, uvDims, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
-import type { Board, CurveCut, CutFrom, Dimension, ProfileEdge, ProfileFields, ProfileKind } from '../document/document';
+import type { Board, CurveCut, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileFields, ProfileKind } from '../document/document';
 import { curveFaultText, curveLine } from '../document/curveText';
 import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
@@ -24,32 +25,42 @@ const sameEdge = (a: ProfileEdge, b: ProfileEdge) => a.through === b.through && 
  *  byte-identical to `cornerCurve`, and reads back as the fields it was written from. */
 const normal = (f: ProfileFields): ProfileFields => (profileAsymmetric(f) ? f : { ...f, facing: 'v' });
 
-function ProfileRow({ board, curve, p }: { board: Board; curve: CurveCut; p: ProfileFields }) {
+function ProfileRow({ board: stored_, profile }: { board: Board; profile: ProfileCut }) {
   const units = useStore((s) => s.doc.units);
-  const updateCurve = useStore((s) => s.updateCurve);
-  const removeCurve = useStore((s) => s.removeCurve);
+  const updateProfile = useStore((s) => s.updateProfile);
+  const removeProfile = useStore((s) => s.removeProfile);
+  // The geometry readers (faults, bench line, refusals) read the part through its view (spec P4); the stored part keeps the
+  // profiles for the post-edit board.
+  const board = geometryBoard(stored_);
+  const p = useMemo(() => profileToFields(profile), [profile]);
+  const curve = useMemo(() => profileAsCurve(profile), [profile]);
   const [error, setError] = useState<string | null>(null);
   const line = curveLine(board, curve, units);
   const stored = curveFaults(board, curve);
+  /** The post-edit stored part, for the hole check. */
+  const afterOf = (nextFields: ProfileFields, nextProfile = profileFromFields(normal(nextFields))): Board => {
+    return { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? { ...nextProfile, id: x.id } : x)) };
+  };
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
-  const attempt = (next: Draft, control: Control | null): string | null => {
-    const refused = refusalFor(board, curve, next, control);
+  const attempt = (nextFields: ProfileFields, control: Control | null): string | null => {
+    const nextProfile = profileFromFields(normal(nextFields));
+    const refused = refusalFor(board, curve, profileCurve(normal(nextFields)), control, afterOf(nextFields, nextProfile));
     if (refused) return refused;
     setError(null);
-    updateCurve(board.id, curve.id, next);
+    updateProfile(stored_.id, profile.id, nextProfile);
     return null;
   };
-  const write = (next: ProfileFields, control: Control | null) => attempt(profileCurve(normal(next)), control);
+  const write = (next: ProfileFields, control: Control | null) => attempt(next, control);
   // A typed field owns its refusal (DimensionField shows it as ITS error); a select shows it on the row and stays on the
   // stored value.
   const field = (next: ProfileFields, control: Control): string | undefined => write(next, control) ?? undefined;
-  const set = (next: Draft) => { const r = attempt(next, null); if (r) setError(r); };
+  const set = (next: ProfileFields) => { const r = attempt(next, null); if (r) setError(r); };
 
   const [u, v] = uvDims(p.through);
   const edgeIndex = PROFILE_EDGES.findIndex((e) => sameEdge(e, p));
   const sizeLabel = SIZE_LABEL[p.kind];
   // The Kind-select rule: keep the edge (and the facing, for a kind that has one); take the kind's defaults.
-  const asKind = (kind: ProfileKind): Draft => defaultProfile(board, kind, p, kind === 'roundover' || kind === 'cove' ? 'v' : p.facing);
+  const asKind = (kind: ProfileKind): ProfileFields => profileFields(defaultProfile(board, kind, p, kind === 'roundover' || kind === 'cove' ? 'v' : p.facing))!;
   // fu 388 (the user's ruling): as the Curves Kind select (presets minors 1, 2), an option whose result would be refused is
   // disabled and says why, judged ONLY while the select has focus — every edit frame is a render — and afresh when the
   // profile or part changes under it. The change still goes through `set`, so a stale list refuses in the row's words.
@@ -60,17 +71,18 @@ function ProfileRow({ board, curve, p }: { board: Board; curve: CurveCut; p: Pro
     const reasons: Partial<Record<ProfileKind, string>> = {};
     for (const k of PROFILE_KINDS) {
       if (k === p.kind) continue;
-      const refused = refusalFor(board, curve, asKind(k), null);
+      const nf = asKind(k);
+      const refused = refusalFor(board, curve, profileCurve(normal(nf)), null, afterOf(nf));
       if (refused) reasons[k] = optionReason(refused);
     }
     setJudged({ curve, board, reasons });
-  }, [kindFocused, curve, board, judged]); // eslint-disable-line react-hooks/exhaustive-deps -- p and asKind derive from curve and board
+  }, [kindFocused, curve, board, judged]); // eslint-disable-line react-hooks/exhaustive-deps -- p and asKind derive from curve and board; afterOf also closes over stored_ and profile, safe only because board is a memoised function of stored_
   const reasons = kindFocused && judged && judged.curve === curve && judged.board === board ? judged.reasons : {};
   return (
     <div className="cut" data-kind={p.kind}>
       <div className="cut-head">
         <span className="cut-label curve-label">{KIND_LABEL[p.kind]}</span>
-        <button className="cut-remove" aria-label={`Remove profile (${line})`} onClick={() => removeCurve(board.id, curve.id)}>✕</button>
+        <button className="cut-remove" aria-label={`Remove profile (${line})`} onClick={() => removeProfile(stored_.id, profile.id)}>✕</button>
       </div>
       <p className="field-note">{line}</p>
       {stored.length > 0 && <p className="field-note" role="status">{cap(curveFaultText(stored[0]!))} at this size.</p>}
@@ -132,18 +144,19 @@ function ProfileRow({ board, curve, p }: { board: Board; curve: CurveCut; p: Pro
 }
 
 /** The Profiles section (edge profiles spec §3): one row per stored profile, and + Add profile ▾. */
-export function Profiles({ board }: { board: Board }) {
-  const addCurves = useStore((s) => s.addCurves);
+export function Profiles({ board: stored }: { board: Board }) {
+  const addProfiles = useStore((s) => s.addProfiles);
+  const board = geometryBoard(stored);
   const units = useStore((s) => s.doc.units);
   const f = (n: number) => formatLength(n, units);
   // A preset whose default would fault on this part — a curve fault, or a hole it would put into the waste — is withheld,
   // not added and refused (the Curves precedent).
   const fits = (c: Draft): boolean => {
     if (curveFaults(board, c).length > 0) return false;
-    const after: Board = { ...board, curves: [...board.curves, { ...c, id: '__preset0' }] };
+    const after: Board = { ...stored, profiles: [...stored.profiles, { ...profileOf(c)!, id: '__preset0' }] };
     return holeRefusal(board, after) === null;
   };
-  const rows = board.curves.flatMap((c) => { const p = profileFields(c); return p ? [{ c, p }] : []; });
+  const rows = stored.profiles;
   const items = PROFILE_KINDS.flatMap((kind) => {
     const c = defaultProfile(board, kind);
     const d = profileFields(c);
@@ -152,12 +165,12 @@ export function Profiles({ board }: { board: Board }) {
       : kind === 'thumbnail' ? `${f(d.size)} × ${f(d.depth!)}`
       : kind === 'bead' ? `${f(d.size)} radius, ${f(d.fillet!)} quirk`
       : `${f(d.size)} radius`;
-    return [{ label: KIND_LABEL[kind], detail: `${size}, on the top long edge`, run: () => addCurves(board.id, [c]) }];
+    return [{ label: KIND_LABEL[kind], detail: `${size}, on the top long edge`, run: () => addProfiles(stored.id, [profileOf(c)!]) }];
   });
   return (
     <>
       <h3>Profiles{rows.length > 0 && <span className="h3-count"> · {rows.length}</span>}</h3>
-      {rows.map(({ c, p }) => <ProfileRow key={c.id} board={board} curve={c} p={p} />)}
+      {rows.map((profile) => <ProfileRow key={profile.id} board={stored} profile={profile} />)}
       {items.length > 0
         ? <Popover className="add-profile" label={<>+ Add profile<span aria-hidden="true"> ▾</span></>} title="Add an edge profile" items={items} />
         : <p className="field-note">No profile preset fits this part.</p>}

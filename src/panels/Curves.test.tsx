@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { archCurve, archFields, bowCurve, bowFields, cornerCurve, createBoard, createDocument } from '../document/document';
+import { archCurve, archFields, bowCurve, bowFields, cornerCurve, createBoard, createDocument, profileOf } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
 import { refusalFor } from './curveRefusal';
@@ -332,7 +332,7 @@ describe('preset details read the project units (presets minors 3)', () => {
 
 describe('Curves leaves profiles to the Profiles section (edge profiles spec §2.4)', () => {
   it('a stored through-length corner is not listed in Curves (Review Focus 1)', () => {
-    open(apron({ curves: [{ id: 'c1', ...cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }) }] }));
+    open(apron({ profiles: [{ id: 'c1', ...profileOf(cornerCurve({ through: 'length', uFrom: 'max', vFrom: 'max', radius: 0.25 }))! }] }));
     expect(screen.queryByRole('button', { name: /^Remove curve/ })).toBeNull();
     expect(screen.queryByText(/^Curves · /)).toBeNull();
   });

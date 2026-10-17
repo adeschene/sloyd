@@ -3,6 +3,7 @@ import { boardHoles, insideHole } from './holes';
 import { isAir, uvDims } from './curves';
 import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
+import { geometryBoard } from './profiles';
 
 /**
  * Every field of `Cut` that decides "same cut": all but `id`.
@@ -270,6 +271,7 @@ export function pocketCells(board: Board): Region[] {
  * times: a board with n cuts is asked about 15n points.
  */
 export function stockProbe(board: Board): (p: Point) => boolean {
+  board = geometryBoard(board);
   const { coords, filled } = grid(board);
 
   /** Every cell index on `d` whose closed span contains `v`. Empty if outside. */

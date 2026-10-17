@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 import {
   archCurve, archFields, bowCurve, curveAs, curveKindChoice, bowFields, cornerCurve, cornerFields, curveFaults, defaultArch,
-  defaultBow, defaultCorner, defaultCorners, defaultNotch, deriveCurveKind, profileFields, uvDims,
+  defaultBow, defaultCorner, defaultCorners, defaultNotch, deriveCurveKind, uvDims,
 } from '../document/document';
 import type { Board, CurveCut, CurveKindChoice, CutFrom, Dimension } from '../document/document';
 import { curveFaultText, curveLine } from '../document/curveText';
@@ -192,7 +192,7 @@ export function Curves({ board }: { board: Board }) {
     const after: Board = { ...board, curves: [...board.curves, ...cs.map((c, i) => ({ ...c, id: `__preset${i}` }))] };
     return holeRefusal(board, after) === null;
   };
-  const shown = board.curves.filter((c) => !profileFields(c));
+  const shown = board.curves;
   const one = (c: Draft | null) => (c ? [c] : null);
   const arch = one(defaultArch(board));
   const notch = one(defaultNotch(board));

@@ -5,6 +5,7 @@ import {
   wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, unionLoops, uvDims,
 } from '../document/document';
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
+import { geometryBoard } from '../document/profiles';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 import { candidates as sortedCandidates, centroidFan, CONFORM_EPS, insertOnEdges, welder } from './conform';
@@ -282,6 +283,7 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
  * and its walls against them drop as seams.
  */
 export function drawsAsBox(board: Board, body: Body, holes: readonly Hole[]): body is Body & { box: Region } {
+  board = geometryBoard(board);
   return board.curves.length === 0 && body.box !== null && !holes.some((h) => holeTouchesBox(h, body.box!));
 }
 
@@ -309,6 +311,7 @@ export function drawsAsBox(board: Board, body: Body, holes: readonly Hole[]): bo
  * the slices, are never drawn. And its faces are conformed (conformedTriangles): the merged mesh is watertight.
  */
 export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; normals?: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+  board = geometryBoard(board);
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
@@ -901,6 +904,7 @@ export function holesMesh(board: Board, holes: readonly Hole[], bodies: readonly
  * would collide.
  */
 export function boardUVSignature(board: Board): string {
+  board = geometryBoard(board);
   return [
     board.id,
     board.rotation,

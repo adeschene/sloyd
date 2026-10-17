@@ -2,6 +2,7 @@ import type { Definition, Instance, Rotation, SloydDocument, StoredBoard } from 
 import { dissolveShapes, isShaped, pruneShapes, resolveBoard, shapeMap } from './shapes';
 import { nextId } from './ids';
 import { copyCurve } from './curves';
+import { copyProfile } from './profiles';
 import { copyHoleRow } from './holes';
 import { copyAngleCut } from './angleCuts';
 import { uniqueName } from './names';
@@ -201,7 +202,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
-      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve) };
+      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile) };
     taken.push(named);
     return [named];
   });
@@ -327,7 +328,7 @@ export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument 
     id: nextId(),
     boards: def.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile) })),
     instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
   const withDef = { ...doc, definitions: [...doc.definitions, copy] };

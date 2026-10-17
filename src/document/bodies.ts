@@ -5,6 +5,7 @@ import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
 import { curvePlan, curveValues, smoothLines, splitPieces } from './curves';
 import { DIMENSION_ORDER } from './geometry';
 import { unionOutline } from './outline';
+import { geometryBoard } from './profiles';
 import type { CurveCut } from './types';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -131,6 +132,7 @@ export function clipConvex(faces: BodyFace[], h: { n: V3; d: number }): BodyFace
  * `[]` (a part its cuts consumed) — BoardMesh draws invariant 21's ghost then.
  */
 export function boardBodies(board: Board): Body[] {
+  board = geometryBoard(board);
   const cells = pocketCells(board);
   const planes = board.angleCuts.flatMap((c) => {
     const h = keptHalfSpace(board, c);
@@ -527,6 +529,7 @@ function areaIn(verts: readonly V3[], k: number): number {
  * Never mutates `bodies` (partGeometry's are frozen and shared).
  */
 export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
+  board = geometryBoard(board);
   const axes = [...new Set(board.curves.map((c) => DIMENSION_ORDER.indexOf(c.through)))];
   const faces = bodies.flatMap((b) => b.faces);
   const smooth = smoothLines(board);
@@ -616,6 +619,7 @@ function edgesOf(board: Board, bodies: () => readonly Body[]): Segment[] {
  * otherwise. The ONE name every edge drawer (BoardMesh, the drawings) reads.
  */
 export function boardEdges(board: Board): Segment[] {
+  board = geometryBoard(board);
   return edgesOf(board, () => boardBodies(board));
 }
 
@@ -644,6 +648,7 @@ const num = (n: number): string => (Object.is(n, -0) ? '-0' : String(n));
  * carries one). Ids are JSON-quoted so an id holding a separator cannot collide.
  */
 export function geometryKey(board: Board): string {
+  board = geometryBoard(board);
   const val = (v: string | number) => (typeof v === 'number' ? num(v) : v);
   const cuts = board.cuts.map((c) => CUT_GEOMETRY_KEYS.map((k) => val(c[k])).join(',')).join(';');
   const angles = board.angleCuts.map((c) => `${JSON.stringify(c.id)}:${angleCutValues(c).map(val).join(',')}`).join(';');
@@ -673,6 +678,7 @@ const cache = new Map<string, PartGeometry>();
  * between parts, it must never be mutated.
  */
 export function partGeometry(board: Board): PartGeometry {
+  board = geometryBoard(board);
   const key = geometryKey(board);
   const hit = cache.get(key);
   if (hit) {

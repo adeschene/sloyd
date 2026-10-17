@@ -8,7 +8,7 @@ const drawerDoc = (): SloydDocument => ({
   ...createDocument(),
   instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
   definitions: [{ id: 'd1', boards: [
-    { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [], holes: [], curves: [] },
+    { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [] },
   ], instances: [] }],
 });
 const s = () => useStore.getState();
@@ -161,7 +161,7 @@ describe('links are shapes', () => {
     ...createDocument(),
     boards: [0, 1, 2, 3].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, length: 28, width: 1.75, thickness: 1.75,
       position: [k * 10, 0, 0] as [number, number, number], rotation: ([0, 90, 180, 270] as const)[k]!, posture: 'upright' as const,
-      grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [] })),
+      grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [] })),
   });
 
   it('Link stores one shape and makes every member a shaped part', () => {
@@ -359,7 +359,7 @@ describe('links are shapes', () => {
 describe('other copies after Delete, Group and Ungroup in a shared definition (components spec §4.2)', () => {
   const part = (id: string, x: number) => ({ id, name: `Part ${id}`, length: 10, width: 4, thickness: 0.75,
     position: [x, 0, 0] as [number, number, number], rotation: 0 as const, posture: 'flat' as const,
-    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [] });
+    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [] });
   const shared = (): SloydDocument => ({
     ...createDocument(),
     instances: [
@@ -487,7 +487,7 @@ describe('commitSnapMove refuses a twin target (fu 230)', () => {
       { id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 },
       { id: 'i2', name: 'Drawer (1)', definition: 'd1', position: [50, 0, 0], rotation: 0 },
     ],
-    boards: [{ id: 'r1', name: 'Rail', length: 10, width: 2, thickness: 1, position: [0, 30, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [] }],
+    boards: [{ id: 'r1', name: 'Rail', length: 10, width: 2, thickness: 1, position: [0, 30, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [] }],
   });
   const cornerOf = (path: string) => {
     const w = worldParts(s().doc).find((b) => b.id === path)!;

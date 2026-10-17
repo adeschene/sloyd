@@ -514,6 +514,32 @@ and 79.
 
 ## What each round did
 
+**What profile runs chunk a1 did (2026-10-17)** (fu 390 and 365's stopped half, designed together — brainstorm: "Both,
+equally", "Following + stopped", a new profiles list, store → follow → speed, the router's run-out, mitred sharp corners; spec
+`2026-10-17-sloyd-profile-runs-design.md`, "Yes, write the spec", "Approved, write the plan"; chunk a split into a1/a2 by the
+user's choice when planning showed the run-out is itself doubly curved; plan `…-profile-runs-a1.md`, "Subagent-driven, go ahead";
+branch `profile-runs-a1`; **schema 18**).
+1. **The probe** (before the spec, throwaway): subtracting a swept profile's waste as convex pieces costs 220–326 bodies and 43–86 ms
+   (bodies and raw edges only) — not viable; building the kept wood directly is (a roundover along an arch 9 ms, around 2" corners
+   17 ms), but a cove/ogee/bead keeps a non-convex section (48 ms: chunk c), and the offset must handle a chord swallowed beside a
+   sharp corner (the probe's notch case got the volume wrong).
+2. **The stored form** (Task 1): `ProfileCut` on parts and shapes, its conversions to and from chunk 1's curves (byte-identical over
+   every kind × edge × facing), `mirrorProfile` (flag flips; the review's "swap only along the run dimension" was wrong — every
+   reflection reverses travel — and the real defect, the thickness case not swapping a station run, was fixed), `geometryBoard`.
+3. **Loading schema 18** (Task 2): every recognised profile curve moved into `profiles` on every load, ids sharing the curve scope;
+   a loop, a station end, ends on two sides or an unknown kind refuse the document, so rolling a2 back to a1 refuses instead of
+   drawing a stopped profile full length.
+4. **One view** (Task 3): every geometry, word and fault reader through `geometryBoard`; `profilesView.test.ts` compares 91 cases
+   reader by reader against the v17 part (the implementer found the brief's test order let two memoised readers pass vacuously and
+   added migrated-first cases).
+5. **Write-back** (Task 4): mirrors (`lowerProfiles`), copies, Link, groups and the store's add/update/remove actions.
+6. **The Profiles section** (Task 5) reads and writes `profiles`, no visible change.
+7. **Live pass** (`docs/browser-verification-profile-runs-a1.md`): master and the branch side by side on one v17 fixture — the
+   Properties rows, the cut list text and SVG, the Plans key list and sheet SVG hash identical (React `useId` ids aside); the branch
+   autosaved the projects as v18.
+Suite 4954 tests across 166 files; build clean (the four-edge cove and ogee perf guards read 44 and 55 ms once in a full run at
+load 9.9 with a browser open, then 11/11 alone).
+
 **What fu 388 did (2026-10-17)** (the user's ruling after edge profiles chunk 1 went live: "greying out a choice makes sense";
 "Yes, go ahead"; branch `profile-select-grey`). The Profile select follows the Curves Kind select: options judged only while it
 has focus, afresh when the profile or part changes under it, dropped on blur; a refused option disabled with the refusal's own

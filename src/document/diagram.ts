@@ -10,6 +10,7 @@ import { angleLine } from './angleText';
 import { curveOutline, twiceArea, uvDims } from './curves';
 import { curveLineEntries } from './curveText';
 import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
+import { geometryBoard } from './profiles';
 
 /** One angle cut in a view (spec §4.3): the wedge it removes, in (h, v) board inches, and its bench line. */
 export interface DiagramAngle { id: string; poly: [number, number][]; label: string }
@@ -163,6 +164,7 @@ function wasteOnFace(board: Board, c: CurveCut, W: number, H: number): [number, 
  * `depthField.ts`'s own doc comment for that rule).
  */
 export function buildDiagrams(board: Board, units: Units): DiagramView[] {
+  board = geometryBoard(board);
   const u = units;
   const f = (n: number) => formatLengthBare(n, units);
   const views = new Map<string, DiagramView>();

@@ -9,7 +9,7 @@ import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, curveFaults, localSegments } from './curves';
 import { curveLineEntries, filletWords, profileName } from './curveText';
-import { profileFields } from './profiles';
+import { geometryBoard, profileFields } from './profiles';
 
 /**
  * The Plans sheet's feature keys (feature callouts spec §2.2, §3): ONE home for a feature's identity, the segment tags it
@@ -91,6 +91,7 @@ function curveText(c: CurveCut, b: Board, units: Units, collapsed: boolean): str
 }
 
 export function partFeatures(b: Board, units: Units): PartFeature[] {
+  b = geometryBoard(b);
   const out: PartFeature[] = [];
   const push = (kind: FeatureKind, ids: string[], text: string, faulted: boolean, trueAxis: Vec3 | null, trueNormal: Vec3 | null) => {
     const tags = ids.map((id) => featureTag(b.id, kind, id));

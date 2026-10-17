@@ -3,6 +3,7 @@ import { CUT_GEOMETRY_KEYS } from './cuts';
 import { copyAngleCut, sameAngleCut } from './angleCuts';
 import { copyHoleRow, sameHoleRow } from './holes';
 import { copyCurve, sameCurve } from './curves';
+import { copyProfile, sameProfile } from './profiles';
 
 /**
  * Which Board fields a link shares (linking spec §2): the shared ones live in
@@ -13,7 +14,7 @@ import { copyCurve, sameCurve } from './curves';
 export const LINK_FIELDS = {
   id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
-  grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared',
+  grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
 
 export type SharedField = {
@@ -35,7 +36,7 @@ void _shapeMatchesTable;
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
  */
-const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves'>] extends string | number ? true : never = true;
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
 
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
@@ -48,6 +49,7 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     angleCuts: b.angleCuts.map(copyAngleCut),
     holes: b.holes.map(copyHoleRow),
     curves: b.curves.map(copyCurve),
+    profiles: b.profiles.map(copyProfile),
   };
 }
 
@@ -60,6 +62,7 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.angleCuts) out.angleCuts = patch.angleCuts.map(copyAngleCut);
   if (patch.holes) out.holes = patch.holes.map(copyHoleRow);
   if (patch.curves) out.curves = patch.curves.map(copyCurve);
+  if (patch.profiles) out.profiles = patch.profiles.map(copyProfile);
   return out;
 }
 
@@ -94,6 +97,13 @@ export function sameShared(a: Board, b: Board): boolean {
         const ca = a.curves[i]!;
         const cb = b.curves[i]!;
         if (ca.id !== cb.id || !sameCurve(ca, cb)) return false;
+      }
+    } else if (k === 'profiles') {
+      if (a.profiles.length !== b.profiles.length) return false;
+      for (let i = 0; i < a.profiles.length; i += 1) {
+        const pa = a.profiles[i]!;
+        const pb = b.profiles[i]!;
+        if (pa.id !== pb.id || !sameProfile(pa, pb)) return false;
       }
     } else if (a[k] !== b[k]) {
       return false;

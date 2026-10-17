@@ -10,6 +10,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { bodyMesh, boardUVs, boardUVSignature, drawsAsBox, holesMesh } from './grainTiling';
 import { capFill } from './capFill';
+import { geometryBoard } from '../document/profiles';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 import { NO_PLANES, SECTION_PLANES } from './sectionPlane';
@@ -283,7 +284,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     const capN: V3 = [-normal[0], -normal[1], -normal[2]];
     // Each piece fanned counter-clockwise about capN (front-facing to the viewer), a curved part's pieces conformed
     // first (no T-junction specks): capFill.
-    const fill = capFill(c.pieces, capN, board.curves.length > 0);
+    const fill = capFill(c.pieces, capN, geometryBoard(board).curves.length > 0);
     const fillGeo = new THREE.BufferGeometry();
     fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
     // EXPLICIT normals (lit by meshStandardMaterial), all capN. Without them the normal is zero and the lighting
