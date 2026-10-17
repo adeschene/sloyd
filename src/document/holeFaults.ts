@@ -4,15 +4,18 @@ import { clippedRegion } from './cuts';
 import { keptHalfSpace } from './angleCuts';
 import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, uvDims, type CurveKind } from './curves';
 import { HOLE_EPS, holeInstances, type Hole } from './holes';
+import { profileFields, type ProfileKind } from './profiles';
 
 export type HoleFaultKind = 'breaks-out' | 'off-flat' | 'meets-hole' | 'too-deep';
+export interface FaultCurve { id: string; kind: CurveKind | null; profile?: ProfileKind }
 export interface HoleFault {
   index: number;
   kind: HoleFaultKind;
   /** breaks-out: the face edge it runs past. */
   edge?: { dim: Dimension; side: CutFrom };
-  /** breaks-out into a curve's waste: the curve (instead of an edge). */
-  curve?: { id: string; kind: CurveKind | null };
+  /** breaks-out into a curve's waste: the curve (instead of an edge). `profile` only for an edge profile (R3: a
+   *  through-length corner is a Roundover there, not a rounded corner), so a non-profile's fault is unchanged. */
+  curve?: FaultCurve;
   /** meets-hole: the hole it meets. */
   other?: { row: string; index: number };
 }
@@ -71,7 +74,7 @@ export function breaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFro
 
 /** A hole meeting a curve's waste (curves spec §6.3; touching is meeting): along `through` its disc, square to it the
  *  rectangle it projects to on (u, v). The first such curve, or null. */
-export function intoCurve(board: Board, h: Hole): { id: string; kind: CurveKind | null } | null {
+export function intoCurve(board: Board, h: Hole): FaultCurve | null {
   for (const c of board.curves) {
     const [u, v] = uvDims(c.through);
     const iu = idx(u);
@@ -88,7 +91,7 @@ export function intoCurve(board: Board, h: Hole): { id: string; kind: CurveKind 
       const bv = box(iv);
       hit = rectMeetsWaste(segs, [bu[0]!, bv[0]!], [bu[1]!, bv[1]!]);
     }
-    if (hit) return { id: c.id, kind: deriveCurveKind(c) };
+    if (hit) { const p = profileFields(c); return { id: c.id, kind: deriveCurveKind(c), ...(p ? { profile: p.kind } : {}) }; }
   }
   return null;
 }

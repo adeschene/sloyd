@@ -1,8 +1,8 @@
 import {
-  bowFields, archFields, cornerFields, curveFaults, curveKindWord, holeFaults, uvDims, CURVE_EPS, profileFields,
+  bowFields, archFields, cornerFields, curveFaults, holeFaults, uvDims, CURVE_EPS, profileFields,
 } from '../document/document';
 import type { Board, CurveCut, Dimension } from '../document/document';
-import { distinctFaults, edgeName, faultKey } from '../document/holeText';
+import { curveWord, distinctFaults, edgeName, faultKey } from '../document/holeText';
 
 export type Draft = Omit<CurveCut, 'id'>;
 export type Control = 'Rise' | 'Span' | 'Radius' | 'Start' | 'Size' | 'Reach' | 'Depth' | 'Fillet' | 'Quirk';
@@ -22,7 +22,7 @@ export function holeRefusal(board: Board, after: Board): string | null {
   for (const row of board.holes) {
     const was = new Set(distinctFaults(holeFaults(board, row)).map(faultKey));
     const hit = distinctFaults(holeFaults(after, row)).find((f) => !was.has(faultKey(f)) && f.curve);
-    if (hit) return `Puts hole ${hit.index + 1} into ${curveKindWord(hit.curve!.kind)} — move it first.`;
+    if (hit) return `Puts hole ${hit.index + 1} into ${curveWord(hit.curve!)} — move it first.`;
   }
   return null;
 }

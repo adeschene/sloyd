@@ -6,7 +6,7 @@ import {
 } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
-import { pastHalfCircle, refusalFor } from './curveRefusal';
+import { holeRefusal, pastHalfCircle, refusalFor } from './curveRefusal';
 
 const top = (over: Partial<Board> = {}) => createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -148,7 +148,7 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     const stored = curves()[0]!;
     await user.selectOptions(screen.getByLabelText('Profile'), 'cove');
     expect(curves()[0]).toEqual(stored);
-    expect(screen.getByRole('alert')).toHaveTextContent(/^Puts hole 1 into/);
+    expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the cove — move it first.');
     expect((screen.getByLabelText('Profile') as HTMLSelectElement).value).toBe('roundover');
   });
 
@@ -226,6 +226,14 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
     await add(user, 'Roundover');
     expect(screen.getByText(/^Roundover 6 mm on the edge/)).toBeInTheDocument();
+  });
+});
+
+describe('holeRefusal names a profile by its own word (Task 7 fix round 1; R3)', () => {
+  it('a roundover added over a bore reads the roundover, never the rounded corner', () => {
+    const b = top({ holes: [bore(0.1)] });
+    const after = { ...b, curves: [{ id: 'p1', ...defaultProfile(b, 'roundover') }] };
+    expect(holeRefusal(b, after)).toBe('Puts hole 1 into the roundover — move it first.');
   });
 });
 
