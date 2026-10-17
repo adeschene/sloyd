@@ -5,6 +5,8 @@ import { buildCutList, createBoard, createDocument, defaultHole, flatDocument } 
 import { ARCH } from '../document/curveFixtures';
 import { cabinetsDoc } from '../document/treeFixtures';
 import { PlansSheet } from './PlansSheet';
+import { boardsBounds } from '../document/geometry';
+import { worldParts } from '../document/tree';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
 
@@ -146,5 +148,49 @@ describe('PlansSheet: feature keys (feature callouts spec §2.1, §4.5)', () => 
     const { container } = render(<PlansSheet onClose={() => {}} />);
     const keyed = sections(container).filter(([, lines]) => (lines as string[]).length > 0);
     expect(keyed.map(([h]) => h)).toEqual(['Cabinet › Drawer × 4']);
+  });
+});
+
+describe('PlansSheet section views (fu 256)', () => {
+  const one = () => ({ ...createDocument('One'), boards: [createBoard({ id: 'b', length: 30, width: 11.25, thickness: 0.75 })] });
+
+  it('with Section off the sheet has no marker and no section block', () => {
+    act(() => useStore.getState().replaceDocument(cabinetsDoc()));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    expect(container.querySelector('.plans-cut-mark')).toBeNull();
+    expect(screen.queryByText(/Section A–A/)).toBeNull();
+  });
+
+  it('with Section on: one marker on the piece trio, the section right after it, none on the assemblies', () => {
+    const doc = cabinetsDoc();
+    act(() => useStore.getState().replaceDocument(doc));
+    // Through the middle of the piece, so the cut meets wood whatever the fixture's layout.
+    const bounds = boardsBounds(worldParts(doc))!;
+    act(() => useStore.getState().setSection({ axis: 'front', at: (bounds.min[2] + bounds.max[2]) / 2, flip: false }));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    expect(container.querySelectorAll('.plans-cut-mark')).toHaveLength(1);
+    expect(container.querySelectorAll('path.plans-cap').length).toBeGreaterThan(0);
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(headings[0]).toBe('Exploded view');
+    expect(headings[1]).toBe('Cabinets');
+    expect(headings[2]).toMatch(/^Section A–A — Front cut /);
+    expect(headings.slice(3)).toEqual(['Cabinet × 3', 'Cabinet › Drawer × 4', 'Solo']);
+  });
+
+  it('a cut meeting no wood says so in one line', () => {
+    act(() => useStore.getState().replaceDocument(one()));
+    act(() => useStore.getState().setSection({ axis: 'front', at: 50, flip: false }));
+    render(<PlansSheet onClose={() => {}} />);
+    expect(screen.getByText('Section A–A: the cut meets no part of the assembled piece.')).toBeInTheDocument();
+  });
+
+  it('cuts the assembled piece while the viewport is exploded, with the note', () => {
+    act(() => useStore.getState().replaceDocument(one()));
+    act(() => useStore.getState().setSection({ axis: 'front', at: 5, flip: false }));
+    act(() => useStore.setState({ explode: 0.5 }));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    expect(container.querySelectorAll('path.plans-cap')).toHaveLength(1);
+    expect(screen.getByText("Cut through the assembled piece at the viewport's position.")).toBeInTheDocument();
+    act(() => useStore.setState({ explode: 0 }));
   });
 });
