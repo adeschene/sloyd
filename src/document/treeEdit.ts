@@ -115,10 +115,6 @@ function lowerHoles(storedBefore: Board, draft: Board): HoleRow[] {
 }
 
 /**
- * A part's curves lowered back through ONE mirror (curves spec §6.2): like lowerHoles, a flag flip, exact and size-free;
- * a curve equal to the stored one with the same id maps back to THAT object; all reused: the stored array.
- */
-/**
  * A part's profiles lowered back through ONE mirror (profile runs spec §3.1): a flag flip (mirrorProfile is its own inverse);
  * a profile equal to the stored one with the same id maps back to THAT object; all reused: the stored array.
  */
@@ -133,6 +129,10 @@ function lowerProfiles(storedBefore: Board, draft: Board): ProfileCut[] {
   return out.length === storedBefore.profiles.length && out.every((p, i) => p === storedBefore.profiles[i]) ? storedBefore.profiles : out;
 }
 
+/**
+ * A part's curves lowered back through ONE mirror (curves spec §6.2): like lowerHoles, a flag flip, exact and size-free;
+ * a curve equal to the stored one with the same id maps back to THAT object; all reused: the stored array.
+ */
 function lowerCurves(storedBefore: Board, draft: Board): CurveCut[] {
   const d0 = mirrorDim(draft);
   const byId = new Map(storedBefore.curves.map((c) => [c.id, c]));
