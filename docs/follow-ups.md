@@ -5411,6 +5411,9 @@ real display. Retuning changes only those two constants (INNER must stay below 1
 **256. Section views (a clipping plane).** To see inside a joint on the sheet or in the viewport. Spec §9.
 - **Status:** open.
 **Status:** open (feature; needs a spec) for the SHEET half: the viewport half shipped as the section cut (2026-10-15, inv 51); section views on the Plans sheet remain. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 — section views on the Plans sheet (spec `2026-10-17-sloyd-section-views-design.md`, plan
+`…-section-views.md`): with the viewport's Section on, the piece trio carries an A–A cutting line on one edge-on view and a
+hatched Section A–A of the assembled piece follows it (`drawView`'s `section` option; `sectionView.ts`). Residue 384.
 
 **257. Exploding along each joint's engagement direction.** The explode is hierarchical and radial from centres
 (spec §3, option B); option C moves parts along the direction they slide apart. Spec §9.
@@ -6430,3 +6433,13 @@ after the first and `.cutlist-buying` take `break-before: page`; section and Buy
 (`CutList.test.tsx`), every rule mutated. Verified with a REAL Chromium PDF (`page.pdf()` through the code runner — possible
 after all, see fu 70): a 29-part, three-material project printed 7 Letter pages — Pine 1–4 (each page starting on a whole
 row, its subtotal beside row 22), Plywood with its sheet layout 5, Walnut 6, Buying 7 (`docs/img/fu383-cutlist-pages.png`).
+
+## From the section views round — 2026-10-17
+
+**384. Section views residue.** (1) Hatch neighbours are found by outlines MEETING (a vertex on the other's edge, within
+DRAW_EPS); two parts modelled OVERLAPPING (a design-check fault, inv 38) can get the same hatch where they cross — seen live on a
+fixture table whose aprons ran into its legs. (2) The hatch line is drawn at the pattern tile's edge, so half its stroke is
+clipped (final review M3); density and weight are for the user's eye on a real print. (3) A part with no kept wood draws nothing
+on paper, even a face lying ON the plane, where the viewport keeps (and z-fights) that face — a deliberate difference (review I1).
+**Status:** open (for the user's eye: (2); record-only: (1), (3)).
+

@@ -2,7 +2,7 @@ import { IMPERIAL } from '../units/length';
 import { render, screen } from '@testing-library/react';
 import { createBoard, createDocument, defaultShelfPinRow } from '../document/document';
 import type { HoleRow } from '../document/types';
-import { PlanTrio, ExplodedFigure, pathOf } from './PlanFigure';
+import { PlanTrio, ExplodedFigure, pathOf, SectionBlock, trioScale } from './PlanFigure';
 
 // 2in shelves: the trio's scale is 752 / (30 + 12) ≈ 17.9 per inch (Task 7), so a 2in spacing is
 // ≈ 35.8 drawn, room for a 2-char label (24.8 + 8 = 32.8). 1in spacings (17.9) would be dropped.
@@ -141,5 +141,64 @@ describe('PlanTrio: feature keys (feature callouts spec §4.5)', () => {
     const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Sides" keyed={new Set(['L'])} />);
     expect(container.querySelectorAll('.plans-key-mark')).toHaveLength(1);
     expect(container.querySelector('.plans-key li')!.textContent).not.toMatch(/×\)$/);
+  });
+});
+
+describe('section views (fu 256)', () => {
+  const shelf = createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75 });
+  const metric = { display: 'metric-mm', precision: 16 } as typeof IMPERIAL;
+
+  it('PlanTrio marks the cut on the Plan for a Front cut and on the Front for a Top cut, once', () => {
+    const front = render(<PlanTrio parts={[shelf]} units={IMPERIAL} label="P" section={{ axis: 'front', at: 5, flip: false }} />);
+    const marks = front.container.querySelectorAll('.plans-cut-mark');
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveAttribute('data-view', 'Plan');
+    expect([...marks[0]!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['A', 'A']);
+    front.unmount();
+    const top = render(<PlanTrio parts={[shelf]} units={IMPERIAL} label="P" section={{ axis: 'top', at: 0.5, flip: false }} />);
+    expect(top.container.querySelector('.plans-cut-mark')).toHaveAttribute('data-view', 'Front');
+  });
+
+  it('PlanTrio without a section draws no marker', () => {
+    const { container } = render(<PlanTrio parts={[shelf]} units={IMPERIAL} label="P" />);
+    expect(container.querySelector('.plans-cut-mark')).toBeNull();
+  });
+
+  it('SectionBlock: titled, hatched caps, visible lines only, no dimensions', () => {
+    const parts = [shelf];
+    const { container } = render(<SectionBlock parts={parts} section={{ axis: 'front', at: 5, flip: false }}
+      units={IMPERIAL} scale={trioScale(parts)} exploded={false} />);
+    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('Section A–A — Front cut 5" from the back, looking toward the back');
+    const fig = screen.getByRole('img', { name: 'Section A–A — Front cut 5" from the back, looking toward the back' });
+    expect(fig.querySelectorAll('path.plans-cap')).toHaveLength(1);
+    expect(fig.querySelector('path.plans-cap')).toHaveAttribute('data-hatch', '0');
+    expect(fig.querySelectorAll('path.plans-cap-outline')).toHaveLength(1);
+    expect(fig.querySelector('path.plan-hidden')).toBeNull();
+    expect(fig.querySelector('.plan-dim')).toBeNull();
+    expect(container.querySelectorAll('pattern')).toHaveLength(4);
+    expect(screen.queryByText("Cut through the assembled piece at the viewport's position.")).toBeNull();
+  });
+
+  it('SectionBlock: the explode note, and one line when the cut meets no wood', () => {
+    const parts = [shelf];
+    const a = render(<SectionBlock parts={parts} section={{ axis: 'front', at: 5, flip: false }} units={IMPERIAL} scale={10} exploded />);
+    expect(screen.getByText("Cut through the assembled piece at the viewport's position.")).toBeInTheDocument();
+    a.unmount();
+    render(<SectionBlock parts={parts} section={{ axis: 'front', at: 50, flip: false }} units={IMPERIAL} scale={10} exploded={false} />);
+    expect(screen.getByText('Section A–A: the cut meets no part of the assembled piece.')).toBeInTheDocument();
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('SectionBlock reads whole mm in a metric project', () => {
+    render(<SectionBlock parts={[shelf]} section={{ axis: 'front', at: 5, flip: false }} units={metric} scale={10} exploded={false} />);
+    expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('Front cut 127 mm from the back');
+  });
+
+  it('the section is drawn at the trio scale', () => {
+    const parts = [shelf];
+    const scale = trioScale(parts);
+    render(<SectionBlock parts={parts} section={{ axis: 'front', at: 5, flip: false }} units={IMPERIAL} scale={scale} exploded={false} />);
+    // 30" wide plus a 16-unit margin each side.
+    expect(screen.getByRole('img').getAttribute('viewBox')).toBe(`0 0 ${30 * scale + 32} ${0.75 * scale + 32}`);
   });
 });

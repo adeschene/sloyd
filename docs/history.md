@@ -514,6 +514,35 @@ and 79.
 
 ## What each round did
 
+**What section views did (2026-10-17)** (the user: "start on section views (256)"; brainstormed, spec and plan approved;
+"go with native"; branch `section-views`). Fu 256's sheet half. The user's rulings: the viewport's cut is the source (no
+sheet control, nothing saved), the whole piece only, a full section. `drawView` gained a `section` option. Inside the one
+hidden-line pass, each segment is clipped by `keptBySection`'s test on its chord parameter, and each occluder is intersected
+with the kept half-space (a box stays a box; a planes body gains the plane). It returns `caps` projected from `sectionCaps`.
+Without a section the drawing is byte-for-byte unchanged: the identity hashes held, because the rewritten span walk is the old
+one for t in [0, 1].
+
+The new pure module `sectionView.ts` holds:
+- the views (a flip gives the proper opposite view: Back, Left side, Underside);
+- the heading (measured from the piece's own minimum, because paper has no origin; a change from the brainstorm the user
+  accepted with the spec);
+- the cutting line (on the Plan for Front and Side cuts, on the Front for Top cuts);
+- the hatch assignment (touching caps differ, from four patterns).
+
+`PlansSheet` renders `SectionBlock` as its own block after the piece trio, at the trio's scale through a cached `trioScale`.
+
+The final review (fresh, opus) found one Important issue and three Minor ones. Re-graded by effect, three were fixed
+test-first:
+- a removed part whose face lay ON the plane drew its whole face over the section (a cut typed at a joint);
+- `hatchPatterns` took 4.5 s on drilled caps (shelf-pin panels), now checked by bounding box first;
+- the A–A line was drawn off the piece when the cut missed the wood (the exploded-viewport case).
+
+Every new test was mutated. Measured on 60 dadoed parts: 8.0 ms plain, 7.6 ms sectioned.
+
+The live pass covered a table cut from the side, a dadoed bookcase cut from the front, a flipped Top cut and a metric table,
+plus a real Chromium PDF; it is recorded in `docs/browser-verification-section-views.md`. The residue is fu 384. Merged, not
+deployed; no schema change.
+
 **What follow-ups 6 did (2026-10-17)** (the user: "Go ahead with the small items next"; branch `follow-ups-6`). The last
 code-sized opens. **8**: `storage/index.ts` is the one import site of the adapter; 14 files repointed, mocks included, and a
 test scans `src/` for a stray `storage/browser`. **17**: the gizmo flip-fix patch moved verbatim to `viewport/gizmoPatch.ts`,

@@ -4,7 +4,7 @@ import { isMetric } from '../units/length';
 import { worldParts } from '../document/tree';
 import { pieceKeyed, planAssemblies } from '../document/plans';
 import { EXPLODE_SPREAD } from '../document/explode';
-import { ExplodedFigure, PlanTrio } from './PlanFigure';
+import { ExplodedFigure, PlanTrio, SectionBlock, trioScale } from './PlanFigure';
 
 /** The sheet's own explode amount (spec §5.2): local view state, separate from the viewport's. */
 const SHEET_EXPLODE = 0.6;
@@ -19,6 +19,9 @@ const mirroredNote = (n: number) => (n === 0 ? '' : n === 1 ? ' (one copy mirror
  */
 export function PlansSheet({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
+  // The viewport's cut (section views spec §2.1): view state, read as the sheet renders; never saved.
+  const section = useStore((s) => s.section);
+  const exploded = useStore((s) => s.explode > 0);
   const parts = worldParts(doc);
   const assemblies = useMemo(() => planAssemblies(doc), [doc]);
   // Stable across the slider's ticks, so PlanTrio's memo holds (fu 263).
@@ -65,8 +68,9 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>
-              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} />
+              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} section={section} />
             </section>
+            {section && <SectionBlock parts={parts} section={section} units={doc.units} scale={trioScale(parts)} exploded={exploded} />}
             {assemblies.map((a) => (
               <section className="plans-section" key={a.definition}>
                 <h3>{a.title}{a.copies > 1 ? ` × ${a.copies}` : ''}{mirroredNote(a.mirroredCopies)}</h3>
