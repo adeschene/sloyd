@@ -468,15 +468,24 @@ export function curvePlan(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>
 export function splitPieces(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>): { planes: Half[]; onArc: boolean[] }[] {
   const lift = lifter(c.through);
   const o = curveOutline(board, c);
-  return convexPieces(o.pts, o.arcEdge).map(({ pts, onArc }) => ({
-    onArc,
-    planes: pts.map((p, i) => {
+  const m = o.pts.length;
+  const same = (a: P2, b: P2) => a[0] === b[0] && a[1] === b[1];
+  // An edge of the outline itself (either way round), not a diagonal between two pieces.
+  const onOutline = (p: P2, q: P2) => o.pts.some((x, j) => { const y = o.pts[(j + 1) % m]!; return (same(x, p) && same(y, q)) || (same(x, q) && same(y, p)); });
+  return convexPieces(o.pts, o.arcEdge).map(({ pts, onArc }) => {
+    const edges = pts.map((p, i) => {
       const q = pts[(i + 1) % pts.length]!;
       const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
       const n: P2 = [-(q[1] - p[1]) / l, (q[0] - p[0]) / l];
-      return lift(n, -(n[0] * p[0] + n[1] * p[1]));
-    }),
-  }));
+      return { h: lift(n, -(n[0] * p[0] + n[1] * p[1])), arc: onArc[i]!, diagonal: !onOutline(p, q) };
+    });
+    // Final review F3: the diagonals last. subtractPieces peels a body plane by plane, each fragment bounded by the planes
+    // before it; a diagonal (inside the waste) peeled early runs its extension through wood the waste never reaches and
+    // splits it for nothing (a four-edge bead top: 51 bodies -> 4, an ogee's 100 -> 51). The same waste and wood in any
+    // order. A convex waste (one piece) has no diagonal: its order is the outline's, as before.
+    const order = [...edges.filter((e) => !e.diagonal), ...edges.filter((e) => e.diagonal)];
+    return { onArc: order.map((e) => e.arc), planes: order.map((e) => e.h) };
+  });
 }
 
 /** Where a closed segment p0→p1 meets an arc (closed: tangency counts), as points. */

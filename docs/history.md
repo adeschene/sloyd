@@ -514,6 +514,35 @@ and 79.
 
 ## What each round did
 
+**What edge profiles chunk 1 did (2026-10-17)** (fu 365's full-length half and fu 386; spec
+`2026-10-17-sloyd-edge-profiles-design.md` — "Yes, write the spec", then "Approved, write the plan" —, plan
+`…-edge-profiles.md`, executed subagent-driven — "Subagent-driven, go ahead" —; branch `edge-profiles-1`; no schema change).
+1. **Fu 386 (Task 1).** The loss of lines on a four-edge rounded top was single-axis, not two-axis, and not an occluder seam
+   (the top is one convex body). An odd-chord roundover's 45° middle chord is edge-on to the isometric, and `silhouetteLines`'
+   product test and its lift test classified it differently (+2.8e-16 against ≤ 1e-9), so its silhouette drew hidden. One
+   `EDGE_ON` / `facing()` now serves both. The brief's three pins were replaced (one geometrically impossible, one comparing the
+   wrong things, one passing before the fix) by visible-length pins.
+2. **Profiles are curves.** `profiles.ts`: five kinds (Roundover, Cove, Roman ogee, Bead with its quirk, Thumbnail with size and
+   depth), an optional fillet, eight edges (the long edges and the ends; never through the thickness), a facing for asymmetric
+   kinds (symmetric ones stored at `v`), written by `profileCurve` and recognised by `profileFields` (rewrite, then an exact
+   `sameCurve`). Defaults scale per axis on small parts.
+3. **Words.** `profileName` and bench lines, four equal unfaulted profiles on one face collapsing to one line (faulted ones
+   do not: each keeps its `— check:`), Plans key lines, and `curveWord`, the one home of hole-into-curve words (a review found a
+   roundover called "the rounded corner" and other kinds "a curve cut" in two places).
+4. **Rows.** `panels/curveRefusal.ts` holds the refusal rules Curves and the new Profiles section share. Curves skips profiles and
+   offers Rounded corner only through the thickness. A pre-chunk through-length rounded corner now reads as a Roundover.
+5. **Live pass** (`docs/browser-verification-edge-profiles.md`): everything read as specified but the Plans sheet, whose exploded
+   view dropped a thumbnail shelf's far long edge.
+6. **Final review (opus) and its one fix pass.** F1 (the live finding): a curved part's edges were hidden by their own DRAW_EPS-grown
+   wood whenever their most viewer-facing face met the view shallowly (n·toward ≲ 0.25) — also on master for the Curves presets;
+   `curveEdgeLifts` gives every model edge an along-view probe lift, checked by an independent ray oracle (281 wrong verdicts → 0
+   over kinds × edges × facings × views). F2: the key line carries the fillet words, so a filleted and a plain profile get different
+   letters. F3: four-edge cove/bead/ogee tops rebuilt in 45–60/52–60/142 ms; `subtractPieces` now keeps a part whole when it shares no
+   volume with a piece, and `splitPieces` peels a waste's diagonals last (ogee 131 → 51 bodies, ~30 ms; bead 57 → 4, ~6 ms; cove ~24
+   ms), with byte-identical `bodyEdges`/`clip` speedups (A/B over 120 fixtures), the same wood (volume to 1e-8 and a point oracle),
+   watertight meshes and new ≤40 ms guards. The mixed ogee + bead shelf the Task 8 ruling had kept at ~27 ms now rebuilds in 4–7 ms.
+Residue fu 387–389. Suite 4824 tests across 164 files; build clean.
+
 **What presets minors did (2026-10-17)** (the user picked "Presets minors batch"; a bounded design approved in chat, "Yes, go
 ahead"; branch `presets-minors`). The presets batch's three deferred final-review minors:
 1. **The curve Kind select is judged on focus, not on every render.** Before, every edit frame (a resize drag included) ran

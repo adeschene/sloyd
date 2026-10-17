@@ -1,7 +1,7 @@
 # Sloyd — edge profiles, chunk 1: full-length profiles (design)
 
 Date: 2026-10-17. Follow-up 365 (its full-length half), and fu 386 (a live drawing defect the probe found). Status: design
-approved in chat by the user 2026-10-17 ("Yes, write the spec"); written spec awaiting review. **No schema change** (17):
+approved in chat by the user 2026-10-17 ("Yes, write the spec"); written spec approved by the user ("Approved, write the plan"); implemented, plan `docs/superpowers/plans/2026-10-17-sloyd-edge-profiles.md`. **No schema change** (17):
 rolling this chunk back costs nothing.
 
 ## 1. Purpose and rulings

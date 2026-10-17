@@ -11,6 +11,7 @@ import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
 import { Curves } from './Curves';
+import { Profiles } from './Profiles';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -713,6 +714,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
       <AngleCuts board={board} />
       <Holes board={board} />
       <Curves board={board} />
+      <Profiles board={board} />
       </EditLock>
     </div>
   );

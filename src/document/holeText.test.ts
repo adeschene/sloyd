@@ -1,7 +1,8 @@
 import { IMPERIAL } from '../units/length';
 import { describe, expect, it } from 'vitest';
-import { createBoard } from './document';
-import { distinctFaults, edgeName, endWord, holeFaultText, holeLengthText, holeLine } from './holeText';
+import { createBoard, defaultProfile } from './document';
+import type { ProfileKind } from './document';
+import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeLengthText, holeLine } from './holeText';
 import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
 import { ARCH } from './curveFixtures';
@@ -87,5 +88,29 @@ describe('holeLengthText: the one diameter/pitch formatter (bench line and Holes
   it('a hole into a curve reads by the curve\'s kind (P4)', () => {
     expect(holeFaultText({ index: 2, kind: 'breaks-out', curve: { id: 'c1', kind: 'arch' } }, pins)).toBe('hole 3 runs into the arch');
     expect(holeFaultText({ index: 0, kind: 'breaks-out', curve: { id: 'c1', kind: null } }, pins)).toBe('hole 1 runs into a curve cut');
+  });
+});
+
+describe('a hole into an edge profile reads by the profile\'s name (Task 7 fix round 1; R3)', () => {
+  const top = (inset: number, kind: 'roundover' | 'cove') => {
+    const b = createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75 });
+    const bore: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.0625, depth: 0.0625, along: 'length', alongFrom: 'min', station: 18, count: 1, pitch: 0, acrossFrom: 'max', inset };
+    return { board: { ...b, holes: [bore], curves: [{ id: 'p1', ...defaultProfile(b, kind) }] }, bore };
+  };
+  it('a roundover reads as the roundover, never the rounded corner', () => {
+    const { board, bore } = top(0.1, 'roundover');
+    const f = holeFaults(board, bore).find((x) => x.curve)!;
+    expect(holeFaultText(f, bore)).toBe('hole 1 runs into the roundover');
+  });
+  it('a cove reads as the cove, not a curve cut', () => {
+    const { board, bore } = top(0.3, 'cove');
+    const f = holeFaults(board, bore).find((x) => x.curve)!;
+    expect(holeFaultText(f, bore)).toBe('hole 1 runs into the cove');
+  });
+  it('every profile kind has its word; a non-profile keeps curveKindWord', () => {
+    expect(['roundover', 'cove', 'ogee', 'bead', 'thumbnail'].map((profile) => curveWord({ kind: null, profile: profile as ProfileKind })))
+      .toEqual(['the roundover', 'the cove', 'the Roman ogee', 'the bead', 'the thumbnail']);
+    expect(curveWord({ kind: 'corner' })).toBe('the rounded corner');
+    expect(curveWord({ kind: null })).toBe('a curve cut');
   });
 });

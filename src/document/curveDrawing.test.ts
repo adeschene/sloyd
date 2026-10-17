@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, archCurve, cornerCurve, partGeometry } from './document';
 import type { Board, Cut } from './types';
-import { curveDrawEdges, curveSilhouettes, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
+import { curveDrawEdges, curveSilhouettes, silhouetteLines, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
+import { drawView, ISO } from './drawing';
 import { chiralCurved } from './turnFixtures';
 import { mirrorPart } from './frames';
 
@@ -149,5 +150,46 @@ describe('silhouettes stay on the wood (fu 375)', () => {
   });
   it('a dado clear of the crown leaves the crown line whole', () => {
     expect(len(crown(apron({ cuts: [dado(20)] })))).toBeCloseTo(0.75, 12);
+  });
+});
+
+// Fu 386. A 36 x 20 x 3/4 top with a 3/8" Rounded corner on all four top edges read as a few stray lines in the exploded
+// isometric. The cause is NOT the second axis: a 3/8" radius has 5 model chords, so its middle chord face lies at exactly 45
+// degrees, edge-on to ISO, and n.d read +2.8e-16 there — so the silhouette landed on that face's FAR vertex (zero lift,
+// hidden by grazing) for one roundover as for four. With two axes the end profiles are gone (each end's roundover removes
+// the plane the long edges' arcs would be drawn on), so the hidden silhouettes left nothing but the miters.
+// (The brief's pins "every curve keeps a fine path" and "four draws >= two's segment count" were dropped: both are
+// geometrically wrong for this top — see the task-1 report.)
+describe('curves on two through axes keep their drawn lines (fu 386)', () => {
+  const round = (id: string, through: 'length' | 'width', uFrom: 'min' | 'max', r = 0.375) =>
+    ({ id, ...cornerCurve({ through, uFrom, vFrom: 'max', radius: r }) });
+  const top = (curves: ReturnType<typeof round>[]) => createBoard({ id: 't', length: 36, width: 20, thickness: 0.75, curves });
+  const four = (r: number) => top([round('a', 'length', 'min', r), round('b', 'length', 'max', r), round('c', 'width', 'min', r), round('d', 'width', 'max', r)]);
+  const dot = (p: readonly number[], v: readonly number[]) => p[0]! * v[0]! + p[1]! * v[1]! + p[2]! * v[2]!;
+  const proj = (p: readonly number[]) => [dot(p, ISO.right), dot(p, ISO.up)];
+  const len = (segs: { a: number[]; b: number[] }[]) => segs.reduce((t, s) => t + Math.hypot(s.b[0]! - s.a[0]!, s.b[1]! - s.a[1]!), 0);
+  // 0.375: 5 chords (a face at 45 degrees); 0.25 and 0.5: an even count (a vertex at 45 degrees).
+  it.each([0.25, 0.375, 0.5])('radius %s: the roundovers facing the viewer show their silhouettes in the exploded isometric', (r) => {
+    const b = four(r);
+    const d = drawView([b], ISO, undefined, { hiddenLines: false });
+    for (const id of ['a', 'c']) {
+      const sil = silhouetteLines(b, ISO.toward).filter((s) => s.curve === id);
+      expect(sil.length).toBeGreaterThan(0);
+      // The curve's silhouette is drawn visible along its whole projected length (curve-tagged segments here are
+      // silhouettes only: no outline plane of a or c is left on this top). An edge-on face gives a silhouette at both its
+      // vertices, coincident on screen (one visible, one grazed hidden), so the longest one is the length to cover.
+      const want = Math.max(...sil.map(({ A, E }) => len([{ a: proj(A), b: proj(E) }])));
+      const got = len(d.visible.filter((s) => s.feature === `t:curve:${id}`));
+      expect(got).toBeGreaterThan(want * 0.99);
+    }
+  });
+  it('one roundover alone: its silhouette is visible too (the defect was never two-axis)', () => {
+    const b = top([round('a', 'length', 'min')]);
+    const d = drawView([b], ISO, undefined, { hiddenLines: false });
+    const sil = silhouetteLines(b, ISO.toward);
+    expect(sil.length).toBeGreaterThan(0);
+    // The silhouette runs the full 36" length; a length-axis line projects at sqrt(2/3) in ISO, all of it visible.
+    const visibleLong = d.visible.filter((s) => s.feature === 't:curve:a' && Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) > 1);
+    expect(len(visibleLong)).toBeGreaterThan(36 * Math.sqrt(2 / 3) * 0.99);
   });
 });

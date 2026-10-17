@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, defaultProfile } from '../document/document';
 import type { Board } from '../document/document';
 import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
@@ -278,6 +278,19 @@ describe('the Holes section', () => {
     expect(rows()[0]!.inset).toBe(3);
     expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the arch — move it first.');
   });
+  // Task 7 fix round 2 (R3): a hole edited into an edge profile's waste names the profile, never "the rounded corner".
+  it.each([['roundover', '0.1', 'the roundover'], ['cove', '0.3', 'the cove']] as const)(
+    'an edit that puts a hole into a %s profile\'s waste names it', async (kind, to, word) => {
+      const user = userEvent.setup();
+      const bore = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.0625, depth: 0.0625, along: 'length', alongFrom: 'min',
+        station: 15, count: 1, pitch: 0, acrossFrom: 'max', inset: 0.5 } as const;
+      const b = side();
+      open({ ...b, holes: [bore], curves: [{ id: 'p1', ...defaultProfile(b, kind) }] });
+      const inset = screen.getByLabelText('In from');
+      await user.clear(inset); await user.type(inset, `${to}{Enter}`);
+      expect(rows()[0]!.inset).toBe(0.5);
+      expect(screen.getByRole('alert')).toHaveTextContent(`Puts hole 1 into ${word} — move it first.`);
+    });
   // Whole-branch review, finding 2: an edge breaks-out and a curve breaks-out are different faults (faultKey names the
   // curve), so a hole ALREADY past an edge is still refused into the arch's waste — and one already in both may be edited.
   const pastEdge = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min',

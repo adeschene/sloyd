@@ -160,6 +160,11 @@ function onWood(planes: readonly (readonly { n: readonly number[]; d: number }[]
  *  by a wide margin. Along the face's own normal the clearance is this distance whatever the face's angle to the view
  *  (a toward-lift clears a shallow chord only by lift x n.toward, which vanishes with it). */
 const PROBE = 4e-6; // 4 x drawing.ts' DRAW_EPS (1e-6), not imported: drawing.ts imports this file
+/** A face whose outward normal meets the view within this (|n.d|) is EDGE-ON: neither facing nor away. One constant for
+ *  both the silhouette test and the lift, so they classify a face alike (fu 386: an edge-on chord face read as +2.8e-16
+ *  in the product test and as edge-on in the lift, so the silhouette took its far vertex with no lift and grazed hidden). */
+const EDGE_ON = 1e-9;
+const facing = (x: number) => (x > EDGE_ON ? 1 : x < -EDGE_ON ? -1 : 0);
 
 /**
  * curveSilhouettes with each line's `lift`: a world offset that drawView adds to the line ONLY when it judges what hides
@@ -174,49 +179,131 @@ export function silhouetteLines(board: Board, toward: readonly number[]): { A: V
   const out: { A: V3; E: V3; lift: V3; curve: string }[] = [];
   const planes = board.curves.length > 0 ? partGeometry(board).bodies.map((b) => bodyPlanes(b.faces)) : [];
   for (const c of board.curves) {
-    const [u, v] = uvDims(c.through);
-    const ui = DIMENSION_ORDER.indexOf(u);
-    const vi = DIMENSION_ORDER.indexOf(v);
-    const k = DIMENSION_ORDER.indexOf(c.through);
-    const W = (x: P2, depth: number): V3 => {
-      const p: V3 = [0, 0, 0];
-      p[ui] = x[0]; p[vi] = x[1]; p[k] = depth;
-      return toWorld(board, { length: p[0], width: p[1], thickness: p[2] });
-    };
-    const o = W([0, 0], 0);
-    const axis = (x: P2) => W(x, 0).map((w, i) => w - o[i]!);
-    const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
-    const d: P2 = [dot3(axis([1, 0]), toward), dot3(axis([0, 1]), toward)];
+    const o = outlineFaces(board, c);
+    const { ui, vi, k, W, pts, smooth, normals } = o;
+    const d: P2 = [dot3(o.wu, toward), dot3(o.wv, toward)];
     if (Math.hypot(d[0], d[1]) <= 1e-9) continue; // looking down `through`
-    const { pts, smooth } = curveOutline(board, c);
-    const ccw = twiceArea(pts) > 0;
-    const U = board[u];
-    const V = board[v];
-    const at = (x: number, y: number) => Math.abs(x - y) <= 1e-9;
-    const normal = (a: P2, b: P2): P2 => {
-      if (at(a[0], 0) && at(b[0], 0)) return [-1, 0];
-      if (at(a[0], U) && at(b[0], U)) return [1, 0];
-      if (at(a[1], 0) && at(b[1], 0)) return [0, -1];
-      if (at(a[1], V) && at(b[1], V)) return [0, 1];
-      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      const left: P2 = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
-      return ccw ? left : [-left[0], -left[1]];
-    };
     const m = pts.length;
     pts.forEach((q, i) => {
       if (!smooth[i]) return;
-      const n1 = normal(pts[(i - 1 + m) % m]!, q);
-      const n2 = normal(q, pts[(i + 1) % m]!);
-      if ((n1[0] * d[0] + n1[1] * d[1]) * (n2[0] * d[0] + n2[1] * d[1]) > 0) return;
-      const wu = axis([1, 0]);
-      const wv = axis([0, 1]);
-      const lift: V3 = [0, 0, 0];
-      for (const n of [n1, n2]) {
-        if (n[0] * d[0] + n[1] * d[1] <= 1e-9) continue; // edge-on or facing away
-        for (let j = 0; j < 3; j++) lift[j] += PROBE * (n[0] * wu[j]! + n[1] * wv[j]!);
-      }
+      const n1 = normals[(i - 1 + m) % m]!;
+      const n2 = normals[i]!;
+      // Fu 386: classify by EDGE_ON, never the raw product. A 3/8" roundover's middle chord sits at exactly 45 degrees,
+      // edge-on to ISO; its n.d of +2.8e-16 skipped the NEAR vertex (facing | edge-on, lifted off the facing face) and kept
+      // only the far one (edge-on | away: no lift, hidden by grazing), so the whole silhouette drew hidden. Edge-on counts
+      // at both of the face's vertices, as it always did for an exactly-zero face (a rounded top's Front view).
+      if (facing(n1[0] * d[0] + n1[1] * d[1]) * facing(n2[0] * d[0] + n2[1] * d[1]) > 0) return;
+      const lift = liftOff([o.world(n1), o.world(n2)], toward);
       for (const [t0, t1] of onWood(planes, q, ui, vi, k, board[c.through])) out.push({ A: W(q, t0), E: W(q, t1), lift, curve: c.id });
     });
   }
   return out;
+}
+
+const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+
+/** PROBE along each WORLD outward normal that faces the viewer (strictly, by EDGE_ON); edge-on and away add nothing. */
+function liftOff(normals: readonly V3[], toward: readonly number[]): V3 {
+  const lift: V3 = [0, 0, 0];
+  for (const n of normals) {
+    if (facing(dot3(n, toward)) <= 0) continue; // edge-on or facing away
+    for (let j = 0; j < 3; j++) lift[j] += PROBE * n[j]!;
+  }
+  return lift;
+}
+
+/**
+ * One curve's outline with the outward normal of the kept face along each outline edge (an edge lying on the face
+ * rectangle stands in for the part's own face there), board-local in (u, v), and the world mappings. THE one home of
+ * those normals: silhouetteLines and curveEdgeLifts read them alike.
+ */
+function outlineFaces(board: Board, c: Board['curves'][number]) {
+  const [u, v] = uvDims(c.through);
+  const ui = DIMENSION_ORDER.indexOf(u);
+  const vi = DIMENSION_ORDER.indexOf(v);
+  const k = DIMENSION_ORDER.indexOf(c.through);
+  const W = (x: P2, depth: number): V3 => {
+    const p: V3 = [0, 0, 0];
+    p[ui] = x[0]; p[vi] = x[1]; p[k] = depth;
+    return toWorld(board, { length: p[0], width: p[1], thickness: p[2] });
+  };
+  const o = W([0, 0], 0);
+  const axis = (x: P2) => W(x, 0).map((w, i) => w - o[i]!) as V3;
+  const wu = axis([1, 0]);
+  const wv = axis([0, 1]);
+  const wk = W([0, 0], 1).map((w, i) => w - o[i]!) as V3;
+  const { pts, smooth } = curveOutline(board, c);
+  const ccw = twiceArea(pts) > 0;
+  const U = board[u];
+  const V = board[v];
+  const at = (x: number, y: number) => Math.abs(x - y) <= 1e-9;
+  const boundary: boolean[] = [];
+  const normals = pts.map((a, i): P2 => {
+    const b = pts[(i + 1) % pts.length]!;
+    boundary.push(true);
+    if (at(a[0], 0) && at(b[0], 0)) return [-1, 0];
+    if (at(a[0], U) && at(b[0], U)) return [1, 0];
+    if (at(a[1], 0) && at(b[1], 0)) return [0, -1];
+    if (at(a[1], V) && at(b[1], V)) return [0, 1];
+    boundary[i] = false;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const left: P2 = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
+    return ccw ? left : [-left[0], -left[1]];
+  });
+  const world = (n: P2): V3 => [0, 1, 2].map((j) => n[0] * wu[j]! + n[1] * wv[j]!) as V3;
+  return { ui, vi, k, W, wu, wv, wk, pts, smooth, normals, boundary, world };
+}
+
+/**
+ * Final review F1: the hidden-line probe's lift for each of a curved part's model edges, parallel to
+ * curveDrawEdges(board), or undefined. drawView's occluders grow by DRAW_EPS / 2 and sample from DRAW_EPS, so an edge
+ * whose most viewer-facing face meets the view at n.toward below ~0.25 grazed hidden in its OWN wood (measured: a
+ * thumbnail's crisp line in the isometric, n.toward 0.18; a roundover's end outline in the Plan; two profiles' meeting
+ * line at a corner; a rounded corner's bottom outline in the isometric). The faces holding an edge are read off the
+ * outline — each face of the board's box whose plane it lies on, and each off-boundary outline edge's face (chord x
+ * through) of any curve whose line holds it. The lift runs ALONG THE VIEW, by PROBE / n.toward of the most viewer-facing
+ * of them (at most LIFT_MAX): the probe starts PROBE clear of that face's plane, and still on the edge's own ray, so a
+ * line hidden by grazing other wood (an arch's end line along a bottom face the Side view looks across) stays hidden — a
+ * lift along the normals stepped off that plane and drew micro-inch slivers. Edge-on and away faces lift nothing. The
+ * probe moves, never the drawn line. silhouetteLines keeps its own (normal) lift.
+ */
+/** Inches: the longest stretch of an edge's own ray curveEdgeLifts skips (a face within ~4e-3 of edge-on gets less
+ *  than PROBE of clearance; below ~5e-4 it still grazes). Far below any feature (1/64"), so no other wood is skipped. */
+const LIFT_MAX = 1e-3;
+export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | undefined)[] {
+  const edges = curveDrawEdges(board);
+  const faces = board.curves.map((c) => outlineFaces(board, c));
+  const o3 = toWorld(board, { length: 0, width: 0, thickness: 0 });
+  const box = DIMENSION_ORDER.map((_, j) => {
+    const p: V3 = [0, 0, 0];
+    p[j] = 1;
+    return toWorld(board, { length: p[0], width: p[1], thickness: p[2] }).map((w, i) => w - o3[i]!) as V3;
+  });
+  const distToLine = (x: P2, a: P2, b: P2) => {
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    return Math.abs((b[0] - a[0]) * (x[1] - a[1]) - (b[1] - a[1]) * (x[0] - a[0])) / l;
+  };
+  return edges.map((e) => {
+    const normals: V3[] = [];
+    const add = (n: V3) => { if (!normals.some((m) => dot3(m, n) > 1 - 1e-12)) normals.push(n); };
+    DIMENSION_ORDER.forEach((dim, j) => {
+      if (Math.abs(e.p[j]!) <= 1e-9 && Math.abs(e.q[j]!) <= 1e-9) add(box[j]!.map((w) => -w) as V3);
+      else if (Math.abs(e.p[j]! - board[dim]) <= 1e-9 && Math.abs(e.q[j]! - board[dim]) <= 1e-9) add(box[j]!);
+    });
+    for (const o of faces) {
+      const { ui, vi, pts, normals: ns, boundary } = o;
+      const a: P2 = [e.p[ui]!, e.p[vi]!];
+      const b: P2 = [e.q[ui]!, e.q[vi]!];
+      const mid: P2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      pts.forEach((x, i) => {
+        const y = pts[(i + 1) % pts.length]!;
+        if (boundary[i] || distToSegment(mid, x, y) > ON_CHORD || distToLine(a, x, y) > ON_CHORD || distToLine(b, x, y) > ON_CHORD) return;
+        add(o.world(ns[i]!));
+      });
+    }
+    const best = Math.max(0, ...normals.map((n) => dot3(n, toward)).filter((x) => facing(x) > 0));
+    if (best === 0) return undefined;
+    const s = Math.min(LIFT_MAX, PROBE / best);
+    return [toward[0]! * s, toward[1]! * s, toward[2]! * s] as V3;
+  });
 }

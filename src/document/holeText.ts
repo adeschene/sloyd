@@ -3,7 +3,8 @@ import { formatLength, formatMm, imperialAt, isMetric, type Units } from '../uni
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
 import { curveKindWord } from './curves';
-import { holeFaults, type HoleFault } from './holeFaults';
+import { holeFaults, type FaultCurve, type HoleFault } from './holeFaults';
+import type { ProfileKind } from './profiles';
 
 /** "end" for the length, "side" for width and thickness: THE one home of the word (the Properties labels read it too). */
 export const endWord = (d: Dimension) => (d === 'length' ? 'end' : 'side');
@@ -11,12 +12,17 @@ const end = endWord;
 /** An edge a hole can run past, e.g. "the length max end" (the fault text and the Properties refusal share it). */
 export const edgeName = (e: { dim: Dimension; side: CutFrom }) => `the ${e.dim} ${e.side} ${endWord(e.dim)}`;
 
+const PROFILE_WORD: Record<ProfileKind, string> = { roundover: 'the roundover', cove: 'the cove', ogee: 'the Roman ogee', bead: 'the bead', thumbnail: 'the thumbnail' };
+/** A curve a hole runs into, in words: THE one home, read by the fault text and the Properties hole-into-waste refusal.
+ *  An edge profile by its own name (R3); any other curve by `curveKindWord`, unchanged. */
+export const curveWord = (c: Pick<FaultCurve, 'kind' | 'profile'>) => (c.profile ? PROFILE_WORD[c.profile] : curveKindWord(c.kind));
+
 /** A fault in words (holes spec §2.4): THE one home (invariant 19), read by the cut-list line and the Properties note.
  *  Lower-case, no full stop: each reader frames it. */
 export function holeFaultText(f: HoleFault, r: HoleRow): string {
   const n = f.index + 1;
   switch (f.kind) {
-    case 'breaks-out': return f.curve ? `hole ${n} runs into ${curveKindWord(f.curve.kind)}` : `hole ${n} runs past ${edgeName(f.edge!)}`;
+    case 'breaks-out': return f.curve ? `hole ${n} runs into ${curveWord(f.curve)}` : `hole ${n} runs past ${edgeName(f.edge!)}`;
     case 'off-flat': return `hole ${n} sits where a cut has removed the wood`;
     case 'meets-hole': return `hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}`;
     case 'too-deep': return `the holes are deeper than the ${r.face}`;
