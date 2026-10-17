@@ -38,14 +38,13 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const line = curveLine(board, curve, units);
   const stored = curveFaults(board, curve);
   /** The post-edit stored part, for the hole check. */
-  const afterOf = (nextFields: ProfileFields): Board => {
-    const nextProfile = profileFromFields(normal(nextFields));
+  const afterOf = (nextFields: ProfileFields, nextProfile = profileFromFields(normal(nextFields))): Board => {
     return { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? { ...nextProfile, id: x.id } : x)) };
   };
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
   const attempt = (nextFields: ProfileFields, control: Control | null): string | null => {
     const nextProfile = profileFromFields(normal(nextFields));
-    const refused = refusalFor(board, curve, profileCurve(normal(nextFields)), control, afterOf(nextFields));
+    const refused = refusalFor(board, curve, profileCurve(normal(nextFields)), control, afterOf(nextFields, nextProfile));
     if (refused) return refused;
     setError(null);
     updateProfile(stored_.id, profile.id, nextProfile);
@@ -77,7 +76,7 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
       if (refused) reasons[k] = optionReason(refused);
     }
     setJudged({ curve, board, reasons });
-  }, [kindFocused, curve, board, judged]); // eslint-disable-line react-hooks/exhaustive-deps -- p and asKind derive from curve and board
+  }, [kindFocused, curve, board, judged]); // eslint-disable-line react-hooks/exhaustive-deps -- p and asKind derive from curve and board; afterOf also closes over stored_ and profile, safe only because board is a memoised function of stored_
   const reasons = kindFocused && judged && judged.curve === curve && judged.board === board ? judged.reasons : {};
   return (
     <div className="cut" data-kind={p.kind}>
