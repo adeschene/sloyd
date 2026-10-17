@@ -298,3 +298,18 @@ describe('the Holes section', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe('preset details read the project units (presets minors 3)', () => {
+  it('imperial keeps its text; metric reads mm', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByText('¼" pins every 32 mm along the length')).toBeInTheDocument();
+    expect(screen.getByText('35 mm cup, ½" deep, 22.5 mm in from the edge')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByText('6.4 mm pins every 32 mm along the length')).toBeInTheDocument();
+    expect(screen.getByText('35 mm cup, 12.7 mm deep, 22.5 mm in from the edge')).toBeInTheDocument();
+  });
+});

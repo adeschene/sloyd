@@ -92,7 +92,9 @@ handicraft education tradition built around hand woodworking.
 - **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
   curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
-- **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch since). **No follow-up is open as code-sized work**: the triage's
+- **Presets minors (2026-10-17, merged to master; NOT YET DEPLOYED; no schema change)**: the presets batch's three deferred review minors — the
+  curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
+- **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch and presets minors since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
   list, 384(2) the newest), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
@@ -189,6 +191,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | follow-ups 6 | 10-17 | — | Fu 8, 17, 19, 27, 126, 128, 169, 175, 234 (the last small items); 269 cheapest-plan Buying |
 | section views | 10-17 | — | Plans sheet: the viewport's section as a hatched Section A–A of the assembled piece after its trio, the A–A line on one elevation (fu 256) |
 | presets batch | 10-17 | — | Taper two/four faces (fu 278); the Chamfer row edits each leg and a Raised panel preset (fu 298); a Kind select on curve rows, `curveAs` (fu 367) |
+| presets minors | 10-17 | — | The Kind select judged on focus (not every render) and a greyed option says why; preset menu details read the project's units |
 
 ### The deployment rule
 
@@ -488,7 +491,7 @@ src/
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
 │                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers);
 │                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
-│                     corner, Rounded corners —; rows by derived kind; refusalFor: half circle first, then an ADDED curve fault,
+│                     corner, Rounded corners —; rows by derived kind; a Kind select (`curveAs`) whose options are judged ONLY while it has focus — never per render, every edit frame is one; refusalFor: half circle first, then an ADDED curve fault,
 │                     then a hole into the waste)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
@@ -1027,7 +1030,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4724 tests across 161 files
+npm test           # Vitest, currently 4729 tests across 161 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

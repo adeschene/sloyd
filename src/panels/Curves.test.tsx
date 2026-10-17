@@ -260,13 +260,24 @@ describe('the Kind select (fu 367)', () => {
     act(() => useStore.getState().undo());
     expect(curves()[0]).toEqual(stored);
   });
-  it('an option that would be refused is disabled (the notch from a 24" arch cuts through a 5" apron)', async () => {
+  it('an option that would be refused is disabled and says why (the notch from a 24" arch cuts through a 5" apron)', async () => {
     const user = userEvent.setup();
     open(apron());
     await add(user, 'Arch');
-    expect(screen.getByRole('option', { name: 'Half-round notch' })).toBeDisabled();
+    act(() => kind().focus());
+    expect(screen.getByRole('option', { name: 'Half-round notch — runs past the width max side' })).toBeDisabled();
     expect(screen.getByRole('option', { name: 'Bow' })).toBeEnabled();
     expect(screen.getByRole('option', { name: 'Arch' })).toBeEnabled();
+  });
+  it('options are judged on focus, not on every render (presets minors 1)', async () => {
+    const user = userEvent.setup();
+    open(apron());
+    await add(user, 'Arch');
+    expect(screen.getByRole('option', { name: 'Half-round notch' })).toBeEnabled();     // not judged yet
+    act(() => kind().focus());
+    expect(screen.getByRole('option', { name: 'Half-round notch — runs past the width max side' })).toBeDisabled();
+    act(() => kind().blur());
+    expect(screen.getByRole('option', { name: 'Half-round notch' })).toBeEnabled();     // dropped on blur
   });
   it('an option that would put a hole into the new waste is disabled (Review Focus 3)', () => {
     // A through hole 1" from the length-min end, 0.3" in from the width-min edge: clear of the Arch (it starts 3" in), inside
@@ -275,7 +286,23 @@ describe('the Kind select (fu 367)', () => {
       station: 1, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.3 };
     const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
     open(apron({ holes: [hole], curves: [arch] }));
-    expect(screen.getByRole('option', { name: 'Bow' })).toBeDisabled();
+    act(() => kind().focus());
+    expect(screen.getByRole('option', { name: 'Bow — puts hole 1 into the bow' })).toBeDisabled();
+  });
+  it('a kind change while focused re-judges the options for the new curve', async () => {
+    const user = userEvent.setup();
+    const hole: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 'through', along: 'length', alongFrom: 'min',
+      station: 1, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.3 };
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
+    open(apron({ holes: [hole], curves: [arch] }));
+    act(() => kind().focus());
+    await user.selectOptions(kind(), 'Rounded corner');
+    expect(kind().value).toBe('corner');
+    expect(kind()).toHaveFocus();
+    expect(screen.getByRole('option', { name: 'Bow — puts hole 1 into the bow' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'Arch' })).toBeEnabled();
+    // From the 24" arch the notch ran off the face; from the corner it is the 2" preset and fits: judged afresh.
+    expect(screen.getByRole('option', { name: 'Half-round notch' })).toBeEnabled();
   });
   it('a curve no row represents has no Kind select', () => {
     const odd: CurveCut = { id: 'c1', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0],
@@ -288,5 +315,18 @@ describe('the Kind select (fu 367)', () => {
     open(apron({ curves: [{ id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'min', radius: 1 }) }] }));
     await user.selectOptions(kind(), 'Arch');
     expect(archFields(curves()[0]!)).toEqual({ through: 'thickness', along: 'length', side: 'min', from: 'max', start: 3, span: 24, rise: 1.25 });
+  });
+});
+
+describe('preset details read the project units (presets minors 3)', () => {
+  it('imperial keeps its text; metric reads mm', async () => {
+    const user = userEvent.setup();
+    open(apron());
+    await user.click(screen.getByRole('button', { name: '+ Add curve' }));
+    expect(screen.getByText('A half circle 2" wide, centred')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await user.click(screen.getByRole('button', { name: '+ Add curve' }));
+    expect(screen.getByText('A half circle 51 mm wide, centred')).toBeInTheDocument();
   });
 });

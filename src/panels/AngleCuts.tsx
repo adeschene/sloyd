@@ -9,6 +9,7 @@ import type { AngleCut, BevelFields, Board, ChamferFields, CutFrom, Dimension, M
 import { DimensionField } from './DimensionField';
 import { AngleField } from './AngleField';
 import { Popover } from './Popover';
+import { formatLength } from '../units/length';
 
 const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: CutFrom }[] = [
   { value: 'width|min', label: 'Width face — min side', face: 'width', from: 'min' },
@@ -238,7 +239,10 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
 /** The Angles section (spec §7): a single part's angle cuts. Taper, Miter, Bevel and Chamfer. */
 export function AngleCuts({ board }: { board: Board }) {
   const addAngleCuts = useStore((s) => s.addAngleCuts);
+  const units = useStore((s) => s.doc.units);
   const raised = defaultRaisedPanel(board);
+  // The menu's lengths read the project's units (presets minors 3); imperial formats as written before, `1/4"`.
+  const tongue = formatLength(0.25, units);
   return (
     <>
       <h3>Angles{board.angleCuts.length > 0 && <span className="h3-count"> · {board.angleCuts.length}</span>}</h3>
@@ -260,7 +264,7 @@ export function AngleCuts({ board }: { board: Board }) {
           ]),
           { label: 'Chamfer', detail: 'Knock off one edge at 45°', run: () => addAngleCuts(board.id, [defaultChamfer(board)]) },
           // Withheld under 1/2" thick (presets-batch spec §3.2): the 1/4" tongue would leave too shallow a bevel.
-          ...(raised ? [{ label: 'Raised panel', detail: 'Bevel the four front edges, leaving a 1/4" tongue', run: () => addAngleCuts(board.id, raised) }] : []),
+          ...(raised ? [{ label: 'Raised panel', detail: `Bevel the four front edges, leaving a ${tongue} tongue`, run: () => addAngleCuts(board.id, raised) }] : []),
         ]} />
     </>
   );

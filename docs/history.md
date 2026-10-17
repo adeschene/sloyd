@@ -514,6 +514,24 @@ and 79.
 
 ## What each round did
 
+**What presets minors did (2026-10-17)** (the user picked "Presets minors batch"; a bounded design approved in chat, "Yes, go
+ahead"; branch `presets-minors`). The presets batch's three deferred final-review minors:
+1. **The curve Kind select is judged on focus, not on every render.** Before, every edit frame (a resize drag included) ran
+   `curveAs` and `refusalFor` for three options per curve row: ~10 ms on a realistic part, ~150 ms on four arches over eight
+   pin rows. Now the options are judged only while the select has focus. They are re-judged when the curve or part changes
+   under it (`worldParts` is cached per document, so the part's identity is stable and the effect does not loop) and dropped
+   on blur. A change still goes through `set`.
+2. **A greyed option says why**, in the refusal's own words up to its dash: `Half-round notch — runs past the width max side`
+   (a 12"-deep notch on a 5" apron runs off the face, not through it; the plan's guessed wording was corrected to the code's),
+   and `Bow — puts hole 1 into the bow`.
+3. **Preset menu details read the project's units.**
+   - Raised panel's tongue and Half-round notch's width go through `formatLength`, which in imperial prints exactly the old
+     `1/4"` and `2"`. The first mutation showed an `isMetric` branch there was redundant, so it was removed.
+   - Shelf-pin row and Hinge cup keep their imperial `¼"`/`½"` glyphs and read 0.1 mm in metric (`holeLengthText`).
+
+Every test was mutated. The stale-judgement mutation first survived, because the arch's and the corner's verdicts agreed on
+Bow; an assertion on the notch, which differs between them, now catches it. Suite 4729 tests across 161 files; build clean.
+
 **What presets batch did (2026-10-17)** (the user picked "Small presets batch" from the open feature list; brainstormed, spec and
 plan approved; "Native, go ahead"; branch `presets-batch`). Three shortcuts and controls over geometry that already existed;
 no schema change. The user's rulings: two taper items, four faces and the leg's two inside faces, with one amount so a square

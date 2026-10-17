@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 import {
@@ -113,20 +113,37 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
   const corner = arch || bow ? null : cornerFields(curve);
   const kind = deriveCurveKind(curve);
   // fu 367: a kind change keeps the curve's placement and id and takes the new kind's preset sizes (`curveAs`). An option
-  // whose result would be refused is disabled (the menu's withhold precedent); the change still goes through `set`, so a
-  // stale render refuses in the row's own words and the select stays on the stored kind.
+  // whose result would be refused is disabled and its label says why (presets minors 2: the refusal's own words, up to its
+  // dash); the change still goes through `set`, so a stale list refuses in the row's own words and the select stays on the
+  // stored kind. Presets minors 1: the options are judged only while the select has FOCUS — never on a plain render, which
+  // every edit frame (a resize drag included) is — and re-judged when the curve or part changes under the focused select.
   const choice = curveKindChoice(curve);
+  const [kindFocused, setKindFocused] = useState(false);
+  const [judged, setJudged] = useState<{ curve: CurveCut; board: Board; reasons: Partial<Record<CurveKindChoice, string>> } | null>(null);
+  useEffect(() => {
+    if (!kindFocused || !choice || (judged && judged.curve === curve && judged.board === board)) return;
+    const reasons: Partial<Record<CurveKindChoice, string>> = {};
+    for (const o of KIND_OPTIONS) {
+      if (o.value === choice) continue;
+      const next = curveAs(o.value, curve, board);
+      const refused = next ? refusalFor(board, curve, next, null) : 'No room for it on this part';
+      if (refused) reasons[o.value] = refused.split(' — ')[0]!.replace(/^./, (c) => c.toLowerCase()).replace(/\.$/, '');
+    }
+    setJudged({ curve, board, reasons });
+  }, [kindFocused, choice, curve, board, judged]);
+  const reasons = kindFocused && judged && judged.curve === curve && judged.board === board ? judged.reasons : {};
   const kindSelect = choice && (
     <div className="field">
       <label htmlFor={`curve-kind-${curve.id}`}>Kind</label>
-      <select id={`curve-kind-${curve.id}`} className="input" value={choice} onChange={(e) => {
-        const next = curveAs(e.target.value as CurveKindChoice, curve, board);
-        if (next) set(next);
-      }}>
+      <select id={`curve-kind-${curve.id}`} className="input" value={choice}
+        onFocus={() => setKindFocused(true)} onBlur={() => { setKindFocused(false); setJudged(null); }}
+        onChange={(e) => {
+          const next = curveAs(e.target.value as CurveKindChoice, curve, board);
+          if (next) set(next);
+        }}>
         {KIND_OPTIONS.map((o) => {
-          const next = o.value === choice ? null : curveAs(o.value, curve, board);
-          const ok = o.value === choice || (next !== null && refusalFor(board, curve, next, null) === null);
-          return <option key={o.value} value={o.value} disabled={!ok}>{o.label}</option>;
+          const why = reasons[o.value];
+          return <option key={o.value} value={o.value} disabled={why !== undefined}>{why ? `${o.label} — ${why}` : o.label}</option>;
         })}
       </select>
     </div>
@@ -224,6 +241,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
 /** The Curves section (curves spec §8): one row per stored curve, and + Add curve ▾. */
 export function Curves({ board }: { board: Board }) {
   const addCurves = useStore((s) => s.addCurves);
+  const units = useStore((s) => s.doc.units);
   // A preset whose default would fault on this part — a curve fault, or a hole it would put into the waste — is
   // withheld, not added and refused (the AngleCuts/Holes precedent).
   const fits = (cs: Draft[] | null): cs is Draft[] => {
@@ -240,7 +258,7 @@ export function Curves({ board }: { board: Board }) {
   const corners = defaultCorners(board);
   const items = [
     ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => addCurves(board.id, arch) }] : []),
-    ...(fits(notch) ? [{ label: 'Half-round notch', detail: 'A half circle 2" wide, centred', run: () => addCurves(board.id, notch) }] : []),
+    ...(fits(notch) ? [{ label: 'Half-round notch', detail: `A half circle ${formatLength(2, units)} wide, centred`, run: () => addCurves(board.id, notch) }] : []),
     ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => addCurves(board.id, bow) }] : []),
     ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
     ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
+import { isMetric } from '../units/length';
 import { acrossOf, curveKindWord, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine } from '../document/holeText';
@@ -128,6 +129,7 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
 /** The Holes section (holes spec §7, as amended): one row per stored HoleRow, and + Add hole ▾. */
 export function Holes({ board }: { board: Board }) {
   const addHoleRows = useStore((s) => s.addHoleRows);
+  const units = useStore((s) => s.doc.units);
   // A preset whose default would fault on this part is withheld, not added and refused (AngleCuts' precedent).
   const fits = (r: Omit<HoleRow, 'id'> | null): r is Omit<HoleRow, 'id'> => {
     if (!r) return false;
@@ -137,10 +139,14 @@ export function Holes({ board }: { board: Board }) {
   const hole = defaultHole(board);
   const pins = defaultShelfPinRow(board);
   const cup = defaultHingeCup(board);
+  // A metric project reads the presets' inch sizes in mm, at the holes' 0.1 mm (presets minors 3); imperial text stays as written.
+  const metric = isMetric(units);
+  const pinText = metric && pins ? holeLengthText(pins.diameter, units, 'diameter') : '¼"';
+  const cupDeep = metric && cup && cup.depth !== 'through' ? holeLengthText(cup.depth, units, 'diameter') : '½"';
   const items = [
     ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => addHoleRows(board.id, [hole]) }] : []),
-    ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `¼" pins every 32 mm along the ${pins.along}`, run: () => addHoleRows(board.id, [pins]) }] : []),
-    ...(fits(cup) ? [{ label: 'Hinge cup', detail: '35 mm cup, ½" deep, 22.5 mm in from the edge', run: () => addHoleRows(board.id, [cup]) }] : []),
+    ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `${pinText} pins every 32 mm along the ${pins.along}`, run: () => addHoleRows(board.id, [pins]) }] : []),
+    ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => addHoleRows(board.id, [cup]) }] : []),
   ];
   return (
     <>
