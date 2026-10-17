@@ -6502,3 +6502,10 @@ refused option and says why, as the Curves Kind select does (judged on focus).
 **389. Draw the corner miter where two profiles meet at the paper tolerance.** Where two profiles meet at a corner, the miter
 lines (the intersection of the two curves' chord faces) are drawn as model chords, up to ~0.005" off the true curve, because spec
 §5.1 refines outline-plane lines only to `DRAWING_CURVE_TOLERANCE` (0.001"). New scope, found in fu 386's diagnosis. **Status:** open (candidate; ask first).
+
+**390. A profile does not follow a curved edge.** The user, 2026-10-17, after edge profiles chunk 1 went live: the profiles
+"don't work well with curves" — a profile runs straight along its edge (a prism through the length or width), so on an edge an
+Arch, Bow or Rounded corner has cut it disappears where the curve cuts in and stops at a rounded corner, instead of following
+the outline as a router bearing would. Following an arc means sweeping the profile around it (a surface of revolution about the
+arc's axis), which is outside the line/arc prism model (inv 53) and the convex-body rule (inv 48). **Status:** open (feature;
+needs a spec).
