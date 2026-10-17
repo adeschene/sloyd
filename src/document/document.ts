@@ -2,7 +2,7 @@ import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from '
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
   Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
-  Shape, StoredBoard,
+  Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide,
 } from './types';
 import type { SharedField } from './links';
 import type { LengthDisplay } from '../units/length';
@@ -12,6 +12,7 @@ import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
+import { PROFILE_KINDS, profileOf, profileAsymmetric } from './profiles';
 import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
 import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
@@ -156,8 +157,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * v17 (curves spec §6.1): `Board.curves` (and `Shape.curves`), document-level, no step — an absent field defaults to [].
  * Harm a v16 build would do: silent loss on round trip — it drops every curve and autosaves. From v17 on, a segment
  * type this build does not know refuses the document (spec §2.4), so a later segment type needs no bump.
+ *
+ * v18 (profile runs spec §3.2): `Board.profiles` (and `Shape.profiles`), document-level, no step — an absent field defaults
+ * to [], and every curve `profileOf` recognises is MOVED into it on every load (spec P8; idempotent). Harm a v17 build would
+ * do: silent loss — it drops every profile and autosaves. From v18 on, a profile whose run or kind this build cannot build
+ * refuses the document (spec P2), so a later run needs no bump.
  */
-export const CURRENT_VERSION = 17;
+export const CURRENT_VERSION = 18;
 
 export class DocumentError extends Error {
   /**
@@ -445,10 +451,9 @@ function refuseUnknownSegment(type: string): never {
  * (P1), that crosses itself, or that encloses no area. A STRING `type` other than line/arc REFUSES THE DOCUMENT (spec
  * §2.4). A faulted but well-formed curve (curveFaults) is KEPT. Ids scoped to this board, or this shape (invariant 33).
  */
-function validateCurveCuts(raw: unknown): CurveCut[] {
+function validateCurveCuts(raw: unknown, seen: Set<string> = new Set()): CurveCut[] {
   if (!Array.isArray(raw)) return [];
   const out: CurveCut[] = [];
-  const seen = new Set<string>();
   const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
   const pair = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && finite(v[0]) && finite(v[1]);
   for (const item of raw) {
@@ -519,6 +524,71 @@ function validateCurveCuts(raw: unknown): CurveCut[] {
     }
     if (crosses) continue;
     out.push({ id: takeId(c.id, seen), through: c.through as Dimension, uFrom: c.uFrom as CutFrom, vFrom: c.vFrom as CutFrom, start: [c.start[0], c.start[1]], segments });
+  }
+  return out;
+}
+
+/** A profile this build cannot build (spec P2): the whole document is refused, as a newer version is. */
+function refuseProfile(why: string): never {
+  throw new DocumentError(`This project has an edge profile this version of Sloyd can't build (${why}) — it was saved by a newer version of Sloyd.`);
+}
+
+/**
+ * Edge profiles (profile runs spec §3.2), in order, ids from the part's curve `seen` set (spec P7). Dropped, never clamped:
+ * a non-finite or non-positive size; a thumbnail depth outside (0, size); a negative or non-finite fillet; a bead whose
+ * quirk is not > 0; an unknown face or facing; an end whose side is not length/width × min/max, or which is neither a
+ * `through` end nor a finite `at` with a `from`; a run that is not an object. A symmetric kind's facing is normalised to
+ * 'face'; an End to end run stored max→min to min→max. REFUSED (the document): an unknown kind string; a loop, a station
+ * end, or ends on two sides (chunk a1 builds only End to end). A faulted but well-formed profile is KEPT.
+ */
+function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ProfileCut[] = [];
+  const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  const sideOf = (v: unknown): ProfileSide | null => {
+    const s = v as Record<string, unknown> | null;
+    return s && (s.across === 'length' || s.across === 'width') && VALID_FROMS.includes(s.from as CutFrom)
+      ? { across: s.across, from: s.from as CutFrom } : null;
+  };
+  const endOf = (v: unknown): ProfileEnd | null => {
+    const e = v as Record<string, unknown> | null;
+    const side = sideOf(e?.side);
+    if (!e || !side) return null;
+    if (VALID_FROMS.includes(e.through as CutFrom)) return { side, through: e.through as CutFrom };
+    if (VALID_FROMS.includes(e.from as CutFrom) && finite(e.at)) return { side, from: e.from as CutFrom, at: e.at };
+    return null;
+  };
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const p = item as Record<string, unknown>;
+    // Refusals are decided before anything else: a newer build's profile must never be dropped quietly.
+    if (typeof p.kind === 'string' && !PROFILE_KINDS.includes(p.kind as ProfileKind)) refuseProfile(`kind "${p.kind}"`);
+    const r = p.run as Record<string, unknown> | null;
+    if (typeof r === 'object' && r !== null) {
+      if (r.loop === true) refuseProfile('all round');
+      const s = endOf(r.start);
+      const e = endOf(r.end);
+      if (s && e && (!('through' in s) || !('through' in e))) refuseProfile('stopped');
+      if (s && e && (s.side.across !== e.side.across || s.side.from !== e.side.from)) refuseProfile('ends on two sides');
+    }
+    if (!PROFILE_KINDS.includes(p.kind as ProfileKind)) continue;
+    const kind = p.kind as ProfileKind;
+    if (!VALID_FROMS.includes(p.face as CutFrom) || (p.facing !== 'face' && p.facing !== 'edge')) continue;
+    if (!finite(p.size) || p.size <= 0) continue;
+    if (kind === 'thumbnail' ? !(finite(p.depth) && p.depth > 0 && p.depth < p.size) : p.depth !== undefined) continue;
+    if (kind === 'thumbnail' ? p.fillet !== undefined : !(finite(p.fillet) && p.fillet >= 0)) continue;
+    if (kind === 'bead' && !((p.fillet as number) > 0)) continue;
+    if (typeof r !== 'object' || r === null) continue;
+    const s = endOf(r.start) as { side: ProfileSide; through: CutFrom } | null;
+    const e = endOf(r.end) as { side: ProfileSide; through: CutFrom } | null;
+    if (!s || !e || s.through === e.through) continue;                      // one end out through each end face
+    const side = s.side;
+    const fields = { kind, size: p.size, ...(kind === 'thumbnail' ? { depth: p.depth as number } : { fillet: p.fillet as number }) };
+    const sym = !profileAsymmetric({ through: 'length', uFrom: 'min', vFrom: 'min', facing: 'v', ...fields });
+    out.push({
+      id: takeId(p.id, seen), face: p.face as CutFrom, ...fields, facing: sym ? 'face' : (p.facing as 'face' | 'edge'),
+      run: { start: { side, through: 'min' }, end: { side: { ...side }, through: 'max' } },
+    });
   }
   return out;
 }
@@ -600,7 +670,14 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   };
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves: validateCurveCuts(b.curves), profiles: [] } };
+  // Profile runs spec §3.2/P7/P8: curves and profiles share one id scope; every curve profileOf recognises moves into
+  // `profiles` (keeping its id), after the stored profiles.
+  const ids = new Set<string>();
+  const allCurves = validateCurveCuts(b.curves, ids);
+  const storedProfiles = validateProfiles(b.profiles, ids);
+  const curves = allCurves.filter((c) => !profileOf(c));
+  const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved] } };
 }
 
 /**
