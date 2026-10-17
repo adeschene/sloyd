@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, mirrorCurveCut, sameCurve } from './curves';
-import { createBoard } from './document';
+import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
 import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields } from './profiles';
 import type { ProfileFields } from './profiles';
@@ -177,5 +177,27 @@ describe('defaultProfile (spec §2.3, scaled per axis)', () => {
     const e = { through: 'length', uFrom: 'max', vFrom: 'max' } as const;
     const b = createBoard({ length: 36, width: 0.75, thickness: 20 });
     expect(profileFields(defaultProfile(b, 'thumbnail', e, 'u'))).toMatchObject({ facing: 'u', size: 0.75, depth: 0.25 });
+  });
+});
+
+describe('sharp lines along `through` (inv 16: a line only at a SHARP outline vertex, judged on the true arc)', () => {
+  // A 36 x 20 x 3/4 board, one profile on the default edge. Segments of length 36 are the lines along the length. The box
+  // has 4 long edges, one consumed by the profile's corner, so 3 remain; each profile adds its own sharp vertices. Counted
+  // from the §2.2 outlines (edge face u = 0, top face v = 0; tangent = the arc's radius is square to the line it meets):
+  //   roundover (r,0) and (0,r): both tangent                                  -> 3
+  //   cove      centre (0,0): (r,0) and (0,r) both meet their lines square     -> 3 + 2
+  //   ogee      (s,0) centre (s/2,0) is square to the top: sharp; the S join and (0,s) (centre (s/2,s)) tangent -> 3 + 1
+  //   bead      (r+k,0) and (r+k,k) are line-line corners; the arc is tangent to the floor and the edge face   -> 3 + 2
+  //   thumbnail (a,0) centre (a,R) tangent to the top; (0,d) is a crisp line on the edge face                  -> 3 + 1
+  const lengthLines = (kind: (typeof PROFILE_KINDS)[number]) => {
+    const b = createBoard({ length: 36, width: 20, thickness: 0.75 });
+    const board = createBoard({ length: 36, width: 20, thickness: 0.75, curves: [{ id: 'p', ...defaultProfile(b, kind) }] });
+    return partGeometry(board).edges.filter(([p, q]) => Math.abs(Math.hypot(q.length - p.length, q.width - p.width, q.thickness - p.thickness) - 36) < 1e-9).length;
+  };
+  it('the box has 4 long edges', () => {
+    expect(partGeometry(createBoard({ length: 36, width: 20, thickness: 0.75 })).edges.filter(([p, q]) => Math.abs(Math.hypot(q.length - p.length, q.width - p.width, q.thickness - p.thickness) - 36) < 1e-9).length).toBe(4);
+  });
+  it.each([['roundover', 3], ['cove', 5], ['ogee', 4], ['bead', 5], ['thumbnail', 4]] as const)('%s draws %i lines along the length', (kind, n) => {
+    expect(lengthLines(kind)).toBe(n);
   });
 });

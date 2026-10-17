@@ -1,4 +1,4 @@
-import { clipPolygon, createBoard, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeInStock, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
+import { clipPolygon, createBoard, defaultProfile, PROFILE_EDGES, profileCurve, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeInStock, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
 import type { Board, CurveCut, Hole, HoleRow, V3 } from '../document/document';
 import { capFill } from './capFill';
 import { bodyMesh, drawsAsBox, holesMesh } from './grainTiling';
@@ -81,6 +81,26 @@ describe('a curved part\'s mesh is watertight (every directed edge matched, exac
     const plain = createBoard({ ...apron, cuts: [dado] });
     const { bodies, holes } = partGeometry(plain);
     expect(bodies.every((body) => drawsAsBox(plain, body, holes))).toBe(true);
+  });
+});
+
+// Edge profiles (edge profiles spec §4): a profile is a curve, so its part's mesh must close too.
+const top = { length: 36, width: 20, thickness: 0.75 };
+const shelf = { length: 36, width: 10, thickness: 0.75 };
+const fourEdges = PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i): CurveCut => ({ id: `r${i}`, ...defaultProfile(top, 'roundover', e) }));
+const profiled: [string, Board][] = [
+  ['a top with the four-edge Roundover set', createBoard({ ...top, curves: fourEdges })],
+  ['a shelf with an ogee on a long edge and a bead on an end', createBoard({ ...shelf, curves: [
+    { id: 'o', ...defaultProfile(shelf, 'ogee') }, { id: 'b', ...defaultProfile(shelf, 'bead', { through: 'width', uFrom: 'max', vFrom: 'max' }) }] })],
+  ['a cove', createBoard({ ...top, curves: [{ id: 'c', ...defaultProfile(top, 'cove') }] })],
+  ['a thumbnail', createBoard({ ...top, curves: [{ id: 't', ...defaultProfile(top, 'thumbnail') }] })],
+  ['a filleted ogee', createBoard({ ...top, curves: [{ id: 'f', ...profileCurve({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'ogee', facing: 'v', size: 0.5, fillet: 0.0625 }) }] })],
+];
+describe('an edge-profiled part\'s mesh is watertight', () => {
+  it.each(profiled)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
   });
 });
 

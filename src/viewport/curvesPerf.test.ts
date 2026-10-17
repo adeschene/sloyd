@@ -1,4 +1,4 @@
-import { createBoard, partGeometry, archCurve, cornerCurve, curvePlan, defaultHingeCup, defaultShelfPinRow, holeInStock, stockChecks } from '../document/document';
+import { createBoard, defaultProfile, PROFILE_EDGES, partGeometry, archCurve, cornerCurve, curvePlan, defaultHingeCup, defaultShelfPinRow, holeInStock, stockChecks } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { bodyMesh } from './grainTiling';
 
@@ -89,5 +89,20 @@ describe('a curved part rebuilds inside a frame', () => {
     expect(curvePlan(b1, stileArch)?.clip).toBe(false);
     expect(partGeometry(b1).holes.every((h) => holeInStock(b1, h, stockChecks(b1)))).toBe(true);
     expect(minOf9(board)).toBeLessThanOrEqual(40);
+  });
+  // Edge profiles (edge profiles spec §4): the same rebuild, a profile's curves through the length or the width.
+  it('a top with the four-edge Roundover set: at most 40 ms', () => {
+    const dims = { width: 20, thickness: 0.75 };
+    const curves = PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i) => ({ id: `r${i}`, ...defaultProfile({ length: 36, ...dims }, 'roundover', e) }));
+    expect(curves).toHaveLength(4);
+    expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(40);
+  });
+  it('a shelf with an ogee on a long edge and a bead on an end (mixed axes): at most 40 ms', () => {
+    const dims = { width: 10, thickness: 0.75 };
+    const curves = [
+      { id: 'o', ...defaultProfile({ length: 36, ...dims }, 'ogee') },
+      { id: 'b', ...defaultProfile({ length: 36, ...dims }, 'bead', { through: 'width', uFrom: 'max', vFrom: 'max' }) },
+    ];
+    expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(40);
   });
 });
