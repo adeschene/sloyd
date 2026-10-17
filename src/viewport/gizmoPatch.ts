@@ -82,6 +82,10 @@ export interface ControlsInternals {
   worldQuaternion: THREE.Quaternion;
   space: 'world' | 'local';
   mode: 'translate' | 'rotate' | 'scale';
+  /** The library's own per-axis gating (default true). The patch rewrites `visible`, so it must honour these (fu 19). */
+  showX?: boolean;
+  showY?: boolean;
+  showZ?: boolean;
 }
 
 const AXIS_HIDE_THRESHOLD = 0.99; // matches three-stdlib's own near-aligned cutoff
@@ -187,7 +191,7 @@ export function stabilizeTranslateGizmo(
           if (axis === 'X') handle.scale.x = Math.abs(handle.scale.x);
           else if (axis === 'Y') handle.scale.y = Math.abs(handle.scale.y);
           else handle.scale.z = Math.abs(handle.scale.z);
-          handle.visible = alignment <= AXIS_HIDE_THRESHOLD;
+          handle.visible = controls[`show${axis}`] !== false && alignment <= AXIS_HIDE_THRESHOLD;
         });
       }
       // `original(force)` above already composed every handle's matrix and
