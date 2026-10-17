@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut } from './types';
 import { boardBodies, bodyVerts } from './bodies';
-import { bevelCut, chamferCut, defaultChamfer, miterRatio } from './angleCuts';
+import { bevelCut, chamferCut, defaultChamfer, defaultRaisedPanel, miterRatio } from './angleCuts';
 import { angleDegrees, angleLine, faceName, shortPointLine } from './angleText';
 
 const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
@@ -170,5 +170,22 @@ describe('angleLine in metric', () => {
   it('a taper: lengths in mm, angle in degrees unchanged', () => {
     const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [taper] });
     expect(angleLine(leg, taper, { display: 'metric-mm', precision: 16 })).toBe('Taper 16 mm off the width face (min side), from 610 mm from the length min end to that end');
+  });
+});
+
+describe('the short point leaves out an end chamfer that keeps part of the end face (fu 385, the user\'s ruling)', () => {
+  const panel = createBoard({ length: 20, width: 12, thickness: 0.75 });
+  const endChamfer = (from: 'min' | 'max', legAlong: number): AngleCut =>
+    ({ id: `c${from}`, ...chamferCut({ face: 'length', from, along: 'thickness', alongFrom: 'max', legFace: 1.5, legAlong }, panel) });
+  it('a raised panel has no short point (its stock is cut to 20" before the bevels)', () => {
+    const raised = { ...panel, angleCuts: defaultRaisedPanel(panel)!.map((c, i) => ({ id: `r${i}`, ...c })) };
+    expect(shortPointLine(raised, IMPERIAL)).toBeNull();
+  });
+  it('a chamfer reaching the far face is a miter by geometry: still counted', () => {
+    expect(shortPointLine({ ...panel, angleCuts: [endChamfer('min', 0.75), endChamfer('max', 0.75)] }, IMPERIAL)).toBe('Short point 17"');
+  });
+  it('a miter beside a tongue-leaving chamfer: the miter alone sets the short point', () => {
+    const miter: AngleCut = { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [12, 12]] };
+    expect(shortPointLine({ ...panel, length: 30, angleCuts: [endChamfer('min', 0.5), miter] }, IMPERIAL)).toBe('Short point 18"');
   });
 });

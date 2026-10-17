@@ -6451,3 +6451,7 @@ end cut, so the Raised panel preset's two end chamfers give `Short point 17"` on
 edges, but not a length a woodworker cuts to: the panel's stock and back face are full length. Seen in the presets batch live
 pass. A remedy would have to say which chamfers count (kind never decides geometry in `shortPointLine`). **Status:** open (for
 the user's ruling: keep, or omit the short point when every end cut is a chamfer that leaves the far face whole).
+**Status:** closed (2026-10-17, the user's ruling: "Omit the short point for chamfers"). `shortPointLine` leaves out an end
+chamfer that keeps part of the end face standing (its leg along the cross dimension short of that dimension: a tongue); one
+reaching the far face is a miter by geometry and still counts. A raised panel has no short point; a miter beside such a chamfer
+sets it alone.

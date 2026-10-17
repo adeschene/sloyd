@@ -91,7 +91,7 @@ handicraft education tradition built around hand woodworking.
   (hatch density and the cut line's weight for the user's eye on a real print).
 - **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
-  curve rows, `curveAs`) closed. Residue 385 (a raised panel's short point, for the user's ruling).
+  curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point).
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
@@ -335,7 +335,7 @@ src/
 │   │                     MiterFields/BevelFields (stored slope RATIO, miterRatio 45° → 1), ChamferFields (12 canonical
 │   │                     CHAMFER_EDGES, exact legs) — each with its xCut writer and default; imports only types/geometry
 │   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
-│   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
+│   │                     shortPointLine (corner minimum, fu 281; an end chamfer leaving a tongue excluded, fu 385), angleDegrees (→ units)
 │   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44),
 │   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
@@ -1026,7 +1026,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4721 tests across 161 files
+npm test           # Vitest, currently 4724 tests across 161 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1048,7 +1048,6 @@ This list is the triage's open set — when an entry's status changes, change it
   draws nothing).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
-- **Open for the user's ruling:** 385 (a raised panel's cut-list short point).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
   unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
