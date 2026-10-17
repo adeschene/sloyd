@@ -7,7 +7,7 @@ import { toWorld } from './snapPoints';
 import { holeDrawingTagged } from './holeDrawing';
 import { angleCutRemovesNothing, keptHalfSpace } from './angleCuts';
 import { featureTag } from './featureKeys';
-import { curveDrawEdges, silhouetteLines } from './curveDrawing';
+import { curveDrawEdges, curveEdgeLifts, silhouetteLines } from './curveDrawing';
 import { sectionAxisIndex, sectionCaps, SECTION_EPS, type Section } from './section';
 
 /**
@@ -179,18 +179,22 @@ const local = (s: { length: number; width: number; thickness: number }) => [s.le
 function partSegments(b: Board, toward: readonly number[]): Seg3[] {
   if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
-  return curveDrawEdges(b).map((e) => {
+  // Final review F1: an edge a curve's outline bounds carries the silhouettes' lift, so a shallow viewer-facing face
+  // does not graze it hidden in its own wood. The lift moves only the hidden-line probe.
+  const lifts = curveEdgeLifts(b, toward);
+  return curveDrawEdges(b).map((e, i) => {
     const A = W(e.p);
     const E = W(e.q);
     const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q);
-    if (!e.path) return withTag({ A, E }, tag);
+    const lift = lifts[i];
+    if (!e.path) return withTag(lift ? { A, E, lift } : { A, E }, tag);
     const step = [e.p[0], e.p[1], e.p[2]];
     step[e.path.k] = step[e.path.k]! + 1;
     // Edge-on (ruling Q3): the outline's plane holds the view direction, so a fine path would fold over itself on
     // screen (holes chunk 2 R2) — the model chord stands.
     const n = W(step).map((x, i) => x - A[i]!);
-    if (Math.abs(dot(n, toward)) <= 1e-9) return withTag({ A, E }, tag);
-    return withTag({ A, E, path: { pts: e.path.pts.map(W), at: e.path.at } }, tag);
+    if (Math.abs(dot(n, toward)) <= 1e-9) return withTag(lift ? { A, E, lift } : { A, E }, tag);
+    return withTag({ A, E, path: { pts: e.path.pts.map(W), at: e.path.at }, ...(lift ? { lift } : {}) }, tag);
   });
 }
 
