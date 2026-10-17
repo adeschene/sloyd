@@ -5581,6 +5581,7 @@ edges and a flat 45° picture frame; one Refine changed only the top's chamfers.
 
 **278. A "taper all four faces" shortcut.** **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** closed (presets batch, 2026-10-17): `+ Add ▾` → Taper two faces (a leg's inside faces) and Taper four faces; independent rows, one undo entry, one amount (¼ of the thinner cross dimension).
 
 **279. Angle callouts on the Plans sheet** (see fu 252). **Status:** open.
 **Status:** open (feature; needs a spec) (feature callouts, with 333 and 362; 252 closed). (triaged 2026-10-16)
@@ -5709,6 +5710,7 @@ Size field writes equal legs and is a mixed field, `value: null`, on an unequal-
 second leg field, would close it. Found while writing the chunk 3 live check; not exercised live. **Status:** open, a
 feature gap.
 **Status:** open (feature; needs a spec) (a preset or a second leg field). (triaged 2026-10-16)
+**Status:** closed (presets batch, 2026-10-17): the Chamfer row has one field per leg (`Into the <dim>`; never mixed; a leg a resize pushed past its part may be reduced, never deepened), and `+ Add ▾` → Raised panel adds the four front-edge chamfers, 1-1/2" into the face, a 1/4" tongue (withheld under 1/2" thick). Residue fu 385.
 
 **299. The chamfer Edge select's option text is clipped at the panel's width.** At the default 1726 px window the
 Properties panel shows `Width min / thickness min edge (along the lengt` under the caret (`docs/img/angle-cuts-chamfer-leg.png`).
@@ -6259,6 +6261,7 @@ open (spec §12).
 **367. A row control to change a curve's kind.** Arch into Bow and so on; the user removes and re-adds this round.
 **Status:** open (spec §12).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** closed (presets batch, 2026-10-17): a Kind select on a representable curve row (`curveAs`: placement and id kept, the new kind's preset sizes; Arch ↔ Half-round notch keeps the span); an option that would be refused is disabled.
 
 **368. Rebuild cost of a non-convex waste (Task 8 ruling; final fix wave).** `curvesPerf.test.ts`' L-shaped notch (a
 hand-edited waste, ear-clipped into 14 pieces, sliced into 83 bodies and 477 faces) measured 48–54 ms (bodies ~4, edges ~35
@@ -6443,3 +6446,8 @@ clipped (final review M3); density and weight are for the user's eye on a real p
 on paper, even a face lying ON the plane, where the viewport keeps (and z-fights) that face — a deliberate difference (review I1).
 **Status:** open (for the user's eye: (2); record-only: (1), (3)).
 
+**385. A raised panel's cut-list row reads a short point.** `shortPointLine` (fu 281) takes any cut on the length face as an
+end cut, so the Raised panel preset's two end chamfers give `Short point 17"` on a 20" panel — true of the front face's long
+edges, but not a length a woodworker cuts to: the panel's stock and back face are full length. Seen in the presets batch live
+pass. A remedy would have to say which chamfers count (kind never decides geometry in `shortPointLine`). **Status:** open (for
+the user's ruling: keep, or omit the short point when every end cut is a chamfer that leaves the far face whole).
