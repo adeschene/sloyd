@@ -8,6 +8,7 @@ import { holeDrawingTagged } from './holeDrawing';
 import { angleCutRemovesNothing, keptHalfSpace } from './angleCuts';
 import { featureTag } from './featureKeys';
 import { curveDrawEdges, silhouetteLines } from './curveDrawing';
+import { sectionAxisIndex, sectionCaps, SECTION_EPS, type Section } from './section';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -35,7 +36,10 @@ export type P2 = [number, number];
 /** `feature`: the hole row, angle cut or curve the segment is drawn for (`featureTag`; feature callouts spec §4.1) — ABSENT,
  *  not undefined, on every other segment, so a featureless part's drawing is byte-for-byte what it was. */
 export interface Seg2 { a: P2; b: P2; part: string; feature?: string }
-export interface Drawing { visible: Seg2[]; hidden: Seg2[]; bounds: { min: P2; max: P2 } }
+/** A part's section cap on paper (section views spec §3.1): the cut faces' pieces, projected, and their outline. */
+export interface CapDrawing { part: string; polys: P2[][]; outline: Seg2[] }
+/** `caps`: present only when drawn with a section, so a section-less drawing is byte-for-byte what it was. */
+export interface Drawing { visible: Seg2[]; hidden: Seg2[]; bounds: { min: P2; max: P2 }; caps?: CapDrawing[] }
 
 /**
  * Inches. Well above the float drift of `position + toWorldOffset` sums at furniture scale, far
@@ -190,23 +194,59 @@ function partSegments(b: Board, toward: readonly number[]): Seg3[] {
   });
 }
 
+/** The part of a box on `s`'s kept side, or null when less than SECTION_EPS of it is kept (a face on the plane). */
+function keptBox(bx: { min: Vec3; max: Vec3 }, s: Section): { min: Vec3; max: Vec3 } | null {
+  const k = sectionAxisIndex(s.axis);
+  const min = [...bx.min] as Vec3;
+  const max = [...bx.max] as Vec3;
+  if (s.flip) min[k] = Math.max(min[k], s.at);
+  else max[k] = Math.min(max[k], s.at);
+  return max[k] - min[k] > SECTION_EPS ? { min, max } : null;
+}
+
+/** The kept side of `s` as one more inside half-space m·x + c >= 0, |m| = 1. */
+function keptHalf(s: Section): { m: Vec3; c: number } {
+  const m: Vec3 = [0, 0, 0];
+  m[sectionAxisIndex(s.axis)] = s.flip ? 1 : -1;
+  return { m, c: s.flip ? -s.at : s.at };
+}
+
+/** The chord-parameter range of A→E on `s`'s kept side (keptBySection's test), or null when none of it is kept. */
+function keptRange(A: Vec3, E: Vec3, s: Section): [number, number] | null {
+  const k = sectionAxisIndex(s.axis);
+  const sg = s.flip ? -1 : 1;
+  const fa = sg * (A[k] - s.at);
+  const fe = sg * (E[k] - s.at);
+  const inA = fa <= SECTION_EPS;
+  const inE = fe <= SECTION_EPS;
+  if (inA && inE) return [0, 1];
+  if (!inA && !inE) return null;
+  const t = Math.min(1, Math.max(0, fa / (fa - fe)));
+  return inA ? [0, t] : [t, 1];
+}
+
 /**
  * Visible and hidden 2D segments for `parts` seen through `view` (spec §2). Edges from
  * `boardEdges` (invariant 16) — on a curved part through `curveDrawEdges`, the fine path drawn with its chord's
  * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `silhouetteLines` (ruling Q1; each hidden-line probe is stepped PROBE = 4 x DRAW_EPS along the outward normal of each viewer-facing adjacent face, grazing lines still hide); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
- * No drawing order is involved, so cyclic overlaps are exact.
+ * No drawing order is involved, so cyclic overlaps are exact. With opts.section (section views spec §3.1), every line and
+ * occluder is clipped to the kept half-space and the caps are returned.
  */
-export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>, opts: { hiddenLines?: boolean } = {}): Drawing {
+export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>, opts: { hiddenLines?: boolean; section?: Section } = {}): Drawing {
+  const section = opts.section;
   // A view drawn without hidden lines (the exploded isometric, fu 344) skips the hole lines that can only be hidden.
   const visibleOnly = opts.hiddenLines === false;
   const proj = (p: readonly number[]): P2 => [dot(p, view.right), dot(p, view.up)];
   const visible: Seg2[] = [];
   const hidden: Seg2[] = [];
-  if (parts.length === 0) return { visible, hidden, bounds: { min: [0, 0], max: [0, 0] } };
+  if (parts.length === 0) {
+    return section ? { visible, hidden, bounds: { min: [0, 0], max: [0, 0] }, caps: [] } : { visible, hidden, bounds: { min: [0, 0], max: [0, 0] } };
+  }
 
   const boxes = parts.map((b) => boardBox(b, offsets?.get(b.id)));
-  const screen = boxes.flatMap((bx) => corners(bx).map(proj));
-  const bounds = {
+  const drawn = section ? boxes.flatMap((bx) => keptBox(bx, section) ?? []) : boxes;
+  const screen = drawn.flatMap((bx) => corners(bx).map(proj));
+  const bounds = screen.length === 0 ? { min: [0, 0] as P2, max: [0, 0] as P2 } : {
     min: [Math.min(...screen.map((p) => p[0])), Math.min(...screen.map((p) => p[1]))] as P2,
     max: [Math.max(...screen.map((p) => p[0])), Math.max(...screen.map((p) => p[1]))] as P2,
   };
@@ -216,16 +256,23 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
 
   const solids = parts.flatMap((b) => {
     const off = offsets?.get(b.id);
-    return worldBodies(b).map((w) => {
-      const pts = w.box ? corners({ min: plus(w.box.min, off), max: plus(w.box.max, off) }) : w.verts.map((p) => plus(p, off));
+    return worldBodies(b).flatMap((w) => {
+      let bx = w.box ? { min: plus(w.box.min, off), max: plus(w.box.max, off) } : null;
+      let planes = w.box ? null : w.planes.map(({ m, c }) => ({ m, c: c - dot(m, off ?? [0, 0, 0]) }));
+      if (section) {
+        // Section views spec §3.1: an occluder is only its kept wood. A box stays a box; a planes body gains the plane.
+        if (bx) { bx = keptBox(bx, section); if (!bx) return []; }
+        else planes = [...planes!, keptHalf(section)];
+      }
+      // The prefilter reads the clipped box, or the unclipped vertices (conservative: it only skips work).
+      const pts = bx ? corners(bx) : w.verts.map((p) => plus(p, off));
       const sp = pts.map(proj);
-      return {
-        bx: w.box ? { min: plus(w.box.min, off), max: plus(w.box.max, off) } : null,
-        planes: w.box ? null : w.planes.map(({ m, c }) => ({ m, c: c - dot(m, off ?? [0, 0, 0]) })),
+      return [{
+        bx, planes,
         rmin: [Math.min(...sp.map((p) => p[0])), Math.min(...sp.map((p) => p[1]))],
         rmax: [Math.max(...sp.map((p) => p[0])), Math.max(...sp.map((p) => p[1]))],
         depthMax: Math.max(...pts.map((p) => dot(p, view.toward))),
-      };
+      }];
     });
   });
 
@@ -245,6 +292,9 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
       const pe = proj(E);
       const length = Math.hypot(pe[0] - pa[0], pe[1] - pa[1]);
       if (length < DRAW_EPS) continue; // runs along the view direction: a point on screen
+      const range = section ? keptRange(A, E, section) : null;
+      if (section && !range) continue;
+      const [t0, t1] = range ?? [0, 1];
       const depthMin = Math.min(dot(A, view.toward), dot(E, view.toward));
       const segMin = [Math.min(pa[0], pe[0]), Math.min(pa[1], pe[1])];
       const segMax = [Math.max(pa[0], pe[0]), Math.max(pa[1], pe[1])];
@@ -287,14 +337,29 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
           if (Math.hypot(q[0] - p[0], q[1] - p[1]) >= 1e-12) out.push(withTag({ a: p, b: q, part: b.id }, seg.feature));
         }
       };
-      let cur = 0;
+      let cur = t0;
       for (const [s0, s1] of merged) {
-        push(visible, cur, Math.max(cur, s0));
-        push(hidden, Math.max(0, s0), Math.min(1, s1));
-        cur = Math.max(cur, s1);
+        const h0 = Math.max(s0, t0);
+        const h1 = Math.min(s1, t1);
+        if (h1 <= h0) continue;
+        push(visible, cur, Math.max(cur, h0));
+        push(hidden, h0, h1);
+        cur = Math.max(cur, h1);
       }
-      push(visible, cur, 1);
+      push(visible, cur, t1);
     }
   }
-  return { visible, hidden, bounds };
+  if (!section) return { visible, hidden, bounds };
+  // The caps (invariant 51): only from sectionCaps, projected. They lie on the plane, in front of everything kept.
+  const caps: CapDrawing[] = [];
+  for (const b of parts) {
+    const cap = sectionCaps(b, section, offsets?.get(b.id));
+    if (!cap || cap.pieces.length === 0) continue;
+    caps.push({
+      part: b.id,
+      polys: cap.pieces.map((poly) => poly.map(proj)),
+      outline: cap.outline.map(([p, q]) => ({ a: proj(p), b: proj(q), part: b.id })),
+    });
+  }
+  return { visible, hidden, bounds, caps };
 }
