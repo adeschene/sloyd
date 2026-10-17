@@ -531,7 +531,9 @@ never worse and cuts the losses to 23 (worst 17%). Not applied on the branch: it
 the user, who said "go ahead with the multi-start fix, then deploy both". Applied on master: Buying keeps the strictly cheapest
 of the largest-first plan and one plan per preferred opener — only when every board has a price; unpriced stock (the default
 pine) stays largest-first, a ruling for the user, after a measured 150-part default project went from 37 boards to 53 when
-unpriced plans were compared by wood. $26 → $20 live on the measured job.
+unpriced plans were compared by wood. $26 → $20 live on the measured job. Both deployed 2026-10-17 as `8212cbe`
+(`index-D-v_Ne4g.js`, CSS unchanged) on the user's word: hashes match `dist/` in-network and at the edge, the old bundle 404s,
+CSP correct, a real page load clean, its keys removed and read back empty.
 Merged as `51f022f` (the merged tree built and passed 4649 tests across 159 files); not deployed.
 
 **The user's print and rulings (2026-10-16, after follow-ups 5's deploy).** A real print "looks good": fu 70, 79, 84, 94, 254,
