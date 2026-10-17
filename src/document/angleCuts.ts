@@ -351,3 +351,16 @@ export function defaultChamfer(board: Pick<Board, Dimension>): Omit<AngleCut, 'i
   const leg = Math.min(0.125, board.width / 4, board.thickness / 4);
   return chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: leg, legAlong: leg }, board);
 }
+
+/** The "Raised panel" preset (fu 298, presets-batch spec §3.2): the four edges of the thickness max face (the panel's
+ *  front) chamfered with UNEQUAL legs — 1-1/2" into the face (at most ¼ of the narrower in-face side), leaving a 1/4"
+ *  tongue at the edge. The four planes meet on the corner diagonals (each body is an intersection of half-spaces), so the
+ *  mitred corners need no geometry of their own. Null under 1/2" thick: the bevel would be under 1/4" deep. Canonical rows,
+ *  `face` before `along` (as CHAMFER_EDGES). */
+export function defaultRaisedPanel(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'>[] | null {
+  if (board.thickness < 0.5) return null;
+  const legFace = Math.min(1.5, Math.min(board.length, board.width) / 4);
+  const legAlong = board.thickness - 0.25;
+  const edges: [Dimension, CutFrom][] = [['width', 'min'], ['width', 'max'], ['length', 'min'], ['length', 'max']];
+  return edges.map(([face, from]) => chamferCut({ face, from, along: 'thickness', alongFrom: 'max', legFace, legAlong }, board));
+}

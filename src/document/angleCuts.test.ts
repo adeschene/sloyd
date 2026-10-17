@@ -1,4 +1,4 @@
-import { IMPERIAL } from '../units/length';
+import { IMPERIAL, formatLength } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Dimension, Region } from './types';
@@ -7,10 +7,10 @@ import {
   defaultTaper, defaultTaperFaces, TAPER_FOUR, TAPER_TWO, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
   defaultMiter, defaultMiterPair, miterCut, miterDegrees, miterFields, miterRatio,
   bevelCut, bevelFields, bevelAcross, defaultBevel,
-  CHAMFER_EDGES, chamferCut, chamferFields, defaultChamfer, splitRegion, touchedRegion,
+  CHAMFER_EDGES, chamferCut, chamferFields, defaultChamfer, defaultRaisedPanel, splitRegion, touchedRegion,
 } from './angleCuts';
 import { boardBodies, bodyVerts, bodyVolume } from './bodies';
-import { shortPointLine } from './angleText';
+import { angleLine, shortPointLine } from './angleText';
 
 const leg = (over: Partial<Board> = {}): Board =>
   createBoard({ name: 'Leg', length: 29, width: 1.75, thickness: 1.75, ...over });
@@ -422,5 +422,26 @@ describe('defaultTaperFaces (fu 278)', () => {
   it('one amount for every face, from the thinner cross dimension', () => {
     const cs = defaultTaperFaces(createBoard({ length: 28, width: 2, thickness: 1 }), TAPER_FOUR);
     expect(new Set(cs.map((c) => c.points[0]![1]))).toEqual(new Set([0.25]));
+  });
+});
+
+describe('defaultRaisedPanel (fu 298)', () => {
+  const panel = createBoard({ length: 20, width: 12, thickness: 0.75 });
+  it('four chamfers on the thickness max face: 1-1/2" into the face, a 1/4" tongue', () => {
+    const cs = defaultRaisedPanel(panel)!;
+    const at = (face: 'width' | 'length', from: 'min' | 'max') =>
+      chamferCut({ face, from, along: 'thickness', alongFrom: 'max', legFace: 1.5, legAlong: 0.5 }, panel);
+    expect(cs).toEqual([at('width', 'min'), at('width', 'max'), at('length', 'min'), at('length', 'max')]);
+    for (const c of cs) expect(angleCutRemovesNothing(panel, { id: 'x', ...c })).toBe(false);
+    expect(angleLine(panel, { id: 'x', ...cs[0]! }, IMPERIAL))
+      .toContain(`${formatLength(1.5, IMPERIAL)} into the width × ${formatLength(0.5, IMPERIAL)} into the thickness`);
+  });
+  it('the face leg is capped at a quarter of the narrower in-face side', () => {
+    const cs = defaultRaisedPanel(createBoard({ length: 4, width: 3, thickness: 0.75 }))!;
+    expect(cs.every((c) => c.points[0]![1] === 0.75)).toBe(true);
+  });
+  it('offered at exactly 1/2" thick (a 1/4" bevel), withheld under it', () => {
+    expect(defaultRaisedPanel(createBoard({ length: 20, width: 12, thickness: 0.5 }))![0]!.points).toEqual([[0, 1.5], [0.25, 0]]);
+    expect(defaultRaisedPanel(createBoard({ length: 20, width: 12, thickness: 0.49 }))).toBeNull();
   });
 });

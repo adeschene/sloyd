@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import {
-  CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
+  CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, defaultRaisedPanel,
   defaultMiter, defaultMiterPair, defaultTaper, defaultTaperFaces, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields, TAPER_FOUR, TAPER_TWO,
 } from '../document/document';
 import { angleLine } from '../document/angleText';
@@ -238,6 +238,7 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
 /** The Angles section (spec §7): a single part's angle cuts. Taper, Miter, Bevel and Chamfer. */
 export function AngleCuts({ board }: { board: Board }) {
   const addAngleCuts = useStore((s) => s.addAngleCuts);
+  const raised = defaultRaisedPanel(board);
   return (
     <>
       <h3>Angles{board.angleCuts.length > 0 && <span className="h3-count"> · {board.angleCuts.length}</span>}</h3>
@@ -258,6 +259,8 @@ export function AngleCuts({ board }: { board: Board }) {
             { label: 'Bevel', detail: '15° along one edge', run: () => addAngleCuts(board.id, [defaultBevel(board)]) },
           ]),
           { label: 'Chamfer', detail: 'Knock off one edge at 45°', run: () => addAngleCuts(board.id, [defaultChamfer(board)]) },
+          // Withheld under 1/2" thick (presets-batch spec §3.2): the 1/4" tongue would leave too shallow a bevel.
+          ...(raised ? [{ label: 'Raised panel', detail: 'Bevel the four front edges, leaving a 1/4" tongue', run: () => addAngleCuts(board.id, raised) }] : []),
         ]} />
     </>
   );

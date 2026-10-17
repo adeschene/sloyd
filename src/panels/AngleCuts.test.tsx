@@ -324,6 +324,31 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     expect(screen.getByLabelText('Into the width')).toBeInTheDocument();
     expect(screen.getByLabelText('Into the thickness')).toBeInTheDocument();
   });
+  it('Raised panel adds four unequal chamfers in one undo entry (fu 298)', async () => {
+    const user = userEvent.setup();
+    open(plank({ length: 20, width: 12 }));
+    const before = useStore.getState().past.length;
+    await addMenu(user, 'Raised panel');
+    expect(cuts()).toHaveLength(4);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(screen.getAllByLabelText('Into the thickness').map((el) => (el as HTMLInputElement).value))
+      .toEqual(Array(4).fill(formatLength(0.5, IMPERIAL)));
+  });
+  it('withholds Raised panel under 1/2" thick', async () => {
+    const user = userEvent.setup();
+    open(plank({ thickness: 0.375 }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('button', { name: 'Chamfer' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raised panel' })).toBeNull();
+  });
+  it('a metric Raised panel stores exact inches and shows mm (Review Focus 1)', async () => {
+    const user = userEvent.setup();
+    open(plank({ length: 20, width: 12 }));
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await addMenu(user, 'Raised panel');
+    expect(cuts()[0]!.points).toEqual([[0, 1.5], [0.5, 0]]);
+    expect(screen.getAllByLabelText('Into the width')[0]).toHaveValue(formatLength(1.5, { display: 'metric-mm', precision: 16 }));
+  });
   it('a hand-edited bevel the row cannot show gets its line and a remove button only', () => {
     const c: AngleCut = { id: 'a1', kind: 'bevel', face: 'width', from: 'max', along: 'length', alongFrom: 'min', points: [[0, 0], [10, 1]] };
     open(plank({ angleCuts: [c] }));

@@ -31,7 +31,7 @@ export {
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
-export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, defaultTaperFaces, TAPER_FOUR, TAPER_TWO, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, splitRegion, taperCut, taperFields, throughOf, touchedRegion, zeroStation } from './angleCuts';
+export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, defaultRaisedPanel, ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, defaultTaperFaces, TAPER_FOUR, TAPER_TWO, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, splitRegion, taperCut, taperFields, throughOf, touchedRegion, zeroStation } from './angleCuts';
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFace, TaperFields, V3 } from './angleCuts';
 export {
   HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
