@@ -542,7 +542,7 @@ the retired field, and now names the leg. Its minors were deferred:
 
 The live pass is recorded in `docs/browser-verification-presets-batch.md`: four-face leg, raised panel in the viewport, on the
 Plans sheet and in the cut list, metric, and the Kind round trip. It opened fu 385: the panel's end chamfers give a cut-list
-`Short point 17"`. Suite 4721 tests across 161 files; build clean.
+`Short point 17"`. Merged as `ec795fb` (the merged tree built and passed 4721 tests across 161 files). Not yet deployed.
 
 **What section views did (2026-10-17)** (the user: "start on section views (256)"; brainstormed, spec and plan approved;
 "go with native"; branch `section-views`). Fu 256's sheet half. The user's rulings: the viewport's cut is the source (no

@@ -89,7 +89,7 @@ handicraft education tradition built around hand woodworking.
   `index-CosJqZi4.js`; no schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
   trio and draws a hatched Section A–A of the ASSEMBLED piece after it (`drawView`'s `section` option, `sectionView.ts`). Residue 384
   (hatch density and the cut line's weight for the user's eye on a real print).
-- **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master; NOT YET DEPLOYED;
+- **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; NOT YET DEPLOYED;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
   curve rows, `curveAs`) closed. Residue 385 (a raised panel's short point, for the user's ruling).
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch since). **No follow-up is open as code-sized work**: the triage's
