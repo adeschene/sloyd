@@ -168,6 +168,30 @@ export interface CurveCut {
  */
 export type Region = Record<Dimension, Span>;
 
+/** A routed edge profile's kind (edge profiles spec §2; profile runs spec §3.1). */
+export type ProfileKind = 'roundover' | 'cove' | 'ogee' | 'bead' | 'thumbnail';
+/** One side of a broad (thickness) face: the edge at `across`'s `from` end, running along the face's other dimension. */
+export interface ProfileSide { across: 'length' | 'width'; from: CutFrom }
+/** A run's end: a station along the side measured from the named end of its run dimension, or — at a side's sharp corner —
+ *  out through that end face (chunk 1's full-length profile). Chunk a1 builds only `through` ends on one side. */
+export type ProfileEnd = { side: ProfileSide; from: CutFrom; at: number } | { side: ProfileSide; through: CutFrom };
+export type ProfileRun = { loop: true } | { start: ProfileEnd; end: ProfileEnd };
+/** An edge profile (profile runs spec §3): routed from the broad face `face` along `run`; sizes as chunk 1's ProfileFields. */
+export interface ProfileCut {
+  id: string;
+  face: CutFrom;
+  kind: ProfileKind;
+  /** roundover/cove/bead: radius; ogee: size; thumbnail: reach */
+  size: number;
+  /** thumbnail only (0 < depth < size) */
+  depth?: number;
+  /** roundover/cove/ogee: fillet (0 = none); bead: quirk (> 0); absent on a thumbnail */
+  fillet?: number;
+  /** asymmetric kinds: the profile's top on the broad face or on the side face; symmetric kinds: always 'face' */
+  facing: 'face' | 'edge';
+  run: ProfileRun;
+}
+
 export interface Board {
   id: string;
   name: string;
@@ -195,6 +219,8 @@ export interface Board {
   holes: HoleRow[];
   /** Curve cuts through the part (curves spec §2). Empty for most parts. */
   curves: CurveCut[];
+  /** Edge profiles (profile runs spec §3). Empty for most parts. Geometry reads them through `geometryBoard`. */
+  profiles: ProfileCut[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a

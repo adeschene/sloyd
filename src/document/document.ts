@@ -41,7 +41,7 @@ export {
 export type { Hole, Plane } from './holes';
 export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords, boundaryDistance, wasteContains, isAir, circleMeetsWaste, rectMeetsWaste, curveFaults, archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, deriveCurveKind, curveKindWord, curveAs, curveKindChoice, curvePlacement, defaultArch, defaultNotch, defaultBow, defaultCorner, defaultCorners, mirrorCurveCut, convexPieces, curvePlan, splitPieces, smoothLines } from './curves';
 export type { P2, LocalArc, LocalLine, LocalSeg, Outline, CurveFaultKind, CurveFault, ArchFields, BowFields, CornerFields, CurveKind, CurveKindChoice, CurvePlacement } from './curves';
-export { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields } from './profiles';
+export { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields, profileAsCurve, profileOf, profileFromFields, profileToFields, mirrorProfile, sameProfile, copyProfile, geometryBoard, endToEnd, PROFILE_FIELDS, profileValues } from './profiles';
 export type { ProfileEdge, ProfileFields, ProfileKind } from './profiles';
 export { DRAWING_HOLE_SEGMENTS, holeDrawingSegments } from './holeDrawing';
 export { holeFaults, holeInStock, stockChecks } from './holeFaults';
@@ -249,6 +249,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     angleCuts: [],
     holes: [],
     curves: [],
+    profiles: [],
     ...partial,
   };
 }
@@ -599,7 +600,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   };
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves: validateCurveCuts(b.curves) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves: validateCurveCuts(b.curves), profiles: [] } };
 }
 
 /**

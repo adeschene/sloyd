@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, mirrorCurveCut, sameCurve } from './curves';
 import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
-import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields } from './profiles';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, profileFromFields, profileOf, profileValues, sameProfile } from './profiles';
 import type { ProfileFields } from './profiles';
-import type { CurveCut } from './types';
+import type { CurveCut, ProfileCut } from './types';
 
 const edge = { through: 'length', uFrom: 'max', vFrom: 'max' } as const;
 const at = (f: Partial<ProfileFields> & Pick<ProfileFields, 'kind' | 'size'>): ProfileFields => ({ ...edge, facing: 'v', ...f });
@@ -199,5 +199,73 @@ describe('sharp lines along `through` (inv 16: a line only at a SHARP outline ve
   });
   it.each([['roundover', 3], ['cove', 5], ['ogee', 4], ['bead', 5], ['thumbnail', 4]] as const)('%s draws %i lines along the length', (kind, n) => {
     expect(lengthLines(kind)).toBe(n);
+  });
+});
+
+/** Every chunk-1 profile a writer can store: each kind × 8 edges × both facings (symmetric kinds collapse to v), with and
+ *  without a fillet where the kind takes one. */
+const corpus = (): ProfileFields[] => PROFILE_EDGES.flatMap((e) => PROFILE_KINDS.flatMap((kind) => {
+  const sizes: Pick<ProfileFields, 'size' | 'depth' | 'fillet'>[] = kind === 'thumbnail' ? [{ size: 0.75, depth: 0.25 }]
+    : kind === 'bead' ? [{ size: 0.25, fillet: 0.0625 }] : [{ size: 0.375, fillet: 0 }, { size: 0.375, fillet: 0.0625 }];
+  return sizes.flatMap((s) => (['v', 'u'] as const).map((facing) => ({ ...e, kind, ...s, facing })))
+    .filter((f) => profileAsymmetric(f) || f.facing === 'v');
+}));
+
+describe('ProfileCut, the stored form (profile runs spec §3.1, chunk a1)', () => {
+  it('every chunk-1 profile converts to a ProfileCut and back to the BYTES chunk 1 stored', () => {
+    for (const f of corpus()) {
+      const c = profileCurve(f);
+      const p = profileOf(c);
+      expect(p, JSON.stringify(f)).not.toBeNull();
+      expect(profileAsCurve({ id: 'x', ...p! })).toEqual({ id: 'x', ...c });
+    }
+  });
+  it('the mapping: face is vFrom, the side is u at uFrom, facing v is the face, End to end runs min to max', () => {
+    const p = profileOf(profileCurve({ through: 'length', uFrom: 'max', vFrom: 'min', kind: 'ogee', size: 0.5, fillet: 0, facing: 'u' }))!;
+    expect(p).toEqual({ face: 'min', kind: 'ogee', size: 0.5, fillet: 0, facing: 'edge',
+      run: { start: { side: { across: 'width', from: 'max' }, through: 'min' }, end: { side: { across: 'width', from: 'max' }, through: 'max' } } });
+    const q = profileOf(profileCurve({ through: 'width', uFrom: 'min', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' }))!;
+    expect(q.face).toBe('max');
+    expect(q.facing).toBe('face');
+    expect('loop' in q.run ? null : q.run.start.side).toEqual({ across: 'length', from: 'min' });
+  });
+  it('a symmetric profile is always stored facing face (P5: a facing-u roundover reads as face)', () => {
+    const v = profileCurve({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+    const u = profileCurve({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'u' });
+    expect(profileOf(u)!.facing).toBe('face');
+    expect(profileAsCurve({ id: 'x', ...profileOf(u)! })).toEqual({ id: 'x', ...v });
+  });
+  it('a plain arch is not a profile', () => {
+    expect(profileOf(archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }))).toBeNull();
+  });
+  it('mirrorProfile is mirrorCurveCut by flags, in every dimension (inv 44)', () => {
+    for (const f of corpus()) for (const d of ['length', 'width', 'thickness'] as const) {
+      const p: ProfileCut = { id: 'x', ...profileFromFields(f) };
+      expect(profileAsCurve(mirrorProfile(p, d)), `${JSON.stringify(f)} ${d}`).toEqual(mirrorCurveCut(profileAsCurve(p), d));
+      expect(mirrorProfile(mirrorProfile(p, d), d)).toEqual(p);
+    }
+  });
+  it('sameProfile compares every field but id, exactly; copyProfile shares no object', () => {
+    const p: ProfileCut = { id: 'a', ...profileFromFields(corpus()[0]!) };
+    expect(sameProfile(p, { ...p, id: 'b' })).toBe(true);
+    expect(sameProfile(p, { ...p, size: p.size + 1e-12 })).toBe(false);
+    expect(sameProfile(p, { ...p, face: p.face === 'min' ? 'max' : 'min' })).toBe(false);
+    const c = copyProfile(p);
+    expect(c).toEqual(p);
+    expect(c.run).not.toBe(p.run);
+    if (!('loop' in c.run) && !('loop' in p.run)) expect(c.run.start.side).not.toBe(p.run.start.side);
+    expect(profileValues({ ...p, depth: undefined })).toBe(profileValues(p));
+  });
+  it('geometryBoard: the same object with no profiles; else curves then profiles as curves, memoised, idempotent', () => {
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
+    const plain = createBoard({ length: 30, width: 5, curves: [arch] });
+    expect(geometryBoard(plain)).toBe(plain);
+    const p: ProfileCut = { id: 'p1', ...profileFromFields(corpus()[0]!) };
+    const b = createBoard({ length: 30, width: 5, curves: [arch], profiles: [p] });
+    const g = geometryBoard(b);
+    expect(g.curves).toEqual([arch, profileAsCurve(p)]);
+    expect(g.profiles).toEqual([]);
+    expect(geometryBoard(b)).toBe(g);
+    expect(geometryBoard(g)).toBe(g);
   });
 });
