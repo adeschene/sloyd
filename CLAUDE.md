@@ -507,9 +507,10 @@ src/
 │                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
 │                     corner, Rounded corners —; rows by derived kind; a Kind select (`curveAs`) whose options are judged ONLY while it has focus — never per render, every edit frame is one; refusalFor: half circle first, then an ADDED curve fault,
 │                     then a hole into the waste) — on curveRefusal.ts (Draft, Control, HALF_CIRCLE, pastHalfCircle, holeRefusal,
-│                     refusalFor: shared with Profiles); Curves skips profiles and offers Rounded corner through the thickness only;
+│                     refusalFor, optionReason: shared with Profiles); Curves skips profiles and offers Rounded corner through the thickness only;
 │                     Profiles (the Profiles section: "+ Add profile ▾" — a preset is withheld when its default would be refused; rows:
-│                     Edge, Profile (a change takes the new kind's default), the size, Depth (thumbnail), Fillet or Quirk (bead),
+│                     Edge, Profile (a change takes the new kind's default; options judged on focus, a refused one greyed with
+│                     its reason, fu 388), the size, Depth (thumbnail), Fillet or Quirk (bead),
 │                     Facing for asymmetric kinds)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
@@ -1057,7 +1058,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4824 tests across 164 files
+npm test           # Vitest, currently 4827 tests across 164 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1071,7 +1072,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 edge banding / hardware BOM, 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 chunk 2 (stopped profiles, schema 18), 390 (a profile following a curved edge). Code-sized: 388 (grey a refused Profile option, the user's ruling).
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 chunk 2 (stopped profiles, schema 18), 390 (a profile following a curved edge).
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*

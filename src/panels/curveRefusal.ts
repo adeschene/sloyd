@@ -66,3 +66,9 @@ export function refusalFor(board: Board, curve: CurveCut, next: Draft, control: 
   const after: Board = { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
   return holeRefusal(board, after);
 }
+
+/** A greyed select option's reason: the refusal's own words up to its dash (presets minors 2; fu 388), so
+ *  `Puts hole 1 into the cove — move it first.` reads `Cove — puts hole 1 into the cove`. */
+export function optionReason(refused: string): string {
+  return refused.split(' — ')[0]!.replace(/^./, (c) => c.toLowerCase()).replace(/\.$/, '');
+}

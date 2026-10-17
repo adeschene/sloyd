@@ -11,7 +11,7 @@ import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, refusalFor } from './curveRefusal';
+import { holeRefusal, refusalFor, optionReason } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
@@ -70,7 +70,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
       if (o.value === choice) continue;
       const next = curveAs(o.value, curve, board);
       const refused = next ? refusalFor(board, curve, next, null) : 'No room for it on this part';
-      if (refused) reasons[o.value] = refused.split(' — ')[0]!.replace(/^./, (c) => c.toLowerCase()).replace(/\.$/, '');
+      if (refused) reasons[o.value] = optionReason(refused);
     }
     setJudged({ curve, board, reasons });
   }, [kindFocused, choice, curve, board, judged]);

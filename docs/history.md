@@ -514,6 +514,13 @@ and 79.
 
 ## What each round did
 
+**What fu 388 did (2026-10-17)** (the user's ruling after edge profiles chunk 1 went live: "greying out a choice makes sense";
+"Yes, go ahead"; branch `profile-select-grey`). The Profile select follows the Curves Kind select: options judged only while it
+has focus, afresh when the profile or part changes under it, dropped on blur; a refused option disabled with the refusal's own
+words up to its dash (`optionReason`, moved out of Curves into `curveRefusal.ts`). Three tests, four mutations (never
+disabled, judged every render, never re-judged, kept on blur), each caught. Suite 4827 tests across 164 files; build clean.
+The user also approved edge profiles' look on real hardware, and reported that a profile does not follow a curved edge (fu 390).
+
 **What edge profiles chunk 1 did (2026-10-17)** (fu 365's full-length half and fu 386; spec
 `2026-10-17-sloyd-edge-profiles-design.md` — "Yes, write the spec", then "Approved, write the plan" —, plan
 `…-edge-profiles.md`, executed subagent-driven — "Subagent-driven, go ahead" —; branch `edge-profiles-1`; no schema change).

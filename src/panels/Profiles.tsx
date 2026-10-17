@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import {
   curveFaults, defaultProfile, profileAsymmetric, profileCurve, profileFields, uvDims, PROFILE_EDGES, PROFILE_KINDS,
@@ -9,7 +9,7 @@ import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, refusalFor } from './curveRefusal';
+import { holeRefusal, optionReason, refusalFor } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
@@ -48,6 +48,24 @@ function ProfileRow({ board, curve, p }: { board: Board; curve: CurveCut; p: Pro
   const [u, v] = uvDims(p.through);
   const edgeIndex = PROFILE_EDGES.findIndex((e) => sameEdge(e, p));
   const sizeLabel = SIZE_LABEL[p.kind];
+  // The Kind-select rule: keep the edge (and the facing, for a kind that has one); take the kind's defaults.
+  const asKind = (kind: ProfileKind): Draft => defaultProfile(board, kind, p, kind === 'roundover' || kind === 'cove' ? 'v' : p.facing);
+  // fu 388 (the user's ruling): as the Curves Kind select (presets minors 1, 2), an option whose result would be refused is
+  // disabled and says why, judged ONLY while the select has focus — every edit frame is a render — and afresh when the
+  // profile or part changes under it. The change still goes through `set`, so a stale list refuses in the row's words.
+  const [kindFocused, setKindFocused] = useState(false);
+  const [judged, setJudged] = useState<{ curve: CurveCut; board: Board; reasons: Partial<Record<ProfileKind, string>> } | null>(null);
+  useEffect(() => {
+    if (!kindFocused || (judged && judged.curve === curve && judged.board === board)) return;
+    const reasons: Partial<Record<ProfileKind, string>> = {};
+    for (const k of PROFILE_KINDS) {
+      if (k === p.kind) continue;
+      const refused = refusalFor(board, curve, asKind(k), null);
+      if (refused) reasons[k] = optionReason(refused);
+    }
+    setJudged({ curve, board, reasons });
+  }, [kindFocused, curve, board, judged]); // eslint-disable-line react-hooks/exhaustive-deps -- p and asKind derive from curve and board
+  const reasons = kindFocused && judged && judged.curve === curve && judged.board === board ? judged.reasons : {};
   return (
     <div className="cut" data-kind={p.kind}>
       <div className="cut-head">
@@ -68,13 +86,13 @@ function ProfileRow({ board, curve, p }: { board: Board; curve: CurveCut; p: Pro
         </div>
         <div className="field">
           <label htmlFor={`profile-kind-${curve.id}`}>Profile</label>
-          <select id={`profile-kind-${curve.id}`} className="input" value={p.kind} onChange={(e) => {
-            // The Kind-select rule: keep the edge (and the facing, for a kind that has one); take the kind's defaults.
-            const kind = e.target.value as ProfileKind;
-            const facing = kind === 'roundover' || kind === 'cove' ? 'v' : p.facing;
-            set(defaultProfile(board, kind, p, facing));
-          }}>
-            {PROFILE_KINDS.map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+          <select id={`profile-kind-${curve.id}`} className="input" value={p.kind}
+            onFocus={() => setKindFocused(true)} onBlur={() => { setKindFocused(false); setJudged(null); }}
+            onChange={(e) => set(asKind(e.target.value as ProfileKind))}>
+            {PROFILE_KINDS.map((k) => {
+              const why = reasons[k];
+              return <option key={k} value={k} disabled={why !== undefined}>{why ? `${KIND_LABEL[k]} — ${why}` : KIND_LABEL[k]}</option>;
+            })}
           </select>
         </div>
         {/* No `min` on Size, Depth or Quirk: DimensionField refuses 0 and below itself. */}
