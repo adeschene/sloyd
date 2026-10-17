@@ -5528,6 +5528,7 @@ cover; "least wood" for unpriced stock is the user's call. Tests (`purchase.test
 random jobs bounded by the old plan above and a brute-force optimum below; a tie; price over wood; unpriced unchanged; two old
 expectations corrected ($21 → $18 for 40/40/30 on 1×6: two 6′; the total $100.50 → $97.50). Every branch mutated. Cost: 4.2 ms
 → 27.5 ms for 150 priced parts × 36 sizes (unpriced: unchanged). Live (dev server): "Buy 2 × 1×4 × 8′ · $20.00".
+**Status:** CLOSED 2026-10-17; the ruling confirmed by the user: "keep unpriced as is" — unpriced stock stays largest-first.
 
 **270. US dollars only.** `formatMoney` is en-US `$`. **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
