@@ -36,6 +36,12 @@ function fixtures(): { name: string; board: Board }[] {
     out.push({ name: `four-edge ${kind}`, board: top((['length', 'width'] as const).flatMap((through) => (['min', 'max'] as const).map((uFrom) =>
       ({ id: `${through}${uFrom}`, ...profileCurve(fields({ through, uFrom, kind, ...s })) })))) });
   }
+  // A mixed shelf: three kinds on three different edges of one part.
+  out.push({ name: 'mixed shelf', board: createBoard({ id: 'b1', name: 'Shelf', length: 30, width: 10, thickness: 0.75, curves: [
+    { id: 'p1', ...profileCurve(fields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'ogee', size: 0.375, fillet: 0 })) },
+    { id: 'p2', ...profileCurve(fields({ through: 'width', uFrom: 'max', vFrom: 'max', kind: 'bead', size: 0.25, fillet: 0.0625 })) },
+    { id: 'p3', ...profileCurve(fields({ through: 'length', uFrom: 'min', vFrom: 'max', kind: 'thumbnail', size: 0.75, depth: 0.25 })) },
+  ] }) });
   const bore: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.0625, depth: 0.0625, along: 'length', alongFrom: 'min', station: 18, count: 1, pitch: 0, acrossFrom: 'max', inset: 0.1 };
   out.push({ name: 'holed roundover (a hole into the profile)', board: top([{ id: 'p', ...profileCurve(fields({ kind: 'roundover', size: 0.25, fillet: 0 })) }], [bore]) });
   // A groove far from the profiled edge: its bodies on the other side keep their box, so drawsAsBox is asked a real question.
