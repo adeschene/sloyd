@@ -541,7 +541,9 @@ and 79.
    volume with a piece, and `splitPieces` peels a waste's diagonals last (ogee 131 → 51 bodies, ~30 ms; bead 57 → 4, ~6 ms; cove ~24
    ms), with byte-identical `bodyEdges`/`clip` speedups (A/B over 120 fixtures), the same wood (volume to 1e-8 and a point oracle),
    watertight meshes and new ≤40 ms guards. The mixed ogee + bead shelf the Task 8 ruling had kept at ~27 ms now rebuilds in 4–7 ms.
-Residue fu 387–389. Suite 4824 tests across 164 files; build clean.
+Residue fu 387–389. Suite 4824 tests across 164 files; build clean. Merged as `7b04744`; deployed 2026-10-17 on the user's word
+("Deploy it") as `index-D9D90lOX.js` (CSS unchanged): hashes match `dist/` at the edge, the old bundle 404s, CSP correct, a real-browser
+load clean, its keys removed and read back empty.
 
 **What presets minors did (2026-10-17)** (the user picked "Presets minors batch"; a bounded design approved in chat, "Yes, go
 ahead"; branch `presets-minors`). The presets batch's three deferred final-review minors:

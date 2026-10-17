@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is presets minors** (deployed 2026-10-17 from `97b38f2`, bundle `index-fwemJPwC.js`, CSS `index-gCtQCsSI.css`);
-  rollback to presets batch + fu 385 (`b76f41a`, `index-JgTwUVAc.js`) or presets batch (`387abfe`, `index-D8voXrmI.js`) is free.
+- **Production is edge profiles chunk 1** (deployed 2026-10-17 from `00bab4a`, bundle `index-D9D90lOX.js`, CSS `index-gCtQCsSI.css`);
+  rollback to presets minors (`97b38f2`, `index-fwemJPwC.js`) or presets batch + fu 385 (`b76f41a`, `index-JgTwUVAc.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -94,8 +94,8 @@ handicraft education tradition built around hand woodworking.
   curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
 - **Presets minors (2026-10-17, merged to master as `e776ecc`; DEPLOYED as `index-fwemJPwC.js`; no schema change)**: the presets batch's three deferred review minors — the
   curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
-- **Edge profiles chunk 1 (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`, plan `…-edge-profiles.md`, merged to master as `7b04744`; NOT YET
-  DEPLOYED; no schema change)**: fu 365's full-length half and fu 386 closed — Roundover, Cove, Roman ogee, Bead, Thumbnail (an optional
+- **Edge profiles chunk 1 (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`, plan `…-edge-profiles.md`, merged to master as `7b04744`; DEPLOYED as
+  `index-D9D90lOX.js`; no schema change)**: fu 365's full-length half and fu 386 closed — Roundover, Cove, Roman ogee, Bead, Thumbnail (an optional
   fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
   collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
   hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
