@@ -8,7 +8,8 @@ import { holePitchText, holeSizeText } from './holeText';
 import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, curveFaults, localSegments } from './curves';
-import { curveLineEntries } from './curveText';
+import { curveLineEntries, profileName } from './curveText';
+import { profileFields } from './profiles';
 
 /**
  * The Plans sheet's feature keys (feature callouts spec §2.2, §3): ONE home for a feature's identity, the segment tags it
@@ -71,6 +72,8 @@ function angleText(b: Board, c: AngleCut, units: Units): string {
 
 function curveText(c: CurveCut, b: Board, units: Units, collapsed: boolean): string {
   const f = (n: number) => formatLength(n, units);
+  const prof = profileFields(c);
+  if (prof) return `${profileName(prof, units)}${collapsed ? ' (4×)' : ''}`;
   const arch = archFields(c);
   if (arch) {
     if (arch.rise === arch.span / 2) return `Half-round notch, ${f(arch.span)} wide`;

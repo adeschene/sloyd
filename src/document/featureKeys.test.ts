@@ -3,6 +3,7 @@ import { archCurve, bowCurve, chamferCut, createBoard, defaultBevel, defaultHing
 import { defaultCorners } from './curves';
 import { mirrorPart } from './frames';
 import { IMPERIAL } from '../units/length';
+import { profileCurve } from './profiles';
 import { ARCH } from './curveFixtures';
 import { FAULT_SUFFIX, featureTag, partFeatures } from './featureKeys';
 import type { Board } from './types';
@@ -91,4 +92,14 @@ describe('partFeatures: identity and true views', () => {
   it('a featureless part has no features', () => {
     expect(partFeatures(side, IMPERIAL)).toEqual([]);
   });
+});
+
+it('profile key lines are short words (edge profiles spec §4)', () => {
+  const top = createBoard({ id: 't', length: 36, width: 20, thickness: 0.75 });
+  const p = (id: string, through: 'length' | 'width', uFrom: 'min' | 'max') =>
+    ({ id, ...profileCurve({ through, uFrom, vFrom: 'max', facing: 'v', kind: 'ogee', size: 0.5 }) });
+  const one = partFeatures({ ...top, curves: [p('a', 'length', 'max')] }, IMPERIAL).find((f) => f.tags[0]!.includes('curve'))!;
+  expect(one.text).toBe('Roman ogee 1/2"');
+  const four = partFeatures({ ...top, curves: [p('a', 'length', 'min'), p('b', 'length', 'max'), p('c', 'width', 'min'), p('d', 'width', 'max')] }, IMPERIAL);
+  expect(four.filter((f) => f.tags[0]!.includes('curve')).map((f) => f.text)).toEqual(['Roman ogee 1/2" (4×)']);
 });

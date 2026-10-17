@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { archCurve, bowCurve, cornerCurve, createBoard } from './document';
 import { curveLine, curveLines } from './curveText';
+import { profileCurve, type ProfileFields } from './profiles';
+import { curveFaults } from './curves';
+import type { CurveCut } from './types';
 import { IMPERIAL } from '../units/length';
 import { ARCH, CORNER } from './curveFixtures';
 
@@ -72,4 +75,57 @@ it('curveLineEntries: four equal corners are one entry carrying all four ids; cu
   const e = curveLineEntries(b, IMPERIAL);
   expect(e).toEqual([{ ids: ['c0', 'c1', 'c2', 'c3'], text: 'Round all four corners to a 1" radius' }]);
   expect(curveLines(b, IMPERIAL)).toEqual(e.map((x) => x.text));
+});
+
+describe('profile bench lines (edge profiles spec §4)', () => {
+  const top = createBoard({ length: 36, width: 20, thickness: 0.75 });
+  const on = (curves: CurveCut[]) => ({ ...top, curves });
+  const p = (id: string, f: Partial<ProfileFields> & Pick<ProfileFields, 'kind' | 'size'>): CurveCut =>
+    ({ id, ...profileCurve({ through: 'length', uFrom: 'max', vFrom: 'max', facing: 'v', ...f }) });
+  it('roundover, cove: size and edge', () => {
+    expect(curveLines(on([p('a', { kind: 'roundover', size: 0.25 })]), IMPERIAL))
+      .toEqual(['Roundover 1/4" on the edge between the width face (max side) and the thickness face (max side), along the length']);
+    expect(curveLines(on([p('a', { kind: 'cove', size: 0.375 })]), IMPERIAL)[0]).toMatch(/^Cove 3\/8" on the edge between/);
+  });
+  it('asymmetric profiles name the top face; a fillet is named', () => {
+    expect(curveLines(on([p('a', { kind: 'ogee', size: 0.5 })]), IMPERIAL)[0])
+      .toBe('Roman ogee 1/2" on the edge between the width face (max side) and the thickness face (max side), along the length, top on the thickness face (max side)');
+    expect(curveLines(on([p('a', { kind: 'bead', size: 0.25, fillet: 0.0625 })]), IMPERIAL)[0]).toMatch(/^Bead 1\/4" with a 1\/16" quirk on the edge/);
+    expect(curveLines(on([p('a', { kind: 'thumbnail', size: 0.75, depth: 0.25 })]), IMPERIAL)[0]).toMatch(/^Thumbnail 3\/4" × 1\/4" on the edge/);
+    expect(curveLines(on([p('a', { kind: 'roundover', size: 0.25, fillet: 0.0625 })]), IMPERIAL)[0]).toMatch(/, top on the thickness face \(max side\), with a 1\/16" fillet$/);
+  });
+  it('metric (Review Focus 5)', () => {
+    expect(curveLines(on([p('a', { kind: 'roundover', size: 0.25 })]), MM)[0]).toMatch(/^Roundover 6 mm on the edge/);
+  });
+  const four = (f: Partial<ProfileFields> & Pick<ProfileFields, 'kind' | 'size'>, over: Partial<Record<string, Partial<ProfileFields>>> = {}) => [
+    p('a', { ...f, ...over.a, through: 'length', uFrom: 'min' }), p('b', { ...f, ...over.b, through: 'length', uFrom: 'max' }),
+    p('c', { ...f, ...over.c, through: 'width', uFrom: 'min' }), p('d', { ...f, ...over.d, through: 'width', uFrom: 'max' }),
+  ];
+  it('four equal profiles on one face collapse to one line', () => {
+    expect(curveLineEntries(on(four({ kind: 'roundover', size: 0.25 })), IMPERIAL))
+      .toEqual([{ ids: ['a', 'b', 'c', 'd'], text: 'Roundover 1/4" on all four edges of the thickness face (max side)' }]);
+  });
+  it('no collapse when one differs in size, fillet or facing, or is faulted (Review Focus 3)', () => {
+    expect(curveLineEntries(on(four({ kind: 'roundover', size: 0.25 }, { d: { size: 0.375 } })), IMPERIAL)).toHaveLength(4);
+    expect(curveLineEntries(on(four({ kind: 'roundover', size: 0.25 }, { d: { fillet: 0.0625 } })), IMPERIAL)).toHaveLength(4);
+    expect(curveLineEntries(on(four({ kind: 'ogee', size: 0.5 }, { d: { facing: 'u' } })), IMPERIAL)).toHaveLength(4);
+    const faulted = four({ kind: 'roundover', size: 0.25 }, { d: { size: 1 } });   // a 1" radius on a 3/4" thickness runs off
+    expect(curveFaults(on(faulted), faulted[3]!).length).toBeGreaterThan(0);
+    expect(curveLineEntries(on(faulted), IMPERIAL)).toHaveLength(4);
+    // Four EQUAL profiles that all run off a thin part (a 1/2" radius on 0.3") still do not collapse.
+    const thin = { ...createBoard({ length: 36, width: 20, thickness: 0.3 }), curves: four({ kind: 'roundover', size: 0.5 }) };
+    expect(thin.curves.every((c) => curveFaults(thin, c).length > 0)).toBe(true);
+    expect(curveLineEntries(thin, IMPERIAL)).toHaveLength(4);
+  });
+  it('the corner collapse no longer claims through-length corners', () => {
+    expect(curveLineEntries(on(four({ kind: 'roundover', size: 0.25 })), IMPERIAL)[0]!.text).not.toMatch(/^Round all four corners/);
+    // Four through-length roundovers on four DIFFERENT corners are not four corners: no face holds all four edges.
+    const corners = (['min', 'max'] as const).flatMap((uFrom) => (['min', 'max'] as const).map((vFrom) => p(`${uFrom}${vFrom}`, { kind: 'roundover', size: 0.25, uFrom, vFrom })));
+    const es = curveLineEntries(on(corners), IMPERIAL);
+    expect(es).toHaveLength(4);
+    expect(es.every((e) => /^Roundover 1\/4" on the edge between/.test(e.text))).toBe(true);
+  });
+  it('a stored through-length Rounded corner now reads as a Roundover', () => {
+    expect(curveLines(on([p('a', { kind: 'roundover', size: 0.25 })]), IMPERIAL)[0]).not.toMatch(/^Round the corner/);
+  });
 });
