@@ -125,8 +125,11 @@ The module's runtime imports are `curves` and `geometry` only.
   - Fillet is 0.
   - The default edge is the top long edge: `through: 'length'`, `uFrom: 'max'` (width max), `vFrom: 'max'` (thickness max),
     `facing: 'v'` (top = thickness max).
-  - Every length is scaled by one factor `k = min(1, (min(board[u], board[v]) / 2) / reach)`, where `reach` is the profile's
-    largest extent in either canonical axis, so a thin strip still gets a proportionate profile.
+  - Every length is scaled by one factor `k = min(1, (board[aDim] / 2) / aExtent, (board[bDim] / 2) / bExtent)`, where
+    `aDim`/`bDim` are the dimensions the canonical a and b axes run along under the facing, and `aExtent`/`bExtent` are the
+    profile's extents along them. So a thin strip still gets a proportionate profile, and a thumbnail's 3/4" reach along a
+    20" top is not shrunk by the 3/4" thickness. *Amended (planning, 2026-10-17): per axis; one factor over both axes'
+    minimum would have halved the thumbnail on every 3/4" top.*
 - **Mirroring (inv 44).** `mirrorCurveCut` flips `uFrom`/`vFrom` and never touches coordinates, so a mirrored profile reads
   back as the same kind with the mirrored edge. This is pinned with `chiralCurved`-style fixtures across all 8 edges × both
   facings.
