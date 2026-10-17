@@ -6,6 +6,7 @@ import {
 } from './curves';
 import { convexPieces, twiceArea } from './curves';
 import { defaultArch, defaultBow, defaultCorner, defaultCorners, defaultNotch } from './curves';
+import { curveAs, curveKindChoice, curvePlacement } from './curves';
 import type { P2 } from './curves';
 import { createBoard } from './document';
 import type { CurveCut } from './types';
@@ -298,5 +299,50 @@ describe('presets (spec §8)', () => {
     expect(defaultCorner(top)).toEqual(cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }));
     expect(defaultCorners(createBoard({ length: 3, width: 2, thickness: 0.75 }))).toHaveLength(4);
     expect(defaultCorners(createBoard({ length: 3, width: 2, thickness: 0.75 }))![0]).toMatchObject({ segments: [{ to: [0.5, 0] }, {}, {}] });
+  });
+});
+
+describe('curveAs: a kind change keeps placement, takes preset sizes (fu 367)', () => {
+  const arch = archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 });
+  const notch = archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 });
+  const bow = bowCurve({ through: 'thickness', along: 'length', side: 'max', span: 30, rise: 0.5 });
+  const corner = cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'min', radius: 1 });
+  it('reads the kind, a notch being an arch at rise = span / 2', () => {
+    expect([arch, notch, bow, corner].map(curveKindChoice)).toEqual(['arch', 'notch', 'bow', 'corner']);
+  });
+  it('reads placement; a corner maps u to along, its v flag to side, its u flag to from', () => {
+    expect(curvePlacement(bow)).toEqual({ through: 'thickness', along: 'length', side: 'max', from: 'min' });
+    expect(curvePlacement(corner)).toEqual({ through: 'thickness', along: 'length', side: 'min', from: 'max' });
+  });
+  it('arch → bow / corner; arch → notch keeps start and span', () => {
+    expect(curveAs('bow', arch, apron)).toEqual(bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }));
+    expect(curveAs('corner', arch, apron)).toEqual(cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }));
+    expect(curveAs('notch', arch, apron)).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 12 }));
+  });
+  it('notch → arch keeps start and span, rise = span / 4', () => {
+    expect(curveAs('arch', notch, apron)).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 0.5 }));
+  });
+  it('bow → arch / notch on its own side, from the min end', () => {
+    expect(curveAs('arch', bow, apron)).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 3, span: 24, rise: 1.25 }));
+    expect(curveAs('notch', bow, apron)).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 14, span: 2, rise: 1 }));
+  });
+  it('corner → arch → corner round-trips its flags (stored, never re-derived)', () => {
+    const a = curveAs('arch', corner, apron)!;
+    expect(a).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'max', start: 3, span: 24, rise: 1.25 }));
+    expect(curveAs('corner', a, apron)).toEqual(corner);
+    expect(curveAs('bow', corner, apron)).toEqual(bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }));
+  });
+  it('keeps another through and an along on v', () => {
+    const b = createBoard({ length: 30, width: 0.75, thickness: 5 });
+    const v = archCurve({ through: 'width', along: 'thickness', side: 'min', from: 'min', start: 1, span: 3, rise: 1 });
+    expect(curveAs('bow', v, b)).toEqual(bowCurve({ through: 'width', along: 'thickness', side: 'min', span: 5, rise: 0.5 }));
+  });
+  it('the same kind is the curve itself; null when the target cannot be built or the source is unrepresentable', () => {
+    expect(curveAs('arch', arch, apron)).toEqual(arch);
+    expect(curveAs('arch', bow, createBoard({ length: 6, width: 5, thickness: 0.75 }))).toBeNull();      // no span left
+    expect(curveAs('notch', bow, createBoard({ length: 1.5, width: 5, thickness: 0.75 }))).toBeNull();
+    const odd: Omit<CurveCut, 'id'> = { through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0],
+      segments: [{ type: 'line', to: [2, 0] }, { type: 'line', to: [0, 1] }, { type: 'line', to: [0, 0] }] };
+    expect(curveAs('bow', odd, apron)).toBeNull();
   });
 });

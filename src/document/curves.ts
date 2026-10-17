@@ -674,41 +674,91 @@ export function cornerFields(c: Omit<CurveCut, 'id'>): CornerFields | null {
   return { through: c.through, uFrom: c.uFrom, vFrom: c.vFrom, radius: r };
 }
 
-// ── Presets (spec §8): the Properties menu's defaults, through the canonical writers above.
+// ── Presets (spec §8): the Properties menu's defaults, through the canonical writers above. Each rule is written once,
+//    at a PLACEMENT (presets-batch spec §4), so a kind change (`curveAs`) and the menu share it; the menu's placement is
+//    `PRESET`, which reproduces the curves round's presets byte for byte.
+
+/** Where a curve sits: cut through `through`, on the `side` edge of the in-face dimension that is not `along`, measured
+ *  from `along`'s `from` end. */
+export interface CurvePlacement { through: Dimension; along: Dimension; side: CutFrom; from: CutFrom }
+const PRESET: CurvePlacement = { through: 'thickness', along: 'length', side: 'min', from: 'min' };
+const otherOf = (p: CurvePlacement): Dimension => uvDims(p.through).find((d) => d !== p.along)!;
+
+/** Arch: 3" in from each `along` end, rise min(1-1/2", ¼ of the other dimension). Null when no span is left. */
+function archAt(b: Pick<Board, Dimension>, p: CurvePlacement): Omit<CurveCut, 'id'> | null {
+  const span = b[p.along] - 6;
+  if (span <= 0) return null;
+  return archCurve({ ...p, start: 3, span, rise: Math.min(1.5, b[otherOf(p)] / 4) });
+}
+/** Half-round notch: 2" wide (rise 1), centred along `along`. Null when `along` is under 2". */
+function notchAt(b: Pick<Board, Dimension>, p: CurvePlacement): Omit<CurveCut, 'id'> | null {
+  if (b[p.along] < 2) return null;
+  return archCurve({ ...p, start: b[p.along] / 2 - 1, span: 2, rise: 1 });
+}
+/** Bow: the whole `side` edge, rise min(1/2", ¼ of the other dimension) (P2: written at the edge's length). */
+function bowAt(b: Pick<Board, Dimension>, p: CurvePlacement): Omit<CurveCut, 'id'> {
+  return bowCurve({ through: p.through, along: p.along, side: p.side, span: b[p.along], rise: Math.min(0.5, b[otherOf(p)] / 4) });
+}
+const cornerRadius = (b: Pick<Board, Dimension>, through: Dimension) => { const [u, v] = uvDims(through); return Math.min(1, Math.min(b[u], b[v]) / 4); };
+/** Rounded corner: the corner at `along`'s `from` end and the other dimension's `side`. */
+function cornerAt(b: Pick<Board, Dimension>, p: CurvePlacement): Omit<CurveCut, 'id'> {
+  const [u] = uvDims(p.through);
+  const onU = p.along === u;
+  return cornerCurve({ through: p.through, uFrom: onU ? p.from : p.side, vFrom: onU ? p.side : p.from, radius: cornerRadius(b, p.through) });
+}
 
 /** "Arch": through the thickness, on the min side of the in-face dimension that is not the length, 3" in from each
  *  length end, rise min(1-1/2", ¼ of that dimension). Null when no span is left. */
-export function defaultArch(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null {
-  const [u, v] = uvDims('thickness');
-  const span = b[u] - 6;
-  if (span <= 0) return null;
-  return archCurve({ through: 'thickness', along: u, side: 'min', from: 'min', start: 3, span, rise: Math.min(1.5, b[v] / 4) });
-}
+export function defaultArch(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null { return archAt(b, PRESET); }
 /** "Half-round notch": 2" wide (rise 1), centred along the length. Null on a part under 2" long. */
-export function defaultNotch(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null {
-  const [u] = uvDims('thickness');
-  if (b[u] < 2) return null;
-  return archCurve({ through: 'thickness', along: u, side: 'min', from: 'min', start: b[u] / 2 - 1, span: 2, rise: 1 });
-}
+export function defaultNotch(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null { return notchAt(b, PRESET); }
 /** "Bow": the whole width min side, rise min(1/2", ¼ of the width) (P2: written at the edge's length). */
-export function defaultBow(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> {
-  const [u, v] = uvDims('thickness');
-  return bowCurve({ through: 'thickness', along: u, side: 'min', span: b[u], rise: Math.min(0.5, b[v] / 4) });
-}
-const cornerRadius = (b: Pick<Board, Dimension>) => { const [u, v] = uvDims('thickness'); return Math.min(1, Math.min(b[u], b[v]) / 4); };
+export function defaultBow(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> { return bowAt(b, PRESET); }
 /** "Rounded corner": the length-min / width-min corner. */
-export function defaultCorner(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> {
-  return cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: cornerRadius(b) });
-}
+export function defaultCorner(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> { return cornerAt(b, PRESET); }
 /** "Rounded corners": all four, one undo entry (the store's addCurves takes them together). */
 export function defaultCorners(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'>[] {
-  const r = cornerRadius(b);
+  const r = cornerRadius(b, 'thickness');
   return (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: r })));
 }
 
 export type CurveKind = 'arch' | 'bow' | 'corner';
 export function deriveCurveKind(c: Omit<CurveCut, 'id'>): CurveKind | null {
   return archFields(c) ? 'arch' : bowFields(c) ? 'bow' : cornerFields(c) ? 'corner' : null;
+}
+
+/** The kinds a curve row's Kind select offers (fu 367); a notch is an Arch at rise = span / 2 exactly (the row's label rule). */
+export type CurveKindChoice = 'arch' | 'notch' | 'bow' | 'corner';
+export function curveKindChoice(c: Omit<CurveCut, 'id'>): CurveKindChoice | null {
+  const a = archFields(c);
+  if (a) return a.rise === a.span / 2 ? 'notch' : 'arch';
+  return bowFields(c) ? 'bow' : cornerFields(c) ? 'corner' : null;
+}
+
+/** A representable curve's placement (presets-batch spec §4): an Arch's own; a Bow's from the min end; a corner's u as
+ *  `along`, its v flag as `side`, its u flag as `from`. Read off STORED flags, never re-derived (inv 44). */
+export function curvePlacement(c: Omit<CurveCut, 'id'>): CurvePlacement | null {
+  const a = archFields(c);
+  if (a) return { through: a.through, along: a.along, side: a.side, from: a.from };
+  const w = bowFields(c);
+  if (w) return { through: w.through, along: w.along, side: w.side, from: 'min' };
+  const k = cornerFields(c);
+  if (k) return { through: k.through, along: uvDims(k.through)[0], side: k.vFrom, from: k.uFrom };
+  return null;
+}
+
+/** `c` rewritten as `kind` (fu 367, presets-batch spec §4): placement kept, sizes from the kind's preset rule — except
+ *  Arch ↔ Half-round notch, which keeps start and span (notch rise = span / 2, arch rise = span / 4). The same kind is `c`
+ *  itself. Null when `c` is unrepresentable or the target cannot be built here. Decides no fault: the row judges it. */
+export function curveAs(kind: CurveKindChoice, c: Omit<CurveCut, 'id'>, b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null {
+  const p = curvePlacement(c);
+  if (!p) return null;
+  if (curveKindChoice(c) === kind) return c;
+  const a = archFields(c);
+  if (kind === 'arch') return a ? archCurve({ ...a, rise: a.span / 4 }) : archAt(b, p);
+  if (kind === 'notch') return a ? archCurve({ ...a, rise: a.span / 2 }) : notchAt(b, p);
+  if (kind === 'bow') return bowAt(b, p);
+  return cornerAt(b, p);
 }
 
 /** A curve kind in words for a fault ("hole 3 runs into the arch"); null is a curve no preset describes. Lives here, not in
