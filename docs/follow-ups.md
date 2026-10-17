@@ -6256,7 +6256,8 @@ angle cuts). **Status:** open (spec §12).
 **Status:** chunk 1 shipped (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`): full-length profiles — roundover,
 cove, Roman ogee, bead, thumbnail, an optional fillet — as plain `CurveCut`s recognised by `profileFields`. **Open: chunk 2**
 (stopped profiles and blind curved recesses, one stored range along `through`, schema 18, its own spec). A scooped seat is
-out of scope (doubly curved).
+out of scope (doubly curved). **Stopped profiles moved to the profile runs spec** (`2026-10-17-sloyd-profile-runs-design.md`, chunk a2;
+the §7 plan of "one stored range along `through`" superseded). Blind curved recesses remain for their own spec.
 
 **366. Compound curves.** A cabriole leg is two curves on two faces — allowed today, nothing designed for it. **Status:**
 open (spec §12).
@@ -6512,3 +6513,6 @@ Arch, Bow or Rounded corner has cut it disappears where the curve cuts in and st
 the outline as a router bearing would. Following an arc means sweeping the profile around it (a surface of revolution about the
 arc's axis), which is outside the line/arc prism model (inv 53) and the convex-body rule (inv 48). **Status:** open (feature;
 needs a spec).
+**Status:** open — spec `2026-10-17-sloyd-profile-runs-design.md` approved 2026-10-17 (with fu 365's stopped profiles), in chunks
+a1 → a2 → b → c. **Chunk a1 implemented** (branch `profile-runs-a1`, schema 18: `Board.profiles`, no visible change); a2 (stopped
+profiles and the run-out) next, then b (following the outline: this entry).

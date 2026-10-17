@@ -2,7 +2,7 @@
 
 Date: 2026-10-17. Follow-ups 390 (a profile does not follow a curved edge) and 365's remainder (stopped profiles). Status: design
 approved in chat by the user 2026-10-17, section by section ("Yes, that looks right" ×4, then "Yes, write the spec"); written spec
-awaiting review. **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `docs/superpowers/plans/2026-10-17-sloyd-profile-runs-a1.md`). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one

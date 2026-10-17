@@ -101,6 +101,12 @@ handicraft education tradition built around hand woodworking.
   hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
   profiles, schema 18), 387, 389, 390 (a profile following a curved edge). **Fu 388** (the Profile select greys a
   refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
+- **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, branch
+  `profile-runs-a1`; NOT YET MERGED OR DEPLOYED; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
+  of `curves` on every load; every geometry, word and fault reader goes through `geometryBoard`; a run this build cannot build (all
+  round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
+  same, checked live). **Rolling back below 18 refuses every project saved since — export first.** Next: a2 (stopped profiles, the
+  run-out), then b (following the outline; fu 390). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
@@ -200,6 +206,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | presets batch | 10-17 | — | Taper two/four faces (fu 278); the Chamfer row edits each leg and a Raised panel preset (fu 298); a Kind select on curve rows, `curveAs` (fu 367) |
 | presets minors | 10-17 | — | The Kind select judged on focus (not every render) and a greyed option says why; preset menu details read the project's units |
 | edge profiles (chunk 1) | 10-17 | — | Full-length Roundover, Cove, Roman ogee, Bead, Thumbnail (+ fillet) as recognised `CurveCut`s; a Profiles section, bench lines, Plans keys (fu 365 half); fu 386 (`EDGE_ON`); curved edges no longer graze hidden; four-edge tops rebuild in a frame |
+| profile runs (a1) | 10-17 | 18 | Edge profiles stored as `Board.profiles` (moved from `curves` on load); every reader through `geometryBoard`; unbuildable runs refused |
 
 ### The deployment rule
 
@@ -267,7 +274,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **17**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **18**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -288,6 +295,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 14→15 | `materials` (custom materials the parts and shapes use; default `[]`; validated BEFORE the parts so they see them; malformed entry or one whose `kind` disagrees with its id dropped; pruned on load and in `edit()`) | document-level, no step | silent loss (a custom material becomes pine, and the next save writes pine) |
 | 15→16 | `holes` on parts and shapes (default `[]`; malformed entry dropped — non-finite, non-positive diameter or depth, non-integer count, negative pitch/station/inset, `along === face`, unknown enum; a faulted but well-formed row KEPT) | document-level, no step | silent loss on round trip (every hole dropped) |
 | 16→17 | `curves` on parts and shapes (default `[]`; malformed entry dropped — non-finite number, unknown enum, no segments or more than 64, an arc with both/neither of `rise`/`radius`, a non-positive one, a zero chord, a rise over half its chord or a radius under half, an outline not closing EXACTLY at `start` (P1), crossing itself or enclosing no area; a faulted but well-formed curve KEPT); a string segment `type` other than `line`/`arc` REFUSES THE DOCUMENT (the newer-version gate keyed on content: a spline needs no bump) | document-level, no step | silent loss on round trip (every curve dropped) |
+| 17→18 | `profiles` on parts and shapes (default `[]`; every curve `profileOf` recognises is MOVED in, keeping its id, on EVERY load; ids share the curve scope; malformed dropped — non-finite or non-positive size, a thumbnail depth outside (0, size), a negative fillet, a bead without a quirk, an unknown face or facing, a bad end; a symmetric kind normalised to facing `face`, an End to end run to min→max; a faulted but well-formed profile KEPT); an unknown `kind` string, a loop, a station end or ends on two sides REFUSE THE DOCUMENT (spec P2: a later run needs no bump) | document-level, no step | silent loss (every profile dropped, then autosaved) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -377,7 +385,11 @@ src/
 │   ├── profiles.ts       edge profiles (inv 53): ProfileKind/PROFILE_KINDS, ProfileEdge/PROFILE_EDGES (8: long edges and ends, never through
 │   │                     the thickness), profileCurve (THE writer), profileFields (THE reader: rewrite + exact sameCurve; a thumbnail with
 │   │                     depth = size reads as a Roundover), profileAsymmetric (symmetric kinds stored at facing 'v'), defaultProfile
-│   │                     (scaled per axis), DEFAULT_PROFILE_EDGE
+│   │                     (scaled per axis), DEFAULT_PROFILE_EDGE; the stored form (schema 18): PROFILE_FIELDS, profileValues/sameProfile/
+│   │                     copyProfile, endToEnd, profileToFields/profileFromFields (v is always thickness: face = vFrom, side = u at
+│   │                     uFrom, facing v ↔ 'face'), profileAsCurve (THE profile → geometry step), profileOf (the migration's reader),
+│   │                     mirrorProfile (flag flips; a station run swaps on every mirror), geometryBoard (THE geometry view: curves then
+│   │                     profiles as chunk 1's CurveCuts, memoised per part, idempotent, the same object with no profiles)
 │   ├── curveText.ts      curveLine/curveLines (THE bench lines; four equal corners collapse; four equal unfaulted profiles on one face
 │   │                     collapse; profileName, filletWords), curveFaultText
 │   │                     (THE fault words) (→ units)
@@ -746,7 +758,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes: part and instance ids per
     container; definition and shape ids per document; cut ids per board (per shape for a
-    shape), and so angle-cut, hole and curve ids. `/` in an id is re-minted. A guide with no id is dropped. References
+    shape), and so angle-cut, hole and curve ids; profile ids share the part's CURVE scope (curves validated first), so the
+    geometry view never holds two curves with one id. `/` in an id is re-minted. A guide with no id is dropped. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
     at a board by id breaks the single-pass repair.
@@ -796,6 +809,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     ids included, as it does cuts and angle cuts.
     Curves have `CURVE_FIELDS` (`curves.ts`, `satisfies`), every field but `id`, exact, the segment list
     compared field by field in order: the cut list groups by them as a multiset, ids ignored; `sameShared` in order, ids included.
+    Profiles have `PROFILE_FIELDS` (`profiles.ts`, `satisfies`), every field but `id`, exact, `run` structurally; the cut list groups
+    them through the geometry view (as curves); `sameShared` in order, ids included.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -846,6 +861,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     A curve reflects by flag flips too (`mirrorCurveCut`: `uFrom` when u is the mirrored dimension,
     `vFrom` when v is, nothing when `through` is) — never arithmetic on coordinates, and `side` never flips (it is defined on
     STORED numbers); `lowerCurves` is its exact inverse, reusing an untouched stored array. Pinned with `chiralCurved`.
+    A profile reflects by flag flips too (`mirrorProfile`: `face` through the thickness, a side's `from` along its `across`; an End to
+    end run keeps min→max; a station run's ends swap on EVERY mirror, since a reflection reverses travel round the face);
+    `lowerProfiles` is its exact inverse, reusing an untouched stored array.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -855,7 +873,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     re-pivoting posture. `linkPlan` is the ONE Link decider. A one-user shape dissolves
     (users counted as STORED parts). Joinery keeps sharing where cuts are identical by
     geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
-    must not come back.** `curves` is SHARED in `LINK_FIELDS` (an array, so excluded from `_sharedPrimitives`' primitive check as cuts, angle cuts and holes are).
+    must not come back.** `curves` and `profiles` are SHARED in `LINK_FIELDS` (arrays, so excluded from `_sharedPrimitives`' primitive check as cuts, angle cuts and holes are).
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -1044,9 +1062,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
     checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
     a hand-edited non-convex waste too since fu 368, the four-edge cove, bead and ogee tops since edge profiles; MINIMUM of 9, wall-clock).
-    **Edge profiles are curves**: a profile is a plain `CurveCut` through the length or width (never the thickness), recognised
-    structurally by `profileFields` (no stored kind, no schema change); its rows, words (`profileName`, `curveWord`) and keys read it
-    there.
+    **Edge profiles are stored as `ProfileCut`s** (`Board.profiles`, schema 18; profile runs a1): every geometry, word and fault
+    reader (bodies, edges, drawings, silhouettes, snap points, stockProbe, diagrams, bench lines, keys, hole faults, the cut list,
+    the mesh and UV signature) reads the part through `geometryBoard`, which presents each profile as the exact `CurveCut` chunk 1
+    stored (`profileAsCurve`), so a profiles-only part is byte for byte chunk 1 (`profilesView.test.ts`). A NEW reader takes the view
+    too. `profileFields` survives to recognise and migrate a profile curve on load.
     **On paper:** `DRAWING_CURVE_TOLERANCE` 0.001" and `DRAWING_CURVE_SEGMENTS_MAX` 96 (`curveDrawing.ts`;
     inv 47 for edges and silhouettes). **Part diagrams:** the waste is hatched in the through-face view (clipped to the part); a
     curve opens its through face's MIN view only when neither side exists, decided after holes' entry views; a sharp-vertex
@@ -1059,7 +1079,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4827 tests across 164 files
+npm test           # Vitest, currently 4954 tests across 166 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
