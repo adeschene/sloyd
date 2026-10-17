@@ -1,4 +1,5 @@
 import type { CurveCut, CurveSegment, CutFrom } from './types';
+import { sameCurve } from './curves';
 
 /**
  * Edge profiles (edge profiles spec, chunk 1): a full-length routed edge is a plain `CurveCut` running along the edge
@@ -66,4 +67,42 @@ export function profileCurve(f: ProfileFields): Omit<CurveCut, 'id'> {
 /** A profile whose two faces are not interchangeable: its row shows Facing. */
 export function profileAsymmetric(f: ProfileFields): boolean {
   return f.kind === 'ogee' || f.kind === 'bead' || f.kind === 'thumbnail' || (f.fillet ?? 0) > 0;
+}
+
+const ORDER: ProfileKind[] = ['roundover', 'cove', 'ogee', 'bead', 'thumbnail'];
+
+/** Candidate fields lifted from canonical points (`to` of each segment) and the arcs' radii, or null. Lifting decides
+ *  nothing: the caller rewrites and compares exactly. */
+function lift(kind: ProfileKind, to: [number, number][], segs: CurveSegment[]): Pick<ProfileFields, 'size' | 'depth' | 'fillet'> | null {
+  const radius = (i: number) => { const s = segs[i]; return s && s.type === 'arc' && s.radius !== undefined ? s.radius : null; };
+  const at = (i: number, k: 0 | 1) => to[i]?.[k] ?? null;
+  switch (kind) {
+    case 'roundover':
+    case 'cove': { const r = radius(1); return r === null ? null : { size: r, fillet: segs.length === 4 ? at(1, 0) ?? 0 : 0 }; }
+    case 'ogee': { const h = radius(1); return h === null ? null : { size: 2 * h, fillet: segs.length === 5 ? at(2, 0) ?? 0 : 0 }; }
+    case 'bead': { const r = radius(3); const k = at(1, 1); return r === null || k === null ? null : { size: r, fillet: k }; }
+    case 'thumbnail': { const a = at(0, 0); const d = at(1, 1); return segs.length === 3 && radius(1) !== null && a !== null && d !== null ? { size: a, depth: d } : null; }
+  }
+}
+
+/**
+ * A stored curve's profile, or null (spec §2.3): for each facing and kind, lift the parameters from the stored points,
+ * rewrite them with `profileCurve`, and accept only an EXACT match (`sameCurve`). Never a profile through the thickness
+ * (R3: that is a Curves Rounded corner). A symmetric profile reads at facing 'v' first.
+ */
+export function profileFields(c: Omit<CurveCut, 'id'>): ProfileFields | null {
+  if (c.through === 'thickness' || c.start[0] !== 0 || c.start[1] !== 0) return null;
+  const through = c.through;
+  for (const facing of ['v', 'u'] as const) {
+    const to = c.segments.map((s): [number, number] => (facing === 'v' ? [s.to[0], s.to[1]] : [s.to[1], s.to[0]]));
+    for (const kind of ORDER) {
+      const p = lift(kind, to, c.segments);
+      if (!p || !(p.size > 0) || (p.depth !== undefined && !(p.depth > 0 && p.depth < p.size)) || (p.fillet ?? 0) < 0) continue;
+      if (kind === 'bead' && !((p.fillet ?? 0) > 0)) continue;
+      const f: ProfileFields = { through, uFrom: c.uFrom, vFrom: c.vFrom, kind, facing, size: p.size,
+        ...(p.depth !== undefined ? { depth: p.depth } : {}), ...(kind === 'thumbnail' ? {} : { fillet: p.fillet ?? 0 }) };
+      if (sameCurve(profileCurve(f), c)) return f;
+    }
+  }
+  return null;
 }
