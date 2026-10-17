@@ -514,6 +514,22 @@ and 79.
 
 ## What each round did
 
+**What follow-ups 6 did (2026-10-17)** (the user: "Go ahead with the small items next"; branch `follow-ups-6`). The last
+code-sized opens. **8**: `storage/index.ts` is the one import site of the adapter; 14 files repointed, mocks included, and a
+test scans `src/` for a stray `storage/browser`. **17**: the gizmo flip-fix patch moved verbatim to `viewport/gizmoPatch.ts`,
+which made it testable: **19** (the patch discarded the library's showX/Y/Z) was fixed test-first on a three-stdlib-shaped
+stand-in, which also pins the flip fix itself. **27**: `pointer.ts`' click-pair tracker and slop pinned; the r3f wiring stays
+hand-verified. **126/128**: an honest title; a test under the right describe; two casts' premises commented. **169**: a
+mid-stream `api_error` is a retryable server error. **175**: a client whose cost function throws stranded a whole batch (no
+run started, the batch live until a reload) — now an unknown cost; briefs, the plan's abort signal and every fallback kind
+pinned; the batch status announced to screen readers. **234**: the concept planner learned assemblies, and was found still
+forbidding tapered parts the designer has built since AI tapers — fixed. **12** closed by decision (no projection re-frames on
+add), **31** by measurement (0.7 µs a render; materials keyed per slot). **269 measured** against a brute-force optimum over
+every split of 3–6 parts: the packer loses often (104 of 150 jobs on 1×4 priced dearer per foot when long, worst 44%) because
+it always opens the longest size; a multi-start candidate (each size as the preferred opener, swap down, keep the cheapest) is
+never worse and cuts the losses to 23 (worst 17%). Not applied: it changes what Buying recommends, so it goes to the user.
+4649 tests across 159 files.
+
 **The user's print and rulings (2026-10-16, after follow-ups 5's deploy).** A real print "looks good": fu 70, 79, 84, 94, 254,
 345, 374, 379, 380(4) and 381(3) closed. 381(1) tags on dimension lines approved. 381(4) changed by ruling ("no we don't need to
 label duplicate assemblies (too busy on the plans sheet)"): `keyedHere` claims each stored part for the first trio that keys it.

@@ -86,6 +86,7 @@ mock that same concrete path. A desktop build is therefore "a second `StorageAda
 re-exporting the chosen singleton would make the seam's promise literally true.
 
 **Status:** open (hygiene): no `storage/index.ts`; about 13 sites import `./storage/browser` directly. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): `src/storage/index.ts` is the seam's one import site; every module and test outside `storage/` imports and mocks `./storage` (14 files). `storage/seam.test.ts` scans `src/` and fails on any `storage/browser` import outside `storage/` (mutated: one direct import reds it).
 
 ## Cosmetic / hygiene
 
@@ -111,6 +112,7 @@ fire. `raycast={null}` is the idiomatic opt-out.
 document then adding a large board needs a manual `Home` press to frame it.
 
 **Status:** open (cosmetic): a projection swap re-frames now, but an EMPTY document's ortho swap still keeps `zoom={12}` (`frame()` returns early with no bounds). (triaged 2026-10-16)
+**Status:** CLOSED by decision 2026-10-17 (follow-ups 6): not ortho-specific — adding a part never re-frames the view in EITHER projection (a large first board in perspective needs Home too), and with nothing to frame the swap has nothing to fit. Home/F frame on demand; a frame-on-first-part rule would be a new behaviour, not this fix.
 
 **13. Untested edge branches:** `loadAutoSaved`'s `getItem`-throws path; the
 `nextFuture = future` branch in the store's gesture-coalescing `edit()`; negative
@@ -153,6 +155,7 @@ the file did not grow by the ~90 lines that work would otherwise have cost. The
 flip-fix machinery itself is still in `Gizmo.tsx` and is what this item is about.
 
 **Status:** open (hygiene, not small): the patch machinery is still in Gizmo.tsx. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): the flip-fix patch (`stabilizeTranslateGizmo`, its internals types and constants) moved verbatim to `src/viewport/gizmoPatch.ts`; Gizmo.tsx is the component (214 lines). As a plain module it is now unit-tested (fu 19).
 
 **18. The gizmo patch's effect dependencies omit drei's other recreation key.** drei
 recreates its `TransformControls` instance via a `useMemo` keyed on both the camera
@@ -166,6 +169,7 @@ projection-toggle case that was found and fixed during this pass.
 `showX`/`showY`/`showZ` gating. Latent only — Sloyd never sets those props.
 
 **Status:** open (latent): `visible` still written unconditionally; Sloyd still never sets showX/Y/Z. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): the patch honours `showX`/`showY`/`showZ` (`controls[`show${axis}`] !== false`). `gizmoPatch.test.ts` drives the per-frame body on a three-stdlib-shaped stand-in: one un-mirrored fwd arrow per axis, an end-on axis hidden, a hidden axis kept hidden, unset flags shown (four mutations, all red).
 
 **20. The gizmo patch is coupled to `three-stdlib`'s internal shape,** which is a
 transitive dependency under a caret-ranged `@react-three/drei`, so it can move on a
@@ -279,6 +283,7 @@ particular would not look broken immediately; it would reintroduce the flicker o
 the camera got far enough away.
 
 **Status:** open (test gap; viewport has no unit tests by design): the click-drag slop gate and the per-frame dash scale are still hand-verified only. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): the shared pure half is pinned — `pointer.test.ts` (the 2 px slop, click vs drag either side of it, a pair's second click keeping the first's verdict, cleanup; three mutations red). Whether BoardMesh/MoveTool/TapeTool and OriginAxes still CALL it stays hand-verified: the r3f viewport has no unit tests by design, and `dashScaleForScreenPeriod`'s maths was already tested.
 
 **28. The gizmo's hover highlight is too close to the board's selection colour.**
 Reported and consciously skipped as a nit: three-stdlib highlights a hovered axis in
@@ -399,6 +404,7 @@ changes that actually affect it (rotation, posture, grain, material, dimensions)
 `useMemo` keyed on those fields would make the cost match the actual invalidation.
 
 **Status:** open (perf hygiene, code-sized): `boardExtents`/`boardCenter`/`faceGrainKinds` still run unmemoised per render in BoardMesh. (triaged 2026-10-16)
+**Status:** CLOSED by measurement 2026-10-17 (follow-ups 6): `boardExtents` + `boardCenter` + `faceGrainKinds` cost ~0.7 µs per render (node, 200k iterations) — about what a `useMemo` costs itself; and the materials are keyed per slot (`${i}-${kind}-${faded}`), so a kind change remounts only that slot, not all six. No change.
 
 **32. ~~`grainTexture`'s `hash()` and `seededRandom()` are pure, DOM-free functions that
 could have had cheap unit tests without a canvas.~~ CLOSED in v3.** Both moved to
@@ -2601,6 +2607,7 @@ is unexported on purpose — so the correct resolution is probably the honest ti
 than the machinery.
 
 **Status:** open (hygiene, code-sized): the title `leaves all 26 for a board with no cuts (fast path, no grid built)` still names a property nothing pins. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): the title is now `leaves all 26 for a board with no cuts`, with a comment that the no-cuts early return is a performance path its output cannot reveal (unpinned on purpose).
 
 **127. Two grab-clearing cases the store tests do not reach.** Both minor, both deferred
 with the reasoning rather than dropped, because `dropGrabIfGone`'s precision is the whole
@@ -2641,6 +2648,7 @@ are recorded so a later reader does not re-derive them.
   demands it.
 
 **Status:** open (hygiene): all three minors still stand. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): the de-dup test moved under `describe('snapPointsFor')`; the `face === across` guard's comment now says it carries the `as unknown as Point` cast; `const local = {} as Point` is commented as resting on `axisFrame` being a full permutation. The third minor (§5.1's explicit check) is record-only, as the entry argued.
 
 **129. LESSON — three documents illustrated `dropGrabIfGone`'s rule with a claim the
 round's own Task 6b had already made false, and the seam between the two tasks is exactly
@@ -4207,6 +4215,7 @@ because `RunFailed` carries usage and `LlmError` does not. A sub-cent run also p
   themselves are untouched.
 
 **Status:** open (hygiene, low): the minors stand. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): a mid-stream `api_error` (no status) now maps to the retryable server-error class (`toLlmError`; two tests, red first). The other three are record-only: the repair hint is MODEL-facing text (not reworded unasked), batchSize-at-click is correct, and replacing the previous batch's rows leaves its projects untouched.
 
 **170. The Generate dialog's form layout is off in two places (cosmetic).** From the
 browser-pass screenshot (`docs/img/generate-dialog-no-key.png`):
@@ -4312,6 +4321,7 @@ round:
   throw.
 
 **Status:** open (test gaps / hygiene, low): the minors stand. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): a throwing `estimateCostUsd` no longer strands a batch (`costOf` → null; test red first: the batch stayed live); the fallback briefs pinned verbatim; `planConcepts` pins the caller's signal; the four non-auth, non-cancel kinds each fall back; the shadowed `let calls` renamed; the plan line is `role="status"` and the run list `aria-live="polite"`. Every change mutated. `.generate-run-concept`'s wrap rule stays record-only (titles are capped at 40).
 
 ## From the held and stable round — 2026-10-03
 
@@ -5120,6 +5130,7 @@ on `userMessage`, so the planner reads "an assembly's parts count once", but `CO
 explains assemblies. Cosmetic: the planner only proposes directions.
 - **Status:** open, low.
 **Status:** open (cosmetic): `CONCEPTS_SYSTEM` still says nothing about assemblies while the planner reads `userMessage`'s assembly lines. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-17 (follow-ups 6): `CONCEPTS_SYSTEM` now explains assemblies (designed once, placed where they repeat, counted once) — and no longer forbids tapered parts: it still said "no turned or tapered parts" after AI tapers/angles taught the designer tapers, miters, bevels and chamfers, so the planner could not propose a tapered-leg concept. Pinned in `concepts.test.ts` (red first).
 
 **235. Small gaps the round judged fine to leave.** Closed 2026-10-10; the reviews' deferred minors.
 - **Untested.** A part named in a violation but missing from the authored index; a violation
@@ -5507,6 +5518,7 @@ not modelled. **Status:** open.
 needs a different split across boards is not searched. **Status:** open; measure before reaching for an optimiser
 (the follow-ups 140/160 rule).
 **Status:** open (measure first): no case where swap-down loses to a better split has been measured; find one before any optimiser (fu 140/160). (triaged 2026-10-16)
+**Status:** MEASURED 2026-10-17 (follow-ups 6), a fix awaits the user. Brute force over every split of 3–6 parts against the packer + swap-down, three price sets: 1×4 with long boards dearer per foot — the packer loses in 104 of 150 jobs, worst 44% (26", 74", 17", 68": $26 as a 12′ + 6′ against $20 as two 8′); 1×6/1×12 mixed widths 55/150, worst 16%; long boards cheaper per foot 45/150, worst 16%. Cause: it always opens the LONGEST size. A candidate measured on the same jobs — also pack with each size as the preferred opener, swap down, keep the cheapest plan — is never worse than today and cuts the losses to 23 (17%), 33 (15%), 22 (13%).
 
 **270. US dollars only.** `formatMoney` is en-US `$`. **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
