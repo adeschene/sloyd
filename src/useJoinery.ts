@@ -5,7 +5,7 @@ import type { SloydDocument } from './document/document';
 import { derivedName } from './document/names';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 
 export type JoineryStatus = 'choosing' | 'repairing' | 'retrying' | 'ready' | 'none' | 'failed' | 'cancelled';
 export interface JoineryRun {

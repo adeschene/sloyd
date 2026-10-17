@@ -36,7 +36,7 @@ import { isTextEntry } from './textEntry';
 import type { SloydDocument } from './document/document';
 import type { CustomMaterial, MaterialKind } from './document/types';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 import { useStore } from './store/store';
 
 export default function App() {

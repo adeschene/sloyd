@@ -5,10 +5,10 @@ import { LlmError } from './llm/types';
 import type { LlmClient, LlmRequest, LlmResult } from './llm/types';
 import { CONCEPTS_SCHEMA } from './generate/concepts';
 import type { GenerateSettings } from './generate/prompt';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 import { useStore } from './store/store';
 
-vi.mock('./storage/browser', () => ({
+vi.mock('./storage', () => ({
   storage: { available: true, createProject: vi.fn() },
 }));
 const createProject = storage.createProject as unknown as ReturnType<typeof vi.fn>;

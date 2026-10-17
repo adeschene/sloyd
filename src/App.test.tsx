@@ -6,7 +6,7 @@ import { useStore } from './store/store';
 import { createDocument, createBoard, boardSnapPoints } from './document/document';
 import type { SloydDocument } from './document/document';
 import type { ProjectEntry } from './storage/types';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 import { assemblyDoc } from './document/treeFixtures';
 import { designToDocument } from './document/generated';
 import { groupItems } from './document/document';
@@ -249,7 +249,7 @@ const exportProject = vi.fn().mockResolvedValue(undefined);
 const exportImage = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
 
-vi.mock('./storage/browser', () => ({
+vi.mock('./storage', () => ({
   storage: {
     get available() {
       return mockAvailable;

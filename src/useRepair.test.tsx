@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import f2 from './generate/joints/fixtures/2-frames-phantom.json?raw';
 import { migrateDocument } from './document/document';
 import { useRepair } from './useRepair';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 
-vi.mock('./storage/browser', () => ({ storage: { available: true, createProject: vi.fn() } }));
+vi.mock('./storage', () => ({ storage: { available: true, createProject: vi.fn() } }));
 const createProject = storage.createProject as unknown as ReturnType<typeof vi.fn>;
 const fx = JSON.parse(f2);
 const damaged2 = migrateDocument(fx.damaged);

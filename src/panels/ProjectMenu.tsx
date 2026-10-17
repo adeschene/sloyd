@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { FocusEvent } from 'react';
-import { storage } from '../storage/browser';
+import { storage } from '../storage';
 import type { ProjectEntry } from '../storage/types';
 
 /**

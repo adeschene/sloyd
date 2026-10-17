@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectMenu, relativeTime } from './ProjectMenu';
-import { storage } from '../storage/browser';
+import { storage } from '../storage';
 
 const entries = [
   { id: 'b', name: 'Shaker end table', savedAt: 2000, createdAt: 0 },

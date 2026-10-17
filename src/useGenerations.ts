@@ -5,7 +5,7 @@ import type { RunProgress } from './generate/run';
 import type { Concept, GenerateSettings } from './generate/prompt';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 
 export type RunStatus = 'waiting' | 'designing' | 'repairing' | 'retrying' | 'ready' | 'failed' | 'cancelled';
 
