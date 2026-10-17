@@ -5,10 +5,10 @@ import { LlmError } from './llm/types';
 import type { LlmClient, LlmRequest, LlmResult } from './llm/types';
 import { CONCEPTS_SCHEMA } from './generate/concepts';
 import type { GenerateSettings } from './generate/prompt';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 import { useStore } from './store/store';
 
-vi.mock('./storage/browser', () => ({
+vi.mock('./storage', () => ({
   storage: { available: true, createProject: vi.fn() },
 }));
 const createProject = storage.createProject as unknown as ReturnType<typeof vi.fn>;
@@ -128,9 +128,9 @@ describe('useGenerations', () => {
   it('shows a round after an unusable answer as retrying, with its round number', async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => { release = r; });
-    let calls = 0;
+    let n = 0;
     const c = client(async () => {
-      if (++calls === 1) return { json: null, unusable: 'unparseable', assistantTurn: {}, usage };
+      if (++n === 1) return { json: null, unusable: 'unparseable', assistantTurn: {}, usage };
       await gate;
       return ok();
     });
@@ -145,9 +145,9 @@ describe('useGenerations', () => {
   });
 
   it('an auth failure stops every run and says why on each row', async () => {
-    let calls = 0;
+    let n = 0;
     const c = planned(planOk(), (_req, signal) => {
-      if (++calls === 1) return Promise.reject(new LlmError('auth', 'API key was rejected — check Settings.'));
+      if (++n === 1) return Promise.reject(new LlmError('auth', 'API key was rejected — check Settings.'));
       return new Promise((_, reject) => {
         signal.addEventListener('abort', () => reject(new LlmError('cancelled', 'Cancelled.')));
       });
@@ -160,8 +160,8 @@ describe('useGenerations', () => {
   });
 
   it('a rate limit fails only its own run', async () => {
-    let calls = 0;
-    const c = planned(planOk(), () => (++calls === 1 ? Promise.reject(new LlmError('rate-limit', 'Rate limited.')) : ok()));
+    let n = 0;
+    const c = planned(planOk(), () => (++n === 1 ? Promise.reject(new LlmError('rate-limit', 'Rate limited.')) : ok()));
     const { result } = setup();
     act(() => result.current.start(c, settings, 2));
     await waitFor(() => expect(result.current.live).toBe(0));
@@ -258,6 +258,10 @@ describe('useGenerations — batch planning (fu 164)', () => {
     ['an unusable reply', async (): Promise<LlmResult> => ({ json: null, unusable: 'unparseable', assistantTurn: {}, usage }), 0.01],
     ['too few concepts', planOk({ concepts: [CONCEPTS.concepts[0]] }), 0.01],
     ['an overload', () => Promise.reject(new LlmError('overloaded', 'Overloaded.')), null],
+    // Fu 175: every non-auth, non-cancel kind shares the fallback branch; pin each, not only the overload.
+    ['a rate limit', () => Promise.reject(new LlmError('rate-limit', 'Rate limited.')), null],
+    ['a network failure', () => Promise.reject(new LlmError('network', 'Could not reach the Claude API.')), null],
+    ['another API error', () => Promise.reject(new LlmError('other', 'The Claude API returned an error: 400')), null],
   ] as const)('falls back to the built-in roles on %s, and the runs still go', async (_n, plan, cost) => {
     const c = planned(plan);
     const { result } = setup();
@@ -267,6 +271,19 @@ describe('useGenerations — batch planning (fu 164)', () => {
     expect(result.current.rows.map((r) => r.concept)).toEqual(['Conventional', 'Minimal', 'Different support']);
     expect(runFirstMessages(c)[1]).toContain('Design this version: Minimal — ');
     expect(createProject).toHaveBeenCalledTimes(3);
+  });
+
+  // Fu 175: a throw from the client's cost function after planning escaped the batch's async block, so no run started and
+  // the batch stayed live until a reload. A cost that cannot be worked out is shown as unknown (null), never fatal.
+  it('a cost function that throws leaves the batch running, its costs unknown', async () => {
+    const c = planned(planOk());
+    c.estimateCostUsd = () => { throw new Error('no price for this model'); };
+    const { result } = setup();
+    act(() => result.current.start(c, settings, 2));
+    await waitFor(() => expect(result.current.live).toBe(0));
+    expect(result.current.plan).toEqual({ status: 'ready', costUsd: null });
+    expect(result.current.rows.map((r) => [r.status, r.costUsd])).toEqual([['ready', null], ['ready', null]]);
+    expect(createProject).toHaveBeenCalledTimes(2);
   });
 
   it('a rejected key during planning fails every row and starts no run', async () => {

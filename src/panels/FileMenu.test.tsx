@@ -9,7 +9,7 @@ import type { FileMenuHandle } from './FileMenu';
 const exportProject = vi.fn();
 const importProject = vi.fn();
 
-vi.mock('../storage/browser', () => ({
+vi.mock('../storage', () => ({
   storage: {
     available: true,
     capabilities: { recentFiles: false, realPaths: false },

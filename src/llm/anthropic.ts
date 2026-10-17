@@ -54,8 +54,9 @@ export function toLlmError(e: unknown, signal: AbortSignal): LlmError {
     if (status === 529 || type === 'overloaded_error') {
       return new LlmError('overloaded', 'The Claude API is overloaded — try again shortly.');
     }
-    // Same retryable class as an overload, but not one — say what it was.
-    if (status !== undefined && status >= 500) {
+    // Same retryable class as an overload, but not one — say what it was. Mid-stream the status is undefined and the
+    // API's internal error arrives as `api_error` (fu 169).
+    if ((status !== undefined && status >= 500) || type === 'api_error') {
       return new LlmError('overloaded', 'The Claude API had a server error — try again shortly.');
     }
     // The SDK's message is the status plus the API's error body (never the

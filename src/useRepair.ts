@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { SloydDocument } from './document/document';
 import { derivedName } from './document/names';
 import { repairDocument } from './generate/joints/repair';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 
 export type RepairRun =
   | { status: 'saving' }

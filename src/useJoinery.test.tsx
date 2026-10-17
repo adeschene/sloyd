@@ -6,9 +6,9 @@ import { designToDocument } from './document/generated';
 import { findSites } from './generate/joints/sites';
 import { LlmError } from './llm/types';
 import type { LlmClient, LlmResult } from './llm/types';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 
-vi.mock('./storage/browser', () => ({ storage: { available: true, createProject: vi.fn() } }));
+vi.mock('./storage', () => ({ storage: { available: true, createProject: vi.fn() } }));
 const createProject = storage.createProject as unknown as ReturnType<typeof vi.fn>;
 const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const doc = flatDocument(designToDocument({ name: 'Bench', parts: [

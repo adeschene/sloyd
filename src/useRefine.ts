@@ -6,7 +6,7 @@ import type { SloydDocument } from './document/document';
 import { derivedName } from './document/names';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
-import { storage } from './storage/browser';
+import { storage } from './storage';
 
 export type RefineStatus = 'designing' | 'joining' | 'repairing' | 'retrying' | 'ready' | 'failed' | 'cancelled';
 export interface RefineRun {

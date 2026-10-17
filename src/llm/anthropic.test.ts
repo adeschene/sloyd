@@ -39,8 +39,14 @@ describe('toLlmError', () => {
   it.each([
     ['overloaded_error', 'overloaded'],
     ['rate_limit_error', 'rate-limit'],
+    // Fu 169: the API's internal error mid-stream is a 500 without the status — the same "try again shortly" class.
+    ['api_error', 'overloaded'],
   ])('maps a mid-stream error (no status) by its typed `type` %s to %s', (type, kind) => {
     expect(toLlmError(sdkError(Anthropic.APIError, { status: undefined, type }), live).kind).toBe(kind);
+  });
+  it('words a mid-stream api_error as a server error, not as an overload', () => {
+    const e = toLlmError(sdkError(Anthropic.APIError, { status: undefined, type: 'api_error' }), live);
+    expect(e.message).toMatch(/server error/i);
   });
   it('reports anything after an abort as cancelled', () => {
     const c = new AbortController();

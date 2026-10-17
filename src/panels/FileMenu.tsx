@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
-import { storage } from '../storage/browser';
+import { storage } from '../storage';
 import { useStore } from '../store/store';
 import { DocumentError } from '../document/document';
 import type { SloydDocument } from '../document/document';

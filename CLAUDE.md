@@ -80,6 +80,10 @@ handicraft education tradition built around hand woodworking.
   material section and Buying on a new page (the user's ruling), checked with a real Chromium PDF (`page.pdf()` via the
   Playwright code runner — a real print IS possible on this host); a stored part is keyed once on the Plans sheet (381(4)).
   The user's real print closed 70, 79, 84, 94, 254, 345, 374, 379, 380(4), 381(3).
+- **Follow-ups 6 (2026-10-17, branch `follow-ups-6`; no schema change; NOT merged)**: closed 8 (`storage/index.ts`, guarded), 17
+  (`viewport/gizmoPatch.ts`), 19 (showX/Y/Z honoured; the patch unit-tested), 27 (`pointer.test.ts`), 126, 128, 169 (`api_error`
+  retryable), 175 (a throwing cost function no longer strands a batch), 234 (the concept planner knows assemblies AND tapers);
+  12 by decision, 31 by measurement. **269 measured: the packer loses money often** (worst 44%); a multi-start fix awaits the user.
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -173,6 +177,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
 | follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78; 151 (row actions on keyboard focus) |
 | print sections | 10-16 | — | Fu 383: each cut-list section and Buying prints on a new page; 381(4) a part keyed once |
+| follow-ups 6 | 10-17 | — | Fu 8, 17, 19, 27, 126, 128, 169, 175, 234 (the last small items); 269 measured |
 
 ### The deployment rule
 
@@ -232,7 +237,8 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 ground grid's ladder is a display choice of the project's units, not a string).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
-`StorageAdapter`. Nothing else touches `localStorage` or the filesystem. A desktop build
+`StorageAdapter`, imported only from `storage/index.ts` (fu 8; `storage/seam.test.ts` guards it). Nothing else touches
+`localStorage` or the filesystem. A desktop build
 would be a second implementation, not a parallel path.
 
 ### Versioning
@@ -414,7 +420,7 @@ src/
 │   ├── assemblyPick.ts   clickTarget (inv 46)
 │   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
-├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31); get/setShopSettings
+├── storage/          index.ts (THE import site: the chosen adapter, fu 8), types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31); get/setShopSettings
 │                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback; a write
 │                     folds `extra` into `materials`); get/setMaterialLibrary (`sloyd.materials.v1`, layout 1; an
 │                     unusable or newer value reads empty with `readFailed`, and the dialog never saves over it);
@@ -431,7 +437,7 @@ src/
 │                     and its twin the same stored part; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
 ├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
-│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42), GuideMarkers,
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers,
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
 │                     framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
 │                     with explode offsets, zoom/distance); Viewport's `ViewportHandle` (showView, capture — the clean
@@ -1000,7 +1006,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4632 tests across 156 files
+npm test           # Vitest, currently 4649 tests across 159 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1013,8 +1019,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Open as work (code-sized, all low):** 8, 12, 17, 19, 27, 31, 126, 128, 169, 175 (1–178); 234 (the concept planner is
-  not taught assemblies), 269 (packer heuristic: measure a losing case first).
+- **Awaiting the user:** 269 (the by-the-piece packer, MEASURED: loses in up to 104 of 150 random jobs, worst 44%; a
+  multi-start candidate is never worse and cuts that to 23, worst 17% — fu 269's last Status).
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
   views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
