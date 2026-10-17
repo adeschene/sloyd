@@ -53,7 +53,7 @@ function boxFaces(r: Region): BodyFace[] {
 /** Points on one plane, de-duplicated and ordered around their centroid: a convex ring. */
 function ring(points: V3[], n: V3): V3[] {
   const pts: V3[] = [];
-  for (const p of points) if (!pts.some((q) => Math.hypot(...sub(p, q)) <= BODY_EPS)) pts.push(p);
+  for (const p of points) if (!pts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= BODY_EPS)) pts.push(p);
   if (pts.length < 3) return [];
   const c: V3 = [0, 1, 2].map((i) => pts.reduce((s, p) => s + p[i]!, 0) / pts.length) as V3;
   const helper: V3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
@@ -79,17 +79,21 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; c
   const cap: V3[] = [];
   let onPlane = false;
   for (const f of faces) {
-    if (f.verts.every((p) => side(p) === 0)) onPlane = true;
+    // Final review F3: each vertex's g once per face (the same value every time it was recomputed).
+    const n = f.verts.length;
+    const gs = f.verts.map(g);
+    const sides = gs.map((v) => (v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0));
+    if (sides.every((x) => x === 0)) onPlane = true;
     const kept: V3[] = [];
-    for (let i = 0; i < f.verts.length; i += 1) {
+    for (let i = 0; i < n; i += 1) {
       const a = f.verts[i]!;
-      const b = f.verts[(i + 1) % f.verts.length]!;
-      const sa = side(a);
-      const sb = side(b);
+      const b = f.verts[(i + 1) % n]!;
+      const sa = sides[i]!;
+      const sb = sides[(i + 1) % n]!;
       if (sa >= 0) kept.push(a);
       if (sa === 0) cap.push(a);
       if (sa * sb < 0) {
-        const t = g(a) / (g(a) - g(b));
+        const t = gs[i]! / (gs[i]! - gs[(i + 1) % n]!);
         const p: V3 = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])];
         kept.push(p);
         cap.push(p);
@@ -165,6 +169,9 @@ function clipAll(faces: BodyFace[], planes: readonly { n: V3; d: number }[], cur
   return [f];
 }
 
+/** Cubic inches: a part sharing no more than this with a convex piece of waste holds none of it (subtractPieces). */
+const DISJOINT_VOLUME = 1e-12;
+
 /**
  * A body minus the waste of a SPLIT plan (spec §3.2): for each convex piece in turn, every current part splits at the
  * piece's planes — the part OUTSIDE each plane (inside the ones before) is kept, the part inside them all (waste) dropped.
@@ -179,13 +186,20 @@ function subtractPieces(faces: BodyFace[], pieces: readonly { planes: { n: V3; d
       // the piece's planes, extended past its edges, would slice a cell the waste never reaches (and lose its box).
       if (piece.planes.some((h) => part.every((f) => f.verts.every((p) => dot(h.n, p) + h.d <= BODY_EPS)))) { next.push(part); continue; }
       let rest = part;
+      const frags: BodyFace[][] = [];
       piece.planes.forEach((h, i) => {
         if (rest.length === 0) return;
         const tag = piece.onArc[i] ? { curve } : {};
         const outside = clip(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d }, tag);
-        if (outside.length >= 4) next.push(outside);
+        if (outside.length >= 4) frags.push(outside);
         rest = outside === rest ? [] : clip(rest, h, tag);
       });
+      // Final review F3: what is left inside every plane is the waste this part holds. None (or a touch: no volume) means
+      // the part never met the piece, though no single piece plane separates them (its own face, or an edge-to-edge
+      // plane, does): it stays whole, so the piece's extended planes do not slice wood it never reaches (a four-edge
+      // ogee top: 131 bodies -> 100 by this alone, 51 with splitPieces' diagonals last; the same wood, pinned).
+      if (rest.length < 4 || bodyVolume({ box: null, faces: rest }) <= DISJOINT_VOLUME) next.push(part);
+      else next.push(...frags);
     }
     parts = next;
   }
@@ -243,6 +257,10 @@ const len = (a: V3) => Math.hypot(a[0], a[1], a[2]);
  */
 const SLIVER = 1e-6;
 
+/** Inches: bodyEdges' in-plane reach from a line to the faces it consults (final review F3). Far above BODY_EPS (a face this
+ *  far off misses the inside test unless its sharpest angle is under ~2e-6 rad), far below any feature. */
+const NEAR_LINE = 1e-3;
+
 /** An in-plane direction from a line into a face that holds it, with that face's normal. */
 interface Wing { n: V3; w: V3 }
 
@@ -290,6 +308,13 @@ export function bodyEdges(
   const faces = kept.map((i) => all[i]!);
   const fEdges = kept.map((i) => allEdges[i]!);   // each face's edges once (fu 368: they were rebuilt per line and per test)
   const cents = faces.map((f) => scale(f.verts.reduce((s, p) => add(s, p), [0, 0, 0] as V3), 1 / f.verts.length));
+  // Final review F3: each face edge's in-plane normal, computed ONCE (they were recomputed per line and per interval —
+  // most of a four-edge ogee top's 120 ms). The same expressions as before, so every number is the same float.
+  const fEdgeData = fEdges.map((es, fi) => es.map(([a, b]) => {
+    const e = sub(b, a);
+    const m = unit(cross(faces[fi]!.n, e));
+    return { a, e, m, ee: dot(e, e), inward: dot(m, sub(cents[fi]!, a)) < 0 ? scale(m, -1) : m };
+  }));
 
   // 1. Lines: every polygon edge, grouped by the line it lies on (direction signed so grouping ignores winding).
   // fu 368: the line an edge joins is the EARLIEST-created line passing the same test as ever (directions within
@@ -298,14 +323,17 @@ export function bodyEdges(
   // (2e-6 at 1000"), well inside one LINE_CELL; a linear scan of every line per edge was most of a split curve's edges.
   interface Line { o: V3; u: V3; ts: number[]; spans: [number, number][] }
   const lines: Line[] = [];
-  const cells = new Map<string, number[]>();
+  const cells = new Map<number, number[]>();
+  // Final review F3: a numeric cell key (a string per probed cell was a fifth of a four-edge ogee top's edges). Two cells
+  // may share a key; that only adds candidates, each judged by the same exact test under the same lowest-id rule.
+  const cellKey = (i: number, j: number, k: number) => ((i * 73856093) ^ (j * 19349663) ^ (k * 83492791)) | 0;
   const LINE_CELL = 1e-5;
   const cellOf = (a: V3, u: V3) => { const k = dot(a, u); return [a[0] - k * u[0], a[1] - k * u[1], a[2] - k * u[2]].map((x) => Math.floor(x / LINE_CELL)); };
   const findLine = (a: V3, u: V3): Line | undefined => {
     const [x, y, z] = cellOf(a, u) as [number, number, number];
     let best = -1;
     for (let i = x - 1; i <= x + 1; i += 1) for (let j = y - 1; j <= y + 1; j += 1) for (let k = z - 1; k <= z + 1; k += 1) {
-      for (const id of cells.get(`${i},${j},${k}`) ?? []) {
+      for (const id of cells.get(cellKey(i, j, k)) ?? []) {
         if (best !== -1 && id >= best) continue;
         const l = lines[id]!;
         if (len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS) best = id;
@@ -323,7 +351,8 @@ export function bodyEdges(
       let line = findLine(a, u);
       if (!line) {
         line = { o: a, u, ts: [], spans: [] };
-        const key = (cellOf(a, u) as number[]).join(',');
+        const [ci, cj, ck] = cellOf(a, u) as [number, number, number];
+        const key = cellKey(ci, cj, ck);
         const ids = cells.get(key);
         if (ids) ids.push(lines.length); else cells.set(key, [lines.length]);
         lines.push(line);
@@ -347,7 +376,16 @@ export function bodyEdges(
     g.at.push({ d: dot(g.n, f.verts[0]!), i });
   });
   for (const g of groups.values()) g.at.sort((x, y) => x.d - y.d);
-  const coplanarTo = (o: V3, u: V3): number[] => {
+  // Final review F3: each face's box, and a line's (its spans' hull, grown by NEAR_LINE): a face whose box misses it lies
+  // more than NEAR_LINE off the line, or past every span — where it can neither hold a judged midpoint nor cut a drawn
+  // stretch (a cut outside every span only splits stretches that are not drawn). The plane's other faces are skipped.
+  const fBox = faces.map((f) => {
+    const lo: V3 = [Infinity, Infinity, Infinity];
+    const hi: V3 = [-Infinity, -Infinity, -Infinity];
+    for (const p of f.verts) for (let k = 0; k < 3; k += 1) { if (p[k]! < lo[k]!) lo[k] = p[k]!; if (p[k]! > hi[k]!) hi[k] = p[k]!; }
+    return { lo, hi };
+  });
+  const coplanarTo = (o: V3, u: V3, near?: { lo: V3; hi: V3 }): number[] => {
     const hit: number[] = [];
     for (const g of groups.values()) {
       if (Math.abs(dot(g.n, u)) > 1e-5) continue;
@@ -356,6 +394,10 @@ export function bodyEdges(
       while (lo < hi) { const m = (lo + hi) >> 1; if (g.at[m]!.d < d - 1e-3) lo = m + 1; else hi = m; }
       for (let k = lo; k < g.at.length && g.at[k]!.d <= d + 1e-3; k += 1) {
         const f = faces[g.at[k]!.i]!;
+        if (near) {
+          const b = fBox[g.at[k]!.i]!;
+          if (b.lo[0] > near.hi[0] || b.hi[0] < near.lo[0] || b.lo[1] > near.hi[1] || b.hi[1] < near.lo[1] || b.lo[2] > near.hi[2] || b.hi[2] < near.lo[2]) continue;
+        }
         if (Math.abs(dot(f.n, u)) <= BODY_EPS && Math.abs(dot(f.n, sub(o, f.verts[0]!))) <= BODY_EPS) hit.push(g.at[k]!.i);
       }
     }
@@ -365,17 +407,33 @@ export function bodyEdges(
   const out: [V3, V3][] = [];
   for (const line of lines) {
     // 2. Faces whose plane holds the line, and where the line crosses their boundaries.
-    const coplanar = coplanarTo(line.o, line.u).map((i) => ({ f: faces[i]!, i }));
+    // Final review F3: a face of the plane lying wholly to one side of the line, more than NEAR_LINE off it in the plane,
+    // can neither cross the line nor hold an interval's midpoint (its edges' inward distances at the line are all below
+    // -NEAR_LINE·sin(half its sharpest angle), far past -BODY_EPS), so it is left out: a four-edge ogee top's planes hold
+    // ~40 faces per line, most of them inches away.
+    let tlo = Infinity, thi = -Infinity;
+    for (const t of line.ts) { if (t < tlo) tlo = t; if (t > thi) thi = t; }
+    const near = { lo: [0, 1, 2].map((k) => Math.min(line.o[k]! + line.u[k]! * tlo, line.o[k]! + line.u[k]! * thi) - NEAR_LINE) as V3,
+      hi: [0, 1, 2].map((k) => Math.max(line.o[k]! + line.u[k]! * tlo, line.o[k]! + line.u[k]! * thi) + NEAR_LINE) as V3 };
+    const coplanar = coplanarTo(line.o, line.u, near).flatMap((i) => {
+      const f = faces[i]!;
+      const w = unit(cross(f.n, line.u));
+      let lo = Infinity, hi = -Infinity;
+      const [o0, o1, o2] = line.o;
+      for (const p of f.verts) { const x = w[0] * (p[0] - o0) + w[1] * (p[1] - o1) + w[2] * (p[2] - o2); if (x < lo) lo = x; if (x > hi) hi = x; }
+      return lo > NEAR_LINE || hi < -NEAR_LINE ? [] : [{ f, i, w, wn: scale(w, -1) }];
+    });
     const ts = [...line.ts];
-    for (const { f, i } of coplanar) {
-      for (const [a, b] of fEdges[i]!) {
-        const e = sub(b, a);
+    // Scalar forms of the same expressions, in the same order (dot, sub, add, scale inlined): the same floats.
+    const [o0, o1, o2] = line.o;
+    const [u0, u1, u2] = line.u;
+    for (const { i } of coplanar) {
+      for (const { a, e, m, ee } of fEdgeData[i]!) {
         // In the face's plane, o + t·u meets a + s·e where (o + t·u − a)·(n × e) = 0.
-        const m = unit(cross(f.n, e));
-        const den = dot(line.u, m);
+        const den = u0 * m[0] + u1 * m[1] + u2 * m[2];
         if (Math.abs(den) <= BODY_EPS) continue; // parallel (a collinear edge already gave its endpoints)
-        const t = dot(sub(a, line.o), m) / den;
-        const s = dot(sub(add(line.o, scale(line.u, t)), a), e) / dot(e, e);
+        const t = ((a[0] - o0) * m[0] + (a[1] - o1) * m[1] + (a[2] - o2) * m[2]) / den;
+        const s = (((o0 + u0 * t) - a[0]) * e[0] + ((o1 + u1 * t) - a[1]) * e[1] + ((o2 + u2 * t) - a[2]) * e[2]) / ee;
         if (s >= -BODY_EPS && s <= 1 + BODY_EPS) ts.push(t);
       }
     }
@@ -389,22 +447,20 @@ export function bodyEdges(
     const judge = (tm: number): boolean => {
       if (!line.spans.some(([lo, hi]) => lo - BODY_EPS <= tm && tm <= hi + BODY_EPS)) return false;
       const mid = add(line.o, scale(line.u, tm));
+      const [m0, m1, m2] = mid;
       const wings: Wing[] = [];
-      for (const { f, i } of coplanar) {
+      for (const { f, i, w, wn } of coplanar) {
         const c = cents[i]!;
         let inside = true;
         let onEdge = false;
-        for (const [a, b] of fEdges[i]!) {
-          let e = unit(cross(f.n, sub(b, a)));
-          if (dot(e, sub(c, a)) < 0) e = scale(e, -1); // inward
-          const dist = dot(e, sub(mid, a));
+        for (const { a, inward } of fEdgeData[i]!) {
+          const dist = inward[0] * (m0 - a[0]) + inward[1] * (m1 - a[1]) + inward[2] * (m2 - a[2]);
           if (dist < -BODY_EPS) { inside = false; break; }
           if (dist <= BODY_EPS) onEdge = true;
         }
         if (!inside) continue;
-        const w = unit(cross(f.n, line.u));
-        if (!onEdge) { wings.push({ n: f.n, w }, { n: f.n, w: scale(w, -1) }); continue; }
-        wings.push({ n: f.n, w: dot(w, sub(c, mid)) >= 0 ? w : scale(w, -1) });
+        if (!onEdge) { wings.push({ n: f.n, w }, { n: f.n, w: wn }); continue; }
+        wings.push({ n: f.n, w: w[0] * (c[0] - m0) + w[1] * (c[1] - m1) + w[2] * (c[2] - m2) >= 0 ? w : wn });
       }
       // Cancel internal walls: same direction, opposite normals.
       for (let a = 0; a < wings.length; a += 1) {

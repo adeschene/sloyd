@@ -95,6 +95,11 @@ const profiled: [string, Board][] = [
   ['a cove', createBoard({ ...top, curves: [{ id: 'c', ...defaultProfile(top, 'cove') }] })],
   ['a thumbnail', createBoard({ ...top, curves: [{ id: 't', ...defaultProfile(top, 'thumbnail') }] })],
   ['a filleted ogee', createBoard({ ...top, curves: [{ id: 'f', ...profileCurve({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'ogee', facing: 'v', size: 0.5, fillet: 0.0625 }) }] })],
+  // Final review F3: the four-edge sets that split, two through axes meeting at four corners.
+  ...(['cove', 'bead', 'ogee'] as const).map((kind): [string, Board] => [`a top with the four-edge ${kind} set`,
+    createBoard({ ...top, curves: PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i): CurveCut => ({ id: `${kind}${i}`, ...defaultProfile(top, kind, e) })) })]),
+  ['a top with the four-edge filleted Roundover set', createBoard({ ...top, curves: PROFILE_EDGES.filter((e) => e.vFrom === 'max')
+    .map((e, i): CurveCut => ({ id: `f${i}`, ...profileCurve({ ...e, kind: 'roundover', facing: 'v', size: 0.25, fillet: 0.0625 }) })) })],
 ];
 describe('an edge-profiled part\'s mesh is watertight', () => {
   it.each(profiled)('%s', (_name, board) => {

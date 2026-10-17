@@ -97,6 +97,19 @@ describe('a curved part rebuilds inside a frame', () => {
     expect(curves).toHaveLength(4);
     expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(40);
   });
+  // Final review F3: the four-edge sets that SPLIT (a cove's, a bead's, an ogee's wood is not convex), two through axes
+  // meeting at four corners. Before (3dd0eb2; min of 9, load ~5): cove ~42 ms (61 bodies), bead ~56 (57), ogee ~155 (131;
+  // bodyEdges ~120 of it). Now a fragment a piece never reaches stays whole and a split waste's diagonals are peeled last
+  // (ogee 51 bodies, bead 4, cove 61: no diagonals), and bodyEdges and clip compute each number once (edges byte-identical
+  // for the same bodies). The table is in the round's final-fix report.
+  for (const kind of ['cove', 'bead', 'ogee'] as const) {
+    it(`a top with the four-edge ${kind} set: at most 40 ms`, () => {
+      const dims = { width: 20, thickness: 0.75 };
+      const curves = PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i) => ({ id: `p${i}`, ...defaultProfile({ length: 36, ...dims }, kind, e) }));
+      expect(curvePlan({ length: 36, ...dims }, curves[0]!)).toMatchObject({ clip: false });
+      expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(40);
+    });
+  }
   it('a shelf with an ogee on a long edge and a bead on an end (mixed axes): at most 40 ms', () => {
     const dims = { width: 10, thickness: 0.75 };
     const curves = [

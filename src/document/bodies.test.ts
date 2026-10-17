@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBoard } from './document';
+import { createBoard, defaultProfile, PROFILE_EDGES } from './document';
 import type { AngleCut, Board, Cut, CurveCut } from './types';
 import { BODY_EPS, clipConvex, curvedEdges, skipsInPlane, splitBodiesForTest, type Body } from './bodies';
 import { ARCH, CORNER } from './curveFixtures';
@@ -406,6 +406,56 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
     // The angle path's bodies are boxes where no cut reached them (a notched leg keeps its untouched cells' boxes).
     const notched = leg({ cuts: [{ id: 'n', face: 'thickness', from: 'max', across: 'width', offset: 26, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 }], angleCuts: [taper] });
     expect(boardBodies(notched).some((x) => x.box !== null)).toBe(true);
+  });
+  // Final review F3: the four-edge sets that split (two through axes, four corners) keep the wood they had when every
+  // piece's planes sliced every fragment: the volumes measured on 3dd0eb2 (131 bodies for the ogee, 57 bead, 61 cove),
+  // and a point oracle independent of any decomposition — wood exactly where no curve's model outline (chords) holds the
+  // point in its (u, v) — over a deterministic sample of the bands the profiles cut.
+  describe('the four-edge profile sets: the same wood, in fewer bodies', () => {
+    const measured = { cove: 527.969639508, bead: 536.201392081, ogee: 532.21155257 } as const;
+    const edges4 = PROFILE_EDGES.filter((e) => e.vFrom === 'max');
+    const four = (kind: keyof typeof measured) => ({ ...top, curves: edges4.map((e, i) => ({ id: `${kind}${i}`, ...defaultProfile(top, kind, e) })) });
+    const inPoly = (pts: readonly (readonly number[])[], x: number, y: number) => {
+      let inside = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i, i += 1) {
+        const [xi, yi] = pts[i]!; const [xj, yj] = pts[j]!;
+        if ((yi! > y) !== (yj! > y) && x < ((xj! - xi!) * (y - yi!)) / (yj! - yi!) + xi!) inside = !inside;
+      }
+      return inside;
+    };
+    const DIMS = ['length', 'width', 'thickness'] as const;
+    it.each(['cove', 'bead', 'ogee'] as const)('%s', (kind) => {
+      const b = four(kind);
+      const bodies = boardBodies(b);
+      expect(Math.abs(bodies.reduce((v, x) => v + bodyVolume(x), 0) - measured[kind])).toBeLessThan(1e-8);
+      const outlines = b.curves.map((c) => {
+        const [u, v] = [DIMS.indexOf(c.through === 'length' ? 'width' : 'length'), DIMS.indexOf('thickness')];
+        return { u, v, pts: curveOutline(b, c).pts };
+      });
+      // A Weyl sequence over the 1" band inside each edge, full thickness: corners included.
+      let seed = 0;
+      const next = () => { seed += 1; return (seed * 0.6180339887498949) % 1; };
+      let checked = 0;
+      for (let n = 0; n < 6000; n += 1) {
+        const side = n % 4;
+        const a = next();
+        const d = next();
+        const t = next() * 0.75;
+        const p: number[] = side < 2 ? [a * 36, side === 0 ? d : 20 - d, t] : [side === 2 ? d : 36 - d, a * 20, t];
+        const waste = outlines.some(({ u, v, pts }) => inPoly(pts, p[u]!, p[v]!));
+        const wood = bodies.some((x) => x.faces.every((f) => f.n[0] * (p[0]! - f.verts[0]![0]) + f.n[1] * (p[1]! - f.verts[0]![1]) + f.n[2] * (p[2]! - f.verts[0]![2]) <= -1e-7));
+        const onBoundary = bodies.some((x) => x.faces.every((f) => f.n[0] * (p[0]! - f.verts[0]![0]) + f.n[1] * (p[1]! - f.verts[0]![1]) + f.n[2] * (p[2]! - f.verts[0]![2]) <= 1e-7)) && !wood;
+        if (onBoundary) continue;
+        checked += 1;
+        expect(wood, `${kind} at ${p.join(', ')}`).toBe(!waste);
+      }
+      expect(checked).toBeGreaterThan(5000);
+    });
+    it('in fewer bodies than before (measured on 3dd0eb2: cove 61, bead 57, ogee 131)', () => {
+      expect(boardBodies(four('ogee')).length).toBeLessThanOrEqual(60);
+      expect(boardBodies(four('bead')).length).toBeLessThanOrEqual(10);
+      expect(boardBodies(four('cove')).length).toBeLessThanOrEqual(61);
+    });
   });
   it('geometryKey carries each curve\'s id and values', () => {
     expect(geometryKey({ ...apron, curves: [ARCH] })).not.toBe(geometryKey(apron));
