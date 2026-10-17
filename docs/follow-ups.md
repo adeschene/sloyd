@@ -6455,3 +6455,11 @@ the user's ruling: keep, or omit the short point when every end cut is a chamfer
 chamfer that keeps part of the end face standing (its leg along the cross dimension short of that dimension: a tongue); one
 reaching the far face is a miter by geometry and still counts. A raised panel has no short point; a miter beside such a chamfer
 sets it alone.
+
+**386. A part with curves on two `through` axes loses visible lines in the exploded isometric.** Found 2026-10-17 probing
+edge profiles (fu 365): a 36 × 20 × 3/4 top with a 3/8" Rounded corner on all four top edges (two `through: 'length'`, two
+`through: 'width'`) draws as a few stray lines in the Plans sheet's exploded view. `drawView(…, ISO, { hiddenLines: false })`
+gives 24 visible segments, where the two long-edge roundovers alone give 58 and no curve gives 9. One long edge plus one end
+(39) is plausible, so the loss appears when both axes have curves on opposite edges. Cause not yet diagnosed (suspect: the
+bodies split by curves on two axes making an occluder seam that hides the part's own edges). Live on master: Rounded corner
+with Through: Length/Width is reachable today. **Status:** open (bug; blocks edge profiles, fu 365).
