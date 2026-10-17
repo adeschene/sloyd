@@ -514,6 +514,36 @@ and 79.
 
 ## What each round did
 
+**What presets batch did (2026-10-17)** (the user picked "Small presets batch" from the open feature list; brainstormed, spec and
+plan approved; "Native, go ahead"; branch `presets-batch`). Three shortcuts and controls over geometry that already existed;
+no schema change. The user's rulings: two taper items, four faces and the leg's two inside faces, with one amount so a square
+leg stays square (R1); two leg fields plus a Raised panel preset of 1-1/2" into the face with a 1/4" tongue (R2); a Kind
+select that keeps placement and takes preset sizes, Arch ↔ notch keeping the span (R3).
+
+- **fu 278**: `defaultTaperFaces(board, TAPER_TWO | TAPER_FOUR)`, independent Taper rows in one `addAngleCuts` (one undo entry),
+  never withheld (spec §2: no part can refuse it).
+- **fu 298**: the Chamfer row's Size field became `Into the <face>` / `Into the <along>`, each its own stored leg (never
+  mixed). The max is the larger of the dimension and the stored leg, so a leg a resize pushed past its part can be reduced and
+  never deepened (fu 296). `defaultRaisedPanel` gives four canonical chamfers on the thickness-max face's edges; the corners
+  mitre themselves (half-space bodies). It is withheld under 1/2" thick.
+- **fu 367**: the curve presets were rewritten onto placement helpers (`archAt`/`notchAt`/`bowAt`/`cornerAt` at a
+  `CurvePlacement`), pinned byte-identical by an inline snapshot committed BEFORE the refactor. `curveKindChoice`,
+  `curvePlacement` (stored flags only) and `curveAs` are new. `CurveRowView`'s Kind select disables an option whose candidate
+  `refusalFor` would refuse, and still routes the change through `set`.
+
+Every new test was mutated; two plan expectations were wrong and ruled (the units API's shape; a corner-flag mutation the
+min/min preset snapshot cannot see). The final review (fresh, opus) checked mirrored and linked parts empirically and found no
+Critical issues. It found one Important issue, fixed test-first: the Edge refusal still said "reduce the size first", naming
+the retired field, and now names the leg. Its minors were deferred:
+- the Kind select's per-render cost (~10 ms realistic);
+- no reason shown on a disabled option;
+- Arch → notch keeping the span is disabled from nearly every preset arch;
+- `1/4"` in the menu detail in a metric project.
+
+The live pass is recorded in `docs/browser-verification-presets-batch.md`: four-face leg, raised panel in the viewport, on the
+Plans sheet and in the cut list, metric, and the Kind round trip. It opened fu 385: the panel's end chamfers give a cut-list
+`Short point 17"`. Suite 4721 tests across 161 files; build clean.
+
 **What section views did (2026-10-17)** (the user: "start on section views (256)"; brainstormed, spec and plan approved;
 "go with native"; branch `section-views`). Fu 256's sheet half. The user's rulings: the viewport's cut is the source (no
 sheet control, nothing saved), the whole piece only, a full section. `drawView` gained a `section` option. Inside the one
