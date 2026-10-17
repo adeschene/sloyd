@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, mirrorCurveCut, sameCurve } from './curves';
 import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
-import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, profileFromFields, profileOf, profileValues, sameProfile } from './profiles';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile } from './profiles';
 import type { ProfileFields } from './profiles';
 import type { CurveCut, ProfileCut } from './types';
 
@@ -267,5 +267,25 @@ describe('ProfileCut, the stored form (profile runs spec §3.1, chunk a1)', () =
     expect(g.profiles).toEqual([]);
     expect(geometryBoard(b)).toBe(g);
     expect(geometryBoard(g)).toBe(g);
+  });
+  const side = (from: 'min' | 'max') => ({ across: 'width' as const, from });
+  const station: ProfileCut = { id: 'x', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+    run: { start: { side: side('min'), from: 'min', at: 3 }, end: { side: side('min'), from: 'min', at: 27 } } };
+  it('a station run swaps start and end on every mirror, thickness included, and flips the expected flags', () => {
+    const run = station.run as Extract<ProfileCut['run'], { start: unknown }>;
+    const l = mirrorProfile(station, 'length').run as typeof run;
+    expect(l).toEqual({ start: { side: side('min'), from: 'max', at: 27 }, end: { side: side('min'), from: 'max', at: 3 } });
+    const w = mirrorProfile(station, 'width');
+    expect(w.run).toEqual({ start: { side: side('max'), from: 'min', at: 27 }, end: { side: side('max'), from: 'min', at: 3 } });
+    const th = mirrorProfile(station, 'thickness');
+    expect(th.face).toBe('min');
+    expect(th.run).toEqual({ start: run.end, end: run.start });
+    for (const d of ['length', 'width', 'thickness'] as const) expect(mirrorProfile(mirrorProfile(station, d), d)).toEqual(station);
+  });
+  it('endToEnd is false for a station run and for ends on two sides; profileToFields throws on a station run', () => {
+    expect(endToEnd(station.run)).toBe(false);
+    expect(endToEnd({ start: { side: side('min'), through: 'min' }, end: { side: side('max'), through: 'max' } })).toBe(false);
+    expect(endToEnd({ start: { side: side('min'), through: 'min' }, end: { side: side('min'), through: 'max' } })).toBe(true);
+    expect(() => profileToFields(station)).toThrow();
   });
 });

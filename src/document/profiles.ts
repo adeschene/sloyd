@@ -207,12 +207,15 @@ export function profileOf(c: Omit<CurveCut, 'id'>): Omit<ProfileCut, 'id'> | nul
 const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
 /**
  * A profile reflected along `d` (invariant 44): flag flips only. `face` flips through the thickness; a side's `from` when its
- * `across` is `d`. An End to end run keeps min→max (a full side has no travel to reverse, spec P3); a station run's ends flip
- * their `from` along the run dimension, and swap, since a reflection reverses travel (chunk a2 builds those).
+ * `across` is `d`. A run travels counter-clockwise seen looking at `face` from outside the part, and EVERY reflection reverses
+ * that travel, so a station run's start and end swap for all three dimensions: along the run dimension each end's `from` also
+ * flips; along the side's `across` the run lands on the opposite side; through the thickness it moves to the other face, where
+ * the same outline reads reversed. An End to end run keeps min→max (a full side has no travel to reverse, spec P3), and a loop
+ * is unchanged apart from `face` (chunk a2 builds station runs).
  */
 export function mirrorProfile(p: ProfileCut, d: Dimension): ProfileCut {
-  if (d === 'thickness') return { ...p, face: flip(p.face) };
-  if ('loop' in p.run) return p;
+  if ('loop' in p.run) return d === 'thickness' ? { ...p, face: flip(p.face) } : p;
+  if (d === 'thickness') return { ...p, face: flip(p.face), run: endToEnd(p.run) ? p.run : { start: p.run.end, end: p.run.start } };
   const side = (s: ProfileSide): ProfileSide => (s.across === d ? { ...s, from: flip(s.from) } : s);
   if (endToEnd(p.run)) return { ...p, run: { start: { ...p.run.start, side: side(p.run.start.side) }, end: { ...p.run.end, side: side(p.run.end.side) } } };
   const end = (e: ProfileEnd): ProfileEnd => {
