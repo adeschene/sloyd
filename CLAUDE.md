@@ -99,7 +99,8 @@ handicraft education tradition built around hand woodworking.
   fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
   collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
   hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
-  profiles, schema 18), 387–389.
+  profiles, schema 18), 387, 389, 390 (a profile following a curved edge). **Fu 388** (the Profile select greys a
+  refused option and says why; the user's ruling) merged as `b64b7a1`, NOT YET DEPLOYED (build `index-B_aEoJl0.js`). Real-hardware look: approved.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
