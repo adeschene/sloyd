@@ -2,6 +2,7 @@
 import type { Board } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry } from './bodies';
+import { geometryBoard } from './profiles';
 import { bodyPlanes } from './holes';
 import { toWorld } from './snapPoints';
 import type { Segment } from './cuts';
@@ -50,6 +51,7 @@ function fractionOn(arc: LocalArc, n: number, j: number, P: P2, Q: P2, x: P2): n
  * curves gets its edges back unchanged. Memoised on partGeometry's frozen edges (shared by one geometryKey only).
  */
 export function curveDrawEdges(board: Board): readonly DrawEdge[] {
+  board = geometryBoard(board);
   const edges = partGeometry(board).edges;
   const hit = memo.get(edges);
   if (hit) return hit;
@@ -122,6 +124,7 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
  * Built only through `toWorld` (invariant 44). drawView decides what is hidden.
  */
 export function curveSilhouettes(board: Board, toward: readonly number[]): [V3, V3][] {
+  board = geometryBoard(board);
   return silhouetteLines(board, toward).map(({ A, E }) => [A, E]);
 }
 
@@ -176,6 +179,7 @@ const facing = (x: number) => (x > EDGE_ON ? 1 : x < -EDGE_ON ? -1 : 0);
  * behind wood it seams against, stays hidden (spec 2.3).
  */
 export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3; curve: string }[] {
+  board = geometryBoard(board);
   const out: { A: V3; E: V3; lift: V3; curve: string }[] = [];
   const planes = board.curves.length > 0 ? partGeometry(board).bodies.map((b) => bodyPlanes(b.faces)) : [];
   for (const c of board.curves) {
@@ -271,6 +275,7 @@ function outlineFaces(board: Board, c: Board['curves'][number]) {
  *  than PROBE of clearance; below ~5e-4 it still grazes). Far below any feature (1/64"), so no other wood is skipped. */
 const LIFT_MAX = 1e-3;
 export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | undefined)[] {
+  board = geometryBoard(board);
   const edges = curveDrawEdges(board);
   const faces = board.curves.map((c) => outlineFaces(board, c));
   const o3 = toWorld(board, { length: 0, width: 0, thickness: 0 });

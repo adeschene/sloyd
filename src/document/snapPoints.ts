@@ -6,6 +6,7 @@ import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
+import { geometryBoard } from './profiles';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
@@ -122,6 +123,7 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * remainder was measured, not assumed, to be small.
  */
 export function boardSnapPoints(board: Board): BoardSnapPoint[] {
+  board = geometryBoard(board);
   const [ex, ey, ez] = boardExtents(board);
   const [px, py, pz] = board.position;
   // `position` is the min-corner, not the centre — see invariant 2.

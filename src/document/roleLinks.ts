@@ -17,7 +17,7 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
  * a cut either cannot describe.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || b.holes.length > 0 || b.curves.length > 0) return [];
+  if (b.cuts.length > 0 || b.holes.length > 0 || b.curves.length > 0 || b.profiles.length > 0) return [];
   const world = worldTapers(b);
   const angles = worldAngles(b);
   if (world === null || angles === null) return [];

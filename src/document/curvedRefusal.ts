@@ -2,7 +2,7 @@ import type { FlatDocument } from './types';
 
 /** Flat (display) names of the placed parts carrying any curve. */
 export function curvedParts(flat: FlatDocument): string[] {
-  return flat.boards.filter((b) => b.curves.length > 0).map((b) => b.name);
+  return flat.boards.filter((b) => b.curves.length > 0 || b.profiles.length > 0).map((b) => b.name);
 }
 
 const list = (names: string[]) => `${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`;

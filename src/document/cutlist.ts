@@ -18,6 +18,7 @@ import type { Nesting } from './nesting';
 import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
 import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
+import { geometryBoard } from './profiles';
 
 /**
  * One row of the cut list: every part that is cut from the same stock, in the
@@ -232,6 +233,7 @@ function holeSignature(board: Board): string {
 
 /** The curve half of a row's identity: EXACT and order-independent, ids ignored (curves spec §4.2). */
 function curveSignature(board: Board): string {
+  board = geometryBoard(board);
   return board.curves.map(curveValues).sort().join(';');
 }
 

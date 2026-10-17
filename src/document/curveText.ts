@@ -4,7 +4,7 @@ import { edgeName, endWord } from './holeText';
 import {
   archFields, bowFields, cornerFields, curveFaults, localSegments, uvDims, type CurveFault, type LocalArc,
 } from './curves';
-import { profileAsymmetric, profileFields, type ProfileFields } from './profiles';
+import { geometryBoard, profileAsymmetric, profileFields, type ProfileFields } from './profiles';
 import { faceName } from './angleText';
 
 /** A fault in words (spec §2.5, P4): THE one home (invariant 19), read by the bench line and the Properties note.
@@ -85,6 +85,7 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
  *  line covers (four for a collapsed set of corners), so a part diagram can list the lines of the curves it draws. Four
  *  corner curves on one face with one radius and no fault collapse to one line, printed where the first of them stands. */
 export function curveLineEntries(board: Board, units: Units): { ids: string[]; text: string }[] {
+  board = geometryBoard(board);
   const corners = board.curves.map((c) => ({ c, f: cornerFields(c) })).filter((x) => x.f && !profileFields(x.c) && curveFaults(board, x.c).length === 0);
   const groups = new Map<string, CurveCut[]>();
   for (const { c, f } of corners) {
