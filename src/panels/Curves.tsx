@@ -2,10 +2,10 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 import {
-  archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, curveFaults, curveKindWord, defaultArch,
+  archCurve, archFields, bowCurve, curveAs, curveKindChoice, bowFields, cornerCurve, cornerFields, curveFaults, curveKindWord, defaultArch,
   defaultBow, defaultCorner, defaultCorners, defaultNotch, deriveCurveKind, holeFaults, uvDims, CURVE_EPS,
 } from '../document/document';
-import type { Board, CurveCut, CutFrom, Dimension } from '../document/document';
+import type { Board, CurveCut, CurveKindChoice, CutFrom, Dimension } from '../document/document';
 import { curveFaultText, curveLine } from '../document/curveText';
 import { distinctFaults, edgeName, endWord, faultKey } from '../document/holeText';
 import { formatLength } from '../units/length';
@@ -41,6 +41,11 @@ function holeRefusal(board: Board, after: Board): string | null {
 }
 
 const HALF_CIRCLE = 'An arc is at most a half circle — reduce the Rise first.';
+
+/** The Kind select's options (fu 367); "Rounded corners" is four curves, a menu item only. */
+const KIND_OPTIONS: { value: CurveKindChoice; label: string }[] = [
+  { value: 'arch', label: 'Arch' }, { value: 'notch', label: 'Half-round notch' }, { value: 'bow', label: 'Bow' }, { value: 'corner', label: 'Rounded corner' },
+];
 
 /** True when an arc of `next` is one the loader drops (`validateCurveCuts`): a rise over half its chord, a radius under
  *  half its chord, or no chord. EXACT, the loader's own tests — a tolerance here would store an arc the next load drops
@@ -107,6 +112,25 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
   const bow = arch ? null : bowFields(curve);
   const corner = arch || bow ? null : cornerFields(curve);
   const kind = deriveCurveKind(curve);
+  // fu 367: a kind change keeps the curve's placement and id and takes the new kind's preset sizes (`curveAs`). An option
+  // whose result would be refused is disabled (the menu's withhold precedent); the change still goes through `set`, so a
+  // stale render refuses in the row's own words and the select stays on the stored kind.
+  const choice = curveKindChoice(curve);
+  const kindSelect = choice && (
+    <div className="field">
+      <label htmlFor={`curve-kind-${curve.id}`}>Kind</label>
+      <select id={`curve-kind-${curve.id}`} className="input" value={choice} onChange={(e) => {
+        const next = curveAs(e.target.value as CurveKindChoice, curve, board);
+        if (next) set(next);
+      }}>
+        {KIND_OPTIONS.map((o) => {
+          const next = o.value === choice ? null : curveAs(o.value, curve, board);
+          const ok = o.value === choice || (next !== null && refusalFor(board, curve, next, null) === null);
+          return <option key={o.value} value={o.value} disabled={!ok}>{o.label}</option>;
+        })}
+      </select>
+    </div>
+  );
   const label = arch ? (arch.rise === arch.span / 2 ? 'Half-round notch' : 'Arch') : bow ? 'Bow' : corner ? 'Rounded corner' : 'Curve cut';
 
   const throughSelect = (onThrough: (to: Dimension) => void) => (
@@ -132,6 +156,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
     const edge = otherDim(curve.through, arch.along);
     fields = (
       <div className="field-grid field-grid-2">
+        {kindSelect}
         {throughSelect((to) => set(archCurve({ ...arch, through: to, along: reseat(arch.along, curve.through, to) })))}
         {sideSelect(edge, arch.side, (side) => set(archCurve({ ...arch, side })))}
         <div className="field">
@@ -154,6 +179,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
     if (Math.abs(bow.span - board[bow.along]) > 1e-9) note = `Spans ${f(bow.span)} of this ${f(board[bow.along])} ${bow.along} — change the Rise to refit it.`;
     fields = (
       <div className="field-grid field-grid-2">
+        {kindSelect}
         {throughSelect((to) => set(refit({ ...bow, through: to, along: reseat(bow.along, curve.through, to) })))}
         {sideSelect(edge, bow.side, (side) => set(refit({ ...bow, side })))}
         <DimensionField label="Rise" value={bow.rise} units={units} onCommit={(rise) => field(refit({ ...bow, rise }), 'Rise')} />
@@ -163,6 +189,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
     const [u, v] = uvDims(curve.through);
     fields = (
       <div className="field-grid field-grid-2">
+        {kindSelect}
         {throughSelect((to) => set(cornerCurve({ ...corner, through: to })))}
         <div className="field field-wide">
           <label htmlFor={`curve-corner-${curve.id}`}>Corner</label>

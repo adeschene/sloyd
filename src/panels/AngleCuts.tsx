@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import {
-  CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
-  defaultMiter, defaultMiterPair, defaultTaper, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields,
+  CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, defaultRaisedPanel,
+  defaultMiter, defaultMiterPair, defaultTaper, defaultTaperFaces, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields, TAPER_FOUR, TAPER_TWO,
 } from '../document/document';
 import { angleLine } from '../document/angleText';
 import type { AngleCut, BevelFields, Board, ChamferFields, CutFrom, Dimension, MiterFields } from '../document/document';
@@ -168,15 +168,21 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
               // the stored edge's legs already overrun as far, at this size (fu 296).
               const over = chamfer.legFace > board[x.face] ? x.face : chamfer.legAlong > board[x.along] ? x.along : null;
               const excess = Math.max(chamfer.legFace - board[x.face], chamfer.legAlong - board[x.along]);
-              if (over && worse(excess, cExcess)) { setError(`Removes more than the ${over} — reduce the size first.`); return; }
+              if (over && worse(excess, cExcess)) { setError(`Removes more than the ${over} — reduce the leg into the ${over} first.`); return; }
               setC(x);
             }}>
               {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}
             </select>
           </div>
-          <DimensionField label="Size" units={units}
-            value={chamfer.legFace === chamfer.legAlong ? chamfer.legFace : null} max={Math.min(board[chamfer.face], board[chamfer.along])}
-            onCommit={(v) => setC({ legFace: v, legAlong: v })} />
+          {/* fu 298: one field per leg, each its own stored value (never a mixed field), labelled as the bench line words
+              it. A leg a resize pushed past its dimension may be reduced, never deepened (fu 296): the max is the larger of
+              the dimension and the stored leg. */}
+          <DimensionField label={`Into the ${chamfer.face}`} units={units}
+            value={chamfer.legFace} max={Math.max(board[chamfer.face], chamfer.legFace)}
+            onCommit={(v) => setC({ legFace: v })} />
+          <DimensionField label={`Into the ${chamfer.along}`} units={units}
+            value={chamfer.legAlong} max={Math.max(board[chamfer.along], chamfer.legAlong)}
+            onCommit={(v) => setC({ legAlong: v })} />
         </div>
         {error && <p className="field-error" role="alert">{error}</p>}
       </div>
@@ -232,6 +238,7 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
 /** The Angles section (spec §7): a single part's angle cuts. Taper, Miter, Bevel and Chamfer. */
 export function AngleCuts({ board }: { board: Board }) {
   const addAngleCuts = useStore((s) => s.addAngleCuts);
+  const raised = defaultRaisedPanel(board);
   return (
     <>
       <h3>Angles{board.angleCuts.length > 0 && <span className="h3-count"> · {board.angleCuts.length}</span>}</h3>
@@ -239,6 +246,9 @@ export function AngleCuts({ board }: { board: Board }) {
       <Popover className="add-angle" label={<>+ Add<span aria-hidden="true"> ▾</span></>} title="Add an angle cut"
         items={[
           { label: 'Taper', detail: 'Slope one face along the length', run: () => addAngleCuts(board.id, [defaultTaper(board)]) },
+          // fu 278: independent rows in one undo entry; never withheld (each removes at most ¼ of either cross dimension).
+          { label: 'Taper two faces', detail: "Slope two adjacent faces (a leg's inside faces)", run: () => addAngleCuts(board.id, defaultTaperFaces(board, TAPER_TWO)) },
+          { label: 'Taper four faces', detail: 'Slope all four faces along the length', run: () => addAngleCuts(board.id, defaultTaperFaces(board, TAPER_FOUR)) },
           // A 45° miter across the width is as deep as the width; deeper than the length is refused on edit, so don't offer it (fu 296).
           ...(board.width > board.length ? [] : [
             { label: 'Miter', detail: '45° across the width at one end', run: () => addAngleCuts(board.id, [defaultMiter(board)]) },
@@ -249,6 +259,8 @@ export function AngleCuts({ board }: { board: Board }) {
             { label: 'Bevel', detail: '15° along one edge', run: () => addAngleCuts(board.id, [defaultBevel(board)]) },
           ]),
           { label: 'Chamfer', detail: 'Knock off one edge at 45°', run: () => addAngleCuts(board.id, [defaultChamfer(board)]) },
+          // Withheld under 1/2" thick (presets-batch spec §3.2): the 1/4" tongue would leave too shallow a bevel.
+          ...(raised ? [{ label: 'Raised panel', detail: 'Bevel the four front edges, leaving a 1/4" tongue', run: () => addAngleCuts(board.id, raised) }] : []),
         ]} />
     </>
   );

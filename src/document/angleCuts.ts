@@ -208,6 +208,21 @@ export function defaultTaper(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'
   return taperCut({ face: 'width', from: 'min', end: 'min', start: board.length * 0.75, amount: board.width / 4 });
 }
 
+/** One face a taper shortcut slopes (fu 278). */
+export interface TaperFace { face: 'width' | 'thickness'; from: CutFrom }
+/** A leg's two inside faces: adjacent, both min. */
+export const TAPER_TWO: readonly TaperFace[] = [{ face: 'width', from: 'min' }, { face: 'thickness', from: 'min' }];
+export const TAPER_FOUR: readonly TaperFace[] = [
+  { face: 'width', from: 'min' }, { face: 'width', from: 'max' }, { face: 'thickness', from: 'min' }, { face: 'thickness', from: 'max' },
+];
+
+/** The taper shortcuts (fu 278): one plain taper per face, each from the min end over ¾ of the length, ONE amount — a
+ *  quarter of the thinner cross dimension — so a square leg stays square. Independent rows; no linked edit. */
+export function defaultTaperFaces(board: Pick<Board, Dimension>, faces: readonly TaperFace[]): Omit<AngleCut, 'id'>[] {
+  const amount = Math.min(board.width, board.thickness) / 4;
+  return faces.map(({ face, from }) => taperCut({ face, from, end: 'min', start: board.length * 0.75, amount }));
+}
+
 /** A miter as the shop reads it (spec §7). `ratio` is the stored slope (|Δdepth| / |Δstation|), NOT degrees, so an
  *  untouched angle never round-trips through atan/tan (45° is ratio 1, exactly — spec §2.3). */
 export interface MiterFields { end: CutFrom; across: 'width' | 'thickness'; longSide: CutFrom; ratio: number }
@@ -335,4 +350,17 @@ export function chamferFields(c: AngleCut, board: Pick<Board, Dimension>): Chamf
 export function defaultChamfer(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
   const leg = Math.min(0.125, board.width / 4, board.thickness / 4);
   return chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: leg, legAlong: leg }, board);
+}
+
+/** The "Raised panel" preset (fu 298, presets-batch spec §3.2): the four edges of the thickness max face (the panel's
+ *  front) chamfered with UNEQUAL legs — 1-1/2" into the face (at most ¼ of the narrower in-face side), leaving a 1/4"
+ *  tongue at the edge. The four planes meet on the corner diagonals (each body is an intersection of half-spaces), so the
+ *  mitred corners need no geometry of their own. Null under 1/2" thick: the bevel would be under 1/4" deep. Canonical rows,
+ *  `face` before `along` (as CHAMFER_EDGES). */
+export function defaultRaisedPanel(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'>[] | null {
+  if (board.thickness < 0.5) return null;
+  const legFace = Math.min(1.5, Math.min(board.length, board.width) / 4);
+  const legAlong = board.thickness - 0.25;
+  const edges: [Dimension, CutFrom][] = [['width', 'min'], ['width', 'max'], ['length', 'min'], ['length', 'max']];
+  return edges.map(([face, from]) => chamferCut({ face, from, along: 'thickness', alongFrom: 'max', legFace, legAlong }, board));
 }

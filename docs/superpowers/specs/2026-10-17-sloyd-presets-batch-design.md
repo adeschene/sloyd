@@ -1,7 +1,7 @@
 # Sloyd — presets batch: taper shortcuts, raised panel, curve kind (design)
 
 Date: 2026-10-17. Follow-ups 278, 298, 367. Status: design approved in chat by the user 2026-10-17 ("Yes, go ahead");
-written spec awaiting review. **No schema change** (17): rolling this round back costs nothing.
+written spec approved ("Approved, write the plan"); implemented, plan `docs/superpowers/plans/2026-10-17-sloyd-presets-batch.md`. **No schema change** (17): rolling this round back costs nothing.
 
 ## 1. Purpose and rulings
 

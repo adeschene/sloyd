@@ -5,6 +5,7 @@ import { chamferCut, createBoard, createDocument, taperCut } from '../document/d
 import type { AngleCut, Board } from '../document/document';
 import { Properties } from './Properties';
 import { AngleCuts } from './AngleCuts';
+import { IMPERIAL, formatLength } from '../units/length';
 
 const leg = (over: Partial<Board> = {}) => createBoard({ id: 'leg', name: 'Leg', length: 28, width: 2, thickness: 2, ...over });
 const open = (b: Board) => {
@@ -19,6 +20,19 @@ const addMenu = async (user: ReturnType<typeof userEvent.setup>, item: string) =
 const cuts = () => (useStore.getState().doc.boards[0] as Board).angleCuts;
 
 describe('the Angles section', () => {
+  it('Taper four faces adds four rows in one undo entry; Taper two faces adds two (fu 278)', async () => {
+    const user = userEvent.setup();
+    open(leg());
+    const before = useStore.getState().past.length;
+    await addMenu(user, 'Taper four faces');
+    expect(cuts().map((c) => `${c.face}|${c.from}`)).toEqual(['width|min', 'width|max', 'thickness|min', 'thickness|max']);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(screen.getAllByLabelText('Starts')).toHaveLength(4);
+    act(() => useStore.getState().undo());
+    expect(cuts()).toEqual([]);
+    await addMenu(user, 'Taper two faces');
+    expect(cuts().map((c) => `${c.face}|${c.from}`)).toEqual(['width|min', 'thickness|min']);
+  });
   it('adds a taper and edits it in shop numbers', async () => {
     const user = userEvent.setup();
     open(leg());
@@ -223,23 +237,43 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     expect(cuts()[0]).toEqual(stored);
     expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the angle first.');
   });
-  it('edits a chamfer edge and size; refuses a size past the thinner face (Review Focus 3)', async () => {
+  const chamferOn = (b: Board, e: { face: 'length' | 'width' | 'thickness'; from: 'min' | 'max'; along: 'length' | 'width' | 'thickness'; alongFrom: 'min' | 'max' }, leg: number) => {
+    open(b);
+    act(() => useStore.getState().addAngleCuts('leg', [chamferCut({ ...e, legFace: leg, legAlong: leg }, b)]));
+  };
+  it('edits a chamfer edge and each leg; refuses a leg past its face (Review Focus 3)', async () => {
     const user = userEvent.setup();
     open(plank());
     await addMenu(user, 'Chamfer');
     await user.selectOptions(screen.getByLabelText('Edge'), 'Width min side · thickness max side');
     expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'max' });
-    const size = screen.getByLabelText('Size');
-    await user.clear(size); await user.type(size, '3/16{Enter}');
-    expect(cuts()[0]!.points).toEqual([[0, 0.1875], [0.1875, 0]]);
-    await user.clear(size); await user.type(size, '1{Enter}');
+    const wide = screen.getByLabelText('Into the width');
+    await user.clear(wide); await user.type(wide, '1-1/2{Enter}');
+    expect(cuts()[0]!.points).toEqual([[0, 1.5], [0.125, 0]]);              // only its own leg
+    const deep = screen.getByLabelText('Into the thickness');
+    await user.clear(deep); await user.type(deep, '1/2{Enter}');
+    expect(cuts()[0]!.points).toEqual([[0, 1.5], [0.5, 0]]);
+    await user.clear(deep); await user.type(deep, '1{Enter}');
     expect(screen.getByRole('alert')).toHaveTextContent('Must be at most 3/4"');
-    expect(cuts()[0]!.points).toEqual([[0, 0.1875], [0.1875, 0]]);
+    expect(cuts()[0]!.points).toEqual([[0, 1.5], [0.5, 0]]);
   });
-  const chamferOn = (b: Board, e: { face: 'length' | 'width' | 'thickness'; from: 'min' | 'max'; along: 'length' | 'width' | 'thickness'; alongFrom: 'min' | 'max' }, leg: number) => {
-    open(b);
-    act(() => useStore.getState().addAngleCuts('leg', [chamferCut({ ...e, legFace: leg, legAlong: leg }, b)]));
-  };
+  it('an unequal chamfer shows both legs — no mixed field (fu 298)', () => {
+    const b = plank();
+    open({ ...b, angleCuts: [{ id: 'c1', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 1.5, legAlong: 0.5 }, b) }] });
+    expect(screen.getByLabelText('Into the width')).toHaveValue(formatLength(1.5, IMPERIAL));
+    expect(screen.getByLabelText('Into the thickness')).toHaveValue(formatLength(0.5, IMPERIAL));
+  });
+  it('a leg a resize pushed past its part may be reduced, never deepened, and the other leg is untouched (fu 296)', async () => {
+    const user = userEvent.setup();
+    chamferOn(plank({ width: 3, thickness: 0.75 }), { face: 'width', from: 'max', along: 'thickness', alongFrom: 'max' }, 0.5);
+    act(() => useStore.getState().updateBoard('leg', { thickness: 0.4 }));     // the thickness leg: 0.1 over
+    const deep = screen.getByLabelText('Into the thickness');
+    await user.clear(deep); await user.type(deep, '0.45{Enter}');           // still over, but less: allowed
+    expect(cuts()[0]!.points).toEqual([[0, 0.5], [0.45, 0]]);
+    await user.clear(deep); await user.type(deep, '0.6{Enter}');            // deeper than stored: refused
+    expect(screen.getByRole('alert')).toHaveTextContent('Must be at most');
+    expect(cuts()[0]!.points).toEqual([[0, 0.5], [0.45, 0]]);
+  });
   it('a chamfer bigger than its thinned edge: noted, and may move to an edge it overruns no further (fu 296)', async () => {
     const user = userEvent.setup();
     chamferOn(plank({ width: 3, thickness: 0.75 }), { face: 'width', from: 'max', along: 'thickness', alongFrom: 'max' }, 0.5);
@@ -260,7 +294,7 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     expect(cuts()[0]).toEqual(stored);
     expect(useStore.getState().past.length).toBe(past);
     expect((screen.getByLabelText('Edge') as HTMLSelectElement).value).toBe(before);
-    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce the size first.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce the leg into the thickness first.');
     await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · width max side');
     expect(cuts()[0]).toMatchObject({ face: 'length', from: 'min', along: 'width', alongFrom: 'max' });
     expect(screen.queryByRole('alert')).toBeNull();
@@ -271,7 +305,7 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     const stored = cuts()[0]!;
     await user.selectOptions(screen.getByLabelText('Edge'), 'Width max side · thickness max side');
     expect(cuts()[0]).toEqual(stored);
-    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the size first.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the leg into the width first.');
   });
   it('withholds Bevel when the default 15 degrees would be deeper than the width (fu 296 sibling)', async () => {
     const user = userEvent.setup();
@@ -287,7 +321,33 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     open({ ...b, thickness: 0.1, angleCuts: [c] });
     expect(screen.getByText(/^Chamfer 1\/8" on the edge between/)).toBeInTheDocument();
     expect(screen.getByLabelText('Edge')).toBeInTheDocument();
-    expect(screen.getByLabelText('Size')).toBeInTheDocument();
+    expect(screen.getByLabelText('Into the width')).toBeInTheDocument();
+    expect(screen.getByLabelText('Into the thickness')).toBeInTheDocument();
+  });
+  it('Raised panel adds four unequal chamfers in one undo entry (fu 298)', async () => {
+    const user = userEvent.setup();
+    open(plank({ length: 20, width: 12 }));
+    const before = useStore.getState().past.length;
+    await addMenu(user, 'Raised panel');
+    expect(cuts()).toHaveLength(4);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(screen.getAllByLabelText('Into the thickness').map((el) => (el as HTMLInputElement).value))
+      .toEqual(Array(4).fill(formatLength(0.5, IMPERIAL)));
+  });
+  it('withholds Raised panel under 1/2" thick', async () => {
+    const user = userEvent.setup();
+    open(plank({ thickness: 0.375 }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('button', { name: 'Chamfer' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raised panel' })).toBeNull();
+  });
+  it('a metric Raised panel stores exact inches and shows mm (Review Focus 1)', async () => {
+    const user = userEvent.setup();
+    open(plank({ length: 20, width: 12 }));
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await addMenu(user, 'Raised panel');
+    expect(cuts()[0]!.points).toEqual([[0, 1.5], [0.5, 0]]);
+    expect(screen.getAllByLabelText('Into the width')[0]).toHaveValue(formatLength(1.5, { display: 'metric-mm', precision: 16 }));
   });
   it('a hand-edited bevel the row cannot show gets its line and a remove button only', () => {
     const c: AngleCut = { id: 'a1', kind: 'bevel', face: 'width', from: 'max', along: 'length', alongFrom: 'min', points: [[0, 0], [10, 1]] };

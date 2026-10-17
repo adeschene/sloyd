@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { archCurve, archFields, bowCurve, bowFields, cornerCurve, createBoard, createDocument } from '../document/document';
-import type { Board, CurveCut } from '../document/document';
+import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
 
 const apron = (over: Partial<Board> = {}) => createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, ...over });
@@ -235,5 +235,58 @@ describe('the Curves section', () => {
     await typeInto(user, 'Rise', '3/4');
     expect(bowFields(curves()[0]!)).toMatchObject({ span: 36, rise: 0.75 });
     expect(screen.queryByText(/change the Rise to refit it\.$/)).toBeNull();
+  });
+});
+
+describe('the Kind select (fu 367)', () => {
+  const kind = () => screen.getByLabelText('Kind') as HTMLSelectElement;
+  it('shows the stored kind; a notch reads as Half-round notch', async () => {
+    const user = userEvent.setup();
+    open(apron());
+    await add(user, 'Half-round notch');
+    expect(kind().value).toBe('notch');
+  });
+  it('Arch → Bow keeps the id and placement, one undo entry; undo restores the arch (Review Focus 4)', async () => {
+    const user = userEvent.setup();
+    open(apron());
+    await add(user, 'Arch');
+    const stored = curves()[0]!;
+    const before = useStore.getState().past.length;
+    await user.selectOptions(kind(), 'Bow');
+    expect(curves()[0]!.id).toBe(stored.id);
+    expect(bowFields(curves()[0]!)).toEqual({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 });
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(kind().value).toBe('bow');
+    act(() => useStore.getState().undo());
+    expect(curves()[0]).toEqual(stored);
+  });
+  it('an option that would be refused is disabled (the notch from a 24" arch cuts through a 5" apron)', async () => {
+    const user = userEvent.setup();
+    open(apron());
+    await add(user, 'Arch');
+    expect(screen.getByRole('option', { name: 'Half-round notch' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'Bow' })).toBeEnabled();
+    expect(screen.getByRole('option', { name: 'Arch' })).toBeEnabled();
+  });
+  it('an option that would put a hole into the new waste is disabled (Review Focus 3)', () => {
+    // A through hole 1" from the length-min end, 0.3" in from the width-min edge: clear of the Arch (it starts 3" in), inside
+    // the Bow's waste there (the bow's edge 1" from the end sits ~0.435" in). Premise checked with holeFaults directly.
+    const hole: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 'through', along: 'length', alongFrom: 'min',
+      station: 1, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.3 };
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
+    open(apron({ holes: [hole], curves: [arch] }));
+    expect(screen.getByRole('option', { name: 'Bow' })).toBeDisabled();
+  });
+  it('a curve no row represents has no Kind select', () => {
+    const odd: CurveCut = { id: 'c1', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0],
+      segments: [{ type: 'line', to: [2, 0] }, { type: 'line', to: [0, 1] }, { type: 'line', to: [0, 0] }] };
+    open(apron({ curves: [odd] }));
+    expect(screen.queryByLabelText('Kind')).toBeNull();
+  });
+  it("a corner → Arch keeps its corner's end and side", async () => {
+    const user = userEvent.setup();
+    open(apron({ curves: [{ id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'min', radius: 1 }) }] }));
+    await user.selectOptions(kind(), 'Arch');
+    expect(archFields(curves()[0]!)).toEqual({ through: 'thickness', along: 'length', side: 'min', from: 'max', start: 3, span: 24, rise: 1.25 });
   });
 });
