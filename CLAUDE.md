@@ -89,11 +89,12 @@ handicraft education tradition built around hand woodworking.
   `index-CosJqZi4.js`; no schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
   trio and draws a hatched Section A–A of the ASSEMBLED piece after it (`drawView`'s `section` option, `sectionView.ts`). Residue 384
   (hatch density and the cut line's weight for the user's eye on a real print).
-- **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
-  `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
-  29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
-  under Open follow-ups below; `docs/follow-ups.md` is authoritative. The feature callouts (279, 333, 362) shipped as the
-  next round; what is left is another feature spec or a small round over the open-as-work list.
+- **NEXT: ask** (audited 2026-10-17, after section views deployed). **No follow-up is open as code-sized work**: the triage's
+  four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
+  What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
+  list, 384(2) the newest), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
+  entry's last `**Status:**` line tagged `(triaged 2026-10-16)`); 381–384 came later. `docs/follow-ups.md` is authoritative —
+  some entries close mid-line (`… **Status:** closed.` after an older `- **Status:** open.` bullet), so read an entry whole.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -1039,7 +1040,10 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
-  rulings.
+  rulings, and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
+  draws nothing).
+- **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
+  constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
   unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
