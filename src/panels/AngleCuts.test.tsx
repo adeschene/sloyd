@@ -344,11 +344,11 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
   it('the Raised panel detail reads the project units (presets minors 3)', async () => {
     const user = userEvent.setup();
     open(plank({ length: 20, width: 12 }));
-    await user.click(screen.getByRole('button', { name: '+ Add', exact: true }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
     expect(screen.getByText('Bevel the four front edges, leaving a 1/4" tongue')).toBeInTheDocument();
     await user.keyboard('{Escape}');
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
-    await user.click(screen.getByRole('button', { name: '+ Add', exact: true }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
     expect(screen.getByText('Bevel the four front edges, leaving a 6 mm tongue')).toBeInTheDocument();
   });
   it('a metric Raised panel stores exact inches and shows mm (Review Focus 1)', async () => {
