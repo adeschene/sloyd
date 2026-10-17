@@ -80,7 +80,7 @@ handicraft education tradition built around hand woodworking.
   material section and Buying on a new page (the user's ruling), checked with a real Chromium PDF (`page.pdf()` via the
   Playwright code runner — a real print IS possible on this host); a stored part is keyed once on the Plans sheet (381(4)).
   The user's real print closed 70, 79, 84, 94, 254, 345, 374, 379, 380(4), 381(3).
-- **Follow-ups 6 (2026-10-17, branch `follow-ups-6`; no schema change; NOT merged)**: closed 8 (`storage/index.ts`, guarded), 17
+- **Follow-ups 6 (2026-10-17, merged as `51f022f`, NOT deployed; no schema change)**: closed 8 (`storage/index.ts`, guarded), 17
   (`viewport/gizmoPatch.ts`), 19 (showX/Y/Z honoured; the patch unit-tested), 27 (`pointer.test.ts`), 126, 128, 169 (`api_error`
   retryable), 175 (a throwing cost function no longer strands a batch), 234 (the concept planner knows assemblies AND tapers);
   12 by decision, 31 by measurement. **269 measured: the packer loses money often** (worst 44%); a multi-start fix awaits the user.

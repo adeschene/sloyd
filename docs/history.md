@@ -528,7 +528,7 @@ add), **31** by measurement (0.7 µs a render; materials keyed per slot). **269 
 every split of 3–6 parts: the packer loses often (104 of 150 jobs on 1×4 priced dearer per foot when long, worst 44%) because
 it always opens the longest size; a multi-start candidate (each size as the preferred opener, swap down, keep the cheapest) is
 never worse and cuts the losses to 23 (worst 17%). Not applied: it changes what Buying recommends, so it goes to the user.
-4649 tests across 159 files.
+Merged as `51f022f` (the merged tree built and passed 4649 tests across 159 files); not deployed.
 
 **The user's print and rulings (2026-10-16, after follow-ups 5's deploy).** A real print "looks good": fu 70, 79, 84, 94, 254,
 345, 374, 379, 380(4) and 381(3) closed. 381(1) tags on dimension lines approved. 381(4) changed by ruling ("no we don't need to
