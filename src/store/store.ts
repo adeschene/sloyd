@@ -6,11 +6,12 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { AngleCut, Board, HoleRow, CurveCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
+import { copyProfile, sameProfile } from '../document/profiles';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -381,6 +382,10 @@ interface StoreState {
   addCurves: (boardId: string, curves: Omit<CurveCut, 'id'>[]) => void;
   updateCurve: (boardId: string, curveId: string, next: Omit<CurveCut, 'id'>) => void;
   removeCurve: (boardId: string, curveId: string) => void;
+  /** Edge profiles (profile runs a1): as curves. */
+  addProfiles: (boardId: string, profiles: Omit<ProfileCut, 'id'>[]) => void;
+  updateProfile: (boardId: string, profileId: string, next: Omit<ProfileCut, 'id'>) => void;
+  removeProfile: (boardId: string, profileId: string) => void;
 
   /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
@@ -869,6 +874,7 @@ export const useStore = create<StoreState>((set, get) => {
       angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
       holes: source.holes.map((r) => ({ ...copyHoleRow(r), id: nextId() })),
       curves: source.curves.map((c) => ({ ...copyCurve(c), id: nextId() })),
+      profiles: source.profiles.map((p) => ({ ...copyProfile(p), id: nextId() })),
     });
   };
 
@@ -1736,6 +1742,34 @@ export const useStore = create<StoreState>((set, get) => {
       if (!board || !board.curves.some((c) => c.id === curveId)) return;
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         b.id === boardId ? { ...b, curves: b.curves.filter((c) => c.id !== curveId) } : b)));
+      judgeHeld();
+    },
+    // Edge profiles (profile runs a1): exactly as curves.
+    addProfiles: (boardId, profiles) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || profiles.length === 0) return;
+      const added = profiles.map((p) => ({ ...copyProfile(p as ProfileCut), id: nextId() }));
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, profiles: [...b.profiles, ...added] } : b))));
+      judgeHeld();
+    },
+    updateProfile: (boardId, profileId, next) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      const cur = board?.profiles.find((p) => p.id === profileId);
+      if (!board || !cur) return;
+      const after: ProfileCut = { ...copyProfile(next as ProfileCut), id: profileId };
+      if (sameProfile(cur, after)) return; // a no-op edit pushes no undo entry (invariant 4)
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, profiles: b.profiles.map((p) => (p.id === profileId ? after : p)) } : b)));
+      judgeHeld();
+    },
+    removeProfile: (boardId, profileId) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || !board.profiles.some((p) => p.id === profileId)) return;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, profiles: b.profiles.filter((p) => p.id !== profileId) } : b)));
       judgeHeld();
     },
 

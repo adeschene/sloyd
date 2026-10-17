@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { applyWorldEdits, translateItems } from './treeEdit';
 import { createDocument } from './document';
-import { worldParts } from './tree';
+import { flatDocument, worldParts } from './tree';
+import { profileAsCurve, profileFromFields, sameProfile } from './profiles';
+import { curvedRefusal } from './curvedRefusal';
 import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
 import { chiralAngled, chiralCurved, chiralHoled, chiralPart, sameSet } from './turnFixtures';
 import { sameHoleRow } from './holes';
 import { archCurve, archFields, sameCurve } from './curves';
 import { sameAngleCut } from './angleCuts';
-import { SHARED_KEYS, sharedOf } from './links';
+import { SHARED_KEYS, sameShared, sharedOf } from './links';
 import { CUT_GEOMETRY_KEYS } from './cuts';
-import type { Board, Cut, Instance, Rotation, SloydDocument } from './types';
+import type { Board, Cut, Instance, ProfileCut, Rotation, SloydDocument } from './types';
 
 const TURNS: Rotation[] = [0, 90, 180, 270];
 const POSTURES = ['flat', 'on-edge', 'upright'] as const;
@@ -331,5 +333,44 @@ describe('curves through a mirror (Review Focus 2)', () => {
       const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
       expect(stored(out).curves).toBe(stored(d).curves);
     }
+  });
+});
+
+describe('profiles through a mirror (profile runs a1, Review Focus 2)', () => {
+  const q = (over: Partial<ProfileCut> = {}): ProfileCut => ({ id: 'q1',
+    ...profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'ogee', size: 0.5, fillet: 0, facing: 'u' }), ...over });
+  const withProfile = (b: Board): Board => ({ ...b, profiles: [q()] });
+  it('the world profile is the mirror of the stored one: the same curve chunk 1 mirror gives', () => {
+    const asCurve = { ...chiralPart('upright'), curves: [profileAsCurve(q())] };
+    const asProfile = withProfile(chiralPart('upright'));
+    const a = occ(doc(asCurve, { mirrored: true, rotation: 90 }));
+    const b = occ(doc(asProfile, { mirrored: true, rotation: 90 }));
+    expect(profileAsCurve(b.profiles[0]!)).toEqual(a.curves[0]);
+  });
+  it('an edit elsewhere and a resize keep the stored profiles (the same array)', () => {
+    const d0 = doc(withProfile(chiralPart('flat')), { mirrored: true });
+    const before = occ(d0);
+    expect(stored(applyWorldEdits(d0, [{ before, after: { ...before, name: 'Renamed' } }])).profiles).toBe(stored(d0).profiles);
+    expect(stored(applyWorldEdits(d0, [{ before, after: { ...before, length: before.length + 1 } }])).profiles).toBe(stored(d0).profiles);
+  });
+  it('an edit to a world profile writes back its mirror; placing again shows the edit; repeats do not drift', () => {
+    const d0 = doc(withProfile(chiralPart('upright')), { mirrored: true, rotation: 90 });
+    const before = occ(d0);
+    const edited = before.profiles.map((p) => ({ ...p, size: 0.375 }));
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, profiles: edited } }]);
+    expect(sameProfile(occ(d1).profiles[0]!, edited[0]!)).toBe(true);
+    expect(stored(d1).profiles[0]!.size).toBe(0.375);
+    const d2 = applyWorldEdits(d1, [{ before: occ(d1), after: { ...occ(d1), profiles: occ(d1).profiles.map((p) => ({ ...p })) } }]);
+    stored(d1).profiles.forEach((p, i) => expect(stored(d2).profiles[i]).toBe(p));
+  });
+  it('Link compares profiles by id and value, in order', () => {
+    const a = withProfile(chiralPart('flat'));
+    expect(sameShared(a, { ...a, profiles: [q()] })).toBe(true);
+    expect(sameShared(a, { ...a, profiles: [q({ id: 'other' })] })).toBe(false);
+    expect(sameShared(a, { ...a, profiles: [q({ size: 0.375 })] })).toBe(false);
+  });
+  it('joinery and Refine refuse a part with profiles and no curves', () => {
+    const d = doc(withProfile(chiralPart('flat')), {});
+    expect(curvedRefusal(flatDocument(d), 'joinery')).toMatch(/Add joinery doesn't handle parts with curves yet/);
   });
 });

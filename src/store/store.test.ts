@@ -3,7 +3,8 @@ import { ARCH } from '../document/curveFixtures';
 import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
-import type { Board, SloydDocument } from '../document/document';
+import type { Board, Shape, SloydDocument } from '../document/document';
+import { profileFromFields } from '../document/profiles';
 import { taperCut } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
@@ -3349,5 +3350,56 @@ describe('setKerf (fu 98)', () => {
     useStore.getState().setKerf(k);
     expect(useStore.getState().doc.stock.kerf).toBe(0.125);
     expect(useStore.getState().canUndo()).toBe(false);
+  });
+});
+
+describe('profile actions (profile runs a1)', () => {
+  const ro = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+  const setup = (doc: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75 })] }) => {
+    useStore.setState({ doc, selectedIds: [], past: [], future: [], tool: 'select', grabbed: null, tapeAnchor: null, tapeHover: null, explode: 0 });
+  };
+  const s = () => useStore.getState();
+  const profiles = (i = 0) => (s().doc.boards[i] as Board).profiles;
+  it('adds with a fresh id, updates and removes, one undo entry each', () => {
+    setup();
+    s().addProfiles('top', [ro]);
+    const id = profiles()[0]!.id;
+    expect(profiles()[0]).toEqual({ ...ro, id });
+    s().updateProfile('top', id, { ...ro, size: 0.375 });
+    expect(profiles()[0]!.size).toBe(0.375);
+    s().removeProfile('top', id);
+    expect(profiles()).toEqual([]);
+    expect(s().past.length).toBe(3);
+  });
+  it('an unchanged update pushes no undo entry (inv 4)', () => {
+    setup();
+    s().addProfiles('top', [ro]);
+    const before = s().past.length;
+    s().updateProfile('top', profiles()[0]!.id, ro);
+    expect(s().past.length).toBe(before);
+  });
+  it('is refused while exploded (inv 47)', () => {
+    setup();
+    s().setExplode(0.5);
+    s().addProfiles('top', [ro]);
+    expect(profiles()).toEqual([]);
+  });
+  it('a duplicate gets fresh profile ids and shares no run object', () => {
+    setup();
+    s().addProfiles('top', [ro]);
+    s().selectBoard('top');
+    s().duplicateBoards(['top']);
+    const [a, b] = [profiles(0)[0]!, profiles(1)[0]!];
+    expect(b.id).not.toBe(a.id);
+    expect(b.run).not.toBe(a.run);
+    expect({ ...b, id: a.id }).toEqual(a);
+  });
+  it('an edit through one user of a shape reaches every user (shared, inv 45)', () => {
+    const shape: Shape = { id: 's1', length: 36, width: 20, thickness: 0.75, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [{ ...ro, id: 'p1' }] };
+    setup({ ...createDocument('T'), shapes: [shape], boards: [
+      { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [0, 0, 30], rotation: 0, shape: 's1' }] });
+    s().updateProfile('a', 'p1', { ...ro, size: 0.375 });
+    expect(s().doc.shapes[0]!.profiles[0]!.size).toBe(0.375);
+    expect(worldParts(s().doc).find((p) => p.id === 'b')!.profiles[0]!.size).toBe(0.375);
   });
 });
