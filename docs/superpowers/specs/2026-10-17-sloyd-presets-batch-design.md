@@ -21,6 +21,9 @@ User rulings (brainstorm, 2026-10-17):
   that leaves a **1/4" tongue** at the edge.
 - **R3 (367)** A **Kind** select on a representable curve row. A kind change keeps the curve's placement and takes the new
   kind's preset sizes. The one exception is Arch ↔ Half-round notch, which keeps the span.
+  **Reconfirmed by the user 2026-10-17**, after seeing it live (the notch greyed out from a 24" arch on a 5" apron, available
+  from a 4" one): "losing the span is probably never going to be the intention, and if it was, the user could simply delete
+  the arch and add a new one, then choose half-round". Do not re-propose the preset-notch alternative.
 
 Non-goals:
 - linked or grouped angle cuts;
