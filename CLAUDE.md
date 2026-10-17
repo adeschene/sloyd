@@ -94,7 +94,7 @@ handicraft education tradition built around hand woodworking.
   curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
 - **Presets minors (2026-10-17, merged to master as `e776ecc`; DEPLOYED as `index-fwemJPwC.js`; no schema change)**: the presets batch's three deferred review minors — the
   curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
-- **Edge profiles chunk 1 (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`, plan `…-edge-profiles.md`, merged to master; NOT YET
+- **Edge profiles chunk 1 (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`, plan `…-edge-profiles.md`, merged to master as `7b04744`; NOT YET
   DEPLOYED; no schema change)**: fu 365's full-length half and fu 386 closed — Roundover, Cove, Roman ogee, Bead, Thumbnail (an optional
   fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
   collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
