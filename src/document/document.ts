@@ -538,8 +538,11 @@ function refuseProfile(why: string): never {
  * a non-finite or non-positive size; a thumbnail depth outside (0, size); a negative or non-finite fillet; a bead whose
  * quirk is not > 0; an unknown face or facing; an end whose side is not length/width × min/max, or which is neither a
  * `through` end nor a finite `at` with a `from`; a run that is not an object. A symmetric kind's facing is normalised to
- * 'face'; an End to end run stored max→min to min→max. REFUSED (the document): an unknown kind string; a loop, a station
- * end, or ends on two sides (chunk a1 builds only End to end). A faulted but well-formed profile is KEPT.
+ * 'face'; an End to end run stored max→min to min→max. REFUSED (the document, decided before any drop, spec §3.2/P2): an
+ * unknown kind string; a run key other than loop/start/end; a `loop` that is not exactly true (`all round`; `true` too); an
+ * end whose side parses and which has a key other than side/through/from/at, or is a station end (from/at, whole or
+ * half-valid, even beside an unreadable end: `stopped`); ends on two sides. Chunk a1 builds only End to end. A faulted but
+ * well-formed profile is KEPT.
  */
 function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
   if (!Array.isArray(raw)) return [];
@@ -565,10 +568,16 @@ function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
     if (typeof p.kind === 'string' && !PROFILE_KINDS.includes(p.kind as ProfileKind)) refuseProfile(`kind "${p.kind}"`);
     const r = p.run as Record<string, unknown> | null;
     if (typeof r === 'object' && r !== null) {
-      if (r.loop === true) refuseProfile('all round');
+      for (const k of Object.keys(r)) if (k !== 'loop' && k !== 'start' && k !== 'end') refuseProfile(`run "${k}"`);
+      if ('loop' in r) refuseProfile('all round');   // true or not: a loop is a later build's run form
+      for (const end of [r.start, r.end]) {
+        const e = end as Record<string, unknown> | null;
+        if (typeof e !== 'object' || e === null || !sideOf(e.side)) continue;   // an unreadable end is dropped below
+        for (const k of Object.keys(e)) if (k !== 'side' && k !== 'through' && k !== 'from' && k !== 'at') refuseProfile(`run "${k}"`);
+        if (!VALID_FROMS.includes(e.through as CutFrom) && ('from' in e || 'at' in e)) refuseProfile('stopped');
+      }
       const s = endOf(r.start);
       const e = endOf(r.end);
-      if (s && e && (!('through' in s) || !('through' in e))) refuseProfile('stopped');
       if (s && e && (s.side.across !== e.side.across || s.side.from !== e.side.from)) refuseProfile('ends on two sides');
     }
     if (!PROFILE_KINDS.includes(p.kind as ProfileKind)) continue;

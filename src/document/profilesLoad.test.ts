@@ -85,6 +85,27 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
       expect(() => load(raw)).toThrow(`This project has an edge profile this version of Sloyd can't build (${why}) — it was saved by a newer version of Sloyd.`);
     });
   }
+  // Spec §3.2: an unknown key, a non-true loop and a station end each refuse; a refusal outranks any drop.
+  const through = (m: 'min' | 'max') => ({ side, through: m });
+  const okRun = { start: through('min'), end: through('max') };
+  const refuses = (why: string, over: object, run: unknown = okRun) => {
+    const raw = { ...v17([part({ profiles: [{ ...p1(), ...over, run }] })]), version: 18 };
+    expect(() => load(raw)).toThrow(`(${why})`);
+  };
+  it('an unknown run key refuses the document', () => refuses('run "via"', {}, { ...okRun, via: 'outline' }));
+  it('a loop that is not exactly true refuses the document', () => refuses('all round', {}, { ...okRun, loop: 'inner' }));
+  it('an end with an unknown key refuses the document', () => refuses('run "mitre"', {}, { start: { ...through('min'), mitre: 1 }, end: through('max') }));
+  it('a station end beside an unreadable end refuses the document', () =>
+    refuses('stopped', {}, { start: { side, from: 'min', at: 3 }, end: { side: { across: 'depth', from: 'max' }, through: 'max' } }));
+  it('a station end with a half-valid from/at refuses the document', () =>
+    refuses('stopped', {}, { start: { side, from: 'min' }, end: through('max') }));
+  it('a refusal outranks a drop: unknown kind with a bad size', () => refuses('kind "chamfer"', { kind: 'chamfer', size: -1 }));
+  it('a refusal outranks a drop: a station end with size -1', () =>
+    refuses('stopped', { size: -1 }, { start: { side, from: 'min', at: 3 }, end: through('max') }));
+  it('a run that is a string, or an end missing its side, still drops', () => {
+    const raw = { ...v17([part({ profiles: [{ ...p1(), id: 'a', run: 'all' }, { ...p1(), id: 'b', run: { start: { through: 'min' }, end: through('max') } }, { ...p1(), id: 'c' }] })]), version: 18 };
+    expect(board0(load(raw)).profiles.map((p) => p.id)).toEqual(['c']);
+  });
   it('an unknown profile kind string refuses the document', () => {
     const raw = { ...v17([part({ profiles: [{ ...p1(), kind: 'chamfer' }] })]), version: 18 };
     expect(() => load(raw)).toThrow('This project has an edge profile this version of Sloyd can\'t build (kind "chamfer") — it was saved by a newer version of Sloyd.');
