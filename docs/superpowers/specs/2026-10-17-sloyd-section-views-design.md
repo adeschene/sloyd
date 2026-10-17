@@ -1,7 +1,8 @@
 # Sloyd — section views on the Plans sheet (design)
 
 Date: 2026-10-17. Follow-up 256 (the sheet half of section views; the viewport half shipped as the section cut,
-`2026-10-14-sloyd-section-cut-design.md`, inv 51). Status: draft, awaiting the user's review.
+`2026-10-14-sloyd-section-cut-design.md`, inv 51). Status: approved by the user 2026-10-17 ("go with what you'd recommend"); plan
+`docs/superpowers/plans/2026-10-17-sloyd-section-views.md`.
 
 ## 1. Purpose and rulings
 
