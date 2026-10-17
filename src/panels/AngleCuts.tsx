@@ -168,7 +168,7 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
               // the stored edge's legs already overrun as far, at this size (fu 296).
               const over = chamfer.legFace > board[x.face] ? x.face : chamfer.legAlong > board[x.along] ? x.along : null;
               const excess = Math.max(chamfer.legFace - board[x.face], chamfer.legAlong - board[x.along]);
-              if (over && worse(excess, cExcess)) { setError(`Removes more than the ${over} — reduce the size first.`); return; }
+              if (over && worse(excess, cExcess)) { setError(`Removes more than the ${over} — reduce the leg into the ${over} first.`); return; }
               setC(x);
             }}>
               {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}

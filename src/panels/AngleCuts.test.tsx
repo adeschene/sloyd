@@ -294,7 +294,7 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     expect(cuts()[0]).toEqual(stored);
     expect(useStore.getState().past.length).toBe(past);
     expect((screen.getByLabelText('Edge') as HTMLSelectElement).value).toBe(before);
-    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce the size first.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce the leg into the thickness first.');
     await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · width max side');
     expect(cuts()[0]).toMatchObject({ face: 'length', from: 'min', along: 'width', alongFrom: 'max' });
     expect(screen.queryByRole('alert')).toBeNull();
@@ -305,7 +305,7 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     const stored = cuts()[0]!;
     await user.selectOptions(screen.getByLabelText('Edge'), 'Width max side · thickness max side');
     expect(cuts()[0]).toEqual(stored);
-    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the size first.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the leg into the width first.');
   });
   it('withholds Bevel when the default 15 degrees would be deeper than the width (fu 296 sibling)', async () => {
     const user = userEvent.setup();
