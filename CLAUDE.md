@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is presets batch + fu 385** (deployed 2026-10-17 from `b76f41a`, bundle `index-JgTwUVAc.js`, CSS `index-gCtQCsSI.css`);
-  rollback to presets batch (`387abfe`, `index-D8voXrmI.js`) or section views (`853d12b`, `index-CosJqZi4.js`) is free.
+- **Production is presets minors** (deployed 2026-10-17 from `97b38f2`, bundle `index-fwemJPwC.js`, CSS `index-gCtQCsSI.css`);
+  rollback to presets batch + fu 385 (`b76f41a`, `index-JgTwUVAc.js`) or presets batch (`387abfe`, `index-D8voXrmI.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -92,7 +92,7 @@ handicraft education tradition built around hand woodworking.
 - **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
   curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
-- **Presets minors (2026-10-17, merged to master as `e776ecc`; NOT YET DEPLOYED; no schema change)**: the presets batch's three deferred review minors — the
+- **Presets minors (2026-10-17, merged to master as `e776ecc`; DEPLOYED as `index-fwemJPwC.js`; no schema change)**: the presets batch's three deferred review minors — the
   curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch and presets minors since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
