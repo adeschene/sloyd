@@ -38,7 +38,8 @@ export function profileName(p: ProfileFields, units: Units): string {
   }
 }
 const topFace = (p: ProfileFields) => { const [u, v] = uvDims(p.through); return p.facing === 'v' ? faceName(v, p.vFrom) : faceName(u, p.uFrom); };
-const filletWords = (p: ProfileFields, units: Units) => (p.kind !== 'bead' && (p.fillet ?? 0) > 0 ? `, with a ${formatLength(p.fillet!, units)} fillet` : '');
+/** A profile's fillet in words, or nothing (THE one home: the bench line, the four-edge collapse and the Plans key). */
+export const filletWords = (p: ProfileFields, units: Units) => (p.kind !== 'bead' && (p.fillet ?? 0) > 0 ? `, with a ${formatLength(p.fillet!, units)} fillet` : '');
 function profileLine(p: ProfileFields, units: Units): string {
   const [u, v] = uvDims(p.through);
   const top = profileAsymmetric(p) ? `, top on ${topFace(p)}` : '';

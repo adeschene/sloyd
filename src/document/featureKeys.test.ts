@@ -103,3 +103,21 @@ it('profile key lines are short words (edge profiles spec §4)', () => {
   const four = partFeatures({ ...top, curves: [p('a', 'length', 'min'), p('b', 'length', 'max'), p('c', 'width', 'min'), p('d', 'width', 'max')] }, IMPERIAL);
   expect(four.filter((f) => f.tags[0]!.includes('curve')).map((f) => f.text)).toEqual(['Roman ogee 1/2" (4×)']);
 });
+
+it('a filleted profile keys apart from a plain one (final review F2): the fillet words are in the key line', () => {
+  const top = createBoard({ id: 't', length: 36, width: 20, thickness: 0.75 });
+  const p = (id: string, through: 'length' | 'width', uFrom: 'min' | 'max', fillet: number) =>
+    ({ id, ...profileCurve({ through, uFrom, vFrom: 'max', facing: 'v', kind: 'roundover', size: 0.25, fillet }) });
+  const curveTexts = (b: Board) => partFeatures(b, IMPERIAL).filter((f) => f.tags[0]!.includes('curve')).map((f) => f.text);
+  const plain = curveTexts({ ...top, curves: [p('a', 'length', 'max', 0)] });
+  const filleted = curveTexts({ ...top, curves: [p('a', 'length', 'max', 0.0625)] });
+  expect(plain).toEqual(['Roundover 1/4"']);
+  // The bench line's own words (`filletWords`, curveText.ts): planKeys letters by identical key line, so these two differ.
+  expect(filleted).toEqual(['Roundover 1/4", with a 1/16" fillet']);
+  // Both on one part: two lines, two letters.
+  expect(curveTexts({ ...top, curves: [p('a', 'length', 'max', 0), p('b', 'length', 'min', 0.0625)] }))
+    .toEqual(['Roundover 1/4"', 'Roundover 1/4", with a 1/16" fillet']);
+  // The four-edge collapse still reads (4×), after the fillet words.
+  const four = (['length', 'width'] as const).flatMap((t) => (['min', 'max'] as const).map((u) => p(`${t}${u}`, t, u, 0.0625)));
+  expect(curveTexts({ ...top, curves: four })).toEqual(['Roundover 1/4", with a 1/16" fillet (4×)']);
+});

@@ -8,7 +8,7 @@ import { holePitchText, holeSizeText } from './holeText';
 import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, curveFaults, localSegments } from './curves';
-import { curveLineEntries, profileName } from './curveText';
+import { curveLineEntries, filletWords, profileName } from './curveText';
 import { profileFields } from './profiles';
 
 /**
@@ -73,7 +73,8 @@ function angleText(b: Board, c: AngleCut, units: Units): string {
 function curveText(c: CurveCut, b: Board, units: Units, collapsed: boolean): string {
   const f = (n: number) => formatLength(n, units);
   const prof = profileFields(c);
-  if (prof) return `${profileName(prof, units)}${collapsed ? ' (4×)' : ''}`;
+  // Final review F2: the fillet words too (THE bench line's helper), or a filleted and a plain profile share a letter.
+  if (prof) return `${profileName(prof, units)}${filletWords(prof, units)}${collapsed ? ' (4×)' : ''}`;
   const arch = archFields(c);
   if (arch) {
     if (arch.rise === arch.span / 2) return `Half-round notch, ${f(arch.span)} wide`;
