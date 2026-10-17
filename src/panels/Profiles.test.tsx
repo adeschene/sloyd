@@ -152,6 +152,40 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     expect((screen.getByLabelText('Profile') as HTMLSelectElement).value).toBe('roundover');
   });
 
+  // fu 388 (the user's ruling: "greying out a choice makes sense"): the Curves Kind select's rule — options judged only
+  // while the select has focus, a refused one disabled with the refusal's own words up to its dash.
+  const profileSelect = () => screen.getByLabelText('Profile') as HTMLSelectElement;
+  it('a Profile option whose default would be refused is disabled and says why (fu 388)', async () => {
+    const user = userEvent.setup();
+    open(top({ holes: [bore(0.3)] }));
+    await add(user, 'Roundover');
+    act(() => profileSelect().focus());
+    expect(screen.getByRole('option', { name: 'Cove — puts hole 1 into the cove' })).toBeDisabled();
+    expect(screen.getByRole('option', { name: 'Roundover' })).toBeEnabled();
+  });
+  it('Profile options are judged on focus, not on every render, and dropped on blur (fu 388)', async () => {
+    const user = userEvent.setup();
+    open(top({ holes: [bore(0.3)] }));
+    await add(user, 'Roundover');
+    expect(screen.getByRole('option', { name: 'Cove' })).toBeEnabled();     // not judged yet
+    act(() => profileSelect().focus());
+    expect(screen.getByRole('option', { name: 'Cove — puts hole 1 into the cove' })).toBeDisabled();
+    act(() => profileSelect().blur());
+    expect(screen.getByRole('option', { name: 'Cove' })).toBeEnabled();
+  });
+  it('a profile moved under the focused select is judged afresh (fu 388)', async () => {
+    const user = userEvent.setup();
+    open(top({ holes: [bore(0.3)] }));
+    await add(user, 'Roundover');
+    const stored = curves()[0]!;
+    act(() => profileSelect().focus());
+    expect(screen.getByRole('option', { name: 'Cove — puts hole 1 into the cove' })).toBeDisabled();
+    // Moved to the width MIN long edge, far from the bore: the cove fits there.
+    const moved = profileCurve({ ...profileFields(stored)!, uFrom: 'min' });
+    act(() => useStore.getState().updateCurve('top', stored.id, moved));
+    expect(screen.getByRole('option', { name: 'Cove' })).toBeEnabled();
+  });
+
   it('Thumbnail Depth must be less than its Reach', async () => {
     const user = userEvent.setup();
     open(top());
