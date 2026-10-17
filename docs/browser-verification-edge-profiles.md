@@ -26,4 +26,5 @@ Project ▾ → Import… as the project "Edge profiles check" and left in place
   kind × edge × facing × view, the four-edge sets and the Curves presets (which had the same defect on master). The fixture
   gives 0 mismatches in all four views.
 - Console: 0 errors; the warnings are the known THREE deprecations and the software-GL ReadPixels stall.
-- Left for the user's eye: profile shading on real hardware, and the Plans sheet on a real print.
+- Left for the user's eye: profile shading on real hardware — **approved by the user 2026-10-17** ("The profiles look great on
+  real hardware") —, and the Plans sheet on a real print.
