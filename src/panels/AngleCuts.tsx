@@ -174,9 +174,15 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
               {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}
             </select>
           </div>
-          <DimensionField label="Size" units={units}
-            value={chamfer.legFace === chamfer.legAlong ? chamfer.legFace : null} max={Math.min(board[chamfer.face], board[chamfer.along])}
-            onCommit={(v) => setC({ legFace: v, legAlong: v })} />
+          {/* fu 298: one field per leg, each its own stored value (never a mixed field), labelled as the bench line words
+              it. A leg a resize pushed past its dimension may be reduced, never deepened (fu 296): the max is the larger of
+              the dimension and the stored leg. */}
+          <DimensionField label={`Into the ${chamfer.face}`} units={units}
+            value={chamfer.legFace} max={Math.max(board[chamfer.face], chamfer.legFace)}
+            onCommit={(v) => setC({ legFace: v })} />
+          <DimensionField label={`Into the ${chamfer.along}`} units={units}
+            value={chamfer.legAlong} max={Math.max(board[chamfer.along], chamfer.legAlong)}
+            onCommit={(v) => setC({ legAlong: v })} />
         </div>
         {error && <p className="field-error" role="alert">{error}</p>}
       </div>
