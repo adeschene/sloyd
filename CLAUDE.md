@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is follow-ups 5** (merge `007ea3a`, deployed as `4e15e7d`, bundle `index-uIgR_wtf.js`, CSS `index-DrcAQ1SN.css`);
-  rollback to feature callouts (`0b2ae73`, `index-CaMRIw2a.js`) or plans balloons (`80520db`, `index-CCbseJx_.js`) is free.
+- **Production is print sections** (fu 383 + 381(4), deployed as `237e5fa`, bundle `index-BGflwWYN.js`, CSS `index-BGMlD6Uu.css`);
+  rollback to follow-ups 5 (`e81dd8d`, `index-uIgR_wtf.js`) or feature callouts (`0b2ae73`, `index-CaMRIw2a.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -76,7 +76,7 @@ handicraft education tradition built around hand woodworking.
   the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
   (no sliver cell; it was marked crossing), 151 (row actions reveal on KEYBOARD focus; the user approved the look). 207
   record-only by the user's ruling (rare; the one remedy re-enables orbit mid-press). Residue 382.
-- **Fu 383 + 381(4) (2026-10-16, on master after follow-ups 5; no schema change; NOT deployed)**: the printed cut list starts each
+- **Fu 383 + 381(4) (2026-10-16, on master after follow-ups 5; no schema change; deployed 2026-10-17 as `index-BGflwWYN.js`)**: the printed cut list starts each
   material section and Buying on a new page (the user's ruling), checked with a real Chromium PDF (`page.pdf()` via the
   Playwright code runner — a real print IS possible on this host); a stored part is keyed once on the Plans sheet (381(4)).
   The user's real print closed 70, 79, 84, 94, 254, 345, 374, 379, 380(4), 381(3).

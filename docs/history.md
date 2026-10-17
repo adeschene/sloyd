@@ -522,7 +522,10 @@ messily. Design approved in chat ("yes, new page per section", over keeping a se
 day: print rules start every material section after the first, and Buying, on a new page; headings never end a page; the
 subtotal never starts one. Checked with a REAL Chromium PDF — `page.pdf()` works through the Playwright code runner, which
 earlier rounds (fu 70, 79, 254) wrongly thought impossible: 29 parts, three materials, 7 pages, every break clean
-(`docs/img/fu383-cutlist-pages.png`).
+(`docs/img/fu383-cutlist-pages.png`). Deployed 2026-10-17 as `237e5fa` (`index-BGflwWYN.js`, CSS `index-BGMlD6Uu.css`) on the
+user's word: hashes match `dist/` in-network and at the edge, old files 404, CSP correct, the edge CSS carries the section break,
+a real page load clean (in screen media — the PDF check's print emulation had persisted on the Playwright page and hid the
+toolbar), its keys removed and read back empty.
 
 **What follow-ups 5 did (2026-10-16)** (the user's pick: a small round led by 216; branch `follow-ups-5` from master
 `0b2ae73`; no spec, the fixes were written down). **216 reproduced, then closed**: a probe of 4008 mm dados found 2591 storing
