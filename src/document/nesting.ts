@@ -352,14 +352,16 @@ export interface PackedBin<B extends Bin> { bin: B; parts: PlacedPart[] }
  * two differences: grain always runs along the board (no rotation), and the bins
  * are not one sheet size. A part first tries every board already open; when none
  * holds it, the LARGEST size (by length, then width; ties keep list order) that
- * holds it alone is opened. A part no size holds is returned in `unplaceable`,
- * never dropped. Choosing cheaper sizes afterwards is the caller's job.
+ * holds it alone is opened — or `prefer`, when given and it holds the part (fu 269: the caller tries each size as the
+ * opener, because largest-first alone paid up to 44% more). A part no size holds is returned in `unplaceable`, never
+ * dropped. Choosing cheaper sizes afterwards is the caller's job.
  */
 export function packOnto<B extends Bin>(
   boards: Board[],
   sizes: readonly B[],
   kerf: number,
   units: Units,
+  prefer?: B,
 ): { bins: PackedBin<B>[]; unplaceable: Board[] } {
   const sorted = [...boards].sort((a, b) => {
     const fa = grainFootprint(a);
@@ -371,10 +373,13 @@ export function packOnto<B extends Bin>(
   for (const board of sorted) {
     const options = [grainFootprint(board)];
     if (open.some((o) => placeOn(o.sheet, board, options, o.bin, kerf, units))) continue;
-    let pick: B | null = null;
-    for (const s of sizes) {
-      if (!fitsStock(options[0]!.w, s.length, units) || !fitsStock(options[0]!.h, s.width, units)) continue;
-      if (!pick || s.length > pick.length || (s.length === pick.length && s.width > pick.width)) pick = s;
+    const fits = (s: B) => fitsStock(options[0]!.w, s.length, units) && fitsStock(options[0]!.h, s.width, units);
+    let pick: B | null = prefer !== undefined && fits(prefer) ? prefer : null;
+    if (!pick) {
+      for (const s of sizes) {
+        if (!fits(s)) continue;
+        if (!pick || s.length > pick.length || (s.length === pick.length && s.width > pick.width)) pick = s;
+      }
     }
     if (!pick) { unplaceable.push(board); continue; }
     const sheet: WorkingSheet = { parts: [], shelves: [] };

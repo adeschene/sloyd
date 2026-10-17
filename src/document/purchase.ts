@@ -212,17 +212,38 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
     if (!group) continue;
     const sizes = stock.filter((s) => Math.abs(s.thickness - t) <= EPS);
     const byId = new Map(group.map((b) => [b.id, b]));
-    for (const bin of packOnto(group, sizes, kerf, units).bins) {
-      const own = bin.parts.map((pp) => byId.get(pp.boardId)!);
-      const holds = (s: StockBoard) => {
-        const r = packOnto(own, [s], kerf, units);
-        return r.bins.length === 1 && r.unplaceable.length === 0 ? r.bins[0]!.parts : null;
-      };
-      const fitting = sizes.filter((s) => s === bin.bin || holds(s) !== null);
-      const priced = fitting.filter((s) => s.price !== null);
-      const pick = priced.length > 0 ? minBy(priced, (s) => s.price!) : minBy(fitting, (s) => s.length * s.width);
-      chosen.push({ size: pick, parts: pick === bin.bin ? bin.parts : holds(pick)! });
-      const area = (s: StockBoard) => s.length * s.width;
+    const area = (s: StockBoard) => s.length * s.width;
+    // The largest-first plan, then — only when its every board has a price — one plan per size preferred as the opener
+    // (fu 269: largest-first alone paid up to 44% more). Each board is swapped down to the cheapest size that still holds
+    // its parts, proved by re-packing. Without prices there is no money to compare, so the plan stays largest-first (the
+    // default pine stock is unpriced; the user's approval was for price).
+    const plan = (prefer: StockBoard | undefined) =>
+      packOnto(group, sizes, kerf, units, prefer).bins.map((bin) => {
+        const own = bin.parts.map((pp) => byId.get(pp.boardId)!);
+        const holds = (s: StockBoard) => {
+          const r = packOnto(own, [s], kerf, units);
+          return r.bins.length === 1 && r.unplaceable.length === 0 ? r.bins[0]!.parts : null;
+        };
+        const fitting = sizes.filter((s) => s === bin.bin || holds(s) !== null);
+        const priced = fitting.filter((s) => s.price !== null);
+        const pick = priced.length > 0 ? minBy(priced, (s) => s.price!) : minBy(fitting, area);
+        return { pick, fitting, parts: pick === bin.bin ? bin.parts : holds(pick)! };
+      });
+    // A plan's price, or null when any board it buys has none.
+    const price = (p: ReturnType<typeof plan>) =>
+      p.every((b) => b.pick.price !== null) ? p.reduce((sum, b) => sum + b.pick.price!, 0) : null;
+    let best = plan(undefined);
+    let bestPrice = price(best);
+    if (bestPrice !== null) {
+      for (const s of sizes) {
+        const p = plan(s);
+        const cost = price(p);
+        // Strictly cheaper only: a tie keeps the largest-first plan (fewer boards).
+        if (cost !== null && cost < bestPrice - EPS) { best = p; bestPrice = cost; }
+      }
+    }
+    for (const { pick, fitting, parts } of best) {
+      chosen.push({ size: pick, parts });
       const smaller = fitting.filter((s) => s.price === null && area(s) < area(pick));
       if (pick.price !== null && smaller.length > 0) {
         const alt = minBy(smaller, area);

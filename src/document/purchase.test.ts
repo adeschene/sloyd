@@ -1,4 +1,5 @@
 import { createBoard, createDocument, buildCutList } from './document';
+import { packOnto } from './nesting';
 import type { Board, CustomMaterial, FlatDocument } from './types';
 import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
 import { nominalName } from '../units/nominal';
@@ -35,15 +36,100 @@ describe('buildPurchase — by the board foot', () => {
 });
 
 describe('buildPurchase — by the piece', () => {
-  it('opens the largest size, then swaps each board down to the cheapest that still holds it', () => {
-    // Parts 40×5, 40×5, 30×5, kerf ⅛. Largest ¾ size is B (96×7¼): 40 + ⅛ + 40 = 80⅛ fits; 30 more does not
-    // (110¼ > 96) and a second shelf needs 5⅛ + 5 = 10⅛ > 7¼ → a second B. Swap down: board 1 (80⅛ long) fits
-    // A ($12) and B ($18), not C (72) → A; board 2 (30) fits A, B, C → C ($9). Total $21.
+  it('swaps each board down to the cheapest size that still holds it, keeping the cheapest plan', () => {
+    // Parts 40×5, 40×5, 30×5, kerf ⅛. Largest-first opens B (96×7¼): 40 + ⅛ + 40 = 80⅛ fits, 30 more does not (110¼ > 96)
+    // and a second shelf needs 5⅛ + 5 = 10⅛ > 7¼ → a second B; swapped down, 80⅛ → A ($12) and 30 → C ($9): $21.
+    // Opening C (72) instead: 40 + ⅛ + 30 = 70⅛ fits one C, the other 40 a second C: $18, the plan kept (fu 269).
     const shop = shopWith({ pine: { mode: 'piece', stock: [A, B, C] } });
     const p = purchase([pine('p1', 40, 5), pine('p2', 40, 5), pine('p3', 30, 5)], shop);
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′, 1 × 1×6 × 6′ · $21.00']);
-    expect(p.entries[0]!.cost).toBe(21);
-    expect(p.entries[0]!.layouts.map((l) => [l.key, l.nesting.sheets.length])).toEqual([['A', 1], ['C', 1]]);
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 1×6 × 6′ · $18.00']);
+    expect(p.entries[0]!.cost).toBe(18);
+    expect(p.entries[0]!.layouts.map((l) => [l.key, l.nesting.sheets.length])).toEqual([['C', 2]]);
+  });
+
+  // Fu 269 (measured: the largest-first packer paid more in 104 of 150 random 1×4 jobs, worst 44%). Long boards dearer
+  // per foot here, as at many yards: 6′ $8, 8′ $10, 10′ $14, 12′ $18.
+  const S6 = size('S6', 0.75, 3.5, 72, 8);
+  const S8 = size('S8', 0.75, 3.5, 96, 10);
+  const S10 = size('S10', 0.75, 3.5, 120, 14);
+  const S12 = size('S12', 0.75, 3.5, 144, 18);
+  const ONE_BY_FOUR = [S6, S8, S10, S12];
+
+  it('tries each size as the board it opens, not only the longest (fu 269)', () => {
+    // Largest-first: 74 and 68 share a 12′ (142⅛), then 26 and 17 a 6′ — $26. Two 8′ boards hold 74 + 17 (91⅛) and
+    // 68 + 26 (94⅛) — $20.
+    const shop = shopWith({ pine: { mode: 'piece', stock: ONE_BY_FOUR } });
+    const p = purchase([pine('a', 26, 3.5), pine('b', 74, 3.5), pine('c', 17, 3.5), pine('d', 68, 3.5)], shop);
+    expect(p.entries[0]!.cost).toBe(20);
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 1×4 × 8′ · $20.00']);
+  });
+
+  it('without prices the plan is the largest-first one, unchanged (the default pine stock has none)', () => {
+    // The same parts as the swap-down test above, every size unpriced: no money to compare, so no other plan is tried —
+    // largest-first then swapped to the smallest board that holds each: one 8′ (80⅛) and one 6′ (30).
+    const unpriced = [A, B, C].map((s) => ({ ...s, price: null }));
+    const p = purchase([pine('p1', 40, 5), pine('p2', 40, 5), pine('p3', 30, 5)], shopWith({ pine: { mode: 'piece', stock: unpriced } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′, 1 × 1×6 × 6′ · no price']);
+  });
+
+  it('a tie keeps the largest-first plan (fewer boards to carry home)', () => {
+    // 40 + 40 on one 8′ ($10), or on two 4′ boards ($5 + $5): the same money, so the old plan stands.
+    const X = size('X', 0.75, 3.5, 96, 10);
+    const Y = size('Y', 0.75, 3.5, 48, 5);
+    const p = purchase([pine('a', 40, 3.5), pine('b', 40, 3.5)], shopWith({ pine: { mode: 'piece', stock: [X, Y] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×4 × 8′ · $10.00']);
+  });
+
+  it('priced plans are compared by price, even when the cheaper one buys more wood', () => {
+    // 55 + 55 fit one 10′ ($18, 120") or two 6′ ($8 each, 144"): $16 wins.
+    const X = size('X', 0.75, 3.5, 120, 18);
+    const Y = size('Y', 0.75, 3.5, 72, 8);
+    const p = purchase([pine('a', 55, 3.5), pine('b', 55, 3.5)], shopWith({ pine: { mode: 'piece', stock: [X, Y] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 1×4 × 6′ · $16.00']);
+  });
+
+  it('never pays more than the largest-first plan, and never less than the best possible split (random jobs)', () => {
+    // Bounds from OUTSIDE the code under test (inv 23): the old plan, rebuilt here from packOnto, and a brute force over
+    // every split of the parts onto boards, each board the cheapest size that holds its parts alone.
+    const units = IMPERIAL;
+    const holds = (parts: Board[], s: StockBoard) => {
+      const r = packOnto(parts, [s], 0.125, units);
+      return r.bins.length === 1 && r.unplaceable.length === 0;
+    };
+    const cheapest = (parts: Board[]) => Math.min(...ONE_BY_FOUR.filter((s) => holds(parts, s)).map((s) => s.price!));
+    const largestFirst = (parts: Board[]) => {
+      const by = new Map(parts.map((b) => [b.id, b]));
+      return packOnto(parts, ONE_BY_FOUR, 0.125, units).bins
+        .reduce((sum, bin) => sum + cheapest(bin.parts.map((pp) => by.get(pp.boardId)!)), 0);
+    };
+    const best = (parts: Board[]) => {
+      let low = Infinity;
+      const at = new Array<number>(parts.length).fill(0);
+      const walk = (i: number, k: number) => {
+        if (i === parts.length) {
+          let sum = 0;
+          for (let g = 0; g < k; g++) sum += cheapest(parts.filter((_, j) => at[j] === g));
+          low = Math.min(low, sum);
+          return;
+        }
+        for (let g = 0; g <= k; g++) { at[i] = g; walk(i + 1, Math.max(k, g + 1)); }
+      };
+      walk(0, 0);
+      return low;
+    };
+    let seed = 11;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31;
+    const shop = shopWith({ pine: { mode: 'piece', stock: ONE_BY_FOUR } });
+    let better = 0;
+    for (let t = 0; t < 60; t++) {
+      const parts = Array.from({ length: 3 + Math.floor(rnd() * 4) }, (_, i) => pine(`p${i}`, Math.round(12 + rnd() * 70), 3.5));
+      const cost = purchase(parts, shop).entries[0]!.cost!;
+      const old = largestFirst(parts);
+      expect(cost, parts.map((b) => b.length).join(',')).toBeLessThanOrEqual(old);
+      expect(cost, parts.map((b) => b.length).join(',')).toBeGreaterThanOrEqual(best(parts));
+      if (cost < old) better++;
+    }
+    expect(better, 'the fix must matter on these jobs').toBeGreaterThan(10);
   });
 
   it('counts kerf between parts', () => {
@@ -127,7 +213,7 @@ describe('buildPurchase — by the piece', () => {
 
 describe('buildPurchase — sheets and totals', () => {
   it('prices sheets, sums exactly, and notes materials without a price', () => {
-    // Walnut $19.50 (above) + pine $21 (above) + plywood 1 sheet × $60 = $100.50.
+    // Walnut $19.50 (above) + pine $18 (above) + plywood 1 sheet × $60 = $97.50.
     const shop = shopWith({
       walnut: { mode: 'board-foot', pricePerBoardFoot: 10, wasteFactor: 1.3 },
       pine: { mode: 'piece', stock: [A, B, C] },
@@ -140,10 +226,10 @@ describe('buildPurchase — sheets and totals', () => {
     ];
     const p = purchase(boards, shop);
     expect(p.entries.find((e) => e.material === 'plywood')!.lines).toEqual(['Plywood — 3/4": buy 1 sheet · $60.00']);
-    expect(p.total).toBeCloseTo(100.5, 12);
-    expect(p.totalLabel).toBe('Estimated materials: $100.50');
+    expect(p.total).toBeCloseTo(97.5, 12);
+    expect(p.totalLabel).toBe('Estimated materials: $97.50');
     const noWalnut = shopWith({ ...shop.materials, walnut: { mode: 'board-foot', pricePerBoardFoot: null, wasteFactor: 1.3 } });
-    expect(purchase(boards, noWalnut).totalLabel).toBe('Estimated materials: $81.00 (1 material has no price)');
+    expect(purchase(boards, noWalnut).totalLabel).toBe('Estimated materials: $78.00 (1 material has no price)');
   });
 
   it('shows a dash when nothing has a price', () => {

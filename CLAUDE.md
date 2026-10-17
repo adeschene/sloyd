@@ -83,7 +83,8 @@ handicraft education tradition built around hand woodworking.
 - **Follow-ups 6 (2026-10-17, merged as `51f022f`, NOT deployed; no schema change)**: closed 8 (`storage/index.ts`, guarded), 17
   (`viewport/gizmoPatch.ts`), 19 (showX/Y/Z honoured; the patch unit-tested), 27 (`pointer.test.ts`), 126, 128, 169 (`api_error`
   retryable), 175 (a throwing cost function no longer strands a batch), 234 (the concept planner knows assemblies AND tapers);
-  12 by decision, 31 by measurement. **269 measured: the packer loses money often** (worst 44%); a multi-start fix awaits the user.
+  12 by decision, 31 by measurement. **269** (the user's go): priced by-the-piece Buying keeps the cheapest of a plan per
+  preferred opener (was largest-first only: up to 44% dearer); unpriced stock unchanged (ruling, for the user).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -177,7 +178,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
 | follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78; 151 (row actions on keyboard focus) |
 | print sections | 10-16 | — | Fu 383: each cut-list section and Buying prints on a new page; 381(4) a part keyed once |
-| follow-ups 6 | 10-17 | — | Fu 8, 17, 19, 27, 126, 128, 169, 175, 234 (the last small items); 269 measured |
+| follow-ups 6 | 10-17 | — | Fu 8, 17, 19, 27, 126, 128, 169, 175, 234 (the last small items); 269 cheapest-plan Buying |
 
 ### The deployment rule
 
@@ -377,7 +378,7 @@ src/
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
 │   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses,
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
-│   ├── purchase.ts       ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
+│   ├── purchase.ts       (by the piece: the cheapest of a plan per preferred opener when priced, fu 269) ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
 │   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
 │                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
 │                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
@@ -1006,7 +1007,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4649 tests across 159 files
+npm test           # Vitest, currently 4654 tests across 159 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1019,12 +1020,10 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Awaiting the user:** 269 (the by-the-piece packer, MEASURED: loses in up to 104 of 150 random jobs, worst 44%; a
-  multi-start candidate is never worse and cuts that to 23, worst 17% — fu 269's last Status).
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
   views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
-- **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
+- **Owed to the user, not code:** 269's ruling (unpriced stock keeps largest-first, or plans by least wood?); real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.

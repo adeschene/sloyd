@@ -5519,6 +5519,15 @@ needs a different split across boards is not searched. **Status:** open; measure
 (the follow-ups 140/160 rule).
 **Status:** open (measure first): no case where swap-down loses to a better split has been measured; find one before any optimiser (fu 140/160). (triaged 2026-10-16)
 **Status:** MEASURED 2026-10-17 (follow-ups 6), a fix awaits the user. Brute force over every split of 3–6 parts against the packer + swap-down, three price sets: 1×4 with long boards dearer per foot — the packer loses in 104 of 150 jobs, worst 44% (26", 74", 17", 68": $26 as a 12′ + 6′ against $20 as two 8′); 1×6/1×12 mixed widths 55/150, worst 16%; long boards cheaper per foot 45/150, worst 16%. Cause: it always opens the LONGEST size. A candidate measured on the same jobs — also pack with each size as the preferred opener, swap down, keep the cheapest plan — is never worse than today and cuts the losses to 23 (17%), 33 (15%), 22 (13%).
+**Status:** CLOSED 2026-10-17 (the user: "go ahead with the multi-start fix"). `packOnto` takes an optional preferred opener;
+Buying builds the largest-first plan and, when its every board has a price, one more plan per size preferred, each swapped
+down as before, and keeps the strictly cheapest (a tie keeps largest-first: fewer boards). **Ruling, for the user:** with no
+prices (the DEFAULT pine stock) the plan stays largest-first, byte-for-byte — comparing unpriced plans by wood bought turned a
+150-part default project from 37 boards (mostly 1×12) into 53 narrower ones, a visible change the price-framed approval did not
+cover; "least wood" for unpriced stock is the user's call. Tests (`purchase.test.ts`): the measured losing job ($26 → $20); 60
+random jobs bounded by the old plan above and a brute-force optimum below; a tie; price over wood; unpriced unchanged; two old
+expectations corrected ($21 → $18 for 40/40/30 on 1×6: two 6′; the total $100.50 → $97.50). Every branch mutated. Cost: 4.2 ms
+→ 27.5 ms for 150 priced parts × 36 sizes (unpriced: unchanged). Live (dev server): "Buy 2 × 1×4 × 8′ · $20.00".
 
 **270. US dollars only.** `formatMoney` is en-US `$`. **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
