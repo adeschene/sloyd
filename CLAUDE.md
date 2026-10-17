@@ -85,6 +85,10 @@ handicraft education tradition built around hand woodworking.
   retryable), 175 (a throwing cost function no longer strands a batch), 234 (the concept planner knows assemblies AND tapers);
   12 by decision, 31 by measurement. **269** (the user's go): priced by-the-piece Buying keeps the cheapest of a plan per
   preferred opener (was largest-first only: up to 44% dearer); unpriced stock unchanged (the user: "keep unpriced as is").
+- **Section views (2026-10-17, spec `2026-10-17-sloyd-section-views-design.md`, plan `…-section-views.md`, merged to master; NOT deployed; no
+  schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
+  trio and draws a hatched Section A–A of the ASSEMBLED piece after it (`drawView`'s `section` option, `sectionView.ts`). Residue 384
+  (hatch density and the cut line's weight for the user's eye on a real print).
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -179,6 +183,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78; 151 (row actions on keyboard focus) |
 | print sections | 10-16 | — | Fu 383: each cut-list section and Buying prints on a new page; 381(4) a part keyed once |
 | follow-ups 6 | 10-17 | — | Fu 8, 17, 19, 27, 126, 128, 169, 175, 234 (the last small items); 269 cheapest-plan Buying |
+| section views | 10-17 | — | Plans sheet: the viewport's section as a hatched Section A–A of the assembled piece after its trio, the A–A line on one elevation (fu 256) |
 
 ### The deployment rule
 
@@ -232,7 +237,7 @@ Each layer depends only on the ones before it:
 reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts`
 (`formatLength`, so one dimension never reads two ways on one sheet) and
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so does `designCheck.ts` (a metric violation's
-`shown` copy, fu 355; its model `message` stays decimal inches).
+`shown` copy, fu 355; its model `message` stays decimal inches), and `sectionView.ts` (the section's heading).
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
 `document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
@@ -403,8 +408,12 @@ src/
 │   │                     a short bench line, no positions —, fault suffix, true axis/normal), featureTag, FAULT_SUFFIX
 │   ├── drawing.ts        drawView: exact hidden-line vector drawing; every segment TAGGED with its feature (`Seg2.feature`); edges from boardEdges (inv 16) plus hole lines from
 │   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry;
-│   │                     a curved part's edges come through `curveDrawEdges`, plus `silhouetteLines`
+│   │                     a curved part's edges come through `curveDrawEdges`, plus `silhouetteLines`; `opts.section` clips lines and occluders to
+│   │                     the kept side and returns `caps` (from sectionCaps; absent without a section)
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
+│   ├── sectionView.ts    section views on the Plans sheet (fu 256): sectionViewOf (flipped = the proper opposite view), markedView,
+│   │                     sectionTitle (→ units; from the piece's own min), cuttingLine (null off the piece), hatchPatterns (touching
+│   │                     caps differ; boxes first)
 │   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
 │   │                     sectionCaps (board-local caps minus bores, a per-part local cache), unionOutline
 │   │                     (moved to outline.ts and re-exported)
@@ -960,6 +969,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     is keyed on `faded`. **Picking and snapping read only `keptBySection`** (a raycast wrapper on part meshes; Move/Tape
     candidates), guide points exempt — guides are drawn unclipped. The per-part local-cap cache is hit only on the same
     `geometryKey` and the exact local plane coordinate; never hand out its arrays.
+    **On the Plans sheet** (fu 256) the store's section is read as the sheet renders (never saved): the section drawing comes only
+    from `drawView`'s `section` option — ONE hidden-line pass, every line clipped by `keptBySection`'s test, every occluder
+    intersected with the kept half-space (a box stays a box, a planes body gains the plane), a part with no kept wood drawing
+    nothing (even a face ON the plane) — and its caps only from `sectionCaps`, always of the ASSEMBLED piece (no explode
+    offsets). A sheet with no section is byte-for-byte unchanged (`drawingIdentity.test`; no `caps` key).
 
 52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the DOCUMENT's own `Units`**
     (`formatLength`/`parseLength` take `Units`; there is no module- or browser-level unit setting, so a background run or a
@@ -1007,7 +1021,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4654 tests across 159 files
+npm test           # Vitest, currently 4694 tests across 161 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1016,15 +1030,14 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–383). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–384). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 256 section
-  views on the SHEET (the viewport half shipped as the section cut); 257, 258; 267 edge banding / hardware BOM, 268, 270,
+- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 edge banding / hardware BOM, 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open

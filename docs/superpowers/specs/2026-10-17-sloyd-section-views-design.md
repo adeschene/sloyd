@@ -183,6 +183,12 @@ With a section:
   Then come the title and, when they apply, the explode note and the no-wood line.
 - Print: the section block is `break-inside: avoid`, like the trio.
 
+*Amended (implementation, 2026-10-17):* `PlansSheet` renders `SectionBlock` as its OWN `plans-section` after the piece's,
+not `PlanTrio` (its own heading and page block); the scale is shared through `trioScale`, which reads the trio's drawings from
+a WeakMap keyed on the parts array. The marker is drawn only when the plane crosses the piece in the marked view (review M2).
+Touching caps are judged within `DRAW_EPS`, not `SECTION_EPS`, with a bounding-box pre-check (review M1). On paper a part with
+no kept wood draws nothing, even a face lying on the plane (review I1).
+
 ### 3.4 `panels/PlansSheet.tsx`
 
 It reads `useStore((s) => s.section)` and `s.explode`, and passes `section` to the piece's `PlanTrio`. Nothing else in
