@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { arcOf, archCurve, bowCurve, cornerCurve, mirrorCurveCut, sameCurve } from './curves';
+import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, mirrorCurveCut, sameCurve } from './curves';
+import { createBoard } from './document';
 import type { P2 } from './curves';
-import { PROFILE_EDGES, PROFILE_KINDS, profileAsymmetric, profileCurve, profileFields } from './profiles';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields } from './profiles';
 import type { ProfileFields } from './profiles';
 import type { CurveCut } from './types';
 
@@ -124,5 +125,57 @@ describe('profileFields: read by rewriting (spec §2.3)', () => {
     const m = profileFields(mirrorCurveCut(c, 'width'))!;      // through length: u = width
     expect(m).toMatchObject({ kind: 'ogee', facing: 'v', uFrom: 'min', vFrom: 'max', size: 0.5, fillet: 0.0625 });
     expect(profileFields(mirrorCurveCut(c, 'length'))).toEqual(profileFields(c));   // along through: unchanged
+  });
+});
+
+describe('defaultProfile (spec §2.3, scaled per axis)', () => {
+  const top = createBoard({ length: 36, width: 20, thickness: 0.75 });
+  const f = (k: (typeof PROFILE_KINDS)[number], b = top) => profileFields(defaultProfile(b, k))!;
+  it('router-bit sizes on a 3/4" top, the top long edge, facing v', () => {
+    expect(f('roundover')).toMatchObject({ ...DEFAULT_PROFILE_EDGE, facing: 'v', size: 0.25, fillet: 0 });
+    expect(f('cove')).toMatchObject({ size: 0.375, fillet: 0 });
+    expect(f('ogee')).toMatchObject({ size: 0.375 });
+    expect(f('bead')).toMatchObject({ size: 0.25, fillet: 0.0625 });
+    expect(f('thumbnail')).toMatchObject({ size: 0.75, depth: 0.25 });
+  });
+  it('a thin strip gets a proportionate profile, no fault', () => {
+    const strip = createBoard({ length: 36, width: 0.5, thickness: 0.25 });
+    for (const k of PROFILE_KINDS) {
+      const c = defaultProfile(strip, k);
+      expect(curveFaults(strip, c)).toEqual([]);
+      expect(profileFields(c)!.kind).toBe(k);
+    }
+  });
+  it('no default faults on a 3/4" top', () => {
+    for (const k of PROFILE_KINDS) expect(curveFaults(top, defaultProfile(top, k))).toEqual([]);
+  });
+  it('keeps a given edge and facing', () => {
+    const e = { through: 'width', uFrom: 'min', vFrom: 'max' } as const;
+    expect(profileFields(defaultProfile(top, 'ogee', e, 'u'))).toMatchObject({ ...e, facing: 'u', kind: 'ogee' });
+  });
+  it('unscaled defaults are the exact base sizes (bytes of profileCurve)', () => {
+    const base = { ...DEFAULT_PROFILE_EDGE, facing: 'v' } as const;
+    const big = createBoard({ length: 36, width: 20, thickness: 4 });
+    expect(sameCurve(defaultProfile(big, 'bead') as CurveCut, profileCurve({ ...base, kind: 'bead', size: 0.25, fillet: 0.0625 }) as CurveCut)).toBe(true);
+    expect(sameCurve(defaultProfile(big, 'ogee') as CurveCut, profileCurve({ ...base, kind: 'ogee', size: 0.5, fillet: 0 }) as CurveCut)).toBe(true);
+  });
+  it('scaled sizes stay strict: bead quirk > 0, thumbnail 0 < depth < size', () => {
+    const strip = createBoard({ length: 36, width: 0.3, thickness: 0.1 });
+    expect(f('bead', strip).fillet).toBeGreaterThan(0);
+    const t = f('thumbnail', strip);
+    expect(t.depth!).toBeGreaterThan(0);
+    expect(t.depth!).toBeLessThan(t.size);
+  });
+  it('a bead scales by its edge-face extent, quirk included', () => {
+    const b = createBoard({ length: 36, width: 20, thickness: 0.3 });
+    const k = 0.15 / 0.3125;
+    const r = f('bead', b);
+    expect(r.size).toBeCloseTo(0.25 * k, 12);
+    expect(r.fillet!).toBeCloseTo(0.0625 * k, 12);
+  });
+  it('facing u scales against the swapped axes', () => {
+    const e = { through: 'length', uFrom: 'max', vFrom: 'max' } as const;
+    const b = createBoard({ length: 36, width: 0.75, thickness: 20 });
+    expect(profileFields(defaultProfile(b, 'thumbnail', e, 'u'))).toMatchObject({ facing: 'u', size: 0.75, depth: 0.25 });
   });
 });

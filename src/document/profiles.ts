@@ -1,5 +1,5 @@
-import type { CurveCut, CurveSegment, CutFrom } from './types';
-import { sameCurve } from './curves';
+import type { Board, CurveCut, CurveSegment, CutFrom, Dimension } from './types';
+import { sameCurve, uvDims } from './curves';
 
 /**
  * Edge profiles (edge profiles spec, chunk 1): a full-length routed edge is a plain `CurveCut` running along the edge
@@ -105,4 +105,31 @@ export function profileFields(c: Omit<CurveCut, 'id'>): ProfileFields | null {
     }
   }
   return null;
+}
+
+export const DEFAULT_PROFILE_EDGE: ProfileEdge = { through: 'length', uFrom: 'max', vFrom: 'max' };
+const BASE: Record<ProfileKind, Pick<ProfileFields, 'size' | 'depth' | 'fillet'>> = {
+  roundover: { size: 0.25, fillet: 0 }, cove: { size: 0.375, fillet: 0 }, ogee: { size: 0.5, fillet: 0 },
+  bead: { size: 0.25, fillet: 0.0625 }, thumbnail: { size: 0.75, depth: 0.25 },
+};
+/** The profile's extents along the canonical a (top face) and b (edge face) axes. */
+function extents(kind: ProfileKind, p: Pick<ProfileFields, 'size' | 'depth' | 'fillet'>): [number, number] {
+  const fl = p.fillet ?? 0;
+  if (kind === 'thumbnail') return [p.size, p.depth!];
+  return [p.size + fl, p.size + (kind === 'bead' ? fl : 0)];
+}
+/**
+ * A preset (spec §2.3): router-bit sizes, the top long edge by default, every length scaled by ONE factor so each canonical
+ * extent fits half the dimension it runs along (amended in planning: per axis, so a thumbnail's reach along a 20" top is not
+ * shrunk by the 3/4" thickness). Exact sizes when no scaling is needed (k = 1 multiplies nothing).
+ */
+export function defaultProfile(board: Pick<Board, Dimension>, kind: ProfileKind, edge: ProfileEdge = DEFAULT_PROFILE_EDGE, facing: 'u' | 'v' = 'v'): Omit<CurveCut, 'id'> {
+  const [u, v] = uvDims(edge.through);
+  const [aDim, bDim] = facing === 'v' ? [u, v] : [v, u];
+  const base = BASE[kind];
+  const [ea, eb] = extents(kind, base);
+  const k = Math.min(1, board[aDim] / 2 / ea, board[bDim] / 2 / eb);
+  const s = (n: number | undefined) => (n === undefined ? undefined : k === 1 ? n : n * k);
+  return profileCurve({ ...edge, kind, facing, size: s(base.size)!,
+    ...(base.depth !== undefined ? { depth: s(base.depth) } : {}), ...(base.fillet !== undefined ? { fillet: s(base.fillet) } : {}) });
 }
