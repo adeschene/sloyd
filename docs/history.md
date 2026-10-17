@@ -530,7 +530,9 @@ ahead"; branch `presets-minors`). The presets batch's three deferred final-revie
    - Shelf-pin row and Hinge cup keep their imperial `¼"`/`½"` glyphs and read 0.1 mm in metric (`holeLengthText`).
 
 Every test was mutated. The stale-judgement mutation first survived, because the arch's and the corner's verdicts agreed on
-Bow; an assertion on the notch, which differs between them, now catches it. Suite 4729 tests across 161 files; build clean.
+Bow; an assertion on the notch, which differs between them, now catches it. Suite 4729 tests across 161 files; build clean. Merged as `e776ecc`: on the merged tree the wall-clock guard
+`holesPerf` read 54 ms against 40 ms once, under a load average over 8, then passed twice alone (fu 340's known sensitivity; no
+viewport code changed).
 
 **What presets batch did (2026-10-17)** (the user picked "Small presets batch" from the open feature list; brainstormed, spec and
 plan approved; "Native, go ahead"; branch `presets-batch`). Three shortcuts and controls over geometry that already existed;

@@ -92,7 +92,7 @@ handicraft education tradition built around hand woodworking.
 - **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
   no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
   curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
-- **Presets minors (2026-10-17, merged to master; NOT YET DEPLOYED; no schema change)**: the presets batch's three deferred review minors — the
+- **Presets minors (2026-10-17, merged to master as `e776ecc`; NOT YET DEPLOYED; no schema change)**: the presets batch's three deferred review minors — the
   curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch and presets minors since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
