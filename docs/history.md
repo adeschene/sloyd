@@ -518,7 +518,9 @@ and 79.
 "Yes, go ahead"; branch `profile-select-grey`). The Profile select follows the Curves Kind select: options judged only while it
 has focus, afresh when the profile or part changes under it, dropped on blur; a refused option disabled with the refusal's own
 words up to its dash (`optionReason`, moved out of Curves into `curveRefusal.ts`). Three tests, four mutations (never
-disabled, judged every render, never re-judged, kept on blur), each caught. Suite 4827 tests across 164 files; build clean.
+disabled, judged every render, never re-judged, kept on blur), each caught. Suite 4827 tests across 164 files; build clean. Merged as `b64b7a1`; deployed 2026-10-17 on the user's word as
+`index-B_aEoJl0.js` (CSS unchanged): hashes match `dist/` at the edge, the old bundle 404s, CSP correct, a real-browser load clean,
+its keys removed and read back empty.
 The user also approved edge profiles' look on real hardware, and reported that a profile does not follow a curved edge (fu 390).
 
 **What edge profiles chunk 1 did (2026-10-17)** (fu 365's full-length half and fu 386; spec

@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is edge profiles chunk 1** (deployed 2026-10-17 from `00bab4a`, bundle `index-D9D90lOX.js`, CSS `index-gCtQCsSI.css`);
-  rollback to presets minors (`97b38f2`, `index-fwemJPwC.js`) or presets batch + fu 385 (`b76f41a`, `index-JgTwUVAc.js`) is free.
+- **Production is edge profiles chunk 1 + fu 388** (deployed 2026-10-17 from `5a9ead8`, bundle `index-B_aEoJl0.js`, CSS `index-gCtQCsSI.css`);
+  rollback to edge profiles chunk 1 (`00bab4a`, `index-D9D90lOX.js`) or presets minors (`97b38f2`, `index-fwemJPwC.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -100,7 +100,7 @@ handicraft education tradition built around hand woodworking.
   collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
   hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
   profiles, schema 18), 387, 389, 390 (a profile following a curved edge). **Fu 388** (the Profile select greys a
-  refused option and says why; the user's ruling) merged as `b64b7a1`, NOT YET DEPLOYED (build `index-B_aEoJl0.js`). Real-hardware look: approved.
+  refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
