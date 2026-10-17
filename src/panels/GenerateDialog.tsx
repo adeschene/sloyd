@@ -144,12 +144,12 @@ export function GenerateDialog(p: Props) {
         {p.rows.length > 0 && (
           <>
             {p.plan && (
-              <p className={`generate-plan generate-plan-${p.plan.status}`}>
+              <p className={`generate-plan generate-plan-${p.plan.status}`} role="status">
                 <span className="generate-run-status">{planText(p.plan, p.rows.length)}</span>
                 {p.plan.costUsd !== null && <span className="generate-run-cost">{formatCost(p.plan.costUsd)}</span>}
               </p>
             )}
-            <ul className="generate-runs">
+            <ul className="generate-runs" aria-live="polite">
               {p.rows.map((r) => (
                 <li key={r.key} className={`generate-run generate-run-${r.status}`}>
                   {r.letter && <span className="generate-run-letter">{r.letter}</span>}

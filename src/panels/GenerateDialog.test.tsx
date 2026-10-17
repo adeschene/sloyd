@@ -115,6 +115,14 @@ describe('GenerateDialog', () => {
     expect(screen.getByText('≈ $0.01')).toBeInTheDocument();
   });
 
+  // Fu 175: the plan line and the run rows change while the batch runs, and nothing announced them.
+  it('announces the plan line and the run rows politely', () => {
+    const rows: RunRow[] = [{ key: 1, letter: 'A', status: 'designing', costUsd: null }];
+    render(<GenerateDialog {...props({ plan: { status: 'ready', costUsd: null }, rows })} />);
+    expect(document.querySelector('.generate-plan')).toHaveAttribute('role', 'status');
+    expect(document.querySelector('.generate-runs')).toHaveAttribute('aria-live', 'polite');
+  });
+
   it('a waiting row says so, and a row shows its concept', () => {
     const rows: RunRow[] = [
       { key: 1, letter: 'A', status: 'waiting', costUsd: null },

@@ -15,7 +15,7 @@ const usage = { inputTokens: 7, outputTokens: 3, cacheReadTokens: 0, cacheWriteT
 const c = (title: string, brief = `${title} brief.`) => ({ title, brief });
 
 function fake(result: LlmResult | LlmError) {
-  const complete = vi.fn(async (_req: LlmRequest): Promise<LlmResult> => {
+  const complete = vi.fn(async (_req: LlmRequest, _signal?: AbortSignal): Promise<LlmResult> => {
     if (result instanceof LlmError) throw result;
     return result;
   });
@@ -48,6 +48,13 @@ describe('concepts', () => {
     expect(CONCEPTS_SYSTEM).not.toMatch(/no turned or tapered/i);
     for (const word of ['taper', 'miter', 'bevel', 'chamfer']) expect(CONCEPTS_SYSTEM).toMatch(new RegExp(word, 'i'));
     expect(CONCEPTS_SYSTEM).toMatch(/no curves/i);
+  });
+
+  it('passes the caller\'s abort signal to the call itself (fu 175)', async () => {
+    const { client, complete } = fake({ json: { concepts: [c('A'), c('B')] }, assistantTurn: {}, usage });
+    const signal = new AbortController().signal;
+    await planConcepts(client, settings, 2, signal);
+    expect(complete.mock.calls[0][1]).toBe(signal);
   });
 
   it('takes the first N of a longer list', () => {
@@ -99,7 +106,14 @@ describe('concepts', () => {
   });
 
   it('has three built-in fallback roles', () => {
-    expect(FALLBACK_CONCEPTS.map((x) => x.title)).toEqual(['Conventional', 'Minimal', 'Different support']);
-    for (const x of FALLBACK_CONCEPTS) expect(x.brief.length).toBeGreaterThan(0);
+    // The briefs are mandated by the variety spec, so they are pinned verbatim (fu 175: editing one used to pass).
+    expect(FALLBACK_CONCEPTS).toEqual([
+      { title: 'Conventional', brief: 'The classic, most expected construction for this piece.' },
+      { title: 'Minimal', brief: 'The fewest, lightest parts that still make a sound piece.' },
+      {
+        title: 'Different support',
+        brief: 'Held up some way other than a leg at each corner, e.g. a trestle, slab ends, a plinth or a cantilever.',
+      },
+    ]);
   });
 });

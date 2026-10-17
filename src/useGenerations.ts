@@ -96,11 +96,16 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
       setLive(0);
     };
 
+    /** What a call cost, or null when the client cannot say — a throw here must never stop a batch (fu 175). */
+    const costOf = (u: Parameters<typeof client.estimateCostUsd>[0]): number | null => {
+      try { return client.estimateCostUsd(u); } catch { return null; }
+    };
+
     const runOne = (key: number, letter: string | null, concept: Concept | undefined) => {
       void (async () => {
         try {
           const out = await runGeneration(client, settings, ctl.signal, (p) => patch(key, progressPatch(p)), concept);
-          const costUsd = client.estimateCostUsd(out.usage);
+          const costUsd = costOf(out.usage);
           // A cancel that lands after the model answered but before the write
           // still means "write nothing" (spec §3.4).
           if (ctl.signal.aborted) {
@@ -123,7 +128,7 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
             ctl.abort();
           }
           const spentUsage = spentOnFailure(e);
-          const costUsd = spentUsage ? client.estimateCostUsd(spentUsage) : null;
+          const costUsd = spentUsage ? costOf(spentUsage) : null;
           if (authError) patch(key, { status: 'failed', error: authError, costUsd });
           else if (e instanceof LlmError && e.kind === 'cancelled') patch(key, { status: 'cancelled', costUsd });
           else patch(key, { status: 'failed', error: e instanceof Error ? e.message : 'Unexpected error.', costUsd });
@@ -157,7 +162,7 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
         }
         if (out) {
           concepts = out.concepts ?? FALLBACK_CONCEPTS.slice(0, count);
-          setPlan({ status: out.concepts ? 'ready' : 'fallback', costUsd: client.estimateCostUsd(out.usage) });
+          setPlan({ status: out.concepts ? 'ready' : 'fallback', costUsd: costOf(out.usage) });
         }
         // A cancel that lands as planning resolves still means "start nothing".
         // Checked HERE, before any run — the post-run guard would hide started
