@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, mirrorCurveCut, sameCurve } from './curves';
 import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
-import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile } from './profiles';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun } from './profiles';
 import type { ProfileFields } from './profiles';
 import type { CurveCut, ProfileCut } from './types';
 
@@ -282,10 +282,50 @@ describe('ProfileCut, the stored form (profile runs spec §3.1, chunk a1)', () =
     expect(th.run).toEqual({ start: run.end, end: run.start });
     for (const d of ['length', 'width', 'thickness'] as const) expect(mirrorProfile(mirrorProfile(station, d), d)).toEqual(station);
   });
-  it('endToEnd is false for a station run and for ends on two sides; profileToFields throws on a station run', () => {
+  it('endToEnd is false for a station run and for ends on two sides; profileToFields throws on two sides and a loop (a station run reads, a2)', () => {
     expect(endToEnd(station.run)).toBe(false);
     expect(endToEnd({ start: { side: side('min'), through: 'min' }, end: { side: side('max'), through: 'max' } })).toBe(false);
     expect(endToEnd({ start: { side: side('min'), through: 'min' }, end: { side: side('min'), through: 'max' } })).toBe(true);
-    expect(() => profileToFields(station)).toThrow();
+    const twoSides = { ...station, run: { start: { side: side('min'), through: 'min' as const }, end: { side: side('max'), through: 'max' as const } } };
+    expect(() => profileToFields(twoSides)).toThrow();
+    expect(() => profileToFields({ ...station, run: { loop: true } })).toThrow();
+  });
+});
+
+describe('station runs: order and mirror (profile runs a2, P11)', () => {
+  const B = { length: 30, width: 10, thickness: 0.75 };
+  const side = { across: 'width', from: 'max' } as const;
+  const st = (at: number) => ({ side, from: 'min' as const, at });
+  it('runDim and endPos: a station from min reads `at`, from max reads length − at; a through end its face', () => {
+    expect(runDim(side)).toBe('length');
+    expect(runDim({ across: 'length', from: 'min' })).toBe('width');
+    expect(endPos(B, st(3))).toBe(3);
+    expect(endPos(B, { side, from: 'max', at: 3 })).toBe(27);
+    expect(endPos(B, { side, through: 'max' })).toBe(30);
+  });
+  it('travelSign flips with the side and with the face, never with the run', () => {
+    expect(travelSign('max', { across: 'width', from: 'min' })).toBe(-travelSign('max', { across: 'width', from: 'max' }));
+    expect(travelSign('min', side)).toBe(-travelSign('max', side));
+  });
+  it('canonicalRun orders a station run along travel; an End to end run stays min → max', () => {
+    const fwd = travelSign('max', side) > 0;
+    const run = canonicalRun(B, 'max', { start: st(27), end: st(3) });
+    expect([endPos(B, run.start), endPos(B, run.end)]).toEqual(fwd ? [3, 27] : [27, 3]);
+    const e2e = { start: { side, through: 'max' as const }, end: { side, through: 'min' as const } };
+    expect(canonicalRun(B, 'max', e2e)).toEqual({ start: { side, through: 'min' }, end: { side, through: 'max' } });
+  });
+  it('mirrorProfile keeps a canonical station run canonical, in every dimension (Review Focus 1)', () => {
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'v' });
+    const p: ProfileCut = { id: 'x', ...base, run: canonicalRun(B, base.face, { start: st(3), end: st(20) }) };
+    for (const d of ['length', 'width', 'thickness'] as const) {
+      const m = mirrorProfile(p, d);
+      if ('loop' in m.run) throw new Error('loop');
+      expect(canonicalRun(B, m.face, m.run), d).toEqual(m.run);
+    }
+  });
+  it('profileToFields reads a one-side station run as its side\'s fields', () => {
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+    const p: ProfileCut = { id: 'x', ...base, run: { start: st(3), end: st(27) } };
+    expect(profileToFields(p)).toEqual(profileToFields({ ...base }));
   });
 });

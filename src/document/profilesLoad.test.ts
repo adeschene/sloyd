@@ -76,7 +76,6 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
   const side = { across: 'width', from: 'max' } as const;
   for (const [why, run] of [
     ['all round', { loop: true }],
-    ['stopped', { start: { side, from: 'min', at: 3 }, end: { side, through: 'max' } }],
     ['ends on two sides', { start: { side, through: 'min' }, end: { side: { across: 'length', from: 'max' }, through: 'max' } }],
   ] as const) {
     it(`a run this build cannot build refuses the document: ${why}`, () => {
@@ -95,13 +94,21 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
   it('an unknown run key refuses the document', () => refuses('run "via"', {}, { ...okRun, via: 'outline' }));
   it('a loop that is not exactly true refuses the document', () => refuses('all round', {}, { ...okRun, loop: 'inner' }));
   it('an end with an unknown key refuses the document', () => refuses('run "mitre"', {}, { start: { ...through('min'), mitre: 1 }, end: through('max') }));
-  it('a station end beside an unreadable end refuses the document', () =>
-    refuses('stopped', {}, { start: { side, from: 'min', at: 3 }, end: { side: { across: 'depth', from: 'max' }, through: 'max' } }));
-  it('a station end with a half-valid from/at refuses the document', () =>
-    refuses('stopped', {}, { start: { side, from: 'min' }, end: through('max') }));
+  it('a one-side station run beside a through end loads (was the a1 stopped refusal)', () => {
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at: 3 }, end: { side, through: 'max' } } }] })]), version: 18 };
+    expect(board0(load(raw)).profiles).toHaveLength(1);
+  });
+  it('a station end beside an unreadable end drops the profile (a2: a station alone no longer refuses)', () => {
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at: 3 }, end: { side: { across: 'depth', from: 'max' }, through: 'max' } } }] })]), version: 18 };
+    expect(board0(load(raw)).profiles).toEqual([]);
+  });
+  it('a station end with a half-valid from/at drops the profile (a2)', () => {
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min' }, end: through('max') } }] })]), version: 18 };
+    expect(board0(load(raw)).profiles).toEqual([]);
+  });
   it('a refusal outranks a drop: unknown kind with a bad size', () => refuses('kind "chamfer"', { kind: 'chamfer', size: -1 }));
-  it('a refusal outranks a drop: a station end with size -1', () =>
-    refuses('stopped', { size: -1 }, { start: { side, from: 'min', at: 3 }, end: through('max') }));
+  it('a refusal outranks a drop: a through-and-at end with size -1', () =>
+    refuses('stopped', { size: -1 }, { start: { side, through: 'min', at: 3 }, end: through('max') }));
   it('a run that is a string, or an end missing its side, still drops', () => {
     const raw = { ...v17([part({ profiles: [{ ...p1(), id: 'a', run: 'all' }, { ...p1(), id: 'b', run: { start: { through: 'min' }, end: through('max') } }, { ...p1(), id: 'c' }] })]), version: 18 };
     expect(board0(load(raw)).profiles.map((p) => p.id)).toEqual(['c']);
@@ -109,6 +116,35 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
   it('an unknown profile kind string refuses the document', () => {
     const raw = { ...v17([part({ profiles: [{ ...p1(), kind: 'chamfer' }] })]), version: 18 };
     expect(() => load(raw)).toThrow('This project has an edge profile this version of Sloyd can\'t build (kind "chamfer") — it was saved by a newer version of Sloyd.');
+  });
+  it('a one-side station run loads, ordered along travel (a2, P10/P11)', () => {
+    const side = { across: 'width', from: 'max' } as const;
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at: 27 }, end: { side, from: 'min', at: 3 } } }] })]), version: 18 };
+    const r = board0(load(raw)).profiles[0]!.run;
+    expect('loop' in r ? null : [r.start, r.end].map((e) => ('at' in e ? e.at : e.through)).sort()).toEqual([27, 3].sort());
+  });
+  it('a station beside a through end loads', () => {
+    const side = { across: 'width', from: 'max' } as const;
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, through: 'min' }, end: { side, from: 'min', at: 20 } } }] })]), version: 18 };
+    expect(board0(load(raw)).profiles).toHaveLength(1);
+  });
+  // fu 391(1): a later build's end must never be misread.
+  it('an end carrying both through and from/at refuses (stopped)', () => {
+    const side = { across: 'width', from: 'max' } as const;
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, through: 'min', at: 3 }, end: { side, through: 'max' } } }] })]), version: 18 };
+    expect(() => load(raw)).toThrow('This project has an edge profile this version of Sloyd can\'t build (stopped) — it was saved by a newer version of Sloyd.');
+  });
+  it('an end with a readable side and an unreadable through refuses', () => {
+    const side = { across: 'width', from: 'max' } as const;
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, through: 'middle' }, end: { side, through: 'max' } } }] })]), version: 18 };
+    expect(() => load(raw)).toThrow(/can't build \(run "through"\)/);
+  });
+  it('a station with a non-finite or negative `at` is dropped, not refused', () => {
+    const side = { across: 'width', from: 'max' } as const;
+    for (const at of [Number.NaN, -1]) {
+      const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at }, end: { side, through: 'max' } } }] })]), version: 18 };
+      expect(board0(load(JSON.parse(JSON.stringify(raw)))).profiles).toEqual([]);
+    }
   });
   it('a v19 file is refused by the version gate', () => {
     expect(() => load({ ...v17([part({})]), version: 19 })).toThrow(/newer version/);

@@ -1,4 +1,4 @@
-import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileSide } from './types';
+import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide } from './types';
 import { sameCurve, uvDims } from './curves';
 
 /**
@@ -166,13 +166,43 @@ export function endToEnd(run: ProfileCut['run']): run is { start: ThroughEnd; en
     && run.start.side.across === run.end.side.across && run.start.side.from === run.end.side.from;
 }
 
+/** The dimension a side runs along: a side at width's end runs along the length, and the reverse. */
+export const runDim = (side: ProfileSide): 'length' | 'width' => (side.across === 'width' ? 'length' : 'width');
+/**
+ * The direction a run travels along its side (profile runs spec P11): +1 toward the run dimension's max end. It flips with
+ * the side's `from` and with `face`, never with the run, so every reflection reverses it (mirrorProfile swaps the ends to match).
+ */
+export function travelSign(face: CutFrom, side: ProfileSide): 1 | -1 {
+  const base = side.across === 'width' ? (side.from === 'min' ? 1 : -1) : side.from === 'max' ? 1 : -1;
+  return (face === 'max' ? base : -base) as 1 | -1;
+}
+/** An end's local position along its side's run dimension (the one place a station is read as a coordinate, inv 44). */
+export function endPos(board: Pick<Board, Dimension>, e: ProfileEnd): number {
+  const L = board[runDim(e.side)];
+  if ('through' in e) return e.through === 'min' ? 0 : L;
+  return e.from === 'min' ? e.at : L - e.at;
+}
+/** Both ends on one side (chunk a2 builds these; a loop or two sides refuse on load). */
+export function oneSide(run: ProfileRun): run is { start: ProfileEnd; end: ProfileEnd } {
+  return !('loop' in run) && run.start.side.across === run.end.side.across && run.start.side.from === run.end.side.from;
+}
+/** The stored order (P11): End to end min → max (P3); a station run with start before end along `travelSign`. */
+export function canonicalRun(board: Pick<Board, Dimension>, face: CutFrom, run: { start: ProfileEnd; end: ProfileEnd }): { start: ProfileEnd; end: ProfileEnd } {
+  if (endToEnd(run)) {
+    return run.start.through === 'min' ? run : { start: { ...run.end }, end: { ...run.start } };
+  }
+  const s = travelSign(face, run.start.side);
+  const before = (endPos(board, run.start) - endPos(board, run.end)) * s <= 0;
+  return before ? run : { start: run.end, end: run.start };
+}
+
 /**
  * An End to end profile as chunk 1's fields. Through the length or width, `uvDims(through)` is [u, 'thickness']: the face is
  * `vFrom`, the side is u at `uFrom`, and facing 'face' is chunk 1's 'v' (T on the broad face). A symmetric kind is written at
  * 'v', as chunk 1's writers did. Throws on a run chunk a1 cannot build (the loader refuses those, spec P2).
  */
 export function profileToFields(p: Omit<ProfileCut, 'id'>): ProfileFields {
-  if (!endToEnd(p.run)) throw new Error('profileToFields: only an End to end run is built in chunk a1');
+  if (!oneSide(p.run)) throw new Error('profileToFields: a loop or a run on two sides is not built until chunk b');
   const side = p.run.start.side;
   const f: ProfileFields = {
     through: side.across === 'width' ? 'length' : 'width', uFrom: side.from, vFrom: p.face, kind: p.kind, facing: 'v', size: p.size,
