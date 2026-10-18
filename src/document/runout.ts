@@ -188,7 +188,8 @@ export function profileAirTester(board: Pick<Board, Dimension>, c: ViewCurve): (
  * about the axis, so at a point with ρ⃗ its (run, across) offset from the axis, s = |ρ⃗| − BEARING and t its depth, the normal
  * is the section arc's own 2D normal (s − sc, t − tc) / R — radial about the arc's centre — lifted as n_s·ρ̂ + n_t·t̂, and
  * oriented OUT OF THE WOOD (into the waste): per arc, the side of its chords the section polygon's interior lies on.
- * `runoutNormal` picks the arc by the point alone; bodyMesh picks it once per face from all its vertices (`arcOf`) — a
+ * `runoutNormal` picks the arc by the point alone; bodyMesh picks it once per face from all its vertices (`arcOf`; per point
+ * only when two collinear chords of two arcs share the face's plane) — a
  * vertex between two sector rays sits up to a sagitta off the true circle, so no tight chord match would hold.
  */
 export function runoutNormal(board: Pick<Board, Dimension>, c: ViewCurve, end: 'lo' | 'hi', p: readonly number[]): V3 | null {
@@ -200,8 +201,8 @@ export function runoutNormal(board: Pick<Board, Dimension>, c: ViewCurve, end: '
 /** `runoutNormal` with the frame, the section's arcs and the axes hoisted: bodyMesh's per-part form. */
 export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
   /** The section arc whose chord the face (its vertices) lies on, or null: a face on no arc (a chord plane's extension). */
-  arcOf(end: 'lo' | 'hi', verts: readonly (readonly number[])[]): number | null;
-  normal(end: 'lo' | 'hi', p: readonly number[], arc: number): V3;
+  arcOf(end: 'lo' | 'hi', verts: readonly (readonly number[])[]): number | 'nearest' | null;
+  normal(end: 'lo' | 'hi', p: readonly number[], arc: number | 'nearest'): V3;
 } {
   const f = sectionFrame(board, c);
   const { pts } = profileSection(board, c);
@@ -226,6 +227,8 @@ export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
     const sign = ((a[0] + b[0]) / 2 - centre[0]) * inS + ((a[1] + b[1]) / 2 - centre[1]) * inT >= 0 ? 1 : -1;
     arcs.push({ centre, chords, sign });
   }
+  const reach = BEARING + Math.max(...pts.map((q) => q[0]));
+  const sagitta = reach * (1 - Math.cos(Math.PI / (2 * sectors(reach)))) * (1 + 1e-9) + CURVE_EPS;
   const axisOf = (end: 'lo' | 'hi') => {
     const a = axes[end];
     if (!a) throw new Error(`runoutNormal: the curve has no run-out at ${end}`);
@@ -241,20 +244,31 @@ export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
     arcOf(end, verts) {
       if (arcs.length === 0) return null;
       const sts = verts.map((p) => stOf(end, p).st);
+      const near = (q: P2, arc: (typeof arcs)[number]) => Math.min(...arc.chords.map(([a, b]) => distToSegment(q, a, b)));
       let best = 0, bestD = Infinity;
       arcs.forEach((arc, i) => {
         let d = 0;
-        for (const q of sts) d = Math.max(d, Math.min(...arc.chords.map(([a, b]) => distToSegment(q, a, b))));
+        for (const q of sts) d = Math.max(d, near(q, arc));
         if (d < bestD) { bestD = d; best = i; }
       });
       // A cap's vertex lies on its chord in the SECTOR's (s, t); read with the true ρ it moves by at most the sector chords'
-      // sagitta, (BEARING + max s)(1 − cos h) <= CURVE_TOLERANCE (`sectors`). A face farther off — wood beside a waste piece,
-      // on a chord plane's extension (measured >= 9e-3 on the cove and ogee; caps <= 2.3e-3) — is on no arc: its flat normal.
-      return bestD <= CURVE_TOLERANCE + CURVE_EPS ? best : null;
+      // sagitta, (BEARING + max s)(1 − cos h) with h = π / 2n for the n sectors `runoutPieces` cut — CURVE_TOLERANCE or less
+      // until `sectors` reaches CURVE_SEGMENTS_MAX, more past it (BEARING + max s over ~2.33"), so the bound is THAT sagitta,
+      // never the tolerance (drawn caps measured to 4.6e-3 of 4.7e-3 on the ogee, 8.01e-3 of 8.03e-3 on a 3 1/2" cove).
+      if (bestD <= sagitta) return best;
+      // Two arcs whose chords at their join are COLLINEAR (the ogee's inflection) share one chord plane, so one cap spans
+      // both: every vertex is on SOME arc, and each point takes its nearest (the join is tangent: the two agree there).
+      if (sts.every((q) => arcs.some((arc) => near(q, arc) <= sagitta))) return 'nearest';
+      // Farther off — wood beside a waste piece, on a chord plane's extension (drawn: >= 9.7e-2 measured) — is on no arc.
+      return null;
     },
     normal(end, p, i) {
-      const arc = arcs[i]!;
       const { st, rk, ru, rho } = stOf(end, p);
+      let arc = arcs[0]!;
+      if (i === 'nearest') {
+        let bestD = Infinity;
+        for (const a of arcs) { const d = Math.min(...a.chords.map(([x, y]) => distToSegment(st, x, y))); if (d < bestD) { bestD = d; arc = a; } }
+      } else arc = arcs[i]!;
       const ds = st[0] - arc.centre[0], dt = st[1] - arc.centre[1];
       const l = Math.hypot(ds, dt);
       const ns = (arc.sign * ds) / l, nt = (arc.sign * dt) / l;
