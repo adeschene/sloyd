@@ -496,6 +496,63 @@ describe('crossed stations (final fix F3)', () => {
   });
 });
 
+// Final fix F4 (spec I2, Amended (implementation, a2)): a station typed AT an end of the part makes that end a through end.
+describe('a station at an end of the part runs out through it (final fix F4)', () => {
+  const START = 'Start (from the length min end)';
+  const STOP = 'Stop (from the length min end)';
+  const dims = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+  const stopped3to27 = () => {
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    return { ...dims, profiles: [{ id: 'p1', ...base, run: canonicalRun(dims, 'max', { start: at(3), end: at(27) }) }] };
+  };
+  type End = { side: object; through?: 'min' | 'max'; from?: string; at?: number };
+  const ends = () => { const r = profiles()[0]!.run as { start: End; end: End }; return [r.start, r.end]; };
+  it('Start 0 makes the min end a through end; the fields read 0 and 27; Start 5 makes it a station again', async () => {
+    const user = userEvent.setup();
+    open(stopped3to27());
+    await typeInto(user, START, '0');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['min']);
+    expect(profiles()[0]!.run).toEqual(canonicalRun(dims, 'max', profiles()[0]!.run as never));
+    expect(screen.getByText(/from the length min end to 27" \(stopped\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText(START)).toHaveValue('0"');
+    expect(screen.getByLabelText(STOP)).toHaveValue('27"');
+    expect(screen.queryByRole('status')).toBeNull();                                         // no stop-off
+    await typeInto(user, START, '5');
+    expect(ends().every((e) => e.through === undefined)).toBe(true);
+    expect(screen.getByText(/from 5" to 27" \(stopped\)/)).toBeInTheDocument();
+  });
+  it('Stop at the full length makes the max end a through end; the field reads 30"', async () => {
+    const user = userEvent.setup();
+    open(stopped3to27());
+    await typeInto(user, STOP, '30');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['max']);
+    expect(screen.getByText(/from 3" to the length max end \(stopped\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText(STOP)).toHaveValue('30"');
+    await typeInto(user, STOP, '20');
+    expect(ends().every((e) => e.through === undefined)).toBe(true);
+    expect(screen.getByText(/from 3" to 20" \(stopped\)/)).toBeInTheDocument();
+  });
+  it('both ends at the part\'s ends is End to end (the Run select says so)', async () => {
+    const user = userEvent.setup();
+    open(stopped3to27());
+    await typeInto(user, START, '0');
+    await typeInto(user, STOP, '30');
+    expect(profiles()[0]!.run).toMatchObject({ start: { through: 'min' }, end: { through: 'max' } });
+    expect(selected('Run')).toBe('End to end');
+    expect(screen.queryByLabelText(START)).toBeNull();
+  });
+  it('a metric part\'s full length typed in mm is the end too', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open({ ...b, length: 763 / 25.4 });                                                       // a 763 mm part, as typed
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await typeInto(user, STOP, '763');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['max']);
+  });
+});
+
 describe('refusalFor reads the post-edit stored part (profile runs a2)', () => {
   const dims = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
   it('a stopped edit is judged on `after`: a plain next curve alone would be a full-length cut over the hole', () => {

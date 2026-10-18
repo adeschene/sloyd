@@ -157,7 +157,11 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
     // would otherwise swap the ends silently and both fields would show numbers other than the ones typed.
     if (which === 0 && at >= endPos(stored_, hi!)) return 'Start must be before the Stop';
     if (which === 1 && at <= endPos(stored_, lo!)) return 'Stop must be after the Start';
-    const station = (e: ProfileEnd, pos: number): ProfileEnd => (endPos(stored_, e) === pos ? e : { side: { ...e.side }, from: 'min', at: pos });
+    // Final fix F4 (spec I2): a station typed AT an end of the part (0, or the run's full length) runs out through that end.
+    const station = (e: ProfileEnd, pos: number): ProfileEnd => (endPos(stored_, e) === pos ? e
+      : pos === 0 ? { side: { ...e.side }, through: 'min' }
+      : pos === L ? { side: { ...e.side }, through: 'max' }
+      : { side: { ...e.side }, from: 'min', at: pos });
     const pair = which === 0 ? [station(lo!, at), hi!] : [lo!, station(hi!, at)];
     const next = { ...profileFromFields(normal(p)), run: canonicalRun(stored_, profile.face, { start: pair[0]!, end: pair[1]! }) };
     return attempt(next, null) ?? undefined;
@@ -193,9 +197,10 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
           </select>
         </div>
         {ends && (
+          // min 0, not DimensionField's own greater-than-zero: 0 is the min end itself (a through end, F4).
           <>
-            <DimensionField label={`Start (from the ${dim} min end)`} value={endPos(stored_, ends[0]!)} units={units} onCommit={(at) => stationEdit(0, at)} />
-            <DimensionField label={`Stop (from the ${dim} min end)`} value={endPos(stored_, ends[1]!)} units={units} onCommit={(at) => stationEdit(1, at)} />
+            <DimensionField label={`Start (from the ${dim} min end)`} value={endPos(stored_, ends[0]!)} min={0} units={units} onCommit={(at) => stationEdit(0, at)} />
+            <DimensionField label={`Stop (from the ${dim} min end)`} value={endPos(stored_, ends[1]!)} min={0} units={units} onCommit={(at) => stationEdit(1, at)} />
           </>
         )}
         <div className="field">
