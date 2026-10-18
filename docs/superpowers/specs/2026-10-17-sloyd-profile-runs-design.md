@@ -182,6 +182,10 @@ profiles; a grain fix (fu 336).
   onto the outline chord.
 - **Q4 Speed:** roundover, thumbnail and bead guarded at 40 ms (probe 10–33); a following cove and ogee are BUILT in b1 and
   guarded at 80 and 105 ms (probe 62 and 85), recorded for chunk (c).
+  *Amended (implementation, b1):* the committed guards are each row's measured minimum + 25% (a single run's 25% flaked, Task 5):
+  cove 81, ogee 113, both faces 78 ms (measured ~63, ~87–90, ~62). The BEAD loop is a chunk-c row too, guarded at 73 ms: its quirk
+  wall became its own tagged section face (inv 16: no facet lines, smooth shading), a third section piece per segment, measured
+  53–62 ms. Roundover, thumbnail and the front End to end with B1 run-outs keep 40.
 - **Q5 Tags:** a vertical piece plane on an outline chord carries `curve: <id>` (chunk 1's radial normals and smooth lines below
   the profile unchanged); a swept section face carries `profileEdge` (a2's builder) and `sweep: <segment>`, so a2's `smoothPair`
   extends to swept facets in both directions.
