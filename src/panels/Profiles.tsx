@@ -7,7 +7,7 @@ import {
 import type { Board, CurveCut, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
 import { canonicalRun, endPos, endToEnd, profileFaults, runDim, viewProfileFaults } from '../document/profiles';
 import type { ProfileFault } from '../document/profiles';
-import { curveFaultText, curveLine, profileFaultText } from '../document/curveText';
+import { curveFaultText, curveLine, profileFaultNote } from '../document/curveText';
 import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
@@ -81,7 +81,9 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const curve = board.curves.find((c) => c.id === profile.id)!;
   const [error, setError] = useState<string | null>(null);
   const line = curveLine(board, curve, units);
-  const storedFaults = [...curveFaults(board, curve).map(curveFaultText), ...viewProfileFaults(curve).map(profileFaultText)];
+  // The first stored fault as a note: a curve fault reads " at this size." (a resize caused it), a profile fault through
+  // profileFaultNote (an overlap does not: F5).
+  const storedFaults = [...curveFaults(board, curve).map((x) => `${cap(curveFaultText(x))} at this size.`), ...viewProfileFaults(curve).map(profileFaultNote)];
   // A loop or a two-side run is refused on load (spec P2/P10), and `profileToFields` above would already have thrown.
   const run0 = profile.run as { start: ProfileEnd; end: ProfileEnd };
   const side: ProfileSide = run0.start.side;
@@ -173,7 +175,7 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
         <button className="cut-remove" aria-label={`Remove profile (${line})`} onClick={() => removeProfile(stored_.id, profile.id)}>✕</button>
       </div>
       <p className="field-note">{line}</p>
-      {storedFaults.length > 0 && <p className="field-note" role="status">{cap(storedFaults[0]!)} at this size.</p>}
+      {storedFaults.length > 0 && <p className="field-note" role="status">{storedFaults[0]!}</p>}
       <div className="field-grid field-grid-2">
         <div className="field">
           <label htmlFor={`profile-face-${curve.id}`}>Face</label>

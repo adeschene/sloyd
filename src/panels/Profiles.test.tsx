@@ -553,6 +553,29 @@ describe('a station at an end of the part runs out through it (final fix F4)', (
   });
 });
 
+// Final fix F5: " at this size." only for a fault a resize can cause (a stop off the part, a curve fault), never an overlap.
+describe('the row note (final fix F5)', () => {
+  it('stacked identical profiles (an a1 file; P12 faults them on load) read "Overlaps another profile on this edge."', () => {
+    const b = top();
+    const p = profileOf(defaultProfile(b, 'roundover'))!;
+    open({ ...b, profiles: [{ id: 'p1', ...p }, { id: 'p2', ...p }] });
+    const notes = screen.getAllByRole('status');
+    expect(notes).toHaveLength(2);
+    for (const n of notes) expect(n).toHaveTextContent(/^Overlaps another profile on this edge\.$/);
+  });
+  it('a curve fault and a stop off the part keep " at this size."', () => {
+    const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    open({ ...b, length: 20, profiles: [{ id: 'p1', ...base, run: canonicalRun(b, 'max', { start: at(3), end: at(27) }) }] });
+    expect(screen.getByRole('status')).toHaveTextContent(/^A stop runs off the part at this size\.$/);
+    document.body.innerHTML = '';
+    open(top({ thickness: 0.125, profiles: [{ id: 'c1', ...profileOf(defaultProfile(top(), 'roundover'))! }] }));
+    expect(screen.getByRole('status')).toHaveTextContent(/^Runs past .* at this size\.$/);
+  });
+});
+
 describe('refusalFor reads the post-edit stored part (profile runs a2)', () => {
   const dims = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
   it('a stopped edit is judged on `after`: a plain next curve alone would be a full-length cut over the hole', () => {

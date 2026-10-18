@@ -31,6 +31,16 @@ export function profileFaultText(f: ProfileFault): string {
   return f.kind === 'stop-off' ? 'a stop runs off the part' : 'it overlaps another profile on this edge';
 }
 
+/**
+ * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part is what a
+ * resize causes (" at this size."); an overlap never is — every row station is measured from the min end, so a resize
+ * cannot make one (an a1 file's stacked identical profiles, faulted on load by P12) — so it reads without the clause.
+ */
+export function profileFaultNote(f: ProfileFault): string {
+  const t = profileFaultText(f);
+  return f.kind === 'stop-off' ? `${t[0]!.toUpperCase()}${t.slice(1)} at this size.` : `${t.replace(/^it o/, 'O')}.`;
+}
+
 /** Every fault of a curve in words: the curve's own first (`curveFaults`), then, for a geometry view's profile curve, the
  *  STORED profile's (`viewProfileFaults`). */
 function curveFaultWords(board: Board, c: CurveCut): string[] {
