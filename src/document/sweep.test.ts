@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardBodiesForTest, bodyVolume, clipConvex, type Body } from './bodies';
 import { faceOutline, profilePath } from './profilePath';
-import { geometryBoard, mirrorProfile, profileAsCurve, profileFaults } from './profiles';
+import { geometryBoard, mirrorProfile, profileAsCurve, profileFaults, reachDepth } from './profiles';
 import { profileSection, BEARING } from './runout';
 import { mirrorCurveCut, twiceArea, CURVE_TOLERANCE, type P2 } from './curves';
 import { mirrorPart } from './frames';
@@ -498,4 +498,23 @@ describe('B1 station ends and the rest polygon (the plan pieces)', () => {
     const { bad, worst } = misclassified(boardBodies(board), oracleOf(ref, wastes), wastes, 50000);
     expect(bad, worst.join(' ')).toBe(0);
   }, 60_000);
+});
+
+// Task 3 review minor 2 (carried to Task 5): reach has two homes — profileFaults judges the skeleton with `reachDepth`, the
+// build with `keptSection`'s reach. If they drifted, a fault-free swept profile could get no plan and build nothing with no
+// fault (`builtSwept`'s filter would hide it). Every fault-free swept profile here has pieces, and the two reaches agree.
+describe('a fault-free swept profile always builds (one reach)', () => {
+  // reachDepth is exported for this pin only (the fault decider's own reader).
+  const kinds: [ProfileCut['kind'], number][] = [['roundover', 0.25], ['cove', 0.375], ['ogee', 0.375], ['bead', 0.25], ['thumbnail', 0.75]];
+  const boards: Board[] = [...cases.map(([, b]) => b), ...kinds.flatMap(([k, s]) => (['face', 'edge'] as const).map((facing) =>
+    topCorners(2, { ...loop('p1', s, k), facing })))];
+  it.each(boards.map((b, i) => [i, b] as const))('board %i', (_i, board) => {
+    const view = geometryBoard(board);
+    for (const p of view.profiles) {
+      if (profileFaults(board, board.profiles.find((x) => x.id === p.id)!).length > 0) continue;
+      expect(sweptPieces(view, p).length).toBeGreaterThan(0);
+      const { reach, depth } = keptSection(view, p);
+      expect([reach, depth]).toEqual(reachDepth(p));
+    }
+  });
 });

@@ -288,7 +288,7 @@ type FaultBoard = Pick<Board, Dimension> & { curves?: readonly CurveCut[]; profi
 const NO_CURVES: readonly CurveCut[] = Object.freeze([]);
 const withCurves = (b: FaultBoard): Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] } => (b.curves ? (b as Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }) : { ...b, curves: NO_CURVES as CurveCut[] });
 /** A profile's two extents (canonical a along T, b down the other face), as stored: [reach in plan, depth down the edge]. */
-function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
+export function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
   const [ea, eb] = extents(p.kind, p);
   return p.facing === 'edge' ? [eb, ea] : [ea, eb];
 }

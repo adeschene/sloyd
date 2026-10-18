@@ -6,6 +6,9 @@ import { spanOf } from '../document/curves';
 import { runoutReach } from '../document/runout';
 import { capFill } from './capFill';
 import { bodyMesh, drawsAsBox, holesMesh } from './grainTiling';
+import { chamferCut } from '../document/angleCuts';
+import { builtSwept } from '../document/sweep';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners } from '../document/sweepFixtures';
 
 /**
  * A curved part's mesh is WATERTIGHT (whole-branch review, finding 1): a SPLIT curve leaves its slices' faces meeting
@@ -293,5 +296,50 @@ describe('a curved part\'s section cap has no interior cracks', () => {
   // A flat part: thickness is world Y, so a 'top' plane cuts parallel to the broad faces — across every slice.
   it.each(cases)('%s, cut parallel to its broad faces', (_name, board) => {
     expect(capCracks(board, 'top', 0.6)).toBe(0);
+  });
+});
+
+// Profile runs b1 (Task 5): a profile that FOLLOWS the outline — the skeleton's band pieces, the rest of the outline, B1's
+// run-outs, every body through bodyMesh — must close too, holes included, and its section cap must have no interior crack.
+const side = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from });
+const sweptTop = topCorners(2);
+/** A 35 mm hinge cup on the 2" corner top, 10" along and 2" in from the front: clear of the 1/4" band (and its reach). */
+const cupClear: HoleRow = { id: 'cup', ...defaultHingeCup(createBoard({ length: 36, width: 20, thickness: 0.75 })), station: 10, inset: 2 };
+const sweptCases: [string, Board][] = [
+  ['roundover 1/4 along the arched apron (End to end)', apronArch],
+  ['roundover 1/4 all round the 2" corners', sweptTop],
+  ['roundover 1/4 all round the 1/2" corners', topCorners(0.5)],
+  ['thumbnail 3/4 × 1/4 all round the 2" corners', topCorners(2, loop('p1', 0.75, 'thumbnail'))],
+  ['bead 1/4 (quirk 1/16) all round the 2" corners', topCorners(2, loop('p1', 0.25, 'bead'))],
+  ['cove 3/8 all round the 2" corners', topCorners(2, loop('p1', 0.375, 'cove'))],
+  ['ogee 3/8 all round the 2" corners', topCorners(2, loop('p1', 0.375, 'ogee'))],
+  ['ogee 3/8 all round the 2" corners, facing the edge', topCorners(2, { ...loop('p1', 0.375, 'ogee'), facing: 'edge' })],
+  ['roundover 3/8 round the half-round notch', notchEdge],
+  ['roundover 1/4 End to end on the front, round the 2" corners (B1 run-outs)', frontOnly],
+  ['cove 3/8 End to end on the front, round the 2" corners (B1 run-outs)', topCorners(2, endToEnd('p1', side('width', 'min'), 0.375, 'cove'))],
+  ['the 2" corner loop with a 35 mm hinge cup clear of the band', { ...sweptTop, holes: [cupClear] }],
+  // Review Focus 4: All round the top AND the bottom.
+  ['loops on the top and the bottom (Review Focus 4)', { ...sweptTop, profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] }],
+  // Review Focus 5: a dado across the width at 18" and a 45° chamfer on the bottom long edge, under the loop.
+  ['the loop over a dado and a chamfer (Review Focus 5)', { ...sweptTop,
+    cuts: [{ id: 'd', face: 'thickness', from: 'max', across: 'width', offset: 17.625, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 }],
+    angleCuts: [{ id: 'ch', ...chamferCut({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'min', legFace: 0.25, legAlong: 0.25 }, sweptTop) }] }],
+];
+describe('a swept profile\'s mesh is watertight, and its cap has no interior crack (profile runs b1)', () => {
+  it('the fixtures are what they claim: every profile built, the cup clean', () => {
+    for (const [name, b] of sweptCases) expect(builtSwept(geometryBoard(b)), name).toHaveLength(b.profiles.length);
+    const cupped = sweptCases[11]![1];
+    expect(holeFaults(cupped, cupped.holes[0]!)).toEqual([]);
+    for (const h of partGeometry(cupped).holes) expect(holeInStock(cupped, h, stockChecks(cupped))).toBe(true);
+  });
+  it.each(sweptCases)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  // Through the band (a face-max profile's waste is the top quarter inch) and, for Review Focus 4, the bottom's.
+  it.each(sweptCases)('%s: the cap across the band', (_name, board) => {
+    expect(capCracks(board, 'top', 0.6)).toBe(0);
+    if (board.profiles.some((p) => p.face === 'min')) expect(capCracks(board, 'top', 0.15)).toBe(0);
   });
 });
