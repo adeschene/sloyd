@@ -4,7 +4,8 @@ import { apronArch, topCorners, frontOnly, notchEdge, endToEnd, loop, stopped, s
 import { createBoard } from './document';
 import { archCurve, bowCurve, cornerCurve, curveOutline, twiceArea, CURVE_TOLERANCE } from './curves';
 import { migrateDocument, createDocument } from './document';
-import type { Board } from './types';
+import type { Board, ProfileCut } from './types';
+import { profileFaults } from './profiles';
 
 const pts = (o: NonNullable<ReturnType<typeof faceOutline>>) => o.chords.map((c) => c.a);
 describe('faceOutline', () => {
@@ -307,5 +308,79 @@ describe('a corner chain of lines only is a sharp end (review fix 2: B1 speaks o
     const e = p.ends![1];
     if (e.kind !== 'through') throw new Error('expected a through end');
     expect(e.ray[0]).toBeCloseTo(1, 12); expect(e.ray[1]).toBeCloseTo(1, 12);
+  });
+});
+
+describe('B1a: End to end profiles meeting at a shared corner arc mitre at its middle', () => {
+  const W = { across: 'width', from: 'min' } as const, Lm = { across: 'length', from: 'min' } as const;
+  const pair = (other: ProfileCut) => ({ ...topCorners(2), profiles: [endToEnd('f', W), other] });
+  const mid: [number, number] = [2 - Math.SQRT2, 2 - Math.SQRT2];   // centre (2, 2), r = 2: the TRUE midpoint of the min-min arc
+  it('the front starts in a mitre at the arc\'s true midpoint, its ray radial into the wood, scaled by 1/(n·u)', () => {
+    const b = pair(endToEnd('l', Lm));
+    const p = profilePath(b, b.profiles[0]!)!;
+    const e = p.ends![0];
+    if (e.kind !== 'mitre') throw new Error('expected a mitre');
+    expect(e.at[0]).toBeCloseTo(mid[0], 12); expect(e.at[1]).toBeCloseTo(mid[1], 12);
+    expect(p.chords[0]!.a).toEqual(e.at);
+    expect(e.ray[0]).toBeCloseTo(e.ray[1], 12);   // along (1, 1): toward the centre
+    const c = p.chords[0]!, d = [c.b[0] - c.a[0], c.b[1] - c.a[1]], l = Math.hypot(d[0]!, d[1]!);
+    expect((-d[1]! / l) * e.ray[0] + (d[0]! / l) * e.ray[1]).toBeCloseTo(1, 12);
+    expect(p.ends![1].kind).toBe('station');   // the far corner's side is empty: B1 unchanged
+  });
+  it('the end side ends in the matching mitre, and the two covers touch: zero shared length, the whole arc between them', () => {
+    const b = pair(endToEnd('l', Lm));
+    const f = profilePath(b, b.profiles[0]!)!, l = profilePath(b, b.profiles[1]!)!;
+    const e = l.ends![1];
+    if (e.kind !== 'mitre') throw new Error('expected a mitre');
+    expect(e.at[0]).toBeCloseTo(mid[0], 12); expect(e.at[1]).toBeCloseTo(mid[1], 12);
+    const o = faceOutline(b)!;
+    const arc = o.chords.map((c, i) => (c.curve === 'cminmin' ? i : -1)).filter((i) => i >= 0);
+    const span = (p: typeof f, i: number) => p.cover.filter((c) => c.chord === i).reduce((s, c) => s + (c.t1 - c.t0), 0);
+    for (const i of arc) expect(span(f, i) + span(l, i)).toBeCloseTo(1, 12);
+    for (const i of arc) {
+      const a = f.cover.find((c) => c.chord === i), q = l.cover.find((c) => c.chord === i);
+      if (a && q) expect(Math.min(a.t1, q.t1) - Math.max(a.t0, q.t0)).toBeLessThanOrEqual(0);
+    }
+  });
+  it('an odd chord count (r = 0.75: 7 chords) SPLITS the middle chord at the true midpoint; the covers touch at its projection', () => {
+    const b = { ...topCorners(0.75), profiles: [endToEnd('f', W), endToEnd('l', Lm)] };
+    const f = profilePath(b, b.profiles[0]!)!, l = profilePath(b, b.profiles[1]!)!;
+    const r = 0.75, m = r - r / Math.SQRT2;
+    const e = f.ends![0];
+    if (e.kind !== 'mitre') throw new Error('expected a mitre');
+    expect(e.at[0]).toBeCloseTo(m, 12); expect(e.at[1]).toBeCloseTo(m, 12);
+    expect(Math.hypot(e.at[0] - r, e.at[1] - r)).toBeCloseTo(r, 12);   // ON the arc, not on the chord
+    const o = faceOutline(b)!;
+    expect(o.chords.some((c) => c.a[0] === e.at[0] && c.a[1] === e.at[1])).toBe(false);   // not an outline vertex
+    expect(f.chords[0]!.a).toEqual(e.at);
+    expect(l.chords[l.chords.length - 1]!.b).toEqual(e.at);
+    const fc = f.cover[0]!, lc = l.cover[l.cover.length - 1]!;
+    expect(fc.chord).toBe(lc.chord);
+    expect(fc.t0).toBeGreaterThan(0); expect(fc.t0).toBeLessThan(1);
+    expect(fc.t0).toBe(lc.t1);
+    expect(f.cover.filter((c) => o.chords[c.chord]!.curve === 'cminmin')).toHaveLength(4);   // the middle chord's half + 3
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+  });
+  it('an End to end beside an EMPTY adjacent side still runs out at the far tangent point (B1): a station end', () => {
+    const p = profilePath(frontOnly, frontOnly.profiles[0]!)!;
+    expect(p.ends!.map((e) => e.kind)).toEqual(['station', 'station']);
+  });
+  it('a neighbour on the OTHER face, a station run or a loop is no mitre partner', () => {
+    for (const q of [{ ...endToEnd('l', Lm), face: 'min' as const }, stopped('l', Lm, 5, 15), loop('l')]) {
+      const b = pair(q);
+      expect(profilePath(b, b.profiles[0]!)!.ends![0].kind).toBe('station');
+    }
+  });
+  it('mitre-ness is decided on the neighbour\'s STORED presence, never its faults: a neighbour that runs off still mitres', () => {
+    const b = pair(endToEnd('l', Lm, 1));   // a 1" roundover on a 3/4" part: depth past the thickness
+    expect(profileFaults(b, b.profiles[1]!).map((x) => x.kind)).toContain('runs-off');
+    expect(profilePath(b, b.profiles[0]!)!.ends![0].kind).toBe('mitre');
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+  });
+  it('face min: a mitre end swaps with the other end and keeps its point', () => {
+    const b = { ...topCorners(2), profiles: [{ ...endToEnd('f', W), face: 'min' as const }, { ...endToEnd('l', Lm), face: 'min' as const }] };
+    const p = profilePath(b, b.profiles[0]!)!;
+    expect(p.ends!.map((e) => e.kind)).toEqual(['station', 'mitre']);
+    expect(p.chords[p.chords.length - 1]!.b).toEqual((p.ends![1] as { at: number[] }).at);
   });
 });

@@ -133,3 +133,12 @@ describe('swept profile fault words (one home: curveText, b1 Q6)', () => {
     expect(profileFaultNote({ kind: 'overlap', other: 'x' })).toBe('Overlaps another profile on this edge.');
   });
 });
+
+describe('sweptProfiles is safe on a stored part (review minor 1)', () => {
+  it('a stored part reads its view\'s swept profiles, never its straight ones', () => {
+    const b = { ...apronArch, profiles: [...apronArch.profiles, straightTopLong] };
+    expect(sweptProfiles(b).map((p) => p.id)).toEqual(['p1']);
+    expect(sweptProfiles(b)).toBe(geometryBoard(b).profiles);
+    expect(sweptProfiles(createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [straightTopLong] }))).toEqual([]);
+  });
+});

@@ -405,6 +405,12 @@ do not import it.
 
 **Interfaces:**
 - Consumes: `profilePath`, `faceOutline` (Task 1); `sweptProfiles`, `shapedPart` (Task 2).
+  - *Amended (Task 2 fix round, B1a)*: `PathEnd` has a third kind, `{ kind: 'mitre'; at: P2; ray: P2 }`. Two End to end profiles
+    on one face whose stretches share only a corner arc each end at the arc's TRUE midpoint `at` (the path's end chord split
+    there, or ending on the vertex when `at` is one); `ray` runs along the radial line INTO the wood, scaled by 1/(n·u) of the
+    path's end chord, as a through ray is. **The band face ends on the radial plane through `at`** (vertical, containing the
+    centre → `at` line): the two neighbours' bands meet there in a mitre, as R6 at a sharp corner; no run-out at a mitre end.
+    `ProfilePath.cover` (plan outline chord index → [t0, t1]) is what the path takes of the outline; overlap reads it.
 - Produces:
   ```ts
   export interface SweptPiece { planes: { n: V3; d: number }[]; tags: Partial<BodyFace>[]; bb: [number, number, number, number]; band: boolean }

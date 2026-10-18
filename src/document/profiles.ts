@@ -285,26 +285,27 @@ function extentOf(board: Pick<Board, Dimension>, p: ProfileCut): [number, number
 const OVERLAP_EPS = 1e-9;
 type FaultBoard = Pick<Board, Dimension> & { curves?: readonly CurveCut[]; profiles: readonly ProfileCut[] };
 const NO_CURVES: readonly CurveCut[] = Object.freeze([]);
-const withCurves = (b: FaultBoard): Pick<Board, Dimension | 'curves'> => (b.curves ? (b as Pick<Board, Dimension | 'curves'>) : { ...b, curves: NO_CURVES as CurveCut[] });
+const withCurves = (b: FaultBoard): Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] } => (b.curves ? (b as Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }) : { ...b, curves: NO_CURVES as CurveCut[] });
 /** A profile's two extents (canonical a along T, b down the other face), as stored: [reach in plan, depth down the edge]. */
 function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
   const [ea, eb] = extents(p.kind, p);
   return p.facing === 'edge' ? [eb, ea] : [ea, eb];
 }
-/** A profile's path, or null when it cannot be traced (null outline or stretch, or an end face that does not run into the
- *  wood: profilePath throws there, and a degenerate outline must never reach a reader). */
-function safePath(board: Pick<Board, Dimension | 'curves'>, p: ProfileCut) {
-  try { return profilePath(board, p); } catch { return null; }
-}
 /**
  * The plan outline a profile covers (Q6: overlap on outline stretches), per outline chord index: the chord parameter
- * interval [t0, t1] it covers. A loop covers every chord; an End to end run its side's stretch; a station run (a2's
- * construction) the part of its side's stretch whose run-dimension coordinate lies within its extent (B2: stations are
- * measured along the run dimension). Null when the outline or the stretch cannot be traced.
+ * interval [t0, t1] it covers. A SWEPT profile's comes from its PATH (`ProfilePath.cover`: a loop every chord, an End to
+ * end run its stretch, trimmed at a B1a mitre), the one source of truth; null when it has no path. A straight or station
+ * run (a2's construction) covers the part of its side's stretch whose run-dimension coordinate lies within its extent (B2:
+ * stations are measured along the run dimension). Null when the stretch cannot be traced.
  */
-function coverage(board: Pick<Board, Dimension | 'curves'>, outline: FaceOutline, p: ProfileCut): Map<number, [number, number]> | null {
+function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }, outline: FaceOutline, p: ProfileCut): Map<number, [number, number]> | null {
   const out = new Map<number, [number, number]>();
-  if ('loop' in p.run) { outline.chords.forEach((_, i) => out.set(i, [0, 1])); return out; }
+  if (isSwept(board, p)) {
+    const path = profilePath(board, p);
+    if (!path) return null;
+    for (const c of path.cover) out.set(c.chord, [c.t0, c.t1]);
+    return out;
+  }
   if (!oneSide(p.run)) return null;
   const side = p.run.start.side;
   const s = sideStretch(board, outline, side);
@@ -344,10 +345,11 @@ function sharedLength(outline: FaceOutline, a: Map<number, [number, number]>, b:
  * empty or reversed (lo >= hi); `overlap` once for each OTHER profile on the same face that fights for its wood. Two
  * profiles neither of which is swept keep a2's rule exactly: the same side, extents overlapping by more than 1e-9
  * (touching is not overlap; an End to end profile spans the whole side). A pair with a SWEPT profile (`isSwept`) is judged
- * on outline stretches: their covered stretches share more than 1e-9 of length (a loop covers everything). A run-out past
+ * on outline coverage (from the swept profile's PATH): they share more than 1e-9 of length (a loop covers everything; two
+ * End to end profiles meeting in a B1a mitre at a shared corner arc's midpoint only touch). A run-out past
  * the end is no fault (P13): only the stations are judged.
  * A SWEPT profile also faults `runs-off` (its reach over half the face's smaller dimension, its depth over the thickness, or
- * no traceable path) and `too-tight` (an arc of its path: convex with a radius under the reach, R10; concave — bowing into
+ * no path: `profilePath` null) and `too-tight` (an arc of its path: convex with a radius under the reach, R10; concave — bowing into
  * the wood — under the bearing's `BEARING`, B5; touching is not tight). A straight profile keeps chunk 1's prism faults
  * (`curveFaults` on its view curve), so its fault list is a2's byte for byte. Judged on the STORED part (curves included).
  */
@@ -357,7 +359,7 @@ export function profileFaults(board: FaultBoard, p: ProfileCut): ProfileFault[] 
   const swept = isSwept(stored, p);
   if (swept) {
     const [reach, depth] = reachDepth(p);
-    const path = safePath(stored, p);
+    const path = profilePath(stored, p);
     if (!path || reach > Math.min(board.length, board.width) / 2 || depth > board.thickness) out.push({ kind: 'runs-off' });
     if (path && path.chords.some((c) => c.arc && (c.arc.concave ? c.arc.r < BEARING : c.arc.r < reach))) out.push({ kind: 'too-tight' });
   }
@@ -443,7 +445,8 @@ export const shapedPart = (v: { curves: readonly unknown[]; profiles?: readonly 
   v.curves.length > 0 || (v.profiles?.length ?? 0) > 0;
 
 const NO_SWEPT: readonly ProfileCut[] = Object.freeze([]);
-/** A geometry view's swept profiles (`view.profiles`), or none for a part with no profiles. Read it on a VIEW. */
-export function sweptProfiles(view: { profiles?: readonly ProfileCut[] }): readonly ProfileCut[] {
-  return view.profiles ?? NO_SWEPT;
+/** A part's swept profiles: its geometry view's `profiles` (none for a part with no profiles). Safe on a stored part or a
+ *  view alike (geometryBoard is idempotent and memoised). */
+export function sweptProfiles(b: Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] }): readonly ProfileCut[] {
+  return geometryBoard(b).profiles ?? NO_SWEPT;
 }

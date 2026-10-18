@@ -3,6 +3,7 @@ import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, curveValues, mirr
 import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
 import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults, viewProfileFaults } from './profiles';
+import { profilePath } from './profilePath';
 import { apronArch, endToEnd as sweepEndToEnd, frontOnly, loop, notchEdge, plainLoop, stopped as sweepStopped, topCorners } from './sweepFixtures';
 import type { ProfileFields } from './profiles';
 import type { CurveCut, ProfileCut } from './types';
@@ -421,10 +422,16 @@ describe('swept profile faults (profile runs b1, Q6)', () => {
     const b = createBoard({ length: 6, width: 10, thickness: 0.75, curves: [c('min', 'a'), c('max', 'b')], profiles: [loop('p1')] });
     expect(kinds(b)).toEqual(['runs-off']);
   });
-  it('overlap: a front End to end round its corner arcs meets an End to end on the length min end (the corner arc is shared)', () => {
+  it('B1a: a front End to end and an End to end on the length min end share ONLY that corner arc: a mitre, no overlap', () => {
     const b = topCorners(2, frontOnly.profiles[0]!);
     const both = { ...b, profiles: [b.profiles[0]!, sweepEndToEnd('e', { across: 'length', from: 'min' })] };
-    expect(profileFaults(both, both.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'e' }]);
+    expect(profileFaults(both, both.profiles[0]!)).toEqual([]);
+    expect(profileFaults(both, both.profiles[1]!)).toEqual([]);
+  });
+  it('a front End to end round its corners and an All round on the same face still overlap', () => {
+    const b = topCorners(2, frontOnly.profiles[0]!);
+    const both = { ...b, profiles: [b.profiles[0]!, loop('all')] };
+    expect(profileFaults(both, both.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'all' }]);
     expect(profileFaults(both, both.profiles[1]!)).toEqual([{ kind: 'overlap', other: 'p1' }]);
   });
   it('overlap: a loop overlaps every other profile on its face, straight ones included; not one on the other face', () => {
@@ -443,18 +450,23 @@ describe('swept profile faults (profile runs b1, Q6)', () => {
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, near] }, near)).toEqual([{ kind: 'overlap', other: 'p1' }]);
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, off] }, off)).toEqual([]);
   });
-  it('B10 × path overlap: a saved four-edge set on a rounded-corner top loads with every profile overlapping its two neighbours', () => {
-    // In a2 each was a straight prism through the corner waste; under B10 each carries round both its corner arcs, and
-    // each arc is shared by two sides. Pinned as the spec reads (§4.1 (B) + B10); flagged for the user's ruling.
+  it('B10 + B1a: a saved four-edge set on a rounded-corner top loads with NO fault, each path ending in two mitres', () => {
+    // In a2 each was a straight prism through the corner waste; under B10 each carries round its corner arcs, and B1a mitres
+    // every shared arc at its middle (spec §1 B1a, the controller's ruling on Task 2's concern 1).
     const s = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from });
     const four = [sweepEndToEnd('f', s('width', 'min')), sweepEndToEnd('r', s('length', 'max')), sweepEndToEnd('k', s('width', 'max')), sweepEndToEnd('l', s('length', 'min'))];
     const b = { ...topCorners(2), profiles: four };
-    expect(four.map((p) => profileFaults(b, p).map((f) => (f.kind === 'overlap' ? f.other : f.kind)).sort())).toEqual([
-      ['l', 'r'], ['f', 'k'], ['l', 'r'], ['f', 'k'],
-    ]);
+    expect(four.map((p) => profileFaults(b, p))).toEqual([[], [], [], []]);
+    for (const p of four) expect(profilePath(b, p)!.ends!.map((e) => e.kind)).toEqual(['mitre', 'mitre']);
     // the same set on sharp corners: straight, no fault (a2's four-edge set)
     const sharp = { ...createBoard({ length: 36, width: 20, thickness: 0.75 }), profiles: four };
     expect(four.map((p) => profileFaults(sharp, p))).toEqual([[], [], [], []]);
+  });
+  it('B1a: two adjacent End to end profiles of DIFFERENT kinds also mitre, with no fault', () => {
+    const b = { ...topCorners(2), profiles: [sweepEndToEnd('f', { across: 'width', from: 'min' }), sweepEndToEnd('l', { across: 'length', from: 'min' }, 0.375, 'cove')] };
+    expect(b.profiles.map((p) => profileFaults(b, p))).toEqual([[], []]);
+    expect(profilePath(b, b.profiles[0]!)!.ends![0].kind).toBe('mitre');
+    expect(profilePath(b, b.profiles[1]!)!.ends![1].kind).toBe('mitre');
   });
   it('two straight profiles on one side keep a2\'s overlap result exactly (straight pairs never take the outline path)', () => {
     const B = createBoard({ length: 30, width: 10, thickness: 0.75 });
