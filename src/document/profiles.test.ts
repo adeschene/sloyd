@@ -443,6 +443,19 @@ describe('swept profile faults (profile runs b1, Q6)', () => {
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, near] }, near)).toEqual([{ kind: 'overlap', other: 'p1' }]);
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, off] }, off)).toEqual([]);
   });
+  it('B10 × path overlap: a saved four-edge set on a rounded-corner top loads with every profile overlapping its two neighbours', () => {
+    // In a2 each was a straight prism through the corner waste; under B10 each carries round both its corner arcs, and
+    // each arc is shared by two sides. Pinned as the spec reads (§4.1 (B) + B10); flagged for the user's ruling.
+    const s = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from });
+    const four = [sweepEndToEnd('f', s('width', 'min')), sweepEndToEnd('r', s('length', 'max')), sweepEndToEnd('k', s('width', 'max')), sweepEndToEnd('l', s('length', 'min'))];
+    const b = { ...topCorners(2), profiles: four };
+    expect(four.map((p) => profileFaults(b, p).map((f) => (f.kind === 'overlap' ? f.other : f.kind)).sort())).toEqual([
+      ['l', 'r'], ['f', 'k'], ['l', 'r'], ['f', 'k'],
+    ]);
+    // the same set on sharp corners: straight, no fault (a2's four-edge set)
+    const sharp = { ...createBoard({ length: 36, width: 20, thickness: 0.75 }), profiles: four };
+    expect(four.map((p) => profileFaults(sharp, p))).toEqual([[], [], [], []]);
+  });
   it('two straight profiles on one side keep a2\'s overlap result exactly (straight pairs never take the outline path)', () => {
     const B = createBoard({ length: 30, width: 10, thickness: 0.75 });
     const s = { across: 'width', from: 'max' } as const;
