@@ -34,9 +34,17 @@ const FIELD_TEXT: { [K in keyof typeof CURVE_FIELDS]: (v: CurveCut[K]) => string
   segments: (v) => v.map(segText).join(' '),
 };
 
-/** One curve's comparable value, exact, in CURVE_KEYS order (the cut list's grouping and geometryKey read it). */
+/** VIEW-ONLY (P18): a stopped profile's extent along `through` in the geometry view; never stored, never validated. */
+export interface CurveSpan { lo: number; hi: number; stopLo: boolean; stopHi: boolean }
+export type ViewCurve = CurveCut & { span?: CurveSpan };
+export const spanOf = (c: Omit<CurveCut, 'id'>): CurveSpan | undefined => (c as ViewCurve).span;
+
+/** One curve's comparable value, exact, in CURVE_KEYS order (the cut list's grouping and geometryKey read it). A view
+ *  curve's span (P18) is appended; a curve with none keeps its value byte for byte. */
 export function curveValues(c: Omit<CurveCut, 'id'>): string {
-  return CURVE_KEYS.map((k) => (FIELD_TEXT[k] as (v: unknown) => string)(c[k])).join('|');
+  const base = CURVE_KEYS.map((k) => (FIELD_TEXT[k] as (v: unknown) => string)(c[k])).join('|');
+  const span = spanOf(c);
+  return span ? `${base}|span:${num(span.lo)},${num(span.hi)},${span.stopLo ? 1 : 0},${span.stopHi ? 1 : 0}` : base;
 }
 
 /** Exact equality on every CURVE_FIELDS field (stored values, invariant 18). */

@@ -3,7 +3,7 @@ import { archCurve, bowCurve, chamferCut, createBoard, defaultBevel, defaultHing
 import { defaultCorners } from './curves';
 import { mirrorPart } from './frames';
 import { IMPERIAL } from '../units/length';
-import { profileCurve } from './profiles';
+import { canonicalRun, profileCurve, profileFromFields } from './profiles';
 import { ARCH } from './curveFixtures';
 import { FAULT_SUFFIX, featureTag, partFeatures } from './featureKeys';
 import type { Board } from './types';
@@ -120,4 +120,19 @@ it('a filleted profile keys apart from a plain one (final review F2): the fillet
   // The four-edge collapse still reads (4×), after the fillet words.
   const four = (['length', 'width'] as const).flatMap((t) => (['min', 'max'] as const).map((u) => p(`${t}${u}`, t, u, 0.0625)));
   expect(curveTexts({ ...top, curves: four })).toEqual(['Roundover 1/4", with a 1/16" fillet (4×)']);
+});
+
+it('a stopped profile keys `, stopped`; a full one on another edge keeps its words, so the two take two letters (profile runs a2, P15)', () => {
+  const B = { length: 30, width: 10, thickness: 0.75 };
+  const side = { across: 'width', from: 'max' } as const;
+  const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+  const full = profileFromFields({ through: 'length', uFrom: 'min', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+  const run = canonicalRun(B, base.face, { start: { side, from: 'min', at: 3 }, end: { side, from: 'min', at: 27 } });
+  const b = createBoard({ id: 'b', ...B, profiles: [{ id: 's', ...base, run }, { id: 'f', ...full }] });
+  const curves = partFeatures(b, IMPERIAL).filter((f) => f.tags[0]!.includes('curve'));
+  // planKeys letters by identical key line: two different lines are two letters.
+  expect(curves.map((f) => f.text)).toEqual(['Roundover 1/4", stopped', 'Roundover 1/4"']);
+  // A stored profile's fault keys with the suffix, as its bench line carries the check (P12).
+  const stacked = createBoard({ id: 'b', ...B, profiles: [{ id: 'f', ...full }, { id: 'g', ...full }] });
+  expect(partFeatures(stacked, IMPERIAL).map((f) => f.text)).toEqual([`Roundover 1/4"${FAULT_SUFFIX}`, `Roundover 1/4"${FAULT_SUFFIX}`]);
 });

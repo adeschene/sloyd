@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, mirrorCurveCut, sameCurve } from './curves';
+import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, curveValues, mirrorCurveCut, sameCurve, spanOf } from './curves';
 import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
-import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun } from './profiles';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults } from './profiles';
 import type { ProfileFields } from './profiles';
 import type { CurveCut, ProfileCut } from './types';
 
@@ -327,5 +327,49 @@ describe('station runs: order and mirror (profile runs a2, P11)', () => {
     const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
     const p: ProfileCut = { id: 'x', ...base, run: { start: st(3), end: st(27) } };
     expect(profileToFields(p)).toEqual(profileToFields({ ...base }));
+  });
+});
+
+describe('the span and the profile faults (profile runs a2, P12/P13)', () => {
+  const B = { length: 30, width: 10, thickness: 0.75 };
+  const side = { across: 'width', from: 'max' } as const;
+  const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+  const stopped = (a: number, b: number, id = 'p'): ProfileCut => ({ id, ...base, run: canonicalRun(B, base.face, { start: { side, from: 'min', at: a }, end: { side, from: 'min', at: b } }) });
+  it('an End to end profile has no span; its view curve is chunk 1\'s bytes', () => {
+    const p: ProfileCut = { id: 'p', ...base };
+    expect(profileSpan(B, p)).toBeUndefined();
+    const board = createBoard({ ...B, profiles: [p] });
+    expect(geometryBoard(board).curves[0]).toEqual(profileAsCurve(p));
+  });
+  it('a stopped profile spans its stations, stop flags set; a through end sets none', () => {
+    expect(profileSpan(B, stopped(3, 27))).toEqual({ lo: 3, hi: 27, stopLo: true, stopHi: true });
+    const half: ProfileCut = { id: 'p', ...base, run: canonicalRun(B, base.face, { start: { side, through: 'min' }, end: { side, from: 'min', at: 20 } }) };
+    expect(profileSpan(B, half)).toEqual({ lo: 0, hi: 20, stopLo: false, stopHi: true });
+  });
+  it('the view carries the span, and curveValues tells a stopped curve from a full one', () => {
+    const g = geometryBoard(createBoard({ ...B, profiles: [stopped(3, 27)] }));
+    expect(spanOf(g.curves[0]!)).toEqual({ lo: 3, hi: 27, stopLo: true, stopHi: true });
+    expect(curveValues(g.curves[0]!)).not.toBe(curveValues(profileAsCurve(stopped(3, 27))));
+    expect(curveValues(profileAsCurve(stopped(3, 27)))).toBe(curveValues(profileAsCurve({ id: 'p', ...base })));
+  });
+  it('stop-off: a station at or past an end, or a start not before its stop (P12); none for a fit', () => {
+    const b = (p: ProfileCut) => profileFaults(createBoard({ ...B, profiles: [p] }), p).map((f) => f.kind);
+    expect(b(stopped(3, 27))).toEqual([]);
+    expect(b(stopped(3, 30))).toEqual(['stop-off']);
+    expect(b(stopped(3, 31))).toEqual(['stop-off']);
+    expect(b(stopped(0, 20))).toEqual(['stop-off']);
+    expect(b(stopped(12, 12))).toEqual(['stop-off']);
+  });
+  it('a stop 0.1" in is no fault: the run-out runs off the end (P13)', () => {
+    expect(profileFaults(createBoard({ ...B, profiles: [stopped(0.1, 27)] }), stopped(0.1, 27))).toEqual([]);
+  });
+  it('overlap: same face and side, spans overlapping with positive length; touching is not (P12)', () => {
+    const a = stopped(3, 15, 'a'), c = stopped(12, 27, 'c'), d = stopped(15, 27, 'd');
+    expect(profileFaults(createBoard({ ...B, profiles: [a, c] }), a)).toEqual([{ kind: 'overlap', other: 'c' }]);
+    expect(profileFaults(createBoard({ ...B, profiles: [a, d] }), a)).toEqual([]);
+    const full: ProfileCut = { id: 'f', ...base };
+    expect(profileFaults(createBoard({ ...B, profiles: [a, full] }), a)).toEqual([{ kind: 'overlap', other: 'f' }]);
+    const otherSide: ProfileCut = { id: 'o', ...profileFromFields({ through: 'length', uFrom: 'min', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' }) };
+    expect(profileFaults(createBoard({ ...B, profiles: [a, otherSide] }), a)).toEqual([]);
   });
 });

@@ -2,9 +2,9 @@ import type { Board, CurveCut, Dimension } from './types';
 import { formatLength, type Units } from '../units/length';
 import { edgeName, endWord } from './holeText';
 import {
-  archFields, bowFields, cornerFields, curveFaults, localSegments, uvDims, type CurveFault, type LocalArc,
+  archFields, bowFields, cornerFields, curveFaults, localSegments, spanOf, uvDims, type CurveFault, type LocalArc,
 } from './curves';
-import { geometryBoard, profileAsymmetric, profileFields, type ProfileFields } from './profiles';
+import { geometryBoard, profileAsymmetric, profileFields, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
 import { faceName } from './angleText';
 
 /** A fault in words (spec §2.5, P4): THE one home (invariant 19), read by the bench line and the Properties note.
@@ -22,8 +22,30 @@ const radiusOf = (span: number, rise: number) => (span * span / 4 + rise * rise)
  */
 export function curveLine(board: Board, c: CurveCut, units: Units): string {
   const base = curveLineBase(board, c, units);
-  const faults = curveFaults(board, c);
-  return faults.length === 0 ? base : `${base} — check: ${curveFaultText(faults[0]!)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+  const faults = curveFaultWords(board, c);
+  return faults.length === 0 ? base : `${base} — check: ${faults[0]!}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+}
+
+/** A profile fault in words (P12): THE one home (invariant 19). Lower-case, no full stop. */
+export function profileFaultText(f: ProfileFault): string {
+  return f.kind === 'stop-off' ? 'a stop runs off the part' : 'it overlaps another profile on this edge';
+}
+
+/** Every fault of a curve in words: the curve's own first (`curveFaults`), then, for a geometry view's profile curve, the
+ *  STORED profile's (`viewProfileFaults`). */
+function curveFaultWords(board: Board, c: CurveCut): string[] {
+  return [...curveFaults(board, c).map(curveFaultText), ...viewProfileFaults(c).map(profileFaultText)];
+}
+/** A curve with any fault, its own or its stored profile's: never collapsed, keyed with the fault suffix. */
+export const curveFaulted = (board: Board, c: CurveCut): boolean => curveFaults(board, c).length > 0 || viewProfileFaults(c).length > 0;
+
+/** A stopped profile's stations (P15), lo then hi along the run from its min end; a through end reads as that end. */
+function spanWords(c: CurveCut, units: Units): string {
+  const span = spanOf(c);
+  if (!span) return '';
+  const lo = span.stopLo ? formatLength(span.lo, units) : `the ${c.through} min end`;
+  const hi = span.stopHi ? formatLength(span.hi, units) : `the ${c.through} max end`;
+  return `, from ${lo} to ${hi} (stopped)`;
 }
 
 /** A profile's short words (spec §4): THE one home, read by the bench line and the Plans key. */
@@ -50,7 +72,7 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   const through = c.through === 'thickness' ? '' : `, cut through the ${c.through}`;
   const prof = profileFields(c);
-  if (prof) return profileLine(prof, units);
+  if (prof) return `${profileLine(prof, units)}${spanWords(c, units)}`;
   const arch = archFields(c);
   if (arch) {
     const edge = edgeName({ dim: other(c.through, arch.along), side: arch.side });
@@ -86,7 +108,7 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
  *  corner curves on one face with one radius and no fault collapse to one line, printed where the first of them stands. */
 export function curveLineEntries(board: Board, units: Units): { ids: string[]; text: string }[] {
   board = geometryBoard(board);
-  const corners = board.curves.map((c) => ({ c, f: cornerFields(c) })).filter((x) => x.f && !profileFields(x.c) && curveFaults(board, x.c).length === 0);
+  const corners = board.curves.map((c) => ({ c, f: cornerFields(c) })).filter((x) => x.f && !profileFields(x.c) && !curveFaulted(board, x.c));
   const groups = new Map<string, CurveCut[]>();
   for (const { c, f } of corners) {
     const key = `${f!.through}|${f!.radius}`;
@@ -106,8 +128,10 @@ export function curveLineEntries(board: Board, units: Units): { ids: string[]; t
     for (const c of four.slice(1)) skip.add(c);
   }
   // Four equal profiles round one face's four edges (thickness faces only can hold four): one line, printed where the
-  // first stands. A faulted profile, or one differing in kind, size, depth or fillet, or whose top is another face, keeps its own.
-  const profs = board.curves.map((c) => ({ c, p: profileFields(c) })).filter((x): x is { c: CurveCut; p: ProfileFields } => !!x.p && curveFaults(board, x.c).length === 0);
+  // first stands. A faulted profile, or one differing in kind, size, depth or fillet, or whose top is another face, keeps its
+  // own; so does a stopped one (P15).
+  const profs = board.curves.map((c) => ({ c, p: profileFields(c) }))
+    .filter((x): x is { c: CurveCut; p: ProfileFields } => !!x.p && !spanOf(x.c) && !curveFaulted(board, x.c));
   const done = new Set<CurveCut>();
   for (const D of ['length', 'width', 'thickness'] as const) {
     for (const S of ['min', 'max'] as const) {

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { archCurve, bowCurve, cornerCurve, createBoard } from './document';
 import { curveLine, curveLines } from './curveText';
-import { profileCurve, type ProfileFields } from './profiles';
+import { PROFILE_EDGES, canonicalRun, profileCurve, profileFromFields, type ProfileFields } from './profiles';
 import { curveFaults } from './curves';
-import type { CurveCut } from './types';
+import type { CurveCut, ProfileCut, ProfileEnd } from './types';
 import { IMPERIAL } from '../units/length';
 import { ARCH, CORNER } from './curveFixtures';
 
@@ -127,5 +127,42 @@ describe('profile bench lines (edge profiles spec §4)', () => {
   });
   it('a stored through-length Rounded corner now reads as a Roundover', () => {
     expect(curveLines(on([p('a', { kind: 'roundover', size: 0.25 })]), IMPERIAL)[0]).not.toMatch(/^Round the corner/);
+  });
+});
+
+describe('stopped profile words (profile runs a2, P15)', () => {
+  const UNITS = IMPERIAL;
+  const B = { length: 30, width: 10, thickness: 0.75 };
+  const side = { across: 'width', from: 'max' } as const;
+  const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' });
+  const board = (run: ProfileCut['run'], extra: ProfileCut[] = []) => createBoard({ id: 'b', ...B, profiles: [{ id: 'p', ...base, run }, ...extra] });
+  it('a stopped bench line adds its stations from the min end', () => {
+    const b = board(canonicalRun(B, base.face, { start: { side, from: 'min', at: 3 }, end: { side, from: 'min', at: 27 } }));
+    expect(curveLines(b, UNITS)).toEqual(['Roundover 1/4" on the edge between the width face (max side) and the thickness face (max side), along the length, from 3" to 27" (stopped)']);
+  });
+  it('a through end reads as its end', () => {
+    const b = board(canonicalRun(B, base.face, { start: { side, through: 'min' }, end: { side, from: 'min', at: 20 } }));
+    expect(curveLines(b, UNITS)[0]).toMatch(/, from the length min end to 20" \(stopped\)$/);
+  });
+  it('a station stored from max reads from the min end (a mirrored copy)', () => {
+    const b = board(canonicalRun(B, base.face, { start: { side, from: 'max', at: 3 }, end: { side, from: 'max', at: 27 } }));
+    expect(curveLines(b, UNITS)[0]).toMatch(/, from 3" to 27" \(stopped\)$/);
+  });
+  it('a stopped profile never joins the four-edge collapse', () => {
+    const four = PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i) => ({ id: `q${i}`, ...profileFromFields({ ...e, kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' }) }));
+    const stoppedOne = { ...four[0]!, run: canonicalRun(B, 'max', { start: { side: (four[0]!.run as { start: ProfileEnd }).start.side, from: 'min', at: 3 }, end: { side: (four[0]!.run as { start: ProfileEnd }).start.side, from: 'min', at: 6 } }) };
+    const lines = curveLines(createBoard({ id: 'b', ...B, profiles: [stoppedOne, ...four.slice(1)] }), UNITS);
+    expect(lines.some((l) => l.includes('all four edges'))).toBe(false);
+    expect(lines).toHaveLength(4);
+  });
+  it('a stopped profile with a stop past the end is noted', () => {
+    const b = board(canonicalRun(B, base.face, { start: { side, from: 'min', at: 3 }, end: { side, from: 'min', at: 31 } }));
+    expect(curveLines(b, UNITS)[0]).toMatch(/ — check: a stop runs off the part$/);
+  });
+  it('two identical End to end profiles stacked on one edge overlap (P12, was allowed in a1 by P6): both noted, no collapse', () => {
+    const four = PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i) => ({ id: `q${i}`, ...profileFromFields({ ...e, kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' }) }));
+    const lines = curveLines(createBoard({ id: 'b', ...B, profiles: [...four, { ...four[0]!, id: 'dup' }] }), UNITS);
+    expect(lines).toHaveLength(5);
+    expect(lines.filter((l) => l.endsWith(' — check: it overlaps another profile on this edge'))).toHaveLength(2);
   });
 });
