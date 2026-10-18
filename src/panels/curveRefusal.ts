@@ -2,6 +2,8 @@ import {
   bowFields, archFields, cornerFields, curveFaults, holeFaults, uvDims, CURVE_EPS, profileFields,
 } from '../document/document';
 import type { Board, CurveCut, Dimension } from '../document/document';
+import { profileFaults } from '../document/profiles';
+import type { ProfileFault } from '../document/profiles';
 import { curveWord, distinctFaults, edgeName, faultKey } from '../document/holeText';
 
 export type Draft = Omit<CurveCut, 'id'>;
@@ -47,24 +49,49 @@ export function pastHalfCircle(next: Draft): boolean {
 }
 
 /** The refusal for an edit that ADDS a curve fault, or a hole fault, the stored state lacks (spec §8), or null. `control`
- *  names the field the user changed, for "reduce the … first"; a select change passes null. */
-export function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control | null, after?: Board): string | null {
+ *  names the field the user changed, for "reduce the … first"; a select change passes null. `curve` is the stored curve,
+ *  or null when there is none to compare with (a swept profile made straight, profile runs b1: every fault of `next` is
+ *  then added); `after` is then required. */
+export function refusalFor(board: Board, curve: CurveCut | null, next: Draft, control: Control | null, after?: Board): string | null {
   if (pastHalfCircle(next)) return HALF_CIRCLE;
-  const had = new Set(curveFaults(board, curve).map((f) => f.kind));
+  const had = new Set(curve ? curveFaults(board, curve).map((f) => f.kind) : []);
   const added = curveFaults(board, next).find((f) => !had.has(f.kind));
   if (added?.kind === 'cuts-through') return `Removes more than the ${cutDim(board, next)} — reduce the ${control ?? 'Rise'} first.`;
   if (added) {
     // A select change (no control) names the field that sizes this kind: a Bow has no Span (its Rise), a corner its
     // Radius (finding 3).
-    const prof = profileFields(next) ?? profileFields(curve);
+    const prof = profileFields(next) ?? (curve && profileFields(curve));
     const sizer: Control = control ?? (prof ? (prof.kind === 'ogee' ? 'Size' : prof.kind === 'thumbnail' ? 'Reach' : 'Radius')
-      : bowFields(next) || bowFields(curve) ? 'Rise' : cornerFields(next) || cornerFields(curve) ? 'Radius' : 'Span');
+      : bowFields(next) || (curve && bowFields(curve)) ? 'Rise' : cornerFields(next) || (curve && cornerFields(curve)) ? 'Radius' : 'Span');
     return sizer === 'Radius'
       ? `A radius can't run past ${edgeName(added.edge!)} — reduce it first.`
       : `Runs past ${edgeName(added.edge!)} — reduce the ${sizer} first.`;
   }
-  const post: Board = after ?? { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
+  const post: Board = after ?? { ...board, curves: board.curves.map((c) => (c.id === curve!.id ? { ...next, id: curve!.id } : c)) };
   return holeRefusal(board, post);
+}
+
+/** The refusal for a profile fault an edit would ADD (P12; b1's Q6): THE one home, read by the Profiles row and by Curves
+ *  (an edit of the curve under a profile, Review Focus 2). */
+export const PROFILE_REFUSAL: Record<ProfileFault['kind'], string> = {
+  'stop-off': 'A stop runs off the part — move it first.',
+  overlap: 'Overlaps another profile on this edge — move it first.',
+  'runs-off': 'Runs off the part — reduce the size first.',
+  'too-tight': 'Too tight for the curve — reduce the size first.',
+};
+
+/** The first profile fault `after` ADDS (by kind, per profile, matched by id) that `board` lacks, as its refusal; or null.
+ *  Both are STORED parts (curves included): Curves' edits change the curves under the profiles, so every profile is judged
+ *  before and after (Review Focus 2) — a fault a resize already caused is kept, never a reason to refuse an unrelated edit. */
+export function profileRefusal(board: Board, after: Board): string | null {
+  for (const p of board.profiles) {
+    const q = after.profiles.find((x) => x.id === p.id);
+    if (!q) continue;
+    const had = new Set(profileFaults(board, p).map((f) => f.kind));
+    const added = profileFaults(after, q).find((f) => !had.has(f.kind));
+    if (added) return PROFILE_REFUSAL[added.kind];
+  }
+  return null;
 }
 
 /** A greyed select option's reason: the refusal's own words up to its dash (presets minors 2; fu 388), so

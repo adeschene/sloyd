@@ -1,7 +1,8 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { archCurve, archFields, bowCurve, bowFields, cornerCurve, createBoard, createDocument, profileOf } from '../document/document';
+import { archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, createBoard, createDocument, profileOf } from '../document/document';
+import { loop, topCorners } from '../document/sweepFixtures';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
 import { refusalFor } from './curveRefusal';
@@ -345,5 +346,66 @@ describe('Curves leaves profiles to the Profiles section (edge profiles spec §2
     open(apron({ length: 30, width: 0.75, thickness: 5,
       curves: [{ id: 'c1', ...archCurve({ through: 'width', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1 }) }] }));
     expect(screen.queryByRole('option', { name: /^Rounded corner/ })).toBeNull();
+  });
+});
+
+// Profile runs b1, Review Focus 2: editing the curve under a swept profile. Every curve add, edit and remove judges each
+// profile's faults before and after, and refuses one that ADDS a kind (decided before the store write).
+describe('Curves refuses an edit that adds a profile fault (profile runs b1)', () => {
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const radiusOf = (i: number) => cornerFields(curves()[i]!)!.radius;
+  const LOOP_LINE = 'Roundover 1/4" all round the thickness face (max side)';
+
+  it('a corner shrunk under the 1/4" loop\'s reach is refused in the profile fault\'s words, nothing stored', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2)));
+    const radius = screen.getAllByLabelText('Radius')[0]!;          // the first corner row
+    await user.clear(radius); await user.type(radius, '0.2{Enter}');
+    expect(radiusOf(0)).toBe(2);
+    expect(radius).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent('Too tight for the curve — reduce the size first.');
+  });
+
+  it('growing a corner to 3" is accepted; the loop re-routes, its bench line unchanged', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2)));
+    expect(screen.getByText(LOOP_LINE)).toBeInTheDocument();
+    const radius = screen.getAllByLabelText('Radius')[0]!;
+    await user.clear(radius); await user.type(radius, '3{Enter}');
+    expect(radiusOf(0)).toBe(3);
+    expect(screen.getByText(LOOP_LINE)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('removing a corner under the loop is accepted', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2)));
+    await user.click(screen.getAllByRole('button', { name: /^Remove curve/ })[0]!);
+    expect(curves()).toHaveLength(3);
+    expect(screen.getByText(LOOP_LINE)).toBeInTheDocument();
+  });
+
+  it('a profile already too tight (stored) does not refuse an edit that adds nothing new', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(0.2)));                                    // every corner under the 1/4" reach: too-tight stored
+    const radius = screen.getAllByLabelText('Radius')[0]!;
+    await user.clear(radius); await user.type(radius, '0.3{Enter}'); // three corners still too tight: nothing ADDED
+    expect(radiusOf(0)).toBe(0.3);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('a Rounded corner preset under a loop whose reach is over its radius is withheld; offered under a smaller loop', async () => {
+    const user = userEvent.setup();
+    const part = (size: number) => createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75,
+      profiles: [{ ...loop('w1', size, 'thumbnail'), depth: 0.25 }] });
+    open(part(1.25));                                                // the default corner is 1": a 1-1/4" reach is too tight
+    await user.click(screen.getByRole('button', { name: '+ Add curve' }));
+    expect(screen.queryByRole('button', { name: 'Rounded corner' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Rounded corners' })).toBeNull();
+    document.body.innerHTML = '';
+    open(part(0.75));
+    await user.click(screen.getByRole('button', { name: '+ Add curve' }));
+    expect(screen.getByRole('button', { name: 'Rounded corner' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rounded corners' })).toBeInTheDocument();
   });
 });

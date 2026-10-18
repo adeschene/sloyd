@@ -4,15 +4,15 @@ import {
   curveFaults, defaultProfile, geometryBoard, profileAsymmetric, profileFields, profileFromFields,
   profileOf, profileToFields, uvDims, DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
-import type { Board, CurveCut, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
-import { canonicalRun, endPos, endToEnd, profileFaults, runDim, viewProfileFaults } from '../document/profiles';
-import type { ProfileFault } from '../document/profiles';
-import { curveFaultText, curveLine, profileFaultNote } from '../document/curveText';
+import type { Board, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
+import { canonicalRun, endPos, endToEnd, oneSide, profileFaults, runDim, viewProfileFaults } from '../document/profiles';
+import { isSwept } from '../document/profilePath';
+import { curveFaultText, curveLine, profileFaultNote, sweptLine } from '../document/curveText';
 import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, optionReason, refusalFor } from './curveRefusal';
+import { holeRefusal, optionReason, refusalFor, PROFILE_REFUSAL } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
@@ -37,16 +37,13 @@ const PRESET_EDGES: readonly ProfileEdge[] = [...PROFILE_EDGES].sort((a, b) => {
   for (let i = 0; i < 3; i += 1) if (ra[i] !== rb[i]) return ra[i] ? 1 : -1;
   return 0;
 });
-type RunKind = 'through' | 'stopped';
-const RUN_LABEL: Record<RunKind, string> = { through: 'End to end', stopped: 'Stopped' };
-/** The refusal for a profile fault an edit would ADD (P12). */
-const PROFILE_REFUSAL: Record<ProfileFault['kind'], string> = {
-  'stop-off': 'A stop runs off the part — move it first.',
-  overlap: 'Overlaps another profile on this edge — move it first.',
-  // Swept profiles (profile runs b1, Q6); the row reaches them in a later b1 task.
-  'runs-off': 'Runs off the part — reduce the size first.',
-  'too-tight': 'Too tight for the curve — reduce the size first.',
-};
+type RunKind = 'through' | 'stopped' | 'loop';
+const RUN_LABEL: Record<RunKind, string> = { through: 'End to end', stopped: 'Stopped', loop: 'All round' };
+/** B7: until b2, a stop is offered only on a side whose End to end run is straight (a station run stays a2's construction). */
+export const TURNED_STOP = 'A stop on a curved or cornered run comes later.';
+type StationRun = { start: ProfileEnd; end: ProfileEnd };
+/** The End to end run on `side` (the form `isSwept` judges a side by). */
+const throughRun = (side: ProfileSide): StationRun => ({ start: { side: { ...side }, through: 'min' }, end: { side: { ...side }, through: 'max' } });
 type Next = Omit<ProfileCut, 'id'>;
 
 /** A symmetric profile is written at facing 'v' (`profileCurve` does not normalise): a roundover with no fillet is then
@@ -55,9 +52,9 @@ const normal = (f: ProfileFields): ProfileFields => (profileAsymmetric(f) ? f : 
 
 /** The fu 388 rule, one instance per select: an option whose result would be refused is disabled and says why, judged ONLY
  *  while the select has focus — every edit frame is a render — and afresh when the profile or part changes under it. */
-function useReasons<K extends string>(curve: CurveCut, board: Board, keys: readonly K[], current: K, judge: (k: K) => string | null) {
+function useReasons<K extends string>(curve: object, board: Board, keys: readonly K[], current: K, judge: (k: K) => string | null) {
   const [focused, setFocused] = useState(false);
-  const [judged, setJudged] = useState<{ curve: CurveCut; board: Board; reasons: Partial<Record<K, string>> } | null>(null);
+  const [judged, setJudged] = useState<{ curve: object; board: Board; reasons: Partial<Record<K, string>> } | null>(null);
   useEffect(() => {
     if (!focused || (judged && judged.curve === curve && judged.board === board)) return;
     const reasons: Partial<Record<K, string>> = {};
@@ -77,38 +74,54 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const updateProfile = useStore((s) => s.updateProfile);
   const removeProfile = useStore((s) => s.removeProfile);
   // The geometry readers (faults, bench line, refusals) read the part through its view (spec P4); the stored part keeps the
-  // profiles for the post-edit board. The row's curve is the VIEW's own object, so its words carry the stopped run and the
-  // profile's faults (curveText reads them off that object).
+  // profiles for the post-edit board. A STRAIGHT profile's row reads the view's own curve, so its words carry the stopped run
+  // and the profile's faults (curveText reads them off that object); a SWEPT one (profile runs b1: a loop, or End to end
+  // round a curve) is the view's own copy in `profiles` — each a stable object per view, for useReasons.
   const board = geometryBoard(stored_);
-  const p = useMemo(() => profileToFields(profile), [profile]);
-  const curve = board.curves.find((c) => c.id === profile.id)!;
+  const vp = board.profiles.find((x) => x.id === profile.id);
+  const curve = vp ? null : board.curves.find((c) => c.id === profile.id)!;
+  const loop = 'loop' in profile.run;
+  // The row's fields: chunk 1's, from the stored profile. A loop has no side, so its fields are read as the End to end run
+  // on the default edge's side (never shown: Side is hidden, and `build` puts the loop back).
+  const p = useMemo(() => profileToFields(loop ? { ...profile, run: throughRun(sideOfEdge(DEFAULT_PROFILE_EDGE)) } : profile), [profile, loop]);
   const [error, setError] = useState<string | null>(null);
-  const line = curveLine(board, curve, units);
+  const line = vp ? sweptLine(board, vp, units) : curveLine(board, curve!, units);
   // The first stored fault as a note: a curve fault reads " at this size." (a resize caused it), a profile fault through
-  // profileFaultNote (an overlap does not: F5).
-  const storedFaults = [...curveFaults(board, curve).map((x) => `${cap(curveFaultText(x))} at this size.`), ...viewProfileFaults(curve).map(profileFaultNote)];
-  // A loop or a two-side run is refused on load (spec P2/P10), and `profileToFields` above would already have thrown.
-  const run0 = profile.run as { start: ProfileEnd; end: ProfileEnd };
+  // profileFaultNote (an overlap does not: F5). A swept profile has no chunk-1 curve: its own faults only.
+  const storedFaults = vp ? viewProfileFaults(vp).map(profileFaultNote)
+    : [...curveFaults(board, curve!).map((x) => `${cap(curveFaultText(x))} at this size.`), ...viewProfileFaults(curve!).map(profileFaultNote)];
+  // A two-side run is refused on load (spec P2/P10); a loop reads as its fields' side above.
+  const run0: StationRun = loop ? throughRun(sideOfEdge(DEFAULT_PROFILE_EDGE)) : profile.run as StationRun;
   const side: ProfileSide = run0.start.side;
   const dim = runDim(side);
   const L = stored_[dim];
-  const stopped = !endToEnd(run0);
-  /** The stored next profile for new fields: the run kept, its ends re-sided and re-ordered (a Face or Side change keeps
-   *  the stations; P11). */
-  const build = (nextFields: ProfileFields, run = run0): Next => {
+  const stopped = !loop && !endToEnd(run0);
+  /** The stored next profile for new fields: the run kept (a loop stays a loop), its ends re-sided and re-ordered (a Face
+   *  or Side change keeps the stations; P11). */
+  const build = (nextFields: ProfileFields, run: ProfileCut['run'] = profile.run): Next => {
     const next = profileFromFields(normal(nextFields));
+    if ('loop' in run) return { ...next, run: { loop: true } };
     if (endToEnd(run)) return next;
-    const ns = next.run as { start: ProfileEnd; end: ProfileEnd };
+    const ns = next.run as StationRun;
     const reSide = (e: ProfileEnd): ProfileEnd => ({ ...e, side: { ...ns.start.side } });
     return { ...next, run: canonicalRun(stored_, next.face, { start: reSide(run.start), end: reSide(run.end) }) };
   };
-  /** The refusal for `next` (nothing stored), or null: an ADDED profile fault, curve fault or hole fault. */
+  /** True when `s`'s End to end run follows a curve or corner (profile runs b1, Q2): a "turned" side. */
+  const turned = (s: ProfileSide) => isSwept(stored_, { ...profile, run: throughRun(s) });
+  /** The refusal for `next` (nothing stored), or null: a stop ADDED on a turned side (B7), then an ADDED profile fault, then
+   *  — for a straight next — chunk 1's curve and hole refusals, or — for a swept next — the hole refusal alone (a swept
+   *  profile has no chunk-1 curve). */
   const refuse = (next: Next, control: Control | null): string | null => {
+    const nr = next.run;
+    if (oneSide(nr) && !endToEnd(nr) && turned(nr.start.side)
+      && !(stopped && sameSide(nr.start.side, side))) return TURNED_STOP;
     const after: Board = { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? { ...next, id: x.id } : x)) };
-    const had = new Set(viewProfileFaults(curve).map((f) => f.kind));
+    const had = new Set(profileFaults(stored_, profile).map((f) => f.kind));
     const added = profileFaults(after, { ...next, id: profile.id }).find((f) => !had.has(f.kind));
     if (added) return PROFILE_REFUSAL[added.kind];
-    const nextCurve = geometryBoard(after).curves.find((c) => c.id === profile.id)!;
+    const nextView = geometryBoard(after);
+    if (nextView.profiles.some((x) => x.id === profile.id)) return holeRefusal(board, after);
+    const nextCurve = nextView.curves.find((c) => c.id === profile.id)!;
     return refusalFor(board, curve, nextCurve, control, after);
   };
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
@@ -123,6 +136,7 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   // stored value.
   const field = (next: ProfileFields, control: Control): string | undefined => attempt(build(next), control) ?? undefined;
   const set = (next: Next) => { const r = attempt(next, null); if (r) setError(r); };
+  const key: object = vp ?? curve!;
 
   const [u, v] = uvDims(p.through);
   const sizeLabel = SIZE_LABEL[p.kind];
@@ -136,19 +150,22 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
     const at = (a: number): ProfileEnd => ({ side: { ...side }, from: 'min', at: a });
     return { start: at(start), end: at(L - start) };
   };
+  /** A Run change keeps the fields; from All round, End to end and Stopped take the default edge's side (the side the
+   *  loop's fields read as). */
   const withRun = (k: RunKind): Next => {
-    const fields = p;
-    if (k === 'through') return profileFromFields(normal(fields));
-    const next = profileFromFields(normal(fields));
-    return { ...next, run: canonicalRun(stored_, next.face, stoppedRun() as { start: ProfileEnd; end: ProfileEnd }) };
+    const next = profileFromFields(normal(p));
+    if (k === 'through') return next;
+    if (k === 'loop') return { ...next, run: { loop: true } };
+    return { ...next, run: canonicalRun(stored_, next.face, stoppedRun() as StationRun) };
   };
-  const kindR = useReasons(curve, board, PROFILE_KINDS, p.kind, (k) => refuse(build(asKind(k)), null));
-  const faceR = useReasons(curve, board, ['max', 'min'] as const, p.vFrom, (f) => refuse(build(withFace(f)), null));
+  const kindR = useReasons(key, board, PROFILE_KINDS, p.kind, (k) => refuse(build(asKind(k)), null));
+  const faceR = useReasons(key, board, ['max', 'min'] as const, p.vFrom, (f) => refuse(build(withFace(f)), null));
   const sideKeys = ['0', '1', '2', '3'] as const;
-  const sideR = useReasons(curve, board, sideKeys, String(SIDES.findIndex((x) => sameSide(x, side))) as (typeof sideKeys)[number],
+  const sideR = useReasons(key, board, sideKeys, String(SIDES.findIndex((x) => sameSide(x, side))) as (typeof sideKeys)[number],
     (i) => refuse(build(withSide(SIDES[Number(i)]!)), null));
-  const runKeys: readonly RunKind[] = ['through', 'stopped'];
-  const runR = useReasons(curve, board, runKeys, (stopped ? 'stopped' : 'through') as RunKind, (k) => refuse(withRun(k), null));
+  const runKeys: readonly RunKind[] = ['through', 'stopped', 'loop'];
+  const runNow: RunKind = loop ? 'loop' : stopped ? 'stopped' : 'through';
+  const runR = useReasons(key, board, runKeys, runNow, (k) => refuse(withRun(k), null));
   const opt = (reasons: Partial<Record<string, string>>, key: string, label: string) => {
     const why = reasons[key];
     return <option key={key} value={key} disabled={why !== undefined}>{why ? `${label} — ${why}` : label}</option>;
@@ -186,22 +203,25 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
       {storedFaults.length > 0 && <p className="field-note" role="status">{storedFaults[0]!}</p>}
       <div className="field-grid field-grid-2">
         <div className="field">
-          <label htmlFor={`profile-face-${curve.id}`}>Face</label>
-          <select id={`profile-face-${curve.id}`} className="input" value={p.vFrom} {...faceR.focus}
+          <label htmlFor={`profile-face-${profile.id}`}>Face</label>
+          <select id={`profile-face-${profile.id}`} className="input" value={p.vFrom} {...faceR.focus}
             onChange={(e) => set(build(withFace(e.target.value as CutFrom)))}>
             {(['max', 'min'] as const).map((f) => opt(faceR.reasons, f, FACE_LABEL[f]))}
           </select>
         </div>
+        {!loop && (
+          // All round has no side (spec §5, B7).
+          <div className="field">
+            <label htmlFor={`profile-side-${profile.id}`}>Side</label>
+            <select id={`profile-side-${profile.id}`} className="input" value={SIDES.findIndex((x) => sameSide(x, side))} {...sideR.focus}
+              onChange={(e) => set(build(withSide(SIDES[Number(e.target.value)]!)))}>
+              {SIDES.map((s, i) => opt(sideR.reasons, String(i), sideLabel(s)))}
+            </select>
+          </div>
+        )}
         <div className="field">
-          <label htmlFor={`profile-side-${curve.id}`}>Side</label>
-          <select id={`profile-side-${curve.id}`} className="input" value={SIDES.findIndex((x) => sameSide(x, side))} {...sideR.focus}
-            onChange={(e) => set(build(withSide(SIDES[Number(e.target.value)]!)))}>
-            {SIDES.map((s, i) => opt(sideR.reasons, String(i), sideLabel(s)))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor={`profile-run-${curve.id}`}>Run</label>
-          <select id={`profile-run-${curve.id}`} className="input" value={stopped ? 'stopped' : 'through'} {...runR.focus}
+          <label htmlFor={`profile-run-${profile.id}`}>Run</label>
+          <select id={`profile-run-${profile.id}`} className="input" value={runNow} {...runR.focus}
             onChange={(e) => set(withRun(e.target.value as RunKind))}>
             {runKeys.map((k) => opt(runR.reasons, k, RUN_LABEL[k]))}
           </select>
@@ -214,8 +234,8 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
           </>
         )}
         <div className="field">
-          <label htmlFor={`profile-kind-${curve.id}`}>Profile</label>
-          <select id={`profile-kind-${curve.id}`} className="input" value={p.kind} {...kindR.focus}
+          <label htmlFor={`profile-kind-${profile.id}`}>Profile</label>
+          <select id={`profile-kind-${profile.id}`} className="input" value={p.kind} {...kindR.focus}
             onChange={(e) => set(build(asKind(e.target.value as ProfileKind)))}>
             {PROFILE_KINDS.map((k) => opt(kindR.reasons, k, KIND_LABEL[k]))}
           </select>
@@ -240,10 +260,11 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
         )}
         {profileAsymmetric(p) && (
           <div className="field field-wide">
-            <label htmlFor={`profile-facing-${curve.id}`}>Facing</label>
-            <select id={`profile-facing-${curve.id}`} className="input" value={p.facing} onChange={(e) => set(build({ ...p, facing: e.target.value as 'u' | 'v' }))}>
+            <label htmlFor={`profile-facing-${profile.id}`}>Facing</label>
+            <select id={`profile-facing-${profile.id}`} className="input" value={p.facing} onChange={(e) => set(build({ ...p, facing: e.target.value as 'u' | 'v' }))}>
               <option value="v">{`Top: ${sideText(v, p.vFrom)}`}</option>
-              <option value="u">{`Top: ${sideText(u, p.uFrom)}`}</option>
+              {/* A loop's other face is the outline's edge, no single named face (the bench line's own words, Q7). */}
+              <option value="u">{loop ? 'Top: the edge' : `Top: ${sideText(u, p.uFrom)}`}</option>
             </select>
           </div>
         )}
@@ -261,9 +282,11 @@ export function Profiles({ board: stored }: { board: Board }) {
   const f = (n: number) => formatLength(n, units);
   // A preset whose default would fault on this part — a curve fault, an overlap, or a hole it would put into the waste — is withheld,
   // not added and refused (the Curves precedent).
+  // A SWEPT preset (an edge whose side follows a curve or corner, profile runs b1) is judged by its own faults alone — its
+  // chunk-1 curve is not what gets built.
   const fits = (c: Draft): boolean => {
-    if (curveFaults(board, c).length > 0) return false;
     const preset: ProfileCut = { ...profileOf(c)!, id: '__preset0' };
+    if (!isSwept(stored, preset) && curveFaults(board, c).length > 0) return false;
     const after: Board = { ...stored, profiles: [...stored.profiles, preset] };
     // Nor one that would overlap a profile already on its edge (P12).
     if (profileFaults(after, preset).length > 0) return false;
