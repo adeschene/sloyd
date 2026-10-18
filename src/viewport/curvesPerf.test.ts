@@ -156,8 +156,9 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
   // built swept edges (curvedEdges' fast path: seams dropped, section-to-section lines decided by their tags, not searched
   // for by bodyEdges) — the controller's Task 5 ruling moved the four binding 40 ms rows here with that path. Three now pass
   // in both runs: the 2" roundover loop (27.1 / 33.1), the thumbnail loop (27.2 / 28.8), the front End to end with B1
-  // run-outs (32.0 / 37.2). The BEAD loop still misses (39.4–41.7 / 45.1) and is NOT here: its quirk wall lies on the
-  // band's wavefront, where the rest piece's face is part surface and part seam (Task 6 report). Cove, ogee and both faces
+  // run-outs (32.0 / 37.2). The BEAD loop misses 40: once its quirk wall became its own tagged section face (inv 16: no
+  // facet lines, smooth shading; a third section piece per segment) it measured 53–58 ms — the controller's Task 6 ruling
+  // made it a chunk-c speed row beside cove and ogee (spec Q4), guarded at 58 + 25%. Cove, ogee and both faces
   // fell (cove 64.3 / 63.1, ogee 80.2 / 90.1, both 59.9 / 61.9; were 95–113, 125–141, 77–83): each is guarded at its higher
   // minimum + 25% (Task 5 showed 25% over a single run's minimum flakes), and cove and ogee now measure inside Q4's 80 and 105.
   const swept: [string, Board, number][] = [
@@ -167,6 +168,7 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
     ['a roundover 1/4" all round the 2" corner top', topCorners(2), 40],
     ['a thumbnail all round the 2" top', topCorners(2, loop('p1', 0.75, 'thumbnail')), 40],
     ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 40],
+    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 73],
     ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 81],
     ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 113],
   ];
