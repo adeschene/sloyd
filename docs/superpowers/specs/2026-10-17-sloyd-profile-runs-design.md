@@ -4,8 +4,9 @@ Date: 2026-10-17. Follow-ups 390 (a profile does not follow a curved edge) and 3
 approved in chat by the user 2026-10-17, section by section ("Yes, that looks right" ×4, then "Yes, write the spec"); written spec
 approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `docs/superpowers/plans/2026-10-17-sloyd-profile-runs-a1.md`,
 merged as `305934d`); chunk a2 implemented (plan `docs/superpowers/plans/2026-10-18-sloyd-profile-runs-a2.md`; stopped profiles and the
-run-out), **a1 and a2 deploy together**. Next: chunk b (following the outline, fu 390). The rulings marked *Amended (implementation, a2)*
-(I1, I2) await the user's review. **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+run-out), **a1 and a2 deployed together** 2026-10-18 (`index-BbXkYYy4.js`). The rulings marked *Amended (implementation, a2)* (I1, I2)
+await the user's review. **Chunk b designed** in a second brainstorm, 2026-10-18 (rulings B1–B9 below, "Yes, that looks right" ×3,
+then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one
@@ -48,6 +49,32 @@ Rulings made while presenting the design, accepted with section 1:
 Non-goals: blind curved recesses; scooped or dished surfaces; following an inner loop; a bearing radius at inside corners; a
 bearing-size field; a pivoted (router-rounded) sharp corner; joinery, Refine or Repair on profiled parts (fu 363); Generate writing
 profiles; a grain fix (fu 336).
+
+**Chunk b rulings** (the user's, brainstorm 2026-10-18; they amend §3.3–§6 where marked *(B)*):
+
+- **B1 Rounded ends.** End to end on a side whose ends are corner arcs carries the profile round each arc and runs out where the
+  arc meets the next side (the bit lifted off at the far tangent point). All round stays the way to profile the whole face.
+- **B2 Stations** are measured straight along the side's run dimension from its min end, as a tape laid along the part and squared
+  to the edge (a2's rule, kept on curved sides). A station may sit on an arch, a bow or a corner arc.
+- **B3 Two-side runs** are in chunk b: a stopped run may start on one side and stop on another, following the outline between them
+  round any corners (a rounded top profiled front and ends, the back against a wall left plain).
+- **B4 Two builders, one view.** A run whose whole path is ONE straight segment keeps a1/a2's view curve, bodies, mesh and words
+  byte for byte. Every other run (a curved side, a corner arc, two sides, All round) is a SWEPT profile, built by §4.2's kept-wood
+  construction, with a2's run-out where it stops. The choice is structural (`profilePath.ts`). Rejected: one new builder for every
+  run (it loses a1/a2's byte-for-byte pins and re-verifies every shipped profile); subtracting swept waste (the probe: 2–9× the
+  budget).
+- **B5 Concave arcs under the bearing refuse.** A 1/2" bearing cannot follow a concave arc tighter than 1/4" radius; `too-tight`
+  covers it, beside R10's convex arc under the reach. (Inside SHARP corners still mitre, R7.)
+- **B6 Split:** **b1** follows the outline (End to end on a curved side or round its corner arcs, All round): path, geometry,
+  mesh, edges, faults, probes, Plans sheet, diagrams, words, the row. **b2** adds stops on a turned path (the run-out on a curve)
+  and two-side runs (a second Side select). Each its own plan, review and live pass.
+- **B7 b1 deploys alone.** Until b2, the row greys Stopped on a turned path with its reason (`A stop on a curved or cornered run
+  comes later`).
+- **B8 Paper:** crease lines swept along a path arc are drawn at `DRAWING_CURVE_TOLERANCE` (they are what one sees on an arched
+  apron); the profile's own arcs across the sweep stay model chords (P19 extended), as do run-outs.
+- **B9 Probe first.** b1's plan opens with a throwaway probe of §4.2 on today's code (after a2's memo and indexing work) and of a
+  run-out meeting a swept band; its numbers set b1's perf guards and decide whether a following cove, ogee or bead belongs in b1 or
+  waits for chunk c.
 
 **Planning rulings for chunk a1** (*Amended (planning)*):
 - **P1** a1 keeps the Profiles row as it is (the Edge select of eight edges, Facing's words); Face, Run and Side replace the Edge
@@ -156,6 +183,8 @@ interface ProfileCut {
   fillet, a bead without a quirk, an end missing its side, or a run that is neither shape. A faulted but well-formed entry is KEPT.
   An unknown `kind` string, or a run key the reader does not know, REFUSES the document with the newer-version message (curves'
   precedent: a new kind needs no bump).
+- *(B)* b1 lifts the loader's refusal of `{loop: true}`, and b2 lifts its refusal of ends on two sides, with no schema bump
+  (P2's purpose): a build one chunk back refuses such a document instead of drawing it wrong.
 - **Pin:** for every chunk-1 fixture (each kind × 8 edges × facings, the four-edge sets, the mixed shelf), the migrated part's
   bodies hold the same wood: volume to 1e-8 and the point oracle.
 - Versioning row: *16→17 … | 17→18 | `profiles` on parts and shapes (default `[]`; recognised profile curves moved in; malformed
@@ -170,6 +199,12 @@ interface ProfileCut {
   with its centre and radius, tessellated with `curveOutline`'s chords). A face with no such curves is its rectangle.
 - `profilePath(board, profile)` gives the run's stretch of that outline, from `start` to `end` (or the closed loop). Each vertex
   is flagged sharp or tangent-continuous, judged on the true arcs (inv 16's rule).
+- *(B)* A **side's stretch** is the outline between its two corners; a corner is a sharp vertex or a CORNER ARC (a curve meeting
+  two sides). An arch, notch or bow along a side belongs to that side. End to end at a corner arc carries round it (B1); at a sharp
+  corner it runs out through the end face, as chunk 1. Every piece of a side's stretch moves one way along its run dimension (an
+  arc is at most a half circle; a corner arc runs from one side to the next), so a station (B2) names exactly one point.
+- *(B)* A run's path goes counter-clockwise, looking at `face`, from Start to Stop; a two-side run (B3, b2) goes round every corner
+  between its sides. Inner loops are not followed (R8).
 - Editing, resizing or removing a curve re-routes the profile. A stop whose station is not on its side's stretch of the outline
   is a fault (`stop-off`), kept and noted, never moved.
 
@@ -179,9 +214,10 @@ interface ProfileCut {
 
 - **`runs-off`**: the reach passes the face's half-width, or the profile's depth passes the thickness.
 - **`too-tight`** (chunk b): a convex ARC of the path (a tangent-continuous stretch) whose radius is under the reach (R10): the
-  offset would fold. A SHARP vertex never faults: it mitres (R6, R7).
+  offset would fold; *(B5)* or a concave arc whose radius is under the bearing's 1/4". A SHARP vertex never faults: it mitres (R6, R7).
 - **`stop-off`**: a station not on its side's outline, or a run-out whose cutter would leave the face.
-- **`overlap`**: two profiles' waste meet on one face (they fight for the same wood). The Curves precedent kept stacked identical
+- **`overlap`**: two profiles' waste meet on one face (they fight for the same wood). *(B)* Judged on paths: two profiles on one
+  face whose paths share any stretch (a front End to end round its corner arcs meets an end side's). The Curves precedent kept stacked identical
   profiles; a run makes that precedent wrong, so this refuses.
 - A hole into a profile's waste is a `breaks-out` keyed `:profile:<id>` (`intoProfile`, beside `intoCurve`), worded through
   `curveWord`.
@@ -210,6 +246,10 @@ For each profile, in stored order, each current body is split three ways. Every 
 - A body face on the swept surface carries `profile: <id>` (with its segment and profile-chord index), as a chord face carries
   `curve`.
 - A part with no profiles keeps its bodies byte for byte.
+- *(B4)* Only a SWEPT run (§3.3: any path that is not one straight segment) is built this way; a one-segment run keeps a1/a2's
+  construction byte for byte. In b1 a swept run stops only where B1 leaves a corner arc onto a straight side, so a2's inscribed
+  run-out applies unchanged there, meeting a swept band. *(b2)* A station on a curve runs out with the cutter revolved about the
+  bit's axis 1/4" outside the outline along its outward normal, the forward half bounded by the plane across the path's tangent.
 - Chunk (a) builds only straight runs: a profile on a side that a through-thickness curve has cut offers only End to end, built as
   chunk 1's prism.
 
@@ -237,8 +277,8 @@ For each profile, in stored order, each current body is split three ways. Every 
   Facet lines are suppressed in both directions, per interval: between profile chords along the path, and between path segments
   wherever the path is tangent-continuous.
 - **Plans sheet (inv 47).**
-  - Swept lines are drawn on a fine path at `DRAWING_CURVE_TOLERANCE`, both the path's arcs and the profile's, with visibility
-    judged on the model chords.
+  - Swept lines are drawn on a fine path at `DRAWING_CURVE_TOLERANCE` along the path's arcs, with visibility judged on the model
+    chords; *(B8)* the profile's own arcs across the sweep stay model chords.
   - A doubly curved surface's silhouette is the chain of facet edges whose two smooth faces turn opposite ways to the view, in either
     direction. It is probed from the viewer-facing faces' outward normals (`silhouetteLines`' rule) and clipped to the wood.
   - Model edges carry `curveEdgeLifts`' along-view lift.
@@ -250,10 +290,13 @@ For each profile, in stored order, each current body is split three ways. Every 
   - The through-face (plan) view draws the profile's inner edge, the offset line, along its path.
   - Chunk 1's end-view hatch stays for an End to end run on a side no curve cuts.
 - **Words** (`curveText.ts`, `featureKeys.ts`; one home each):
-  - End to end reads exactly as chunk 1: `Roundover 1/4" on the top long edge …`.
+  - End to end reads exactly as chunk 1: `Roundover 1/4" on the top long edge …`; *(B)* one that wraps corner arcs adds
+    `, round the corners`.
   - All round: `Roundover 1/4" all round the top`.
   - Stopped: `Cove 3/8" along the width min side, from 3" to 27" (stopped)`.
-  - Chunk 1's four-edge collapse becomes the loop's own line.
+  - *(B)* Chunk 1's four-edge collapse stays for four End to end profiles on a sharp-cornered face (a2 ruled it; a loop has its
+    own line). A two-side stopped run (b2): `Roundover 1/4" from the length min end at 4" round the width max side to the length max
+    end at 4" (stopped)`, in the row's Face/Side words.
   - Fillet words as today. Plans keys use the same text.
 - Stock, the cut list's sizes and nesting are unchanged.
 
@@ -267,8 +310,9 @@ For each profile, in stored order, each current body is split three ways. Every 
 - Kind, sizes, Fillet/Quirk and Facing are unchanged.
 - Every select greys a refused choice with its reason, judged only on focus (fu 388's rule, `optionReason`). Fields return their
   refusal (holes chunk 1 R7). One undo entry per edit.
-- Chunk (a) offers Stopped on straight sides only, and All round only once chunk (b) ships.
-- A stopped run's ends on two different sides (the stored form allows it) are offered from chunk (b), by a second Side select for
+- Chunk (a) offers Stopped on straight sides only, and All round only once chunk (b) ships. *(B7)* b1 offers All round (Side
+  hidden) and greys Stopped on a turned path with its reason until b2.
+- A stopped run's ends on two different sides (the stored form allows it) are offered from chunk (b2), by a second Side select for
   Stop.
 - `+ Add profile ▾` keeps chunk 1's presets (End to end on the top long edge), with the withhold rule.
 - The store gets `addProfiles` / `updateProfile` / `removeProfile` (one edit; held points re-judged after, as curves'). `profiles`
@@ -293,7 +337,7 @@ For each profile, in stored order, each current body is split three ways. Every 
 - Component tests for the row: each control writes only its field; a refused choice is greyed with its reason; a stop field refuses
   past its side; a stored fault is noted.
 - A live pass on the dev server per chunk (the viewport has no unit tests by design). Chunk (a): a stopped roundover on a shelf
-  front, and a v17 project opened and saved (migrated, same look). Chunk (b): an arched apron and a rounded-corner top, profiled.
+  front, and a v17 project opened and saved (migrated, same look). Chunk (b1): an arched apron and a rounded-corner top, profiled; (b2): a rounded top profiled front and ends, the back plain.
   Test projects are left in place.
 
 ## 9. Follow-ups this leaves
