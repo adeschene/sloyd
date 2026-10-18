@@ -9,7 +9,7 @@ await the user's review. **Chunk b designed** in a second brainstorm, 2026-10-18
 then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Chunk b1 implemented and merged** 2026-10-18 (plan
 `docs/superpowers/plans/2026-10-18-sloyd-profile-runs-b1.md`; not deployed; no schema change): the rulings marked *Amended
 (implementation, b1…)* (B1's ε, B1a, Q3/Q6's Task 3 amendments, Q7) and Q6's *Amended (final review, the controller's ruling, I2)*
-await the user's review; B10's *Amended (final review, the user's ruling, I1)* is the user's own. **b2 next.** **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+await the user's review; B10's *Amended (final review, the user's ruling, I1)* is the user's own. **b2 next.** b2's planning rulings Q9–Q27 are in the b2 plan's *Planning questions* (approved by the user 2026-10-18); they amend this spec where they speak, and §4.1's `stop-off` clause on a run-out leaving the face yields to P13 (a run-out past the part's end is no fault, as a2 and b1 ship). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one
@@ -380,6 +380,9 @@ For each profile, in stored order, each current body is split three ways. Every 
   - *(B)* Chunk 1's four-edge collapse stays for four End to end profiles on a sharp-cornered face (a2 ruled it; a loop has its
     own line). A two-side stopped run (b2): `Roundover 1/4" from the length min end at 4" round the width max side to the length max
     end at 4" (stopped)`, in the row's Face/Side words.
+    *Amended (planning, b2; the user approved 2026-10-18):* the example passed the wrong side and named no face — on the top face
+    travel from the length min end to the length max end passes the width MIN side; the line names its face (Q21 of the b2 plan:
+    `<name> on <face><top><fillet>, from <Start> round <between> to <Stop> (stopped)`).
   - Fillet words as today. Plans keys use the same text.
 - Stock, the cut list's sizes and nesting are unchanged.
 
