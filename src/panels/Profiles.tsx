@@ -153,8 +153,13 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   // The stations, lo then hi along the run from its min end; an edited one becomes a station written from the min end, an
   // untouched end (a through end, or a station from the max end) is kept as stored.
   const ends = stopped ? [run0.start, run0.end].sort((a, b) => endPos(stored_, a) - endPos(stored_, b)) : null;
-  const stationEdit = (which: 0 | 1, at: number): string | undefined => {
+  const stationEdit = (which: 0 | 1, typed: number): string | undefined => {
     const [lo, hi] = ends!;
+    // F4 fix 1: a typed position that READS the same as an end of the part, in the project's units, is that end (fu 354's
+    // reads-the-same rule: a 36" part's Stop shows 914 mm, and 914 mm typed back is 35.984"). Mapped FIRST, so the crossing
+    // checks below judge the end itself.
+    const shown = (n: number) => formatLength(n, units);
+    const at = shown(typed) === shown(0) ? 0 : shown(typed) === shown(L) ? L : typed;
     // Final fix F3: a crossed (or meeting) entry is refused in the row's own words, as Depth and Reach are — canonicalRun
     // would otherwise swap the ends silently and both fields would show numbers other than the ones typed.
     if (which === 0 && at >= endPos(stored_, hi!)) return 'Start must be before the Stop';

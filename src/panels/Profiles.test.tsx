@@ -543,6 +543,22 @@ describe('a station at an end of the part runs out through it (final fix F4)', (
     expect(selected('Run')).toBe('End to end');
     expect(screen.queryByLabelText(START)).toBeNull();
   });
+  // F4 fix 1: a metric field shows whole mm, so "the full length" is what the field SHOWS for it (the reads-the-same rule,
+  // fu 354): a 36" part's Stop shows 914 mm, and 914 mm (35.984") is its max end, not a station 0.4 mm short of it.
+  it('a 36" part in a metric project: typing the 914 mm the field shows is the max end', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open({ ...b, length: 36 });
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await typeInto(user, STOP, '914');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['max']);
+    expect(screen.getByLabelText(STOP)).toHaveValue('914 mm');
+    // With the Stop at the end, the same 914 typed into Start is AT the Stop: refused (F3), never two through-max ends.
+    const stored = profiles()[0];
+    await typeInto(user, START, '914');
+    expect(profiles()[0]).toEqual(stored);
+    expect(screen.getByText('Start must be before the Stop')).toBeInTheDocument();
+  });
   it('a metric part\'s full length typed in mm is the end too', async () => {
     const user = userEvent.setup();
     const b = stopped3to27();
