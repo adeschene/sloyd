@@ -5,6 +5,9 @@ import { curveOutline, inPolygonClosed, twiceArea, uvDims, distToSegment, type P
 import { canonicalRun, geometryBoard, profileOf } from './profiles';
 import { profileSection, profileWasteContains, runoutAxis, sectionFrame } from './runout';
 import { worldParts } from './tree';
+import { stockProbe } from './cuts';
+import { holeFaults } from './holeFaults';
+import type { HoleRow } from './types';
 import { mirrorDim } from './frames';
 import { DIMENSION_ORDER } from './geometry';
 import type { V3 } from './angleCuts';
@@ -388,3 +391,45 @@ describe('a stopped profile through a mirror', () => {
 
 // BODY_EPS is the containment tolerance bodies.test.ts uses; pinned so a change here is seen.
 it('BODY_EPS', () => expect(BODY_EPS).toBe(1e-9));
+
+describe('a stopped profile: stock probe and hole faults (profile runs a2, Task 4)', () => {
+  it('stockProbe agrees with !profileWasteContains on 2 000 sampled points, away from the section boundaries', () => {
+    const { b, c } = stopped(spec('roundover'));
+    const probe = stockProbe(b);
+    let seed = 12345;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+    let checked = 0, air = 0;
+    for (let i = 0; i < 2000; i += 1) {
+      // Mostly near the stops and the side face, where the waste is.
+      const run = i % 2 ? rnd() * L : (i % 4 === 0 ? 3 : 27) + (rnd() - 0.5) * 1.0;
+      const p: V3 = [Math.min(L, Math.max(0, run)), W - rnd() * 0.3, T - rnd() * 0.3];
+      const e = 2e-3;
+      const near = profileWasteContains(b, c, p);
+      let stable = true;
+      for (let k = 0; k < 3; k += 1) for (const sg of [-e, e]) { const q = [...p] as V3; q[k] += sg; if (profileWasteContains(b, c, q) !== near) stable = false; }
+      if (!stable) continue;
+      checked += 1;
+      if (near) air += 1;
+      expect(probe({ length: p[0], width: p[1], thickness: p[2] })).toBe(!near);
+    }
+    expect(checked).toBeGreaterThan(1000);
+    expect(air).toBeGreaterThan(100);
+  });
+
+  /** A 1/8" blind bore down into the top face, 0.1" in from the width-max edge, at `run` along the length. */
+  const bore = (run: number): HoleRow => ({
+    id: 'h1', face: 'thickness', from: 'max', diameter: 0.125, depth: 0.125, along: 'length', alongFrom: 'min', station: run,
+    count: 1, pitch: 0, acrossFrom: 'max', inset: 0.1,
+  });
+  const curveFault = (run: number) => {
+    const { b } = stopped(spec('roundover'), { holes: [bore(run)] });
+    return holeFaults(b, bore(run)).find((f) => f.kind === 'breaks-out' && f.curve)?.curve?.id;
+  };
+  it('a bore in the band is refused; inside the extended band (R = 0.25 + 0.25) it is refused; past it, and beyond the run-out, it is not', () => {
+    expect(curveFault(18)).toBe('p');
+    expect(curveFault(27 + 0.4)).toBe('p');
+    expect(curveFault(3 - 0.4)).toBe('p');
+    expect(curveFault(27 + 0.6)).toBeUndefined();
+    expect(curveFault(1.0)).toBeUndefined();
+  });
+});

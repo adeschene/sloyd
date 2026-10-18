@@ -138,15 +138,27 @@ export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { pla
  * band continues (outside the part). Closed (a point on the boundary is waste).
  */
 export function profileWasteContains(board: Pick<Board, Dimension>, c: ViewCurve, p: V3): boolean {
+  return profileWasteTester(board, c)(p);
+}
+
+/** `profileWasteContains` with the frame, the section and the span hoisted: for a per-sample hot path (the stock probe). */
+export function profileWasteTester(board: Pick<Board, Dimension>, c: ViewCurve): (p: V3) => boolean {
   const f = sectionFrame(board, c);
   const { pts } = profileSection(board, c);
-  const s = f.uOut * (f.uEdge - p[f.iu]);
-  const t = f.vIn * (p[f.iv] - f.vFace);
-  const run = p[f.k];
   const span = spanOf(c);
-  const beyond = span && run < span.lo && span.stopLo ? 'lo' : span && run > span.hi && span.stopHi ? 'hi' : null;
-  if (!beyond) return inPolygonClosed(pts, [s, t]);
-  const axis = runoutAxis(board, c, beyond);
-  const rho = Math.hypot(run - axis.run, p[f.iu] - axis.u);
-  return inPolygonClosed(pts, [rho - BEARING, t]);
+  const axes = { lo: span && span.stopLo ? runoutAxis(board, c, 'lo') : null, hi: span && span.stopHi ? runoutAxis(board, c, 'hi') : null };
+  return (p) => {
+    const s = f.uOut * (f.uEdge - p[f.iu]);
+    const t = f.vIn * (p[f.iv] - f.vFace);
+    const run = p[f.k];
+    const beyond = span && run < span.lo && axes.lo ? axes.lo : span && run > span.hi && axes.hi ? axes.hi : null;
+    if (!beyond) return inPolygonClosed(pts, [s, t]);
+    const rho = Math.hypot(run - beyond.run, p[f.iu] - beyond.u);
+    return inPolygonClosed(pts, [rho - BEARING, t]);
+  };
+}
+
+/** The reach of a stop's run-out along the run: BEARING plus the section's widest s (P14). */
+export function runoutReach(board: Pick<Board, Dimension>, c: ViewCurve): number {
+  return BEARING + Math.max(...profileSection(board, c).pts.map((q) => q[0]));
 }
