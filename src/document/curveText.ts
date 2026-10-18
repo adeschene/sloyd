@@ -131,27 +131,33 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
 
 /**
  * How a SWEPT profile (profile runs b1, Q2) runs, in words: a loop goes `all round`; an End to end run whose side's stretch
- * carries round a corner arc (an `'arc'` end: B1's station or B1a's mitre) goes `round the corners`; an End to end run that
- * only follows its own side (an arch, a notch, a bow) has no clause — it reads as chunk 1's line. Judged on the stretch,
- * never the path, so a faulted profile (no path) reads the same. THE one home: the bench line, the Plans key, the row.
+ * carries round corner arcs (an `'arc'` end: B1's station or B1a's mitre) goes `round the corner` for one and `round the
+ * corners` for two (Q7 amended, implementation b1); an End to end run that only follows its own side (an arch, a notch, a
+ * bow) has no clause — it reads as chunk 1's line. Judged on the stretch, never the path, so a faulted profile (no path)
+ * reads the same. THE one home: the bench line, the Plans key, the row.
  */
-export function sweptRun(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut): 'all round' | 'round the corners' | null {
+export function sweptRun(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut): 'all round' | 'round the corner' | 'round the corners' | null {
   if ('loop' in p.run) return 'all round';
   const outline = faceOutline(view);
   const s = outline ? sideStretch(view, outline, p.run.start.side) : null;
-  return s && (s.startEnd === 'arc' || s.endEnd === 'arc') ? 'round the corners' : null;
+  const arcs = s ? (s.startEnd === 'arc' ? 1 : 0) + (s.endEnd === 'arc' ? 1 : 0) : 0;
+  return arcs === 0 ? null : arcs === 1 ? 'round the corner' : 'round the corners';
 }
 
 /**
  * A swept profile as a bench line (profile runs b1, Q7): THE one home (invariant 19). A loop reads `<name> all round
- * <face><fillet>` (the four-edge collapse's own face words); an End to end run reads chunk 1's line, plus `, round the
- * corners` when it takes a corner arc. A faulted one ends with its first fault (the stored profile's, `viewProfileFaults`).
- * `p` is the geometry view's copy (`view.profiles`).
+ * <face><top><fillet>` (the four-edge collapse's own face words); an asymmetric one (`profileAsymmetric`) names its top as
+ * chunk 1 does, before the fillet — `, top on <the profiled face>`, or `, top on the edge` facing the edge, since the
+ * outline's edge is no single named face (Q7 amended, implementation b1). An End to end run reads chunk 1's line (its facing
+ * words included), plus `, round the corner(s)` when it takes corner arcs. A faulted one ends with its first fault (the
+ * stored profile's, `viewProfileFaults`). `p` is the geometry view's copy (`view.profiles`).
  */
 export function sweptLine(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut, units: Units): string {
   const run = sweptRun(view, p);
+  const face = faceName('thickness', p.face);
+  const top = profileAsymmetric(p) ? `, top on ${p.facing === 'edge' ? 'the edge' : face}` : '';
   const base = 'loop' in p.run
-    ? `${profileName(p, units)} all round ${faceName('thickness', p.face)}${filletWords(p, units)}`
+    ? `${profileName(p, units)} all round ${face}${top}${filletWords(p, units)}`
     : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}`;
   return withCheck(base, viewProfileFaults(p).map(profileFaultText));
 }

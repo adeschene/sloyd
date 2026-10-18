@@ -68,7 +68,7 @@ export function profileCurve(f: ProfileFields): Omit<CurveCut, 'id'> {
 }
 
 /** A profile whose two faces are not interchangeable: its row shows Facing. */
-export function profileAsymmetric(f: ProfileFields): boolean {
+export function profileAsymmetric(f: Pick<ProfileFields, 'kind' | 'fillet'>): boolean {
   return f.kind === 'ogee' || f.kind === 'bead' || f.kind === 'thumbnail' || (f.fillet ?? 0) > 0;
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { archCurve, bowCurve, chamferCut, createBoard, defaultBevel, defaultHingeCup, defaultHole, defaultShelfPinRow, miterCut, taperCut } from './document';
-import { defaultCorners } from './curves';
+import { cornerCurve, defaultCorners } from './curves';
 import { mirrorPart } from './frames';
 import { IMPERIAL } from '../units/length';
 import { canonicalRun, profileCurve, profileFromFields } from './profiles';
@@ -161,5 +161,18 @@ describe('swept profiles (profile runs b1, Q7)', () => {
     expect(fs.map((f) => f.text)).toEqual(['Roundover 1/4", all round']);
     expect(fs[0]!.trueAxis).toEqual([0, 1, 0]);   // a flat part: its thickness runs up world Y
     expect(fs[0]!.trueNormal).toBeNull();
+  });
+});
+
+describe('swept profile keys, fix round 1', () => {
+  it('keys carry no facing; one corner arc keys `, round the corner`', () => {
+    for (const facing of ['face', 'edge'] as const) {
+      const b = topCorners(2, { ...loop('p1', 0.5, 'ogee'), facing });
+      expect(partFeatures(b, IMPERIAL).map((f) => f.text).at(-1)).toBe('Roman ogee 1/2", all round');
+    }
+    const one = createBoard({ length: 36, width: 20, thickness: 0.75,
+      curves: [{ id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'min', radius: 2 }) }],
+      profiles: [{ id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } }] });
+    expect(partFeatures(one, IMPERIAL).map((f) => f.text)).toEqual(['Rounded corner, 2" radius', 'Roundover 1/4", round the corner']);
   });
 });

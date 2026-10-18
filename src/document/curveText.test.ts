@@ -176,8 +176,10 @@ describe('swept profile words (profile runs b1, Q7)', () => {
     ]);
   });
   it('a filleted cove loop names its fillet after the face', () => {
+    // Fix round 1's ruling: a filleted cove is asymmetric, so it names its top (facing the face) before the fillet; the
+    // brief's string predates the ruling.
     const b = topCorners(2, { ...loop('p1', 0.375, 'cove'), fillet: 0.0625 });
-    expect(curveLines(b, IMPERIAL).at(-1)).toBe('Cove 3/8" all round the thickness face (max side), with a 1/16" fillet');
+    expect(curveLines(b, IMPERIAL).at(-1)).toBe('Cove 3/8" all round the thickness face (max side), top on the thickness face (max side), with a 1/16" fillet');
   });
   it('an End to end run round two corner arcs reads chunk 1\'s line plus `, round the corners`', () => {
     expect(curveLines(frontOnly, IMPERIAL).at(-1)).toBe(
@@ -215,5 +217,30 @@ describe('swept profile words (profile runs b1, Q7)', () => {
       'Roundover 1/4" on the edge between the length min end and the thickness face (max side), along the width',
       'Roundover 1/4" all round the thickness face (min side)',
     ]);
+  });
+});
+
+describe('swept profile words, fix round 1 (Q7 amended, implementation b1)', () => {
+  const ogee = (facing: 'face' | 'edge') => topCorners(2, { ...loop('p1', 0.5, 'ogee'), facing });
+  it('an asymmetric loop names its top: the profiled face, or `the edge`; the two facings read differently', () => {
+    const face = curveLines(ogee('face'), IMPERIAL).at(-1)!;
+    const edge = curveLines(ogee('edge'), IMPERIAL).at(-1)!;
+    expect(face).toBe('Roman ogee 1/2" all round the thickness face (max side), top on the thickness face (max side)');
+    expect(edge).toBe('Roman ogee 1/2" all round the thickness face (max side), top on the edge');
+    expect(face).not.toBe(edge);
+  });
+  it('the top words sit before the fillet words, as chunk 1 puts them; a symmetric loop has none', () => {
+    const b = topCorners(2, { ...loop('p1', 0.25), fillet: 0.0625, facing: 'edge' });
+    expect(curveLines(b, IMPERIAL).at(-1)).toBe('Roundover 1/4" all round the thickness face (max side), top on the edge, with a 1/16" fillet');
+    expect(curveLines(topCorners(2), IMPERIAL).at(-1)).toBe('Roundover 1/4" all round the thickness face (max side)');
+  });
+  it('a run taking ONE corner arc reads `, round the corner`', () => {
+    // 36 × 20 top, one 2" corner at (length max, width min): the front's stretch carries round it at one end only.
+    const one = createBoard({ length: 36, width: 20, thickness: 0.75,
+      curves: [{ id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'min', radius: 2 }) }],
+      profiles: [endToEnd('p1', { across: 'width', from: 'min' })] });
+    expect(curveLines(one, IMPERIAL).at(-1)).toBe(
+      'Roundover 1/4" on the edge between the width face (min side) and the thickness face (max side), along the length, round the corner');
+    expect(curveLines(frontOnly, IMPERIAL).at(-1)).toMatch(/, round the corners$/);
   });
 });
