@@ -23,7 +23,9 @@ const SMOOTH_NORMAL_EPS = 1e-7;
  *  a consumer that needs it orients against `n` (BoardMesh does). `cut` names the angle cut whose plane
  *  the face lies on. `curve` names the curve whose chord plane the face lies on (curves spec §3.2): `bodyMesh`
  *  reads it for smooth normals. `runout` marks a face on a stopped profile's run-out (profile runs P9): its curve is
- *  revolved there, not extruded. */
+ *  revolved there, not extruded. `profileEdge` (a stopped profile only, T6 fix 1) names the section-outline edges a cap
+ *  lies on — `${curve}:${a}:${b}`, the first and last index of a collinear run of the profile section's outline edges,
+ *  written only for an edge off the part's faces; built by `profileEdgeName` and read only through `profileEdgeOf`. */
 export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string }
 
 /**
@@ -173,8 +175,21 @@ export function boardBodies(board: Board): Body[] {
   return bodies;
 }
 
-/** `edge` (stopped profiles only): per plane, the `profileEdge` its caps carry (`${curve}:${i}`, i the section-outline
- *  edge it lies on, written only for an edge off the part's faces), or null. */
+/** A cap's `profileEdge` (BodyFace): the curve's id and the first and last index [a, b] of the collinear run of section-
+ *  outline edges it lies on. THE one builder; `profileEdgeOf` is its one parser. */
+export function profileEdgeName(curve: string, a: number, b: number): string {
+  return `${curve}:${a}:${b}`;
+}
+/** `profileEdgeName`'s inverse: the curve id (which may itself hold a ':') and the run [a, b], or null for an untagged face. */
+export function profileEdgeOf(f: Pick<BodyFace, 'profileEdge'>): { curve: string; a: number; b: number } | null {
+  if (f.profileEdge === undefined) return null;
+  const parts = f.profileEdge.split(':');
+  const b = Number(parts.pop()), a = Number(parts.pop());
+  return { curve: parts.join(':'), a, b };
+}
+
+/** `edge` (stopped profiles only): per plane, the `profileEdge` its caps carry (`profileEdgeName`: the section-outline edge
+ *  run it lies on, written only for an edge off the part's faces), or null. */
 type Piece = { planes: { n: V3; d: number }[]; onArc: boolean[]; runout?: 'lo' | 'hi'; edge?: (string | null)[] };
 /**
  * A stopped profile's waste (profile runs P9), always down the SPLIT path (never `clipAll`): the band — each of
@@ -202,7 +217,7 @@ function stoppedPieces(board: Board, c: ViewCurve): Piece[] {
     for (let n = 0; n < m && collinear(r[1], (r[1] + 1) % m) && (r[1] + 1) % m !== r[0]; n += 1) r[1] = (r[1] + 1) % m;
     for (let j = r[0]; ; j = (j + 1) % m) {
       const p = sec.pts[j]!, q = sec.pts[(j + 1) % m]!;
-      if (!((p[0] === 0 && q[0] === 0) || (p[1] === 0 && q[1] === 0))) return `${c.id}:${r[0]}:${r[1]}`;
+      if (!((p[0] === 0 && q[0] === 0) || (p[1] === 0 && q[1] === 0))) return profileEdgeName(c.id, r[0], r[1]);
       if (j === r[1]) return null;
     }
   };
@@ -702,10 +717,8 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   const stopped = new Map<string, boolean[]>();
   for (const c of board.curves) { const sp = spanOf(c); if (sp && (sp.stopLo || sp.stopHi)) stopped.set(c.id, curveOutline(board, c).smooth); }
   const edgeOf = (f: BodyFace): [string, number, number] | null => {
-    if (f.profileEdge === undefined) return null;
-    const parts = f.profileEdge.split(':');
-    const b = Number(parts.pop()), a = Number(parts.pop());
-    return [parts.join(':'), a, b];
+    const e = profileEdgeOf(f);
+    return e ? [e.curve, e.a, e.b] : null;
   };
   const smoothPair = stopped.size > 0
     ? (a: BodyFace, b: BodyFace) => {

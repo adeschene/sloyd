@@ -3,7 +3,7 @@ import { vi } from 'vitest';
 import { createBoard, defaultProfile, PROFILE_EDGES, partGeometry, archCurve, cornerCurve, defaultHingeCup, defaultShelfPinRow } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import type { ProfileCut, ProfileEnd, ProfileKind } from '../document/types';
-import { boardBodies } from '../document/bodies';
+import { boardBodies, profileEdgeName, profileEdgeOf } from '../document/bodies';
 import { canonicalRun, geometryBoard } from '../document/profiles';
 import { spanOf } from '../document/curves';
 import { bodyMesh } from './grainTiling';
@@ -198,4 +198,26 @@ describe('a stopped profile\'s run-out normals are built once per part (final fi
     expect(calls.n).toBe(2);
   });
 
+});
+
+// Final fix F6: ONE builder and ONE parser of a cap's `profileEdge`, beside each other in bodies.ts.
+describe('profileEdgeName / profileEdgeOf (final fix F6)', () => {
+  it('round-trips, a curve id holding the separator included; an untagged face is null', () => {
+    expect(profileEdgeOf({ profileEdge: profileEdgeName('id:with:colons', 3, 5) })).toEqual({ curve: 'id:with:colons', a: 3, b: 5 });
+    expect(profileEdgeOf({})).toBeNull();
+  });
+  it('every tagged face of every stopped fixture parses to its own curve and an outline run', () => {
+    let runs = 0;
+    for (const [name, make] of cases.filter(([n]) => n.startsWith('stopped'))) {
+      for (const body of partGeometry(make()).bodies) for (const f of body.faces) {
+        const e = profileEdgeOf(f);
+        if (!e) continue;
+        expect(f.profileEdge, name).toBe(profileEdgeName(e.curve, e.a, e.b));
+        expect(e.curve, name).toBe('p');
+        expect(Number.isInteger(e.a) && Number.isInteger(e.b), name).toBe(true);
+        if (e.a !== e.b) runs += 1;
+      }
+    }
+    expect(runs).toBeGreaterThan(0);   // the ogee's collinear inflection chords: a run of more than one edge
+  });
 });
