@@ -68,9 +68,12 @@ describe('a swept profile on the part diagrams', () => {
     expect(viewOf(b, 'thickness|min')!.sweeps!.map((w) => w.id)).toEqual(['p1']);
     expect(viewOf(b, 'thickness|max')).toBeUndefined();
   });
-  it('a hole\'s entry view comes first; a curve through the thickness then takes the open view (no min side opened)', () => {
-    const b: Board = { ...topCorners(2), holes: [{ id: 'h', face: 'thickness', from: 'max', along: 'length', alongFrom: 'min', station: 10, acrossFrom: 'min', inset: 5, diameter: 0.25, depth: 0.25, through: false, count: 1, pitch: 0 } as Board['holes'][number]] };
-    expect(buildDiagrams(b, IMPERIAL).map((v) => v.key)).toEqual(['thickness|max']);
+  it('a hole\'s entry view comes first, then the sweep\'s, before the curves\' rule (no thickness min side opened)', () => {
+    // A hole on the front (width face, min side) opens its own view; the sweep then opens the top's thickness view, so the
+    // corners (curves through the thickness) find a thickness view and open no min side. Were the sweep's view opened after
+    // the curves' rule, 'thickness|min' would appear too.
+    const b: Board = { ...topCorners(2), holes: [{ id: 'h', face: 'width', from: 'min', along: 'length', alongFrom: 'min', station: 10, acrossFrom: 'min', inset: 0.375, diameter: 0.25, depth: 0.25, through: false, count: 1, pitch: 0 } as Board['holes'][number]] };
+    expect(buildDiagrams(b, IMPERIAL).map((v) => v.key)).toEqual(['width|min', 'thickness|max']);
   });
   it('a part with no swept profile has no `sweeps` on any view (byte for byte)', () => {
     const straight = createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [straightTopLong] });

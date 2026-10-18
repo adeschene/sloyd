@@ -299,11 +299,16 @@ type Piece = { chord: OutlineChord; index: number; t0: number; t1: number };
  * `adj` is the adjacent side's chord, `index` its outline index, `end` the arc's end chord; `atStart`: the run's start.
  * The point is read off the chord at its parameter exactly as planChain reads a cover (a + t·(b − a)).
  */
-function stationExtension(adj: OutlineChord, index: number, end: OutlineChord, atStart: boolean, reach: number): Piece {
+function stationExtension(adj: OutlineChord, index: number, end: OutlineChord, atStart: boolean, reach: number): Piece | null {
   const da: P2 = [adj.b[0] - adj.a[0], adj.b[1] - adj.a[1]], de: P2 = [end.b[0] - end.a[0], end.b[1] - end.a[1]];
   const la = Math.hypot(da[0], da[1]), le = Math.hypot(de[0], de[1]);
   const phi = Math.acos(Math.max(-1, Math.min(1, (da[0] * de[0] + da[1] * de[1]) / (la * le))));
-  const t = Math.min(1, (2 * reach * Math.tan(phi / 2)) / la);
+  const eps = 2 * reach * Math.tan(phi / 2);
+  // Fix round 2 (I2): only along a STRAIGHT side longer than 2ε. A short side (the skeleton would read a clamped extension as a
+  // swallowed end chord: too-tight on a profile that fits) or a curved one (a full-round end: the station would leave the side
+  // its run-out is framed on) keeps the station at the tangent point, as before ε, and the small step there is accepted.
+  if (adj.arc || adj.curve !== undefined || !(la > 2 * eps)) return null;
+  const t = eps / la;
   if (atStart) {
     const t0 = 1 - t;
     const a: P2 = t0 === 0 ? adj.a : [adj.a[0] + t0 * da[0], adj.a[1] + t0 * da[1]];
@@ -361,6 +366,12 @@ function mitre(pieces: Piece[], corner: number[], atStart: boolean, outline: Fac
   return ray ? { pieces: out, at, ray } : null;
 }
 
+/** The path the swept construction BUILDS (fix round 2): `profilePath` with each B1 station's extension (stationExtension).
+ *  Faults, overlap and the hole reach read `profilePath` — ε never decides anything. */
+export function builtPath(board: PathBoard, p: ProfileCut): ProfilePath | null {
+  return profilePath(board, p, { build: true });
+}
+
 /**
  * A run's path (spec §3.3 *(B)*) in the face's frame: CCW as seen from outside `p.face` — the plan outline as is for face
  * max, reversed (chords in reverse order, each with a and b swapped, the two ends swapped) for face min. A loop is every
@@ -370,7 +381,7 @@ function mitre(pieces: Piece[], corner: number[], atStart: boolean, outline: Fac
  * the outline or the stretch cannot be traced, or an end face does not run into the wood, and for a run b1 builds no path
  * for: a STATION run (a2's construction, Q2) or ends on two sides (b2).
  */
-export function profilePath(board: PathBoard, p: ProfileCut): ProfilePath | null {
+export function profilePath(board: PathBoard, p: ProfileCut, opts?: { build?: boolean }): ProfilePath | null {
   const outline = faceOutline(board);
   if (!outline) return null;
   const m = outline.chords.length;
@@ -409,9 +420,9 @@ export function profilePath(board: PathBoard, p: ProfileCut): ProfilePath | null
       pieces = startMitre.pieces;
       e0 = { kind: 'mitre', at: startMitre.at, ray: startMitre.ray };
     } else {
-      const ext = stationExtension(prior, (s.from - 1 + m) % m, first0, true, reach);
-      pieces = [ext, ...pieces];
-      e0 = { kind: 'station', at: ext.chord.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } };
+      const ext = opts?.build ? stationExtension(prior, (s.from - 1 + m) % m, first0, true, reach) : null;
+      if (ext) pieces = [ext, ...pieces];
+      e0 = { kind: 'station', at: ext ? ext.chord.a : first0.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } };
     }
     let endMitre: ReturnType<typeof mitre> = null;
     if (s.endEnd === 'sharp') {
@@ -422,9 +433,9 @@ export function profilePath(board: PathBoard, p: ProfileCut): ProfilePath | null
       pieces = endMitre.pieces;
       e1 = { kind: 'mitre', at: endMitre.at, ray: endMitre.ray };
     } else {
-      const ext = stationExtension(next, (s.to + 1) % m, last0, false, reach);
-      pieces = [...pieces, ext];
-      e1 = { kind: 'station', at: ext.chord.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } };
+      const ext = opts?.build ? stationExtension(next, (s.to + 1) % m, last0, false, reach) : null;
+      if (ext) pieces = [...pieces, ext];
+      e1 = { kind: 'station', at: ext ? ext.chord.b : last0.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } };
     }
     path = { chords: pieces.map((x) => x.chord), loop: false, ends: [e0, e1], cover: pieces.map((x) => ({ chord: x.index, t0: x.t0, t1: x.t1 })) };
   }

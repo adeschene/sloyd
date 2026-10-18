@@ -10,7 +10,7 @@ import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profiles';
 import { builtSwept, outlineCurves, sweptPieces, sweptRunouts, type SweptPiece } from './sweep';
 import type { CurveCut, ProfileCut } from './types';
-import { profilePath } from './profilePath';
+import { builtPath } from './profilePath';
 import { sweptSmoothPair } from './sweptEdges';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -975,7 +975,7 @@ function mergeCollinear(segs: readonly [V3, V3][]): [V3, V3][] {
 /** The number of path chords of a swept LOOP (its last and first segments are adjacent), null for an open path. */
 function loopLength(view: Board, swept: readonly ProfileCut[], id: string): number | null {
   const p = swept.find((x) => x.id === id);
-  const path = p ? profilePath(view, p) : null;
+  const path = p ? builtPath(view, p) : null;
   return path && path.loop ? path.chords.length : null;
 }
 

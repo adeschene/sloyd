@@ -23,7 +23,7 @@
  */
 import type { BodyFace } from './bodies';
 import { curveOutline, smoothLines } from './curves';
-import { faceOutline, profilePath, type PathEnd } from './profilePath';
+import { builtPath, faceOutline, type PathEnd } from './profilePath';
 import { profileValues } from './profiles';
 import { profileSection } from './runout';
 import { profileEdgeOf } from './sectionEdges';
@@ -59,7 +59,7 @@ interface SweptInfo {
 }
 
 function infoOf(view: SweepView, p: ProfileCut): SweptInfo | null {
-  const path = profilePath(view, p);
+  const path = builtPath(view, p);
   if (!path) return null;
   const c = oneSideCurve(p);
   const pts = profileSection(view, c).pts;

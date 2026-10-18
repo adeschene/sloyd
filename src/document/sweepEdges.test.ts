@@ -4,9 +4,9 @@ import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies'
 import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
 import { geometryBoard, profileFaults } from './profiles';
 import { builtSwept, keptSection } from './sweep';
-import { profilePath } from './profilePath';
+import { builtPath, profilePath } from './profilePath';
 import type { Segment } from './cuts';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, topCorners } from './sweepFixtures';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners } from './sweepFixtures';
 import type { Board } from './types';
 
 /*
@@ -334,8 +334,8 @@ describe('the fast swept edges equal the reference, segments and joins (every sw
     const a = joinRuns(jf), b = joinRuns(jr);
     expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
     for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
-    // boardEdges reads the fast path.
-    expect(boardEdges(board).length).toBe(fast.length);
+    // boardEdges reads the fast path: the same segments, in order.
+    expect((boardEdges(board) as Segment[]).map(pts)).toEqual(fast);
   });
   // The swept bodies themselves, byte for byte (Task 5 review minor 4: the lever-1 proof's harness, kept): any construction
   // change must re-pin these knowingly. Hashes of today's bodies (fix round 1, f7719a5 + the stations' extension).
@@ -367,13 +367,16 @@ describe('B1 stations: one section where the band meets the run-out (no step)', 
   };
   it('the station is ε along the side past the tangent point (written from the corner\'s own chords)', () => {
     // 2" corner: 12 chords, the end chord 1/24 of a quarter turn off the side: φ = π/48; 1/2": 6 chords, φ = π/24.
-    const at = (b: Board) => (profilePath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] }).at;
+    const at = (b: Board) => (builtPath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] }).at;
     expect(at(frontOnly)[1] - 2).toBeCloseTo(2 * 0.25 * Math.tan(Math.PI / 96), 12);
     expect(at(cases[2]![1])[1] - 0.5).toBeCloseTo(2 * 0.25 * Math.tan(Math.PI / 48), 12);
     expect(at(cases[1]![1])[1] - 2).toBeCloseTo(2 * 0.375 * Math.tan(Math.PI / 96), 12);
   });
+  // These are ordinary fixtures, every end side straight and longer than 2ε. A station that FALLS BACK to the tangent point
+  // (fix round 2, I2: an end side too short or curved) keeps the old small step, which this pin would flag: it is exempt, and
+  // pinned on its own below (no fault, the station on the side).
   it.each(cases)('%s: near either station no two lines run within 0.005" of each other, and none is under 0.01"', (_n, b) => {
-    const path = profilePath(b, b.profiles[0]!)!;
+    const path = builtPath(b, b.profiles[0]!)!;
     for (const end of path.ends!) {
       expect(end.kind).toBe('station');
       const at = (end as { at: [number, number] }).at;
@@ -393,7 +396,7 @@ describe('B1 stations: one section where the band meets the run-out (no step)', 
 describe('a bead\'s quirk past a B1 station: the floor is the run-out\'s, joined to it smoothly', () => {
   it('at the floor\'s depth only the quirk\'s sharp corner is revolved round the bit, nothing at the floor\'s tangent join', () => {
     const b = topCorners(2, { ...endToEnd('p1', side('width', 'min'), 0.25, 'bead'), fillet: 1 / 16 });
-    const end = profilePath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] };
+    const end = builtPath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] };
     // The bit's axis: 1/4" outside the length-min side, at the station. The quirk's sharp corner (5/16" in) runs round it at
     // 1/4 + 5/16 = 9/16; the floor's tangent join with the bead (1/4" in), at 1/2, must draw nothing.
     const axis: [number, number] = [-0.25, end.at[1]];
@@ -443,5 +446,38 @@ describe('B1a mitres do not depend on chord parity', () => {
     expect(b.profiles.flatMap((p) => profileFaults(b, p))).toEqual([]);
     for (const p of b.profiles) expect(profilePath(b, p)!.ends!.map((e) => e.kind)).toEqual(['mitre', 'mitre']);
     expect(onMitre(b, r).length).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * Fix round 2: ε, the B1 station's extension, is a BUILD detail and never decides anything (I1), and it is taken only along
+ * a straight side longer than 2ε (I2).
+ */
+describe('the station extension decides no fault, and falls back where the side cannot take it', () => {
+  it('I1: a front End to end and a left-side stopped run starting at the corner\'s tangent point (2") — or just past it — are clean', () => {
+    for (const lo of [2, 2.01]) {
+      const b: Board = { ...topCorners(2), profiles: [endToEnd('f', side('width', 'min')), stopped('l', side('length', 'min'), lo, 10)] };
+      for (const p of b.profiles) expect(profileFaults(b, p), `${p.id} at ${lo}`).toEqual([]);
+      expect(builtSwept(geometryBoard(b)).map((p) => p.id)).toEqual(['f']);
+      // The build still carries the front's station ε on, into the stopped run's stretch: geometry only.
+      const y = (builtPath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] }).at[1];
+      expect(y).toBeGreaterThan(2);
+    }
+  });
+  it('I2: 1/2" corners on a 1.005–1.015" width (an end side shorter than 2ε) build with no too-tight fault, the station at the tangent point', () => {
+    for (const W of [1.005, 1.01, 1.015]) {
+      const b = createBoard({ ...topCorners(0.5, endToEnd('p1', side('width', 'min'))), width: W });
+      expect(profileFaults(b, b.profiles[0]!), `${W}`).toEqual([]);
+      expect(builtSwept(geometryBoard(b))).toHaveLength(1);
+      const [s, e] = builtPath(b, b.profiles[0]!)!.ends! as { at: [number, number] }[];
+      expect([s!.at, e!.at]).toEqual([[0, 0.5], [36, 0.5]]);   // the tangent points: no extension (the step there accepted)
+    }
+  });
+  it('I2: a full-round end (width 1", 1/2" corners): no straight end side, so the station sits ON the side at the tangent point', () => {
+    const b = createBoard({ ...topCorners(0.5, endToEnd('p1', side('width', 'min'))), width: 1 });
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+    const [s, e] = builtPath(b, b.profiles[0]!)!.ends! as { at: [number, number] }[];
+    expect(s!.at).toEqual([0, 0.5]);
+    expect(e!.at).toEqual([36, 0.5]);
   });
 });

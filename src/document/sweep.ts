@@ -29,7 +29,7 @@
  * Memoised per (view object, profile id) and deep-frozen: never mutate a result.
  */
 import { convexPieces, distToSegment, twiceArea, type P2, type ViewCurve } from './curves';
-import { faceOutline, profilePath, type OutlineChord } from './profilePath';
+import { builtPath, faceOutline, profilePath, type OutlineChord } from './profilePath';
 import { profileAsCurve, viewProfileFaults } from './profiles';
 import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame } from './runout';
 import type { Hole } from './holes';
@@ -119,7 +119,7 @@ export function bandReach(sec: ReturnType<typeof keptSection>): number {
  * thickness view's own. Closed for a loop. Null when the profile has no plan.
  */
 export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; closed: boolean } | null {
-  const path = profilePath(view, p);
+  const path = builtPath(view, p);
   if (!path) return null;
   const chain = planChain(view, path, p.face);
   if (!chain) return null;
@@ -168,7 +168,7 @@ const area = (p: readonly P2[]) => twiceArea(p as P2[]) / 2;
  * (an end chord swallowed: `too-tight`). `opts.events: false` is TEST ONLY (the notch regression).
  */
 export function sweptPlan(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean }): SweptPlan | null {
-  const path = profilePath(view, p);
+  const path = builtPath(view, p);
   const outline = faceOutline(view);
   if (!path || !outline) return null;
   const chain = planChain(view, path, p.face);
@@ -336,7 +336,7 @@ export function outlineCurves(view: Pick<Board, Dimension | 'curves'>): Set<stri
  * station. A mitre or through end has none.
  */
 export function sweptRunouts(view: SweepBoard, p: ProfileCut): ViewCurve[] {
-  const path = profilePath(view, p);
+  const path = builtPath(view, p);
   if (!path || !path.ends) return [];
   const out: ViewCurve[] = [];
   for (const e of path.ends) {
@@ -379,11 +379,14 @@ const distSeg = (x: number, y: number, a: P2, b: P2): number => {
 };
 
 const wasteMemo = new WeakMap<object, Map<string, SweptWaste | null>>();
-function sweptWaste(view: SweepBoard, p: ProfileCut): SweptWaste | null {
+/** `built`: the path the construction builds (stockProbe reads the built wood); else the fault path (the hole reach, P14:
+ *  ε never decides a fault, fix round 2). */
+function sweptWaste(view: SweepBoard, p: ProfileCut, built: boolean): SweptWaste | null {
   let m = wasteMemo.get(view);
   if (!m) { m = new Map(); wasteMemo.set(view, m); }
-  if (m.has(p.id)) return m.get(p.id)!;
-  const path = profilePath(view, p);
+  const key = `${built ? 'b' : 'f'}:${p.id}`;
+  if (m.has(key)) return m.get(key)!;
+  const path = built ? builtPath(view, p) : profilePath(view, p);
   let out: SweptWaste | null = null;
   if (path) {
     const dims = view as Pick<Board, Dimension>;
@@ -411,13 +414,13 @@ function sweptWaste(view: SweepBoard, p: ProfileCut): SweptWaste | null {
         : [])),
     };
   }
-  m.set(p.id, out);
+  m.set(key, out);
   return out;
 }
 
 /** THE stock probe's air for one swept profile (above), as a hoisted closure on board-local (length, width, thickness). */
 export function sweptAirTester(view: SweepBoard, p: ProfileCut): (pt: V3) => boolean {
-  const w = sweptWaste(view, p);
+  const w = sweptWaste(view, p, true);
   if (!w) return () => false;
   return ([x, y, z]) => {
     const t = w.depthOf(z);
@@ -458,7 +461,7 @@ function segRectDist(a: P2, b: P2, lo: P2, hi: P2): number {
  * in from the profile's face meets [0, depth]. A hole just clear of the true waste may be judged into it.
  */
 export function sweptWasteMeets(view: SweepBoard, p: ProfileCut, hole: Pick<Hole, 'axis' | 'centre' | 'radius' | 'depth' | 'dir'>): boolean {
-  const w = sweptWaste(view, p);
+  const w = sweptWaste(view, p, false);
   if (!w) return false;
   const EPS_M = 1e-9; // HOLE_EPS
   const ax = DIMENSION_ORDER.indexOf(hole.axis);
@@ -505,7 +508,7 @@ export function sweptNormals(view: SweepBoard, p: ProfileCut): (face: NormalFace
   const hit = m.get(p.id);
   if (hit) return hit;
   const dims = view as Pick<Board, Dimension>;
-  const path = profilePath(view, p);
+  const path = builtPath(view, p);
   const c = oneSideCurve(p);
   const { pts } = profileSection(dims, c);
   const { arcs, edgeArc } = sectionArcs(dims, c, pts);

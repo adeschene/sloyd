@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardBodiesForTest, bodyVolume, clipConvex, type Body } from './bodies';
-import { faceOutline, profilePath } from './profilePath';
+import { builtPath, faceOutline, profilePath } from './profilePath';
 import { geometryBoard, mirrorProfile, profileAsCurve, profileFaults, reachDepth } from './profiles';
 import { profileSection, BEARING } from './runout';
 import { mirrorCurveCut, twiceArea, CURVE_TOLERANCE, type P2 } from './curves';
@@ -47,7 +47,8 @@ const outward = (s: ProfileSide): P2 => (s.across === 'length' ? [s.from === 'mi
 
 interface Waste { segs: [P2, P2][]; tau: (s: number) => number; R: number; D: number; face: 'min' | 'max'; stations: { at: P2; tangent: P2; axis: P2 }[] }
 function wasteOf(board: Board, p: ProfileCut): Waste {
-  const path = profilePath(board, p);
+  // The BUILT path: the waste the construction cuts (B1 stations carried ε on, fix round 1; faults read profilePath).
+  const path = builtPath(board, p);
   if (!path) throw new Error('no path');
   const side: ProfileSide = { across: 'width', from: 'min' };
   const c = profileAsCurve({ ...p, run: { start: { side, through: 'min' }, end: { side: { ...side }, through: 'max' } } });

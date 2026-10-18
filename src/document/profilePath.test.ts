@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { faceOutline, isSwept, profilePath, sideStretch } from './profilePath';
+import { faceOutline, isSwept, profilePath, sideStretch, builtPath } from './profilePath';
 import { apronArch, topCorners, frontOnly, notchEdge, endToEnd, loop, stopped, straightTopLong, plainLoop } from './sweepFixtures';
 import { createBoard } from './document';
 import { archCurve, bowCurve, cornerCurve, curveOutline, twiceArea, CURVE_TOLERANCE } from './curves';
@@ -74,13 +74,16 @@ describe('profilePath', () => {
     expect(s.kind).toBe('station'); expect(e.kind).toBe('station');
     // face max, CCW: the front (width min) runs +x; its stretch starts at the length-min end's tangent point (0, 2) and
     // ends at the length-max end's (36, 2). `tangent` points AWAY from the run, where the run-out lies: +y at both.
-    // Amended (Task 6 fix round 1): the station is ε = 2 · reach · tan(φ/2) past the tangent point along the end side, φ the
-    // corner's end chord against it — 12 chords to a 2" quarter turn, so φ = π/48 — so the band meets the run-out with one
-    // section (no step at the station).
+    // The path faults read is the stretch's own (fix round 2: ε never decides anything). The BUILT path (builtPath) carries
+    // each station ε = 2 · reach · tan(φ/2) on along the end side, φ the corner's end chord against it — 12 chords to a 2"
+    // quarter turn, so φ = π/48 — so the band meets the run-out with one section.
     if (s.kind !== 'station' || e.kind !== 'station') throw new Error('unreachable');
+    expect(s.at[0]).toBeCloseTo(0, 12); expect(s.at[1]).toBeCloseTo(2, 12);
+    expect(e.at[0]).toBeCloseTo(36, 12); expect(e.at[1]).toBeCloseTo(2, 12);
     const eps = 2 * 0.25 * Math.tan(Math.PI / 96);
-    expect(s.at[0]).toBeCloseTo(0, 12); expect(s.at[1]).toBeCloseTo(2 + eps, 12);
-    expect(e.at[0]).toBeCloseTo(36, 12); expect(e.at[1]).toBeCloseTo(2 + eps, 12);
+    const [bs, be] = builtPath(frontOnly, frontOnly.profiles[0]!)!.ends! as { at: [number, number] }[];
+    expect(bs!.at[0]).toBeCloseTo(0, 12); expect(bs!.at[1]).toBeCloseTo(2 + eps, 12);
+    expect(be!.at[0]).toBeCloseTo(36, 12); expect(be!.at[1]).toBeCloseTo(2 + eps, 12);
     expect(s.tangent).toEqual([0, 1]); expect(e.tangent).toEqual([0, 1]);
     expect(s.side).toEqual({ across: 'length', from: 'min' }); expect(e.side).toEqual({ across: 'length', from: 'max' });
   });
@@ -216,8 +219,14 @@ describe('profilePath: further pins (Task 1)', () => {
     expect(s.side).toEqual({ across: 'length', from: 'max' });
     expect(s.at[0]).toBeCloseTo(36, 12);
   });
-  it('the cornered front runs (0,2) round both arcs to (36,2), then on by its stations\' extensions along the end sides', () => {
+  it('the cornered front runs (0,2) round both arcs to (36,2): its first and last chords are the arcs', () => {
     const p = profilePath(frontOnly, frontOnly.profiles[0]!)!;
+    expect(p.chords[0]!.curve).toBe('cminmin');
+    expect(p.chords[p.chords.length - 1]!.curve).toBe('cmaxmin');
+    expect(p.chords.filter((c) => !c.curve).length).toBe(1);
+  });
+  it('the BUILT path runs on by its stations\' extensions along the end sides (fix round 1)', () => {
+    const p = builtPath(frontOnly, frontOnly.profiles[0]!)!;
     const n = p.chords.length;
     expect(p.chords[1]!.curve).toBe('cminmin');
     expect(p.chords[n - 2]!.curve).toBe('cmaxmin');

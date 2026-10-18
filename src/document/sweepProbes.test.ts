@@ -151,15 +151,13 @@ describe('holes into a swept profile\'s waste break out, keyed :curve:<id> (§4.
   });
 
   it('frontOnly: past a station the band runs on by the run-out\'s reach, BEARING + reach = 1/2" (P14, conservative)', () => {
-    // Along the length min end side, x = 0.15: 0.4" past the corner's tangent point at (0, 2). The station is ε past it
-    // (Task 6 fix round 1: ε = 2 · reach · tan(π/96) = 0.0164).
-    const y0 = 2 + 2 * 0.25 * Math.tan(Math.PI / 96);
+    // Along the length min end side, x = 0.15: 0.4" past the station at (0, 2) and 0.427" from the path's end. The hole
+    // reach reads the station at the tangent point (fix round 2: ε, a build detail, never decides a fault).
     const r = (y: number): HoleRow => hole(y, { station: 0.15 });
     expect(faults(frontOnly, r(2.4))).toEqual([{ index: 0, kind: 'breaks-out', curve: { id: 'p1', kind: null, profile: 'roundover' } }]);
-    // The extension ends at (0, y0 + 0.5); within reach + radius of that point: + sqrt(0.375² − 0.15²) = y0 + 0.8437 = 2.8601.
-    const edge = y0 + 0.5 + Math.sqrt(0.375 ** 2 - 0.15 ** 2);
-    expect(faults(frontOnly, r(edge - 0.01)).map((f) => f.kind)).toEqual(['breaks-out']);
-    expect(faults(frontOnly, r(edge + 0.01))).toEqual([]);
+    // The extension ends at (0, 2.5); within reach + radius of that point: 2.5 + sqrt(0.375² − 0.15²) = 2.8437.
+    expect(faults(frontOnly, r(2.83)).map((f) => f.kind)).toEqual(['breaks-out']);
+    expect(faults(frontOnly, r(2.86))).toEqual([]);
   });
 
   it('a faulted swept profile builds nothing: a hole into where its waste would be is clean', () => {
