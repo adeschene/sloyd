@@ -26,8 +26,10 @@ export function leftNormal(a: P2, b: P2): P2 {
   return [-d[1] / l, d[0] / l];
 }
 
-/** A station end's half-plane (B1): the band ends on the plane across the path at `at`; kept where n·x + d >= 0. */
-export interface StationClip { n: P2; d: number; at: P2; tangent: P2; side: ProfileSide }
+/** A station end's half-plane (B1): the band ends on the plane across the path at `at`; kept where n·x + d >= 0.
+ *  `stop` (b2, Q12): a user's Start or Stop — the plane is across the station's own MODEL chord (`tangent` along it away from
+ *  the run), `N` that chord's plan inward normal, `end` the path's face-frame end it is (0 → 'lo', 1 → 'hi'). */
+export interface StationClip { n: P2; d: number; at: P2; tangent: P2; side: ProfileSide; stop?: { N: P2; end: 'lo' | 'hi' } }
 
 /**
  * A swept profile's path in plan-CCW order (wood on the left), with the vertex velocities the skeleton starts from at an
@@ -42,7 +44,9 @@ export interface StationClip { n: P2; d: number; at: P2; tangent: P2; side: Prof
  *   1/(n·u), n the end chord's inward normal — `PathEnd.ray` exactly when the end vertex is `at`. A station end's is the
  *   bisector of the end chord and the path's tangent continued past the tangent point (the adjacent side, along `tangent`):
  *   the probe's front-stations chain, without the extension's own face (it is clipped away at the station).
- * - `stations`: one half-plane per station end, n = −tangent through `at` (the band stops on the plane across the path).
+ *   A stop's (b2) is its model chord's inward normal: the band ends square to that chord (Q12).
+ * - `stations`: one half-plane per station or stop end, n = −tangent through `at` (the band stops on the plane across the
+ *   path); a stop's carries `stop`.
  */
 export interface PlanChain {
   chords: OutlineChord[];
@@ -103,6 +107,18 @@ export function planChain(board: Pick<Board, Dimension | 'curves'>, path: Profil
       const r = len(sub(P, c));
       const u: P2 = concave ? [(P[0] - c[0]) / r, (P[1] - c[1]) / r] : [(c[0] - P[0]) / r, (c[1] - P[1]) / r];
       return scaled(u, ch.a, ch.b);
+    }
+    if (e.kind === 'stop') {
+      // b2: the band ends square to the stop's own chord (Q12): the ray is that chord's inward normal, the clip the plane
+      // across it. Recomputed from the MODEL chord the cover names (the trimmed plan chord's direction, without its
+      // rounding; the same vector as PathEnd's), so face min (ends swapped above) needs nothing more.
+      const src = outline.chords[(start ? path.cover[0] : path.cover[n - 1])!.chord]!;
+      const u = sub(src.b, src.a), l = len(u);
+      const t: P2 = start ? [-u[0] / l + 0, -u[1] / l + 0] : [u[0] / l + 0, u[1] / l + 0];
+      const N0 = leftNormal(src.a, src.b), N: P2 = [N0[0] + 0, N0[1] + 0];
+      const end: 'lo' | 'hi' = (face === 'max') === start ? 'lo' : 'hi';   // the path's face-frame end 0 / end 1
+      stations.push({ n: [-t[0] + 0, -t[1] + 0], d: dot(t, P), at: P, tangent: t, side: e.side, stop: { N, end } });
+      return N;
     }
     // A station: the adjacent side continues along `tangent` away from the run.
     stations.push({ n: [-e.tangent[0] + 0, -e.tangent[1] + 0], d: dot(e.tangent, e.at), at: e.at, tangent: e.tangent, side: e.side });

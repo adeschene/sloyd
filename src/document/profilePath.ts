@@ -8,8 +8,8 @@ import {
   arcChords, bowsInto, curveOutline, inPolygonClosed, localSegments, segmentsCross, twiceArea,
   CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type P2,
 } from './curves';
-import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
-import { reachDepth } from './profiles';
+import type { Board, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileSide } from './types';
+import { canonicalRun, endPos, endToEnd, oneSide, reachDepth } from './profiles';
 
 type PathBoard = Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] };
 
@@ -41,7 +41,15 @@ export interface CoverSpan { chord: number; t0: number; t1: number }
  * through `at` INTO the wood, scaled by 1/(n·u) of the path's end chord (the chord the split ends at `at`), as a through
  * ray is. The builder (Task 3) ends the band on the radial plane through `at`; no run-out.
  */
-export type PathEnd = { kind: 'through'; ray: P2 } | { kind: 'station'; at: P2; tangent: P2; side: ProfileSide } | { kind: 'mitre'; at: P2; ray: P2 };
+export type PathEnd = { kind: 'through'; ray: P2 } | { kind: 'station'; at: P2; tangent: P2; side: ProfileSide }
+  | { kind: 'mitre'; at: P2; ray: P2 }
+  /** b2: a user's Start or Stop (B2). Plan vectors: `tangent` along the station's MODEL chord away from the run, `normal`
+   *  that chord's plan inward normal (into the wood, the plan-CCW left normal). `at` the station's point ON that chord
+   *  (Q11), or — on the BUILT path only — the vertex the end-chord zone moved it to (Q13). */
+  | { kind: 'stop'; at: P2; tangent: P2; normal: P2; side: ProfileSide };
+/** A station's point on its side's stretch (B2): outline chord `chord`, parameter `t` on it, the point `at` (exactly the
+ *  chord's `a` at 0 and `b` at 1). */
+export interface StationPoint { chord: number; t: number; at: P2 }
 
 const EPS = 1e-9;
 
@@ -366,78 +374,266 @@ function mitre(pieces: Piece[], corner: number[], atStart: boolean, outline: Fac
   return ray ? { pieces: out, at, ray } : null;
 }
 
-/** The path the swept construction BUILDS (fix round 2): `profilePath` with each B1 station's extension (stationExtension).
- *  Faults, overlap and the hole reach read `profilePath` — ε never decides anything. */
+type Opts = { build?: boolean; snap?: boolean };
+
+/** The corner arc's chords at a stretch's start (`atStart`) or end: the run of chords carrying the end chord's curve id. */
+function cornerChords(outline: FaceOutline, s: Stretch, atStart: boolean): number[] {
+  const idx = stretchIndices(outline.chords.length, s);
+  const out: number[] = [];
+  if (atStart) {
+    if (s.startEnd !== 'arc') return out;
+    const id = outline.chords[idx[0]!]!.curve;
+    for (const i of idx) { if (outline.chords[i]!.curve !== id) break; out.push(i); }
+  } else {
+    if (s.endEnd !== 'arc') return out;
+    const id = outline.chords[idx[idx.length - 1]!]!.curve;
+    for (const i of [...idx].reverse()) { if (outline.chords[i]!.curve !== id) break; out.push(i); }
+    out.reverse();
+  }
+  return out;
+}
+
+/** A run's two ends in PLAN order (the plan walk is CCW looking at the max face; a face-min run's travel reverses it). A
+ *  one-side run is read in its canonical order (P11), as its own path walks it (a mirrored-then-edited copy may sit reversed). */
+function planEnds(board: Pick<Board, Dimension>, q: ProfileCut): [ProfileEnd, ProfileEnd] | null {
+  if ('loop' in q.run) return null;
+  const run = oneSide(q.run) ? canonicalRun(board, q.face, q.run) : q.run;
+  return q.face === 'max' ? [run.start, run.end] : [run.end, run.start];
+}
+
+/**
+ * B1a, widened (Q18): another profile on the same face, not a loop, whose plan-ordered END (`atEnd`) or START is a `through`
+ * end on `adj` whose stretch holds `corner[0]` — decided on STORED presence, never faults. For two End to end profiles it is
+ * b1's test exactly (both their ends are `through` on the one side).
+ */
+function neighbourTakes(board: PathBoard, outline: FaceOutline, p: ProfileCut, adj: ProfileSide, corner: number[], atEnd: boolean): boolean {
+  return (board.profiles ?? []).some((q) => {
+    if (q === p || q.id === p.id || q.face !== p.face) return false;
+    const ends = planEnds(board, q);
+    const e = ends && ends[atEnd ? 1 : 0];
+    if (!e || !('through' in e) || !sameSide(e.side, adj)) return false;
+    const t = sideStretch(board, outline, adj);
+    return !!t && stretchIndices(outline.chords.length, t).includes(corner[0]!);
+  });
+}
+
+/**
+ * The plan START of a stretch at its corner (B1/B1a/R6, the End to end branch's own code, moved): sharp → a through ray off
+ * the adjacent outline chord; a corner arc → a B1a mitre when `neighbourTakes`, else B1's station at the far tangent point
+ * (with ε when building). `first0` is the UNTRIMMED first chord. Null when the end face does not run into the wood.
+ */
+function openStart(board: PathBoard, outline: FaceOutline, p: ProfileCut, s: Stretch, E: number, pieces: Piece[], first0: OutlineChord, reach: number, opts?: Opts): { pieces: Piece[]; end: PathEnd } | null {
+  const m = outline.chords.length;
+  const prior = outline.chords[(s.from - 1 + m) % m]!;
+  if (s.startEnd === 'sharp') {
+    const ray = throughRay(prior.b, prior.a, first0);
+    return ray ? { pieces, end: { kind: 'through', ray } } : null;
+  }
+  const corner = cornerChords(outline, s, true);
+  const mt = neighbourTakes(board, outline, p, SIDES[prevEdge(E)]!, corner, true) ? mitre(pieces, corner, true, outline) : null;
+  if (mt) return { pieces: mt.pieces, end: { kind: 'mitre', at: mt.at, ray: mt.ray } };
+  const ext = opts?.build ? stationExtension(prior, (s.from - 1 + m) % m, first0, true, reach) : null;
+  return { pieces: ext ? [ext, ...pieces] : pieces, end: { kind: 'station', at: ext ? ext.chord.a : first0.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } } };
+}
+
+/** The plan END likewise; `pieces` already carry the start's mitre trim, `last0` is the UNTRIMMED last chord. */
+function openEnd(board: PathBoard, outline: FaceOutline, p: ProfileCut, s: Stretch, E: number, pieces: Piece[], last0: OutlineChord, reach: number, opts?: Opts): { pieces: Piece[]; end: PathEnd } | null {
+  const m = outline.chords.length;
+  const next = outline.chords[(s.to + 1) % m]!;
+  if (s.endEnd === 'sharp') {
+    const ray = throughRay(next.a, next.b, last0);
+    return ray ? { pieces, end: { kind: 'through', ray } } : null;
+  }
+  const corner = cornerChords(outline, s, false);
+  const mt = neighbourTakes(board, outline, p, SIDES[nextEdge(E)]!, corner, false) ? mitre(pieces, corner, false, outline) : null;
+  if (mt) return { pieces: mt.pieces, end: { kind: 'mitre', at: mt.at, ray: mt.ray } };
+  const ext = opts?.build ? stationExtension(next, (s.to + 1) % m, last0, false, reach) : null;
+  return { pieces: ext ? [...pieces, ext] : pieces, end: { kind: 'station', at: ext ? ext.chord.b : last0.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } } };
+}
+
+/**
+ * Where a station sits (B2, Q11): the point on its side's stretch of the MODEL chords at run-dimension coordinate `x` (a
+ * tape laid along the part, squared to the edge). Every piece of a stretch moves one way along the run dimension (§3.3), so
+ * it names one point; the first chord holding it in stretch order wins (a vertex: the chord ENDING there, except the
+ * stretch's own first vertex). Null off the stretch (or no stretch). A station becomes a point only through this (inv 44).
+ */
+export function stationPoint(board: Pick<Board, Dimension>, outline: FaceOutline, side: ProfileSide, x: number): StationPoint | null {
+  const s = sideStretch(board, outline, side);
+  if (!s) return null;
+  const k = side.across === 'width' ? 0 : 1;
+  for (const i of stretchIndices(outline.chords.length, s)) {
+    const c = outline.chords[i]!;
+    const xa = c.a[k]!, xb = c.b[k]!;
+    if (xa === xb || (x - xa) * (x - xb) > 0) continue;
+    const t = (x - xa) / (xb - xa);
+    return { chord: i, t, at: t === 0 ? c.a : t === 1 ? c.b : [c.a[0] + t * (c.b[0] - c.a[0]), c.a[1] + t * (c.b[1] - c.a[1])] };
+  }
+  return null;
+}
+
+/**
+ * Q13's end-chord zone: how close a station may come to the next CONVEX path vertex inward — the end of its chord for the
+ * run's first end (`first`), the start for its last — before the offset at `reach` swallows its end piece: reach·tan(φ/2), φ
+ * the turn there (0 at a straight or concave vertex: nothing to swallow). Only the BUILT station and the skeleton's judgement
+ * read it; no fault does.
+ */
+export function stopZone(outline: FaceOutline, sp: StationPoint, first: boolean, reach: number): number {
+  const n = outline.chords.length;
+  const dir = (i: number): P2 => { const c = outline.chords[i]!; const l = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]); return [(c.b[0] - c.a[0]) / l, (c.b[1] - c.a[1]) / l]; };
+  const [a, b] = first ? [dir(sp.chord), dir((sp.chord + 1) % n)] : [dir((sp.chord - 1 + n) % n), dir(sp.chord)];
+  const turn = Math.atan2(a[0] * b[1] - a[1] * b[0], a[0] * b[0] + a[1] * b[1]);   // > 0: convex (a left turn)
+  return turn > 0 ? reach * Math.tan(turn / 2) : 0;
+}
+
+/** Plan-CCW enters each rectangle edge (SIDES order) at: the front and the length max end at min, the others at max. */
+const ENTERS: readonly CutFrom[] = ['min', 'min', 'max', 'max'];
+const other = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
+/**
+ * Q17: a run's `through` ends name where travel ENTERS Start's side (Start) or LEAVES Stop's side (Stop). A one-side run is
+ * consistent by construction: its canonical order (P11, `canonicalRun`) puts a `through` end where travel enters or leaves,
+ * and every reader walks it in that order (a mirrored-then-edited copy may sit reversed in memory, fu 392(5)), so it is
+ * judged true here without the board. A two-side run is never re-ordered (Q16): judged in plan order.
+ */
+export function throughConsistent(p: ProfileCut): boolean {
+  const run = p.run;
+  if ('loop' in run || oneSide(run)) return true;   // End to end is one-side
+  const { start, end } = run as { start: ProfileEnd; end: ProfileEnd };
+  const [ps, pe] = p.face === 'max' ? [start, end] : [end, start];
+  const ok = (e: ProfileEnd, first: boolean) => !('through' in e) || e.through === (first ? ENTERS[edgeOfSide(e.side)]! : other(ENTERS[edgeOfSide(e.side)]!));
+  return ok(ps, true) && ok(pe, false);
+}
+
+/**
+ * The b2 path (B2, B3, Q11–Q17): a run that is neither a loop nor End to end — a station run on one side, or a run whose ends
+ * lie on two sides — in PLAN order (the caller reverses it for face min). Each station sits on the model chords (Q11; on a
+ * vertex, the run-side chord); under `build` or `snap` one inside its end-chord zone moves to the next vertex inward (Q13: the
+ * run shortened, never lengthened). A `through` end at a corner treats it as End to end does (B1, B1a widened by Q18).
+ * Null when an end cannot be placed (a station off its stretch, a stretch that cannot be traced, an inconsistent through end),
+ * the two ends are one point (Q16), or the zone would cross them.
+ */
+function stopRun(board: PathBoard, outline: FaceOutline, p: ProfileCut, opts?: Opts): ProfilePath | null {
+  if ('loop' in p.run) return null;
+  // A one-side run is walked in its CANONICAL order (P11): a copy mirrored along the run dimension and then edited can sit
+  // reversed in memory until the next load (fu 392(5)); walked as stored it would wrap round the whole outline. A two-side
+  // run is never re-ordered (Q16).
+  if (oneSide(p.run)) p = { ...p, run: canonicalRun(board, p.face, p.run) };
+  if (!throughConsistent(p)) return null;
+  const run = p.run as { start: ProfileEnd; end: ProfileEnd };
+  const m = outline.chords.length, reach = reachDepth(p)[0];
+  // The plan walk is CCW looking at the max face; a run travels CCW looking at ITS face, so for face min the plan walk
+  // runs from the stored end to the stored start (profilePath's face-min tail reverses it back).
+  const [ps, pe] = p.face === 'max' ? [run.start, run.end] : [run.end, run.start];
+  const pt = (i: number, t: number): P2 => { const c = outline.chords[i]!; return t === 0 ? c.a : t === 1 ? c.b : [c.a[0] + t * (c.b[0] - c.a[0]), c.a[1] + t * (c.b[1] - c.a[1])]; };
+  type Pos = { chord: number; t: number };
+  const typed: Pos[] = [];
+  const station = (e: Extract<ProfileEnd, { at: number }>, first: boolean): Pos | null => {
+    const sp = stationPoint(board, outline, e.side, endPos(board, e));
+    if (!sp) return null;
+    let pos: Pos = { chord: sp.chord, t: sp.t };
+    // Q11: on a vertex, the run-side chord.
+    if (first && pos.t === 1) pos = { chord: (pos.chord + 1) % m, t: 0 };
+    if (!first && pos.t === 0) pos = { chord: (pos.chord - 1 + m) % m, t: 1 };
+    typed.push(pos);
+    // Q13 (build and the skeleton's judgement only): inside the end-chord zone, built at the next vertex inward.
+    if (opts?.build || opts?.snap) {
+      const c = outline.chords[pos.chord]!, l = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]);
+      if ((first ? 1 - pos.t : pos.t) * l < stopZone(outline, { ...pos, at: pt(pos.chord, pos.t) }, first, reach)) {
+        pos = first ? { chord: (pos.chord + 1) % m, t: 0 } : { chord: (pos.chord - 1 + m) % m, t: 1 };
+      }
+    }
+    return pos;
+  };
+  const s0 = 'through' in ps ? sideStretch(board, outline, ps.side) : null;
+  const s1 = 'through' in pe ? sideStretch(board, outline, pe.side) : null;
+  if (('through' in ps && !s0) || ('through' in pe && !s1)) return null;
+  const a = 'through' in ps ? { chord: s0!.from, t: 0 } : station(ps, true);
+  const b = 'through' in pe ? { chord: s1!.to, t: 1 } : station(pe, false);
+  if (!a || !b) return null;
+  const A = pt(a.chord, a.t), B = pt(b.chord, b.t);
+  if (Math.hypot(A[0] - B[0], A[1] - B[1]) <= EPS) return null;   // Q16: the two ends one point
+  // The walk from a to b, in chords passed (a run within one chord forward: 0; one wrapping round to its own chord: m).
+  const walk = (x: Pos, y: Pos) => (x.chord === y.chord ? (x.t < y.t ? 0 : m) : (y.chord - x.chord + m) % m);
+  if (typed.length > 0) {
+    // The zone only ever shortens the run: a start moved past its stop would otherwise walk round the whole outline.
+    const ta = 'through' in ps ? a : typed[0]!, tb = 'through' in pe ? b : typed[typed.length - 1]!;
+    if (walk(a, b) > walk(ta, tb)) return null;
+  }
+  const piece = (i: number, t0: number, t1: number): Piece => ({ chord: { ...outline.chords[i]!, a: pt(i, t0), b: pt(i, t1) }, index: i, t0, t1 });
+  let pieces: Piece[] = [];
+  if (a.chord === b.chord && a.t < b.t) pieces = [piece(a.chord, a.t, b.t)];
+  else {
+    pieces.push(piece(a.chord, a.t, 1));
+    for (let i = (a.chord + 1) % m; i !== b.chord; i = (i + 1) % m) pieces.push(piece(i, 0, 1));
+    pieces.push(piece(b.chord, 0, b.t));
+  }
+  const first0 = pieces[0]!.chord, last0 = pieces[pieces.length - 1]!.chord;
+  // Q12: a stop's frame is its MODEL chord (the outline chord the station lies on), never the true arc's tangent.
+  const stopEnd = (index: number, at: P2, first: boolean, side: ProfileSide): PathEnd => {
+    const c = outline.chords[index]!;
+    const d: P2 = [c.b[0] - c.a[0], c.b[1] - c.a[1]], l = Math.hypot(d[0], d[1]);
+    const u: P2 = [d[0] / l, d[1] / l];
+    return { kind: 'stop', at, tangent: first ? [-u[0] + 0, -u[1] + 0] : [u[0] + 0, u[1] + 0], normal: [-u[1] + 0, u[0] + 0], side: { ...side } };
+  };
+  let e0: PathEnd, e1: PathEnd;
+  if ('through' in ps) {
+    const r = openStart(board, outline, p, s0!, edgeOfSide(ps.side), pieces, first0, reach, opts);
+    if (!r) return null;
+    pieces = r.pieces; e0 = r.end;
+  } else e0 = stopEnd(a.chord, first0.a, true, ps.side);
+  if ('through' in pe) {
+    const r = openEnd(board, outline, p, s1!, edgeOfSide(pe.side), pieces, last0, reach, opts);
+    if (!r) return null;
+    pieces = r.pieces; e1 = r.end;
+  } else e1 = stopEnd(b.chord, last0.b, false, pe.side);
+  if (pieces.length === 0) return null;
+  return { chords: pieces.map((x) => x.chord), loop: false, ends: [e0, e1], cover: pieces.map((x) => ({ chord: x.index, t0: x.t0, t1: x.t1 })) };
+}
+
+/** The path the swept construction BUILDS (fix round 2): `profilePath` with each B1 station's extension (stationExtension)
+ *  and each b2 stop's end-chord zone (Q13). Faults, overlap and the hole reach read `profilePath` — neither decides anything. */
 export function builtPath(board: PathBoard, p: ProfileCut): ProfilePath | null {
   return profilePath(board, p, { build: true });
+}
+/** The path the skeleton's too-tight judgement reads (Q13): each b2 stop's end-chord zone, never B1's ε. */
+export function judgedPath(board: PathBoard, p: ProfileCut): ProfilePath | null {
+  return profilePath(board, p, { snap: true });
 }
 
 /**
  * A run's path (spec §3.3 *(B)*) in the face's frame: CCW as seen from outside `p.face` — the plan outline as is for face
  * max, reversed (chords in reverse order, each with a and b swapped, the two ends swapped) for face min. A loop is every
  * chord. An End to end run (both ends `through`, one side) is its side's stretch with its two ends: `through` at a sharp
- * corner; at a corner arc, `mitre` at the arc's midpoint when the adjacent side holds an End to end profile on the same
- * face taking that arc (B1a; `board.profiles`, stored presence), else `station` at the far tangent point (B1). Null when
- * the outline or the stretch cannot be traced, or an end face does not run into the wood, and for a run b1 builds no path
- * for: a STATION run (a2's construction, Q2) or ends on two sides (b2).
+ * corner; at a corner arc, `mitre` at the arc's midpoint when the adjacent side holds a profile on the same face whose
+ * through end takes that arc (B1a, Q18; `board.profiles`, stored presence), else `station` at the far tangent point (B1).
+ * Any other run (b2: a station run, or ends on two sides) is `stopRun`'s. Null when the outline or the stretch cannot be
+ * traced, or an end face does not run into the wood. `opts.build`: B1's ε and Q13's zone (`builtPath`); `opts.snap`: the
+ * zone only (`judgedPath`).
  */
-export function profilePath(board: PathBoard, p: ProfileCut, opts?: { build?: boolean }): ProfilePath | null {
+export function profilePath(board: PathBoard, p: ProfileCut, opts?: Opts): ProfilePath | null {
   const outline = faceOutline(board);
   if (!outline) return null;
   const m = outline.chords.length;
   let path: ProfilePath;
   if ('loop' in p.run) path = { chords: outline.chords, loop: true, cover: outline.chords.map((_, i) => ({ chord: i, t0: 0, t1: 1 })) };
-  else {
-    const { start, end } = p.run;
-    if (!('through' in start) || !('through' in end) || !sameSide(start.side, end.side)) return null;
-    const s = sideStretch(board, outline, start.side);
+  else if (endToEnd(p.run)) {
+    const s = sideStretch(board, outline, p.run.start.side);
     if (!s) return null;
-    const E = edgeOfSide(start.side);
-    const idx = stretchIndices(m, s);
-    let pieces: Piece[] = idx.map((i) => ({ chord: outline.chords[i]!, index: i, t0: 0, t1: 1 }));
-    // The corner arc's chords at each end: the run of chords carrying the end chord's curve id.
-    const startCorner: number[] = [], endCorner: number[] = [];
-    if (s.startEnd === 'arc') { const id = outline.chords[idx[0]!]!.curve; for (const i of idx) { if (outline.chords[i]!.curve !== id) break; startCorner.push(i); } }
-    if (s.endEnd === 'arc') { const id = outline.chords[idx[idx.length - 1]!]!.curve; for (const i of [...idx].reverse()) { if (outline.chords[i]!.curve !== id) break; endCorner.push(i); } endCorner.reverse(); }
-    const neighbourTakes = (adj: ProfileSide, corner: number[]) => (board.profiles ?? []).some((q) => {
-      if (q === p || q.id === p.id || q.face !== p.face || 'loop' in q.run) return false;
-      const { start: qs, end: qe } = q.run;
-      if (!('through' in qs) || !('through' in qe) || !sameSide(qs.side, adj) || !sameSide(qe.side, adj)) return false;
-      const t = sideStretch(board, outline, adj);
-      return !!t && stretchIndices(m, t).includes(corner[0]!);
-    });
+    const E = edgeOfSide(p.run.start.side);
+    let pieces: Piece[] = stretchIndices(m, s).map((i) => ({ chord: outline.chords[i]!, index: i, t0: 0, t1: 1 }));
     const first0 = pieces[0]!.chord, last0 = pieces[pieces.length - 1]!.chord;
     const reach = reachDepth(p)[0];
-    const prior = outline.chords[(s.from - 1 + m) % m]!, next = outline.chords[(s.to + 1) % m]!;
-    let e0: PathEnd, e1: PathEnd;
     // Each end decided on the UNTRIMMED stretch; the mitre trims are applied after, start then end.
-    let startMitre: ReturnType<typeof mitre> = null;
-    if (s.startEnd === 'sharp') {
-      const ray = throughRay(prior.b, prior.a, first0);
-      if (!ray) return null;
-      e0 = { kind: 'through', ray };
-    } else if (neighbourTakes(SIDES[prevEdge(E)]!, startCorner) && (startMitre = mitre(pieces, startCorner, true, outline))) {
-      pieces = startMitre.pieces;
-      e0 = { kind: 'mitre', at: startMitre.at, ray: startMitre.ray };
-    } else {
-      const ext = opts?.build ? stationExtension(prior, (s.from - 1 + m) % m, first0, true, reach) : null;
-      if (ext) pieces = [ext, ...pieces];
-      e0 = { kind: 'station', at: ext ? ext.chord.a : first0.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } };
-    }
-    let endMitre: ReturnType<typeof mitre> = null;
-    if (s.endEnd === 'sharp') {
-      const ray = throughRay(next.a, next.b, last0);
-      if (!ray) return null;
-      e1 = { kind: 'through', ray };
-    } else if (neighbourTakes(SIDES[nextEdge(E)]!, endCorner) && (endMitre = mitre(pieces, endCorner, false, outline))) {
-      pieces = endMitre.pieces;
-      e1 = { kind: 'mitre', at: endMitre.at, ray: endMitre.ray };
-    } else {
-      const ext = opts?.build ? stationExtension(next, (s.to + 1) % m, last0, false, reach) : null;
-      if (ext) pieces = [...pieces, ext];
-      e1 = { kind: 'station', at: ext ? ext.chord.b : last0.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } };
-    }
-    path = { chords: pieces.map((x) => x.chord), loop: false, ends: [e0, e1], cover: pieces.map((x) => ({ chord: x.index, t0: x.t0, t1: x.t1 })) };
+    const r0 = openStart(board, outline, p, s, E, pieces, first0, reach, opts);
+    if (!r0) return null;
+    pieces = r0.pieces;
+    const r1 = openEnd(board, outline, p, s, E, pieces, last0, reach, opts);
+    if (!r1) return null;
+    pieces = r1.pieces;
+    path = { chords: pieces.map((x) => x.chord), loop: false, ends: [r0.end, r1.end], cover: pieces.map((x) => ({ chord: x.index, t0: x.t0, t1: x.t1 })) };
+  } else {
+    const built = stopRun(board, outline, p, opts);
+    if (!built) return null;
+    path = built;
   }
   if (p.face === 'min') {
     path = {
@@ -451,18 +647,24 @@ export function profilePath(board: PathBoard, p: ProfileCut, opts?: { build?: bo
 }
 
 /**
- * Q2: a profile is SWEPT (built by the kept-wood construction, §4.2) when it is a loop, or an End to end run whose side's
- * stretch is not that side's single straight chord. A station run is a2's construction on any side in b1. An End to end
- * run whose outline or stretch cannot be traced stays straight (a1's builder, byte for byte); a loop is swept regardless
- * (its faults then say why it builds nothing). Call it on the STORED part (its curves included).
+ * Q2 + Q9: a profile is SWEPT (built by the kept-wood construction, §4.2) when it is a loop; an End to end run whose side's
+ * stretch is not that side's single straight chord; a run with ends on two sides; or a one-side STATION run whose path (the
+ * fault path: no ε, no zone) is not exactly one chord free of any curve. A one-side station run with no path (a station off
+ * its stretch, an untraceable outline) and an End to end run whose outline or stretch cannot be traced stay straight (a1/a2's
+ * builders, byte for byte); a loop or a two-side run is swept regardless (its faults then say why it builds nothing). Call it
+ * on the STORED part (its curves included).
  */
-export function isSwept(board: Pick<Board, Dimension | 'curves'>, p: ProfileCut): boolean {
+export function isSwept(board: PathBoard, p: ProfileCut): boolean {
   if ('loop' in p.run) return true;
-  const { start, end } = p.run;
-  if (!('through' in start) || !('through' in end) || !sameSide(start.side, end.side)) return false;
+  if (!oneSide(p.run)) return true;
   const outline = faceOutline(board);
   if (!outline) return false;
-  const s = sideStretch(board, outline, start.side);
-  if (!s) return false;
-  return !(s.from === s.to && outline.chords[s.from]!.curve === undefined);
+  if (endToEnd(p.run)) {
+    const s = sideStretch(board, outline, p.run.start.side);
+    if (!s) return false;
+    return !(s.from === s.to && outline.chords[s.from]!.curve === undefined);
+  }
+  const path = profilePath(board, p);
+  if (!path) return false;
+  return !(path.cover.length === 1 && outline.chords[path.cover[0]!.chord]!.curve === undefined);
 }
