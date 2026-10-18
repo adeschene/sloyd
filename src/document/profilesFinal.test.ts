@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { cornerCurve, createBoard, migrateDocument, partGeometry, DEFAULT_PROFILE_EDGE } from './document';
 import type { Board, HoleRow, ProfileCut, ProfileSide } from './types';
 import { archCurve, cornerFields, curveFaults, defaultCorners } from './curves';
-import { defaultProfile, geometryBoard, profileAsCurve, profileFaults, profileOf, runsStraight, viewProfileFaults } from './profiles';
+import { defaultProfile, fallbackCause, geometryBoard, profileAsCurve, profileFaults, profileOf, runsStraight, stopFallsBack, viewProfileFaults } from './profiles';
 import { builtSwept } from './sweep';
-import { loop, topCorners } from './sweepFixtures';
+import { apronArch, loop, topCorners } from './sweepFixtures';
 import { boardBodies } from './bodies';
 import { isSwept, profilePath } from './profilePath';
 import { drawView, FRONT, ISO, SIDE, TOP } from './drawing';
@@ -37,7 +37,9 @@ describe('I2 (the controller\'s ruling): a station run claims only its straight 
     const b = loaded(top(2, [stop('a', side('width', 'min'), 1, 30), e2e('b', side('length', 'min'))]));
     expect(b.profiles.map((p) => p.id)).toEqual(['a', 'b']);
     expect(isSwept(b, b.profiles[1]!)).toBe(true);   // the end's run carries round its corners (B10)
-    expect(b.profiles.map((p) => profileFaults(b, p))).toEqual([[], []]);
+    // b2 (Q10, changed by design): the stop is swept-shaped, so its own profileFaults is its swept judgement; it falls back
+    expect(b.profiles.map((p) => profileFaults(b, p))).toEqual([[{ kind: 'overlap', other: 'b' }], []]);
+    expect(viewProfileFaults(geometryBoard(b).curves.find((c) => c.id === 'a')!)).toEqual([]);   // the row's own faults
     const view = geometryBoard(b);
     expect(builtSwept(view).map((p) => p.id)).toEqual(['b']);
     expect(view.curves.some((c) => c.id === 'a')).toBe(true);   // the stop is a2's view curve, built as a2 built it
@@ -219,5 +221,101 @@ describe('M1: profile faults memoised with the geometry view', () => {
     expect(viewProfileFaults(c)).toEqual([]);
     expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
     expect(profileFaults(b, b.profiles[0]!, { straight: true })).toEqual([]);
+  });
+});
+
+// ── b2: Q10, saved a2 stops on a turned path (B10 for stops) ──────────────────────────────────────────────────────────────
+
+/** Every reader's output on b1 (`git archive dc49b01`, the same `fingerprint`, in a scratch tree beside this one), where a
+ *  station run was always a2's view curve. */
+const B1_STOPS: Record<'tightStop' | 'i2Pair' | 'halfPair' | 'pairStops', Record<string, string>> = {
+  tightStop: { view: "1054ecf87297fb07", bodies: "dfb29cb158c78bbb", edges: "dbee615cebf7af6e", mesh: "b9d0078d006e6ef0", draw: "c122975151bda641", lines: "[\"Round all four corners to a 1/4\\\" radius\",\"Roundover 3/8\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1/8\\\" to 30\\\" (stopped)\"]", keys: "281b8bca8d673e23", snaps: "a6f79def32fe1688", probe: "cc4fe20f91aa6de0", holes: "483e5592e3019aca", diagrams: "55167618198983f8", cutlist: "756df6d46713b83d" },
+  i2Pair: { view: "28b92e78f1a823bc", bodies: "04542209e67e4e21", edges: "fdef9d305c978416", mesh: "651f78ec1cf9f151", draw: "5b82f644ae8072f2", lines: "[\"Round all four corners to a 2\\\" radius\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1\\\" to 30\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "3ba5b48e50e9c45a", snaps: "510287cd171e1619", probe: "6faca64595193e6c", holes: "50b347f9f2d15bbe", diagrams: "956f366ea7172127", cutlist: "e1af034ccf1c36d2" },
+  halfPair: { view: "07b88ed5231062ab", bodies: "486aaa995dc928b6", edges: "36ab9e631c4cc884", mesh: "855a83d98a6dae88", draw: "d26a032dc562ba3d", lines: "[\"Round all four corners to a 2\\\" radius\",\"Arch on the width min side, from 14\\\" to 14-3/8\\\" from the length min end: 3/16\\\" rise (radius 3/16\\\")\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from the length min end to 30\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "3b3d54d7f78f25dd", snaps: "950d87d25b0efb17", probe: "6faca64595193e6c", holes: "50b347f9f2d15bbe", diagrams: "757504a8b465a7a2", cutlist: "8736ea5c3268cdb6" },
+  pairStops: { view: "01deadbe799cb11a", bodies: "0aa15dd77bc4418e", edges: "6c20c0801052e7c5", mesh: "d2f1127c9be96252", draw: "b7e4d4c4d8d77794", lines: "[\"Round the corner of the length min end and the width min side to a 2\\\" radius\",\"Arch on the width min side, from 14\\\" to 14-3/8\\\" from the length min end: 3/16\\\" rise (radius 3/16\\\")\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, from 1/2\\\" to 4\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1/2\\\" to 20\\\" (stopped)\"]", keys: "010f2a1d7bd834b9", snaps: "43c5cb5fe2f5699d", probe: "fc31011d835641c5", holes: "d8f69535b34e7910", diagrams: "b4b4f6d1154e0488", cutlist: "c007553ac7438733" },
+};
+/** `fits`' bodies on dc49b01 (a2's prism over the arch): b2 makes it follow, so its bodies differ (the B10 change). */
+const B1_FITS_BODIES = '1a9fef6716d8cd09';
+const halfStop = (id: string, s: ProfileSide, hi: number, size: number): ProfileCut => ({ id, ...base, size, run: { start: { side: s, through: 'min' }, end: { side: { ...s }, from: 'min', at: hi } } });
+
+describe('Q10: saved a2 stops on a turned path (B10 for stops)', () => {
+  const tightStop = () => loaded(top(0.25, [{ ...stop('s', side('width', 'min'), 0.1, 30), size: 0.375 }]));
+  const i2Pair = () => loaded(top(2, [stop('a', side('width', 'min'), 1, 30), e2e('b', side('length', 'min'))]));
+  /** 2" corners and a half-round notch on the front tighter than the bearing (r 3/16): a front half-stop out through the
+   *  length min end round the corner to 30" would run through the notch (too tight), so it falls back; an End to end on the
+   *  length min end fits round the corner. */
+  const halfPair = () => loaded(createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75,
+    curves: [...corners(2), { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) }],
+    profiles: [halfStop('q', side('width', 'min'), 30, 0.25), e2e('p', side('length', 'min'))] }));
+  const fits = () => loaded({ ...apronArch, profiles: [stop('a', side('width', 'min'), 10, 20)] });
+  it('too tight: swept-shaped, too-tight as swept, held as its a2 view curve with its span; every reader equals b1', () => {
+    const b = tightStop();
+    expect(isSwept(b, b.profiles[0]!)).toBe(true);
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    expect(stopFallsBack(b, b.profiles[0]!)).toBe(true);
+    const view = geometryBoard(b);
+    expect(view.profiles).toEqual([]);
+    const c = view.curves.find((x) => x.id === 's')!;
+    expect(c).toEqual({ ...profileAsCurve(b.profiles[0]!), span: { lo: 0.1, hi: 30, stopLo: true, stopHi: true } });
+    expect(viewProfileFaults(c)).toEqual([]);
+    expect(runsStraight(c)).toBe(true);
+    expect(fingerprint(b)).toEqual(B1_STOPS.tightStop);
+  });
+  it('I2\'s pair: the stop runs straight, the End to end builds swept, every reader equals b1', () => {
+    const b = i2Pair();
+    const view = geometryBoard(b);
+    expect(view.curves.some((c) => c.id === 'a')).toBe(true);
+    expect(runsStraight(view.curves.find((c) => c.id === 'a')!)).toBe(true);
+    expect(builtSwept(view).map((p) => p.id)).toEqual(['b']);
+    expect(fingerprint(b)).toEqual(B1_STOPS.i2Pair);
+  });
+  it('M-g / m1: a B10 End to end beside a fallen-back half-stop builds exactly as on b1, no half-arc left unprofiled', () => {
+    const b = halfPair();
+    expect(stopFallsBack(b, b.profiles[0]!)).toBe(true);
+    const view = geometryBoard(b);
+    expect(builtSwept(view).map((p) => p.id)).toEqual(['p']);
+    // the End to end's FAULT path carries round the shared corner as its built path does (no mitre against a2's prism)
+    expect(profilePath(b, b.profiles[1]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'station']);
+    expect(b.profiles.map((p) => profileFaults(b, p))).toEqual([[{ kind: 'too-tight' }], []]);
+    expect(fingerprint(b)).toEqual(B1_STOPS.halfPair);
+    // the wood: a point 0.02" inside the 2" corner arc's FRONT half (240°) and 0.02" below the top — in the End to end's
+    // waste, outside the stop's a2 prism (found on dc49b01) — is air: the End to end takes the whole arc. With only the stop
+    // it is wood: a mitre against the a2 prism would leave it so.
+    const probe = stockProbe(b), alone = stockProbe({ ...b, profiles: [b.profiles[0]!] });
+    const pt = { length: 2 + 1.98 * Math.cos(4 * Math.PI / 3), width: 2 + 1.98 * Math.sin(4 * Math.PI / 3), thickness: 0.73 };
+    expect(alone(pt)).toBe(true);
+    expect(probe(pt)).toBe(false);
+  });
+  it('stops are decided FIRST, each against the others by their shape: two saved stops sharing only a corner arc', () => {
+    // A 30 × 5 apron, a 2" corner and a notch tighter than the bearing on the front. A: the length min end from 4" to 1/2"
+    // (round onto the corner arc); B: the front from 1/2" (on the arc) to 20" (through the notch: too tight). Their paths
+    // share a stretch of the corner arc only. B falls back (too tight); A, judged against B by its SHAPE (phase 1), would
+    // overlap it, while its straight form is clean — so A falls back too, as on b1. Decided with B already resolved (phase
+    // 2), A would follow: the hash below catches that.
+    const b = loaded(createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, curves: [
+      { id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 2 }) },
+      { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) }],
+      profiles: [stop('A', side('length', 'min'), 4, 0.5), stop('B', side('width', 'min'), 0.5, 20)] }));
+    expect(b.profiles.map((p) => isSwept(b, p))).toEqual([true, true]);
+    expect(b.profiles.map((p) => stopFallsBack(b, p))).toEqual([true, true]);
+    const view = geometryBoard(b);
+    expect(view.profiles).toEqual([]);
+    expect(['A', 'B'].map((id) => runsStraight(view.curves.find((c) => c.id === id)!))).toEqual([true, true]);
+    expect(['A', 'B'].map((id) => fallbackCause(view.curves.find((c) => c.id === id)!))).toEqual(['overlap', 'too-tight']);
+    expect(fingerprint(b)).toEqual(B1_STOPS.pairStops);
+  });
+  it('a stop that fits FOLLOWS: in builtSwept, its bodies differ from b1\'s (the B10 change, recorded)', () => {
+    const b = fits();
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['a']);
+    expect(builtSwept(view).map((p) => p.id)).toEqual(['a']);
+    expect(sha(partGeometry(b).bodies)).not.toBe(B1_FITS_BODIES);
+  });
+  it('fallbackCause names the cause: too-tight for the tight stop, overlap for I2\'s stop; null for a following one', () => {
+    const t = geometryBoard(tightStop()), i = geometryBoard(i2Pair()), f = geometryBoard(fits());
+    expect(fallbackCause(t.curves.find((c) => c.id === 's')!)).toBe('too-tight');
+    expect(fallbackCause(i.curves.find((c) => c.id === 'a')!)).toBe('overlap');
+    expect(fallbackCause(f.profiles[0]!)).toBeNull();
+    expect(fallbackCause(t.curves[0]!)).toBeNull();   // a corner curve
   });
 });

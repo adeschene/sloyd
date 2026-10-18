@@ -82,6 +82,10 @@ profiles; a grain fix (fu 336).
   to the edge (a2's rule, kept on curved sides). A station may sit on an arch, a bow or a corner arc.
 - **B3 Two-side runs** are in chunk b: a stopped run may start on one side and stop on another, following the outline between them
   round any corners (a rounded top profiled front and ends, the back against a wall left plain).
+  *Amended (implementation, b2; the controller's ruling m3 on Q16)*: "up to three sides" means a two-side run may pass up to
+  two whole sides BETWEEN Start's side and Stop's side (touching four sides in all); its walk never comes back onto Start's
+  side, nor (read backwards) onto Stop's. A run that would re-enter one, or whose two ends are one point, has no path and is
+  `stop-off` (never `runs-off`). A deliberate near-full wrap is authored as two runs or a loop.
 - **B4 Two builders, one view.** A run whose whole path is ONE straight segment keeps a1/a2's view curve, bodies, mesh and words
   byte for byte. Every other run (a curved side, a corner arc, two sides, All round) is a SWEPT profile, built by §4.2's kept-wood
   construction, with a2's run-out where it stops. The choice is structural (`profilePath.ts`). Rejected: one new builder for every
@@ -163,6 +167,18 @@ profiles; a grain fix (fu 336).
   Authoring still judges an End to end on a cornered or arched side by its swept faults (`profileFaults`, unchanged): the
   Profiles row and Curves' `profileRefusal` refuse an ADDED swept fault, so authoring never creates a new one; a saved one,
   or a resize that makes it too tight, falls back.
+  *Amended (implementation, b2 Task 3; Q10 for stops)*: a one-side STATION run falls back by the same test
+  (`stopFallsBack`), decided FIRST with every other profile read by its shape and every path by stored presence ("phase 1"),
+  so no fallback depends on another's; every other judgement ("phase 2", what `profileFaults` returns) then reads a
+  fallen-back stop as straight. (1) B1a (Q18) never mitres a neighbour against a fallen-back stop on the stored part — a2's
+  prism takes no arc — so the neighbour carries round to B1's station exactly as it is built (the view holds no fallen-back
+  stop), and no half of a corner arc is left unprofiled; the profile being judged is always read as present by the others'
+  paths (its swept judgement asks what it would claim if it followed). (2) Phase 2 is not always a subset of phase 1 in
+  practice: two saved stops sharing only a corner arc both fall back, and the one whose only swept fault was the other has
+  an EMPTY phase-2 swept judgement; the row's note therefore names the cause from the judgement that DECIDED the fallback
+  (`fallbackCause`: a stop's phase 1, an End to end's `profileFaults`). (3) A fallen-back stop's own `profileFaults` stays its
+  swept judgement (authoring's, as I1's fallen-back End to end reads `too-tight`); the row reads `viewProfileFaults` (its a2
+  faults), clean.
 
 **Planning rulings for chunk b1** (*Amended (planning)*, 2026-10-18; the probe: `docs/superpowers/plans/b1-probe/`):
 - **Q1 The view.** `geometryBoard`'s `profiles` holds exactly the SWEPT profiles (stored order); straight ones stay view curves

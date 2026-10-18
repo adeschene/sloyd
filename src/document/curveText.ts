@@ -4,7 +4,7 @@ import { edgeName, endWord } from './holeText';
 import {
   archFields, bowFields, cornerFields, curveFaults, localSegments, spanOf, uvDims, type CurveFault, type LocalArc,
 } from './curves';
-import { geometryBoard, profileAsymmetric, profileFields, profileToFields, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
+import { geometryBoard, oneSide, profileAsymmetric, profileFields, profileToFields, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
 import { faceOutline, sideStretch } from './profilePath';
 import { faceName } from './angleText';
 
@@ -39,15 +39,23 @@ export function profileFaultText(f: ProfileFault): string {
   }
 }
 
+/** The Profiles row's note for a swept-shaped End to end that runs STRAIGHT (`runsStraight`; final review I1, the user's
+ *  ruling): too tight to follow its curve, it is cut as a2 cut it. A row note only — the bench line describes what is cut. */
+export const RUNS_STRAIGHT_NOTE = 'Runs straight: too tight to follow the curve.';
+/** The fallback note by its cause (Q10; one home): the first kind of the profile's swept judgement (`fallbackCause`). */
+export function runsStraightNote(kind: ProfileFault['kind']): string {
+  switch (kind) {
+    case 'too-tight': return RUNS_STRAIGHT_NOTE;
+    case 'overlap': return 'Runs straight: it would overlap another profile if it followed the curve.';
+    case 'runs-off': case 'stop-off': return 'Runs straight: it would run off the part if it followed the curve.';
+  }
+}
 /**
  * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part, a profile
  * running off it and one too tight for its curve are what a resize causes (" at this size."); an overlap never is — every
  * row station is measured from the min end, so a resize cannot make one (an a1 file's stacked identical profiles, faulted
  * on load by P12) — so it reads without the clause.
  */
-/** The Profiles row's note for a swept-shaped End to end that runs STRAIGHT (`runsStraight`; final review I1, the user's
- *  ruling): too tight to follow its curve, it is cut as a2 cut it. A row note only — the bench line describes what is cut. */
-export const RUNS_STRAIGHT_NOTE = 'Runs straight: too tight to follow the curve.';
 export function profileFaultNote(f: ProfileFault): string {
   const cap = (t: string) => `${t[0]!.toUpperCase()}${t.slice(1)}`;
   const t = profileFaultText(f);
@@ -159,9 +167,12 @@ export function sweptLine(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut
   const run = sweptRun(view, p);
   const face = faceName('thickness', p.face);
   const top = profileAsymmetric(p) && p.facing === 'edge' ? ', top on the edge' : '';
+  // A run with ends on two sides (profile runs b2) has no chunk-1 line: until Task 8 words its run (Q21), it reads Q21's head
+  // only — `<name> on <face><top><fillet>` — so no reader throws on a loaded two-side run (M-e).
   const base = 'loop' in p.run
     ? `${profileName(p, units)} all round ${face}${top}${filletWords(p, units)}`
-    : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}`;
+    : !oneSide(p.run) ? `${profileName(p, units)} on ${face}${top}${filletWords(p, units)}`
+      : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}`;
   return withCheck(base, viewProfileFaults(p).map(profileFaultText));
 }
 

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, partGeometry, boardEdges, boardBodies, geometryKey } from './document';
 import { curvedEdges } from './bodies';
-import { geometryBoard, profileAsCurve, shapedPart, sweptProfiles } from './profiles';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, topCorners } from './sweepFixtures';
+import { fallbackCause, geometryBoard, profileAsCurve, profileFaults, runsStraight, shapedPart, sweptProfiles, viewProfileFaults } from './profiles';
+import { sweptPieces } from './sweep';
+import { archCurve, bowCurve, cornerCurve, spanOf } from './curves';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, stopped, topCorners, twoSide, frontAndEnds, twoSideSharp } from './sweepFixtures';
 import { curveDrawEdges, curveEdgeLifts, curveSilhouettes, silhouetteLines } from './curveDrawing';
-import { curveLineEntries, profileFaultNote, profileFaultText } from './curveText';
+import { curveLineEntries, curveLines, profileFaultNote, profileFaultText, runsStraightNote, RUNS_STRAIGHT_NOTE } from './curveText';
 import { boardSnapPoints } from './snapPoints';
 import { pocketEdges, stockProbe } from './cuts';
 import { buildDiagrams } from './diagram';
@@ -14,7 +16,7 @@ import { buildCutList } from './cutlist';
 import { sectionCaps } from './section';
 import { bodyMesh, boardUVSignature, drawsAsBox } from '../viewport/grainTiling';
 import { boardHoles } from './holes';
-import type { Board } from './types';
+import type { Board, ProfileCut, ProfileSide } from './types';
 
 const UNITS = { display: 'imperial-fractional', precision: 16 } as const;
 
@@ -140,5 +142,86 @@ describe('sweptProfiles is safe on a stored part (review minor 1)', () => {
     expect(sweptProfiles(b).map((p) => p.id)).toEqual(['p1']);
     expect(sweptProfiles(b)).toBe(geometryBoard(b).profiles);
     expect(sweptProfiles(createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [straightTopLong] }))).toEqual([]);
+  });
+});
+
+describe('Q10 in the view (profile runs b2): a fallen-back stop is a2\'s view curve; a fitting one is swept', () => {
+  const W_MIN: ProfileSide = { across: 'width', from: 'min' }, L_MIN: ProfileSide = { across: 'length', from: 'min' };
+  const tightStop = topCorners(0.25, { ...stopped('s', W_MIN, 0.1, 30), size: 0.375 });
+  const i2Pair = { ...topCorners(2), profiles: [stopped('a', W_MIN, 1, 30), endToEnd('b', L_MIN)] };
+  it('the fallen-back stop\'s view curve carries its span and runsStraight; fallbackCause names the cause', () => {
+    const v = geometryBoard(tightStop), c = v.curves.find((x) => x.id === 's')!;
+    expect(v.profiles).toEqual([]);
+    expect(spanOf(c)).toEqual({ lo: 0.1, hi: 30, stopLo: true, stopHi: true });
+    expect(runsStraight(c)).toBe(true);
+    expect(fallbackCause(c)).toBe('too-tight');
+    const a = geometryBoard(i2Pair).curves.find((x) => x.id === 'a')!;
+    expect(runsStraight(a)).toBe(true);
+    expect(fallbackCause(a)).toBe('overlap');
+  });
+  it('a fitting stop is in view.profiles, not a curve, and has no fallback cause', () => {
+    const fits = { ...apronArch, profiles: [stopped('a', W_MIN, 10, 20)] };
+    const v = geometryBoard(fits);
+    expect(v.profiles.map((p) => p.id)).toEqual(['a']);
+    expect(v.curves.some((c) => c.id === 'a')).toBe(false);
+    expect(fallbackCause(v.profiles[0]!)).toBeNull();
+    expect(runsStraight(v.profiles[0]!)).toBe(false);
+  });
+  it('runsStraightNote words the note by cause (one home)', () => {
+    expect(runsStraightNote('too-tight')).toBe(RUNS_STRAIGHT_NOTE);
+    expect(RUNS_STRAIGHT_NOTE).toBe('Runs straight: too tight to follow the curve.');
+    expect(runsStraightNote('overlap')).toBe('Runs straight: it would overlap another profile if it followed the curve.');
+    expect(runsStraightNote('runs-off')).toBe('Runs straight: it would run off the part if it followed the curve.');
+    expect(runsStraightNote('stop-off')).toBe('Runs straight: it would run off the part if it followed the curve.');
+  });
+});
+
+describe('no silent empty build (the b2 Task 2 review, I2): a swept profile that builds nothing always has a fault', () => {
+  const S: ProfileSide[] = [{ across: 'width', from: 'min' }, { across: 'length', from: 'max' }, { across: 'width', from: 'max' }, { across: 'length', from: 'min' }];
+  const lineCorner = createBoard({ length: 30, width: 10, thickness: 0.75,
+    curves: [{ id: 'k', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [{ type: 'line', to: [2, 0] }, { type: 'line', to: [0, 2] }, { type: 'line', to: [0, 0] }] }] });
+  const parts: [string, Board][] = [
+    ['2" corners', topCorners(2)], ['1/4" corners', topCorners(0.25)], ['arch', { ...apronArch, profiles: [] }], ['notch', { ...notchEdge, profiles: [] }],
+    ['bow', createBoard({ length: 30, width: 5, thickness: 0.75, curves: [{ id: 'c1', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) }] })],
+    ['plain', createBoard({ length: 30, width: 10, thickness: 0.75 })], ['line corner', lineCorner],
+    ['corner + notch', createBoard({ length: 30, width: 5, thickness: 0.75, curves: [
+      { id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 2 }) },
+      { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) }] })],
+  ];
+  it.each(parts)('%s: every station run on a grid, one side and two, both faces', (_n, part) => {
+    let swept = 0, empty = 0;
+    for (const face of ['max', 'min'] as const) for (const [i, sA] of S.entries()) for (const sB of [S[i]!, S[(i + 1) % 4]!, S[(i + 2) % 4]!]) {
+      const LA = part[sA.across === 'width' ? 'length' : 'width'], LB = part[sB.across === 'width' ? 'length' : 'width'];
+      const at = (L: number) => [0.15, 1.1, 2.5, L / 2, L - 2.5, L - 1.1, L - 0.15];
+      for (const a of at(LA)) for (const b of at(LB)) {
+        if (sA === sB && b <= a) continue;
+        const p: ProfileCut = { ...twoSide('t', sA, a, sB, b), face };
+        const board = { ...part, profiles: [p] };
+        const v = geometryBoard(board);
+        for (const q of v.profiles) {
+          swept += 1;
+          if (sweptPieces(v, q).length > 0) continue;
+          empty += 1;
+          expect(viewProfileFaults(q), JSON.stringify({ face, run: p.run })).not.toEqual([]);
+          expect(profileFaults(board, p).length).toBeGreaterThan(0);
+        }
+      }
+    }
+    expect(empty).toBeGreaterThan(0);
+    expect(swept).toBeGreaterThan(empty);   // measured 2026-10-18: 4 to 219 of ~800 per part build nothing, each faulted
+  });
+});
+
+describe('M-e: every reader runs on a loaded two-side run without throwing (profile runs b2)', () => {
+  it.each([['front and ends', frontAndEnds()], ['round a sharp corner', twoSideSharp]] as const)('%s', (_n, b) => {
+    expect(geometryBoard(b).profiles.map((p) => p.id)).toEqual(['p1']);
+    expect(() => partGeometry(b)).not.toThrow();
+    expect(() => [FRONT, SIDE, TOP, ISO].map((v) => drawView([b], v))).not.toThrow();
+    expect(() => curveLines(b, UNITS)).not.toThrow();
+    expect(() => partFeatures(b, UNITS)).not.toThrow();
+    expect(() => boardSnapPoints(b)).not.toThrow();
+    expect(() => stockProbe(b)({ length: 1, width: 1, thickness: 0.7 })).not.toThrow();
+    expect(() => buildDiagrams(b, UNITS)).not.toThrow();
+    expect(() => buildCutList({ ...createDocument('T'), boards: [b] })).not.toThrow();
   });
 });

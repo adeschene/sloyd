@@ -9,7 +9,7 @@ import {
   CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type P2,
 } from './curves';
 import type { Board, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileSide } from './types';
-import { canonicalRun, endPos, endToEnd, oneSide, reachDepth } from './profiles';
+import { canonicalRun, endPos, endToEnd, isGeometryView, oneSide, reachDepth, stopFallsBack } from './profiles';
 
 type PathBoard = Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] };
 
@@ -52,6 +52,7 @@ export type PathEnd = { kind: 'through'; ray: P2 } | { kind: 'station'; at: P2; 
 export interface StationPoint { chord: number; t: number; at: P2 }
 
 const EPS = 1e-9;
+const PRESENCE: Opts = Object.freeze({ presence: true });
 
 // The rectangle's edges in CCW order: 0 the width-min side (v = 0), 1 length max (u = L), 2 width max (v = W),
 // 3 length min (u = 0). Every vector below is a literal, so no -0 reaches a caller.
@@ -380,7 +381,8 @@ function mitre(pieces: Piece[], corner: number[], atStart: boolean, outline: Fac
   return ray ? { pieces: out, at, ray } : null;
 }
 
-type Opts = { build?: boolean; snap?: boolean };
+/** `build`: B1's ε and Q13's zone; `snap`: the zone only; `presence` / `keep`: B1a's partners (`neighbourTakes`). */
+export type Opts = { build?: boolean; snap?: boolean; presence?: boolean; keep?: ProfileCut };
 
 /** The corner arc's chords at a stretch's start (`atStart`) or end: the run of chords carrying the end chord's curve id. */
 function cornerChords(outline: FaceOutline, s: Stretch, atStart: boolean): number[] {
@@ -411,15 +413,22 @@ function planEnds(board: Pick<Board, Dimension>, q: ProfileCut): [ProfileEnd, Pr
  * B1a, widened (Q18): another profile on the same face, not a loop, whose plan-ordered END (`atEnd`) or START is a `through`
  * end on `adj` whose stretch holds `corner[0]` — decided on STORED presence, never faults. For two End to end profiles it is
  * b1's test exactly (both their ends are `through` on the one side).
+ * b2 (Q10, the Task 2 reviews' M-g and m1): a one-side STATION run that falls back to a2 (`stopFallsBack`) takes no arc —
+ * a2's prism follows none — so on a STORED part it is no partner: the neighbour carries round to B1's station, as it is
+ * built (a view holds no fallen-back stop, so the builder never sees one), and no half-arc is left unprofiled. Except
+ * `opts.presence` (Q10's phase 1, where every stop is read by its shape and the fallback is being decided) and `opts.keep`
+ * (the profile being judged, read as present: its swept judgement asks what it would claim if it followed).
  */
-function neighbourTakes(board: PathBoard, outline: FaceOutline, p: ProfileCut, adj: ProfileSide, corner: number[], atEnd: boolean): boolean {
+function neighbourTakes(board: PathBoard, outline: FaceOutline, p: ProfileCut, adj: ProfileSide, corner: number[], atEnd: boolean, opts?: Opts): boolean {
   return (board.profiles ?? []).some((q) => {
     if (q === p || q.id === p.id || q.face !== p.face) return false;
     const ends = planEnds(board, q);
     const e = ends && ends[atEnd ? 1 : 0];
     if (!e || !('through' in e) || !sameSide(e.side, adj)) return false;
     const t = sideStretch(board, outline, adj);
-    return !!t && stretchIndices(outline.chords.length, t).includes(corner[0]!);
+    if (!t || !stretchIndices(outline.chords.length, t).includes(corner[0]!)) return false;
+    return !(!opts?.presence && q !== opts?.keep && oneSide(q.run) && !endToEnd(q.run) && !isGeometryView(board)
+      && stopFallsBack(board as Parameters<typeof stopFallsBack>[0], q));
   });
 }
 
@@ -436,7 +445,7 @@ function openStart(board: PathBoard, outline: FaceOutline, p: ProfileCut, s: Str
     return ray ? { pieces, end: { kind: 'through', ray } } : null;
   }
   const corner = cornerChords(outline, s, true);
-  const mt = neighbourTakes(board, outline, p, SIDES[prevEdge(E)]!, corner, true) ? mitre(pieces, corner, true, outline) : null;
+  const mt = neighbourTakes(board, outline, p, SIDES[prevEdge(E)]!, corner, true, opts) ? mitre(pieces, corner, true, outline) : null;
   if (mt) return { pieces: mt.pieces, end: { kind: 'mitre', at: mt.at, ray: mt.ray } };
   const ext = opts?.build ? stationExtension(prior, (s.from - 1 + m) % m, first0, true, reach) : null;
   return { pieces: ext ? [ext, ...pieces] : pieces, end: { kind: 'station', at: ext ? ext.chord.a : first0.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } } };
@@ -451,7 +460,7 @@ function openEnd(board: PathBoard, outline: FaceOutline, p: ProfileCut, s: Stret
     return ray ? { pieces, end: { kind: 'through', ray } } : null;
   }
   const corner = cornerChords(outline, s, false);
-  const mt = neighbourTakes(board, outline, p, SIDES[nextEdge(E)]!, corner, false) ? mitre(pieces, corner, false, outline) : null;
+  const mt = neighbourTakes(board, outline, p, SIDES[nextEdge(E)]!, corner, false, opts) ? mitre(pieces, corner, false, outline) : null;
   if (mt) return { pieces: mt.pieces, end: { kind: 'mitre', at: mt.at, ray: mt.ray } };
   const ext = opts?.build ? stationExtension(next, (s.to + 1) % m, last0, false, reach) : null;
   return { pieces: ext ? [...pieces, ext] : pieces, end: { kind: 'station', at: ext ? ext.chord.b : last0.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } } };
@@ -515,7 +524,8 @@ export function throughConsistent(p: ProfileCut): boolean {
  * vertex, the run-side chord); under `build` or `snap` one inside its end-chord zone moves to the next vertex inward when
  * that vertex lies strictly inside the walk (Q13: the run shortened, never lengthened). A `through` end at a corner treats it as End to end does (B1, B1a widened by Q18).
  * Null when an end cannot be placed (a station off its stretch, a stretch that cannot be traced, an inconsistent through end),
- * the two ends are one point (Q16), a two-side walk would come back onto a side it left (Q16: at most three sides), or —
+ * the two ends are one point (Q16), a two-side walk would come back onto a side it left (Q16 as ruled, m3: at most two whole
+ * sides between Start's and Stop's, touching four), or —
  * built or judged only — the zone moves both ends onto one vertex (the fault path then exists: Task 3 maps that to
  * too-tight).
  */
@@ -550,9 +560,9 @@ function stopRun(board: PathBoard, outline: FaceOutline, p: ProfileCut, opts?: O
   if (Math.hypot(pt(a.chord, a.t)[0] - pt(b.chord, b.t)[0], pt(a.chord, a.t)[1] - pt(b.chord, b.t)[1]) <= EPS) return null;   // Q16: the two ends one point
   // The chords the walk passes from a to b (a run within one chord forward: 0; one wrapping round to its own chord: m).
   const walk = (x: Pos, y: Pos) => (x.chord === y.chord ? (x.t < y.t ? 0 : m) : (y.chord - x.chord + m) % m);
-  // Q16 made a rule (the b2 Task 2 review, M-d): a two-side run passes at most three sides, so its walk never comes back onto
-  // the side it left — Start's side ahead of it, or (read backwards) Stop's side behind it, so the rule is the same on either
-  // face. A Start after its Stop on a shared corner arc would otherwise wrap all four sides: stop-off.
+  // Q16 made a rule (the b2 Task 2 review, M-d; m3): a two-side run passes at most two whole sides between Start's and Stop's
+  // (touching four), so its walk never comes back onto the side it left — Start's side ahead of it, or (read backwards) Stop's
+  // side behind it, so the rule is the same on either face. A Start after its Stop on a shared corner arc would otherwise wrap all four sides: stop-off.
   if (!oneSide(run)) {
     const walked: number[] = [];
     for (let i = a.chord, k = 0; k <= walk(a, b); i = (i + 1) % m, k += 1) walked.push(i);
@@ -612,12 +622,12 @@ function stopRun(board: PathBoard, outline: FaceOutline, p: ProfileCut, opts?: O
 
 /** The path the swept construction BUILDS (fix round 2): `profilePath` with each B1 station's extension (stationExtension)
  *  and each b2 stop's end-chord zone (Q13). Faults, overlap and the hole reach read `profilePath` — neither decides anything. */
-export function builtPath(board: PathBoard, p: ProfileCut): ProfilePath | null {
-  return profilePath(board, p, { build: true });
+export function builtPath(board: PathBoard, p: ProfileCut, opts?: Opts): ProfilePath | null {
+  return profilePath(board, p, { ...opts, build: true });
 }
 /** The path the skeleton's too-tight judgement reads (Q13): each b2 stop's end-chord zone, never B1's ε. */
-export function judgedPath(board: PathBoard, p: ProfileCut): ProfilePath | null {
-  return profilePath(board, p, { snap: true });
+export function judgedPath(board: PathBoard, p: ProfileCut, opts?: Opts): ProfilePath | null {
+  return profilePath(board, p, { ...opts, snap: true });
 }
 
 /**
@@ -631,6 +641,23 @@ export function judgedPath(board: PathBoard, p: ProfileCut): ProfilePath | null 
  * zone only (`judgedPath`).
  */
 export function profilePath(board: PathBoard, p: ProfileCut, opts?: Opts): ProfilePath | null {
+  // Memoised per (part object, profile object, opts) — b2 Task 3, Step 5b: Q9's isSwept and the faults' phase 1 and 2 ask
+  // for the same paths many times per judgement. Parts and profiles are never mutated (inv 1); a trial part is a new object.
+  const key = `${opts?.build ? 'b' : ''}${opts?.snap ? 's' : ''}${opts?.presence ? 'p' : ''}`;
+  let byProfile = pathMemo.get(board);
+  if (!byProfile) { byProfile = new WeakMap(); pathMemo.set(board, byProfile); }
+  let byOpts = byProfile.get(p);
+  if (!byOpts) { byOpts = new Map(); byProfile.set(p, byOpts); }
+  let byKeep = byOpts.get(key);
+  if (!byKeep) { byKeep = new Map(); byOpts.set(key, byKeep); }
+  const keep = opts?.presence ? undefined : opts?.keep;
+  if (byKeep.has(keep)) return byKeep.get(keep)!;
+  const path = computePath(board, p, opts);
+  byKeep.set(keep, path);
+  return path;
+}
+const pathMemo = new WeakMap<object, WeakMap<ProfileCut, Map<string, Map<ProfileCut | undefined, ProfilePath | null>>>>();
+function computePath(board: PathBoard, p: ProfileCut, opts?: Opts): ProfilePath | null {
   const outline = faceOutline(board);
   if (!outline) return null;
   const m = outline.chords.length;
@@ -685,7 +712,9 @@ export function isSwept(board: PathBoard, p: ProfileCut): boolean {
     if (!s) return false;
     return !(s.from === s.to && outline.chords[s.from]!.curve === undefined);
   }
-  const path = profilePath(board, p);
+  // Read by stored presence (B1a's mitre only ever trims a corner arc, never decides swept-ness), so the shape predicate
+  // never depends on a fallback (Q10 decides those from it).
+  const path = profilePath(board, p, PRESENCE);
   if (!path) return false;
   return !(path.cover.length === 1 && outline.chords[path.cover[0]!.chord]!.curve === undefined);
 }
