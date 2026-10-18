@@ -20,7 +20,9 @@ describe('profileFaults reads profilePath (profile runs b1)', () => {
   it('a throwing path surfaces: a bug is never read as runs-off', () => {
     impl = () => { throw new Error('a real bug'); };
     expect(() => profileFaults(apronArch, apronArch.profiles[0]!)).toThrow('a real bug');
-    expect(() => geometryBoard({ ...apronArch })).not.toThrow();   // the view never asks for a path
+    // Final review I1 (the user's ruling): the view decides whether a swept-shaped End to end falls back to straight from
+    // its swept faults, so it now asks for the path — and a bug surfaces there too, never read as a fallback.
+    expect(() => geometryBoard({ ...apronArch })).toThrow('a real bug');
     impl = null;
   });
 });

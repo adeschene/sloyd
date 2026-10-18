@@ -1,10 +1,22 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { cornerCurve, createBoard, migrateDocument } from './document';
-import type { Board, ProfileCut, ProfileSide } from './types';
-import { geometryBoard, profileFaults } from './profiles';
+import { cornerCurve, createBoard, migrateDocument, partGeometry, DEFAULT_PROFILE_EDGE } from './document';
+import type { Board, HoleRow, ProfileCut, ProfileSide } from './types';
+import { archCurve, cornerFields, curveFaults, defaultCorners } from './curves';
+import { defaultProfile, geometryBoard, profileAsCurve, profileFaults, profileOf, runsStraight, viewProfileFaults } from './profiles';
 import { builtSwept } from './sweep';
 import { boardBodies } from './bodies';
-import { isSwept } from './profilePath';
+import { isSwept, profilePath } from './profilePath';
+import { drawView, FRONT, ISO, SIDE, TOP } from './drawing';
+import { curveLines } from './curveText';
+import { partFeatures } from './featureKeys';
+import { boardSnapPoints } from './snapPoints';
+import { stockProbe } from './cuts';
+import { holeFaults } from './holeFaults';
+import { buildDiagrams } from './diagram';
+import { buildCutList } from './cutlist';
+import { bodyMesh } from '../viewport/grainTiling';
+import { IMPERIAL } from '../units/length';
 
 /** Profile runs b1, the final review's findings (I1, I2): saved v18 documents loaded through `migrateDocument`, as a user's
  *  autosave or export is. */
@@ -42,5 +54,142 @@ describe('I2 (the controller\'s ruling): a station run claims only its straight 
   it('and beside a loop', () => {
     const b = loaded(top(2, [stop('a', side('width', 'min'), 5, 30), { id: 'w', ...base, run: { loop: true } }]));
     expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'w' }]);
+  });
+});
+
+// ── I1 (the user's ruling, "Fall back to straight") ─────────────────────────────────────────────────────────────────────
+
+const sha = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
+function meshHash(board: Board): string {
+  const { bodies, holes } = partGeometry(board);
+  const h = createHash('sha256');
+  for (const body of bodies) {
+    const m = bodyMesh(board, body, holes, bodies);
+    h.update(Buffer.from(m.positions.buffer, m.positions.byteOffset, m.positions.byteLength));
+    h.update(Buffer.from(m.uvs.buffer, m.uvs.byteOffset, m.uvs.byteLength));
+    if (m.normals) h.update(Buffer.from(m.normals.buffer, m.normals.byteOffset, m.normals.byteLength));
+    h.update(JSON.stringify(m.groups));
+  }
+  return h.digest('hex').slice(0, 16);
+}
+/** A 1/4" bore 1" along and 0.3" in from the width min side: inside a 3/8" roundover's waste on that side. */
+const bore: HoleRow = { id: 'h1', face: 'thickness', from: 'max', along: 'length', alongFrom: 'min', acrossFrom: 'min', station: 1, inset: 0.3, diameter: 0.25, depth: 0.5, count: 1, pitch: 0 };
+/** Every reader's output for one part, hashed. The SAME function, run on the deployed a2 source (`git archive 65947fd`,
+ *  in a scratch tree beside this one), produced the constants below. */
+function fingerprint(b: Board): Record<string, string> {
+  const g = partGeometry(b);
+  const probe = stockProbe(b);
+  const pts: boolean[] = [];
+  for (let i = 0; i <= 40; i++) for (let j = 0; j <= 12; j++) for (let k = 0; k <= 6; k++) pts.push(probe({ length: b.length * i / 40, width: b.width * j / 12, thickness: b.thickness * k / 6 }));
+  const withHole: Board = { ...b, holes: [bore] };
+  const view = geometryBoard(b);
+  return {
+    view: sha({ curves: view.curves, profiles: view.profiles }),
+    bodies: sha(g.bodies), edges: sha(g.edges), mesh: meshHash(b),
+    draw: sha([FRONT, SIDE, TOP, ISO].map((v) => drawView([b], v))),
+    lines: JSON.stringify(curveLines(b, IMPERIAL)),
+    keys: sha(partFeatures(b, IMPERIAL)),
+    snaps: sha(boardSnapPoints(b)), probe: sha(pts), holes: sha(holeFaults(withHole, bore)),
+    diagrams: sha(buildDiagrams(b, IMPERIAL)),
+    cutlist: sha(buildCutList({ version: 18, name: 's', units: 'imperial', stock: { kerf: 0.125 }, guides: [], boards: [b], instances: [], definitions: [], shapes: [], materials: [] } as never)),
+  };
+}
+const ROUNDOVER_LINE = 'Roundover 3/8" on the edge between the width face (min side) and the thickness face (max side), along the length';
+const A2: Record<'top' | 'small', Record<string, string>> = {
+  top: { view: '88ad05c68a982f69', bodies: 'f7e7224112991910', edges: 'f1037b23dc355ad7', mesh: '27b521b0eb43bfd1', draw: '0d6a45f7ea6c2054',
+    lines: JSON.stringify(['Round all four corners to a 1/4" radius', ROUNDOVER_LINE]),
+    keys: 'b494a3deea6bc299', snaps: 'dff6ae2caffb158c', probe: '26701fdad7a05b42', holes: 'af9a5d2dbe9dd34d', diagrams: 'cbe65cb50e3fcf46', cutlist: '09541b8e75776d50' },
+  small: { view: 'a541946cedc2080f', bodies: '0ac96a0b955eb86a', edges: '3ba6b71b52e1559b', mesh: 'deb130556bbfcb23', draw: '93cc0fd5a90d4cd2',
+    lines: JSON.stringify(['Round all four corners to a 1/2" radius', 'Thumbnail 3/4" × 1/4" on the edge between the width face (max side) and the thickness face (max side), along the length, top on the thickness face (max side)']),
+    keys: 'f4cdd90159799dc7', snaps: 'cfdb92cd5908861c', probe: '64b94ccc294559f0', holes: '4f53cda18c2baa0c', diagrams: 'e2c98d6037ed5645', cutlist: '74a35266d76ccd1c' },
+};
+/** The reviewer's two scenarios, saved and loaded: a 36 × 20 × 3/4 top with four 1/4" corners and a 3/8" roundover End to
+ *  end on the front; the default Thumbnail on a 10 × 2 × 3/4 part with its default 1/2" corners. */
+const tightTop = () => loaded(top(0.25, [e2e('p', side('width', 'min'), 0.375)]));
+const small = createBoard({ id: 'sm', name: 'Small', length: 10, width: 2, thickness: 0.75 });
+const smallCorners = (defaultCorners(small) ?? []).map((c, i) => ({ ...c, id: `k${i}` }));
+const tightSmall = () => loaded({ ...small, curves: smallCorners, profiles: [{ ...profileOf(defaultProfile({ ...small, curves: smallCorners }, 'thumbnail', DEFAULT_PROFILE_EDGE))!, id: 't' }] });
+
+describe('I1: an End to end too tight to follow its curve is built exactly as a2 built it', () => {
+  it.each([['top', tightTop], ['small', tightSmall]] as const)('%s: swept-shaped, too tight as swept, clean as straight', (_n, make) => {
+    const b = make();
+    expect(cornerFields(b.curves[0]! as never)).toBeTruthy();
+    expect(isSwept(b, b.profiles[0]!)).toBe(true);
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);   // authoring still judges it swept
+  });
+  it.each([['top', tightTop], ['small', tightSmall]] as const)('%s: every reader equals a2\'s output (hashed on 65947fd)', (name, make) => {
+    expect(fingerprint(make())).toEqual(A2[name]);
+  });
+  it('the view holds it as chunk 1\'s curve, faultless, and flagged as running straight', () => {
+    const b = tightTop();
+    const view = geometryBoard(b);
+    expect(view.profiles).toEqual([]);
+    const c = view.curves.find((x) => x.id === 'p')!;
+    expect(c).toEqual(profileAsCurve(b.profiles[0]!));
+    expect(viewProfileFaults(c)).toEqual([]);
+    expect(runsStraight(c)).toBe(true);
+    expect(runsStraight(view.curves[0]!)).toBe(false);   // a corner curve
+  });
+  it('a fitting End to end (2" corners) still follows the curve', () => {
+    const b = loaded(top(2, [e2e('p', side('width', 'min'), 0.375)]));
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['p']);
+    expect(builtSwept(view).map((p) => p.id)).toEqual(['p']);
+    expect(runsStraight(view.profiles[0]!)).toBe(false);
+  });
+  it('a loop never falls back: too tight, it stays swept and builds nothing', () => {
+    const b = loaded(top(0.25, [{ id: 'w', ...base, size: 0.375, run: { loop: true } }]));
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['w']);
+    expect(viewProfileFaults(view.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    expect(builtSwept(view)).toEqual([]);
+    expect(view.curves.some((c) => c.id === 'w')).toBe(false);
+  });
+  it('no fallback when the straight form faults too: a stop overlapping it on the same side (a2\'s rule)', () => {
+    const b = loaded(top(0.25, [e2e('p', side('width', 'min'), 0.375), stop('a', side('width', 'min'), 5, 30)]));
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['p']);
+    expect(viewProfileFaults(view.profiles[0]!)).toEqual([{ kind: 'too-tight' }, { kind: 'overlap', other: 'a' }]);
+    expect(builtSwept(view)).toEqual([]);
+  });
+  it('no fallback when the straight form\'s chunk 1 curve faults: a 1" roundover on a 3/4" part runs off either way', () => {
+    const b = loaded(top(0.25, [e2e('p', side('width', 'min'), 1)]));
+    expect(curveFaults(b, profileAsCurve(b.profiles[0]!)).length).toBeGreaterThan(0);
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['p']);
+    expect(viewProfileFaults(view.profiles[0]!).map((f) => f.kind)).toContain('runs-off');
+  });
+});
+
+describe('I1: a resize that makes a following End to end too tight falls back; growing it back follows again', () => {
+  // The notch is stored from the length min end (14" to 16"); shortened to 16.2" it sits 0.2" from the max end, where the
+  // 3/8" roundover's offset swallows the end chord (the Task 3 ruling's too-tight).
+  const notch = () => loaded(createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75,
+    curves: [{ id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 }) }],
+    profiles: [e2e('p', side('width', 'min'), 0.375)] }));
+  it('follows at 30"; runs straight at 16.2", built as its plain chunk 1 curve; follows again at 30"', () => {
+    const b = notch();
+    expect(geometryBoard(b).profiles.map((p) => p.id)).toEqual(['p']);
+    const short: Board = { ...b, length: 16.2 };
+    expect(profileFaults(short, short.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    const view = geometryBoard(short);
+    expect(view.profiles).toEqual([]);
+    expect(runsStraight(view.curves.find((c) => c.id === 'p')!)).toBe(true);
+    expect(boardBodies(view)).toEqual(boardBodies({ ...short, curves: [...short.curves, profileAsCurve(short.profiles[0]!)], profiles: [] }));
+    expect(geometryBoard({ ...short, length: 30 }).profiles.map((p) => p.id)).toEqual(['p']);
+  });
+});
+
+describe('I1 beside B1a (recorded for a ruling, not decided here)', () => {
+  it('a fitting End to end still mitres at a shared corner arc against a neighbour that runs straight', () => {
+    // 1/2" corners: a 5/8" roundover on the front is too tight and runs straight; a 1/4" one on the length min end fits.
+    // B1a's mitre reads the neighbour's stored presence, so the end's band stops at the arc's middle, and the front half of
+    // that corner arc is left as a2's prism leaves it. Final-fix report: "Ruling needed".
+    const b = loaded(top(0.5, [e2e('f', side('width', 'min'), 0.625), e2e('l', side('length', 'min'), 0.25)]));
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['l']);
+    expect(runsStraight(view.curves.find((c) => c.id === 'f')!)).toBe(true);
+    expect(profilePath(b, b.profiles[1]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'mitre']);
+    expect(builtSwept(view).map((p) => p.id)).toEqual(['l']);
   });
 });

@@ -8,7 +8,7 @@ import {
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
 import { canonicalRun, endPos } from '../document/profiles';
-import { holeRefusal, pastHalfCircle, refusalFor } from './curveRefusal';
+import { holeRefusal, pastHalfCircle, profileRefusal, refusalFor } from './curveRefusal';
 import { apronArch, endToEnd as endToEndP, frontOnly, loop as loopP, stopped as stoppedRun, topCorners } from '../document/sweepFixtures';
 import { sweptLine } from '../document/curveText';
 import { isSwept } from '../document/profilePath';
@@ -897,5 +897,47 @@ describe('swept profiles in the row (profile runs b1)', () => {
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
     expect(screen.getByRole('button', { name: 'Roundover' })).toBeInTheDocument();    // 1/4" reach on a 1/4" corner: touching
     expect(screen.queryByRole('button', { name: 'Cove' })).toBeNull();
+  });
+
+  // ── Final review I1 (the user's ruling, "Fall back to straight") ──
+  /** A saved 36 × 20 top with four 1/4" corners and a 3/8" roundover End to end on the front, loaded (v18). */
+  const tightTop = () => {
+    const corners = (['min', 'max'] as const).flatMap((u) => (['min', 'max'] as const).map((v) => ({ id: `c${u}${v}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: v, radius: 0.25 }) })));
+    const raw = JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [named(topCorners(0.25, { ...endToEndP('p1', W_MIN), size: 0.375 }))] }));
+    raw.boards[0].curves = corners;
+    return migrateDocument(raw).boards[0] as Board;
+  };
+  it('a saved End to end too tight for its corners runs straight: the row says so; the bench line has no note', () => {
+    open(tightTop());
+    expect(within(profileRow()).getByRole('status')).toHaveTextContent(/^Runs straight: too tight to follow the curve\.$/);
+    expect(within(profileRow()).getByText('Roundover 3/8" on the edge between the width face (min side) and the thickness face (max side), along the length')).toBeInTheDocument();
+  });
+  it('a fitting End to end follows its corners: no note', () => {
+    open(named(topCorners(2, { ...endToEndP('p1', W_MIN), size: 0.375 })));
+    expect(within(profileRow()).queryByRole('status')).toBeNull();
+  });
+  it('authoring still judges it swept: an edit keeping too-tight is stored (it still runs straight), one adding a swept fault is refused', async () => {
+    const user = userEvent.setup();
+    open(tightTop());
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '5/16{Enter}');
+    expect(profiles()[0]!.size).toBe(5 / 16);
+    expect(within(profileRow()).getByRole('status')).toHaveTextContent('Runs straight: too tight to follow the curve.');
+    document.body.innerHTML = '';
+    // a fitting End to end on 1/2" corners: 5/8" would ADD too-tight as swept — refused, though its straight form is clean
+    open(named(topCorners(0.5, endToEndP('p1', W_MIN))));
+    const r2 = within(profileRow()).getByLabelText('Radius');
+    await user.clear(r2); await user.type(r2, '5/8{Enter}');
+    expect(profiles()[0]!.size).toBe(0.25);
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('Too tight for the curve — reduce the size first.');
+  });
+  it('Curves\' refusal keeps comparing swept faults: an unrelated corner edit on a fallen-back part is not refused; one that ADDS too-tight to a fitting End to end is', () => {
+    const b = tightTop();
+    const uv = (id: string) => [id.slice(1, 4), id.slice(4)] as ['min' | 'max', 'min' | 'max'];
+    const smaller = { ...b, curves: b.curves.map((c) => ({ id: c.id, ...cornerCurve({ through: 'thickness', uFrom: uv(c.id)[0], vFrom: uv(c.id)[1], radius: 0.2 }) })) };
+    expect(profileRefusal(b, smaller)).toBeNull();
+    const fit = named(topCorners(2, { ...endToEndP('p1', W_MIN), size: 0.375 }));
+    const tight = { ...fit, curves: fit.curves.map((c) => (c.id === 'cminmin' ? { ...c, ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 0.25 }), id: c.id } : c)) };
+    expect(profileRefusal(fit, tight)).toBe('Too tight for the roundover — reduce the roundover first.');
   });
 });

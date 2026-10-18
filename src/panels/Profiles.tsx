@@ -5,9 +5,9 @@ import {
   profileOf, profileToFields, uvDims, DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
 import type { Board, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
-import { canonicalRun, endPos, endToEnd, oneSide, profileFaults, runDim, viewProfileFaults } from '../document/profiles';
+import { canonicalRun, endPos, endToEnd, oneSide, profileFaults, runDim, runsStraight, viewProfileFaults } from '../document/profiles';
 import { isSwept } from '../document/profilePath';
-import { curveFaultText, curveLine, profileFaultNote, sweptLine } from '../document/curveText';
+import { curveFaultText, curveLine, profileFaultNote, sweptLine, RUNS_STRAIGHT_NOTE } from '../document/curveText';
 import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
@@ -87,9 +87,11 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const [error, setError] = useState<string | null>(null);
   const line = vp ? sweptLine(board, vp, units) : curveLine(board, curve!, units);
   // The first stored fault as a note: a curve fault reads " at this size." (a resize caused it), a profile fault through
-  // profileFaultNote (an overlap does not: F5). A swept profile has no chunk-1 curve: its own faults only.
+  // profileFaultNote (an overlap does not: F5). A swept profile has no chunk-1 curve: its own faults only. An End to end the
+  // view runs straight (too tight to follow its curve: final review I1) has no fault — its straight form is clean — and says so.
   const storedFaults = vp ? viewProfileFaults(vp).map(profileFaultNote)
-    : [...curveFaults(board, curve!).map((x) => `${cap(curveFaultText(x))} at this size.`), ...viewProfileFaults(curve!).map(profileFaultNote)];
+    : [...curveFaults(board, curve!).map((x) => `${cap(curveFaultText(x))} at this size.`), ...viewProfileFaults(curve!).map(profileFaultNote),
+      ...(runsStraight(curve!) ? [RUNS_STRAIGHT_NOTE] : [])];
   // A two-side run is refused on load (spec P2/P10); a loop reads as its fields' side above.
   const run0: StationRun = loop ? throughRun(sideOfEdge(DEFAULT_PROFILE_EDGE)) : profile.run as StationRun;
   const side: ProfileSide = run0.start.side;

@@ -1,5 +1,5 @@
 import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide } from './types';
-import { sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
+import { curveFaults, sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
 import { faceOutline, isSwept, profilePath, sideStretch, type FaceOutline, type OutlineChord } from './profilePath';
 import { BEARING } from './runout';
 import { pathSkeleton, planChain } from './skeleton';
@@ -300,9 +300,9 @@ export function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
  * run-dimension coordinate lies within its extent (B2: stations are measured along the run dimension). Null when the
  * stretch cannot be traced.
  */
-function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }, outline: FaceOutline, p: ProfileCut): Map<number, [number, number]> | null {
+function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }, outline: FaceOutline, p: ProfileCut, swept = isSwept(board, p)): Map<number, [number, number]> | null {
   const out = new Map<number, [number, number]>();
-  if (isSwept(board, p)) {
+  if (swept) {
     const path = profilePath(board, p);
     if (!path) return null;
     for (const c of path.cover) out.set(c.chord, [c.t0, c.t1]);
@@ -357,11 +357,14 @@ function sharedLength(outline: FaceOutline, a: Map<number, [number, number]>, b:
  * no path: `profilePath` null) and `too-tight` (an arc of its path: convex with a radius under the reach, R10; concave — bowing into
  * the wood — under the bearing's `BEARING`, B5; touching is not tight). A straight profile keeps chunk 1's prism faults
  * (`curveFaults` on its view curve), so its fault list is a2's byte for byte. Judged on the STORED part (curves included).
+ * `opts.straight` judges `p` in its STRAIGHT form (the chunk 1/a2 view curve it would be if it were not swept: I1's
+ * "straight faults"), the other profiles still by their shape (`isSwept`), so no judgement depends on another's fallback;
+ * for a profile that is not swept-shaped it changes nothing.
  */
-export function profileFaults(board: FaultBoard, p: ProfileCut): ProfileFault[] {
+export function profileFaults(board: FaultBoard, p: ProfileCut, opts?: { straight?: boolean }): ProfileFault[] {
   const out: ProfileFault[] = [];
   const stored = withCurves(board);
-  const swept = isSwept(stored, p);
+  const swept = !opts?.straight && isSwept(stored, p);
   if (swept) {
     const [reach, depth] = reachDepth(p);
     const path = profilePath(stored, p);
@@ -396,7 +399,7 @@ export function profileFaults(board: FaultBoard, p: ProfileCut): ProfileFault[] 
     }
     if (outline === undefined) outline = faceOutline(stored);
     if (!outline) continue;   // no traceable outline: the swept profile is runs-off and builds nothing
-    if (mine === undefined) mine = coverage(stored, outline, p);
+    if (mine === undefined) mine = coverage(stored, outline, p, swept);
     const theirs = coverage(stored, outline, q);
     if (mine && theirs && sharedLength(outline, mine, theirs) > OVERLAP_EPS) out.push({ kind: 'overlap', other: q.id });
   }
@@ -405,16 +408,35 @@ export function profileFaults(board: FaultBoard, p: ProfileCut): ProfileFault[] 
 
 const views = new WeakMap<object, object>();
 /** Each geometry view's profile curve, or swept profile → the part it was built from and its stored profile (one home:
- *  `geometryBoard`). A swept profile in the view is the view's own copy, so no two parts ever share an entry. */
-const viewSources = new WeakMap<object, { board: FaultBoard; profile: ProfileCut }>();
+ *  `geometryBoard`). A swept profile in the view is the view's own copy, so no two parts ever share an entry. `straight`:
+ *  a view curve (judged in its straight form); `fallback`: a swept-shaped End to end that runs straight (I1). */
+const viewSources = new WeakMap<object, { board: FaultBoard; profile: ProfileCut; straight: boolean; fallback: boolean }>();
 /**
  * The stored profile's faults for a curve of a geometry view, or a swept profile of one (`view.profiles`), or none for
  * anything else. The words read the view; the faults are judged on the STORED profile and the original part (its curves
- * and other profiles), never re-derived from the view.
+ * and other profiles), never re-derived from the view. A view curve's are its STRAIGHT form's (`opts.straight`), which for
+ * a profile that is not swept-shaped are its faults as they always were; a fallen-back End to end's are therefore a2's.
  */
 export function viewProfileFaults(c: object): ProfileFault[] {
   const src = viewSources.get(c);
-  return src ? profileFaults(src.board, src.profile) : [];
+  return src ? profileFaults(src.board, src.profile, src.straight ? { straight: true } : undefined) : [];
+}
+/** True for a geometry view's curve that is a swept-shaped End to end running STRAIGHT because it is too tight to follow
+ *  its curve (I1, the user's ruling): `geometryBoard`'s one decision, read back (the Profiles row's note). */
+export function runsStraight(c: object): boolean {
+  return viewSources.get(c)?.fallback ?? false;
+}
+/**
+ * I1 (final review, the user's ruling, "Fall back to straight"): a swept-shaped End to end profile (never a loop) whose
+ * SWEPT faults are non-empty while its STRAIGHT form — chunk 1's view curve and a2's profile faults — has none is built,
+ * drawn, worded and keyed exactly as a2 built it; it follows its curve only when the bit fits. Decided ONLY in
+ * `geometryBoard` (memoised with the view), so every reader follows the view. `isSwept` stays the shape predicate that
+ * authoring judges by.
+ */
+function fallsBack(board: FaultBoard & Pick<Board, 'curves'>, p: ProfileCut): boolean {
+  if ('loop' in p.run) return false;
+  return profileFaults(board, p).length > 0 && profileFaults(board, p, { straight: true }).length === 0
+    && curveFaults(board, profileAsCurve(p)).length === 0;
 }
 /**
  * THE geometry view (profile runs spec P4, Q1). Every reader that turns a part into geometry, words or faults reads this:
@@ -428,20 +450,22 @@ export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { pr
   const hit = views.get(b);
   if (hit) return hit as T;
   const dims = b as T & { profiles: readonly ProfileCut[] };
-  const asCurve = (p: ProfileCut): ViewCurve => {
+  const asCurve = (p: ProfileCut, fallback: boolean): ViewCurve => {
     const span = profileSpan(dims, p);
     const c: ViewCurve = { ...profileAsCurve(p), ...(span ? { span } : {}) };
-    viewSources.set(c, { board: dims, profile: p });
+    viewSources.set(c, { board: dims, profile: p, straight: true, fallback });
     return c;
   };
   const curves: CurveCut[] = [...b.curves];
   const swept: ProfileCut[] = [];
   for (const p of dims.profiles) {
-    if (isSwept(b, p)) {
+    const shape = isSwept(b, p);
+    const fallback = shape && fallsBack(dims as FaultBoard & Pick<Board, 'curves'>, p);
+    if (shape && !fallback) {
       const vp = { ...p };
-      viewSources.set(vp, { board: dims, profile: p });
+      viewSources.set(vp, { board: dims, profile: p, straight: false, fallback: false });
       swept.push(vp);
-    } else curves.push(asCurve(p));
+    } else curves.push(asCurve(p, fallback));
   }
   const view = { ...b, curves, profiles: swept } as T;
   views.set(b, view);

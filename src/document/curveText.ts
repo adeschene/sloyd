@@ -45,6 +45,9 @@ export function profileFaultText(f: ProfileFault): string {
  * row station is measured from the min end, so a resize cannot make one (an a1 file's stacked identical profiles, faulted
  * on load by P12) — so it reads without the clause.
  */
+/** The Profiles row's note for a swept-shaped End to end that runs STRAIGHT (`runsStraight`; final review I1, the user's
+ *  ruling): too tight to follow its curve, it is cut as a2 cut it. A row note only — the bench line describes what is cut. */
+export const RUNS_STRAIGHT_NOTE = 'Runs straight: too tight to follow the curve.';
 export function profileFaultNote(f: ProfileFault): string {
   const cap = (t: string) => `${t[0]!.toUpperCase()}${t.slice(1)}`;
   const t = profileFaultText(f);

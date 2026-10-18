@@ -417,14 +417,17 @@ describe('a faulted swept profile builds nothing (Q6)', () => {
 });
 
 describe('an END chord the offset swallows is too-tight, never a throw (pathSkeleton null)', () => {
-  it('a half-round notch 0.2" from the end under a 3/8" roundover: too-tight, and it builds nothing', () => {
+  it('a half-round notch 0.2" from the end under a 3/8" roundover: too-tight, and it builds as a2 did (I1: it runs straight)', () => {
     const board = createBoard({ length: 30, width: 5, thickness: 0.75,
       curves: [{ id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 0.2, span: 2, rise: 1 }) }],
       profiles: [endToEnd('p1', side('width', 'min'), 0.375)] });
     // No outline arc is under the reach or the bearing: the skeleton alone decides it.
     expect(profilePath(board, board.profiles[0]!)!.chords.every((c) => !c.arc || c.arc.r >= 0.375)).toBe(true);
     expect(profileFaults(board, board.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
-    expect(boardBodies(board)).toEqual(boardBodies({ ...board, profiles: [] }));
+    // Final review I1 (the user's ruling, "Fall back to straight"): its straight form is clean, so it is built as a2 built
+    // it — chunk 1's prism, the profile as its plain curve — rather than nothing.
+    expect(boardBodies(board)).not.toEqual(boardBodies({ ...board, profiles: [] }));
+    expect(boardBodies(board)).toEqual(boardBodies({ ...board, curves: [...board.curves, profileAsCurve(board.profiles[0]!)], profiles: [] }));
   });
 });
 

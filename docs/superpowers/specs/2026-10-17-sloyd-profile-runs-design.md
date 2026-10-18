@@ -150,6 +150,16 @@ profiles; a grain fix (fu 336).
 - **B10** (the user's ruling while planning b1, 2026-10-18): an End to end profile SAVED before b1 on a side a curve cuts follows
   that side's stretch on load (B1) — the fix the user asked for, applied to existing projects. A profile on an uncut side with
   sharp corners is unchanged byte for byte. No stored marker.
+  *Amended (final review, the user's ruling, I1: "Fall back to straight")*: an End to end profile (never a loop) whose SWEPT
+  faults are non-empty while its STRAIGHT faults — chunk 1's view curve (`curveFaults`) and a2's profile faults for it, the
+  other profiles judged by their shape — are empty is built, drawn, worded and keyed EXACTLY as a2 built it (bodies, mesh,
+  edges, drawings, diagrams, bench line, keys, snap points, stock probe, hole faults, the cut list; pinned by hashes taken on
+  65947fd); it follows the curve only when the bit fits. ONE decision, in `geometryBoard` (memoised with the view): the
+  profile stays a view curve, `viewProfileFaults` reads its straight faults, and `runsStraight` reads the decision back for
+  the row's note, `Runs straight: too tight to follow the curve.` (the bench line has none: it describes what is cut).
+  Authoring still judges an End to end on a cornered or arched side by its swept faults (`profileFaults`, unchanged): the
+  Profiles row and Curves' `profileRefusal` refuse an ADDED swept fault, so authoring never creates a new one; a saved one,
+  or a resize that makes it too tight, falls back.
 
 **Planning rulings for chunk b1** (*Amended (planning)*, 2026-10-18; the probe: `docs/superpowers/plans/b1-probe/`):
 - **Q1 The view.** `geometryBoard`'s `profiles` holds exactly the SWEPT profiles (stored order); straight ones stay view curves
