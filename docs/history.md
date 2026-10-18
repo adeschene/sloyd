@@ -514,6 +514,37 @@ and 79.
 
 ## What each round did
 
+**What profile runs chunk a2 did (2026-10-18)** (stopped profiles and the router's run-out; the user: "Write the a2 plan", the
+station ruling "Where the full profile ends", then "Subagent-driven, go ahead"; plan `…-profile-runs-a2.md`; branch
+`profile-runs-a2`; schema 18, unchanged by a2).
+1. **Station runs load** (Task 1): one-side station runs build and load in travel order (P11); fu 391(1)'s gate hole closed (an end
+   with `through` and `from`/`at`, or an unreadable `through`, refuses). The plan's load-order test sorted before comparing and could
+   not fail; it now asserts against `travelSign`.
+2. **Span, faults, words, keys** (Task 2): the view-only `span` (P18), `profileFaults` (stop-off, overlap), `, from <a> to <b>
+   (stopped)` and `, stopped`; a stopped profile never collapses into "all four edges".
+3. **The run-out** (Task 3, `runout.ts`): the plan's sector construction was circumscribed (a step and a tooth at each station,
+   sliver bodies). It was ruled INSCRIBED (ρ_eff = m·(x−axis)/cos h), exact on every sector ray; the remaining chord scraps
+   (≤ 1.9e-6 in³) are accepted and pinned.
+4. **Probes** (Task 4): stockProbe, hole faults (P14), snap points (P17). The spanned waste was first CLOSED to the probe (violating
+   P3); `profileAirTester` is its open form.
+5. **The mesh** (Task 5): smooth run-out normals, watertight stopped rows, perf guards; the implementer's own fixes: the arc bound
+   used `CURVE_TOLERANCE`, and caps at the ogee's inflection drew flat.
+6. **Edges and diagrams** (Task 6): a stopped bead drew facet lines on its revolved quirk wall; fixed by per-section-edge tags
+   (`profileEdge`) and `smoothPair`, smooth revolved walls.
+7. **The Plans sheet** (Task 7): span-clipped silhouettes and the run-outs' facet-chain contours; the brief's facing rule and test
+   views were wrong (ruled: fu 386's rule; corrected views); a ray oracle went from 47 mismatches to 0.
+8. **The row** (Task 8): Face, Side, Run, Start, Stop; a preset over an existing profile was offered (fixed: `fits()` reads
+   `profileFaults`).
+9. **Live pass** (`docs/browser-verification-profile-runs-a2.md`): found that the overlap withhold left NO preset once the top long
+   edge held a profile.
+Final review (opus), "With fixes": I1 — in a full-suite run the stopped-ogee perf guard read 54–66 ms (40 bound) because
+`runoutNormals` was rebuilt per `bodyMesh` call (memoised on `partGeometry`'s frozen bodies; mesh and edge hashes pinned at the
+pre-fix head, checked by the re-review against a `git archive` of it); I2 — the preset block (a preset now takes the first edge its
+default fits, spec I1); Minors fixed: a crossed Start/Stop refused, not swapped; a typed 0 or full length is a through end (spec I2,
+so a half-stopped profile can be made from the row); an overlap's note drops "at this size"; one `profileEdge` builder and parser;
+watertight rows for a stopped bead, thumbnail and a bore. The fix pass's suite failed once at 41.8 ms with the Playwright browser's GPU
+process at ~250% CPU; with it closed, 5279/5279. Re-review (opus): approved. Residue fu 392. Suite 5279 tests across 168 files.
+
 **What profile runs chunk a1 did (2026-10-17)** (fu 390 and 365's stopped half, designed together — brainstorm: "Both,
 equally", "Following + stopped", a new profiles list, store → follow → speed, the router's run-out, mitred sharp corners; spec
 `2026-10-17-sloyd-profile-runs-design.md`, "Yes, write the spec", "Approved, write the plan"; chunk a split into a1/a2 by the
