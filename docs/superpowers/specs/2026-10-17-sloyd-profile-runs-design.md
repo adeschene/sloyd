@@ -147,13 +147,17 @@ profiles; a grain fix (fu 336).
   curve-free cells (cuts and angle cuts applied) and the through-thickness curves are not applied again (the outline carries
   them; starting after them multiplied an arch's 16 slices into 160 bodies, 49 ms against 11). Each further swept profile
   intersects the bodies it meets; then every other curve as today; then a B1 station's run-out (a2's `runoutPieces`).
+  *Amended (implementation, b1 Task 3)*: a cell no piece reaches lies wholly in a skipped curve's waste and is DROPPED (the
+  pieces tile outline × thickness); a body inside one piece keeps its object. An odd-count B1a mitre's end vertex is projected
+  onto the outline chord.
 - **Q4 Speed:** roundover, thumbnail and bead guarded at 40 ms (probe 10–33); a following cove and ogee are BUILT in b1 and
   guarded at 80 and 105 ms (probe 62 and 85), recorded for chunk (c).
 - **Q5 Tags:** a vertical piece plane on an outline chord carries `curve: <id>` (chunk 1's radial normals and smooth lines below
   the profile unchanged); a swept section face carries `profileEdge` (a2's builder) and `sweep: <segment>`, so a2's `smoothPair`
   extends to swept facets in both directions.
 - **Q6 Faults:** `profileFaults` adds `runs-off` (reach over half the face's smaller dimension, depth over the thickness, or no
-  traceable outline) and `too-tight` (a convex outline arc's radius under the reach, R10; a concave one's under `BEARING`, B5);
+  traceable outline) and `too-tight` (a convex outline arc's radius under the reach, R10; a concave one's under `BEARING`, B5;
+  *amended, b1 Task 3*: or an end chord the offset swallows — the skeleton cannot end the band there);
   `overlap` is judged on outline stretches (straight and swept alike). A hole keeps the `:curve:<id>` key (P7).
 - **Q7 Words:** `all round` reads `<name> all round <faceName>` (the collapse's own face words, so `the thickness face (max
   side)`, not §5's shorthand "the top"); its key `<name><fillet>, all round`. Bench lines list curves, then straight profiles,
