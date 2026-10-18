@@ -5,7 +5,7 @@ import { archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, 
 import { loop, topCorners } from '../document/sweepFixtures';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
-import { refusalFor } from './curveRefusal';
+import { curveEditRefusal, refusalFor } from './curveRefusal';
 
 const apron = (over: Partial<Board> = {}) => createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -363,7 +363,24 @@ describe('Curves refuses an edit that adds a profile fault (profile runs b1)', (
     await user.clear(radius); await user.type(radius, '0.2{Enter}');
     expect(radiusOf(0)).toBe(2);
     expect(radius).toHaveAttribute('aria-invalid', 'true');
-    expect(screen.getByRole('alert')).toHaveTextContent('Too tight for the curve — reduce the size first.');
+    // Fix round 1 (the user's ruling): the Curves row names the profile; "the size" would read as the corner's.
+    expect(screen.getByRole('alert').textContent).toBe('Too tight for the roundover — reduce the roundover first.');
+  });
+
+  it('under a 3/8" cove loop, a corner shrunk to 0.3 is refused naming the cove', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2, loop('p1', 0.375, 'cove'))));
+    const radius = screen.getAllByLabelText('Radius')[0]!;
+    await user.clear(radius); await user.type(radius, '0.3{Enter}');
+    expect(radiusOf(0)).toBe(2);
+    expect(screen.getByRole('alert').textContent).toBe('Too tight for the cove — reduce the cove first.');
+  });
+
+  it('the other kinds a curve edit could add read the same shape, from the fault words (words only)', () => {
+    const ogee = loop('p1', 0.5, 'ogee');
+    expect(curveEditRefusal({ kind: 'runs-off' }, ogee)).toBe('The Roman ogee runs off the part — reduce the Roman ogee first.');
+    expect(curveEditRefusal({ kind: 'overlap', other: 'p2' }, loop('p1'))).toBe('The roundover overlaps another profile on this edge — move the roundover first.');
+    expect(curveEditRefusal({ kind: 'too-tight' }, { ...loop('p1'), kind: 'thumbnail', depth: 0.25 })).toBe('Too tight for the thumbnail — reduce the thumbnail first.');
   });
 
   it('growing a corner to 3" is accepted; the loop re-routes, its bench line unchanged', async () => {

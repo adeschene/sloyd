@@ -4,6 +4,8 @@ import {
 import type { Board, CurveCut, Dimension } from '../document/document';
 import { profileFaults } from '../document/profiles';
 import type { ProfileFault } from '../document/profiles';
+import type { ProfileCut } from '../document/document';
+import { profileFaultText } from '../document/curveText';
 import { curveWord, distinctFaults, edgeName, faultKey } from '../document/holeText';
 
 export type Draft = Omit<CurveCut, 'id'>;
@@ -89,9 +91,26 @@ export function profileRefusal(board: Board, after: Board): string | null {
     if (!q) continue;
     const had = new Set(profileFaults(board, p).map((f) => f.kind));
     const added = profileFaults(after, q).find((f) => !had.has(f.kind));
-    if (added) return PROFILE_REFUSAL[added.kind];
+    if (added) return curveEditRefusal(added, q);
   }
   return null;
+}
+
+/**
+ * A profile fault a CURVE edit would add, in the Curves row's words (Task 9 fix round 1, the user's ruling): the profile
+ * named by `curveWord` (THE home of "the roundover", "the cove", …), and the remedy aimed at it — in the Curves row "the
+ * size" would read as the curve's. Built from `profileFaultText` where its words fit. A stop runs off only through a
+ * station and the part's dimensions, which no curve edit changes: unreachable here, so it keeps the row's own words.
+ */
+export function curveEditRefusal(f: ProfileFault, p: ProfileCut): string {
+  const w = curveWord({ kind: null, profile: p.kind });
+  const said = (t: string) => `${w[0]!.toUpperCase()}${w.slice(1)}${t.replace(/^it/, '')}`;
+  switch (f.kind) {
+    case 'too-tight': return `Too tight for ${w} — reduce ${w} first.`;
+    case 'runs-off': return `${said(profileFaultText(f))} — reduce ${w} first.`;
+    case 'overlap': return `${said(profileFaultText(f))} — move ${w} first.`;
+    case 'stop-off': return PROFILE_REFUSAL['stop-off'];
+  }
 }
 
 /** A greyed select option's reason: the refusal's own words up to its dash (presets minors 2; fu 388), so
