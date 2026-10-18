@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies';
-import { createBoard } from './document';
+import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
+import { geometryBoard } from './profiles';
+import { builtSwept } from './sweep';
 import type { Segment } from './cuts';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, topCorners } from './sweepFixtures';
 import type { Board } from './types';
@@ -173,5 +175,112 @@ describe('face min, both faces, a cove End to end', () => {
     const e = boardEdges(topCorners(2, endToEnd('p1', { across: 'width', from: 'min' }, 0.375, 'cove')));
     expect(e.filter(at(0.75)).filter((s) => s[0].width < 1 && s[1].width < 1).length).toBeGreaterThan(0);
     expect(e.filter(at(0.375)).length).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * The FAST swept edges (curvedEdges without `reference`: seams dropped, section-only lines judged against their own faces)
+ * against the REFERENCE (every face judged by bodyEdges' coplanar search, the rule above): the same segment set — each
+ * line's stretches merged (a stretch may be split at different points: the two paths cut lines at different crossings) and
+ * compared within 1e-9 — and the same smooth joins (keyed by their two faces' tags and normals, merged likewise).
+ */
+type Seg3 = [P, P];
+const sub3 = (a: P, b: P): P => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot3 = (a: P, b: P) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+interface Run { o: P; u: P; spans: [number, number][] }
+function merged(segs: readonly Seg3[], tol = 1e-9): Run[] {
+  const runs: Run[] = [];
+  for (const [a, b] of segs) {
+    const d = sub3(b, a), l = Math.hypot(...d);
+    let u: P = [d[0] / l, d[1] / l, d[2] / l];
+    const lead = Math.abs(u[0]) > 1e-9 ? u[0] : Math.abs(u[1]) > 1e-9 ? u[1] : u[2];
+    if (lead < 0) u = [-u[0], -u[1], -u[2]];
+    const k = dot3(a, u);
+    const o: P = [a[0] - k * u[0], a[1] - k * u[1], a[2] - k * u[2]];
+    let run = runs.find((r) => Math.hypot(...sub3(r.u, u)) <= 1e-7 && Math.hypot(...sub3(r.o, o)) <= 1e-7);
+    if (!run) { run = { o, u, spans: [] }; runs.push(run); }
+    const ta = dot3(a, run.u), tb = dot3(b, run.u);
+    run.spans.push([Math.min(ta, tb), Math.max(ta, tb)]);
+  }
+  for (const r of runs) {
+    r.spans.sort((x, y) => x[0] - y[0]);
+    const out: [number, number][] = [];
+    for (const s of r.spans) { const last = out[out.length - 1]; if (last && s[0] <= last[1] + tol) last[1] = Math.max(last[1], s[1]); else out.push([s[0], s[1]]); }
+    r.spans = out;
+  }
+  return runs;
+}
+/** Every run of `a` matched by one of `b` (same line within 1e-7, same merged stretches within `tol`), and the counts equal. */
+function sameRuns(a: Run[], b: Run[], tol = 1e-9): string | null {
+  if (a.length !== b.length) return `${a.length} lines vs ${b.length}`;
+  for (const r of a) {
+    const m = b.find((q) => Math.hypot(...sub3(q.u, r.u)) <= 1e-7 && Math.hypot(...sub3(q.o, r.o)) <= 1e-7);
+    if (!m) return `no line through ${r.o.join(',')} along ${r.u.join(',')}`;
+    if (m.spans.length !== r.spans.length || m.spans.some((s, i) => Math.abs(s[0] - r.spans[i]![0]) > tol || Math.abs(s[1] - r.spans[i]![1]) > tol))
+      return `stretches differ on the line through ${r.o.join(',')}: ${JSON.stringify(r.spans)} vs ${JSON.stringify(m.spans)}`;
+  }
+  return null;
+}
+const faceKey = (f: SmoothJoin['f1']) => `${f.profileEdge ?? '-'}|${f.sweep ?? '-'}|${f.runout ?? '-'}|${f.curve ?? '-'}|${f.n.map((x) => Math.round(x * 1e6)).join(',')}`;
+function joinRuns(joins: readonly SmoothJoin[]): Map<string, Run[]> {
+  const by = new Map<string, Seg3[]>();
+  for (const j of joins) {
+    const k = [faceKey(j.f1), faceKey(j.f2)].sort().join(' & ');
+    by.set(k, [...(by.get(k) ?? []), [j.a as P, j.b as P]]);
+  }
+  return new Map([...by].map(([k, v]) => [k, merged(v)]));
+}
+
+const side = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from }) as const;
+const chiral: Board = createBoard({ length: 30, width: 5, thickness: 0.75,
+  curves: [{ id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 2, span: 20, rise: 1.25 }) }],
+  profiles: [endToEnd('p1', side('width', 'min'), 0.375, 'ogee')] });
+const four = (b: Board, ids = ['f', 'r', 'b', 'l']): Board => ({ ...b, profiles: [
+  endToEnd(ids[0]!, side('width', 'min')), endToEnd(ids[1]!, side('length', 'max')), endToEnd(ids[2]!, side('width', 'max')), endToEnd(ids[3]!, side('length', 'min'))] });
+const sweptEdgeCases: [string, Board][] = [
+  ['a loop on a plain rectangle', plainLoop],
+  ['roundover 1/4 along the arched apron', apronArch],
+  ['roundover 1/4 all round the 2" corners', topCorners(2)],
+  ['roundover 1/4 all round the 1/2" corners', topCorners(0.5)],
+  ['thumbnail 3/4 × 1/4 all round the 2" corners', topCorners(2, loop('p1', 0.75, 'thumbnail'))],
+  ['bead 1/4 (quirk 1/16) all round the 2" corners', topCorners(2, loop('p1', 0.25, 'bead'))],
+  ['cove 3/8 all round the 2" corners', topCorners(2, loop('p1', 0.375, 'cove'))],
+  ['cove 3/8 + 1/16 fillet all round the 2" corners', topCorners(2, { ...loop('p1', 0.375, 'cove'), fillet: 1 / 16 })],
+  ['ogee 3/8 all round the 2" corners', topCorners(2, loop('p1', 0.375, 'ogee'))],
+  ['ogee 3/8 all round the 2" corners, facing the edge', topCorners(2, { ...loop('p1', 0.375, 'ogee'), facing: 'edge' })],
+  ['roundover 3/8 round the half-round notch', notchEdge],
+  ['roundover 1/4 End to end on the front (B1 run-outs)', frontOnly],
+  ['cove 3/8 End to end on the front (B1 run-outs)', topCorners(2, endToEnd('p1', side('width', 'min'), 0.375, 'cove'))],
+  ['a loop on face min, 1/2" corners', topCorners(0.5, loop('m', 0.25, 'roundover', 'min'))],
+  ['loops on the top and the bottom (Review Focus 4)', { ...topCorners(2), profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] }],
+  ['four End to ends mitred at the 2" corners\' middles (B1a)', four(topCorners(2))],
+  ['four End to ends mitred at the 3/4" corners (B1a, odd chord count)', four(topCorners(0.75))],
+  ['the loop over a dado and a chamfer (Review Focus 5)', { ...topCorners(2),
+    cuts: [{ id: 'd', face: 'thickness', from: 'max', across: 'width', offset: 17.625, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 }],
+    angleCuts: [{ id: 'ch', ...chamferCut({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'min', legFace: 0.25, legAlong: 0.25 }, topCorners(2)) }] }],
+  ['the 2" loop with a 35 mm hinge cup clear of the band', { ...topCorners(2), holes: [{ id: 'cup', ...defaultHingeCup(createBoard({ length: 36, width: 20, thickness: 0.75 })), station: 10, inset: 2 }] }],
+  ['apronArch mirrored along its length (mirrorPart)', mirrorPart(apronArch)],
+  ['a chiral arched ogee, and mirrored (mirrorPart)', chiral],
+  ['the chiral arched ogee mirrored', mirrorPart(chiral)],
+  ['the arched apron with a STRAIGHT roundover on its back edge (a chunk 1 curve beside the sweep)', { ...apronArch, profiles: [...apronArch.profiles, endToEnd('s', side('width', 'max'))] }],
+];
+
+describe('the fast swept edges equal the reference, segments and joins (every swept fixture)', () => {
+  it('the fixtures are what they claim: every swept profile built', () => {
+    for (const [name, b] of sweptEdgeCases) expect(builtSwept(geometryBoard(b)).length, name).toBeGreaterThan(0);
+    const withStraight = sweptEdgeCases.find(([n]) => n.includes('STRAIGHT'))![1];
+    expect(geometryBoard(withStraight).curves.length).toBe(apronArch.curves.length + 1);   // the back edge's chunk 1 curve
+  });
+  it.each(sweptEdgeCases)('%s', (_name, board) => {
+    const bodies = boardBodies(board);
+    const jr: SmoothJoin[] = [], jf: SmoothJoin[] = [];
+    const ref = curvedEdges(board, bodies, jr, { reference: true }) as Seg3[];
+    const fast = curvedEdges(board, bodies, jf) as Seg3[];
+    expect(sameRuns(merged(fast), merged(ref))).toBeNull();
+    const a = joinRuns(jf), b = joinRuns(jr);
+    expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
+    for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
+    // boardEdges reads the fast path.
+    expect(boardEdges(board).length).toBe(fast.length);
   });
 });
