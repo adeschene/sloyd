@@ -66,6 +66,27 @@ profiles; a grain fix (fu 336).
 - **P8** A recognised profile curve is moved into `profiles` on EVERY load (idempotent), not only from v17, so no build path can
   leave one in `curves`.
 
+**Planning rulings for chunk a2** (*Amended (planning)*, 2026-10-18):
+- **P9** (the user's ruling) A Start or Stop station marks **where the full profile ends**: the profile is full depth up to it, and
+  the run-out lies beyond it. This is the same geometry as stopping the bit's axis there.
+- **P10** a2 builds station runs on ONE side (start and end on the same side; each end a station or `through`). Ends on two
+  sides still refuse (chunk b); a loop still refuses.
+- **P11** A station run is stored with `start` before `end` along the face's counter-clockwise travel, seen from outside `face`
+  (the travel `mirrorProfile` reverses). The row writes every station `from: 'min'`; a mirrored copy may hold `'max'`, and
+  the lowering inverts it.
+- **P12** `overlap`: two profiles on the same face and side whose spans overlap with positive length. Profiles meeting at a
+  corner (the four-edge set) do not overlap.
+- **P13** A run-out reaching past the part's end is not a fault: the cutter cuts air there.
+- **P14** A hole is judged against a stopped profile's band, extended at each stop end by the run-out's reach
+  (R = 1/4" bearing + the profile's reach). This is conservative: a hole just clear of a run-out may be refused.
+- **P15** Words: a stopped bench line adds `, from <a> to <b> (stopped)`, stations from the run dimension's min end. The Plans
+  key line adds `, stopped` (a key carries no positions). A stopped profile never joins the four-edge collapse.
+- **P16** Part diagrams: no end-view hatch for an end the profile stops short of. Sharp-vertex lines are drawn only over the span.
+- **P17** Snap points: at each stop, the profile's arc ends on the stop plane, as `'corner'`s.
+- **P18** The geometry view carries a stopped profile as its chunk-1 curve plus a VIEW-ONLY `span`, never stored. A curve
+  with no span keeps `curveValues` byte for byte; a spanned one's value appends the span (geometryKey, the UV signature and
+  the cut list's grouping read it).
+
 ## 2. The probe (2026-10-17, throwaway)
 
 A profile swept along an outline as convex 3D pieces, through `clipConvex` and `bodyEdges`. Times are the minimum of 5–9 runs and
