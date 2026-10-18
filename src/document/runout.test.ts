@@ -265,6 +265,32 @@ describe('the wood of a stopped profile (P9)', () => {
         }
       });
 
+      it('the run-out meets the band at the station: 1e-4 past each stop the bodies hold the band\'s section (T3 fix 1)', () => {
+        // The true run-out at θ = π/2 IS the band's section (ρ − 0.25 = s to ~2e-8 this close), so a point 1e-4 past a stop is
+        // waste exactly where (s, t) is in the band's section. Margin 1e-4, not CURVE_TOLERANCE: no step, no tooth.
+        const sMax = Math.max(...poly.map((q) => q[0]));
+        const tMax = Math.max(...poly.map((q) => q[1]));
+        const runs = [...(f.stopLo ? [f.lo - 1e-4] : []), ...(f.stopHi ? [f.hi + 1e-4] : [])].filter((x) => x > 0 && x < f.len);
+        let n = 0;
+        for (const run of runs) for (let i = 0; i < 4000; i += 1) {
+          const [a, d] = r3(i + 1);
+          const st: P2 = [a * (sMax + 0.01), d * (tMax + 0.01)];
+          const dist = polyDist(poly, st);
+          if (dist < 1e-4 || dist > 0.01) continue;
+          const at = woodAt(bodies, f.at(run, st[0], st[1]));
+          if (at === 'boundary') continue;
+          n += 1;
+          expect(at, `${run}: s ${st[0]}, t ${st[1]}`).toBe(inPolygonClosed(poly, st) ? 'air' : 'wood');
+        }
+        if (runs.length > 0) expect(n).toBeGreaterThan(500);
+        if (name === 'roundover 3..27') {
+          for (const run of [f.lo - 1e-4, f.hi + 1e-4]) {
+            expect(woodAt(bodies, f.at(run, 0.25 + 0.003, 0.0005)), 'the overcut').toBe('wood');
+            expect(woodAt(bodies, f.at(run, 0.0005, 0.0005)), 'the tooth').toBe('air');
+          }
+        }
+      });
+
       it('every body is convex', () => {
         for (const x of bodies) {
           const vs = bodyVerts(x);
@@ -280,6 +306,23 @@ describe('the wood of a stopped profile (P9)', () => {
       });
     });
   }
+
+  it('no sliver at a station: no body under 1e-5 in³ reaches within 1e-3 of a stop (T3 fix 1)', () => {
+    // The circumscribed sectors left a tooth body at every stop (3e-7–9e-7 in³, spanning [2.9836, 3] on the roundover).
+    // Scoped to the stations: the cove and ogee also peel a few chord-sliver fragments (1e-7–2e-6 in³) 0.2–0.5" past a stop,
+    // where a sector's chord meets the side face — wood the inscribed chords leave, as on every arc; they are not the step.
+    for (const { name, s } of WOOD.slice(0, 4)) {
+      const { b } = stopped(s);
+      const f = frameOf(b, s);
+      const stations = [...(f.stopLo ? [f.lo] : []), ...(f.stopHi ? [f.hi] : [])];
+      const near = boardBodies(b).filter((x) => {
+        const ks = bodyVerts(x).map((p) => p[f.r]);
+        return stations.some((st) => Math.min(...ks) <= st + 1e-3 && Math.max(...ks) >= st - 1e-3);
+      });
+      expect(near.length, name).toBeGreaterThan(0);
+      expect(near.map(bodyVolume).filter((v) => v < 1e-5), name).toEqual([]);
+    }
+  });
 
   it('one roundover in the four length-running placements of the top: the same volume', () => {
     const vols = PLACEMENTS.filter((pl) => pl.across === 'width').map((pl) => totalVolume(boardBodies(stopped(spec('roundover', pl)).b)));

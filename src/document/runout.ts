@@ -7,8 +7,12 @@ import { convexPieces, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPoly
  * stations is chunk 1's straight profile at full depth; beyond a STOP end the bit, swung out of the cut, removes at depth t
  * every point within BEARING + w(t) of its axis on the far side of the station — the profile revolved about the axis, which
  * runs along the thickness BEARING outside the side face, at the station. Bodies stay convex (invariant 48): each run-out is
- * cut into angular sectors about the axis, and in each sector the profile's convex pieces become planes with ρ read as the
- * sector's mid direction (chords of the revolved circles at CURVE_TOLERANCE). Runtime imports: `curves` and `geometry` only.
+ * cut into angular sectors about the axis, and in each sector the profile's convex pieces become planes with ρ read as
+ * m·(x − axis) / cos h (m the sector's mid direction, h its half-angle): the INSCRIBED polygon, exact on both of the sector's
+ * rays — chords of the revolved circles at CURVE_TOLERANCE, removing a little less than the true cutter between the rays, as
+ * chords do on every arc. On the ray at θ = π/2, the station plane, the run-out's section IS the band's, so the two meet
+ * with no step (T3 fix 1: the circumscribed form, ρ = m·(x − axis), left a ~0.004" step, a ~0.002" tooth and a sliver body
+ * at every stop). Runtime imports: `curves` and `geometry` only.
  */
 type V3 = [number, number, number];
 type Half = { n: V3; d: number };
@@ -56,10 +60,12 @@ function sectors(r: number): number {
 /**
  * Convex waste pieces of both run-outs, n INTO the waste (a piece's inside, n·x + d >= 0, is waste), as `subtractPieces`
  * takes them. For each stop: sectors at angle θ from −π/2 (straight out of the side face, into air) to π/2 (into the wood)
- * about the forward direction f (−1 along k at `lo`, +1 at `hi`); each sector is two radial planes through the axis and the
- * forward half-space f·(x_k − station) >= 0, and each convex piece of the section adds its edges as planes with
- * s = m·(x − axis) − BEARING (m the sector's mid direction) and t = vIn·(x_iv − vFace). The piece's arc edges are `onArc`;
- * its diagonals come last (`splitPieces`' order).
+ * about the forward direction f (−1 along k at `lo`, +1 at `hi`); each sector is two radial planes through the axis (a wedge
+ * of at most π/2 between rays in [−π/2, π/2], so it lies in the forward half f·(x_k − station) >= 0 by itself: no plane for
+ * that, T3 fix 1, bodies byte-identical without it), and each convex piece of the section adds its edges as planes with
+ * s = m·(x − axis) / cos h − BEARING (m the sector's mid direction, h its half-angle: exact on both rays) and
+ * t = vIn·(x_iv − vFace), each renormalised to a unit normal. The piece's arc edges are `onArc`; its diagonals come last
+ * (`splitPieces`' order).
  */
 export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { planes: Half[]; onArc: boolean[]; runout: 'lo' | 'hi' }[] {
   const span = spanOf(c);
@@ -96,7 +102,6 @@ export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { pla
       N[f.k] = nk; N[f.iu] = nu; N[f.iv] = nv;
       return { n: N, d };
     };
-    const forward = lift(fwd, 0, 0, -fwd * axis.run);
     for (let i = 0; i < n; i += 1) {
       const th0 = -Math.PI / 2 + (i / n) * Math.PI;
       const th1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI;
@@ -108,12 +113,18 @@ export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { pla
         if (nk * m[0] + nu * m[1] < 0) { nk = -nk; nu = -nu; }
         return lift(nk, nu, 0, -(nk * axis.run + nu * axis.u));
       };
-      const wedge = [radial(th0), radial(th1), forward];
+      const wedge = [radial(th0), radial(th1)];
+      const ch = Math.cos((th1 - th0) / 2);
       const mA = m[0] * axis.run + m[1] * axis.u;
       for (const edges of pieces) {
-        // ns·s + nt·t + c >= 0 with s = m·(x − axis) − BEARING and t = vIn·(x_iv − vFace): a unit normal, since |m| = 1.
-        const planes = edges.map((e) => lift(e.ns * m[0], e.ns * m[1], e.nt * f.vIn, e.c - e.ns * mA - e.ns * BEARING - e.nt * f.vIn * f.vFace));
-        out.push({ planes: [...wedge, ...planes], onArc: [false, false, false, ...edges.map((e) => e.arc)], runout: end });
+        // ns·s + nt·t + c >= 0 with s = m·(x − axis) / cos h − BEARING and t = vIn·(x_iv − vFace), renormalised (the body code
+        // reads n·x + d as a distance: an unnormalised plane gave a negative bodyVolume).
+        const planes = edges.map((e) => {
+          const nk = (e.ns * m[0]) / ch, nu = (e.ns * m[1]) / ch, nv = e.nt * f.vIn;
+          const l = Math.hypot(nk, nu, nv);
+          return lift(nk / l, nu / l, nv / l, (e.c - (e.ns * mA) / ch - e.ns * BEARING - e.nt * f.vIn * f.vFace) / l);
+        });
+        out.push({ planes: [...wedge, ...planes], onArc: [false, false, ...edges.map((e) => e.arc)], runout: end });
       }
     }
   }
