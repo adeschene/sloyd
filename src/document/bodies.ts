@@ -492,20 +492,38 @@ export function bodyEdges(
     for (const p of f.verts) for (let k = 0; k < 3; k += 1) { if (p[k]! < lo[k]!) lo[k] = p[k]!; if (p[k]! > hi[k]!) hi[k] = p[k]!; }
     return { lo, hi };
   });
+  // Final fix F1: the groups as flat arrays (normal, sorted offsets, face indices) and each face's box and first vertex as
+  // numbers, read without a Map iterator, closures or temporaries. The same expressions in the same order (dot and sub
+  // inlined), so every comparison sees the same floats and the hits are the same set.
+  const G = [...groups.values()].map((g) => ({ n0: g.n[0], n1: g.n[1], n2: g.n[2], d: Float64Array.from(g.at, (x) => x.d), i: Int32Array.from(g.at, (x) => x.i) }));
+  const fB = new Float64Array(6 * faces.length);
+  const fN = new Float64Array(6 * faces.length);
+  faces.forEach((f, i) => {
+    const b = fBox[i]!;
+    fB.set([b.lo[0], b.lo[1], b.lo[2], b.hi[0], b.hi[1], b.hi[2]], 6 * i);
+    const p = f.verts[0]!;
+    fN.set([f.n[0], f.n[1], f.n[2], p[0], p[1], p[2]], 6 * i);
+  });
   const coplanarTo = (o: V3, u: V3, near?: { lo: V3; hi: V3 }): number[] => {
     const hit: number[] = [];
-    for (const g of groups.values()) {
-      if (Math.abs(dot(g.n, u)) > 1e-5) continue;
-      const d = dot(g.n, o);
-      let lo = 0, hi = g.at.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (g.at[m]!.d < d - 1e-3) lo = m + 1; else hi = m; }
-      for (let k = lo; k < g.at.length && g.at[k]!.d <= d + 1e-3; k += 1) {
-        const f = faces[g.at[k]!.i]!;
+    const [o0, o1, o2] = o;
+    const [u0, u1, u2] = u;
+    for (const g of G) {
+      if (Math.abs(g.n0 * u0 + g.n1 * u1 + g.n2 * u2) > 1e-5) continue;
+      const d = g.n0 * o0 + g.n1 * o1 + g.n2 * o2;
+      const gd = g.d;
+      let lo = 0, hi = gd.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (gd[m]! < d - 1e-3) lo = m + 1; else hi = m; }
+      for (let k = lo; k < gd.length && gd[k]! <= d + 1e-3; k += 1) {
+        const fi = g.i[k]!;
         if (near) {
-          const b = fBox[g.at[k]!.i]!;
-          if (b.lo[0] > near.hi[0] || b.hi[0] < near.lo[0] || b.lo[1] > near.hi[1] || b.hi[1] < near.lo[1] || b.lo[2] > near.hi[2] || b.hi[2] < near.lo[2]) continue;
+          const b = 6 * fi;
+          if (fB[b]! > near.hi[0] || fB[b + 3]! < near.lo[0] || fB[b + 1]! > near.hi[1] || fB[b + 4]! < near.lo[1] || fB[b + 2]! > near.hi[2] || fB[b + 5]! < near.lo[2]) continue;
         }
-        if (Math.abs(dot(f.n, u)) <= BODY_EPS && Math.abs(dot(f.n, sub(o, f.verts[0]!))) <= BODY_EPS) hit.push(g.at[k]!.i);
+        const q = 6 * fi;
+        const n0 = fN[q]!, n1 = fN[q + 1]!, n2 = fN[q + 2]!;
+        if (Math.abs(n0 * u0 + n1 * u1 + n2 * u2) <= BODY_EPS
+          && Math.abs(n0 * (o0 - fN[q + 3]!) + n1 * (o1 - fN[q + 4]!) + n2 * (o2 - fN[q + 5]!)) <= BODY_EPS) hit.push(fi);
       }
     }
     return hit.sort((x, y) => x - y);

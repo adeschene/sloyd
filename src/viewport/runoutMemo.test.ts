@@ -106,6 +106,36 @@ const PINNED: Record<string, string> = {
   "ogee + bead shelf": '9741c1a763ac8893',
 };
 
+const EDGES_PINNED: Record<string, string> = {
+  "stopped roundover 3..27": '1d467409d2707bcd:35',
+  "stopped cove 3..27": '28987c2119a1bb74:43',
+  "stopped ogee 3..27": '066f54d46878a300:50',
+  "half-stopped roundover ..20": 'a8a9cc51740c0225:27',
+  "roundover stopped 0.1 in": '0f6942c1655e7580:27',
+  "stopped bead, face": '1c9cf8c446c78daf:53',
+  "stopped bead, edge": '8fcfcbb7d9b1ae54:45',
+  "stopped thumbnail, face": '96c1be7c0ee9faf4:48',
+  "stopped thumbnail, edge": 'd175a4dd52892589:36',
+  "arched apron": '650b12015251b2cf:52',
+  "four corners": '9f64cc60b2c7f4cc:104',
+  "arch + end corner": '21a6e5838c50224c:74',
+  "L notch": '46f1d53737db57ca:50',
+  "bookcase side": '2fc7511d56d4b022:46',
+  "stile + cup": '00fd561ac3f508e8:46',
+  "four-edge roundover": 'ffe7f4bf817eb742:24',
+  "four-edge cove": '1efa5815f08640cc:36',
+  "four-edge bead": 'b8e3a2c82ca88316:36',
+  "four-edge ogee": '12419524b89b0d1e:40',
+  "ogee + bead shelf": 'e81b0aff96c11b36:39',
+};
+
+function edgeHash(b: Board): string {
+  const e = partGeometry(b).edges;
+  const h = createHash('sha256');
+  h.update(Buffer.from(Float64Array.from(e.flatMap(([a, c]) => [a.length, a.width, a.thickness, c.length, c.width, c.thickness])).buffer));
+  return `${h.digest('hex').slice(0, 16)}:${e.length}`;
+}
+
 function meshHash(made: Board): string {
   // A fixed id: the UV offset is hashed from it, and createBoard's ids depend on creation order.
   const board = { ...made, id: 'pin' };
@@ -133,6 +163,10 @@ describe('bodyMesh output is unchanged by the run-out memo (final fix F1)', () =
   // Hashes taken at 38cec08, before the memo (positions, UVs, normals and groups of every body, in order).
   it.each(cases)('%s: byte-for-byte', (name, make) => {
     expect(meshHash(make())).toBe(PINNED[name]);
+  });
+  // The edges too (taken at 38cec08, in a detached worktree): bodyEdges' speedups change no segment, order or float.
+  it.each(cases)('%s: edges byte-for-byte', (name, make) => {
+    expect(edgeHash(make())).toBe(EDGES_PINNED[name]);
   });
 });
 
