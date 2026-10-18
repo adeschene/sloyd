@@ -252,29 +252,35 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     for (const item of ITEMS) expect(screen.getByRole('button', { name: item })).toBeInTheDocument();
   });
 
-  it('a preset whose default puts a hole into its waste is withheld', async () => {
+  // Final fix F2 (spec I1): a preset whose default puts a hole into its waste on the top long edge is not withheld any more —
+  // it takes the next edge where it fits.
+  it('a preset whose default puts a hole into its waste skips that edge', async () => {
     const user = userEvent.setup();
     // The bore sits clear of the roundover's waste and inside every other default's (the bore is clean on the stored part).
     const b = top({ holes: [bore(0.3)] });
     expect(holeFaults(b, b.holes[0]!)).toEqual([]);
     open(b);
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
-    expect(screen.getByRole('button', { name: 'Roundover' })).toBeInTheDocument();
-    for (const item of ['Cove', 'Roman ogee', 'Bead', 'Thumbnail']) expect(screen.queryByRole('button', { name: item })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Roundover' })).toHaveTextContent(/, Top · Width max side$/);
+    for (const item of ['Cove', 'Roman ogee', 'Bead', 'Thumbnail']) {
+      expect(screen.getByRole('button', { name: item })).toHaveTextContent(/, Top · Width min side$/);
+    }
+    await user.click(screen.getByRole('button', { name: 'Cove' }));
+    expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'cove', through: 'length', uFrom: 'min', vFrom: 'max' });
   });
 
   it('menu details read the project units (Review Focus 5)', async () => {
     const user = userEvent.setup();
     open(top());
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
-    expect(screen.getByText('1/4" radius, on the top long edge')).toBeInTheDocument();
-    expect(screen.getByText('1/4" radius, 1/16" quirk, on the top long edge')).toBeInTheDocument();
-    expect(screen.getByText('3/8", on the top long edge')).toBeInTheDocument();
-    expect(screen.getByText('3/4" × 1/4", on the top long edge')).toBeInTheDocument();
+    expect(screen.getByText('1/4" radius, Top · Width max side')).toBeInTheDocument();
+    expect(screen.getByText('1/4" radius, 1/16" quirk, Top · Width max side')).toBeInTheDocument();
+    expect(screen.getByText('3/8", Top · Width max side')).toBeInTheDocument();
+    expect(screen.getByText('3/4" × 1/4", Top · Width max side')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
-    expect(screen.getByText('6 mm radius, on the top long edge')).toBeInTheDocument();
+    expect(screen.getByText('6 mm radius, Top · Width max side')).toBeInTheDocument();
   });
 
   it('the bench line reads mm in a metric project', async () => {
@@ -490,13 +496,15 @@ describe('refusalFor reads the post-edit stored part (profile runs a2)', () => {
 });
 
 describe('Task 8 fix round 1', () => {
-  it('a preset that would overlap an existing profile on the top width-max edge is withheld', async () => {
+  // Final fix F2 (spec I1) reverses this fix's withhold: a preset that would overlap the profile on the top width-max edge
+  // takes the next edge (the top width-min side) instead of leaving no preset at all.
+  it('a preset that would overlap an existing profile on the top width-max edge takes the next edge', async () => {
     const user = userEvent.setup();
     const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
     open({ ...b, profiles: [{ id: 'p1', ...profileOf(defaultProfile(b, 'roundover'))! }] });
-    expect(screen.queryByRole('button', { name: '+ Add profile' })).toBeNull();
-    expect(screen.getByText('No profile preset fits this part.')).toBeInTheDocument();
-    void user;
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    for (const item of ITEMS) expect(screen.getByRole('button', { name: item })).toHaveTextContent(/, Top · Width min side$/);
+    expect(screen.queryByText('No profile preset fits this part.')).toBeNull();
   });
 
   it('editing the Stop of a mixed run (through min -> station) keeps the through end', async () => {
@@ -513,5 +521,86 @@ describe('Task 8 fix round 1', () => {
     const r = profiles()[0]!.run as { start: object; end: object };
     expect([r.start, r.end].filter((e) => 'through' in e)).toHaveLength(1);
     expect(screen.getByText(/from the length min end to 18" \(stopped\)/)).toBeInTheDocument();
+  });
+});
+
+// Final fix F2 (spec I1, Amended (implementation, a2)): a preset takes the FIRST edge where its default fits — the top long
+// edge first, as before; then the other top sides; then the bottom — and its menu detail names that edge.
+describe('presets take the first edge that fits (final fix F2)', () => {
+  const edgeOf = (i: number) => { const f = profileToFields(profiles()[i]!)!; return `${f.vFrom}:${f.through}:${f.uFrom}`; };
+  /** The order: the top (vFrom max) first; within a face the default's through, then its uFrom, first. */
+  const ORDER = [
+    'max:length:max', 'max:length:min', 'max:width:max', 'max:width:min',
+    'min:length:max', 'min:length:min', 'min:width:max', 'min:width:min',
+  ];
+  const roundoverOn = (b: Board, e: string, id: string) => {
+    const [vFrom, through, uFrom] = e.split(':') as ['min' | 'max', 'length' | 'width', 'min' | 'max'];
+    return { id, ...profileOf(defaultProfile(b, 'roundover', { through, uFrom, vFrom }))! };
+  };
+
+  it('eight Roundover clicks land on the eight edges in order, top first; then nothing fits', async () => {
+    const user = userEvent.setup();
+    open(top());
+    const details: string[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+      details.push(within(screen.getByRole('button', { name: 'Roundover' })).getByText(/radius/).textContent!);
+      await user.click(screen.getByRole('button', { name: 'Roundover' }));
+    }
+    expect(profiles().map((_, i) => edgeOf(i))).toEqual(ORDER);
+    // Four different edges from four clicks, each named in the row's own Face and Side words.
+    expect(details.slice(0, 4)).toEqual([
+      '1/4" radius, Top · Width max side', '1/4" radius, Top · Width min side',
+      '1/4" radius, Top · Length max end', '1/4" radius, Top · Length min end',
+    ]);
+    expect(details[4]).toBe('1/4" radius, Bottom · Width max side');
+    expect(screen.queryByRole('button', { name: '+ Add profile' })).toBeNull();
+    expect(screen.getByText('No profile preset fits this part.')).toBeInTheDocument();
+  });
+
+  it('all eight edges taken: no preset fits', () => {
+    const b = top();
+    open({ ...b, profiles: ORDER.map((e, i) => roundoverOn(b, e, `p${i}`)) });
+    expect(screen.queryByRole('button', { name: '+ Add profile' })).toBeNull();
+    expect(screen.getByText('No profile preset fits this part.')).toBeInTheDocument();
+  });
+
+  it('a hole in the next edge\'s waste skips to the edge after', async () => {
+    const user = userEvent.setup();
+    const b = top();
+    // A bore 0.1" in from the width MIN side: inside the roundover's waste there, clear of the width max side's.
+    const hole: HoleRow = { ...bore(0.1), acrossFrom: 'min' };
+    const stored = { ...b, holes: [hole], profiles: [roundoverOn(b, ORDER[0]!, 'p0')] };
+    expect(holeFaults(stored, hole)).toEqual([]);
+    open(stored);
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    expect(screen.getByText('1/4" radius, Top · Length max end')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Roundover' }));
+    expect(edgeOf(1)).toBe('max:width:max');
+  });
+
+  it('a part with no profiles gets a1\'s menu and stored profile, byte for byte', async () => {
+    const user = userEvent.setup();
+    for (const [n, kind] of PROFILE_KINDS.entries()) {
+      const b = top();
+      open(b);
+      await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+      const menu = screen.getAllByRole('button').filter((x) => ITEMS.some((label) => x.textContent!.startsWith(label)));
+      expect(menu.map((x) => ITEMS.find((label) => x.textContent!.startsWith(label)))).toEqual(ITEMS);
+      await user.click(screen.getByRole('button', { name: ITEMS[n]! }));
+      const p = profiles()[0]!;
+      expect(p).toEqual({ id: p.id, ...profileOf(defaultProfile(b, kind))! });
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('the detail names the edge on a part wider than long (a1\'s "top long edge" read the short edge there)', async () => {
+    const user = userEvent.setup();
+    open(top({ length: 10, width: 30 }));
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    expect(screen.getByText('1/4" radius, Top · Width max side')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Roundover' }));
+    // The default edge runs along the LENGTH — here the 10" dimension, the short edge.
+    expect(edgeOf(0)).toBe('max:length:max');
   });
 });

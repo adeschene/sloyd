@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/store';
 import {
   curveFaults, defaultProfile, geometryBoard, profileAsymmetric, profileFields, profileFromFields,
-  profileOf, profileToFields, uvDims, PROFILE_KINDS,
+  profileOf, profileToFields, uvDims, DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
-import type { Board, CurveCut, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
+import type { Board, CurveCut, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
 import { canonicalRun, endPos, endToEnd, profileFaults, runDim, viewProfileFaults } from '../document/profiles';
 import type { ProfileFault } from '../document/profiles';
 import { curveFaultText, curveLine, profileFaultText } from '../document/curveText';
@@ -26,6 +26,17 @@ const SIDES: readonly ProfileSide[] = [
 const sideLabel = (s: ProfileSide) => cap(sideText(s.across, s.from));
 const sameSide = (a: ProfileSide, b: ProfileSide) => a.across === b.across && a.from === b.from;
 const FACE_LABEL: Record<CutFrom, string> = { max: 'Top', min: 'Bottom' };
+/** The side an edge runs along (the Side select's value for it: `withSide`'s inverse). */
+const sideOfEdge = (e: ProfileEdge): ProfileSide => ({ across: uvDims(e.through)[0] as ProfileSide['across'], from: e.uFrom });
+/** Where `+ Add profile ▾` tries a preset (spec I1, Amended (implementation, a2)): PROFILE_EDGES reordered — the top long
+ *  edge (DEFAULT_PROFILE_EDGE) first, as before, then the other top sides, then the bottom's in the same order: by face,
+ *  then the default's run dimension, then its side, each matching the default first (a stable sort). */
+const PRESET_EDGES: readonly ProfileEdge[] = [...PROFILE_EDGES].sort((a, b) => {
+  const rank = (e: ProfileEdge) => [e.vFrom !== DEFAULT_PROFILE_EDGE.vFrom, e.through !== DEFAULT_PROFILE_EDGE.through, e.uFrom !== DEFAULT_PROFILE_EDGE.uFrom];
+  const ra = rank(a), rb = rank(b);
+  for (let i = 0; i < 3; i += 1) if (ra[i] !== rb[i]) return ra[i] ? 1 : -1;
+  return 0;
+});
 type RunKind = 'through' | 'stopped';
 const RUN_LABEL: Record<RunKind, string> = { through: 'End to end', stopped: 'Stopped' };
 /** The refusal for a profile fault an edit would ADD (P12). */
@@ -240,16 +251,22 @@ export function Profiles({ board: stored }: { board: Board }) {
     return holeRefusal(board, after) === null;
   };
   const rows = stored.profiles;
-  const items = PROFILE_KINDS.flatMap((kind) => {
-    const c = defaultProfile(board, kind);
-    const d = profileFields(c);
-    if (!d || !fits(c)) return [];
-    const size = kind === 'ogee' ? f(d.size)
-      : kind === 'thumbnail' ? `${f(d.size)} × ${f(d.depth!)}`
-      : kind === 'bead' ? `${f(d.size)} radius, ${f(d.fillet!)} quirk`
-      : `${f(d.size)} radius`;
-    return [{ label: KIND_LABEL[kind], detail: `${size}, on the top long edge`, run: () => addProfiles(stored.id, [profileOf(c)!]) }];
-  });
+  // Each kind on the FIRST preset edge its default fits (spec I1); withheld only when none does. Judged once per stored part
+  // and units, not per render (a resize drag renders every frame; up to 8 edges × 5 kinds).
+  const items = useMemo(() => PROFILE_KINDS.flatMap((kind) => {
+    for (const edge of PRESET_EDGES) {
+      const c = defaultProfile(board, kind, edge);
+      const d = profileFields(c);
+      if (!d || !fits(c)) continue;
+      const size = kind === 'ogee' ? f(d.size)
+        : kind === 'thumbnail' ? `${f(d.size)} × ${f(d.depth!)}`
+        : kind === 'bead' ? `${f(d.size)} radius, ${f(d.fillet!)} quirk`
+        : `${f(d.size)} radius`;
+      const where = `${FACE_LABEL[edge.vFrom]} · ${sideLabel(sideOfEdge(edge))}`;
+      return [{ label: KIND_LABEL[kind], detail: `${size}, ${where}`, run: () => addProfiles(stored.id, [profileOf(c)!]) }];
+    }
+    return [];
+  }), [stored, units, addProfiles]); // eslint-disable-line react-hooks/exhaustive-deps -- board, f and fits derive from stored and units
   return (
     <>
       <h3>Profiles{rows.length > 0 && <span className="h3-count"> · {rows.length}</span>}</h3>
