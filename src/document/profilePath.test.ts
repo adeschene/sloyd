@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { faceOutline, isSwept, profilePath, sideStretch, builtPath, judgedPath, stationPoint, stopZone, throughConsistent, type PathEnd, type StationPoint } from './profilePath';
-import { apronArch, topCorners, frontOnly, notchEdge, endToEnd, loop, stopped, straightTopLong, plainLoop, stopOnCorner, stopOnArch, frontAndEnds, twoSideSharp, chiralTwoSide } from './sweepFixtures';
+import { apronArch, topCorners, frontOnly, notchEdge, endToEnd, loop, stopped, straightTopLong, plainLoop, stopOnCorner, stopOnArch, frontAndEnds, twoSideSharp, chiralTwoSide, bowFront, twoSide } from './sweepFixtures';
 import { createBoard } from './document';
 import { archCurve, bowCurve, cornerCurve, curveOutline, twiceArea, CURVE_TOLERANCE } from './curves';
 import { migrateDocument, createDocument } from './document';
-import type { Board, ProfileCut, ProfileEnd } from './types';
-import { mirrorProfile, profileFaults } from './profiles';
+import type { Board, ProfileCut, ProfileEnd, ProfileSide } from './types';
+import { mirrorProfile, profileFaults, reachDepth } from './profiles';
 import { mirrorPart } from './frames';
-import { planChain } from './skeleton';
+import { pathSkeleton, planChain } from './skeleton';
 import type { P2 } from './curves';
 
 const pts = (o: NonNullable<ReturnType<typeof faceOutline>>) => o.chords.map((c) => c.a);
@@ -539,7 +539,7 @@ describe('b2: stops and two-side paths', () => {
     expect(throughConsistent(onMin)).toBe(true);
     expect(throughConsistent({ ...onMin, run: { ...onMin.run, start: { side: W_MIN, through: 'min' as const } } })).toBe(false);
   });
-  it('the zone never crosses a stop\'s ends: a short stop wholly inside one chord\'s end zone builds no path (Q13)', () => {
+  it('the zone snaps only to a vertex strictly inside the walk: a short stop wholly inside one chord\'s end zone keeps its typed ends (Q13; review I2)', () => {
     const b0 = stopOnCorner(), o = faceOutline(b0)!;
     const prev = o.chords.map((c, i) => ({ c, i })).filter(({ c }) => c.curve === 'cminmin')[5]!;
     const limit = stopZone(o, { chord: prev.i, t: 0, at: prev.c.a }, true, 0.25);
@@ -547,8 +547,28 @@ describe('b2: stops and two-side paths', () => {
     const x = (k: number) => prev.c.a[0] + (1 - (k * limit) / l) * (prev.c.b[0] - prev.c.a[0]);
     const p = { ...b0.profiles[0]!, run: { start: { side: W_MIN, from: 'min' as const, at: x(0.5) }, end: { side: { ...W_MIN }, from: 'min' as const, at: x(0.25) } } };
     const b = { ...b0, profiles: [p] };
-    expect(profilePath(b, p)!.cover).toHaveLength(1);   // the typed run: one piece of one chord
-    expect(builtPath(b, p)).toBeNull();   // its start would move past its stop and walk round the outline
+    const typed = profilePath(b, p)!;
+    expect(typed.cover).toHaveLength(1);   // one piece of one chord: no path vertex to swallow
+    expect(builtPath(b, p)).toEqual(typed);
+    expect(judgedPath(b, p)).toEqual(typed);
+  });
+  it('bowFront 29.8 → 29.95 (the Bow preset, review I2): both ends in the bow-to-end corner\'s zone, yet it builds as typed', () => {
+    const p = stopped('p1', W_MIN, 29.8, 29.95), b = { ...bowFront, profiles: [p] }, o = faceOutline(b)!;
+    const typed = profilePath(b, p)!;
+    expect(typed.cover).toHaveLength(1);
+    expect(o.chords[typed.cover[0]!.chord]!.curve).toBe('c1');
+    const sp = stationPoint(b, o, W_MIN, 29.95)!;
+    expect((1 - sp.t) * Math.hypot(o.chords[sp.chord]!.b[0] - o.chords[sp.chord]!.a[0], o.chords[sp.chord]!.b[1] - o.chords[sp.chord]!.a[1]))
+      .toBeLessThan(stopZone(o, sp, true, 0.25));   // inside the zone: before the fix the snap crossed the ends
+    expect(builtPath(b, p)).toEqual(typed);
+    expect(judgedPath(b, p)).toEqual(typed);
+    const chain = planChain(b, builtPath(b, p)!, 'max')!;
+    expect(pathSkeleton(chain.chords, chain.loop, reachDepth(p)[0], chain.rays)).not.toBeNull();   // the band exists
+  });
+  it('a two-side stop straddling a vertex the path passes, both ends in its zone: typed path, no built or judged path (Q13; Task 3: too-tight)', () => {
+    const p = twoSide('p1', W_MIN, 29.85, L_MAX, 0.15), b = createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [p] });
+    expect(profilePath(b, p)!.cover).toHaveLength(2);
+    expect(builtPath(b, p)).toBeNull();
     expect(judgedPath(b, p)).toBeNull();
   });
   it('stopZone: zero at a concave vertex (an arch: nothing to swallow), reach·tan(φ/2) at a convex one, from either end', () => {
@@ -586,6 +606,74 @@ describe('b2: stops and two-side paths', () => {
     const q = { ...p, face: 'min' as const };
     const mc = planChain(b, builtPath(b, q)!, 'min')!;
     expect(mc.stations.map((x) => x.stop!.end)).toEqual(['hi', 'lo']);   // plan start is the face-frame end 1
+  });
+  it('a stop on the arc chord holding a B1a mitre point keeps its own extent; past the mitre point it takes no mitre (review I1)', () => {
+    // 3/4" corners: an odd chord count, so the arc's true midpoint lies INSIDE its middle chord.
+    const mk = (start: ProfileEnd, end: ProfileEnd, nb: ProfileSide) =>
+      createBoard({ ...topCorners(0.75), profiles: [{ ...endToEnd('a', W_MIN), run: { start, end } }, endToEnd('l', nb)] });
+    const o = faceOutline(topCorners(0.75))!;
+    const mid = (id: string) => { const arc = o.chords.map((c, i) => ({ c, i })).filter(({ c }) => c.curve === id); expect(arc.length % 2).toBe(1); return arc[(arc.length - 1) / 2]!; };
+    const at = (c: { a: P2; b: P2 }, t: number) => c.a[0] + t * (c.b[0] - c.a[0]);
+    // The END corner (cmaxmin) beside an End to end on the length max end: Start on its middle chord.
+    const k = mid('cmaxmin');
+    const before = mk({ side: W_MIN, from: 'min', at: at(k.c, 0.25) }, { side: { ...W_MIN }, through: 'max' }, L_MAX);
+    const pb = profilePath(before, before.profiles[0]!)!;
+    expect(pb.cover).toHaveLength(1);
+    expect(pb.cover[0]!.chord).toBe(k.i);
+    expect(pb.cover[0]!.t0).toBeCloseTo(0.25, 12); expect(pb.cover[0]!.t1).toBeCloseTo(0.5, 9);
+    expect(pb.ends![0]!.kind).toBe('stop'); expect(pb.ends![1]!.kind).toBe('mitre');
+    expect((pb.ends![0] as { at: P2 }).at).toEqual(pb.chords[0]!.a);   // the end and the path agree
+    expect(pb.chords[0]!.a[0]).toBeCloseTo(at(k.c, 0.25), 12);
+    const past = mk({ side: W_MIN, from: 'min', at: at(k.c, 0.75) }, { side: { ...W_MIN }, through: 'max' }, L_MAX);
+    const pp = profilePath(past, past.profiles[0]!)!;
+    expect(pp.cover[0]).toEqual({ chord: k.i, t0: pp.cover[0]!.t0, t1: 1 });
+    expect(pp.cover[0]!.t0).toBeCloseTo(0.75, 12);
+    expect(pp.ends!.map((e) => e.kind)).toEqual(['stop', 'station']);   // no mitre: the run starts past the mitre point
+    expect(profileFaults(past, past.profiles[0]!)).toContainEqual({ kind: 'overlap', other: 'l' });
+    // The START corner (cminmin) beside an End to end on the length min end: Stop on its middle chord.
+    const j = mid('cminmin');
+    const after = mk({ side: W_MIN, through: 'min' }, { side: { ...W_MIN }, from: 'min', at: at(j.c, 0.75) }, L_MIN);
+    const pa = profilePath(after, after.profiles[0]!)!;
+    expect(pa.cover).toHaveLength(1);
+    expect(pa.cover[0]!.t0).toBeCloseTo(0.5, 9); expect(pa.cover[0]!.t1).toBeCloseTo(0.75, 12);
+    expect(pa.ends!.map((e) => e.kind)).toEqual(['mitre', 'stop']);
+    expect((pa.ends![1] as { at: P2 }).at).toEqual(pa.chords[0]!.b);
+    const short = mk({ side: W_MIN, through: 'min' }, { side: { ...W_MIN }, from: 'min', at: at(j.c, 0.25) }, L_MIN);
+    const ps = profilePath(short, short.profiles[0]!)!;
+    expect(ps.ends!.map((e) => e.kind)).toEqual(['station', 'stop']);   // the run stops before the mitre point
+    expect(ps.cover[ps.cover.length - 1]!.t1).toBeCloseTo(0.25, 12);
+  });
+  it('a two-side walk never comes back onto a side it left (Q16, review M-d): Start after Stop on a shared corner arc is no path', () => {
+    const p = twoSide('p1', L_MIN, 1, W_MIN, 0.1), b = topCorners(2, p), o = faceOutline(b)!;
+    const a = stationPoint(b, o, L_MIN, 1)!, z = stationPoint(b, o, W_MIN, 0.1)!;
+    expect([o.chords[a.chord]!.curve, o.chords[z.chord]!.curve]).toEqual(['cminmin', 'cminmin']);   // both on the shared arc
+    expect(profilePath(b, p)).toBeNull();
+    expect(profilePath(b, { ...p, face: 'min' })).not.toBeNull();   // seen from below the same ends are a short run on the arc
+    // its mirror image on the other face reads the same: Stop's side ahead of Start's
+    const q = twoSide('q', W_MIN, 0.1, L_MIN, 1), qb = topCorners(2, q);
+    expect(profilePath(qb, { ...q, face: 'min' })).toBeNull();
+    expect(profilePath(qb, q)!.cover.every((c) => o.chords[c.chord]!.curve === 'cminmin')).toBe(true);
+    // each half of the rule alone: the walk comes back onto Start's side ahead (its shared arc), or onto Stop's behind
+    expect(profilePath(b, twoSide('f', W_MIN, 10, L_MIN, 1))).toBeNull();    // ends on cminmin, which the front's stretch holds
+    expect(profilePath(b, twoSide('g', W_MIN, 0.1, L_MIN, 10))).toBeNull();   // starts on cminmin, which the end's stretch holds
+    // two sides between Start and Stop (Q21's `<side> and <side>`) never re-enter either: allowed
+    expect(profilePath(b, twoSide('h', W_MIN, 10, L_MIN, 10))).not.toBeNull();
+    // three sides are fine: the front at 10, round the length max end, to the back at 20
+    expect(profilePath(twoSideSharp, twoSide('t', W_MIN, 10, { across: 'width', from: 'max' }, 20))).not.toBeNull();
+  });
+  it('a two-side Stop at its stretch\'s FIRST vertex ends on the run-side chord (Q11, review M-a)', () => {
+    const p = twoSide('p1', W_MIN, 20, L_MAX, 0), b = createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [p] });
+    const path = profilePath(b, p)!;
+    expect(path.cover).toHaveLength(1);
+    expect(path.chords[0]!.b).toEqual([30, 0]);
+    expect(path.ends![1]).toEqual({ kind: 'stop', at: [30, 0], tangent: [1, 0], normal: [0, 1], side: L_MAX });
+  });
+  it('two ends at one point have no path (Q16, review M-b)', () => {
+    const plain = createBoard({ length: 30, width: 10, thickness: 0.75 });
+    const one = stopped('p1', W_MIN, 10, 10);
+    expect(profilePath({ ...plain, profiles: [one] }, one)).toBeNull();
+    const two = twoSide('p2', W_MIN, 30, L_MAX, 0);   // the front's end and the length max end's start: the corner (30, 0)
+    expect(profilePath({ ...plain, profiles: [two] }, two)).toBeNull();
   });
   it('mirroring a two-side run (Q20, inv 44): the mirrored part\'s path is the mirror image of the original\'s', () => {
     const b = chiralTwoSide('flat');

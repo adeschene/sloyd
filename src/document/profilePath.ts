@@ -355,15 +355,21 @@ function mitre(pieces: Piece[], corner: number[], atStart: boolean, outline: Fac
   // agree bit for bit.
   if (near(at, ch.a)) at = ch.a;
   else if (near(at, ch.b)) at = ch.b;
+  // The piece split keeps its OWN other end (b2: a stop's trimmed piece, I1 of the b2 Task 2 review); an End to end piece is
+  // the whole outline chord, so this is b1's split exactly. A run that never reaches `at` (its stop lies before the mitre
+  // point) takes no mitre: the end falls back to B1's station, and the two runs' overlap is judged as such (Q19).
+  const own = pieces[pos]!;
   let out: Piece[];
   if (atStart) {
     if (near(at, ch.b)) out = pieces.slice(pos + 1);
     else if (near(at, ch.a)) out = pieces.slice(pos);
-    else out = [{ chord: { ...ch, a: at }, index: k, t0: tat, t1: 1 }, ...pieces.slice(pos + 1)];
+    else if (!(own.t1 > tat)) return null;
+    else out = [{ chord: { ...own.chord, a: at }, index: k, t0: tat, t1: own.t1 }, ...pieces.slice(pos + 1)];
   } else {
     if (near(at, ch.a)) out = pieces.slice(0, pos);
     else if (near(at, ch.b)) out = pieces.slice(0, pos + 1);
-    else out = [...pieces.slice(0, pos), { chord: { ...ch, b: at }, index: k, t0: 0, t1: tat }];
+    else if (!(own.t0 < tat)) return null;
+    else out = [...pieces.slice(0, pos), { chord: { ...own.chord, b: at }, index: k, t0: own.t0, t1: tat }];
   }
   if (out.length === 0) return null;
   const end = atStart ? out[0]!.chord : out[out.length - 1]!.chord;
@@ -506,10 +512,12 @@ export function throughConsistent(p: ProfileCut): boolean {
 /**
  * The b2 path (B2, B3, Q11–Q17): a run that is neither a loop nor End to end — a station run on one side, or a run whose ends
  * lie on two sides — in PLAN order (the caller reverses it for face min). Each station sits on the model chords (Q11; on a
- * vertex, the run-side chord); under `build` or `snap` one inside its end-chord zone moves to the next vertex inward (Q13: the
- * run shortened, never lengthened). A `through` end at a corner treats it as End to end does (B1, B1a widened by Q18).
+ * vertex, the run-side chord); under `build` or `snap` one inside its end-chord zone moves to the next vertex inward when
+ * that vertex lies strictly inside the walk (Q13: the run shortened, never lengthened). A `through` end at a corner treats it as End to end does (B1, B1a widened by Q18).
  * Null when an end cannot be placed (a station off its stretch, a stretch that cannot be traced, an inconsistent through end),
- * the two ends are one point (Q16), or the zone would cross them.
+ * the two ends are one point (Q16), a two-side walk would come back onto a side it left (Q16: at most three sides), or —
+ * built or judged only — the zone moves both ends onto one vertex (the fault path then exists: Task 3 maps that to
+ * too-tight).
  */
 function stopRun(board: PathBoard, outline: FaceOutline, p: ProfileCut, opts?: Opts): ProfilePath | null {
   if ('loop' in p.run) return null;
@@ -525,38 +533,51 @@ function stopRun(board: PathBoard, outline: FaceOutline, p: ProfileCut, opts?: O
   const [ps, pe] = p.face === 'max' ? [run.start, run.end] : [run.end, run.start];
   const pt = (i: number, t: number): P2 => { const c = outline.chords[i]!; return t === 0 ? c.a : t === 1 ? c.b : [c.a[0] + t * (c.b[0] - c.a[0]), c.a[1] + t * (c.b[1] - c.a[1])]; };
   type Pos = { chord: number; t: number };
-  const typed: Pos[] = [];
+  // The typed station (Q11: on a vertex, the run-side chord).
   const station = (e: Extract<ProfileEnd, { at: number }>, first: boolean): Pos | null => {
     const sp = stationPoint(board, outline, e.side, endPos(board, e));
     if (!sp) return null;
-    let pos: Pos = { chord: sp.chord, t: sp.t };
-    // Q11: on a vertex, the run-side chord.
-    if (first && pos.t === 1) pos = { chord: (pos.chord + 1) % m, t: 0 };
-    if (!first && pos.t === 0) pos = { chord: (pos.chord - 1 + m) % m, t: 1 };
-    typed.push(pos);
-    // Q13 (build and the skeleton's judgement only): inside the end-chord zone, built at the next vertex inward.
-    if (opts?.build || opts?.snap) {
-      const c = outline.chords[pos.chord]!, l = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]);
-      if ((first ? 1 - pos.t : pos.t) * l < stopZone(outline, { ...pos, at: pt(pos.chord, pos.t) }, first, reach)) {
-        pos = first ? { chord: (pos.chord + 1) % m, t: 0 } : { chord: (pos.chord - 1 + m) % m, t: 1 };
-      }
-    }
-    return pos;
+    if (first && sp.t === 1) return { chord: (sp.chord + 1) % m, t: 0 };
+    if (!first && sp.t === 0) return { chord: (sp.chord - 1 + m) % m, t: 1 };
+    return { chord: sp.chord, t: sp.t };
   };
   const s0 = 'through' in ps ? sideStretch(board, outline, ps.side) : null;
   const s1 = 'through' in pe ? sideStretch(board, outline, pe.side) : null;
   if (('through' in ps && !s0) || ('through' in pe && !s1)) return null;
-  const a = 'through' in ps ? { chord: s0!.from, t: 0 } : station(ps, true);
-  const b = 'through' in pe ? { chord: s1!.to, t: 1 } : station(pe, false);
+  let a = 'through' in ps ? { chord: s0!.from, t: 0 } : station(ps, true);
+  let b = 'through' in pe ? { chord: s1!.to, t: 1 } : station(pe, false);
   if (!a || !b) return null;
-  const A = pt(a.chord, a.t), B = pt(b.chord, b.t);
-  if (Math.hypot(A[0] - B[0], A[1] - B[1]) <= EPS) return null;   // Q16: the two ends one point
-  // The walk from a to b, in chords passed (a run within one chord forward: 0; one wrapping round to its own chord: m).
+  if (Math.hypot(pt(a.chord, a.t)[0] - pt(b.chord, b.t)[0], pt(a.chord, a.t)[1] - pt(b.chord, b.t)[1]) <= EPS) return null;   // Q16: the two ends one point
+  // The chords the walk passes from a to b (a run within one chord forward: 0; one wrapping round to its own chord: m).
   const walk = (x: Pos, y: Pos) => (x.chord === y.chord ? (x.t < y.t ? 0 : m) : (y.chord - x.chord + m) % m);
-  if (typed.length > 0) {
-    // The zone only ever shortens the run: a start moved past its stop would otherwise walk round the whole outline.
-    const ta = 'through' in ps ? a : typed[0]!, tb = 'through' in pe ? b : typed[typed.length - 1]!;
-    if (walk(a, b) > walk(ta, tb)) return null;
+  // Q16 made a rule (the b2 Task 2 review, M-d): a two-side run passes at most three sides, so its walk never comes back onto
+  // the side it left — Start's side ahead of it, or (read backwards) Stop's side behind it, so the rule is the same on either
+  // face. A Start after its Stop on a shared corner arc would otherwise wrap all four sides: stop-off.
+  if (!oneSide(run)) {
+    const walked: number[] = [];
+    for (let i = a.chord, k = 0; k <= walk(a, b); i = (i + 1) % m, k += 1) walked.push(i);
+    const reenters = (side: ProfileSide, order: number[]) => {
+      const t = sideStretch(board, outline, side);
+      if (!t) return false;
+      const on = new Set(stretchIndices(m, t));
+      let left = false;
+      for (const i of order) { if (!on.has(i)) left = true; else if (left) return true; }
+      return false;
+    };
+    if (reenters(ps.side, walked) || reenters(pe.side, walked.slice().reverse())) return null;
+  }
+  // Q13 (build and the skeleton's judgement only): a station inside its end-chord zone is built at the next vertex inward,
+  // and only at a vertex strictly INSIDE the walk (the b2 Task 2 review, I2): a run within one chord passes no vertex, so it
+  // keeps its typed ends (the band there has nothing to swallow). The two ends moved onto one vertex leave no path.
+  if ((opts?.build || opts?.snap) && walk(a, b) >= 1) {
+    const zoned = (x: Pos, first: boolean) => {
+      const c = outline.chords[x.chord]!, l = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]);
+      return (first ? 1 - x.t : x.t) * l < stopZone(outline, { ...x, at: pt(x.chord, x.t) }, first, reach);
+    };
+    const a1 = !('through' in ps) && zoned(a, true) ? { chord: (a.chord + 1) % m, t: 0 } : a;
+    const b1 = !('through' in pe) && zoned(b, false) ? { chord: (b.chord - 1 + m) % m, t: 1 } : b;
+    a = a1; b = b1;
+    if (Math.hypot(pt(a.chord, a.t)[0] - pt(b.chord, b.t)[0], pt(a.chord, a.t)[1] - pt(b.chord, b.t)[1]) <= EPS) return null;
   }
   const piece = (i: number, t0: number, t1: number): Piece => ({ chord: { ...outline.chords[i]!, a: pt(i, t0), b: pt(i, t1) }, index: i, t0, t1 });
   let pieces: Piece[] = [];
