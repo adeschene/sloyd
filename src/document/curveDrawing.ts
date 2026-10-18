@@ -3,6 +3,7 @@ import type { Board } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry, profileEdgeOf, smoothJoins, type BodyFace } from './bodies';
 import { geometryBoard, shapedPart, sweptProfiles } from './profiles';
+import { builtPath, type OutlineChord } from './profilePath';
 import { bodyPlanes } from './holes';
 import { toWorld } from './snapPoints';
 import type { Segment } from './cuts';
@@ -67,9 +68,14 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
       return Array.from({ length: n }, (_, j) => ({ arc: s, n, m, j, P: arcPoint(s, j / n), Q: arcPoint(s, (j + 1) / n), ui, vi, k, curve: c.id }));
     });
   });
+  const swept = sweptDrawing(board);
   const out: DrawEdge[] = edges.map(([P0, Q0]) => {
     const p = v3(P0);
     const q = v3(Q0);
+    // Profile runs b1 (Task 7): a line a swept profile's face holds is the profile's (Q5), and an along-path crease on a
+    // path ARC is a fine path on the true offset arc (B8). Never reached on a part with no swept profile.
+    const sw = swept?.(p, q);
+    if (sw) return sw;
     for (const ch of chords) {
       if (Math.abs(p[ch.k]! - q[ch.k]!) > 1e-9) continue;
       const a: P2 = [p[ch.ui]!, p[ch.vi]!];
@@ -111,6 +117,97 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
   }));
   memo.set(edges, frozen);
   return frozen;
+}
+
+/** Plan axes of a swept profile's path (profilePath: u = length, v = width) and its thickness axis. */
+const PLAN_U = 0, PLAN_V = 1, PLAN_K = 2;
+
+/**
+ * Profile runs b1 (Task 7; spec B8, Q5): the drawing edge for p→q when a SWEPT profile's face holds it, else null. Undefined
+ * for a part with no swept profile (curveDrawEdges is then chunk 1's, byte for byte).
+ * - The faces read are each swept profile's own: its section faces (`profileEdge` + `sweep`) and its B1 run-out faces
+ *   (`profileEdge` + `runout`), in stored profile order; the first profile whose face holds the edge owns it (`curve`).
+ * - An ALONG-PATH crease — p and q at one thickness, held by a section face whose path chord (`builtPath(...).chords[sweep]`,
+ *   the path the bodies are built from) is an arc chord, and parallel to that chord in plan — is a fine path: its nodes ON the
+ *   true arc offset by the crease's s (the outline arc's radius r moved by the crease line's distance from the chord line:
+ *   r − s for a convex arc, whose wood lies toward its centre, r + s for a concave one), at the crease's t, spaced by
+ *   DRAWING_CURVE_TOLERANCE over the whole arc (≤ DRAWING_CURVE_SEGMENTS_MAX), each model chord taking its share; p and q
+ *   stay where the model put them (Q4). Visibility is drawView's, on the model chord (invariant 47).
+ * - Any other held line (across the path, on an end face, a run-out's, or along a straight chord) is the model chord.
+ */
+function sweptDrawing(board: Board): ((p: V3, q: V3) => DrawEdge | null) | undefined {
+  const swept = sweptProfiles(board);
+  if (swept.length === 0) return undefined;
+  const order = new Map(swept.map((x, i) => [x.id, i]));
+  const faces = partGeometry(board).bodies.flatMap((b) => b.faces).flatMap((f) => {
+    const id = profileEdgeOf(f)?.curve;
+    const rank = id === undefined ? undefined : order.get(id);
+    return rank === undefined ? [] : [{ f, id: id!, rank }];
+  }).sort((a, b) => a.rank - b.rank);
+  if (faces.length === 0) return undefined;
+  const paths = new Map(swept.map((x) => [x.id, builtPath(board, x)]));
+  const angle = (x: P2, c: P2) => Math.atan2(x[1] - c[1], x[0] - c[0]);
+  const wrap = (a: number) => (a > Math.PI ? a - 2 * Math.PI : a < -Math.PI ? a + 2 * Math.PI : a);
+  const sweepOf = (ch: OutlineChord) => wrap(angle(ch.b, ch.arc!.c) - angle(ch.a, ch.arc!.c));
+  // Per arc (the chords of one path sharing a curve, centre and radius): its model chords and its whole sweep.
+  const share = new Map<OutlineChord, { n: number; total: number }>();
+  for (const path of paths.values()) {
+    if (!path) continue;
+    const groups = new Map<string, OutlineChord[]>();
+    for (const ch of path.chords) {
+      if (!ch.arc) continue;
+      const key = `${ch.curve}|${ch.arc.c[0]}|${ch.arc.c[1]}|${ch.arc.r}`;
+      groups.set(key, [...(groups.get(key) ?? []), ch]);
+    }
+    for (const g of groups.values()) {
+      const total = g.reduce((t, ch) => t + Math.abs(sweepOf(ch)), 0);
+      for (const ch of g) share.set(ch, { n: g.length, total });
+    }
+  }
+  const lineDist = (x: P2, a: P2, b: P2) => Math.abs((b[0] - a[0]) * (x[1] - a[1]) - (b[1] - a[1]) * (x[0] - a[0])) / Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return (p, q) => {
+    const held = faces.filter((x) => holds(x.f, p, q));
+    if (held.length === 0) return null;
+    const id = held[0]!.id;
+    const plain: DrawEdge = { p, q, curve: id };
+    if (Math.abs(p[PLAN_K] - q[PLAN_K]) > 1e-9) return plain;
+    const a: P2 = [p[PLAN_U], p[PLAN_V]];
+    const b: P2 = [q[PLAN_U], q[PLAN_V]];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (l <= 1e-9) return plain;
+    const path = paths.get(id);
+    for (const { f } of held) {
+      if (f.sweep === undefined || profileEdgeOf(f)!.curve !== id) continue;
+      const ch = path?.chords[f.sweep];
+      if (!ch?.arc) continue;
+      const cl = Math.hypot(ch.b[0] - ch.a[0], ch.b[1] - ch.a[1]);
+      // Along the chord in plan (an across-path line on a horizontal section face is not a crease along the arc).
+      if (Math.abs((b[0] - a[0]) * (ch.b[1] - ch.a[1]) - (b[1] - a[1]) * (ch.b[0] - ch.a[0])) > 1e-9 * l * cl) continue;
+      const { c, r } = ch.arc;
+      const R = r + lineDist(c, a, b) - lineDist(c, ch.a, ch.b);
+      const t0 = angle(ch.a, c);
+      const sweep = sweepOf(ch);
+      const { n, total } = share.get(ch)!;
+      // The whole arc's fine count at the drawing tolerance (curves.ts' arcChords rule, on the offset radius).
+      const step = DRAWING_CURVE_TOLERANCE >= 2 * R ? Math.PI : 2 * Math.acos(1 - DRAWING_CURVE_TOLERANCE / R);
+      const N = Math.min(DRAWING_CURVE_SEGMENTS_MAX, Math.max(1, Math.ceil(total / step - 1e-9)));
+      const m = Math.max(1, Math.min(Math.ceil(N / n), Math.floor(DRAWING_CURVE_SEGMENTS_MAX / n)));
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const param = (x: P2) => ((x[0] - a[0]) * dx + (x[1] - a[1]) * dy) / (l * l);
+      const nodes: P2[] = [];
+      for (let i = 1; i < m; i += 1) {
+        const th = t0 + (sweep * i) / m;
+        const x: P2 = [c[0] + R * Math.cos(th), c[1] + R * Math.sin(th)];
+        // Strictly inside the edge (a split edge keeps only its own nodes), so `at` runs 0 .. 1 and p, q stay first and last.
+        if (param(x) > 1e-12 && param(x) < 1 - 1e-12) nodes.push(x);
+      }
+      nodes.sort((x, y) => param(x) - param(y));
+      const lift = (x: P2): V3 => { const r3: V3 = [p[0], p[1], p[2]]; r3[PLAN_U] = x[0]; r3[PLAN_V] = x[1]; return r3; };
+      return { p, q, path: { pts: [p, ...nodes.map(lift), q], at: [0, ...nodes.map(param), 1], k: PLAN_K }, curve: id };
+    }
+    return plain;
+  };
 }
 
 /**
@@ -225,9 +322,13 @@ function worldDir(board: Board, n: readonly number[]): V3 {
  * counts as neither, and as in silhouetteLines a face exactly edge-on counts at both its edges — fu 386: the facet that
  * IS the outline then draws on screen through both). The model's facet edges, so drawn as model chords (P19). The join is
  * an edge of the wood, so no clip. Each carries silhouetteLines' lift (PROBE along each viewer-facing face's world outward
- * normal, invariant 47). Empty for a part with no stop. Built only through `toWorld` (invariant 44).
+ * normal, invariant 47). Empty for a part with no stop and no swept profile. Built only through `toWorld` (invariant 44).
+ * Profile runs b1 (Task 7): the same rule covers a SWEPT profile's joins (sweptEdges' `sweptSmoothPair`: its strips along
+ * and across the path, B1a's equal-section mitres, a strip against the part's own face at a tangent, its B1 run-outs), so
+ * the doubly curved surface round a corner arc outlines itself by a facet chain, and a straight stretch's tangent line
+ * turning from the view is its outline. A join is an edge of the built wood (the bodies' own faces), so it needs no clip.
  */
-export function runoutSilhouettes(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3; curve: string }[] {
+export function profileSilhouettes(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3; curve: string }[] {
   board = geometryBoard(board);
   const joins = smoothJoins(board);
   if (joins.length === 0) return [];
@@ -244,6 +345,9 @@ export function runoutSilhouettes(board: Board, toward: readonly number[]): { A:
   }
   return out;
 }
+
+/** a2's name for profileSilhouettes (profileDrawing.test reads it). */
+export const runoutSilhouettes = profileSilhouettes;
 
 /** PROBE along each WORLD outward normal that faces the viewer (strictly, by EDGE_ON); edge-on and away add nothing. */
 function liftOff(normals: readonly V3[], toward: readonly number[]): V3 {
@@ -327,12 +431,16 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
   const bodyFaces = sweptProfiles(board).length > 0 || board.curves.some((c) => { const sp = spanOf(c); return !!sp && (sp.stopLo || sp.stopHi); })
     ? partGeometry(board).bodies.flatMap((b) => b.faces) : [];
   const runout = bodyFaces.filter((f) => f.runout !== undefined);
+  // b1 (Task 7): a swept part's bodies, for the per-body clearance below.
+  const held = sweptProfiles(board).length > 0 ? heldBy(board, edges) : null;
+  const nt = new Map<readonly number[], number>();
+  const ntOf = (n: readonly number[]) => { let x = nt.get(n); if (x === undefined) { x = dot3(worldDir(board, n), toward); nt.set(n, x); } return x; };
   const adjacent = (p: readonly number[], q: readonly number[]) => bodyFaces.filter((f) => holds(f, p, q));
   const distToLine = (x: P2, a: P2, b: P2) => {
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     return Math.abs((b[0] - a[0]) * (x[1] - a[1]) - (b[1] - a[1]) * (x[0] - a[0])) / l;
   };
-  return edges.map((e) => {
+  return edges.map((e, i) => {
     const normals: V3[] = [];
     const add = (n: V3) => { if (!normals.some((m) => dot3(m, n) > 1 - 1e-12)) normals.push(n); };
     DIMENSION_ORDER.forEach((dim, j) => {
@@ -358,6 +466,19 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
       const held = runout.some((f) => holds(f, e.p, e.q));
       if (held) best = Math.max(0, ...adjacent(e.p, e.q).map((f) => dot3(worldDir(board, f.n), toward)).filter((x) => facing(x) > 0));
     }
+    // Profile runs b1 (Task 7): on a swept part the probe must clear EVERY body holding the edge that it leaves at once (one
+    // of its faces holding the edge faces the viewer), not only the most viewer-facing face: the band's convex pieces put a
+    // thin wedge under a crease (measured: a cove's reach crease at a corner the isometric looks along, its wedge's faces at
+    // n.toward 0.053 and 0.038 while the top face is at 0.577 — the top's lift left the probe inside the wedge's DRAW_EPS
+    // growth). Per body, its most viewer-facing holding face; over the bodies, the LEAST of those. A body none of whose
+    // holding faces faces the viewer hides the edge outright and asks for nothing.
+    if (held) {
+      for (const normals of held[i]!) {
+        let m = 0;
+        for (const n of normals) { const x = ntOf(n); if (facing(x) > 0 && x > m) m = x; }
+        if (m > 0 && (best === 0 || m < best)) best = m;
+      }
+    }
     if (best === 0) return undefined;
     const s = Math.min(LIFT_MAX, PROBE / best);
     return [toward[0]! * s, toward[1]! * s, toward[2]! * s] as V3;
@@ -366,6 +487,26 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
 
 /** Inches: a board-local point on a body face's plane, and inside its polygon (closed), for curveEdgeLifts' run-out faces. */
 const ON_FACE = 1e-7;
+const heldMemo = new WeakMap<readonly DrawEdge[], readonly (readonly (readonly number[])[])[][]>();
+/** For each drawing edge, per body holding it, the board-local normals of that body's faces holding it (`holds`):
+ *  view-independent, so memoised on the part's frozen drawing edges. A body's box prefilter skips the rest. */
+function heldBy(board: Board, edges: readonly DrawEdge[]): readonly (readonly (readonly number[])[])[][] {
+  const hit = heldMemo.get(edges);
+  if (hit) return hit;
+  const bodies = partGeometry(board).bodies.map((b) => {
+    const lo = [0, 1, 2].map((k) => Math.min(...b.faces.flatMap((f) => f.verts.map((v) => v[k]!))) - ON_FACE);
+    const hi = [0, 1, 2].map((k) => Math.max(...b.faces.flatMap((f) => f.verts.map((v) => v[k]!))) + ON_FACE);
+    return { faces: b.faces, lo, hi };
+  });
+  const out = edges.map((e) => bodies.flatMap((b) => {
+    for (let k = 0; k < 3; k++) if (Math.max(e.p[k]!, e.q[k]!) < b.lo[k]! || Math.min(e.p[k]!, e.q[k]!) > b.hi[k]!) return [];
+    const ns = b.faces.filter((f) => holds(f, e.p, e.q)).map((f) => f.n);
+    return ns.length > 0 ? [ns] : [];
+  }));
+  heldMemo.set(edges, out);
+  return out;
+}
+
 /** Does face f hold the edge p→q: both ends on its plane, the midpoint inside its polygon (closed within ON_FACE)? */
 function holds(f: BodyFace, p: readonly number[], q: readonly number[]): boolean {
   const v0 = f.verts[0]!;
