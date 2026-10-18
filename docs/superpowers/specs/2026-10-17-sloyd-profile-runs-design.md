@@ -180,9 +180,10 @@ profiles; a grain fix (fu 336).
   side)`, not §5's shorthand "the top"); its key `<name><fillet>, all round`. Bench lines list curves, then straight profiles,
   then swept, each in stored order.
   *Amended (implementation, b1)*: (1) an ASYMMETRIC swept profile (`profileAsymmetric`: ogee, bead, thumbnail, a filleted
-  roundover or cove) keeps chunk 1's facing words, before the fillet words as chunk 1 puts them: a loop facing the face reads
-  `, top on <the profiled face's name>`, one facing the edge `, top on the edge` (the outline's edge is no single named face);
-  an End to end run reads chunk 1's line as is, its facing words included. Keys carry no facing, as chunk 1's do. (2) An End
+  roundover or cove) LOOP facing the edge reads `, top on the edge` (the outline's edge is no single named face), before the
+  fillet words as chunk 1 puts its facing words; facing the face (the stored default, as for symmetric kinds) it adds no top
+  clause, since `all round <face>` already names the face; an End to end run reads chunk 1's line as is, its facing words
+  included. Keys carry no facing, as chunk 1's do. (2) An End
   to end run reads `, round the corner` when its stretch takes ONE corner arc and `, round the corners` for two; the key
   likewise.
 - **Q8 Diagrams:** a swept profile opens its face's thickness view and draws its inner offset line there, with its note.

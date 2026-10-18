@@ -146,16 +146,16 @@ export function sweptRun(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut)
 
 /**
  * A swept profile as a bench line (profile runs b1, Q7): THE one home (invariant 19). A loop reads `<name> all round
- * <face><top><fillet>` (the four-edge collapse's own face words); an asymmetric one (`profileAsymmetric`) names its top as
- * chunk 1 does, before the fillet — `, top on <the profiled face>`, or `, top on the edge` facing the edge, since the
- * outline's edge is no single named face (Q7 amended, implementation b1). An End to end run reads chunk 1's line (its facing
+ * <face><top><fillet>` (the four-edge collapse's own face words); an asymmetric one (`profileAsymmetric`) facing the EDGE
+ * names its top before the fillet, as chunk 1 does — `, top on the edge`, since the outline's edge is no single named face;
+ * facing the face (the stored default) it says nothing more, the face being named already (Q7 amended, implementation b1). An End to end run reads chunk 1's line (its facing
  * words included), plus `, round the corner(s)` when it takes corner arcs. A faulted one ends with its first fault (the
  * stored profile's, `viewProfileFaults`). `p` is the geometry view's copy (`view.profiles`).
  */
 export function sweptLine(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut, units: Units): string {
   const run = sweptRun(view, p);
   const face = faceName('thickness', p.face);
-  const top = profileAsymmetric(p) ? `, top on ${p.facing === 'edge' ? 'the edge' : face}` : '';
+  const top = profileAsymmetric(p) && p.facing === 'edge' ? ', top on the edge' : '';
   const base = 'loop' in p.run
     ? `${profileName(p, units)} all round ${face}${top}${filletWords(p, units)}`
     : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}`;

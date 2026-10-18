@@ -922,7 +922,7 @@ it('two ogee loops differing only in facing are two rows with different words (p
   const rows = list.groups.flatMap((g) => g.rows);
   expect(rows).toHaveLength(2);
   expect(rows.map((r) => r.setup.at(-1)).sort()).toEqual([
+    'Roman ogee 1/2" all round the thickness face (max side)',
     'Roman ogee 1/2" all round the thickness face (max side), top on the edge',
-    'Roman ogee 1/2" all round the thickness face (max side), top on the thickness face (max side)',
   ]);
 });
