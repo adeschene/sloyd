@@ -1,6 +1,6 @@
 import type { Board, Dimension } from './types';
 import { DIMENSION_ORDER } from './geometry';
-import { convexPieces, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPolygonClosed, spanOf, uvDims, type P2, type ViewCurve } from './curves';
+import { convexPieces, CURVE_EPS, distToSegment, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPolygonClosed, spanOf, uvDims, type P2, type ViewCurve } from './curves';
 
 /**
  * A stopped profile's run-outs (profile runs spec P9): THE one home of the router's run-out geometry. The band between the
@@ -161,4 +161,24 @@ export function profileWasteTester(board: Pick<Board, Dimension>, c: ViewCurve):
 /** The reach of a stop's run-out along the run: BEARING plus the section's widest s (P14). */
 export function runoutReach(board: Pick<Board, Dimension>, c: ViewCurve): number {
   return BEARING + Math.max(...profileSection(board, c).pts.map((q) => q[0]));
+}
+
+/**
+ * The stock probe's air (P3, invariant 16): waste, except ON the kept surface — a point within CURVE_EPS of an ARC edge of the
+ * section (in the band, or at (ρ − BEARING, t) beyond a stop) is stock. Straight sides, on the part's faces, stay air.
+ */
+export function profileAirTester(board: Pick<Board, Dimension>, c: ViewCurve): (p: V3) => boolean {
+  const f = sectionFrame(board, c);
+  const { pts, arc } = profileSection(board, c);
+  const span = spanOf(c);
+  const axes = { lo: span && span.stopLo ? runoutAxis(board, c, 'lo') : null, hi: span && span.stopHi ? runoutAxis(board, c, 'hi') : null };
+  return (p) => {
+    const s = f.uOut * (f.uEdge - p[f.iu]);
+    const t = f.vIn * (p[f.iv] - f.vFace);
+    const run = p[f.k];
+    const beyond = span && run < span.lo && axes.lo ? axes.lo : span && run > span.hi && axes.hi ? axes.hi : null;
+    const q: P2 = beyond ? [Math.hypot(run - beyond.run, p[f.iu] - beyond.u) - BEARING, t] : [s, t];
+    if (!inPolygonClosed(pts, q)) return false;
+    return !pts.some((a, i) => arc[i] && distToSegment(q, a, pts[(i + 1) % pts.length]!) <= CURVE_EPS);
+  };
 }

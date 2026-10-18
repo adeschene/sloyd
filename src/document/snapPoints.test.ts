@@ -959,4 +959,11 @@ describe('stopped profile snap points (profile runs a2, P17)', () => {
     expect(has(pts, [30, 0.75, 9.75]) || has(pts, [30, 0.5, 10])).toBe(false);
     expect(has(pts, [27, 0.75, 9.75], 'corner')).toBe(true);
   });
+  it('a stopped bullnose keeps the lattice edge-mid on its arc (inv 16, P3)', () => {
+    const b = createBoard({
+      id: 's', length: 30, width: 10, thickness: 0.75,
+      profiles: [{ id: 'p', face: 'max', kind: 'roundover', size: 0.375, fillet: 0, facing: 'face', run: { start: { side: { across: 'width', from: 'max' }, from: 'min', at: 3 }, end: { side: { across: 'width', from: 'max' }, from: 'max', at: 3 } } } as never],
+    });
+    expect(has(boardSnapPoints(b), [15, 0.375, 10])).toBe(true);
+  });
 });

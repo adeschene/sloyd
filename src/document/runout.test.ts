@@ -433,3 +433,27 @@ describe('a stopped profile: stock probe and hole faults (profile runs a2, Task 
     expect(curveFault(1.0)).toBeUndefined();
   });
 });
+
+describe('a point on a stopped profile\'s kept surface is stock (inv 16, P3; T4 fix 1)', () => {
+  const bull = () => stopped(spec('roundover', { size: 0.375 }));
+  // The section's arc vertex (s = 0, t = 3/8): length 15, width 10, thickness 0.375.
+  it('stockProbe: stock on the arc mid-band, air a hair inside the waste', () => {
+    const { b } = bull();
+    const probe = stockProbe(b);
+    expect(probe({ length: 15, width: W, thickness: 0.375 })).toBe(true);
+    expect(probe({ length: 15, width: W - 0.375, thickness: T })).toBe(true);
+    expect(probe({ length: 15, width: W - 1e-4, thickness: T - 1e-4 })).toBe(false);
+  });
+  it('stockProbe: stock on the arc inside the run-out (rho - 0.25 on the section arc)', () => {
+    const { b, c } = bull();
+    const probe = stockProbe(b);
+    // An interior vertex of the section's arc (s, t); at u = the side face, rho = sqrt(dr^2 + 0.25^2) = s + 0.25.
+    const sec = profileSection(b, c);
+    const [sv, tv] = sec.pts.find((q, i) => sec.arc[i] && sec.arc[(i + sec.pts.length - 1) % sec.pts.length] && q[0] > 0.05 && q[1] > 0.05)!;
+    const dr = Math.sqrt((sv + BEAR) ** 2 - BEAR ** 2);
+    const at = (rho: number) => ({ length: 3 - Math.sqrt(rho ** 2 - BEAR ** 2), width: W, thickness: T - tv });
+    expect(probe(at(sv + BEAR))).toBe(true);
+    expect(dr).toBeGreaterThan(0);
+    expect(probe(at(sv + BEAR - 1e-4))).toBe(false);
+  });
+});

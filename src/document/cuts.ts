@@ -1,7 +1,7 @@
 import { materialKind, type Board, type Cut, type Dimension, type Region, type Span } from './types';
 import { boardHoles, insideHole } from './holes';
 import { isAir, spanOf, uvDims, type ViewCurve } from './curves';
-import { profileWasteTester } from './runout';
+import { profileAirTester } from './runout';
 import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 import { geometryBoard } from './profiles';
@@ -293,7 +293,7 @@ export function stockProbe(board: Board): (p: Point) => boolean {
   // A stopped profile's waste is the band plus its run-outs (P9): its own independent test, hoisted once per curve.
   const air = board.curves.map((c) => {
     if (!spanOf(c)) return (p: Point) => { const [u, v] = uvDims(c.through); return isAir(board, c, [p[u], p[v]]); };
-    const waste = profileWasteTester(board, c as ViewCurve);
+    const waste = profileAirTester(board, c as ViewCurve);
     return (p: Point) => waste([p.length, p.width, p.thickness]);
   });
 
