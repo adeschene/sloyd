@@ -19,7 +19,9 @@ export interface FaceOutline { chords: OutlineChord[] }
 /** A side's stretch: the chord index range [from, to] (inclusive, may wrap), and how each end ends — at a sharp corner
  *  (the run goes out through the end face) or round a corner arc (B1: it stops at the far tangent point). */
 export interface Stretch { from: number; to: number; startEnd: 'sharp' | 'arc'; endEnd: 'sharp' | 'arc' }
-/** A run's path, in the FACE's frame: CCW as seen from outside `face` (the plan outline reversed for face `min`). */
+/** A run's path, in the FACE's frame: CCW as seen from outside `face` (the plan outline reversed for face `min`). In PLAN
+ *  coordinates a face-min path therefore runs CLOCKWISE: a chord's plan left normal points OUTWARD there (into the waste),
+ *  and the wood lies on its plan right. Take the inward side from the face, never from the plan left normal alone. */
 export interface ProfilePath { chords: OutlineChord[]; loop: boolean; ends?: [PathEnd, PathEnd] }
 /**
  * How an open path ends. `through`: at a sharp corner, out through the end face; `ray` runs along that end face INTO the
@@ -208,14 +210,16 @@ export function sideStretch(board: Pick<Board, Dimension>, outline: FaceOutline,
   type G = (typeof groups)[number];
   const along = (g: G, e: number) => g.S.has(e) && g.T.has(e);
   const belongs = (g: G) => along(g, E) || (g.S.has(prevEdge(E)) && g.T.has(nextEdge(E)) && !g.S.has(E) && !g.T.has(E));
-  const cornerIn = (g: G) => g.S.has(prevEdge(E)) && g.T.has(E) && !g.S.has(E) && !along(g, prevEdge(E));
-  const cornerOut = (g: G) => g.S.has(E) && g.T.has(nextEdge(E)) && !g.T.has(E) && !along(g, nextEdge(E));
+  // B1 speaks of corner ARCS: a corner chain of lines only (a clipped corner written as a curve) is a sharp end.
+  const hasArc = (g: G) => { for (let i = g.start; ; i = (i + 1) % n) { if (ch[i]!.arc) return true; if (i === g.end) return false; } };
+  const cornerIn = (g: G) => g.S.has(prevEdge(E)) && g.T.has(E) && !g.S.has(E) && !along(g, prevEdge(E)) && hasArc(g);
+  const cornerOut = (g: G) => g.S.has(E) && g.T.has(nextEdge(E)) && !g.T.has(E) && !along(g, nextEdge(E)) && hasArc(g);
   const groupAt: (G | undefined)[] = new Array(n).fill(undefined);
   for (const g of groups) for (let i = g.start; ; i = (i + 1) % n) { groupAt[i] = g; if (i === g.end) break; }
   const core = ch.map((c, i) => {
     const g = groupAt[i];
     if (g) return belongs(g);
-    return sharesEdge(edgesOf(c.a, L, W), edgesOf(c.b, L, W)) && edgesOf(c.a, L, W).has(E) && edgesOf(c.b, L, W).has(E);
+    return edgesOf(c.a, L, W).has(E) && edgesOf(c.b, L, W).has(E);
   });
   const runStarts = core.map((x, i) => x && !core[(i - 1 + n) % n]).map((x, i) => (x ? i : -1)).filter((i) => i >= 0);
   let from: number, to: number;
@@ -245,11 +249,21 @@ function stretchChords(outline: FaceOutline, s: Stretch): OutlineChord[] {
   return out;
 }
 
-function throughRay(into: P2, chord: OutlineChord): P2 {
-  const d: P2 = [chord.b[0] - chord.a[0], chord.b[1] - chord.a[1]];
+/**
+ * A through end's ray (the probe's `endRays`): the unit direction of the END FACE — the outline chord adjacent to the path's
+ * end vertex, pointing away from that vertex (`from` → `to`) — scaled by 1 / (n·u), n the plan left normal (inward on the
+ * CCW plan outline) of the path's end chord `pathChord`, so the end vertex moves 1 per unit of offset into the wood.
+ */
+function throughRay(from: P2, to: P2, pathChord: OutlineChord): P2 {
+  const e: P2 = [to[0] - from[0], to[1] - from[1]];
+  const le = Math.hypot(e[0], e[1]);
+  const u: P2 = [e[0] / le, e[1] / le];
+  const d: P2 = [pathChord.b[0] - pathChord.a[0], pathChord.b[1] - pathChord.a[1]];
   const l = Math.hypot(d[0], d[1]);
-  const k = 1 / Math.abs((-d[1] / l) * into[0] + (d[0] / l) * into[1]);
-  return [into[0] * k, into[1] * k];
+  const dot = (-d[1] / l) * u[0] + (d[0] / l) * u[1];
+  if (!(dot > EPS)) throw new Error('profilePath: the end face does not run into the wood');
+  const k = 1 / dot;
+  return [u[0] * k + 0, u[1] * k + 0];
 }
 
 /**
@@ -272,11 +286,13 @@ export function profilePath(board: Pick<Board, Dimension | 'curves'>, p: Profile
     const E = edgeOfSide(start.side);
     const chords = stretchChords(outline, s);
     const first = chords[0]!, last = chords[chords.length - 1]!;
+    const m = outline.chords.length;
+    const prior = outline.chords[(s.from - 1 + m) % m]!, next = outline.chords[(s.to + 1) % m]!;
     const e0: PathEnd = s.startEnd === 'sharp'
-      ? { kind: 'through', ray: throughRay(INWARD[E]!, first) }
+      ? { kind: 'through', ray: throughRay(prior.b, prior.a, first) }
       : { kind: 'station', at: first.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } };
     const e1: PathEnd = s.endEnd === 'sharp'
-      ? { kind: 'through', ray: throughRay(INWARD[E]!, last) }
+      ? { kind: 'through', ray: throughRay(next.a, next.b, last) }
       : { kind: 'station', at: last.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } };
     path = { chords, loop: false, ends: [e0, e1] };
   }

@@ -242,3 +242,70 @@ describe('fixtures load through the loader unchanged (all but the loop)', () => 
     });
   });
 });
+describe('through rays follow the real end face (review fix 1)', () => {
+  const unit = (a: readonly number[], b: readonly number[]) => { const d = [b[0]! - a[0]!, b[1]! - a[1]!]; const l = Math.hypot(d[0]!, d[1]!); return [d[0]! / l, d[1]! / l]; };
+  it('a bowed END face: the end ray runs along the bow\'s first chord, scaled by 1/(n·u) (≈ (0.375, 1))', () => {
+    const bow = { id: 'w', ...bowCurve({ through: 'thickness', along: 'width', side: 'max', span: 5, rise: 0.5 }) };
+    const b = createBoard({ length: 30, width: 5, thickness: 0.75, curves: [...apronArch.curves, bow], profiles: [apronArch.profiles[0]!] });
+    const o = faceOutline(b)!;
+    const p = profilePath(b, b.profiles[0]!)!;
+    expect(isSwept(b, b.profiles[0]!)).toBe(true);
+    const e = p.ends![1];
+    if (e.kind !== 'through') throw new Error('expected a through end');
+    const last = p.chords[p.chords.length - 1]!;
+    expect(last.b).toEqual([29.5, 0]);
+    const next = o.chords[(o.chords.indexOf(last) + 1) % o.chords.length]!;
+    expect(next.curve).toBe('w');
+    const u = unit(next.a, next.b);
+    expect(u[0]).toBeCloseTo(0.351, 3); expect(u[1]).toBeCloseTo(0.936, 3);
+    // the path's last chord runs +x, so n = (0, 1) and n·u = u[1]: ray = u / u[1]
+    expect(e.ray[0]).toBeCloseTo(u[0]! / u[1]!, 12); expect(e.ray[1]).toBeCloseTo(1, 12);
+    expect(e.ray[0]).toBeCloseTo(0.375, 2);
+  });
+  it('a bowed START face (length min): the start ray runs back along the bow\'s last chord, away from the corner', () => {
+    const bow = { id: 'w', ...bowCurve({ through: 'thickness', along: 'width', side: 'min', span: 5, rise: 0.5 }) };
+    const b = createBoard({ length: 30, width: 5, thickness: 0.75, curves: [...apronArch.curves, bow], profiles: [apronArch.profiles[0]!] });
+    const o = faceOutline(b)!;
+    const p = profilePath(b, b.profiles[0]!)!;
+    const s = p.ends![0];
+    if (s.kind !== 'through') throw new Error('expected a through end');
+    const first = p.chords[0]!;
+    expect(first.a).toEqual([0.5, 0]);
+    const prior = o.chords[(o.chords.indexOf(first) - 1 + o.chords.length) % o.chords.length]!;
+    expect(prior.curve).toBe('w');
+    const u = unit(prior.b, prior.a);   // from the corner up the end face
+    expect(u[0]).toBeLessThan(0); expect(u[1]).toBeGreaterThan(0.9);
+    expect(s.ray[0]).toBeCloseTo(u[0]! / u[1]!, 12); expect(s.ray[1]).toBeCloseTo(1, 12);
+    expect(s.ray[0]).toBeCloseTo(-0.375, 2);
+  });
+  it('an arch starting AT the corner: the start ray is the end face (0, 1) scaled by 1/cos of the arch chord (k ≠ 1)', () => {
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 0, span: 24, rise: 1.25 }) };
+    const b = createBoard({ length: 30, width: 5, thickness: 0.75, curves: [arch], profiles: [apronArch.profiles[0]!] });
+    const p = profilePath(b, b.profiles[0]!)!;
+    const s = p.ends![0];
+    if (s.kind !== 'through') throw new Error('expected a through end');
+    const first = p.chords[0]!;
+    expect(first.a).toEqual([0, 0]);
+    expect(first.curve).toBe('c1');
+    const d = unit(first.a, first.b);   // n = (−d1, d0); u = (0, 1); n·u = d0
+    expect(s.ray[0]).toBe(0);
+    expect(s.ray[1]).toBeCloseTo(1 / d[0]!, 12);
+    expect(s.ray[1]).toBeGreaterThan(1.005);
+  });
+});
+describe('a corner chain of lines only is a sharp end (review fix 2: B1 speaks of corner arcs)', () => {
+  it('a clipped (chamfered) corner written as a curve: the front ends sharp at (34, 0), its ray along the clip, ≈ (1, 1)', () => {
+    const clip = { id: 'k', through: 'thickness' as const, uFrom: 'max' as const, vFrom: 'min' as const, start: [0, 0] as [number, number],
+      segments: [{ type: 'line' as const, to: [2, 0] as [number, number] }, { type: 'line' as const, to: [0, 2] as [number, number] }, { type: 'line' as const, to: [0, 0] as [number, number] }] };
+    const b = createBoard({ length: 36, width: 20, thickness: 0.75, curves: [clip], profiles: [endToEnd('p', W_MIN)] });
+    const o = faceOutline(b)!;
+    const st = sideStretch(b, o, W_MIN)!;
+    expect([st.startEnd, st.endEnd]).toEqual(['sharp', 'sharp']);
+    const p = profilePath(b, b.profiles[0]!)!;
+    expect(p.chords.map((c) => [c.a, c.b])).toEqual([[[0, 0], [34, 0]]]);
+    expect(isSwept(b, b.profiles[0]!)).toBe(false);
+    const e = p.ends![1];
+    if (e.kind !== 'through') throw new Error('expected a through end');
+    expect(e.ray[0]).toBeCloseTo(1, 12); expect(e.ray[1]).toBeCloseTo(1, 12);
+  });
+});
