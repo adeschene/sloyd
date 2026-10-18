@@ -153,6 +153,10 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const ends = stopped ? [run0.start, run0.end].sort((a, b) => endPos(stored_, a) - endPos(stored_, b)) : null;
   const stationEdit = (which: 0 | 1, at: number): string | undefined => {
     const [lo, hi] = ends!;
+    // Final fix F3: a crossed (or meeting) entry is refused in the row's own words, as Depth and Reach are — canonicalRun
+    // would otherwise swap the ends silently and both fields would show numbers other than the ones typed.
+    if (which === 0 && at >= endPos(stored_, hi!)) return 'Start must be before the Stop';
+    if (which === 1 && at <= endPos(stored_, lo!)) return 'Stop must be after the Start';
     const station = (e: ProfileEnd, pos: number): ProfileEnd => (endPos(stored_, e) === pos ? e : { side: { ...e.side }, from: 'min', at: pos });
     const pair = which === 0 ? [station(lo!, at), hi!] : [lo!, station(hi!, at)];
     const next = { ...profileFromFields(normal(p)), run: canonicalRun(stored_, profile.face, { start: pair[0]!, end: pair[1]! }) };

@@ -461,6 +461,41 @@ describe('the stopped Profiles row (profile runs a2)', () => {
   });
 });
 
+// Final fix F3: a crossed station is refused in the row's own words (as Depth and Reach are), never silently swapped.
+describe('crossed stations (final fix F3)', () => {
+  const START = 'Start (from the length min end)';
+  const STOP = 'Stop (from the length min end)';
+  const shelf = () => createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+  const stopped3to27 = () => {
+    const b = shelf();
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    return { ...b, profiles: [{ id: 'p1', ...base, run: canonicalRun(b, 'max', { start: at(3), end: at(27) }) }] };
+  };
+  it('a Start past the Stop is refused, nothing stored', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open(b);
+    const el = await typeInto(user, START, '28');
+    expect(profiles()[0]).toEqual(b.profiles[0]);
+    expect(screen.getByText('Start must be before the Stop')).toBeInTheDocument();
+    expect(el).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(STOP)).toHaveValue('27"');
+  });
+  it('a Stop before the Start is refused, nothing stored; a Start AT the Stop too', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open(b);
+    await typeInto(user, STOP, '2');
+    expect(profiles()[0]).toEqual(b.profiles[0]);
+    expect(screen.getByText('Stop must be after the Start')).toBeInTheDocument();
+    await typeInto(user, START, '27');
+    expect(profiles()[0]).toEqual(b.profiles[0]);
+    expect(screen.getByText('Start must be before the Stop')).toBeInTheDocument();
+  });
+});
+
 describe('refusalFor reads the post-edit stored part (profile runs a2)', () => {
   const dims = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
   it('a stopped edit is judged on `after`: a plain next curve alone would be a full-length cut over the hole', () => {
