@@ -10,6 +10,7 @@ import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profiles';
 import { builtSwept, outlineCurves, sweptPieces, sweptRunouts, type SweptPiece } from './sweep';
 import type { CurveCut } from './types';
+import { sweptSmoothPair } from './sweptEdges';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
 export const BODY_EPS = 1e-9;
@@ -729,11 +730,20 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   const onSmooth = (o: V3, u: V3) => smoothOn(o, u).length > 0;
   const out: [V3, V3][] = [];
   const planes: { k: number; c: number }[] = [];
+  // Profile runs b1 (Task 6): a built swept profile's section faces, and every face on its BROAD face's plane, are left to
+  // bodyEdges (stage 2), which judges them with the swept rule (sweptEdges.ts): the outline of the broad face there is
+  // the offset line at the reach, a tangent line for a roundover (no edge, invariant 16) and a crease for a cove. Asked
+  // only of a part with a built swept profile, so every other part's edges are byte for byte what they were.
+  const swept = board.profiles.length > 0 ? builtSwept(board) : [];
+  const broad = swept.map((p) => (p.face === 'max' ? board.thickness : 0));
+  const skipPlane = (k: number, c: number) => k === 2 && broad.some((z) => Math.abs(z - c) <= BODY_EPS);
   for (const k of axes) {
     const groups: { c: number; pieces: V3[][] }[] = [];
     for (const f of faces) {
       if (Math.abs(Math.abs(f.n[k]!) - 1) > BODY_EPS) continue;
+      if (f.sweep !== undefined) continue;
       const c = f.verts[0]![k]!;
+      if (skipPlane(k, c)) continue;
       let g = groups.find((x) => Math.abs(x.c - c) <= BODY_EPS);
       if (!g) { g = { c, pieces: [] }; groups.push(g); }
       const wantPositive = f.n[k]! > 0;
@@ -766,7 +776,10 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
     const e = profileEdgeOf(f);
     return e ? [e.curve, e.a, e.b] : null;
   };
-  const smoothPair = stopped.size > 0
+  // A swept profile's station ends (B1) are a2's run-outs: their faces join the band's by a2's rule, keyed by the profile's
+  // id (its one-side curve's), the same section-edge index space as the band's (sweep.ts).
+  for (const p of swept) for (const c of sweptRunouts(board, p)) if (!stopped.has(c.id)) stopped.set(c.id, curveOutline(board, c).smooth);
+  const a2Pair = stopped.size > 0
     ? (a: BodyFace, b: BodyFace) => {
       if (a.runout === undefined && b.runout === undefined) return false;
       const ea = edgeOf(a), eb = edgeOf(b);
@@ -782,6 +795,8 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
       return false;
     }
     : undefined;
+  const sweptPair = sweptSmoothPair(board, swept);
+  const smoothPair = a2Pair && sweptPair ? (a: BodyFace, b: BodyFace) => a2Pair(a, b) || sweptPair(a, b) : a2Pair ?? sweptPair;
   for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins)) {
     const u = unit(sub(seg[1], seg[0]));
     if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));

@@ -239,7 +239,7 @@ export function runoutSilhouettes(board: Board, toward: readonly number[]): { A:
     const n1 = nOf(j.f1);
     const n2 = nOf(j.f2);
     if (facing(dot3(n1, toward)) * facing(dot3(n2, toward)) > 0) continue;
-    const curve = profileEdgeOf(j.f1)!.curve;
+    const curve = (profileEdgeOf(j.f1) ?? profileEdgeOf(j.f2))!.curve;
     out.push({ A: P(j.a), E: P(j.b), lift: liftOff([n1, n2], toward), curve });
   }
   return out;
