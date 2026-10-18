@@ -2,11 +2,13 @@ import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
-import { curveOutline, curvePlan, curveValues, smoothLines, spanOf, splitPieces, uvDims, type P2, type ViewCurve } from './curves';
+import { curveOutline, curvePlan, curveValues, smoothLines, spanOf, splitPieces, uvDims, type ViewCurve } from './curves';
 import { profileSection, runoutPieces } from './runout';
 import { DIMENSION_ORDER } from './geometry';
 import { unionOutline } from './outline';
+import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profiles';
+import { builtSwept, outlineCurves, sweptPieces, sweptRunouts, type SweptPiece } from './sweep';
 import type { CurveCut } from './types';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -25,8 +27,10 @@ const SMOOTH_NORMAL_EPS = 1e-7;
  *  reads it for smooth normals. `runout` marks a face on a stopped profile's run-out (profile runs P9): its curve is
  *  revolved there, not extruded. `profileEdge` (a stopped profile only, T6 fix 1) names the section-outline edges a cap
  *  lies on — `${curve}:${a}:${b}`, the first and last index of a collinear run of the profile section's outline edges,
- *  written only for an edge off the part's faces; built by `profileEdgeName` and read only through `profileEdgeOf`. */
-export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string }
+ *  written only for an edge off the part's faces; built by `profileEdgeName` and read only through `profileEdgeOf`. A SWEPT
+ *  profile's section face (profile runs b1, Q5) carries `profileEdge` (its profile id) and `sweep`, the index of the path
+ *  chord whose band it lies in (`profilePath`'s own order); sweep.ts's header is the tag contract. */
+export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number }
 
 /**
  * A convex piece of a part's remaining stock (angle-cuts spec §3.1): one pocket
@@ -76,7 +80,7 @@ function ring(points: V3[], n: V3): V3[] {
  * clipped body from an untouched one. A face lying on the plane is kept as is
  * and no cap is added (the plane is already a face).
  */
-function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string }): BodyFace[] {
+function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number }): BodyFace[] {
   const g = (p: V3) => dot(h.n, p) + h.d;
   const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
   if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
@@ -114,6 +118,7 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; c
       if (tag.curve !== undefined) capFace.curve = tag.curve;
       if (tag.runout !== undefined) capFace.runout = tag.runout;
       if (tag.profileEdge !== undefined) capFace.profileEdge = tag.profileEdge;
+      if (tag.sweep !== undefined) capFace.sweep = tag.sweep;
       out.push(capFace);
     }
   }
@@ -138,7 +143,15 @@ export function clipConvex(faces: BodyFace[], h: { n: V3; d: number }): BodyFace
  * `[]` (a part its cuts consumed) — BoardMesh draws invariant 21's ghost then.
  */
 export function boardBodies(board: Board): Body[] {
-  board = geometryBoard(board);
+  return buildBodies(geometryBoard(board));
+}
+
+/** TEST ONLY: `boardBodies` with the swept construction's test options (`events: false`: the notch regression). */
+export function boardBodiesForTest(board: Board, opts: { events?: boolean }): Body[] {
+  return buildBodies(geometryBoard(board), opts);
+}
+
+function buildBodies(board: Board, opts?: { events?: boolean }): Body[] {
   const cells = pocketCells(board);
   const planes = board.angleCuts.flatMap((c) => {
     const h = keptHalfSpace(board, c);
@@ -154,11 +167,18 @@ export function boardBodies(board: Board): Body[] {
     }
     if (faces.length >= 4) out.push({ box: faces === start ? r : null, faces });
   }
+  let bodies = out;
+  // Swept profiles (profile runs b1, Q3; sweep.ts): the curve-free cells (cuts and angle cuts applied) intersected with each
+  // built swept profile's pieces in stored order; the through-thickness curves the face outline carries are not applied
+  // again. A faulted swept profile builds nothing (Q6). A part with no built swept profile takes the path below unchanged.
+  const swept = board.profiles.length > 0 ? builtSwept(board) : [];
+  const skip = swept.length > 0 ? outlineCurves(board) : null;
+  for (const p of swept) bodies = sweepBodies(bodies, sweptPieces(board, p, opts));
   // Curves (curves spec §3.2): each curve's waste leaves every body convex — clipped by the chords' kept half-planes when
   // the wood left is convex (P6), else split along the waste's convex pieces. A body no curve reaches keeps its object,
   // so its `box` survives (invariant 48's box path). Caps on an arc chord carry the curve's id.
-  let bodies = out;
   for (const c of board.curves) {
+    if (skip && c.through === 'thickness' && skip.has(c.id)) continue;
     if (spanOf(c)) {
       const pieces = stoppedPieces(board, c);
       bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, c.id)
@@ -172,21 +192,45 @@ export function boardBodies(board: Board): Body[] {
       return faces.flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : []));
     });
   }
+  // A swept profile's station ends (B1): a2's run-out, revolved about the bit's axis beyond each station, subtracted.
+  for (const p of swept) {
+    for (const c of sweptRunouts(board, p)) {
+      const name = sectionEdgeNamer(profileSection(board, c).pts, p.id);
+      const pieces = runoutPieces(board, c).map((x) => ({ ...x, edge: x.edge.map(name) }));
+      bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, p.id)
+        .flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : [])));
+    }
+  }
   return bodies;
 }
 
-/** A cap's `profileEdge` (BodyFace): the curve's id and the first and last index [a, b] of the collinear run of section-
- *  outline edges it lies on. THE one builder; `profileEdgeOf` is its one parser. */
-export function profileEdgeName(curve: string, a: number, b: number): string {
-  return `${curve}:${a}:${b}`;
+/**
+ * Every body intersected with one swept profile's pieces (sweep.ts; Q3): a body INSIDE one piece (every plane leaves it the
+ * same array) keeps its object; otherwise its fragments with volume, one per piece it meets (band pieces first). The pieces
+ * tile the outline × the thickness, so a body no piece reaches is outside the outline — in a through-thickness curve's
+ * waste, never applied again — and is dropped. A piece whose plan box misses the body's is skipped.
+ */
+function sweepBodies(bodies: readonly Body[], pieces: readonly SweptPiece[]): Body[] {
+  const out: Body[] = [];
+  for (const body of bodies) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const f of body.faces) for (const p of f.verts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+    const frags: BodyFace[][] = [];
+    let whole = false;
+    for (const pc of pieces) {
+      if (pc.bb[0] > x1 + BODY_EPS || pc.bb[2] < x0 - BODY_EPS || pc.bb[1] > y1 + BODY_EPS || pc.bb[3] < y0 - BODY_EPS) continue;
+      let f = body.faces;
+      for (let k = 0; k < pc.planes.length && f.length; k += 1) f = clip(f, pc.planes[k]!, pc.tags[k]!);
+      if (f === body.faces) { whole = true; break; }
+      if (f.length >= 4 && bodyVolume({ box: null, faces: f }) > DISJOINT_VOLUME) frags.push(f);
+    }
+    if (whole) out.push(body);
+    else for (const f of frags) out.push({ box: null, faces: f });
+  }
+  return out;
 }
-/** `profileEdgeName`'s inverse: the curve id (which may itself hold a ':') and the run [a, b], or null for an untagged face. */
-export function profileEdgeOf(f: Pick<BodyFace, 'profileEdge'>): { curve: string; a: number; b: number } | null {
-  if (f.profileEdge === undefined) return null;
-  const parts = f.profileEdge.split(':');
-  const b = Number(parts.pop()), a = Number(parts.pop());
-  return { curve: parts.join(':'), a, b };
-}
+
+export { profileEdgeName, profileEdgeOf } from './sectionEdges';
 
 /** `edge` (stopped profiles only): per plane, the `profileEdge` its caps carry (`profileEdgeName`: the section-outline edge
  *  run it lies on, written only for an edge off the part's faces), or null. */
@@ -207,20 +251,8 @@ function stoppedPieces(board: Board, c: ViewCurve): Piece[] {
   const sec = profileSection(board, c);
   const m = sec.pts.length;
   // Collinear neighbouring edges lie on ONE plane, so one cap may cover parts of several (the ogee's inflection chords, cut
-  // by two pieces): an edge's name is its whole collinear run.
-  const dir = (j: number): P2 => { const p = sec.pts[j]!, q = sec.pts[(j + 1) % m]!; const l = Math.hypot(q[0] - p[0], q[1] - p[1]); return [(q[0] - p[0]) / l, (q[1] - p[1]) / l]; };
-  const collinear = (i: number, j: number) => { const x = dir(i), y = dir(j); return Math.abs(x[0] * y[1] - x[1] * y[0]) <= 1e-12 && x[0] * y[0] + x[1] * y[1] > 0; };
-  const name = (r0: [number, number] | null): string | null => {
-    if (!r0) return null;
-    const r: [number, number] = [r0[0], r0[1]];
-    for (let n = 0; n < m && collinear((r[0] - 1 + m) % m, r[0]) && (r[0] - 1 + m) % m !== r[1]; n += 1) r[0] = (r[0] - 1 + m) % m;
-    for (let n = 0; n < m && collinear(r[1], (r[1] + 1) % m) && (r[1] + 1) % m !== r[0]; n += 1) r[1] = (r[1] + 1) % m;
-    for (let j = r[0]; ; j = (j + 1) % m) {
-      const p = sec.pts[j]!, q = sec.pts[(j + 1) % m]!;
-      if (!((p[0] === 0 && q[0] === 0) || (p[1] === 0 && q[1] === 0))) return profileEdgeName(c.id, r[0], r[1]);
-      if (j === r[1]) return null;
-    }
-  };
+  // by two pieces): an edge's name is its whole collinear run (sectionEdgeNamer, shared with swept profiles).
+  const name = sectionEdgeNamer(sec.pts, c.id);
   const [u, v] = uvDims(c.through).map((d) => DIMENSION_ORDER.indexOf(d)) as [number, number];
   const o = curveOutline(board, c).pts;
   const bandEdge = (h: { n: V3; d: number }): string | null => {

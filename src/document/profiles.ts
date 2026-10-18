@@ -2,6 +2,7 @@ import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, Pro
 import { sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
 import { faceOutline, isSwept, profilePath, sideStretch, type FaceOutline, type OutlineChord } from './profilePath';
 import { BEARING } from './runout';
+import { pathSkeleton, planChain } from './skeleton';
 
 /**
  * Edge profiles (edge profiles spec, chunk 1): a full-length routed edge is a plain `CurveCut` running along the edge
@@ -360,8 +361,13 @@ export function profileFaults(board: FaultBoard, p: ProfileCut): ProfileFault[] 
   if (swept) {
     const [reach, depth] = reachDepth(p);
     const path = profilePath(stored, p);
-    if (!path || reach > Math.min(board.length, board.width) / 2 || depth > board.thickness) out.push({ kind: 'runs-off' });
-    if (path && path.chords.some((c) => c.arc && (c.arc.concave ? c.arc.r < BEARING : c.arc.r < reach))) out.push({ kind: 'too-tight' });
+    // b1 Task 3: a path whose plan chain cannot be built has no wood to build (runs-off); one whose skeleton swallows an
+    // END chord before the reach is too tight (the skeleton's null, never a throw).
+    const chain = path ? planChain(stored, path, p.face) : null;
+    const runsOff = !path || !chain || reach > Math.min(board.length, board.width) / 2 || depth > board.thickness;
+    if (runsOff) out.push({ kind: 'runs-off' });
+    const arcTight = !!path && path.chords.some((c) => c.arc && (c.arc.concave ? c.arc.r < BEARING : c.arc.r < reach));
+    if (arcTight || (!runsOff && !pathSkeleton(chain!.chords, chain!.loop, reach, chain!.rays))) out.push({ kind: 'too-tight' });
   }
   if (oneSide(p.run)) {
     const run = p.run;
