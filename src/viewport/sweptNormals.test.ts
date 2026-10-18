@@ -5,7 +5,7 @@ import { geometryBoard } from '../document/profiles';
 import { runoutNormal } from '../document/runout';
 import { spanOf } from '../document/curves';
 import { sweptNormals, sweptRunouts } from '../document/sweep';
-import { frontOnly, loop, topCorners } from '../document/sweepFixtures';
+import { apronArch, frontOnly, loop, topCorners } from '../document/sweepFixtures';
 import { bodyMesh } from './grainTiling';
 
 // Counts sweptNormals' builds (the real function runs): a2 fix F1's lesson, a per-call rebuild failed the perf guard.
@@ -241,6 +241,30 @@ describe('a bead\'s quirk WALL is a swept face, shaded smooth along the path (Ta
   });
 });
 
+describe('a CONCAVE path arc: the arched apron\'s band (Task 5 review minor 2)', () => {
+  // The arch (span 24, rise 1.25, from x = 3): radius R = (12² + 1.25²) / (2 · 1.25), centre (15, 1.25 − R), below the
+  // part — the arch bows into the wood, so the plan's inward direction points AWAY from the centre and s = d − R.
+  const board = apronArch;
+  const view = geometryBoard(board);
+  const normal = sweptNormals(view, view.profiles[0]!);
+  const Rc = (144 + 1.5625) / 2.5;
+  const c: [number, number] = [15, 1.25 - Rc];
+  const T = board.thickness;
+  it('every vertex on the arch\'s band (x in (5, 25)) has the roundover\'s normal turned by the radial direction out of the centre', () => {
+    let n = 0;
+    for (const f of sweptFaces(board)) {
+      if (!f.verts.every((v) => v[0] > 5 && v[0] < 25)) continue;
+      for (const v of f.verts) {
+        const d = Math.hypot(v[0] - c[0], v[1] - c[1]);
+        const inward: [number, number] = [(v[0] - c[0]) / d, (v[1] - c[1]) / d];
+        expect(dist(normal(f, v)!, roundover(d - Rc, T - v[2], inward, -1))).toBeLessThanOrEqual(1e-9);
+        n += 1;
+      }
+    }
+    expect(n).toBeGreaterThan(20);
+  });
+});
+
 describe('bodyMesh shades a swept face with its swept normals (profile runs b1)', () => {
   it('every mesh vertex strictly inside a corner band\'s roundover takes the swept roundover\'s normal (1e-5: Float32)', () => {
     // Clear of the corner's tangent points (10° and more inside its arc): only the corner's own chord bands' vertices.
@@ -277,6 +301,31 @@ describe('bodyMesh shades a swept face with its swept normals (profile runs b1)'
       expect(cand.some((w) => dist(unit(w), N) <= 1e-5), `${q} ${N}`).toBe(true);
       // Not flat: a run-out vertex's normal is not an axis direction.
       expect(Math.max(...N.map(Math.abs))).toBeLessThan(1 - 1e-3);
+      n += 1;
+    }
+    expect(n).toBeGreaterThan(4);
+  });
+});
+
+describe('a B1 station\'s run-out of a STRAIGHT section edge (a bead\'s quirk wall) shades as the revolved line (Task 5 review minor 3)', () => {
+  it('past the station the wall\'s mesh vertices take the cylinder\'s normal: horizontal, toward the bit\'s axis (1e-5: Float32)', () => {
+    // The bead 1/4" + 1/16" quirk End to end on the front: past each station the cutter revolves the quirk's wall (5/16" in,
+    // the top 1/16") about the bit's axis 1/4" outside the end side — a cylinder of radius 1/4 + 5/16 = 9/16.
+    const board = topCorners(2, { ...frontOnly.profiles[0]!, kind: 'bead', fillet: 1 / 16 });
+    const T = board.thickness;
+    const view = geometryBoard(board);
+    const stations = sweptRunouts(view, view.profiles[0]!).map((c) => spanOf(c)!.stopHi ? spanOf(c)!.hi : spanOf(c)!.lo);
+    const y0 = Math.max(...stations);   // both stations are on y = y0 (the two end sides)
+    let n = 0;
+    for (const { p: q, n: N } of meshPoints(board)) {
+      // The wall's own vertices: at its top or foot (it has no others), past the station, on the cylinder, and shaded
+      // across (a horizontal normal: the top's and the floor's are vertical). A flat sector's normal would miss the radial
+      // one by up to the sectors' half-angle (~0.12 rad at the corners of a face).
+      if (!(q[1] > y0 + 1e-3 && q[2] > T - 1 / 16 - 1e-6 && q[2] < T + 1e-6 && Math.abs(N[2]) < 0.5)) continue;
+      const ax: [number, number] = q[0] < board.length / 2 ? [-0.25, y0] : [board.length + 0.25, y0];
+      const rho = Math.hypot(q[0] - ax[0], q[1] - ax[1]);
+      if (Math.abs(rho - 9 / 16) > 1e-5) continue;
+      expect(dist(N, [(ax[0] - q[0]) / rho, (ax[1] - q[1]) / rho, 0]), `${q} ${N}`).toBeLessThanOrEqual(1e-5);
       n += 1;
     }
     expect(n).toBeGreaterThan(4);

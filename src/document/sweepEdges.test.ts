@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies';
 import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
@@ -291,6 +292,33 @@ const sweptEdgeCases: [string, Board][] = [
   ['the arched apron with a STRAIGHT roundover on its back edge (a chunk 1 curve beside the sweep)', { ...apronArch, profiles: [...apronArch.profiles, endToEnd('s', side('width', 'max'))] }],
 ];
 
+const BODIES: Record<string, string> = {
+  "a loop on a plain rectangle": '529d24865f5692f3',
+  "roundover 1/4 along the arched apron": '370090b7b0b24bfc',
+  "roundover 1/4 all round the 2\" corners": '7909e27177133619',
+  "roundover 1/4 all round the 1/2\" corners": 'fb7cf2c97e95ac6d',
+  "thumbnail 3/4 × 1/4 all round the 2\" corners": '29daa7df8f48528f',
+  "bead 1/4 (quirk 1/16) all round the 2\" corners": '221650c0373d5931',
+  "cove 3/8 all round the 2\" corners": 'f615e2efd823c5a5',
+  "cove 3/8 + 1/16 fillet all round the 2\" corners": 'c3e65b6bea3c413a',
+  "ogee 3/8 all round the 2\" corners": '738cbe00669907e6',
+  "ogee 3/8 all round the 2\" corners, facing the edge": '3d13b25e9565e11e',
+  "roundover 3/8 round the half-round notch": '7a76be35663f02c9',
+  "roundover 1/4 End to end on the front (B1 run-outs)": 'ce89bc1971398a5b',
+  "cove 3/8 End to end on the front (B1 run-outs)": '7d70ba817409d42d',
+  "roundover 1/4 End to end on the front of 1/2\" corners (B1, the largest extension)": 'cabec33bf028623d',
+  "bead 1/4 + 1/16 quirk End to end on the front (B1: the quirk past a station)": 'e362cf8b939e7792',
+  "a loop on face min, 1/2\" corners": 'f89576bf8267e184',
+  "loops on the top and the bottom (Review Focus 4)": 'adec8627a921ad5e',
+  "four End to ends mitred at the 2\" corners' middles (B1a)": '1243da2b3a06bc81',
+  "four End to ends mitred at the 3/4\" corners (B1a, odd chord count)": 'b8b930939492ed51',
+  "the loop over a dado and a chamfer (Review Focus 5)": '3c986dfdaf778951',
+  "the 2\" loop with a 35 mm hinge cup clear of the band": '7909e27177133619',
+  "apronArch mirrored along its length (mirrorPart)": 'ee069166b12e15fe',
+  "a chiral arched ogee, and mirrored (mirrorPart)": '1b4425b7eb6251cb',
+  "the chiral arched ogee mirrored": '7969a3986135cbfb',
+  "the arched apron with a STRAIGHT roundover on its back edge (a chunk 1 curve beside the sweep)": 'c07dee2d046105ab',
+};
 describe('the fast swept edges equal the reference, segments and joins (every swept fixture)', () => {
   it('the fixtures are what they claim: every swept profile built', () => {
     for (const [name, b] of sweptEdgeCases) expect(builtSwept(geometryBoard(b)).length, name).toBeGreaterThan(0);
@@ -308,6 +336,12 @@ describe('the fast swept edges equal the reference, segments and joins (every sw
     for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
     // boardEdges reads the fast path.
     expect(boardEdges(board).length).toBe(fast.length);
+  });
+  // The swept bodies themselves, byte for byte (Task 5 review minor 4: the lever-1 proof's harness, kept): any construction
+  // change must re-pin these knowingly. Hashes of today's bodies (fix round 1, f7719a5 + the stations' extension).
+  it.each(sweptEdgeCases)('%s: its bodies hash as pinned', (name, board) => {
+    const sha = createHash('sha256').update(JSON.stringify(boardBodies(board))).digest('hex').slice(0, 16);
+    expect(`${name}: ${sha}`).toBe(`${name}: ${BODIES[name]}`);
   });
 });
 
