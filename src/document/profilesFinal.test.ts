@@ -5,6 +5,7 @@ import type { Board, HoleRow, ProfileCut, ProfileSide } from './types';
 import { archCurve, cornerFields, curveFaults, defaultCorners } from './curves';
 import { defaultProfile, geometryBoard, profileAsCurve, profileFaults, profileOf, runsStraight, viewProfileFaults } from './profiles';
 import { builtSwept } from './sweep';
+import { apronArch, loop, topCorners } from './sweepFixtures';
 import { boardBodies } from './bodies';
 import { isSwept, profilePath } from './profilePath';
 import { drawView, FRONT, ISO, SIDE, TOP } from './drawing';
@@ -28,7 +29,7 @@ const corners = (r: number) => (['min', 'max'] as const).flatMap((u) => (['min',
 /** One part saved in a v18 file and loaded back. */
 const loaded = (part: Board): Board => migrateDocument(JSON.parse(JSON.stringify({
   version: 18, name: 'saved', units: 'imperial', stock: { kerf: 0.125 }, guides: [], boards: [part], instances: [], definitions: [], shapes: [], materials: [],
-}))).boards[0]!;
+}))).boards[0] as Board;
 const top = (r: number, profiles: ProfileCut[]) => createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: corners(r), profiles });
 
 describe('I2 (the controller\'s ruling): a station run claims only its straight side chords', () => {
@@ -108,7 +109,7 @@ const A2: Record<'top' | 'small', Record<string, string>> = {
 const tightTop = () => loaded(top(0.25, [e2e('p', side('width', 'min'), 0.375)]));
 const small = createBoard({ id: 'sm', name: 'Small', length: 10, width: 2, thickness: 0.75 });
 const smallCorners = (defaultCorners(small) ?? []).map((c, i) => ({ ...c, id: `k${i}` }));
-const tightSmall = () => loaded({ ...small, curves: smallCorners, profiles: [{ ...profileOf(defaultProfile({ ...small, curves: smallCorners }, 'thumbnail', DEFAULT_PROFILE_EDGE))!, id: 't' }] });
+const tightSmall = () => loaded({ ...small, curves: smallCorners, profiles: [{ ...profileOf(defaultProfile(small, 'thumbnail', DEFAULT_PROFILE_EDGE))!, id: 't' }] });
 
 describe('I1: an End to end too tight to follow its curve is built exactly as a2 built it', () => {
   it.each([['top', tightTop], ['small', tightSmall]] as const)('%s: swept-shaped, too tight as swept, clean as straight', (_n, make) => {
@@ -191,5 +192,32 @@ describe('I1 beside B1a (recorded for a ruling, not decided here)', () => {
     expect(runsStraight(view.curves.find((c) => c.id === 'f')!)).toBe(true);
     expect(profilePath(b, b.profiles[1]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'mitre']);
     expect(builtSwept(view).map((p) => p.id)).toEqual(['l']);
+  });
+});
+
+describe('M1: profile faults memoised with the geometry view', () => {
+  it('a stored part\'s view faults are computed once, frozen; a resized part (a new object) is judged afresh', () => {
+    const b = topCorners(2, loop('p1'));
+    const view = geometryBoard(b);
+    const vp = view.profiles[0]!;
+    const once = viewProfileFaults(vp);
+    expect(viewProfileFaults(vp)).toBe(once);
+    expect(Object.isFrozen(once)).toBe(true);
+    expect(profileFaults(b, b.profiles[0]!)).toBe(profileFaults(b, b.profiles[0]!));
+    const tight: Board = { ...b, curves: corners(0.2) };
+    expect(viewProfileFaults(geometryBoard(tight).profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    expect(once).toEqual([]);
+  });
+  it('a part with no view (a panel\'s trial edit) is never memoised', () => {
+    const b = topCorners(2, loop('p1'));
+    const trial: Board = { ...b, profiles: [...b.profiles] };
+    expect(profileFaults(trial, trial.profiles[0]!)).not.toBe(profileFaults(trial, trial.profiles[0]!));
+  });
+  it('the straight and judged faults are cached apart: a fallen-back End to end keeps too-tight for authoring', () => {
+    const b = tightTop();
+    const c = geometryBoard(b).curves.find((x) => x.id === 'p')!;
+    expect(viewProfileFaults(c)).toEqual([]);
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    expect(profileFaults(b, b.profiles[0]!, { straight: true })).toEqual([]);
   });
 });

@@ -11,7 +11,7 @@ import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, profileRefusal, refusalFor, optionReason } from './curveRefusal';
+import { holeRefusal, profileFaultsBefore, profileRefusal, refusalFor, optionReason } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
@@ -196,11 +196,13 @@ export function Curves({ board }: { board: Board }) {
   // ADD to a profile on the part (profile runs b1) — is withheld, not added and refused (the AngleCuts/Holes precedent).
   // Judged once per stored part and units, not per render (a resize drag renders every frame).
   const items = useMemo(() => {
+    // The profiles' faults before any preset, judged once, not once per preset (final review M1).
+    const before = profileFaultsBefore(board);
     const fits = (cs: Draft[] | null): cs is Draft[] => {
       if (!cs) return false;
       if (cs.some((c) => curveFaults(board, c).length > 0)) return false;
       const after: Board = { ...board, curves: [...board.curves, ...cs.map((c, i) => ({ ...c, id: `__preset${i}` }))] };
-      return holeRefusal(board, after) === null && profileRefusal(board, after) === null;
+      return holeRefusal(board, after) === null && profileRefusal(board, after, before) === null;
     };
     const one = (c: Draft | null) => (c ? [c] : null);
     const arch = one(defaultArch(board));

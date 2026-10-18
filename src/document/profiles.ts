@@ -360,11 +360,21 @@ function sharedLength(outline: FaceOutline, a: Map<number, [number, number]>, b:
  * `opts.straight` judges `p` in its STRAIGHT form (the chunk 1/a2 view curve it would be if it were not swept: I1's
  * "straight faults"), the other profiles still by their shape (`isSwept`), so no judgement depends on another's fallback;
  * for a profile that is not swept-shaped it changes nothing.
+ * Memoised (final review M1) for a STORED part whose geometry view exists and one of its own stored profiles: the view's
+ * fault cache, filled by `geometryBoard`, keyed on the view as `sweep.ts` keys its pieces; the result is deep-frozen. Any
+ * other part (a panel's trial `after`, a view itself) is judged afresh.
  */
-export function profileFaults(board: FaultBoard, p: ProfileCut, opts?: { straight?: boolean }): ProfileFault[] {
+export function profileFaults(board: FaultBoard, p: ProfileCut, opts?: { straight?: boolean }): readonly ProfileFault[] {
+  const straight = !!opts?.straight;
+  const view = views.get(board);
+  const cache = view && view !== board ? faultCaches.get(view)?.get(p) : undefined;
+  if (!cache) return judge(board, p, straight);
+  return straight ? (cache.straight ??= frozenFaults(judge(board, p, true))) : (cache.judged ??= frozenFaults(judge(board, p, false)));
+}
+function judge(board: FaultBoard, p: ProfileCut, straight: boolean): ProfileFault[] {
   const out: ProfileFault[] = [];
   const stored = withCurves(board);
-  const swept = !opts?.straight && isSwept(stored, p);
+  const swept = !straight && isSwept(stored, p);
   if (swept) {
     const [reach, depth] = reachDepth(p);
     const path = profilePath(stored, p);
@@ -407,6 +417,12 @@ export function profileFaults(board: FaultBoard, p: ProfileCut, opts?: { straigh
 }
 
 const views = new WeakMap<object, object>();
+/** Per geometry view, each of its part's STORED profiles' faults as judged (`profileFaults`) and in their straight form
+ *  (`opts.straight`), filled lazily or by `geometryBoard`'s fallback decision; deep-frozen (final review M1, and M2:
+ *  `builtSwept`, the rows, words and keys read them through `viewProfileFaults`). */
+type FaultCache = { judged?: readonly ProfileFault[]; straight?: readonly ProfileFault[] };
+const faultCaches = new WeakMap<object, Map<ProfileCut, FaultCache>>();
+const frozenFaults = (fs: ProfileFault[]): readonly ProfileFault[] => { fs.forEach((f) => Object.freeze(f)); return Object.freeze(fs); };
 /** Each geometry view's profile curve, or swept profile → the part it was built from and its stored profile (one home:
  *  `geometryBoard`). A swept profile in the view is the view's own copy, so no two parts ever share an entry. `straight`:
  *  a view curve (judged in its straight form); `fallback`: a swept-shaped End to end that runs straight (I1). */
@@ -417,7 +433,7 @@ const viewSources = new WeakMap<object, { board: FaultBoard; profile: ProfileCut
  * and other profiles), never re-derived from the view. A view curve's are its STRAIGHT form's (`opts.straight`), which for
  * a profile that is not swept-shaped are its faults as they always were; a fallen-back End to end's are therefore a2's.
  */
-export function viewProfileFaults(c: object): ProfileFault[] {
+export function viewProfileFaults(c: object): readonly ProfileFault[] {
   const src = viewSources.get(c);
   return src ? profileFaults(src.board, src.profile, src.straight ? { straight: true } : undefined) : [];
 }
@@ -433,9 +449,10 @@ export function runsStraight(c: object): boolean {
  * `geometryBoard` (memoised with the view), so every reader follows the view. `isSwept` stays the shape predicate that
  * authoring judges by.
  */
-function fallsBack(board: FaultBoard & Pick<Board, 'curves'>, p: ProfileCut): boolean {
+function fallsBack(board: FaultBoard & Pick<Board, 'curves'>, p: ProfileCut, cache: FaultCache): boolean {
   if ('loop' in p.run) return false;
-  return profileFaults(board, p).length > 0 && profileFaults(board, p, { straight: true }).length === 0
+  return (cache.judged = frozenFaults(judge(board, p, false))).length > 0
+    && (cache.straight = frozenFaults(judge(board, p, true))).length === 0
     && curveFaults(board, profileAsCurve(p)).length === 0;
 }
 /**
@@ -458,9 +475,12 @@ export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { pr
   };
   const curves: CurveCut[] = [...b.curves];
   const swept: ProfileCut[] = [];
+  const caches = new Map<ProfileCut, FaultCache>();
   for (const p of dims.profiles) {
+    const cache: FaultCache = {};
+    caches.set(p, cache);
     const shape = isSwept(b, p);
-    const fallback = shape && fallsBack(dims as FaultBoard & Pick<Board, 'curves'>, p);
+    const fallback = shape && fallsBack(dims as FaultBoard & Pick<Board, 'curves'>, p, cache);
     if (shape && !fallback) {
       const vp = { ...p };
       viewSources.set(vp, { board: dims, profile: p, straight: false, fallback: false });
@@ -470,6 +490,7 @@ export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { pr
   const view = { ...b, curves, profiles: swept } as T;
   views.set(b, view);
   views.set(view, view);
+  faultCaches.set(view, caches);
   return view;
 }
 

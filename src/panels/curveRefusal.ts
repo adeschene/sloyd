@@ -82,14 +82,22 @@ export const PROFILE_REFUSAL: Record<ProfileFault['kind'], string> = {
   'too-tight': 'Too tight for the curve — reduce the size first.',
 };
 
+/** Each stored profile's fault kinds as JUDGED (`profileFaults`, swept where swept-shaped — never the view's straight
+ *  faults, or a profile that runs straight would lose its too-tight), by id: what `profileRefusal` compares against.
+ *  Computed once by a caller trying several edits of one part (Curves' presets; final review M1). */
+export type ProfileFaultsBefore = ReadonlyMap<string, ReadonlySet<ProfileFault['kind']>>;
+export function profileFaultsBefore(board: Board): ProfileFaultsBefore {
+  return new Map(board.profiles.map((p) => [p.id, new Set(profileFaults(board, p).map((f) => f.kind))]));
+}
+
 /** The first profile fault `after` ADDS (by kind, per profile, matched by id) that `board` lacks, as its refusal; or null.
  *  Both are STORED parts (curves included): Curves' edits change the curves under the profiles, so every profile is judged
  *  before and after (Review Focus 2) — a fault a resize already caused is kept, never a reason to refuse an unrelated edit. */
-export function profileRefusal(board: Board, after: Board): string | null {
+export function profileRefusal(board: Board, after: Board, before: ProfileFaultsBefore = profileFaultsBefore(board)): string | null {
   for (const p of board.profiles) {
     const q = after.profiles.find((x) => x.id === p.id);
     if (!q) continue;
-    const had = new Set(profileFaults(board, p).map((f) => f.kind));
+    const had = before.get(p.id)!;
     const added = profileFaults(after, q).find((f) => !had.has(f.kind));
     if (added) return curveEditRefusal(added, q);
   }
