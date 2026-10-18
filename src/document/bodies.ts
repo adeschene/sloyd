@@ -2,7 +2,8 @@ import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
-import { curvePlan, curveValues, smoothLines, splitPieces } from './curves';
+import { curvePlan, curveValues, smoothLines, spanOf, splitPieces, type ViewCurve } from './curves';
+import { runoutPieces } from './runout';
 import { DIMENSION_ORDER } from './geometry';
 import { unionOutline } from './outline';
 import { geometryBoard } from './profiles';
@@ -21,8 +22,9 @@ const SMOOTH_NORMAL_EPS = 1e-7;
 /** One face of a body: outward unit normal and a convex polygon, board-local. Winding is NOT meaningful —
  *  a consumer that needs it orients against `n` (BoardMesh does). `cut` names the angle cut whose plane
  *  the face lies on. `curve` names the curve whose chord plane the face lies on (curves spec §3.2): `bodyMesh`
- *  reads it for smooth normals. */
-export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string }
+ *  reads it for smooth normals. `runout` marks a face on a stopped profile's run-out (profile runs P9): its curve is
+ *  revolved there, not extruded. */
+export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi' }
 
 /**
  * A convex piece of a part's remaining stock (angle-cuts spec §3.1): one pocket
@@ -72,7 +74,7 @@ function ring(points: V3[], n: V3): V3[] {
  * clipped body from an untouched one. A face lying on the plane is kept as is
  * and no cap is added (the plane is already a face).
  */
-function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string }): BodyFace[] {
+function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi' }): BodyFace[] {
   const g = (p: V3) => dot(h.n, p) + h.d;
   const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
   if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
@@ -108,6 +110,7 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; c
       const capFace: BodyFace = { n: [-h.n[0], -h.n[1], -h.n[2]], verts: r };
       if (tag.cut !== undefined) capFace.cut = tag.cut;
       if (tag.curve !== undefined) capFace.curve = tag.curve;
+      if (tag.runout !== undefined) capFace.runout = tag.runout;
       out.push(capFace);
     }
   }
@@ -153,6 +156,12 @@ export function boardBodies(board: Board): Body[] {
   // so its `box` survives (invariant 48's box path). Caps on an arc chord carry the curve's id.
   let bodies = out;
   for (const c of board.curves) {
+    if (spanOf(c)) {
+      const pieces = stoppedPieces(board, c);
+      bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, c.id)
+        .flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : [])));
+      continue;
+    }
     const plan = curvePlan(board, c);
     if (!plan) continue;
     bodies = bodies.flatMap((body) => {
@@ -161,6 +170,21 @@ export function boardBodies(board: Board): Body[] {
     });
   }
   return bodies;
+}
+
+type Piece = { planes: { n: V3; d: number }[]; onArc: boolean[]; runout?: 'lo' | 'hi' };
+/**
+ * A stopped profile's waste (profile runs P9), always down the SPLIT path (never `clipAll`): the band — each of
+ * `splitPieces`' pieces bounded by the slab at each stop (x_k >= lo, x_k <= hi; n into the waste, first, as the planning
+ * probe ordered them) — then both run-outs (`runoutPieces`). All one curve's pieces, applied together.
+ */
+function stoppedPieces(board: Board, c: ViewCurve): Piece[] {
+  const span = spanOf(c)!;
+  const k = DIMENSION_ORDER.indexOf(c.through);
+  const axis = (s: number): V3 => { const n: V3 = [0, 0, 0]; n[k] = s; return n; };
+  const slabs = [...(span.stopLo ? [{ n: axis(1), d: -span.lo }] : []), ...(span.stopHi ? [{ n: axis(-1), d: span.hi }] : [])];
+  const band = splitPieces(board, c).map((p) => ({ planes: [...slabs, ...p.planes], onArc: [...slabs.map(() => false), ...p.onArc] }));
+  return [...band, ...runoutPieces(board, c)];
 }
 
 /** A body clipped by every kept half-plane of a CLIP plan: one body or none. */
@@ -177,9 +201,10 @@ const DISJOINT_VOLUME = 1e-12;
 /**
  * A body minus the waste of a SPLIT plan (spec §3.2): for each convex piece in turn, every current part splits at the
  * piece's planes — the part OUTSIDE each plane (inside the ones before) is kept, the part inside them all (waste) dropped.
- * Caps on an arc chord carry the curve's id. A body the waste does not reach comes back as its own array (one element).
+ * Caps on an arc chord carry the curve's id (and a run-out piece's end). A body the waste does not reach comes back as its
+ * own array (one element).
  */
-function subtractPieces(faces: BodyFace[], pieces: readonly { planes: { n: V3; d: number }[]; onArc: boolean[] }[], curve: string): BodyFace[][] {
+function subtractPieces(faces: BodyFace[], pieces: readonly Piece[], curve: string): BodyFace[][] {
   let parts: BodyFace[][] = [faces];
   for (const piece of pieces) {
     const next: BodyFace[][] = [];
@@ -191,7 +216,7 @@ function subtractPieces(faces: BodyFace[], pieces: readonly { planes: { n: V3; d
       const frags: BodyFace[][] = [];
       piece.planes.forEach((h, i) => {
         if (rest.length === 0) return;
-        const tag = piece.onArc[i] ? { curve } : {};
+        const tag = piece.onArc[i] ? (piece.runout ? { curve, runout: piece.runout } : { curve }) : {};
         const outside = clip(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d }, tag);
         if (outside.length >= 4) frags.push(outside);
         rest = outside === rest ? [] : clip(rest, h, tag);
