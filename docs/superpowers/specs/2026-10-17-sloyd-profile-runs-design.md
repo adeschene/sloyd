@@ -54,6 +54,10 @@ profiles; a grain fix (fu 336).
 
 - **B1 Rounded ends.** End to end on a side whose ends are corner arcs carries the profile round each arc and runs out where the
   arc meets the next side (the bit lifted off at the far tangent point). All round stays the way to profile the whole face.
+- **B1a** *Amended (implementation, b1)*: two profiles on one face whose stretches share ONLY a corner arc meet at that
+  arc's middle in a mitre (the radial line through its midpoint), as R6 mitres a sharp corner; that is not an `overlap`. Each runs
+  out at the far tangent point only where the adjacent side holds no such profile. (Without it a saved rounded top with four End to
+  end profiles would fault all four and build none.)
 - **B2 Stations** are measured straight along the side's run dimension from its min end, as a tape laid along the part and squared
   to the edge (a2's rule, kept on curved sides). A station may sit on an arch, a bow or a corner arc.
 - **B3 Two-side runs** are in chunk b: a stopped run may start on one side and stop on another, following the outline between them
