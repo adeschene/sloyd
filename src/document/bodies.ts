@@ -334,6 +334,8 @@ const NEAR_LINE = 1e-3;
 
 /** An in-plane direction from a line into a face that holds it, with that face's normal. */
 interface Wing { n: V3; w: V3; f: BodyFace }
+/** A stretch a→b of a line where two faces of one stopped profile meet without a crease (bodyEdges' `smoothPair`). */
+export interface SmoothJoin { a: V3; b: V3; f1: BodyFace; f2: BodyFace }
 
 /**
  * The edges of a union of convex bodies (angle-cuts spec §3.4, invariant 16
@@ -366,12 +368,15 @@ interface Wing { n: V3; w: V3; f: BodyFace }
  * `smoothPair` (profile runs a2) is asked of a stretch whose ONLY two wings are two different faces a and b: true means
  * they meet without a crease (a stopped profile's run-out facets, and the band's arc faces at the stop). Absent, nothing
  * is asked, so every other part's edges are what they were.
+ * `joins` (profile runs a2, Task 7): when given, every stretch smoothPair suppressed is pushed to it with its two faces
+ * (the Plans sheet's facet-chain silhouettes read them). A side output only: the edges returned are the same.
  */
 export function bodyEdges(
   bodies: readonly Body[],
   keep?: (o: V3, u: V3, n: V3) => boolean,
   smooth?: (o: V3, u: V3) => readonly (readonly [V3, V3])[],
   smoothPair?: (a: BodyFace, b: BodyFace) => boolean,
+  joins?: SmoothJoin[],
 ): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
@@ -552,9 +557,13 @@ export function bodyEdges(
         && dot(wings[0]!.n, wings[1]!.n) > 1 - BODY_EPS && dot(wings[0]!.w, wings[1]!.w) < -1 + BODY_EPS;
       if (wings.length === 2 && pairs.some(([p, q]) => (par(wings[0]!.n, p) && par(wings[1]!.n, q))
         || (par(wings[0]!.n, q) && par(wings[1]!.n, p)))) return false;   // a smooth join: the two faces turn by a facet
-      if (smoothPair && wings.length === 2 && wings[0]!.f !== wings[1]!.f && smoothPair(wings[0]!.f, wings[1]!.f)) return false;
+      if (smoothPair && wings.length === 2 && wings[0]!.f !== wings[1]!.f && smoothPair(wings[0]!.f, wings[1]!.f)) {
+        joined.f = [wings[0]!.f, wings[1]!.f];
+        return false;
+      }
       return wings.length > 0 && !flat;
     };
+    const joined: { f: [BodyFace, BodyFace] | null } = { f: null };   // the faces of the stretch judge last suppressed
 
     let run: number | null = null;
     const flush = (end: number) => {
@@ -562,9 +571,11 @@ export function bodyEdges(
       run = null;
     };
     for (let k = 0; k + 1 < cuts.length; k += 1) {
+      joined.f = null;
       const drawn = judge((cuts[k]! + cuts[k + 1]!) / 2);
       if (drawn && run === null) run = cuts[k]!;
       if (!drawn) flush(cuts[k]!);
+      if (joins && joined.f) joins.push({ a: add(line.o, scale(line.u, cuts[k]!)), b: add(line.o, scale(line.u, cuts[k + 1]!)), f1: joined.f[0], f2: joined.f[1] });
     }
     flush(cuts[cuts.length - 1] ?? 0);
   }
@@ -602,7 +613,7 @@ function areaIn(verts: readonly V3[], k: number): number {
  * the outline already drew on their lines is taken off what bodyEdges returns, so nothing is drawn twice.
  * Never mutates `bodies` (partGeometry's are frozen and shared).
  */
-export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
+export function curvedEdges(board: Board, bodies: readonly Body[], joins?: SmoothJoin[]): [V3, V3][] {
   board = geometryBoard(board);
   const axes = [...new Set(board.curves.map((c) => DIMENSION_ORDER.indexOf(c.through)))];
   const faces = bodies.flatMap((b) => b.faces);
@@ -667,7 +678,7 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
       return false;
     }
     : undefined;
-  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair)) {
+  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins)) {
     const u = unit(sub(seg[1], seg[0]));
     if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));
     else out.push(seg);
@@ -715,7 +726,25 @@ function minusCovered(seg: [V3, V3], u: V3, cover: readonly [V3, V3][]): [V3, V3
 function edgesOf(board: Board, bodies: () => readonly Body[]): Segment[] {
   if (board.angleCuts.length === 0 && board.curves.length === 0) return pocketEdges(board);
   const b = bodies();
-  return (board.curves.length > 0 ? curvedEdges(board, b) : bodyEdges(b)).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  if (board.curves.length === 0) return bodyEdges(b).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  const joins: SmoothJoin[] = [];
+  const edges = curvedEdges(board, b, joins).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  if (joins.length > 0) joinsOf.set(b, deepFreeze(joins));
+  return edges;
+}
+
+/** The smooth joins curvedEdges found while building a part's edges, keyed by the bodies they were built from. */
+const joinsOf = new WeakMap<readonly Body[], readonly SmoothJoin[]>();
+const NO_JOINS: readonly SmoothJoin[] = Object.freeze([]);
+/**
+ * Profile runs a2 (Task 7): the stretches where a stopped profile's faces meet without a crease — a run-out's facets, and
+ * the band's arc faces at a stop (`smoothPair`) — with their two faces, board-local, through partGeometry (built with its
+ * edges, once). Empty for every part with no stop. Shared and frozen: never mutate.
+ */
+export function smoothJoins(board: Board): readonly SmoothJoin[] {
+  const g = partGeometry(board);
+  void g.edges;
+  return joinsOf.get(g.bodies) ?? NO_JOINS;
 }
 
 /**

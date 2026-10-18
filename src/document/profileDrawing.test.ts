@@ -6,8 +6,10 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, defaultProfile, PROFILE_EDGES, PROFILE_KINDS, partGeometry } from './document';
 import { cornerCurve, defaultArch, defaultBow, defaultCorners, defaultNotch } from './curves';
-import type { Board } from './types';
-import { curveDrawEdges } from './curveDrawing';
+import type { Board, CutFrom, ProfileCut, ProfileEnd, ProfileKind } from './types';
+import { curveDrawEdges, runoutSilhouettes, silhouetteLines } from './curveDrawing';
+import { canonicalRun } from './profiles';
+import { featureTag } from './featureKeys';
 import { drawView, FRONT, ISO, SIDE, TOP, type View } from './drawing';
 import { toWorld } from './snapPoints';
 
@@ -20,10 +22,13 @@ const sub = (a: readonly number[], b: readonly number[]): V3 => [a[0]! - b[0]!, 
  *  hidden when it runs inside one for more than 1e-6. The edge's own faces cannot hide it: the ray leaves a face that
  *  meets the view at n.toward within ~1e-9 / n.toward of its start. No lift, no DRAW_EPS growth. */
 function oracleHidden(b: Board, x: V3, view: View): boolean {
+  return oracleHiddenWorld(b, toWorld(b, { length: x[0], width: x[1], thickness: x[2] }) as V3, view);
+}
+/** The same oracle for a WORLD point (a silhouette's, profile runs a2 Task 7). */
+function oracleHiddenWorld(b: Board, P: V3, view: View): boolean {
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! }) as V3;
   const o = W([0, 0, 0]);
   const t = view.toward;
-  const P = W(x);
   for (const body of partGeometry(b).bodies) {
     let lo = 1e-7;
     let hi = 1e3;
@@ -77,11 +82,28 @@ function mismatches(b: Board, view: View): string[] {
     if (!onVis && !onHid) out.push(`${view.title} ${JSON.stringify(e.p)}→${JSON.stringify(e.q)}: not drawn`);
     else if (onHid !== hidden) out.push(`${view.title} ${JSON.stringify(e.p)}→${JSON.stringify(e.q)}: drawn ${onHid ? 'hidden' : 'visible'}, oracle ${hidden ? 'hidden' : 'visible'}`);
   }
+  // Profile runs a2 (Task 7): every run-out silhouette's midpoint, against the same oracle. None on a part with no stop.
+  for (const s of runoutSilhouettes(b, view.toward)) {
+    const pa = proj(s.A);
+    const pe = proj(s.E);
+    if (Math.hypot(pe[0]! - pa[0]!, pe[1]! - pa[1]!) < 1e-4) continue;
+    const mid = s.A.map((v, k) => (v + s.E[k]!) / 2) as V3;
+    const sp = proj(mid);
+    const onVis = d.visible.some((x) => dist2(sp, x.a, x.b) <= 1e-7);
+    const onHid = d.hidden.some((x) => dist2(sp, x.a, x.b) <= 1e-7);
+    if (onVis && onHid) continue;
+    const hidden = oracleHiddenWorld(b, mid, view);
+    COUNT.checked += 1;
+    COUNT.silhouettes += 1;
+    if (hidden) COUNT.hidden += 1;
+    if (!onVis && !onHid) out.push(`${view.title} silhouette ${JSON.stringify(s.A)}→${JSON.stringify(s.E)}: not drawn`);
+    else if (onHid !== hidden) out.push(`${view.title} silhouette ${JSON.stringify(s.A)}→${JSON.stringify(s.E)}: drawn ${onHid ? 'hidden' : 'visible'}, oracle ${hidden ? 'hidden' : 'visible'}`);
+  }
   return out;
 }
 
 /** Verdicts read, and how many of them hidden: each sweep asserts it exercised both. */
-const COUNT = { checked: 0, hidden: 0 };
+const COUNT = { checked: 0, hidden: 0, silhouettes: 0 };
 const VIEWS = [ISO, FRONT, SIDE, TOP];
 const S = { length: 30, width: 10, thickness: 0.75 };
 
@@ -94,7 +116,7 @@ describe('a profiled part draws every unhidden edge visible (F1)', () => {
     expect(len(drawView([b], ISO).visible)).toBeGreaterThan(95);
   });
   it('every kind, on each of the 8 edges, either facing, in all four views', { timeout: 60_000 }, () => {
-    Object.assign(COUNT, { checked: 0, hidden: 0 });
+    Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0 });
     const bad: string[] = [];
     for (const kind of PROFILE_KINDS) {
       for (const edge of PROFILE_EDGES) {
@@ -132,5 +154,69 @@ describe('a profiled part draws every unhidden edge visible (F1)', () => {
     const bad: string[] = [];
     for (const [name, b] of sets) for (const view of VIEWS) for (const m of mismatches(b, view)) bad.push(`${name}: ${m}`);
     expect(bad).toEqual([]);
+  });
+});
+
+// Profile runs a2 (Task 7): a STOPPED profile on the Plans sheet. The band's silhouettes run over the band only; the
+// run-out's outline is the chain of facet edges whose two smooth faces turn opposite ways to the view (runoutSilhouettes),
+// and every drawn line (model edges and those silhouettes) agrees with the oracle.
+describe('a stopped profile on the Plans sheet (profile runs a2)', () => {
+  const SIZES: Record<'roundover' | 'cove' | 'ogee' | 'thumbnail', { size: number; fillet?: number; depth?: number }> = {
+    roundover: { size: 0.25, fillet: 0 }, cove: { size: 0.375, fillet: 0 }, ogee: { size: 0.5, fillet: 0 }, thumbnail: { size: 0.75, depth: 0.25 },
+  };
+  /** The shelf's width-max top edge, profiled from `lo` along the length to `hi` from the max end (null: out through that end). */
+  const shelf = (kind: keyof typeof SIZES, lo: number | null, hi: number | null): Board => {
+    const side = { across: 'width' as const, from: 'max' as CutFrom };
+    const start: ProfileEnd = lo === null ? { side, through: 'min' } : { side, from: 'min', at: lo };
+    const end: ProfileEnd = hi === null ? { side: { ...side }, through: 'max' } : { side: { ...side }, from: 'max', at: hi };
+    const z = SIZES[kind];
+    const p: ProfileCut = {
+      id: 'p', face: 'max', kind: kind as ProfileKind, size: z.size, ...(z.depth !== undefined ? { depth: z.depth } : {}),
+      ...(kind === 'thumbnail' ? {} : { fillet: z.fillet ?? 0 }), facing: 'face', run: canonicalRun(S, 'max', { start, end }),
+    };
+    return createBoard({ id: 'shelf', ...S, profiles: [p] });
+  };
+  const CASES: [string, Board][] = [
+    ['roundover 3..27', shelf('roundover', 3, 3)], ['cove 3..27', shelf('cove', 3, 3)], ['ogee 3..27', shelf('ogee', 3, 3)],
+    ['thumbnail 3..27', shelf('thumbnail', 3, 3)], ['roundover through min..20', shelf('roundover', null, 10)],
+  ];
+  it('every model edge and every run-out silhouette agrees with the ray oracle, in all four views', { timeout: 120_000 }, () => {
+    Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0 });
+    const bad: string[] = [];
+    for (const [name, b] of CASES) for (const view of VIEWS) for (const m of mismatches(b, view)) bad.push(`${name}: ${m}`);
+    expect(bad).toEqual([]);
+    // The sweep read silhouettes, and both verdicts.
+    expect(COUNT.silhouettes).toBeGreaterThan(20);
+    expect(COUNT.hidden).toBeGreaterThan(20);
+    expect(COUNT.checked - COUNT.hidden).toBeGreaterThan(20);
+  });
+  // The shelf is flat at turn 0 at the origin: world X is the length (the run), and both FRONT's and the Plan's screen x.
+  const round = shelf('roundover', 3, 3);
+  for (const view of [FRONT, TOP]) {
+    it(`no silhouette past a stop (${view.title}): the band's runs over 3..27, and nothing of the profile is drawn beyond the run-outs`, () => {
+      const band = silhouetteLines(round, view.toward);
+      expect(band.length).toBeGreaterThan(0);
+      const xs = band.flatMap((s) => [s.A[0], s.E[0]]);
+      expect(Math.min(...xs)).toBeCloseTo(3, 6);
+      expect(Math.max(...xs)).toBeCloseTo(27, 6);
+      const d = drawView([round], view);
+      const tag = featureTag('shelf', 'curve', 'p');
+      const tagged = [...d.visible, ...d.hidden].filter((s) => s.feature === tag);
+      expect(tagged.length).toBeGreaterThan(0);
+      // The run-outs reach BEARING + 1/4 = 0.5 past each station; beyond that the corner is whole.
+      expect(tagged.filter((s) => [s.a[0], s.b[0]].some((x) => x < 3 - 0.5 - 1e-9 || x > 27 + 0.5 + 1e-9))).toEqual([]);
+    });
+  }
+  it('a run-out draws its outline where its facets turn from the view', () => {
+    // The roundover's run-out turns from the SIDE view (looking along the run), and the band's silhouettes are points there.
+    const s = runoutSilhouettes(round, SIDE.toward);
+    expect(s.length).toBeGreaterThan(0);
+    expect(s.every((x) => x.curve === 'p')).toBe(true);
+    // Each lies past a station, on the run-out (within its reach).
+    expect(s.every((x) => [x.A[0], x.E[0]].every((r) => (r >= 2.5 - 1e-9 && r <= 3 + 1e-9) || (r >= 27 - 1e-9 && r <= 27.5 + 1e-9)))).toBe(true);
+    // In the isometric every face of the roundover's run-outs faces the viewer (measured: n.toward >= 0.408), so none is
+    // drawn there; the cove's concave run-out turns away and draws its outline.
+    expect(runoutSilhouettes(round, ISO.toward)).toEqual([]);
+    expect(runoutSilhouettes(shelf('cove', 3, 3), ISO.toward).length).toBeGreaterThan(0);
   });
 });
