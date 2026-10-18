@@ -2,7 +2,7 @@
 import type { Board } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry, profileEdgeOf, smoothJoins, type BodyFace } from './bodies';
-import { geometryBoard } from './profiles';
+import { geometryBoard, shapedPart, sweptProfiles } from './profiles';
 import { bodyPlanes } from './holes';
 import { toWorld } from './snapPoints';
 import type { Segment } from './cuts';
@@ -181,7 +181,7 @@ const facing = (x: number) => (x > EDGE_ON ? 1 : x < -EDGE_ON ? -1 : 0);
 export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3; curve: string }[] {
   board = geometryBoard(board);
   const out: { A: V3; E: V3; lift: V3; curve: string }[] = [];
-  const planes = board.curves.length > 0 ? partGeometry(board).bodies.map((b) => bodyPlanes(b.faces)) : [];
+  const planes = shapedPart(board) ? partGeometry(board).bodies.map((b) => bodyPlanes(b.faces)) : [];
   for (const c of board.curves) {
     const o = outlineFaces(board, c);
     const { ui, vi, k, W, pts, smooth, normals } = o;
@@ -323,8 +323,8 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
     p[j] = 1;
     return toWorld(board, { length: p[0], width: p[1], thickness: p[2] }).map((w, i) => w - o3[i]!) as V3;
   });
-  // Profile runs a2: a stopped profile's body faces, for the run-out's own edges (below).
-  const bodyFaces = board.curves.some((c) => { const sp = spanOf(c); return !!sp && (sp.stopLo || sp.stopHi); })
+  // Profile runs a2: a stopped profile's body faces, for the run-out's own edges (below); b1: a swept part's too.
+  const bodyFaces = sweptProfiles(board).length > 0 || board.curves.some((c) => { const sp = spanOf(c); return !!sp && (sp.stopLo || sp.stopHi); })
     ? partGeometry(board).bodies.flatMap((b) => b.faces) : [];
   const runout = bodyFaces.filter((f) => f.runout !== undefined);
   const adjacent = (p: readonly number[], q: readonly number[]) => bodyFaces.filter((f) => holds(f, p, q));

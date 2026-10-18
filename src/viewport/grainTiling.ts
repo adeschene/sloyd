@@ -5,7 +5,7 @@ import {
   wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, unionLoops, uvDims,
 } from '../document/document';
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
-import { geometryBoard } from '../document/profiles';
+import { geometryBoard, profileValues, shapedPart, sweptProfiles } from '../document/profiles';
 import { profileEdgeOf } from '../document/bodies';
 import { runoutNormals } from '../document/runout';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
@@ -301,7 +301,7 @@ function runoutMemo(bodies: readonly Body[] | undefined): Map<string, RunoutNorm
  */
 export function drawsAsBox(board: Board, body: Body, holes: readonly Hole[]): body is Body & { box: Region } {
   board = geometryBoard(board);
-  return board.curves.length === 0 && body.box !== null && !holes.some((h) => holeTouchesBox(h, body.box!));
+  return !shapedPart(board) && body.box !== null && !holes.some((h) => holeTouchesBox(h, body.box!));
 }
 
 /**
@@ -335,7 +335,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   const [ou, ov] = boardUVOffset(board.id);
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
   const offsetOf = worldOffsets(board);
-  const curved = board.curves.length > 0;
+  const curved = shapedPart(board);
   const byMaterial: { pos: number[]; uv: number[]; nor: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [], nor: [] }));
   // A curved part's faces come from curvedPart: seams dropped, vertices welded, and every part vertex lying inside one of
   // their edges inserted when triangulated (conform.ts: no T-junctions between a split curve's slices, or a slice and a
@@ -975,6 +975,8 @@ export function boardUVSignature(board: Board): string {
     board.holes.map((r) => holeRowValues(r).join(',')).join(';'),
     // Curves change which bodies exist and add chord faces (curves spec §3.2; invariant 15).
     board.curves.map((c) => `${c.id}:${curveValues(c)}`).join(';'),
+    // Swept profiles (profile runs b1) change which bodies exist; appended only when the view holds one (byte for byte).
+    ...(sweptProfiles(board).length > 0 ? [sweptProfiles(board).map((p) => `${p.id}:${profileValues(p)}`).join(';')] : []),
   ].join('|');
 }
 

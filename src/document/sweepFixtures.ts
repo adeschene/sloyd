@@ -1,7 +1,7 @@
 /**
  * TEST-ONLY fixtures for profile runs chunk b1 (a profile follows the outline): every b1 task builds on these. Built with
- * `createBoard` only — a `{ loop: true }` run is refused by the loader until b1's Task 2 lifts it — never through
- * `migrateDocument`. Never import a test module from here (it would re-register its suite).
+ * `createBoard` only, never through `migrateDocument` (b1's Task 2 lifted the loader's `{ loop: true }` refusal; the
+ * fixtures stay loader-free). Never import a test module from here (it would re-register its suite).
  */
 import { createBoard } from './document';
 import { archCurve, cornerCurve } from './curves';

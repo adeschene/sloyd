@@ -6,7 +6,7 @@ import { curveOutline, curvePlan, curveValues, smoothLines, spanOf, splitPieces,
 import { profileSection, runoutPieces } from './runout';
 import { DIMENSION_ORDER } from './geometry';
 import { unionOutline } from './outline';
-import { geometryBoard } from './profiles';
+import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profiles';
 import type { CurveCut } from './types';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -782,9 +782,9 @@ function minusCovered(seg: [V3, V3], u: V3, cover: readonly [V3, V3][]): [V3, V3
 /** The three-way choice over a part's bodies: pocketEdges' grid for a plain part, curvedEdges for a curved one,
  *  bodyEdges for an angled one. */
 function edgesOf(board: Board, bodies: () => readonly Body[]): Segment[] {
-  if (board.angleCuts.length === 0 && board.curves.length === 0) return pocketEdges(board);
+  if (board.angleCuts.length === 0 && !shapedPart(board)) return pocketEdges(board);
   const b = bodies();
-  if (board.curves.length === 0) return bodyEdges(b).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  if (!shapedPart(board)) return bodyEdges(b).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
   const joins: SmoothJoin[] = [];
   const edges = curvedEdges(board, b, joins).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
   if (joins.length > 0) joinsOf.set(b, deepFreeze(joins));
@@ -846,7 +846,12 @@ export function geometryKey(board: Board): string {
   const angles = board.angleCuts.map((c) => `${JSON.stringify(c.id)}:${angleCutValues(c).map(val).join(',')}`).join(';');
   const holes = board.holes.map((r) => `${JSON.stringify(r.id)}:${holeRowValues(r).map(val).join(',')}`).join(';');
   const curves = board.curves.map((c) => `${JSON.stringify(c.id)}:${curveValues(c)}`).join(';');
-  return `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}|${holes}|${curves}`;
+  const key = `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}|${holes}|${curves}`;
+  // Profile runs b1: a swept profile's id and values (its faces will carry its id), appended ONLY when the view holds one,
+  // so every other part's key is byte for byte what it was. Its path reads the through-thickness curves, already above.
+  const swept = sweptProfiles(board);
+  if (swept.length === 0) return key;
+  return `${key}|${swept.map((p) => `${JSON.stringify(p.id)}:${profileValues(p)}`).join(';')}`;
 }
 
 function deepFreeze<T>(o: T): T {

@@ -43,6 +43,9 @@ const RUN_LABEL: Record<RunKind, string> = { through: 'End to end', stopped: 'St
 const PROFILE_REFUSAL: Record<ProfileFault['kind'], string> = {
   'stop-off': 'A stop runs off the part — move it first.',
   overlap: 'Overlaps another profile on this edge — move it first.',
+  // Swept profiles (profile runs b1, Q6); the row reaches them in a later b1 task.
+  'runs-off': 'Runs off the part — reduce the size first.',
+  'too-tight': 'Too tight for the curve — reduce the size first.',
 };
 type Next = Omit<ProfileCut, 'id'>;
 

@@ -540,7 +540,8 @@ function refuseProfile(why: string): never {
  * `through` end nor a `from` min/max with a finite `at` >= 0; a run that is not an object; two `through` ends of one value.
  * A symmetric kind's facing is normalised to 'face'. Stored in `canonicalRun` order (P11): an End to end run min → max, a
  * station run start before end along travel. REFUSED (the document, decided before any drop, spec §3.2/P2): an unknown
- * kind string; a run key other than loop/start/end; a `loop` that is not exactly true (`all round`; `true` too); an end
+ * kind string; a run key other than loop/start/end; a `loop` that is not exactly true, or a `loop` beside `start`/`end`
+ * (`all round`; exactly `{ loop: true }` loads since b1, pushed as a fresh `{ loop: true }`, no canonical order); an end
  * whose side parses and which has a key other than side/through/from/at, or carries `through` together with `from`/`at`
  * (`stopped`, fu 391(1)), or a `through` that is not min/max; ends on two sides. One-side station runs now load (a2). A
  * faulted but well-formed profile is KEPT.
@@ -570,7 +571,8 @@ function validateProfiles(raw: unknown, seen: Set<string>, dims: Pick<Board, Dim
     const r = p.run as Record<string, unknown> | null;
     if (typeof r === 'object' && r !== null) {
       for (const k of Object.keys(r)) if (k !== 'loop' && k !== 'start' && k !== 'end') refuseProfile(`run "${k}"`);
-      if ('loop' in r) refuseProfile('all round');   // true or not: a loop is a later build's run form
+      // b1: exactly `{ loop: true }` is All round; `loop` with any other value, or beside an end, is a later build's form.
+      if ('loop' in r && (r.loop !== true || Object.keys(r).length !== 1)) refuseProfile('all round');
       for (const end of [r.start, r.end]) {
         const e = end as Record<string, unknown> | null;
         if (typeof e !== 'object' || e === null || !sideOf(e.side)) continue;   // an unreadable end is dropped below
@@ -590,14 +592,20 @@ function validateProfiles(raw: unknown, seen: Set<string>, dims: Pick<Board, Dim
     if (kind === 'thumbnail' ? p.fillet !== undefined : !(finite(p.fillet) && p.fillet >= 0)) continue;
     if (kind === 'bead' && !((p.fillet as number) > 0)) continue;
     if (typeof r !== 'object' || r === null) continue;
+    const fields = { kind, size: p.size, ...(kind === 'thumbnail' ? { depth: p.depth as number } : { fillet: p.fillet as number }) };
+    const sym = !profileAsymmetric({ through: 'length', uFrom: 'min', vFrom: 'min', facing: 'v', ...fields });
+    const facing = sym ? 'face' : (p.facing as 'face' | 'edge');
+    // All round (b1): a loop has no ends to read or order, so it is pushed here, never through endOf (which would drop it).
+    if ('loop' in r) {
+      out.push({ id: takeId(p.id, seen), face: p.face as CutFrom, ...fields, facing, run: { loop: true } });
+      continue;
+    }
     const s = endOf(r.start);
     const e = endOf(r.end);
     if (!s || !e) continue;
     if ('through' in s && 'through' in e && s.through === e.through) continue;   // one end out through each end face
-    const fields = { kind, size: p.size, ...(kind === 'thumbnail' ? { depth: p.depth as number } : { fillet: p.fillet as number }) };
-    const sym = !profileAsymmetric({ through: 'length', uFrom: 'min', vFrom: 'min', facing: 'v', ...fields });
     out.push({
-      id: takeId(p.id, seen), face: p.face as CutFrom, ...fields, facing: sym ? 'face' : (p.facing as 'face' | 'edge'),
+      id: takeId(p.id, seen), face: p.face as CutFrom, ...fields, facing,
       run: canonicalRun(dims, p.face as CutFrom, { start: s, end: e }),
     });
   }

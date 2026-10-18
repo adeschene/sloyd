@@ -26,19 +26,31 @@ export function curveLine(board: Board, c: CurveCut, units: Units): string {
   return faults.length === 0 ? base : `${base} — check: ${faults[0]!}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
-/** A profile fault in words (P12): THE one home (invariant 19). Lower-case, no full stop. */
+/** A profile fault in words (P12, Q6): THE one home (invariant 19). Lower-case, no full stop. */
 export function profileFaultText(f: ProfileFault): string {
-  return f.kind === 'stop-off' ? 'a stop runs off the part' : 'it overlaps another profile on this edge';
+  switch (f.kind) {
+    case 'stop-off': return 'a stop runs off the part';
+    case 'overlap': return 'it overlaps another profile on this edge';
+    case 'runs-off': return 'it runs off the part';
+    case 'too-tight': return 'it is too tight for the curve';
+  }
 }
 
 /**
- * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part is what a
- * resize causes (" at this size."); an overlap never is — every row station is measured from the min end, so a resize
- * cannot make one (an a1 file's stacked identical profiles, faulted on load by P12) — so it reads without the clause.
+ * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part, a profile
+ * running off it and one too tight for its curve are what a resize causes (" at this size."); an overlap never is — every
+ * row station is measured from the min end, so a resize cannot make one (an a1 file's stacked identical profiles, faulted
+ * on load by P12) — so it reads without the clause.
  */
 export function profileFaultNote(f: ProfileFault): string {
+  const cap = (t: string) => `${t[0]!.toUpperCase()}${t.slice(1)}`;
   const t = profileFaultText(f);
-  return f.kind === 'stop-off' ? `${t[0]!.toUpperCase()}${t.slice(1)} at this size.` : `${t.replace(/^it o/, 'O')}.`;
+  switch (f.kind) {
+    case 'overlap': return `${cap(t.replace(/^it /, ''))}.`;
+    case 'too-tight': return `${cap(t.replace(/^it is /, ''))} at this size.`;
+    case 'stop-off':
+    case 'runs-off': return `${cap(t)} at this size.`;
+  }
 }
 
 /** Every fault of a curve in words: the curve's own first (`curveFaults`), then, for a geometry view's profile curve, the

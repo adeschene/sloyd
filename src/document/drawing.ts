@@ -9,7 +9,7 @@ import { angleCutRemovesNothing, keptHalfSpace } from './angleCuts';
 import { featureTag } from './featureKeys';
 import { curveDrawEdges, curveEdgeLifts, runoutSilhouettes, silhouetteLines } from './curveDrawing';
 import { sectionAxisIndex, sectionCaps, SECTION_EPS, type Section } from './section';
-import { geometryBoard } from './profiles';
+import { geometryBoard, shapedPart } from './profiles';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -179,7 +179,7 @@ const local = (s: { length: number; width: number; thickness: number }) => [s.le
 
 function partSegments(b: Board, toward: readonly number[]): Seg3[] {
   b = geometryBoard(b);
-  if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
+  if (!shapedPart(b)) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   // Final review F1: an edge a curve's outline bounds carries the silhouettes' lift, so a shallow viewer-facing face
   // does not graze it hidden in its own wood. The lift moves only the hidden-line probe.

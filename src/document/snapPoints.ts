@@ -6,7 +6,7 @@ import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
-import { geometryBoard } from './profiles';
+import { geometryBoard, shapedPart } from './profiles';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
@@ -147,7 +147,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
     }
   }
 
-  if (board.cuts.length === 0 && board.angleCuts.length === 0 && board.holes.length === 0 && board.curves.length === 0) return points;
+  if (board.cuts.length === 0 && board.angleCuts.length === 0 && board.holes.length === 0 && !shapedPart(board)) return points;
   const geometry = partGeometry(board);
   if (geometry.bodies.length === 0) return points;
 
