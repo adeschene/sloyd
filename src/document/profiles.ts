@@ -189,7 +189,7 @@ export function oneSide(run: ProfileRun): run is { start: ProfileEnd; end: Profi
 /** The stored order (P11): End to end min → max (P3); a station run with start before end along `travelSign`. */
 export function canonicalRun(board: Pick<Board, Dimension>, face: CutFrom, run: { start: ProfileEnd; end: ProfileEnd }): { start: ProfileEnd; end: ProfileEnd } {
   if (endToEnd(run)) {
-    return run.start.through === 'min' ? run : { start: { ...run.end }, end: { ...run.start } };
+    return run.start.through === 'min' ? run : { start: { ...run.end, side: { ...run.end.side } }, end: { ...run.start, side: { ...run.start.side } } };
   }
   const s = travelSign(face, run.start.side);
   const before = (endPos(board, run.start) - endPos(board, run.end)) * s <= 0;

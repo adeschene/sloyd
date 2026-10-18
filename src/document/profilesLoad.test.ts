@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CURRENT_VERSION, DocumentError, createBoard, createDocument, migrateDocument, partGeometry, bodyVolume, profileCurve, profileFromFields, archCurve, geometryBoard } from './document';
+import { travelSign } from './profiles';
 import type { Board, ProfileCut } from './types';
 
 const v17 = (boards: object[], shapes: object[] = []) => JSON.parse(JSON.stringify({ ...createDocument('T'), version: 17, boards, shapes }));
@@ -119,9 +120,18 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
   });
   it('a one-side station run loads, ordered along travel (a2, P10/P11)', () => {
     const side = { across: 'width', from: 'max' } as const;
-    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at: 27 }, end: { side, from: 'min', at: 3 } } }] })]), version: 18 };
-    const r = board0(load(raw)).profiles[0]!.run;
-    expect('loop' in r ? null : [r.start, r.end].map((e) => ('at' in e ? e.at : e.through)).sort()).toEqual([27, 3].sort());
+    const face = p1().face;
+    const fwd = travelSign(face, side) > 0;
+    const stored = (x: number, y: number) => {
+      const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at: x }, end: { side, from: 'min', at: y } } }] })]), version: 18 };
+      return board0(load(raw)).profiles;
+    };
+    for (const [x, y] of [[27, 3], [3, 27]] as const) {
+      const r = stored(x, y)[0]!.run;
+      if ('loop' in r) throw new Error('loop');
+      expect([r.start, r.end].map((e) => ('at' in e ? e.at : e.through))).toEqual(fwd ? [3, 27] : [27, 3]);
+    }
+    expect(stored(27, 3)).toEqual(stored(3, 27));
   });
   it('a station beside a through end loads', () => {
     const side = { across: 'width', from: 'max' } as const;
