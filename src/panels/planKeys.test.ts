@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { FRONT, SIDE, TOP, type Drawing, type Seg2 } from '../document/drawing';
-import type { PartFeature } from '../document/featureKeys';
+import { FRONT, SIDE, TOP, drawView, type Drawing, type Seg2 } from '../document/drawing';
+import { partFeatures, type PartFeature } from '../document/featureKeys';
+import { topCorners } from '../document/sweepFixtures';
+import { IMPERIAL } from '../units/length';
 import { KEY_LEADER, chooseView, letterOf, planKeys, type KeyView } from './planKeys';
 
 const seg = (a: [number, number], b: [number, number], part: string, feature?: string): Seg2 => (feature ? { a, b, part, feature } : { a, b, part });
@@ -129,5 +131,22 @@ describe('planKeys (spec §4.2–4.6)', () => {
   });
   it('no features: an empty plan', () => {
     expect(planKeys([], views(empty, empty, empty), 1, size)).toMatchObject({ tags: [], lines: [], notShown: [], unkeyed: [] });
+  });
+});
+
+describe('a swept profile on real drawings (profile runs b1, Task 8)', () => {
+  // A roundover loop draws no crease (its band meets the face tangent): only its silhouettes, which vary by view. chooseView
+  // copes with views where it has nothing tagged; here the Plan view draws its contour round the top, so it is keyed there,
+  // true (looking down the thickness) and visible.
+  it('a roundover loop on the 2" corner top is lettered in the Plan view, true and visible', () => {
+    const b = { ...topCorners(2), id: 't' };
+    const kv: KeyView[] = [TOP, FRONT, SIDE].map((view, i) => ({ view, d: drawView([b], view), at: { x: 0, y: i * 300 } }));
+    const fs = partFeatures(b, IMPERIAL);
+    const w = fs.find((f) => f.text === 'Roundover 1/4", all round')!;
+    expect(kv.map((v) => v.d.visible.some((s) => s.feature === w.key))).toEqual([true, true, true]);
+    expect(chooseView(w, kv)).toEqual({ i: 0, hidden: false });
+    const k = planKeys(fs, kv, 1, { width: 2000, height: 2000 });
+    expect(k.notShown).toEqual([]);
+    expect(k.lines.map((l) => l.text)).toContain('Roundover 1/4", all round');
   });
 });

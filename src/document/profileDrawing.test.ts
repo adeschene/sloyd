@@ -12,6 +12,7 @@ import { canonicalRun } from './profiles';
 import { featureTag } from './featureKeys';
 import { drawView, FRONT, ISO, SIDE, TOP, type View } from './drawing';
 import { toWorld } from './snapPoints';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners } from './sweepFixtures';
 
 type V3 = [number, number, number];
 const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
@@ -223,4 +224,30 @@ describe('a stopped profile on the Plans sheet (profile runs a2)', () => {
     expect(runoutSilhouettes(round, ISO.toward)).toEqual([]);
     expect(runoutSilhouettes(shelf('cove', 3, 3), ISO.toward).length).toBeGreaterThan(0);
   });
+});
+
+// Profile runs b1 (Task 7): a SWEPT profile on the Plans sheet. Every model edge (along-path creases drawn as fine paths on
+// the true offset arc, visibility on the model chord) and every facet-chain silhouette agrees with the same ray oracle.
+describe('a swept profile on the Plans sheet (profile runs b1)', () => {
+  const CASES: [string, Board][] = [
+    ['apronArch', apronArch], ['topCorners(2) roundover', topCorners(2)], ['topCorners(2) cove', topCorners(2, loop('p1', 0.375, 'cove'))],
+    ['frontOnly', frontOnly],
+    // Beyond the brief's four: the half-round notch (a concave path arc under a roundover) and a cove along the arch (a
+    // concave arc's creases drawn as fine paths).
+    ['notchEdge', notchEdge],
+    ['arched cove', createBoard({ ...apronArch, profiles: [endToEnd('p1', { across: 'width', from: 'min' }, 0.375, 'cove')] })],
+    // The sweep index's two other orders: a loop on face min (the path reversed) and a cove round the front corners to B1
+    // stations (the station extension chord leads the path).
+    ['topCorners(2) cove, face min', topCorners(2, loop('p1', 0.375, 'cove', 'min'))],
+    ['topCorners(2) cove front (B1)', topCorners(2, endToEnd('p1', { across: 'width', from: 'min' }, 0.375, 'cove'))],
+  ];
+  for (const [name, b] of CASES) {
+    it(`${name}: every model edge and every silhouette agrees with the ray oracle, in FRONT, SIDE, TOP and ISO`, { timeout: 60_000 }, () => {
+      Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0, visibleSilhouettes: 0 });
+      const bad: string[] = [];
+      for (const view of [FRONT, SIDE, TOP, ISO]) for (const m of mismatches(b, view)) bad.push(`${name}: ${m}`);
+      expect(bad).toEqual([]);
+      expect(COUNT.checked).toBeGreaterThan(20);
+    });
+  }
 });

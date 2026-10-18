@@ -1,10 +1,11 @@
-import type { Board, CurveCut, Dimension } from './types';
+import type { Board, CurveCut, Dimension, ProfileCut } from './types';
 import { formatLength, type Units } from '../units/length';
 import { edgeName, endWord } from './holeText';
 import {
   archFields, bowFields, cornerFields, curveFaults, localSegments, spanOf, uvDims, type CurveFault, type LocalArc,
 } from './curves';
-import { geometryBoard, profileAsymmetric, profileFields, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
+import { geometryBoard, profileAsymmetric, profileFields, profileToFields, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
+import { faceOutline, sideStretch } from './profilePath';
 import { faceName } from './angleText';
 
 /** A fault in words (spec §2.5, P4): THE one home (invariant 19), read by the bench line and the Properties note.
@@ -21,24 +22,41 @@ const radiusOf = (span: number, rise: number) => (span * span / 4 + rise * rise)
  * brackets is for the trammel. A faulted curve ends with its first fault.
  */
 export function curveLine(board: Board, c: CurveCut, units: Units): string {
-  const base = curveLineBase(board, c, units);
-  const faults = curveFaultWords(board, c);
-  return faults.length === 0 ? base : `${base} — check: ${faults[0]!}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+  return withCheck(curveLineBase(board, c, units), curveFaultWords(board, c));
 }
 
-/** A profile fault in words (P12): THE one home (invariant 19). Lower-case, no full stop. */
+/** A bench line with its first fault (THE one home of the ` — check: …` suffix: curves and swept profiles alike). */
+const withCheck = (base: string, faults: readonly string[]): string =>
+  faults.length === 0 ? base : `${base} — check: ${faults[0]!}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+
+/** A profile fault in words (P12, Q6): THE one home (invariant 19). Lower-case, no full stop. */
 export function profileFaultText(f: ProfileFault): string {
-  return f.kind === 'stop-off' ? 'a stop runs off the part' : 'it overlaps another profile on this edge';
+  switch (f.kind) {
+    case 'stop-off': return 'a stop runs off the part';
+    case 'overlap': return 'it overlaps another profile on this edge';
+    case 'runs-off': return 'it runs off the part';
+    case 'too-tight': return 'it is too tight for the curve';
+  }
 }
 
 /**
- * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part is what a
- * resize causes (" at this size."); an overlap never is — every row station is measured from the min end, so a resize
- * cannot make one (an a1 file's stacked identical profiles, faulted on load by P12) — so it reads without the clause.
+ * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part, a profile
+ * running off it and one too tight for its curve are what a resize causes (" at this size."); an overlap never is — every
+ * row station is measured from the min end, so a resize cannot make one (an a1 file's stacked identical profiles, faulted
+ * on load by P12) — so it reads without the clause.
  */
+/** The Profiles row's note for a swept-shaped End to end that runs STRAIGHT (`runsStraight`; final review I1, the user's
+ *  ruling): too tight to follow its curve, it is cut as a2 cut it. A row note only — the bench line describes what is cut. */
+export const RUNS_STRAIGHT_NOTE = 'Runs straight: too tight to follow the curve.';
 export function profileFaultNote(f: ProfileFault): string {
+  const cap = (t: string) => `${t[0]!.toUpperCase()}${t.slice(1)}`;
   const t = profileFaultText(f);
-  return f.kind === 'stop-off' ? `${t[0]!.toUpperCase()}${t.slice(1)} at this size.` : `${t.replace(/^it o/, 'O')}.`;
+  switch (f.kind) {
+    case 'overlap': return `${cap(t.replace(/^it /, ''))}.`;
+    case 'too-tight': return `${cap(t.replace(/^it is /, ''))} at this size.`;
+    case 'stop-off':
+    case 'runs-off': return `${cap(t)} at this size.`;
+  }
 }
 
 /** Every fault of a curve in words: the curve's own first (`curveFaults`), then, for a geometry view's profile curve, the
@@ -59,7 +77,8 @@ function spanWords(c: CurveCut, units: Units): string {
 }
 
 /** A profile's short words (spec §4): THE one home, read by the bench line and the Plans key. */
-export function profileName(p: ProfileFields, units: Units): string {
+type ProfileWords = Pick<ProfileFields, 'kind' | 'size' | 'depth' | 'fillet'>;
+export function profileName(p: ProfileWords, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   switch (p.kind) {
     case 'roundover': return `Roundover ${f(p.size)}`;
@@ -71,7 +90,7 @@ export function profileName(p: ProfileFields, units: Units): string {
 }
 const topFace = (p: ProfileFields) => { const [u, v] = uvDims(p.through); return p.facing === 'v' ? faceName(v, p.vFrom) : faceName(u, p.uFrom); };
 /** A profile's fillet in words, or nothing (THE one home: the bench line, the four-edge collapse and the Plans key). */
-export const filletWords = (p: ProfileFields, units: Units) => (p.kind !== 'bead' && (p.fillet ?? 0) > 0 ? `, with a ${formatLength(p.fillet!, units)} fillet` : '');
+export const filletWords = (p: ProfileWords, units: Units) => (p.kind !== 'bead' && (p.fillet ?? 0) > 0 ? `, with a ${formatLength(p.fillet!, units)} fillet` : '');
 function profileLine(p: ProfileFields, units: Units): string {
   const [u, v] = uvDims(p.through);
   const top = profileAsymmetric(p) ? `, top on ${topFace(p)}` : '';
@@ -111,6 +130,39 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
   const arcs = segs.filter((s): s is LocalArc => s.kind === 'arc').length;
   const lines = segs.length - arcs;
   return `Curve cut through the ${c.through}: ${arcs} arc${arcs === 1 ? '' : 's'} and ${lines} line${lines === 1 ? '' : 's'}`;
+}
+
+/**
+ * How a SWEPT profile (profile runs b1, Q2) runs, in words: a loop goes `all round`; an End to end run whose side's stretch
+ * carries round corner arcs (an `'arc'` end: B1's station or B1a's mitre) goes `round the corner` for one and `round the
+ * corners` for two (Q7 amended, implementation b1); an End to end run that only follows its own side (an arch, a notch, a
+ * bow) has no clause — it reads as chunk 1's line. Judged on the stretch, never the path, so a faulted profile (no path)
+ * reads the same. THE one home: the bench line, the Plans key, the row.
+ */
+export function sweptRun(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut): 'all round' | 'round the corner' | 'round the corners' | null {
+  if ('loop' in p.run) return 'all round';
+  const outline = faceOutline(view);
+  const s = outline ? sideStretch(view, outline, p.run.start.side) : null;
+  const arcs = s ? (s.startEnd === 'arc' ? 1 : 0) + (s.endEnd === 'arc' ? 1 : 0) : 0;
+  return arcs === 0 ? null : arcs === 1 ? 'round the corner' : 'round the corners';
+}
+
+/**
+ * A swept profile as a bench line (profile runs b1, Q7): THE one home (invariant 19). A loop reads `<name> all round
+ * <face><top><fillet>` (the four-edge collapse's own face words); an asymmetric one (`profileAsymmetric`) facing the EDGE
+ * names its top before the fillet, as chunk 1 does — `, top on the edge`, since the outline's edge is no single named face;
+ * facing the face (the stored default) it says nothing more, the face being named already (Q7 amended, implementation b1). An End to end run reads chunk 1's line (its facing
+ * words included), plus `, round the corner(s)` when it takes corner arcs. A faulted one ends with its first fault (the
+ * stored profile's, `viewProfileFaults`). `p` is the geometry view's copy (`view.profiles`).
+ */
+export function sweptLine(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut, units: Units): string {
+  const run = sweptRun(view, p);
+  const face = faceName('thickness', p.face);
+  const top = profileAsymmetric(p) && p.facing === 'edge' ? ', top on the edge' : '';
+  const base = 'loop' in p.run
+    ? `${profileName(p, units)} all round ${face}${top}${filletWords(p, units)}`
+    : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}`;
+  return withCheck(base, viewProfileFaults(p).map(profileFaultText));
 }
 
 /** Every curve's line as `{ ids, text }` (spec §4.2, ruling Q6): THE ONE home of the collapse; `ids` names every curve the
@@ -167,7 +219,11 @@ export function curveLineEntries(board: Board, units: Units): { ids: string[]; t
       }
     }
   }
-  return board.curves.flatMap((c) => (skip.has(c) ? [] : [collapsed.get(c) ?? { ids: [c.id], text: curveLine(board, c, units) }]));
+  // Q7: curves, then straight profiles (the view's curves, in that order), then swept profiles, each in stored order.
+  return [
+    ...board.curves.flatMap((c) => (skip.has(c) ? [] : [collapsed.get(c) ?? { ids: [c.id], text: curveLine(board, c, units) }])),
+    ...(board.profiles ?? []).map((p) => ({ ids: [p.id], text: sweptLine(board, p, units) })),
+  ];
 }
 
 /** Every curve's line, stored order (spec §4.2). */

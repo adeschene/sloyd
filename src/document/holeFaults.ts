@@ -6,6 +6,7 @@ import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, spanO
 import { runoutReach } from './runout';
 import { HOLE_EPS, holeInstances, type Hole } from './holes';
 import { geometryBoard, profileFields, type ProfileKind } from './profiles';
+import { builtSwept, sweptWasteMeets } from './sweep';
 
 export type HoleFaultKind = 'breaks-out' | 'off-flat' | 'meets-hole' | 'too-deep';
 export interface FaultCurve { id: string; kind: CurveKind | null; profile?: ProfileKind }
@@ -103,6 +104,10 @@ export function intoCurve(board: Board, h: Hole): FaultCurve | null {
       hit = z >= sp.lo - (sp.stopLo ? reach : 0) - HOLE_EPS && a <= sp.hi + (sp.stopHi ? reach : 0) + HOLE_EPS;
     }
     if (hit) { const p = profileFields(c); return { id: c.id, kind: deriveCurveKind(c), ...(p ? { profile: p.kind } : {}) }; }
+  }
+  // A swept profile (profile runs b1, §4.1, P14): only those boardBodies builds; keyed by its id through `curve` (P7).
+  if (board.profiles.length > 0) {
+    for (const p of builtSwept(board)) if (sweptWasteMeets(board, p, h)) return { id: p.id, kind: null, profile: p.kind };
   }
   return null;
 }

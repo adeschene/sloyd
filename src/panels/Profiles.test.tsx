@@ -8,7 +8,10 @@ import {
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
 import { canonicalRun, endPos } from '../document/profiles';
-import { holeRefusal, pastHalfCircle, refusalFor } from './curveRefusal';
+import { holeRefusal, pastHalfCircle, profileRefusal, refusalFor } from './curveRefusal';
+import { apronArch, endToEnd as endToEndP, frontOnly, loop as loopP, stopped as stoppedRun, topCorners } from '../document/sweepFixtures';
+import { sweptLine } from '../document/curveText';
+import { isSwept } from '../document/profilePath';
 
 const top = (over: Partial<Board> = {}) => createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -733,5 +736,208 @@ describe('presets take the first edge that fits (final fix F2)', () => {
     await user.click(screen.getByRole('button', { name: 'Roundover' }));
     // The default edge runs along the LENGTH — here the 10" dimension, the short edge.
     expect(edgeOf(0)).toBe('max:length:max');
+  });
+});
+
+// Profile runs b1, Task 9: swept profiles (a loop, or End to end round a curve) in the row, the presets and the refusals.
+describe('swept profiles in the row (profile runs b1)', () => {
+  const W_MIN = { across: 'width', from: 'min' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  /** The Profiles row: the `.cut` holding the Remove profile button. */
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+  const expectedLine = (b: Board) => { const v = geometryBoard(b); return sweptLine(v, v.profiles[0]!, useStore.getState().doc.units); };
+
+  it('the Run select offers End to end, Stopped and All round; on an uncut side Stopped is offered as today', () => {
+    open(top({ profiles: [endToEndP('s1', { across: 'width', from: 'max' })] }));
+    const run = inRow('Run');
+    expect([...run.options].map((o) => o.textContent)).toEqual(['End to end', 'Stopped', 'All round']);
+    act(() => run.focus());
+    expect(within(run).getByRole('option', { name: 'Stopped' })).toBeEnabled();
+    expect(within(run).getByRole('option', { name: 'All round' })).toBeEnabled();
+  });
+
+  it('All round on the 2" corner top stores { loop: true }, hides Side, in one undo entry', async () => {
+    const user = userEvent.setup();
+    open(named(frontOnly));
+    expect(inRow('Side')).toBeInTheDocument();
+    const before = useStore.getState().past.length;
+    await user.selectOptions(inRow('Run'), 'All round');
+    expect(profiles()[0]!.run).toEqual({ loop: true });
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(within(profileRow()).queryByLabelText('Side')).toBeNull();
+    expect(inRow('Run').value).toBe('loop');
+    expect(within(profileRow()).getByText('Roundover 1/4" all round the thickness face (max side)')).toBeInTheDocument();
+  });
+
+  it('All round is greyed on focus when it would ADD too-tight: a stopped 3/8" roundover on the 1/4" corner top', () => {
+    // Every side of topCorners(0.25) meets two 1/4" corners, so an End to end 3/8" roundover there is ALREADY too tight (and
+    // All round would add nothing): the row is a stopped run — a2's construction on any side, unfaulted.
+    open(named(topCorners(0.25, { ...stoppedRun('p1', W_MIN, 5, 30), size: 0.375 })));
+    expect(profiles()[0]!.size).toBe(0.375);
+    expect(screen.queryByRole('status')).toBeNull();
+    const run = inRow('Run');
+    expect(within(run).getByRole('option', { name: 'All round' })).toBeEnabled();     // not judged yet
+    act(() => run.focus());
+    expect(within(run).getByRole('option', { name: 'All round — too tight for the curve' })).toBeDisabled();
+  });
+
+  it('Stopped is greyed on a turned path with B7\'s reason; choosing it anyway is refused, nothing stored', async () => {
+    const user = userEvent.setup();
+    open(named(frontOnly));
+    const run = inRow('Run');
+    act(() => run.focus());
+    expect(within(run).getByRole('option', { name: 'Stopped — a stop on a curved or cornered run comes later' })).toBeDisabled();
+    act(() => run.blur());
+    // A stale list: the change itself refuses in the row's words.
+    await user.selectOptions(run, 'Stopped');
+    expect(profiles()[0]).toEqual(frontOnly.profiles[0]);
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop on a curved or cornered run comes later.');
+  });
+
+  it('a stopped a2 run on a side later cornered keeps its stations editable (B7 refuses only an ADDED stop)', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2, stoppedRun('p1', W_MIN, 5, 30))));
+    const start = within(profileRow()).getByLabelText('Start (from the length min end)');
+    await user.clear(start); await user.type(start, '6{Enter}');
+    const r = profiles()[0]!.run as { start: Parameters<typeof endPos>[1]; end: Parameters<typeof endPos>[1] };
+    expect([endPos(frontOnly, r.start), endPos(frontOnly, r.end)].sort((a, b) => a - b)).toEqual([6, 30]);
+    // ... but a Side change onto another turned side is a NEW stop there: refused.
+    await user.selectOptions(inRow('Side'), 'Width max side');
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop on a curved or cornered run comes later.');
+  });
+
+  it('swept rows render without throwing, each with sweptLine\'s line: End to end round the corners, along the arch, a loop', () => {
+    for (const b of [frontOnly, apronArch, topCorners(2)]) {
+      open(named(b));
+      expect(within(profileRow()).getByText(expectedLine(b))).toBeInTheDocument();
+      document.body.innerHTML = '';
+    }
+    expect(expectedLine(frontOnly)).toMatch(/, round the corners$/);
+    expect(expectedLine(topCorners(2))).toBe('Roundover 1/4" all round the thickness face (max side)');
+  });
+
+  it('a saved End to end on the arched side (B10) edits as a swept row: Radius 3/8 stored, still End to end', async () => {
+    const user = userEvent.setup();
+    open(named(apronArch));
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '3/8{Enter}');
+    expect(profiles()[0]).toEqual({ ...apronArch.profiles[0], size: 0.375 });
+  });
+
+  it('a loop keeps its run through Profile, Face and Fillet edits; Facing reads the edge', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2)));
+    await user.selectOptions(inRow('Profile'), 'cove');
+    expect(profiles()[0]).toMatchObject({ kind: 'cove', run: { loop: true }, face: 'max' });
+    await user.selectOptions(inRow('Face'), 'Bottom');
+    expect(profiles()[0]).toMatchObject({ kind: 'cove', run: { loop: true }, face: 'min' });
+    const fillet = within(profileRow()).getByLabelText('Fillet');
+    await user.clear(fillet); await user.type(fillet, '1/16{Enter}');
+    expect(profiles()[0]).toMatchObject({ fillet: 0.0625, run: { loop: true }, facing: 'face' });
+    await user.selectOptions(inRow('Facing'), 'Top: the edge');
+    expect(profiles()[0]).toMatchObject({ facing: 'edge', run: { loop: true } });
+  });
+
+  it('All round -> End to end takes the default edge\'s side (the top long edge, width max)', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2)));
+    await user.selectOptions(inRow('Run'), 'End to end');
+    expect(profiles()[0]!.run).toEqual({ start: { side: { across: 'width', from: 'max' }, through: 'min' }, end: { side: { across: 'width', from: 'max' }, through: 'max' } });
+  });
+
+  it('a swept row\'s size field refuses a value that ADDS too-tight, as its own error', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(0.5)));
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '5/8{Enter}');
+    expect(profiles()[0]!.size).toBe(0.25);
+    expect(radius).toHaveAttribute('aria-invalid', 'true');
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('Too tight for the curve — reduce the size first.');
+    expect(radius).toHaveFocus();
+  });
+
+  it('a stored too-tight (a corner edit caused it) is noted, and an edit that adds nothing new is accepted', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(0.2)));
+    expect(within(profileRow()).getByRole('status')).toHaveTextContent(/^Too tight for the curve at this size\.$/);
+    expect(within(profileRow()).getByText(/— check: it is too tight for the curve$/)).toBeInTheDocument();
+    // 7/32" is still over the 0.2" corners: too tight as stored, nothing ADDED — stored.
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '7/32{Enter}');
+    expect(profiles()[0]!.size).toBe(7 / 32);
+  });
+
+  it('a swept row refuses a size whose band would meet a bore, in the hole refusal\'s words; clear of it is stored', async () => {
+    const user = userEvent.setup();
+    // A loop on a plain 30 × 10 top; the 1/16" bore 0.3" in from the width max side sits clear of the 1/4" band.
+    open(named(createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [loopP('w1')], holes: [bore(0.3)] })));
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '3/8{Enter}');
+    expect(profiles()[0]!.size).toBe(0.25);
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('Puts hole 1 into the roundover — move it first.');
+    await user.clear(radius); await user.type(radius, '3/16{Enter}');
+    expect(profiles()[0]!.size).toBe(0.1875);
+  });
+
+  it('presets on the 2" corner top take the first edge whose default fits: the top long edge, swept round the corners', async () => {
+    const user = userEvent.setup();
+    const b = { ...named(topCorners(2)), profiles: [] };
+    open(b);
+    await add(user, 'Roundover');
+    const p = profiles()[0]!;
+    expect(p.run).toEqual({ start: { side: { across: 'width', from: 'max' }, through: 'min' }, end: { side: { across: 'width', from: 'max' }, through: 'max' } });
+    expect(isSwept(b, p)).toBe(true);
+    expect(within(profileRow()).getByText(/^Roundover 1\/4" .*, round the corners$/)).toBeInTheDocument();
+  });
+
+  it('a swept preset is judged by its swept faults: on the 1/4" corner top a 3/8" Cove is too tight on every edge, withheld', async () => {
+    const user = userEvent.setup();
+    open({ ...named(topCorners(0.25)), profiles: [] });
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    expect(screen.getByRole('button', { name: 'Roundover' })).toBeInTheDocument();    // 1/4" reach on a 1/4" corner: touching
+    expect(screen.queryByRole('button', { name: 'Cove' })).toBeNull();
+  });
+
+  // ── Final review I1 (the user's ruling, "Fall back to straight") ──
+  /** A saved 36 × 20 top with four 1/4" corners and a 3/8" roundover End to end on the front, loaded (v18). */
+  const tightTop = () => {
+    const corners = (['min', 'max'] as const).flatMap((u) => (['min', 'max'] as const).map((v) => ({ id: `c${u}${v}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: v, radius: 0.25 }) })));
+    const raw = JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [named(topCorners(0.25, { ...endToEndP('p1', W_MIN), size: 0.375 }))] }));
+    raw.boards[0].curves = corners;
+    return migrateDocument(raw).boards[0] as Board;
+  };
+  it('a saved End to end too tight for its corners runs straight: the row says so; the bench line has no note', () => {
+    open(tightTop());
+    expect(within(profileRow()).getByRole('status')).toHaveTextContent(/^Runs straight: too tight to follow the curve\.$/);
+    expect(within(profileRow()).getByText('Roundover 3/8" on the edge between the width face (min side) and the thickness face (max side), along the length')).toBeInTheDocument();
+  });
+  it('a fitting End to end follows its corners: no note', () => {
+    open(named(topCorners(2, { ...endToEndP('p1', W_MIN), size: 0.375 })));
+    expect(within(profileRow()).queryByRole('status')).toBeNull();
+  });
+  it('authoring still judges it swept: an edit keeping too-tight is stored (it still runs straight), one adding a swept fault is refused', async () => {
+    const user = userEvent.setup();
+    open(tightTop());
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '5/16{Enter}');
+    expect(profiles()[0]!.size).toBe(5 / 16);
+    expect(within(profileRow()).getByRole('status')).toHaveTextContent('Runs straight: too tight to follow the curve.');
+    document.body.innerHTML = '';
+    // a fitting End to end on 1/2" corners: 5/8" would ADD too-tight as swept — refused, though its straight form is clean
+    open(named(topCorners(0.5, endToEndP('p1', W_MIN))));
+    const r2 = within(profileRow()).getByLabelText('Radius');
+    await user.clear(r2); await user.type(r2, '5/8{Enter}');
+    expect(profiles()[0]!.size).toBe(0.25);
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('Too tight for the curve — reduce the size first.');
+  });
+  it('Curves\' refusal keeps comparing swept faults: an unrelated corner edit on a fallen-back part is not refused; one that ADDS too-tight to a fitting End to end is', () => {
+    const b = tightTop();
+    const uv = (id: string) => [id.slice(1, 4), id.slice(4)] as ['min' | 'max', 'min' | 'max'];
+    const smaller = { ...b, curves: b.curves.map((c) => ({ id: c.id, ...cornerCurve({ through: 'thickness', uFrom: uv(c.id)[0], vFrom: uv(c.id)[1], radius: 0.2 }) })) };
+    expect(profileRefusal(b, smaller)).toBeNull();
+    const fit = named(topCorners(2, { ...endToEndP('p1', W_MIN), size: 0.375 }));
+    const tight = { ...fit, curves: fit.curves.map((c) => (c.id === 'cminmin' ? { ...c, ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 0.25 }), id: c.id } : c)) };
+    expect(profileRefusal(fit, tight)).toBe('Too tight for the roundover — reduce the roundover first.');
   });
 });

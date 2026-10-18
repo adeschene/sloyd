@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 import {
@@ -11,7 +11,7 @@ import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, refusalFor, optionReason } from './curveRefusal';
+import { holeRefusal, profileFaultsBefore, profileRefusal, refusalFor, optionReason } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
@@ -36,9 +36,13 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
   const f = (n: number) => formatLength(n, units);
   const line = curveLine(board, curve, units);
   const stored = curveFaults(board, curve);
+  /** The refusal for `next` (nothing stored), or null: the curve's own (`refusalFor`), then a fault it would ADD to a profile
+   *  on this part (profile runs b1, Review Focus 2: a corner shrunk under a roundover's reach). */
+  const refuse = (next: Draft, control: Control | null): string | null => refusalFor(board, curve, next, control)
+    ?? profileRefusal(board, { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) });
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
   const attempt = (next: Draft, control: Control | null): string | null => {
-    const refused = refusalFor(board, curve, next, control);
+    const refused = refuse(next, control);
     if (refused) return refused;
     setError(null);
     updateCurve(board.id, curve.id, next);
@@ -69,7 +73,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
     for (const o of kindOptions) {
       if (o.value === choice) continue;
       const next = curveAs(o.value, curve, board);
-      const refused = next ? refusalFor(board, curve, next, null) : 'No room for it on this part';
+      const refused = next ? refuse(next, null) : 'No room for it on this part';
       if (refused) reasons[o.value] = optionReason(refused);
     }
     setJudged({ curve, board, reasons });
@@ -169,7 +173,11 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
     <div className="cut" data-kind={kind ?? 'curve'}>
       <div className="cut-head">
         <span className="cut-label curve-label">{label}</span>
-        <button className="cut-remove" aria-label={`Remove curve (${line})`} onClick={() => removeCurve(board.id, curve.id)}>✕</button>
+        <button className="cut-remove" aria-label={`Remove curve (${line})`} onClick={() => {
+          // A removal can change a profile's path too (b1): refused, on the row, when it would ADD a profile fault.
+          const r = profileRefusal(board, { ...board, curves: board.curves.filter((c) => c.id !== curve.id) });
+          if (r) setError(r); else removeCurve(board.id, curve.id);
+        }}>✕</button>
       </div>
       <p className="field-note">{line}</p>
       {note && <p className="field-note">{note}</p>}
@@ -184,28 +192,33 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
 export function Curves({ board }: { board: Board }) {
   const addCurves = useStore((s) => s.addCurves);
   const units = useStore((s) => s.doc.units);
-  // A preset whose default would fault on this part — a curve fault, or a hole it would put into the waste — is
-  // withheld, not added and refused (the AngleCuts/Holes precedent).
-  const fits = (cs: Draft[] | null): cs is Draft[] => {
-    if (!cs) return false;
-    if (cs.some((c) => curveFaults(board, c).length > 0)) return false;
-    const after: Board = { ...board, curves: [...board.curves, ...cs.map((c, i) => ({ ...c, id: `__preset${i}` }))] };
-    return holeRefusal(board, after) === null;
-  };
+  // A preset whose default would fault on this part — a curve fault, a hole it would put into the waste, or a fault it would
+  // ADD to a profile on the part (profile runs b1) — is withheld, not added and refused (the AngleCuts/Holes precedent).
+  // Judged once per stored part and units, not per render (a resize drag renders every frame).
+  const items = useMemo(() => {
+    // The profiles' faults before any preset, judged once, not once per preset (final review M1).
+    const before = profileFaultsBefore(board);
+    const fits = (cs: Draft[] | null): cs is Draft[] => {
+      if (!cs) return false;
+      if (cs.some((c) => curveFaults(board, c).length > 0)) return false;
+      const after: Board = { ...board, curves: [...board.curves, ...cs.map((c, i) => ({ ...c, id: `__preset${i}` }))] };
+      return holeRefusal(board, after) === null && profileRefusal(board, after, before) === null;
+    };
+    const one = (c: Draft | null) => (c ? [c] : null);
+    const arch = one(defaultArch(board));
+    const notch = one(defaultNotch(board));
+    const bow = one(defaultBow(board));
+    const corner = one(defaultCorner(board));
+    const corners = defaultCorners(board);
+    return [
+      ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => addCurves(board.id, arch) }] : []),
+      ...(fits(notch) ? [{ label: 'Half-round notch', detail: `A half circle ${formatLength(2, units)} wide, centred`, run: () => addCurves(board.id, notch) }] : []),
+      ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => addCurves(board.id, bow) }] : []),
+      ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
+      ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),
+    ];
+  }, [board, units, addCurves]);
   const shown = board.curves;
-  const one = (c: Draft | null) => (c ? [c] : null);
-  const arch = one(defaultArch(board));
-  const notch = one(defaultNotch(board));
-  const bow = one(defaultBow(board));
-  const corner = one(defaultCorner(board));
-  const corners = defaultCorners(board);
-  const items = [
-    ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => addCurves(board.id, arch) }] : []),
-    ...(fits(notch) ? [{ label: 'Half-round notch', detail: `A half circle ${formatLength(2, units)} wide, centred`, run: () => addCurves(board.id, notch) }] : []),
-    ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => addCurves(board.id, bow) }] : []),
-    ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
-    ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),
-  ];
   return (
     <>
       <h3>Curves{shown.length > 0 && <span className="h3-count"> · {shown.length}</span>}</h3>

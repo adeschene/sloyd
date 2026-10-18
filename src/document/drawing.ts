@@ -7,9 +7,9 @@ import { toWorld } from './snapPoints';
 import { holeDrawingTagged } from './holeDrawing';
 import { angleCutRemovesNothing, keptHalfSpace } from './angleCuts';
 import { featureTag } from './featureKeys';
-import { curveDrawEdges, curveEdgeLifts, runoutSilhouettes, silhouetteLines } from './curveDrawing';
+import { curveDrawEdges, curveEdgeLifts, profileSilhouettes, silhouetteLines } from './curveDrawing';
 import { sectionAxisIndex, sectionCaps, SECTION_EPS, type Section } from './section';
-import { geometryBoard } from './profiles';
+import { geometryBoard, shapedPart } from './profiles';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -179,7 +179,7 @@ const local = (s: { length: number; width: number; thickness: number }) => [s.le
 
 function partSegments(b: Board, toward: readonly number[]): Seg3[] {
   b = geometryBoard(b);
-  if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
+  if (!shapedPart(b)) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   // Final review F1: an edge a curve's outline bounds carries the silhouettes' lift, so a shallow viewer-facing face
   // does not graze it hidden in its own wood. The lift moves only the hidden-line probe.
@@ -293,8 +293,9 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
       ...partSegments(b, view.toward),
       ...holeDrawingTagged(b, view.toward, visibleOnly).map(({ A, E, row }) => ({ A, E, feature: featureTag(b.id, 'hole', row) })),
       ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
-      // Profile runs a2: a stopped profile's run-outs outline themselves by facet-chain silhouettes (none on any other part).
-      ...runoutSilhouettes(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
+      // Profile runs a2: a stopped profile's run-outs outline themselves by facet-chain silhouettes; b1: so does a swept
+      // profile's surface (none on any other part).
+      ...profileSilhouettes(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
     ];
     for (const seg of segments) {
       const A = plus(seg.A, off);

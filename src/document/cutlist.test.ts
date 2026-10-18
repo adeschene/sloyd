@@ -5,6 +5,7 @@ import { chiralPart } from './turnFixtures';
 import type { Cut } from './types';
 import { cutRegion } from './cuts';
 import { ARCH } from './curveFixtures';
+import { loop, topCorners } from './sweepFixtures';
 import { axisFrame, spanToWorldOffset } from './geometry';
 
 /** A document containing exactly these boards, with unique default names. */
@@ -913,4 +914,15 @@ describe('row numbers and board ids (plans balloons §2)', () => {
     const after = buildCutList(doc).groups.flatMap((g) => g.rows).find((r) => r.names[0] === 'Oak short')!.number;
     expect([before, after]).toEqual([2, 1]);
   });
+});
+it('two ogee loops differing only in facing are two rows with different words (profile runs b1, Task 8 fix round 1)', () => {
+  const { curves, length, width, thickness } = topCorners(2);
+  const ogee = (facing: 'face' | 'edge') => ({ ...loop('p1', 0.5, 'ogee'), facing });
+  const list = buildCutList(docWith({ length, width, thickness, curves, profiles: [ogee('face')] }, { length, width, thickness, curves, profiles: [ogee('edge')] }));
+  const rows = list.groups.flatMap((g) => g.rows);
+  expect(rows).toHaveLength(2);
+  expect(rows.map((r) => r.setup.at(-1)).sort()).toEqual([
+    'Roman ogee 1/2" all round the thickness face (max side)',
+    'Roman ogee 1/2" all round the thickness face (max side), top on the edge',
+  ]);
 });

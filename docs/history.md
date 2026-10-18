@@ -520,6 +520,98 @@ and 79.
 
 ## What each round did
 
+**What profile runs chunk b1 did (2026-10-18)** (a profile follows the outline, fu 390; chunk b designed in a second brainstorm,
+"Yes, that looks right" ×3, then "Yes, write the spec" — rulings B1–B9, split into b1/b2 —, B10 ruled by the user while planning;
+plan `…-profile-runs-b1.md`, probe `docs/superpowers/plans/b1-probe/`; branch `profile-runs-b1` from `65947fd`, code complete at `fafc8b6`;
+**no schema change** (18): b1 lifts the loader's refusal of `{ loop: true }` and nothing else, so a2 refuses a b1 loop while a b1
+End to end loads on a2 unchanged, as a2's prism).
+1. **The path** (Task 1, `9d49fa2`, `3e4c99f`; `profilePath.ts`): `faceOutline`, `sideStretch`, `profilePath`. Rulings: the arch-area
+   test compares against the exact chord polygon plus `CURVE_TOLERANCE` × arc length (the plan's 2-decimal expectation was 0.079
+   off at 16 chords); a chain covering a whole edge (a Bow) belongs to that edge with sharp ends (the plan's "non-adjacent → null"
+   nulled every bowed part; cost: a Bow on a lengthened part reads as a corner arc, residue); `arc.concave` means the arc bows INTO
+   the wood (the plan's "centre outside the wood" was the defect: a shallow Bow's centre lies off the part). Review Important: a
+   through end's ray followed the rectangle edge, not the adjacent outline chord (wrong beside an end-side curve at the corner;
+   Task 3 builds on it), fixed; a line-only clipped corner is a SHARP end (cost: no run-out there).
+2. **The view, loader, faults, keys, one gate** (Task 2, `261fd0e`, `1248c62`, `e0e4fd8`; spec `97c874e`): `geometryBoard`'s
+   `profiles` holds exactly the swept profiles, `shapedPart` replaces every `curves.length === 0` gate, loops load, path faults.
+   Rulings: **B1a** — two profiles whose stretches share ONLY a corner arc mitre at its middle, not an overlap (without it a saved
+   rounded top with four End to end profiles loaded all four faulted and built none: silent loss under B10; cost if wrong: a mitre
+   where the user wanted run-outs); `runs-off`/`too-tight` for SWEPT profiles only (raising both on a straight one doubled its fault
+   and broke byte for byte); two a1 tests changed by design (the "all round refuses" case removed; one profile moved to the uncut
+   side, B10 making the arched side swept).
+3. **The construction** (Task 3, `9bb921f`; spec `d948c07`; `sweep.ts`, `skeleton.ts`): skeleton bands × the kept section plus the
+   rest, from curve-free cells; 0/50k points misclassified against the oracle. Rulings: frontOnly × cove takes a sector-sagitta
+   bound past the stations (1.42e-3 in³, 0.034% of the waste: a2's SHIPPED run-out chord approximation, +6.0e-4 in³ per station;
+   meeting 1e-3 meant changing a2's bytes); a cell no piece reaches is DROPPED; each swept profile builds or skips on its own
+   faults; an odd-count mitre's end vertex is projected onto the outline chord; an end chord the offset swallows is `too-tight` (a
+   notch 0.2" from the end under a 3/8" roundover now faults; cost: a refusal where a router would leave a ragged end — later
+   softened for saved runs by the fallback, below); bodies ran 1.1–1.8× the probe, perf left to Task 5.
+4. **Probes** (Task 4, `ce500c7`): swept waste is air to the stock probe; holes into it break out. Rulings: the brief's near hole at
+   0.4" could not break out (reach + radius = 0.375), so 0.3 with a 0.37/0.38 boundary pair; arc ends and crowns in swept waste are
+   no longer snap points (`topCorners(2)` offered 12 in air; inv 16); a faulted swept profile is neither air nor a hole fault.
+5. **The mesh** (Task 5, `262d1a8`, `5b77a0e`, `c5e685a`, `528a27f`): smooth swept normals, watertight cases (a hinge cup and Review
+   Focus 4/5 — two loops; a dado and a chamfer — included), one prism clip per skeleton face (byte-identical). The four binding
+   40 ms rows missed (alone/full: 2" roundover loop 39.9/49.6, thumbnail 39.1/38.9, bead 56.2/62.5, B1 front 38.4/40.4), and cove
+   97/113, ogee 126/141 and two faces 77/83 sat over Q4's 80/105. Rulings: the `findLine` lever was built, proved byte-identical and
+   REVERTED (no faster); Task 6 builds a swept profile's edges from its section faces instead of finding them over the bodies (the
+   curves precedent, inv 53); cove/ogee/two-faces guarded at measured + 25% meanwhile; normals per face, a ~0.005 rad step at a
+   tangent point accepted (cost: a faint shading line on real hardware, for the user's eye).
+6. **Edges and part diagrams** (Task 6, `f53a9d0`, `afaab7b`, then fix rounds `e96966f`, `135a6c2`, `2568869`, `f7719a5`,
+   `ca97b2d`, `2094456`, `c841ab0`, `0f8a4af`, `a731625`): `sweptSmoothPair` both ways; built edges equal the reference on 25
+   fixtures. Rulings: chunk 1 draws no tangent line (the brief's two lines were wrong); the bead's quirk wall drew 52 facet lines (an
+   inv 16 defect) — its own tagged section face, held inside the band by `WALL_MARGIN` 1/64" (208 → 156 lines, smooth); B1
+   stations' near-duplicate lines ~0.001" apart were a step — **B1 amended: ε = 2·reach·tan(φ/2) past the tangent point**, so band and
+   run-out share one section (the near-duplicate pin 0.005": 1e-6 could not catch the step); a B1a mitre between EQUAL sections is
+   smooth whatever the chord parity, between differing ones a line; the bead loop (53–58 ms after the quirk fix) became a chunk-c
+   speed row at 73 (40 needs another decomposition of the kept section). Review NOT approved: I1 — ε counted in overlap, so a front
+   End to end beside a side stop at the tangent point both faulted and vanished; I2 — ε assumed a straight next chord ≥ ε (a short
+   end side faulted `too-tight`; a full-round end put the station on the opposite arc). **Ruling: ε is a BUILD detail, never a
+   decision** — `profilePath` at the tangent point for every fault, `builtPath` carries ε, only past a straight next side longer than
+   2ε (else the small step, ~0.0005–0.001", is accepted). Re-review clean. Diagrams: a swept profile opens its face's thickness view with its inner
+   line.
+7. **The Plans sheet** (Task 7, `b24fa56`): fine-path creases along path arcs, facet-chain silhouettes, lifts, tags; a ray oracle 0
+   mismatches in four views; non-swept drawings byte-identical over 9 fixtures × 4 views + section (measured by the reviewer).
+   Rulings: the fine-path test uses the cove loop (a roundover loop has no along-path crease); the per-body lift on swept parts (the
+   fallback left two cove reach creases hidden in Iso); the swept profile's tag wins over the corner's (cost: an unkeyed corner);
+   silhouettes along a path arc stay at model chords (P19); the cove's doubled Iso silhouette (~0.12" apart) is fu 386's rule, owed
+   to a real print with 387(1)/392(2).
+8. **Words and keys** (Task 8, `0a8e109`, `d26bcc7`, fix rounds `4b46617`, `9fcae95`, `10cdcb0`): `all round <face>`, `, round the
+   corner(s)`; the curved identity hash sections through an a2 run-out too. Rulings (Q7 amended): one corner arc reads `, round the
+   corner`, two or more `, round the corners`; an asymmetric LOOP facing the face carries no top clause (the filleted cove read "all
+   round the thickness face (max side), top on the thickness face (max side)"), facing the edge `, top on the edge`; End to end
+   keeps chunk 1's line; keys carry no facing. `4b46617` alone did not typecheck (fixed by `9fcae95`).
+9. **The row, presets, Curves' refusals** (Task 9, `25d8ad9`, `d6ac56f`): All round in the Run select, Side hidden on a loop,
+   Stopped greyed on a turned run (B7); the swept End to end row no longer crashes (Task 2's carried minor). Rulings: the brief's
+   fixtures could not hold (All round's greying pinned on a stopped 3/8" run on `topCorners(0.25)`; presets on `topCorners(2)`);
+   Curves' refusal NAMES the profile, `Too tight for the roundover — reduce the roundover first.` ("the size" in a Corner Radius row
+   reads as the corner's); a swept profile made straight by a curve edit counts its new straight faults as added (rare, refused
+   with words).
+Final review (opus, 65947fd..d6ac56f): NOT ready — 0 Critical, 2 Important. **I1:** B10 turned a saved End to end that a2 built
+cleanly into a swept profile faulting `too-tight` that built nothing (a 3/8" roundover on 1/4" corners; the default Thumbnail on a
+10 × 2 part's 1/2" default corners) — a saved profile vanishing on upgrade. Asked the user: **"Fall back to straight"** — an End to
+end (never a loop) whose swept faults are non-empty and straight faults empty is built, drawn, worded and keyed exactly as a2 built
+it, one decision in `geometryBoard`, the row noting `Runs straight: too tight to follow the curve.`; authoring still judges it
+swept, so a corner edit that ADDS `too-tight` stays refused (`bbac118`; pinned by hashes of every reader taken on a `git archive` of
+65947fd; spec B10 amended). **I2:** a saved a2 stop inside a corner arc beside a B10 End to end on the adjacent side made both
+fault `overlap`; the controller's ruling: a station run claims only its STRAIGHT side chords, arched sides too (`f2e3968`; spec Q6
+amended; cost: a stop over an arch never overlap-faults against a swept neighbour). **M1** (re-graded by effect: ~15–20 ms per
+resize frame in the panels): `profileFaults` memoised per geometry view, deep-frozen; Curves' before-faults hoisted out of the preset
+loop (`923c664`; covers M2, `builtSwept`'s re-judging). `fafc8b6` removed an unused import the build caught. Re-review (sonnet):
+I1, I2, M1 addressed, 0 new; 5696 tests, build clean. Left as residue (fu 393): the half arc beside a fallen-back neighbour, the
+presets' ~8–9 ms per frame, the note saying "too tight" for any swept fault.
+**Live pass** (`docs/browser-verification-profile-runs-b1.md`, committed as `f268170`; dev server at `fafc8b6`, software GL; project "Swept
+profiles check", imported from a file built from `sweepFixtures.ts` through `migrateDocument`, left in place): confirmed the bench
+lines (the arched apron's chunk 1 line unchanged; `all round`; `, round the corners`; the tight loop's `— check:` and `No profile
+preset fits this part.`), the Run select's greyed Stopped and one-undo All round, Curves' refusal at 0.2" (typed text kept, corner
+unchanged) and a 3" corner re-routing, the cove running round all four corners with no visible seam
+(`docs/img/profile-runs-b1-cove-corner.png`), a mirrored copy's profile following the mirrored arch
+(`…-mirrored-apron.png`), the Plans keys and the faulted loop listed as not shown (`…-plans.png`), the cut list notes, the a1/a2
+check projects unchanged, 0 console errors. `…-iso.png` (the whole project in Iso after the 3" corner) is committed but not cited
+by the verification doc. Could NOT confirm: shading on real hardware (software GL), a real print, the fallback live (pinned by
+hash tests instead), a stopped a2 run inside a corner arc beside a swept neighbour, and the rebuild feel of a cove or bead loop
+during a resize drag (wall-clock guards: cove 81, bead 73, ogee 113 ms). Merged to master 2026-10-18; not deployed. Suite 5696
+tests across 178 files.
+
 **What profile runs chunk a2 did (2026-10-18)** (stopped profiles and the router's run-out; the user: "Write the a2 plan", the
 station ruling "Where the full profile ends", then "Subagent-driven, go ahead"; plan `…-profile-runs-a2.md`; branch
 `profile-runs-a2`; schema 18, unchanged by a2).

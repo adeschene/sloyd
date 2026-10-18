@@ -6,7 +6,10 @@ approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `d
 merged as `305934d`); chunk a2 implemented (plan `docs/superpowers/plans/2026-10-18-sloyd-profile-runs-a2.md`; stopped profiles and the
 run-out), **a1 and a2 deployed together** 2026-10-18 (`index-BbXkYYy4.js`). The rulings marked *Amended (implementation, a2)* (I1, I2)
 await the user's review. **Chunk b designed** in a second brainstorm, 2026-10-18 (rulings B1–B9 below, "Yes, that looks right" ×3,
-then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Chunk b1 implemented and merged** 2026-10-18 (plan
+`docs/superpowers/plans/2026-10-18-sloyd-profile-runs-b1.md`; not deployed; no schema change): the rulings marked *Amended
+(implementation, b1…)* (B1's ε, B1a, Q3/Q6's Task 3 amendments, Q7) and Q6's *Amended (final review, the controller's ruling, I2)*
+await the user's review; B10's *Amended (final review, the user's ruling, I1)* is the user's own. **b2 next.** **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one
@@ -54,6 +57,27 @@ profiles; a grain fix (fu 336).
 
 - **B1 Rounded ends.** End to end on a side whose ends are corner arcs carries the profile round each arc and runs out where the
   arc meets the next side (the bit lifted off at the far tangent point). All round stays the way to profile the whole face.
+  *Amended (implementation, b1 Task 6 fix rounds 1–2; for the user's review)*: the BUILT run goes on past the far tangent
+  point along the next side for ε = 2 · reach · tan(φ/2), φ the arc's end chord against that side (half the chord angle), and
+  runs out there.
+  - This joins the arc's end-chord band to a straight band on their shared bisector, and that band meets a2's run-out on the
+    station plane in the side's own frame. So there is one section, with no step.
+  - Before, the chord band was clipped across the side, stretching its section by 1/cos φ: about 0.0005" at 1/4" reach. It
+    drew two near-coincident lines and a stub.
+  - **ε depends on the chord count**, which makes it a modelling-tolerance artifact. Examples:
+    - roundover 1/4: 0.016" on 2" corners, 0.033" on 1/2";
+    - cove 3/8 on 2" corners: 0.025";
+    - roundover 1/2 on 1/2" corners: 0.066";
+    - cove 3/8 on 0.4" corners: 0.059";
+    - thumbnail 3/4 × 1/4 on 3/4" corners: **0.084" (about 2 mm, the worst measured)**.
+  - **ε never decides anything** (fix round 2). Every fault reads the station at the tangent point: overlap, too-tight,
+    stop-off, and the P14 hole reach. A stopped run on the next side starting at the tangent point is therefore clean.
+  - **Fallback:** ε is taken only along a STRAIGHT next side longer than 2ε. On a shorter side, or a curved one such as a
+    full-round end, the station stays at the tangent point as it was before ε, and the small step there is accepted.
+- **B1a** *Amended (implementation, b1)*: two profiles on one face whose stretches share ONLY a corner arc meet at that
+  arc's middle in a mitre (the radial line through its midpoint), as R6 mitres a sharp corner; that is not an `overlap`. Each runs
+  out at the far tangent point only where the adjacent side holds no such profile. (Without it a saved rounded top with four End to
+  end profiles would fault all four and build none.)
 - **B2 Stations** are measured straight along the side's run dimension from its min end, as a tape laid along the part and squared
   to the edge (a2's rule, kept on curved sides). A station may sit on an arch, a bow or a corner arc.
 - **B3 Two-side runs** are in chunk b: a stopped run may start on one side and stop on another, following the outline between them
@@ -129,6 +153,16 @@ profiles; a grain fix (fu 336).
 - **B10** (the user's ruling while planning b1, 2026-10-18): an End to end profile SAVED before b1 on a side a curve cuts follows
   that side's stretch on load (B1) — the fix the user asked for, applied to existing projects. A profile on an uncut side with
   sharp corners is unchanged byte for byte. No stored marker.
+  *Amended (final review, the user's ruling, I1: "Fall back to straight")*: an End to end profile (never a loop) whose SWEPT
+  faults are non-empty while its STRAIGHT faults — chunk 1's view curve (`curveFaults`) and a2's profile faults for it, the
+  other profiles judged by their shape — are empty is built, drawn, worded and keyed EXACTLY as a2 built it (bodies, mesh,
+  edges, drawings, diagrams, bench line, keys, snap points, stock probe, hole faults, the cut list; pinned by hashes taken on
+  65947fd); it follows the curve only when the bit fits. ONE decision, in `geometryBoard` (memoised with the view): the
+  profile stays a view curve, `viewProfileFaults` reads its straight faults, and `runsStraight` reads the decision back for
+  the row's note, `Runs straight: too tight to follow the curve.` (the bench line has none: it describes what is cut).
+  Authoring still judges an End to end on a cornered or arched side by its swept faults (`profileFaults`, unchanged): the
+  Profiles row and Curves' `profileRefusal` refuse an ADDED swept fault, so authoring never creates a new one; a saved one,
+  or a resize that makes it too tight, falls back.
 
 **Planning rulings for chunk b1** (*Amended (planning)*, 2026-10-18; the probe: `docs/superpowers/plans/b1-probe/`):
 - **Q1 The view.** `geometryBoard`'s `profiles` holds exactly the SWEPT profiles (stored order); straight ones stay view curves
@@ -143,17 +177,36 @@ profiles; a grain fix (fu 336).
   curve-free cells (cuts and angle cuts applied) and the through-thickness curves are not applied again (the outline carries
   them; starting after them multiplied an arch's 16 slices into 160 bodies, 49 ms against 11). Each further swept profile
   intersects the bodies it meets; then every other curve as today; then a B1 station's run-out (a2's `runoutPieces`).
+  *Amended (implementation, b1 Task 3)*: a cell no piece reaches lies wholly in a skipped curve's waste and is DROPPED (the
+  pieces tile outline × thickness); a body inside one piece keeps its object. An odd-count B1a mitre's end vertex is projected
+  onto the outline chord.
 - **Q4 Speed:** roundover, thumbnail and bead guarded at 40 ms (probe 10–33); a following cove and ogee are BUILT in b1 and
   guarded at 80 and 105 ms (probe 62 and 85), recorded for chunk (c).
+  *Amended (implementation, b1):* the committed guards are each row's measured minimum + 25% (a single run's 25% flaked, Task 5):
+  cove 81, ogee 113, both faces 78 ms (measured ~63, ~87–90, ~62). The BEAD loop is a chunk-c row too, guarded at 73 ms: its quirk
+  wall became its own tagged section face (inv 16: no facet lines, smooth shading), a third section piece per segment, measured
+  53–62 ms. Roundover, thumbnail and the front End to end with B1 run-outs keep 40.
 - **Q5 Tags:** a vertical piece plane on an outline chord carries `curve: <id>` (chunk 1's radial normals and smooth lines below
   the profile unchanged); a swept section face carries `profileEdge` (a2's builder) and `sweep: <segment>`, so a2's `smoothPair`
   extends to swept facets in both directions.
 - **Q6 Faults:** `profileFaults` adds `runs-off` (reach over half the face's smaller dimension, depth over the thickness, or no
-  traceable outline) and `too-tight` (a convex outline arc's radius under the reach, R10; a concave one's under `BEARING`, B5);
+  traceable outline) and `too-tight` (a convex outline arc's radius under the reach, R10; a concave one's under `BEARING`, B5;
+  *amended, b1 Task 3*: or an end chord the offset swallows — the skeleton cannot end the band there);
   `overlap` is judged on outline stretches (straight and swept alike). A hole keeps the `:curve:<id>` key (P7).
+  *Amended (final review, the controller's ruling, I2)*: a STATION (a2) run's coverage is its side's STRAIGHT chords only —
+  a2's prism follows no curve, so it never claims a corner arc's or an arch's chords (over them it cuts only the curve's
+  waste). A saved a2 stop inside a corner arc beside a B10 End to end on the adjacent side therefore stays clean, as on a2;
+  a stop that shares a straight stretch with a swept run still overlaps.
 - **Q7 Words:** `all round` reads `<name> all round <faceName>` (the collapse's own face words, so `the thickness face (max
   side)`, not §5's shorthand "the top"); its key `<name><fillet>, all round`. Bench lines list curves, then straight profiles,
   then swept, each in stored order.
+  *Amended (implementation, b1)*: (1) an ASYMMETRIC swept profile (`profileAsymmetric`: ogee, bead, thumbnail, a filleted
+  roundover or cove) LOOP facing the edge reads `, top on the edge` (the outline's edge is no single named face), before the
+  fillet words as chunk 1 puts its facing words; facing the face (the stored default, as for symmetric kinds) it adds no top
+  clause, since `all round <face>` already names the face; an End to end run reads chunk 1's line as is, its facing words
+  included. Keys carry no facing, as chunk 1's do. (2) An End
+  to end run reads `, round the corner` when its stretch takes ONE corner arc and `, round the corners` for two; the key
+  likewise.
 - **Q8 Diagrams:** a swept profile opens its face's thickness view and draws its inner offset line there, with its note.
 
 ## 2. The probe (2026-10-17, throwaway)

@@ -5,6 +5,8 @@ import type { ProfileCut, ProfileEnd } from '../document/types';
 import { canonicalRun, geometryBoard } from '../document/profiles';
 import { spanOf } from '../document/curves';
 import { bodyMesh } from './grainTiling';
+import { builtSwept } from '../document/sweep';
+import { apronArch, frontOnly, loop, notchEdge, topCorners } from '../document/sweepFixtures';
 
 /**
  * Curve rebuild performance (curves spec §3.6). A resize drag rebuilds a curved part every frame — bodies, EDGES (the
@@ -143,4 +145,45 @@ describe('a curved part rebuilds inside a frame', () => {
       expect(minOf9(board)).toBeLessThanOrEqual(40);
     });
   }
+});
+
+// Profile runs b1 (Task 5; spec Q4, the Global Constraints' table): a profile that FOLLOWS the outline — the swept band built
+// from the outline's skeleton, every body's mesh with its swept normals — rebuilt as above, on the b1 fixtures
+// (sweepFixtures.ts). The length moves by a micro-inch: the corners and the arch are written from the min end, so they keep.
+describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', () => {
+  const at = (b: Board) => (k: number) => createBoard({ ...b, length: b.length * k });
+  // Measured 2026-10-18 (min of 9, ms; this file alone at load ~1.5 / the full suite, load 1.5 -> 4.2), after Task 6's
+  // built swept edges (curvedEdges' fast path: seams dropped, section-to-section lines decided by their tags, not searched
+  // for by bodyEdges) — the controller's Task 5 ruling moved the four binding 40 ms rows here with that path. Three now pass
+  // in both runs: the 2" roundover loop (27.1 / 33.1), the thumbnail loop (27.2 / 28.8), the front End to end with B1
+  // run-outs (32.0 / 37.2). The BEAD loop misses 40: once its quirk wall became its own tagged section face (inv 16: no
+  // facet lines, smooth shading; a third section piece per segment) it measured 53–58 ms — the controller's Task 6 ruling
+  // made it a chunk-c speed row beside cove and ogee (spec Q4), guarded at 58 + 25%. Cove, ogee and both faces
+  // fell (cove 64.3 / 63.1, ogee 80.2 / 90.1, both 59.9 / 61.9; were 95–113, 125–141, 77–83): each is guarded at its higher
+  // minimum + 25% (Task 5 showed 25% over a single run's minimum flakes), and cove and ogee now measure inside Q4's 80 and 105.
+  const swept: [string, Board, number][] = [
+    ['a roundover 1/4" along the arched apron', apronArch, 40],
+    ['a roundover 1/4" all round the 1/2" corner top', topCorners(0.5), 40],
+    ['a roundover 3/8" round the notch', notchEdge, 40],
+    ['a roundover 1/4" all round the 2" corner top', topCorners(2), 40],
+    ['a thumbnail all round the 2" top', topCorners(2, loop('p1', 0.75, 'thumbnail')), 40],
+    ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 40],
+    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 73],
+    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 81],
+    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 113],
+  ];
+  for (const [name, board, bound] of swept) {
+    it(`${name}: at most ${bound} ms`, () => {
+      // The fixture is what it claims: a built swept profile.
+      expect(builtSwept(geometryBoard(board))).toHaveLength(1);
+      expect(minOf9(at(board))).toBeLessThanOrEqual(bound);
+    });
+  }
+  // Review Focus 4: All round the top AND the bottom (one outline, two swept profiles). Measured 59.9 / 61.9 (alone / full
+  // suite, Task 6; was 76.8 / 83.0): guarded at 61.9 + 25%.
+  it('a roundover all round the top and the bottom of the 2" top: at most 78 ms', () => {
+    const board: Board = { ...topCorners(2), profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] };
+    expect(builtSwept(geometryBoard(board))).toHaveLength(2);
+    expect(minOf9(at(board))).toBeLessThanOrEqual(78);
+  });
 });

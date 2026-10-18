@@ -75,8 +75,8 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
   });
   // Spec P2: a later build's run must never be drawn full length here.
   const side = { across: 'width', from: 'max' } as const;
+  // b1 lifted the a1 'all round' case ({ loop: true } now loads: see the b1 block below); two sides still refuse (b2).
   for (const [why, run] of [
-    ['all round', { loop: true }],
     ['ends on two sides', { start: { side, through: 'min' }, end: { side: { across: 'length', from: 'max' }, through: 'max' } }],
   ] as const) {
     it(`a run this build cannot build refuses the document: ${why}`, () => {
@@ -155,6 +155,36 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
       const raw = { ...v17([part({ profiles: [{ ...p1(), run: { start: { side, from: 'min', at }, end: { side, through: 'max' } } }] })]), version: 18 };
       expect(board0(load(JSON.parse(JSON.stringify(raw)))).profiles).toEqual([]);
     }
+  });
+  // Profile runs b1: All round loads; anything else under `loop` still refuses.
+  it('a { loop: true } profile loads, keeps run { loop: true } and round-trips byte for byte (b1)', () => {
+    const raw = { ...v17([part({ profiles: [{ ...p1(), run: { loop: true } }] })]), version: 18 };
+    const doc = load(raw);
+    expect(board0(doc).profiles).toHaveLength(1);
+    expect(board0(doc).profiles[0]!.run).toEqual({ loop: true });
+    expect(board0(doc).profiles[0]!.run).not.toBe(raw.boards[0].profiles[0].run);
+    const again = load(JSON.parse(JSON.stringify(doc)));
+    expect(JSON.stringify(again)).toBe(JSON.stringify(doc));
+  });
+  it('a loop keeps the shared fields and is dropped like any profile for a bad size (refusals outrank drops)', () => {
+    const raw = { ...v17([part({ profiles: [{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), size: -1, run: { loop: true } }] })]), version: 18 };
+    expect(board0(load(raw)).profiles).toEqual([{ ...p1({ id: 'a' }), run: { loop: true } }]);
+  });
+  for (const [name, run] of [
+    ['loop: false', { loop: false }],
+    ['loop: 1', { loop: 1 }],
+    ['loop beside start', { loop: true, start: { side, through: 'min' } }],
+    ['loop beside start and end', { loop: true, ...okRun }],
+  ] as const) {
+    it(`a run with ${name} refuses the document (all round, b1)`, () => {
+      const raw = { ...v17([part({ profiles: [{ ...p1(), run }] })]), version: 18 };
+      expect(() => load(raw)).toThrow('This project has an edge profile this version of Sloyd can\'t build (all round) — it was saved by a newer version of Sloyd.');
+    });
+  }
+  it('ends on two sides still refuse beside a loading loop (b2)', () => {
+    const two = { start: { side, through: 'min' }, end: { side: { across: 'length', from: 'max' }, through: 'max' } };
+    const raw = { ...v17([part({ profiles: [{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }] })]), version: 18 };
+    expect(() => load(raw)).toThrow('(ends on two sides)');
   });
   it('a v19 file is refused by the version gate', () => {
     expect(() => load({ ...v17([part({})]), version: 19 })).toThrow(/newer version/);

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, curveValues, mirrorCurveCut, sameCurve, spanOf } from './curves';
 import { createBoard, partGeometry } from './document';
 import type { P2 } from './curves';
-import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults } from './profiles';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults, viewProfileFaults } from './profiles';
+import { profilePath } from './profilePath';
+import { apronArch, endToEnd as sweepEndToEnd, frontOnly, loop, notchEdge, plainLoop, stopped as sweepStopped, topCorners } from './sweepFixtures';
 import type { ProfileFields } from './profiles';
 import type { CurveCut, ProfileCut } from './types';
 
@@ -260,12 +262,21 @@ describe('ProfileCut, the stored form (profile runs spec §3.1, chunk a1)', () =
     const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
     const plain = createBoard({ length: 30, width: 5, curves: [arch] });
     expect(geometryBoard(plain)).toBe(plain);
-    const p: ProfileCut = { id: 'p1', ...profileFromFields(corpus()[0]!) };
+    // b1 (B10): the profile sits on the UNCUT width-max side; one on the arched width-min side is swept (below).
+    const p: ProfileCut = { id: 'p1', ...profileFromFields(corpus().find((f) => f.through === 'length' && f.uFrom === 'max')!) };
     const b = createBoard({ length: 30, width: 5, curves: [arch], profiles: [p] });
     const g = geometryBoard(b);
     expect(g.curves).toEqual([arch, profileAsCurve(p)]);
     expect(g.profiles).toEqual([]);
     expect(geometryBoard(b)).toBe(g);
+    expect(geometryBoard(g)).toBe(g);
+  });
+  it('geometryBoard (b1, B10): an End to end profile on the side an arch cuts is swept: in the view\'s profiles, not its curves', () => {
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
+    const p: ProfileCut = { id: 'p1', ...profileFromFields(corpus()[0]!) };
+    const g = geometryBoard(createBoard({ length: 30, width: 5, curves: [arch], profiles: [p] }));
+    expect(g.curves).toEqual([arch]);
+    expect(g.profiles).toEqual([p]);
     expect(geometryBoard(g)).toBe(g);
   });
   const side = (from: 'min' | 'max') => ({ across: 'width' as const, from });
@@ -371,5 +382,113 @@ describe('the span and the profile faults (profile runs a2, P12/P13)', () => {
     expect(profileFaults(createBoard({ ...B, profiles: [a, full] }), a)).toEqual([{ kind: 'overlap', other: 'f' }]);
     const otherSide: ProfileCut = { id: 'o', ...profileFromFields({ through: 'length', uFrom: 'min', vFrom: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'v' }) };
     expect(profileFaults(createBoard({ ...B, profiles: [a, otherSide] }), a)).toEqual([]);
+  });
+});
+
+describe('swept profile faults (profile runs b1, Q6)', () => {
+  const kinds = (b: { profiles: ProfileCut[] } & Parameters<typeof profileFaults>[0], id = 'p1') => profileFaults(b, b.profiles.find((p) => p.id === id)!).map((f) => f.kind);
+  const notch = (span: number, profiles: ProfileCut[] = [sweepEndToEnd('p1', { across: 'width', from: 'min' }, 0.375)]) => createBoard({ length: 30, width: 5, thickness: 0.75,
+    curves: [{ id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span, rise: span / 2 }) }], profiles });
+  it('the fixtures as built fault nothing', () => {
+    for (const b of [apronArch, notchEdge, frontOnly, topCorners(2), topCorners(0.5), plainLoop]) expect(kinds(b, b.profiles[0]!.id)).toEqual([]);
+  });
+  it('too-tight: a convex corner arc under the reach (1/4" corners, a 3/8" roundover all round)', () => {
+    expect(kinds(topCorners(0.25, loop('p1', 0.375)))).toEqual(['too-tight']);
+  });
+  it('a convex arc exactly the reach is not tight (touching)', () => {
+    expect(kinds(topCorners(0.375, loop('p1', 0.375)))).toEqual([]);
+  });
+  it('too-tight: a concave arc under the bearing\'s 1/4" (a 0.2" notch), whatever the reach', () => {
+    expect(kinds(notch(0.4))).toEqual(['too-tight']);
+  });
+  it('a concave arc of exactly 1/4" is not tight (touching), though the reach is larger', () => {
+    expect(kinds(notch(0.5))).toEqual([]);
+  });
+  it('runs-off: a reach over half the face\'s smaller dimension (3" on a 5" apron)', () => {
+    expect(kinds({ ...apronArch, profiles: [{ ...apronArch.profiles[0]!, size: 3 }] })).toContain('runs-off');
+  });
+  it('runs-off at the reach bound: half the width is no fault, a hair over is', () => {
+    const strip = (size: number) => createBoard({ length: 30, width: 1, thickness: 0.75, profiles: [{ ...loop('p1', size, 'thumbnail') }] });
+    expect(kinds(strip(0.5))).toEqual([]);
+    expect(kinds(strip(0.5 + 1e-9))).toEqual(['runs-off']);
+  });
+  it('runs-off at the depth bound: a thumbnail on its edge exactly the thickness deep is no fault, past it is', () => {
+    const edge = (thickness: number) => createBoard({ length: 30, width: 10, thickness, profiles: [{ ...loop('p1', 0.75, 'thumbnail'), facing: 'edge' }] });
+    expect(kinds(edge(0.75))).toEqual([]);
+    expect(kinds(edge(0.74))).toEqual(['runs-off']);
+  });
+  it('runs-off: a loop with no traceable outline (two corner curves overlapping on one side)', () => {
+    const c = (u: 'min' | 'max', id: string) => ({ id, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: 'min', radius: 4 }) });
+    const b = createBoard({ length: 6, width: 10, thickness: 0.75, curves: [c('min', 'a'), c('max', 'b')], profiles: [loop('p1')] });
+    expect(kinds(b)).toEqual(['runs-off']);
+  });
+  it('B1a: a front End to end and an End to end on the length min end share ONLY that corner arc: a mitre, no overlap', () => {
+    const b = topCorners(2, frontOnly.profiles[0]!);
+    const both = { ...b, profiles: [b.profiles[0]!, sweepEndToEnd('e', { across: 'length', from: 'min' })] };
+    expect(profileFaults(both, both.profiles[0]!)).toEqual([]);
+    expect(profileFaults(both, both.profiles[1]!)).toEqual([]);
+  });
+  it('a front End to end round its corners and an All round on the same face still overlap', () => {
+    const b = topCorners(2, frontOnly.profiles[0]!);
+    const both = { ...b, profiles: [b.profiles[0]!, loop('all')] };
+    expect(profileFaults(both, both.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'all' }]);
+    expect(profileFaults(both, both.profiles[1]!)).toEqual([{ kind: 'overlap', other: 'p1' }]);
+  });
+  it('overlap: a loop overlaps every other profile on its face, straight ones included; not one on the other face', () => {
+    const b = { ...plainLoop, profiles: [...plainLoop.profiles, sweepEndToEnd('e', { across: 'width', from: 'max' }), { ...sweepEndToEnd('m', { across: 'width', from: 'max' }), face: 'min' as const }] };
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'e' }]);
+    expect(profileFaults(b, b.profiles[1]!)).toEqual([{ kind: 'overlap', other: 'w1' }]);
+    expect(profileFaults(b, b.profiles[2]!)).toEqual([]);
+  });
+  it('overlap on outline stretches: End to end round the front corners does not meet the back (sharp-free, no shared stretch)', () => {
+    const b = topCorners(2, frontOnly.profiles[0]!);
+    const both = { ...b, profiles: [b.profiles[0]!, sweepEndToEnd('k', { across: 'width', from: 'max' })] };
+    expect(profileFaults(both, both.profiles[0]!)).toEqual([]);
+  });
+  it('a station run beside a swept profile overlaps where its span lies on the swept stretch, not elsewhere', () => {
+    // Final review I2 (the controller's ruling): a station run is judged on its STRAIGHT side chords only. The arch runs
+    // from 3" to 27", so a stop from 1" to 5" shares the straight 1"–3" with the swept run; one wholly over the arch (10" to
+    // 20", the case this test first pinned as an overlap) cuts only the arch's waste in a2's prism and fights for no wood.
+    const near = sweepStopped('s', { across: 'width', from: 'min' }, 1, 5), off = sweepStopped('s', { across: 'width', from: 'max' }, 10, 20);
+    const overArch = sweepStopped('s', { across: 'width', from: 'min' }, 10, 20);
+    expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, near] }, near)).toEqual([{ kind: 'overlap', other: 'p1' }]);
+    expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, off] }, off)).toEqual([]);
+    expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, overArch] }, overArch)).toEqual([]);
+  });
+  it('B10 + B1a: a saved four-edge set on a rounded-corner top loads with NO fault, each path ending in two mitres', () => {
+    // In a2 each was a straight prism through the corner waste; under B10 each carries round its corner arcs, and B1a mitres
+    // every shared arc at its middle (spec §1 B1a, the controller's ruling on Task 2's concern 1).
+    const s = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from });
+    const four = [sweepEndToEnd('f', s('width', 'min')), sweepEndToEnd('r', s('length', 'max')), sweepEndToEnd('k', s('width', 'max')), sweepEndToEnd('l', s('length', 'min'))];
+    const b = { ...topCorners(2), profiles: four };
+    expect(four.map((p) => profileFaults(b, p))).toEqual([[], [], [], []]);
+    for (const p of four) expect(profilePath(b, p)!.ends!.map((e) => e.kind)).toEqual(['mitre', 'mitre']);
+    // the same set on sharp corners: straight, no fault (a2's four-edge set)
+    const sharp = { ...createBoard({ length: 36, width: 20, thickness: 0.75 }), profiles: four };
+    expect(four.map((p) => profileFaults(sharp, p))).toEqual([[], [], [], []]);
+  });
+  it('B1a: two adjacent End to end profiles of DIFFERENT kinds also mitre, with no fault', () => {
+    const b = { ...topCorners(2), profiles: [sweepEndToEnd('f', { across: 'width', from: 'min' }), sweepEndToEnd('l', { across: 'length', from: 'min' }, 0.375, 'cove')] };
+    expect(b.profiles.map((p) => profileFaults(b, p))).toEqual([[], []]);
+    expect(profilePath(b, b.profiles[0]!)!.ends![0].kind).toBe('mitre');
+    expect(profilePath(b, b.profiles[1]!)!.ends![1].kind).toBe('mitre');
+  });
+  it('two straight profiles on one side keep a2\'s overlap result exactly (straight pairs never take the outline path)', () => {
+    const B = createBoard({ length: 30, width: 10, thickness: 0.75 });
+    const s = { across: 'width', from: 'max' } as const;
+    const a = sweepStopped('a', s, 3, 15), c = sweepStopped('c', s, 12, 27), d = sweepStopped('d', s, 15, 27), full = sweepEndToEnd('f', s);
+    expect(profileFaults({ ...B, profiles: [a, c] }, a)).toEqual([{ kind: 'overlap', other: 'c' }]);
+    expect(profileFaults({ ...B, profiles: [a, d] }, a)).toEqual([]);
+    expect(profileFaults({ ...B, profiles: [a, full] }, a)).toEqual([{ kind: 'overlap', other: 'f' }]);
+    expect(profileFaults({ ...B, profiles: [full, { ...full, id: 'g' }] }, full)).toEqual([{ kind: 'overlap', other: 'g' }]);
+  });
+  it('a straight profile takes no swept fault: its prism faults stay chunk 1\'s (a 3" roundover on the uncut side of a 5" apron)', () => {
+    const big = { ...sweepEndToEnd('s', { across: 'width', from: 'max' }), size: 3 };
+    expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, big] }, big)).toEqual([]);
+  });
+  it('the view\'s swept profile reads its stored faults (viewProfileFaults)', () => {
+    const b = topCorners(0.25, loop('p1', 0.375));
+    expect(viewProfileFaults(geometryBoard(b).profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    expect(viewProfileFaults(b.profiles[0]!)).toEqual([]);   // the stored object is not a view's
   });
 });

@@ -6521,6 +6521,9 @@ a1 → a2 → b → c. **Chunk a1 implemented** (branch `profile-runs-a1`, schem
 profiles and the run-out) next, then b (following the outline: this entry).
 **Status:** open — chunk a2 implemented and merged 2026-10-18 (stopped profiles, the run-out). Next: chunk b (following the
 outline: this entry).
+**Status:** open — chunk b1 implemented and merged 2026-10-18 (not deployed; no schema change): End to end follows a cut side and
+carries round its corner arcs (B1, B1a), All round follows the whole outline, and a saved End to end follows on load (B10) or, too
+tight to follow, runs straight as a2 built it (the user's ruling). Next: b2 (two-side runs, B3; stops on a turned run). Residue 393.
 
 ## From the profile runs round (chunk a1) — 2026-10-17
 
@@ -6562,3 +6565,46 @@ run-out normal and silhouette-oracle tests (inv 44 wants `chiralPart`); no test 
 host load — close the Playwright browser before a full run. (7) **Small code notes:** `diagram.test.ts` mid-file imports;
 `withRun` casts `stoppedRun()`; `curveSilhouettes` (test-only) omits run-outs; a (+,0,+) edge-on facet draws two coincident
 silhouettes (invisible). **Status:** open (record-only; (2) owed to the user's eye).
+
+## From the profile runs round (chunk b1) — 2026-10-18
+
+**393. Profile runs b1 residue.** Deferred review minors, record-only unless noted:
+(1) **Owed to the user** (real hardware or a real print): the smooth shading of swept surfaces, and at tangent points the per-face
+normals' ~0.005 rad step (Task 5 ruling); the cove's doubled Iso silhouette (~0.12" apart, one facet at exactly 45°: fu 386's rule;
+judge with 387(1) and 392(2)); a silhouette along a path arc stays at model chords beside a fine-path crease (Task 7 ruling); B1's ε —
+the built run goes on 2·reach·tan(φ/2) past the tangent point, up to 0.084" (a 3/4 × 1/4 thumbnail on 3/4" corners), and on a short
+or curved next side the small step at the station (~0.0005–0.001") is accepted instead. **Rulings awaiting the user's review:** B1a (a mitre at a
+shared corner arc's middle), B1's ε, Q3/Q6's Task 3 amendments (dropped cells; the odd-count mitre projection; a swallowed end chord
+is `too-tight`, so a notch 0.2" from the end under a 3/8" roundover faults), Q6's I2 amendment (the controller's: a station run claims
+only straight side chords), Q7's wording (`, top on the edge`; no top clause facing the face; `, round the corner(s)`). (2) **Chunk c,
+speed** (minimum of 9, wall-clock): bead loop 53–62 ms (guard 73; the quirk-wall fix costs a third section piece per segment), cove
+~63 (guard 81), ogee ~87–90 (guard 113), two loops top and bottom ~62 (guard 78) — cove and ogee now inside Q4's 80/105, guards kept
+at measured + 25%; `WALL_MARGIN` fires on a filleted cove/ogee facing the edge (+20% bodies) with no perf row; the Profiles presets
+still cost ~8–9 ms per resize frame on a looped part (~25 trial parts rebuild the outline and path; the remedies conflict with the
+frozen-memo rule or the "No profile preset fits" note); `holeFaults` on a fresh part rebuilds swept pieces once per edit
+(unmeasured); the air test scans the whole section per probe. (3) **The half arc beside a fallen-back neighbour** (final review): a
+fitting End to end still mitres at a shared corner arc against a neighbour that fell back to straight, so half that arc gets no
+profile (pinned as a record). The fix — mitre only against a BUILT swept neighbour, else carry round to the far tangent point — sits
+on a fault-decision cycle. (4) **Path and geometry:** a Bow on a part lengthened after it was written reads as a corner arc; a side
+ending at a line-only clipped corner stays straight (a1's prism); a concave corner arc's mitre is untested (no fixture) and
+`skeleton.ts`' station-end ray is right only at a convex corner arc (a concave one would leave a wedge); a mitre `null` on one side
+only would make neighbours disagree (mitre vs station; no fixture reaches it); corner detection groups chords by curve id (one curve
+per corner arc assumed); the through-ray null branch is unreachable; a path bug now throws in every reader through `geometryBoard`
+(was fault readers only); the oracle's ρ/cos h bound is true only for a monotone section, and it
+shares `profilePath`/`faceOutline`/`profileSection` with the build; profilePath's segment-to-chord map repeats `curveOutline`'s
+chord counting (guarded by a throw); the corners-area check's margin is thin (0.036/0.05; an exact pin exists); `keptSection`
+throws in a geometry reader (unreachable); reach has two sources (`reachDepth`, `keptSection`). (5) **Probes and snaps:** at a mitre
+between two profiles of different sizes the air test slightly over-claims air (untested); the stock probe reads `builtPath` while
+hole faults read the tangent point, so a fault-accepted hole's rim snap may sit in air by ≤ ε (0.084") at a station. (6) **Words,
+rows and refusals:** the fallback note says "too tight" even when the swept fault behind it is `runs-off` or `overlap`; ogee/bead
+loops facing edge and face key alike (ruled: keys carry no facing); `profileRefusal` does not check a swept→straight profile against
+its chunk-1 curve faults (unreachable found; still shown); Stopped is always greyed when leaving All round on a part whose default
+side is cornered (B7). (7) **Test gaps:** the I2 guard's curved-next-chord arm is masked by the 2ε clause on every pinned fixture;
+the committed ray oracle samples one point per edge and skips ambiguous points, `heldBy`/`sweptDrawing` judge an edge by its
+midpoint; no pin for a loop on an uncurved rectangle (the closed form passes per the reviewer); the convexity test covers only
+`cases`; the faulted loop's `planKeys` not-shown path and a built swept profile with a null `sweptInnerLine` are unpinned; the
+Curves Remove refusal has no fixture that truly refuses. (8) **Small code notes:** `bodies.ts`' doc says `profileEdge` is "its
+profile id"; `boardBodiesForTest` is exported from a product module; `SURFACE_EPS` in `sweep.ts` is a literal 1e-9 labelled
+CURVE_EPS; `sharesEdge` is redundant after both `has(E)`; `normalsMemo`/`perFace` key on identity, frozen or not; `lineDist`
+duplicates `distToLine`, no box prefilter in `sweptDrawing`; the `runoutSilhouettes` alias. **Status:** open (record-only; (1)
+owed to the user's eye and review; (2) for chunk c; (3) for b2 or a ruling).
