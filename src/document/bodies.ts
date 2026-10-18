@@ -289,7 +289,7 @@ const SLIVER = 1e-6;
 const NEAR_LINE = 1e-3;
 
 /** An in-plane direction from a line into a face that holds it, with that face's normal. */
-interface Wing { n: V3; w: V3 }
+interface Wing { n: V3; w: V3; f: BodyFace }
 
 /**
  * The edges of a union of convex bodies (angle-cuts spec §3.4, invariant 16
@@ -319,11 +319,15 @@ interface Wing { n: V3; w: V3 }
  * arc's facets at a chord vertex, a chord and the straight face at a tangent join): a stretch where the only wings left
  * are one face of each normal of such a pair is no edge. Judged per stretch, so a wall that meets the same line
  * elsewhere (a dado reaching a tangent join) still draws its crease there.
+ * `smoothPair` (profile runs a2) is asked of a stretch whose ONLY two wings are two different faces a and b: true means
+ * they meet without a crease (a stopped profile's run-out facets, and the band's arc faces at the stop). Absent, nothing
+ * is asked, so every other part's edges are what they were.
  */
 export function bodyEdges(
   bodies: readonly Body[],
   keep?: (o: V3, u: V3, n: V3) => boolean,
   smooth?: (o: V3, u: V3) => readonly (readonly [V3, V3])[],
+  smoothPair?: (a: BodyFace, b: BodyFace) => boolean,
 ): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
@@ -486,8 +490,8 @@ export function bodyEdges(
           if (dist <= BODY_EPS) onEdge = true;
         }
         if (!inside) continue;
-        if (!onEdge) { wings.push({ n: f.n, w }, { n: f.n, w: wn }); continue; }
-        wings.push({ n: f.n, w: w[0] * (c[0] - m0) + w[1] * (c[1] - m1) + w[2] * (c[2] - m2) >= 0 ? w : wn });
+        if (!onEdge) { wings.push({ n: f.n, w, f }, { n: f.n, w: wn, f }); continue; }
+        wings.push({ n: f.n, w: w[0] * (c[0] - m0) + w[1] * (c[1] - m1) + w[2] * (c[2] - m2) >= 0 ? w : wn, f });
       }
       // Cancel internal walls: same direction, opposite normals.
       for (let a = 0; a < wings.length; a += 1) {
@@ -504,6 +508,7 @@ export function bodyEdges(
         && dot(wings[0]!.n, wings[1]!.n) > 1 - BODY_EPS && dot(wings[0]!.w, wings[1]!.w) < -1 + BODY_EPS;
       if (wings.length === 2 && pairs.some(([p, q]) => (par(wings[0]!.n, p) && par(wings[1]!.n, q))
         || (par(wings[0]!.n, q) && par(wings[1]!.n, p)))) return false;   // a smooth join: the two faces turn by a facet
+      if (smoothPair && wings.length === 2 && wings[0]!.f !== wings[1]!.f && smoothPair(wings[0]!.f, wings[1]!.f)) return false;
       return wings.length > 0 && !flat;
     };
 
@@ -587,7 +592,14 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
   const onPlane = (o: V3, u: V3) => planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS);
   const keep = (o: V3, u: V3, n: V3) => onSmooth(o, u) || !skipsInPlane(planes, o, u, n);
   const outline = out.slice();
-  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n))) {
+  // A stopped profile's run-out (profile runs a2): its facets join each other, and the band's arc faces at the stop,
+  // without a crease; a crease against an untagged face (the broad face, the side face, a straight section side) stays.
+  // Asked only of a part with a stop, so every other part's edges are byte for byte what they were.
+  const stops = board.curves.some((c) => { const sp = spanOf(c); return sp !== undefined && (sp.stopLo || sp.stopHi); });
+  const smoothPair = stops
+    ? (a: BodyFace, b: BodyFace) => a.curve !== undefined && a.curve === b.curve && (a.runout !== undefined || b.runout !== undefined)
+    : undefined;
+  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair)) {
     const u = unit(sub(seg[1], seg[0]));
     if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));
     else out.push(seg);

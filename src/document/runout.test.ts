@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createBoard, createDocument, defaultProfile, PROFILE_EDGES } from './document';
-import { boardBodies, bodyVerts, bodyVolume, BODY_EPS, type Body } from './bodies';
+import { createBoard, createDocument, defaultProfile, PROFILE_EDGES, PROFILE_KINDS, profileCurve } from './document';
+import { boardBodies, boardEdges, bodyVerts, bodyVolume, BODY_EPS, type Body } from './bodies';
 import { arcChords, arcPoint, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPolygonClosed, localSegments, twiceArea, uvDims, distToSegment, type LocalArc, type P2, type ViewCurve } from './curves';
 import { canonicalRun, geometryBoard, profileOf } from './profiles';
 import { profileSection, profileWasteContains, runoutAxis, runoutNormal, sectionFrame } from './runout';
@@ -541,5 +541,83 @@ describe('the run-out\'s cutter-surface normal (profile runs a2, Task 5)', () =>
     expect(n[0]).toBeCloseTo(0, 12);
     expect(n[1]).toBeCloseTo(Math.cos(0.7), 12);
     expect(n[2]).toBeCloseTo(Math.sin(0.7), 12);
+  });
+});
+
+describe('a stopped profile\'s edges (inv 16; profile runs a2, Task 6)', () => {
+  /** World (board-local) edges as V3 pairs, through boardEdges (THE edge reader). */
+  const edges = (b: Board): [V3, V3][] => boardEdges(b).map(([p, q]) => [[p.length, p.width, p.thickness], [q.length, q.width, q.thickness]]);
+  const SMOOTH_KINDS = ['roundover', 'cove', 'ogee'] as const;
+  for (const kind of SMOOTH_KINDS) {
+    describe(`${kind} stopped 3..27`, () => {
+      const { b, c, s } = stopped(spec(kind));
+      const f = frameOf(b, s);
+      const poly = sectionOf(b, c, s);
+      const sMax = Math.max(...poly.map((q) => q[0]));
+      const tMax = Math.max(...poly.map((q) => q[1]));
+      const reach = BEAR + sMax;
+      const es = edges(b);
+      const onFace = ([p, q]: [V3, V3]) => {
+        const [, sp, tp] = f.back(p);
+        const [, sq, tq] = f.back(q);
+        return (Math.abs(tp) <= 1e-6 && Math.abs(tq) <= 1e-6) || (Math.abs(sp) <= 1e-6 && Math.abs(sq) <= 1e-6);
+      };
+      it('no run-out facet lines: no edge off the broad and side faces has its middle in a run-out (station plane included)', () => {
+        const inside = es.filter((e) => {
+          if (onFace(e)) return false;
+          const [run, sIn, t] = f.back(e[0].map((x, i) => (x + e[1][i]!) / 2) as V3);
+          if (!(t > 1e-6 && t < tMax - 1e-6 && sIn > 1e-6)) return false;
+          const station = run >= f.hi - 1e-9 ? f.hi : run <= f.lo + 1e-9 ? f.lo : null;
+          return station !== null && Math.hypot(run - station, sIn + BEAR) < reach;
+        });
+        expect(inside).toEqual([]);
+        // The run-out still meets the faces: its crease on the side face and its outline on the broad face are drawn.
+        const beyond = es.filter((e) => onFace(e) && e.every((p) => f.back(p)[0] > f.hi + 1e-6 && f.back(p)[0] < f.hi + reach));
+        expect(beyond.length).toBeGreaterThan(0);
+      });
+      it('the full-profile stretch draws no line along the run on the arc\'s interior (a1\'s suppression, over [3, 27])', () => {
+        const along = es.filter(([p, q]) => {
+          const [rp, sp, tp] = f.back(p);
+          const [rq, sq, tq] = f.back(q);
+          return Math.abs(sp - sq) <= 1e-9 && Math.abs(tp - tq) <= 1e-9 && sp > 1e-6 && tp > 1e-6 && sp < sMax - 1e-6 && tp < tMax - 1e-6
+            && Math.min(rp, rq) < f.hi - 1e-6 && Math.max(rp, rq) > f.lo + 1e-6;
+        });
+        expect(along).toEqual([]);
+      });
+    });
+  }
+  it('a COVE stopped 3..27 draws its crease with the top face over the band', () => {
+    const { b, s } = stopped(spec('cove'));
+    const f = frameOf(b, s);
+    const crease = edges(b).filter(([p, q]) => {
+      const [rp, sp, tp] = f.back(p);
+      const [rq, sq, tq] = f.back(q);
+      return Math.abs(tp) <= 1e-6 && Math.abs(tq) <= 1e-6 && Math.abs(sp - 0.375) <= 1e-6 && Math.abs(sq - 0.375) <= 1e-6
+        && Math.min(rp, rq) <= 3 + 1e-9 && Math.max(rp, rq) >= 27 - 1e-9;
+    });
+    expect(crease).toHaveLength(1);
+  });
+  it('a sharp join between two arcs of one curve stays a crease (smoothPair is for run-outs only)', () => {
+    // bodies.test's reflex-wood fixture: two arcs meeting sharply at (1.3, 1.3), cut through the thickness.
+    const k = { id: 'k', through: 'thickness' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [0, 0] as P2, segments: [
+      { type: 'line' as const, to: [2, 0] as P2 }, { type: 'arc' as const, to: [1.3, 1.3] as P2, side: 'left' as const, rise: 0.2 },
+      { type: 'arc' as const, to: [0, 2] as P2, side: 'left' as const, rise: 0.2 }, { type: 'line' as const, to: [0, 0] as P2 }] };
+    const b = createBoard({ id: 'b1', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: [k] });
+    const crown = edges(b).filter(([p, q]) => [p, q].every((x) => Math.abs(x[0] - 1.3) <= 1e-9 && Math.abs(x[1] - 1.3) <= 1e-9));
+    expect(crown).toHaveLength(1);
+    expect(Math.abs(crown[0]![0][2] - crown[0]![1][2])).toBeCloseTo(0.75, 12);
+  });
+  it('the four-edge profile sets\' edges are a1\'s, byte for byte (pinned by hash at 3a0c3fa)', () => {
+    const fnv = (x: string) => { let h = 0x811c9dc5; for (let i = 0; i < x.length; i += 1) { h ^= x.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16); };
+    const PINNED: Record<string, [number, string]> = {
+      roundover: [28, '959dc9f3'], cove: [36, 'ae6c1732'], ogee: [40, '4c4eddc7'], bead: [36, 'abcc12fe'], thumbnail: [28, 'c043a5dc'],
+    };
+    for (const kind of PROFILE_KINDS) {
+      const sz = kind === 'thumbnail' ? { size: 0.75, depth: 0.25 } : kind === 'bead' ? { size: 0.25, fillet: 0.0625 } : { size: 0.375, fillet: 0 };
+      const b = createBoard({ id: 'b1', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: (['length', 'width'] as const).flatMap((through) =>
+        (['min', 'max'] as const).map((uFrom) => ({ id: `${through}${uFrom}`, ...profileCurve({ through, uFrom, vFrom: 'max', facing: 'v', kind, ...sz }) }))) });
+      const e = boardEdges(b);
+      expect([e.length, fnv(JSON.stringify(e))], kind).toEqual(PINNED[kind]);
+    }
   });
 });

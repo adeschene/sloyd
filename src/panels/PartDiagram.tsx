@@ -382,7 +382,10 @@ export function PartDiagram({ view }: { view: DiagramView }) {
         {view.curveLines.map((l, i) => {
           const X = (h: number) => left + fit.offsetX + h * fit.sx;
           const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
-          const [x1, y1, x2, y2] = l.along === 'v' ? [X(l.at), Y(0), X(l.at), Y(view.v)] : [X(0), Y(l.at), X(view.h), Y(l.at)];
+          // A stopped profile's line covers [lo, hi] along its axis only (P16); otherwise it runs end to end.
+          const [x1, y1, x2, y2] = l.along === 'v'
+            ? [X(l.at), Y(l.lo ?? 0), X(l.at), Y(l.hi ?? view.v)]
+            : [X(l.lo ?? 0), Y(l.at), X(l.hi ?? view.h), Y(l.at)];
           return <line key={`${l.id}:${i}`} className="cutlist-diagram-curve-line" x1={x1} y1={y1} x2={x2} y2={y2} />;
         })}
 
