@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies';
 import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
-import { geometryBoard } from './profiles';
-import { builtSwept } from './sweep';
+import { geometryBoard, profileFaults } from './profiles';
+import { builtSwept, keptSection } from './sweep';
 import { profilePath } from './profilePath';
 import type { Segment } from './cuts';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, topCorners } from './sweepFixtures';
@@ -376,3 +376,38 @@ describe('a bead\'s quirk past a B1 station: the floor is the run-out\'s, joined
   });
 });
 
+
+/*
+ * B1a mitres (Task 6 fix round 1): two End to end profiles meeting at a corner arc's middle. One SECTION (profile values but
+ * id and run) cuts one surface: no line at the mitre, whatever the corner's chord parity. Differing sections meet in a real
+ * crease: the mitre line is drawn, again whatever the parity. 2" corners take 12 chords (the middle a chord vertex), 3/4"
+ * corners 7 (the middle splits a chord).
+ */
+describe('B1a mitres do not depend on chord parity', () => {
+  const sides = [side('width', 'min'), side('length', 'max'), side('width', 'max'), side('length', 'min')];
+  const mitred = (r: number, sizes: number[]): Board => ({ ...topCorners(r), profiles: sides.map((s, i) => endToEnd(`e${i}`, s, sizes[i]!)) });
+  /** Lines in the band lying ON the min/min corner's mitre: the radial line from the corner's centre through its middle. */
+  const onMitre = (b: Board, r: number) => {
+    const c = [r, r], u = [-Math.SQRT1_2, -Math.SQRT1_2];
+    const off = (q: P) => Math.abs((q[0] - c[0]!) * u[1]! - (q[1] - c[1]!) * u[0]!);
+    const along = (q: P) => (q[0] - c[0]!) * u[0]! + (q[1] - c[1]!) * u[1]!;
+    return (boardEdges(b) as Segment[]).map(pts).filter((s) => s.every((q) => off(q) <= 1e-6 && along(q) > r - 0.5 && q[2] > 0.25));
+  };
+  it.each([[2, 12], [0.75, 7]])('corners of %s" (%i chords): equal sections draw nothing at the mitre', (r) => {
+    const b = mitred(r, [0.25, 0.25, 0.25, 0.25]);
+    expect(b.profiles.flatMap((p) => profileFaults(b, p))).toEqual([]);
+    for (const p of b.profiles) expect(profilePath(b, p)!.ends!.map((e) => e.kind)).toEqual(['mitre', 'mitre']);
+    expect(onMitre(b, r)).toEqual([]);
+    // And the whole part draws what the one loop draws (the same wood, the same lines: the bottom outline only).
+    expect(boardEdges(b).length).toBe(boardEdges(topCorners(r)).length);
+  });
+  it.each([[2, 12], [0.75, 7]])('corners of %s" (%i chords): differing sections draw the mitre line', (r) => {
+    // 1/4" against 0.26": the same section edges (4 arc chords each), so only the section test tells them apart.
+    const b = mitred(r, [0.25, 0.26, 0.25, 0.26]);
+    const v = geometryBoard(b);
+    expect(new Set(v.profiles.map((p) => keptSection(v, p).pieces.flatMap((k) => k.edge.filter((e) => e !== null).map((e) => e!.split(':').slice(1).join(':'))).sort().join()))).toHaveProperty('size', 1);
+    expect(b.profiles.flatMap((p) => profileFaults(b, p))).toEqual([]);
+    for (const p of b.profiles) expect(profilePath(b, p)!.ends!.map((e) => e.kind)).toEqual(['mitre', 'mitre']);
+    expect(onMitre(b, r).length).toBeGreaterThan(0);
+  });
+});

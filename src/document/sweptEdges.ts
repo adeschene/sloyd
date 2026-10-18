@@ -23,7 +23,8 @@
  */
 import type { BodyFace } from './bodies';
 import { curveOutline, smoothLines } from './curves';
-import { profilePath } from './profilePath';
+import { faceOutline, profilePath, type PathEnd } from './profilePath';
+import { profileValues } from './profiles';
 import { profileSection } from './runout';
 import { profileEdgeOf } from './sectionEdges';
 import { oneSideCurve } from './sweep';
@@ -49,6 +50,12 @@ interface SweptInfo {
   /** smoothAt[i]: the path is tangent-continuous at chord i's end (where chord i + 1, or chord 0 on a loop, starts). */
   smoothAt: boolean[];
   loop: boolean;
+  /** The profile's section, id and run aside (two profiles with one section cut one surface). */
+  section: string;
+  /** A B1a mitre end's point per path end (end 0 at chord 0, end 1 at the last chord), when that end is a mitre. */
+  mitres: [P2 | null, P2 | null];
+  /** True when a plan point is a smooth point of the outline (the outline curves' own judgement). */
+  smoothPt: (q: P2) => boolean;
 }
 
 function infoOf(view: SweepView, p: ProfileCut): SweptInfo | null {
@@ -63,17 +70,25 @@ function infoOf(view: SweepView, p: ProfileCut): SweptInfo | null {
   // The smooth points of the through-thickness curves (the outline's own): plan coordinates (length, width).
   const smooth = smoothLines(view).filter((s) => s.k === 2).map((s) => [s.p[0], s.p[1]] as P2);
   const n = path.chords.length;
-  const smoothAt = path.chords.map((ch, i) => {
-    if (!path.loop && i === n - 1) return false;
-    const q = ch.b;
-    return smooth.some((s) => Math.abs(s[0] - q[0]) <= NEAR && Math.abs(s[1] - q[1]) <= NEAR);
-  });
-  const chordNormal = path.chords.map((ch): P2 => {
+  const smoothPt = (q: P2) => smooth.some((s) => Math.abs(s[0] - q[0]) <= NEAR && Math.abs(s[1] - q[1]) <= NEAR);
+  const smoothAt = path.chords.map((ch, i) => (!path.loop && i === n - 1 ? false : smoothPt(ch.b)));
+  const mitreAt = (e: PathEnd | undefined): P2 | null => (e && e.kind === 'mitre' ? e.at : null);
+  const mitres: [P2 | null, P2 | null] = [mitreAt(path.ends?.[0]), mitreAt(path.ends?.[1])];
+  const section = profileValues({ ...p, run: { loop: true } });
+  // Each segment's normal off the OUTLINE chord it covers (a B1a mitre's split chord ends at the arc's true midpoint in the
+  // path, off the chord by its sagitta; the band is built on the chord: planChain reads the cover). The cover is in plan order,
+  // the path in the face's (reversed for face min).
+  const outline = faceOutline(view)!;
+  const chordNormal = path.chords.map((_, i): P2 => {
+    const ch = outline.chords[path.cover[p.face === 'max' ? i : n - 1 - i]!.chord]!;
     const l = Math.hypot(ch.b[0] - ch.a[0], ch.b[1] - ch.a[1]);
     return [-(ch.b[1] - ch.a[1]) / l, (ch.b[0] - ch.a[0]) / l];
   });
-  return { m, secSmooth, junction, out: p.face === 'max' ? 1 : -1, chordNormal, smoothAt, loop: path.loop };
+  return { m, secSmooth, junction, out: p.face === 'max' ? 1 : -1, chordNormal, smoothAt, loop: path.loop, section, mitres, smoothPt };
 }
+
+const parallel = (a: readonly number[], b: readonly number[]) =>
+  Math.hypot(a[1]! * b[2]! - a[2]! * b[1]!, a[2]! * b[0]! - a[0]! * b[2]!, a[0]! * b[1]! - a[1]! * b[0]!) <= PARALLEL;
 
 /** The swept rule (above) for the given built swept profiles, or undefined when there are none. */
 export function sweptSmoothPair(view: SweepView, swept: readonly ProfileCut[]): ((a: BodyFace, b: BodyFace) => boolean) | undefined {
@@ -102,10 +117,22 @@ export function sweptSmoothPair(view: SweepView, swept: readonly ProfileCut[]): 
     }
     return false;
   };
+  // A B1a mitre (Task 6 fix round 1): two End to end profiles meeting at a corner arc's middle. With ONE section (profile
+  // values but id and run) they cut one surface, so their bands meet smoothly there — on a chord vertex (an even chord count)
+  // as across any smooth path vertex, the same section run on each; on a split chord (odd) the two are one plane, flat. With
+  // differing sections the mitre is a real crease: drawn, whatever the parity.
+  const endOf = (I: SweptInfo, seg: number): P2 | null => (seg === 0 ? I.mitres[0] : null) ?? (seg === I.smoothAt.length - 1 ? I.mitres[1] : null);
+  const mitred = (ia: string, a: BodyFace, ea: { a: number; b: number }, ib: string, b: BodyFace, eb: { a: number; b: number }): boolean => {
+    const Ia = infos.get(ia), Ib = infos.get(ib);
+    if (!Ia || !Ib || Ia.section !== Ib.section || ea.a !== eb.a || ea.b !== eb.b) return false;
+    if (parallel(a.n, b.n)) return false;   // one plane: flat already, never a join
+    const pa = endOf(Ia, a.sweep!), pb = endOf(Ib, b.sweep!);
+    return !!pa && !!pb && Math.abs(pa[0] - pb[0]) <= NEAR && Math.abs(pa[1] - pb[1]) <= NEAR && Ia.smoothPt(pa);
+  };
   return (a, b) => {
     const ea = profileEdgeOf(a), eb = profileEdgeOf(b);
     if (ea && a.sweep !== undefined && eb && b.sweep !== undefined) {
-      if (ea.curve !== eb.curve) return false;
+      if (ea.curve !== eb.curve) return mitred(ea.curve, a, ea, eb.curve, b, eb);
       const I = infos.get(ea.curve);
       if (!I) return false;
       const sameRun = ea.a === eb.a && ea.b === eb.b;
@@ -116,7 +143,7 @@ export function sweptSmoothPair(view: SweepView, swept: readonly ProfileCut[]): 
         return false;
       }
       // A horizontal fillet or quirk floor on two segments is one plane: flat already, and never a join (as a seam).
-      if (Math.hypot(a.n[1] * b.n[2] - a.n[2] * b.n[1], a.n[2] * b.n[0] - a.n[0] * b.n[2], a.n[0] * b.n[1] - a.n[1] * b.n[0]) <= PARALLEL) return false;
+      if (parallel(a.n, b.n)) return false;
       return sameRun && adjacent(I, a.sweep, b.sweep);
     }
     if (ea && a.sweep !== undefined) { const I = infos.get(ea.curve); return !!I && partFace(I, a.sweep, ea, b); }
