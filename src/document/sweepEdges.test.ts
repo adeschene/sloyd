@@ -367,9 +367,9 @@ describe('a bead\'s quirk past a B1 station: the floor is the run-out\'s, joined
       && q[1] > end.at[1] - 1e-9 && q[0] < 1 && q[1] < end.at[1] + 1));
     expect(floor.length).toBeGreaterThan(3);
     for (const [a, c] of floor) {
-      const onSide = a[0] === 0 && c[0] === 0;
+      const onSide = Math.abs(a[0]) <= 1e-12 && Math.abs(c[0]) <= 1e-12;
       // A sector chord of the ring: its ends on the circle, or one clipped where it leaves through the side face.
-      const ring = [a, c].every((q) => Math.abs(Math.hypot(q[0] - axis[0], q[1] - axis[1]) - 0.5625) <= 1e-6 || q[0] === 0)
+      const ring = [a, c].every((q) => Math.abs(Math.hypot(q[0] - axis[0], q[1] - axis[1]) - 0.5625) <= 1e-6 || Math.abs(q[0]) <= 1e-12)
         && [a, c].some((q) => Math.abs(Math.hypot(q[0] - axis[0], q[1] - axis[1]) - 0.5625) <= 1e-6);
       expect(onSide || ring, `${a} ${c}`).toBe(true);
     }
