@@ -488,3 +488,30 @@ describe('refusalFor reads the post-edit stored part (profile runs a2)', () => {
     expect(screen.getByText('Puts hole 1 into the roundover — move it first.')).toBeInTheDocument();
   });
 });
+
+describe('Task 8 fix round 1', () => {
+  it('a preset that would overlap an existing profile on the top width-max edge is withheld', async () => {
+    const user = userEvent.setup();
+    const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+    open({ ...b, profiles: [{ id: 'p1', ...profileOf(defaultProfile(b, 'roundover'))! }] });
+    expect(screen.queryByRole('button', { name: '+ Add profile' })).toBeNull();
+    expect(screen.getByText('No profile preset fits this part.')).toBeInTheDocument();
+    void user;
+  });
+
+  it('editing the Stop of a mixed run (through min -> station) keeps the through end', async () => {
+    const user = userEvent.setup();
+    const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const run = canonicalRun(b, 'max', { start: { side: { ...side }, through: 'min' }, end: { side: { ...side }, from: 'min', at: 20 } });
+    const raw = JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [{ ...b, profiles: [{ id: 'p1', ...base, run }] }] }));
+    useStore.getState().replaceDocument(migrateDocument(raw));
+    useStore.getState().selectBoard('top');
+    render(<Properties />);
+    await typeInto(user, 'Stop (from the length min end)', '18');
+    const r = profiles()[0]!.run as { start: object; end: object };
+    expect([r.start, r.end].filter((e) => 'through' in e)).toHaveLength(1);
+    expect(screen.getByText(/from the length min end to 18" \(stopped\)/)).toBeInTheDocument();
+  });
+});

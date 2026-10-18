@@ -229,11 +229,14 @@ export function Profiles({ board: stored }: { board: Board }) {
   const board = geometryBoard(stored);
   const units = useStore((s) => s.doc.units);
   const f = (n: number) => formatLength(n, units);
-  // A preset whose default would fault on this part — a curve fault, or a hole it would put into the waste — is withheld,
+  // A preset whose default would fault on this part — a curve fault, an overlap, or a hole it would put into the waste — is withheld,
   // not added and refused (the Curves precedent).
   const fits = (c: Draft): boolean => {
     if (curveFaults(board, c).length > 0) return false;
-    const after: Board = { ...stored, profiles: [...stored.profiles, { ...profileOf(c)!, id: '__preset0' }] };
+    const preset: ProfileCut = { ...profileOf(c)!, id: '__preset0' };
+    const after: Board = { ...stored, profiles: [...stored.profiles, preset] };
+    // Nor one that would overlap a profile already on its edge (P12).
+    if (profileFaults(after, preset).length > 0) return false;
     return holeRefusal(board, after) === null;
   };
   const rows = stored.profiles;
