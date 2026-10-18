@@ -296,8 +296,9 @@ export function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
  * The plan outline a profile covers (Q6: overlap on outline stretches), per outline chord index: the chord parameter
  * interval [t0, t1] it covers. A SWEPT profile's comes from its PATH (`ProfilePath.cover`: a loop every chord, an End to
  * end run its stretch, trimmed at a B1a mitre), the one source of truth; null when it has no path. A straight or station
- * run (a2's construction) covers the part of its side's stretch whose run-dimension coordinate lies within its extent (B2:
- * stations are measured along the run dimension). Null when the stretch cannot be traced.
+ * run (a2's construction) covers the part of its side's STRAIGHT chords (no curve's: a2's prism follows none, I2) whose
+ * run-dimension coordinate lies within its extent (B2: stations are measured along the run dimension). Null when the
+ * stretch cannot be traced.
  */
 function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }, outline: FaceOutline, p: ProfileCut): Map<number, [number, number]> | null {
   const out = new Map<number, [number, number]>();
@@ -316,6 +317,9 @@ function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonl
   const n = outline.chords.length;
   for (let i = s.from; ; i = (i + 1) % n) {
     const c: OutlineChord = outline.chords[i]!;
+    // I2 (final review, the controller's ruling): a2's prism follows no curve, so a station run claims only the straight
+    // side chords of its stretch — never a corner arc's or an arch's, where its prism cuts only the curve's waste.
+    if (c.curve !== undefined) { if (i === s.to) break; continue; }
     const xa = c.a[k]!, xb = c.b[k]!;
     let t0: number, t1: number;
     if (xa === xb) { if (xa < lo || xa > hi) { if (i === s.to) break; continue; } t0 = 0; t1 = 1; }

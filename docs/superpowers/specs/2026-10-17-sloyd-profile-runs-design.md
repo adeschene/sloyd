@@ -176,6 +176,10 @@ profiles; a grain fix (fu 336).
   traceable outline) and `too-tight` (a convex outline arc's radius under the reach, R10; a concave one's under `BEARING`, B5;
   *amended, b1 Task 3*: or an end chord the offset swallows — the skeleton cannot end the band there);
   `overlap` is judged on outline stretches (straight and swept alike). A hole keeps the `:curve:<id>` key (P7).
+  *Amended (final review, the controller's ruling, I2)*: a STATION (a2) run's coverage is its side's STRAIGHT chords only —
+  a2's prism follows no curve, so it never claims a corner arc's or an arch's chords (over them it cuts only the curve's
+  waste). A saved a2 stop inside a corner arc beside a B10 End to end on the adjacent side therefore stays clean, as on a2;
+  a stop that shares a straight stretch with a swept run still overlaps.
 - **Q7 Words:** `all round` reads `<name> all round <faceName>` (the collapse's own face words, so `the thickness face (max
   side)`, not §5's shorthand "the top"); its key `<name><fillet>, all round`. Bench lines list curves, then straight profiles,
   then swept, each in stored order.

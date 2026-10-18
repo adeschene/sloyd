@@ -446,9 +446,14 @@ describe('swept profile faults (profile runs b1, Q6)', () => {
     expect(profileFaults(both, both.profiles[0]!)).toEqual([]);
   });
   it('a station run beside a swept profile overlaps where its span lies on the swept stretch, not elsewhere', () => {
-    const near = sweepStopped('s', { across: 'width', from: 'min' }, 10, 20), off = sweepStopped('s', { across: 'width', from: 'max' }, 10, 20);
+    // Final review I2 (the controller's ruling): a station run is judged on its STRAIGHT side chords only. The arch runs
+    // from 3" to 27", so a stop from 1" to 5" shares the straight 1"–3" with the swept run; one wholly over the arch (10" to
+    // 20", the case this test first pinned as an overlap) cuts only the arch's waste in a2's prism and fights for no wood.
+    const near = sweepStopped('s', { across: 'width', from: 'min' }, 1, 5), off = sweepStopped('s', { across: 'width', from: 'max' }, 10, 20);
+    const overArch = sweepStopped('s', { across: 'width', from: 'min' }, 10, 20);
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, near] }, near)).toEqual([{ kind: 'overlap', other: 'p1' }]);
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, off] }, off)).toEqual([]);
+    expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, overArch] }, overArch)).toEqual([]);
   });
   it('B10 + B1a: a saved four-edge set on a rounded-corner top loads with NO fault, each path ending in two mitres', () => {
     // In a2 each was a straight prism through the corner waste; under B10 each carries round its corner arcs, and B1a mitres
