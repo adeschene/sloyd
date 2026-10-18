@@ -217,10 +217,24 @@ function sweepBodies(bodies: readonly Body[], pieces: readonly SweptPiece[]): Bo
     for (const f of body.faces) for (const p of f.verts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
     const frags: BodyFace[][] = [];
     let whole = false;
+    // Lever 1 (Task 5): a skeleton face's prism planes clip the body once, shared by its section pieces (the same planes in
+    // the same order, so the same faces).
+    let group = -1;
+    let prism: BodyFace[] = body.faces;
     for (const pc of pieces) {
       if (pc.bb[0] > x1 + BODY_EPS || pc.bb[2] < x0 - BODY_EPS || pc.bb[1] > y1 + BODY_EPS || pc.bb[3] < y0 - BODY_EPS) continue;
       let f = body.faces;
-      for (let k = 0; k < pc.planes.length && f.length; k += 1) f = clip(f, pc.planes[k]!, pc.tags[k]!);
+      let k = 0;
+      if (pc.group !== undefined) {
+        if (pc.group !== group) {
+          group = pc.group;
+          prism = body.faces;
+          for (let j = 0; j < pc.prefix! && prism.length; j += 1) prism = clip(prism, pc.planes[j]!, pc.tags[j]!);
+        }
+        f = prism;
+        k = pc.prefix!;
+      }
+      for (; k < pc.planes.length && f.length; k += 1) f = clip(f, pc.planes[k]!, pc.tags[k]!);
       if (f === body.faces) { whole = true; break; }
       if (f.length >= 4 && bodyVolume({ box: null, faces: f }) > DISJOINT_VOLUME) frags.push(f);
     }

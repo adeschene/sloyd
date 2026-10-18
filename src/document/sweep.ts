@@ -47,7 +47,12 @@ type SweepBoard = Pick<Board, Dimension | 'curves'> & { profiles?: readonly Prof
 
 /** One convex piece: board-local half-spaces (kept where n·x + d >= 0), each plane's cap tag, the plan bounding box
  *  [u0, v0, u1, v1], and whether it is a band piece (they are applied first). */
-export interface SweptPiece { planes: { n: V3; d: number }[]; tags: BodyFaceTag[]; bb: [number, number, number, number]; band: boolean }
+export interface SweptPiece {
+  planes: { n: V3; d: number }[]; tags: BodyFaceTag[]; bb: [number, number, number, number]; band: boolean;
+  /** Band pieces of one skeleton face share their first `prefix` planes (its prism): `group` numbers that face, so a body
+   *  is clipped by the prism ONCE before each section piece (Task 5, lever 1; the same planes in the same order). */
+  group?: number; prefix?: number;
+}
 
 const EPS = 1e-9;
 
@@ -219,6 +224,7 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
     return { planes, tags };
   };
   const { chain } = plan;
+  let groups = 0;
   plan.faces.forEach((face, i) => {
     if (face.length < 3 || area(face) < 1e-14) return;
     const parts = isConvex(face) ? [face] : convexPieces(face, face.map(() => false)).map((x) => x.pts);
@@ -230,6 +236,8 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
     const sTag: BodyFaceTag = ch.curve !== undefined ? { curve: ch.curve } : {};
     for (const fp of parts) {
       const base = prism(fp, chordTag);
+      const group = groups;
+      groups += 1;
       for (const kp of sec.pieces) {
         const planes = base.planes.slice();
         const tags = base.tags.slice();
@@ -243,7 +251,7 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
           const name = kp.edge[j]!;
           tags.push(name !== null ? { profileEdge: name, sweep: seg } : a[0] === 0 && b[0] === 0 ? sTag : {});
         });
-        out.push({ planes, tags, bb: bbOf(fp), band: true });
+        out.push({ planes, tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
       }
     }
   });
