@@ -6,7 +6,10 @@ approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `d
 merged as `305934d`); chunk a2 implemented (plan `docs/superpowers/plans/2026-10-18-sloyd-profile-runs-a2.md`; stopped profiles and the
 run-out), **a1 and a2 deployed together** 2026-10-18 (`index-BbXkYYy4.js`). The rulings marked *Amended (implementation, a2)* (I1, I2)
 await the user's review. **Chunk b designed** in a second brainstorm, 2026-10-18 (rulings B1–B9 below, "Yes, that looks right" ×3,
-then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Chunk b1 implemented and merged** 2026-10-18 (plan
+`docs/superpowers/plans/2026-10-18-sloyd-profile-runs-b1.md`; not deployed; no schema change): the rulings marked *Amended
+(implementation, b1…)* (B1's ε, B1a, Q3/Q6's Task 3 amendments, Q7) and Q6's *Amended (final review, the controller's ruling, I2)*
+await the user's review; B10's *Amended (final review, the user's ruling, I1)* is the user's own. **b2 next.** **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one
