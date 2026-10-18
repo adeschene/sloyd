@@ -1,17 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { IMPERIAL } from '../units/length';
 import { buildDiagrams } from './diagram';
 import { createBoard } from './document';
 import { faceOutline } from './profilePath';
+import { curveLines } from './curveText';
 import { apronArch, endToEnd, frontOnly, loop, straightTopLong, topCorners } from './sweepFixtures';
 import type { Board } from './types';
-
-// The notes are curveLineEntries' (Task 8 adds a swept profile's words): here an entry naming the profile stands in, so a
-// view's note shows exactly when the profile's id is in that view's `drawn` set (the pre-flight ruling on T6 ↔ T8).
-vi.mock('./curveText', async (orig) => {
-  const actual = await orig<typeof import('./curveText')>();
-  return { ...actual, curveLineEntries: (...a: Parameters<typeof actual.curveLineEntries>) => [...actual.curveLineEntries(...a), { ids: ['p1'], text: 'SWEPT p1' }] };
-});
 
 /*
  * A swept profile on the part diagrams (profile runs b1, Task 6; spec §5 Part diagrams, Q8): it opens its face's thickness
@@ -38,7 +32,11 @@ describe('a swept profile on the part diagrams', () => {
     expect(w!.closed).toBe(true);
     expect(w!.pts.length).toBeGreaterThanOrEqual(52);
     for (const q of w!.pts) expect(toOutline(b, q)).toBeCloseTo(0.25, 9);
-    expect(views[0]!.curveNotes.map((n) => n.text)).toContain('SWEPT p1');   // p1 is in the view's drawn set
+    // The notes are curveLineEntries' (Task 8): the corners' collapsed line, then the loop's bench line (inv 19: one home).
+    expect(views[0]!.curveNotes).toEqual([
+      { key: 'cminmin', text: 'Round all four corners to a 2" radius' },
+      { key: 'p1', text: 'Roundover 1/4" all round the thickness face (max side)' },
+    ]);
   });
   it('the arched apron: an open line, from end face to end face, the reach in from the arched edge', () => {
     const v = viewOf(apronArch, 'thickness|max')!;
@@ -55,7 +53,8 @@ describe('a swept profile on the part diagrams', () => {
       expect(d).toBeGreaterThanOrEqual(0.25 - 1e-9);
       expect(d).toBeLessThanOrEqual(0.25 + 1e-4);
     }
-    expect(v.curveNotes.map((n) => n.text)).toContain('SWEPT p1');
+    expect(v.curveNotes).toEqual(curveLines(apronArch, IMPERIAL).map((text, i) => ({ key: i === 0 ? 'c1' : 'p1', text })));
+    expect(v.curveNotes[1]!.text).toBe('Roundover 1/4" on the edge between the width face (min side) and the thickness face (max side), along the length');
   });
   it('B1 stations: the line stops on the stations\' planes', () => {
     const [w] = viewOf(frontOnly, 'thickness|max')!.sweeps!;
@@ -79,5 +78,18 @@ describe('a swept profile on the part diagrams', () => {
     const straight = createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [straightTopLong] });
     for (const v of buildDiagrams(straight, IMPERIAL)) expect('sweeps' in v).toBe(false);
     for (const v of buildDiagrams(topCorners(2, { ...endToEnd('p1', { across: 'width', from: 'min' }), size: 3 }), IMPERIAL)) expect('sweeps' in v).toBe(false);   // faulted: builds nothing
+  });
+  it('a faulted swept profile opens the same view as an unfaulted one and lists its bench line there, check and all', () => {
+    // Too tight: 1/8" corners under a 1/4" roundover's reach. It builds nothing (no inner line), but the top's thickness view
+    // opens as it would for the built loop, and the corners take it (no thickness min side), as curves keep a faulted note.
+    const views = buildDiagrams(topCorners(0.125), IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    expect('sweeps' in views[0]!).toBe(false);
+    expect(views[0]!.curveNotes.map((n) => n.text)).toEqual([
+      'Round all four corners to a 1/8" radius',
+      'Roundover 1/4" all round the thickness face (max side) — check: it is too tight for the curve',
+    ]);
+    // A face-min one opens the bottom's.
+    expect(buildDiagrams(topCorners(0.125, loop('p1', 0.25, 'roundover', 'min')), IMPERIAL).map((v) => v.key)).toEqual(['thickness|min']);
   });
 });

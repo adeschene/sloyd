@@ -5,6 +5,7 @@ import { mirrorPart } from './frames';
 import { IMPERIAL } from '../units/length';
 import { canonicalRun, profileCurve, profileFromFields } from './profiles';
 import { ARCH } from './curveFixtures';
+import { apronArch, frontOnly, loop, plainLoop, topCorners } from './sweepFixtures';
 import { FAULT_SUFFIX, featureTag, partFeatures } from './featureKeys';
 import type { Board } from './types';
 
@@ -135,4 +136,30 @@ it('a stopped profile keys `, stopped`; a full one on another edge keeps its wor
   // A stored profile's fault keys with the suffix, as its bench line carries the check (P12).
   const stacked = createBoard({ id: 'b', ...B, profiles: [{ id: 'f', ...full }, { id: 'g', ...full }] });
   expect(partFeatures(stacked, IMPERIAL).map((f) => f.text)).toEqual([`Roundover 1/4"${FAULT_SUFFIX}`, `Roundover 1/4"${FAULT_SUFFIX}`]);
+});
+
+describe('swept profiles (profile runs b1, Q7)', () => {
+  const sweptKeys = (b: Board) => partFeatures(b, IMPERIAL).filter((f) => f.tags.some((t) => t.endsWith(':curve:p1') || t.endsWith(':curve:w1')));
+  it('a loop keys `, all round`; an End to end run round the corners keys `, round the corners`; one following an arch keys as a straight one', () => {
+    expect(sweptKeys(topCorners(2)).map((f) => f.text)).toEqual(['Roundover 1/4", all round']);
+    expect(sweptKeys(frontOnly).map((f) => f.text)).toEqual(['Roundover 1/4", round the corners']);
+    expect(sweptKeys(apronArch).map((f) => f.text)).toEqual(['Roundover 1/4"']);
+    // The fillet words sit before the clause (`<profileName><fillet>, all round`).
+    expect(sweptKeys(topCorners(2, { ...loop('p1', 0.375, 'cove'), fillet: 0.0625 })).map((f) => f.text)).toEqual(['Cove 3/8", with a 1/16" fillet, all round']);
+  });
+  it('the corners keep their own key; the swept profile is tagged by its own id', () => {
+    const fs = partFeatures({ ...topCorners(2), id: 't' }, IMPERIAL);
+    expect(fs.map((f) => f.text)).toEqual(['Four rounded corners, 2" radius', 'Roundover 1/4", all round']);
+    expect(fs[1]!.tags).toEqual([featureTag('t', 'curve', 'p1')]);
+    expect(fs[1]!.key).toBe(featureTag('t', 'curve', 'p1'));
+  });
+  it('a faulted swept profile keys with the suffix', () => {
+    expect(sweptKeys(topCorners(0.125)).map((f) => f.text)).toEqual([`Roundover 1/4", all round${FAULT_SUFFIX}`]);
+  });
+  it('a swept-only part does not throw, and its true axis is the thickness axis', () => {
+    const fs = partFeatures(plainLoop, IMPERIAL);
+    expect(fs.map((f) => f.text)).toEqual(['Roundover 1/4", all round']);
+    expect(fs[0]!.trueAxis).toEqual([0, 1, 0]);   // a flat part: its thickness runs up world Y
+    expect(fs[0]!.trueNormal).toBeNull();
+  });
 });

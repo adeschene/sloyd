@@ -1,4 +1,4 @@
-import type { AngleCut, Board, CurveCut, Dimension, HoleRow } from './types';
+import type { AngleCut, Board, CurveCut, Dimension, HoleRow, ProfileCut } from './types';
 import type { Vec3 } from './frames';
 import { formatLength, type Units } from '../units/length';
 import { DIMENSION_ORDER } from './geometry';
@@ -8,8 +8,8 @@ import { holePitchText, holeSizeText } from './holeText';
 import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
-import { curveFaulted, curveLineEntries, filletWords, profileName } from './curveText';
-import { geometryBoard, profileFields } from './profiles';
+import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } from './curveText';
+import { geometryBoard, profileFields, viewProfileFaults } from './profiles';
 
 /**
  * The Plans sheet's feature keys (feature callouts spec §2.2, §3): ONE home for a feature's identity, the segment tags it
@@ -91,6 +91,13 @@ function curveText(c: CurveCut, b: Board, units: Units, collapsed: boolean): str
   return `Curve: ${arcs} arc${arcs === 1 ? '' : 's'} and ${lines} line${lines === 1 ? '' : 's'}`;
 }
 
+/** A swept profile's key (profile runs b1, Q7): `<name><fillet>, all round` / `…, round the corners`, or the straight
+ *  key's words when it only follows its own side (an arch, a notch). The run words are `sweptRun`'s. */
+function sweptText(b: Board, p: ProfileCut, units: Units): string {
+  const run = sweptRun(b, p);
+  return `${profileName(p, units)}${filletWords(p, units)}${run ? `, ${run}` : ''}`;
+}
+
 export function partFeatures(b: Board, units: Units): PartFeature[] {
   b = geometryBoard(b);
   const out: PartFeature[] = [];
@@ -107,6 +114,13 @@ export function partFeatures(b: Board, units: Units): PartFeature[] {
   }
   // One feature per bench line: `curveLineEntries` is THE home of the four-corner collapse (curves spec Q6).
   for (const e of curveLineEntries(b, units)) {
+    // A swept profile (profile runs b1) is in the view's `profiles`, never its curves: one id, its own entry (ids share the
+    // curve scope, inv 33). It shows true looking down the thickness, where its path lies in plan.
+    const swept = b.profiles.find((p) => p.id === e.ids[0]);
+    if (swept) {
+      push('curve', e.ids, sweptText(b, swept, units), viewProfileFaults(swept).length > 0, axisOf(b, 'thickness'), null);
+      continue;
+    }
     const cs = e.ids.map((id) => b.curves.find((c) => c.id === id)!);
     push('curve', e.ids, curveText(cs[0]!, b, units, e.ids.length === 4), cs.some((c) => curveFaulted(b, c)), axisOf(b, cs[0]!.through), null);
   }

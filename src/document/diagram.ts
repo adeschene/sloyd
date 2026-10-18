@@ -306,10 +306,11 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
   // every hole has opened its entry view, so a hole's view takes the curve instead of a second view appearing.
   // A stopped profile (P16) counts only the end views it runs out through — the min one opened when neither exists — and,
   // reaching neither, opens its side face's view instead.
-  // Swept profiles (profile runs b1, Q8): each built one opens its face's thickness view — after the holes', before the
-  // curves' rule (so a curve whose through face is the thickness takes that view rather than opening the min side).
+  // Swept profiles (profile runs b1, Q8): each opens its face's thickness view — after the holes', before the curves' rule
+  // (so a curve whose through face is the thickness takes that view rather than opening the min side). A FAULTED one opens
+  // it too and is noted there (Task 8: as a faulted curve lists its line in the view it opened); only a built one draws.
   const swept = board.profiles.length > 0 ? builtSwept(board) : [];
-  for (const p of swept) ensure('thickness', p.face);
+  for (const p of board.profiles) ensure('thickness', p.face);
   for (const c of board.curves) {
     const side = sideOnly(c);
     if (side) { ensure(uvDims(c.through)[0], side); continue; }
@@ -377,13 +378,14 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
         drawn.add(c.id);
       });
     }
-    if (view.face === 'thickness') for (const p of swept) {
+    if (view.face === 'thickness') for (const p of board.profiles) {
       if (p.face !== view.from) continue;
+      drawn.add(p.id);   // a faulted (unbuilt) one still lists its bench line here
+      if (!swept.includes(p)) continue;
       const line = sweptInnerLine(board, p);
       if (!line) continue;
       // The thickness view's horizontal is length and its vertical width: plan (u, v) as they are.
       (view.sweeps ??= []).push({ id: p.id, pts: line.pts.map(([x, y]) => [x, y] as [number, number]), closed: line.closed });
-      drawn.add(p.id);
     }
     for (const e of curveEntries) if (e.ids.some((id) => drawn.has(id))) view.curveNotes.push({ key: e.ids[0]!, text: e.text });
   }
