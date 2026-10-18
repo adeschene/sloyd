@@ -1100,3 +1100,23 @@ describe('PartDiagram curves (curves spec §5.2)', () => {
     expect(screen.getAllByText('Round all four corners to a 1" radius')).toHaveLength(1);
   });
 });
+
+describe('PartDiagram: a swept profile\'s inner line (profile runs b1, Q8)', () => {
+  it('draws a loop\'s inner line as one closed, unfilled shape, and an open run\'s as a polyline', async () => {
+    const { topCorners, apronArch } = await import('../document/sweepFixtures');
+    const loopView = buildDiagrams(topCorners(2), IMPERIAL).find((v) => v.key === 'thickness|max')!;
+    const { container } = render(<PartDiagram view={loopView} />);
+    const shapes = container.querySelectorAll('.cutlist-diagram-sweep');
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0]!.tagName.toLowerCase()).toBe('polygon');
+    expect(shapes[0]!.getAttribute('points')!.split(' ')).toHaveLength(loopView.sweeps![0]!.pts.length);
+    cleanup();
+    const apron = buildDiagrams(apronArch, IMPERIAL).find((v) => v.key === 'thickness|max')!;
+    const { container: c2 } = render(<PartDiagram view={apron} />);
+    expect(c2.querySelectorAll('polyline.cutlist-diagram-sweep')).toHaveLength(1);
+  });
+  it('a view with no swept profile draws none', () => {
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    expect(container.querySelectorAll('.cutlist-diagram-sweep')).toHaveLength(0);
+  });
+});

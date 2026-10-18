@@ -11,6 +11,7 @@ import { curveOutline, spanOf, twiceArea, uvDims } from './curves';
 import { curveLineEntries } from './curveText';
 import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
 import { geometryBoard } from './profiles';
+import { builtSwept, sweptInnerLine } from './sweep';
 
 /** One angle cut in a view (spec §4.3): the wedge it removes, in (h, v) board inches, and its bench line. */
 export interface DiagramAngle { id: string; poly: [number, number][]; label: string }
@@ -123,6 +124,9 @@ export interface DiagramView {
   curveLines: DiagramCurveLine[];
   /** Bench lines of the curves drawn here (inv 19, Q6): built in curveText.ts. */
   curveNotes: { key: string; text: string }[];
+  /** Swept profiles' inner lines (profile runs b1, Q8): the path offset by the reach, in this face's (h, v), board inches.
+   *  Present only on a view that draws one, so every other part's views are byte for byte as they were. */
+  sweeps?: { id: string; pts: [number, number][]; closed: boolean }[];
 }
 
 const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
@@ -302,6 +306,10 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
   // every hole has opened its entry view, so a hole's view takes the curve instead of a second view appearing.
   // A stopped profile (P16) counts only the end views it runs out through — the min one opened when neither exists — and,
   // reaching neither, opens its side face's view instead.
+  // Swept profiles (profile runs b1, Q8): each built one opens its face's thickness view — after the holes', before the
+  // curves' rule (so a curve whose through face is the thickness takes that view rather than opening the min side).
+  const swept = board.profiles.length > 0 ? builtSwept(board) : [];
+  for (const p of swept) ensure('thickness', p.face);
   for (const c of board.curves) {
     const side = sideOnly(c);
     if (side) { ensure(uvDims(c.through)[0], side); continue; }
@@ -368,6 +376,14 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
         view.curveLines.push({ id: c.id, along: view.horizontal === c.through ? 'h' : 'v', at: qG, ...(span ? { lo: span.lo, hi: span.hi } : {}) });
         drawn.add(c.id);
       });
+    }
+    if (view.face === 'thickness') for (const p of swept) {
+      if (p.face !== view.from) continue;
+      const line = sweptInnerLine(board, p);
+      if (!line) continue;
+      // The thickness view's horizontal is length and its vertical width: plan (u, v) as they are.
+      (view.sweeps ??= []).push({ id: p.id, pts: line.pts.map(([x, y]) => [x, y] as [number, number]), closed: line.closed });
+      drawn.add(p.id);
     }
     for (const e of curveEntries) if (e.ids.some((id) => drawn.has(id))) view.curveNotes.push({ key: e.ids[0]!, text: e.text });
   }

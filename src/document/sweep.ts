@@ -113,6 +113,25 @@ export function bandReach(sec: ReturnType<typeof keptSection>): number {
   return wall ? sec.reach + WALL_MARGIN : sec.reach;
 }
 
+/**
+ * A swept profile's INNER line on its face (part diagrams, spec §5 / Q8): the path offset into the wood by the profile's reach
+ * (the skeleton's wavefront at the TRUE reach, clipped at B1 stations), plan coordinates (length, width) — the face's
+ * thickness view's own. Closed for a loop. Null when the profile has no plan.
+ */
+export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; closed: boolean } | null {
+  const path = profilePath(view, p);
+  if (!path) return null;
+  const chain = planChain(view, path, p.face);
+  if (!chain) return null;
+  const { reach } = keptSection(view as Pick<Board, Dimension>, p);
+  const sk = pathSkeleton(chain.chords, chain.loop, reach, chain.rays);
+  if (!sk) return null;
+  let wave = sk.wave;
+  for (const st of chain.stations) wave = clipLine(wave, st.n, st.d);
+  const pts = wave.map((q) => [q[0], q[1]] as P2);
+  return pts.length >= 2 ? { pts, closed: chain.loop } : null;
+}
+
 /** The plan pieces of a swept profile before they become half-spaces: the chain, its skeleton, each face (station-clipped),
  *  and the rest of the outline. */
 export interface SweptPlan { chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number }

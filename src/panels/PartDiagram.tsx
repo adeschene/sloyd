@@ -379,6 +379,14 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           />
         ))}
 
+        {(view.sweeps ?? []).map((w) => {
+          // A swept profile's inner line (profile runs b1, Q8): where the profile leaves the face, thin and solid.
+          const points = w.pts.map(([h, v]) => `${left + fit.offsetX + h * fit.sx},${top + (view.vUp ? view.v - v : v) * fit.sy}`).join(' ');
+          return w.closed
+            ? <polygon key={w.id} className="cutlist-diagram-sweep" points={points} />
+            : <polyline key={w.id} className="cutlist-diagram-sweep" points={points} />;
+        })}
+
         {view.curveLines.map((l, i) => {
           const X = (h: number) => left + fit.offsetX + h * fit.sx;
           const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
