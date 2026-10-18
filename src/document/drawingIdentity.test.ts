@@ -47,6 +47,8 @@ describe('drawView of curved parts without a swept profile is unchanged (byte-fo
   const curved = [top, stopped, straight];
   const strip = (segs: Seg2[]) => segs.map(({ feature: _f, ...s }) => s);
   const SECTION: Section = { axis: 'side', at: 10, flip: false };
+  // Inside the stopped part's lo run-out: its min end is at x = 40, its station 3" in (x = 43).
+  const RUNOUT: Section = { axis: 'side', at: 42.9, flip: false };
   it('the scene is what it says: every part shaped, none swept', () => {
     for (const b of curved) {
       expect(shapedPart(geometryBoard(b))).toBe(true);
@@ -59,11 +61,12 @@ describe('drawView of curved parts without a swept profile is unchanged (byte-fo
     ['top', TOP, undefined, '26759f05802020748f02f86ea47ec53cbdcaa22b3a6bf622b364fe59dd25499c', '160da1fc22fa3b7470288a7398b98e526cc4a9f5ffa5512d4865963286b208a0'],
     ['iso', ISO, undefined, '3eea196809764ce9825c15a1c02a2ec46c044e41a9d0066a38a5373b5f5095e4', '119141092d3ec5d77f3fd8d8ce3958dbf36b351bfbfd833b3a637986a6cfae20'],
     ['front, sectioned', FRONT, SECTION, 'e3ea039e1c023c101453834127a71557f71b9dd85349d3e20ca3754770a80690', '226bf4be3809dd61f3d97f938f7ef05ac539c87ed40a651808b5ec555362deb0'],
+    ['side, sectioned through a run-out', SIDE, RUNOUT, 'bdf6cf8a0c302b6fcf8547d6c5a7eff452275de1862050321b410a40b6a50db3', '289a1380e4a15eb8554527cb02ca7da177140bd0186b085ff281dd6f3f3d9d26'],
   ] as const)('%s', (_name, view, section, stripped, kept) => {
     const d = drawView(curved, view, undefined, section ? { section } : {});
     expect(sha({ ...d, visible: strip(d.visible), hidden: strip(d.hidden) })).toBe(stripped);
     expect(d.visible.some((s) => s.feature !== undefined)).toBe(true);
-    if (section) expect(d.caps!.length).toBeGreaterThan(0);   // the plane cuts wood
+    if (section) expect(d.caps!.map((c) => c.part)).toContain(section === RUNOUT ? 'stop' : 'top');   // the plane cuts that part's wood
     expect(sha(d)).toBe(kept);
   });
 });
