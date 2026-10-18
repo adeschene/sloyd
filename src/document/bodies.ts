@@ -238,6 +238,18 @@ function clipAll(faces: BodyFace[], planes: readonly { n: V3; d: number }[], cur
 /** Cubic inches: a part sharing no more than this with a convex piece of waste holds none of it (subtractPieces). */
 const DISJOINT_VOLUME = 1e-12;
 
+/** True when every vertex lies on or outside (within BODY_EPS) some one of the planes: subtractPieces' first reject, the
+ *  same expression as `dot(h.n, p) + h.d <= BODY_EPS` over each face's vertices, in the same order of operations. */
+function outsideSome(planes: readonly { n: V3; d: number }[], v: Float64Array): boolean {
+  for (const h of planes) {
+    const [n0, n1, n2] = h.n;
+    let all = true;
+    for (let j = 0; j < v.length; j += 3) if (n0 * v[j]! + n1 * v[j + 1]! + n2 * v[j + 2]! + h.d > BODY_EPS) { all = false; break; }
+    if (all) return true;
+  }
+  return false;
+}
+
 /**
  * A body minus the waste of a SPLIT plan (spec §3.2): for each convex piece in turn, every current part splits at the
  * piece's planes — the part OUTSIDE each plane (inside the ones before) is kept, the part inside them all (waste) dropped.
@@ -245,13 +257,28 @@ const DISJOINT_VOLUME = 1e-12;
  * own array (one element).
  */
 function subtractPieces(faces: BodyFace[], pieces: readonly Piece[], curve: string): BodyFace[][] {
+  // Each part's vertices as one flat array, built once per part (a part meets ~145 pieces of a stopped ogee; the reject
+  // test below scanned its faces' vertex arrays for every one): the same numbers, the same test.
+  const flat = new Map<BodyFace[], Float64Array>();
+  const flatVerts = (part: BodyFace[]): Float64Array => {
+    let a = flat.get(part);
+    if (!a) {
+      let n = 0;
+      for (const f of part) n += f.verts.length;
+      a = new Float64Array(3 * n);
+      let j = 0;
+      for (const f of part) for (const p of f.verts) { a[j] = p[0]; a[j + 1] = p[1]; a[j + 2] = p[2]; j += 3; }
+      flat.set(part, a);
+    }
+    return a;
+  };
   let parts: BodyFace[][] = [faces];
   for (const piece of pieces) {
     const next: BodyFace[][] = [];
     for (const part of parts) {
       // A part wholly outside one of the piece's planes does not meet it: it stays whole, its own array. Without this
       // the piece's planes, extended past its edges, would slice a cell the waste never reaches (and lose its box).
-      if (piece.planes.some((h) => part.every((f) => f.verts.every((p) => dot(h.n, p) + h.d <= BODY_EPS)))) { next.push(part); continue; }
+      if (outsideSome(piece.planes, flatVerts(part))) { next.push(part); continue; }
       let rest = part;
       const frags: BodyFace[][] = [];
       piece.planes.forEach((h, i) => {

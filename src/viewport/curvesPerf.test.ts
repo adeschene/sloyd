@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { createBoard, defaultProfile, PROFILE_EDGES, partGeometry, archCurve, cornerCurve, curvePlan, defaultHingeCup, defaultShelfPinRow, holeInStock, stockChecks } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import type { ProfileCut, ProfileEnd } from '../document/types';
@@ -50,7 +51,10 @@ function rebuild(make: (len: number) => Board): number {
 }
 const minOf9 = (make: (k: number) => Board) => {
   for (let i = 0; i < 3; i += 1) rebuild(make);
-  return Math.min(...Array.from({ length: 9 }, () => rebuild(make)));
+  const min = Math.min(...Array.from({ length: 9 }, () => rebuild(make)));
+  // SLOYD_PERF_LOG=<file>: each case's minimum appended, so a full-suite run's numbers can be read back (a2 final fix F1).
+  if (process.env.SLOYD_PERF_LOG) appendFileSync(process.env.SLOYD_PERF_LOG, `${expect.getState().currentTestName}\t${min.toFixed(1)}\n`);
+  return min;
 };
 
 describe('a curved part rebuilds inside a frame', () => {
