@@ -593,7 +593,7 @@ function validateProfiles(raw: unknown, seen: Set<string>, dims: Pick<Board, Dim
     if (kind === 'bead' && !((p.fillet as number) > 0)) continue;
     if (typeof r !== 'object' || r === null) continue;
     const fields = { kind, size: p.size, ...(kind === 'thumbnail' ? { depth: p.depth as number } : { fillet: p.fillet as number }) };
-    const sym = !profileAsymmetric({ through: 'length', uFrom: 'min', vFrom: 'min', facing: 'v', ...fields });
+    const sym = !profileAsymmetric(fields);
     const facing = sym ? 'face' : (p.facing as 'face' | 'edge');
     // All round (b1): a loop has no ends to read or order, so it is pushed here, never through endOf (which would drop it).
     if ('loop' in r) {
