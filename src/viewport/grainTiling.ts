@@ -7,7 +7,9 @@ import {
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from '../document/profiles';
 import { profileEdgeOf } from '../document/bodies';
-import { runoutNormals } from '../document/runout';
+import { runoutAxis, runoutNormals, sectionFrame } from '../document/runout';
+import { sweptNormals, sweptRunouts } from '../document/sweep';
+import { spanOf } from '../document/curves';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 import { candidates as sortedCandidates, centroidFan, CONFORM_EPS, insertOnEdges, welder } from './conform';
@@ -293,6 +295,16 @@ function runoutMemo(bodies: readonly Body[] | undefined): Map<string, RunoutNorm
   return m;
 }
 
+type SweptNormals = ReturnType<typeof sweptNormals>;
+const sweptMemos = new WeakMap<readonly Body[], Map<string, SweptNormals | null>>();
+/** A part's swept normals by profile id, memoised on its FROZEN bodies exactly as `runoutMemo` (unfrozen: fresh per call). */
+function sweptMemo(bodies: readonly Body[] | undefined): Map<string, SweptNormals | null> {
+  if (!bodies || !Object.isFrozen(bodies)) return new Map();
+  let m = sweptMemos.get(bodies);
+  if (!m) { m = new Map(); sweptMemos.set(bodies, m); }
+  return m;
+}
+
 /**
  * Whether BoardMesh draws `body` through a BoxGeometry (today's path, byte-for-byte: angle-cuts spec §3.3, holes spec
  * §3.2) rather than bodyMesh: a box no hole reaches, on a part WITHOUT curves. Every body of a curved part goes through
@@ -349,12 +361,45 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   // A stopped profile's run-out normals, built per curve on its first run-out face (a part with none never builds one), and
   // shared by every body of the part through partGeometry's frozen bodies (final fix F1: was rebuilt per call, ~48× an ogee).
   const runouts = curved ? runoutMemo(bodies) : new Map<string, RunoutNormals | null>();
+  const sweeps = curved ? sweptMemo(bodies) : new Map<string, SweptNormals | null>();
   const runoutOf = (id: string) => {
     if (!runouts.has(id)) {
       const c = board.curves.find((x) => x.id === id);
       runouts.set(id, c ? runoutNormals(board, c) : null);
     }
     return runouts.get(id)!;
+  };
+  // A swept profile's B1 station run-out (profile runs b1, Task 5): its caps carry the PROFILE's id, which names no view
+  // curve, and its two stations may share an end ('hi' on both end sides): the run-out curve is the one of the profile's
+  // `sweptRunouts` stopping at that end whose bit axis the face lies nearest. A view curve's id resolves as above, unchanged.
+  const runoutFor = (id: string, end: 'lo' | 'hi', verts: readonly V3[]): RunoutNormals | null => {
+    if (board.curves.some((x) => x.id === id)) return runoutOf(id);
+    const p = board.profiles.find((x) => x.id === id);
+    if (!p) return null;
+    const cs = sweptRunouts(board, p);
+    let best: RunoutNormals | null = null, bestD = Infinity;
+    cs.forEach((c, i) => {
+      const sp = spanOf(c);
+      if (!sp || !(end === 'lo' ? sp.stopLo : sp.stopHi)) return;
+      const key = `${id}#${i}`;
+      if (!runouts.has(key)) runouts.set(key, runoutNormals(board, c));
+      const f = sectionFrame(board, c);
+      const a = runoutAxis(board, c, end);
+      const v = verts[0]!;
+      const d = Math.hypot(v[f.k]! - a.run, v[f.iu]! - a.u);
+      if (d < bestD) { bestD = d; best = runouts.get(key)!; }
+    });
+    return best;
+  };
+  // A swept face's normals (profile runs b1, Task 5): the true swept surface's (sweptNormals), one per profile per part,
+  // memoised with the run-outs' on the frozen bodies (a2 fix F1's rule). A part with no swept profile never builds one.
+  const sweptOf = (id: string) => {
+    const key = `sweep:${id}`;
+    if (!sweeps.has(key)) {
+      const p = board.profiles.find((x) => x.id === id);
+      sweeps.set(key, p ? sweptNormals(board, p) : null);
+    }
+    return sweeps.get(key)!;
   };
   // A curved part's holed planes, merged (fu 369): this body draws each plane it was given whole, with its rings cut out.
   const jobs: [BodyFace, V3[][] | null][] = faces.map((f) => [f, null]);
@@ -382,16 +427,25 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     // A run-out face (profile runs a2) takes the cutter surface's normal (runoutNormals), its arc chosen once from all its
     // vertices, flipped to agree with the face's outward normal; tested BEFORE chordArc — a face near the station projects
     // onto the band's prism chord.
-    const ro = chordsOf && f.runout !== undefined && f.curve !== undefined ? runoutOf(f.curve) : null;
+    const ro = chordsOf && f.runout !== undefined && f.curve !== undefined ? runoutFor(f.curve, f.runout, f.verts) : null;
     const roArc = ro ? ro.arcOf(f.runout!, f.verts) : null;
     const arc = !ro && chordsOf && f.curve !== undefined ? chordArc(chordsOf.get(f.curve), f) : null;
     // T6 fix 1: a run-out face of a STRAIGHT section edge (a bead's quirk wall: a revolved line, a cylinder or cone) takes
     // the revolved edge's normal, so its sectors shade as one surface; tagged faces only, so no other part is touched.
     let line: ((p: readonly number[]) => V3) | null = null;
     const pe = chordsOf && f.runout !== undefined && f.curve === undefined ? profileEdgeOf(f) : null;
-    if (pe) line = runoutOf(pe.curve)?.lineNormals(f.runout!, f.verts, pe.a, pe.b) ?? null;
+    if (pe) line = runoutFor(pe.curve, f.runout!, f.verts)?.lineNormals(f.runout!, f.verts, pe.a, pe.b) ?? null;
+    // Profile runs b1: a swept section face takes the swept surface's normal (already oriented outward).
+    const swept = chordsOf && f.sweep !== undefined ? profileEdgeOf(f) : null;
+    const sw = swept ? sweptOf(swept.curve) : null;
     const nor = (p: V3) => {
       if (!chordsOf) return;
+      const sn = sw ? sw(f, p) : null;
+      if (sn) {
+        const w = toWorld(sn);
+        out.nor.push(w[0], w[1], w[2]);
+        return;
+      }
       if ((ro && roArc !== null) || line) {
         const local = line ? line(p) : ro!.normal(f.runout!, p, roArc!);
         if (local[0] * f.n[0] + local[1] * f.n[1] + local[2] * f.n[2] < 0) { local[0] = -local[0]; local[1] = -local[1]; local[2] = -local[2]; }

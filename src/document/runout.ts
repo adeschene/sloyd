@@ -218,6 +218,37 @@ export function runoutNormal(board: Pick<Board, Dimension>, c: ViewCurve, end: '
   return arc === null ? null : r.normal(end, p, arc);
 }
 
+/** One arc of a profile's (s, t) section: its centre, its chords (the outline's own points), and the sign that turns
+ *  (q − centre) toward the waste. */
+export interface SectionArc { centre: P2; chords: [P2, P2][]; sign: 1 | -1 }
+/**
+ * The section's arcs in (s, t) (`profileSection`'s `pts`, curveOutline's walk), and per outline edge the index of the arc
+ * whose chord it is (null for a straight edge): THE one reader of a section's true arcs, shared by a2's run-out normals and
+ * b1's swept normals (`sweep.ts`).
+ */
+export function sectionArcs(board: Pick<Board, Dimension>, c: ViewCurve, pts: readonly P2[] = profileSection(board, c).pts): { arcs: SectionArc[]; edgeArc: (number | null)[] } {
+  const f = sectionFrame(board, c);
+  const toST = (q: readonly number[]): P2 => [f.uOut * (f.uEdge - q[0]!), f.vIn * (q[1]! - f.vFace)];
+  const wind = twiceArea(pts) > 0 ? 1 : -1;
+  const arcs: SectionArc[] = [];
+  const edgeArc: (number | null)[] = [];
+  let at = 0;
+  for (const seg of localSegments(board, c)) {
+    if (seg.kind === 'line') { at += 1; edgeArc.push(null); continue; }
+    const n = arcChords(seg, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+    const chords: [P2, P2][] = [];
+    for (let k = 0; k < n; k += 1) { chords.push([pts[at + k]!, pts[(at + k + 1) % pts.length]!]); edgeArc.push(arcs.length); }
+    at += n;
+    const centre = toST(seg.centre);
+    const [a, b] = chords[0]!;
+    // The waste lies to the LEFT of a counter-clockwise polygon's edges (runoutPieces' rule).
+    const inS = -wind * (b[1] - a[1]), inT = wind * (b[0] - a[0]);
+    const sign = ((a[0] + b[0]) / 2 - centre[0]) * inS + ((a[1] + b[1]) / 2 - centre[1]) * inT >= 0 ? 1 : -1;
+    arcs.push({ centre, chords, sign });
+  }
+  return { arcs, edgeArc };
+}
+
 /** `runoutNormal` with the frame, the section's arcs and the axes hoisted: bodyMesh's per-part form. */
 export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
   /** The section arc whose chord the face (its vertices) lies on, or null: a face on no arc (a chord plane's extension). */
@@ -232,25 +263,7 @@ export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
   const { pts } = profileSection(board, c);
   const span = spanOf(c);
   const axes = { lo: span && span.stopLo ? runoutAxis(board, c, 'lo') : null, hi: span && span.stopHi ? runoutAxis(board, c, 'hi') : null };
-  const toST = (q: readonly number[]): P2 => [f.uOut * (f.uEdge - q[0]!), f.vIn * (q[1]! - f.vFace)];
-  // The section's arcs in (s, t): each one's centre, its chords (the outline's own points, curveOutline's walk) and the sign
-  // that turns (q − centre) toward the waste.
-  const wind = twiceArea(pts) > 0 ? 1 : -1;
-  const arcs: { centre: P2; chords: [P2, P2][]; sign: 1 | -1 }[] = [];
-  let at = 0;
-  for (const seg of localSegments(board, c)) {
-    if (seg.kind === 'line') { at += 1; continue; }
-    const n = arcChords(seg, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
-    const chords: [P2, P2][] = [];
-    for (let k = 0; k < n; k += 1) chords.push([pts[at + k]!, pts[(at + k + 1) % pts.length]!]);
-    at += n;
-    const centre = toST(seg.centre);
-    const [a, b] = chords[0]!;
-    // The waste lies to the LEFT of a counter-clockwise polygon's edges (runoutPieces' rule).
-    const inS = -wind * (b[1] - a[1]), inT = wind * (b[0] - a[0]);
-    const sign = ((a[0] + b[0]) / 2 - centre[0]) * inS + ((a[1] + b[1]) / 2 - centre[1]) * inT >= 0 ? 1 : -1;
-    arcs.push({ centre, chords, sign });
-  }
+  const { arcs } = sectionArcs(board, c, pts);
   const reach = BEARING + Math.max(...pts.map((q) => q[0]));
   const sagitta = reach * (1 - Math.cos(Math.PI / (2 * sectors(reach)))) * (1 + 1e-9) + CURVE_EPS;
   const axisOf = (end: 'lo' | 'hi') => {

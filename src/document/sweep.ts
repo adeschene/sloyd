@@ -28,12 +28,12 @@
  *
  * Memoised per (view object, profile id) and deep-frozen: never mutate a result.
  */
-import { convexPieces, twiceArea, type P2, type ViewCurve } from './curves';
+import { convexPieces, distToSegment, twiceArea, type P2, type ViewCurve } from './curves';
 import { faceOutline, profilePath, type OutlineChord } from './profilePath';
 import { profileAsCurve, viewProfileFaults } from './profiles';
-import { BEARING, outlineRun, profileSection, sectionFrame } from './runout';
+import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame } from './runout';
 import type { Hole } from './holes';
-import { sectionEdgeNamer } from './sectionEdges';
+import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton } from './skeleton';
 import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
 import { DIMENSION_ORDER } from './geometry';
@@ -432,4 +432,101 @@ export function sweptWasteMeets(view: SweepBoard, p: ProfileCut, hole: Pick<Hole
   }
   const [u0, u1] = span(0), [v0, v1] = span(1);
   return segs.some(([a, b]) => segRectDist(a, b, [u0, v0], [u1, v1]) <= w.reach + EPS_M);
+}
+
+/*
+ * A swept face's shading (profile runs b1, Task 5; spec §5): the TRUE swept surface's normal at each vertex. The face's `sweep`
+ * names its path chord (`profilePath`'s own order) and so the true geometry it was swept along: an arc chord's TRUE arc (its
+ * centre and radius), or the straight chord itself. At a vertex v the plan's inward direction is toward the arc's centre
+ * (convex) or away from it (concave, the arc bowing into the wood), or the straight chord's inward normal; s is v's distance in
+ * from the true arc or line and t its depth in from the profile's face. The section's normal at (s, t) — radial about the
+ * section arc's centre (a2's `runoutNormals` rule: `sectionArcs`, the arc the face's `profileEdge` run names, the nearest per
+ * vertex when the run spans two arcs, the ogee's collinear inflection) or a straight section edge's own — is lifted as
+ * n_s·inward + n_t·t̂ and oriented to agree with the face's outward normal. A straight band's normals are chunk 1's. Per
+ * face the chord is chosen once, so at a tangent point the straight band keeps chunk 1's normal while the arc's first band
+ * turns radially: their shared bisector vertex steps by a few thousandths (pinned in sweptNormals.test.ts).
+ */
+type NormalFace = { verts: readonly (readonly number[])[]; n: readonly number[]; sweep?: number; profileEdge?: string };
+type FaceNormals = ((v: readonly number[]) => V3) | null;
+const normalsMemo = new WeakMap<object, Map<string, (face: NormalFace, v: readonly number[]) => V3 | null>>();
+
+/**
+ * THE swept-surface normal (above) of one swept profile's faces: board-local, unit, outward; null for a face that is not one
+ * of this profile's swept section faces (no `sweep`, another profile's `profileEdge`, or a run on the part's faces).
+ * Memoised per (view, profile id); each face's chord and arc resolved once (by the face object).
+ */
+export function sweptNormals(view: SweepBoard, p: ProfileCut): (face: NormalFace, v: readonly number[]) => V3 | null {
+  let m = normalsMemo.get(view);
+  if (!m) { m = new Map(); normalsMemo.set(view, m); }
+  const hit = m.get(p.id);
+  if (hit) return hit;
+  const dims = view as Pick<Board, Dimension>;
+  const path = profilePath(view, p);
+  const c = oneSideCurve(p);
+  const { pts } = profileSection(dims, c);
+  const { arcs, edgeArc } = sectionArcs(dims, c, pts);
+  const f = sectionFrame(dims, c);
+  const vIn = f.vIn, vFace = f.vFace;
+  const mpts = pts.length;
+  // The path's plan inward side: a face-max path is plan-CCW (wood on its left), a face-min one plan-CW (wood on its right).
+  const side = p.face === 'max' ? 1 : -1;
+  const perFace = new WeakMap<object, FaceNormals>();
+  const resolve = (face: NormalFace): FaceNormals => {
+    if (face.sweep === undefined || !path) return null;
+    const e = profileEdgeOf(face);
+    if (!e || e.curve !== p.id) return null;
+    const ch = path.chords[face.sweep];
+    if (!ch) return null;
+    // The section side: the arcs the run [a, b] covers, or the run's straight line.
+    const own: number[] = [];
+    for (let j = e.a; ; j = (j + 1) % mpts) {
+      const k = edgeArc[j];
+      if (k !== null && k !== undefined && !own.includes(k)) own.push(k);
+      if (j === e.b) break;
+    }
+    let line: [number, number] | null = null;
+    if (own.length === 0) {
+      const p0 = pts[e.a]!, p1 = pts[(e.b + 1) % mpts]!;
+      const l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+      line = [-(p1[1] - p0[1]) / l, (p1[0] - p0[0]) / l];
+    }
+    const near = (q: P2, k: number) => Math.min(...arcs[k]!.chords.map(([a, b]) => distToSegment(q, a, b)));
+    // The plan side: inward direction and s at a point.
+    let plan: (x: number, y: number) => [number, number, number];
+    if (ch.arc) {
+      const { c: o, r, concave } = ch.arc;
+      plan = concave
+        ? (x, y) => { const dx = x - o[0], dy = y - o[1], d = Math.hypot(dx, dy); return [dx / d, dy / d, d - r]; }
+        : (x, y) => { const dx = o[0] - x, dy = o[1] - y, d = Math.hypot(dx, dy); return [dx / d, dy / d, r - d]; };
+    } else {
+      const ln = Math.hypot(ch.b[0] - ch.a[0], ch.b[1] - ch.a[1]);
+      const nx = (side * -(ch.b[1] - ch.a[1])) / ln, ny = (side * (ch.b[0] - ch.a[0])) / ln;
+      plan = (x, y) => [nx, ny, nx * (x - ch.a[0]) + ny * (y - ch.a[1])];
+    }
+    const fn = face.n;
+    return (v) => {
+      const [ix, iy, s] = plan(v[0]!, v[1]!);
+      const t = vIn * (v[2]! - vFace);
+      let ns: number, nt: number;
+      if (line) [ns, nt] = line;
+      else {
+        let k = own[0]!;
+        if (own.length > 1) { let best = Infinity; for (const j of own) { const d = near([s, t], j); if (d < best) { best = d; k = j; } } }
+        const arc = arcs[k]!;
+        const ds = s - arc.centre[0], dt = t - arc.centre[1];
+        const l = Math.hypot(ds, dt);
+        ns = (arc.sign * ds) / l; nt = (arc.sign * dt) / l;
+      }
+      const N: V3 = [ns * ix, ns * iy, nt * vIn];
+      if (N[0] * fn[0]! + N[1] * fn[1]! + N[2] * fn[2]! < 0) { N[0] = -N[0]; N[1] = -N[1]; N[2] = -N[2]; }
+      return N;
+    };
+  };
+  const out = (face: NormalFace, v: readonly number[]): V3 | null => {
+    let r = perFace.get(face);
+    if (r === undefined) { r = resolve(face); perFace.set(face, r); }
+    return r ? r(v) : null;
+  };
+  m.set(p.id, out);
+  return out;
 }
