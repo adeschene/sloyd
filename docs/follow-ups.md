@@ -6258,7 +6258,7 @@ cove, Roman ogee, bead, thumbnail, an optional fillet — as plain `CurveCut`s r
 (stopped profiles and blind curved recesses, one stored range along `through`, schema 18, its own spec). A scooped seat is
 out of scope (doubly curved). **Stopped profiles moved to the profile runs spec** (`2026-10-17-sloyd-profile-runs-design.md`, chunk a2;
 the §7 plan of "one stored range along `through`" superseded). Blind curved recesses remain for their own spec.
-**Status:** stopped profiles shipped in profile runs chunk a2 (2026-10-18, merged, NOT DEPLOYED — deploys with a1): a profile on
+**Status:** stopped profiles shipped in profile runs chunk a2 (2026-10-18, merged as `a0b0186`, NOT DEPLOYED — deploys with a1): a profile on
 a straight side may stop short of either end and runs out as the router's bit would (the profile revolved about the bit's axis
 1/4" outside the edge). **Open:** blind curved recesses (their own spec). A scooped seat stays out of scope.
 

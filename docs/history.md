@@ -542,7 +542,7 @@ Final review (opus), "With fixes": I1 — in a full-suite run the stopped-ogee p
 pre-fix head, checked by the re-review against a `git archive` of it); I2 — the preset block (a preset now takes the first edge its
 default fits, spec I1); Minors fixed: a crossed Start/Stop refused, not swapped; a typed 0 or full length is a through end (spec I2,
 so a half-stopped profile can be made from the row); an overlap's note drops "at this size"; one `profileEdge` builder and parser;
-watertight rows for a stopped bead, thumbnail and a bore. The fix pass's suite failed once at 41.8 ms with the Playwright browser's GPU
+watertight rows for a stopped bead, thumbnail and a bore. Merged as `a0b0186`. The fix pass's suite failed once at 41.8 ms with the Playwright browser's GPU
 process at ~250% CPU; with it closed, 5279/5279. Re-review (opus): approved. Residue fu 392. Suite 5279 tests across 168 files.
 
 **What profile runs chunk a1 did (2026-10-17)** (fu 390 and 365's stopped half, designed together — brainstorm: "Both,

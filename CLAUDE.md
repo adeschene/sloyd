@@ -107,7 +107,7 @@ handicraft education tradition built around hand woodworking.
   round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
   same, checked live). **Rolling back below 18 refuses every project saved since — export first.** **Deploy a1 together with a2, never alone**
   (a1 shows nothing new; its loader's last gate hole, fu 391(1), closed in a2). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
-- **Profile runs chunk a2 (2026-10-18, plan `…-profile-runs-a2.md`, merged to master; NOT DEPLOYED — **deploy a1 + a2 together**; schema 18,
+- **Profile runs chunk a2 (2026-10-18, plan `…-profile-runs-a2.md`, merged to master as `a0b0186`; NOT DEPLOYED — **deploy a1 + a2 together**; schema 18,
   unchanged by a2)**: a profile on a straight side may stop short of either end (Run → Stopped; Start/Stop from the run dimension's min
   end) and runs out as the router's bit would — the profile revolved about the bit's axis `BEARING` 1/4" outside the edge
   (`runout.ts`; inscribed sectors, no step at the station). Bodies, edges (`smoothPair`), smooth run-out normals, a watertight mesh,
