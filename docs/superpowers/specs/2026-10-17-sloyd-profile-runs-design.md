@@ -126,6 +126,36 @@ profiles; a grain fix (fu 336).
   reads-the-same rule), so in imperial a value that displays as 0 or the length is that end; both ends at the part's ends make the
   run End to end. A Start past the Stop is refused (`Start must be before the Stop`), never swapped.
 
+- **B10** (the user's ruling while planning b1, 2026-10-18): an End to end profile SAVED before b1 on a side a curve cuts follows
+  that side's stretch on load (B1) — the fix the user asked for, applied to existing projects. A profile on an uncut side with
+  sharp corners is unchanged byte for byte. No stored marker.
+
+**Planning rulings for chunk b1** (*Amended (planning)*, 2026-10-18; the probe: `docs/superpowers/plans/b1-probe/`):
+- **Q1 The view.** `geometryBoard`'s `profiles` holds exactly the SWEPT profiles (stored order); straight ones stay view curves
+  (P4, P18). The view is memoised to itself, so a second call returns it. ONE predicate, `shapedPart(view)` (curves or swept
+  profiles), replaces every `curves.length === 0` routing gate.
+- **Q2 Swept** = a loop, or an End to end run whose side's stretch (§3.3) is not that side's single straight segment. A STATION
+  run stays a2's construction in b1 on any side (b2 makes one follow); the row offers no new one on a turned side (B7).
+- **Q3 Construction** (§4.2, as probed): the face outline (rectangle with the through-thickness curves' chord chains spliced in,
+  each chord carrying its curve's id), a truncated straight skeleton of the path (edge events: a swallowed segment collapses and
+  its neighbours rejoin — the probe's notch case, a +2.9% volume error without it), skeleton face × convex piece of the kept
+  (s, t) section as band pieces, the rest of the outline in convex pieces. The FIRST swept profile starts from the part's
+  curve-free cells (cuts and angle cuts applied) and the through-thickness curves are not applied again (the outline carries
+  them; starting after them multiplied an arch's 16 slices into 160 bodies, 49 ms against 11). Each further swept profile
+  intersects the bodies it meets; then every other curve as today; then a B1 station's run-out (a2's `runoutPieces`).
+- **Q4 Speed:** roundover, thumbnail and bead guarded at 40 ms (probe 10–33); a following cove and ogee are BUILT in b1 and
+  guarded at 80 and 105 ms (probe 62 and 85), recorded for chunk (c).
+- **Q5 Tags:** a vertical piece plane on an outline chord carries `curve: <id>` (chunk 1's radial normals and smooth lines below
+  the profile unchanged); a swept section face carries `profileEdge` (a2's builder) and `sweep: <segment>`, so a2's `smoothPair`
+  extends to swept facets in both directions.
+- **Q6 Faults:** `profileFaults` adds `runs-off` (reach over half the face's smaller dimension, depth over the thickness, or no
+  traceable outline) and `too-tight` (a convex outline arc's radius under the reach, R10; a concave one's under `BEARING`, B5);
+  `overlap` is judged on outline stretches (straight and swept alike). A hole keeps the `:curve:<id>` key (P7).
+- **Q7 Words:** `all round` reads `<name> all round <faceName>` (the collapse's own face words, so `the thickness face (max
+  side)`, not §5's shorthand "the top"); its key `<name><fillet>, all round`. Bench lines list curves, then straight profiles,
+  then swept, each in stored order.
+- **Q8 Diagrams:** a swept profile opens its face's thickness view and draws its inner offset line there, with its note.
+
 ## 2. The probe (2026-10-17, throwaway)
 
 A profile swept along an outline as convex 3D pieces, through `clipConvex` and `bodyEdges`. Times are the minimum of 5–9 runs and

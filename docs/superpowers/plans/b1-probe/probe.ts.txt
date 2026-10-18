@@ -1,0 +1,560 @@
+// THROWAWAY probe (profile runs chunk b1 planning, spec §4.2 / B9): the kept-wood construction for a SWEPT profile.
+// The path's band is split by a truncated straight skeleton (edge events only: a swallowed segment collapses and its
+// neighbours rejoin on their own bisector), each skeleton face × each convex piece of the profile's KEPT (s, t) section is a
+// convex 3D piece; the rest of the outline (the core, or for an open run the outline minus the band) is cut into convex
+// prisms. Each existing body is intersected with the pieces it meets. A station end (B1) adds a2's run-out
+// (runoutPieces) subtracted beyond the station plane. Not product code.
+import { createBoard } from '/home/alec/docker/sloyd/src/document/document';
+import type { Board, CurveCut } from '/home/alec/docker/sloyd/src/document/types';
+import { boardBodies, bodyEdges, bodyVolume, curvedEdges, type Body, type BodyFace } from '/home/alec/docker/sloyd/src/document/bodies';
+import { archCurve, cornerCurve, convexPieces, curveOutline, inPolygonClosed, twiceArea, CURVE_TOLERANCE, type P2, type ViewCurve } from '/home/alec/docker/sloyd/src/document/curves';
+import { profileCurve, type ProfileFields } from '/home/alec/docker/sloyd/src/document/profiles';
+import { profileSection, runoutPieces, BEARING } from '/home/alec/docker/sloyd/src/document/runout';
+import { bodyMesh } from '/home/alec/docker/sloyd/src/viewport/grainTiling';
+import { appendFileSync, writeFileSync } from 'node:fs';
+import { loadavg } from 'node:os';
+const deepFreeze = <T,>(o: T): T => { if (typeof o === 'object' && o !== null && !Object.isFrozen(o)) { Object.freeze(o); for (const v of Object.values(o)) deepFreeze(v); } return o; };
+const NOHOLES: never[] = Object.freeze([]) as never[];
+
+type V3 = [number, number, number];
+type H = { n: V3; d: number };
+type Tag = { profile?: string; seg?: number; onArc?: boolean; runout?: 'lo' | 'hi'; curve?: string };
+const OUT = `/tmp/claude-1000/-home-alec-docker-sloyd/7a1adf76-ef99-4d89-b6b7-9abe1d161c98/scratchpad/b1-probe/results${process.env.VARIANT ?? ''}${process.env.NAIVE ? '-naive' : ''}${process.env.MUTATE ? '-mut' : ''}.txt`;
+const log = (s: string) => { console.log(s); appendFileSync(OUT, s + '\n'); };
+
+// ---------- 3D: bodies' own clip, copied (not exported), with the tag spread onto caps ----------
+const EPS = 1e-9;
+const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const sub3 = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross3 = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit3 = (a: V3): V3 => { const l = Math.hypot(...a); return [a[0] / l, a[1] / l, a[2] / l]; };
+function ring(points: V3[], n: V3): V3[] {
+  const pts: V3[] = [];
+  for (const p of points) if (!pts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= EPS)) pts.push(p);
+  if (pts.length < 3) return [];
+  const c: V3 = [0, 1, 2].map((i) => pts.reduce((s, p) => s + p[i]!, 0) / pts.length) as V3;
+  const helper: V3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const u = unit3(cross3(n, helper)); const w = cross3(n, u);
+  return pts.map((p) => ({ p, a: Math.atan2(dot(sub3(p, c), w), dot(sub3(p, c), u)) })).sort((x, y) => x.a - y.a).map((x) => x.p);
+}
+function clip(faces: BodyFace[], h: H, tag: Tag): BodyFace[] {
+  const g = (p: V3) => dot(h.n, p) + h.d;
+  if (!faces.some((f) => f.verts.some((p) => g(p) < -EPS))) return faces;
+  const out: BodyFace[] = []; const cap: V3[] = []; let onPlane = false;
+  for (const f of faces) {
+    const n = f.verts.length; const gs = f.verts.map(g); const sides = gs.map((v) => (v > EPS ? 1 : v < -EPS ? -1 : 0));
+    if (sides.every((x) => x === 0)) onPlane = true;
+    const kept: V3[] = [];
+    for (let i = 0; i < n; i += 1) {
+      const a = f.verts[i]!, b = f.verts[(i + 1) % n]!, sa = sides[i]!, sb = sides[(i + 1) % n]!;
+      if (sa >= 0) kept.push(a);
+      if (sa === 0) cap.push(a);
+      if (sa * sb < 0) { const t = gs[i]! / (gs[i]! - gs[(i + 1) % n]!); const p: V3 = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])]; kept.push(p); cap.push(p); }
+    }
+    if (kept.length >= 3) out.push({ ...f, verts: kept });
+  }
+  if (!onPlane) { const r = ring(cap, h.n); if (r.length >= 3) out.push({ n: [-h.n[0], -h.n[1], -h.n[2]], verts: r, ...tag } as BodyFace); }
+  return out;
+}
+const vol = (f: BodyFace[]) => bodyVolume({ box: null, faces: f });
+
+// ---------- 2D ----------
+const sub2 = (a: P2, b: P2): P2 => [a[0] - b[0], a[1] - b[1]];
+const add2 = (a: P2, b: P2): P2 => [a[0] + b[0], a[1] + b[1]];
+const mul2 = (a: P2, k: number): P2 => [a[0] * k, a[1] * k];
+const dot2 = (a: P2, b: P2) => a[0] * b[0] + a[1] * b[1];
+const cr2 = (a: P2, b: P2) => a[0] * b[1] - a[1] * b[0];
+const len2 = (a: P2) => Math.hypot(a[0], a[1]);
+const area = (p: P2[]) => twiceArea(p) / 2;
+function distSeg(p: P2, a: P2, b: P2): number {
+  const d = sub2(b, a); const t = Math.max(0, Math.min(1, dot2(sub2(p, a), d) / dot2(d, d)));
+  return len2(sub2(p, add2(a, mul2(d, t))));
+}
+/** Convex polygon clipped to n·x + d >= 0. */
+function clip2(poly: P2[], n: P2, d: number): P2[] {
+  const out: P2[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]!, b = poly[(i + 1) % poly.length]!, ga = dot2(n, a) + d, gb = dot2(n, b) + d;
+    if (ga >= 0) out.push(a);
+    if (ga * gb < 0) out.push(add2(a, mul2(sub2(b, a), ga / (ga - gb))));
+  }
+  return out;
+}
+/** Drop duplicates, collinear vertices and spikes (a 180° turn) until none is left. */
+function tidy(poly: P2[]): P2[] {
+  let p = poly.slice(); let changed = true;
+  while (changed && p.length > 3) {
+    changed = false;
+    for (let i = 0; i < p.length; i++) {
+      const a = p[(i - 1 + p.length) % p.length]!, b = p[i]!, c = p[(i + 1) % p.length]!;
+      const ab = sub2(b, a), bc = sub2(c, b);
+      if (len2(ab) < 1e-12 || Math.abs(cr2(ab, bc)) <= 1e-12 * Math.max(1, len2(ab) * len2(bc))) { p.splice(i, 1); changed = true; break; }
+    }
+  }
+  return p;
+}
+const isConvex = (p: P2[]) => p.every((_, i) => cr2(sub2(p[(i + 1) % p.length]!, p[i]!), sub2(p[(i + 2) % p.length]!, p[(i + 1) % p.length]!)) >= -1e-12);
+
+// ---------- the face outline (spec §3.3 faceOutline): the rectangle with each through-thickness curve's chord chain ----------
+function faceOutline(board: Board): P2[] {
+  const L = board.length, W = board.width;
+  const per = (p: P2): number => {
+    const e = 1e-9;
+    if (Math.abs(p[1]) <= e) return p[0];
+    if (Math.abs(p[0] - L) <= e) return L + p[1];
+    if (Math.abs(p[1] - W) <= e) return L + W + (L - p[0]);
+    return 2 * L + W + (W - p[1]);
+  };
+  const P = 2 * (L + W);
+  const at = (q: number): P2 => { q = ((q % P) + P) % P; return q <= L ? [q, 0] : q <= L + W ? [L, q - L] : q <= 2 * L + W ? [L - (q - L - W), W] : [0, W - (q - 2 * L - W)]; };
+  const wastes: { s: number; e: number; chain: P2[] }[] = [];
+  for (const c of board.curves) {
+    if (c.through !== 'thickness') continue;
+    const o = curveOutline(board, c);
+    const m = o.pts.length;
+    // the chord chain: the run of arc edges
+    let first = o.arcEdge.findIndex((x, i) => x && !o.arcEdge[(i - 1 + m) % m]);
+    let last = first; while (o.arcEdge[(last + 1) % m]) last = (last + 1) % m;
+    const chain: P2[] = []; for (let i = first; ; i = (i + 1) % m) { chain.push(o.pts[i]!); if (i === (last + 1) % m) break; }
+    const pa = per(chain[0]!), pb = per(chain[chain.length - 1]!);
+    // which way round the perimeter is waste: its midpoint lies in the waste
+    const mid = (s: number, e: number) => at(s + (((e - s) % P) + P) % P / 2);
+    const [s, e] = inPolygonClosed(o.pts, mid(pa, pb)) ? [pa, pb] : [pb, pa];
+    wastes.push({ s, e, chain: per(chain[0]!) === s ? chain : chain.slice().reverse() });
+  }
+  const inWaste = (q: number) => wastes.some((w) => { const span = ((w.e - w.s) % P + P) % P; const d = ((q - w.s) % P + P) % P; return d > 1e-9 && d < span - 1e-9; });
+  const events: { q: number; pts: P2[] }[] = [];
+  for (const q of [0, L, L + W, 2 * L + W]) if (!inWaste(q)) events.push({ q, pts: [at(q)] });
+  for (const w of wastes) events.push({ q: w.s, pts: w.chain });
+  events.sort((a, b) => a.q - b.q);
+  const out: P2[] = [];
+  for (const ev of events) for (const p of ev.pts) if (!out.length || len2(sub2(out[out.length - 1]!, p)) > 1e-12) out.push(p);
+  if (len2(sub2(out[0]!, out[out.length - 1]!)) <= 1e-12) out.pop();
+  if (twiceArea(out) < 0) throw new Error('outline not CCW');
+  return out;
+}
+
+// ---------- the truncated straight skeleton of a chain (edge events only) ----------
+interface Vx { O: P2; t0: number; v: P2 }
+const pos = (x: Vx, t: number): P2 => add2(x.O, mul2(x.v, t - x.t0));
+interface Skeleton { faces: P2[][]; wave: P2[]; events: number; collapsed: number[] }
+/**
+ * `pts`: the chain's vertices (n+1 for an open chain of n segments, n for a loop). Wood on the LEFT (CCW outline).
+ * `endRays` (open chains): the start vertex's and end vertex's velocity (d of the end segment advancing 1 per unit).
+ */
+function skeleton(pts: P2[], loop: boolean, R: number, endRays?: [P2, P2]): Skeleton {
+  const n = loop ? pts.length : pts.length - 1;
+  const segA = (i: number) => pts[i]!, segB = (i: number) => pts[(i + 1) % pts.length]!;
+  const u = Array.from({ length: n }, (_, i) => { const d = sub2(segB(i), segA(i)); const l = len2(d); return [d[0] / l, d[1] / l] as P2; });
+  const nrm = u.map((d) => [-d[1], d[0]] as P2);
+  const bis = (a: number, b: number): P2 => { const s = add2(nrm[a]!, nrm[b]!); return mul2(s, 1 / (1 + dot2(nrm[a]!, nrm[b]!))); };
+  const active = Array.from({ length: n }, (_, i) => i);
+  // vertex k sits at the START of active[k] (loop: before active[k]; open: k = active.length is the end vertex)
+  let vx: Vx[] = [];
+  if (loop) for (let i = 0; i < n; i++) vx.push({ O: pts[i]!, t0: 0, v: bis((i - 1 + n) % n, i) });
+  else { vx.push({ O: pts[0]!, t0: 0, v: endRays![0] }); for (let i = 1; i < n; i++) vx.push({ O: pts[i]!, t0: 0, v: bis(i - 1, i) }); vx.push({ O: pts[n]!, t0: 0, v: endRays![1] }); }
+  const left: P2[][] = Array.from({ length: n }, (_, i) => [pts[i]!]);
+  const right: P2[][] = Array.from({ length: n }, (_, i) => [segB(i)]);
+  const done: (P2[] | null)[] = Array(n).fill(null);
+  const collapsed: number[] = [];
+  let events = 0;
+  const L = (k: number) => vx[k]!, Rv = (k: number) => vx[loop ? (k + 1) % active.length : k + 1]!;
+  for (;;) {
+    let best = Infinity, bk = -1;
+    for (let k = 0; k < active.length; k++) {
+      const i = active[k]!, a = L(k), b = Rv(k);
+      const A = dot2(sub2(sub2(b.O, mul2(b.v, b.t0)), sub2(a.O, mul2(a.v, a.t0))), u[i]!);
+      const B = dot2(sub2(b.v, a.v), u[i]!);
+      if (B < -1e-15) { const t = -A / B; if (t < best) { best = t; bk = k; } }
+    }
+    if (best >= R || bk === -1 || process.env.NAIVE) break;
+    events++;
+    const i = active[bk]!; const E = pos(L(bk), best);
+    left[i]!.push(E); right[i]!.push(E);
+    done[i] = [...right[i]!, ...left[i]!.slice().reverse()];
+    collapsed.push(i);
+    if (!loop && (bk === 0 || bk === active.length - 1)) throw new Error('an end segment collapsed (not handled by the probe)');
+    const kp = loop ? (bk - 1 + active.length) % active.length : bk - 1;
+    const a = active[kp]!, b = active[(bk + 1) % active.length]!;
+    right[a]!.push(E); left[b]!.push(E);
+    // replace vertices bk and bk+1 (the start of i and the start of b) with one new vertex at the start of b
+    const nv: Vx = { O: E, t0: best, v: bis(a, b) };
+    const kb = loop ? (bk + 1) % active.length : bk + 1;
+    vx[kb] = nv;
+    vx.splice(bk, 1);
+    active.splice(bk, 1);
+  }
+  const wave: P2[] = [];
+  for (let k = 0; k < active.length; k++) {
+    const i = active[k]!; const p = pos(L(k), R), q = pos(Rv(k), R);
+    left[i]!.push(p); right[i]!.push(q);
+    done[i] = [...right[i]!, ...left[i]!.slice().reverse()];
+    wave.push(p); if (!loop && k === active.length - 1) wave.push(q);
+  }
+  // each face: [P_i, P_{i+1}, ..right chain up.., ..left chain down..]; right[i] starts at P_{i+1}; left[i] starts at P_i
+  const faces = done.map((f, i) => tidy([pts[i]!, ...f!.filter((_, j) => true)]));
+  return { faces, wave, events, collapsed };
+}
+
+// ---------- the profile's kept (s, t) section ----------
+function section(kind: ProfileFields['kind'], size: number, extra: { fillet?: number; depth?: number }, T: number, tolerance = CURVE_TOLERANCE) {
+  const f: ProfileFields = { through: 'length', uFrom: 'max', vFrom: 'max', kind, facing: 'v', size, ...(kind === 'thumbnail' ? { depth: extra.depth } : { fillet: extra.fillet ?? 0 }) };
+  const c = { id: 'p', ...profileCurve(f) } as ViewCurve;
+  const b = { length: 36, width: 20, thickness: T };
+  let w: { pts: P2[]; arc: boolean[] };
+  if (tolerance === CURVE_TOLERANCE) w = profileSection(b, c);
+  else { const o = curveOutline(b, c, tolerance, 100000); w = { pts: o.pts.map(([u, v]) => [20 - u, T - v] as P2), arc: o.arcEdge }; }
+  const pts = w.pts; const m = pts.length;
+  if (pts[0]![0] !== 0 || pts[0]![1] !== 0) throw new Error('section does not start at the corner');
+  const R = pts[1]![0], D = Math.max(...pts.map((p) => p[1]));
+  const big = R + 0.5;
+  const kept: P2[] = [[big, 0], ...pts.slice(1), [0, T], [big, T]];
+  const flags: boolean[] = [false, ...w.arc.slice(1, m - 1), false, false, false];
+  const pieces = convexPieces(kept, flags);
+  /** waste depth at s: the max t of the waste polygon's crossings (the waste is [0, tau(s)] in t for every kind) */
+  const tau = (s: number): number => {
+    if (s < 0 || s > R) return 0;
+    let best = 0;
+    for (let i = 1; i < m - 1; i++) {
+      const a = pts[i]!, q = pts[i + 1]!;
+      const lo = Math.min(a[0], q[0]), hi = Math.max(a[0], q[0]);
+      if (s < lo - 1e-15 || s > hi + 1e-15) continue;
+      const t = hi - lo < 1e-15 ? Math.max(a[1], q[1]) : a[1] + ((s - a[0]) / (q[0] - a[0])) * (q[1] - a[1]);
+      if (t > best) best = t;
+    }
+    return best;
+  };
+  return { waste: pts, R, D, pieces, tau };
+}
+type Section = ReturnType<typeof section>;
+
+// ---------- pieces ----------
+interface Piece { planes: H[]; tags: Tag[]; bb: [number, number, number, number]; band: boolean }
+const bbOf = (p: P2[]): [number, number, number, number] => [Math.min(...p.map((q) => q[0])), Math.min(...p.map((q) => q[1])), Math.max(...p.map((q) => q[0])), Math.max(...p.map((q) => q[1]))];
+/** vertical half-planes of a CCW convex polygon (inside on the left of each edge) */
+function prismPlanes(poly: P2[]): H[] {
+  const out: H[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]!, b = poly[(i + 1) % poly.length]!; const d = sub2(b, a); const l = len2(d); if (l < 1e-14) continue;
+    const n: V3 = [-d[1] / l, d[0] / l, 0]; out.push({ n, d: -(n[0] * a[0] + n[1] * a[1]) });
+  }
+  return out;
+}
+/** A band piece: skeleton face (plan) × one kept-section piece measured from segment line (P, nIn). */
+function bandPiece(face: P2[], P: P2, nIn: P2, kp: { pts: P2[]; onArc: boolean[] }, T: number, seg: number): Piece {
+  const planes = prismPlanes(face); const tags: Tag[] = planes.map(() => ({ profile: 'p', seg }));
+  const nP = dot2(nIn, P);
+  kp.pts.forEach((p, i) => {
+    const q = kp.pts[(i + 1) % kp.pts.length]!; const l = Math.hypot(q[0] - p[0], q[1] - p[1]); if (l < 1e-14) return;
+    const ns = -(q[1] - p[1]) / l, nt = (q[0] - p[0]) / l, c = -(ns * p[0] + nt * p[1]);
+    planes.push({ n: [ns * nIn[0], ns * nIn[1], -nt], d: -ns * nP + nt * T + c });
+    tags.push({ profile: 'p', seg, onArc: kp.onArc[i]! });
+  });
+  return { planes, tags, bb: bbOf(face), band: true };
+}
+
+interface Run { pts: P2[]; loop: boolean; endRays?: [P2, P2]; /** station half-planes (keep n·x + d >= 0), each end */ stations?: { n: P2; d: number; T: P2 }[]; /** outline index range of the path (open) */ outlineFrom?: number; outlineTo?: number }
+
+interface Built { bodies: Body[]; pieces: number; faces2D: number; skeletonEvents: number; areaErr: number; nonConvexFaces: number; curveBodies: number }
+function build(board: Board, outline: P2[], run: Run, sec: Section, runout: ViewCurve[] | null): Built {
+  const T = board.thickness;
+  const R = sec.R;
+  const sk = skeleton(run.pts, run.loop, R, run.endRays);
+  const n = run.loop ? run.pts.length : run.pts.length - 1;
+  let faces = sk.faces;
+  // clip faces at the stations (B1: the band ends there; past it the full section, then the run-out)
+  if (run.stations) for (const st of run.stations) faces = faces.map((f) => (f.length ? tidy(clip2(f, st.n, st.d)) : f));
+  // the rest of the outline
+  let rest: P2[];
+  if (run.loop) rest = tidy(sk.wave);
+  else {
+    let W = sk.wave;
+    if (run.stations) {
+      // clip the wavefront polyline to the stations' kept sides
+      for (const st of run.stations) {
+        const out: P2[] = [];
+        for (let i = 0; i < W.length; i++) {
+          const a = W[i]!, g = dot2(st.n, a) + st.d;
+          if (g >= 0) out.push(a);
+          if (i + 1 < W.length) { const b = W[i + 1]!, gb = dot2(st.n, b) + st.d; if (g * gb < 0) out.push(add2(a, mul2(sub2(b, a), g / (g - gb)))); }
+        }
+        W = out;
+      }
+    }
+    const m = outline.length;
+    const nonPath: P2[] = [];
+    for (let k = run.outlineTo!; ; k = (k + 1) % m) { nonPath.push(outline[k]!); if (k === run.outlineFrom!) break; }
+    rest = tidy([...nonPath, ...W]);
+  }
+  const fA = faces.reduce((s, f) => s + (f.length >= 3 ? area(f) : 0), 0);
+  const areaErr = fA + area(rest) - area(outline);
+  const pieces: Piece[] = [];
+  let nonConvexFaces = 0;
+  faces.forEach((f, i) => {
+    if (f.length < 3 || area(f) < 1e-14) return;
+    const parts = isConvex(f) ? [f] : (nonConvexFaces++, convexPieces(f, f.map(() => false)).map((x) => x.pts));
+    const P = run.pts[i]!; const d = sub2(run.pts[(i + 1) % run.pts.length]!, P); const l = len2(d); const nIn: P2 = [-d[1] / l, d[0] / l];
+    for (const fp of parts) for (const kp of sec.pieces) pieces.push(bandPiece(fp, P, nIn, kp, T, i));
+  });
+  for (const rp of convexPieces(rest, rest.map(() => false))) { const planes = prismPlanes(rp.pts); pieces.push({ planes, tags: planes.map(() => ({})), bb: bbOf(rp.pts), band: false }); }
+  // VARIANT=B: start from the curve-free cells — the face outline already carries the through-thickness curves, so the
+  // pieces re-tile the curves' kept region (no curve slices to multiply against)
+  const start = process.env.VARIANT === 'B' ? boardBodies({ ...board, curves: [] }) : boardBodies(board);
+  const out: Body[] = [];
+  for (const body of start) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const f of body.faces) for (const p of f.verts) { if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+    const frags: BodyFace[][] = []; let touched = false;
+    for (const pc of pieces) {
+      if (!pc.band) continue;
+      if (pc.bb[0] > x1 + 1e-9 || pc.bb[2] < x0 - 1e-9 || pc.bb[1] > y1 + 1e-9 || pc.bb[3] < y0 - 1e-9) continue;
+      let f = body.faces;
+      for (let k = 0; k < pc.planes.length && f.length; k++) f = clip(f, pc.planes[k]!, pc.tags[k]!);
+      if (f.length >= 4 && vol(f) > 1e-12) { frags.push(f); touched = true; }
+    }
+    if (!touched) { out.push(body); continue; }
+    for (const pc of pieces) {
+      if (pc.band) continue;
+      if (pc.bb[0] > x1 + 1e-9 || pc.bb[2] < x0 - 1e-9 || pc.bb[1] > y1 + 1e-9 || pc.bb[3] < y0 - 1e-9) continue;
+      let f = body.faces;
+      for (let k = 0; k < pc.planes.length && f.length; k++) f = clip(f, pc.planes[k]!, pc.tags[k]!);
+      if (f.length >= 4 && vol(f) > 1e-12) frags.push(f);
+    }
+    for (const f of frags) out.push({ box: null, faces: f });
+  }
+  let bodies = out;
+  if (runout) for (const c of runout) bodies = subtractRunout(bodies, c, board);
+  return { bodies, pieces: pieces.length, faces2D: faces.filter((f) => f.length >= 3).length, skeletonEvents: sk.events, areaErr, nonConvexFaces, curveBodies: start.length };
+}
+
+/** a2's run-out subtracted (subtractPieces, copied: it is not exported). */
+function subtractRunout(bodies: Body[], c: ViewCurve, board: Board): Body[] {
+  const ps = runoutPieces(board, c);
+  let parts: BodyFace[][] = bodies.map((b) => b.faces);
+  const keep = new Map<BodyFace[], Body>(bodies.map((b) => [b.faces, b]));
+  for (const piece of ps) {
+    const next: BodyFace[][] = [];
+    for (const part of parts) {
+      if (piece.planes.some((h) => part.every((f) => f.verts.every((p) => dot(h.n, p) + h.d <= EPS)))) { next.push(part); continue; }
+      let rest = part; const frags: BodyFace[][] = [];
+      piece.planes.forEach((h, i) => {
+        if (rest.length === 0) return;
+        const tag: Tag = { runout: piece.runout, ...(piece.onArc[i] ? { onArc: true } : {}) };
+        const o = clip(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d }, tag);
+        if (o.length >= 4) frags.push(o);
+        rest = o === rest ? [] : clip(rest, h, tag);
+      });
+      if (rest.length < 4 || vol(rest) <= 1e-12) next.push(part); else next.push(...frags);
+    }
+    parts = next;
+  }
+  return parts.map((f) => keep.get(f) ?? { box: null, faces: f });
+}
+
+// ---------- the INDEPENDENT oracle (no construction planes): distance to the path chords, the waste interval [0, tau(d)] ----------
+interface Oracle { tauAt: (x: number, y: number) => number; inside: (x: number, y: number) => boolean; near: (x: number, y: number) => boolean }
+function pathOracle(outline: P2[], path: P2[], loop: boolean, sec: Section, extra?: (x: number, y: number) => number | null): Oracle {
+  const segs: [P2, P2][] = [];
+  for (let i = 0; i + (loop ? 0 : 1) < path.length; i++) segs.push([path[i]!, path[(i + 1) % path.length]!]);
+  const R = sec.R;
+  return {
+    inside: (x, y) => inPolygonClosed(outline, [x, y]),
+    near: (x, y) => segs.some(([a, b]) => distSeg([x, y], a, b) <= R + 0.6),
+    tauAt: (x, y) => {
+      const e = extra?.(x, y); if (e !== undefined && e !== null) return e;
+      let d = Infinity; for (const [a, b] of segs) { const v = distSeg([x, y], a, b); if (v < d) d = v; }
+      return sec.tau(d);
+    },
+  };
+}
+/** Kept volume by integrating the waste depth over the plan (jittered grid, cells far from the path skipped). */
+function oracleVolume(outline: P2[], o: Oracle, T: number, h: number, seed: number, sec: Section, path: P2[]): number {
+  let rnd = seed; const rand = () => { rnd = (rnd * 1103515245 + 12345) % 2147483648; return rnd / 2147483648; };
+  const bb = bbOf(outline); const C = 0.5;
+  const pathSegs: [P2, P2][] = path.slice(0, -1).map((p, i) => [p, path[i + 1]!]);
+  pathSegs.push([path[path.length - 1]!, path[0]!]); // harmless for open runs: tested with R margin only
+  let waste = 0;
+  for (let cx = bb[0]; cx < bb[2]; cx += C) for (let cy = bb[1]; cy < bb[3]; cy += C) {
+    const cc: P2 = [cx + C / 2, cy + C / 2];
+    if (!o.near(cc[0], cc[1])) continue;
+    const nx = Math.round(C / h);
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nx; j++) {
+      const x = cx + (i + rand()) * h, y = cy + (j + rand()) * h;
+      if (x > bb[2] || y > bb[3]) continue;
+      if (!o.inside(x, y)) continue;
+      waste += o.tauAt(x, y) * h * h;
+    }
+  }
+  return area(outline) * T - waste;
+}
+
+// ---------- measurement ----------
+function inBodiesFn(bodies: Body[]) {
+  const bs = bodies.map((b) => {
+    const planes = b.faces.map((f) => ({ n: f.n, d: dot(f.n, f.verts[0]!) }));
+    let lo: V3 = [Infinity, Infinity, Infinity], hi: V3 = [-Infinity, -Infinity, -Infinity];
+    for (const f of b.faces) for (const p of f.verts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k]!, p[k]!); hi[k] = Math.max(hi[k]!, p[k]!); }
+    return { planes, lo, hi };
+  });
+  return (p: V3) => bs.some((b) => p.every((x, k) => x >= b.lo[k]! - 1e-12 && x <= b.hi[k]! + 1e-12) && b.planes.every((h) => dot(h.n, p) <= h.d + 1e-12));
+}
+function pointwise(bodies: Body[], outline: P2[], o: Oracle, sec: Section, T: number, N: number, region?: (x: number, y: number) => boolean) {
+  const inB = inBodiesFn(bodies); const bb = bbOf(outline);
+  let tested = 0, bad = 0; const worst: string[] = []; let maxDepthErr = 0;
+  let rnd = 7; const rand = () => { rnd = (rnd * 1103515245 + 12345) % 2147483648; return rnd / 2147483648; };
+  while (tested < N) {
+    const x = bb[0] + rand() * (bb[2] - bb[0]), y = bb[1] + rand() * (bb[3] - bb[1]);
+    if (region ? !region(x, y) : !o.near(x, y)) continue;
+    if (!o.inside(x, y)) continue;
+    const t = rand() * sec.D * 1.2, z = T - t;
+    tested++;
+    const wood = t > o.tauAt(x, y);
+    if (wood !== inB([x, y, z])) { bad++; const e = Math.abs(t - o.tauAt(x, y)); if (e > maxDepthErr) maxDepthErr = e; if (worst.length < 4) worst.push(`(${x.toFixed(3)},${y.toFixed(3)},t=${t.toFixed(4)}; oracle tau ${o.tauAt(x, y).toFixed(4)}, model ${inB([x, y, z]) ? 'wood' : 'air'})`); }
+  }
+  return { tested, bad, maxDepthErr, worst };
+}
+/** smooth-suppression estimate: raw segments whose remaining (non-cancelling) faces are two, both profile-tagged, dihedral < 20°. */
+function facetCount(bodies: Body[], raw: [V3, V3][]) {
+  const faces = bodies.flatMap((b) => b.faces).map((f) => ({ f, d: dot(f.n, f.verts[0]!) }));
+  let facet = 0, crease = 0;
+  for (const [a, b] of raw) {
+    const m: V3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+    const hits = faces.filter(({ f, d }) => Math.abs(dot(f.n, m) - d) <= 1e-7 && f.verts.every((p, i) => {
+      const q = f.verts[(i + 1) % f.verts.length]!; const e = sub3(q, p); const inw = cross3(f.n, e);
+      // inside or on the polygon: (m - p)·(n × e) sign agrees with the polygon's interior side
+      const c: V3 = [0, 1, 2].map((k) => f.verts.reduce((s, v) => s + v[k]!, 0) / f.verts.length) as V3;
+      const side = Math.sign(dot(inw, sub3(c, p)));
+      return side * dot(inw, sub3(m, p)) >= -1e-9;
+    }));
+    // cancel internal walls (opposite normals, same plane)
+    const left = hits.slice();
+    for (let i = 0; i < left.length; i++) for (let j = i + 1; j < left.length; j++) {
+      const A = left[i]!, B = left[j]!; if (dot(A.f.n, B.f.n) < -1 + 1e-9 && Math.abs(A.d + B.d) < 1e-7) { left.splice(j, 1); left.splice(i, 1); i = -1; break; }
+    }
+    const ns: V3[] = []; for (const { f } of left) if (!ns.some((q) => dot(q, f.n) > 1 - 1e-9)) ns.push(f.n);
+    if (ns.length === 2 && dot(ns[0]!, ns[1]!) > Math.cos((20 * Math.PI) / 180)) facet++; else crease++;
+  }
+  return { facet, crease };
+}
+function watertight(board: Board, bodies0: Body[]) {
+  const count = new Map<string, number>(); let tris = 0;
+  const bodies = deepFreeze(structuredClone(bodies0));
+  for (const body of bodies) {
+    const p = bodyMesh(board, body, NOHOLES, bodies).positions;
+    const key = (i: number) => `${p[3 * i]},${p[3 * i + 1]},${p[3 * i + 2]}`;
+    for (let t = 0; t < p.length / 9; t++) { tris++; const k = [key(3 * t), key(3 * t + 1), key(3 * t + 2)]; for (let e = 0; e < 3; e++) { const ed = `${k[e]}|${k[(e + 1) % 3]}`; count.set(ed, (count.get(ed) ?? 0) + 1); } }
+  }
+  let unmatched = 0; for (const [ed, n] of count) { const [a, b] = ed.split('|'); if ((count.get(`${b}|${a}`) ?? 0) !== n) unmatched++; }
+  return { tris, unmatched };
+}
+const minOf9 = (f: () => void) => { for (let i = 0; i < 3; i++) f(); const ts: number[] = []; for (let i = 0; i < 9; i++) { const t0 = performance.now(); f(); ts.push(performance.now() - t0); } return Math.min(...ts); };
+
+// ---------- cases ----------
+interface Case { name: string; dims: { length: number; width: number; thickness: number }; curves: CurveCut[]; kind: ProfileFields['kind']; size: number; extra?: { fillet?: number; depth?: number }; run: 'loop' | 'bottom' | 'front-stations'; mesh?: boolean }
+const corners = (r: number) => (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => ({ id: `c${uf}${vf}`, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: r }) })));
+const top = { length: 36, width: 20, thickness: 0.75 }, apron = { length: 30, width: 5, thickness: 0.75 };
+const arch: CurveCut = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
+const notch: CurveCut = { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 }) };
+const cases: Case[] = [
+  { name: '1 roundover 1/4 on the arched apron bottom (End to end)', dims: apron, curves: [arch], kind: 'roundover', size: 0.25, run: 'bottom' },
+  { name: '2 roundover 1/4 all round, 2" corners', dims: top, curves: corners(2), kind: 'roundover', size: 0.25, run: 'loop' },
+  { name: '3 roundover 1/4 all round, 1/2" corners', dims: top, curves: corners(0.5), kind: 'roundover', size: 0.25, run: 'loop' },
+  { name: '4a cove 3/8 all round, 2" corners', dims: top, curves: corners(2), kind: 'cove', size: 0.375, run: 'loop' },
+  { name: '4b ogee 3/8 all round, 2" corners', dims: top, curves: corners(2), kind: 'ogee', size: 0.375, run: 'loop' },
+  { name: '4c bead 1/4 q1/16 all round, 2" corners', dims: top, curves: corners(2), kind: 'bead', size: 0.25, extra: { fillet: 0.0625 }, run: 'loop' },
+  { name: '4d thumbnail 3/4x1/4 all round, 2" corners', dims: top, curves: corners(2), kind: 'thumbnail', size: 0.75, extra: { depth: 0.25 }, run: 'loop' },
+  { name: '5 roundover 3/8 round a half-round notch (r 1)', dims: apron, curves: [notch], kind: 'roundover', size: 0.375, run: 'bottom' },
+  { name: '6a B1: roundover 1/4, front End to end round the 2" corners, run-outs', dims: top, curves: corners(2), kind: 'roundover', size: 0.25, run: 'front-stations' },
+  { name: '6b B1: cove 3/8, front End to end round the 2" corners, run-outs', dims: top, curves: corners(2), kind: 'cove', size: 0.375, run: 'front-stations' },
+];
+
+writeFileSync(OUT, '');
+log(`load: ${loadavg().map((x: number) => x.toFixed(2)).join(' ')}`);
+const only = process.argv[2];
+for (const cs of cases) {
+  if (only && !cs.name.startsWith(only)) continue;
+  const T = cs.dims.thickness;
+  const sec = section(cs.kind, cs.size, cs.extra ?? {}, T);
+  const make = (k = 1) => createBoard({ ...cs.dims, length: cs.dims.length * k, curves: cs.curves });
+  const board0 = make();
+  const outline = faceOutline(board0);
+  const find = (p: P2) => outline.findIndex((q) => Math.abs(q[0] - p[0]) < 1e-9 && Math.abs(q[1] - p[1]) < 1e-9);
+  const mkRun = (board: Board, ol: P2[]): { run: Run; path: P2[]; runout: ViewCurve[] | null; region?: (x: number, y: number) => boolean; extra?: (x: number, y: number) => number | null } => {
+    const L = board.length, W = board.width, m = ol.length;
+    const idx = (p: P2) => ol.findIndex((q) => Math.abs(q[0] - p[0]) < 1e-9 && Math.abs(q[1] - p[1]) < 1e-9);
+    if (cs.run === 'loop') return { run: { pts: ol, loop: true }, path: ol, runout: null };
+    if (cs.run === 'bottom') {
+      const a = idx([0, 0]), b = idx([L, 0]);
+      const pts: P2[] = []; for (let k = a; ; k = (k + 1) % m) { pts.push(ol[k]!); if (k === b) break; }
+      // through ends (sharp corners): the band runs out along the end faces (weight 0 neighbours)
+      const e0: P2 = sub2(ol[(a - 1 + m) % m]!, ol[a]!), e1: P2 = sub2(ol[(b + 1) % m]!, ol[b]!);
+      const u0 = mul2(e0, 1 / len2(e0)), u1 = mul2(e1, 1 / len2(e1));
+      const n0 = (() => { const d = sub2(pts[1]!, pts[0]!); return [-d[1] / len2(d), d[0] / len2(d)] as P2; })();
+      const nl = (() => { const d = sub2(pts[pts.length - 1]!, pts[pts.length - 2]!); return [-d[1] / len2(d), d[0] / len2(d)] as P2; })();
+      return { run: { pts, loop: false, endRays: [mul2(u0, 1 / dot2(n0, u0)), mul2(u1, 1 / dot2(nl, u1))], outlineFrom: a, outlineTo: b }, path: pts, runout: null };
+    }
+    // front End to end round the front corner arcs (B1): from the tangent point on the length-min end (0, r) to (L, r)
+    const r = 2;
+    const a = idx([0, r]), b = idx([L, r]);
+    const path: P2[] = []; for (let k = a; ; k = (k + 1) % m) { path.push(ol[k]!); if (k === b) break; }
+    // the skeleton chain carries each end side on (reach weight) so the bisector at the tangent point is the chord's with
+    // the side's; the band is then cut at the station plane (perpendicular to the side), past it the full section
+    const pts: P2[] = [ol[(a - 1 + m) % m]!, ...path, ol[(b + 1) % m]!];
+    const nrmOf = (p: P2, q: P2): P2 => { const d = sub2(q, p); return [-d[1] / len2(d), d[0] / len2(d)]; };
+    const endRays: [P2, P2] = [nrmOf(pts[0]!, pts[1]!), nrmOf(pts[pts.length - 2]!, pts[pts.length - 1]!)];
+    const stations = [{ n: [0, -1] as P2, d: r, T: [0, r] as P2 }];
+    // a2's run-out on each end side, hi end at the station (fwd +y)
+    const ro = (uFrom: 'min' | 'max'): ViewCurve => ({ id: `ro${uFrom}`, ...profileCurve({ through: 'width', uFrom, vFrom: 'max', kind: cs.kind, facing: 'v', size: cs.size, ...(cs.kind === 'thumbnail' ? { depth: cs.extra!.depth } : { fillet: cs.extra?.fillet ?? 0 }) }), span: { lo: 0, hi: r, stopLo: false, stopHi: true } });
+    const tauRo = (x: number, y: number): number | null => {
+      if (y <= r) return null;
+      const ax: P2 = x < L / 2 ? [-BEARING, r] : [L + BEARING, r];
+      return sec.tau(len2(sub2([x, y], ax)) - BEARING);
+    };
+    return { run: { pts, loop: false, endRays, stations, outlineFrom: a, outlineTo: b }, path, runout: [ro('min'), ro('max')], extra: tauRo,
+      region: (x, y) => (y <= r + 0.6 && (x < 3 || x > L - 3 || y < 0.6)) };
+  };
+  const r0 = mkRun(board0, outline);
+  const built = build(board0, outline, r0.run, sec, r0.runout);
+  const bodies = built.bodies;
+  const v = bodies.reduce((s, b) => s + bodyVolume(b), 0);
+  const o = pathOracle(outline, r0.path, cs.run === 'loop', sec, r0.extra);
+  if (r0.region) { const near0 = o.near; o.near = (x, y) => near0(x, y) || r0.region!(x, y); }
+  const ov1 = oracleVolume(outline, o, T, 0.004, 1, sec, r0.path), ov2 = oracleVolume(outline, o, T, 0.004, 99, sec, r0.path);
+  const wasteVol = area(outline) * T - (ov1 + ov2) / 2;
+  const pw = pointwise(process.env.MUTATE ? boardBodies(board0) : bodies, outline, o, sec, T, 200000, r0.region);
+  // timing: a fresh board object per run (memos are per object); the length moves by a micro-inch
+  let tick = 0;
+  const tB = minOf9(() => { tick++; const b = make(1 + tick * 1e-9); const ol = faceOutline(b); build(b, ol, mkRun(b, ol).run, sec, mkRun(b, ol).runout); });
+  const tCurves = minOf9(() => { tick++; boardBodies(make(1 + tick * 1e-9)); });
+  let raw: [V3, V3][] = [];
+  const tE = minOf9(() => { raw = bodyEdges(bodies); });
+  let ce: [V3, V3][] = []; let ceErr = '';
+  const tCE = minOf9(() => { try { ce = curvedEdges(board0, bodies); } catch (e) { ceErr = String(e); } });
+  let tM = NaN, wt = { tris: 0, unmatched: -1 }; let meshErr = '';
+  try {
+    const ts: number[] = [];
+    for (let i = 0; i < 12; i++) { const fb = deepFreeze(structuredClone(bodies)); const t0 = performance.now(); for (const body of fb) bodyMesh(board0, body, NOHOLES, fb); if (i >= 3) ts.push(performance.now() - t0); }
+    tM = Math.min(...ts); wt = watertight(board0, bodies);
+  } catch (e) { meshErr = String(e).slice(0, 200); }
+  const fc = facetCount(bodies, raw);
+  const faces = bodies.reduce((s, b) => s + b.faces.length, 0);
+  const allConvex = bodies.every((b) => b.faces.every((f) => b.faces.every((g) => g.verts.every((p) => dot(f.n, p) <= dot(f.n, f.verts[0]!) + 1e-7))));
+  log(`\n## ${cs.name}`);
+  log(`  section: R ${sec.R} D ${sec.D.toFixed(4)} kept pieces ${sec.pieces.length}; skeleton events ${built.skeletonEvents}, 2D faces ${built.faces2D} (non-convex ${built.nonConvexFaces}), 2D area gate ${built.areaErr.toExponential(2)}`);
+  log(`  bodies: curves ${built.curveBodies} -> ${bodies.length} (pieces ${built.pieces}), faces ${faces}, all convex ${allConvex}`);
+  log(`  volume ${v.toFixed(5)}  oracle ${((ov1 + ov2) / 2).toFixed(5)} (seed spread ${Math.abs(ov1 - ov2).toExponential(1)})  err ${(v - (ov1 + ov2) / 2).toExponential(2)} = ${((100 * (v - (ov1 + ov2) / 2)) / wasteVol).toFixed(3)}% of the waste (${wasteVol.toFixed(4)})`);
+  log(`  pointwise: ${pw.bad}/${pw.tested} misclassified (max |t - tau| ${pw.maxDepthErr.toExponential(1)}) ${pw.worst.join(' ')}`);
+  log(`  ms (min of 9): curve bodies ${tCurves.toFixed(1)}, bodies total ${tB.toFixed(1)} (construction ${(tB - tCurves).toFixed(1)}), +bodyEdges ${tE.toFixed(1)} [${raw.length} raw: ~${fc.facet} facet lines to suppress, ${fc.crease} creases], curvedEdges ${ceErr ? 'THREW ' + ceErr : tCE.toFixed(1) + ' [' + ce.length + ']'}, mesh ${meshErr ? 'THREW ' + meshErr : tM.toFixed(1)} (tris ${wt.tris}, unmatched edges ${wt.unmatched})`);
+  log(`  TOTAL bodies+bodyEdges+mesh ≈ ${(tB + tE + tM).toFixed(1)} ms; with curvedEdges instead ≈ ${(tB + tCE + tM).toFixed(1)}`);
+  if (cs.run === 'front-stations') {
+    // the join at the station y = r on the length-max end: the waste width w(t) just before and just past the plane
+    const inB = inBodiesFn(bodies); const L = cs.dims.length;
+    let maxStep = 0, at = 0;
+    for (let t = 0.002; t < sec.D; t += sec.D / 60) {
+      const w = (y: number) => { let lo = 0, hi = sec.R + 0.01; if (!inB([L - hi, y, T - t])) return NaN; for (let i = 0; i < 50; i++) { const mid = (lo + hi) / 2; if (inB([L - mid, y, T - t])) hi = mid; else lo = mid; } return hi; };
+      const a = w(2 - 1e-6), b = w(2 + 1e-6);
+      if (Math.abs(a - b) > maxStep) { maxStep = Math.abs(a - b); at = t; }
+    }
+    log(`  station join (x = L side, y = 2 -/+ 1e-6): max step in the waste width ${maxStep.toExponential(2)}" at t ${at.toFixed(3)}`);
+  }
+}

@@ -1,0 +1,92 @@
+load: 1.16 0.98 0.99
+
+## 1 roundover 1/4 on the arched apron bottom (End to end)
+  section: R 0.25 D 0.2500 kept pieces 1; skeleton events 0, 2D faces 18 (non-convex 0), 2D area gate 0.00e+0
+  bodies: curves 1 -> 34 (pieces 34), faces 245, all convex true
+  volume 97.08426  oracle 97.08433 (seed spread 1.3e-5)  err -6.72e-5 = -0.015% of the waste (0.4424)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.4, bodies total 1.7 (construction 1.3), +bodyEdges 5.7 [211 raw: ~121 facet lines to suppress, 90 creases], curvedEdges 4.8 [196], mesh 3.5 (tris 270, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 10.9 ms; with curvedEdges instead ≈ 10.0
+
+## 2 roundover 1/4 all round, 2" corners
+  section: R 0.25 D 0.2500 kept pieces 1; skeleton events 0, 2D faces 52 (non-convex 0), 2D area gate 1.14e-13
+  bodies: curves 1 -> 53 (pieces 53), faces 522, all convex true
+  volume 535.81137  oracle 535.81129 (seed spread 1.6e-4)  err 8.13e-5 = 0.005% of the waste (1.5866)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.9, bodies total 4.0 (construction 3.1), +bodyEdges 13.3 [572 raw: ~364 facet lines to suppress, 208 creases], curvedEdges 14.2 [520], mesh 7.4 (tris 724, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 24.7 ms; with curvedEdges instead ≈ 25.6
+
+## 3 roundover 1/4 all round, 1/2" corners
+  section: R 0.25 D 0.2500 kept pieces 1; skeleton events 0, 2D faces 28 (non-convex 0), 2D area gate -7.96e-13
+  bodies: curves 1 -> 29 (pieces 29), faces 282, all convex true
+  volume 538.20808  oracle 538.20801 (seed spread 3.2e-5)  err 7.94e-5 = 0.005% of the waste (1.6243)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.3, bodies total 3.7 (construction 3.4), +bodyEdges 6.4 [308 raw: ~196 facet lines to suppress, 112 creases], curvedEdges 5.8 [280], mesh 4.3 (tris 388, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 14.3 ms; with curvedEdges instead ≈ 13.7
+
+## 4a cove 3/8 all round, 2" corners
+  section: R 0.375 D 0.3750 kept pieces 5; skeleton events 0, 2D faces 52 (non-convex 0), 2D area gate 2.27e-13
+  bodies: curves 1 -> 261 (pieces 261), faces 1562, all convex true
+  volume 525.71223  oracle 525.71231 (seed spread 1.5e-4)  err -8.46e-5 = -0.001% of the waste (11.6856)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.9, bodies total 8.1 (construction 7.2), +bodyEdges 32.0 [676 raw: ~520 facet lines to suppress, 156 creases], curvedEdges 39.8 [624], mesh 21.8 (tris 828, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 61.9 ms; with curvedEdges instead ≈ 69.7
+
+## 4b ogee 3/8 all round, 2" corners
+  section: R 0.375 D 0.3750 kept pieces 6; skeleton events 0, 2D faces 52 (non-convex 0), 2D area gate 2.27e-13
+  bodies: curves 1 -> 313 (pieces 313), faces 1926, all convex true
+  volume 529.83301  oracle 529.83311 (seed spread 1.3e-4)  err -1.00e-4 = -0.001% of the waste (7.5648)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.9, bodies total 10.4 (construction 9.5), +bodyEdges 45.7 [884 raw: ~468 facet lines to suppress, 416 creases], curvedEdges 50.5 [832], mesh 28.8 (tris 1140, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 84.9 ms; with curvedEdges instead ≈ 89.7
+
+## 4c bead 1/4 q1/16 all round, 2" corners
+  section: R 0.3125 D 0.3125 kept pieces 3; skeleton events 0, 2D faces 52 (non-convex 0), 2D area gate 1.14e-13
+  bodies: curves 1 -> 105 (pieces 157), faces 782, all convex true
+  volume 533.71031  oracle 533.71017 (seed spread 6.3e-5)  err 1.46e-4 = 0.004% of the waste (3.6877)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.8, bodies total 6.2 (construction 5.4), +bodyEdges 16.7 [728 raw: ~416 facet lines to suppress, 312 creases], curvedEdges 17.4 [676], mesh 10.2 (tris 932, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 33.0 ms; with curvedEdges instead ≈ 33.7
+
+## 4d thumbnail 3/4x1/4 all round, 2" corners
+  section: R 0.75 D 0.2500 kept pieces 1; skeleton events 0, 2D faces 52 (non-convex 0), 2D area gate 3.41e-13
+  bodies: curves 1 -> 53 (pieces 53), faces 522, all convex true
+  volume 530.74882  oracle 530.74875 (seed spread 6.1e-5)  err 6.53e-5 = 0.001% of the waste (6.6491)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.8, bodies total 3.2 (construction 2.4), +bodyEdges 11.8 [572 raw: ~468 facet lines to suppress, 104 creases], curvedEdges 12.0 [520], mesh 6.5 (tris 724, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 21.5 ms; with curvedEdges instead ≈ 21.7
+
+## 5 roundover 3/8 round a half-round notch (r 1)
+  section: R 0.375 D 0.3750 kept pieces 1; skeleton events 2, 2D faces 18 (non-convex 2), 2D area gate 0.00e+0
+  bodies: curves 1 -> 34 (pieces 34), faces 265, all convex true
+  volume 110.33536  oracle 110.33516 (seed spread 1.9e-4)  err 2.02e-4 = 0.020% of the waste (0.9943)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.3, bodies total 1.6 (construction 1.3), +bodyEdges 5.0 [244 raw: ~194 facet lines to suppress, 50 creases], curvedEdges 4.2 [229], mesh 3.1 (tris 312, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 9.7 ms; with curvedEdges instead ≈ 8.9
+
+## 6a B1: roundover 1/4, front End to end round the 2" corners, run-outs
+  section: R 0.25 D 0.2500 kept pieces 1; skeleton events 0, 2D faces 25 (non-convex 0), 2D area gate 2.27e-13
+  bodies: curves 1 -> 36 (pieces 28), faces 363, all convex true
+  volume 536.83412  oracle 536.83384 (seed spread 3.4e-5)  err 2.83e-4 = 0.050% of the waste (0.5640)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.9, bodies total 9.4 (construction 8.5), +bodyEdges 9.0 [428 raw: ~226 facet lines to suppress, 202 creases], curvedEdges 8.7 [376], mesh 6.3 (tris 632, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 24.7 ms; with curvedEdges instead ≈ 24.4
+  station join (x = L side, y = 2 -/+ 1e-6): max step in the waste width 5.15e-4" at t 0.002
+
+## 6b B1: cove 3/8, front End to end round the 2" corners, run-outs
+  section: R 0.375 D 0.3750 kept pieces 5; skeleton events 0, 2D faces 25 (non-convex 0), 2D area gate 2.27e-13
+  bodies: curves 1 -> 176 (pieces 128), faces 1045, all convex true
+  volume 533.21574  oracle 533.21434 (seed spread 6.9e-5)  err 1.40e-3 = 0.034% of the waste (4.1835)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.8, bodies total 10.1 (construction 9.3), +bodyEdges 22.2 [527 raw: ~310 facet lines to suppress, 217 creases], curvedEdges 25.6 [475], mesh 17.1 (tris 922, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 49.5 ms; with curvedEdges instead ≈ 52.9
+  station join (x = L side, y = 2 -/+ 1e-6): max step in the waste width 8.04e-4" at t 0.002
+load: 0.38 0.83 0.95
+
+## 5 roundover 3/8 round a half-round notch (r 1)
+  section: R 0.375 D 0.3750 kept pieces 1; skeleton events 0, 2D faces 18 (non-convex 2), 2D area gate 2.84e-14
+  bodies: curves 16 -> 125 (pieces 34), faces 868, all convex true
+  volume 110.36387  oracle 110.33516 (seed spread 1.9e-4)  err 2.87e-2 = 2.887% of the waste (0.9943)
+  pointwise: 0/200000 misclassified (max |t - tau| 0.0e+0) 
+  ms (min of 9): curve bodies 0.4, bodies total 6.1 (construction 5.7), +bodyEdges 22.4 [276 raw: ~191 facet lines to suppress, 85 creases], curvedEdges 22.0 [254], mesh 15.2 (tris 944, unmatched edges 0)
+  TOTAL bodies+bodyEdges+mesh ≈ 43.7 ms; with curvedEdges instead ≈ 43.3
