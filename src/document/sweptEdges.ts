@@ -10,7 +10,8 @@
  *     across the path between two chords of one arc; or
  *   - their segments are EQUAL and their section runs are ADJACENT at a smooth section vertex (`curveOutline`'s flags of
  *     the profile's own one-side curve, judged on the true arcs): no line along the path between two arc chords of the
- *     profile. (Equal segments and equal runs are one plane: a seam, flat already, and never a join.)
+ *     profile. (Equal segments and equal runs are one plane, and so is one horizontal run on two segments: flat already,
+ *     and never a join.)
  * - or one is a section face and the other is the PART'S OWN FACE the section runs into at one of its two junction
  *   vertices — the broad face (t = 0) or the side face below the profile (s = 0) — and that section vertex is smooth: a
  *   roundover's tangent lines, which chunk 1 never draws either (smoothLines; the brief's "crease where the roundover meets
@@ -114,6 +115,8 @@ export function sweptSmoothPair(view: SweepView, swept: readonly ProfileCut[]): 
         if ((eb.b + 1) % I.m === ea.a) return I.secSmooth[ea.a]!;
         return false;
       }
+      // A horizontal fillet or quirk floor on two segments is one plane: flat already, and never a join (as a seam).
+      if (Math.hypot(a.n[1] * b.n[2] - a.n[2] * b.n[1], a.n[2] * b.n[0] - a.n[0] * b.n[2], a.n[0] * b.n[1] - a.n[1] * b.n[0]) <= PARALLEL) return false;
       return sameRun && adjacent(I, a.sweep, b.sweep);
     }
     if (ea && a.sweep !== undefined) { const I = infos.get(ea.curve); return !!I && partFace(I, a.sweep, ea, b); }

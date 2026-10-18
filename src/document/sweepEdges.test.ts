@@ -132,6 +132,27 @@ describe('a swept profile\'s lines (spec §5): sharp section vertices along the 
     // Thumbnail 3/4" × 1/4": tangent at the reach, its step into the side sharp: 2 × 52.
     expect(boardEdges(topCorners(2, loop('p1', 0.75, 'thumbnail')))).toHaveLength(104);
   });
+  it('a bead all round the 2" top: its quirk WALL draws no facet lines (fix round 1) — 3 × 52 = 156', () => {
+    // Bead 1/4" with a 1/16" quirk: the section's junction at the reach (5/16" in) and the quirk's floor corner are sharp, the
+    // floor meets the bead's arc tangentially, the arc meets the side tangentially: the bottom outline, the reach crease on the
+    // top and the quirk's inner crease at 1/16" down, each 4 + 4 × 12. The quirk wall (5/16" in, from the top to 1/16" down)
+    // is a swept face: nothing across it at the path's chord vertices (it drew 52 facet lines before).
+    for (const face of ['max', 'min'] as const) {
+      const b = topCorners(2, loop('p1', 0.25, 'bead', face));
+      const e = boardEdges(b);
+      const [top, quirk, bottom] = face === 'max' ? [0.75, 0.6875, 0] : [0, 0.0625, 0.75];
+      expect(e, face).toHaveLength(156);
+      for (const z of [top, quirk, bottom]) { expect(e.filter(at(z)), `${face} ${z}`).toHaveLength(52); expect(oneLoop(e.filter(at(z)))).toBe(true); }
+      // The wall is its own section face, one per path segment, tagged as the section's first edge.
+      const walls = boardBodies(b).flatMap((x) => x.faces).filter((f) => f.profileEdge === 'p1:1:1' && f.sweep !== undefined);
+      expect(new Set(walls.map((f) => f.sweep)).size).toBe(52);
+      for (const f of walls) for (const v of f.verts) {
+        const t = face === 'max' ? 0.75 - v[2] : v[2];
+        expect(t).toBeGreaterThanOrEqual(-1e-9);
+        expect(t).toBeLessThanOrEqual(0.0625 + 1e-9);   // never the seam below the quirk
+      }
+    }
+  });
   it('the notch (End to end, a half-round notch): its ends meet the edge square (sharp: mitres); across the notch\'s chords nothing', () => {
     const e = boardEdges(notchEdge);
     const mitreAt = (x: number) => e.filter((s) => Math.abs(s[0].length - x) < 0.05 && Math.abs(s[1].length - x) < 0.05 && !at(0)(s) && s[0].width < 1);

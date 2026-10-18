@@ -202,6 +202,45 @@ function meshPoints(board: Board): { p: V3; n: V3 }[] {
   return out;
 }
 
+describe('a bead\'s quirk WALL is a swept face, shaded smooth along the path (Task 6 fix round 1)', () => {
+  // Bead 1/4" + 1/16" quirk, face max: the wall stands 5/16" in from the outline, from the top down 1/16". Its true normal is
+  // horizontal, pointing OUT of the wood toward the edge: −y on the front straight stretch, and away from the corner's centre
+  // (2, 2) round the min/min corner — written from the fixture, never from the path chords.
+  const board = topCorners(2, loop('p1', 0.25, 'bead'));
+  const view = geometryBoard(board);
+  const normal = sweptNormals(view, view.profiles[0]!);
+  const walls = sweptFaces(board).filter((f) => f.profileEdge === 'p1:1:1');
+  it('one wall face per path segment, every vertex normal the wall\'s own, continuous where two segments\' walls meet', () => {
+    expect(new Set(walls.map((f) => f.sweep)).size).toBe(52);
+    let straight = 0, corner = 0, shared = 0;
+    for (const f of walls) for (const v of f.verts) {
+      const N = normal(f, v)!;
+      expect(Math.abs(N[2])).toBeLessThanOrEqual(1e-12);
+      if (f.verts.every((w) => w[0] > 2 + 1e-9 && w[0] < 34 - 1e-9 && w[1] < 1)) { expect(dist(N, [0, -1, 0])).toBeLessThanOrEqual(1e-9); straight += 1; }
+      if (f.verts.every((w) => w[0] < 2 - 1e-9 && w[1] < 2 - 1e-9)) {
+        const d = Math.hypot(v[0] - 2, v[1] - 2);
+        expect(dist(N, [(v[0] - 2) / d, (v[1] - 2) / d, 0])).toBeLessThanOrEqual(1e-9);
+        corner += 1;
+      }
+    }
+    for (const a of walls) for (const b of walls) {
+      if (a === b || a.sweep === b.sweep) continue;
+      const inCorner = (f: BodyFace) => extentX(f) < 2.1 && Math.max(...f.verts.map((v) => v[1])) - Math.min(...f.verts.map((v) => v[1])) < 2.1;
+      for (const v of a.verts) {
+        const w = b.verts.find((x) => dist(x, v) <= 1e-12);
+        if (!w) continue;
+        // Within one corner: continuous. At a tangent point the straight wall keeps its own normal (as a roundover's band,
+        // above): a step of a few thousandths, never more.
+        expect(dist(normal(a, v)!, normal(b, w)!)).toBeLessThanOrEqual(inCorner(a) && inCorner(b) ? 1e-6 : 0.01);
+        shared += 1;
+      }
+    }
+    expect(straight).toBeGreaterThan(3);
+    expect(corner).toBeGreaterThan(20);
+    expect(shared).toBeGreaterThan(40);
+  });
+});
+
 describe('bodyMesh shades a swept face with its swept normals (profile runs b1)', () => {
   it('every mesh vertex strictly inside a corner band\'s roundover takes the swept roundover\'s normal (1e-5: Float32)', () => {
     // Clear of the corner's tangent points (10° and more inside its arc): only the corner's own chord bands' vertices.

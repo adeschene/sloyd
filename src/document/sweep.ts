@@ -255,10 +255,42 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
       }
     }
   });
+  // A section WALL at the reach (a bead's quirk: the waste's first edge runs from (reach, 0) straight down to (reach, q)): it
+  // lies ON the wavefront, so no band piece holds it and it is the rest's face there. The rest is cut at depth q, and the
+  // slab above (t in [0, q]) tags its wavefront planes with the wall's section edge and the path segment whose band they
+  // bound — the wall is then a section face like every other (its facets join, its shading is the swept surface's), while
+  // the slab below keeps its wavefront untagged: a seam against the band, never mis-tagged (Task 6 fix round 1).
+  let wall: { name: string; q: number } | null = null;
+  for (const kp of sec.pieces) kp.pts.forEach((a, j) => {
+    const b = kp.pts[(j + 1) % kp.pts.length]!;
+    const name = kp.edge[j];
+    if (name && a[0] === sec.reach && b[0] === sec.reach && Math.min(a[1], b[1]) === 0) wall = { name, q: Math.max(a[1], b[1]) };
+  });
+  const waveEdges: { a: P2; b: P2; seg: number }[] = [];
+  if (wall) plan.faces.forEach((face, i) => {
+    const ch = chain.chords[i]!;
+    const nIn = leftNormal(ch.a, ch.b);
+    const sOf = (x: P2) => nIn[0] * (x[0] - ch.a[0]) + nIn[1] * (x[1] - ch.a[1]);
+    face.forEach((a, j) => {
+      const b = face[(j + 1) % face.length]!;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 1e-14 && Math.abs(sOf(a) - plan.reach) <= EPS && Math.abs(sOf(b) - plan.reach) <= EPS)
+        waveEdges.push({ a, b, seg: chain.index[i]! });
+    });
+  });
   if (plan.rest.length >= 3 && area(plan.rest) > 1e-14) {
     for (const rp of convexPieces(plan.rest, plan.rest.map(() => false))) {
-      const { planes, tags } = prism(rp.pts, chordTag);
-      out.push({ planes, tags, bb: bbOf(rp.pts), band: false });
+      if (!wall) {
+        const { planes, tags } = prism(rp.pts, chordTag);
+        out.push({ planes, tags, bb: bbOf(rp.pts), band: false });
+        continue;
+      }
+      const { name, q } = wall as { name: string; q: number };
+      const onWave = (a: P2, b: P2) => waveEdges.find((w) => along(a, b, w));
+      const upper = prism(rp.pts, (a, b) => { const w = onWave(a, b); return w ? { profileEdge: name, sweep: w.seg } : chordTag(a, b); });
+      const lower = prism(rp.pts, (a, b) => (onWave(a, b) ? {} : chordTag(a, b)));
+      // t = vIn·(z − vFace): the slab above keeps t <= q, the one below t >= q.
+      out.push({ planes: [...upper.planes, { n: [0, 0, -vIn], d: q + vIn * vFace }], tags: [...upper.tags, {}], bb: bbOf(rp.pts), band: false });
+      out.push({ planes: [...lower.planes, { n: [0, 0, vIn], d: -vIn * vFace - q }], tags: [...lower.tags, {}], bb: bbOf(rp.pts), band: false });
     }
   }
   return out;
