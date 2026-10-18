@@ -2,7 +2,9 @@ import { IMPERIAL, imperialAt } from '../units/length';
 import { buildDiagrams, createBoard } from './document';
 import type { Board, Cut } from './document';
 import { axisFrame } from './geometry';
-import type { Dimension } from './types';
+import type { Dimension, HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
+import { canonicalRun, geometryBoard, profileCurve, PROFILE_KINDS } from './profiles';
+import { curveLineEntries } from './curveText';
 
 /** The canonical cut from the joinery work: 3/4" wide, 3/8" deep, 6" along. */
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -530,11 +532,6 @@ describe('curves on part diagrams (curves spec §5.2; Q5, Q6)', () => {
     expect(v.curveNotes[0]!.text).toContain('— check:');
   });
 });
-
-import { canonicalRun, geometryBoard, profileCurve } from './profiles';
-import { curveLineEntries } from './curveText';
-import { PROFILE_KINDS } from './profiles';
-import type { HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
 
 describe('stopped profiles on part diagrams (profile runs a2, P16)', () => {
   // A 30 x 10 x 3/4 shelf, the profile on the width max side's top edge, run along the length.

@@ -1234,3 +1234,53 @@ describe('a stopped profile\'s run-out faces shade as the cutter\'s surface (pro
     });
   }
 });
+
+describe('a stopped bead\'s revolved straight walls shade smooth (profile runs a2, T6 fix 1, review Minor 4)', () => {
+  for (const facing of ['face', 'edge'] as const) {
+    it(`facing the ${facing}: at a vertex two faces of one straight section edge share, their normals agree within 1e-6`, () => {
+      const dims = { length: 30, width: 10, thickness: 0.75 };
+      const side = { across: 'width' as const, from: 'max' as const };
+      const p: ProfileCut = { id: 'p', face: 'max', kind: 'bead', size: 0.25, fillet: 0.0625, facing,
+        run: canonicalRun(dims, 'max', { start: { side, from: 'min', at: 3 }, end: { side: { ...side }, from: 'max', at: 3 } }) };
+      const b = createBoard({ ...dims, profiles: [p] });
+      const g = partGeometry(b);
+      // Faces of a STRAIGHT section edge (tagged, no `curve`), run-out or band, and the vertex normals the mesh gives them.
+      const walls = g.bodies.flatMap((x) => x.faces.filter((f) => f.profileEdge !== undefined && f.curve === undefined));
+      expect(walls.some((f) => f.runout !== undefined)).toBe(true);
+      const at = new Map<string, { face: number; n: V3 }[]>();
+      let off = 0;
+      for (const body of g.bodies) {
+        const m = bodyMesh(b, body, g.holes, g.bodies);
+        for (let t = 0; t < m.positions.length; t += 9) {
+          const vs = [0, 3, 6].map((o): V3 => [m.positions[t + o]! + dims.length / 2, m.positions[t + o + 2]! + dims.width / 2, m.positions[t + o + 1]! + dims.thickness / 2]);
+          const e1 = vs[1]!.map((x, k) => x - vs[0]![k]!), e2 = vs[2]!.map((x, k) => x - vs[0]![k]!);
+          const gn: V3 = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+          const gl = Math.hypot(...gn);
+          if (gl < 1e-12) continue;
+          const fi = walls.findIndex((q) => Math.abs(q.n[0] * gn[0] + q.n[1] * gn[1] + q.n[2] * gn[2]) / gl > 0.999
+            && vs.every((v) => Math.abs(q.n[0] * (v[0] - q.verts[0]![0]) + q.n[1] * (v[1] - q.verts[0]![1]) + q.n[2] * (v[2] - q.verts[0]![2])) < 1e-5)
+            && vs.every((v) => v.every((x, k) => x >= Math.min(...q.verts.map((w) => w[k]!)) - 1e-5 && x <= Math.max(...q.verts.map((w) => w[k]!)) + 1e-5)));
+          if (fi === -1) continue;
+          const f = walls[fi]!;
+          for (let k = 0; k < 3; k += 1) {
+            const i = t + 3 * k;
+            const n: V3 = [m.normals![i]!, m.normals![i + 2]!, m.normals![i + 1]!];   // back to board-local
+            if (Math.hypot(n[0] - f.n[0], n[1] - f.n[1], n[2] - f.n[2]) > 1e-3) off += 1;
+            const key = vs[k]!.map((x) => x.toFixed(5)).join(',');
+            if (!at.has(key)) at.set(key, []);
+            at.get(key)!.push({ face: fi, n });
+          }
+        }
+      }
+      let shared = 0;
+      for (const list of at.values()) {
+        if (new Set(list.map((x) => `${walls[x.face]!.profileEdge}`)).size !== 1) continue;   // one section edge's faces only
+        if (new Set(list.map((x) => x.face)).size < 2) continue;
+        shared += 1;
+        for (const x of list) expect(Math.hypot(x.n[0] - list[0]!.n[0], x.n[1] - list[0]!.n[1], x.n[2] - list[0]!.n[2])).toBeLessThan(1e-6);
+      }
+      expect(shared).toBeGreaterThan(8);
+      expect(off).toBeGreaterThan(0);   // the cylinder's normals are not its facets'
+    });
+  }
+});

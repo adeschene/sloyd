@@ -547,24 +547,47 @@ describe('the run-out\'s cutter-surface normal (profile runs a2, Task 5)', () =>
 describe('a stopped profile\'s edges (inv 16; profile runs a2, Task 6)', () => {
   /** World (board-local) edges as V3 pairs, through boardEdges (THE edge reader). */
   const edges = (b: Board): [V3, V3][] => boardEdges(b).map(([p, q]) => [[p.length, p.width, p.thickness], [q.length, q.width, q.thickness]]);
-  const SMOOTH_KINDS = ['roundover', 'cove', 'ogee'] as const;
-  for (const kind of SMOOTH_KINDS) {
-    describe(`${kind} stopped 3..27`, () => {
-      const { b, c, s } = stopped(spec(kind));
+  // Every kind stopped 3..27; the asymmetric ones (bead, thumbnail) in both facings (T6 fix 1, review Minor 3).
+  const CASES: { name: string; s: Spec }[] = [
+    { name: 'roundover', s: spec('roundover') }, { name: 'cove', s: spec('cove') }, { name: 'ogee', s: spec('ogee') },
+    { name: 'bead', s: spec('bead') }, { name: 'bead facing the edge', s: spec('bead', { facing: 'edge' }) },
+    { name: 'thumbnail', s: spec('thumbnail') }, { name: 'thumbnail facing the edge', s: spec('thumbnail', { facing: 'edge' }) },
+  ];
+  /** The section's SHARP vertices off the part's faces (s > 0 and t > 0), in this file's (s, t): where creases revolve. */
+  const sharpOff = (b: Board, c: ViewCurve, s: Spec): P2[] => {
+    const o = curveOutline(b, c);
+    return sectionOf(b, c, s).filter((q, i) => !o.smooth[i] && q[0] > 1e-9 && q[1] > 1e-9);
+  };
+  for (const { name, s: sp } of CASES) {
+    describe(`${name} stopped 3..27`, () => {
+      const { b, c, s } = stopped(sp);
       const f = frameOf(b, s);
       const poly = sectionOf(b, c, s);
       const sMax = Math.max(...poly.map((q) => q[0]));
       const tMax = Math.max(...poly.map((q) => q[1]));
       const reach = BEAR + sMax;
       const es = edges(b);
+      const sharp = sharpOff(b, c, s);
       const onFace = ([p, q]: [V3, V3]) => {
-        const [, sp, tp] = f.back(p);
+        const [, sp2, tp] = f.back(p);
         const [, sq, tq] = f.back(q);
-        return (Math.abs(tp) <= 1e-6 && Math.abs(tq) <= 1e-6) || (Math.abs(sp) <= 1e-6 && Math.abs(sq) <= 1e-6);
+        return (Math.abs(tp) <= 1e-6 && Math.abs(tq) <= 1e-6) || (Math.abs(sp2) <= 1e-6 && Math.abs(sq) <= 1e-6);
       };
-      it('no run-out facet lines: no edge off the broad and side faces has its middle in a run-out (station plane included)', () => {
+      /** A point's (σ, t): in the band σ = s; at or beyond a stop σ = ρ − 0.25 (the definition, P9). */
+      const sigmaT = (p: V3): P2 => {
+        const [run, sIn, t] = f.back(p);
+        if (run >= f.hi - 1e-9 && f.stopHi) return [Math.hypot(run - f.hi, sIn + BEAR) - BEAR, t];
+        if (run <= f.lo + 1e-9 && f.stopLo) return [Math.hypot(run - f.lo, sIn + BEAR) - BEAR, t];
+        return [sIn, t];
+      };
+      /** Near the revolved path of a sharp vertex: within the sector chords' sagitta (CURVE_TOLERANCE; a chain's last point,
+       *  where a chord leaves through the side face, is off the true circle), exact on the station plane and the rays. */
+      const nearPath = (p: V3, v: P2) => { const q = sigmaT(p); return Math.hypot(q[0] - v[0], q[1] - v[1]) <= CURVE_TOLERANCE + 1e-9; };
+      /** Both ends on the revolved path of ONE sharp section vertex: a true crease. */
+      const crease = (e: [V3, V3]) => sharp.some((v) => e.every((p) => nearPath(p, v)));
+      it('no run-out facet lines: an edge off the broad and side faces with its middle in a run-out (station plane included) is a true crease', () => {
         const inside = es.filter((e) => {
-          if (onFace(e)) return false;
+          if (onFace(e) || crease(e)) return false;
           const [run, sIn, t] = f.back(e[0].map((x, i) => (x + e[1][i]!) / 2) as V3);
           if (!(t > 1e-6 && t < tMax - 1e-6 && sIn > 1e-6)) return false;
           const station = run >= f.hi - 1e-9 ? f.hi : run <= f.lo + 1e-9 ? f.lo : null;
@@ -575,15 +598,44 @@ describe('a stopped profile\'s edges (inv 16; profile runs a2, Task 6)', () => {
         const beyond = es.filter((e) => onFace(e) && e.every((p) => f.back(p)[0] > f.hi + 1e-6 && f.back(p)[0] < f.hi + reach));
         expect(beyond.length).toBeGreaterThan(0);
       });
-      it('the full-profile stretch draws no line along the run on the arc\'s interior (a1\'s suppression, over [3, 27])', () => {
+      it('the full-profile stretch draws no line along the run on the section\'s interior but its sharp vertices (over [3, 27])', () => {
         const along = es.filter(([p, q]) => {
-          const [rp, sp, tp] = f.back(p);
+          const [rp, sp2, tp] = f.back(p);
           const [rq, sq, tq] = f.back(q);
-          return Math.abs(sp - sq) <= 1e-9 && Math.abs(tp - tq) <= 1e-9 && sp > 1e-6 && tp > 1e-6 && sp < sMax - 1e-6 && tp < tMax - 1e-6
-            && Math.min(rp, rq) < f.hi - 1e-6 && Math.max(rp, rq) > f.lo + 1e-6;
+          return Math.abs(sp2 - sq) <= 1e-9 && Math.abs(tp - tq) <= 1e-9 && sp2 > 1e-6 && tp > 1e-6 && sp2 < sMax - 1e-6 && tp < tMax - 1e-6
+            && Math.min(rp, rq) < f.hi - 1e-6 && Math.max(rp, rq) > f.lo + 1e-6
+            && !sharp.some((v) => Math.hypot(sp2 - v[0], tp - v[1]) <= 1e-9);
         });
         expect(along).toEqual([]);
       });
+      if (sharp.length > 0) {
+        it('every sharp section vertex off the faces creases the band AND both run-outs, each a continuous chain from the station to the side face', () => {
+          for (const v of sharp) {
+            const on = es.filter((e) => e.every((p) => nearPath(p, v)));
+            // The band: one line over [lo, hi].
+            expect(on.filter((e) => e.every((p) => { const r = f.back(p)[0]; return r >= f.lo - 1e-9 && r <= f.hi + 1e-9; })
+              && Math.abs(f.back(e[0])[0] - f.back(e[1])[0]) >= f.hi - f.lo - 1e-9), `band at ${v}`).toHaveLength(1);
+            for (const end of ['lo', 'hi'] as const) {
+              const station = end === 'lo' ? f.lo : f.hi;
+              const beyond = (p: V3) => (end === 'hi' ? f.back(p)[0] >= f.hi - 1e-9 : f.back(p)[0] <= f.lo + 1e-9);
+              const chain = on.filter((e) => e.every(beyond) && !e.every((p) => Math.abs(f.back(p)[0] - station) <= 1e-9));
+              expect(chain.length, `${end} at ${v}`).toBeGreaterThan(0);
+              // Walk it from the station: every step meets the next segment end to end, and it ends on the side face.
+              const key = (p: V3) => p.map((x) => x.toFixed(7)).join(',');
+              let at = chain.flat().find((p) => Math.abs(f.back(p)[0] - station) <= 1e-9);
+              expect(at, `${end} at ${v}: starts at the station`).toBeDefined();
+              const left = [...chain];
+              while (left.length > 0) {
+                const i = left.findIndex((e) => key(e[0]) === key(at!) || key(e[1]) === key(at!));
+                expect(i, `${end} at ${v}: continuous`).toBeGreaterThanOrEqual(0);
+                const [e] = left.splice(i, 1);
+                at = key(e![0]) === key(at!) ? e![1] : e![0];
+              }
+              expect(f.back(at!)[1], `${end} at ${v}: ends on the side face`).toBeLessThanOrEqual(1e-6);
+            }
+          }
+        });
+      }
     });
   }
   it('a COVE stopped 3..27 draws its crease with the top face over the band', () => {

@@ -368,10 +368,18 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     const ro = chordsOf && f.runout !== undefined && f.curve !== undefined ? runoutOf(f.curve) : null;
     const roArc = ro ? ro.arcOf(f.runout!, f.verts) : null;
     const arc = !ro && chordsOf && f.curve !== undefined ? chordArc(chordsOf.get(f.curve), f) : null;
+    // T6 fix 1: a run-out face of a STRAIGHT section edge (a bead's quirk wall: a revolved line, a cylinder or cone) takes
+    // the revolved edge's normal, so its sectors shade as one surface; tagged faces only, so no other part is touched.
+    let line: ((p: readonly number[]) => V3) | null = null;
+    if (chordsOf && f.runout !== undefined && f.curve === undefined && f.profileEdge !== undefined) {
+      const parts = f.profileEdge.split(':');
+      const b = Number(parts.pop()), a = Number(parts.pop());
+      line = runoutOf(parts.join(':'))?.lineNormals(f.runout, f.verts, a, b) ?? null;
+    }
     const nor = (p: V3) => {
       if (!chordsOf) return;
-      if (ro && roArc !== null) {
-        const local = ro.normal(f.runout!, p, roArc);
+      if ((ro && roArc !== null) || line) {
+        const local = line ? line(p) : ro!.normal(f.runout!, p, roArc!);
         if (local[0] * f.n[0] + local[1] * f.n[1] + local[2] * f.n[2] < 0) { local[0] = -local[0]; local[1] = -local[1]; local[2] = -local[2]; }
         const w = toWorld(local);
         out.nor.push(w[0], w[1], w[2]);

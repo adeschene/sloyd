@@ -50,6 +50,23 @@ export function runoutAxis(board: Pick<Board, Dimension>, c: ViewCurve, end: 'lo
   return { run: end === 'lo' ? span.lo : span.hi, u: f.uEdge + f.uOut * BEARING };
 }
 
+/**
+ * The outline edges a piece's edge p–q covers (either way round), as the first and last edge index [a, b], forward and
+ * mod the outline's length: one edge (b = a), or a straight run whose inner vertices `convexPieces` dropped (collinear
+ * neighbours, the ogee's inflection chords). Null: a diagonal between two pieces. p and q are the outline's own points.
+ */
+export function outlineRun(pts: readonly P2[], p: P2, q: P2): [number, number] | null {
+  const m = pts.length;
+  const at = (x: P2) => pts.findIndex((y) => y[0] === x[0] && y[1] === x[1]);
+  const ip = at(p), iq = at(q);
+  if (ip === -1 || iq === -1 || ip === iq) return null;
+  const run = (a: number, b: number): [number, number] | null => {
+    for (let k = (a + 1) % m; k !== b; k = (k + 1) % m) if (distToSegment(pts[k]!, pts[a]!, pts[b]!) > 1e-12) return null;
+    return [a, (b - 1 + m) % m];
+  };
+  return run(ip, iq) ?? run(iq, ip);
+}
+
 /** Sectors over a half turn of radius r: the fewest whose chord sagitta is within CURVE_TOLERANCE, 2 at least (a single
  *  sector would be a half-plane, its two radial planes one line), CURVE_SEGMENTS_MAX at most. */
 function sectors(r: number): number {
@@ -65,32 +82,34 @@ function sectors(r: number): number {
  * that, T3 fix 1, bodies byte-identical without it), and each convex piece of the section adds its edges as planes with
  * s = m·(x − axis) / cos h − BEARING (m the sector's mid direction, h its half-angle: exact on both rays) and
  * t = vIn·(x_iv − vFace), each renormalised to a unit normal. The piece's arc edges are `onArc`; its diagonals come last
- * (`splitPieces`' order).
+ * (`splitPieces`' order). `edge` names each plane's section-outline edges (`outlineRun`: the first and last index in
+ * `profileSection`'s `pts` — a run when the piece merged collinear edges, the ogee's inflection), null for the radial
+ * planes and the diagonals: the faces it cuts are tagged with it (bodies.ts), so the edges know which revolved
+ * facets meet smoothly (T6 fix 1).
  */
-export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { planes: Half[]; onArc: boolean[]; runout: 'lo' | 'hi' }[] {
+export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { planes: Half[]; onArc: boolean[]; edge: ([number, number] | null)[]; runout: 'lo' | 'hi' }[] {
   const span = spanOf(c);
   if (!span || (!span.stopLo && !span.stopHi)) return [];
   const f = sectionFrame(board, c);
   const sec = profileSection(board, c);
-  const m0 = sec.pts.length;
-  const same = (a: P2, b: P2) => a[0] === b[0] && a[1] === b[1];
-  const onOutline = (p: P2, q: P2) => sec.pts.some((x, j) => { const y = sec.pts[(j + 1) % m0]!; return (same(x, p) && same(y, q)) || (same(x, q) && same(y, p)); });
+  const outlineEdge = (p: P2, q: P2) => outlineRun(sec.pts, p, q);
   // Each convex piece's edges in (s, t): unit inward normal (a CCW piece's inside is the left of each edge) and offset.
   const pieces = convexPieces(sec.pts, sec.arc).map(({ pts, onArc }) => {
-    const edges: { ns: number; nt: number; c: number; arc: boolean; diagonal: boolean }[] = [];
+    const edges: { ns: number; nt: number; c: number; arc: boolean; diagonal: boolean; index: [number, number] | null }[] = [];
     pts.forEach((p, i) => {
       const q = pts[(i + 1) % pts.length]!;
       const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
       if (l < 1e-14) return;
       const ns = -(q[1] - p[1]) / l;
       const nt = (q[0] - p[0]) / l;
-      edges.push({ ns, nt, c: -(ns * p[0] + nt * p[1]), arc: onArc[i]!, diagonal: !onOutline(p, q) });
+      const index = outlineEdge(p, q);
+      edges.push({ ns, nt, c: -(ns * p[0] + nt * p[1]), arc: onArc[i]!, diagonal: index === null, index });
     });
     return [...edges.filter((e) => !e.diagonal), ...edges.filter((e) => e.diagonal)];
   });
   const maxS = Math.max(...sec.pts.map((p) => p[0]));
   const n = sectors(BEARING + maxS);
-  const out: { planes: Half[]; onArc: boolean[]; runout: 'lo' | 'hi' }[] = [];
+  const out: { planes: Half[]; onArc: boolean[]; edge: ([number, number] | null)[]; runout: 'lo' | 'hi' }[] = [];
   const ends: ('lo' | 'hi')[] = [...(span.stopLo ? ['lo' as const] : []), ...(span.stopHi ? ['hi' as const] : [])];
   for (const end of ends) {
     const fwd = end === 'lo' ? -1 : 1;
@@ -124,7 +143,8 @@ export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { pla
           const l = Math.hypot(nk, nu, nv);
           return lift(nk / l, nu / l, nv / l, (e.c - (e.ns * mA) / ch - e.ns * BEARING - e.nt * f.vIn * f.vFace) / l);
         });
-        out.push({ planes: [...wedge, ...planes], onArc: [false, false, ...edges.map((e) => e.arc)], runout: end });
+        out.push({ planes: [...wedge, ...planes], onArc: [false, false, ...edges.map((e) => e.arc)],
+          edge: [null, null, ...edges.map((e) => e.index)], runout: end });
       }
     }
   }
@@ -203,6 +223,10 @@ export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
   /** The section arc whose chord the face (its vertices) lies on, or null: a face on no arc (a chord plane's extension). */
   arcOf(end: 'lo' | 'hi', verts: readonly (readonly number[])[]): number | 'nearest' | null;
   normal(end: 'lo' | 'hi', p: readonly number[], arc: number | 'nearest'): V3;
+  /** T6 fix 1: a face of the STRAIGHT outline run [a, b] (its `profileEdge`): the revolved edge's normal at each vertex —
+   *  the edge's own 2D normal lifted through ρ̂ and t̂ (either sign; bodyMesh orients it) — or null when a vertex lies off
+   *  the edge by more than the sector chords' sagitta (a face on the edge plane's extension keeps its flat normal). */
+  lineNormals(end: 'lo' | 'hi', verts: readonly (readonly number[])[], a: number, b: number): ((p: readonly number[]) => V3) | null;
 } {
   const f = sectionFrame(board, c);
   const { pts } = profileSection(board, c);
@@ -241,6 +265,20 @@ export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
     return { st: [rho - BEARING, f.vIn * (p[f.iv]! - f.vFace)], rk, ru, rho };
   };
   return {
+    lineNormals(end, verts, a, b) {
+      const p0 = pts[a]!, p1 = pts[(b + 1) % pts.length]!;
+      if (verts.some((p) => distToSegment(stOf(end, p).st, p0, p1) > sagitta)) return null;
+      const l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+      const ns = -(p1[1] - p0[1]) / l, nt = (p1[0] - p0[0]) / l;
+      return (p) => {
+        const { rk, ru, rho } = stOf(end, p);
+        const N: V3 = [0, 0, 0];
+        N[f.k] = (ns * rk) / rho;
+        N[f.iu] = (ns * ru) / rho;
+        N[f.iv] = nt * f.vIn;
+        return N;
+      };
+    },
     arcOf(end, verts) {
       if (arcs.length === 0) return null;
       const sts = verts.map((p) => stOf(end, p).st);
