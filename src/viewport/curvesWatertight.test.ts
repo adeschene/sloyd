@@ -1,8 +1,9 @@
-import { clipPolygon, createBoard, defaultProfile, PROFILE_EDGES, profileCurve, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeInStock, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
+import { clipPolygon, createBoard, defaultProfile, PROFILE_EDGES, profileCurve, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeFaults, holeInStock, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
 import type { Board, CurveCut, Hole, HoleRow, V3 } from '../document/document';
 import type { ProfileCut, ProfileEnd, ProfileKind } from '../document/types';
 import { canonicalRun, geometryBoard } from '../document/profiles';
 import { spanOf } from '../document/curves';
+import { runoutReach } from '../document/runout';
 import { capFill } from './capFill';
 import { bodyMesh, drawsAsBox, holesMesh } from './grainTiling';
 
@@ -115,17 +116,27 @@ describe('an edge-profiled part\'s mesh is watertight', () => {
 // Profile runs a2 (Task 5): a STOPPED profile's run-outs — sectors about the bit's axis, each a convex body, plus the accepted
 // chord scraps (1e-7–2e-6 in³ bodies 0.2–0.5" past a stop) — must close against the band and the rest of the part too.
 const stoppedShelf = { length: 30, width: 10, thickness: 0.75 };
-const stoppedSizes: Record<'roundover' | 'cove' | 'ogee', { size: number; fillet: number }> = {
+const stoppedSizes: Record<'roundover' | 'cove' | 'ogee' | 'bead' | 'thumbnail', { size: number; fillet?: number; depth?: number }> = {
   roundover: { size: 0.25, fillet: 0 }, cove: { size: 0.375, fillet: 0 }, ogee: { size: 0.5, fillet: 0 },
+  // Final fix F7: the kinds with straight revolved walls (a bead's quirk, a thumbnail's flat: lineNormals).
+  bead: { size: 0.25, fillet: 0.0625 }, thumbnail: { size: 0.75, depth: 0.25 },
 };
 /** A shelf with one profile on the width-max side of the top face; `lo`/`hi` a station's distance from the length's min/max
  *  end, or null: out through that end. */
-function stoppedBoard(kind: 'roundover' | 'cove' | 'ogee', lo: number | null, hi: number | null): Board {
+function stoppedBoard(kind: keyof typeof stoppedSizes, lo: number | null, hi: number | null, facing: 'face' | 'edge' = 'face', holes: HoleRow[] = []): Board {
   const side = { across: 'width' as const, from: 'max' as const };
   const start: ProfileEnd = lo === null ? { side, through: 'min' } : { side, from: 'min', at: lo };
   const end: ProfileEnd = hi === null ? { side: { ...side }, through: 'max' } : { side: { ...side }, from: 'max', at: hi };
-  const p: ProfileCut = { id: 'p', face: 'max', kind: kind as ProfileKind, ...stoppedSizes[kind], facing: 'face', run: canonicalRun(stoppedShelf, 'max', { start, end }) };
-  return createBoard({ ...stoppedShelf, profiles: [p] });
+  const p: ProfileCut = { id: 'p', face: 'max', kind: kind as ProfileKind, ...stoppedSizes[kind], facing, run: canonicalRun(stoppedShelf, 'max', { start, end }) };
+  return createBoard({ ...stoppedShelf, profiles: [p], holes });
+}
+/** A small bore down into the top, in line with the band's waste (0.1" in from the width max side) and 0.3" past the
+ *  roundover's run-out at the 27" stop (BEARING plus the section's widest s; P14). */
+function clearBore(): HoleRow {
+  const c = geometryBoard(stoppedBoard('roundover', 3, 3)).curves[0]!;
+  const station = 27 + runoutReach(stoppedShelf, c) + 0.3;
+  return { id: 'h', face: 'thickness', from: 'max', diameter: 0.0625, depth: 0.0625, along: 'length', alongFrom: 'min', station,
+    count: 1, pitch: 0, acrossFrom: 'max', inset: 0.1 };
 }
 const stoppedCases: [string, Board, { stopLo: boolean; stopHi: boolean }][] = [
   ['a stopped roundover, 3..27', stoppedBoard('roundover', 3, 3), { stopLo: true, stopHi: true }],
@@ -133,12 +144,21 @@ const stoppedCases: [string, Board, { stopLo: boolean; stopHi: boolean }][] = [
   ['a stopped ogee, 3..27', stoppedBoard('ogee', 3, 3), { stopLo: true, stopHi: true }],
   ['a half-stopped roundover, through the min end..20', stoppedBoard('roundover', null, 10), { stopLo: false, stopHi: true }],
   ['a roundover stopped 0.1" in from each end (the run-outs leave the part)', stoppedBoard('roundover', 0.1, 0.1), { stopLo: true, stopHi: true }],
+  // Final fix F7.
+  ['a stopped bead, facing the face, 3..27', stoppedBoard('bead', 3, 3, 'face'), { stopLo: true, stopHi: true }],
+  ['a stopped bead, facing the edge, 3..27', stoppedBoard('bead', 3, 3, 'edge'), { stopLo: true, stopHi: true }],
+  ['a stopped thumbnail, facing the face, 3..27', stoppedBoard('thumbnail', 3, 3, 'face'), { stopLo: true, stopHi: true }],
+  ['a stopped thumbnail, facing the edge, 3..27', stoppedBoard('thumbnail', 3, 3, 'edge'), { stopLo: true, stopHi: true }],
+  ['a stopped roundover with a bore 0.3" clear of its run-out', stoppedBoard('roundover', 3, 3, 'face', [clearBore()]), { stopLo: true, stopHi: true }],
 ];
 describe('a stopped profile\'s mesh is watertight, run-outs and chord scraps included (profile runs a2)', () => {
   it.each(stoppedCases)('%s', (_name, board, stops) => {
     const c = geometryBoard(board).curves[0]!;
     expect(spanOf(c)).toMatchObject(stops);
     expect(partGeometry(board).bodies.some((body) => body.faces.some((f) => f.runout !== undefined))).toBe(true);
+    // A holed row is what it claims: its bore is clean (no fault), in the stock beside the run-out.
+    for (const h of partGeometry(board).holes) expect(holeInStock(board, h, stockChecks(board))).toBe(true);
+    if (board.holes.length > 0) expect(holeFaults(board, board.holes[0]!)).toEqual([]);
     const { triangles, unmatched } = unmatchedEdges(board);
     expect(triangles).toBeGreaterThan(0);
     expect(unmatched).toBe(0);
