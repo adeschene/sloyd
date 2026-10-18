@@ -5,7 +5,7 @@ import type { Board, HoleRow, ProfileCut, ProfileSide } from './types';
 import { archCurve, cornerFields, curveFaults, defaultCorners } from './curves';
 import { defaultProfile, geometryBoard, profileAsCurve, profileFaults, profileOf, runsStraight, viewProfileFaults } from './profiles';
 import { builtSwept } from './sweep';
-import { apronArch, loop, topCorners } from './sweepFixtures';
+import { loop, topCorners } from './sweepFixtures';
 import { boardBodies } from './bodies';
 import { isSwept, profilePath } from './profilePath';
 import { drawView, FRONT, ISO, SIDE, TOP } from './drawing';
