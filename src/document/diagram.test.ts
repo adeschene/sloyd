@@ -2,7 +2,9 @@ import { IMPERIAL, imperialAt } from '../units/length';
 import { buildDiagrams, createBoard } from './document';
 import type { Board, Cut } from './document';
 import { axisFrame } from './geometry';
-import type { Dimension } from './types';
+import type { Dimension, HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
+import { canonicalRun, geometryBoard, profileCurve, PROFILE_KINDS } from './profiles';
+import { curveLineEntries } from './curveText';
 
 /** The canonical cut from the joinery work: 3/4" wide, 3/8" deep, 6" along. */
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -528,5 +530,74 @@ describe('curves on part diagrams (curves spec §5.2; Q5, Q6)', () => {
     expect(v.curves).toHaveLength(0);
     expect(v.curveNotes).toHaveLength(1);
     expect(v.curveNotes[0]!.text).toContain('— check:');
+  });
+});
+
+describe('stopped profiles on part diagrams (profile runs a2, P16)', () => {
+  // A 30 x 10 x 3/4 shelf, the profile on the width max side's top edge, run along the length.
+  const dims = { length: 30, width: 10, thickness: 0.75 };
+  const shelf = (kind: ProfileKind, size: number, lo: number | null, hi: number | null): Board => {
+    const side = { across: 'width' as const, from: 'max' as const };
+    const start: ProfileEnd = lo === null ? { side, through: 'min' } : { side, from: 'min', at: lo };
+    const end: ProfileEnd = hi === null ? { side: { ...side }, through: 'max' } : { side: { ...side }, from: 'max', at: hi };
+    const p: ProfileCut = { id: 'p', face: 'max', kind, size, fillet: 0, facing: 'face', run: canonicalRun(dims, 'max', { start, end }) };
+    return createBoard({ id: 'b1', name: 'Shelf', ...dims, profiles: [p] });
+  };
+  const idOf = (b: Board) => geometryBoard(b).curves.at(-1)!.id;
+  const noteOf = (b: Board) => curveLineEntries(b, IMPERIAL).find((e) => e.ids.includes(idOf(b)))!.text;
+
+  it('a profile stopped at both ends hatches no end view and opens none', () => {
+    const b = shelf('roundover', 0.25, 3, 3);
+    const views = buildDiagrams(b, IMPERIAL);
+    expect(views.filter((v) => v.face === 'length')).toEqual([]);
+    expect(views.flatMap((v) => v.curves)).toEqual([]);
+  });
+  it('it opens its side (width max) view and is noted there — a roundover draws no sharp-vertex line', () => {
+    const b = shelf('roundover', 0.25, 3, 3);
+    const views = buildDiagrams(b, IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['width|max']);
+    expect(noteOf(b)).toContain('(stopped)');
+    expect(views[0]!.curveNotes).toEqual([{ key: idOf(b), text: noteOf(b) }]);
+    expect(views[0]!.curveLines).toEqual([]);
+  });
+  it('an end view that exists for another reason takes no hatch and no note from a stopped end', () => {
+    const bore: HoleRow = { id: 'h1', face: 'length', from: 'max', diameter: 0.25, depth: 0.5, along: 'width', alongFrom: 'min', station: 3, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.375 };
+    const b = { ...shelf('cove', 0.375, 3, 3), holes: [bore] };
+    const end = buildDiagrams(b, IMPERIAL).find((v) => v.key === 'length|max')!;
+    expect(end.curves).toEqual([]);
+    expect(end.curveNotes).toEqual([]);
+  });
+  it('a stopped cove\'s sharp-vertex line in the side view runs from 3 to 27 (lo/hi)', () => {
+    const b = shelf('cove', 0.375, 3, 3);
+    const side = buildDiagrams(b, IMPERIAL).find((v) => v.key === 'width|max')!;
+    // The cove meets the side face 3/8" down from the top: thickness 0.375.
+    expect(side.curveLines).toEqual([{ id: idOf(b), along: 'h', at: expect.closeTo(0.375, 12), lo: 3, hi: 27 }]);
+    expect(side.curveNotes).toEqual([{ key: idOf(b), text: noteOf(b) }]);
+  });
+  it('a half-stopped profile hatches the end it runs out through, and only that end', () => {
+    for (const [lo, hi, open] of [[null, 10, 'min'], [10, null, 'max']] as const) {
+      const b = shelf('cove', 0.375, lo, hi);
+      const views = buildDiagrams(b, IMPERIAL);
+      const ends = views.filter((v) => v.face === 'length');
+      expect(ends.map((v) => v.key), `${lo}..${hi}`).toEqual([`length|${open}`]);
+      expect(ends[0]!.curves).toHaveLength(1);
+      expect(ends[0]!.curveNotes).toEqual([{ key: idOf(b), text: noteOf(b) }]);
+      // Both end views present (a bore into the other end): the stopped end still takes no hatch.
+      const other = open === 'min' ? 'max' : 'min';
+      const bore: HoleRow = { id: 'h1', face: 'length', from: other, diameter: 0.25, depth: 0.5, along: 'width', alongFrom: 'min', station: 3, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.375 };
+      const both = buildDiagrams({ ...b, holes: [bore] }, IMPERIAL);
+      expect(both.find((v) => v.key === `length|${other}`)!.curves).toEqual([]);
+      expect(both.find((v) => v.key === `length|${open}`)!.curves).toHaveLength(1);
+    }
+  });
+  it('the four-edge profile sets\' diagrams are a1\'s, byte for byte (pinned by hash at 3a0c3fa)', () => {
+    const fnv = (x: string) => { let h = 0x811c9dc5; for (let i = 0; i < x.length; i += 1) { h ^= x.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16); };
+    const PINNED: Record<string, string> = { roundover: '69008b7c', cove: 'a8f2c73a', ogee: '14b98e9f', bead: '12a53626', thumbnail: '28344b34' };
+    for (const kind of PROFILE_KINDS) {
+      const sz = kind === 'thumbnail' ? { size: 0.75, depth: 0.25 } : kind === 'bead' ? { size: 0.25, fillet: 0.0625 } : { size: 0.375, fillet: 0 };
+      const b = createBoard({ id: 'b1', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: (['length', 'width'] as const).flatMap((through) =>
+        (['min', 'max'] as const).map((uFrom) => ({ id: `${through}${uFrom}`, ...profileCurve({ through, uFrom, vFrom: 'max', facing: 'v', kind, ...sz }) }))) });
+      expect(fnv(JSON.stringify(buildDiagrams(b, IMPERIAL))), kind).toBe(PINNED[kind]);
+    }
   });
 });

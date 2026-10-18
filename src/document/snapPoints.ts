@@ -1,6 +1,6 @@
 import { keptHalfSpace } from './angleCuts';
 import { partGeometry } from './bodies';
-import { localSegments, uvDims } from './curves';
+import { localSegments, spanOf, uvDims } from './curves';
 import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
@@ -187,7 +187,12 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
       const marks: [P2, SnapKind][] = [[s.a, 'corner'], [s.b, 'corner'], [s.crown, 'edge-mid'], [s.centre, 'face-center']];
       for (const [q, kind] of marks) {
         if (!inFace(q)) continue;
-        for (const t of [0, board[c.through]]) {
+        // A stopped profile (P17): marks on an end face only where it runs out through that end; its arc ends sit on the stops.
+        const sp = spanOf(c);
+        const ts = sp
+          ? [...(sp.stopLo ? [] : [0]), ...(sp.stopHi ? [] : [board[c.through]]), ...(kind === 'corner' ? [...(sp.stopLo ? [sp.lo] : []), ...(sp.stopHi ? [sp.hi] : [])] : [])]
+          : [0, board[c.through]];
+        for (const t of ts) {
           const at = toWorld(board, { [u]: q[0], [v]: q[1], [c.through]: t } as Point);
           if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind, at, owner });
         }

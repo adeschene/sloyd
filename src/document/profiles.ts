@@ -1,5 +1,5 @@
-import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileSide } from './types';
-import { sameCurve, uvDims } from './curves';
+import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide } from './types';
+import { sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
 
 /**
  * Edge profiles (edge profiles spec, chunk 1): a full-length routed edge is a plain `CurveCut` running along the edge
@@ -93,6 +93,8 @@ function lift(kind: ProfileKind, to: [number, number][], segs: CurveSegment[]): 
 export function profileFields(c: Omit<CurveCut, 'id'>): ProfileFields | null {
   if (c.through === 'thickness' || c.start[0] !== 0 || c.start[1] !== 0) return null;
   const through = c.through;
+  // A view curve's span (P18) is no part of the outline: the recogniser compares the stored fields only.
+  const bare = spanOf(c) ? (({ span: _span, ...rest }) => rest)(c as ViewCurve) : c;
   for (const facing of ['v', 'u'] as const) {
     const to = c.segments.map((s): [number, number] => (facing === 'v' ? [s.to[0], s.to[1]] : [s.to[1], s.to[0]]));
     for (const kind of ORDER) {
@@ -101,7 +103,7 @@ export function profileFields(c: Omit<CurveCut, 'id'>): ProfileFields | null {
       if (kind === 'bead' && !((p.fillet ?? 0) > 0)) continue;
       const f: ProfileFields = { through, uFrom: c.uFrom, vFrom: c.vFrom, kind, facing, size: p.size,
         ...(p.depth !== undefined ? { depth: p.depth } : {}), ...(kind === 'thumbnail' ? {} : { fillet: p.fillet ?? 0 }) };
-      if (sameCurve(profileCurve(f), c)) return f;
+      if (sameCurve(profileCurve(f), bare)) return f;
     }
   }
   return null;
@@ -166,13 +168,43 @@ export function endToEnd(run: ProfileCut['run']): run is { start: ThroughEnd; en
     && run.start.side.across === run.end.side.across && run.start.side.from === run.end.side.from;
 }
 
+/** The dimension a side runs along: a side at width's end runs along the length, and the reverse. */
+export const runDim = (side: ProfileSide): 'length' | 'width' => (side.across === 'width' ? 'length' : 'width');
+/**
+ * The direction a run travels along its side (profile runs spec P11): +1 toward the run dimension's max end. It flips with
+ * the side's `from` and with `face`, never with the run, so every reflection reverses it (mirrorProfile swaps the ends to match).
+ */
+export function travelSign(face: CutFrom, side: ProfileSide): 1 | -1 {
+  const base = side.across === 'width' ? (side.from === 'min' ? 1 : -1) : side.from === 'max' ? 1 : -1;
+  return (face === 'max' ? base : -base) as 1 | -1;
+}
+/** An end's local position along its side's run dimension (the one place a station is read as a coordinate, inv 44). */
+export function endPos(board: Pick<Board, Dimension>, e: ProfileEnd): number {
+  const L = board[runDim(e.side)];
+  if ('through' in e) return e.through === 'min' ? 0 : L;
+  return e.from === 'min' ? e.at : L - e.at;
+}
+/** Both ends on one side (chunk a2 builds these; a loop or two sides refuse on load). */
+export function oneSide(run: ProfileRun): run is { start: ProfileEnd; end: ProfileEnd } {
+  return !('loop' in run) && run.start.side.across === run.end.side.across && run.start.side.from === run.end.side.from;
+}
+/** The stored order (P11): End to end min → max (P3); a station run with start before end along `travelSign`. */
+export function canonicalRun(board: Pick<Board, Dimension>, face: CutFrom, run: { start: ProfileEnd; end: ProfileEnd }): { start: ProfileEnd; end: ProfileEnd } {
+  if (endToEnd(run)) {
+    return run.start.through === 'min' ? run : { start: { ...run.end, side: { ...run.end.side } }, end: { ...run.start, side: { ...run.start.side } } };
+  }
+  const s = travelSign(face, run.start.side);
+  const before = (endPos(board, run.start) - endPos(board, run.end)) * s <= 0;
+  return before ? run : { start: run.end, end: run.start };
+}
+
 /**
  * An End to end profile as chunk 1's fields. Through the length or width, `uvDims(through)` is [u, 'thickness']: the face is
  * `vFrom`, the side is u at `uFrom`, and facing 'face' is chunk 1's 'v' (T on the broad face). A symmetric kind is written at
  * 'v', as chunk 1's writers did. Throws on a run chunk a1 cannot build (the loader refuses those, spec P2).
  */
 export function profileToFields(p: Omit<ProfileCut, 'id'>): ProfileFields {
-  if (!endToEnd(p.run)) throw new Error('profileToFields: only an End to end run is built in chunk a1');
+  if (!oneSide(p.run)) throw new Error('profileToFields: a loop or a run on two sides is not built until chunk b');
   const side = p.run.start.side;
   const f: ProfileFields = {
     through: side.across === 'width' ? 'length' : 'width', uFrom: side.from, vFrom: p.face, kind: p.kind, facing: 'v', size: p.size,
@@ -226,17 +258,80 @@ export function mirrorProfile(p: ProfileCut, d: Dimension): ProfileCut {
   return { ...p, run: { start: end(p.run.end), end: end(p.run.start) } };
 }
 
+/**
+ * A stopped profile's extent along its run dimension (P18): lo and hi from `endPos` (THE station → coordinate), a stop flag
+ * where that end is a station. Undefined for End to end, and for a run chunk a2 does not build. The geometry is symmetric in
+ * the run, so the canonical order never matters here.
+ */
+export function profileSpan(board: Pick<Board, Dimension>, p: ProfileCut): CurveSpan | undefined {
+  if (endToEnd(p.run) || !oneSide(p.run)) return undefined;
+  const a = endPos(board, p.run.start);
+  const b = endPos(board, p.run.end);
+  const [lo, hi] = a <= b ? [p.run.start, p.run.end] : [p.run.end, p.run.start];
+  return { lo: Math.min(a, b), hi: Math.max(a, b), stopLo: !('through' in lo), stopHi: !('through' in hi) };
+}
+
+export type ProfileFault = { kind: 'stop-off' } | { kind: 'overlap'; other: string };
+/** A one-side run's extent along its side, End to end included ([0, L]); null for a run chunk a2 does not build. */
+function extentOf(board: Pick<Board, Dimension>, p: ProfileCut): [number, number] | null {
+  if (!oneSide(p.run)) return null;
+  const a = endPos(board, p.run.start);
+  const b = endPos(board, p.run.end);
+  return [Math.min(a, b), Math.max(a, b)];
+}
+const OVERLAP_EPS = 1e-9;
+/**
+ * THE profile fault decider (P12, P13): `stop-off` when a station lies at or past an end of its side, or the span is empty
+ * or reversed (lo >= hi); `overlap` once for each OTHER profile on the same face and side whose extent overlaps this one's
+ * by more than 1e-9 (touching is not overlap; an End to end profile spans the whole side). A run-out past the end is no
+ * fault (P13): only the stations are judged.
+ */
+export function profileFaults(board: Pick<Board, Dimension> & { profiles: readonly ProfileCut[] }, p: ProfileCut): ProfileFault[] {
+  if (!oneSide(p.run)) return [];
+  const out: ProfileFault[] = [];
+  const run = p.run;
+  const L = board[runDim(run.start.side)];
+  const station = (e: ProfileEnd) => !('through' in e) && (endPos(board, e) <= 0 || endPos(board, e) >= L);
+  const [lo, hi] = extentOf(board, p)!;
+  if (station(run.start) || station(run.end) || lo >= hi) out.push({ kind: 'stop-off' });
+  const side = run.start.side;
+  for (const q of board.profiles) {
+    if (q === p || q.id === p.id || q.face !== p.face || !oneSide(q.run)) continue;
+    if (q.run.start.side.across !== side.across || q.run.start.side.from !== side.from) continue;
+    const [qlo, qhi] = extentOf(board, q)!;
+    if (Math.min(hi, qhi) - Math.max(lo, qlo) > OVERLAP_EPS) out.push({ kind: 'overlap', other: q.id });
+  }
+  return out;
+}
+
 const views = new WeakMap<object, object>();
+/** Each geometry view's profile curve → the part it was built from and its stored profile (one home: `geometryBoard`). */
+const viewSources = new WeakMap<object, { board: Pick<Board, Dimension> & { profiles: readonly ProfileCut[] }; profile: ProfileCut }>();
+/**
+ * The stored profile's faults for a curve of a geometry view, or none for any other curve. The words read the view; the
+ * faults are judged on the STORED profile and the original part's other profiles, never re-derived from the curve.
+ */
+export function viewProfileFaults(c: Omit<CurveCut, 'id'>): ProfileFault[] {
+  const src = viewSources.get(c);
+  return src ? profileFaults(src.board, src.profile) : [];
+}
 /**
  * THE geometry view (profile runs spec P4). Every reader that turns a part into geometry, words or faults reads this: the
  * part's curves, then each profile as the CurveCut chunk 1 stored. The SAME object when the part has no profiles; else one
  * memoised object per part, its `profiles` emptied so a second call returns it unchanged.
  */
-export function geometryBoard<T extends Pick<Board, 'curves'> & { profiles?: readonly ProfileCut[] }>(b: T): T {
+export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] }>(b: T): T {
   if (!b.profiles || b.profiles.length === 0) return b;
   const hit = views.get(b);
   if (hit) return hit as T;
-  const view = { ...b, curves: [...b.curves, ...b.profiles.map(profileAsCurve)], profiles: [] } as T;
+  const dims = b as Pick<Board, Dimension> & { profiles: readonly ProfileCut[] };
+  const asCurve = (p: ProfileCut): ViewCurve => {
+    const span = profileSpan(dims, p);
+    const c: ViewCurve = { ...profileAsCurve(p), ...(span ? { span } : {}) };
+    viewSources.set(c, { board: dims, profile: p });
+    return c;
+  };
+  const view = { ...b, curves: [...b.curves, ...b.profiles.map(asCurve)], profiles: [] } as T;
   views.set(b, view);
   return view;
 }

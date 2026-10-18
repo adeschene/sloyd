@@ -7,8 +7,8 @@ import { holeFaults } from './holeFaults';
 import { holePitchText, holeSizeText } from './holeText';
 import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
-import { archFields, bowFields, cornerFields, curveFaults, localSegments } from './curves';
-import { curveLineEntries, filletWords, profileName } from './curveText';
+import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
+import { curveFaulted, curveLineEntries, filletWords, profileName } from './curveText';
 import { geometryBoard, profileFields } from './profiles';
 
 /**
@@ -74,7 +74,8 @@ function curveText(c: CurveCut, b: Board, units: Units, collapsed: boolean): str
   const f = (n: number) => formatLength(n, units);
   const prof = profileFields(c);
   // Final review F2: the fillet words too (THE bench line's helper), or a filleted and a plain profile share a letter.
-  if (prof) return `${profileName(prof, units)}${filletWords(prof, units)}${collapsed ? ' (4×)' : ''}`;
+  // A stopped profile (P15): `, stopped` — a key carries no positions, and a stopped one never collapses.
+  if (prof) return `${profileName(prof, units)}${filletWords(prof, units)}${spanOf(c) ? ', stopped' : ''}${collapsed ? ' (4×)' : ''}`;
   const arch = archFields(c);
   if (arch) {
     if (arch.rise === arch.span / 2) return `Half-round notch, ${f(arch.span)} wide`;
@@ -107,7 +108,7 @@ export function partFeatures(b: Board, units: Units): PartFeature[] {
   // One feature per bench line: `curveLineEntries` is THE home of the four-corner collapse (curves spec Q6).
   for (const e of curveLineEntries(b, units)) {
     const cs = e.ids.map((id) => b.curves.find((c) => c.id === id)!);
-    push('curve', e.ids, curveText(cs[0]!, b, units, e.ids.length === 4), cs.some((c) => curveFaults(b, c).length > 0), axisOf(b, cs[0]!.through), null);
+    push('curve', e.ids, curveText(cs[0]!, b, units, e.ids.length === 4), cs.some((c) => curveFaulted(b, c)), axisOf(b, cs[0]!.through), null);
   }
   return out;
 }

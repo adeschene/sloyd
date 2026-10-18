@@ -933,3 +933,37 @@ describe('curve snap points (curves spec §3.5, P5)', () => {
     expect(has(pts, [0, 0.75, 0])).toBe(false);
   });
 });
+
+describe('stopped profile snap points (profile runs a2, P17)', () => {
+  const shelf = (over: object) => createBoard({
+    id: 's', length: 30, width: 10, thickness: 0.75,
+    profiles: [{ id: 'p', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: { side: { across: 'width', from: 'max' }, ...over }, end: { side: { across: 'width', from: 'max' }, from: 'max', at: 3 } } } as never],
+  });
+  const has = (pts: BoardSnapPoint[], at: number[], kind?: string) => pts.some((p) => (!kind || p.kind === kind) && p.at.every((v, i) => Math.abs(v - at[i]!) <= 1e-9));
+  const onFace = (pts: BoardSnapPoint[], x: number) => pts.filter((p) => Math.abs(p.at[0]! - x) <= 1e-9 && p.kind !== 'guide');
+  it('a stopped roundover marks its arc ends on the stop planes, and none on the end faces', () => {
+    const b = shelf({ from: 'min', at: 3 });
+    const pts = boardSnapPoints(b);
+    // arc ends: (s=0.25, t=0) -> width 9.75 on the top face; (s=0, t=0.25) -> width 10 at thickness 0.5.
+    for (const x of [3, 27]) {
+      expect(has(pts, [x, 0.75, 9.75], 'corner')).toBe(true);
+      expect(has(pts, [x, 0.5, 10], 'corner')).toBe(true);
+    }
+    for (const x of [0, 30]) expect(has(pts, [x, 0.75, 9.75]) || has(pts, [x, 0.5, 10])).toBe(false);
+    expect(onFace(pts, 0).every((p) => p.kind === 'corner' || p.kind === 'edge-mid' || p.kind === 'face-center')).toBe(true);
+  });
+  it('a half-stopped profile (start through min) keeps its end-face marks at length 0 only', () => {
+    const pts = boardSnapPoints(shelf({ through: 'min' }));
+    expect(has(pts, [0, 0.75, 9.75], 'corner')).toBe(true);
+    expect(has(pts, [0, 0.5, 10], 'corner')).toBe(true);
+    expect(has(pts, [30, 0.75, 9.75]) || has(pts, [30, 0.5, 10])).toBe(false);
+    expect(has(pts, [27, 0.75, 9.75], 'corner')).toBe(true);
+  });
+  it('a stopped bullnose keeps the lattice edge-mid on its arc (inv 16, P3)', () => {
+    const b = createBoard({
+      id: 's', length: 30, width: 10, thickness: 0.75,
+      profiles: [{ id: 'p', face: 'max', kind: 'roundover', size: 0.375, fillet: 0, facing: 'face', run: { start: { side: { across: 'width', from: 'max' }, from: 'min', at: 3 }, end: { side: { across: 'width', from: 'max' }, from: 'max', at: 3 } } } as never],
+    });
+    expect(has(boardSnapPoints(b), [15, 0.375, 10])).toBe(true);
+  });
+});

@@ -13,6 +13,10 @@ import { curveOutline, localSegments } from '../document/document';
 import type { Body, LocalArc, V3 } from '../document/document';
 import { cornerCurve } from '../document/document';
 import { twiceArea } from '../document/curves';
+import { canonicalRun, geometryBoard } from '../document/profiles';
+import { profileSection, runoutAxis, runoutNormals, sectionFrame } from '../document/runout';
+import { arcChords, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, distToSegment, type P2 } from '../document/curves';
+import type { ProfileCut } from '../document/types';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -1148,4 +1152,135 @@ describe('curved bodies in the mesh (curves spec §3.4)', () => {
     const pb = boardBodies(plain);
     expect(bodyMesh(plain, pb[0]!, [], pb).normals).toBeUndefined();
   });
+});
+
+describe('a stopped profile\'s run-out faces shade as the cutter\'s surface (profile runs a2, Task 5)', () => {
+  // THE mesh BoardMesh draws: bodyMesh over every body with the part's bodies (curvedPart's seams dropped, welded, conformed,
+  // fanned). Each triangle is matched to the run-out face it lies on (plane within 1e-5, normals agreeing); its vertices'
+  // (ρ − 0.25, t) — read in this test from the section and the axis — say whether it is a CAP (within 0.02 of an arc's
+  // chords: the drawn caps measured <= 8e-3, the drawn extension faces >= 9.7e-2) or a face on a chord plane's extension.
+  // A cap's vertices take runoutNormal at the arc the test picks; an extension keeps the flat normal. Flat at turn 0: world
+  // X = length, Y = thickness, Z = width; positions centred.
+  const cases = [
+    { name: 'cove', kind: 'cove', size: 0.375, dims: { length: 30, width: 10, thickness: 0.75 }, at: 3 },
+    { name: 'ogee', kind: 'ogee', size: 0.5, dims: { length: 30, width: 10, thickness: 0.75 }, at: 3 },
+    { name: 'roundover', kind: 'roundover', size: 0.25, dims: { length: 30, width: 10, thickness: 0.75 }, at: 3 },
+    // BEARING + max s = 3.25": `sectors` is at CURVE_SEGMENTS_MAX, where the sector chords' sagitta (6.96e-3) passes
+    // CURVE_TOLERANCE — drawn caps measured up to 6.7e-3 off the true circle (a size only has to be positive: no fault).
+    { name: 'a 3" cove on a 3 1/2" part (sectors capped)', kind: 'cove', size: 3, dims: { length: 30, width: 10, thickness: 3.5 }, at: 4 },
+    { name: 'a 2 1/2" roundover on a 3" part stopped 1" in (the ends cut the caps)', kind: 'roundover', size: 2.5, dims: { length: 30, width: 10, thickness: 3 }, at: 1 },
+  ] as const;
+  for (const { name, kind, size, dims, at } of cases) {
+    it(`${name}: every run-out cap vertex takes runoutNormal, every other run-out face its flat normal`, () => {
+      const side = { across: 'width' as const, from: 'max' as const };
+      const p: ProfileCut = { id: 'p', face: 'max', kind, size, fillet: 0, facing: 'face',
+        run: canonicalRun(dims, 'max', { start: { side, from: 'min', at }, end: { side: { ...side }, from: 'max', at } }) };
+      const b = createBoard({ ...dims, profiles: [p] });
+      expect(geometryBoard(b).curves).toHaveLength(1);
+      const c = geometryBoard(b).curves[0]!;
+      const ro = runoutNormals(b, c);
+      const { pts, arc } = profileSection(b, c);
+      const f0 = sectionFrame(b, c);
+      // The section's arcs, each its run of chord edges, in segment order (the order runoutNormals numbers them): the
+      // outline lists each segment's start, then an arc's interior chord points.
+      const arcs: [P2, P2][][] = [];
+      let at0 = 0;
+      for (const seg of localSegments(b, c)) {
+        if (seg.kind === 'line') { at0 += 1; continue; }
+        const n = arcChords(seg, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+        arcs.push(Array.from({ length: n }, (_, k): [P2, P2] => [pts[at0 + k]!, pts[(at0 + k + 1) % pts.length]!]));
+        at0 += n;
+      }
+      expect(arcs.flat().length).toBe(arc.filter(Boolean).length);
+      const stOf = (end: 'lo' | 'hi', v: V3): P2 => {
+        const a = runoutAxis(b, c, end);
+        return [Math.hypot(v[f0.k]! - a.run, v[f0.iu]! - a.u) - 0.25, f0.vIn * (v[f0.iv]! - f0.vFace)];
+      };
+      const g = partGeometry(b);
+      const runFaces = g.bodies.flatMap((x) => x.faces.filter((f) => f.runout !== undefined));
+      let caps = 0, offFlat = 0;
+      for (const body of g.bodies) {
+        const m = bodyMesh(b, body, g.holes, g.bodies);
+        for (let t = 0; t < m.positions.length; t += 9) {
+          const vs = [0, 3, 6].map((o): V3 => [m.positions[t + o]! + dims.length / 2, m.positions[t + o + 2]! + dims.width / 2, m.positions[t + o + 1]! + dims.thickness / 2]);
+          const e1 = vs[1]!.map((x, k) => x - vs[0]![k]!), e2 = vs[2]!.map((x, k) => x - vs[0]![k]!);
+          const gn: V3 = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+          const gl = Math.hypot(...gn);
+          if (gl < 1e-12) continue;
+          const f = runFaces.find((q) => Math.abs(q.n[0] * gn[0] + q.n[1] * gn[1] + q.n[2] * gn[2]) / gl > 0.999
+            && vs.every((v) => Math.abs(q.n[0] * (v[0] - q.verts[0]![0]) + q.n[1] * (v[1] - q.verts[0]![1]) + q.n[2] * (v[2] - q.verts[0]![2])) < 1e-5));
+          if (!f) continue;
+          // Per vertex, the arcs whose chords it lies near (one, or both at the ogee's inflection, where they agree).
+          const near = vs.map((v) => { const q = stOf(f.runout!, v); return arcs.map((chs, i) => [i, Math.min(...chs.map(([a2, b2]) => distToSegment(q, a2, b2)))] as const).filter(([, d]) => d < 0.02).map(([i]) => i); });
+          const cap = near.every((l) => l.length > 0);
+          for (let k = 0; k < 3; k += 1) {
+            const i = t + 3 * k;
+            const got: V3 = [m.normals![i]!, m.normals![i + 1]!, m.normals![i + 2]!];
+            const flat: V3 = [f.n[0], f.n[2], f.n[1]];
+            if (cap) {
+              // Float32 positions carry ~1e-6: the normal read back from them, within 1e-4, at one of the vertex's arcs.
+              const miss = Math.min(...near[k]!.map((a2) => { const w = ro.normal(f.runout!, vs[k]!, a2); return Math.hypot(got[0] - w[0], got[1] - w[2], got[2] - w[1]); }));
+              expect(miss).toBeLessThan(1e-4);
+              if (Math.hypot(got[0] - flat[0], got[1] - flat[1], got[2] - flat[2]) > 1e-3) offFlat += 1;
+              caps += 1;
+            } else {
+              expect(got).toEqual(flat.map((x) => Math.fround(x)));
+            }
+          }
+        }
+      }
+      expect(caps).toBeGreaterThan(24);
+      expect(offFlat).toBeGreaterThan(caps / 2);
+    });
+  }
+});
+
+describe('a stopped bead\'s revolved straight walls shade smooth (profile runs a2, T6 fix 1, review Minor 4)', () => {
+  for (const facing of ['face', 'edge'] as const) {
+    it(`facing the ${facing}: at a vertex two faces of one straight section edge share, their normals agree within 1e-6`, () => {
+      const dims = { length: 30, width: 10, thickness: 0.75 };
+      const side = { across: 'width' as const, from: 'max' as const };
+      const p: ProfileCut = { id: 'p', face: 'max', kind: 'bead', size: 0.25, fillet: 0.0625, facing,
+        run: canonicalRun(dims, 'max', { start: { side, from: 'min', at: 3 }, end: { side: { ...side }, from: 'max', at: 3 } }) };
+      const b = createBoard({ ...dims, profiles: [p] });
+      const g = partGeometry(b);
+      // Faces of a STRAIGHT section edge (tagged, no `curve`), run-out or band, and the vertex normals the mesh gives them.
+      const walls = g.bodies.flatMap((x) => x.faces.filter((f) => f.profileEdge !== undefined && f.curve === undefined));
+      expect(walls.some((f) => f.runout !== undefined)).toBe(true);
+      const at = new Map<string, { face: number; n: V3 }[]>();
+      let off = 0;
+      for (const body of g.bodies) {
+        const m = bodyMesh(b, body, g.holes, g.bodies);
+        for (let t = 0; t < m.positions.length; t += 9) {
+          const vs = [0, 3, 6].map((o): V3 => [m.positions[t + o]! + dims.length / 2, m.positions[t + o + 2]! + dims.width / 2, m.positions[t + o + 1]! + dims.thickness / 2]);
+          const e1 = vs[1]!.map((x, k) => x - vs[0]![k]!), e2 = vs[2]!.map((x, k) => x - vs[0]![k]!);
+          const gn: V3 = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+          const gl = Math.hypot(...gn);
+          if (gl < 1e-12) continue;
+          const fi = walls.findIndex((q) => Math.abs(q.n[0] * gn[0] + q.n[1] * gn[1] + q.n[2] * gn[2]) / gl > 0.999
+            && vs.every((v) => Math.abs(q.n[0] * (v[0] - q.verts[0]![0]) + q.n[1] * (v[1] - q.verts[0]![1]) + q.n[2] * (v[2] - q.verts[0]![2])) < 1e-5)
+            && vs.every((v) => v.every((x, k) => x >= Math.min(...q.verts.map((w) => w[k]!)) - 1e-5 && x <= Math.max(...q.verts.map((w) => w[k]!)) + 1e-5)));
+          if (fi === -1) continue;
+          const f = walls[fi]!;
+          for (let k = 0; k < 3; k += 1) {
+            const i = t + 3 * k;
+            const n: V3 = [m.normals![i]!, m.normals![i + 2]!, m.normals![i + 1]!];   // back to board-local
+            if (Math.hypot(n[0] - f.n[0], n[1] - f.n[1], n[2] - f.n[2]) > 1e-3) off += 1;
+            const key = vs[k]!.map((x) => x.toFixed(5)).join(',');
+            if (!at.has(key)) at.set(key, []);
+            at.get(key)!.push({ face: fi, n });
+          }
+        }
+      }
+      let shared = 0;
+      for (const list of at.values()) {
+        if (new Set(list.map((x) => `${walls[x.face]!.profileEdge}`)).size !== 1) continue;   // one section edge's faces only
+        if (new Set(list.map((x) => x.face)).size < 2) continue;
+        shared += 1;
+        for (const x of list) expect(Math.hypot(x.n[0] - list[0]!.n[0], x.n[1] - list[0]!.n[1], x.n[2] - list[0]!.n[2])).toBeLessThan(1e-6);
+      }
+      expect(shared).toBeGreaterThan(8);
+      expect(off).toBeGreaterThan(0);   // the cylinder's normals are not its facets'
+    });
+  }
 });

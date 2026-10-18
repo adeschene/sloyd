@@ -6,6 +6,8 @@ import {
 } from '../document/document';
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { geometryBoard } from '../document/profiles';
+import { profileEdgeOf } from '../document/bodies';
+import { runoutNormals } from '../document/runout';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 import { candidates as sortedCandidates, centroidFan, CONFORM_EPS, insertOnEdges, welder } from './conform';
@@ -276,6 +278,21 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
   return { groups, out };
 }
 
+type RunoutNormals = ReturnType<typeof runoutNormals>;
+const runoutMemos = new WeakMap<readonly Body[], Map<string, RunoutNormals | null>>();
+/**
+ * A part's run-out normals by curve id, memoised on its bodies (final fix F1). Keyed ONLY on a FROZEN bodies array —
+ * partGeometry's, shared by every part with one geometryKey, which fixes the dimensions and every curve's values (span
+ * included), all runoutNormals reads; the normals are board-local, so the pose is irrelevant. Unfrozen or absent bodies
+ * get a fresh map per call: an array that can change is never a memo key.
+ */
+function runoutMemo(bodies: readonly Body[] | undefined): Map<string, RunoutNormals | null> {
+  if (!bodies || !Object.isFrozen(bodies)) return new Map();
+  let m = runoutMemos.get(bodies);
+  if (!m) { m = new Map(); runoutMemos.set(bodies, m); }
+  return m;
+}
+
 /**
  * Whether BoardMesh draws `body` through a BoxGeometry (today's path, byte-for-byte: angle-cuts spec §3.3, holes spec
  * §3.2) rather than bodyMesh: a box no hole reaches, on a part WITHOUT curves. Every body of a curved part goes through
@@ -329,6 +346,16 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   const candidates = part?.points ?? null;
   const toWorld = (local: readonly number[]): V3 => [0, 1, 2].map((i) => local[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
   const chordsOf = curved ? curveChords(board) : null;
+  // A stopped profile's run-out normals, built per curve on its first run-out face (a part with none never builds one), and
+  // shared by every body of the part through partGeometry's frozen bodies (final fix F1: was rebuilt per call, ~48× an ogee).
+  const runouts = curved ? runoutMemo(bodies) : new Map<string, RunoutNormals | null>();
+  const runoutOf = (id: string) => {
+    if (!runouts.has(id)) {
+      const c = board.curves.find((x) => x.id === id);
+      runouts.set(id, c ? runoutNormals(board, c) : null);
+    }
+    return runouts.get(id)!;
+  };
   // A curved part's holed planes, merged (fu 369): this body draws each plane it was given whole, with its rings cut out.
   const jobs: [BodyFace, V3[][] | null][] = faces.map((f) => [f, null]);
   for (const m of part?.merged.get(body) ?? []) jobs.push([m.face, m.tris]);
@@ -352,9 +379,26 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
       );
     };
     // The vertex normal stream (curved parts only): the arc this face lies on, if any, gives a radial normal per vertex.
-    const arc = chordsOf && f.curve !== undefined ? chordArc(chordsOf.get(f.curve), f) : null;
+    // A run-out face (profile runs a2) takes the cutter surface's normal (runoutNormals), its arc chosen once from all its
+    // vertices, flipped to agree with the face's outward normal; tested BEFORE chordArc — a face near the station projects
+    // onto the band's prism chord.
+    const ro = chordsOf && f.runout !== undefined && f.curve !== undefined ? runoutOf(f.curve) : null;
+    const roArc = ro ? ro.arcOf(f.runout!, f.verts) : null;
+    const arc = !ro && chordsOf && f.curve !== undefined ? chordArc(chordsOf.get(f.curve), f) : null;
+    // T6 fix 1: a run-out face of a STRAIGHT section edge (a bead's quirk wall: a revolved line, a cylinder or cone) takes
+    // the revolved edge's normal, so its sectors shade as one surface; tagged faces only, so no other part is touched.
+    let line: ((p: readonly number[]) => V3) | null = null;
+    const pe = chordsOf && f.runout !== undefined && f.curve === undefined ? profileEdgeOf(f) : null;
+    if (pe) line = runoutOf(pe.curve)?.lineNormals(f.runout!, f.verts, pe.a, pe.b) ?? null;
     const nor = (p: V3) => {
       if (!chordsOf) return;
+      if ((ro && roArc !== null) || line) {
+        const local = line ? line(p) : ro!.normal(f.runout!, p, roArc!);
+        if (local[0] * f.n[0] + local[1] * f.n[1] + local[2] * f.n[2] < 0) { local[0] = -local[0]; local[1] = -local[1]; local[2] = -local[2]; }
+        const w = toWorld(local);
+        out.nor.push(w[0], w[1], w[2]);
+        return;
+      }
       if (!arc) { out.nor.push(n[0], n[1], n[2]); return; }
       const ru = p[arc.iu]! - arc.arc.centre[0];
       const rv = p[arc.iv]! - arc.arc.centre[1];

@@ -98,16 +98,24 @@ handicraft education tradition built around hand woodworking.
   `index-D9D90lOX.js`; no schema change)**: fu 365's full-length half and fu 386 closed — Roundover, Cove, Roman ogee, Bead, Thumbnail (an optional
   fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
   collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
-  hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 chunk 2 (stopped
-  profiles, schema 18), 387, 389, 390 (a profile following a curved edge), 391 (profile runs a1 residue; (1) before a2 ships). **Fu 388** (the Profile select greys a
+  hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 (blind curved recesses;
+  stopped profiles shipped in a2), 387, 389, 390 (a profile following a curved edge), 391 ((1) closed in a2). **Fu 388** (the Profile select greys a
   refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
 - **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, merged to master as
-  `305934d`; NOT DEPLOYED — deploy with a2; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
+  `305934d`; NOT DEPLOYED — deploys with a2; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
   of `curves` on every load; every geometry, word and fault reader goes through `geometryBoard`; a run this build cannot build (all
   round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
-  same, checked live). **Rolling back below 18 refuses every project saved since — export first.** Next: a2 (stopped profiles, the
-  run-out), then b (following the outline; fu 390). **Deploy a1 together with a2, never alone** (fu 391(1): a1 shows nothing new and its
-  loader's last gate hole closes in a2). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
+  same, checked live). **Rolling back below 18 refuses every project saved since — export first.** **Deploy a1 together with a2, never alone**
+  (a1 shows nothing new; its loader's last gate hole, fu 391(1), closed in a2). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
+- **Profile runs chunk a2 (2026-10-18, plan `…-profile-runs-a2.md`, merged to master; NOT DEPLOYED — **deploy a1 + a2 together**; schema 18,
+  unchanged by a2)**: a profile on a straight side may stop short of either end (Run → Stopped; Start/Stop from the run dimension's min
+  end) and runs out as the router's bit would — the profile revolved about the bit's axis `BEARING` 1/4" outside the edge
+  (`runout.ts`; inscribed sectors, no step at the station). Bodies, edges (`smoothPair`), smooth run-out normals, a watertight mesh,
+  span-clipped and facet-chain silhouettes, snap points (P17), hole faults (P14), bench lines (`, from <a> to <b> (stopped)`) and keys
+  (`, stopped`). Rulings P9–P19 (*Amended (planning)*) and I1/I2 (*Amended (implementation, a2)*: a preset takes the FIRST edge its
+  default fits, its detail names the edge; a typed 0 or full length makes that end run out through) — I1/I2 await the user's review.
+  Open near it: 392 (residue; the run-outs' shading on real hardware and the cove's dashed contours on a real print for the user's eye).
+  **Rolling back below 18 refuses every project saved since — export first.** Next: chunk b (following the outline; fu 390).
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
@@ -208,6 +216,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | presets minors | 10-17 | — | The Kind select judged on focus (not every render) and a greyed option says why; preset menu details read the project's units |
 | edge profiles (chunk 1) | 10-17 | — | Full-length Roundover, Cove, Roman ogee, Bead, Thumbnail (+ fillet) as recognised `CurveCut`s; a Profiles section, bench lines, Plans keys (fu 365 half); fu 386 (`EDGE_ON`); curved edges no longer graze hidden; four-edge tops rebuild in a frame |
 | profile runs (a1) | 10-17 | 18 | Edge profiles stored as `Board.profiles` (moved from `curves` on load); every reader through `geometryBoard`; unbuildable runs refused |
+| profile runs (a2) | 10-18 | — | Stopped profiles on a straight side with the router's run-out (`runout.ts`): bodies, edges, smooth watertight mesh, silhouettes, snaps, words; presets take the first fitting edge |
 
 ### The deployment rule
 
@@ -378,7 +387,8 @@ src/
 │   │                     circleMeetsWaste/rectMeetsWaste, curveFaults (THE decider: runs-off, cuts-through), convexPieces (ear
 │   │                     clip), curvePlan (CLIP or SPLIT; the strengthened P6), splitPieces; writers/readers archCurve/archFields,
 │   │                     bowCurve/bowFields, cornerCurve/cornerFields, deriveCurveKind, curveKindWord, presets defaultArch/
-│   │                     Notch/Bow/Corner/Corners; runtime imports `geometry` only
+│   │                     Notch/Bow/Corner/Corners; CurveSpan / ViewCurve / spanOf (a stopped profile's VIEW-ONLY `span: {lo, hi, stopLo, stopHi}`,
+│   │                     never stored; `curveValues` appends it only when present, P18); runtime imports `geometry` only
 │   ├── curveDrawing.ts   curves on paper (inv 47, 53): DRAWING_CURVE_TOLERANCE 0.001 / DRAWING_CURVE_SEGMENTS_MAX 96,
 │   │                     curveDrawEdges (each model chord + a fine path of nodes ON the true arc; ends stay on the chord, Q4;
 │   │                     deep-frozen, memoised), curveSilhouettes / silhouetteLines (Q1; the probe offset); EDGE_ON 1e-9 / facing (THE one
@@ -390,9 +400,15 @@ src/
 │   │                     copyProfile, endToEnd, profileToFields/profileFromFields (v is always thickness: face = vFrom, side = u at
 │   │                     uFrom, facing v ↔ 'face'), profileAsCurve (THE profile → geometry step), profileOf (the migration's reader),
 │   │                     mirrorProfile (flag flips; a station run swaps on every mirror), geometryBoard (THE geometry view: curves then
-│   │                     profiles as chunk 1's CurveCuts, memoised per part, idempotent, the same object with no profiles)
+│   │                     profiles as chunk 1's CurveCuts, memoised per part, idempotent, the same object with no profiles; a stopped one carries `span`);
+│   │                     a2: runDim, travelSign, endPos (THE station → coordinate), oneSide, canonicalRun (P11), profileSpan,
+│   │                     profileFaults / viewProfileFaults (THE profile fault decider: stop-off, overlap)
+│   ├── runout.ts         THE run-out geometry (profile runs a2; inv 48, 53): BEARING 1/4", profileSection, sectionFrame, runoutAxis,
+│   │                     runoutPieces (the profile revolved about the bit's axis in INSCRIBED sectors — ρ_eff = m·(x−axis)/cos h,
+│   │                     exact on every sector ray, so no step at the station), profileWasteContains/profileWasteTester (the closed
+│   │                     oracle), profileAirTester (stockProbe's open form, P3), runoutNormal(s) (smooth shading), runoutReach (P14)
 │   ├── curveText.ts      curveLine/curveLines (THE bench lines; four equal corners collapse; four equal unfaulted profiles on one face
-│   │                     collapse; profileName, filletWords), curveFaultText
+│   │                     collapse — a stopped profile never; profileName, filletWords), curveFaultText, profileFaultText / profileFaultNote
 │   │                     (THE fault words) (→ units)
 │   ├── curvedRefusal.ts  curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
 │   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
@@ -405,7 +421,9 @@ src/
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
 │   │                     partGeometry: THE cached reader of both, plus the frozen `holes` (shared, frozen; see per-file rules);
 │   │                     curve waste clipped or split (`BodyFace.curve` on chord faces), curvedEdges (BUILT
-│   │                     edges, inv 53), edgesOf (THE three-way choice: pocketEdges / curvedEdges / bodyEdges), SMOOTH_EPS
+│   │                     edges, inv 53), edgesOf (THE three-way choice: pocketEdges / curvedEdges / bodyEdges), SMOOTH_EPS; a stopped profile's band and
+│   │                     run-out faces tagged `runout: 'lo'|'hi'` and `profileEdge` (profileEdgeName / profileEdgeOf: THE one builder
+│   │                     and parser), smoothJoins / runoutSilhouettes (a2)
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder; `number` (THE row number, display order) and `boardIds`
 │   ├── depthField.ts     buildDepthField (inv 20)
@@ -522,8 +540,10 @@ src/
 │                     corner, Rounded corners —; rows by derived kind; a Kind select (`curveAs`) whose options are judged ONLY while it has focus — never per render, every edit frame is one; refusalFor: half circle first, then an ADDED curve fault,
 │                     then a hole into the waste) — on curveRefusal.ts (Draft, Control, HALF_CIRCLE, pastHalfCircle, holeRefusal,
 │                     refusalFor, optionReason: shared with Profiles); Curves skips profiles and offers Rounded corner through the thickness only;
-│                     Profiles (the Profiles section: "+ Add profile ▾" — a preset is withheld when its default would be refused; rows:
-│                     Edge, Profile (a change takes the new kind's default; options judged on focus, a refused one greyed with
+│                     Profiles (the Profiles section: "+ Add profile ▾" — a preset takes the FIRST edge its default fits, DEFAULT_PROFILE_EDGE first,
+│                     and its detail names that edge (I1); withheld only when no edge fits; rows:
+│                     Face, Side, Run (End to end / Stopped), Start/Stop (from the run dimension's min end; the lower and higher
+│                     station; a typed 0 or full length — as the field SHOWS it — is a through end, I2; crossed ends refused), Profile (a change takes the new kind's default; options judged on focus, a refused one greyed with
 │                     its reason, fu 388), the size, Depth (thumbnail), Fillet or Quirk (bead),
 │                     Facing for asymmetric kinds)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
@@ -690,6 +710,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     point may sit in air (the hole-centre exception, extended; a centre off the face is not offered); ends are `'corner'`,
     the crown `'edge-mid'`, the centre `'face-center'` (P5). The waste is air to `stockProbe` except a point ON an arc or
     on a straight side off the face boundary (P3: the middle of an arched edge is gone, an arc's end is kept).
+    A stopped profile's run-out draws no facet lines: `bodyEdges`' `smoothPair` suppresses a stretch whose two wings are faces of
+    ONE stopped profile, at least one a run-out face, on the same section edge or adjacent ones at a smooth section vertex
+    (`profileEdge`, built and parsed only by `profileEdgeName`/`profileEdgeOf`); the stop's real creases stay. At each stop the
+    profile's arc ends on the stop plane are `'corner'`s (P17); the spanned waste is air to `stockProbe` via `profileAirTester` (P3).
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -935,6 +959,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     carries a probe lift** (`curveEdgeLifts`): ALONG the view by `min(1e-3, PROBE / n·toward)` of its most viewer-facing face, so an
     edge on a shallow face (n·toward ≲ 0.25) is not hidden by its own DRAW_EPS-grown body, while grazing OTHER wood still hides; the
     drawn line never moves. A lift along the face normals (silhouettes' rule) stepped an end line off its grazing plane — not here.
+    **A stopped profile** (profile runs a2): its band's silhouettes are clipped to its span; its run-outs' contours come from
+    `runoutSilhouettes` (facet chains, the same fu 386 facing rule — skipped only when the product is > 0, edge-on counts), and
+    `curveEdgeLifts` covers run-out edges too. Run-out lines are the MODEL's chords (P19; fine paths are fu 392(1)).
 
 48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
@@ -957,6 +984,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (`subtractPieces`, `DISJOINT_VOLUME` — a plane test alone missed 18 of 274 empty pairs), and a split waste's diagonals are peeled
     LAST (`splitPieces`: a diagonal's extension otherwise cuts wood the waste never reaches). Both give the
     same wood (volume and containment, pinned). A chord face carries `curve: <id>`. A body no curve touches is unchanged.
+    A STOPPED profile's waste is its band between the stops plus, beyond each stop, `runoutPieces` (`runout.ts`, THE run-out
+    geometry: the section revolved about the bit's axis `BEARING` 1/4" outside the edge, in INSCRIBED sectors so the run-out meets
+    the band at the station with no step), subtracted as convex pieces; faces carry `runout: 'lo'|'hi'` and `profileEdge`.
 
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
     `isSheetGood`, `grainFamily`, `hasGrain` and shop validation read it off the id with no catalog; a stored `kind` that
@@ -992,7 +1022,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     a face's edge inserted (the candidate's own object, never a projection), faces fanned from their CENTROID (a vertex-0
     fan's zero-area triangles are dropped and reopen the crack); a split curve's T-junctions otherwise show as pinholes in
     the shadow and on the cap. `curvesWatertight.test.ts` pins it (exact Float32 keys, every directed edge matched, the
-    holes' mesh included). **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
+    holes' mesh included) — stopped profiles' run-outs too (bead, thumbnail each facing, a bore beside a run-out), shaded smooth by
+    `runoutNormals`, memoised on `partGeometry`'s FROZEN bodies (rebuilt per `bodyMesh` call, it failed the perf guard in a full run;
+    `runoutMemo.test.ts` pins mesh and edge hashes), with a stopped ogee in `curvesPerf`. **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
     into strips, so a mouth straddles them): every plane a CLEAN hole opens into is the union of its faces (`unionLoops`,
     chained), triangulated with the rings as holes — the wall's own ring vertices — and each triangle conformed; a plane a
     faulted hole reaches, or whose rings overlap, keeps the per-face `faceTriangles` path (residue, drawn approximately). **Rebuild performance —
@@ -1067,7 +1099,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     reader (bodies, edges, drawings, silhouettes, snap points, stockProbe, diagrams, bench lines, keys, hole faults, the cut list,
     the mesh and UV signature) reads the part through `geometryBoard`, which presents each profile as the exact `CurveCut` chunk 1
     stored (`profileAsCurve`), so a profiles-only part is byte for byte chunk 1 (`profilesView.test.ts`). A NEW reader takes the view
-    too. `profileFields` survives to recognise and migrate a profile curve on load.
+    too. `profileFields` survives to recognise and migrate a profile curve on load. **A stopped profile is a SPANNED view curve**
+    (P18: `span` view-only, read through `spanOf`; no span, chunk 1's bytes). Stations are stored per end from a named end of the run
+    dimension, in `canonicalRun` order (P11), converted only by `endPos`; `profileFaults` (stop-off, overlap) is the ONE profile
+    fault decider — authoring refuses an ADDED one (a crossed Start/Stop too), a fault a resize causes is KEPT and noted (`… at this
+    size.`; an overlap's note never says so). A stopped profile never joins the four-edge collapse. A hole is judged against the
+    band extended by `runoutReach` (P14).
     **On paper:** `DRAWING_CURVE_TOLERANCE` 0.001" and `DRAWING_CURVE_SEGMENTS_MAX` 96 (`curveDrawing.ts`;
     inv 47 for edges and silhouettes). **Part diagrams:** the waste is hatched in the through-face view (clipped to the part); a
     curve opens its through face's MIN view only when neither side exists, decided after holes' entry views; a sharp-vertex
@@ -1080,7 +1117,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4963 tests across 166 files
+npm test           # Vitest, currently 5279 tests across 168 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1089,16 +1126,16 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–391). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–392). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 edge banding / hardware BOM, 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 chunk 2 (stopped profiles, schema 18), 390 (a profile following a curved edge).
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses), 390 (a profile following a curved edge: profile runs chunk b).
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
-  rulings, and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
+  rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).

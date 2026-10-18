@@ -7,7 +7,7 @@ import { buildDepthField, type FaceCell } from './depthField';
 import { formatLengthBare, type Units } from '../units/length';
 import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
 import { angleLine } from './angleText';
-import { curveOutline, twiceArea, uvDims } from './curves';
+import { curveOutline, spanOf, twiceArea, uvDims } from './curves';
 import { curveLineEntries } from './curveText';
 import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
 import { geometryBoard } from './profiles';
@@ -63,8 +63,20 @@ export interface DiagramHoleSide {
 
 /** A curve's waste outline seen down its `through`, clipped to the face, board inches. */
 export interface DiagramCurve { id: string; poly: [number, number][] }
-/** A line across the part at a curve's sharp outline vertex on this face (`along` the axis it runs, `at` on the other). */
-export interface DiagramCurveLine { id: string; along: 'h' | 'v'; at: number }
+/** A line across the part at a curve's sharp outline vertex on this face (`along` the axis it runs, `at` on the other).
+ *  A stopped profile's line runs over [lo, hi] along `along` only (its full-profile stretch, P16); absent, end to end. */
+export interface DiagramCurveLine { id: string; along: 'h' | 'v'; at: number; lo?: number; hi?: number }
+
+/** Whether a curve reaches its `through` dimension's `from` end face: always, unless a stopped profile stops short of it
+ *  (profile runs a2, P16). Only a view of an end the curve reaches shows its waste. */
+function reachesEnd(c: CurveCut, from: CutFrom): boolean {
+  const span = spanOf(c);
+  return !span || !(from === 'min' ? span.stopLo : span.stopHi);
+}
+/** A stopped profile that reaches neither end face: it is drawn (and noted) in the view of its SIDE face instead. */
+function sideOnly(c: CurveCut): CutFrom | null {
+  return reachesEnd(c, 'min') || reachesEnd(c, 'max') ? null : c.uFrom;
+}
 
 export interface DiagramView {
   /** Holes seen down their axis in this view (circles). */
@@ -288,7 +300,14 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
   for (const r of board.holes) ensure(r.face, r.from);
   // Curves (curves spec §5.2, ruling Q5): a curve opens its through face's min side when neither side exists — after
   // every hole has opened its entry view, so a hole's view takes the curve instead of a second view appearing.
-  for (const c of board.curves) if (!views.has(`${c.through}|min`) && !views.has(`${c.through}|max`)) ensure(c.through, 'min');
+  // A stopped profile (P16) counts only the end views it runs out through — the min one opened when neither exists — and,
+  // reaching neither, opens its side face's view instead.
+  for (const c of board.curves) {
+    const side = sideOnly(c);
+    if (side) { ensure(uvDims(c.through)[0], side); continue; }
+    const ends = (['min', 'max'] as const).filter((from) => reachesEnd(c, from));
+    if (!ends.some((from) => views.has(`${c.through}|${from}`))) ensure(c.through, ends[0]!);
+  }
   for (const r of board.holes) for (const h of holeInstances(board, r)) {
     const entry = views.get(`${r.face}|${r.from}`);
     const exit = h.through ? views.get(`${r.face}|${r.from === 'min' ? 'max' : 'min'}`) : undefined;
@@ -327,6 +346,7 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
     const drawn = new Set<string>();
     for (const c of board.curves) {
       if (view.face === c.through) {
+        if (!reachesEnd(c, view.from)) continue;   // a stopped end: the end face is whole (P16)
         const poly = wasteOnFace(board, c, view.h, view.v);
         if (poly) view.curves.push({ id: c.id, poly });
         drawn.add(c.id); // a curve run wholly off its face still lists its (faulted) bench line
@@ -334,6 +354,8 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
       }
       const [cu, cv] = uvDims(c.through);
       const F = view.face;
+      if (F === cu && view.from === sideOnly(c)) drawn.add(c.id);   // noted on its side face (P16)
+      const span = spanOf(c);
       if (F !== cu && F !== cv) continue;
       const G = F === cu ? cv : cu;
       const { pts, smooth } = curveOutline(board, c);
@@ -343,7 +365,7 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
         const qG = G === cu ? q[0] : q[1];
         const onFace = view.from === 'min' ? Math.abs(qF) <= 1e-9 : Math.abs(qF - board[F]) <= 1e-9;
         if (!onFace || qG <= 1e-9 || qG >= board[G] - 1e-9) return;
-        view.curveLines.push({ id: c.id, along: view.horizontal === c.through ? 'h' : 'v', at: qG });
+        view.curveLines.push({ id: c.id, along: view.horizontal === c.through ? 'h' : 'v', at: qG, ...(span ? { lo: span.lo, hi: span.hi } : {}) });
         drawn.add(c.id);
       });
     }

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import {
@@ -7,6 +7,7 @@ import {
 } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
+import { canonicalRun, endPos } from '../document/profiles';
 import { holeRefusal, pastHalfCircle, refusalFor } from './curveRefusal';
 
 const top = (over: Partial<Board> = {}) => createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75, ...over });
@@ -30,6 +31,7 @@ const bore = (inset: number): HoleRow => ({
   id: 'h1', face: 'thickness', from: 'max', diameter: 0.0625, depth: 0.0625, along: 'length', alongFrom: 'min', station: 18,
   count: 1, pitch: 0, acrossFrom: 'max', inset,
 });
+const selected = (label: string) => (screen.getByLabelText(label) as HTMLSelectElement).selectedOptions[0]!.textContent;
 const ITEMS = ['Roundover', 'Cove', 'Roman ogee', 'Bead', 'Thumbnail'];
 
 describe('the Profiles section (edge profiles spec §3)', () => {
@@ -93,25 +95,34 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     expect(screen.queryByLabelText('Facing')).toBeNull();
   });
 
-  it('Edge moves the profile, keeping its size', async () => {
+  it('Side moves the profile, keeping its size (the Edge select, ported)', async () => {
     const user = userEvent.setup();
     open(top());
     await add(user, 'Cove');
-    await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · thickness max side');
+    await user.selectOptions(screen.getByLabelText('Side'), 'Length min end');
     expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'cove', through: 'width', uFrom: 'min', vFrom: 'max', size: 0.375 });
   });
 
-  it('an Edge change that would run off is refused in the sizer\'s words, nothing stored', async () => {
+  it('Face moves the profile to the bottom, keeping its size and side', async () => {
+    const user = userEvent.setup();
+    open(top());
+    await add(user, 'Cove');
+    await user.selectOptions(screen.getByLabelText('Face'), 'Bottom');
+    expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'cove', through: 'length', uFrom: 'max', vFrom: 'min', size: 0.375 });
+    expect(profiles()[0]!.face).toBe('min');
+  });
+
+  it('a Side change that would run off is refused in the sizer\'s words, nothing stored (the Edge select, ported)', async () => {
     const user = userEvent.setup();
     // A 3/4" radius fits the top long edge's 20" × 4" section, but not the end edge's 1/2" × 4" one.
     open(top({ length: 0.5, width: 20, thickness: 4 }));
     await add(user, 'Roundover');
     await typeInto(user, 'Radius', '3/4');
     const stored = profiles()[0]!;
-    await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · thickness max side');
+    await user.selectOptions(screen.getByLabelText('Side'), 'Length min end');
     expect(profiles()[0]).toEqual(stored);
     expect(screen.getByRole('alert')).toHaveTextContent("A radius can't run past");
-    expect((screen.getByLabelText('Edge') as HTMLSelectElement).value).toBe(String(PROFILE_EDGES.findIndex((e) => e.through === 'length' && e.uFrom === 'max' && e.vFrom === 'max')));
+    expect(selected('Side')).toBe('Width max side');
   });
 
   it('Profile change keeps the edge and takes the new kind\'s defaults', async () => {
@@ -241,29 +252,35 @@ describe('the Profiles section (edge profiles spec §3)', () => {
     for (const item of ITEMS) expect(screen.getByRole('button', { name: item })).toBeInTheDocument();
   });
 
-  it('a preset whose default puts a hole into its waste is withheld', async () => {
+  // Final fix F2 (spec I1): a preset whose default puts a hole into its waste on the top long edge is not withheld any more —
+  // it takes the next edge where it fits.
+  it('a preset whose default puts a hole into its waste skips that edge', async () => {
     const user = userEvent.setup();
     // The bore sits clear of the roundover's waste and inside every other default's (the bore is clean on the stored part).
     const b = top({ holes: [bore(0.3)] });
     expect(holeFaults(b, b.holes[0]!)).toEqual([]);
     open(b);
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
-    expect(screen.getByRole('button', { name: 'Roundover' })).toBeInTheDocument();
-    for (const item of ['Cove', 'Roman ogee', 'Bead', 'Thumbnail']) expect(screen.queryByRole('button', { name: item })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Roundover' })).toHaveTextContent(/, Top · Width max side$/);
+    for (const item of ['Cove', 'Roman ogee', 'Bead', 'Thumbnail']) {
+      expect(screen.getByRole('button', { name: item })).toHaveTextContent(/, Top · Width min side$/);
+    }
+    await user.click(screen.getByRole('button', { name: 'Cove' }));
+    expect(profileToFields(profiles()[0]!)).toMatchObject({ kind: 'cove', through: 'length', uFrom: 'min', vFrom: 'max' });
   });
 
   it('menu details read the project units (Review Focus 5)', async () => {
     const user = userEvent.setup();
     open(top());
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
-    expect(screen.getByText('1/4" radius, on the top long edge')).toBeInTheDocument();
-    expect(screen.getByText('1/4" radius, 1/16" quirk, on the top long edge')).toBeInTheDocument();
-    expect(screen.getByText('3/8", on the top long edge')).toBeInTheDocument();
-    expect(screen.getByText('3/4" × 1/4", on the top long edge')).toBeInTheDocument();
+    expect(screen.getByText('1/4" radius, Top · Width max side')).toBeInTheDocument();
+    expect(screen.getByText('1/4" radius, 1/16" quirk, Top · Width max side')).toBeInTheDocument();
+    expect(screen.getByText('3/8", Top · Width max side')).toBeInTheDocument();
+    expect(screen.getByText('3/4" × 1/4", Top · Width max side')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
     await user.click(screen.getByRole('button', { name: '+ Add profile' }));
-    expect(screen.getByText('6 mm radius, on the top long edge')).toBeInTheDocument();
+    expect(screen.getByText('6 mm radius, Top · Width max side')).toBeInTheDocument();
   });
 
   it('the bench line reads mm in a metric project', async () => {
@@ -302,5 +319,419 @@ describe('refusalFor with no control (a select change)', () => {
     const thumb = profileCurve({ ...at, facing: 'u', kind: 'thumbnail', size: 2, depth: 0.25 });
     expect(refusalFor(view, curve, ogee, null)).toMatch(/^Runs past .* — reduce the Size first\.$/);
     expect(refusalFor(view, curve, thumb, null)).toMatch(/^Runs past .* — reduce the Reach first\.$/);
+  });
+});
+
+// Profile runs a2, Task 8: Face, Side, Run, Start and Stop.
+describe('the stopped Profiles row (profile runs a2)', () => {
+  const shelf = (over: Partial<Board> = {}) => createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75, ...over });
+  const dims = shelf();
+  /** A stopped Roundover on the top, width max side, from `a` to `b` along the length (stations from the min end). */
+  const stoppedP = (id: string, a: number, b: number, over: Record<string, unknown> = {}) => {
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    return { id, ...base, run: canonicalRun(dims, base.face, { start: at(a), end: at(b) }), ...over } as ReturnType<typeof profiles>[number];
+  };
+  const stationsOf = (i = 0) => {
+    const r = profiles()[i]!.run as { start: Parameters<typeof endPos>[1]; end: Parameters<typeof endPos>[1] };
+    return { start: endPos(dims, r.start), end: endPos(dims, r.end) };
+  };
+  const START = 'Start (from the length min end)';
+  const STOP = 'Stop (from the length min end)';
+  const stopSel = (user: ReturnType<typeof userEvent.setup>) => user.selectOptions(screen.getByLabelText('Run'), 'Stopped');
+
+  it('Run -> Stopped seeds 3 to L - 3 on a 30" shelf; the bench line reads from 3" to 27" (stopped)', async () => {
+    const user = userEvent.setup();
+    open(shelf());
+    await add(user, 'Roundover');
+    expect(screen.queryByLabelText(START)).toBeNull();                       // 9: an End to end row has no Start or Stop
+    expect(screen.queryByLabelText(STOP)).toBeNull();
+    await stopSel(user);
+    const s = stationsOf();
+    expect([Math.min(s.start, s.end), Math.max(s.start, s.end)]).toEqual([3, 27]);
+    expect(screen.getByText(/from 3" to 27" \(stopped\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText(START)).toHaveValue('3"');
+    expect(screen.getByLabelText(STOP)).toHaveValue('27"');
+    expect(profiles()[0]!.run).toEqual(canonicalRun(dims, 'max', profiles()[0]!.run as never));
+  });
+
+  it('a run shorter than 12" seeds a quarter of it', async () => {
+    const user = userEvent.setup();
+    open(shelf({ length: 8 }));
+    await add(user, 'Roundover');
+    await stopSel(user);
+    const s = stationsOf();
+    expect([Math.min(s.start, s.end), Math.max(s.start, s.end)]).toEqual([2, 6]);
+  });
+
+  it('Start 5 writes at: 5 from the min end, in canonical order', async () => {
+    const user = userEvent.setup();
+    open(shelf({ profiles: [stoppedP('p1', 3, 27)] }));
+    await typeInto(user, START, '5');
+    const r = profiles()[0]!.run as { start: { from: string; at: number }; end: { from: string; at: number } };
+    // The width max side runs the other way (travelSign -1): start is the HIGH station.
+    expect(stationsOf()).toEqual({ start: 27, end: 5 });
+    expect(r.end).toMatchObject({ from: 'min', at: 5 });
+    expect(profiles()[0]!.run).toEqual(canonicalRun(dims, 'max', profiles()[0]!.run as never));
+    expect(screen.getByText(/from 5" to 27" \(stopped\)/)).toBeInTheDocument();
+  });
+
+  it('Stop 31 is refused with the stop-off words, nothing stored', async () => {
+    const user = userEvent.setup();
+    const p = stoppedP('p1', 3, 27);
+    open(shelf({ profiles: [p] }));
+    await typeInto(user, STOP, '31');
+    expect(profiles()[0]).toEqual(p);
+    expect(screen.getByText('A stop runs off the part — move it first.')).toBeInTheDocument();
+  });
+
+  it('a second stopped profile overlapping the first is refused with the overlap words', async () => {
+    const user = userEvent.setup();
+    const a = stoppedP('pa', 3, 15);
+    const b = stoppedP('pb', 20, 27);
+    open(shelf({ profiles: [a, b] }));
+    const row = screen.getAllByLabelText(START)[1]!;
+    await user.clear(row); await user.type(row, '10{Enter}');
+    expect(profiles()[1]).toEqual(b);
+    expect(screen.getByText('Overlaps another profile on this edge — move it first.')).toBeInTheDocument();
+    // Touching is not overlap.
+    await user.clear(row); await user.type(row, '15{Enter}');
+    expect(stationsOf(1)).toEqual({ start: 27, end: 15 });
+  });
+
+  it('shrinking the part to 20" notes the 27" stop, and Stop 15 edits it back', async () => {
+    const user = userEvent.setup();
+    open(shelf({ profiles: [stoppedP('p1', 3, 27)] }));
+    act(() => useStore.getState().updateBoard('top', { length: 20 }));
+    expect(screen.getByRole('status')).toHaveTextContent('A stop runs off the part at this size.');
+    expect(screen.getByText(/— check: a stop runs off the part/)).toBeInTheDocument();    // the bench line, from the view's curve
+    expect(profiles()[0]).toEqual(stoppedP('p1', 3, 27));                                  // kept, not clamped
+    await typeInto(user, STOP, '15');
+    const dims20 = shelf({ length: 20 });
+    const r = profiles()[0]!.run as Parameters<typeof canonicalRun>[2];
+    expect([endPos(dims20, r.start), endPos(dims20, r.end)].sort((x, y) => x - y)).toEqual([3, 15]);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('a Side change keeps the stations', async () => {
+    const user = userEvent.setup();
+    open(shelf({ profiles: [stoppedP('p1', 3, 27)] }));
+    await user.selectOptions(screen.getByLabelText('Side'), 'Width min side');
+    const r = profiles()[0]!.run as { start: { side: { across: string; from: string } } };
+    expect(r.start.side).toEqual({ across: 'width', from: 'min' });
+    expect(stationsOf()).toEqual({ start: 3, end: 27 });                                   // travelSign +1 now
+  });
+
+  it('a Face change keeps the stations too', async () => {
+    const user = userEvent.setup();
+    open(shelf({ profiles: [stoppedP('p1', 3, 27)] }));
+    await user.selectOptions(screen.getByLabelText('Face'), 'Bottom');
+    expect(profiles()[0]!.face).toBe('min');
+    expect(stationsOf()).toEqual({ start: 3, end: 27 });
+  });
+
+  it('Run -> End to end drops the stations', async () => {
+    const user = userEvent.setup();
+    open(shelf({ profiles: [stoppedP('p1', 3, 27)] }));
+    await user.selectOptions(screen.getByLabelText('Run'), 'End to end');
+    expect(profiles()[0]!.run).toMatchObject({ start: { through: 'min' }, end: { through: 'max' } });
+    expect(screen.queryByLabelText(START)).toBeNull();
+  });
+
+  it('each refused option is greyed with its reason, on focus only (fu 388)', async () => {
+    const other = stoppedP('pb', 3, 15);                                                  // B, on the same edge
+    const a = stoppedP('pa', 20, 27);
+    const under = { ...stoppedP('pc', 3, 27), id: 'pc', face: 'min' as const };           // C, the same side on the bottom
+    open(shelf({ profiles: [other, a, under] }));
+    const row = 1;                                                                        // A's row (20..27)
+    const sel = (l: string) => screen.getAllByLabelText(l)[row] as HTMLSelectElement;
+    expect(within(sel('Run')).getByRole('option', { name: 'End to end' })).toBeEnabled();  // not judged yet
+    act(() => sel('Run').focus());
+    expect(within(sel('Run')).getByRole('option', { name: 'End to end — overlaps another profile on this edge' })).toBeDisabled();
+    act(() => sel('Run').blur());
+    expect(within(sel('Run')).getByRole('option', { name: 'End to end' })).toBeEnabled();
+    act(() => sel('Face').focus());
+    expect(within(sel('Face')).getByRole('option', { name: 'Bottom — overlaps another profile on this edge' })).toBeDisabled();
+    expect(within(sel('Face')).getByRole('option', { name: 'Top' })).toBeEnabled();
+    act(() => sel('Side').focus());
+    // The end sides run along the 10" width: a 27" stop runs off.
+    expect(within(sel('Side')).getByRole('option', { name: 'Length min end — a stop runs off the part' })).toBeDisabled();
+    expect(within(sel('Side')).getByRole('option', { name: 'Width min side' })).toBeEnabled();
+  });
+});
+
+// Final fix F3: a crossed station is refused in the row's own words (as Depth and Reach are), never silently swapped.
+describe('crossed stations (final fix F3)', () => {
+  const START = 'Start (from the length min end)';
+  const STOP = 'Stop (from the length min end)';
+  const shelf = () => createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+  const stopped3to27 = () => {
+    const b = shelf();
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    return { ...b, profiles: [{ id: 'p1', ...base, run: canonicalRun(b, 'max', { start: at(3), end: at(27) }) }] };
+  };
+  it('a Start past the Stop is refused, nothing stored', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open(b);
+    const el = await typeInto(user, START, '28');
+    expect(profiles()[0]).toEqual(b.profiles[0]);
+    expect(screen.getByText('Start must be before the Stop')).toBeInTheDocument();
+    expect(el).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText(STOP)).toHaveValue('27"');
+  });
+  it('a Stop before the Start is refused, nothing stored; a Start AT the Stop too', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open(b);
+    await typeInto(user, STOP, '2');
+    expect(profiles()[0]).toEqual(b.profiles[0]);
+    expect(screen.getByText('Stop must be after the Start')).toBeInTheDocument();
+    await typeInto(user, START, '27');
+    expect(profiles()[0]).toEqual(b.profiles[0]);
+    expect(screen.getByText('Start must be before the Stop')).toBeInTheDocument();
+  });
+});
+
+// Final fix F4 (spec I2, Amended (implementation, a2)): a station typed AT an end of the part makes that end a through end.
+describe('a station at an end of the part runs out through it (final fix F4)', () => {
+  const START = 'Start (from the length min end)';
+  const STOP = 'Stop (from the length min end)';
+  const dims = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+  const stopped3to27 = () => {
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    return { ...dims, profiles: [{ id: 'p1', ...base, run: canonicalRun(dims, 'max', { start: at(3), end: at(27) }) }] };
+  };
+  type End = { side: object; through?: 'min' | 'max'; from?: string; at?: number };
+  const ends = () => { const r = profiles()[0]!.run as { start: End; end: End }; return [r.start, r.end]; };
+  it('Start 0 makes the min end a through end; the fields read 0 and 27; Start 5 makes it a station again', async () => {
+    const user = userEvent.setup();
+    open(stopped3to27());
+    await typeInto(user, START, '0');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['min']);
+    expect(profiles()[0]!.run).toEqual(canonicalRun(dims, 'max', profiles()[0]!.run as never));
+    expect(screen.getByText(/from the length min end to 27" \(stopped\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText(START)).toHaveValue('0"');
+    expect(screen.getByLabelText(STOP)).toHaveValue('27"');
+    expect(screen.queryByRole('status')).toBeNull();                                         // no stop-off
+    await typeInto(user, START, '5');
+    expect(ends().every((e) => e.through === undefined)).toBe(true);
+    expect(screen.getByText(/from 5" to 27" \(stopped\)/)).toBeInTheDocument();
+  });
+  it('Stop at the full length makes the max end a through end; the field reads 30"', async () => {
+    const user = userEvent.setup();
+    open(stopped3to27());
+    await typeInto(user, STOP, '30');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['max']);
+    expect(screen.getByText(/from 3" to the length max end \(stopped\)/)).toBeInTheDocument();
+    expect(screen.getByLabelText(STOP)).toHaveValue('30"');
+    await typeInto(user, STOP, '20');
+    expect(ends().every((e) => e.through === undefined)).toBe(true);
+    expect(screen.getByText(/from 3" to 20" \(stopped\)/)).toBeInTheDocument();
+  });
+  it('both ends at the part\'s ends is End to end (the Run select says so)', async () => {
+    const user = userEvent.setup();
+    open(stopped3to27());
+    await typeInto(user, START, '0');
+    await typeInto(user, STOP, '30');
+    expect(profiles()[0]!.run).toMatchObject({ start: { through: 'min' }, end: { through: 'max' } });
+    expect(selected('Run')).toBe('End to end');
+    expect(screen.queryByLabelText(START)).toBeNull();
+  });
+  // F4 fix 1: a metric field shows whole mm, so "the full length" is what the field SHOWS for it (the reads-the-same rule,
+  // fu 354): a 36" part's Stop shows 914 mm, and 914 mm (35.984") is its max end, not a station 0.4 mm short of it.
+  it('a 36" part in a metric project: typing the 914 mm the field shows is the max end', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open({ ...b, length: 36 });
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await typeInto(user, STOP, '914');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['max']);
+    expect(screen.getByLabelText(STOP)).toHaveValue('914 mm');
+    // With the Stop at the end, the same 914 typed into Start is AT the Stop: refused (F3), never two through-max ends.
+    const stored = profiles()[0];
+    await typeInto(user, START, '914');
+    expect(profiles()[0]).toEqual(stored);
+    expect(screen.getByText('Start must be before the Stop')).toBeInTheDocument();
+  });
+  it('a metric part\'s full length typed in mm is the end too', async () => {
+    const user = userEvent.setup();
+    const b = stopped3to27();
+    open({ ...b, length: 763 / 25.4 });                                                       // a 763 mm part, as typed
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await typeInto(user, STOP, '763');
+    expect(ends().filter((e) => e.through !== undefined).map((e) => e.through)).toEqual(['max']);
+  });
+});
+
+// Final fix F5: " at this size." only for a fault a resize can cause (a stop off the part, a curve fault), never an overlap.
+describe('the row note (final fix F5)', () => {
+  it('stacked identical profiles (an a1 file; P12 faults them on load) read "Overlaps another profile on this edge."', () => {
+    const b = top();
+    const p = profileOf(defaultProfile(b, 'roundover'))!;
+    open({ ...b, profiles: [{ id: 'p1', ...p }, { id: 'p2', ...p }] });
+    const notes = screen.getAllByRole('status');
+    expect(notes).toHaveLength(2);
+    for (const n of notes) expect(n).toHaveTextContent(/^Overlaps another profile on this edge\.$/);
+  });
+  it('a curve fault and a stop off the part keep " at this size."', () => {
+    const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    open({ ...b, length: 20, profiles: [{ id: 'p1', ...base, run: canonicalRun(b, 'max', { start: at(3), end: at(27) }) }] });
+    expect(screen.getByRole('status')).toHaveTextContent(/^A stop runs off the part at this size\.$/);
+    document.body.innerHTML = '';
+    open(top({ thickness: 0.125, profiles: [{ id: 'c1', ...profileOf(defaultProfile(top(), 'roundover'))! }] }));
+    expect(screen.getByRole('status')).toHaveTextContent(/^Runs past .* at this size\.$/);
+  });
+});
+
+describe('refusalFor reads the post-edit stored part (profile runs a2)', () => {
+  const dims = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+  it('a stopped edit is judged on `after`: a plain next curve alone would be a full-length cut over the hole', () => {
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    const mk = (a: number, b: number) => ({ id: 'p1', ...base, run: canonicalRun(dims, 'max', { start: at(a), end: at(b) }) });
+    // Station 28, in the roundover's waste: clear of a run stopped at 27 (its run-out is shorter than 1"), inside a full cut.
+    const stored = { ...dims, holes: [{ ...bore(0.1), station: 28 }], profiles: [mk(3, 27)] };
+    expect(holeFaults(stored, stored.holes[0]!)).toEqual([]);
+    const view = geometryBoard(stored);
+    const curve = view.curves.find((c) => c.id === 'p1')!;
+    const after = { ...stored, profiles: [mk(5, 27)] };
+    const plain = profileCurve(profileToFields(mk(5, 27)));
+    expect(refusalFor(view, curve, plain, null)).toBe('Puts hole 1 into the roundover — move it first.');   // the default post-edit board cannot say
+    expect(refusalFor(view, curve, plain, null, after)).toBeNull();
+  });
+
+  it('the row accepts that edit (Start 5), and refuses Stop 28.5 (the run-out reaches the hole)', async () => {
+    const user = userEvent.setup();
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const at = (x: number) => ({ side: { ...side }, from: 'min' as const, at: x });
+    const p = { id: 'p1', ...base, run: canonicalRun(dims, 'max', { start: at(3), end: at(27) }) };
+    open({ ...dims, holes: [{ ...bore(0.1), station: 28 }], profiles: [p] });
+    await typeInto(user, 'Start (from the length min end)', '5');
+    expect(profiles()[0]).not.toEqual(p);
+    const stored = profiles()[0]!;
+    await typeInto(user, 'Stop (from the length min end)', '28.5');
+    expect(profiles()[0]).toEqual(stored);
+    expect(screen.getByText('Puts hole 1 into the roundover — move it first.')).toBeInTheDocument();
+  });
+});
+
+describe('Task 8 fix round 1', () => {
+  // Final fix F2 (spec I1) reverses this fix's withhold: a preset that would overlap the profile on the top width-max edge
+  // takes the next edge (the top width-min side) instead of leaving no preset at all.
+  it('a preset that would overlap an existing profile on the top width-max edge takes the next edge', async () => {
+    const user = userEvent.setup();
+    const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+    open({ ...b, profiles: [{ id: 'p1', ...profileOf(defaultProfile(b, 'roundover'))! }] });
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    for (const item of ITEMS) expect(screen.getByRole('button', { name: item })).toHaveTextContent(/, Top · Width min side$/);
+    expect(screen.queryByText('No profile preset fits this part.')).toBeNull();
+  });
+
+  it('editing the Stop of a mixed run (through min -> station) keeps the through end', async () => {
+    const user = userEvent.setup();
+    const b = createBoard({ id: 'top', name: 'Top', length: 30, width: 10, thickness: 0.75 });
+    const base = profileFromFields({ through: 'length', uFrom: 'max', vFrom: 'max', kind: 'roundover', facing: 'v', size: 0.25, fillet: 0 });
+    const side = (base.run as { start: { side: { across: 'width' | 'length'; from: 'min' | 'max' } } }).start.side;
+    const run = canonicalRun(b, 'max', { start: { side: { ...side }, through: 'min' }, end: { side: { ...side }, from: 'min', at: 20 } });
+    const raw = JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [{ ...b, profiles: [{ id: 'p1', ...base, run }] }] }));
+    useStore.getState().replaceDocument(migrateDocument(raw));
+    useStore.getState().selectBoard('top');
+    render(<Properties />);
+    await typeInto(user, 'Stop (from the length min end)', '18');
+    const r = profiles()[0]!.run as { start: object; end: object };
+    expect([r.start, r.end].filter((e) => 'through' in e)).toHaveLength(1);
+    expect(screen.getByText(/from the length min end to 18" \(stopped\)/)).toBeInTheDocument();
+  });
+});
+
+// Final fix F2 (spec I1, Amended (implementation, a2)): a preset takes the FIRST edge where its default fits — the top long
+// edge first, as before; then the other top sides; then the bottom — and its menu detail names that edge.
+describe('presets take the first edge that fits (final fix F2)', () => {
+  const edgeOf = (i: number) => { const f = profileToFields(profiles()[i]!)!; return `${f.vFrom}:${f.through}:${f.uFrom}`; };
+  /** The order: the top (vFrom max) first; within a face the default's through, then its uFrom, first. */
+  const ORDER = [
+    'max:length:max', 'max:length:min', 'max:width:max', 'max:width:min',
+    'min:length:max', 'min:length:min', 'min:width:max', 'min:width:min',
+  ];
+  const roundoverOn = (b: Board, e: string, id: string) => {
+    const [vFrom, through, uFrom] = e.split(':') as ['min' | 'max', 'length' | 'width', 'min' | 'max'];
+    return { id, ...profileOf(defaultProfile(b, 'roundover', { through, uFrom, vFrom }))! };
+  };
+
+  it('eight Roundover clicks land on the eight edges in order, top first; then nothing fits', async () => {
+    const user = userEvent.setup();
+    open(top());
+    const details: string[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+      details.push(within(screen.getByRole('button', { name: 'Roundover' })).getByText(/radius/).textContent!);
+      await user.click(screen.getByRole('button', { name: 'Roundover' }));
+    }
+    expect(profiles().map((_, i) => edgeOf(i))).toEqual(ORDER);
+    // Four different edges from four clicks, each named in the row's own Face and Side words.
+    expect(details.slice(0, 4)).toEqual([
+      '1/4" radius, Top · Width max side', '1/4" radius, Top · Width min side',
+      '1/4" radius, Top · Length max end', '1/4" radius, Top · Length min end',
+    ]);
+    expect(details[4]).toBe('1/4" radius, Bottom · Width max side');
+    expect(screen.queryByRole('button', { name: '+ Add profile' })).toBeNull();
+    expect(screen.getByText('No profile preset fits this part.')).toBeInTheDocument();
+  });
+
+  it('all eight edges taken: no preset fits', () => {
+    const b = top();
+    open({ ...b, profiles: ORDER.map((e, i) => roundoverOn(b, e, `p${i}`)) });
+    expect(screen.queryByRole('button', { name: '+ Add profile' })).toBeNull();
+    expect(screen.getByText('No profile preset fits this part.')).toBeInTheDocument();
+  });
+
+  it('a hole in the next edge\'s waste skips to the edge after', async () => {
+    const user = userEvent.setup();
+    const b = top();
+    // A bore 0.1" in from the width MIN side: inside the roundover's waste there, clear of the width max side's.
+    const hole: HoleRow = { ...bore(0.1), acrossFrom: 'min' };
+    const stored = { ...b, holes: [hole], profiles: [roundoverOn(b, ORDER[0]!, 'p0')] };
+    expect(holeFaults(stored, hole)).toEqual([]);
+    open(stored);
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    expect(screen.getByText('1/4" radius, Top · Length max end')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Roundover' }));
+    expect(edgeOf(1)).toBe('max:width:max');
+  });
+
+  it('a part with no profiles gets a1\'s menu and stored profile, byte for byte', async () => {
+    const user = userEvent.setup();
+    for (const [n, kind] of PROFILE_KINDS.entries()) {
+      const b = top();
+      open(b);
+      await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+      const menu = screen.getAllByRole('button').filter((x) => ITEMS.some((label) => x.textContent!.startsWith(label)));
+      expect(menu.map((x) => ITEMS.find((label) => x.textContent!.startsWith(label)))).toEqual(ITEMS);
+      await user.click(screen.getByRole('button', { name: ITEMS[n]! }));
+      const p = profiles()[0]!;
+      expect(p).toEqual({ id: p.id, ...profileOf(defaultProfile(b, kind))! });
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('the detail names the edge on a part wider than long (a1\'s "top long edge" read the short edge there)', async () => {
+    const user = userEvent.setup();
+    open(top({ length: 10, width: 30 }));
+    await user.click(screen.getByRole('button', { name: '+ Add profile' }));
+    expect(screen.getByText('1/4" radius, Top · Width max side')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Roundover' }));
+    // The default edge runs along the LENGTH — here the 10" dimension, the short edge.
+    expect(edgeOf(0)).toBe('max:length:max');
   });
 });

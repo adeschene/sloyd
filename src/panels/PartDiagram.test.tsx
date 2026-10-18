@@ -4,6 +4,8 @@ import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
 import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
 import { archCurve, defaultCorners } from '../document/curves';
+import { canonicalRun } from '../document/profiles';
+import type { ProfileCut } from '../document/types';
 import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramLabels';
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -1044,6 +1046,35 @@ describe('PartDiagram curves (curves spec §5.2)', () => {
     expect(Number(lines[0]!.getAttribute('x1'))).toBeCloseTo(x0 + (3 / 30) * w, 6);
     expect(Number(lines[0]!.getAttribute('x2'))).toBeCloseTo(Number(lines[0]!.getAttribute('x1')), 9);
     expect(Math.abs(Number(lines[0]!.getAttribute('y2')) - Number(lines[0]!.getAttribute('y1')))).toBeCloseTo(Number(outline.getAttribute('height')), 6);
+  });
+
+  it('a stopped profile\'s line runs over [lo, hi] only (profile runs a2, P16), along h or v, vUp flipped', () => {
+    const side = { across: 'width' as const, from: 'max' as const };
+    const dims = { length: 30, width: 10, thickness: 0.75 };
+    const p: ProfileCut = { id: 'p', face: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'face',
+      run: canonicalRun(dims, 'max', { start: { side, from: 'min', at: 3 }, end: { side: { ...side }, from: 'max', at: 3 } }) };
+    const v = buildDiagrams(createBoard({ ...dims, profiles: [p] }), IMPERIAL).find((x) => x.key === 'width|max')!;
+    expect(v.curveLines).toHaveLength(1);
+    const box = (view: typeof v) => {
+      const { container } = render(<PartDiagram view={view} />);
+      const o = container.querySelector('rect.cutlist-diagram-outline')!;
+      const l = container.querySelector('line.cutlist-diagram-curve-line')!;
+      const n = (e: Element, a: string) => Number(e.getAttribute(a));
+      cleanup();
+      return { x: n(o, 'x'), y: n(o, 'y'), w: n(o, 'width'), h: n(o, 'height'), x1: n(l, 'x1'), x2: n(l, 'x2'), y1: n(l, 'y1'), y2: n(l, 'y2') };
+    };
+    const a = box(v);
+    expect(a.x1).toBeCloseTo(a.x + (3 / 30) * a.w, 6);
+    expect(a.x2).toBeCloseTo(a.x + (27 / 30) * a.w, 6);
+    expect(a.y2).toBeCloseTo(a.y1, 9);
+    // Along v, both ways up: [lo, hi] = [0.25, 0.5] of 0.75.
+    for (const vUp of [false, true]) {
+      const b = box({ ...v, vUp, curveLines: [{ id: 'p', along: 'v', at: 10, lo: 0.25, hi: 0.5 }] });
+      const Y = (t: number) => b.y + ((vUp ? 0.75 - t : t) / 0.75) * b.h;
+      expect(b.y1, `vUp ${vUp}`).toBeCloseTo(Y(0.25), 6);
+      expect(b.y2, `vUp ${vUp}`).toBeCloseTo(Y(0.5), 6);
+      expect(b.x2).toBeCloseTo(b.x1, 9);
+    }
   });
 
   it('a vUp view flips the waste polygon\'s v like every other mark', () => {

@@ -12,7 +12,7 @@ import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
-import { PROFILE_KINDS, profileOf, profileAsymmetric } from './profiles';
+import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
 import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
 import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
@@ -537,14 +537,15 @@ function refuseProfile(why: string): never {
  * Edge profiles (profile runs spec §3.2), in order, ids from the part's curve `seen` set (spec P7). Dropped, never clamped:
  * a non-finite or non-positive size; a thumbnail depth outside (0, size); a negative or non-finite fillet; a bead whose
  * quirk is not > 0; an unknown face or facing; an end whose side is not length/width × min/max, or which is neither a
- * `through` end nor a finite `at` with a `from`; a run that is not an object. A symmetric kind's facing is normalised to
- * 'face'; an End to end run stored max→min to min→max. REFUSED (the document, decided before any drop, spec §3.2/P2): an
- * unknown kind string; a run key other than loop/start/end; a `loop` that is not exactly true (`all round`; `true` too); an
- * end whose side parses and which has a key other than side/through/from/at, or is a station end (from/at, whole or
- * half-valid, even beside an unreadable end: `stopped`); ends on two sides. Chunk a1 builds only End to end. A faulted but
- * well-formed profile is KEPT.
+ * `through` end nor a `from` min/max with a finite `at` >= 0; a run that is not an object; two `through` ends of one value.
+ * A symmetric kind's facing is normalised to 'face'. Stored in `canonicalRun` order (P11): an End to end run min → max, a
+ * station run start before end along travel. REFUSED (the document, decided before any drop, spec §3.2/P2): an unknown
+ * kind string; a run key other than loop/start/end; a `loop` that is not exactly true (`all round`; `true` too); an end
+ * whose side parses and which has a key other than side/through/from/at, or carries `through` together with `from`/`at`
+ * (`stopped`, fu 391(1)), or a `through` that is not min/max; ends on two sides. One-side station runs now load (a2). A
+ * faulted but well-formed profile is KEPT.
  */
-function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
+function validateProfiles(raw: unknown, seen: Set<string>, dims: Pick<Board, Dimension>): ProfileCut[] {
   if (!Array.isArray(raw)) return [];
   const out: ProfileCut[] = [];
   const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -558,7 +559,7 @@ function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
     const side = sideOf(e?.side);
     if (!e || !side) return null;
     if (VALID_FROMS.includes(e.through as CutFrom)) return { side, through: e.through as CutFrom };
-    if (VALID_FROMS.includes(e.from as CutFrom) && finite(e.at)) return { side, from: e.from as CutFrom, at: e.at };
+    if (!('through' in e) && VALID_FROMS.includes(e.from as CutFrom) && finite(e.at) && e.at >= 0) return { side, from: e.from as CutFrom, at: e.at };
     return null;
   };
   for (const item of raw) {
@@ -574,7 +575,8 @@ function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
         const e = end as Record<string, unknown> | null;
         if (typeof e !== 'object' || e === null || !sideOf(e.side)) continue;   // an unreadable end is dropped below
         for (const k of Object.keys(e)) if (k !== 'side' && k !== 'through' && k !== 'from' && k !== 'at') refuseProfile(`run "${k}"`);
-        if (!VALID_FROMS.includes(e.through as CutFrom) && ('from' in e || 'at' in e)) refuseProfile('stopped');
+        if ('through' in e && ('from' in e || 'at' in e)) refuseProfile('stopped');
+        if ('through' in e && !VALID_FROMS.includes(e.through as CutFrom)) refuseProfile('run "through"');
       }
       const s = endOf(r.start);
       const e = endOf(r.end);
@@ -588,15 +590,15 @@ function validateProfiles(raw: unknown, seen: Set<string>): ProfileCut[] {
     if (kind === 'thumbnail' ? p.fillet !== undefined : !(finite(p.fillet) && p.fillet >= 0)) continue;
     if (kind === 'bead' && !((p.fillet as number) > 0)) continue;
     if (typeof r !== 'object' || r === null) continue;
-    const s = endOf(r.start) as { side: ProfileSide; through: CutFrom } | null;
-    const e = endOf(r.end) as { side: ProfileSide; through: CutFrom } | null;
-    if (!s || !e || s.through === e.through) continue;                      // one end out through each end face
-    const side = s.side;
+    const s = endOf(r.start);
+    const e = endOf(r.end);
+    if (!s || !e) continue;
+    if ('through' in s && 'through' in e && s.through === e.through) continue;   // one end out through each end face
     const fields = { kind, size: p.size, ...(kind === 'thumbnail' ? { depth: p.depth as number } : { fillet: p.fillet as number }) };
     const sym = !profileAsymmetric({ through: 'length', uFrom: 'min', vFrom: 'min', facing: 'v', ...fields });
     out.push({
       id: takeId(p.id, seen), face: p.face as CutFrom, ...fields, facing: sym ? 'face' : (p.facing as 'face' | 'edge'),
-      run: { start: { side, through: 'min' }, end: { side: { ...side }, through: 'max' } },
+      run: canonicalRun(dims, p.face as CutFrom, { start: s, end: e }),
     });
   }
   return out;
@@ -683,7 +685,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   // `profiles` (keeping its id), after the stored profiles.
   const ids = new Set<string>();
   const allCurves = validateCurveCuts(b.curves, ids);
-  const storedProfiles = validateProfiles(b.profiles, ids);
+  const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
   return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved] } };

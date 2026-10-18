@@ -6258,6 +6258,9 @@ cove, Roman ogee, bead, thumbnail, an optional fillet — as plain `CurveCut`s r
 (stopped profiles and blind curved recesses, one stored range along `through`, schema 18, its own spec). A scooped seat is
 out of scope (doubly curved). **Stopped profiles moved to the profile runs spec** (`2026-10-17-sloyd-profile-runs-design.md`, chunk a2;
 the §7 plan of "one stored range along `through`" superseded). Blind curved recesses remain for their own spec.
+**Status:** stopped profiles shipped in profile runs chunk a2 (2026-10-18, merged, NOT DEPLOYED — deploys with a1): a profile on
+a straight side may stop short of either end and runs out as the router's bit would (the profile revolved about the bit's axis
+1/4" outside the edge). **Open:** blind curved recesses (their own spec). A scooped seat stays out of scope.
 
 **366. Compound curves.** A cabriole leg is two curves on two faces — allowed today, nothing designed for it. **Status:**
 open (spec §12).
@@ -6516,6 +6519,8 @@ needs a spec).
 **Status:** open — spec `2026-10-17-sloyd-profile-runs-design.md` approved 2026-10-17 (with fu 365's stopped profiles), in chunks
 a1 → a2 → b → c. **Chunk a1 implemented** (branch `profile-runs-a1`, schema 18: `Board.profiles`, no visible change); a2 (stopped
 profiles and the run-out) next, then b (following the outline: this entry).
+**Status:** open — chunk a2 implemented and merged 2026-10-18 (stopped profiles, the run-out). Next: chunk b (following the
+outline: this entry).
 
 ## From the profile runs round (chunk a1) — 2026-10-17
 
@@ -6530,4 +6535,30 @@ profiles (measured 39 µs per four-edge ogee part per frame, against 26.5 µs as
 (as for curves); the cache-miss corpus cases rely on unique dimensions; the corpus is default pose only. (5) Small code notes:
 `refusalFor`'s `after` parameter cannot be told apart from its default in a1 (a2's plan must add the test that can); Profiles.tsx
 still normalises twice per attempt. **Status:** open ((1) before a2 ships; the rest record-only).
+**Status:** (1) closed in profile runs a2 (Task 1, `ac1f049`): an end carrying `through` with `from`/`at`, or a `through` that is
+not min/max, REFUSES the document (a half-valid station end — `from` without `at` — drops: a2 understands stations). (3) closed:
+`profileAsCurve` builds station runs. The rest record-only.
 
+## From the profile runs round (chunk a2) — 2026-10-18
+
+**392. Profile runs a2 residue.** (1) **P19:** run-out lines (edges and silhouettes) are drawn as the model's chords at
+`CURVE_TOLERANCE`, not as paper-tolerance fine paths (inv 47's `curveDrawEdges` does not refine a revolved surface). (2) **For the
+user's eye:** the run-outs' smooth shading on real hardware (software GL showed them too small to judge,
+`docs/img/profile-runs-a2-iso.png`); a cove's concave run-out draws dashed hidden contours on the Plans sheet (judge on a real print).
+(3) **Geometry residue:** sector chord scraps of 2.6e-7–1.9e-6 in³, 0.2–0.5" past a stop, are kept as bodies (watertight and
+edge-suppressed, pinned); `runoutPieces`' "removes a little less than the cutter" holds only for an s-monotone section (every
+current kind; chunk b's new kinds must check it); the run-out normals' nearest-arc fallback assumes tangent arc–arc joins (true for
+all five kinds); collinear section-edge widening does not also require each widened vertex smooth (unreachable with the presets).
+(4) **Snap/probe:** P3's other clause — a point exactly on a stopped bead's quirk wall or a fillet shoulder reads air in the spanned
+`stockProbe`, so a snap point there would be withheld (no generated point lands there); P14's run-out reach is conservative (a hole
+just clear of a run-out may be refused). (5) **Stored form:** a station run whose ends use different `from` values (reachable by
+editing one station through a copy mirrored along the run dimension, stored `from: 'max'`) is measured from the max end when the
+original grows (P11 as designed), may sit non-canonical in memory until the next load, and can come to overlap another profile
+after a resize — `profileFaultNote`'s comment claiming a resize never causes an overlap is wrong for it. A copied view curve keeps
+its span but loses its fault words (no caller copies one). An already-overlapping row (a stacked a1 file) can be edited into
+overlap with a different profile (the holes/curves kind-compare precedent). (6) **Test gaps:** no turned or mirrored part in the
+run-out normal and silhouette-oracle tests (inv 44 wants `chiralPart`); no test asserts every contour is emitted; the 2000-point
+`stockProbe` test leans on the oracle; the a1 four-edge ogee perf guard (and holesPerf's dado case) has thin headroom under heavy
+host load — close the Playwright browser before a full run. (7) **Small code notes:** `diagram.test.ts` mid-file imports;
+`withRun` casts `stoppedRun()`; `curveSilhouettes` (test-only) omits run-outs; a (+,0,+) edge-on facet draws two coincident
+silhouettes (invisible). **Status:** open (record-only; (2) owed to the user's eye).

@@ -1,13 +1,13 @@
 // src/document/curveDrawing.ts
 import type { Board } from './types';
 import { DIMENSION_ORDER } from './geometry';
-import { partGeometry } from './bodies';
+import { partGeometry, profileEdgeOf, smoothJoins, type BodyFace } from './bodies';
 import { geometryBoard } from './profiles';
 import { bodyPlanes } from './holes';
 import { toWorld } from './snapPoints';
 import type { Segment } from './cuts';
 import {
-  arcChords, arcPoint, curveOutline, distToSegment, localSegments, twiceArea, uvDims, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type LocalArc, type P2,
+  arcChords, arcPoint, curveOutline, distToSegment, localSegments, spanOf, twiceArea, uvDims, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type LocalArc, type P2,
 } from './curves';
 
 type V3 = [number, number, number];
@@ -129,15 +129,15 @@ export function curveSilhouettes(board: Board, toward: readonly number[]): [V3, 
 }
 
 /**
- * The stretches of the board-local line at (u, v) = q, along dimension index `k` from 0 to `depth`, that lie in some
+ * The stretches of the board-local line at (u, v) = q, along dimension index `k` from `from` to `depth`, that lie in some
  * convex body (its closed planes; one parallel to the line is met within WOOD_EPS, since the line runs ON a body's
  * boundary), merged where they touch; a stretch shorter than WOOD_EPS is dropped.
  */
 const WOOD_EPS = 1e-7;
-function onWood(planes: readonly (readonly { n: readonly number[]; d: number }[])[], q: P2, ui: number, vi: number, k: number, depth: number): [number, number][] {
+function onWood(planes: readonly (readonly { n: readonly number[]; d: number }[])[], q: P2, ui: number, vi: number, k: number, depth: number, from = 0): [number, number][] {
   const spans: [number, number][] = [];
   for (const ps of planes) {
-    let lo = 0, hi = depth;
+    let lo = from, hi = depth;
     for (const { n, d } of ps) {
       const f0 = n[ui]! * q[0] + n[vi]! * q[1] + d;   // n·p(t) + d ≥ 0, linear in t
       const fk = n[k]!;
@@ -198,13 +198,52 @@ export function silhouetteLines(board: Board, toward: readonly number[]): { A: V
       // at both of the face's vertices, as it always did for an exactly-zero face (a rounded top's Front view).
       if (facing(n1[0] * d[0] + n1[1] * d[1]) * facing(n2[0] * d[0] + n2[1] * d[1]) > 0) return;
       const lift = liftOff([o.world(n1), o.world(n2)], toward);
-      for (const [t0, t1] of onWood(planes, q, ui, vi, k, board[c.through])) out.push({ A: W(q, t0), E: W(q, t1), lift, curve: c.id });
+      // Profile runs a2: a stopped profile's band holds its section over [lo, hi] only; past a stop the run-out's outline
+      // is runoutSilhouettes' facet chain, and beyond it the corner is whole (no line of the profile's there).
+      const span = spanOf(c);
+      const [from, to] = span ? [span.lo, span.hi] : [0, board[c.through]];
+      for (const [t0, t1] of onWood(planes, q, ui, vi, k, to, from)) out.push({ A: W(q, t0), E: W(q, t1), lift, curve: c.id });
     });
   }
   return out;
 }
 
 const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+
+/** A board-local direction in world space (toWorld is affine: the difference of two points). */
+function worldDir(board: Board, n: readonly number[]): V3 {
+  const o = toWorld(board, { length: 0, width: 0, thickness: 0 });
+  const w = toWorld(board, { length: n[0]!, width: n[1]!, thickness: n[2]! });
+  return [w[0] - o[0], w[1] - o[1], w[2] - o[2]];
+}
+
+/**
+ * Profile runs a2 (Task 7): the silhouettes of a stopped profile's run-outs (doubly curved, so no line along `through`
+ * outlines them) for a view looking along `toward`, world space, no explode offset: every stretch where two of the
+ * profile's faces meet without a crease (curvedEdges' `smoothPair` joins: a run-out's facets, and the band's arc faces at
+ * a stop) and those two faces turn opposite ways to the view, judged on each face's own plane normal by `facing` (EDGE_ON
+ * counts as neither, and as in silhouetteLines a face exactly edge-on counts at both its edges — fu 386: the facet that
+ * IS the outline then draws on screen through both). The model's facet edges, so drawn as model chords (P19). The join is
+ * an edge of the wood, so no clip. Each carries silhouetteLines' lift (PROBE along each viewer-facing face's world outward
+ * normal, invariant 47). Empty for a part with no stop. Built only through `toWorld` (invariant 44).
+ */
+export function runoutSilhouettes(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3; curve: string }[] {
+  board = geometryBoard(board);
+  const joins = smoothJoins(board);
+  if (joins.length === 0) return [];
+  const out: { A: V3; E: V3; lift: V3; curve: string }[] = [];
+  const P = (p: readonly number[]): V3 => toWorld(board, { length: p[0]!, width: p[1]!, thickness: p[2]! }) as V3;
+  const normal = new Map<BodyFace, V3>();
+  const nOf = (f: BodyFace) => { let n = normal.get(f); if (!n) { n = worldDir(board, f.n); normal.set(f, n); } return n; };
+  for (const j of joins) {
+    const n1 = nOf(j.f1);
+    const n2 = nOf(j.f2);
+    if (facing(dot3(n1, toward)) * facing(dot3(n2, toward)) > 0) continue;
+    const curve = profileEdgeOf(j.f1)!.curve;
+    out.push({ A: P(j.a), E: P(j.b), lift: liftOff([n1, n2], toward), curve });
+  }
+  return out;
+}
 
 /** PROBE along each WORLD outward normal that faces the viewer (strictly, by EDGE_ON); edge-on and away add nothing. */
 function liftOff(normals: readonly V3[], toward: readonly number[]): V3 {
@@ -284,6 +323,11 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
     p[j] = 1;
     return toWorld(board, { length: p[0], width: p[1], thickness: p[2] }).map((w, i) => w - o3[i]!) as V3;
   });
+  // Profile runs a2: a stopped profile's body faces, for the run-out's own edges (below).
+  const bodyFaces = board.curves.some((c) => { const sp = spanOf(c); return !!sp && (sp.stopLo || sp.stopHi); })
+    ? partGeometry(board).bodies.flatMap((b) => b.faces) : [];
+  const runout = bodyFaces.filter((f) => f.runout !== undefined);
+  const adjacent = (p: readonly number[], q: readonly number[]) => bodyFaces.filter((f) => holds(f, p, q));
   const distToLine = (x: P2, a: P2, b: P2) => {
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     return Math.abs((b[0] - a[0]) * (x[1] - a[1]) - (b[1] - a[1]) * (x[0] - a[0])) / l;
@@ -306,9 +350,39 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
         add(o.world(ns[i]!));
       });
     }
-    const best = Math.max(0, ...normals.map((n) => dot3(n, toward)).filter((x) => facing(x) > 0));
+    let best = Math.max(0, ...normals.map((n) => dot3(n, toward)).filter((x) => facing(x) > 0));
+    // Profile runs a2 (Task 7): an edge the outline does not bound but a stopped profile's run-out does (its crease on
+    // the side face, its outline on the broad face, a sharp section vertex's chain) takes the same along-view lift, from
+    // the most viewer-facing BODY face holding it (F1, extended): those faces meet the view at every angle around a stop.
+    if (best === 0 && runout.length > 0) {
+      const held = runout.some((f) => holds(f, e.p, e.q));
+      if (held) best = Math.max(0, ...adjacent(e.p, e.q).map((f) => dot3(worldDir(board, f.n), toward)).filter((x) => facing(x) > 0));
+    }
     if (best === 0) return undefined;
     const s = Math.min(LIFT_MAX, PROBE / best);
     return [toward[0]! * s, toward[1]! * s, toward[2]! * s] as V3;
   });
+}
+
+/** Inches: a board-local point on a body face's plane, and inside its polygon (closed), for curveEdgeLifts' run-out faces. */
+const ON_FACE = 1e-7;
+/** Does face f hold the edge p→q: both ends on its plane, the midpoint inside its polygon (closed within ON_FACE)? */
+function holds(f: BodyFace, p: readonly number[], q: readonly number[]): boolean {
+  const v0 = f.verts[0]!;
+  const off = (x: readonly number[]) => f.n[0] * (x[0]! - v0[0]) + f.n[1] * (x[1]! - v0[1]) + f.n[2] * (x[2]! - v0[2]);
+  if (Math.abs(off(p)) > ON_FACE || Math.abs(off(q)) > ON_FACE) return false;
+  const m = [0, 1, 2].map((i) => (p[i]! + q[i]!) / 2);
+  const c = [0, 1, 2].map((i) => f.verts.reduce((s, v) => s + v[i]!, 0) / f.verts.length);
+  for (let i = 0; i < f.verts.length; i += 1) {
+    const a = f.verts[i]!;
+    const b = f.verts[(i + 1) % f.verts.length]!;
+    const e = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const l = Math.hypot(e[0]!, e[1]!, e[2]!);
+    if (l <= 1e-12) continue;
+    // The in-plane normal of edge a→b, pointed at the centroid.
+    let w = [f.n[1] * e[2]! - f.n[2] * e[1]!, f.n[2] * e[0]! - f.n[0] * e[2]!, f.n[0] * e[1]! - f.n[1] * e[0]!].map((x) => x / l);
+    if (w[0]! * (c[0]! - a[0]) + w[1]! * (c[1]! - a[1]) + w[2]! * (c[2]! - a[2]) < 0) w = w.map((x) => -x);
+    if (w[0]! * (m[0]! - a[0]) + w[1]! * (m[1]! - a[1]) + w[2]! * (m[2]! - a[2]) < -ON_FACE) return false;
+  }
+  return true;
 }

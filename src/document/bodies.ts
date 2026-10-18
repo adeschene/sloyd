@@ -2,7 +2,8 @@ import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
-import { curvePlan, curveValues, smoothLines, splitPieces } from './curves';
+import { curveOutline, curvePlan, curveValues, smoothLines, spanOf, splitPieces, uvDims, type P2, type ViewCurve } from './curves';
+import { profileSection, runoutPieces } from './runout';
 import { DIMENSION_ORDER } from './geometry';
 import { unionOutline } from './outline';
 import { geometryBoard } from './profiles';
@@ -21,8 +22,11 @@ const SMOOTH_NORMAL_EPS = 1e-7;
 /** One face of a body: outward unit normal and a convex polygon, board-local. Winding is NOT meaningful —
  *  a consumer that needs it orients against `n` (BoardMesh does). `cut` names the angle cut whose plane
  *  the face lies on. `curve` names the curve whose chord plane the face lies on (curves spec §3.2): `bodyMesh`
- *  reads it for smooth normals. */
-export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string }
+ *  reads it for smooth normals. `runout` marks a face on a stopped profile's run-out (profile runs P9): its curve is
+ *  revolved there, not extruded. `profileEdge` (a stopped profile only, T6 fix 1) names the section-outline edges a cap
+ *  lies on — `${curve}:${a}:${b}`, the first and last index of a collinear run of the profile section's outline edges,
+ *  written only for an edge off the part's faces; built by `profileEdgeName` and read only through `profileEdgeOf`. */
+export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string }
 
 /**
  * A convex piece of a part's remaining stock (angle-cuts spec §3.1): one pocket
@@ -72,7 +76,7 @@ function ring(points: V3[], n: V3): V3[] {
  * clipped body from an untouched one. A face lying on the plane is kept as is
  * and no cap is added (the plane is already a face).
  */
-function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string }): BodyFace[] {
+function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string }): BodyFace[] {
   const g = (p: V3) => dot(h.n, p) + h.d;
   const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
   if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
@@ -108,6 +112,8 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; c
       const capFace: BodyFace = { n: [-h.n[0], -h.n[1], -h.n[2]], verts: r };
       if (tag.cut !== undefined) capFace.cut = tag.cut;
       if (tag.curve !== undefined) capFace.curve = tag.curve;
+      if (tag.runout !== undefined) capFace.runout = tag.runout;
+      if (tag.profileEdge !== undefined) capFace.profileEdge = tag.profileEdge;
       out.push(capFace);
     }
   }
@@ -153,6 +159,12 @@ export function boardBodies(board: Board): Body[] {
   // so its `box` survives (invariant 48's box path). Caps on an arc chord carry the curve's id.
   let bodies = out;
   for (const c of board.curves) {
+    if (spanOf(c)) {
+      const pieces = stoppedPieces(board, c);
+      bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, c.id)
+        .flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : [])));
+      continue;
+    }
     const plan = curvePlan(board, c);
     if (!plan) continue;
     bodies = bodies.flatMap((body) => {
@@ -161,6 +173,73 @@ export function boardBodies(board: Board): Body[] {
     });
   }
   return bodies;
+}
+
+/** A cap's `profileEdge` (BodyFace): the curve's id and the first and last index [a, b] of the collinear run of section-
+ *  outline edges it lies on. THE one builder; `profileEdgeOf` is its one parser. */
+export function profileEdgeName(curve: string, a: number, b: number): string {
+  return `${curve}:${a}:${b}`;
+}
+/** `profileEdgeName`'s inverse: the curve id (which may itself hold a ':') and the run [a, b], or null for an untagged face. */
+export function profileEdgeOf(f: Pick<BodyFace, 'profileEdge'>): { curve: string; a: number; b: number } | null {
+  if (f.profileEdge === undefined) return null;
+  const parts = f.profileEdge.split(':');
+  const b = Number(parts.pop()), a = Number(parts.pop());
+  return { curve: parts.join(':'), a, b };
+}
+
+/** `edge` (stopped profiles only): per plane, the `profileEdge` its caps carry (`profileEdgeName`: the section-outline edge
+ *  run it lies on, written only for an edge off the part's faces), or null. */
+type Piece = { planes: { n: V3; d: number }[]; onArc: boolean[]; runout?: 'lo' | 'hi'; edge?: (string | null)[] };
+/**
+ * A stopped profile's waste (profile runs P9), always down the SPLIT path (never `clipAll`): the band — each of
+ * `splitPieces`' pieces bounded by the slab at each stop (x_k >= lo, x_k <= hi; n into the waste, first, as the planning
+ * probe ordered them) — then both run-outs (`runoutPieces`). All one curve's pieces, applied together.
+ */
+function stoppedPieces(board: Board, c: ViewCurve): Piece[] {
+  const span = spanOf(c)!;
+  const k = DIMENSION_ORDER.indexOf(c.through);
+  const axis = (s: number): V3 => { const n: V3 = [0, 0, 0]; n[k] = s; return n; };
+  const slabs = [...(span.stopLo ? [{ n: axis(1), d: -span.lo }] : []), ...(span.stopHi ? [{ n: axis(-1), d: span.hi }] : [])];
+  // T6 fix 1: every plane on a section-outline edge OFF the part's faces names that edge (on a face — s = 0 or t = 0 at
+  // both ends — it caps nothing drawn apart from the face itself). The band's planes are matched to their edge by the
+  // edge's two outline points lying on them; the run-out's come with their index.
+  const sec = profileSection(board, c);
+  const m = sec.pts.length;
+  // Collinear neighbouring edges lie on ONE plane, so one cap may cover parts of several (the ogee's inflection chords, cut
+  // by two pieces): an edge's name is its whole collinear run.
+  const dir = (j: number): P2 => { const p = sec.pts[j]!, q = sec.pts[(j + 1) % m]!; const l = Math.hypot(q[0] - p[0], q[1] - p[1]); return [(q[0] - p[0]) / l, (q[1] - p[1]) / l]; };
+  const collinear = (i: number, j: number) => { const x = dir(i), y = dir(j); return Math.abs(x[0] * y[1] - x[1] * y[0]) <= 1e-12 && x[0] * y[0] + x[1] * y[1] > 0; };
+  const name = (r0: [number, number] | null): string | null => {
+    if (!r0) return null;
+    const r: [number, number] = [r0[0], r0[1]];
+    for (let n = 0; n < m && collinear((r[0] - 1 + m) % m, r[0]) && (r[0] - 1 + m) % m !== r[1]; n += 1) r[0] = (r[0] - 1 + m) % m;
+    for (let n = 0; n < m && collinear(r[1], (r[1] + 1) % m) && (r[1] + 1) % m !== r[0]; n += 1) r[1] = (r[1] + 1) % m;
+    for (let j = r[0]; ; j = (j + 1) % m) {
+      const p = sec.pts[j]!, q = sec.pts[(j + 1) % m]!;
+      if (!((p[0] === 0 && q[0] === 0) || (p[1] === 0 && q[1] === 0))) return profileEdgeName(c.id, r[0], r[1]);
+      if (j === r[1]) return null;
+    }
+  };
+  const [u, v] = uvDims(c.through).map((d) => DIMENSION_ORDER.indexOf(d)) as [number, number];
+  const o = curveOutline(board, c).pts;
+  const bandEdge = (h: { n: V3; d: number }): string | null => {
+    if (Math.abs(h.n[k]!) > BODY_EPS) return null;
+    const on = (q: readonly number[]) => Math.abs(h.n[u]! * q[0]! + h.n[v]! * q[1]! + h.d) <= 1e-9;
+    // Every outline edge lying on the plane; their contiguous run (a piece edge merging collinear ones covers several).
+    const hit = o.map((q, i) => on(q) && on(o[(i + 1) % m]!));
+    const a = hit.findIndex((x, i) => x && !hit[(i - 1 + m) % m]);
+    if (a === -1) return null;
+    let b = a;
+    while (hit[(b + 1) % m] && (b + 1) % m !== a) b = (b + 1) % m;
+    return name([a, b]);
+  };
+  const band = splitPieces(board, c).map((p) => {
+    const planes = [...slabs, ...p.planes];
+    return { planes, onArc: [...slabs.map(() => false), ...p.onArc], edge: planes.map(bandEdge) };
+  });
+  const runouts = runoutPieces(board, c).map((p) => ({ ...p, edge: p.edge.map(name) }));
+  return [...band, ...runouts];
 }
 
 /** A body clipped by every kept half-plane of a CLIP plan: one body or none. */
@@ -174,24 +253,56 @@ function clipAll(faces: BodyFace[], planes: readonly { n: V3; d: number }[], cur
 /** Cubic inches: a part sharing no more than this with a convex piece of waste holds none of it (subtractPieces). */
 const DISJOINT_VOLUME = 1e-12;
 
+/** True when every vertex lies on or outside (within BODY_EPS) some one of the planes: subtractPieces' first reject, the
+ *  same expression as `dot(h.n, p) + h.d <= BODY_EPS` over each face's vertices, in the same order of operations. */
+function outsideSome(planes: readonly { n: V3; d: number }[], v: Float64Array): boolean {
+  for (const h of planes) {
+    const [n0, n1, n2] = h.n;
+    let all = true;
+    for (let j = 0; j < v.length; j += 3) if (n0 * v[j]! + n1 * v[j + 1]! + n2 * v[j + 2]! + h.d > BODY_EPS) { all = false; break; }
+    if (all) return true;
+  }
+  return false;
+}
+
 /**
  * A body minus the waste of a SPLIT plan (spec §3.2): for each convex piece in turn, every current part splits at the
  * piece's planes — the part OUTSIDE each plane (inside the ones before) is kept, the part inside them all (waste) dropped.
- * Caps on an arc chord carry the curve's id. A body the waste does not reach comes back as its own array (one element).
+ * Caps on an arc chord carry the curve's id (and a run-out piece's end). A body the waste does not reach comes back as its
+ * own array (one element).
  */
-function subtractPieces(faces: BodyFace[], pieces: readonly { planes: { n: V3; d: number }[]; onArc: boolean[] }[], curve: string): BodyFace[][] {
+function subtractPieces(faces: BodyFace[], pieces: readonly Piece[], curve: string): BodyFace[][] {
+  // Each part's vertices as one flat array, built once per part (a part meets ~145 pieces of a stopped ogee; the reject
+  // test below scanned its faces' vertex arrays for every one): the same numbers, the same test.
+  const flat = new Map<BodyFace[], Float64Array>();
+  const flatVerts = (part: BodyFace[]): Float64Array => {
+    let a = flat.get(part);
+    if (!a) {
+      let n = 0;
+      for (const f of part) n += f.verts.length;
+      a = new Float64Array(3 * n);
+      let j = 0;
+      for (const f of part) for (const p of f.verts) { a[j] = p[0]; a[j + 1] = p[1]; a[j + 2] = p[2]; j += 3; }
+      flat.set(part, a);
+    }
+    return a;
+  };
   let parts: BodyFace[][] = [faces];
   for (const piece of pieces) {
     const next: BodyFace[][] = [];
     for (const part of parts) {
       // A part wholly outside one of the piece's planes does not meet it: it stays whole, its own array. Without this
       // the piece's planes, extended past its edges, would slice a cell the waste never reaches (and lose its box).
-      if (piece.planes.some((h) => part.every((f) => f.verts.every((p) => dot(h.n, p) + h.d <= BODY_EPS)))) { next.push(part); continue; }
+      if (outsideSome(piece.planes, flatVerts(part))) { next.push(part); continue; }
       let rest = part;
       const frags: BodyFace[][] = [];
       piece.planes.forEach((h, i) => {
         if (rest.length === 0) return;
-        const tag = piece.onArc[i] ? { curve } : {};
+        const edge = piece.edge?.[i] ?? null;
+        const tag = edge !== null
+          // A stopped profile's outline face (T6 fix 1): `curve` on arc chords only (bodyMesh reads it as a chord face).
+          ? { ...(piece.onArc[i] ? { curve } : {}), ...(piece.runout ? { runout: piece.runout } : {}), profileEdge: edge }
+          : piece.onArc[i] ? (piece.runout ? { curve, runout: piece.runout } : { curve }) : {};
         const outside = clip(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d }, tag);
         if (outside.length >= 4) frags.push(outside);
         rest = outside === rest ? [] : clip(rest, h, tag);
@@ -264,7 +375,9 @@ const SLIVER = 1e-6;
 const NEAR_LINE = 1e-3;
 
 /** An in-plane direction from a line into a face that holds it, with that face's normal. */
-interface Wing { n: V3; w: V3 }
+interface Wing { n: V3; w: V3; f: BodyFace }
+/** A stretch a→b of a line where two faces of one stopped profile meet without a crease (bodyEdges' `smoothPair`). */
+export interface SmoothJoin { a: V3; b: V3; f1: BodyFace; f2: BodyFace }
 
 /**
  * The edges of a union of convex bodies (angle-cuts spec §3.4, invariant 16
@@ -294,11 +407,18 @@ interface Wing { n: V3; w: V3 }
  * arc's facets at a chord vertex, a chord and the straight face at a tangent join): a stretch where the only wings left
  * are one face of each normal of such a pair is no edge. Judged per stretch, so a wall that meets the same line
  * elsewhere (a dado reaching a tangent join) still draws its crease there.
+ * `smoothPair` (profile runs a2) is asked of a stretch whose ONLY two wings are two different faces a and b: true means
+ * they meet without a crease (a stopped profile's run-out facets, and the band's arc faces at the stop). Absent, nothing
+ * is asked, so every other part's edges are what they were.
+ * `joins` (profile runs a2, Task 7): when given, every stretch smoothPair suppressed is pushed to it with its two faces
+ * (the Plans sheet's facet-chain silhouettes read them). A side output only: the edges returned are the same.
  */
 export function bodyEdges(
   bodies: readonly Body[],
   keep?: (o: V3, u: V3, n: V3) => boolean,
   smooth?: (o: V3, u: V3) => readonly (readonly [V3, V3])[],
+  smoothPair?: (a: BodyFace, b: BodyFace) => boolean,
+  joins?: SmoothJoin[],
 ): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
@@ -387,20 +507,38 @@ export function bodyEdges(
     for (const p of f.verts) for (let k = 0; k < 3; k += 1) { if (p[k]! < lo[k]!) lo[k] = p[k]!; if (p[k]! > hi[k]!) hi[k] = p[k]!; }
     return { lo, hi };
   });
+  // Final fix F1: the groups as flat arrays (normal, sorted offsets, face indices) and each face's box and first vertex as
+  // numbers, read without a Map iterator, closures or temporaries. The same expressions in the same order (dot and sub
+  // inlined), so every comparison sees the same floats and the hits are the same set.
+  const G = [...groups.values()].map((g) => ({ n0: g.n[0], n1: g.n[1], n2: g.n[2], d: Float64Array.from(g.at, (x) => x.d), i: Int32Array.from(g.at, (x) => x.i) }));
+  const fB = new Float64Array(6 * faces.length);
+  const fN = new Float64Array(6 * faces.length);
+  faces.forEach((f, i) => {
+    const b = fBox[i]!;
+    fB.set([b.lo[0], b.lo[1], b.lo[2], b.hi[0], b.hi[1], b.hi[2]], 6 * i);
+    const p = f.verts[0]!;
+    fN.set([f.n[0], f.n[1], f.n[2], p[0], p[1], p[2]], 6 * i);
+  });
   const coplanarTo = (o: V3, u: V3, near?: { lo: V3; hi: V3 }): number[] => {
     const hit: number[] = [];
-    for (const g of groups.values()) {
-      if (Math.abs(dot(g.n, u)) > 1e-5) continue;
-      const d = dot(g.n, o);
-      let lo = 0, hi = g.at.length;
-      while (lo < hi) { const m = (lo + hi) >> 1; if (g.at[m]!.d < d - 1e-3) lo = m + 1; else hi = m; }
-      for (let k = lo; k < g.at.length && g.at[k]!.d <= d + 1e-3; k += 1) {
-        const f = faces[g.at[k]!.i]!;
+    const [o0, o1, o2] = o;
+    const [u0, u1, u2] = u;
+    for (const g of G) {
+      if (Math.abs(g.n0 * u0 + g.n1 * u1 + g.n2 * u2) > 1e-5) continue;
+      const d = g.n0 * o0 + g.n1 * o1 + g.n2 * o2;
+      const gd = g.d;
+      let lo = 0, hi = gd.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (gd[m]! < d - 1e-3) lo = m + 1; else hi = m; }
+      for (let k = lo; k < gd.length && gd[k]! <= d + 1e-3; k += 1) {
+        const fi = g.i[k]!;
         if (near) {
-          const b = fBox[g.at[k]!.i]!;
-          if (b.lo[0] > near.hi[0] || b.hi[0] < near.lo[0] || b.lo[1] > near.hi[1] || b.hi[1] < near.lo[1] || b.lo[2] > near.hi[2] || b.hi[2] < near.lo[2]) continue;
+          const b = 6 * fi;
+          if (fB[b]! > near.hi[0] || fB[b + 3]! < near.lo[0] || fB[b + 1]! > near.hi[1] || fB[b + 4]! < near.lo[1] || fB[b + 2]! > near.hi[2] || fB[b + 5]! < near.lo[2]) continue;
         }
-        if (Math.abs(dot(f.n, u)) <= BODY_EPS && Math.abs(dot(f.n, sub(o, f.verts[0]!))) <= BODY_EPS) hit.push(g.at[k]!.i);
+        const q = 6 * fi;
+        const n0 = fN[q]!, n1 = fN[q + 1]!, n2 = fN[q + 2]!;
+        if (Math.abs(n0 * u0 + n1 * u1 + n2 * u2) <= BODY_EPS
+          && Math.abs(n0 * (o0 - fN[q + 3]!) + n1 * (o1 - fN[q + 4]!) + n2 * (o2 - fN[q + 5]!)) <= BODY_EPS) hit.push(fi);
       }
     }
     return hit.sort((x, y) => x - y);
@@ -461,8 +599,8 @@ export function bodyEdges(
           if (dist <= BODY_EPS) onEdge = true;
         }
         if (!inside) continue;
-        if (!onEdge) { wings.push({ n: f.n, w }, { n: f.n, w: wn }); continue; }
-        wings.push({ n: f.n, w: w[0] * (c[0] - m0) + w[1] * (c[1] - m1) + w[2] * (c[2] - m2) >= 0 ? w : wn });
+        if (!onEdge) { wings.push({ n: f.n, w, f }, { n: f.n, w: wn, f }); continue; }
+        wings.push({ n: f.n, w: w[0] * (c[0] - m0) + w[1] * (c[1] - m1) + w[2] * (c[2] - m2) >= 0 ? w : wn, f });
       }
       // Cancel internal walls: same direction, opposite normals.
       for (let a = 0; a < wings.length; a += 1) {
@@ -479,8 +617,13 @@ export function bodyEdges(
         && dot(wings[0]!.n, wings[1]!.n) > 1 - BODY_EPS && dot(wings[0]!.w, wings[1]!.w) < -1 + BODY_EPS;
       if (wings.length === 2 && pairs.some(([p, q]) => (par(wings[0]!.n, p) && par(wings[1]!.n, q))
         || (par(wings[0]!.n, q) && par(wings[1]!.n, p)))) return false;   // a smooth join: the two faces turn by a facet
+      if (smoothPair && wings.length === 2 && wings[0]!.f !== wings[1]!.f && smoothPair(wings[0]!.f, wings[1]!.f)) {
+        joined.f = [wings[0]!.f, wings[1]!.f];
+        return false;
+      }
       return wings.length > 0 && !flat;
     };
+    const joined: { f: [BodyFace, BodyFace] | null } = { f: null };   // the faces of the stretch judge last suppressed
 
     let run: number | null = null;
     const flush = (end: number) => {
@@ -488,9 +631,11 @@ export function bodyEdges(
       run = null;
     };
     for (let k = 0; k + 1 < cuts.length; k += 1) {
+      joined.f = null;
       const drawn = judge((cuts[k]! + cuts[k + 1]!) / 2);
       if (drawn && run === null) run = cuts[k]!;
       if (!drawn) flush(cuts[k]!);
+      if (joins && joined.f) joins.push({ a: add(line.o, scale(line.u, cuts[k]!)), b: add(line.o, scale(line.u, cuts[k + 1]!)), f1: joined.f[0], f2: joined.f[1] });
     }
     flush(cuts[cuts.length - 1] ?? 0);
   }
@@ -528,7 +673,7 @@ function areaIn(verts: readonly V3[], k: number): number {
  * the outline already drew on their lines is taken off what bodyEdges returns, so nothing is drawn twice.
  * Never mutates `bodies` (partGeometry's are frozen and shared).
  */
-export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
+export function curvedEdges(board: Board, bodies: readonly Body[], joins?: SmoothJoin[]): [V3, V3][] {
   board = geometryBoard(board);
   const axes = [...new Set(board.curves.map((c) => DIMENSION_ORDER.indexOf(c.through)))];
   const faces = bodies.flatMap((b) => b.faces);
@@ -562,7 +707,36 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
   const onPlane = (o: V3, u: V3) => planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS);
   const keep = (o: V3, u: V3, n: V3) => onSmooth(o, u) || !skipsInPlane(planes, o, u, n);
   const outline = out.slice();
-  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n))) {
+  // A stopped profile's run-out (profile runs a2): its facets join each other, and the band's arc faces at the stop,
+  // without a crease; a crease against an untagged face (the broad face, the side face, a straight section side) stays.
+  // Asked only of a part with a stop, so every other part's edges are byte for byte what they were.
+  // T6 fix 1: judged per SECTION EDGE — two faces of one stopped curve, at least one on a run-out, meet smoothly when they
+  // come from the same outline edge (a revolved edge's sectors; the band's face and the first sector at the stop) or from
+  // adjacent edges at a SMOOTH outline vertex (curveOutline's flags, judged on the true arcs). A sharp vertex (a bead's
+  // quirk) stays a crease, and so does anything against an untagged face.
+  const stopped = new Map<string, boolean[]>();
+  for (const c of board.curves) { const sp = spanOf(c); if (sp && (sp.stopLo || sp.stopHi)) stopped.set(c.id, curveOutline(board, c).smooth); }
+  const edgeOf = (f: BodyFace): [string, number, number] | null => {
+    const e = profileEdgeOf(f);
+    return e ? [e.curve, e.a, e.b] : null;
+  };
+  const smoothPair = stopped.size > 0
+    ? (a: BodyFace, b: BodyFace) => {
+      if (a.runout === undefined && b.runout === undefined) return false;
+      const ea = edgeOf(a), eb = edgeOf(b);
+      if (!ea || !eb || ea[0] !== eb[0]) return false;
+      const smooth = stopped.get(ea[0]);
+      if (!smooth) return false;
+      const m = smooth.length;
+      const span = ([, a, b]: [string, number, number]) => { const out = [a]; for (let j = a; j !== b; ) { j = (j + 1) % m; out.push(j); } return out; };
+      const sa = span(ea), sb = span(eb);
+      if (sa.some((j) => sb.includes(j))) return true;   // one outline edge (a revolved edge's sectors; the band at the stop)
+      if ((ea[2] + 1) % m === eb[1]) return smooth[eb[1]]!;   // a's last edge ends where b's first starts: the vertex pts[b0]
+      if ((eb[2] + 1) % m === ea[1]) return smooth[ea[1]]!;
+      return false;
+    }
+    : undefined;
+  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins)) {
     const u = unit(sub(seg[1], seg[0]));
     if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));
     else out.push(seg);
@@ -610,7 +784,25 @@ function minusCovered(seg: [V3, V3], u: V3, cover: readonly [V3, V3][]): [V3, V3
 function edgesOf(board: Board, bodies: () => readonly Body[]): Segment[] {
   if (board.angleCuts.length === 0 && board.curves.length === 0) return pocketEdges(board);
   const b = bodies();
-  return (board.curves.length > 0 ? curvedEdges(board, b) : bodyEdges(b)).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  if (board.curves.length === 0) return bodyEdges(b).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  const joins: SmoothJoin[] = [];
+  const edges = curvedEdges(board, b, joins).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+  if (joins.length > 0) joinsOf.set(b, deepFreeze(joins));
+  return edges;
+}
+
+/** The smooth joins curvedEdges found while building a part's edges, keyed by the bodies they were built from. */
+const joinsOf = new WeakMap<readonly Body[], readonly SmoothJoin[]>();
+const NO_JOINS: readonly SmoothJoin[] = Object.freeze([]);
+/**
+ * Profile runs a2 (Task 7): the stretches where a stopped profile's faces meet without a crease — a run-out's facets, and
+ * the band's arc faces at a stop (`smoothPair`) — with their two faces, board-local, through partGeometry (built with its
+ * edges, once). Empty for every part with no stop. Shared and frozen: never mutate.
+ */
+export function smoothJoins(board: Board): readonly SmoothJoin[] {
+  const g = partGeometry(board);
+  void g.edges;
+  return joinsOf.get(g.bodies) ?? NO_JOINS;
 }
 
 /**

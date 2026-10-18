@@ -1,5 +1,9 @@
+import { appendFileSync } from 'node:fs';
 import { createBoard, defaultProfile, PROFILE_EDGES, partGeometry, archCurve, cornerCurve, curvePlan, defaultHingeCup, defaultShelfPinRow, holeInStock, stockChecks } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
+import type { ProfileCut, ProfileEnd } from '../document/types';
+import { canonicalRun, geometryBoard } from '../document/profiles';
+import { spanOf } from '../document/curves';
 import { bodyMesh } from './grainTiling';
 
 /**
@@ -47,7 +51,10 @@ function rebuild(make: (len: number) => Board): number {
 }
 const minOf9 = (make: (k: number) => Board) => {
   for (let i = 0; i < 3; i += 1) rebuild(make);
-  return Math.min(...Array.from({ length: 9 }, () => rebuild(make)));
+  const min = Math.min(...Array.from({ length: 9 }, () => rebuild(make)));
+  // SLOYD_PERF_LOG=<file>: each case's minimum appended, so a full-suite run's numbers can be read back (a2 final fix F1).
+  if (process.env.SLOYD_PERF_LOG) appendFileSync(process.env.SLOYD_PERF_LOG, `${expect.getState().currentTestName}\t${min.toFixed(1)}\n`);
+  return min;
 };
 
 describe('a curved part rebuilds inside a frame', () => {
@@ -118,4 +125,22 @@ describe('a curved part rebuilds inside a frame', () => {
     ];
     expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(40);
   });
+  // Profile runs a2 (Task 5): a stopped profile on the shelf's width-max side of the top, stops 3" in from each end — the
+  // band, both run-outs (sectors about the bit's axis) and every body's mesh, as above.
+  const stoppedSizes = { roundover: { size: 0.25, fillet: 0 }, cove: { size: 0.375, fillet: 0 }, ogee: { size: 0.5, fillet: 0 } } as const;
+  for (const kind of ['roundover', 'cove', 'ogee'] as const) {
+    it(`a shelf with a stopped ${kind}, 3" in from each end: at most 40 ms`, () => {
+      const board = (k: number) => {
+        const dims = { length: 30 * k, width: 10, thickness: 0.75 };
+        const side = { across: 'width' as const, from: 'max' as const };
+        const start: ProfileEnd = { side, from: 'min', at: 3 };
+        const end: ProfileEnd = { side: { ...side }, from: 'max', at: 3 };
+        const p: ProfileCut = { id: 'p', face: 'max', kind, ...stoppedSizes[kind], facing: 'face', run: canonicalRun(dims, 'max', { start, end }) };
+        return createBoard({ ...dims, profiles: [p] });
+      };
+      // The fixture is what it claims: a stopped profile, both ends.
+      expect(spanOf(geometryBoard(board(1)).curves[0]!)).toMatchObject({ stopLo: true, stopHi: true });
+      expect(minOf9(board)).toBeLessThanOrEqual(40);
+    });
+  }
 });

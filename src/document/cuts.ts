@@ -1,6 +1,7 @@
 import { materialKind, type Board, type Cut, type Dimension, type Region, type Span } from './types';
 import { boardHoles, insideHole } from './holes';
-import { isAir, uvDims } from './curves';
+import { isAir, spanOf, uvDims, type ViewCurve } from './curves';
+import { profileAirTester } from './runout';
 import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 import { geometryBoard } from './profiles';
@@ -289,13 +290,19 @@ export function stockProbe(board: Board): (p: Point) => boolean {
   const kept = (p: Point) => planes.every((h) => h.n[0] * p.length + h.n[1] * p.width + h.n[2] * p.thickness + h.d >= -1e-9);
 
   const holes = boardHoles(board);
+  // A stopped profile's waste is the band plus its run-outs (P9): its own independent test, hoisted once per curve.
+  const air = board.curves.map((c) => {
+    if (!spanOf(c)) return (p: Point) => { const [u, v] = uvDims(c.through); return isAir(board, c, [p[u], p[v]]); };
+    const waste = profileAirTester(board, c as ViewCurve);
+    return (p: Point) => waste([p.length, p.width, p.thickness]);
+  });
 
   return (p) => {
     if (!kept(p)) return false;
     // The mouth is air (holes spec §3.5, amended).
     if (holes.some((h) => insideHole(h, [p.length, p.width, p.thickness]))) return false;
     // The waste is air, its kept surface is not (curves spec §3.5, P3).
-    if (board.curves.some((c) => { const [u, v] = uvDims(c.through); return isAir(board, c, [p[u], p[v]]); })) return false;
+    if (air.some((f) => f(p))) return false;
     for (const i of cells('length', p.length)) {
       for (const j of cells('width', p.width)) {
         for (const k of cells('thickness', p.thickness)) {

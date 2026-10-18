@@ -2,7 +2,10 @@
 
 Date: 2026-10-17. Follow-ups 390 (a profile does not follow a curved edge) and 365's remainder (stopped profiles). Status: design
 approved in chat by the user 2026-10-17, section by section ("Yes, that looks right" ×4, then "Yes, write the spec"); written spec
-approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `docs/superpowers/plans/2026-10-17-sloyd-profile-runs-a1.md`). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `docs/superpowers/plans/2026-10-17-sloyd-profile-runs-a1.md`,
+merged as `305934d`); chunk a2 implemented (plan `docs/superpowers/plans/2026-10-18-sloyd-profile-runs-a2.md`; stopped profiles and the
+run-out), **a1 and a2 deploy together**. Next: chunk b (following the outline, fu 390). The rulings marked *Amended (implementation, a2)*
+(I1, I2) await the user's review. **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one
@@ -86,6 +89,15 @@ profiles; a grain fix (fu 336).
 - **P18** The geometry view carries a stopped profile as its chunk-1 curve plus a VIEW-ONLY `span`, never stored. A curve
   with no span keeps `curveValues` byte for byte; a spanned one's value appends the span (geometryKey, the UV signature and
   the cut list's grouping read it).
+- **P19** *Amended (planning, a2)*: run-out lines are drawn as the model's chords (`CURVE_TOLERANCE`); paper-tolerance fine
+  paths on a run-out are a follow-up.
+- **I1** *Amended (implementation, a2)*: a `+ Add profile ▾` preset takes the FIRST edge where its default fits (the top long
+  edge first, as before; then the other top sides; then the bottom), and its menu detail names that edge. Before this, the
+  `overlap` withhold left no preset at all once the top long edge held a profile.
+- **I2** *Amended (implementation, a2)*: typing 0 or the full length into Start or Stop makes that end run out through the end
+  face (a `through` end), so a half-stopped profile can be made from the row. An end is matched by what the field SHOWS (fu 354's
+  reads-the-same rule), so in imperial a value that displays as 0 or the length is that end; both ends at the part's ends make the
+  run End to end. A Start past the Stop is refused (`Start must be before the Stop`), never swapped.
 
 ## 2. The probe (2026-10-17, throwaway)
 
