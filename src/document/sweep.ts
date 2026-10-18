@@ -31,10 +31,12 @@
 import { convexPieces, twiceArea, type P2, type ViewCurve } from './curves';
 import { faceOutline, profilePath, type OutlineChord } from './profilePath';
 import { profileAsCurve, viewProfileFaults } from './profiles';
-import { outlineRun, profileSection, sectionFrame } from './runout';
+import { BEARING, outlineRun, profileSection, sectionFrame } from './runout';
+import type { Hole } from './holes';
 import { sectionEdgeNamer } from './sectionEdges';
 import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton } from './skeleton';
 import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
+import { DIMENSION_ORDER } from './geometry';
 
 export { pathSkeleton } from './skeleton';
 
@@ -304,4 +306,130 @@ export function sweptRunouts(view: SweepBoard, p: ProfileCut): ViewCurve[] {
     out.push({ ...c, span });
   }
   return out;
+}
+
+/*
+ * The swept waste as PROBES read it (profile runs b1, Task 4; invariant 16, P3, P14): the b1 oracle's rule on the model chords.
+ * A point is waste when, d its plan distance to the path's chords and t its depth in from the profile's broad face,
+ * 0 <= d < reach and t < tau(d) (strictly, by CURVE_EPS: a point ON the profile surface is stock, P3's open form); past a
+ * STATION end (B1) d is instead the distance to a2's bit axis, BEARING outside the side, less BEARING. tau(s) is the top of
+ * the profile's own (s, t) section (`profileSection`, a2's) at s. Read only for the profiles `builtSwept` builds: a faulted
+ * swept profile builds nothing, so its waste is neither air nor a hole's fault.
+ */
+interface SweptWaste {
+  segs: [P2, P2][];
+  tau: (s: number) => number;
+  reach: number;
+  depth: number;
+  /** t from (x_thickness): face max t = T − z, face min t = z. */
+  depthOf: (z: number) => number;
+  stations: { at: P2; tangent: P2; axis: P2 }[];
+}
+const SURFACE_EPS = 1e-9; // CURVE_EPS: ON the surface (profileAirTester's tolerance)
+const outward = (s: ProfileSide): P2 => (s.across === 'length' ? [s.from === 'min' ? -1 : 1, 0] : [0, s.from === 'min' ? -1 : 1]);
+const distSeg = (x: number, y: number, a: P2, b: P2): number => {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const l2 = dx * dx + dy * dy;
+  const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l2));
+  return Math.hypot(x - a[0] - t * dx, y - a[1] - t * dy);
+};
+
+const wasteMemo = new WeakMap<object, Map<string, SweptWaste | null>>();
+function sweptWaste(view: SweepBoard, p: ProfileCut): SweptWaste | null {
+  let m = wasteMemo.get(view);
+  if (!m) { m = new Map(); wasteMemo.set(view, m); }
+  if (m.has(p.id)) return m.get(p.id)!;
+  const path = profilePath(view, p);
+  let out: SweptWaste | null = null;
+  if (path) {
+    const dims = view as Pick<Board, Dimension>;
+    const pts = profileSection(dims, oneSideCurve(p)).pts;
+    const { reach, depth } = keptSection(dims, p);
+    const tau = (s: number): number => {
+      if (!(s >= 0 && s <= reach)) return 0;
+      let best = 0;
+      for (let i = 0; i < pts.length; i += 1) {
+        const a = pts[i]!, b = pts[(i + 1) % pts.length]!;
+        const lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]);
+        if (s < lo - 1e-15 || s > hi + 1e-15) continue;
+        const t = hi - lo < 1e-15 ? Math.max(a[1], b[1]) : a[1] + ((s - a[0]) / (b[0] - a[0])) * (b[1] - a[1]);
+        if (t > best) best = t;
+      }
+      return best;
+    };
+    const T = dims.thickness;
+    out = {
+      segs: path.chords.map((c) => [c.a, c.b]),
+      tau, reach, depth,
+      depthOf: p.face === 'max' ? (z) => T - z : (z) => z,
+      stations: (path.ends ?? []).flatMap((e) => (e.kind === 'station'
+        ? [{ at: e.at, tangent: e.tangent, axis: [e.at[0] + BEARING * outward(e.side)[0], e.at[1] + BEARING * outward(e.side)[1]] as P2 }]
+        : [])),
+    };
+  }
+  m.set(p.id, out);
+  return out;
+}
+
+/** THE stock probe's air for one swept profile (above), as a hoisted closure on board-local (length, width, thickness). */
+export function sweptAirTester(view: SweepBoard, p: ProfileCut): (pt: V3) => boolean {
+  const w = sweptWaste(view, p);
+  if (!w) return () => false;
+  return ([x, y, z]) => {
+    const t = w.depthOf(z);
+    if (!(t < w.depth)) return false;
+    let beyond = Infinity;
+    for (const st of w.stations) {
+      if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] > 0) beyond = Math.min(beyond, Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING);
+    }
+    let d = beyond;
+    if (beyond === Infinity) for (const [a, b] of w.segs) { const v = distSeg(x, y, a, b); if (v < d) d = v; }
+    return d >= 0 && d < w.reach && t < w.tau(d) - SURFACE_EPS;
+  };
+}
+
+/** The distance between segment a–b and the axis-aligned rectangle [lo, hi] (0 when they meet). */
+function segRectDist(a: P2, b: P2, lo: P2, hi: P2): number {
+  const inR = (q: P2) => q[0] >= lo[0] && q[0] <= hi[0] && q[1] >= lo[1] && q[1] <= hi[1];
+  if (inR(a) || inR(b)) return 0;
+  const corners: P2[] = [lo, [hi[0], lo[1]], hi, [lo[0], hi[1]]];
+  const cross = (p: P2, q: P2, r: P2) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  for (let i = 0; i < 4; i += 1) {
+    const c = corners[i]!, e = corners[(i + 1) % 4]!;
+    if (cross(a, b, c) * cross(a, b, e) <= 0 && cross(c, e, a) * cross(c, e, b) <= 0) return 0;
+  }
+  let d = Math.min(...corners.map((c) => distSeg(c[0], c[1], a, b)));
+  for (const q of [a, b]) {
+    const dx = Math.max(lo[0] - q[0], 0, q[0] - hi[0]);
+    const dy = Math.max(lo[1] - q[1], 0, q[1] - hi[1]);
+    d = Math.min(d, Math.hypot(dx, dy));
+  }
+  return d;
+}
+
+/**
+ * Does a hole meet one swept profile's waste (§4.1; P14, CONSERVATIVE; touching is meeting)? Its plan footprint — the disc
+ * along the thickness, else the rectangle its side entry projects to — comes within the reach of the path's chords, each
+ * station end's band run on straight along its tangent by the run-out's reach (BEARING + reach, P14), AND its depth interval
+ * in from the profile's face meets [0, depth]. A hole just clear of the true waste may be judged into it.
+ */
+export function sweptWasteMeets(view: SweepBoard, p: ProfileCut, hole: Pick<Hole, 'axis' | 'centre' | 'radius' | 'depth' | 'dir'>): boolean {
+  const w = sweptWaste(view, p);
+  if (!w) return false;
+  const EPS_M = 1e-9; // HOLE_EPS
+  const ax = DIMENSION_ORDER.indexOf(hole.axis);
+  const a0 = hole.centre[ax]!, a1 = a0 + hole.dir * hole.depth;
+  const span = (k: number): [number, number] => (k === ax ? [Math.min(a0, a1), Math.max(a0, a1)] : [hole.centre[k]! - hole.radius, hole.centre[k]! + hole.radius]);
+  // Depth: the thickness extent, in from the face.
+  const [z0, z1] = span(2);
+  const t0 = Math.min(w.depthOf(z0), w.depthOf(z1)), t1 = Math.max(w.depthOf(z0), w.depthOf(z1));
+  if (t1 < -EPS_M || t0 > w.depth + EPS_M) return false;
+  const run = w.reach + BEARING;
+  const segs: [P2, P2][] = [...w.segs, ...w.stations.map((st) => [st.at, [st.at[0] + run * st.tangent[0], st.at[1] + run * st.tangent[1]]] as [P2, P2])];
+  if (ax === 2) {
+    const c: P2 = [hole.centre[0]!, hole.centre[1]!];
+    return segs.some(([a, b]) => distSeg(c[0], c[1], a, b) - hole.radius <= w.reach + EPS_M);
+  }
+  const [u0, u1] = span(0), [v0, v1] = span(1);
+  return segs.some(([a, b]) => segRectDist(a, b, [u0, v0], [u1, v1]) <= w.reach + EPS_M);
 }

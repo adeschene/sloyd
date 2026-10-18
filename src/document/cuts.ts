@@ -5,6 +5,7 @@ import { profileAirTester } from './runout';
 import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 import { geometryBoard } from './profiles';
+import { builtSwept, sweptAirTester } from './sweep';
 
 /**
  * Every field of `Cut` that decides "same cut": all but `id`.
@@ -296,6 +297,14 @@ export function stockProbe(board: Board): (p: Point) => boolean {
     const waste = profileAirTester(board, c as ViewCurve);
     return (p: Point) => waste([p.length, p.width, p.thickness]);
   });
+  // A swept profile's waste (profile runs b1): only for those boardBodies builds (a faulted one builds nothing), and only
+  // when the view holds one, so every other part probes byte for byte as before.
+  if (board.profiles.length > 0) {
+    for (const sp of builtSwept(board)) {
+      const waste = sweptAirTester(board, sp);
+      air.push((p: Point) => waste([p.length, p.width, p.thickness]));
+    }
+  }
 
   return (p) => {
     if (!kept(p)) return false;

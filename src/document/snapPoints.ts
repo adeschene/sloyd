@@ -7,6 +7,7 @@ import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
 import { geometryBoard, shapedPart } from './profiles';
+import { builtSwept } from './sweep';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
@@ -179,6 +180,10 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   // Curve points (curves spec §3.5, P5): each arc's ends ('corner'), crown ('edge-mid') and centre ('face-center', which
   // may sit in air — the hole-centre exception to invariant 16: it is the centre of a drawn arc), on both faces square to
   // `through`; a point outside the face rectangle is not offered. Deduped by distance against the lattice.
+  // A swept profile's waste (profile runs b1, invariant 16): an arc's end or crown on the profiled face is in it and is not
+  // offered (its centre keeps the hole-centre exception). Judged only when the view builds a swept profile, so every other
+  // part's marks are byte for byte as before.
+  const swept = board.profiles.length > 0 && builtSwept(board).length > 0;
   for (const c of board.curves) {
     const [u, v] = uvDims(c.through);
     const inFace = (q: P2) => q[0] >= -1e-9 && q[0] <= board[u] + 1e-9 && q[1] >= -1e-9 && q[1] <= board[v] + 1e-9;
@@ -193,7 +198,9 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
           ? [...(sp.stopLo ? [] : [0]), ...(sp.stopHi ? [] : [board[c.through]]), ...(kind === 'corner' ? [...(sp.stopLo ? [sp.lo] : []), ...(sp.stopHi ? [sp.hi] : [])] : [])]
           : [0, board[c.through]];
         for (const t of ts) {
-          const at = toWorld(board, { [u]: q[0], [v]: q[1], [c.through]: t } as Point);
+          const local = { [u]: q[0], [v]: q[1], [c.through]: t } as Point;
+          if (swept && kind !== 'face-center' && !touchesStock(local)) continue;
+          const at = toWorld(board, local);
           if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind, at, owner });
         }
       }
