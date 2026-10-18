@@ -609,8 +609,14 @@ unchanged) and a 3" corner re-routing, the cove running round all four corners w
 check projects unchanged, 0 console errors. `…-iso.png` (the whole project in Iso after the 3" corner) is committed but not cited
 by the verification doc. Could NOT confirm: shading on real hardware (software GL), a real print, the fallback live (pinned by
 hash tests instead), a stopped a2 run inside a corner arc beside a swept neighbour, and the rebuild feel of a cove or bead loop
-during a resize drag (wall-clock guards: cove 81, bead 73, ogee 113 ms). Merged to master 2026-10-18; not deployed. Suite 5696
+during a resize drag (wall-clock guards: cove 81, bead 73, ogee 113 ms). Merged to master as `dc49b01` 2026-10-18. Suite 5696
 tests across 178 files.
+
+**Deployed 2026-10-18** from `dc49b01` on the user's "Deploy it": bundle `index-CDDCzMGJ.js`, CSS `index-CXYEMHnU.css` (styles.css
++7 lines). No schema change (18); rolling back to `3ee667e` refuses only a project holding an All round profile (export first).
+Verified: `200` on `/` and a deep route in-network and at the edge, both assets sha256-equal to `dist/` at both, the old bundle 404s
+in-network, the CSP at the edge, the edge bundle carries the fallback note, a real-browser page load (0 errors, "+ Add board"), and
+the load's two keys removed from the CSS asset page and read back empty after 3s.
 
 **What profile runs chunk a2 did (2026-10-18)** (stopped profiles and the router's run-out; the user: "Write the a2 plan", the
 station ruling "Where the full profile ends", then "Subagent-driven, go ahead"; plan `…-profile-runs-a2.md`; branch

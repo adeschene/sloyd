@@ -21,8 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is profile runs a1 + a2** (deployed 2026-10-18 from `3ee667e`, bundle `index-BbXkYYy4.js`, CSS `index-gCtQCsSI.css`; **SCHEMA 18**):
-  rolling back to edge profiles chunk 1 + fu 388 (`5a9ead8`, `index-B_aEoJl0.js`) or earlier REFUSES every project saved since — export first.
+- **Production is profile runs b1** (deployed 2026-10-18 from `dc49b01`, bundle `index-CDDCzMGJ.js`, CSS `index-CXYEMHnU.css`; **SCHEMA 18**,
+  unchanged): rolling back to a1 + a2 (`3ee667e`, `index-BbXkYYy4.js`, CSS `index-gCtQCsSI.css`) is free EXCEPT that a2 REFUSES a project
+  holding an All round profile — export first; an End to end saved by b1 loads on a2 unchanged. Rolling back to edge profiles chunk 1 +
+  fu 388 (`5a9ead8`, `index-B_aEoJl0.js`) or earlier REFUSES every project saved since schema 18 — export first.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -117,7 +119,7 @@ handicraft education tradition built around hand woodworking.
   Open near it: 392 (residue; the run-outs' shading on real hardware and the cove's dashed contours on a real print for the user's eye).
   **Rolling back below 18 refuses every project saved since — export first.** Chunk b1 followed (below); next: b2 (two-side runs, B3;
   stops on a turned run).
-- **Profile runs chunk b1 (2026-10-18, plan `…-profile-runs-b1.md`, code complete at `fafc8b6`; MERGED to master 2026-10-18, NOT deployed; no
+- **Profile runs chunk b1 (2026-10-18, plan `…-profile-runs-b1.md`, code complete at `fafc8b6`; MERGED to master as `dc49b01`, DEPLOYED 2026-10-18 as `index-CDDCzMGJ.js`; no
   schema change, 18)**: a profile follows the outline. End to end on a side an Arch, notch, Bow or Rounded corner has cut follows that
   side's stretch and carries round its corner arcs to run out at the far tangent point (B1); two End to end runs sharing only a corner
   arc mitre at its middle (B1a); Run → All round (`{ loop: true }`, now loaded) follows the whole outline. Built as SWEPT profiles
