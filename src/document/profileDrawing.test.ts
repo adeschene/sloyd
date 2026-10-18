@@ -95,7 +95,7 @@ function mismatches(b: Board, view: View): string[] {
     const hidden = oracleHiddenWorld(b, mid, view);
     COUNT.checked += 1;
     COUNT.silhouettes += 1;
-    if (hidden) COUNT.hidden += 1;
+    if (hidden) COUNT.hidden += 1; else COUNT.visibleSilhouettes += 1;
     if (!onVis && !onHid) out.push(`${view.title} silhouette ${JSON.stringify(s.A)}→${JSON.stringify(s.E)}: not drawn`);
     else if (onHid !== hidden) out.push(`${view.title} silhouette ${JSON.stringify(s.A)}→${JSON.stringify(s.E)}: drawn ${onHid ? 'hidden' : 'visible'}, oracle ${hidden ? 'hidden' : 'visible'}`);
   }
@@ -103,7 +103,7 @@ function mismatches(b: Board, view: View): string[] {
 }
 
 /** Verdicts read, and how many of them hidden: each sweep asserts it exercised both. */
-const COUNT = { checked: 0, hidden: 0, silhouettes: 0 };
+const COUNT = { checked: 0, hidden: 0, silhouettes: 0, visibleSilhouettes: 0 };
 const VIEWS = [ISO, FRONT, SIDE, TOP];
 const S = { length: 30, width: 10, thickness: 0.75 };
 
@@ -116,7 +116,7 @@ describe('a profiled part draws every unhidden edge visible (F1)', () => {
     expect(len(drawView([b], ISO).visible)).toBeGreaterThan(95);
   });
   it('every kind, on each of the 8 edges, either facing, in all four views', { timeout: 60_000 }, () => {
-    Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0 });
+    Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0, visibleSilhouettes: 0 });
     const bad: string[] = [];
     for (const kind of PROFILE_KINDS) {
       for (const edge of PROFILE_EDGES) {
@@ -165,28 +165,32 @@ describe('a stopped profile on the Plans sheet (profile runs a2)', () => {
     roundover: { size: 0.25, fillet: 0 }, cove: { size: 0.375, fillet: 0 }, ogee: { size: 0.5, fillet: 0 }, thumbnail: { size: 0.75, depth: 0.25 },
   };
   /** The shelf's width-max top edge, profiled from `lo` along the length to `hi` from the max end (null: out through that end). */
-  const shelf = (kind: keyof typeof SIZES, lo: number | null, hi: number | null): Board => {
-    const side = { across: 'width' as const, from: 'max' as CutFrom };
+  const shelf = (kind: keyof typeof SIZES, lo: number | null, hi: number | null, from: CutFrom = 'max', face: CutFrom = 'max'): Board => {
+    const side = { across: 'width' as const, from };
     const start: ProfileEnd = lo === null ? { side, through: 'min' } : { side, from: 'min', at: lo };
     const end: ProfileEnd = hi === null ? { side: { ...side }, through: 'max' } : { side: { ...side }, from: 'max', at: hi };
     const z = SIZES[kind];
     const p: ProfileCut = {
-      id: 'p', face: 'max', kind: kind as ProfileKind, size: z.size, ...(z.depth !== undefined ? { depth: z.depth } : {}),
-      ...(kind === 'thumbnail' ? {} : { fillet: z.fillet ?? 0 }), facing: 'face', run: canonicalRun(S, 'max', { start, end }),
+      id: 'p', face, kind: kind as ProfileKind, size: z.size, ...(z.depth !== undefined ? { depth: z.depth } : {}),
+      ...(kind === 'thumbnail' ? {} : { fillet: z.fillet ?? 0 }), facing: 'face', run: canonicalRun(S, face, { start, end }),
     };
     return createBoard({ id: 'shelf', ...S, profiles: [p] });
   };
   const CASES: [string, Board][] = [
     ['roundover 3..27', shelf('roundover', 3, 3)], ['cove 3..27', shelf('cove', 3, 3)], ['ogee 3..27', shelf('ogee', 3, 3)],
     ['thumbnail 3..27', shelf('thumbnail', 3, 3)], ['roundover through min..20', shelf('roundover', null, 10)],
+    // Run-outs that turn from the isometric with their outline in plain sight (the width-max top edge's are hidden by the
+    // corner): the width-min top edge's roundover and the width-max bottom edge's ogee.
+    ['roundover 3..27, width-min top', shelf('roundover', 3, 3, 'min', 'max')], ['ogee 3..27, width-max bottom', shelf('ogee', 3, 3, 'max', 'min')],
   ];
   it('every model edge and every run-out silhouette agrees with the ray oracle, in all four views', { timeout: 120_000 }, () => {
-    Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0 });
+    Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0, visibleSilhouettes: 0 });
     const bad: string[] = [];
     for (const [name, b] of CASES) for (const view of VIEWS) for (const m of mismatches(b, view)) bad.push(`${name}: ${m}`);
     expect(bad).toEqual([]);
-    // The sweep read silhouettes, and both verdicts.
+    // The sweep read silhouettes — some of them in plain sight, where the lift decides — and both verdicts.
     expect(COUNT.silhouettes).toBeGreaterThan(20);
+    expect(COUNT.visibleSilhouettes).toBeGreaterThan(5);
     expect(COUNT.hidden).toBeGreaterThan(20);
     expect(COUNT.checked - COUNT.hidden).toBeGreaterThan(20);
   });
