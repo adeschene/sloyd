@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, defaultProfile, PROFILE_EDGES } from './document';
 import { boardBodies, bodyVerts, bodyVolume, BODY_EPS, type Body } from './bodies';
-import { curveOutline, inPolygonClosed, twiceArea, uvDims, distToSegment, type P2, type ViewCurve } from './curves';
+import { arcChords, arcPoint, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPolygonClosed, localSegments, twiceArea, uvDims, distToSegment, type LocalArc, type P2, type ViewCurve } from './curves';
 import { canonicalRun, geometryBoard, profileOf } from './profiles';
-import { profileSection, profileWasteContains, runoutAxis, sectionFrame } from './runout';
+import { profileSection, profileWasteContains, runoutAxis, runoutNormal, sectionFrame } from './runout';
 import { worldParts } from './tree';
 import { stockProbe } from './cuts';
 import { holeFaults } from './holeFaults';
@@ -455,5 +455,91 @@ describe('a point on a stopped profile\'s kept surface is stock (inv 16, P3; T4 
     expect(probe(at(sv + BEAR))).toBe(true);
     expect(dr).toBeGreaterThan(0);
     expect(probe(at(sv + BEAR - 1e-4))).toBe(false);
+  });
+});
+
+describe('the run-out\'s cutter-surface normal (profile runs a2, Task 5)', () => {
+  // Points ON THE TRUE CUTTER SURFACE, built here from the definition: the section's arc at an interior chord vertex V (on the
+  // true arc, a vertex of the oracle's polygon), revolved to angle θ about the bit's axis (this file's frame, BEAR literal).
+  // Two tangents by finite differences of the ORACLE's boundary (bisection on profileWasteContains): along the sector (θ ± δ,
+  // bisected along ρ) and along the section arc (rays from the arc's centre at φ_V ± δ: they cross the two chords meeting at
+  // V symmetrically, so their difference is the true arc's tangent at V).
+  const cases = [WOOD[0]!, WOOD[1]!, WOOD[2]!, WOOD[5]!, WOOD[7]!];
+  for (const { name, s } of cases) {
+    it(`${name}: perpendicular to both tangents, out of the wood`, () => {
+      const { b, c } = stopped(s);
+      const f = frameOf(b, s);
+      const across = s.across ?? 'width';
+      const uE = (s.from ?? 'max') === 'min' ? 0 : b[across];
+      const vF = (s.face ?? 'max') === 'min' ? 0 : b.thickness;
+      const toST = (q: P2): P2 => [Math.abs(q[0] - uE), Math.abs(q[1] - vF)];
+      const uIn = (s.from ?? 'max') === 'min' ? 1 : -1;
+      const ends = [...(f.stopLo ? [{ end: 'lo' as const, st: f.lo, fwd: -1 }] : []), ...(f.stopHi ? [{ end: 'hi' as const, st: f.hi, fwd: 1 }] : [])];
+      /** The 3D point at angle θ about the stop's axis with section coordinates (σ, t). */
+      const at = (e: (typeof ends)[number], th: number, sig: number, t: number): V3 => {
+        const p: V3 = [0, 0, 0];
+        p[f.r] = e.st + e.fwd * (BEAR + sig) * Math.cos(th);
+        p[f.u] = uE - uIn * BEAR + uIn * (BEAR + sig) * Math.sin(th);
+        p[2] = vF + (vF === 0 ? 1 : -1) * t;
+        return p;
+      };
+      /** Bisect the oracle's boundary between two points, one waste and one not. */
+      const boundary = (a: V3, z: V3): V3 => {
+        const wa = profileWasteContains(b, c, a);
+        expect(profileWasteContains(b, c, z)).toBe(!wa);
+        let lo = 0, hi = 1;
+        for (let i = 0; i < 60; i += 1) {
+          const m = (lo + hi) / 2;
+          if (profileWasteContains(b, c, a.map((x, k) => x + m * (z[k]! - x)) as V3) === wa) lo = m; else hi = m;
+        }
+        const m = (lo + hi) / 2;
+        return a.map((x, k) => x + m * (z[k]! - x)) as V3;
+      };
+      const unit = (v: V3): V3 => { const l = Math.hypot(...v); return v.map((x) => x / l) as V3; };
+      const dot = (a: V3, q: V3) => a[0] * q[0] + a[1] * q[1] + a[2] * q[2];
+      const arcs = localSegments(b, c).filter((x): x is LocalArc => x.kind === 'arc');
+      expect(arcs.length).toBeGreaterThan(0);
+      let checked = 0;
+      for (const arc of arcs) {
+        const n = arcChords(arc, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+        expect(n, 'an interior chord vertex exists').toBeGreaterThan(1);
+        const centre = toST(arc.centre);
+        for (let k = 1; k < n; k += 1) {
+          const V = toST(arcPoint(arc, k / n));
+          const phi = Math.atan2(V[1] - centre[1], V[0] - centre[0]);
+          for (const e of ends) for (const th of [-0.6, 0.3, 0.9, 1.35]) {
+            const p = at(e, th, V[0], V[1]);
+            const nrm = runoutNormal(b, c, e.end, p);
+            expect(nrm).not.toBeNull();
+            expect(Math.hypot(...nrm!)).toBeCloseTo(1, 12);
+            // Along the sector: the boundary at θ ± δ, bisected along ρ at V's depth.
+            const d = 1e-4, w = 2e-3;
+            const sector = (x: number) => boundary(at(e, x, V[0] - w, V[1]), at(e, x, V[0] + w, V[1]));
+            const t1 = unit(sector(th + d).map((x, i) => x - sector(th - d)[i]!) as V3);
+            // Along the section arc: rays from the arc's centre at φ ± δ, bisected (inside to outside the circle).
+            const ray = (q: number) => boundary(
+              at(e, th, centre[0] + (arc.radius - w) * Math.cos(q), centre[1] + (arc.radius - w) * Math.sin(q)),
+              at(e, th, centre[0] + (arc.radius + w) * Math.cos(q), centre[1] + (arc.radius + w) * Math.sin(q)));
+            const t2 = unit(ray(phi + d).map((x, i) => x - ray(phi - d)[i]!) as V3);
+            expect(Math.abs(dot(nrm!, t1)), `${e.end} θ ${th}: sector`).toBeLessThan(1e-6);
+            expect(Math.abs(dot(nrm!, t2)), `${e.end} θ ${th}: section arc`).toBeLessThan(1e-6);
+            // Out of the wood: a hair along n is waste, a hair against it is not.
+            expect(profileWasteContains(b, c, p.map((x, i) => x + 1e-4 * nrm![i]!) as V3), 'outward').toBe(true);
+            expect(profileWasteContains(b, c, p.map((x, i) => x - 1e-4 * nrm![i]!) as V3), 'inward').toBe(false);
+            checked += 1;
+          }
+        }
+      }
+      expect(checked).toBeGreaterThan(8);
+    });
+  }
+  it('at the station (θ = π/2) the run-out\'s normal is the band\'s radial normal: no crease at the stop', () => {
+    const { b, c } = stopped(spec('roundover'));
+    // Width max side, top face: the roundover's centre is 0.25 in from each face, at (s, t) = (0.25, 0.25).
+    const p: V3 = [3, 10 - (0.25 - 0.25 * Math.cos(0.7)), 0.75 - (0.25 - 0.25 * Math.sin(0.7))];
+    const n = runoutNormal(b, c, 'lo', p)!;
+    expect(n[0]).toBeCloseTo(0, 12);
+    expect(n[1]).toBeCloseTo(Math.cos(0.7), 12);
+    expect(n[2]).toBeCloseTo(Math.sin(0.7), 12);
   });
 });

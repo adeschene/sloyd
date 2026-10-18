@@ -13,6 +13,9 @@ import { curveOutline, localSegments } from '../document/document';
 import type { Body, LocalArc, V3 } from '../document/document';
 import { cornerCurve } from '../document/document';
 import { twiceArea } from '../document/curves';
+import { canonicalRun, geometryBoard } from '../document/profiles';
+import { runoutNormals } from '../document/runout';
+import type { ProfileCut, ProfileEnd } from '../document/types';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -1148,4 +1151,58 @@ describe('curved bodies in the mesh (curves spec §3.4)', () => {
     const pb = boardBodies(plain);
     expect(bodyMesh(plain, pb[0]!, [], pb).normals).toBeUndefined();
   });
+});
+
+describe('a stopped profile\'s run-out faces shade as the cutter\'s surface (profile runs a2, Task 5)', () => {
+  // The top face's width-max side of a 30 × 10 × 3/4 shelf, stopped 3" in from each end. Flat at turn 0: world X = length,
+  // Y = thickness, Z = width; positions centred.
+  const dims = { length: 30, width: 10, thickness: 0.75 };
+  const sizes = { cove: { size: 0.375, fillet: 0 }, ogee: { size: 0.5, fillet: 0 } } as const;
+  for (const kind of ['cove', 'ogee'] as const) {
+    it(`${kind}: every run-out face vertex takes runoutNormal (its arc chosen from the face), not the flat normal`, () => {
+      const side = { across: 'width' as const, from: 'max' as const };
+      const start: ProfileEnd = { side, from: 'min', at: 3 };
+      const end: ProfileEnd = { side: { ...side }, from: 'max', at: 3 };
+      const p: ProfileCut = { id: 'p', face: 'max', kind, ...sizes[kind], facing: 'face', run: canonicalRun(dims, 'max', { start, end }) };
+      const b = createBoard({ ...dims, profiles: [p] });
+      const c = geometryBoard(b).curves[0]!;
+      const ro = runoutNormals(b, c);
+      let faces = 0, checked = 0, offFlat = 0, onArc = 0, offArc = 0;
+      for (const body of boardBodies(b)) {
+        for (const f of body.faces) {
+          if (f.runout === undefined) continue;
+          faces += 1;
+          const one: Body = { box: null, faces: [f] };
+          const m = bodyMesh(b, one, [], [one]);
+          // A face on a chord plane's extension (wood beside a waste piece) is on no arc: it keeps its flat normal.
+          const arc = ro.arcOf(f.runout, f.verts);
+          const flat: V3 = [f.n[0], f.n[2], f.n[1]];
+          if (arc === null) {
+            offArc += 1;
+            for (let i = 0; i < m.normals!.length; i += 3) expect([m.normals![i], m.normals![i + 1], m.normals![i + 2]]).toEqual(flat.map((x) => Math.fround(x)));
+            continue;
+          }
+          onArc += 1;
+          for (let i = 0; i < m.positions.length; i += 3) {
+            const local: V3 = [m.positions[i]! + 15, m.positions[i + 2]! + 5, m.positions[i + 1]! + 0.375];
+            const want = ro.normal(f.runout, local, arc);
+            // Flipped to the face's outward normal, as bodyMesh does (a cap's dot is ~0.96 and up: no flip in practice).
+            const sgn = want[0] * f.n[0] + want[1] * f.n[1] + want[2] * f.n[2] < 0 ? -1 : 1;
+            expect(sgn).toBe(1);
+            const world: V3 = [want[0], want[2], want[1]];
+            const got: V3 = [m.normals![i]!, m.normals![i + 1]!, m.normals![i + 2]!];
+            // Float32 positions carry ~1e-6: the normal read back from them, within 1e-4.
+            expect(Math.hypot(got[0] - world[0], got[1] - world[1], got[2] - world[2])).toBeLessThan(1e-4);
+            if (Math.hypot(got[0] - flat[0], got[1] - flat[1], got[2] - flat[2]) > 1e-2) offFlat += 1;
+            checked += 1;
+          }
+        }
+      }
+      expect(faces).toBeGreaterThan(0);
+      // The split pieces leave many faces on chord planes' extensions (cove 76, ogee 82 of them); the caps are the rest.
+      expect(onArc).toBeGreaterThanOrEqual(8);
+      expect(checked).toBeGreaterThan(0);
+      expect(offFlat).toBeGreaterThan(checked / 2);
+    });
+  }
 });

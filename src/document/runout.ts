@@ -1,6 +1,6 @@
 import type { Board, Dimension } from './types';
 import { DIMENSION_ORDER } from './geometry';
-import { convexPieces, CURVE_EPS, distToSegment, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPolygonClosed, spanOf, uvDims, type P2, type ViewCurve } from './curves';
+import { arcChords, convexPieces, CURVE_EPS, distToSegment, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, inPolygonClosed, localSegments, spanOf, twiceArea, uvDims, type P2, type ViewCurve } from './curves';
 
 /**
  * A stopped profile's run-outs (profile runs spec P9): THE one home of the router's run-out geometry. The band between the
@@ -180,5 +180,89 @@ export function profileAirTester(board: Pick<Board, Dimension>, c: ViewCurve): (
     const q: P2 = beyond ? [Math.hypot(run - beyond.run, p[f.iu] - beyond.u) - BEARING, t] : [s, t];
     if (!inPolygonClosed(pts, q)) return false;
     return !pts.some((a, i) => arc[i] && distToSegment(q, a, pts[(i + 1) % pts.length]!) <= CURVE_EPS);
+  };
+}
+
+/**
+ * THE cutter-surface normal of a run-out (profile runs a2, Task 5): the bit's surface beyond a stop is the section revolved
+ * about the axis, so at a point with ρ⃗ its (run, across) offset from the axis, s = |ρ⃗| − BEARING and t its depth, the normal
+ * is the section arc's own 2D normal (s − sc, t − tc) / R — radial about the arc's centre — lifted as n_s·ρ̂ + n_t·t̂, and
+ * oriented OUT OF THE WOOD (into the waste): per arc, the side of its chords the section polygon's interior lies on.
+ * `runoutNormal` picks the arc by the point alone; bodyMesh picks it once per face from all its vertices (`arcOf`) — a
+ * vertex between two sector rays sits up to a sagitta off the true circle, so no tight chord match would hold.
+ */
+export function runoutNormal(board: Pick<Board, Dimension>, c: ViewCurve, end: 'lo' | 'hi', p: readonly number[]): V3 | null {
+  const r = runoutNormals(board, c);
+  const arc = r.arcOf(end, [p]);
+  return arc === null ? null : r.normal(end, p, arc);
+}
+
+/** `runoutNormal` with the frame, the section's arcs and the axes hoisted: bodyMesh's per-part form. */
+export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
+  /** The section arc whose chord the face (its vertices) lies on, or null: a face on no arc (a chord plane's extension). */
+  arcOf(end: 'lo' | 'hi', verts: readonly (readonly number[])[]): number | null;
+  normal(end: 'lo' | 'hi', p: readonly number[], arc: number): V3;
+} {
+  const f = sectionFrame(board, c);
+  const { pts } = profileSection(board, c);
+  const span = spanOf(c);
+  const axes = { lo: span && span.stopLo ? runoutAxis(board, c, 'lo') : null, hi: span && span.stopHi ? runoutAxis(board, c, 'hi') : null };
+  const toST = (q: readonly number[]): P2 => [f.uOut * (f.uEdge - q[0]!), f.vIn * (q[1]! - f.vFace)];
+  // The section's arcs in (s, t): each one's centre, its chords (the outline's own points, curveOutline's walk) and the sign
+  // that turns (q − centre) toward the waste.
+  const wind = twiceArea(pts) > 0 ? 1 : -1;
+  const arcs: { centre: P2; chords: [P2, P2][]; sign: 1 | -1 }[] = [];
+  let at = 0;
+  for (const seg of localSegments(board, c)) {
+    if (seg.kind === 'line') { at += 1; continue; }
+    const n = arcChords(seg, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+    const chords: [P2, P2][] = [];
+    for (let k = 0; k < n; k += 1) chords.push([pts[at + k]!, pts[(at + k + 1) % pts.length]!]);
+    at += n;
+    const centre = toST(seg.centre);
+    const [a, b] = chords[0]!;
+    // The waste lies to the LEFT of a counter-clockwise polygon's edges (runoutPieces' rule).
+    const inS = -wind * (b[1] - a[1]), inT = wind * (b[0] - a[0]);
+    const sign = ((a[0] + b[0]) / 2 - centre[0]) * inS + ((a[1] + b[1]) / 2 - centre[1]) * inT >= 0 ? 1 : -1;
+    arcs.push({ centre, chords, sign });
+  }
+  const axisOf = (end: 'lo' | 'hi') => {
+    const a = axes[end];
+    if (!a) throw new Error(`runoutNormal: the curve has no run-out at ${end}`);
+    return a;
+  };
+  const stOf = (end: 'lo' | 'hi', p: readonly number[]): { st: P2; rk: number; ru: number; rho: number } => {
+    const a = axisOf(end);
+    const rk = p[f.k]! - a.run, ru = p[f.iu]! - a.u;
+    const rho = Math.hypot(rk, ru);
+    return { st: [rho - BEARING, f.vIn * (p[f.iv]! - f.vFace)], rk, ru, rho };
+  };
+  return {
+    arcOf(end, verts) {
+      if (arcs.length === 0) return null;
+      const sts = verts.map((p) => stOf(end, p).st);
+      let best = 0, bestD = Infinity;
+      arcs.forEach((arc, i) => {
+        let d = 0;
+        for (const q of sts) d = Math.max(d, Math.min(...arc.chords.map(([a, b]) => distToSegment(q, a, b))));
+        if (d < bestD) { bestD = d; best = i; }
+      });
+      // A cap's vertex lies on its chord in the SECTOR's (s, t); read with the true ρ it moves by at most the sector chords'
+      // sagitta, (BEARING + max s)(1 − cos h) <= CURVE_TOLERANCE (`sectors`). A face farther off — wood beside a waste piece,
+      // on a chord plane's extension (measured >= 9e-3 on the cove and ogee; caps <= 2.3e-3) — is on no arc: its flat normal.
+      return bestD <= CURVE_TOLERANCE + CURVE_EPS ? best : null;
+    },
+    normal(end, p, i) {
+      const arc = arcs[i]!;
+      const { st, rk, ru, rho } = stOf(end, p);
+      const ds = st[0] - arc.centre[0], dt = st[1] - arc.centre[1];
+      const l = Math.hypot(ds, dt);
+      const ns = (arc.sign * ds) / l, nt = (arc.sign * dt) / l;
+      const N: V3 = [0, 0, 0];
+      N[f.k] = (ns * rk) / rho;
+      N[f.iu] = (ns * ru) / rho;
+      N[f.iv] = nt * f.vIn;
+      return N;
+    },
   };
 }
