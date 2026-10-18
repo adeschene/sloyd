@@ -60,7 +60,12 @@ function wasteOf(board: Board, p: ProfileCut): Waste {
 /** Extra air the oracle knows (Review Focus 5): per column, a raised floor or lowered ceiling. */
 type Extra = { column: (x: number, y: number, lo: number, hi: number) => [number, number]; covers: (x0: number, y0: number, x1: number, y1: number) => boolean };
 
-interface Oracle { T: number; outline: P2[]; area: number; bb: [number, number, number, number]; column: (x: number, y: number) => [number, number] | null; cells: { x: number; y: number; fine: boolean }[] }
+interface Oracle {
+  T: number; outline: P2[]; area: number; bb: [number, number, number, number]; column: (x: number, y: number) => [number, number] | null; cells: { x: number; y: number; fine: boolean }[];
+  /** The column with every run-out's ρ read as ρ / cos h (h its sectors' half-angle): the most wood a2's INSCRIBED sectors
+   *  keep past a station (exact on each ray, ρ_eff = m·(x − axis) / cos h between them). */
+  inscribed: (x: number, y: number) => [number, number] | null;
+}
 const C = 0.5;
 function oracleOf(board: Board, wastes: Waste[], extra?: Extra): Oracle {
   const outline = faceOutline(board)!.chords.map((c) => c.a);
@@ -92,22 +97,28 @@ function oracleOf(board: Board, wastes: Waste[], extra?: Extra): Oracle {
     return g;
   });
   const cellOf = (x: number, y: number) => Math.min(nx - 1, Math.max(0, Math.floor((x - bb[0]) / C))) * ny + Math.min(ny - 1, Math.max(0, Math.floor((y - bb[1]) / C)));
-  const depth = (w: Waste, k: number, x: number, y: number): number => {
+  // The run-out's sectors, from CURVE_TOLERANCE alone: the fewest over a half turn of radius BEARING + reach whose chord
+  // sagitta is within it (written here, not read from runout.ts).
+  const halfAngle = (w: Waste) => { const r = BEARING + w.R; const n = Math.max(2, Math.ceil(Math.PI / (2 * Math.acos(1 - CURVE_TOLERANCE / r)) - 1e-9)); return Math.PI / (2 * n); };
+  const depth = (w: Waste, k: number, x: number, y: number, inscribed = false): number => {
     let beyond = Infinity;
+    const stretch = inscribed ? 1 / Math.cos(halfAngle(w)) : 1;
     for (const st of w.stations) {
-      if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] > 0) beyond = Math.min(beyond, Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING);
+      if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] > 0) beyond = Math.min(beyond, stretch * Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING);
     }
     if (beyond < Infinity) return w.tau(beyond);
     let d = Infinity;
     for (const s of cand[k]![cellOf(x, y)]!) { const v = distSeg(x, y, w.segs[s]![0], w.segs[s]![1]); if (v < d) d = v; }
     return w.tau(d);
   };
-  const column = (x: number, y: number): [number, number] | null => {
+  const columnOf = (x: number, y: number, inscribed: boolean): [number, number] | null => {
     if (!inside(x, y)) return null;
     let lo = 0, hi = T;
-    wastes.forEach((w, k) => { const t = depth(w, k, x, y); if (w.face === 'max') hi = Math.min(hi, T - t); else lo = Math.max(lo, t); });
+    wastes.forEach((w, k) => { const t = depth(w, k, x, y, inscribed); if (w.face === 'max') hi = Math.min(hi, T - t); else lo = Math.max(lo, t); });
     return extra ? extra.column(x, y, lo, hi) : [lo, hi];
   };
+  const column = (x: number, y: number) => columnOf(x, y, false);
+  const inscribed = (x: number, y: number) => columnOf(x, y, true);
   const cells: Oracle['cells'] = [];
   for (let i = 0; i < nx; i += 1) for (let j = 0; j < ny; j += 1) {
     const x = bb[0] + i * C, y = bb[1] + j * C;
@@ -116,7 +127,7 @@ function oracleOf(board: Board, wastes: Waste[], extra?: Extra): Oracle {
     if (nearPath) cells.push({ x, y, fine: true });
     else if (extra?.covers(x, y, x + C, y + C)) cells.push({ x, y, fine: false });
   }
-  return { T, outline, area: twiceArea(outline) / 2, bb, column, cells };
+  return { T, outline, area: twiceArea(outline) / 2, bb, column, inscribed, cells };
 }
 /** Kept volume: the outline's prism minus the waste, integrated on a jittered grid (h near the paths, 1/40" elsewhere). */
 function oracleVolume(o: Oracle, h: number, seed: number): number {
@@ -165,7 +176,12 @@ function misclassified(bodies: readonly Body[], o: Oracle, wastes: Waste[], N: n
     else { const w = wastes[Math.floor(rand() * wastes.length)]!; const t = rand() * Math.min(o.T, 1.2 * w.D); z = w.face === 'max' ? o.T - t : t; }
     const col = o.column(x, y);
     const wood = !!col && z > col[0] && z < col[1];
-    if (wood !== inB([x, y, z])) { bad += 1; if (worst.length < 4) worst.push(`(${x.toFixed(4)}, ${y.toFixed(4)}, ${z.toFixed(4)}) oracle ${wood ? 'wood' : 'air'} col ${col?.map((v) => v.toFixed(5)).join('..')}`); }
+    const body = inB([x, y, z]);
+    // Past a station a2's inscribed sectors keep a little more wood than the true cutter: wood the bodies keep there is
+    // right when the inscribed reading keeps it too (Task 6 fix round 1: the stations' move put samples in that band).
+    const ins = !wood && body ? o.inscribed(x, y) : null;
+    if (ins && z > ins[0] && z < ins[1]) continue;
+    if (wood !== body) { bad += 1; if (worst.length < 4) worst.push(`(${x.toFixed(4)}, ${y.toFixed(4)}, ${z.toFixed(4)}) oracle ${wood ? 'wood' : 'air'} col ${col?.map((v) => v.toFixed(5)).join('..')}`); }
   }
   return { bad, worst };
 }
@@ -220,7 +236,8 @@ describe('swept kept wood against the independent oracle (Q3, §4.3)', () => {
         // past them the bodies keep more than the true cutter by no more than the sectors' sagitta over the cutter's
         // surface (π (BEARING + reach) · section length · CURVE_TOLERANCE per run-out).
         // Here every station's plane is one line (y = the corner radius), as on frontOnly.
-        expect(stations.every((st) => st.tangent[0] === 0 && st.tangent[1] === 1 && st.at[1] === stations[0]!.at[1])).toBe(true);
+        // (Fix round 1: the stations sit ε past the corners' tangent points, read off each end's own chord: equal to 1e-12.)
+        expect(stations.every((st) => st.tangent[0] === 0 && st.tangent[1] === 1 && Math.abs(st.at[1] - stations[0]!.at[1]) <= 1e-12)).toBe(true);
         const yS = stations[0]!.at[1];
         const before = (_x: number, y: number) => y < yS;
         const past = (_x: number, y: number) => y >= yS;
@@ -471,7 +488,10 @@ describe('B1 station ends and the rest polygon (the plan pieces)', () => {
     expect(plan.chain.stations.length).toBe(2);
     for (const st of plan.chain.stations) for (const f of plan.faces) for (const q of f) expect(st.n[0] * q[0] + st.n[1] * q[1] + st.d).toBeGreaterThanOrEqual(-1e-9);
     const bodies = boardBodies(frontOnly);
-    for (const f of bodies.flatMap((b) => b.faces).filter((x) => x.sweep !== undefined)) for (const p of f.verts) expect(p[1]).toBeLessThanOrEqual(2 + 1e-9);
+    // The station is ε past the corner's tangent point (Task 6 fix round 1): 2 · reach · tan(π/96), written from the 2" corner's
+    // 12 chords.
+    const yS = 2 + 2 * 0.25 * Math.tan(Math.PI / 96);
+    for (const f of bodies.flatMap((b) => b.faces).filter((x) => x.sweep !== undefined)) for (const p of f.verts) expect(p[1]).toBeLessThanOrEqual(yS + 1e-9);
   });
   for (const [name, board] of [['the arched apron', apronArch], ['the notch', notchEdge], ['the front End to end', frontOnly]] as const) {
     it(`${name}: the rest is a simple polygon with no spike (a through ray along the end face doubles back)`, () => {

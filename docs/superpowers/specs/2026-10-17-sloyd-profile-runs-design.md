@@ -54,6 +54,12 @@ profiles; a grain fix (fu 336).
 
 - **B1 Rounded ends.** End to end on a side whose ends are corner arcs carries the profile round each arc and runs out where the
   arc meets the next side (the bit lifted off at the far tangent point). All round stays the way to profile the whole face.
+  *Amended (implementation, b1 Task 6 fix round 1; for the user's review)*: the run goes on past the far tangent point along
+  the next side for ε = 2 · reach · tan(φ/2) (φ the arc's end chord against that side) and runs out THERE. The arc's end
+  chord band then meets a straight band on their shared bisector, and that meets a2's run-out on the station plane in the
+  side's own frame, so there is one section and no step. Clipping the chord band across the side stretched its section by
+  1/cos φ, about 0.0005" at 1/4" reach, and drew two near-coincident lines and a stub. Measured at a 1/4" reach: ε = 0.016"
+  on 2" corners and 0.033" on 1/2" corners; 0.025" for a 3/8" cove on 2" corners.
 - **B1a** *Amended (implementation, b1)*: two profiles on one face whose stretches share ONLY a corner arc meet at that
   arc's middle in a mitre (the radial line through its midpoint), as R6 mitres a sharp corner; that is not an `overlap`. Each runs
   out at the far tangent point only where the adjacent side holds no such profile. (Without it a saved rounded top with four End to

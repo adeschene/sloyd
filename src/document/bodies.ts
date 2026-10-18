@@ -764,7 +764,10 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // the offset line at the reach, a tangent line for a roundover (no edge, invariant 16) and a crease for a cove. Asked
   // only of a part with a built swept profile, so every other part's edges are byte for byte what they were.
   const swept = sweptHere;
-  const broad = swept.map((p) => (p.face === 'max' ? board.thickness : 0));
+  // A plane a horizontal section face lies on (a fillet, a quirk's floor) is the profile's surface there too: its other faces
+  // (a run-out's floor past a B1 station) meet the section face flat, which stage 1, blind to section faces, would outline.
+  const broad = swept.length === 0 ? [] : [...swept.map((p) => (p.face === 'max' ? board.thickness : 0)),
+    ...faces.filter((f) => f.sweep !== undefined && Math.abs(Math.abs(f.n[2]) - 1) <= BODY_EPS).map((f) => f.verts[0]![2])];
   const skipPlane = (k: number, c: number) => k === 2 && broad.some((z) => Math.abs(z - c) <= BODY_EPS);
   for (const k of axes) {
     const groups: { c: number; pieces: V3[][] }[] = [];

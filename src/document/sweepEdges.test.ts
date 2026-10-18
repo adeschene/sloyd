@@ -3,6 +3,7 @@ import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies'
 import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
 import { geometryBoard } from './profiles';
 import { builtSwept } from './sweep';
+import { profilePath } from './profilePath';
 import type { Segment } from './cuts';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, topCorners } from './sweepFixtures';
 import type { Board } from './types';
@@ -115,13 +116,15 @@ describe('a swept profile\'s lines (spec §5): sharp section vertices along the 
   });
   it('the run-outs (B1) join the band and each other by a2\'s rule: inside them no line; their outline on the faces drawn', () => {
     const e = boardEdges(frontOnly);
-    // The run-out past the station at width 2, on the length-min side: the cutter (bearing 1/4" outside the side, reach
-    // 1/4") reaches width 2 + √(0.5² − 0.25²) = 2.433 on the top.
-    const inside = (q: Segment[0]) => q.width > 2 + 1e-6 && q.width < 2.433 && q.length > 1e-9 && q.thickness < 0.75 - 1e-9;
+    // The run-out past the station on the length-min side — at width 2 + ε (the tangent point plus the extension, below):
+    // the cutter (bearing 1/4" outside the side, reach 1/4") reaches √(0.5² − 0.25²) = 0.433 past it on the top.
+    const y0 = 2 + 2 * 0.25 * Math.tan(Math.PI / 96), y1 = y0 + Math.sqrt(0.5 ** 2 - 0.25 ** 2);
+    const inside = (q: Segment[0]) => q.width > y0 + 1e-6 && q.width < y1 - 1e-6 && q.length > 1e-9 && q.thickness < 0.75 - 1e-9;
     expect(e.filter((s) => s[0].length < 1 && inside(s[0]) && inside(s[1]))).toEqual([]);
     // Its outline on the top (4 sector chords) and on the side face (7: its sectors meeting the side), each station.
-    expect(e.filter((s) => at(0.75)(s) && s[0].length < 0.3 && Math.min(s[0].width, s[1].width) >= 2 && Math.max(s[0].width, s[1].width) < 2.44 && s[0].width + s[1].width > 4)).toHaveLength(4);
-    expect(e.filter((s) => s[0].length === 0 && s[1].length === 0 && Math.min(s[0].width, s[1].width) >= 2 && Math.max(s[0].width, s[1].width) <= 2.434)).toHaveLength(7);
+    const inRun = (s: Segment) => Math.min(s[0].width, s[1].width) >= y0 - 1e-9 && Math.max(s[0].width, s[1].width) <= y1 + 1e-9;
+    expect(e.filter((s) => at(0.75)(s) && s[0].length < 0.3 && inRun(s) && s[0].width + s[1].width > 2 * y0 + 1e-9)).toHaveLength(4);
+    expect(e.filter((s) => s[0].length === 0 && s[1].length === 0 && inRun(s))).toHaveLength(7);
   });
   it('fillets: a junction or shoulder they make is sharp (a crease); a fillet the arc runs into tangentially draws nothing', () => {
     // Cove 3/8" + 1/16" fillet: the reach and the fillet's shoulder at the side are sharp, the cove meets its fillet
@@ -272,6 +275,8 @@ const sweptEdgeCases: [string, Board][] = [
   ['roundover 3/8 round the half-round notch', notchEdge],
   ['roundover 1/4 End to end on the front (B1 run-outs)', frontOnly],
   ['cove 3/8 End to end on the front (B1 run-outs)', topCorners(2, endToEnd('p1', side('width', 'min'), 0.375, 'cove'))],
+  ['roundover 1/4 End to end on the front of 1/2" corners (B1, the largest extension)', topCorners(0.5, endToEnd('p1', side('width', 'min')))],
+  ['bead 1/4 + 1/16 quirk End to end on the front (B1: the quirk past a station)', topCorners(2, { ...endToEnd('p1', side('width', 'min'), 0.25, 'bead'), fillet: 1 / 16 })],
   ['a loop on face min, 1/2" corners', topCorners(0.5, loop('m', 0.25, 'roundover', 'min'))],
   ['loops on the top and the bottom (Review Focus 4)', { ...topCorners(2), profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] }],
   ['four End to ends mitred at the 2" corners\' middles (B1a)', four(topCorners(2))],
@@ -305,3 +310,69 @@ describe('the fast swept edges equal the reference, segments and joins (every sw
     expect(boardEdges(board).length).toBe(fast.length);
   });
 });
+
+/*
+ * B1 stations (Task 6 fix round 1): a2 guarantees no step at a station, and so for a swept run. The run carries on past the
+ * corner's far tangent point along the side for ε = 2 · reach · tan(φ/2) (φ the corner's end chord against the side), so the
+ * end chord's band meets a straight band on their bisector and that meets the run-out on the station plane, both in the
+ * side's frame. Before, the end chord's band was clipped across the SIDE: its section stretched by 1/cos φ, ~0.0005" at
+ * 1/4", drawn twice ~0.001" apart with a ~0.001" stub.
+ */
+describe('B1 stations: one section where the band meets the run-out (no step)', () => {
+  const station = (r: number, p: Parameters<typeof topCorners>[1]): Board => topCorners(r, p);
+  const front = side('width', 'min');
+  const cases: [string, Board][] = [
+    ['roundover 1/4, 2" corners', frontOnly],
+    ['cove 3/8, 2" corners', station(2, endToEnd('p1', front, 0.375, 'cove'))],
+    ['roundover 1/4, 1/2" corners (the largest ε)', station(0.5, endToEnd('p1', front))],
+    ['bead 1/4 + 1/16 quirk, 2" corners', station(2, { ...endToEnd('p1', front, 0.25, 'bead'), fillet: 1 / 16 })],
+  ];
+  const segDist = (p: P, a: P, b: P) => {
+    const d = sub3(b, a), l2 = dot3(d, d), t = Math.max(0, Math.min(1, dot3(sub3(p, a), d) / l2));
+    return Math.hypot(...sub3(p, [a[0] + t * d[0], a[1] + t * d[1], a[2] + t * d[2]]));
+  };
+  it('the station is ε along the side past the tangent point (written from the corner\'s own chords)', () => {
+    // 2" corner: 12 chords, the end chord 1/24 of a quarter turn off the side: φ = π/48; 1/2": 6 chords, φ = π/24.
+    const at = (b: Board) => (profilePath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] }).at;
+    expect(at(frontOnly)[1] - 2).toBeCloseTo(2 * 0.25 * Math.tan(Math.PI / 96), 12);
+    expect(at(cases[2]![1])[1] - 0.5).toBeCloseTo(2 * 0.25 * Math.tan(Math.PI / 48), 12);
+    expect(at(cases[1]![1])[1] - 2).toBeCloseTo(2 * 0.375 * Math.tan(Math.PI / 96), 12);
+  });
+  it.each(cases)('%s: near either station no two lines run within 0.005" of each other, and none is under 0.01"', (_n, b) => {
+    const path = profilePath(b, b.profiles[0]!)!;
+    for (const end of path.ends!) {
+      expect(end.kind).toBe('station');
+      const at = (end as { at: [number, number] }).at;
+      const near = (boardEdges(b) as Segment[]).map(pts).filter(([a, c]) => [a, c].every((q) => Math.hypot(q[0] - at[0], q[1] - at[1]) < 1));
+      expect(near.length).toBeGreaterThan(4);
+      for (const [a, c] of near) expect(Math.hypot(...sub3(c, a)), `${a} ${c}`).toBeGreaterThanOrEqual(0.01);
+      for (let i = 0; i < near.length; i += 1) for (let j = 0; j < near.length; j += 1) {
+        if (i === j) continue;
+        const [a, c] = near[i]!, [p, q] = near[j]!;
+        const close = Math.max(segDist(a, p, q), segDist(c, p, q));
+        const same = Math.hypot(...sub3(a, p)) + Math.hypot(...sub3(c, q)) <= 1e-6 || Math.hypot(...sub3(a, q)) + Math.hypot(...sub3(c, p)) <= 1e-6;
+        expect(close > 0.005 || same, `${a} ${c} vs ${p} ${q}`).toBe(true);
+      }
+    }
+  });
+});
+describe('a bead\'s quirk past a B1 station: the floor is the run-out\'s, joined to it smoothly', () => {
+  it('at the floor\'s depth only the quirk\'s sharp corner is revolved round the bit, nothing at the floor\'s tangent join', () => {
+    const b = topCorners(2, { ...endToEnd('p1', side('width', 'min'), 0.25, 'bead'), fillet: 1 / 16 });
+    const end = profilePath(b, b.profiles[0]!)!.ends![0] as { at: [number, number] };
+    // The bit's axis: 1/4" outside the length-min side, at the station. The quirk's sharp corner (5/16" in) runs round it at
+    // 1/4 + 5/16 = 9/16; the floor's tangent join with the bead (1/4" in), at 1/2, must draw nothing.
+    const axis: [number, number] = [-0.25, end.at[1]];
+    const floor = (boardEdges(b) as Segment[]).map(pts).filter(([a, c]) => [a, c].every((q) => Math.abs(q[2] - 0.6875) <= 1e-9
+      && q[1] > end.at[1] - 1e-9 && q[0] < 1 && q[1] < end.at[1] + 1));
+    expect(floor.length).toBeGreaterThan(3);
+    for (const [a, c] of floor) {
+      const onSide = a[0] === 0 && c[0] === 0;
+      // A sector chord of the ring: its ends on the circle, or one clipped where it leaves through the side face.
+      const ring = [a, c].every((q) => Math.abs(Math.hypot(q[0] - axis[0], q[1] - axis[1]) - 0.5625) <= 1e-6 || q[0] === 0)
+        && [a, c].some((q) => Math.abs(Math.hypot(q[0] - axis[0], q[1] - axis[1]) - 0.5625) <= 1e-6);
+      expect(onSide || ring, `${a} ${c}`).toBe(true);
+    }
+  });
+});
+

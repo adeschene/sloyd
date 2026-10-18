@@ -9,6 +9,7 @@ import {
   CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type P2,
 } from './curves';
 import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
+import { reachDepth } from './profiles';
 
 type PathBoard = Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] };
 
@@ -289,6 +290,30 @@ function throughRay(from: P2, to: P2, pathChord: OutlineChord): P2 | null {
 type Piece = { chord: OutlineChord; index: number; t0: number; t1: number };
 
 /**
+ * A STATION end's extension (B1, *Amended (implementation, b1 Task 6)*): the path carries on past the corner arc's far tangent
+ * point along the adjacent side's outline chord for ε = 2 · reach · tan(φ / 2), φ the angle between the arc's end chord and
+ * that side, and the station is there (reach · tan(φ / 2) is where the bisector from the tangent point reaches the reach: at
+ * exactly that the straight band's offset vanishes at the reach and the skeleton reads its end chord as swallowed, so twice). The end chord's band then meets this straight band on their bisector — where both offsets
+ * agree, so with one section — and the straight band meets a2's run-out on the station plane in the side's own frame, as a2
+ * guarantees: no step (the end chord's band clipped on a plane across the SIDE was its section stretched by 1/cos(φ)).
+ * `adj` is the adjacent side's chord, `index` its outline index, `end` the arc's end chord; `atStart`: the run's start.
+ * The point is read off the chord at its parameter exactly as planChain reads a cover (a + t·(b − a)).
+ */
+function stationExtension(adj: OutlineChord, index: number, end: OutlineChord, atStart: boolean, reach: number): Piece {
+  const da: P2 = [adj.b[0] - adj.a[0], adj.b[1] - adj.a[1]], de: P2 = [end.b[0] - end.a[0], end.b[1] - end.a[1]];
+  const la = Math.hypot(da[0], da[1]), le = Math.hypot(de[0], de[1]);
+  const phi = Math.acos(Math.max(-1, Math.min(1, (da[0] * de[0] + da[1] * de[1]) / (la * le))));
+  const t = Math.min(1, (2 * reach * Math.tan(phi / 2)) / la);
+  if (atStart) {
+    const t0 = 1 - t;
+    const a: P2 = t0 === 0 ? adj.a : [adj.a[0] + t0 * da[0], adj.a[1] + t0 * da[1]];
+    return { chord: { ...adj, a }, index, t0, t1: 1 };
+  }
+  const b: P2 = t === 1 ? adj.b : [adj.a[0] + t * da[0], adj.a[1] + t * da[1]];
+  return { chord: { ...adj, b }, index, t0: 0, t1: t };
+}
+
+/**
  * B1a: the corner arc at one end of a stretch is MITRED when the adjacent side holds an End to end profile on the same face
  * whose own stretch takes that arc — decided on its STORED presence, never its faults, so faults and mitres never depend on
  * each other. The arc's TRUE midpoint `at` (centre + r · the bisector of its two tangent points); the pieces are trimmed so
@@ -371,6 +396,7 @@ export function profilePath(board: PathBoard, p: ProfileCut): ProfilePath | null
       return !!t && stretchIndices(m, t).includes(corner[0]!);
     });
     const first0 = pieces[0]!.chord, last0 = pieces[pieces.length - 1]!.chord;
+    const reach = reachDepth(p)[0];
     const prior = outline.chords[(s.from - 1 + m) % m]!, next = outline.chords[(s.to + 1) % m]!;
     let e0: PathEnd, e1: PathEnd;
     // Each end decided on the UNTRIMMED stretch; the mitre trims are applied after, start then end.
@@ -382,7 +408,11 @@ export function profilePath(board: PathBoard, p: ProfileCut): ProfilePath | null
     } else if (neighbourTakes(SIDES[prevEdge(E)]!, startCorner) && (startMitre = mitre(pieces, startCorner, true, outline))) {
       pieces = startMitre.pieces;
       e0 = { kind: 'mitre', at: startMitre.at, ray: startMitre.ray };
-    } else e0 = { kind: 'station', at: first0.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } };
+    } else {
+      const ext = stationExtension(prior, (s.from - 1 + m) % m, first0, true, reach);
+      pieces = [ext, ...pieces];
+      e0 = { kind: 'station', at: ext.chord.a, tangent: INWARD[E]!, side: { ...SIDES[prevEdge(E)]! } };
+    }
     let endMitre: ReturnType<typeof mitre> = null;
     if (s.endEnd === 'sharp') {
       const ray = throughRay(next.a, next.b, last0);
@@ -391,7 +421,11 @@ export function profilePath(board: PathBoard, p: ProfileCut): ProfilePath | null
     } else if (neighbourTakes(SIDES[nextEdge(E)]!, endCorner) && (endMitre = mitre(pieces, endCorner, false, outline))) {
       pieces = endMitre.pieces;
       e1 = { kind: 'mitre', at: endMitre.at, ray: endMitre.ray };
-    } else e1 = { kind: 'station', at: last0.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } };
+    } else {
+      const ext = stationExtension(next, (s.to + 1) % m, last0, false, reach);
+      pieces = [...pieces, ext];
+      e1 = { kind: 'station', at: ext.chord.b, tangent: INWARD[E]!, side: { ...SIDES[nextEdge(E)]! } };
+    }
     path = { chords: pieces.map((x) => x.chord), loop: false, ends: [e0, e1], cover: pieces.map((x) => ({ chord: x.index, t0: x.t0, t1: x.t1 })) };
   }
   if (p.face === 'min') {

@@ -74,9 +74,13 @@ describe('profilePath', () => {
     expect(s.kind).toBe('station'); expect(e.kind).toBe('station');
     // face max, CCW: the front (width min) runs +x; its stretch starts at the length-min end's tangent point (0, 2) and
     // ends at the length-max end's (36, 2). `tangent` points AWAY from the run, where the run-out lies: +y at both.
+    // Amended (Task 6 fix round 1): the station is ε = 2 · reach · tan(φ/2) past the tangent point along the end side, φ the
+    // corner's end chord against it — 12 chords to a 2" quarter turn, so φ = π/48 — so the band meets the run-out with one
+    // section (no step at the station).
     if (s.kind !== 'station' || e.kind !== 'station') throw new Error('unreachable');
-    expect(s.at[0]).toBeCloseTo(0, 12); expect(s.at[1]).toBeCloseTo(2, 12);
-    expect(e.at[0]).toBeCloseTo(36, 12); expect(e.at[1]).toBeCloseTo(2, 12);
+    const eps = 2 * 0.25 * Math.tan(Math.PI / 96);
+    expect(s.at[0]).toBeCloseTo(0, 12); expect(s.at[1]).toBeCloseTo(2 + eps, 12);
+    expect(e.at[0]).toBeCloseTo(36, 12); expect(e.at[1]).toBeCloseTo(2 + eps, 12);
     expect(s.tangent).toEqual([0, 1]); expect(e.tangent).toEqual([0, 1]);
     expect(s.side).toEqual({ across: 'length', from: 'min' }); expect(e.side).toEqual({ across: 'length', from: 'max' });
   });
@@ -212,11 +216,19 @@ describe('profilePath: further pins (Task 1)', () => {
     expect(s.side).toEqual({ across: 'length', from: 'max' });
     expect(s.at[0]).toBeCloseTo(36, 12);
   });
-  it('the cornered front runs (0,2) round both arcs to (36,2): its first and last chords are the arcs', () => {
+  it('the cornered front runs (0,2) round both arcs to (36,2), then on by its stations\' extensions along the end sides', () => {
     const p = profilePath(frontOnly, frontOnly.profiles[0]!)!;
-    expect(p.chords[0]!.curve).toBe('cminmin');
-    expect(p.chords[p.chords.length - 1]!.curve).toBe('cmaxmin');
-    expect(p.chords.filter((c) => !c.curve).length).toBe(1);
+    const n = p.chords.length;
+    expect(p.chords[1]!.curve).toBe('cminmin');
+    expect(p.chords[n - 2]!.curve).toBe('cmaxmin');
+    expect(p.chords.filter((c) => !c.curve).length).toBe(3);   // the front, and the two extensions
+    const eps = 2 * 0.25 * Math.tan(Math.PI / 96);
+    for (const c of [p.chords[0]!, p.chords[n - 1]!]) {
+      expect(c.curve).toBeUndefined();
+      expect(c.a[0]).toBe(c.b[0]);   // along an end side
+      expect(Math.abs(c.b[1] - c.a[1])).toBeCloseTo(eps, 12);
+    }
+    expect(p.chords[0]!.b).toEqual([0, 2]);   // the extension ends exactly where the corner's arc begins
   });
   it('a straight End to end is its one chord with through ends', () => {
     const b = createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [straightTopLong] });
