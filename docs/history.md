@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production is profile runs a1 + a2** (2026-10-18; `index-BbXkYYy4.js`, CSS `index-gCtQCsSI.css` unchanged, deployed commit `3ee667e`,
+merges `305934d` (a1) and `a0b0186` (a2), **SCHEMA 18** — rolling back to `5a9ead8` / `index-B_aEoJl0.js` or earlier refuses every
+project saved since: export first). Deployed on the user's word ("Deploy it"; 5279 tests, build clean). Verified: `200` on `/` and a deep route in-network and at the edge; `index-BbXkYYy4.js` and `index-gCtQCsSI.css` (unchanged) at both, sha256 matching `dist/`; the old `index-B_aEoJl0.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; the edge bundle carries `Start must be before the Stop`; a real-browser page load: the new bundle, 0 errors, the beacon present, "+ Add board" present; storage read empty first from the CSS asset page, the load's two keys removed there, read back empty after 3s.
+
+The previous deployment: edge profiles chunk 1 + fu 388 (`index-B_aEoJl0.js`, deployed commit `5a9ead8`).
+
 **Production matches `master` as of 2026-10-16 with plans balloons live** (`index-CCbseJx_.js`, CSS `index-CfI7jQOq.css` — changed:
 the balloon and number-column styles —, deployed commit `80520db`, merge `2cbfff4`, schema 17 unchanged — rollback to follow-ups 4,
 `a9c678e` / `index-BxqTdZO2.js`, is free). Deployed on the user's word (4561 tests, build clean). Verified: `200` on `/` and a deep

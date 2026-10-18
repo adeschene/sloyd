@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is edge profiles chunk 1 + fu 388** (deployed 2026-10-17 from `5a9ead8`, bundle `index-B_aEoJl0.js`, CSS `index-gCtQCsSI.css`);
-  rollback to edge profiles chunk 1 (`00bab4a`, `index-D9D90lOX.js`) or presets minors (`97b38f2`, `index-fwemJPwC.js`) is free.
+- **Production is profile runs a1 + a2** (deployed 2026-10-18 from `3ee667e`, bundle `index-BbXkYYy4.js`, CSS `index-gCtQCsSI.css`; **SCHEMA 18**):
+  rolling back to edge profiles chunk 1 + fu 388 (`5a9ead8`, `index-B_aEoJl0.js`) or earlier REFUSES every project saved since — export first.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -102,12 +102,12 @@ handicraft education tradition built around hand woodworking.
   stopped profiles shipped in a2), 387, 389, 390 (a profile following a curved edge), 391 ((1) closed in a2). **Fu 388** (the Profile select greys a
   refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
 - **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, merged to master as
-  `305934d`; NOT DEPLOYED — deploys with a2; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
+  `305934d`; DEPLOYED with a2 2026-10-18; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
   of `curves` on every load; every geometry, word and fault reader goes through `geometryBoard`; a run this build cannot build (all
   round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
   same, checked live). **Rolling back below 18 refuses every project saved since — export first.** **Deploy a1 together with a2, never alone**
   (a1 shows nothing new; its loader's last gate hole, fu 391(1), closed in a2). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
-- **Profile runs chunk a2 (2026-10-18, plan `…-profile-runs-a2.md`, merged to master as `a0b0186`; NOT DEPLOYED — **deploy a1 + a2 together**; schema 18,
+- **Profile runs chunk a2 (2026-10-18, plan `…-profile-runs-a2.md`, merged to master as `a0b0186`; DEPLOYED with a1 2026-10-18 as `index-BbXkYYy4.js`; schema 18,
   unchanged by a2)**: a profile on a straight side may stop short of either end (Run → Stopped; Start/Stop from the run dimension's min
   end) and runs out as the router's bit would — the profile revolved about the bit's axis `BEARING` 1/4" outside the edge
   (`runout.ts`; inscribed sectors, no step at the station). Bodies, edges (`smoothPair`), smooth run-out normals, a watertight mesh,
