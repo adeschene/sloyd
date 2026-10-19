@@ -382,7 +382,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
   const offsetOf = worldOffsets(board);
   const curved = shapedPart(board);
-  const byMaterial: { pos: number[]; uv: number[]; nor: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [], nor: [] }));
+  const byMaterial: { pos: F32Stream; uv: F32Stream; nor: F32Stream }[] = Array.from({ length: 6 }, () => ({ pos: new F32Stream(), uv: new F32Stream(), nor: new F32Stream() }));
   // A curved part's faces come from curvedPart: seams dropped, vertices welded, and every part vertex lying inside one of
   // their edges inserted when triangulated (conform.ts: no T-junctions between a split curve's slices, or a slice and a
   // box cell beside it). A part without curves never reaches it.
@@ -390,7 +390,10 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   const seams = !part && bodies && holed(body, holes) ? seamIndex(bodies) : null;
   const faces = part?.faces.get(body) ?? (seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces);
   const candidates = part?.points ?? null;
-  const toWorld = (local: readonly number[]): V3 => [0, 1, 2].map((i) => local[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
+  // Chunk c1: the frame's dimension index and sign per world axis read once (the same products as before).
+  const i0 = dimIndex(frame[0]!.dim), i1 = dimIndex(frame[1]!.dim), i2 = dimIndex(frame[2]!.dim);
+  const s0 = frame[0]!.reversed ? -1 : 1, s1 = frame[1]!.reversed ? -1 : 1, s2 = frame[2]!.reversed ? -1 : 1;
+  const toWorld = (local: readonly number[]): V3 => [local[i0]! * s0, local[i1]! * s1, local[i2]! * s2];
   const chordsOf = curved ? memoChords(board) : null;
   // A stopped profile's run-out normals, built per curve on its first run-out face (a part with none never builds one), and
   // shared by every body of the part through partGeometry's frozen bodies (final fix F1: was rebuilt per call, ~48× an ogee).
@@ -470,12 +473,12 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     const material = axis * 2 + (n[axis]! > 0 ? 0 : 1);
     const plan = plans[material]!;
     const out = byMaterial[material]!;
+    const [a0, a1] = plan.axes;
+    const [tu, tv] = plan.tileInches;
+    const du = plan.fit[0] ? 0 : ou, dv = plan.fit[1] ? 0 : ov;
     const put = (p: V3) => {
-      out.pos.push(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
-      out.uv.push(
-        p[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou),
-        p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
-      );
+      out.pos.push3(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
+      out.uv.push2(p[a0]! / tu + du, p[a1]! / tv + dv);
     };
     // The vertex normal stream (curved parts only): the arc this face lies on, if any, gives a radial normal per vertex.
     // A run-out face (profile runs a2) takes the cutter surface's normal (runoutNormals), its arc chosen once from all its
@@ -508,23 +511,23 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
       const sn = sw ? sw(f, p) : null;
       if (sn) {
         const w = toWorld(sn);
-        out.nor.push(w[0], w[1], w[2]);
+        out.nor.push3(w[0], w[1], w[2]);
         return;
       }
       if ((ro && roArc !== null) || line) {
         const bn = jn && onJunction(p) ? sweptOf(jn.profile)(bandFace!, p) : null;
         if (bn) {
           const w = toWorld(bn);
-          out.nor.push(w[0], w[1], w[2]);
+          out.nor.push3(w[0], w[1], w[2]);
           return;
         }
         const local = line ? line(p) : ro!.normal(f.runout!, p, roArc!);
         if (local[0] * f.n[0] + local[1] * f.n[1] + local[2] * f.n[2] < 0) { local[0] = -local[0]; local[1] = -local[1]; local[2] = -local[2]; }
         const w = toWorld(local);
-        out.nor.push(w[0], w[1], w[2]);
+        out.nor.push3(w[0], w[1], w[2]);
         return;
       }
-      if (!arc) { out.nor.push(n[0], n[1], n[2]); return; }
+      if (!arc) { out.nor.push3(n[0], n[1], n[2]); return; }
       const ru = p[arc.iu]! - arc.arc.centre[0];
       const rv = p[arc.iv]! - arc.arc.centre[1];
       const l = Math.hypot(ru, rv);
@@ -533,7 +536,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
       local[arc.iu] = ru * s;
       local[arc.iv] = rv * s;
       const w = toWorld(local);
-      out.nor.push(w[0], w[1], w[2]);
+      out.nor.push3(w[0], w[1], w[2]);
     };
     for (const t of given ?? (candidates ? conformedTriangles(f, holes, candidates) : faceTriangles(f, holes))) {
       const w0 = offsetOf(t[0]!); const w1 = offsetOf(t[1]!); const w2 = offsetOf(t[2]!);
@@ -545,11 +548,47 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     }
   }
   if (!curved) {
-    const { groups, out: [positions, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.uv]));
+    const { groups, out: [positions, uvs] } = packStreams(byMaterial.map((m) => [m.pos, m.uv]));
     return { positions: positions!, uvs: uvs!, groups };
   }
-  const { groups, out: [positions, uvs, normals] } = packGroups(byMaterial.map((m) => [m.pos, m.uv, m.nor]));
+  const { groups, out: [positions, uvs, normals] } = packStreams(byMaterial.map((m) => [m.pos, m.uv, m.nor]));
   return { positions: positions!, uvs: uvs!, normals: normals!, groups };
+}
+
+/**
+ * Chunk c1: a growable float32 vertex stream for bodyMesh. Storing a number in a Float32Array rounds it to float32 exactly
+ * as `Float32Array.prototype.set` rounded the number[] element packGroups copied (ToFloat32 both ways), so streaming each
+ * value straight in gives the same bytes without the number arrays.
+ */
+class F32Stream {
+  a = new Float32Array(192);
+  n = 0;
+  private room(k: number): Float32Array {
+    if (this.n + k > this.a.length) {
+      const b = new Float32Array(Math.max(2 * this.a.length, this.n + k));
+      b.set(this.a.subarray(0, this.n));
+      this.a = b;
+    }
+    return this.a;
+  }
+  push3(x: number, y: number, z: number): void { const a = this.room(3); a[this.n] = x; a[this.n + 1] = y; a[this.n + 2] = z; this.n += 3; }
+  push2(x: number, y: number): void { const a = this.room(2); a[this.n] = x; a[this.n + 1] = y; this.n += 2; }
+}
+
+/** packGroups for streams: the same layout (materials in order, an empty one — no positions — skipped, groups counted by
+ *  positions) and the same float32 values. */
+function packStreams(byMaterial: F32Stream[][]): { groups: { start: number; count: number; materialIndex: number }[]; out: Float32Array[] } {
+  const attrs = byMaterial[0]!.length;
+  const out: Float32Array[] = [];
+  for (let j = 0; j < attrs; j += 1) { let total = 0; for (const m of byMaterial) total += m[j]!.n; out.push(new Float32Array(total)); }
+  const at = new Array<number>(attrs).fill(0);
+  const groups: { start: number; count: number; materialIndex: number }[] = [];
+  byMaterial.forEach((m, materialIndex) => {
+    if (m[0]!.n === 0) return;
+    groups.push({ start: at[0]! / 3, count: m[0]!.n / 3, materialIndex });
+    m.forEach((xs, j) => { out[j]!.set(xs.a.subarray(0, xs.n), at[j]!); at[j]! += xs.n; });
+  });
+  return { groups, out };
 }
 
 /**
