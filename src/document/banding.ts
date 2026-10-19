@@ -7,7 +7,6 @@ export * from './bandModel';
  * band-related from here.
  */
 import { BAND_SIDES, bandValues, sideIndex } from './bandModel';
-import { endWord } from './holeText';
 import { faceOutline, sideStretch, type OutlineChord } from './profilePath';
 import type { BandType, Board, FlatDocument, ProfileSide, SolidBand, TapeBand } from './types';
 
@@ -28,6 +27,8 @@ export interface Strip {
 export interface TapeRun { side: ProfileSide; type: TapeBand; length: number }
 
 const EPS = 1e-9;
+/** `holeText`'s `endWord`, inlined: importing it would pull `units` in (inv 52). */
+const endWord = (d: ProfileSide['across']) => (d === 'length' ? 'end' : 'side');
 
 /** Freezes what this module CONSTRUCTS; a band type (the project's object) is never recursed into. */
 function freeze<T>(o: T, skip?: ReadonlySet<unknown>): T {
@@ -104,11 +105,12 @@ const judge = memoised((part: Board, types: readonly BandType[]): Judged => {
     t[i] = bt.thickness;
     type[i] = bt;
   }
-  // too-thick: an opposite pair whose unfaulted thicknesses leave no core; every band of the pair carries it.
+  // too-thick: an opposite pair whose unfaulted thicknesses leave no core; each band of the pair WITH thickness carries it
+  // (a zero-thickness band opposite is spared and keeps its tape run).
   for (const [a, b, dim] of [[0, 1, 'width'], [2, 3, 'length']] as const) {
-    const sum = t[a]! + t[b]!;
+    const sum = t[a]! + t[b]!;   // judged before either is cleared
     if (sum > 0 && sum >= part[dim] - EPS) {
-      for (const k of [a, b]) if (type[k]) { faults.push({ side: BAND_SIDES[k]!, kind: 'too-thick' }); t[k] = 0; type[k] = null; }
+      for (const k of [a, b]) if (type[k] && t[k]! > 0) { faults.push({ side: BAND_SIDES[k]!, kind: 'too-thick' }); t[k] = 0; type[k] = null; }
     }
   }
   faults.sort((p, q) => sideIndex(p.side) - sideIndex(q.side));
@@ -203,7 +205,7 @@ export function cutStock(doc: Pick<FlatDocument, 'boards' | 'bandTypes'>): Board
   const parts = doc.boards.map((b) => {
     if (b.bands.length === 0) return b;
     const c = coreSize(b, doc.bandTypes);
-    return c.length === b.length && c.width === b.width ? b : { ...b, length: c.length, width: c.width };
+    return c.length === b.length && c.width === b.width ? b : { ...b, length: c.length, width: c.width, bands: [] };
   });
   return [...parts, ...doc.boards.flatMap((b) => strips(b, doc.bandTypes).map(stripBoard))];
 }

@@ -171,6 +171,11 @@ describe('the arithmetic (edge banding spec §3)', () => {
     expect(tapeRuns(narrow, types())).toEqual([]);
     expect(bandFaultText('needs-straight')).toBe('needs a straight edge');
   });
+  it('too-thick is carried only by a band WITH thickness: a tape band opposite is spared and keeps its run', () => {
+    const p = shelf([{ side: W0, type: 'm' }, { side: W1, type: BUILT_IN_BAND_ID }], 'long', { width: 0.25 });
+    expect(bandFaults(p, types(maple()))).toEqual([{ side: W0, kind: 'too-thick' }]);
+    expect(tapeRuns(p, types(maple())).map((r) => [r.side, r.length])).toEqual([[W1, 30.5]]);
+  });
   it('the memo is keyed on the band types too (Review Focus 2): a thickness edit re-sizes the core', () => {
     const p = shelf(all('m'));
     expect(coreSize(p, types(maple(0.25))).width).toBe(11.5);
@@ -180,6 +185,7 @@ describe('the arithmetic (edge banding spec §3)', () => {
     const p = shelf(all('m'));
     const out = cutStock({ boards: [p], bandTypes: types(maple()) });
     expect(out[0]).toMatchObject({ id: 'p', length: 29.5, width: 11.5 });
+    expect(out[0]!.bands).toEqual([]);                                // a core copy is never re-banded
     expect(out.slice(1).map((b) => [b.material, b.length, b.width, b.thickness, b.grain])).toEqual([
       ['maple', 30.5, 0.25, 0.8125, 'length'], ['maple', 30.5, 0.25, 0.8125, 'length'],
       ['maple', 12, 0.25, 0.8125, 'length'], ['maple', 12, 0.25, 0.8125, 'length'],
