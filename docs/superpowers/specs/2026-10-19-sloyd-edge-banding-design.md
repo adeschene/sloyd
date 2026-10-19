@@ -104,8 +104,9 @@ Board.cornerRule?: 'ends' | 'mitre';   // absent = long edges run through; only 
 
 ### 2.3 Loading (17→18 precedent; step 18→19)
 
-Document-level, no step function; on raw data before `validateBoard` (inv 11):
-1. `bandTypes` validated FIRST (before materials are pruned and before parts): a malformed entry is dropped —
+Document-level, no step function; on raw data before `validateBoard` (inv 11). **Order: materials (as today, inv 49) →
+band types → parts and shapes → `pruneMaterials`** (which now also keeps a material a band type uses).
+1. `bandTypes` validated after materials and before parts: a malformed entry is dropped —
    non-finite or negative number, `tapeWidth <= 0`, an unknown `kind` string **refuses the document** with the
    newer-version message (a later kind needs no bump, the curves/profiles precedent), a solid type whose `material` is
    not a solid material (built-in or in `doc.materials`) falls back to `pine` (inv 49's precedent). Duplicate ids: the
@@ -137,8 +138,10 @@ For each unfaulted solid band, the strip's FINISHED length along its side:
 - **Long edges run through** (default): a long-edge strip is the finished `length`; an end strip is the finished `width`
   minus the thicknesses of any banded long edges (with thickness).
 - **Ends run through**: the mirror image.
-- **Mitred**: every strip is its finished side length, mitred 45° at each end where the next side carries a band WITH
-  thickness; square where it does not.
+- **Mitred**: every strip is its finished side length (the LONG point), mitred at each end where the next side carries a
+  band WITH thickness; square where it does not. The mitre runs from the core corner to the finished corner, so its
+  angle from square on a strip of thickness `t` meeting a neighbour of thickness `n` is `atan(n / t)` — 45° only when the
+  two are equal. The strip records each end's angle; the bench line prints it (`angleDegrees`, as angle cuts read).
 - A band of zero thickness never shortens a neighbour and never makes a mitre.
 
 The strip's CUT: length + `lengthAllowance`; width = part thickness + `widthAllowance`; thickness = band thickness; grain
@@ -147,7 +150,10 @@ along its length; material = the band type's. Each strip records its part, side 
 ### 3.3 Tape length
 
 For each unfaulted tape band: the side's outline length measured on the TRUE arcs (`sideStretch` over `faceOutline`; a
-straight side is its dimension) + `lengthAllowance`. The corner rule does not apply. (A tape band with thickness is still
+straight side is its dimension) + `lengthAllowance`. **A corner arc is counted once.** `sideStretch` gives a corner arc
+to BOTH sides it joins (`cornerIn`/`cornerOut`, B1: a run carries round it); when both those sides are taped, each takes
+HALF the arc's true length (the tape is applied as one run round the corner, and its length is bought once); when only
+one is, that side takes all of it. The corner rule does not apply. (A tape band with thickness is still
 "tape" for Buying; its thickness subtracts per §3.1 and it needs a straight side per §3.4.)
 
 ### 3.4 Faults — `bandFaults(part, types)`, THE band fault decider
@@ -187,10 +193,14 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 - In the edging material's section, after its parts. Strips with equal cut size, ends and material collapse to one row
   (qty); named after their parts and sides (`Shelf edging (width min, width max)`; repeats as the cut list already
   collapses names).
-- `dims` the oversize cut; `setup`: `Trim flush`, plus `; mitre one end 45°` / `; mitre both ends 45°` when mitred.
-- Numbered in the cut list's ONE series (`number`), but carry no `boardIds`; the Plans sheet's balloons (`planBalloons`)
-  skip a row with no part (no drawn part is a strip). A strip row has its own plain diagram (a strip, mitred ends drawn)
-  — chunk 2 (§5.3); chunk 1 shows the row with no diagram.
+- `dims` the oversize cut, its length at the long point; `setup`: `Trim flush`, plus `; mitre one end 45°` / `; mitre
+  both ends 45°` (each end's own angle, §3.2; `; mitre ends 45° and 38.7°` when they differ).
+- Numbered in the cut list's ONE series (`number`), but carry no `boardIds`. Every reader of a row's parts handles an
+  empty list: `CutList.tsx`'s `rowNumbers` map (no entry: fine as is) and **`planBalloons`, which today pushes a row with
+  no anchor onto `hidden` — a strip row must be SKIPPED, not reported as a hidden part**. The plan re-greps `boardIds`
+  and `number` readers and lists each.
+- **Diagrams stay always populated** (`CutListRow.diagrams`' own rule): a strip row carries its plain broad-face view in
+  chunk 1 (a cut-free view of the strip's length × width); chunk 2 draws its mitred ends.
 - Strips of a SOLID material only (the band type's material select offers solid materials only, §5.2).
 
 ### 4.3 Sheet nesting
@@ -202,7 +212,12 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
 
 - **Solid strips join their material's entry.** Board-foot mode: strip volume × the waste factor, added to the material's
   board feet. By-the-piece: strips are packed onto stock boards with the parts (`packOnto`, grain locked, the cheapest
-  plan per opener, fu 269). A strip too long for every stock size is `unplaceable`, as a part.
+  plan per opener, fu 269), each strip entering as a part **ripped off a board's edge**: its stock THICKNESS is the
+  strip's width (part thickness + width allowance), its WIDTH is the band thickness, its length the strip's cut length.
+  So the thinnest stock at least that thick is chosen, with the existing plane note (`plane 1-1/2" stock to 13/16"`).
+  **Consequence, for the user (§10):** with the defaults, a 3/4" panel's strip is 13/16" — thicker than 3/4" S4S, so the
+  built-in stock buys 1-1/2" and planes it; a user who flushes from 3/4" stock sets the width allowance to 0. A strip no
+  stock holds is `unplaceable` (too wide / too long), as a part.
 - **Tape: a new `Edge banding` block** at the end of Buying, one line per tape type with any length:
   `Iron-on veneer, 7/8" wide: 34′ — $10.20`. Feet rounded UP to a whole foot (what is bought is rounded, inv 18); price =
   feet × `pricePerFoot`; an unpriced type shows feet only and is excluded from the total, as unpriced stock is today. The
@@ -219,10 +234,11 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
 
 - One select per side, labelled with `edgeName`'s words (`Width min side`, `Width max side`, `Length min end`, `Length
   max end`), each offering `None` and every band type by name.
-- A `Band ▾` menu: `All edges`, `Long edges`, `Ends`, `None` — taking the type last chosen in this section (or the
-  built-in) — one undo entry.
+- A `Band ▾` menu: for each band type, `<name>: all edges`, `long edges`, `ends`; then `Remove all bands` — each one undo
+  entry. (No remembered "last chosen" type: the menu names the type in every item.) An item that would add a fault on
+  any selected part is greyed with its reason, as the selects are.
 - `Corners` select (`Long edges run through`, `Ends run through`, `Mitred`) shown only when two ADJACENT sides carry bands
-  with thickness.
+  with thickness AND at least one of them is solid (the corner rule makes strips; tape has none, §3.3).
 - Multi-selection: a select shows `Mixed` where parts disagree; choosing writes that side on every selected part in one
   edit (an untouched mixed select writes nothing, inv 5).
 - Refusal (fu 388's pattern): options are judged on focus, never per render; an option that would ADD a fault to any
@@ -299,6 +315,21 @@ section, the Materials dialog's Edge banding section, Curves' band refusal, `ban
 
 ## 10. Open for the user's review
 
+**Added or changed since the user approved §1–§4 in conversation** (each is a decision, not a detail):
+- Side names are the existing edge words (`the width min side`), not Front/Back/Left end/Right end (§2.2).
+- `cornerRule` stores only `'ends'`/`'mitre'`; absent means long edges run through (§2.2, so links never see two forms).
+- **An amendment to invariant 49**: `pruneMaterials` also keeps a custom material used only by a band type (§2.1, §2.3).
+- A fourth fault, `tape-narrow` (tape narrower than the part's thickness), and `no-side` (§3.4).
+- A mitre between bands of differing thickness is cut at `atan(n / t)`, not 45°; strips print the long point (§3.2).
+- A corner arc shared by two taped sides is counted once, half to each (§3.3).
+- Strips are packed as ripped off a board's edge — with the defaults a 3/4" panel's 13/16" strip needs stock thicker
+  than 3/4" S4S (§4.4).
+- The Materials dialog refuses a band type edit that adds a fault to a part (§3.4, §5.2).
+- `Band ▾` lists each type's items by name (no remembered type), plus `Remove all bands` (§5.1).
+- The Corners select appears only where a solid band is involved (§5.1).
+- Unpriced tape is left out of the Buying total, as unpriced stock is (§4.4).
+
+**Decisions to confirm:**
 - Price per foot for tape in the DOCUMENT (§2.1) — the first per-project price.
 - Tape length rounded up to whole feet when bought (metric shows metres with the bought feet in brackets).
 - Joinery, Refine and Repair refuse banded projects in this round (§6).
