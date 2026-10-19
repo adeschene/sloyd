@@ -962,7 +962,7 @@ function putWall({ out, plan, extents, ou, ov }: WallSink, q: V3, nw: V3): void 
  * (the materials are FrontSide). UVs and materials as bodyMesh's sloped faces: each facet takes the plan of the world
  * axis its normal is nearest.
  */
-export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks: StockChecks = stockChecks(board)): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks: StockChecks = stockChecks(board)): PartMeshData {
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
@@ -1051,12 +1051,20 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
  * hole. Every holeMesh is centred on the board, so concatenation needs no offset. Null for a part with no holes: it
  * adds no hole mesh. `checks` as holeMesh's (built once per rebuild by the caller).
  */
-export function holesMesh(board: Board, holes: readonly Hole[], bodies: readonly Body[], checks: StockChecks = stockChecks(board)): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } | null {
+export function holesMesh(board: Board, holes: readonly Hole[], bodies: readonly Body[], checks: StockChecks = stockChecks(board)): PartMeshData | null {
   if (holes.length === 0) return null;
-  const meshes = holes.map((h) => holeMesh(board, h, bodies, checks));
-  // Vertices per material over every hole, then each material's run laid out back to back in BoxGeometry order (as
-  // packGroups lays one mesh out), each hole's slice copied straight in: no intermediate number arrays (a 42-hole part
-  // rebuilds every drag frame).
+  return concatMeshes(holes.map((h) => holeMesh(board, h, bodies, checks)));
+}
+
+/** A mesh with explicit normals: positions and normals (xyz), uvs (uv), one group per material in BoxGeometry order. */
+export type PartMeshData = { positions: Float32Array; uvs: Float32Array; normals: Float32Array; groups: { start: number; count: number; materialIndex: number }[] };
+
+/**
+ * Meshes laid out back to back material by material in BoxGeometry order (as packGroups lays one mesh out), each mesh's
+ * slice for a material copied straight in, in mesh order: holesMesh's layout since final review 2, shared by partMesh
+ * (chunk c2). No intermediate number arrays: a part rebuilds every drag frame.
+ */
+function concatMeshes(meshes: readonly PartMeshData[]): PartMeshData {
   const counts = new Array<number>(6).fill(0);
   for (const m of meshes) for (const g of m.groups) counts[g.materialIndex]! += g.count;
   const total = counts.reduce((a, b) => a + b, 0);
@@ -1082,6 +1090,21 @@ export function holesMesh(board: Board, holes: readonly Hole[], bodies: readonly
     }
   }
   return { positions, normals, uvs, groups };
+}
+
+/**
+ * Chunk c2, stage 1 (spec §2.1): a SHAPED part's whole mesh (shapedPart: curves or swept profiles), so BoardMesh draws it
+ * as ONE mesh, one draw call per material, instead of one mesh per body (313 for an ogee loop). Every body goes through
+ * bodyMesh (drawsAsBox is false on a shaped part), which returns explicit normals for one, and is board-centred, so
+ * concatenation needs no offset. Not memoised (amendment A3): frozen bodies are shared by every part with one geometryKey,
+ * which carries no pose and no id, while positions follow the part's pose and uvs its id; BoardMesh's useMemo, keyed on
+ * boardUVSignature, is the memo.
+ */
+export function partMesh(board: Board, bodies: readonly Body[], holes: readonly Hole[]): PartMeshData {
+  return concatMeshes(bodies.map((body) => {
+    const m = bodyMesh(board, body, holes, bodies);
+    return { positions: m.positions, uvs: m.uvs, normals: m.normals!, groups: m.groups };
+  }));
 }
 
 /**

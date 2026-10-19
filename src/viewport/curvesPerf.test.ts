@@ -4,11 +4,12 @@ import type { Board, CurveCut, HoleRow } from '../document/document';
 import type { ProfileCut, ProfileEnd } from '../document/types';
 import { canonicalRun, geometryBoard } from '../document/profiles';
 import { spanOf } from '../document/curves';
-import { bodyMesh } from './grainTiling';
+import { partMesh } from './grainTiling';
 import { builtSwept, sweptStops } from '../document/sweep';
 import { apronArch, bowFront, frontAndEnds, frontOnly, loop, notchEdge, stopOnArch, stopOnCorner, stopOnNotch, topCorners, wrapFour } from '../document/sweepFixtures';
 
 /**
+ * Chunk c2: the mesh is partMesh, the one geometry BoardMesh draws.
  * Curve rebuild performance (curves spec §3.6). A resize drag rebuilds a curved part every frame — bodies, EDGES (the
  * spike's slow step: bodyEdges over an arch's slices measured 25 ms at 18 chords, 135 ms at 48) and every body's mesh.
  * Each case is a full rebuild through partGeometry with a fresh geometry key (the length moves by a micro-inch), the
@@ -55,7 +56,7 @@ function rebuild(make: (len: number) => Board): number {
   const start = performance.now();
   const g = partGeometry(board);
   void g.edges;
-  for (const body of g.bodies) bodyMesh(board, body, g.holes, g.bodies);
+  partMesh(board, g.bodies, g.holes);
   return performance.now() - start;
 }
 const minOf9 = (make: (k: number) => Board) => {

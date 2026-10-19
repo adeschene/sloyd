@@ -5,7 +5,7 @@ import { canonicalRun, geometryBoard, profileFaults, shapedPart } from '../docum
 import { spanOf } from '../document/curves';
 import { runoutReach } from '../document/runout';
 import { capFill } from './capFill';
-import { bodyMesh, drawsAsBox, holesMesh } from './grainTiling';
+import { bodyMesh, drawsAsBox, holesMesh, partMesh } from './grainTiling';
 import { chamferCut } from '../document/angleCuts';
 import { builtSwept, sweptStops } from '../document/sweep';
 import { mirrorPart } from '../document/frames';
@@ -19,17 +19,16 @@ import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, bowFront, 
  * The criterion is exact — no tolerance, which would hide a one-ulp crack: vertices are compared as the Float32 numbers
  * the GPU receives (the mesh's own Float32Array), and every DIRECTED edge of every triangle must be matched by as many
  * copies of its reverse. A box cell beside the slices is drawn through bodyMesh too (drawsAsBox is false for every body
- * of a curved part), so the merged bodyMesh output over all bodies is exactly what BoardMesh draws, and with a holed
+ * of a curved part), so partMesh (every body's bodyMesh, one geometry) is exactly what BoardMesh draws, and with a holed
  * part the holes' mesh (holesMesh, one geometry) joins it: a bore's wall must meet the face around its mouth (fu 369).
  */
 function unmatchedEdges(board: Board): { triangles: number; unmatched: number } {
   const { bodies, holes } = partGeometry(board);
   const count = new Map<string, number>();
   let triangles = 0;
-  const meshes = bodies.map((body) => {
-    expect(drawsAsBox(board, body, holes)).toBe(false);
-    return bodyMesh(board, body, holes, bodies).positions;
-  });
+  for (const body of bodies) expect(drawsAsBox(board, body, holes)).toBe(false);
+  // Chunk c2 (stage 1): the one geometry BoardMesh draws.
+  const meshes = [partMesh(board, bodies, holes).positions];
   const h = holesMesh(board, holes, bodies, stockChecks(board));
   if (h) meshes.push(h.positions);
   for (const p of meshes) {

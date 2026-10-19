@@ -8,7 +8,7 @@ import {
 import type { Board, Section, V3 } from '../document/document';
 import type { ThreeEvent } from '@react-three/fiber';
 import { faceGrainKinds, grainFamily } from './grainFaces';
-import { bodyMesh, boardUVs, boardUVSignature, drawsAsBox, holesMesh } from './grainTiling';
+import { bodyMesh, boardUVs, boardUVSignature, drawsAsBox, holesMesh, partMesh } from './grainTiling';
 import { capFill } from './capFill';
 import { geometryBoard, shapedPart } from '../document/profiles';
 import { grainTexture } from './grainTexture';
@@ -126,7 +126,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     [fadedColor],
   );
 
-  // One geometry per solid. Keyed on boardUVSignature — see its doc comment —
+  // One geometry per solid — or, for a shaped part, one for all of them (chunk c2). Keyed on boardUVSignature — see its doc comment —
   // which now covers cuts, so adding a dado rebuilds these. extents stay in
   // the array for the same reason as before: the box's own size belongs on
   // the memo that builds the box.
@@ -157,10 +157,22 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
         items: [{ geo: new THREE.BoxGeometry(size[0], size[1], size[2]), center }],
       };
     }
+    // Explicit normals: no computeVertexNormals.
+    const meshGeo = (m: { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] }) => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+      for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
+      return { geo, center: [0, 0, 0] as [number, number, number] };
+    };
+    // Chunk c2 (stage 1, spec §2.1): a shaped part (curves or swept profiles) is ONE geometry, its bodies' meshes re-laid by
+    // material (partMesh): one <mesh>, not one per body (313 for an ogee loop). Every other part is drawn as before.
+    const shaped = shapedPart(geometryBoard(board));
     return {
       placeholder: false,
       items: [
-        ...bodies.map((body) => {
+        ...(shaped ? [meshGeo(partMesh(board, bodies, holes))] : bodies.map((body) => {
           if (drawsAsBox(board, body, holes)) {
             // Today's path, byte-for-byte (angle-cuts spec §3.3; holes spec §3.2: a part with no holes keeps it; a
             // curved part never takes it, so its box cells conform to the slices beside them — finding 1).
@@ -180,18 +192,10 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           if (m.normals) geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
           else geo.computeVertexNormals();
           return { geo, center: [0, 0, 0] as [number, number, number] };
-        }),
+        })),
         // Every hole's wall and bottom (holes spec §3.2) in ONE geometry (final review 2: one mesh per part, not per
-        // hole): explicit normals, so NO computeVertexNormals here. A part with no holes adds nothing.
-        ...[holesMesh(board, holes, bodies, checks)].flatMap((m) => {
-          if (!m) return [];
-          const geo = new THREE.BufferGeometry();
-          geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
-          geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
-          geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
-          for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
-          return [{ geo, center: [0, 0, 0] as [number, number, number] }];
-        }),
+        // hole). A part with no holes adds nothing.
+        ...[holesMesh(board, holes, bodies, checks)].flatMap((m) => (m ? [meshGeo(m)] : [])),
       ],
     };
   }, [
