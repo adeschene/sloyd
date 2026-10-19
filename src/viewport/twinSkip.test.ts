@@ -115,7 +115,7 @@ describe('stage 2: exact twins draw nothing (chunk c2)', () => {
     const same = (x: ArrayLike<number>, y: ArrayLike<number>) => x.length === y.length && Array.prototype.every.call(x, (v: number, i: number) => v === y[i]);
     if (same(got.positions, ref.positions) && same(got.uvs, ref.uvs) && same(got.normals, ref.normals) && JSON.stringify(got.groups) === JSON.stringify(ref.groups)) return;
     expect(sameGrain(got, ref)).toBeNull();
-  }, 30_000);   // the reference route (minusCover on every seam) is itself 5-10 s on the ogee/cove loops
+  });
   // Spec §2.2's partner-removed fixtures: a stop's run-out and a dado reshape faces next to the band; nothing they touch is
   // a twin unless its partner still lies exactly against it.
   it('partner-removed parts (a stop, a dado through the band) are in the list and drop twins elsewhere', () => {

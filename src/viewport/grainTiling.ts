@@ -612,12 +612,16 @@ function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Can
  * face's vertices — a seam remainder's new corners included, since a neighbour's edge in another plane may pass through
  * one. Built once per FROZEN bodies array (partGeometry's) and kept by its identity, as seamIndex is: bodyMesh runs once
  * per body, so building it per call would be quadratic. An unfrozen array is built afresh (invariant 50's rule).
+ * The TEST-ONLY reference route (`twins: false`) is memoised separately (`referenceParts`), never mixed with the default.
  * Chunk c2: the seams come from faceCover (document/seams.ts), an exact twin pair dropped without subtraction.
  */
 interface CurvedPart { holes: readonly Hole[]; faces: Map<Body, BodyFace[]>; points: Candidates; merged: Map<Body, MergedPlane[]> }
 const curvedParts = new WeakMap<readonly Body[], CurvedPart>();
+const referenceParts = new WeakMap<readonly Body[], CurvedPart>();
 function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[], opts?: { twins?: boolean }): CurvedPart {
-  const hit = opts ? undefined : curvedParts.get(bodies);
+  // The TEST-ONLY reference route (`twins: false`) has its own memo, so it is built once per part, never mixed with the default.
+  const memo = opts ? (opts.twins === false ? referenceParts : null) : curvedParts;
+  const hit = memo?.get(bodies);
   if (hit && hit.holes === holes) return hit;
   // Chunk c2 (stage 2): each face's remainder from faceCover — an exact twin draws nothing without minusCover.
   const cover = faceCover(bodies, opts);
@@ -632,7 +636,7 @@ function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[
   const cands = sortedCandidates(points);
   const merged = holes.length > 0 ? mergeHoledPlanes(board, bodies, holes, faces, cands, canon) : new Map<Body, MergedPlane[]>();
   const part = { holes, faces, points: cands, merged };
-  if (!opts && Object.isFrozen(bodies)) curvedParts.set(bodies, part);
+  if (memo && Object.isFrozen(bodies)) memo.set(bodies, part);
   return part;
 }
 
