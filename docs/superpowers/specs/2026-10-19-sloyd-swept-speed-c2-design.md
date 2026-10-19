@@ -1,6 +1,6 @@
 # Sloyd — swept rebuild speed, chunk c2 (design)
 
-**Status:** approved by the user (2026-10-19); amended in planning (§5, A1–A4) for the user's review with the plan. Follows chunk c1 (byte-identical speed fixes, deployed as `index-TCisED7E.js`).
+**Status:** approved by the user (2026-10-19); amended in planning (§5, A1–A4), the amendments APPROVED by the user 2026-10-19; implemented and deployed as `index-Cqf9kRT7.js`. Follows chunk c1 (byte-identical speed fixes, deployed as `index-TCisED7E.js`).
 Follow-ups: 393(2), 394(5).
 
 ## 1. Goal

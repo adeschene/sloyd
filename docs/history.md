@@ -576,8 +576,8 @@ The live pass on the dev server (swept loop whole, picking once, section cap, sh
 **Gate: MISSED.** The target "every rebuild under 40 ms" holds for cove and the two-side cove alone; the ogee loop's worst minimum alone is 48.1
 ms, and bead (40.2) and two loops (41.2) cross 40 in full runs. Nothing further was started. The three levers left (the user's decision, a spec
 amendment): `sweepBodies` (~11 ms), `sectionSeams` (~5 ms of the edges), per-body mesh emission and swept normals (~11 ms on the ogee loop); most
-grow with the body count, which spec §1 holds fixed. Deferred review minors are in the ledger `progress.md`. Awaiting the user: A1-A4, and
-whether to merge and deploy.
+grow with the body count, which spec §1 holds fixed. The deferred review minors are listed in the round's final report (the ledger was removed with the workspace). The user
+approved A1–A4 (2026-10-19) and gave the word to merge and deploy (below).
 
 **Chunk c2 deployed (2026-10-19).** On the user's word ("Merge and deploy it"): merged `--no-ff` as `90ef45f`; the merged tree built,
 and its first full run failed one wall-clock guard under load (the cove loop 48.4 ms against its new 48; the whole run was slow, the ogee
