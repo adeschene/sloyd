@@ -368,11 +368,23 @@ const isConvex = (p: readonly P2[]) => p.every((_, i) => {
   return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) >= -1e-12;
 });
 
+/**
+ * Freeze `o` and everything reachable from it through objects not already frozen (an already-frozen object is not entered:
+ * a memoised, shared structure stays as it is). Chunk c1: the same objects frozen as the `Object.values` recursion it
+ * replaces — an array's elements by index (every array frozen here is built by literals, map, filter, flatMap or push:
+ * indices only, so `Object.values` yields exactly these, holes skipped either way), any other object's own enumerable
+ * properties by `for…in` (the same keys in the same order; no prototype here carries an enumerable property), and a
+ * primitive never entered (it was returned at once) — without the `Object.values` arrays or a call per number. Which
+ * objects get frozen does not depend on the order they are reached in.
+ */
 function deepFreeze<T>(o: T): T {
-  if (typeof o === 'object' && o !== null && !Object.isFrozen(o)) {
-    Object.freeze(o);
-    for (const v of Object.values(o)) deepFreeze(v);
+  if (typeof o !== 'object' || o === null || Object.isFrozen(o)) return o;
+  Object.freeze(o);
+  if (Array.isArray(o)) {
+    for (let i = 0; i < o.length; i += 1) { const v: unknown = o[i]; if (typeof v === 'object' && v !== null) deepFreeze(v); }
+    return o;
   }
+  for (const k in o) { const v: unknown = (o as Record<string, unknown>)[k]; if (typeof v === 'object' && v !== null) deepFreeze(v); }
   return o;
 }
 
