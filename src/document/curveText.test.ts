@@ -6,7 +6,9 @@ import { curveFaults } from './curves';
 import type { CurveCut, ProfileCut, ProfileEnd } from './types';
 import { IMPERIAL } from '../units/length';
 import { ARCH, CORNER } from './curveFixtures';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners } from './sweepFixtures';
+import { apronArch, endToEnd, frontAndEnds, frontOnly, loop, notchEdge, stopOnArch, stopOnCorner, topCorners, twoSide, twoSideSharp } from './sweepFixtures';
+import { formatLength } from '../units/length';
+import { buildDiagrams } from './diagram';
 
 const MM = { display: 'metric-mm' as const, precision: 16 };
 const apron = createBoard({ length: 30, width: 5, thickness: 0.75 });
@@ -244,5 +246,68 @@ describe('swept profile words, fix round 1 (Q7 amended, implementation b1)', () 
     expect(curveLines(one, IMPERIAL).at(-1)).toBe(
       'Roundover 1/4" on the edge between the width face (min side) and the thickness face (max side), along the length, round the corner');
     expect(curveLines(frontOnly, IMPERIAL).at(-1)).toMatch(/, round the corners$/);
+  });
+});
+
+describe('stopped runs on a turned path and two-side runs (profile runs b2, Q21)', () => {
+  const lastLine = (b: Parameters<typeof curveLines>[0], u: typeof IMPERIAL) => [curveLines(b, u).at(-1)!];
+  const sd = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from });
+  const FRONT = 'Roundover 1/4" on the edge between the width face (min side) and the thickness face (max side), along the length';
+  const withRun = (b: ReturnType<typeof topCorners>, p: ProfileCut) => ({ ...b, profiles: [p] });
+  it('a stop on a corner arc: stations through formatLength', () => {
+    expect(lastLine(stopOnCorner(), IMPERIAL)).toEqual([`${FRONT}, from ${formatLength(1.1, IMPERIAL)} to 30" (stopped)`]);
+  });
+  it('a stop on an arch adds the stations to chunk 1\'s line', () => {
+    expect(lastLine(stopOnArch, IMPERIAL)).toEqual([`${FRONT}, from 10" to 20" (stopped)`]);
+  });
+  it('a half-stopped run through the corner arc: round the corner, then its stops', () => {
+    const half: ProfileCut = { ...endToEnd('p1', sd('width', 'min')), run: { start: { side: sd('width', 'min'), through: 'min' }, end: { side: sd('width', 'min'), from: 'min', at: 20 } } };
+    expect(lastLine(withRun(topCorners(2), half), IMPERIAL)).toEqual([`${FRONT}, round the corner, from the length min end to 20" (stopped)`]);
+  });
+  it('a stop whose far end is the max end reads that end, not a corner clause', () => {
+    const half: ProfileCut = { ...endToEnd('p1', sd('width', 'min')), run: { start: { side: sd('width', 'min'), from: 'min', at: 20 }, end: { side: sd('width', 'min'), through: 'max' } } };
+    expect(lastLine(withRun(topCorners(2), half), IMPERIAL)).toEqual([`${FRONT}, round the corner, from 20" to the length max end (stopped)`]);
+  });
+  const HEAD = 'Roundover 1/4" on the thickness face (max side)';
+  it('two sides, front and ends: the side between in the face\'s travel', () => {
+    expect(lastLine(frontAndEnds(), IMPERIAL)).toEqual([`${HEAD}, from the length min end at 4" round the width min side to the length max end at 4" (stopped)`]);
+  });
+  it('two sides round a sharp corner', () => {
+    expect(lastLine(twoSideSharp, IMPERIAL)).toEqual([`${HEAD}, from the width min side at 20" round the corner to the length max end at 5" (stopped)`]);
+  });
+  it('the long way round names the other side', () => {
+    const b = withRun(topCorners(2), twoSide('t', sd('length', 'max'), 4, sd('length', 'min'), 4));
+    expect(lastLine(b, IMPERIAL)).toEqual([`${HEAD}, from the length max end at 4" round the width max side to the length min end at 4" (stopped)`]);
+  });
+  it('two sides covering two sides between: both, in order', () => {
+    const b = withRun(topCorners(2), twoSide('t', sd('width', 'min'), 20, sd('length', 'max'), 5));
+    const back = withRun(topCorners(2), twoSide('t', sd('length', 'max'), 5, sd('width', 'min'), 20));
+    expect(lastLine(back, IMPERIAL)[0]).toContain('round the width max side and the length min end to');
+    expect(lastLine(b, IMPERIAL)[0]).toContain('round the corner to');
+  });
+  it('a face-min run travels the other way', () => {
+    const p: ProfileCut = { ...twoSide('t', sd('width', 'min'), 20, sd('length', 'max'), 5), face: 'min' };
+    expect(lastLine(withRun(topCorners(2), p), IMPERIAL)[0]).toBe('Roundover 1/4" on the thickness face (min side), from the width min side at 20" round the length min end and the width max side to the length max end at 5" (stopped)');
+  });
+  it('a bead facing the edge names its top', () => {
+    const p: ProfileCut = { ...twoSide('t', sd('width', 'min'), 20, sd('length', 'max'), 5, 0.25, 'bead'), fillet: 1 / 16, facing: 'edge' };
+    expect(lastLine(withRun(twoSideSharp, p), IMPERIAL)[0]).toMatch(/^Bead 1\/4" with a 1\/16" quirk on the thickness face \(max side\), top on the edge, from /);
+  });
+  it('a fillet reads before the stops', () => {
+    const p: ProfileCut = { ...twoSide('t', sd('width', 'min'), 20, sd('length', 'max'), 5, 0.375, 'cove'), fillet: 1 / 16 };
+    expect(lastLine(withRun(twoSideSharp, p), IMPERIAL)[0]).toMatch(/^Cove 3\/8" on the thickness face \(max side\), with a 1\/16" fillet, from /);
+  });
+  it('a faulted two-side run appends its check', () => {
+    const p = twoSide('t', sd('width', 'min'), 40, sd('length', 'max'), 5);
+    expect(lastLine(withRun(twoSideSharp, p), IMPERIAL)[0]).toMatch(/ \(stopped\) — check: a stop runs off the part$/);
+  });
+  it('metric: stations read in mm', () => {
+    expect(lastLine(twoSideSharp, MM)[0]).toBe('Roundover 6 mm on the thickness face (max side), from the width min side at 508 mm round the corner to the length max end at 127 mm (stopped)');
+  });
+  it('the part diagram notes carry the stop words, not b1\'s run words', () => {
+    const notes = buildDiagrams(stopOnCorner(), IMPERIAL).flatMap((v) => v.curveNotes.map((n) => n.text));
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.at(-1)).toBe(`${FRONT}, from ${formatLength(1.1, IMPERIAL)} to 30" (stopped)`);
+    for (const n of notes.slice(-1)) expect(n).toBe(`${FRONT}, from ${formatLength(1.1, IMPERIAL)} to 30" (stopped)`);
   });
 });
