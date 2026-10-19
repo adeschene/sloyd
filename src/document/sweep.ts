@@ -31,7 +31,7 @@
 import { convexPieces, distToSegment, twiceArea, type P2, type ViewCurve } from './curves';
 import { builtPath, faceOutline, profilePath, type OutlineChord } from './profilePath';
 import { profileAsCurve, viewProfileFaults } from './profiles';
-import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame } from './runout';
+import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame, type StopFrame } from './runout';
 import type { Hole } from './holes';
 import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton } from './skeleton';
@@ -350,6 +350,28 @@ export function sweptRunouts(view: SweepBoard, p: ProfileCut): ViewCurve[] {
     out.push({ ...c, span });
   }
   return out;
+}
+
+const stopsMemo = new WeakMap<object, Map<string, readonly StopFrame[]>>();
+/**
+ * A swept profile's STOPS (b2, §4.2 (b2), Q12): one frame per user's Start or Stop on the BUILT path (Q13's zone applied),
+ * from `planChain`'s station clips that carry `stop` — F the clip's tangent (along the stop's model chord, away from the run),
+ * N that chord's plan inward normal, `end` the path's face-frame end. A B1 station or a through or mitre end has none (B1
+ * stations keep a2's `sweptRunouts`). Memoised per (view, profile id), deep-frozen: never mutate a result.
+ */
+export function sweptStops(view: SweepBoard, p: ProfileCut): readonly StopFrame[] {
+  let m = stopsMemo.get(view);
+  if (!m) { m = new Map(); stopsMemo.set(view, m); }
+  const hit = m.get(p.id);
+  if (hit) return hit;
+  const path = builtPath(view, p);
+  const chain = path && !path.loop ? planChain(view, path, p.face) : null;
+  const out: StopFrame[] = chain
+    ? chain.stations.flatMap((st) => (st.stop ? [{ at: st.at, F: st.tangent, N: st.stop.N, end: st.stop.end }] : []))
+    : [];
+  const frozen = deepFreeze(out);
+  m.set(p.id, frozen);
+  return frozen;
 }
 
 /*

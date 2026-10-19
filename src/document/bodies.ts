@@ -3,12 +3,12 @@ import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment }
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
 import { curveOutline, curvePlan, curveValues, smoothLines, spanOf, splitPieces, uvDims, type ViewCurve } from './curves';
-import { profileSection, runoutPieces } from './runout';
+import { profileSection, runoutPieces, stopRunoutPieces } from './runout';
 import { DIMENSION_ORDER } from './geometry';
 import { unionOutline } from './outline';
 import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profiles';
-import { builtSwept, outlineCurves, sweptPieces, sweptRunouts, type SweptPiece } from './sweep';
+import { builtSwept, oneSideCurve, outlineCurves, sweptPieces, sweptRunouts, sweptStops, type SweptPiece } from './sweep';
 import type { CurveCut, ProfileCut } from './types';
 import { builtPath } from './profilePath';
 import { sweptSmoothPair } from './sweptEdges';
@@ -199,6 +199,19 @@ function buildBodies(board: Board, opts?: { events?: boolean }): Body[] {
     for (const c of sweptRunouts(board, p)) {
       const name = sectionEdgeNamer(profileSection(board, c).pts, p.id);
       const pieces = runoutPieces(board, c).map((x) => ({ ...x, edge: x.edge.map(name) }));
+      bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, p.id)
+        .flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : [])));
+    }
+  }
+  // A swept profile's STOPS (profile runs b2, §4.2 (b2)): the cutter revolved about the bit's axis BEARING outside the
+  // stop's chord, beyond the plane across it, subtracted as a2's are.
+  for (const p of swept) {
+    const stops = sweptStops(board, p);
+    if (stops.length === 0) continue;
+    const c = oneSideCurve(p);
+    const name = sectionEdgeNamer(profileSection(board, c).pts, p.id);
+    for (const fr of stops) {
+      const pieces = stopRunoutPieces(board, c, fr).map((x) => ({ ...x, edge: x.edge.map(name) }));
       bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, p.id)
         .flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : [])));
     }

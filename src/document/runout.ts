@@ -69,7 +69,7 @@ export function outlineRun(pts: readonly P2[], p: P2, q: P2): [number, number] |
 
 /** Sectors over a half turn of radius r: the fewest whose chord sagitta is within CURVE_TOLERANCE, 2 at least (a single
  *  sector would be a half-plane, its two radial planes one line), CURVE_SEGMENTS_MAX at most. */
-function sectors(r: number): number {
+export function sectors(r: number): number {
   const step = CURVE_TOLERANCE >= 2 * r ? Math.PI : 2 * Math.acos(1 - CURVE_TOLERANCE / r);
   return Math.min(CURVE_SEGMENTS_MAX, Math.max(2, Math.ceil(Math.PI / step - 1e-9)));
 }
@@ -146,6 +146,76 @@ export function runoutPieces(board: Pick<Board, Dimension>, c: ViewCurve): { pla
         out.push({ planes: [...wedge, ...planes], onArc: [false, false, ...edges.map((e) => e.arc)],
           edge: [null, null, ...edges.map((e) => e.index)], runout: end });
       }
+    }
+  }
+  return out;
+}
+
+/** A swept profile's stop (b2, §4.2 (b2), Q12): plan (length, width) vectors — F along the stop's MODEL chord away from
+ *  the run, N that chord's inward normal — and the run-out tag (the path's face-frame end 0 → 'lo', 1 → 'hi'). The bit's
+ *  axis is at − BEARING·N. */
+export interface StopFrame { at: P2; F: P2; N: P2; end: 'lo' | 'hi' }
+
+/** The bit's axis at a stop (Q12): BEARING outside the stop's model chord, a plan (length, width) point; it runs along the
+ *  thickness. */
+export function stopAxis(fr: StopFrame): P2 {
+  return [fr.at[0] - BEARING * fr.N[0], fr.at[1] - BEARING * fr.N[1]];
+}
+
+/**
+ * `runoutPieces` for ONE stop in its frame (b2, §4.2 (b2), Q12; the b2 probe's `frameRunout`): the same pieces, planes,
+ * order and tags — sectors at θ from −π/2 (−N, out of the chord into air) to π/2 (N, into the wood) about the forward
+ * direction F, dir(θ) = cos θ·F + sin θ·N; two radial planes through the axis per sector; each convex piece of the section
+ * adds its edges with s = m·(x − axis) / cos h − BEARING (exact on both of the sector's rays: the inscribed form, so no step
+ * at the stop plane) and t = vIn·(x_thickness − vFace), renormalised; arc edges `onArc`, diagonals last, `edge` the
+ * `outlineRun` indices. Plan axes are (length, width), the depth the thickness. `c` gives only the (s, t) section and the
+ * broad face (any one-side curve of the profile: `oneSideCurve(p)`). a2's own `runoutPieces` is untouched: on a straight
+ * side this equals it to ~1e-12 per coefficient, not byte for byte (b1's stations keep a2's code).
+ */
+export function stopRunoutPieces(board: Pick<Board, Dimension>, c: ViewCurve, fr: StopFrame): { planes: Half[]; onArc: boolean[]; edge: ([number, number] | null)[]; runout: 'lo' | 'hi' }[] {
+  const f = sectionFrame(board, c);
+  if (f.iv !== 2) throw new Error('stopRunoutPieces: a profile curve\'s depth runs along the thickness');
+  const sec = profileSection(board, c);
+  const pieces = convexPieces(sec.pts, sec.arc).map(({ pts, onArc }) => {
+    const edges: { ns: number; nt: number; c: number; arc: boolean; diagonal: boolean; index: [number, number] | null }[] = [];
+    pts.forEach((p, i) => {
+      const q = pts[(i + 1) % pts.length]!;
+      const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (l < 1e-14) return;
+      const ns = -(q[1] - p[1]) / l;
+      const nt = (q[0] - p[0]) / l;
+      const index = outlineRun(sec.pts, p, q);
+      edges.push({ ns, nt, c: -(ns * p[0] + nt * p[1]), arc: onArc[i]!, diagonal: index === null, index });
+    });
+    return [...edges.filter((e) => !e.diagonal), ...edges.filter((e) => e.diagonal)];
+  });
+  const maxS = Math.max(...sec.pts.map((p) => p[0]));
+  const n = sectors(BEARING + maxS);
+  const axis = stopAxis(fr);
+  const { F, N } = fr;
+  const dir = (th: number): P2 => [F[0] * Math.cos(th) + N[0] * Math.sin(th), F[1] * Math.cos(th) + N[1] * Math.sin(th)];
+  const out: { planes: Half[]; onArc: boolean[]; edge: ([number, number] | null)[]; runout: 'lo' | 'hi' }[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const th0 = -Math.PI / 2 + (i / n) * Math.PI;
+    const th1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI;
+    const m = dir((th0 + th1) / 2);
+    const radial = (th: number): Half => {
+      const d = dir(th);
+      let a = -d[1], b = d[0];
+      if (a * m[0] + b * m[1] < 0) { a = -a; b = -b; }
+      return { n: [a, b, 0], d: -(a * axis[0] + b * axis[1]) };
+    };
+    const wedge = [radial(th0), radial(th1)];
+    const ch = Math.cos((th1 - th0) / 2);
+    const mA = m[0] * axis[0] + m[1] * axis[1];
+    for (const edges of pieces) {
+      const planes = edges.map((e): Half => {
+        const nx = (e.ns * m[0]) / ch, ny = (e.ns * m[1]) / ch, nz = e.nt * f.vIn;
+        const l = Math.hypot(nx, ny, nz);
+        return { n: [nx / l, ny / l, nz / l], d: (e.c - (e.ns * mA) / ch - e.ns * BEARING - e.nt * f.vIn * f.vFace) / l };
+      });
+      out.push({ planes: [...wedge, ...planes], onArc: [false, false, ...edges.map((e) => e.arc)],
+        edge: [null, null, ...edges.map((e) => e.index)], runout: fr.end });
     }
   }
   return out;
