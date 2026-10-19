@@ -458,6 +458,8 @@ describe('Curves under a stop (profile runs b2)', () => {
     await user.clear(radius); await user.type(radius, '0.2{Enter}');
     expect(radiusOf(0)).toBe(2);
     expect(radius).toHaveAttribute('aria-invalid', 'true');
+    expect(radius).toHaveValue('0.2');                                          // the typed text kept
+    expect(radius).toHaveFocus();
     expect(screen.getByRole('alert').textContent).toBe('Too tight for the roundover — reduce the roundover first.');
   });
 });

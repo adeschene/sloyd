@@ -160,6 +160,17 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const asKind = (kind: ProfileKind): ProfileFields => profileFields(defaultProfile(board, kind, p, kind === 'roundover' || kind === 'cove' ? 'v' : p.facing))!;
   const withFace = (face: CutFrom): ProfileFields => ({ ...p, vFrom: face });
   const withSide = (s: ProfileSide): ProfileFields => ({ ...p, through: runDim(s), uFrom: s.from });
+  /** Q26: `moved` re-sided onto `s`, keeping the number the row SHOWS for it (fix round 1, M1: a loaded end stored from the
+   *  max end is written from the min end at its shown position), a through end its flag. */
+  const keptOn = (moved: ProfileEnd, s: ProfileSide): ProfileEnd =>
+    ('through' in moved ? { side: { ...s }, through: moved.through } : { side: { ...s }, from: 'min', at: endPos(stored_, moved) });
+  /** True when `run` adds no fault KIND to this profile's own `profileFaults` (Q26: a moved end keeps its number). */
+  const fitsAsIs = (base: Omit<ProfileCut, 'id'>, run: Next['run']): boolean => {
+    const had = new Set(profileFaults(stored_, profile).map((f) => f.kind));
+    const q: ProfileCut = { ...base, id: profile.id, run };
+    const after: Board = { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? q : x)) };
+    return profileFaults(after, q).every((f) => had.has(f.kind));
+  };
   /**
    * Q26: one end of a stopped run moved onto side `s` (Start for `which` 'start', Stop for 'end'). The end keeps its station
    * when the moved run's own `profileFaults` gains no kind; else it is seeded `min(3, L/4)` in from the corner where travel
@@ -173,12 +184,8 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
       const r = which === 'start' ? { start: e, end: other } : { start: run0.start, end: e };
       return sameSide(r.start.side, r.end.side) ? canonicalRun(stored_, base.face, r) : r;
     };
-    const moved = run0[which];
-    const kept: ProfileEnd = 'through' in moved ? { side: { ...s }, through: moved.through } : { side: { ...s }, from: moved.from, at: moved.at };
-    const had = new Set(profileFaults(stored_, profile).map((f) => f.kind));
-    const keptNext: ProfileCut = { ...base, id: profile.id, run: runWith(kept) };
-    const after: Board = { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? keptNext : x)) };
-    if (profileFaults(after, keptNext).every((f) => had.has(f.kind))) return { ...base, run: keptNext.run };
+    const kept = runWith(keptOn(run0[which], s));
+    if (fitsAsIs(base, kept)) return { ...base, run: kept };
     const Ls = stored_[runDim(s)];
     const seed = Math.min(3, Ls / 4);
     // The run travels toward the run dimension's max end when travelSign is +1: it enters a side at its min end and leaves at
@@ -186,6 +193,31 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
     const atMax = (travelSign(base.face, s) > 0) === (which === 'start');
     return { ...base, run: runWith({ side: { ...s }, from: 'min', at: atMax ? Ls - seed : seed }) };
   };
+  /**
+   * Fix round 1, I1 (the controller's ruling R5): Stop side on a ONE-side stop onto an ADJACENT side moves the station the
+   * row shows NEARER the corner the two sides share (a2's lo/hi display governs); the other station stays. The moved end
+   * keeps its number when that adds no fault, else it is seeded `min(3, L/4)` in from the shared corner on the new side
+   * (Q26: the corner the travel enters or leaves it by). The run is stored in travel order (Q16) and goes the SHORT way,
+   * through the shared corner: the kept station is Start when travel along its side heads for that corner, else Stop — so
+   * after the change Side and Stop side may trade roles. The OPPOSITE side keeps `moveEnd` (no nearer end; Q16 routes it).
+   */
+  const moveNearer = (s: ProfileSide): Next => {
+    const base = profileFromFields(normal(p));
+    const cornerAt = s.from === 'max' ? L : 0;                       // the shared corner along this side's run dimension
+    const [a, b] = [run0.start, run0.end];
+    const near = Math.abs(endPos(stored_, a) - cornerAt) <= Math.abs(endPos(stored_, b) - cornerAt) ? a : b;
+    const keep = near === a ? b : a;
+    const keptFirst = (travelSign(base.face, side) > 0) === (cornerAt === L);   // travel heads for the shared corner
+    const runWith = (e: ProfileEnd): Next['run'] => (keptFirst ? { start: keep, end: e } : { start: e, end: keep });
+    const asIs = runWith(keptOn(near, s));
+    if (fitsAsIs(base, asIs)) return { ...base, run: asIs };
+    const Ls = stored_[runDim(s)];
+    const seed = Math.min(3, Ls / 4);
+    const shared = side.from === 'max' ? Ls : 0;                     // the shared corner along the new side's run dimension
+    return { ...base, run: runWith({ side: { ...s }, from: 'min', at: shared === 0 ? seed : Ls - seed }) };
+  };
+  /** The Stop side select: an adjacent side on a one-side stop moves the nearer station (R5); else the stored Stop (Q26). */
+  const onStopSide = (s: ProfileSide): Next => (!twoSides && s.across !== side.across ? moveNearer(s) : moveEnd('end', s));
   /** The Side select: on a one-side run both ends move (a2, the stations kept); on two sides, Start alone (Q26). */
   const onSide = (s: ProfileSide): Next => (twoSides ? moveEnd('start', s) : build(withSide(s)));
   /** Run → Stopped seeds 3" in from each end (or a quarter of the run, if shorter). */
@@ -208,7 +240,7 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const sideR = useReasons(key, board, sideKeys, String(SIDES.findIndex((x) => sameSide(x, side))) as (typeof sideKeys)[number],
     (i) => refuse(onSide(SIDES[Number(i)]!), null));
   const stopSideR = useReasons(key, board, sideKeys, String(SIDES.findIndex((x) => sameSide(x, stopSide))) as (typeof sideKeys)[number],
-    (i) => refuse(moveEnd('end', SIDES[Number(i)]!), null));
+    (i) => refuse(onStopSide(SIDES[Number(i)]!), null));
   const runKeys: readonly RunKind[] = ['through', 'stopped', 'loop'];
   const runNow: RunKind = loop ? 'loop' : stopped ? 'stopped' : 'through';
   const runR = useReasons(key, board, runKeys, runNow, (k) => refuse(withRun(k), null));
@@ -284,7 +316,7 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
           <div className="field">
             <label htmlFor={`profile-stop-side-${profile.id}`}>Stop side</label>
             <select id={`profile-stop-side-${profile.id}`} className="input" value={SIDES.findIndex((x) => sameSide(x, stopSide))} {...stopSideR.focus}
-              onChange={(e) => set(moveEnd('end', SIDES[Number(e.target.value)]!))}>
+              onChange={(e) => set(onStopSide(SIDES[Number(e.target.value)]!))}>
               {SIDES.map((s, i) => opt(stopSideR.reasons, String(i), sideLabel(s)))}
             </select>
           </div>
