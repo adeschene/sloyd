@@ -13,6 +13,9 @@ import { apronArch, bowFront, frontAndEnds, frontOnly, loop, notchEdge, stopOnAr
  * spike's slow step: bodyEdges over an arch's slices measured 25 ms at 18 chords, 135 ms at 48) and every body's mesh.
  * Each case is a full rebuild through partGeometry with a fresh geometry key (the length moves by a micro-inch), the
  * MINIMUM of 9 runs (load only inflates a run). Bound 40 ms, the holes guard's.
+ *
+ * Chunk c1 (2026-10-19, byte-identical speed fixes): every guard over 40 ms was re-set to ⌈the worst minimum of 9 across
+ * all runs taken (two of this file alone, two full `npm test` runs) × 1.25⌉ — lowered only, never below the 40 ms default.
  */
 const arch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 }) };
 const corners = (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => ({ id: `${uf}${vf}`, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: 2 }) })));
@@ -42,8 +45,9 @@ const stileArch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length
 const cup = (b: Board): HoleRow[] => [{ id: 'c', ...defaultHingeCup(b), station: 10 }];
 
 /** wrapFour's guard (Task 6): a NEW row with no probe guard, over the 40 ms default — its product's minimum of 9 measured
- *  38.0–42.5 alone (load ~1.4) and 41.3–45.5 in three full runs, so the highest, 45.5, + 25% (b1's Q4 amendment), for chunk c. */
-const WRAP_FOUR = 57;
+ *  38.0–42.5 alone (load ~1.4) and 41.3–45.5 in three full runs, so the highest, 45.5, + 25% (b1's Q4 amendment), for chunk c.
+ *  Chunk c1 (2026-10-19): 26.6–27.6 alone, 29.5–29.6 in two full runs → ⌈29.6 × 1.25⌉ = 37, so the 40 ms default. */
+const WRAP_FOUR = 40;
 let tick = 0;
 function rebuild(make: (len: number) => Board): number {
   tick += 1;
@@ -115,7 +119,8 @@ describe('a curved part rebuilds inside a frame', () => {
   // (ogee 51 bodies, bead 4, cove 61: no diagonals), and bodyEdges and clip compute each number once (edges byte-identical
   // for the same bodies). The table is in the round's final-fix report.
   // 2026-10-19: the ogee's worst full-run minimum 36.3 ms → ⌈36.3 × 1.25⌉ = 46, over a frame (cove, bead stay at 40).
-  const fourEdgeBound = { cove: 40, bead: 40, ogee: 46 } as const;
+  // Chunk c1 (2026-10-19): the ogee 16.2–16.6 alone, 18.8–18.9 in two full runs → back to the 40 ms default.
+  const fourEdgeBound = { cove: 40, bead: 40, ogee: 40 } as const;
   for (const kind of ['cove', 'bead', 'ogee'] as const) {
     const bound = fourEdgeBound[kind];
     it(`a top with the four-edge ${kind} set: at most ${bound} ms`, () => {
@@ -171,17 +176,18 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
     ['a roundover 1/4" along the arched apron', apronArch, 40],
     ['a roundover 1/4" all round the 1/2" corner top', topCorners(0.5), 40],
     ['a roundover 3/8" round the notch', notchEdge, 40],
-    // 2026-10-19: worst full-run minimum 35.4 ms → 45, over a frame.
-    ['a roundover 1/4" all round the 2" corner top', topCorners(2), 45],
-    // 2026-10-19: worst full-run minimum 32.9 ms → 42, over a frame.
-    ['a thumbnail all round the 2" top', topCorners(2, loop('p1', 0.75, 'thumbnail')), 42],
-    // 2026-10-19: worst full-run minimum 37.2 ms → 47, over a frame.
-    ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 47],
-    // 2026-10-19: worst full-run minimum 70.8 ms → 89.
-    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 89],
-    // 2026-10-19: worst full-run minimum 68.1 ms → 86.
-    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 86],
-    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 113],
+    // 2026-10-19: worst full-run minimum 35.4 ms → 45, over a frame. Chunk c1: 20.5–20.9 alone, 21.9–22.7 full → 40.
+    ['a roundover 1/4" all round the 2" corner top', topCorners(2), 40],
+    // 2026-10-19: worst full-run minimum 32.9 ms → 42, over a frame. Chunk c1: 20.5–22.4 alone, 21.4–24.4 full → 40.
+    ['a thumbnail all round the 2" top', topCorners(2, loop('p1', 0.75, 'thumbnail')), 40],
+    // 2026-10-19: worst full-run minimum 37.2 ms → 47, over a frame. Chunk c1: 21.7–22.3 alone, 23.0–23.6 full → 40.
+    ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 40],
+    // 2026-10-19: worst full-run minimum 70.8 ms → 89. Chunk c1: 45.8 alone, 55.6–56.6 full → ⌈56.6 × 1.25⌉ = 71.
+    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 71],
+    // 2026-10-19: worst full-run minimum 68.1 ms → 86. Chunk c1: 45.5–49.4 alone, 46.0–47.1 full → ⌈49.4 × 1.25⌉ = 62.
+    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 62],
+    // Chunk c1: 60.9–62.6 alone, 64.3–64.7 full → ⌈64.7 × 1.25⌉ = 81 (was 113).
+    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 81],
   ];
   for (const [name, board, bound] of swept) {
     it(`${name}: at most ${bound} ms`, () => {
@@ -192,11 +198,11 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
   }
   // Review Focus 4: All round the top AND the bottom (one outline, two swept profiles). Measured 59.9 / 61.9 (alone / full
   // suite, Task 6; was 76.8 / 83.0): guarded at 61.9 + 25%.
-  // 2026-10-19: worst full-run minimum 65.6 ms → 82.
-  it('a roundover all round the top and the bottom of the 2" top: at most 82 ms', () => {
+  // 2026-10-19: worst full-run minimum 65.6 ms → 82. Chunk c1: 36.5–37.2 alone, 38.1–40.3 full → ⌈40.3 × 1.25⌉ = 51.
+  it('a roundover all round the top and the bottom of the 2" top: at most 51 ms', () => {
     const board: Board = { ...topCorners(2), profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] };
     expect(builtSwept(geometryBoard(board))).toHaveLength(2);
-    expect(minOf9(at(board))).toBeLessThanOrEqual(82);
+    expect(minOf9(at(board))).toBeLessThanOrEqual(51);
   });
 });
 
@@ -209,16 +215,19 @@ describe('a b2 profile\'s part rebuilds inside a frame (profile runs b2)', () =>
   const at = (b: Board) => (k: number) => createBoard({ ...b, length: b.length * k });
   const b2: [string, Board, number, number][] = [
     ['a roundover 1/4" stopped on a 2" corner arc to 30"', stopOnCorner(), 2, 40],
-    // 2026-10-19: worst full-run minimum 32.5 ms → 41, over a frame.
-    ['a cove 3/8" stopped on a 2" corner arc to 30"', stopOnCorner('cove', 0.375), 2, 41],
+    // 2026-10-19: worst full-run minimum 32.5 ms → 41, over a frame. Chunk c1: 22.9–25.8 alone, 24.5–24.7 full → 40.
+    ['a cove 3/8" stopped on a 2" corner arc to 30"', stopOnCorner('cove', 0.375), 2, 40],
     ['a roundover 1/4" stopped on the arch (10", 20")', stopOnArch, 2, 40],
-    ['a roundover 3/8" stopped on the notch (14.5") to 25"', stopOnNotch, 2, 60],
+    // Chunk c1: 22.5 alone, 23.6–24.8 full → 40 (was 60).
+    ['a roundover 3/8" stopped on the notch (14.5") to 25"', stopOnNotch, 2, 40],
     ['a roundover 1/4" stopped on a bow (5", 25")', bowFront, 2, 40],
-    ['a roundover 1/4" on two sides, the front and both ends', frontAndEnds(), 2, 51],
+    // Chunk c1: 21.3–21.4 alone, 23.3–23.5 full → 40 (was 51).
+    ['a roundover 1/4" on two sides, the front and both ends', frontAndEnds(), 2, 40],
     // The final review's M4 (the controller's ruling): Task 1's 102 was ~1.85× the product's time; tightened to the measured
     // full-suite minimum + 25% (2026-10-19: 55.3 ms alone, 55.0 in a full run → ⌈55.0 × 1.25⌉ = 69).
     // 2026-10-19 (re-baseline after the merge): worst full-run minimum 57.8 ms → 73.
-    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 73],
+    // Chunk c1: 42.9–46.3 alone, 47.4–48.9 full → ⌈48.9 × 1.25⌉ = 62.
+    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 62],
     ['a roundover 1/4" round four sides and three arcs (wrapFour)', wrapFour(), 2, WRAP_FOUR],
   ];
   for (const [name, board, stops, bound] of b2) {
