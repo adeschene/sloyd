@@ -7,6 +7,7 @@ import { createBoard } from './document';
 import { archCurve, bowCurve, cornerCurve } from './curves';
 import { chiralCurved } from './turnFixtures';
 import { faceOutline } from './profilePath';
+import { mirrorPart } from './frames';
 import type { Board, Posture, ProfileCut, ProfileSide } from './types';
 
 const side = (across: 'length' | 'width', from: 'min' | 'max'): ProfileSide => ({ across, from });
@@ -89,3 +90,29 @@ export const shortEnds = (): Board => createBoard({ length: 36, width: 4.02, thi
  *  on both sides, the two ends' bands overlap there. */
 export const cornerGap = (a: number, gap: number): Board => createBoard({ length: 30, width: 10, thickness: 0.75,
   profiles: [twoSide('p1', side('length', 'max'), a, side('width', 'min'), 30 - gap)] });
+/** Task 6 fix round 2 (N2): `cornerGap` for every section kind. Face max: the right end at `a` round to the front at
+ *  30 − `gap` (as cornerGap); face min: the front at 30 − `gap` round to the right end at `a` (the same stops, walked the
+ *  other way, as the face-min frame needs). */
+export const cornerGapAs = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, a: number, gap: number, face: 'min' | 'max' = 'max'): Board => {
+  const run = face === 'max'
+    ? twoSide('p1', side('length', 'max'), a, side('width', 'min'), 30 - gap, size, kind)
+    : twoSide('p1', side('width', 'min'), 30 - gap, side('length', 'max'), a, size, kind);
+  return createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [{ ...run, ...extra, face } as ProfileCut] });
+};
+/** N2's cases: every section kind at two gap pairs, plus a face-min part (the mirrored part is mirrorPart of the first). */
+export const overlapKinds: [string, ProfileCut['kind'], number, Partial<ProfileCut>][] = [
+  ['roundover 1/4', 'roundover', 0.25, {}],
+  ['cove 3/8 + 1/16 fillet', 'cove', 0.375, { fillet: 1 / 16 }],
+  ['ogee 3/8', 'ogee', 0.375, {}],
+  ['ogee 3/8 facing the edge', 'ogee', 0.375, { facing: 'edge' }],
+  ['bead 1/4 + 1/16 quirk', 'bead', 0.25, { fillet: 1 / 16 }],
+  ['thumbnail 3/4 × 1/4', 'thumbnail', 0.75, { depth: 0.25 }],
+];
+/** N2's committed set: every kind at (0.1, 0.1) and (0.2, 0.05) on face max; the ogee facing the edge mirrored along its
+ *  length; the bead on face min. Each with its corner (x of the profiled corner: 30, or 0 mirrored), `a` and `gap`. */
+export const overlapCases = (): { name: string; board: Board; cornerX: number; a: number; gap: number }[] => [
+  ...overlapKinds.flatMap(([name, kind, size, extra]) => ([[0.1, 0.1], [0.2, 0.05]] as const).map(([a, gap]) =>
+    ({ name: `${name}, stops ${a}" and ${gap}" from the corner`, board: cornerGapAs(kind, size, extra, a, gap), cornerX: 30, a, gap }))),
+  { name: 'ogee 3/8 facing the edge, mirrored along its length (mirrorPart)', board: mirrorPart(cornerGapAs('ogee', 0.375, { facing: 'edge' }, 0.2, 0.05)), cornerX: 0, a: 0.2, gap: 0.05 },
+  { name: 'bead 1/4 + 1/16 quirk on face min', board: cornerGapAs('bead', 0.25, { fillet: 1 / 16 }, 0.1, 0.1, 'min'), cornerX: 30, a: 0.1, gap: 0.1 },
+];

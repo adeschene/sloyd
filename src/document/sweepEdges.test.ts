@@ -6,7 +6,7 @@ import { geometryBoard, profileFaults } from './profiles';
 import { builtSwept, keptSection } from './sweep';
 import { builtPath, profilePath } from './profilePath';
 import type { Segment } from './cuts';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners } from './sweepFixtures';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners, overlapCases } from './sweepFixtures';
 import type { Board } from './types';
 
 /*
@@ -479,5 +479,20 @@ describe('the station extension decides no fault, and falls back where the side 
     const [s, e] = builtPath(b, b.profiles[0]!)!.ends! as { at: [number, number] }[];
     expect(s!.at).toEqual([0, 0.5]);
     expect(e!.at).toEqual([36, 0.5]);
+  });
+});
+
+// Task 6 fix round 2 (N1, N2): where a run's two ends' bands overlap, the fast path's lines are the reference's (bodyEdges
+// over the bodies) for every section kind — a line inside the overlap judged against BOTH passes' faces (inv 16).
+describe('the fast swept edges equal the reference where a run\'s two ends\' bands overlap (N1, N2)', () => {
+  it.each(overlapCases().map((c) => [c.name, c.board] as [string, Board]))('%s', (_name, board) => {
+    const bodies = boardBodies(board);
+    const jr: SmoothJoin[] = [], jf: SmoothJoin[] = [];
+    const ref = curvedEdges(board, bodies, jr, { reference: true }) as Seg3[];
+    const fast = curvedEdges(board, bodies, jf) as Seg3[];
+    expect(sameRuns(merged(fast), merged(ref))).toBeNull();
+    const a = joinRuns(jf), b = joinRuns(jr);
+    expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
+    for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
   });
 });

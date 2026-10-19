@@ -11,8 +11,8 @@ import { keptSection, oneSideCurve, sweptStops, sweptWasteStations } from './swe
 import { bodyVolume, partGeometry, type Body } from './bodies';
 import { builtPath, profilePath } from './profilePath';
 import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, wrapFour, wrapThree, zoneStop,
-  stationFrontToBack, stationFrontToRight, stationRightToBack, cornerGap } from './sweepFixtures';
-import type { P2 } from './curves';
+  stationFrontToBack, stationFrontToRight, stationRightToBack, cornerGap, overlapCases } from './sweepFixtures';
+import { distToSegment, inPolygonClosed, type P2 } from './curves';
 import type { Board, HoleRow } from './types';
 
 /*
@@ -552,6 +552,45 @@ describe('b2 fix round 1: where a run\'s two ends\' bands overlap, the wood is w
         if (wood !== !(wA || wB)) bad += 1;
       }
       expect(both).toBeGreaterThan(100);   // the two passes disagree there: the sample can tell union from either alone
+      expect(bad).toBe(0);
+    });
+  }
+});
+
+/*
+ * Task 6 fix round 2 (N2): the same for every section kind, a mirrored part and a face-min part. The truth is each pass's own
+ * (s, t) section (`profileSection` of its one-side curve, a2's): a point of the overlap is waste when it lies in EITHER pass's
+ * section at its own s — the end side's s in from the end face, the front's in from the front — and wood otherwise; points
+ * within 0.006" of a section edge (the bodies' arcs are chords) are left out.
+ */
+describe('b2 fix round 2: the overlap\'s wood is what neither pass removes, for every section kind (N2)', () => {
+  for (const c of overlapCases()) {
+    it(c.name, () => {
+      const b = c.board;
+      expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+      const v = geometryBoard(b);
+      const p = v.profiles![0]!;
+      const pts = profileSection(v, oneSideCurve(p)).pts;
+      const f = sectionFrame(v, oneSideCurve(p));
+      const reach = Math.max(...pts.map((q) => q[0])), depth = Math.max(...pts.map((q) => q[1]));
+      const inSec = (s: number, t: number) => inPolygonClosed(pts, [s, t]);
+      const near = (s: number, t: number) => pts.some((q, i) => distToSegment([s, t], q, pts[(i + 1) % pts.length]!) <= 0.006);
+      const bodies = partGeometry(b).bodies;
+      const inner = inBodies(bodies, -1e-6), outer = inBodies(bodies, 1e-6);
+      const rand = rng(17);
+      let tested = 0, bad = 0, differ = 0;
+      while (tested < 2000) {
+        const sA = c.gap + rand() * (reach - c.gap), sB = c.a + rand() * (reach - c.a), t = rand() * depth * 1.1;
+        const x = c.cornerX === 0 ? sA : c.cornerX - sA, y = sB, z = f.vFace + f.vIn * t;
+        if (near(sA, t) || near(sB, t)) continue;
+        const wood = inner([x, y, z]);
+        if (wood !== outer([x, y, z])) continue;   // on a face
+        tested += 1;
+        const wA = inSec(sA, t), wB = inSec(sB, t);
+        if (wA !== wB) differ += 1;
+        if (wood !== !(wA || wB)) bad += 1;
+      }
+      expect(differ).toBeGreaterThan(20);   // the passes disagree there: the sample tells the union from either alone
       expect(bad).toBe(0);
     });
   }

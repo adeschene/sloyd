@@ -11,7 +11,7 @@ import { builtSwept, sweptStops } from '../document/sweep';
 import { mirrorPart } from '../document/frames';
 import { defaultHole } from '../document/holes';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, bowFront, chiralTwoSide, frontAndEnds, shortEnds, stationFrontToBack,
-  stationFrontToRight, stationRightToBack, cornerGap, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
+  stationFrontToRight, stationRightToBack, cornerGap, overlapCases, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
 
 /**
  * A curved part's mesh is WATERTIGHT (whole-branch review, finding 1): a SPLIT curve leaves its slices' faces meeting
@@ -414,5 +414,22 @@ describe('a run whose two stops meet near one sharp corner is watertight (Task 6
   });
   it.each(gapCases)('%s: the cap across the band', (_name, board) => {
     expect(capCracks(board, 'top', 0.6)).toBe(0);
+  });
+});
+
+// Task 6 fix round 2 (N2): the two ends' overlap for every section kind (cove with a fillet, ogee both facings, bead, thumbnail),
+// a mirrored part and a face-min part — watertight, with an uncracked cap.
+const kindGapCases: [string, Board][] = overlapCases().map((c) => [c.name, c.board]);
+describe('a run whose two ends\' bands overlap is watertight for every section kind (Task 6 fix round 2, N2)', () => {
+  it.each(kindGapCases)('%s', (_name, board) => {
+    expect(profileFaults(board, board.profiles[0]!)).toEqual([]);
+    expect(builtSwept(geometryBoard(board))).toHaveLength(1);
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it.each(kindGapCases)('%s: the cap across the band', (_name, board) => {
+    const p = board.profiles[0]!;
+    expect(capCracks(board, 'top', p.face === 'max' ? 0.7 : 0.05)).toBe(0);
   });
 });

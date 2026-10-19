@@ -42,7 +42,7 @@ export { pathSkeleton } from './skeleton';
 
 type V3 = [number, number, number];
 /** A piece plane's cap tag (a subset of `BodyFace`'s; bodies.ts copies it onto the cap). */
-export type BodyFaceTag = { curve?: string; profileEdge?: string; sweep?: number };
+export type BodyFaceTag = { curve?: string; profileEdge?: string; sweep?: number; overlap?: true };
 type SweepBoard = Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] };
 
 /** One convex piece: board-local half-spaces (kept where n·x + d >= 0), each plane's cap tag, the plan bounding box
@@ -441,7 +441,8 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
           const tags = base.tags.slice();
           section(i, kp, planes, tags);
           if (kq) section(also!, kq, planes, tags);
-          out.push({ planes, tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
+          // Fix round 2 (N1): every face this piece cuts is marked, so the fast edges leave it to bodyEdges (bodies.ts).
+          out.push({ planes, tags: kq ? tags.map((t) => ({ ...t, overlap: true as const })) : tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
         }
       }
     }

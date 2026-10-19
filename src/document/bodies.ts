@@ -32,7 +32,12 @@ const SMOOTH_NORMAL_EPS = 1e-7;
  *  written only for an edge off the part's faces; built by `profileEdgeName` and read only through `profileEdgeOf`. A SWEPT
  *  profile's section face (profile runs b1, Q5) carries `profileEdge` (its profile id) and `sweep`, the index of the path
  *  chord whose band it lies in (`profilePath`'s own order); sweep.ts's header is the tag contract. */
-export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number }
+export interface BodyFace {
+  n: V3; verts: V3[]; cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number;
+  /** A face cut by a swept profile's OVERLAP piece (profile runs b2, Task 6 fix rounds 1–2, I2/N1): where a run's two ends'
+   *  bands overlap, so its planes hold both passes' sections; absent everywhere else. */
+  overlap?: true;
+}
 
 /**
  * A convex piece of a part's remaining stock (angle-cuts spec §3.1): one pocket
@@ -82,7 +87,7 @@ function ring(points: V3[], n: V3): V3[] {
  * clipped body from an untouched one. A face lying on the plane is kept as is
  * and no cap is added (the plane is already a face).
  */
-function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number }): BodyFace[] {
+function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number; overlap?: true }): BodyFace[] {
   const g = (p: V3) => dot(h.n, p) + h.d;
   const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
   if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
@@ -121,6 +126,7 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; c
       if (tag.runout !== undefined) capFace.runout = tag.runout;
       if (tag.profileEdge !== undefined) capFace.profileEdge = tag.profileEdge;
       if (tag.sweep !== undefined) capFace.sweep = tag.sweep;
+      if (tag.overlap) capFace.overlap = true;
       out.push(capFace);
     }
   }
@@ -880,6 +886,10 @@ function sectionSeams(bodies: readonly Body[], smoothPair: (a: BodyFace, b: Body
   const faces: { f: BodyFace; st: Strip }[] = [];
   for (const body of bodies) for (const f of body.faces) {
     if (f.sweep === undefined || f.profileEdge === undefined) continue;
+    // Fix round 2 (N1): a face of a run's two ends' OVERLAP is never a strip. There the other pass's section can lie on its
+    // plane (a bead's quirk floor at both passes' depth), so "a section face's edge on its neighbouring strip's plane is a
+    // line between them" no longer holds: bodyEdges judges every line there with every face, as the reference does.
+    if (f.overlap) continue;
     const key = f.profileEdge + '|' + f.sweep;
     let st = byName.get(key);
     if (!st) {
