@@ -1,12 +1,12 @@
 import { vi } from 'vitest';
-import { axisFrame, partGeometry } from '../document/document';
-import type { Board, BodyFace, V3 } from '../document/document';
+import { axisFrame, createBoard, cornerCurve, partGeometry } from '../document/document';
+import type { Board, BodyFace, V3, ProfileCut } from '../document/document';
 import type { P2 } from '../document/curves';
 import { geometryBoard, profileFaults } from '../document/profiles';
 import { BEARING, runoutNormals, stopAxis, stopRunoutNormals, stopRunoutPieces, type StopFrame } from '../document/runout';
 import { oneSideCurve, sweptNormals, sweptStops } from '../document/sweep';
-import { builtPath } from '../document/profilePath';
-import { cornerGap, frontAndEnds, stationFrontToBack, stopOnArch, stopOnCorner } from '../document/sweepFixtures';
+import { builtPath, faceOutline } from '../document/profilePath';
+import { cornerGap, endToEnd, frontAndEnds, stationFrontToBack, stopOnArch, stopOnCorner } from '../document/sweepFixtures';
 import { bodyMesh } from './grainTiling';
 
 // Counts stopRunoutNormals' builds (the real function runs): a2 fix F1's lesson, a per-call rebuild failed the perf guard.
@@ -300,4 +300,77 @@ describe('a stop\'s run-out normals are built once per stop per part (a2 fix F1\
       for (const body of g.bodies) bodyMesh(board, body, g.holes, g.bodies);
       expect(calls.n).toBe(stops);
     });
+});
+
+/*
+ * Task 7 fix round 3 (N2): a STOP and a B1 STATION on one narrow rail, their run-outs both tagged 'lo' and meeting across the
+ * front-left corner arc. Each run-out face takes ITS OWN cutter's normals — a stop's face (`stop`) its stop frame's, any other
+ * run-out face a B1 station's — never the other's by the nearest axis. Written from the section's own arc, revolved about each
+ * cutter's axis: a roundover's arc centred (R, R) in (s, t), a cove's (no fillet) the quarter disc centred on the edge, (0, 0),
+ * its outward normal toward that centre. The station's axis is BEARING outside the left end at the station.
+ */
+describe('a stop and a B1 station sharing a tag: each run-out face shades from its OWN cutter (Task 7 fix round 3, N2)', () => {
+  const rail = (kind: ProfileCut['kind'], size: number, r: number, W: number, d: number): Board => createBoard({ length: 30, width: W, thickness: T,
+    curves: (['min', 'max'] as const).flatMap((u) => (['min', 'max'] as const).map((w) => ({ id: `c${u}${w}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: w, radius: r }) }))),
+    profiles: [{ ...endToEnd('p1', { across: 'width', from: 'min' }, size, kind),
+      run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: r + d }, end: { side: { across: 'width', from: 'max' }, through: 'min' } } } as ProfileCut] });
+  /** The section's outward normal revolved about `axis` at q, from its arc's centre (cs, ct) in (s, t): convex (roundover)
+   *  away from the centre, concave (cove) toward it; t grows downward from the top (face max). */
+  const sectionNormal = (q: readonly number[], axis: P2, size: number, convex: boolean): V3 | null => {
+    const rx = q[0]! - axis[0], ry = q[1]! - axis[1], rho = Math.hypot(rx, ry);
+    const s = rho - BEARING, t = T - q[2]!;
+    const [cs, ct] = convex ? [size, size] : [0, 0];
+    const ds = s - cs, dt = t - ct, l = Math.hypot(ds, dt);
+    if (Math.abs(l - size) > 5e-3) return null;   // not on the cutter's arc (a flat face)
+    const k = convex ? 1 : -1;
+    return [k * (ds / l) * (rx / rho), k * (ds / l) * (ry / rho), -k * (dt / l)];
+  };
+  const CASES: [string, Board, number, boolean][] = [
+    ['roundover 1/4, r 1/4, W 0.6, d 0.02', rail('roundover', 0.25, 0.25, 0.6, 0.02), 0.25, true],
+    ['roundover 1/4, r 1/4, W 0.6, d 0.05', rail('roundover', 0.25, 0.25, 0.6, 0.05), 0.25, true],
+    ['roundover 1/4, r 3/8, W 0.8, d 0.02', rail('roundover', 0.25, 0.375, 0.8, 0.02), 0.25, true],
+    ['cove 3/8, r 1/2, W 1.1, d 0.02', rail('cove', 0.375, 0.5, 1.1, 0.02), 0.375, false],
+  ];
+  for (const [name, board, size, convex] of CASES) {
+    it(`${name}: every run-out vertex on its own cutter has that cutter's revolved normal in the mesh (1e-6)`, () => {
+      expect(profileFaults(board, board.profiles[0]!)).toEqual([]);
+      const v = geometryBoard(board);
+      const p = v.profiles[0]!;
+      const [fr] = sweptStops(v, p) as [StopFrame];
+      const ends = builtPath(v, p)!.ends!;
+      expect(ends.map((e) => e.kind)).toEqual(['stop', 'station']);
+      const st = ends[1] as { at: P2; tangent: P2 };
+      // The collision: both run-outs carry 'lo'.
+      expect(new Set(runoutFaces(board).map((f) => f.runout))).toEqual(new Set(['lo']));
+      const cutters = { stop: { axis: stopAxis(fr), at: fr.at, away: fr.F }, station: { axis: [st.at[0] - BEARING, st.at[1]] as P2, at: st.at, away: st.tangent } };
+      const mesh = meshNormals(board);
+      // A vertex on the outline (a side face or a corner arc's chord face) also carries that flat face's normal.
+      const outline = faceOutline(v)!;
+      const toSide = (q: readonly number[]) => Math.min(...outline.chords.map((c) => {
+        const dx = c.b[0] - c.a[0], dy = c.b[1] - c.a[1];
+        const t = Math.max(0, Math.min(1, ((q[0]! - c.a[0]) * dx + (q[1]! - c.a[1]) * dy) / (dx * dx + dy * dy)));
+        return Math.hypot(q[0]! - c.a[0] - t * dx, q[1]! - c.a[1] - t * dy);
+      }));
+      // A vertex shared with a face that is not this cutter's (a band's, or the other cutter's run-out) is a crease's: its
+      // mesh normals include that face's, so it is left out.
+      const key = (q: readonly number[]) => q.map((x) => x.toFixed(9)).join();
+      const foreign = (stop: boolean) => new Set(faces(board).filter((g) => g.sweep !== undefined || (g.runout !== undefined && !!g.stop !== stop)).flatMap((g) => g.verts.map(key)));
+      const notMine = { stop: foreign(true), station: foreign(false) };
+      let n = 0;
+      for (const f of runoutFaces(board)) {
+        const own = f.stop ? cutters.stop : cutters.station, other = f.stop ? cutters.station : cutters.stop;
+        for (const q of f.verts) {
+          if ((f.stop ? notMine.stop : notMine.station).has(key(q))) continue;
+          const want = sectionNormal(q, own.axis, size, convex);
+          if (!want || sectionNormal(q, other.axis, size, convex)) continue;   // on its own cutter only (not where they meet)
+          // Past its own stop or station plane (the junction with the band takes the band's normal), off the part's faces.
+          if (dot2([q[0]! - own.at[0], q[1]! - own.at[1]], own.away) <= 1e-6) continue;
+          if (toSide(q) <= 1e-6 || q[2]! >= T - 1e-6) continue;
+          for (const m of mesh.at(q)) expect(dist(m, want), `${f.stop ? 'stop' : 'station'} ${q} ${m}`).toBeLessThanOrEqual(1e-6);
+          n += 1;
+        }
+      }
+      expect(n).toBeGreaterThan(10);
+    });
+  }
 });

@@ -376,11 +376,14 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   // A swept profile's B1 station run-out (profile runs b1, Task 5): its caps carry the PROFILE's id, which names no view
   // curve, and its two stations may share an end ('hi' on both end sides): the run-out curve is the one of the profile's
   // `sweptRunouts` stopping at that end whose bit axis the face lies nearest. A view curve's id resolves as above, unchanged.
-  const runoutFor = (id: string, end: 'lo' | 'hi', verts: readonly V3[]): RunoutNormals | null => {
+  const runoutFor = (id: string, end: 'lo' | 'hi', verts: readonly V3[], stop: boolean): RunoutNormals | null => {
     if (board.curves.some((x) => x.id === id)) return runoutOf(id);
     const p = board.profiles.find((x) => x.id === id);
     if (!p) return null;
-    const cs = sweptRunouts(board, p);
+    // Task 7 fix round 3 (N2): a face's KIND picks its cutter set — a b2 stop's run-out face (`stop`) among the stop frames
+    // only, any other among the B1 stations' run-outs only — since a stop and a station on one run may share a tag. The
+    // nearest axis breaks a tie only within the right set.
+    const cs = stop ? [] : sweptRunouts(board, p);
     let best: RunoutNormals | null = null, bestD = Infinity;
     cs.forEach((c, i) => {
       const sp = spanOf(c);
@@ -395,8 +398,8 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     });
     // A b2 STOP's run-out (profile runs b2, Task 6): its faces carry the path's FACE-FRAME end, which need not be a2's
     // run-dimension end a B1 station's carries ('lo' on both of stationFrontToBack's), so a stop is matched by its own
-    // frame's tag and, among every candidate with that tag, the nearest bit axis wins. A part with no stop builds no frame.
-    sweptStops(board, p).forEach((fr, i) => {
+    // frame's tag. A part with no stop builds no frame.
+    if (stop) sweptStops(board, p).forEach((fr, i) => {
       if (fr.end !== end) return;
       const key = `${id}@stop${i}`;
       if (!runouts.has(key)) {
@@ -448,14 +451,14 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     // A run-out face (profile runs a2) takes the cutter surface's normal (runoutNormals), its arc chosen once from all its
     // vertices, flipped to agree with the face's outward normal; tested BEFORE chordArc — a face near the station projects
     // onto the band's prism chord.
-    const ro = chordsOf && f.runout !== undefined && f.curve !== undefined ? runoutFor(f.curve, f.runout, f.verts) : null;
+    const ro = chordsOf && f.runout !== undefined && f.curve !== undefined ? runoutFor(f.curve, f.runout, f.verts, f.stop === true) : null;
     const roArc = ro ? ro.arcOf(f.runout!, f.verts) : null;
     const arc = !ro && chordsOf && f.curve !== undefined ? chordArc(chordsOf.get(f.curve), f) : null;
     // T6 fix 1: a run-out face of a STRAIGHT section edge (a bead's quirk wall: a revolved line, a cylinder or cone) takes
     // the revolved edge's normal, so its sectors shade as one surface; tagged faces only, so no other part is touched.
     let line: ((p: readonly number[]) => V3) | null = null;
     const pe = chordsOf && f.runout !== undefined && f.curve === undefined ? profileEdgeOf(f) : null;
-    const roLine = pe ? runoutFor(pe.curve, f.runout!, f.verts) : null;
+    const roLine = pe ? runoutFor(pe.curve, f.runout!, f.verts, f.stop === true) : null;
     if (pe) line = roLine?.lineNormals(f.runout!, f.verts, pe.a, pe.b) ?? null;
     // Task 6 fix round 1 (I1, the controller's ruling): a b2 stop's run-out vertex ON its stop plane (the junction with the
     // band) takes the BAND's normal (sweptNormals, as the band face beside it would: the end segment's), so band and run-out
