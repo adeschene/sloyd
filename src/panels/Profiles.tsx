@@ -161,9 +161,10 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const withFace = (face: CutFrom): ProfileFields => ({ ...p, vFrom: face });
   const withSide = (s: ProfileSide): ProfileFields => ({ ...p, through: runDim(s), uFrom: s.from });
   /** Q26: `moved` re-sided onto `s`, keeping the number the row SHOWS for it (fix round 1, M1: a loaded end stored from the
-   *  max end is written from the min end at its shown position), a through end its flag. */
-  const keptOn = (moved: ProfileEnd, s: ProfileSide): ProfileEnd =>
-    ('through' in moved ? { side: { ...s }, through: moved.through } : { side: { ...s }, from: 'min', at: endPos(stored_, moved) });
+   *  max end is written from the min end at its shown position). A through end has no number to keep: it counts as sitting at
+   *  the corner its run leaves through, so it is always seeded (fix round 2, N2, the controller's ruling) — null. */
+  const keptOn = (moved: ProfileEnd, s: ProfileSide): ProfileEnd | null =>
+    ('through' in moved ? null : { side: { ...s }, from: 'min', at: endPos(stored_, moved) });
   /** True when `run` adds no fault KIND to this profile's own `profileFaults` (Q26: a moved end keeps its number). */
   const fitsAsIs = (base: Omit<ProfileCut, 'id'>, run: Next['run']): boolean => {
     const had = new Set(profileFaults(stored_, profile).map((f) => f.kind));
@@ -177,15 +178,15 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
    * LEAVES Start's side (Start) or ENTERS Stop's side (Stop), `travelSign` giving the direction, written from the min end
    * (Run → Stopped's precedent). Equal sides make a one-side run in canonical order (P11); two sides are never re-ordered.
    */
-  const moveEnd = (which: 'start' | 'end', s: ProfileSide): Next => {
+  const moveEnd = (which: 'start' | 'end', s: ProfileSide, from: StationRun = run0): Next => {
     const base = profileFromFields(normal(p));
-    const other = which === 'start' ? run0.end : run0.start;
+    const other = which === 'start' ? from.end : from.start;
     const runWith = (e: ProfileEnd): Next['run'] => {
-      const r = which === 'start' ? { start: e, end: other } : { start: run0.start, end: e };
+      const r = which === 'start' ? { start: e, end: other } : { start: from.start, end: e };
       return sameSide(r.start.side, r.end.side) ? canonicalRun(stored_, base.face, r) : r;
     };
-    const kept = runWith(keptOn(run0[which], s));
-    if (fitsAsIs(base, kept)) return { ...base, run: kept };
+    const asIs = keptOn(from[which], s);
+    if (asIs && fitsAsIs(base, runWith(asIs))) return { ...base, run: runWith(asIs) };
     const Ls = stored_[runDim(s)];
     const seed = Math.min(3, Ls / 4);
     // The run travels toward the run dimension's max end when travelSign is +1: it enters a side at its min end and leaves at
@@ -209,15 +210,22 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
     const keep = near === a ? b : a;
     const keptFirst = (travelSign(base.face, side) > 0) === (cornerAt === L);   // travel heads for the shared corner
     const runWith = (e: ProfileEnd): Next['run'] => (keptFirst ? { start: keep, end: e } : { start: e, end: keep });
-    const asIs = runWith(keptOn(near, s));
-    if (fitsAsIs(base, asIs)) return { ...base, run: asIs };
+    const asIs = keptOn(near, s);
+    if (asIs && fitsAsIs(base, runWith(asIs))) return { ...base, run: runWith(asIs) };
     const Ls = stored_[runDim(s)];
     const seed = Math.min(3, Ls / 4);
     const shared = side.from === 'max' ? Ls : 0;                     // the shared corner along the new side's run dimension
     return { ...base, run: runWith({ side: { ...s }, from: 'min', at: shared === 0 ? seed : Ls - seed }) };
   };
-  /** The Stop side select: an adjacent side on a one-side stop moves the nearer station (R5); else the stored Stop (Q26). */
-  const onStopSide = (s: ProfileSide): Next => (!twoSides && s.across !== side.across ? moveNearer(s) : moveEnd('end', s));
+  /** The Stop side select. On a one-side stop: an ADJACENT side moves the nearer station (R5); the OPPOSITE side keeps the
+   *  station SHOWN as Start (a2's lo/hi display) as the stored Start and moves the one shown as Stop, Q16's counter-clockwise
+   *  route deciding the path (fix round 2, N1, the controller's ruling R6). On two sides: the stored Stop (Q26). */
+  const onStopSide = (s: ProfileSide): Next => {
+    if (twoSides || sameSide(s, side)) return moveEnd('end', s);
+    if (s.across !== side.across) return moveNearer(s);
+    const [lo, hi] = [run0.start, run0.end].sort((a, b) => endPos(stored_, a) - endPos(stored_, b));
+    return moveEnd('end', s, { start: lo!, end: hi! });
+  };
   /** The Side select: on a one-side run both ends move (a2, the stations kept); on two sides, Start alone (Q26). */
   const onSide = (s: ProfileSide): Next => (twoSides ? moveEnd('start', s) : build(withSide(s)));
   /** Run → Stopped seeds 3" in from each end (or a quarter of the run, if shorter). */
