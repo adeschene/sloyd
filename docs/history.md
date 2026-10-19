@@ -520,6 +520,127 @@ and 79.
 
 ## What each round did
 
+**What profile runs chunk b2 did (2026-10-19)** (stops on a turned path and two-side runs, B3/B6; fu 390's last half; plan
+`…-profile-runs-b2.md`, probe `docs/superpowers/plans/b2-probe/`; the user approved the plan's Planning questions Q9–Q27 as
+recommended and its three spec fixes — §5's example names its face and the width MIN side; §4.1's run-out `stop-off` yields to
+P13; Q6's I2 kept only for stops that fall back —, and chose subagent-driven execution; branch `profile-runs-b2` from `a291f92` + `f61bf81`,
+code complete at `5027ff9`; **no schema change** (18): b2 lifts the loader's refusal of ends on two sides and nothing else).
+1. **The probe** (Task 1, `dc18ee5`): a run-out in a chord's frame on today's code — 0/50,000 points misclassified, a step of
+   1.32e-7" at the station, the end-chord zone's D1 swallowed and D2 built, a2-equivalent to 6.08e-13, watertight. Ruling: its
+   guards are provisional (case B's 40 rested on 22.2 × 1.8 = 39.96); Task 6 measures the product and commits a guard only where it
+   passes. Carried: Task 4's oracle must derive the bit axis independently (done, by hand, on a convex and a concave stop).
+2. **The path** (Task 2, `74008d8`, fix `a1fc234`; `profilePath.ts`, `skeleton.ts`): `stationPoint` (B2, on the model chords,
+   Q11), the `'stop'` end (tangent and normal from the station's FULL model chord, so `PathEnd` and the skeleton's clip are
+   bit-identical), `stopZone` (Q13), `throughConsistent` (Q17), `stopRun`, `judgedPath`; `isSwept` per Q9. Two b1 tests went red
+   across the T2/T3 boundary by design and were turned green by Task 3. Rulings: deviations accepted (a one-side run is consistent
+   by construction once canonical; B1a reads a one-side neighbour canonically; a zone that would lengthen the walk returns null);
+   **I1** a stop on an arc chord holding a B1a mitre point keeps its own trimmed extent (the mitre applies only where the run
+   reaches it; the overlap that leaves was proved a true fault: 6383/6383 sampled points shared); **I2** Q13's zone snaps only to
+   vertices strictly inside the walk, and no stop may silently build nothing — a fault path with no judged or built path is
+   `too-tight` (cost if wrong: none); **M-d** a two-side walk that would re-enter Start's side is `stop-off` (cost: a near-full
+   wrap must be authored as two runs or a loop); **m3** Q16's "up to three sides" means up to two whole sides BETWEEN (spec B3
+   amended). Deferred: M-c (a hand-made monotone-breaking line waste could make one station name several points; no preset).
+3. **The loader, faults and Q10's fallback** (Task 3, `7c65727`, fix `f72d5de`; spec amended under B10): the two-side refusal
+   deleted; `canonicalRun` leaves a two-side run as stored; `stop-off` decided first; `stopFallsBack` (phase 1), `fallbackCause`,
+   `runsStraightNote`, `isGeometryView`, `skeletonFits`; a two-side bench line reads Q21's head (it threw before). Rulings:
+   `profiles.test.ts:456`'s "must stay clean" means what the USER sees — its stored judgement reads `[overlap]` while every reader
+   (row, line, cut list, keys, notes, hole faults) shows none and it builds as a2 (cost if wrong: a `— check:` on a working saved
+   profile); the phase-2 mutation could not fail on `i2Pair`, so `pairStops` (hashed on `dc49b01`) pins it; `fallbackCause` reads
+   the judgement that DECIDED the fallback (phase 2 can be empty); `Opts.keep` (the profile being judged is present to the
+   others). Fix round: **I1** the fault decision reads the reach the build uses (`bandReach`, a bead's quirk-wall margin), so a
+   null built plan is `too-tight`, never clean; **I2** a stop that follows must never change a neighbour's build — it also falls
+   back when following would ADD a fault to another profile (`harmFaults`), measured against b1's ALL-STRAIGHT baseline (the
+   shape baseline let two half-stops jointly fault a saved End to end; `twoHalves` pinned = `dc49b01`; cost: such stops stay
+   straight where one alone could follow); 78 orderings agree, no cycle. Cost: `profileFaults` ~1.5 ms per call on a worst-case
+   trial part (later ~0.8 after Task 6). Deferred: M1 (a saved stop whose a2 form was already faulted and whose swept form faults
+   builds nothing on upgrade — as Q10 approved, the b1 End to end twin), M2 (a following stop uses b1's cautious hole check: 40
+   probe docs gain a hole `— check:`), M4 (a following stop still mitres against an End to end that ran straight — 393(3)).
+4. **The run-out on a curve** (Task 4, `9a7b502`; `runout.ts`, `sweep.ts`, `bodies.ts`): `StopFrame`, `stopAxis`,
+   `stopRunoutPieces` (a2's sectors exported, a2's run-out byte for byte), `sweptStops`; `sweepStops.test.ts` with an oracle that
+   derives the frame BY HAND. Ruling: the brief's closed form for `twoSideSharp` counted the run-out's whole half turn (Pappus),
+   half of it in air; ∫tau·ρ·acos(B/ρ) ds stands (the plan's arithmetic, not the code, was wrong; bodies +1.7e-4 in³, a2's sector
+   shortfall). Parked: the `tauInscribed` allowance holds only for depth monotone in distance (roundover, cove).
+5. **Probe, holes and snaps at a stop** (Task 5, `505bedc`, fixes `8a34bd1`, `0087f20`): `sweptWaste` takes stop ends; Q25's
+   junction corners. Rulings: the brief's "air" point was stock under old and new code (the test could not fail; moved to 0.06"
+   deep), and its 0.6"-beyond point lay in the corner's own waste. **The clip discoveries** (fix rounds, ruled to land in Task 5
+   though they sit in Task 2/4 code): (a) every stop's half-plane clipped EVERY skeleton face, deleting a wrapping run's own band
+   where it re-entered (`wrapThree` 88.7 vs ~89.5 in³; `wrapFour` 400.5 vs ~536) — a stop now never clips (its ray already ends
+   the band in the stop plane), and the probe past a stop is band air ∪ cutter air (a union, by the triangle inequality); (b) a
+   two-side run's B1 station did the same (`topCorners(2)`: 109.5 in³ removed vs ~1) — a B1 station now clips only its own END of
+   the band, walking to the first face wholly kept (`clipFaces`/`clipWave`; `shortEnds` pins the walk, the clip being real only
+   where the next side is under 2ε). The re-review confirmed deployed b1 byte-identical on `shortEnds` and 450 End to end parts.
+   Parked: the R-a oracle does not model B1's ε, so it fails at r ≤ 1" on bodies identical to deployed b1.
+6. **The mesh** (Task 6, `206b387`, `91adc20`, fixes `a43b67f`, `2e53a94`): `stopRunoutNormals`, `runoutFor` offers stop frames,
+   18 b2 watertight rows, the product's perf rows; M5 (`withCurves` memo) and `sideStretch`/`skeletonFits` keys cut
+   `profileFaults` to ~0.8 ms. Rulings: `wrapFour` guarded 57 ms (full-run min 45.5 + 25%, over the 40 ms frame; chunk c; cost: a
+   four-side wrap's resize drag at ~45 ms/frame); the ~0.9° band/run-out crease at an arc stop was first ruled forced by Q12 —
+   **superseded**: it was a shading choice, so a vertex ON the stop plane takes the band's normal (the junction override; 1e-6 at
+   arc and straight stops; cost if wrong: the first sector interpolates a slightly bent normal). **The overlap intersection**: a
+   plain 30 × 10 run with both stops within reach of one sharp corner built the UNION of both passes' kept wood (225.515 in³ in a
+   225 in³ box; 16 of 36 `cornerGap` rows leaked) — the overlap now takes BOTH chords' kept sections (`SweptPlan.bands`/`restMore`,
+   `endOverlaps`, `convexMinus`, `simpleLoops`, `trimWave`). Ruling (the implementer's, endorsed): NOT a fault — the spec's
+   `overlap` is between profiles, and the router cuts both passes (cost if wrong: such a run should refuse). Fix round 2: a bead's
+   phantom quirk line in the overlap — faces an overlap piece cuts are tagged `overlap` and left to `bodyEdges`; 14 per-kind
+   `overlapCases`. Carried to Task 7: N4 (phantom lines at a tangent point after a split chord) and N5 (a bead's quirk crease ~1/16"
+   into the other run-out).
+7. **Edges, diagrams, the Plans sheet** (Task 7, `07bbac2`, fixes `5f400db`, `23617b3`, `5e9db85`): stops registered in a2's
+   `stopped` map (no facet lines in a run-out). N5's cause: `sectionSeams` took an edge on a strip's PLANE as a line between the
+   two strips — now only where both cover the stretch (`coveredBothSides`). N4's cause: the fast path dropped a face whole when
+   all its edges were skipped, but a T-junction seam elsewhere needed it as a wing — the drop is gone (a design change beyond the
+   brief; +0–6 ms a rebuild). A 153-case parametric fast == reference sweep (it caught both). **The join keying**: registering stops
+   let a2's pairing join faces of DIFFERENT passes sharing a section-edge index (`cornerGap`'s ridge 6 segments → 0; N5's 112.5° wall
+   line) — ruled: key on identity, a run-out joins only its own end's faces (`ownEnd`); then a stop + B1 station run tagged both
+   run-outs 'lo' and joined across the passes (a cove rail: 8 joins of 84–115°, ~0.43" of ridge lost) — ruled: key a run-out on its
+   PATH END, via a new `BodyFace.stop` on b2 stop faces only (a2/b1 bytes unchanged); then `runoutFor` shaded 1–3 vertices of
+   narrow rails with the other cutter (44–49°) — partitioned by `face.stop`. CREASE_MIN 30° became a presence oracle (fixtures
+   only: a 1/8" roundover steps 30°). Parked: N3 (a through→through run's B1 stations 0.002" apart join at 155° with zero drawn
+   length), M2 (the Plans oracle checks visibility, not presence).
+8. **Words and keys** (Task 8, `422dd0d`, `e15fdbd`): `stopWords`, `sweptRun`, keys `<name><fillet>, stopped`; diagram notes read
+   stop words. Ruling: m1 keeps Q21 — a two-side through end at a rounded corner says nothing of its arc (cost: a line silent on a
+   corner the run carries round). Parked: m4 (the two-side through-START wording unpinned).
+9. **The row** (Task 9, `e802aed`, fixes `a389bb6`, `278781d`, `7ca9597`): B7 lifted, **Stop side**, `moveEnd` (Q26), the fallback
+   note by cause, the refusal on ANY profile; a loaded two-side run's row no longer crashes. Rulings (all for the user's review;
+   cost if wrong: select semantics reworked): **R5** what the person sees governs — a one-side run keeps a2's lo/hi display, and
+   Stop side onto an ADJACENT side moves the station NEARER the shared corner, the short way round (`moveNearer`; it had moved the
+   field labelled Start the long way); Side on a one-side run stays a2's (both ends, greyed when it runs off — M2); **R6** onto the
+   OPPOSITE side keeps the station SHOWN as Start; **R7** where that would make an inconsistent through Start, keep the profiled
+   extent on the kept side; a moved `through` end is always seeded per Q26 (it has no number to keep). Noted: the brief's Curves
+   0.2" fixture passed for the wrong reason (its station landed on a straight), replaced; option judging costs 3–25 ms on focus.
+   Parked: M2 (Side onto a shorter side greyed, not seeded), M3 (`The roundover overlaps another profile on this edge — move the
+   roundover first.` cannot say which of two roundovers). A full run once read 40.47 ms on a 40 ms guard at load 4.5.
+Final review (opus, `a291f92..7ca9597`): NOT ready — **I1**: a two-side run whose stations sit on the corner arc its two sides
+share, in CROSSED order, built a 0.26" hop (0.0086 in³) while every word reader said two whole sides; a Curves edit (1/4" → 2" on
+that corner) collapsed a 110" run into it unrefused. Ruling: crossed stations are `stop-off` (Stop's side stretch holds the first
+chord of Start's, and the walk never leaves that arc; consistent with M-d and Q16; cost: a user wanting the hop uses a one-side
+stop); the Curves refusal names the profile, `A stop on the roundover runs off the part — move it first.` (`5027ff9`). Re-review:
+392 of 27,910 and 1,728 of 169,342 runs went to `stop-off`, nothing else changed. **M4**: the guards are honest at idle, thin
+under load; the two-side cove's 102 tightened to 69 (55.0 ms measured). Left for the user: **M1** (a long-way run with ONE station
+on the shared arc is refused as `stop-off` — the re-entry rule counts the arc in both stretches; conservative, but its words
+mislead). Recorded: **M2** — the one break in byte for byte: a saved a2 ogee, cove or bead stop on a corner arc beside a B10 End to
+end draws two FEWER edge lines than `dc49b01` (b1 drew two its own reference does not; Task 7's N4 fix; the pins are
+roundover-only); **M3** — the fast path draws some smooth-join stretches twice where a stop or run-out lies on a loop's arc (1
+segment in 300 in one Top view; present on `dc49b01`); **M5** — the rollback note below. Sound: section caps through stops,
+run-outs and overlap pieces (0 cracks), cut-list grouping, 3600 mirror cases, 504 b1-legal configurations byte for byte on 11
+readers, the loader round trip.
+**Live pass** (`docs/browser-verification-profile-runs-b2.md`; dev server at `5027ff9`, software GL; project "Stops on curves check",
+imported from a file built from `sweepFixtures.ts` through `migrateDocument`, left in place): confirmed the bench lines (Q21's
+two-side line, the corner and arch stops, both fallback notes by cause, a stop to a through end), Stop side (R5) with one undo,
+Curves accepting a 1" corner under a stop and refusing 0.2" with the typed text kept, the Plans keys (`, stopped`;
+`docs/img/profile-runs-b2-plans.png`), the cut list notes, the b1/a2 check projects unchanged, 0 console errors. Could NOT confirm:
+shading at a curved stop on real hardware (`…-front-and-ends.png` shows only a soft highlight under software GL), the opposite-side
+Stop side (R6/R7), Face → Bottom, the neighbour refusal, crossed stations, a mirrored two-side copy (all pinned by tests), and a
+resize drag on the two-side cove (~55 ms a frame). Suite 6360 tests across 180 files.
+
+**Not yet deployed** (written before the merge). No schema change (18); b2 deploys on top of b1 alone. **On upgrade**, a saved a2
+stop on a turned path that the bit fits FOLLOWS on first open (its wood changes: `stopOnArch` 97.527 → 97.375 in³; its bench line
+does not); one that does not fit, or whose following would add a fault to a neighbour, keeps a2's build and gains the `Runs
+straight: …` note — say so in the deploy note. **Rollback** to `dc49b01` / `index-CDDCzMGJ.js`: a project holding a two-side run is
+REFUSED (export first). A one-side stop on a turned path (on or across a corner arc, an arch, a notch or a bow, authorable since B7
+lifted) loads SILENTLY on b1 — no fault, no note, the same bench line — and is built as a2's straight prism along the side, which
+does not follow the curve; on an arch it cuts only air, so the profile vanishes (`stopOnArch` 0.0000 vs 0.1521 in³; `bowFront`
+0.1297 vs 0.2984). Its data is intact (a b1 load, save and reload reproduces the JSON), and it follows again when reopened on b2.
+Saved a2 stops that b2 made follow return to a2's build on b1. Everything else is identical.
+
 **What profile runs chunk b1 did (2026-10-18)** (a profile follows the outline, fu 390; chunk b designed in a second brainstorm,
 "Yes, that looks right" ×3, then "Yes, write the spec" — rulings B1–B9, split into b1/b2 —, B10 ruled by the user while planning;
 plan `…-profile-runs-b1.md`, probe `docs/superpowers/plans/b1-probe/`; branch `profile-runs-b1` from `65947fd`, code complete at `fafc8b6`;
