@@ -1,10 +1,10 @@
 import {
   DEFAULT_MATERIAL, MATERIALS, isCustomMaterialId, materialKind,
-  type Board, type CustomMaterial, type MaterialKind, type SheetStock, type SloydDocument, type StoredBoard,
+  type Board, type BandType, type CustomMaterial, type MaterialKind, type SheetStock, type SloydDocument, type StoredBoard,
 } from './types';
 
 /** What pruning and upserting need. Structural, so this module builds before `SloydDocument` has `materials`. */
-export type MaterialDoc = Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'> & { materials: CustomMaterial[] };
+export type MaterialDoc = Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'> & { bandTypes?: readonly BandType[] } & { materials: CustomMaterial[] };
 
 /** Everything a page shows about one material (custom materials spec §3). */
 export interface MaterialInfo {
@@ -128,18 +128,19 @@ export function catalogOf(doc: { materials: readonly CustomMaterial[] }): Materi
 
 const plainMaterial = (b: StoredBoard): string | undefined => ('material' in b ? (b as Board).material : undefined);
 
-/** Every material id a stored part (root or definition) or a shape names. */
-export function materialUses(doc: Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'>): Set<string> {
+/** Every material id a stored part (root or definition), a shape or a solid band type names. */
+export function materialUses(doc: Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'> & { bandTypes?: readonly BandType[] }): Set<string> {
   const out = new Set<string>();
   for (const b of [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)]) {
     const m = plainMaterial(b);
     if (m !== undefined) out.add(m);
   }
   for (const s of doc.shapes) out.add(s.material);
+  for (const t of doc.bandTypes ?? []) if (t.kind === 'solid') out.add(t.material);
   return out;
 }
 
-/** Drop custom materials nothing uses (spec §2.3). The SAME object when nothing goes (edit()'s no-op test). */
+/** Drop custom materials no part, shape or band type uses (spec §2.3). The SAME object when nothing goes (edit()'s no-op test). */
 export function pruneMaterials<T extends MaterialDoc>(doc: T): T {
   const used = materialUses(doc);
   const kept = doc.materials.filter((m) => used.has(m.id));
