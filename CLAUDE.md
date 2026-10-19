@@ -135,7 +135,7 @@ handicraft education tradition built around hand woodworking.
   (the built run goes on 2·reach·tan(φ/2) past the tangent point, up to 0.084"; never a decision), Q7's wording (`, top on the edge`,
   `, round the corner(s)`), and Q6's I2 amendment (the controller's ruling: a station run claims only straight side chords). Open
   near it: 393 (residue; the bead/cove/ogee loops' speed for chunk c; the user's eye). b2 followed (below).
-- **Profile runs chunk b2 (2026-10-19, plan `…-profile-runs-b2.md`, code complete at `5027ff9`; NOT yet merged or deployed; no
+- **Profile runs chunk b2 (2026-10-19, plan `…-profile-runs-b2.md`, code complete at `5027ff9`; MERGED to master as `0e41f87` (guards re-baselined `bbc46fd`), NOT deployed; no
   schema change, 18)**: chunk b complete (fu 390 closed). A Start or Stop may sit on an arch, a bow, a notch or a corner arc
   (B2, `stationPoint`) and runs out there with the cutter revolved about the bit's axis `BEARING` outside the station's MODEL
   chord (Q12, `StopFrame`, `stopRunoutPieces`). A stopped run may start on one side and stop on another, round every corner

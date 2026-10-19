@@ -631,7 +631,7 @@ shading at a curved stop on real hardware (`…-front-and-ends.png` shows only a
 Stop side (R6/R7), Face → Bottom, the neighbour refusal, crossed stations, a mirrored two-side copy (all pinned by tests), and a
 resize drag on the two-side cove (~55 ms a frame). Suite 6360 tests across 180 files.
 
-**Not yet deployed** (written before the merge). No schema change (18); b2 deploys on top of b1 alone. **On upgrade**, a saved a2
+**Merged** to master as `0e41f87` on 2026-10-19 (guards re-baselined in `bbc46fd`); **not yet deployed**. No schema change (18); b2 deploys on top of b1 alone. **On upgrade**, a saved a2
 stop on a turned path that the bit fits FOLLOWS on first open (its wood changes: `stopOnArch` 97.527 → 97.375 in³; its bench line
 does not); one that does not fit, or whose following would add a fault to a neighbour, keeps a2's build and gains the `Runs
 straight: …` note — say so in the deploy note. **Rollback** to `dc49b01` / `index-CDDCzMGJ.js`: a project holding a two-side run is
