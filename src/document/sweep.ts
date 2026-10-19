@@ -378,7 +378,8 @@ export function sweptStops(view: SweepBoard, p: ProfileCut): readonly StopFrame[
  * The swept waste as PROBES read it (profile runs b1, Task 4; invariant 16, P3, P14): the b1 oracle's rule on the model chords.
  * A point is waste when, d its plan distance to the path's chords and t its depth in from the profile's broad face,
  * 0 <= d < reach and t < tau(d) (strictly, by CURVE_EPS: a point ON the profile surface is stock, P3's open form); past a
- * STATION end (B1) d is instead the distance to a2's bit axis, BEARING outside the side, less BEARING. tau(s) is the top of
+ * STATION end (B1) d is instead the distance to a2's bit axis, BEARING outside the side, less BEARING; past a b2 STOP, to the
+ * bit's axis BEARING outside the stop's model chord (`stopAxis`), less BEARING. tau(s) is the top of
  * the profile's own (s, t) section (`profileSection`, a2's) at s. Read only for the profiles `builtSwept` builds: a faulted
  * swept profile builds nothing, so its waste is neither air nor a hole's fault.
  */
@@ -431,9 +432,13 @@ function sweptWaste(view: SweepBoard, p: ProfileCut, built: boolean): SweptWaste
       segs: path.chords.map((c) => [c.a, c.b]),
       tau, reach, depth,
       depthOf: p.face === 'max' ? (z) => T - z : (z) => z,
+      // A B1 station's axis is a2's, BEARING outside its side; a b2 stop's is BEARING outside its MODEL chord along the
+      // inward normal (`stopAxis`, Q12: the axis Task 4's run-out pieces revolve about).
       stations: (path.ends ?? []).flatMap((e) => (e.kind === 'station'
         ? [{ at: e.at, tangent: e.tangent, axis: [e.at[0] + BEARING * outward(e.side)[0], e.at[1] + BEARING * outward(e.side)[1]] as P2 }]
-        : [])),
+        : e.kind === 'stop'
+          ? [{ at: e.at, tangent: e.tangent, axis: [e.at[0] - BEARING * e.normal[0], e.at[1] - BEARING * e.normal[1]] as P2 }]
+          : [])),
     };
   }
   m.set(key, out);
@@ -479,7 +484,7 @@ function segRectDist(a: P2, b: P2, lo: P2, hi: P2): number {
 /**
  * Does a hole meet one swept profile's waste (§4.1; P14, CONSERVATIVE; touching is meeting)? Its plan footprint — the disc
  * along the thickness, else the rectangle its side entry projects to — comes within the reach of the path's chords, each
- * station end's band run on straight along its tangent by the run-out's reach (BEARING + reach, P14), AND its depth interval
+ * station or stop end's band run on straight along its tangent by the run-out's reach (BEARING + reach, P14), AND its depth interval
  * in from the profile's face meets [0, depth]. A hole just clear of the true waste may be judged into it.
  */
 export function sweptWasteMeets(view: SweepBoard, p: ProfileCut, hole: Pick<Hole, 'axis' | 'centre' | 'radius' | 'depth' | 'dir'>): boolean {

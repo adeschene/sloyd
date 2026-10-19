@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { stockProbe, type Point } from './cuts';
 import { holeFaults } from './holeFaults';
@@ -5,9 +6,11 @@ import { faultKey, holeFaultText } from './holeText';
 import { boardSnapPoints } from './snapPoints';
 import { fromWorldOffset, axisFrame } from './geometry';
 import { geometryBoard, profileFaults } from './profiles';
-import { profileSection } from './runout';
-import { keptSection, oneSideCurve } from './sweep';
-import { apronArch, frontOnly, loop, plainLoop, topCorners } from './sweepFixtures';
+import { BEARING, profileSection, sectionFrame, stopAxis } from './runout';
+import { keptSection, oneSideCurve, sweptStops } from './sweep';
+import { builtPath, profilePath } from './profilePath';
+import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners } from './sweepFixtures';
+import type { P2 } from './curves';
 import type { Board, HoleRow } from './types';
 
 /*
@@ -190,5 +193,143 @@ describe('snap points stay on wood (invariant 16)', () => {
     const onArc = (p: Point) => [[2, 2], [34, 2], [2, 18], [34, 18]].some(([u, v]) => Math.abs(Math.hypot(p.length - u!, p.width - v!) - 2) < 1e-9);
     expect(pts.filter((p) => p.thickness === 0 && onArc(p)).length).toBe(12);
     expect(pts.filter((p) => p.thickness === T && onArc(p))).toEqual([]);
+  });
+});
+
+/*
+ * Profile runs b2, Task 5: beyond a user's stop on a turned path (Q12) the waste is the run-out about the bit's axis, BEARING
+ * outside the stop's model chord (`stopAxis`): air to the probe (P3's open form), the hole reach's band run on along the
+ * stop's tangent by BEARING + reach (P14), and the section's two junction points on the stop plane snap as corners (P17, Q25).
+ */
+const sha = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex');
+type StopEnd = { kind: 'stop'; at: P2; tangent: P2; normal: P2 };
+const stopEnds = (b: Board, built: boolean): StopEnd[] => {
+  const v = geometryBoard(b);
+  const p = v.profiles![0]!;
+  const path = (built ? builtPath : profilePath)(v, p)!;
+  return path.ends!.filter((e): e is typeof e & StopEnd => e.kind === 'stop') as StopEnd[];
+};
+const plus = (a: P2, ...terms: [P2, number][]): P2 => terms.reduce<P2>((q, [d, k]) => [q[0] + k * d[0], q[1] + k * d[1]], [a[0], a[1]]);
+
+describe('b2: the stock probe beyond a stop on a turned path is the run-out (P3)', () => {
+  it('the path\'s stop ends are where Task 4 builds the run-out: its axis is stopAxis (BEARING OUTSIDE the outline)', () => {
+    for (const b of [stopOnCorner(), stopOnArch]) {
+      const v = geometryBoard(b);
+      const frames = sweptStops(v, v.profiles![0]!);
+      const ends = stopEnds(b, true);
+      expect(ends.length).toBe(2);
+      expect(frames.length).toBe(2);
+      for (const e of ends) {
+        const fr = frames.find((f) => Math.hypot(f.at[0] - e.at[0], f.at[1] - e.at[1]) < 1e-12)!;
+        expect(fr).toBeDefined();
+        expect(Math.hypot(fr.F[0] - e.tangent[0], fr.F[1] - e.tangent[1])).toBeLessThan(1e-12);
+        expect(Math.hypot(fr.N[0] - e.normal[0], fr.N[1] - e.normal[1])).toBeLessThan(1e-12);
+        const ax = plus(e.at, [e.normal, -BEARING]);
+        const sa = stopAxis(fr);
+        expect(Math.hypot(ax[0] - sa[0], ax[1] - sa[1])).toBeLessThan(1e-12);
+        // The axis is OUTSIDE the wood: the stop's normal points in (a point 0.05 along it is stock under the face).
+        expect(stockProbe(b)(at(...plus(e.at, [e.normal, 0.05]), 0.1))).toBe(true);
+        expect(stockProbe(b)(at(...ax, 0.1))).toBe(false);
+      }
+      // The typed (fault) path's stops sit where the built path's do on these fixtures (no end-chord zone).
+      expect(stopEnds(b, false)).toEqual(ends);
+    }
+  });
+
+  // Roundover 1/4": tau(s) = 1/4 − sqrt(1/16 − (1/4 − s)²). 0.1" beyond and 0.05" in: rho − BEARING = sqrt(0.1² + 0.3²) − 1/4
+  // = 0.0662, tau 0.0805 (the cutter's); the path's rounded cap would read the distance to `at`, 0.1118, tau 0.0417.
+  for (const [name, b, circle] of [
+    ['stopOnCorner', stopOnCorner(), [2, 2, 2]],
+    ['stopOnArch', stopOnArch, null],
+  ] as const) {
+    it(`${name}: beyond each stop, inside the cutter is air, outside its reach is stock, ON its surface is stock`, () => {
+      const probe = stockProbe(b);
+      const [s, t] = surfaceVertex(b);
+      expect(tauAt(b, s)).toBeCloseTo(t, 12);
+      for (const e of stopEnds(b, true)) {
+        const ax = plus(e.at, [e.normal, -BEARING]);
+        // A stop on the corner arc (start, x = 1.1): the points must stay inside that arc (the part's own outline).
+        const onCircle = circle !== null && Math.abs(Math.hypot(e.at[0] - circle[0], e.at[1] - circle[1]) - circle[2]) < 1e-2;
+        const near = plus(e.at, [e.tangent, 0.1], [e.normal, 0.05]);
+        // In the cutter's waste (t 0.06 < tau 0.0805) but outside the rounded cap's (t 0.06 > 0.0417): the stop decides.
+        expect(probe(at(...near, T - 0.06))).toBe(false);
+        // Below the cutter's waste at that s.
+        expect(probe(at(...near, T - 0.1))).toBe(true);
+        // 0.6" beyond, 0.15" in (inside the part's own outline): rho − BEARING = 0.4711 > reach, stock.
+        const far = plus(e.at, [e.tangent, 0.6], [e.normal, 0.15]);
+        if (onCircle) expect(Math.hypot(far[0] - circle[0], far[1] - circle[1])).toBeLessThan(circle[2]);
+        expect(Math.hypot(far[0] - ax[0], far[1] - ax[1]) - BEARING).toBeGreaterThan(0.25);
+        expect(probe(at(...far, T - 0.01))).toBe(true);
+        // ON the run-out's surface (rho − BEARING = s, t = tau(s)), 60° round from F: stock; a hair into the waste: air.
+        const th = Math.PI / 3;
+        const dir: P2 = [Math.cos(th) * e.tangent[0] + Math.sin(th) * e.normal[0], Math.cos(th) * e.tangent[1] + Math.sin(th) * e.normal[1]];
+        const on = plus(ax, [dir, BEARING + s]);
+        if (onCircle) expect(Math.hypot(on[0] - circle[0], on[1] - circle[1])).toBeLessThan(circle[2]);
+        expect(probe(at(...on, T - t))).toBe(true);
+        expect(probe(at(...plus(ax, [dir, BEARING + s - 1e-6]), T - t + 1e-6))).toBe(false);
+      }
+      if (circle) expect(stopEnds(b, true).filter((e) => Math.abs(Math.hypot(e.at[0] - circle[0], e.at[1] - circle[1]) - circle[2]) < 1e-2).length).toBe(1);
+    });
+  }
+});
+
+describe('b2: a hole beyond a stop on the arch breaks out into the run-out\'s reach (P14, Review Focus 4)', () => {
+  // stopOnArch's START stop (x = 10, on the arch, r ~ 58"): a 1/4" hole (r 1/8) from the top, 3/8" deep, centred at
+  // at + tangent·(BEARING + reach + δ) + normal·0.3 — 0.3" into the wood, 0.175" clear of the arch's waste. The band runs on
+  // along the tangent by BEARING + reach to E = at + tangent/2, so the hole meets the reach exactly at
+  // δ* = sqrt((reach + r)² − 0.3²) = sqrt(0.375² − 0.09) = 0.225.
+  const e = stopEnds(stopOnArch, false)[0]!;
+  const reach = 0.25, r = 0.125;
+  const dStar = Math.sqrt((reach + r) ** 2 - 0.3 ** 2);
+  const holeAt = (d: number): HoleRow => {
+    const c = plus(e.at, [e.tangent, BEARING + reach + d], [e.normal, 0.3]);
+    return hole(c[1], { station: c[0] });
+  };
+  it('δ* is 0.225 and the start stop is on the arch, its tangent running away from the run (−x)', () => {
+    expect(dStar).toBeCloseTo(0.225, 12);
+    expect(e.at[0]).toBeCloseTo(10, 9);
+    expect(e.at[1]).toBeGreaterThan(0.01);
+    expect(e.tangent[0]).toBeLessThan(-0.99);
+    expect(e.normal[1]).toBeGreaterThan(0.99);
+  });
+  it('δ = δ* − 0.01 breaks out keyed :curve:p1; δ = δ* + 0.01 is clean', () => {
+    const near = faults(stopOnArch, holeAt(dStar - 0.01));
+    expect(near).toEqual([{ index: 0, kind: 'breaks-out', curve: { id: 'p1', kind: null, profile: 'roundover' } }]);
+    expect(faultKey(near[0]!)).toBe('0:breaks-out:curve:p1');
+    expect(faults(stopOnArch, holeAt(dStar + 0.01))).toEqual([]);
+  });
+});
+
+describe('b2: a stop\'s junction points snap as corners (P17, Q25); b1\'s stations offer none', () => {
+  const local = (b: Board, w: readonly number[]): Point => {
+    const frame = axisFrame(b);
+    const p = {} as Point;
+    for (let i = 0; i < 3; i += 1) p[frame[i]!.dim] = fromWorldOffset(b, i, w[i]! - b.position[i]!);
+    return p;
+  };
+  it('stopOnCorner: at each stop, (reach, 0) and (0, depth) on the stop plane, as corners, every point on stock', () => {
+    const b = stopOnCorner();
+    const v = geometryBoard(b);
+    const p = v.profiles![0]!;
+    const { reach, depth } = keptSection(v, p);
+    const f = sectionFrame(v, oneSideCurve(p));
+    const probe = stockProbe(b);
+    const pts = boardSnapPoints(b);
+    for (const q of pts) if (q.kind !== 'face-center') expect(probe(local(b, q.at))).toBe(true);
+    const corners = pts.filter((q) => q.kind === 'corner').map((q) => local(b, q.at));
+    for (const fr of sweptStops(v, p)) {
+      for (const [s, t] of [[reach, 0], [0, depth]] as const) {
+        const xy = plus(fr.at, [fr.N, s]);
+        const want = at(xy[0], xy[1], f.vFace + f.vIn * t);
+        expect(corners.some((c) => Math.abs(c.length - want.length) < 1e-9 && Math.abs(c.width - want.width) < 1e-9
+          && Math.abs(c.thickness - want.thickness) < 1e-9)).toBe(true);
+      }
+    }
+  });
+  it('frontOnly (B1 stations): no stop frames, and its snap points are b1\'s bytes', () => {
+    const v = geometryBoard(frontOnly);
+    expect(sweptStops(v, v.profiles![0]!)).toEqual([]);
+    // The owner id is minted per run (createBoard): hashed without it.
+    expect(sha(boardSnapPoints(frontOnly).map((q) => ({ kind: q.kind, at: q.at })))).toBe('65567c56647670e9dc35724ba8d44b1a184f6abeb57f554e762af5da3c2a540b');
   });
 });
