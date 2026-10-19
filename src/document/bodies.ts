@@ -72,17 +72,41 @@ function boxFaces(r: Region): BodyFace[] {
 
 /** Points on one plane, de-duplicated and ordered around their centroid: a convex ring. */
 function ring(points: V3[], n: V3): V3[] {
+  // Chunk c1: the same arithmetic with fewer temporaries — the de-duplication's Math.hypot test in the same order, the
+  // centroid as sums from 0 then a division, u and w from the same cross/unit calls (their zero products and signs kept),
+  // each angle atan2((p − c)·w, (p − c)·u) with dot's left-to-right sum, and the points ordered by a stable sort of their
+  // indices under the same comparator (the same comparisons give the same permutation as sorting {p, a} records).
   const pts: V3[] = [];
-  for (const p of points) if (!pts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= BODY_EPS)) pts.push(p);
-  if (pts.length < 3) return [];
-  const c: V3 = [0, 1, 2].map((i) => pts.reduce((s, p) => s + p[i]!, 0) / pts.length) as V3;
+  for (const p of points) {
+    let dup = false;
+    for (let j = 0; j < pts.length; j += 1) {
+      const q = pts[j]!;
+      if (Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= BODY_EPS) { dup = true; break; }
+    }
+    if (!dup) pts.push(p);
+  }
+  const k = pts.length;
+  if (k < 3) return [];
+  let c0 = 0, c1 = 0, c2 = 0;
+  for (let j = 0; j < k; j += 1) c0 += pts[j]![0];
+  for (let j = 0; j < k; j += 1) c1 += pts[j]![1];
+  for (let j = 0; j < k; j += 1) c2 += pts[j]![2];
+  c0 /= k; c1 /= k; c2 /= k;
   const helper: V3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
   const u = unit(cross(n, helper));
   const w = cross(n, u);
-  return pts
-    .map((p) => ({ p, a: Math.atan2(dot(sub(p, c), w), dot(sub(p, c), u)) }))
-    .sort((x, y) => x.a - y.a)
-    .map((x) => x.p);
+  const angle = new Float64Array(k);
+  const order: number[] = new Array<number>(k);
+  for (let j = 0; j < k; j += 1) {
+    const p = pts[j]!;
+    const d0 = p[0] - c0, d1 = p[1] - c1, d2 = p[2] - c2;
+    angle[j] = Math.atan2(d0 * w[0] + d1 * w[1] + d2 * w[2], d0 * u[0] + d1 * u[1] + d2 * u[2]);
+    order[j] = j;
+  }
+  order.sort((x, y) => angle[x]! - angle[y]!);
+  const out: V3[] = new Array<V3>(k);
+  for (let j = 0; j < k; j += 1) out[j] = pts[order[j]!]!;
+  return out;
 }
 
 /**
@@ -92,33 +116,52 @@ function ring(points: V3[], n: V3): V3[] {
  * and no cap is added (the plane is already a face).
  */
 function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number; overlap?: true; stop?: true }): BodyFace[] {
-  const g = (p: V3) => dot(h.n, p) + h.d;
-  const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
-  if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
+  // Chunk c1: every vertex's g is `n0 * p[0] + n1 * p[1] + n2 * p[2] + d` — dot(h.n, p) + h.d, the same float — evaluated
+  // as each edge is walked rather than kept in per-face arrays (re-evaluating gives the same number); sides, kept points,
+  // crossings and cap points in the same order as before.
+  const [n0, n1, n2] = h.n;
+  const d = h.d;
+  let cut = false;
+  for (let i = 0; i < faces.length && !cut; i += 1) {
+    const vs = faces[i]!.verts;
+    for (let j = 0; j < vs.length; j += 1) {
+      const p = vs[j]!;
+      if (n0 * p[0] + n1 * p[1] + n2 * p[2] + d < -BODY_EPS) { cut = true; break; }
+    }
+  }
+  if (!cut) return faces;
   const out: BodyFace[] = [];
   const cap: V3[] = [];
   let onPlane = false;
   for (const f of faces) {
-    // Final review F3: each vertex's g once per face (the same value every time it was recomputed).
-    const n = f.verts.length;
-    const gs = f.verts.map(g);
-    const sides = gs.map((v) => (v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0));
-    if (sides.every((x) => x === 0)) onPlane = true;
+    const vs = f.verts;
+    const n = vs.length;
+    if (n === 0) { onPlane = true; continue; }   // as before: no sides, so "every side 0"; nothing kept
     const kept: V3[] = [];
+    let all0 = true;
+    const p0 = vs[0]!;
+    const g0 = n0 * p0[0] + n1 * p0[1] + n2 * p0[2] + d;
+    const s0 = g0 > BODY_EPS ? 1 : g0 < -BODY_EPS ? -1 : 0;
+    let a = p0, ga = g0, sa = s0;
     for (let i = 0; i < n; i += 1) {
-      const a = f.verts[i]!;
-      const b = f.verts[(i + 1) % n]!;
-      const sa = sides[i]!;
-      const sb = sides[(i + 1) % n]!;
+      let b: V3, gb: number, sb: number;
+      if (i + 1 < n) {
+        b = vs[i + 1]!;
+        gb = n0 * b[0] + n1 * b[1] + n2 * b[2] + d;
+        sb = gb > BODY_EPS ? 1 : gb < -BODY_EPS ? -1 : 0;
+      } else { b = p0; gb = g0; sb = s0; }
+      if (sa !== 0) all0 = false;
       if (sa >= 0) kept.push(a);
       if (sa === 0) cap.push(a);
       if (sa * sb < 0) {
-        const t = gs[i]! / (gs[i]! - gs[(i + 1) % n]!);
+        const t = ga / (ga - gb);
         const p: V3 = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])];
         kept.push(p);
         cap.push(p);
       }
+      a = b; ga = gb; sa = sb;
     }
+    if (all0) onPlane = true;
     if (kept.length >= 3) out.push({ ...f, verts: kept });
   }
   if (!onPlane) {
