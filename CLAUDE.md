@@ -21,10 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is profile runs b1** (deployed 2026-10-18 from `dc49b01`, bundle `index-CDDCzMGJ.js`, CSS `index-CXYEMHnU.css`; **SCHEMA 18**,
-  unchanged): rolling back to a1 + a2 (`3ee667e`, `index-BbXkYYy4.js`, CSS `index-gCtQCsSI.css`) is free EXCEPT that a2 REFUSES a project
-  holding an All round profile — export first; an End to end saved by b1 loads on a2 unchanged. Rolling back to edge profiles chunk 1 +
-  fu 388 (`5a9ead8`, `index-B_aEoJl0.js`) or earlier REFUSES every project saved since schema 18 — export first.
+- **Production is profile runs b2** (deployed 2026-10-19 from `31d88fd`, the merge `0e41f87`, bundle `index-BhtaBf2G.js`, CSS `index-CXYEMHnU.css` (unchanged); **SCHEMA 18**,
+  unchanged): rolling back to b1 (`dc49b01`, `index-CDDCzMGJ.js`) REFUSES a project holding a two-side stopped run — export first —
+  and builds a one-side stop on a turned path as a2's straight prism (on an arch it vanishes; its data intact). Rolling back further, to
+  a1 + a2 (`3ee667e`, `index-BbXkYYy4.js`), also REFUSES a project holding an All round profile; an End to end saved by b1 loads on a2 unchanged.
+  Rolling back to edge profiles chunk 1 + fu 388 (`5a9ead8`, `index-B_aEoJl0.js`) or earlier REFUSES every project saved since schema 18 — export first.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -135,7 +136,7 @@ handicraft education tradition built around hand woodworking.
   (the built run goes on 2·reach·tan(φ/2) past the tangent point, up to 0.084"; never a decision), Q7's wording (`, top on the edge`,
   `, round the corner(s)`), and Q6's I2 amendment (the controller's ruling: a station run claims only straight side chords). Open
   near it: 393 (residue; the bead/cove/ogee loops' speed for chunk c; the user's eye). b2 followed (below).
-- **Profile runs chunk b2 (2026-10-19, plan `…-profile-runs-b2.md`, code complete at `5027ff9`; MERGED to master as `0e41f87` (guards re-baselined `bbc46fd`), NOT deployed; no
+- **Profile runs chunk b2 (2026-10-19, plan `…-profile-runs-b2.md`, code complete at `5027ff9`; MERGED to master as `0e41f87` (guards re-baselined `bbc46fd`), DEPLOYED 2026-10-19 as `index-BhtaBf2G.js`; no
   schema change, 18)**: chunk b complete (fu 390 closed). A Start or Stop may sit on an arch, a bow, a notch or a corner arc
   (B2, `stationPoint`) and runs out there with the cutter revolved about the bit's axis `BEARING` outside the station's MODEL
   chord (Q12, `StopFrame`, `stopRunoutPieces`). A stopped run may start on one side and stop on another, round every corner
