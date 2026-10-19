@@ -5,7 +5,9 @@ import {
 } from './bandModel';
 import { createBoard, createDocument } from './document';
 import { sameShared } from './links';
-import type { Band, ProfileSide } from './types';
+import type { Band, BandType, ProfileSide } from './types';
+import { bandFaults, bandFaultText, bandSignature, coreSize, cutStock, sameSide, stripBoard, strips, tapeRuns } from './banding';
+import { archCurve, cornerCurve } from './curves';
 
 const W0: ProfileSide = { across: 'width', from: 'min' };
 const W1: ProfileSide = { across: 'width', from: 'max' };
@@ -69,5 +71,123 @@ describe('the band model (edge banding spec §2)', () => {
     expect(t.id).not.toBe(s.id);
     expect(sameBandType(s, { ...s })).toBe(true);
     expect(sameBandType(s, { ...s, thickness: 0.5 })).toBe(false);
+  });
+});
+
+describe('the arithmetic (edge banding spec §3)', () => {
+  const maple = (t = 0.25): BandType => ({ id: 'm', name: 'Maple edging', kind: 'solid', thickness: t, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 });
+  const walnut = (t = 0.5): BandType => ({ id: 'w', name: 'Walnut edging', kind: 'solid', thickness: t, lengthAllowance: 0.5, material: 'walnut', widthAllowance: 0.0625 });
+  const types = (...extra: BandType[]): BandType[] => [BUILT_IN_BAND, ...extra];
+  const shelf = (bands: Band[], cornerRule: 'long' | 'ends' | 'mitre' = 'long', over: object = {}) =>
+    ({ ...createBoard({ id: 'p', name: 'Shelf', length: 30, width: 12, thickness: 0.75, material: 'plywood' }), bands, cornerRule, ...over });
+  const all = (type: string) => BAND_SIDES.map((side) => ({ side, type }));
+
+  it('a part with no bands: core is its own size, no strips, no tape, no signature', () => {
+    const p = shelf([]);
+    expect(coreSize(p, types())).toEqual({ length: 30, width: 12, thickness: 0.75 });
+    expect(strips(p, types())).toEqual([]);
+    expect(tapeRuns(p, types())).toEqual([]);
+    expect(bandSignature(p)).toBe('');
+  });
+  it('core subtracts each banded side\'s thickness, whatever the corner rule', () => {
+    for (const rule of ['long', 'ends', 'mitre'] as const) {
+      expect(coreSize(shelf(all('m'), rule), types(maple())), rule).toEqual({ length: 29.5, width: 11.5, thickness: 0.75 });
+    }
+    expect(coreSize(shelf([{ side: W0, type: 'm' }, { side: L1, type: 'w' }]), types(maple(), walnut()))).toEqual({ length: 29.5, width: 11.75, thickness: 0.75 });
+    expect(coreSize(shelf(all(BUILT_IN_BAND_ID)), types())).toEqual({ length: 30, width: 12, thickness: 0.75 });
+  });
+  it('long edges run through: long strips are the full length, ends lose the long bands\' thickness', () => {
+    const s = strips(shelf(all('m'), 'long'), types(maple()));
+    const by = (side: ProfileSide) => s.find((x) => x.side.across === side.across && x.side.from === side.from)!;
+    expect(by(W0).finished).toBe(30);
+    expect(by(L0).finished).toBe(11.5);
+    expect(by(W0).length).toBe(30.5);
+    expect(by(W0).width).toBe(0.25);
+    expect(by(W0).thickness).toBe(0.8125);
+    expect(by(W0).ends).toEqual([{ mitre: null }, { mitre: null }]);
+  });
+  it('ends run through: the mirror image', () => {
+    const s = strips(shelf(all('m'), 'ends'), types(maple()));
+    expect(s.find((x) => x.side.across === 'width')!.finished).toBe(29.5);
+    expect(s.find((x) => x.side.across === 'length')!.finished).toBe(12);
+  });
+  it('mitred: full side lengths, a mitre only where the neighbour has thickness, atan(n / t) from square', () => {
+    const s = strips(shelf([{ side: W0, type: 'm' }, { side: L1, type: 'w' }], 'mitre'), types(maple(0.25), walnut(0.5)));
+    const long = s.find((x) => sameSide(x.side, W0))!;
+    const end = s.find((x) => sameSide(x.side, L1))!;
+    expect(long.finished).toBe(30);
+    expect(long.ends[0]).toEqual({ mitre: null });                    // the length-min end has no band
+    expect(long.ends[1]!.mitre).toBeCloseTo(Math.atan(0.5 / 0.25), 12);
+    expect(end.finished).toBe(12);
+    expect(end.ends[0]!.mitre).toBeCloseTo(Math.atan(0.25 / 0.5), 12);   // width-min neighbour
+    expect(end.ends[1]).toEqual({ mitre: null });
+  });
+  it('a zero-thickness neighbour never shortens a strip or makes a mitre', () => {
+    const s = strips(shelf([{ side: W0, type: 'm' }, { side: L0, type: BUILT_IN_BAND_ID }], 'ends'), types(maple()));
+    expect(s).toHaveLength(1);
+    expect(s[0]!.finished).toBe(30);
+  });
+  it('tape: a straight side is its dimension plus the allowance; no strips', () => {
+    const p = shelf([{ side: W0, type: BUILT_IN_BAND_ID }, { side: L1, type: BUILT_IN_BAND_ID }]);
+    expect(tapeRuns(p, types()).map((r) => r.length)).toEqual([30.5, 12.5]);
+    expect(strips(p, types())).toEqual([]);
+  });
+  it('tape round an arch: the side\'s TRUE outline length (Review Focus 3)', () => {
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 2 }) };
+    const p = shelf([{ side: W0, type: BUILT_IN_BAND_ID }], 'long', { curves: [arch] });
+    const r = 12 ** 2 / (2 * 2) + 2 / 2;               // chord 24, rise 2: r = (c/2)²/(2h) + h/2
+    const half = Math.asin(12 / r);
+    const expected = 3 + 2 * r * half + 3;              // the straight ends and the true arc
+    expect(tapeRuns(p, types())[0]!.length).toBeCloseTo(expected + 0.5, 9);
+  });
+  it('a rounded corner between two taped sides is bought once: half each (Review Focus 3)', () => {
+    const corner = { id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 2 }) };
+    const both = shelf([{ side: W1, type: BUILT_IN_BAND_ID }, { side: L1, type: BUILT_IN_BAND_ID }], 'long', { curves: [corner] });
+    const runs = tapeRuns(both, types());
+    const total = runs.reduce((n, r) => n + r.length, 0);
+    expect(total).toBeCloseTo((30 - 2) + (12 - 2) + (Math.PI * 2) / 2 + 2 * 0.5, 9);
+    const one = tapeRuns(shelf([{ side: W1, type: BUILT_IN_BAND_ID }], 'long', { curves: [corner] }), types());
+    expect(one[0]!.length).toBeCloseTo((30 - 2) + (Math.PI * 2) / 2 + 0.5, 9);
+  });
+  it('a corner shared with a FAULTED tape side is bought in full by the unfaulted one', () => {
+    const corner = { id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 2 }) };
+    const wide: BandType = { id: 'wide', name: 'Wide tape', kind: 'tape', thickness: 0, lengthAllowance: 0.5, tapeWidth: 2, pricePerFoot: null };
+    const p = shelf([{ side: W1, type: 'wide' }, { side: L1, type: BUILT_IN_BAND_ID }], 'long', { curves: [corner], thickness: 1 });
+    expect(bandFaults(p, types(wide))).toEqual([{ side: L1, kind: 'tape-narrow' }]);
+    const runs = tapeRuns(p, types(wide));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.length).toBeCloseTo((30 - 2) + (Math.PI * 2) / 2 + 0.5, 9);
+  });
+  it('faults: needs-straight, too-thick, tape-narrow; a faulted band adds nothing', () => {
+    const arch = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 2 }) };
+    const onArch = shelf([{ side: W0, type: 'm' }], 'long', { curves: [arch] });
+    expect(bandFaults(onArch, types(maple()))).toEqual([{ side: W0, kind: 'needs-straight' }]);
+    expect(coreSize(onArch, types(maple())).width).toBe(12);
+    expect(strips(onArch, types(maple()))).toEqual([]);
+    const thick = shelf([{ side: W0, type: 'm' }, { side: W1, type: 'm' }], 'long', { width: 0.5 });
+    expect(bandFaults(thick, types(maple()))).toEqual([{ side: W0, kind: 'too-thick' }, { side: W1, kind: 'too-thick' }]);
+    const narrow = shelf([{ side: W0, type: BUILT_IN_BAND_ID }], 'long', { thickness: 1 });
+    expect(bandFaults(narrow, types()).map((f) => f.kind)).toEqual(['tape-narrow']);
+    expect(tapeRuns(narrow, types())).toEqual([]);
+    expect(bandFaultText('needs-straight')).toBe('needs a straight edge');
+  });
+  it('the memo is keyed on the band types too (Review Focus 2): a thickness edit re-sizes the core', () => {
+    const p = shelf(all('m'));
+    expect(coreSize(p, types(maple(0.25))).width).toBe(11.5);
+    expect(coreSize(p, types(maple(0.5))).width).toBe(11);
+  });
+  it('cutStock: parts at core size, then each strip as a plain solid part', () => {
+    const p = shelf(all('m'));
+    const out = cutStock({ boards: [p], bandTypes: types(maple()) });
+    expect(out[0]).toMatchObject({ id: 'p', length: 29.5, width: 11.5 });
+    expect(out.slice(1).map((b) => [b.material, b.length, b.width, b.thickness, b.grain])).toEqual([
+      ['maple', 30.5, 0.25, 0.8125, 'length'], ['maple', 30.5, 0.25, 0.8125, 'length'],
+      ['maple', 12, 0.25, 0.8125, 'length'], ['maple', 12, 0.25, 0.8125, 'length'],
+    ]);
+    expect(stripBoard(strips(p, types(maple()))[0]!).name).toBe('Shelf edging (width min side)');
+  });
+  it('bandSignature: sides, type ids and the corner rule, exact', () => {
+    expect(bandSignature(shelf([{ side: W0, type: 'm' }]))).not.toBe(bandSignature(shelf([{ side: W0, type: 'm' }], 'mitre')));
+    expect(bandSignature(shelf([{ side: W0, type: 'm' }]))).not.toBe(bandSignature(shelf([{ side: W1, type: 'm' }])));
   });
 });
