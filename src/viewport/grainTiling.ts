@@ -374,7 +374,7 @@ function memoChords(board: Board): Map<string, Chord[]> {
  * as a holed body does (`uncovered`): the internal walls on its chord planes and diagonals, and a box cell's walls against
  * the slices, are never drawn. And its faces are conformed (conformedTriangles): the merged mesh is watertight.
  */
-export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; normals?: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[], opts?: { twins?: boolean }): { positions: Float32Array; uvs: Float32Array; normals?: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   board = geometryBoard(board);
   const plans = memoPlans(board);
   const frame = axisFrame(board);
@@ -387,7 +387,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   // A curved part's faces come from curvedPart: seams dropped, vertices welded, and every part vertex lying inside one of
   // their edges inserted when triangulated (conform.ts: no T-junctions between a split curve's slices, or a slice and a
   // box cell beside it). A part without curves never reaches it.
-  const part = curved && bodies ? curvedPart(board, bodies, holes) : null;
+  const part = curved && bodies ? curvedPart(board, bodies, holes, opts) : null;
   const seams = !part && bodies && holed(body, holes) ? seamIndex(bodies) : null;
   const faces = part?.faces.get(body) ?? (seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces);
   const candidates = part?.points ?? null;
@@ -612,17 +612,19 @@ function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Can
  * face's vertices — a seam remainder's new corners included, since a neighbour's edge in another plane may pass through
  * one. Built once per FROZEN bodies array (partGeometry's) and kept by its identity, as seamIndex is: bodyMesh runs once
  * per body, so building it per call would be quadratic. An unfrozen array is built afresh (invariant 50's rule).
+ * Chunk c2: the seams come from faceCover (document/seams.ts), an exact twin pair dropped without subtraction.
  */
 interface CurvedPart { holes: readonly Hole[]; faces: Map<Body, BodyFace[]>; points: Candidates; merged: Map<Body, MergedPlane[]> }
 const curvedParts = new WeakMap<readonly Body[], CurvedPart>();
-function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[]): CurvedPart {
-  const hit = curvedParts.get(bodies);
+function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[], opts?: { twins?: boolean }): CurvedPart {
+  const hit = opts ? undefined : curvedParts.get(bodies);
   if (hit && hit.holes === holes) return hit;
-  const index = seamIndex(bodies);
+  // Chunk c2 (stage 2): each face's remainder from faceCover — an exact twin draws nothing without minusCover.
+  const cover = faceCover(bodies, opts);
   const { points, canon } = welder();
   const faces = new Map<Body, BodyFace[]>();
   for (const body of bodies) {
-    faces.set(body, body.faces.flatMap((f) => uncovered(f, body, index)).map((f) => {
+    faces.set(body, body.faces.flatMap((f) => cover.remains.get(f)!).map((f) => {
       const verts = f.verts.map(canon);
       return verts.every((p, i) => p === f.verts[i]) ? f : { ...f, verts };
     }));
@@ -630,7 +632,7 @@ function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[
   const cands = sortedCandidates(points);
   const merged = holes.length > 0 ? mergeHoledPlanes(board, bodies, holes, faces, cands, canon) : new Map<Body, MergedPlane[]>();
   const part = { holes, faces, points: cands, merged };
-  if (Object.isFrozen(bodies)) curvedParts.set(bodies, part);
+  if (!opts && Object.isFrozen(bodies)) curvedParts.set(bodies, part);
   return part;
 }
 
@@ -1019,9 +1021,9 @@ function concatMeshes(meshes: readonly PartMeshData[]): PartMeshData {
  * which carries no pose and no id, while positions follow the part's pose and uvs its id; BoardMesh's useMemo, keyed on
  * boardUVSignature, is the memo.
  */
-export function partMesh(board: Board, bodies: readonly Body[], holes: readonly Hole[]): PartMeshData {
+export function partMesh(board: Board, bodies: readonly Body[], holes: readonly Hole[], opts?: { twins?: boolean }): PartMeshData {
   return concatMeshes(bodies.map((body) => {
-    const m = bodyMesh(board, body, holes, bodies);
+    const m = bodyMesh(board, body, holes, bodies, opts);
     return { positions: m.positions, uvs: m.uvs, normals: m.normals!, groups: m.groups };
   }));
 }

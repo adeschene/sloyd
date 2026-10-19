@@ -90,3 +90,61 @@ export function seamIndex(bodies: readonly Body[]): SeamIndex {
   if (Object.isFrozen(bodies)) seamIndexes.set(bodies, index);
   return index;
 }
+
+/**
+ * Chunk c2, stage 2 (spec §2.2, amendment A1): every face with an exact TWIN — a face of another body, facing the opposite
+ * way, with the same polygon within 1e-9 per coordinate (BODY_EPS; withoutSeams' test in bodies.ts, the same key and
+ * comparison) — paired off greedily in body then face order, as withoutSeams pairs them. A twin lies against its partner
+ * over its whole area: stock on both sides, never seen. Where a later subtraction (a run-out, a stop, another curve, a cut)
+ * reshaped either side, the polygons differ and neither is a twin; the face takes `uncovered` as before.
+ */
+export function twinFaces(bodies: readonly Body[]): Set<BodyFace> {
+  const keyOf = (f: BodyFace) => {
+    let sum = 0, xor = 0;
+    for (const p of f.verts) {
+      const h = Math.imul(Math.round(p[0] * 1e6), 73856093) ^ Math.imul(Math.round(p[1] * 1e6), 19349663) ^ Math.imul(Math.round(p[2] * 1e6), 83492791);
+      sum = (sum + h) | 0;
+      xor ^= h;
+    }
+    return (Math.imul(sum, 31) ^ xor ^ f.verts.length) | 0;
+  };
+  const E = 1e-9;
+  const byKey = new Map<number, BodyFace[]>();
+  const owner = new Map<BodyFace, Body>();
+  const drop = new Set<BodyFace>();
+  const same = (a: BodyFace, b: BodyFace) => owner.get(a) !== owner.get(b) && a.verts.length === b.verts.length
+    && a.n[0] * b.n[0] + a.n[1] * b.n[1] + a.n[2] * b.n[2] < -1 + E
+    && a.verts.every((p) => b.verts.some((q) => Math.abs(p[0] - q[0]) <= E && Math.abs(p[1] - q[1]) <= E && Math.abs(p[2] - q[2]) <= E));
+  for (const b of bodies) for (const f of b.faces) {
+    owner.set(f, b);
+    const k = keyOf(f);
+    const list = byKey.get(k);
+    const twin = list?.find((g) => !drop.has(g) && same(f, g));
+    if (twin) { drop.add(twin); drop.add(f); continue; }
+    if (list) list.push(f); else byKey.set(k, [f]);
+  }
+  return drop;
+}
+
+/** Every face's visible remainder: `[]` for a twin (no subtraction), else `uncovered`'s pieces (the face itself when nothing
+ *  covers it). `twins` counts the faces short-circuited. */
+export interface FaceCover { remains: Map<BodyFace, BodyFace[]>; twins: number }
+const covers = new WeakMap<readonly Body[], FaceCover>();
+
+/**
+ * Chunk c2 (stages 2 and 3): the mesh's and the edges' one view of what other bodies cover. Built once per FROZEN bodies
+ * array (partGeometry's) and kept by its identity, as seamIndex is (board-local, no pose: shared by every part with those
+ * bodies); an unfrozen array is covered afresh (invariant 50's rule). `opts.twins === false` (TEST ONLY) takes today's route
+ * for every face and is never memoised.
+ */
+export function faceCover(bodies: readonly Body[], opts?: { twins?: boolean }): FaceCover {
+  const memo = !opts && Object.isFrozen(bodies);
+  if (memo) { const hit = covers.get(bodies); if (hit) return hit; }
+  const twins = opts?.twins === false ? new Set<BodyFace>() : twinFaces(bodies);
+  const index = seamIndex(bodies);
+  const remains = new Map<BodyFace, BodyFace[]>();
+  for (const body of bodies) for (const f of body.faces) remains.set(f, twins.has(f) ? [] : uncovered(f, body, index));
+  const cover = { remains, twins: twins.size };
+  if (memo) covers.set(bodies, cover);
+  return cover;
+}
