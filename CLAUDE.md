@@ -137,7 +137,7 @@ handicraft education tradition built around hand woodworking.
   (B1a; Q3/Q6's Task 3 amendments — dropped cells, the odd-count mitre projection, a swallowed end chord is `too-tight`), B1's ε
   (the built run goes on 2·reach·tan(φ/2) past the tangent point, up to 0.084"; never a decision), Q7's wording (`, top on the edge`,
   `, round the corner(s)`), and Q6's I2 amendment (the controller's ruling: a station run claims only straight side chords). Open
-  near it: 393 (residue; the bead/cove/ogee loops' speed for chunk c; the user's eye). b2 followed (below).
+  near it: 393 (residue; the user's eye; its speed rows went to chunk c — the ogee loop's 48 ms left as is by the user's ruling). b2 followed (below).
 - **Profile runs chunk b2 (2026-10-19, plan `…-profile-runs-b2.md`, code complete at `5027ff9`; MERGED to master as `0e41f87` (guards re-baselined `bbc46fd`), DEPLOYED 2026-10-19 as `index-BhtaBf2G.js`; no
   schema change, 18)**: chunk b complete (fu 390 closed). A Start or Stop may sit on an arch, a bow, a notch or a corner arc
   (B2, `stationPoint`) and runs out there with the cutter revolved about the bit's axis `BEARING` outside the station's MODEL
@@ -160,25 +160,26 @@ handicraft education tradition built around hand woodworking.
   with `A stop runs off the part` words), M2 (Side onto a shorter side on a one-side run is greyed, as a2, not seeded), the neighbour-refusal
   words (`The roundover overlaps another profile on this edge — move the roundover first.`, ambiguous between two of one kind)
   and Curves' `A stop on the roundover runs off the part — move it first.`, and Task 6's junction shading override. Open near
-  it: 394 (residue; chunk c's speed rows — the two-side cove ~57 ms guarded 73, wrapFour 57 — and wall-clock guards flaky
+  it: 394 (residue; its speed rows closed by chunk c — the two-side cove ≤ 38.2 ms, wrapFour 27.9 — and wall-clock guards flaky
   under load). Live pass: `docs/browser-verification-profile-runs-b2.md`.
 - **Chunk c1 (2026-10-19, MERGED to master as `65fb1fe`, DEPLOYED 2026-10-19 as `index-TCisED7E.js`)**: byte-identical speed fixes for swept rebuilds (the spike's
   bounded half; the user's target "all under 40 ms"). Kept: a part's face plans and arc chords built once per board (`grainTiling`), a
   faster `deepFreeze`, scalar `clipPolygon`/`minusCover`/`twiceArea` (`holes`), `clip`/`ring` without per-face arrays (`bodies`), `bodyMesh`
   straight into Float32Arrays and `bodyEdges`' setup as scalars. Dropped (not provably byte-identical): the piece reject and the twin
   skip. Alone, min of 9: ogee loop 80 → 61, cove 61 → 45, bead 56 → 46, two loops 58 → 36, two-side cove 56 → 43 ms; guards lowered only.
-  Still over a frame: bead, cove, ogee loops and the two-side cove — **c2** (a spec: the swept mesh and edges built directly, one
-  geometry per part; not byte-identical) is next. No schema change; rollback free.
+  Still over a frame then: bead, cove, ogee loops and the two-side cove — **c2** followed (below). No schema change; rollback free.
 - **Chunk c2 (2026-10-19, MERGED to master as `90ef45f`, DEPLOYED 2026-10-19 as `index-Cqf9kRT7.js`; plan `…-swept-speed-c2.md`; no schema change, so rollback is free)**: the restructure for swept rebuilds, in three stages. Stage 1:
   a shaped part draws ONE geometry (`partMesh`), not a mesh per body (313 meshes on the ogee loop). Stage 2: an exact twin seam draws nothing without
   `minusCover` (`seams.ts`: `twinFaces`, `faceCover`). Stage 3: a face the part's other bodies cover completely makes no edge candidate (it stays a wing).
   Bodies unchanged. **Gate MISSED**: alone, every row but the ogee loop (48.1) is <= 40; in full runs the bead loop (40.2) and two loops (41.2) also cross 40. Worst minimum, before → after, alone with alone: ogee loop 63–72 → 48.1,
-  cove 45–49 → 38.2, bead 41–42 → 40.2 (full run), two loops 35–37 → 37.4, two-side cove 43–44 → 38.2. Guards lowered: ogee 89 → 61, bead
+  cove 45–49 → 38.2, bead 41–42 → 39.1, two loops 35–37 → 37.4, two-side cove 43–44 → 38.2. Guards lowered: ogee 89 → 61, bead
   71 → 51, cove 62 → 48, two-side cove 62 → 48; two loops stays 51. Levers left (spec §5, the user's decision; most grow with the body count, which
   spec §1 holds fixed): `sweepBodies` (~11 ms), `sectionSeams` (~5), per-body mesh emission and swept normals. Browser (production, software GL):
   idle two frames 320 → ~183 ms, a commit's two frames 431 → ~270–290. Amendments A1–A4 (*Amended (planning)* in the spec: stage 2 by the twin test alone with no
-  `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) were APPROVED by the user 2026-10-19. Merged and deployed (Production, above).
-- **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
+  `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) were APPROVED by the user 2026-10-19. Merged and deployed (Production, above). **The ogee loop's 48 ms is left as is by the user's ruling
+  (2026-10-19): fu 393(2), open by decision — do not pursue unasked.**
+- **NEXT: ask** (audited 2026-10-17, after section views deployed; since then presets batch, presets minors, edge profiles chunk 1, profile runs
+  a1–b2 and speed chunks c1–c2 shipped, re-checked 2026-10-19). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
   list, 384(2) the newest), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
@@ -282,7 +283,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | profile runs (b1) | 10-18 | — | Profiles follow the outline: End to end round corner arcs and along arches, All round (loops load); swept bodies (`profilePath.ts`, `sweep.ts`), edges, mesh, drawings, faults, words; a saved run too tight to follow runs straight |
 | profile runs (b2) | 10-19 | — | Stops on a turned path (a run-out about the bit's axis in the station chord's frame) and two-side runs (Stop side); a saved a2 stop on a turned path follows, or runs straight with its cause |
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
-| chunk c2 | 10-19 | — | (branch `perf-c2`, unmerged) A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
+| chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
 
 ### The deployment rule
 
@@ -1215,7 +1216,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     STOPS are watertight too (every b2 fixture, the station runs, the 36 `cornerGap` rows and the 14 overlap cases, a bore beside a
     run-out; caps uncracked), shaded by `stopRunoutNormals` (the revolved normal, memoised on the frozen bodies as a2's), except a
     vertex ON the stop plane, which takes the band's normal (`sweptNormals`: the junction override, so band and run-out agree at
-    1e-6); stop rows at 40 (chunk c1; the notch 60 before), the two-side cove 62, `wrapFour` 40 ms (chunk c1, fu 394). **`sweptIdentity.test.ts` pins swept parts' bodies, edges, smooth joins, meshes, holes and caps byte for byte (54 fixtures, two lengths): a speed change keeps it green.** **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
+    1e-6); stop rows at 40 (chunk c1; the notch 60 before), the two-side cove 48 (chunk c2), `wrapFour` 40 ms (chunk c1, fu 394). **`sweptIdentity.test.ts` pins swept parts' bodies, edges, smooth joins, meshes, holes and caps byte for byte (54 fixtures, two lengths): a speed change keeps it green.** **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
     into strips, so a mouth straddles them): every plane a CLEAN hole opens into is the union of its faces (`unionLoops`,
     chained), triangulated with the rings as holes — the wall's own ring vertices — and each triangle conformed; a plane a
     faulted hole reaches, or whose rings overlap, keeps the per-face `faceTriangles` path (residue, drawn approximately). **Rebuild performance —
@@ -1285,8 +1286,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     segment `type` refuses the whole document** with the newer-version message (a spline needs no schema bump). Joinery,
     Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
     checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
-    a hand-edited non-convex waste too since fu 368, the four-edge cove and bead tops since edge profiles — the ogee top 46 since 2026-10-19,
-    over a frame; MINIMUM of 9, wall-clock).
+    a hand-edited non-convex waste too since fu 368, the four-edge cove, bead and ogee tops since edge profiles (the ogee top back to 40 in chunk c1); MINIMUM of 9, wall-clock).
     **Edge profiles are stored as `ProfileCut`s** (`Board.profiles`, schema 18; profile runs a1): every geometry, word and fault
     reader (bodies, edges, drawings, silhouettes, snap points, stockProbe, diagrams, bench lines, keys, hole faults, the cut list,
     the mesh and UV signature) reads the part through `geometryBoard`, which presents each profile as the exact `CurveCut` chunk 1

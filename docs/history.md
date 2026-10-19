@@ -585,7 +585,8 @@ loop 56.2) and passed alone (32/32) and on a second full run (6666/6666); the tr
 `docker compose up -d --build`: `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css` unchanged. Verified `200` on `/` and a deep route in-network
 and at the edge, sha256 of both assets matching `dist/` at both, the old `index-TCisED7E.js` 404 in-network, the CSP at the edge, and a
 real-browser page load (the new bundle, 0 errors, the beacon, "+ Add board"; storage read empty first from the CSS asset page, the load's
-two keys removed there, read back empty).
+two keys removed there, read back empty). The user then approved A1–A4 and ruled the ogee loop's 48 ms **left as is for now**
+(fu 393(2) open by decision: the levers left need relaxing spec §1); fu 394(5) closed.
 
 **What chunk c1 did (2026-10-19)** (the speed of swept rebuilds, fu 393(2) and 394(5); the user's target: every rebuild under
 40 ms at idle). A throwaway spike timed the stages of the slowest rows: roughly a third each to bodies, edges and the mesh, all scaling
