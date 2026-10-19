@@ -171,8 +171,8 @@ handicraft education tradition built around hand woodworking.
 - **Chunk c2 (2026-10-19, branch `perf-c2`, NOT merged, NOT deployed; plan `…-swept-speed-c2.md`; no schema change, so rollback is free)**: the restructure for swept rebuilds, in three stages. Stage 1:
   a shaped part draws ONE geometry (`partMesh`), not a mesh per body (313 meshes on the ogee loop). Stage 2: an exact twin seam draws nothing without
   `minusCover` (`seams.ts`: `twinFaces`, `faceCover`). Stage 3: a face the part's other bodies cover completely makes no edge candidate (it stays a wing).
-  Bodies unchanged. **Gate MISSED**: "all under 40" holds for every row but the ogee loop. Worst minimum alone, before → after: ogee loop 63–72 → 48.1,
-  cove 45–49 → 38.2, bead 41–42 → 40.2 (full run), two loops 35–37 → 41.2 (full run; alone 37.4), two-side cove 43–44 → 38.2. Guards lowered: ogee 89 → 61, bead
+  Bodies unchanged. **Gate MISSED**: alone, every row but the ogee loop (48.1) is <= 40; in full runs the bead loop (40.2) and two loops (41.2) also cross 40. Worst minimum, before → after, alone with alone: ogee loop 63–72 → 48.1,
+  cove 45–49 → 38.2, bead 41–42 → 40.2 (full run), two loops 35–37 → 37.4, two-side cove 43–44 → 38.2. Guards lowered: ogee 89 → 61, bead
   71 → 51, cove 62 → 48, two-side cove 62 → 48; two loops stays 51. Levers left (spec §5, the user's decision; most grow with the body count, which
   spec §1 holds fixed): `sweepBodies` (~11 ms), `sectionSeams` (~5), per-body mesh emission and swept normals. Browser (production, software GL):
   idle two frames 320 → ~183 ms, a commit's two frames 431 → ~270–290. Amendments A1–A4 (*Amended (planning)* in the spec: stage 2 by the twin test alone with no

@@ -1,4 +1,4 @@
-import { boardBodiesForTest } from '../document/bodies';
+import { BODY_EPS, boardBodiesForTest } from '../document/bodies';
 import { partGeometry } from '../document/document';
 import type { Body, BodyFace } from '../document/document';
 import { faceCover, twinFaces } from '../document/seams';
@@ -140,3 +140,6 @@ describe('stage 2: exact twins draw nothing (chunk c2)', () => {
     });
   });
 });
+
+// seams.ts' literal E duplicates BODY_EPS (a runtime import of bodies.ts would make a cycle); this pins them together.
+it('BODY_EPS is 1e-9, the literal E in seams.ts', () => { expect(BODY_EPS).toBe(1e-9); });

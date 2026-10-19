@@ -108,7 +108,7 @@ export function twinFaces(bodies: readonly Body[]): Set<BodyFace> {
     }
     return (Math.imul(sum, 31) ^ xor ^ f.verts.length) | 0;
   };
-  const E = 1e-9;   // BODY_EPS (bodies.ts); a literal here, since importing it at runtime would make a cycle
+  const E = 1e-9;   // BODY_EPS (bodies.ts); a literal here (twinSkip.test.ts pins BODY_EPS === 1e-9), since importing it at runtime would make a cycle
   const byKey = new Map<number, BodyFace[]>();
   const owner = new Map<BodyFace, Body>();
   const drop = new Set<BodyFace>();

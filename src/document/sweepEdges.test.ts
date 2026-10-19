@@ -600,6 +600,11 @@ describe('the fast swept edges equal the reference on every swept identity fixtu
   const built = SWEPT_CASES.filter(([, b]) => builtSwept(geometryBoard(b)).length > 0);
   it('the fixtures are what they claim', () => { expect(built.length).toBeGreaterThan(50); });
   it.each(built)('%s', (_name, board) => fastIsReference(board));
+  // The re-recorded sweptIdentity edges pins are also taken at length x 1.000123 (a fresh geometry, other floats): proved too.
+  const scaled = built.map(([name, b]) => [name, { ...b, length: b.length * 1.000123 }] as const)
+    .filter(([, b]) => builtSwept(geometryBoard(b)).length > 0);
+  it('the scaled fixtures are what they claim', () => { expect(scaled.length).toBeGreaterThan(50); });
+  it.each(scaled)('%s at length x 1.000123', (_name, board) => fastIsReference(board));
 });
 
 /*

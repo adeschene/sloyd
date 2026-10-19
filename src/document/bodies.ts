@@ -973,7 +973,8 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   const seams = fast && sweptPair ? sectionSeams(bodies, sweptPair, (id) => loops.get(id) ?? null) : null;
   // Chunk c2 (stage 3): a face other bodies cover completely (faceCover's remainder empty) is inside the part: an edge of its
   // own is never the only edge on a stretch you can see — a crease is bounded by a face that is seen, whose own edge makes the
-  // candidate — so it makes none, and the lines only such faces made (most of a loop's: 312 of the ogee's 416) are not judged.
+  // candidate — so it makes none, and those lines are not judged (a planning measurement on master, 2026-10-19: of the ogee loop's 416 judged
+  // lines, 208 were judged to no wings and 104 judged nothing, so only 52 drew anything).
   // It still gives its wings to every line that is judged (inv 16: a face taken away as a wing drew phantom lines).
   const covered = hidden ? (f: BodyFace) => hidden.get(f)!.length === 0 : null;
   const skip = covered ? (f: BodyFace, a: V3) => covered(f) || (seams?.skip(f, a) ?? false) : seams?.skip;

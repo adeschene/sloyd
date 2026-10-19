@@ -620,7 +620,7 @@ const curvedParts = new WeakMap<readonly Body[], CurvedPart>();
 const referenceParts = new WeakMap<readonly Body[], CurvedPart>();
 function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[], opts?: { twins?: boolean }): CurvedPart {
   // The TEST-ONLY reference route (`twins: false`) has its own memo, so it is built once per part, never mixed with the default.
-  const memo = opts ? (opts.twins === false ? referenceParts : null) : curvedParts;
+  const memo = opts?.twins === false ? referenceParts : curvedParts;
   const hit = memo?.get(bodies);
   if (hit && hit.holes === holes) return hit;
   // Chunk c2 (stage 2): each face's remainder from faceCover — an exact twin draws nothing without minusCover.

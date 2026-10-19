@@ -12,7 +12,8 @@ import { SWEPT_CASES } from '../document/meshCases';
  * that reach the same shared primitives — clip, ring, clipPolygon, minusCover — through angle cuts, holes and section caps)
  * the bodies (every face's normal and vertices as Float64 bytes, its tags as JSON in key order, the body's box), the edges
  * (Float64 bytes), the smooth joins, every body's mesh (positions, uvs, normals as Float32 bytes, groups), the holes' mesh
- * and a section cap are hashed. The pins were taken on master 7794999, before any fix. They must not move.
+ * and a section cap are hashed. The pins were taken on master 7794999, before any fix. The bodies and caps slots never move; chunk c2 re-recorded the mesh slot
+ * (stage 1, partMesh) and the edges slot (stage 3), each with its proof (partMesh.test.ts; sweepEdges.test.ts' fast == reference), as the PINNED comment records.
  *
  * Each fixture is hashed as built and at a length 1.000123× (the perf guard's kind of key: a fresh geometry, other floats).
  */
