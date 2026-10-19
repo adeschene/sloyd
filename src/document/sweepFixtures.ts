@@ -84,3 +84,8 @@ export const stationFrontToRight = (): Board => topCorners(2, runOf(stopEnd(side
 /** Fix round 2: an End to end on the front of a 36 × 4.02 part with 2" corners: each end's straight side is 0.02", under 2ε (0.0327),
  *  so its B1 stations take NO ε extension and the band's end ray is the arc's bisector, not the station plane (the clip acts). */
 export const shortEnds = (): Board => createBoard({ length: 36, width: 4.02, thickness: 0.75, curves: corners(2), profiles: [endToEnd('p1', side('width', 'min'))] });
+/** Task 6 fix round 1 (the review's I2, M1): a plain 30 × 10 run from the right end at `a` (from the front) round the back and
+ *  the left end to the front at 30 − `gap`: four sides, both stops near the SHARP front-right corner. Within the reach of it
+ *  on both sides, the two ends' bands overlap there. */
+export const cornerGap = (a: number, gap: number): Board => createBoard({ length: 30, width: 10, thickness: 0.75,
+  profiles: [twoSide('p1', side('length', 'max'), a, side('width', 'min'), 30 - gap)] });

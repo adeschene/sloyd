@@ -11,7 +11,7 @@ import { keptSection, oneSideCurve, sweptStops, sweptWasteStations } from './swe
 import { bodyVolume, partGeometry, type Body } from './bodies';
 import { builtPath, profilePath } from './profilePath';
 import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, wrapFour, wrapThree, zoneStop,
-  stationFrontToBack, stationFrontToRight, stationRightToBack } from './sweepFixtures';
+  stationFrontToBack, stationFrontToRight, stationRightToBack, cornerGap } from './sweepFixtures';
 import type { P2 } from './curves';
 import type { Board, HoleRow } from './types';
 
@@ -519,5 +519,40 @@ describe('b2 fix round 2: a B1 station in a two-side run clips only its own end 
       expect(Math.abs(36 * 20 * T - CORNERS - vol - waste)).toBeLessThan(2e-3);
       expect(probeVsBodies(b, 6000)).toEqual([]);
     }, 60_000);
+  }
+});
+
+/*
+ * Task 6 fix round 1 (I2): a run whose two stops sit 0.1" either side of one SHARP corner — the right end from 0.1 round to
+ * the front at 29.9. Where the two ends' bands overlap (x in [29.75, 29.9], y in [0.1, 0.25]) both passes cut, so the wood
+ * is what NEITHER pass removes: written from the 1/4" roundover's own circle (centre R in and R down), never from the code.
+ */
+describe('b2 fix round 1: where a run\'s two ends\' bands overlap, the wood is what neither pass removes (I2)', () => {
+  const R = 0.25;
+  const roundoverWaste = (s: number, t: number) => s >= 0 && s < R && t >= 0 && t < R && Math.hypot(s - R, t - R) > R;
+  const nearArc = (s: number, t: number) => s < R + 0.006 && t < R + 0.006 && Math.abs(Math.hypot(s - R, t - R) - R) <= 0.006;
+  for (const [a, g] of [[0.1, 0.1], [0.2, 0.05]] as const) {
+    it(`cornerGap(${a}, ${g}): every sampled point of the overlap reads the union of both passes' waste`, () => {
+      const b = cornerGap(a, g);
+      expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+      const bodies = partGeometry(b).bodies;
+      const inner = inBodies(bodies, -1e-6), outer = inBodies(bodies, 1e-6);
+      const rand = rng(11);
+      let tested = 0, bad = 0, both = 0;
+      const x0 = b.length - R, x1 = b.length - g, y0 = a, y1 = R;
+      while (tested < 4000) {
+        const x = x0 + rand() * (x1 - x0), y = y0 + rand() * (y1 - y0), z = T - rand() * R;
+        const wood = inner([x, y, z]);
+        if (wood !== outer([x, y, z])) continue;   // on a face
+        // Off each pass's arc by more than its chords' sagitta (the bodies' section is the arc's chords, CURVE_TOLERANCE).
+        if (nearArc(b.length - x, T - z) || nearArc(y, T - z)) continue;
+        tested += 1;
+        const wA = roundoverWaste(b.length - x, T - z), wB = roundoverWaste(y, T - z);
+        if (wA !== wB) both += 1;
+        if (wood !== !(wA || wB)) bad += 1;
+      }
+      expect(both).toBeGreaterThan(100);   // the two passes disagree there: the sample can tell union from either alone
+      expect(bad).toBe(0);
+    });
   }
 });

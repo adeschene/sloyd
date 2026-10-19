@@ -3,10 +3,10 @@ import { axisFrame, partGeometry } from '../document/document';
 import type { Board, BodyFace, V3 } from '../document/document';
 import type { P2 } from '../document/curves';
 import { geometryBoard, profileFaults } from '../document/profiles';
-import { BEARING, runoutNormals, stopAxis, stopRunoutNormals, type StopFrame } from '../document/runout';
+import { BEARING, runoutNormals, stopAxis, stopRunoutNormals, stopRunoutPieces, type StopFrame } from '../document/runout';
 import { oneSideCurve, sweptNormals, sweptStops } from '../document/sweep';
 import { builtPath } from '../document/profilePath';
-import { frontAndEnds, stationFrontToBack, stopOnArch, stopOnCorner } from '../document/sweepFixtures';
+import { cornerGap, frontAndEnds, stationFrontToBack, stopOnArch, stopOnCorner } from '../document/sweepFixtures';
 import { bodyMesh } from './grainTiling';
 
 // Counts stopRunoutNormals' builds (the real function runs): a2 fix F1's lesson, a per-call rebuild failed the perf guard.
@@ -133,14 +133,11 @@ describe('stopRunoutNormals: a stop\'s run-out normal is the section revolved ab
 
 describe('bodyMesh shades a stop\'s run-out smooth in its own frame (profile runs b2)', () => {
   /*
-   * Ruling (Task 6): on the stop plane the run-out's ρ̂ is the stop's MODEL chord normal N (Q12), while the swept band's plan
-   * direction there is the path's own (radial from the corner's centre on an arc). They agree exactly on a straight side; a
-   * stop part-way along an arc's chord meets its band in a crease: the plan directions differ (stopOnCorner's 1.1":
-   * |r̂ − N| = 0.0097 at `at`), and the band's normal reads s off the TRUE arc where the stop's `at` sits on the MODEL chord
-   * (up to the chord's sagitta, 0.0043" at 2"), so the step reaches 0.016 at the junction's deepest vertex — about 0.9°, as
-   * b1's tangent points step by a few thousandths. Not smoothed: a radial frame would contradict Q12 and the bodies' axis.
+   * Task 6 fix round 1 (I1, the controller's ruling): a run-out vertex ON the stop plane — the junction with the band — takes
+   * the BAND's normal (sweptNormals), so band and run-out shade as one there on an arc stop as on a straight one (a2's straight
+   * stop already agrees exactly). Every run-out vertex OFF the plane keeps the revolved normal. Bodies, axis and Q12 untouched.
    */
-  it('stopOnCorner(): on each stop plane the band\'s normal (sweptNormals) and the run-out\'s (the mesh) meet as derived', () => {
+  it('stopOnCorner(): at every junction vertex on both stop planes (arc and straight), every mesh normal is the band\'s (1e-6)', () => {
     const board = stopOnCorner();
     const v = geometryBoard(board);
     const p = v.profiles[0]!;
@@ -148,12 +145,10 @@ describe('bodyMesh shades a stop\'s run-out smooth in its own frame (profile run
     const mesh = meshNormals(board);
     const ros = runoutFaces(board);
     const frames = sweptStops(v, p);
-    const steps: number[] = [];
+    expect(frames.map((fr) => fr.at[0] < 2)).toEqual([true, false]);
     for (const fr of frames) {
-      const axis = stopAxis(fr);
-      // The band's plan direction at the stop: radial from the 2" corner's centre (2, 2) on the arc, N on the straight front.
       const onArc = fr.at[0] < 2;
-      let k = 0, step = 0;
+      let k = 0;
       for (const f of faces(board).filter((x) => x.sweep !== undefined && x.profileEdge?.startsWith('p1:'))) {
         for (const q of f.verts) {
           if (Math.abs(dot2([q[0]! - fr.at[0], q[1]! - fr.at[1]], fr.F)) > 1e-9) continue;
@@ -162,36 +157,40 @@ describe('bodyMesh shades a stop\'s run-out smooth in its own frame (profile run
           // A run-out face meets the band here (watertight: the same vertex).
           if (!ros.some((g) => g.runout === fr.end && g.verts.some((w) => dist(w, q) <= 1e-9))) continue;
           const bn = band(f, q)!;
+          // The band's own normal, independently: radial from the 2" corner's centre (2, 2) on the arc, N on the front.
           const d = Math.hypot(q[0]! - 2, q[1]! - 2);
           const inward: P2 = onArc ? [(2 - q[0]!) / d, (2 - q[1]!) / d] : [fr.N[0], fr.N[1]];
           expect(dist(bn, banded(onArc ? 2 - d : s, t, inward))).toBeLessThanOrEqual(1e-9);
-          const rn = revolved(q, axis);
           const there = mesh.at(q);
           expect(there.length).toBeGreaterThanOrEqual(2);
-          // Every mesh normal at the vertex is the band's or the run-out's (Float32: 1e-6); the run-out's is among them.
-          for (const m of there) expect(Math.min(dist(m, bn), dist(m, rn)), `${q} ${m}`).toBeLessThanOrEqual(1e-6);
-          expect(there.some((m) => dist(m, rn) <= 1e-6)).toBe(true);
-          // The step's two causes (the Ruling above): the plan directions (r̂ against N), and the band reading s off the TRUE
-          // arc while the stop's `at` lies on the MODEL chord (s_band − s_N is at most the corner chords' sagitta,
-          // 2·(1 − cos(π/48)) = 0.0043" at 2"; zero on a straight side). rn is exactly banded(s_N, t, N).
-          expect(dist(rn, banded(s, t, [fr.N[0], fr.N[1]]))).toBeLessThanOrEqual(1e-12);
-          if (onArc) expect(Math.abs((2 - d) - s)).toBeLessThanOrEqual(2 * 2 * Math.sin(Math.PI / 96) ** 2 + 1e-9);
-          // The DERIVED bound (triangle inequality): turning the plan direction from r̂ to N moves the normal by at most
-          // |n_s|·|r̂ − N| ≤ |r̂ − N|, and shifting s by Δs = s_band − s_N turns the arc's normal by at most |Δs| / (R − |Δs|).
-          const ds = onArc ? Math.abs((2 - d) - s) : 0;
-          expect(dist(bn, rn)).toBeLessThanOrEqual(Math.hypot(inward[0] - fr.N[0], inward[1] - fr.N[1]) + ds / (R - ds) + 1e-9);
-          step = Math.max(step, dist(bn, rn));
+          for (const m of there) expect(dist(m, bn), `${onArc ? 'arc' : 'straight'} stop ${q} ${m}`).toBeLessThanOrEqual(1e-6);
           k += 1;
         }
       }
       expect(k).toBeGreaterThan(2);
-      steps.push(step);
-      if (!onArc) expect(step).toBeLessThanOrEqual(1e-6);
-      // Measured 0.0160 (the deepest junction vertex, t → 0; within the derived per-vertex bound above): about 0.9°, for the
-      // user's eye on real hardware. A real crease, not zero.
-      else expect(step).toBeGreaterThan(1e-6);
     }
-    expect(frames.map((fr) => fr.at[0] < 2)).toEqual([true, false]);
+  });
+
+  it('stopOnCorner(): every run-out vertex OFF the stop plane, inside the section, keeps the revolved normal in the mesh (1e-6)', () => {
+    const board = stopOnCorner();
+    const v = geometryBoard(board);
+    const mesh = meshNormals(board);
+    let n = 0;
+    for (const fr of sweptStops(v, v.profiles[0]!)) {
+      const axis = stopAxis(fr);
+      for (const f of runoutFaces(board)) {
+        if (f.runout !== fr.end || !nearAxis(f, axis)) continue;
+        for (const q of f.verts) {
+          if (dot2([q[0]! - fr.at[0], q[1]! - fr.at[1]], fr.F) <= 1e-9) continue;
+          const s = Math.hypot(q[0]! - axis[0], q[1]! - axis[1]) - BEARING, t = T - q[2]!;
+          if (!(s > 1e-4 && s < R - 1e-4 && t > 1e-4 && t < R - 1e-4)) continue;
+          if (Math.abs(Math.hypot(s - R, t - R) - R) > 5e-3) continue;   // on the cutter's surface, not a flat face
+          expect(mesh.at(q).some((m) => dist(m, revolved(q, axis)) <= 1e-6), `${q}`).toBe(true);
+          n += 1;
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(20);
   });
 
   it('stationFrontToBack(): a stop and a B1 station on one part, both tagged \'lo\' — each run-out shades from its OWN axis', () => {
@@ -250,6 +249,41 @@ describe('a stop\'s run-out of a STRAIGHT section edge (a bead\'s quirk wall) sh
       n += 1;
     }
     expect(n).toBeGreaterThan(4);
+  });
+});
+
+describe('two stops near one corner: each run-out face shades from its OWN stop (the end tag decides; Task 6 fix round 1, M1)', () => {
+  it('cornerGap(0.3, 0.3) — the right end at 0.3 round to the front at 29.7: every run-out vertex has its own cutter\'s normal', () => {
+    // The two bit axes are 0.78" apart (30.25, 0.3) and (29.7, −0.25), tagged 'lo' and 'hi': near the corner a face of one lies
+    // nearer the other's axis, so only the face's own `runout` tag picks its frame.
+    const board = cornerGap(0.3, 0.3);
+    expect(profileFaults(board, board.profiles[0]!)).toEqual([]);
+    const v = geometryBoard(board);
+    const frames = sweptStops(v, v.profiles[0]!);
+    expect(frames.map((fr) => fr.end)).toEqual(['lo', 'hi']);
+    const axes = frames.map((fr) => stopAxis(fr));
+    const onCutter = (q: readonly number[], axis: P2) => {
+      const s = Math.hypot(q[0]! - axis[0], q[1]! - axis[1]) - BEARING, t = T - q[2]!;
+      return s > 1e-4 && s < R - 1e-4 && t > 1e-4 && t < R - 1e-4 && Math.abs(Math.hypot(s - R, t - R) - R) <= 5e-3;
+    };
+    const mesh = meshNormals(board);
+    // The tag names the face's OWNER: every run-out face lies on a plane of its tagged stop's own pieces (`stopRunoutPieces`).
+    const planesOf = frames.map((fr) => stopRunoutPieces(v, oneSideCurve(v.profiles[0]!), fr).flatMap((pc) => pc.planes));
+    const onPlanes = (f: BodyFace, k: number) => planesOf[k]!.some((h) => f.verts.every((q) => Math.abs(h.n[0] * q[0]! + h.n[1] * q[1]! + h.n[2] * q[2]! + h.d) <= 1e-9));
+    let n = 0;
+    for (const f of runoutFaces(board)) {
+      const own = frames.findIndex((fr) => fr.end === f.runout);
+      expect(onPlanes(f, own)).toBe(true);
+      for (const q of f.verts) {
+        // On its own cutter's surface, off both stop planes, and not where the two cutters meet.
+        if (!onCutter(q, axes[own]!) || onCutter(q, axes[1 - own]!)) continue;
+        if (frames.some((fr) => Math.abs(dot2([q[0]! - fr.at[0], q[1]! - fr.at[1]], fr.F)) <= 1e-9)) continue;
+        if (!(q[0]! < board.length - 1e-4 && q[1]! > 1e-4)) continue;   // off the part's own end and front faces
+        for (const m of mesh.at(q)) expect(dist(m, revolved(q, axes[own]!)), `${f.runout} ${q} ${m}`).toBeLessThanOrEqual(1e-6);
+        n += 1;
+      }
+    }
+    expect(n).toBeGreaterThan(20);
   });
 });
 

@@ -129,12 +129,25 @@ export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; cl
   let wave = sk.wave;
   for (const st of chain.stations) if (!st.stop) wave = clipWave(chain, wave, st);
   const pts = wave.map((q) => [q[0], q[1]] as P2);
+  // I2 (Task 6 fix round 1): an open run whose two ends' bands overlap crosses its own wavefront there; the inner line is
+  // the loop between the crossing (the tails lie inside the other end's band). No other wavefront crosses itself.
+  const trimmed = chain.loop ? null : trimWave(pts);
+  if (trimmed) return trimmed;
   return pts.length >= 2 ? { pts, closed: chain.loop } : null;
 }
 
 /** The plan pieces of a swept profile before they become half-spaces: the chain, its skeleton, each face (station-clipped),
  *  and the rest of the outline. */
-export interface SweptPlan { chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number }
+export interface SweptPlan {
+  chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number;
+  /** Task 6 fix round 1 (I2): only when two NON-adjacent faces of an open path overlap (a run whose two ends come within the
+   *  reach of each other, round one sharp corner): the band polygons that replace `faces` — each with the chord it carries
+   *  and, for the overlap itself, `also` the other chord, whose kept section it takes too (the router's two passes remove
+   *  the UNION of their waste, so the wood there is the intersection of both kept sections) — and the rest of the outline's
+   *  further simple loops (`rest` is the first). Absent otherwise: every other plan is byte for byte as before. */
+  bands?: { index: number; poly: P2[]; also?: number }[];
+  restMore?: P2[][];
+}
 
 /*
  * The station clips (fix rounds 1 and 2 of b2 Task 5; I1, N1). A b2 STOP never clips: the skeleton already ends its band on
@@ -237,8 +250,102 @@ export function sweptPlan(view: SweepBoard, p: ProfileCut, opts?: { events?: boo
     for (const q of wave) push(q);
     if (pts.length > 1 && near(pts[0]!, pts[pts.length - 1]!)) pts.pop();
     rest = tidy(pts);
+    const overlaps = endOverlaps(faces);
+    if (overlaps.length > 0) {
+      // The rest polygon crosses itself where the two ends' bands overlap: its simple loops, the doubly covered (negative)
+      // one dropped — the overlap belongs to the bands.
+      const loops = simpleLoops(rest).filter((l) => area(l) > 1e-14).map((l) => tidy(l));
+      const bands: { index: number; poly: P2[]; also?: number }[] = [];
+      const polys = faces.map((f) => [f]);
+      for (const { i, j } of overlaps) {
+        polys[i] = polys[i]!.flatMap((f) => convexMinus(f, faces[j]!));
+        polys[j] = polys[j]!.flatMap((f) => convexMinus(f, faces[i]!));
+      }
+      polys.forEach((ps, i) => { for (const poly of ps) bands.push({ index: i, poly }); });
+      for (const { i, j, o } of overlaps) bands.push({ index: i, poly: o, also: j });
+      return { chain, skeleton: sk, faces, rest: loops[0] ?? [], reach, bands, restMore: loops.slice(1) };
+    }
   }
   return { chain, skeleton: sk, faces, rest, reach };
+}
+
+/** A polygon made counter-clockwise. */
+const ccw = (p: readonly P2[]): P2[] => (area(p) < 0 ? p.slice().reverse() : p.slice());
+/** A convex polygon intersected with a convex polygon. */
+function convexAnd(a: readonly P2[], c: readonly P2[]): P2[] {
+  const k = ccw(c);
+  let out: P2[] = a.slice();
+  for (let e = 0; e < k.length && out.length >= 3; e += 1) {
+    const n = leftNormal(k[e]!, k[(e + 1) % k.length]!);
+    out = clip2(out, n, -(n[0] * k[e]![0] + n[1] * k[e]![1]));
+  }
+  return out.length >= 3 ? tidy(out) : [];
+}
+/** A convex polygon minus a convex polygon, as convex pieces: outside each edge of `c` in turn, inside the edges before it. */
+function convexMinus(a: readonly P2[], c: readonly P2[]): P2[][] {
+  const k = ccw(c);
+  const out: P2[][] = [];
+  let rem: P2[] = a.slice();
+  for (let e = 0; e < k.length && rem.length >= 3; e += 1) {
+    const n = leftNormal(k[e]!, k[(e + 1) % k.length]!);
+    const d = -(n[0] * k[e]![0] + n[1] * k[e]![1]);
+    const outside = tidy(clip2(rem, [-n[0], -n[1]], -d));
+    if (outside.length >= 3 && Math.abs(area(outside)) > 1e-14) out.push(outside);
+    rem = clip2(rem, n, d);
+  }
+  return out;
+}
+/** The pairs of NON-adjacent convex faces of an open path that overlap with area, and their overlap (I2). */
+function endOverlaps(faces: readonly P2[][]): { i: number; j: number; o: P2[] }[] {
+  const out: { i: number; j: number; o: P2[] }[] = [];
+  const ok = faces.map((f) => f.length >= 3 && Math.abs(area(f)) > 1e-14 && isConvex(ccw(f)));
+  const bbs = faces.map((f) => (f.length ? bbOf(f) : null));
+  for (let i = 0; i < faces.length; i += 1) {
+    for (let j = i + 2; j < faces.length; j += 1) {
+      if (!ok[i] || !ok[j]) continue;
+      const a = bbs[i]!, b = bbs[j]!;
+      if (a[0] >= b[2] - 1e-12 || b[0] >= a[2] - 1e-12 || a[1] >= b[3] - 1e-12 || b[1] >= a[3] - 1e-12) continue;
+      const o = convexAnd(faces[i]!, faces[j]!);
+      if (o.length >= 3 && Math.abs(area(o)) > 1e-12) out.push({ i, j, o });
+    }
+  }
+  return out;
+}
+/** The proper crossing point of segments p–q and r–s, or null. */
+function crossing(p: P2, q: P2, r: P2, s: P2): P2 | null {
+  const d1: P2 = [q[0] - p[0], q[1] - p[1]], d2: P2 = [s[0] - r[0], s[1] - r[1]];
+  const den = d1[0] * d2[1] - d1[1] * d2[0];
+  if (Math.abs(den) < 1e-18) return null;
+  const t = ((r[0] - p[0]) * d2[1] - (r[1] - p[1]) * d2[0]) / den;
+  const u = ((r[0] - p[0]) * d1[1] - (r[1] - p[1]) * d1[0]) / den;
+  if (t <= 1e-12 || t >= 1 - 1e-12 || u <= 1e-12 || u >= 1 - 1e-12) return null;
+  return [p[0] + t * d1[0], p[1] + t * d1[1]];
+}
+/** A closed polygon split at its proper self-crossings into simple loops (their orientations kept). */
+function simpleLoops(poly: readonly P2[]): P2[][] {
+  const n = poly.length;
+  for (let i = 0; i < n; i += 1) {
+    for (let j = i + 2; j < n; j += 1) {
+      if (i === 0 && j === n - 1) continue;
+      const x = crossing(poly[i]!, poly[(i + 1) % n]!, poly[j]!, poly[(j + 1) % n]!);
+      if (!x) continue;
+      const one = [x, ...poly.slice(i + 1, j + 1)];
+      const two = [...poly.slice(j + 1), ...poly.slice(0, i + 1), x];
+      return [...simpleLoops(one), ...simpleLoops(two)];
+    }
+  }
+  return [poly.slice()];
+}
+/** An open wavefront that crosses itself (I2: the two ends' bands overlap) trimmed to the loop between its first crossing. */
+function trimWave(wave: readonly P2[]): { pts: P2[]; closed: boolean } | null {
+  const n = wave.length;
+  for (let i = 0; i + 1 < n; i += 1) {
+    for (let j = n - 2; j >= i + 2; j -= 1) {
+      const x = crossing(wave[i]!, wave[i + 1]!, wave[j]!, wave[j + 1]!);
+      if (x) return { pts: [x, ...wave.slice(i + 1, j + 1)], closed: true };
+    }
+  }
+  return null;
 }
 
 /** Does segment p–q lie along chord c (both ends on its line, its midpoint within its extent)? */
@@ -300,38 +407,48 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
   };
   const { chain } = plan;
   let groups = 0;
-  plan.faces.forEach((face, i) => {
-    if (face.length < 3 || area(face) < 1e-14) return;
-    const parts = isConvex(face) ? [face] : convexPieces(face, face.map(() => false)).map((x) => x.pts);
+  /** One kept-section piece's planes and tags in chord i's frame, appended. */
+  const section = (i: number, kp: (typeof sec.pieces)[number], planes: { n: V3; d: number }[], tags: BodyFaceTag[]) => {
     const ch: OutlineChord = chain.chords[i]!;
     const P = ch.a;
     const nIn = leftNormal(ch.a, ch.b);
     const nP = nIn[0] * P[0] + nIn[1] * P[1];
     const seg = chain.index[i]!;
     const sTag: BodyFaceTag = ch.curve !== undefined ? { curve: ch.curve } : {};
+    kp.pts.forEach((a, j) => {
+      const b = kp.pts[(j + 1) % kp.pts.length]!;
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (l < 1e-14) return;
+      const ns = -(b[1] - a[1]) / l, nt = (b[0] - a[0]) / l, c = -(ns * a[0] + nt * a[1]);
+      // ns·s + nt·t + c >= 0 with s = nIn·x − nIn·P and t = vIn·(z − vFace).
+      planes.push({ n: [ns * nIn[0], ns * nIn[1], nt * vIn], d: c - ns * nP - nt * vIn * vFace });
+      const name = kp.edge[j]!;
+      tags.push(name !== null ? { profileEdge: name, sweep: seg } : a[0] === 0 && b[0] === 0 ? sTag : {});
+    });
+  };
+  const bands = plan.bands ?? plan.faces.map((poly, index) => ({ index, poly }));
+  for (const { index: i, poly: face, also } of bands as { index: number; poly: P2[]; also?: number }[]) {
+    if (face.length < 3 || area(face) < 1e-14) continue;
+    const parts = isConvex(face) ? [face] : convexPieces(face, face.map(() => false)).map((x) => x.pts);
     for (const fp of parts) {
       const base = prism(fp, chordTag);
       const group = groups;
       groups += 1;
       for (const kp of sec.pieces) {
-        const planes = base.planes.slice();
-        const tags = base.tags.slice();
-        kp.pts.forEach((a, j) => {
-          const b = kp.pts[(j + 1) % kp.pts.length]!;
-          const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-          if (l < 1e-14) return;
-          const ns = -(b[1] - a[1]) / l, nt = (b[0] - a[0]) / l, c = -(ns * a[0] + nt * a[1]);
-          // ns·s + nt·t + c >= 0 with s = nIn·x − nIn·P and t = vIn·(z − vFace).
-          planes.push({ n: [ns * nIn[0], ns * nIn[1], nt * vIn], d: c - ns * nP - nt * vIn * vFace });
-          const name = kp.edge[j]!;
-          tags.push(name !== null ? { profileEdge: name, sweep: seg } : a[0] === 0 && b[0] === 0 ? sTag : {});
-        });
-        out.push({ planes, tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
+        // I2: the two ends' overlap takes BOTH chords' kept sections (each pair of pieces, intersected).
+        for (const kq of also === undefined ? [null] : sec.pieces) {
+          const planes = base.planes.slice();
+          const tags = base.tags.slice();
+          section(i, kp, planes, tags);
+          if (kq) section(also!, kq, planes, tags);
+          out.push({ planes, tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
+        }
       }
     }
-  });
-  if (plan.rest.length >= 3 && area(plan.rest) > 1e-14) {
-    for (const rp of convexPieces(plan.rest, plan.rest.map(() => false))) {
+  }
+  for (const rest of [plan.rest, ...(plan.restMore ?? [])]) {
+    if (rest.length < 3 || area(rest) <= 1e-14) continue;
+    for (const rp of convexPieces(rest, rest.map(() => false))) {
       const { planes, tags } = prism(rp.pts, chordTag);
       out.push({ planes, tags, bb: bbOf(rp.pts), band: false });
     }

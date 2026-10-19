@@ -11,7 +11,7 @@ import { builtSwept, sweptStops } from '../document/sweep';
 import { mirrorPart } from '../document/frames';
 import { defaultHole } from '../document/holes';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, bowFront, chiralTwoSide, frontAndEnds, shortEnds, stationFrontToBack,
-  stationFrontToRight, stationRightToBack, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
+  stationFrontToRight, stationRightToBack, cornerGap, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
 
 /**
  * A curved part's mesh is WATERTIGHT (whole-branch review, finding 1): a SPLIT curve leaves its slices' faces meeting
@@ -390,6 +390,29 @@ describe('a b2 profile\'s mesh is watertight, and its cap has no interior crack 
     expect(unmatched).toBe(0);
   });
   it.each(b2Cases)('%s: the cap across the band', (_name, board) => {
+    expect(capCracks(board, 'top', 0.6)).toBe(0);
+  });
+});
+
+// Task 6 fix round 1 (the review's I2): a four-side run whose two stops sit near ONE sharp corner — within the reach of it on
+// both sides the two ends' bands overlap. Stops 0.05–0.3" from the corner on each side (the review's cases among them).
+const GAPS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3];
+const gapCases: [string, Board][] = GAPS.flatMap((a) => GAPS.map((g) => [`right end at ${a}, front at 30 − ${g}`, cornerGap(a, g)] as [string, Board]));
+describe('a run whose two stops meet near one sharp corner is watertight (Task 6 fix round 1, I2)', () => {
+  it('the fixtures are what they claim: unfaulted, built swept, two stops', () => {
+    for (const [name, b] of gapCases) {
+      const v = geometryBoard(b);
+      expect(profileFaults(b, b.profiles[0]!), name).toEqual([]);
+      expect(builtSwept(v), name).toHaveLength(1);
+      expect(sweptStops(v, v.profiles[0]!), name).toHaveLength(2);
+    }
+  });
+  it.each(gapCases)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it.each(gapCases)('%s: the cap across the band', (_name, board) => {
     expect(capCracks(board, 'top', 0.6)).toBe(0);
   });
 });

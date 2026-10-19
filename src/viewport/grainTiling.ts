@@ -7,7 +7,8 @@ import {
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from '../document/profiles';
 import { profileEdgeOf } from '../document/bodies';
-import { runoutAxis, runoutNormals, sectionFrame, stopAxis, stopRunoutNormals } from '../document/runout';
+import { runoutAxis, runoutNormals, sectionFrame, stopAxis, stopRunoutNormals, type StopFrame } from '../document/runout';
+import { builtPath } from '../document/profilePath';
 import { oneSideCurve, sweptNormals, sweptRunouts, sweptStops } from '../document/sweep';
 import { spanOf } from '../document/curves';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
@@ -281,6 +282,9 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
 }
 
 type RunoutNormals = ReturnType<typeof runoutNormals>;
+/** A stop's run-out normals (profile runs b2, Task 6 fix round 1, I1) → its frame, its profile and the band's path segment at
+ *  that end (`sweep`: the path's first chord at end 'lo', its last at 'hi'): the junction's vertices take the BAND's normal. */
+const stopJunctions = new WeakMap<RunoutNormals, { fr: StopFrame; profile: string; sweep: number }>();
 const runoutMemos = new WeakMap<readonly Body[], Map<string, RunoutNormals | null>>();
 /**
  * A part's run-out normals by curve id, memoised on its bodies (final fix F1). Keyed ONLY on a FROZEN bodies array —
@@ -395,7 +399,12 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     sweptStops(board, p).forEach((fr, i) => {
       if (fr.end !== end) return;
       const key = `${id}@stop${i}`;
-      if (!runouts.has(key)) runouts.set(key, stopRunoutNormals(board, oneSideCurve(p), fr));
+      if (!runouts.has(key)) {
+        const normals = stopRunoutNormals(board, oneSideCurve(p), fr);
+        const n = builtPath(board, p)?.chords.length ?? 0;
+        stopJunctions.set(normals, { fr, profile: p.id, sweep: fr.end === 'lo' ? 0 : n - 1 });
+        runouts.set(key, normals);
+      }
       const a = stopAxis(fr);
       const v = verts[0]!;
       const d = Math.hypot(v[0]! - a[0], v[1]! - a[1]);
@@ -446,7 +455,18 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
     // the revolved edge's normal, so its sectors shade as one surface; tagged faces only, so no other part is touched.
     let line: ((p: readonly number[]) => V3) | null = null;
     const pe = chordsOf && f.runout !== undefined && f.curve === undefined ? profileEdgeOf(f) : null;
-    if (pe) line = runoutFor(pe.curve, f.runout!, f.verts)?.lineNormals(f.runout!, f.verts, pe.a, pe.b) ?? null;
+    const roLine = pe ? runoutFor(pe.curve, f.runout!, f.verts) : null;
+    if (pe) line = roLine?.lineNormals(f.runout!, f.verts, pe.a, pe.b) ?? null;
+    // Task 6 fix round 1 (I1, the controller's ruling): a b2 stop's run-out vertex ON its stop plane (the junction with the
+    // band) takes the BAND's normal (sweptNormals, as the band face beside it would: the end segment's), so band and run-out
+    // shade as one there, on a curve as on a straight side; every other run-out vertex keeps the revolved normal.
+    const jn = (ro && roArc !== null) || line ? stopJunctions.get((ro ?? roLine)!) : undefined;
+    const bandFace = jn ? { ...f, sweep: jn.sweep } : null;
+    const onJunction = (p: readonly number[]) => {
+      const { at, F, N } = jn!.fr;
+      const dx = p[0]! - at[0], dy = p[1]! - at[1];
+      return Math.abs(F[0] * dx + F[1] * dy) <= 1e-9 && N[0] * dx + N[1] * dy >= -1e-9;
+    };
     // Profile runs b1: a swept section face takes the swept surface's normal (already oriented outward).
     const swept = chordsOf && f.sweep !== undefined ? profileEdgeOf(f) : null;
     const sw = swept ? sweptOf(swept.curve) : null;
@@ -459,6 +479,12 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
         return;
       }
       if ((ro && roArc !== null) || line) {
+        const bn = jn && onJunction(p) ? sweptOf(jn.profile)(bandFace!, p) : null;
+        if (bn) {
+          const w = toWorld(bn);
+          out.nor.push(w[0], w[1], w[2]);
+          return;
+        }
         const local = line ? line(p) : ro!.normal(f.runout!, p, roArc!);
         if (local[0] * f.n[0] + local[1] * f.n[1] + local[2] * f.n[2] < 0) { local[0] = -local[0]; local[1] = -local[1]; local[2] = -local[2]; }
         const w = toWorld(local);

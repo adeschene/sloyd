@@ -7,7 +7,7 @@ import { inPolygonClosed, mirrorCurveCut, twiceArea, type P2, type ViewCurve } f
 import { mirrorPart } from './frames';
 import { oneSideCurve, sweptStops } from './sweep';
 import {
-  bowFront, chiralTwoSide, frontAndEnds, stopOnArch, stopOnCorner, stopOnNotch, stopped, topCorners, twoSideSharp, wrapFour, wrapThree, zoneStop,
+  bowFront, chiralTwoSide, cornerGap, frontAndEnds, stopOnArch, stopOnCorner, stopOnNotch, stopped, topCorners, twoSideSharp, wrapFour, wrapThree, zoneStop,
   stationFrontToBack, stationFrontToRight, stationRightToBack, shortEnds,
 } from './sweepFixtures';
 import type { Board, ProfileCut, ProfileSide } from './types';
@@ -233,6 +233,8 @@ const CASES: [string, () => Board, number?][] = [
   ['stationFrontToRight — a stop on the front, a B1 station on the back (N1)', () => stationFrontToRight(), 1],
   ['shortEnds — b1: an End to end whose B1 stations take no ε (the station clip is real there; fix round 2)', () => shortEnds(), 0],
   ['twoSideSharp — two sides round a sharp corner (R6\'s mitre; the distance to two chords meeting convexly IS the mitre)', () => twoSideSharp],
+  ['cornerGap(0.1, 0.1) — both stops 0.1" from one sharp corner: the two ends\' bands overlap (Task 6 fix round 1, I2)', () => cornerGap(0.1, 0.1)],
+  ['cornerGap(0.2, 0.05) — 0.2" and 0.05" from the corner (I2)', () => cornerGap(0.2, 0.05)],
 ];
 
 describe('the wood of a stop on a turned path matches the independent oracle (R-a)', () => {
