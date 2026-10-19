@@ -168,6 +168,15 @@ handicraft education tradition built around hand woodworking.
   skip. Alone, min of 9: ogee loop 80 → 61, cove 61 → 45, bead 56 → 46, two loops 58 → 36, two-side cove 56 → 43 ms; guards lowered only.
   Still over a frame: bead, cove, ogee loops and the two-side cove — **c2** (a spec: the swept mesh and edges built directly, one
   geometry per part; not byte-identical) is next. No schema change; rollback free.
+- **Chunk c2 (2026-10-19, branch `perf-c2`, NOT merged, NOT deployed; plan `…-swept-speed-c2.md`; no schema change, so rollback is free)**: the restructure for swept rebuilds, in three stages. Stage 1:
+  a shaped part draws ONE geometry (`partMesh`), not a mesh per body (313 meshes on the ogee loop). Stage 2: an exact twin seam draws nothing without
+  `minusCover` (`seams.ts`: `twinFaces`, `faceCover`). Stage 3: a face the part's other bodies cover completely makes no edge candidate (it stays a wing).
+  Bodies unchanged. **Gate MISSED**: "all under 40" holds for every row but the ogee loop. Worst minimum alone, before → after: ogee loop 63–72 → 48.1,
+  cove 45–49 → 38.2, bead 41–42 → 40.2 (full run), two loops 35–37 → 41.2 (full run; alone 37.4), two-side cove 43–44 → 38.2. Guards lowered: ogee 89 → 61, bead
+  71 → 51, cove 62 → 48, two-side cove 62 → 48; two loops stays 51. Levers left (spec §5, the user's decision; most grow with the body count, which
+  spec §1 holds fixed): `sweepBodies` (~11 ms), `sectionSeams` (~5), per-body mesh emission and swept normals. Browser (production, software GL):
+  idle two frames 320 → ~183 ms, a commit's two frames 431 → ~270–290. Amendments A1–A4 (*Amended (planning)* in the spec: stage 2 by the twin test alone with no
+  `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) await the user's review. Merge and deploy on the user's word.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
   What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
@@ -272,6 +281,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | profile runs (b1) | 10-18 | — | Profiles follow the outline: End to end round corner arcs and along arches, All round (loops load); swept bodies (`profilePath.ts`, `sweep.ts`), edges, mesh, drawings, faults, words; a saved run too tight to follow runs straight |
 | profile runs (b2) | 10-19 | — | Stops on a turned path (a run-out about the bit's axis in the station chord's frame) and two-side runs (Stop side); a saved a2 stop on a turned path follows, or runs straight with its cause |
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
+| chunk c2 | 10-19 | — | (branch `perf-c2`, unmerged) A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
 
 ### The deployment rule
 
@@ -491,6 +501,8 @@ src/
 │   │                     clips; `SweptPlan.bands`/`restMore` only when an open path's two ends overlap (`endOverlaps`, `convexMinus`,
 │   │                     `simpleLoops`, `trimWave`): the overlap takes BOTH chords' kept sections (any new plan reader takes `bands` when present);
 │   │                     the `overlap` face tag on faces an overlap piece cuts; the probe past a stop is band air ∪ cutter air (a union)
+│   ├── seams.ts          (chunk c2) seamIndex and `uncovered` (moved verbatim from grainTiling), `twinFaces` (exact opposite coplanar twin seams; one test shared with
+│   │                     `withoutSeams`), `faceCover` (the mesh's and the fast edges' ONE cover of a face by the other bodies, memoised on frozen bodies)
 │   ├── sectionEdges.ts   profileEdgeName / profileEdgeOf (moved from bodies.ts, re-exported there) and sectionEdgeNamer: one section-edge
 │   │                     naming for a2's run-outs and b1's bands; a leaf
 │   ├── sweptEdges.ts     sweptSmoothPair (inv 16): which two faces of one swept profile meet with no crease, both ways
@@ -582,6 +594,7 @@ src/
 │                         stopOnCorner, stopOnArch, stopOnNotch, bowFront, frontAndEnds, twoSideSharp, chiralTwoSide, zoneStop,
 │                         wrapThree, wrapFour, the station runs stationRightToBack/FrontToBack/FrontToRight, shortEnds, cornerGap,
 │                         cornerGapAs, overlapKinds/overlapCases; loader-free);
+│                         meshCases.ts (TEST-ONLY c2: sweptIdentity's swept fixtures, moved verbatim, shared by the mesh and edge tests);
 │                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
@@ -623,6 +636,7 @@ src/
 │                     conformed); conform.ts (insertOnEdges, centroidFan, welder, CONFORM_EPS 1e-7); capFill.ts (THE cap fan,
 │                     moved out of BoardMesh; conformed for a curved part); curvesPerf.test.ts (the guard),
 │                     curvesWatertight.test.ts (every directed edge matched), bodyMeshIdentity.test.ts (holed, uncurved: master's bytes)
+│                     c2: grainTiling's `partMesh` (a shaped part's ONE geometry, six material groups; no memo on the bodies, A3: they are shared across poses and ids), twinSkip.test.ts
 │                     b1: bodyMesh shades a swept profile's faces by `sweptNormals` (sweptNormals.test.ts; per face, so a ~0.005 rad step at a
 │                     tangent point); `runoutFor` falls back to `runoutOf` for every view-curve id; b2: a `stop` face takes its cutter from the
 │                     stop frames only (`stopRunoutNormals`), any other run-out face from `sweptRunouts` only; a vertex ON a stop plane takes the
@@ -851,7 +865,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     B1 station on one run can share one): where two passes of one run meet, whatever their end kinds, the crease is drawn. **The
     fast swept edge path skips edges but never faces, and decides a line between two section faces only where both cover the same
     stretch** (`coveredBothSides`); anything else, and every face an overlap piece cuts (`BodyFace.overlap`), is judged by
-    `bodyEdges` with every face (a dropped face or a plane-only match drew phantom lines at T-junctions and stops).
+    `bodyEdges` with every face (a dropped face or a plane-only match drew phantom lines at T-junctions and stops). The fast path makes no candidate of a face the part's other bodies cover completely (`faceCover`); it stays a wing (chunk c2).
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -1194,8 +1208,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (every b1 case, a hinge cup and two loops on one part included; its cap has no interior crack), shaded by `sweptNormals` — the
     true swept surface's, memoised per (view, profile), per face (a ~0.005 rad step at a tangent point, accepted); a B1 run-out cap
     takes the cutter's. Its rebuild guards (`curvesPerf`, MINIMUM of 9): the apron, notch and 1/2" roundover loop at 40 ms;
-    the 2" roundover loop, thumbnail loop and B1 front back at 40 after chunk c1; the bead loop 71, cove 62, ogee 89 and two loops (top and
-    bottom) 51 ms — the worst minimum + 25%, lowered only (chunk c1, 2026-10-19; re-baselined after b2's merge the same day, the user's ruling), fu 393. b2's
+    the 2" roundover loop, thumbnail loop and B1 front back at 40 after chunk c1; after chunk c2 the bead loop 51, cove 48, ogee 61, two-side cove 48 and
+    two loops 51 ms (never raised) — the worst of four minimums (alone twice, full twice) + 25%, lowered only, fu 393/394. **A shaped part is ONE geometry (`partMesh`),
+    never memoised on the bodies (they are shared across poses and ids). An exact twin seam draws nothing without `minusCover` (`faceCover`), judged by area, grain and normals against the reference route (`twinSkip.test.ts`).** b2's
     STOPS are watertight too (every b2 fixture, the station runs, the 36 `cornerGap` rows and the 14 overlap cases, a bore beside a
     run-out; caps uncracked), shaded by `stopRunoutNormals` (the revolved normal, memoised on the frozen bodies as a2's), except a
     vertex ON the stop plane, which takes the band's normal (`sweptNormals`: the junction override, so band and run-out agree at
@@ -1321,7 +1336,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 6419 tests across 182 files
+npm test           # Vitest, currently 6611 tests across 184 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
