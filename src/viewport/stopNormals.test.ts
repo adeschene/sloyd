@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { axisFrame, partGeometry } from '../document/document';
 import type { Board, BodyFace, V3 } from '../document/document';
 import type { P2 } from '../document/curves';
-import { geometryBoard } from '../document/profiles';
+import { geometryBoard, profileFaults } from '../document/profiles';
 import { BEARING, runoutNormals, stopAxis, stopRunoutNormals, type StopFrame } from '../document/runout';
 import { oneSideCurve, sweptNormals, sweptStops } from '../document/sweep';
 import { builtPath } from '../document/profilePath';
@@ -176,6 +176,10 @@ describe('bodyMesh shades a stop\'s run-out smooth in its own frame (profile run
           // 2·(1 − cos(π/48)) = 0.0043" at 2"; zero on a straight side). rn is exactly banded(s_N, t, N).
           expect(dist(rn, banded(s, t, [fr.N[0], fr.N[1]]))).toBeLessThanOrEqual(1e-12);
           if (onArc) expect(Math.abs((2 - d) - s)).toBeLessThanOrEqual(2 * 2 * Math.sin(Math.PI / 96) ** 2 + 1e-9);
+          // The DERIVED bound (triangle inequality): turning the plan direction from r̂ to N moves the normal by at most
+          // |n_s|·|r̂ − N| ≤ |r̂ − N|, and shifting s by Δs = s_band − s_N turns the arc's normal by at most |Δs| / (R − |Δs|).
+          const ds = onArc ? Math.abs((2 - d) - s) : 0;
+          expect(dist(bn, rn)).toBeLessThanOrEqual(Math.hypot(inward[0] - fr.N[0], inward[1] - fr.N[1]) + ds / (R - ds) + 1e-9);
           step = Math.max(step, dist(bn, rn));
           k += 1;
         }
@@ -183,8 +187,9 @@ describe('bodyMesh shades a stop\'s run-out smooth in its own frame (profile run
       expect(k).toBeGreaterThan(2);
       steps.push(step);
       if (!onArc) expect(step).toBeLessThanOrEqual(1e-6);
-      // Measured 0.0160 (the deepest junction vertex, t → 0): about 0.9°, for the user's eye on real hardware.
-      else { expect(step).toBeGreaterThan(1e-6); expect(step).toBeLessThan(0.02); }
+      // Measured 0.0160 (the deepest junction vertex, t → 0; within the derived per-vertex bound above): about 0.9°, for the
+      // user's eye on real hardware. A real crease, not zero.
+      else expect(step).toBeGreaterThan(1e-6);
     }
     expect(frames.map((fr) => fr.at[0] < 2)).toEqual([true, false]);
   });
@@ -220,6 +225,31 @@ describe('bodyMesh shades a stop\'s run-out smooth in its own frame (profile run
       }
       expect(n).toBeGreaterThan(4);
     }
+  });
+});
+
+describe('a stop\'s run-out of a STRAIGHT section edge (a bead\'s quirk wall) shades as the revolved line (lineNormals)', () => {
+  it('stopOnCorner() as a bead 1/4" + 1/16" quirk: past the stop at 30" the wall takes the cylinder\'s normal (1e-5: Float32)', () => {
+    // The quirk's wall stands 5/16" in from the edge, the top 1/16" deep; past the straight stop the cutter revolves it about
+    // the bit's axis 1/4" outside the front (stopAxis: (30, −1/4)) — a cylinder of radius 1/4 + 5/16 = 9/16, its normal
+    // horizontal, toward the axis. Plain cylinder geometry, from the fixture's numbers.
+    const base = stopOnCorner();
+    const board: Board = { ...base, profiles: [{ ...base.profiles[0]!, kind: 'bead', fillet: 1 / 16 }] };
+    expect(board.profiles.flatMap((q) => profileFaults(board, q))).toEqual([]);
+    const v = geometryBoard(board);
+    expect(v.profiles).toHaveLength(1);
+    const fr = sweptStops(v, v.profiles[0]!).find((x) => x.at[0] === 30)!;
+    expect(fr).toMatchObject({ at: [30, 0], F: [1, 0], N: [0, 1] });
+    const ax = stopAxis(fr);
+    let n = 0;
+    for (const { p: q, n: N } of meshNormals(board).all) {
+      if (!(q[0] > 30 + 1e-3 && q[2] > T - 1 / 16 - 1e-6 && q[2] < T + 1e-6 && Math.abs(N[2]) < 0.5)) continue;
+      const rho = Math.hypot(q[0] - ax[0], q[1] - ax[1]);
+      if (Math.abs(rho - 9 / 16) > 1e-5) continue;
+      expect(dist(N, [(ax[0] - q[0]) / rho, (ax[1] - q[1]) / rho, 0]), `${q} ${N}`).toBeLessThanOrEqual(1e-5);
+      n += 1;
+    }
+    expect(n).toBeGreaterThan(4);
   });
 });
 

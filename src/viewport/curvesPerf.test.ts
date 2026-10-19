@@ -42,8 +42,8 @@ const stileArch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length
 const cup = (b: Board): HoleRow[] => [{ id: 'c', ...defaultHingeCup(b), station: 10 }];
 
 /** wrapFour's guard (Task 6): a NEW row with no probe guard, over the 40 ms default — its product's minimum of 9 measured
- *  38.0–42.5 alone (load ~1.4) and 41.5 in a full run, so the highest, 42.5, + 25% (b1's Q4 amendment), for chunk c. */
-const WRAP_FOUR = 54;
+ *  38.0–42.5 alone (load ~1.4) and 41.3–45.5 in three full runs, so the highest, 45.5, + 25% (b1's Q4 amendment), for chunk c. */
+const WRAP_FOUR = 57;
 let tick = 0;
 function rebuild(make: (len: number) => Board): number {
   tick += 1;
