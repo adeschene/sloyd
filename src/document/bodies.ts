@@ -830,6 +830,10 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // A swept profile's station ends (B1) are a2's run-outs: their faces join the band's by a2's rule, keyed by the profile's
   // id (its one-side curve's), the same section-edge index space as the band's (sweep.ts).
   for (const p of swept) for (const c of sweptRunouts(board, p)) if (!stopped.has(c.id)) stopped.set(c.id, curveOutline(board, c).smooth);
+  // Profile runs b2 (Task 7): a swept profile's STOPS (Q12) are run-outs too, tagged by the profile's id in its section's index
+  // space (sweep.ts): registered beside its B1 run-outs, so a2's rule joins their faces. The section's smooth flags are the
+  // same for every one-side curve of the profile (one section), so any one serves.
+  for (const p of swept) if (!stopped.has(p.id) && sweptStops(board, p).length > 0) stopped.set(p.id, curveOutline(board, oneSideCurve(p)).smooth);
   const a2Pair = stopped.size > 0
     ? (a: BodyFace, b: BodyFace) => {
       if (a.runout === undefined && b.runout === undefined) return false;
@@ -851,7 +855,7 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // The fast path's section seams (above), decided by the swept rule alone: two section faces of one profile.
   const loops = new Map(swept.map((p) => [p.id, loopLength(board, swept, p.id)]));
   const seams = fast && sweptPair ? sectionSeams(bodies, sweptPair, (id) => loops.get(id) ?? null) : null;
-  const judged = bodyEdges(seams ? seams.bodies : bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins,
+  const judged = bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins,
     seams?.skip);
   const place = (seg: [V3, V3]) => {
     const u = unit(sub(seg[1], seg[0]));
@@ -869,15 +873,26 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
  * The lines where two SECTION faces of one swept profile meet (curvedEdges' fast path, profile runs b1 Task 6; the curves
  * precedent: lines the construction knows are built, not searched for): along the path where two adjacent section runs of
  * one band meet, and across it where one run's faces on two adjacent path segments meet. Each such face edge is found by
- * the tags alone — it lies on the other strip's plane — so bodyEdges makes no candidate of it (`skip`), and the stretch is
- * decided here by the same smoothPair: drawn, or pushed to `joins`. Anything else meeting such a line still makes its own
+ * the tags — it lies on the other strip's plane — and the line is decided here by the same smoothPair: drawn, or pushed to
+ * `joins`; bodyEdges makes no candidate of its edges (`skip`). Anything else meeting such a line still makes its own
  * candidate in bodyEdges, which judges it with every face (a crease where anything else meets, invariant 16); its output is
- * taken off what is emitted here, so nothing is drawn twice. A section face ALL of whose edges are such is no wing of any
- * other line (bodies are convex pieces of one solid: nothing else lies on its plane inside it), so it is left out of
- * bodyEdges altogether. Never mutates `bodies`.
+ * taken off what is emitted here, so nothing is drawn twice.
+ *
+ * Profile runs b2 (Task 7): the fast path takes CANDIDATES away, never wings, and decides only what it knows:
+ * - A line is decided here only where the two strips' face edges on it COVER EACH OTHER (the merged stretches of strip A's
+ *   edges on the line equal strip B's, within SLIVER). Lying on B's plane does not make an edge of A an edge between A and B:
+ *   past a stop's run-out B's face ends while A's runs on (N5: a bead's quirk floor ran on past the wall the other end's
+ *   run-out removed, and its whole edge was drawn as the floor-to-wall crease). Where they differ, every edge of both on that
+ *   line is left to bodyEdges, which judges it with every face, as the reference does.
+ * - Every face stays in bodyEdges as a wing (b1 dropped a section face all of whose edges were skipped). A seam pair
+ *   `withoutSeams` keeps — two bodies split differently along one plane, a T-junction (N4: the overlapped end's band split
+ *   lengthwise by its overlap, against the next segment's whole band) — has edges on the section faces' lines, and their
+ *   candidates need those faces as wings: without them a smooth junction drew a line. So `withoutSeams`' "a missed pair is
+ *   only slower" holds again.
+ * Never mutates `bodies`.
  */
 function sectionSeams(bodies: readonly Body[], smoothPair: (a: BodyFace, b: BodyFace) => boolean, loopLen: (id: string) => number | null): {
-  bodies: Body[]; skip: (f: BodyFace, a: V3) => boolean; drawn: [V3, V3][]; joins: SmoothJoin[];
+  skip: (f: BodyFace, a: V3) => boolean; drawn: [V3, V3][]; joins: SmoothJoin[];
 } {
   interface Strip { i: number; id: string; sweep: number; a: number; b: number; n: V3; d: number; face: BodyFace; cands?: Strip[] }
   const strips: Strip[] = [];
@@ -923,8 +938,9 @@ function sectionSeams(bodies: readonly Body[], smoothPair: (a: BodyFace, b: Body
     A.cands = out;
     return out;
   };
-  const skipped = new Map<BodyFace, Set<V3>>();
-  const found = new Map<number, { A: Strip; B: Strip; segs: [V3, V3][] }>();
+  // Each match, in face order: its face, start vertex, edge and the side (P's or Q's) it is on.
+  interface Match { f: BodyFace; a: V3; seg: [V3, V3]; side: 0 | 1 }
+  const found = new Map<number, { A: Strip; B: Strip; matches: Match[] }>();
   const M = strips.length + 1;
   for (const { f, st: A } of faces) {
     const cands = candsOf(A);
@@ -940,33 +956,64 @@ function sectionSeams(bodies: readonly Body[], smoothPair: (a: BodyFace, b: Body
           && Math.abs(x.n[0] * b[0] + x.n[1] * b[1] + x.n[2] * b[2] + x.d) <= BODY_EPS) { B = x; break; }
       }
       if (!B) continue;
-      let set = skipped.get(f);
-      if (!set) { set = new Set(); skipped.set(f, set); }
-      set.add(a);
       const [P, Q] = A.i < B.i ? [A, B] : [B, A];
       const k = P.i * M + Q.i;
       let g = found.get(k);
-      if (!g) { g = { A: P, B: Q, segs: [] }; found.set(k, g); }
-      g.segs.push([a, b]);
+      if (!g) { g = { A: P, B: Q, matches: [] }; found.set(k, g); }
+      g.matches.push({ f, a, seg: [a, b], side: A === P ? 0 : 1 });
     }
   }
+  const skipped = new Map<BodyFace, Set<V3>>();
   const drawn: [V3, V3][] = [];
   const joins: SmoothJoin[] = [];
-  for (const { A, B, segs } of found.values()) {
+  for (const { A, B, matches } of found.values()) {
+    const segs = coveredBothSides(matches).map((m) => {
+      let set = skipped.get(m.f);
+      if (!set) { set = new Set(); skipped.set(m.f, set); }
+      set.add(m.a);
+      return m.seg;
+    });
+    if (segs.length === 0) continue;
     const smooth = smoothPair(A.face, B.face);
     for (const seg of mergeCollinear(segs)) {
       if (smooth) joins.push({ a: seg[0], b: seg[1], f1: A.face, f2: B.face });
       else drawn.push(seg);
     }
   }
-  const whole = (f: BodyFace) => {
-    const set = skipped.get(f);
-    if (!set) return false;
-    const vs = f.verts;
-    return vs.every((a, i) => set.has(a) || len(sub(vs[(i + 1) % vs.length]!, a)) <= SLIVER);
+  return { skip: (f, a) => skipped.get(f)?.has(a) ?? false, drawn, joins };
+}
+
+/**
+ * sectionSeams' coverage rule (profile runs b2, Task 7): the matches (in their order) on the lines where both sides' edges
+ * cover the same stretches — each side's edges on the line merged, the two equal within SLIVER. A line where they differ
+ * (one strip's face ends where the other's runs on) keeps none of its matches.
+ */
+function coveredBothSides<M extends { seg: [V3, V3]; side: 0 | 1 }>(matches: readonly M[]): M[] {
+  const lines: { o: V3; u: V3; spans: [[number, number][], [number, number][]] }[] = [];
+  const lineOf = matches.map(({ seg: [a, b], side }) => {
+    let u = unit(sub(b, a));
+    const lead = Math.abs(u[0]) > BODY_EPS ? u[0] : Math.abs(u[1]) > BODY_EPS ? u[1] : u[2];
+    if (lead < 0) u = scale(u, -1);
+    let line = lines.find((l) => len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS);
+    if (!line) { line = { o: a, u, spans: [[], []] }; lines.push(line); }
+    const ta = dot(sub(a, line.o), line.u), tb = dot(sub(b, line.o), line.u);
+    line.spans[side].push([Math.min(ta, tb), Math.max(ta, tb)]);
+    return line;
+  });
+  const union = (spans: [number, number][]) => {
+    const out: [number, number][] = [];
+    for (const s of spans.slice().sort((x, y) => x[0] - y[0])) {
+      const last = out[out.length - 1];
+      if (last && s[0] <= last[1] + SLIVER) last[1] = Math.max(last[1], s[1]);
+      else out.push([s[0], s[1]]);
+    }
+    return out;
   };
-  const kept = bodies.map((b) => (b.faces.some(whole) ? { box: b.box, faces: b.faces.filter((f) => !whole(f)) } : b));
-  return { bodies: kept, skip: (f, a) => skipped.get(f)?.has(a) ?? false, drawn, joins };
+  const covered = new Set(lines.filter((l) => {
+    const p = union(l.spans[0]), q = union(l.spans[1]);
+    return p.length === q.length && p.every((s, i) => Math.abs(s[0] - q[i]![0]) <= SLIVER && Math.abs(s[1] - q[i]![1]) <= SLIVER);
+  }));
+  return matches.filter((_, i) => covered.has(lineOf[i]!));
 }
 
 /** Segments merged where collinear and overlapping or touching (within BODY_EPS): one segment per maximal stretch. */

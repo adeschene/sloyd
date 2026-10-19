@@ -1,13 +1,16 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies';
-import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
+import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve, cornerCurve } from './document';
 import { geometryBoard, profileFaults } from './profiles';
-import { builtSwept, keptSection } from './sweep';
-import { builtPath, profilePath } from './profilePath';
+import { builtSwept, keptSection, sweptStops } from './sweep';
+import { stopAxis } from './runout';
+import { builtPath, faceOutline, profilePath } from './profilePath';
 import type { Segment } from './cuts';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners, overlapCases } from './sweepFixtures';
-import type { Board } from './types';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners, overlapCases, stopOnCorner,
+  overlapKinds, twoSide, stopOnArch, stopOnNotch, bowFront, frontAndEnds, twoSideSharp, chiralTwoSide, zoneStop, wrapThree, wrapFour,
+  shortEnds, stationRightToBack, stationFrontToBack, stationFrontToRight, cornerGap } from './sweepFixtures';
+import type { Board, ProfileCut } from './types';
 
 /*
  * A swept profile's EDGE LINES (profile runs b1, Task 6; spec §5 Lines, invariant 16). Every count below is derived by hand
@@ -495,4 +498,139 @@ describe('the fast swept edges equal the reference where a run\'s two ends\' ban
     expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
     for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
   });
+});
+
+/*
+ * Profile runs b2 (Task 7): a STOP's run-out (Q12) joins smoothly, as a2's does: its facets meet each other, and the band's
+ * section at the stop plane, without a line (one section, so nothing across the stop either); its outline on the broad face
+ * and on the side face (the corner arc's chord faces) is drawn. stopOnCorner: a roundover 1/4" stopped at 1.1 on the 2"
+ * corner arc (mid-chord) and at 30 on the straight front. The run-out lies past the stop plane (F, away from the run) within
+ * BEARING + 1/4 = 1/2" of the bit's axis (BEARING outside the stop's model chord).
+ */
+describe('a stop\'s run-out joins smoothly (profile runs b2, invariant 16)', () => {
+  const b = stopOnCorner();
+  const v = geometryBoard(b);
+  const outline = faceOutline(v)!;
+  const toSide = (q: P) => Math.min(...outline.chords.map((c) => {
+    const dx = c.b[0] - c.a[0], dy = c.b[1] - c.a[1];
+    const t = Math.max(0, Math.min(1, ((q[0] - c.a[0]) * dx + (q[1] - c.a[1]) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(q[0] - c.a[0] - t * dx, q[1] - c.a[1] - t * dy);
+  }));
+  const lines = (boardEdges(b) as Segment[]).map(pts);
+  const stops = sweptStops(v, v.profiles[0]!);
+  it('the fixture is what it claims: two stops, one on the corner arc (off the straight front)', () => {
+    expect(stops).toHaveLength(2);
+    expect(stops.map((f) => f.at[1] > 1e-6)).toEqual([true, false]);
+  });
+  for (const k of [0, 1]) {
+    describe(`stop ${k}`, () => {
+      const fr = stops[k]!;
+      const ax = stopAxis(fr);
+      const past = (q: P) => (q[0] - fr.at[0]) * fr.F[0] + (q[1] - fr.at[1]) * fr.F[1];
+      // Every line with both ends within the run-out's reach of the axis and not before the stop plane.
+      const near = lines.filter((s) => s.every((q) => Math.hypot(q[0] - ax[0], q[1] - ax[1]) <= 0.5 + 1e-9 && past(q) >= -1e-9));
+      const onTop = (s: [P, P]) => s.every((q) => Math.abs(q[2] - 0.75) <= 1e-9);
+      const onSide = (s: [P, P]) => s.every((q) => toSide(q) <= 1e-9);
+      it('no line inside the run-out: every line there lies on the broad face or the side face', () => {
+        expect(near.filter((s) => !onTop(s) && !onSide(s))).toEqual([]);
+      });
+      it('no line across the stop plane between the band and the run-out (one section, Q12)', () => {
+        expect(lines.filter((s) => s.every((q) => Math.abs(past(q)) <= 1e-9) && !onTop(s) && !onSide(s))).toEqual([]);
+      });
+      it('the run-out\'s outline is drawn: on the broad face (its ring, 1/2" from the axis) and on the side face', () => {
+        // A sector chord of the ring, or one clipped where it leaves through the side face: at least one end on the ring.
+        const ring = near.filter((s) => onTop(s) && s.some((q) => Math.abs(Math.hypot(q[0] - ax[0], q[1] - ax[1]) - 0.5) <= 1e-6));
+        expect(ring.length).toBeGreaterThan(2);
+        expect(near.filter((s) => onSide(s) && !onTop(s) && s.some((q) => q[2] > 0.5 + 1e-9)).length).toBeGreaterThan(0);
+      });
+    });
+  }
+});
+
+/** Fast against reference, segments and joins (the comparison of the describes above, for the b2 arrays below). */
+function fastIsReference(board: Board): void {
+  const bodies = boardBodies(board);
+  const jr: SmoothJoin[] = [], jf: SmoothJoin[] = [];
+  const ref = curvedEdges(board, bodies, jr, { reference: true }) as Seg3[];
+  const fast = curvedEdges(board, bodies, jf) as Seg3[];
+  expect(sameRuns(merged(fast), merged(ref))).toBeNull();
+  const a = joinRuns(jf), b = joinRuns(jr);
+  expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
+  for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
+}
+
+// Profile runs b2 (Task 7): every b2 fixture, fast against the reference (a NEW array: sweptEdgeCases and BODIES are b1's pins).
+const b2EdgeCases: [string, Board][] = [
+  ['stopOnCorner', stopOnCorner()], ['stopOnCorner cove 3/8', stopOnCorner('cove', 0.375)], ['stopOnArch', stopOnArch],
+  ['stopOnNotch', stopOnNotch], ['bowFront', bowFront], ['frontAndEnds', frontAndEnds()], ['frontAndEnds cove 3/8', frontAndEnds('cove', 0.375)],
+  ['twoSideSharp', twoSideSharp], ['chiralTwoSide flat', chiralTwoSide('flat')], ['chiralTwoSide upright', chiralTwoSide('upright')],
+  ['chiralTwoSide on-edge', chiralTwoSide('on-edge')], ['zoneStop', zoneStop()], ['wrapThree', wrapThree()], ['wrapFour', wrapFour()],
+  ['shortEnds', shortEnds()], ['stationRightToBack', stationRightToBack()], ['stationFrontToBack', stationFrontToBack()],
+  ['stationFrontToRight', stationFrontToRight()], ['cornerGap(0.1, 0.1)', cornerGap(0.1, 0.1)], ['cornerGap(0.2, 0.05)', cornerGap(0.2, 0.05)],
+];
+describe('the fast swept edges equal the reference on every b2 fixture (profile runs b2)', () => {
+  it('the fixtures are what they claim: every profile built', () => {
+    for (const [name, b] of b2EdgeCases) expect(builtSwept(geometryBoard(b)).length, name).toBe(b.profiles.length);
+  });
+  it.each(b2EdgeCases)('%s', (_name, board) => fastIsReference(board));
+});
+
+/*
+ * Profile runs b2 (Task 7): a PARAMETRIC fast == reference sweep over stops and their run-outs, where the fast path's
+ * adjacency assumptions break (N4: a run's two ends' overlap beside corner arcs; N5: one stop's run-out reaching the other
+ * end's band). Every section kind; on a 30 × 10 × 3/4 part:
+ * - SHARP: a two-side run from the right end at `a` round the back and the left end to the front at 30 − `g` (both stops
+ *   near the SHARP front-right corner), the other three corners rounded at r = 0, 1/4 or 2;
+ * - ARC: all four corners rounded at r = 1/4 or 2; a one-side run on the front stopped `d` from each corner arc's tangent
+ *   point (d < 0 on the arc, d > 0 on the straight), and a two-side run from the left end round the front to the right end,
+ *   both stops `d` from the front corners' tangent points on the ends;
+ * - a mirrored part (mirrorPart) and a face-min part.
+ * Faulted parts (a cove too tight for a 1/4" corner; a stop off its stretch) build nothing and are left out, but each
+ * (kind, family) keeps a floor of built cases, so the sweep cannot pass by building nothing. N4's and N5's repros are named rows.
+ */
+const PART = { length: 30, width: 10, thickness: 0.75 } as const;
+const roundCorners = (r: number, keep: (u: 'min' | 'max', v: 'min' | 'max') => boolean) => r === 0 ? [] : (['min', 'max'] as const)
+  .flatMap((u) => (['min', 'max'] as const).filter((w) => keep(u, w)).map((w) => ({ id: `c${u}${w}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: w, radius: r }) })));
+const asKind = (p: ProfileCut, kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>): ProfileCut => ({ ...p, kind, size, ...extra });
+/** SHARP: the front-right corner (length max, width min) left sharp. */
+const sharpCase = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, a: number, g: number): Board =>
+  createBoard({ ...PART, curves: roundCorners(r, (u, w) => !(u === 'max' && w === 'min')),
+    profiles: [asKind(twoSide('p1', side('length', 'max'), a, side('width', 'min'), 30 - g), kind, size, extra)] });
+/** ARC, one side: the front from `lo` past the min corner arc's tangent point (lo < 0: on the arc, so the run is swept) to
+ *  `hi` short of the max one's (hi < 0: on that arc too). */
+const arcOneSide = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, lo: number, hi: number): Board =>
+  createBoard({ ...PART, curves: roundCorners(r, () => true), profiles: [asKind(stopped('p1', side('width', 'min'), r + lo, 30 - r - hi), kind, size, extra)] });
+const arcTwoSide = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, d: number): Board =>
+  createBoard({ ...PART, curves: roundCorners(r, () => true),
+    profiles: [asKind(twoSide('p1', side('length', 'min'), r + d, side('length', 'max'), r + d), kind, size, extra)] });
+const GAPS: [number, number][] = [[0.05, 0.05], [0.1, 0.1], [0.2, 0.05], [0.5, 0.05], [0.05, 0.5]];
+const ARC_D = [-0.2, -0.05, 0.05, 0.2, 0.5];
+const ARC_ONE: [number, number][] = [[-0.2, -0.05], [-0.2, 0.05], [-0.05, 0.2], [-0.05, 0.5]];
+const sweepCases: { name: string; family: string; kind: string; board: Board }[] = [
+  { name: 'N4: 1/4" corners, roundover stops 0.1" and 0.1" from the sharp corner', family: 'named', kind: 'roundover', board: sharpCase('roundover', 0.25, {}, 0.25, 0.1, 0.1) },
+  { name: 'N5: a bead, one stop 0.05" from the sharp corner (0.5", 0.05")', family: 'named', kind: 'bead', board: sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05) },
+  { name: 'N5: a bead, the other stop 0.05" from the sharp corner (0.05", 0.5")', family: 'named', kind: 'bead', board: sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.05, 0.5) },
+  ...overlapKinds.flatMap(([name, kind, size, extra]) => [
+    ...[0, 0.25, 2].flatMap((r) => GAPS.map(([a, g]) => ({ name: `sharp, r ${r}: ${name}, stops ${a}" and ${g}"`, family: 'sharp', kind: name, board: sharpCase(kind, size, extra, r, a, g) }))),
+    ...[0.25, 2].flatMap((r) => ARC_ONE.map(([lo, hi]) => ({ name: `arc, r ${r}: ${name}, one side, stops ${lo}" and ${hi}" from the tangent points`, family: 'arc', kind: name, board: arcOneSide(kind, size, extra, r, lo, hi) }))),
+    ...[0.25, 2].flatMap((r) => ARC_D.map((d) => ({ name: `arc, r ${r}: ${name}, two sides, stops ${d}" from the tangent points`, family: 'arc', kind: name, board: arcTwoSide(kind, size, extra, r, d) }))),
+  ]),
+  { name: 'mirrored (mirrorPart): ogee facing the edge, sharp, r 2, stops 0.1" and 0.1"', family: 'named', kind: 'ogee', board: mirrorPart(sharpCase('ogee', 0.375, { facing: 'edge' }, 2, 0.1, 0.1)) },
+  { name: 'face min: bead, sharp, r 2, stops 0.5" and 0.05"', family: 'named', kind: 'bead',
+    board: createBoard({ ...PART, curves: roundCorners(2, (u, w) => !(u === 'max' && w === 'min')),
+      profiles: [{ ...twoSide('p1', side('width', 'min'), 29.95, side('length', 'max'), 0.5, 0.25, 'bead'), fillet: 1 / 16, face: 'min' }] }) },
+];
+/** The sweep's built cases, counted (a coverage pin: a change that stops building some must say so). */
+const SWEEP_BUILT = 133;
+const builtCase = (b: Board) => b.profiles.every((p) => profileFaults(b, p).length === 0) && builtSwept(geometryBoard(b)).length === b.profiles.length;
+const sweepBuilt = sweepCases.filter((c) => builtCase(c.board));
+describe('the fast swept edges equal the reference across stops and their run-outs (profile runs b2, the parametric sweep)', () => {
+  it('the sweep builds what it claims: every named row, and at least 4 built cases per kind and family', () => {
+    for (const c of sweepCases.filter((x) => x.family === 'named')) expect(builtCase(c.board), c.name).toBe(true);
+    for (const [name] of overlapKinds) for (const family of ['sharp', 'arc']) {
+      expect(sweepBuilt.filter((c) => c.kind === name && c.family === family).length, `${name}, ${family}`).toBeGreaterThanOrEqual(4);
+    }
+    expect(sweepBuilt.length).toBe(SWEEP_BUILT);
+  });
+  it.each(sweepBuilt.map((c) => [c.name, c.board] as [string, Board]))('%s', (_name, board) => fastIsReference(board));
 });
