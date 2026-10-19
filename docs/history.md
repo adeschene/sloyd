@@ -520,6 +520,23 @@ and 79.
 
 ## What each round did
 
+**What chunk c1 did (2026-10-19)** (the speed of swept rebuilds, fu 393(2) and 394(5); the user's target: every rebuild under
+40 ms at idle). A throwaway spike timed the stages of the slowest rows: roughly a third each to bodies, edges and the mesh, all scaling
+with ~300 seam-heavy bodies (an ogee loop: 313 bodies, 1926 faces); path, skeleton and faults ~1.5 ms; r3f reconciling 313 per-body
+meshes ~100 ms on the DEV build (production unmeasured). Its finding: "all under 40" is not reachable byte-identically for the ogee
+loop. The user chose two steps: **c1**, the byte-identical fixes (a bounded design approved in chat), then **c2**, a spec for the
+restructure. c1 on branch `perf-c1`: first `sweptIdentity.test.ts` (54 swept fixtures at two lengths; bodies, edges, smooth joins,
+meshes, holes, caps), taken on unchanged code; then five kept fixes, each green on it and on the five existing identity suites —
+face plans and arc chords once per board, a faster `deepFreeze`, scalar `clipPolygon`/`minusCover`/`twiceArea`, `clip`/`ring`
+without per-face arrays, `bodyMesh` into Float32Arrays with `bodyEdges`' setup as scalars. **Dropped:** the piece reject (its provable
+form rejected nothing; the touching form cannot be bounded) and the twin skip (an earlier cover can split a face and leave a sliver;
+the pin stayed green with its tolerance loosened to 1e-5, so it could not have guarded it). Alone, min of 9: ogee loop 80 → 61, cove
+61 → 45, bead 56 → 46, two loops 58 → 36, two-side cove 56 → 43; wrapFour 39 → 29; six rows back under 40. Guards lowered only, to
+the worst minimum + 25%, never below 40: bead 71, cove 62, ogee 89 (from a fresh 71.1 ms alone: the review's I1), two loops 51,
+two-side cove 62. The final review (opus): ready to merge; every kept rewrite checked line by line against master's arithmetic; the
+pin caught every value-changing mutation, misses sign-only, threshold-only and Float32-hidden ones (record); a memo-key test was
+added (`facePlansMemo.test.ts`); swept drawings are covered only through the pinned bodies and edges (record). Next: c2.
+
 **What profile runs chunk b2 did (2026-10-19)** (stops on a turned path and two-side runs, B3/B6; fu 390's last half; plan
 `…-profile-runs-b2.md`, probe `docs/superpowers/plans/b2-probe/`; the user approved the plan's Planning questions Q9–Q27 as
 recommended and its three spec fixes — §5's example names its face and the width MIN side; §4.1's run-out `stop-off` yields to

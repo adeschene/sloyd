@@ -72,17 +72,41 @@ function boxFaces(r: Region): BodyFace[] {
 
 /** Points on one plane, de-duplicated and ordered around their centroid: a convex ring. */
 function ring(points: V3[], n: V3): V3[] {
+  // Chunk c1: the same arithmetic with fewer temporaries — the de-duplication's Math.hypot test in the same order, the
+  // centroid as sums from 0 then a division, u and w from the same cross/unit calls (their zero products and signs kept),
+  // each angle atan2((p − c)·w, (p − c)·u) with dot's left-to-right sum, and the points ordered by a stable sort of their
+  // indices under the same comparator (the same comparisons give the same permutation as sorting {p, a} records).
   const pts: V3[] = [];
-  for (const p of points) if (!pts.some((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= BODY_EPS)) pts.push(p);
-  if (pts.length < 3) return [];
-  const c: V3 = [0, 1, 2].map((i) => pts.reduce((s, p) => s + p[i]!, 0) / pts.length) as V3;
+  for (const p of points) {
+    let dup = false;
+    for (let j = 0; j < pts.length; j += 1) {
+      const q = pts[j]!;
+      if (Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) <= BODY_EPS) { dup = true; break; }
+    }
+    if (!dup) pts.push(p);
+  }
+  const k = pts.length;
+  if (k < 3) return [];
+  let c0 = 0, c1 = 0, c2 = 0;
+  for (let j = 0; j < k; j += 1) c0 += pts[j]![0];
+  for (let j = 0; j < k; j += 1) c1 += pts[j]![1];
+  for (let j = 0; j < k; j += 1) c2 += pts[j]![2];
+  c0 /= k; c1 /= k; c2 /= k;
   const helper: V3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
   const u = unit(cross(n, helper));
   const w = cross(n, u);
-  return pts
-    .map((p) => ({ p, a: Math.atan2(dot(sub(p, c), w), dot(sub(p, c), u)) }))
-    .sort((x, y) => x.a - y.a)
-    .map((x) => x.p);
+  const angle = new Float64Array(k);
+  const order: number[] = new Array<number>(k);
+  for (let j = 0; j < k; j += 1) {
+    const p = pts[j]!;
+    const d0 = p[0] - c0, d1 = p[1] - c1, d2 = p[2] - c2;
+    angle[j] = Math.atan2(d0 * w[0] + d1 * w[1] + d2 * w[2], d0 * u[0] + d1 * u[1] + d2 * u[2]);
+    order[j] = j;
+  }
+  order.sort((x, y) => angle[x]! - angle[y]!);
+  const out: V3[] = new Array<V3>(k);
+  for (let j = 0; j < k; j += 1) out[j] = pts[order[j]!]!;
+  return out;
 }
 
 /**
@@ -92,33 +116,52 @@ function ring(points: V3[], n: V3): V3[] {
  * and no cap is added (the plane is already a face).
  */
 function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number; overlap?: true; stop?: true }): BodyFace[] {
-  const g = (p: V3) => dot(h.n, p) + h.d;
-  const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
-  if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
+  // Chunk c1: every vertex's g is `n0 * p[0] + n1 * p[1] + n2 * p[2] + d` — dot(h.n, p) + h.d, the same float — evaluated
+  // as each edge is walked rather than kept in per-face arrays (re-evaluating gives the same number); sides, kept points,
+  // crossings and cap points in the same order as before.
+  const [n0, n1, n2] = h.n;
+  const d = h.d;
+  let cut = false;
+  for (let i = 0; i < faces.length && !cut; i += 1) {
+    const vs = faces[i]!.verts;
+    for (let j = 0; j < vs.length; j += 1) {
+      const p = vs[j]!;
+      if (n0 * p[0] + n1 * p[1] + n2 * p[2] + d < -BODY_EPS) { cut = true; break; }
+    }
+  }
+  if (!cut) return faces;
   const out: BodyFace[] = [];
   const cap: V3[] = [];
   let onPlane = false;
   for (const f of faces) {
-    // Final review F3: each vertex's g once per face (the same value every time it was recomputed).
-    const n = f.verts.length;
-    const gs = f.verts.map(g);
-    const sides = gs.map((v) => (v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0));
-    if (sides.every((x) => x === 0)) onPlane = true;
+    const vs = f.verts;
+    const n = vs.length;
+    if (n === 0) { onPlane = true; continue; }   // as before: no sides, so "every side 0"; nothing kept
     const kept: V3[] = [];
+    let all0 = true;
+    const p0 = vs[0]!;
+    const g0 = n0 * p0[0] + n1 * p0[1] + n2 * p0[2] + d;
+    const s0 = g0 > BODY_EPS ? 1 : g0 < -BODY_EPS ? -1 : 0;
+    let a = p0, ga = g0, sa = s0;
     for (let i = 0; i < n; i += 1) {
-      const a = f.verts[i]!;
-      const b = f.verts[(i + 1) % n]!;
-      const sa = sides[i]!;
-      const sb = sides[(i + 1) % n]!;
+      let b: V3, gb: number, sb: number;
+      if (i + 1 < n) {
+        b = vs[i + 1]!;
+        gb = n0 * b[0] + n1 * b[1] + n2 * b[2] + d;
+        sb = gb > BODY_EPS ? 1 : gb < -BODY_EPS ? -1 : 0;
+      } else { b = p0; gb = g0; sb = s0; }
+      if (sa !== 0) all0 = false;
       if (sa >= 0) kept.push(a);
       if (sa === 0) cap.push(a);
       if (sa * sb < 0) {
-        const t = gs[i]! / (gs[i]! - gs[(i + 1) % n]!);
+        const t = ga / (ga - gb);
         const p: V3 = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])];
         kept.push(p);
         cap.push(p);
       }
+      a = b; ga = gb; sa = sb;
     }
+    if (all0) onPlane = true;
     if (kept.length >= 3) out.push({ ...f, verts: kept });
   }
   if (!onPlane) {
@@ -496,23 +539,45 @@ export function bodyEdges(
   joins?: SmoothJoin[],
   skip?: (f: BodyFace, a: V3) => boolean,
 ): [V3, V3][] {
-  const edgesOf = (f: BodyFace): [V3, V3][] =>
-    f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
+  // Chunk c1: the setup below computes the same numbers as before — len(sub(b, a)) as Math.hypot of the differences, the
+  // centroid as add() sums from [0, 0, 0] then scale(·, 1/n), unit(cross(n, e)), dot's left-to-right sums, scale(·, −1) as
+  // products by −1 — as scalars, without the per-edge pair arrays, their filter, or the sub/cross/unit temporaries, and in
+  // the same order (faces in body order, then face order; edges in vertex order).
+  //
   // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
   // left out of the inside test it would "contain" every point on the line: it is not a face here.
-  const all = bodies.flatMap((b) => b.faces);
-  const allEdges = all.map(edgesOf);
-  const kept = all.map((_, i) => i).filter((i) => allEdges[i]!.length >= 3);
-  const faces = kept.map((i) => all[i]!);
-  const fEdges = kept.map((i) => allEdges[i]!);   // each face's edges once (fu 368: they were rebuilt per line and per test)
-  const cents = faces.map((f) => scale(f.verts.reduce((s, p) => add(s, p), [0, 0, 0] as V3), 1 / f.verts.length));
+  const faces: BodyFace[] = [];
+  const fEdges: [V3, V3][][] = [];   // each face's edges once (fu 368: they were rebuilt per line and per test)
+  for (const body of bodies) for (const f of body.faces) {
+    const vs = f.verts;
+    const k = vs.length;
+    const es: [V3, V3][] = [];
+    for (let i = 0; i < k; i += 1) {
+      const a = vs[i]!, b = vs[(i + 1) % k]!;
+      if (Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) > SLIVER) es.push([a, b]);
+    }
+    if (es.length >= 3) { faces.push(f); fEdges.push(es); }
+  }
+  const cents: V3[] = faces.map((f) => {
+    let c0 = 0, c1 = 0, c2 = 0;
+    for (const p of f.verts) { c0 = c0 + p[0]; c1 = c1 + p[1]; c2 = c2 + p[2]; }
+    const r = 1 / f.verts.length;
+    return [c0 * r, c1 * r, c2 * r];
+  });
   // Final review F3: each face edge's in-plane normal, computed ONCE (they were recomputed per line and per interval —
   // most of a four-edge ogee top's 120 ms). The same expressions as before, so every number is the same float.
-  const fEdgeData = fEdges.map((es, fi) => es.map(([a, b]) => {
-    const e = sub(b, a);
-    const m = unit(cross(faces[fi]!.n, e));
-    return { a, e, m, ee: dot(e, e), inward: dot(m, sub(cents[fi]!, a)) < 0 ? scale(m, -1) : m };
-  }));
+  const fEdgeData = fEdges.map((es, fi) => {
+    const fn = faces[fi]!.n;
+    const c = cents[fi]!;
+    return es.map(([a, b]) => {
+      const e: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const x = fn[1] * e[2] - fn[2] * e[1], y = fn[2] * e[0] - fn[0] * e[2], z = fn[0] * e[1] - fn[1] * e[0];
+      const l = Math.hypot(x, y, z);
+      const m: V3 = [x / l, y / l, z / l];
+      const inward: V3 = m[0] * (c[0] - a[0]) + m[1] * (c[1] - a[1]) + m[2] * (c[2] - a[2]) < 0 ? [m[0] * -1, m[1] * -1, m[2] * -1] : m;
+      return { a, e, m, ee: e[0] * e[0] + e[1] * e[1] + e[2] * e[2], inward };
+    });
+  });
 
   // 1. Lines: every polygon edge, grouped by the line it lies on (direction signed so grouping ignores winding).
   // fu 368: the line an edge joins is the EARLIEST-created line passing the same test as ever (directions within
@@ -526,38 +591,47 @@ export function bodyEdges(
   // may share a key; that only adds candidates, each judged by the same exact test under the same lowest-id rule.
   const cellKey = (i: number, j: number, k: number) => ((i * 73856093) ^ (j * 19349663) ^ (k * 83492791)) | 0;
   const LINE_CELL = 1e-5;
-  const cellOf = (a: V3, u: V3) => { const k = dot(a, u); return [a[0] - k * u[0], a[1] - k * u[1], a[2] - k * u[2]].map((x) => Math.floor(x / LINE_CELL)); };
-  const findLine = (a: V3, u: V3): Line | undefined => {
-    const [x, y, z] = cellOf(a, u) as [number, number, number];
-    let best = -1;
-    for (let i = x - 1; i <= x + 1; i += 1) for (let j = y - 1; j <= y + 1; j += 1) for (let k = z - 1; k <= z + 1; k += 1) {
-      for (const id of cells.get(cellKey(i, j, k)) ?? []) {
-        if (best !== -1 && id >= best) continue;
-        const l = lines[id]!;
-        if (len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS) best = id;
-      }
-    }
-    return best === -1 ? undefined : lines[best];
-  };
   for (let fi = 0; fi < faces.length; fi += 1) {
     const f = faces[fi]!;
     for (const [a, b] of fEdges[fi]!) {
       if (skip && skip(f, a)) continue;
-      let u = unit(sub(b, a));
+      const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+      const dl = Math.hypot(dx, dy, dz);
+      let u: V3 = [dx / dl, dy / dl, dz / dl];
       const lead = Math.abs(u[0]) > BODY_EPS ? u[0] : Math.abs(u[1]) > BODY_EPS ? u[1] : u[2];
-      if (lead < 0) u = scale(u, -1);
+      if (lead < 0) u = [u[0] * -1, u[1] * -1, u[2] * -1];
       if (keep && !keep(a, u, f.n)) continue;
-      let line = findLine(a, u);
-      if (!line) {
+      const [u0, u1, u2] = u;
+      const [a0, a1, a2] = a;
+      // The edge's cell: a's point nearest the origin along u, a − (a·u)u, over LINE_CELL, floored.
+      const ka = a0 * u0 + a1 * u1 + a2 * u2;
+      const cx = Math.floor((a0 - ka * u0) / LINE_CELL), cy = Math.floor((a1 - ka * u1) / LINE_CELL), cz = Math.floor((a2 - ka * u2) / LINE_CELL);
+      // The earliest line passing |l.u × u| <= BODY_EPS and |(a − l.o) × l.u| <= BODY_EPS among the 27 cells' lines.
+      let best = -1;
+      for (let i = cx - 1; i <= cx + 1; i += 1) for (let j = cy - 1; j <= cy + 1; j += 1) for (let k = cz - 1; k <= cz + 1; k += 1) {
+        const ids = cells.get(cellKey(i, j, k));
+        if (!ids) continue;
+        for (const id of ids) {
+          if (best !== -1 && id >= best) continue;
+          const l = lines[id]!;
+          const [v0, v1, v2] = l.u;
+          if (!(Math.hypot(v1 * u2 - v2 * u1, v2 * u0 - v0 * u2, v0 * u1 - v1 * u0) <= BODY_EPS)) continue;
+          const s0 = a0 - l.o[0], s1 = a1 - l.o[1], s2 = a2 - l.o[2];
+          if (Math.hypot(s1 * v2 - s2 * v1, s2 * v0 - s0 * v2, s0 * v1 - s1 * v0) <= BODY_EPS) best = id;
+        }
+      }
+      let line: Line;
+      if (best === -1) {
         line = { o: a, u, ts: [], spans: [] };
-        const [ci, cj, ck] = cellOf(a, u) as [number, number, number];
-        const key = cellKey(ci, cj, ck);
+        const key = cellKey(cx, cy, cz);
         const ids = cells.get(key);
         if (ids) ids.push(lines.length); else cells.set(key, [lines.length]);
         lines.push(line);
-      }
-      const ta = dot(sub(a, line.o), line.u);
-      const tb = dot(sub(b, line.o), line.u);
+      } else line = lines[best]!;
+      const [o0, o1, o2] = line.o;
+      const [w0, w1, w2] = line.u;
+      const ta = (a0 - o0) * w0 + (a1 - o1) * w1 + (a2 - o2) * w2;
+      const tb = (b[0] - o0) * w0 + (b[1] - o1) * w1 + (b[2] - o2) * w2;
       line.ts.push(ta, tb);
       line.spans.push([Math.min(ta, tb), Math.max(ta, tb)]);
     }
@@ -1230,11 +1304,23 @@ export function geometryKey(board: Board): string {
   return `${key}|${swept.map((p) => `${JSON.stringify(p.id)}:${profileValues(p)}`).join(';')}`;
 }
 
+/**
+ * Freeze `o` and everything reachable from it through objects not already frozen (an already-frozen object is not entered:
+ * a memoised, shared structure stays as it is). Chunk c1: the same objects frozen as the `Object.values` recursion it
+ * replaces — an array's elements by index (every array frozen here is built by literals, map, filter, flatMap or push:
+ * indices only, so `Object.values` yields exactly these, holes skipped either way), any other object's own enumerable
+ * properties by `for…in` (the same keys in the same order; no prototype here carries an enumerable property), and a
+ * primitive never entered (it was returned at once) — without the `Object.values` arrays or a call per number. Which
+ * objects get frozen does not depend on the order they are reached in.
+ */
 function deepFreeze<T>(o: T): T {
-  if (typeof o === 'object' && o !== null && !Object.isFrozen(o)) {
-    Object.freeze(o);
-    for (const v of Object.values(o)) deepFreeze(v);
+  if (typeof o !== 'object' || o === null || Object.isFrozen(o)) return o;
+  Object.freeze(o);
+  if (Array.isArray(o)) {
+    for (let i = 0; i < o.length; i += 1) { const v: unknown = o[i]; if (typeof v === 'object' && v !== null) deepFreeze(v); }
+    return o;
   }
+  for (const k in o) { const v: unknown = (o as Record<string, unknown>)[k]; if (typeof v === 'object' && v !== null) deepFreeze(v); }
   return o;
 }
 

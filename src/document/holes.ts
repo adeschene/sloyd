@@ -237,28 +237,37 @@ function prismOf(h: Hole, n: number): Plane[] {
 /** Keep the part of a convex planar polygon where n·x + d ≥ 0 (Sutherland–Hodgman). A vertex within HOLE_EPS of the
  *  plane is ON it and kept. Fewer than three points: []. Returns the SAME array when nothing is cut away. */
 export function clipPolygon(verts: V3[], h: Plane): V3[] {
-  // Each vertex's side computed once (Task 11b: it runs for every wall piece of every hole), the same arithmetic as dot.
+  return clipScalar(verts, h.n[0], h.n[1], h.n[2], h.d);
+}
+
+/**
+ * clipPolygon on a plane given as four numbers (chunk c1: minusCover's planes need no Plane object). Each vertex's side is
+ * `n0 * p[0] + n1 * p[1] + n2 * p[2] + d` — the expression clipPolygon always used, so the same float every time it is
+ * evaluated: the first pass stops at the first vertex cut away (all kept: the same array back), and the second evaluates
+ * each vertex's side again rather than keeping an array of them (Task 11b's `gs`; recomputing gives the same numbers).
+ */
+function clipScalar(verts: V3[], n0: number, n1: number, n2: number, d: number): V3[] {
   const len = verts.length;
-  const gs = new Array<number>(len);
   let kept = true;
   for (let i = 0; i < len; i += 1) {
     const p = verts[i]!;
-    const g = h.n[0] * p[0] + h.n[1] * p[1] + h.n[2] * p[2] + h.d;
-    gs[i] = g;
-    if (!(g >= -HOLE_EPS)) kept = false;
+    if (!(n0 * p[0] + n1 * p[1] + n2 * p[2] + d >= -HOLE_EPS)) { kept = false; break; }
   }
   if (kept) return verts;
   const out: V3[] = [];
+  const p0 = verts[0]!;
+  let a = p0;
+  let ga = n0 * a[0] + n1 * a[1] + n2 * a[2] + d;
   for (let i = 0; i < len; i += 1) {
-    const a = verts[i]!;
-    const b = verts[(i + 1) % len]!;
-    const ga = gs[i]!;
-    const gb = gs[(i + 1) % len]!;
+    const b = i + 1 < len ? verts[i + 1]! : p0;
+    const gb = n0 * b[0] + n1 * b[1] + n2 * b[2] + d;
     if (ga >= -HOLE_EPS) out.push(a);
     if ((ga > HOLE_EPS && gb < -HOLE_EPS) || (ga < -HOLE_EPS && gb > HOLE_EPS)) {
       const t = ga / (ga - gb);
       out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), a[2] + t * (b[2] - a[2])]);
     }
+    a = b;
+    ga = gb;
   }
   return out.length >= 3 ? out : [];
 }
@@ -295,11 +304,15 @@ const flipPlane = (h: Plane): Plane => ({ n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.
 /** Twice-area > this: a piece thinner than a sliver is no piece (bodies.ts' SLIVER, squared). */
 const MIN_AREA = 1e-12;
 function twiceArea(p: V3[]): number {
+  // Chunk c1: the same expressions as before (e = p[i] − p[0], f = p[i+1] − p[0], x += e1·f2 − e2·f1, …), as scalars.
   let x = 0; let y = 0; let z = 0;
+  const q = p[0]!;
+  const q0 = q[0], q1 = q[1], q2 = q[2];
   for (let i = 1; i + 1 < p.length; i += 1) {
-    const e: V3 = [p[i]![0] - p[0]![0], p[i]![1] - p[0]![1], p[i]![2] - p[0]![2]];
-    const f: V3 = [p[i + 1]![0] - p[0]![0], p[i + 1]![1] - p[0]![1], p[i + 1]![2] - p[0]![2]];
-    x += e[1] * f[2] - e[2] * f[1]; y += e[2] * f[0] - e[0] * f[2]; z += e[0] * f[1] - e[1] * f[0];
+    const a = p[i]!, b = p[i + 1]!;
+    const e0 = a[0] - q0, e1 = a[1] - q1, e2 = a[2] - q2;
+    const f0 = b[0] - q0, f1 = b[1] - q1, f2 = b[2] - q2;
+    x += e1 * f2 - e2 * f1; y += e2 * f0 - e0 * f2; z += e0 * f1 - e1 * f0;
   }
   return Math.hypot(x, y, z);
 }
@@ -373,23 +386,32 @@ export function minusPrism(poly: V3[], prism: Plane[]): V3[][] {
  * other way). Ruling R11's seam faces (grainTiling's bodyMesh).
  */
 export function minusCover(poly: V3[], n: V3, cover: readonly V3[]): V3[][] {
-  const c: V3 = [0, 1, 2].map((k) => cover.reduce((s, p) => s + p[k]!, 0) / cover.length) as V3;
+  // Chunk c1: scalars throughout, the same expressions in the same order (the centroid a sum from 0 then a division; m
+  // = n × e, divided by its hypot, flipped toward the centroid by dot's left-to-right sum; d = −(m·a)); the flipped plane
+  // is (−m, −d), the numbers flipPlane gave.
+  const k = cover.length;
+  let c0 = 0, c1 = 0, c2 = 0;
+  for (let j = 0; j < k; j += 1) c0 += cover[j]![0];
+  for (let j = 0; j < k; j += 1) c1 += cover[j]![1];
+  for (let j = 0; j < k; j += 1) c2 += cover[j]![2];
+  c0 /= k; c1 /= k; c2 /= k;
+  const n0 = n[0], n1 = n[1], n2 = n[2];
   const out: V3[][] = [];
   let rest = poly;
-  for (let i = 0; i < cover.length; i += 1) {
+  for (let i = 0; i < k; i += 1) {
     const a = cover[i]!;
-    const b = cover[(i + 1) % cover.length]!;
-    const e: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    let m: V3 = [n[1] * e[2] - n[2] * e[1], n[2] * e[0] - n[0] * e[2], n[0] * e[1] - n[1] * e[0]];
-    const l = Math.hypot(m[0], m[1], m[2]);
+    const b = cover[(i + 1) % k]!;
+    const e0 = b[0] - a[0], e1 = b[1] - a[1], e2 = b[2] - a[2];
+    let m0 = n1 * e2 - n2 * e1, m1 = n2 * e0 - n0 * e2, m2 = n0 * e1 - n1 * e0;
+    const l = Math.hypot(m0, m1, m2);
     if (!(l > 0)) continue;
-    m = [m[0] / l, m[1] / l, m[2] / l];
-    if (dot(m, [c[0] - a[0], c[1] - a[1], c[2] - a[2]]) < 0) m = [-m[0], -m[1], -m[2]];
-    const q: Plane = { n: m, d: -dot(m, a) };
-    const outside = clipPolygon(rest, flipPlane(q));
+    m0 /= l; m1 /= l; m2 /= l;
+    if (m0 * (c0 - a[0]) + m1 * (c1 - a[1]) + m2 * (c2 - a[2]) < 0) { m0 = -m0; m1 = -m1; m2 = -m2; }
+    const d = -(m0 * a[0] + m1 * a[1] + m2 * a[2]);
+    const outside = clipScalar(rest, -m0, -m1, -m2, -d);
     if (outside === rest) return out.length ? [...out, rest] : [poly];
     if (outside.length && twiceArea(outside) > MIN_AREA) out.push(outside);
-    rest = clipPolygon(rest, q);
+    rest = clipScalar(rest, m0, m1, m2, d);
     if (!rest.length) return out;
   }
   return out;
