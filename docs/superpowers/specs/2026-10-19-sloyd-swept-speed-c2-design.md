@@ -1,6 +1,6 @@
 # Sloyd — swept rebuild speed, chunk c2 (design)
 
-**Status:** draft, for the user's review (2026-10-19). Follows chunk c1 (byte-identical speed fixes, deployed as `index-TCisED7E.js`).
+**Status:** approved by the user (2026-10-19); amended in planning (§5, A1–A4) for the user's review with the plan. Follows chunk c1 (byte-identical speed fixes, deployed as `index-TCisED7E.js`).
 Follow-ups: 393(2), 394(5).
 
 ## 1. Goal
@@ -51,6 +51,7 @@ Keep the pieces; change only how the screen mesh and the edge lines are built fr
   - Every other part renders exactly as today, byte for byte (`bodyMeshIdentity` and the `BoxGeometry` route).
 - **Merge.** `bodyMesh` per body is unchanged. A new `partMesh(board, bodies)` in `grainTiling.ts` lays the body meshes out back to back, material by material in BoxGeometry face order (0..5), one group per material. This is the pattern `holesMesh` already uses (`grainTiling.ts` :1054–1085). Body meshes are already board-centred.
 - **Memo.** Memoised on the frozen bodies array, as `curvedPart`'s per-body work is now. A resize builds it once per new bodies object.
+  *Amended (planning), A3: no memo on the bodies — see §5.*
 - **What stays the same.** These carry over to the one mesh:
   - the six grain materials;
   - `polygonOffset`;
@@ -75,6 +76,8 @@ Keep the pieces; change only how the screen mesh and the edge lines are built fr
 - **(i) Section diagonals.** A face on a cut between two convex pieces of one kept section (`keptSection`), within one skeleton face.
 - **(ii) Path joins.** A face on the boundary between two adjacent skeleton faces (a bisector) where both sides are band pieces of the same profile with equal sections.
 - **(iii) Band against rest.** A face where a band piece meets a rest piece of the outline.
+
+*Amended (planning), A1: no tag; the twin test alone decides — see §5.*
 
 **Tagging.** Such a face is tagged `internal` with its partner piece. A new tag, carried like `sweep` / `profileEdge`, and stated in inv 48's tag contract.
 
@@ -106,9 +109,11 @@ Byte-identity is not required here. The criterion is the visible area within 1e-
 
   Each must fail.
 
-**Expected.** The ogee loop at ~40 ms; the others under.
+**Expected.** The ogee loop at ~40 ms; the others under. *Amended (planning): measured, ~45–50 after all three stages — see §5.*
 
 ### 2.3 Stage 3 — swept edge lines from tags (conditional)
+
+*Amended (planning), A2 and A4: covered faces make no candidate (instead of tags deciding every swept–swept line); its condition is already met — see §5.*
 
 **When it runs.** Only if, after stage 2, any row is over 40 ms, or within ~15% of 40 (34 ms) in a full-suite run. Otherwise it is skipped, and the round's record says so.
 
@@ -143,3 +148,36 @@ Each mutation of the new rule (decide a line whose strips differ; drop a run-out
   - A face dropped while its partner is gone opens a hole in the mesh. The leak check catches it, but only on fixtures it runs.
   - So the partner-removed fixtures are added explicitly: a stop and a cut through a band.
 - **Stage 3 repeats b2's bug class** (phantom and missing lines). It is gated on need, and judged by the same tests that caught b2's.
+
+## 5. Amended (planning), 2026-10-19
+
+Measured on master `52ebda5` (c1), min of 9, this file alone. Edges and mesh dominate; bodies are ~8–11 ms. The ogee loop:
+bodies 10.6, edges 23.6 (`bodyEdges` 13.9), mesh 28–32 (seams and weld 16). Three throwaway prototypes, reverted:
+- **The twin skip** (an exact twin draws nothing without `minusCover`): the ogee loop's mesh 28 → 18 ms. All 54
+  `sweptIdentity` pins stayed byte-identical; `curvesWatertight` passed.
+- **Lazy per-face data in `bodyEdges`:** no gain. The cost is judging lines, not setup.
+- **No candidate from a fully covered face:** of the ogee loop's 416 judged lines, 52 draw anything, 208 judge to no wings
+  and 104 to nothing. `bodyEdges` 14 → 7.7 ms. All 307 `sweepEdges` tests passed (fast == reference, segments and joins).
+
+- **A1 — stage 2 by the twin test alone; no `internal` tag.**
+  - A new face tag changes every pinned bodies hash (`sweptIdentity`, `sweepEdges`' `BODIES`), which §1 forbids.
+  - §2.2's own presence test (an opposite, coplanar face equal within `BODY_EPS`) is the twin test. A twin can only be
+    another body lying against the face, so stock is on both sides.
+  - This is the "twin skip" c1 dropped as not provably byte-identical, now accepted under this spec's criterion: area per
+    material within 1e-9, material, uv and normal at every drawn point, and the leak check, against today's route.
+  - The mutation "tag a non-internal face" becomes "loosen the twin test".
+- **A2 — stage 3 removes candidates, never faces.**
+  - `bodyEdges` makes no candidate line from a face the part's other bodies cover completely (its remainder empty). Every
+    face stays a wing (b2's phantom lines came from dropped wings).
+  - A crease is always bounded by a face you can see, whose own edge still makes the candidate.
+  - Judged as §2.3 says: fast == reference on every b1/b2 fixture, the 153-case sweep, the overlap cases and `CREASE_MIN`,
+    plus every `sweptIdentity` fixture.
+  - `sectionSeams` is unchanged.
+- **A3 — no memo on `partMesh`.** Frozen bodies are shared by every part with one `geometryKey`, which holds no pose and no
+  id, while a mesh's positions follow the pose and its uvs the id. BoardMesh's `useMemo` (keyed on `boardUVSignature`) is
+  the memo.
+- **A4 — stage 3 runs.** Rows are within 15% of 40 after stage 2 (§2.3's condition); the plan re-measures at its gate.
+- **Expected:** after all three stages, the ogee loop ~45–50 ms; cove, bead, two loops and the two-side cove ~33–38 at
+  idle. **"All under 40" is not expected for the ogee loop.** The plan stops at a gate there and reports. The levers left
+  are the bodies (~11 ms, `sweepBodies`), `sectionSeams` (~5) and per-body mesh emission with swept normals (~11 on the
+  ogee loop). Most of that grows with the body count, which §1 holds fixed: relaxing §1 is the user's decision.

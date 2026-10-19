@@ -75,7 +75,7 @@ Three throwaway prototypes were run on master and reverted:
 
 | File | Change | Responsibility |
 |---|---|---|
-| `src/document/sweptCases.ts` | **Create** (TEST-ONLY, Task 2) | The 54 swept fixtures `sweptIdentity` hashes, moved verbatim, so the new tests share them. Imports document modules only. |
+| `src/document/meshCases.ts` | **Create** (TEST-ONLY, Task 2) | `SWEPT_CASES`: the 54 swept fixtures `sweptIdentity` hashes, moved verbatim. `CURVED_CASES`: the plain curved parts (arches, notches, a bow, the L-notch, arch + dado, the four-edge sets, the holed side and stile) that stages 1 and 2 also reach. Imports document modules only. |
 | `src/viewport/sweptIdentity.test.ts` | Modify (Tasks 2, 4) | Import the cases. The mesh slot hashes `partMesh` for a shaped part (re-recorded once). Edge slot re-recorded in Task 4. |
 | `src/viewport/grainTiling.ts` | Modify (Tasks 2, 3) | `partMesh` and `concatMeshes` (shared with `holesMesh`). In Task 3, `curvedPart` reads `faceCover`, and the seam code moves out. |
 | `src/viewport/BoardMesh.tsx` | Modify (Task 2) | One `<mesh>` for a shaped part. |
@@ -85,7 +85,7 @@ Three throwaway prototypes were run on master and reverted:
 | `src/document/seams.ts` | **Create** (Task 3) | `seamIndex`, `facingAgainst`, `uncovered` (moved verbatim), `twinFaces`, `faceCover`. |
 | `src/viewport/twinSkip.test.ts` | **Create** (Task 3) | Stage 2's coverage, grain and normal, leak, partner-removed and mutation-resistant tests. |
 | `src/document/bodies.ts` | Modify (Task 4) | `curvedEdges`' fast path skips candidates of fully covered faces. |
-| `src/document/sweepEdges.test.ts` | Modify (Task 4) | fast == reference on every `sweptCases` fixture with a built swept profile. |
+| `src/document/sweepEdges.test.ts` | Modify (Task 4) | fast == reference on every `meshCases` fixture with a built swept profile. |
 | `docs/browser-verification-swept-speed-c2.md` | **Create** (Tasks 1, 6) | Browser timings before and after; the live pass. |
 | `CLAUDE.md`, `docs/history.md`, `docs/follow-ups.md` | Modify (Task 6) | The round's record. |
 
@@ -102,9 +102,9 @@ Three throwaway prototypes were run on master and reverted:
 - [ ] **Step 1: Branch**
 
 ```bash
-cd /home/alec/docker/sloyd && git checkout -b perf-c2 && git status --short
+cd /home/alec/docker/sloyd && git checkout -b perf-c2 && mkdir -p tmp/c2 && git status --short
 ```
-Expected: `Switched to a new branch 'perf-c2'`, and a clean tree.
+Expected: `Switched to a new branch 'perf-c2'`, and a clean tree. `tmp/` is gitignored: every scratch log below goes in `tmp/c2/` (run `mkdir -p tmp/c2` again if it is gone).
 
 - [ ] **Step 2: Build and serve the production bundle on its own port**
 
@@ -188,7 +188,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Stage 1 — one geometry per shaped part
 
 **Files:**
-- Create: `src/document/sweptCases.ts`
+- Create: `src/document/meshCases.ts`
 - Create: `src/viewport/partMesh.test.ts`
 - Modify: `src/viewport/grainTiling.ts` (`holesMesh` at :1054–1085; add `concatMeshes`, `partMesh`)
 - Modify: `src/viewport/BoardMesh.tsx` (the `geometries` memo, :141–198)
@@ -200,11 +200,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Produces:
   - `export type PartMeshData = { positions: Float32Array; uvs: Float32Array; normals: Float32Array; groups: { start: number; count: number; materialIndex: number }[] }`
   - `export function partMesh(board: Board, bodies: readonly Body[], holes: readonly Hole[]): PartMeshData` (Task 3 adds an optional 4th parameter `opts?: { twins?: boolean }`).
-  - `export const SWEPT_CASES: [string, Board][]` from `src/document/sweptCases.ts`.
+  - `export const SWEPT_CASES: [string, Board][]` and `export const CURVED_CASES: [string, Board][]` from `src/document/meshCases.ts`.
 
 - [ ] **Step 1: Move the fixture list out of `sweptIdentity.test.ts`**
 
-Create `src/document/sweptCases.ts`. Its header:
+Create `src/document/meshCases.ts`. Its header:
 ```ts
 /**
  * TEST-ONLY (chunk c2): the swept fixtures chunk c1's identity pins hash (`viewport/sweptIdentity.test.ts`), shared by c2's
@@ -223,8 +223,47 @@ Rename `cases` to `export const SWEPT_CASES: [string, Board][]`. Rewrite the imp
 
 In `sweptIdentity.test.ts`:
 1. Delete the moved lines and the imports only they used.
-2. Add `import { SWEPT_CASES } from '../document/sweptCases';`.
+2. Add `import { SWEPT_CASES } from '../document/meshCases';`.
 3. Replace `it.each(cases)` with `it.each(SWEPT_CASES)`.
+
+Then append the plain curved parts (stages 1 and 2 reach every `shapedPart`, not only swept ones; taken from `curvesWatertight.test.ts` and `curvesPerf.test.ts`). Add `archCurve, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultProfile, defaultShelfPinRow, PROFILE_EDGES` to the `./document` import and `CurveCut, HoleRow` to the type import:
+```ts
+/** Chunk c2: plain curved parts (no swept profile). Every one is a shapedPart, so partMesh and faceCover reach them too. */
+const apron = { length: 30, width: 5, thickness: 0.75 };
+const arch: CurveCut = { id: 'a', ...defaultArch(apron)! };
+const notch: CurveCut = { id: 'n', ...defaultNotch(apron)! };
+const bow: CurveCut = { id: 'b', ...defaultBow(apron) };
+const notchL: CurveCut = {
+  id: 'L', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [10, 0],
+  segments: [
+    { type: 'line', to: [16, 0] }, { type: 'line', to: [16, 1] }, { type: 'line', to: [12, 1] }, { type: 'line', to: [12, 2.5] },
+    { type: 'arc', to: [10, 2.5], side: 'right', rise: 0.5 }, { type: 'line', to: [10, 0] },
+  ],
+};
+const archDado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 28, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+const top = { length: 36, width: 20, thickness: 0.75 };
+const fourEdge = (kind: 'roundover' | 'cove' | 'bead' | 'ogee') => createBoard({ ...top,
+  curves: PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i): CurveCut => ({ id: `${kind}${i}`, ...defaultProfile(top, kind, e) })) });
+const shelf = { length: 36, width: 10, thickness: 0.75 };
+const bookSide = { length: 36, width: 11.25, thickness: 0.75 };
+const sideArch: CurveCut = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 4, span: 28, rise: 1 }) };
+const pinRows = (b: Board): HoleRow[] => { const row = defaultShelfPinRow(b)!; return [{ id: 'f', ...row, inset: 2 }, { id: 'b', ...row, acrossFrom: 'max', inset: 2 }]; };
+const stile = { length: 30, width: 5, thickness: 0.75 };
+const stileArch: CurveCut = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 6, span: 18, rise: 1 }) };
+export const CURVED_CASES: [string, Board][] = [
+  ['the default Arch', createBoard({ ...apron, curves: [arch] })],
+  ['the default Half-round notch', createBoard({ ...apron, curves: [notch] })],
+  ['a Bow on a part lengthened past its span', createBoard({ ...apron, length: 36, curves: [bow] })],
+  ['an L-shaped notch with one arc', createBoard({ ...apron, curves: [notchL] })],
+  ['the Arch beside a dado', createBoard({ ...apron, curves: [arch], cuts: [archDado] })],
+  ...(['roundover', 'cove', 'bead', 'ogee'] as const).map((k): [string, Board] => [`a top with the four-edge ${k} set`, fourEdge(k)]),
+  ['a shelf with an ogee on a long edge and a bead on an end', createBoard({ ...shelf, curves: [
+    { id: 'o', ...defaultProfile(shelf, 'ogee') }, { id: 'b', ...defaultProfile(shelf, 'bead', { through: 'width', uFrom: 'max', vFrom: 'max' }) }] })],
+  ['an arched bookcase side with two shelf-pin rows', createBoard({ ...bookSide, curves: [sideArch], holes: pinRows(createBoard({ ...bookSide, curves: [sideArch] })) })],
+  ['an arched stile with a 35 mm hinge cup', createBoard({ ...stile, curves: [stileArch],
+    holes: [{ id: 'c', ...defaultHingeCup(createBoard({ ...stile, curves: [stileArch] })), station: 10 }] })],
+];
+```
 
 Run:
 ```bash
@@ -239,7 +278,7 @@ Create `src/viewport/partMesh.test.ts`:
 import { partGeometry } from '../document/document';
 import type { Board } from '../document/document';
 import { geometryBoard, shapedPart } from '../document/profiles';
-import { SWEPT_CASES } from '../document/sweptCases';
+import { CURVED_CASES, SWEPT_CASES } from '../document/meshCases';
 import { topCorners, loop } from '../document/sweepFixtures';
 import { bodyMesh, drawsAsBox, partMesh } from './grainTiling';
 
@@ -264,11 +303,12 @@ function concatenated(board: Board): Map<number, { positions: number[]; uvs: num
   return out;
 }
 
-const shaped = SWEPT_CASES.filter(([, b]) => shapedPart(geometryBoard(b)));
+const shaped = [...SWEPT_CASES, ...CURVED_CASES].filter(([, b]) => shapedPart(geometryBoard(b)));
 
 describe('partMesh: a shaped part\'s bodies in one geometry (chunk c2, stage 1)', () => {
   it('the fixtures are shaped parts, every body through bodyMesh', () => {
-    expect(shaped.length).toBeGreaterThan(50);
+    expect(shaped.length).toBeGreaterThan(50 + CURVED_CASES.length);
+    expect(CURVED_CASES.every(([, b]) => shapedPart(geometryBoard(b)))).toBe(true);
     for (const [name, b] of shaped) {
       const { bodies, holes } = partGeometry(b);
       expect(bodies.every((body) => !drawsAsBox(b, body, holes)), name).toBe(true);
@@ -406,7 +446,7 @@ In `sweptIdentity.test.ts`:
 ```
 Then regenerate:
 ```bash
-cd /home/alec/docker/sloyd && rm -f /tmp/claude-1000/c2-pins.txt && SLOYD_PIN_LOG=/tmp/claude-1000/c2-pins.txt npx vitest run src/viewport/sweptIdentity.test.ts > /dev/null 2>&1; wc -l /tmp/claude-1000/c2-pins.txt
+cd /home/alec/docker/sloyd && rm -f tmp/c2/c2-pins.txt && SLOYD_PIN_LOG=tmp/c2/c2-pins.txt npx vitest run src/viewport/sweptIdentity.test.ts > /dev/null 2>&1; wc -l tmp/c2/c2-pins.txt
 ```
 Expected: 54 lines.
 
@@ -416,7 +456,7 @@ cd /home/alec/docker/sloyd && python3 - <<'EOF'
 import re, ast
 src = open('src/viewport/sweptIdentity.test.ts').read()
 old = dict(re.findall(r'^\s*(".*?"): (\[.*?\]),$', src, re.M))
-new = dict(re.findall(r'^\s*(".*?"): (\[.*?\]),$', open('/tmp/claude-1000/c2-pins.txt').read(), re.M))
+new = dict(re.findall(r'^\s*(".*?"): (\[.*?\]),$', open('tmp/c2/c2-pins.txt').read(), re.M))
 assert old.keys() == new.keys(), (len(old), len(new))
 moved = 0
 for k in old:
@@ -493,7 +533,7 @@ Update the memo's leading comment from "One geometry per solid." to "One geometr
 
 Close the Playwright browser if open. Then run:
 ```bash
-cd /home/alec/docker/sloyd && npm run build 2>&1 | tail -3 && npm test > /tmp/claude-1000/c2-t2.txt 2>&1; tail -6 /tmp/claude-1000/c2-t2.txt
+cd /home/alec/docker/sloyd && npm run build 2>&1 | tail -3 && npm test > tmp/c2/c2-t2.txt 2>&1; tail -6 tmp/c2/c2-t2.txt
 ```
 Expected:
 - the build prints `✓ built`;
@@ -504,7 +544,7 @@ A wall-clock guard failing once under load is re-run alone; report it either way
 - [ ] **Step 10: Commit**
 
 ```bash
-git add src/document/sweptCases.ts src/viewport/partMesh.test.ts src/viewport/grainTiling.ts src/viewport/BoardMesh.tsx src/viewport/sweptIdentity.test.ts src/viewport/curvesWatertight.test.ts src/viewport/curvesPerf.test.ts
+git add src/document/meshCases.ts src/viewport/partMesh.test.ts src/viewport/grainTiling.ts src/viewport/BoardMesh.tsx src/viewport/sweptIdentity.test.ts src/viewport/curvesWatertight.test.ts src/viewport/curvesPerf.test.ts
 git commit -m "perf(c2 stage 1): a shaped part draws one geometry (partMesh), not a mesh per body
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -575,7 +615,7 @@ import { partGeometry } from '../document/document';
 import type { Board } from '../document/document';
 import { faceCover, twinFaces } from '../document/seams';
 import { geometryBoard, shapedPart } from '../document/profiles';
-import { SWEPT_CASES } from '../document/sweptCases';
+import { CURVED_CASES, SWEPT_CASES } from '../document/meshCases';
 import { loop, stopOnCorner, topCorners } from '../document/sweepFixtures';
 import { partMesh, type PartMeshData } from './grainTiling';
 
@@ -586,7 +626,9 @@ import { partMesh, type PartMeshData } from './grainTiling';
  * material, uv and normal, and the mesh stays watertight (curvesWatertight reads partMesh). The reference is today's route
  * for every face (`twins: false`).
  */
-const shaped = SWEPT_CASES.filter(([, b]) => shapedPart(geometryBoard(b)));
+// Every shaped part: the swept fixtures and the plain curved ones (a split arch, the four-edge sets, a holed arched side —
+// mergeHoledPlanes reads faceCover's per-body faces too).
+const shaped = [...SWEPT_CASES, ...CURVED_CASES].filter(([, b]) => shapedPart(geometryBoard(b)));
 const ogee = topCorners(2, loop('p1', 0.375, 'ogee'));
 
 type T = { p: number[]; uv: number[]; n: number[] };
@@ -818,7 +860,7 @@ If a mutation survives, report it with the reason. An equivalent mutant is a rul
 - [ ] **Step 7: Full suite and typecheck, then commit**
 
 ```bash
-cd /home/alec/docker/sloyd && npm run build 2>&1 | tail -3 && npm test > /tmp/claude-1000/c2-t3.txt 2>&1; tail -6 /tmp/claude-1000/c2-t3.txt
+cd /home/alec/docker/sloyd && npm run build 2>&1 | tail -3 && npm test > tmp/c2/c2-t3.txt 2>&1; tail -6 tmp/c2/c2-t3.txt
 ```
 Expected: the build prints `✓ built`, and every test passes.
 ```bash
@@ -845,7 +887,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 Measure every `curvesPerf` row after stage 2, alone and in one full run:
 ```bash
-cd /home/alec/docker/sloyd && rm -f /tmp/claude-1000/c2-perf-s2.txt && SLOYD_PERF_LOG=/tmp/claude-1000/c2-perf-s2.txt npx vitest run src/viewport/curvesPerf.test.ts > /dev/null 2>&1; SLOYD_PERF_LOG=/tmp/claude-1000/c2-perf-s2-full.txt npm test > /dev/null 2>&1; uptime; sort -t$'\t' -k2 -n -r /tmp/claude-1000/c2-perf-s2-full.txt | head -8
+cd /home/alec/docker/sloyd && rm -f tmp/c2/c2-perf-s2.txt && SLOYD_PERF_LOG=tmp/c2/c2-perf-s2.txt npx vitest run src/viewport/curvesPerf.test.ts > /dev/null 2>&1; rm -f tmp/c2/c2-perf-s2-full.txt && SLOYD_PERF_LOG=tmp/c2/c2-perf-s2-full.txt npm test > /dev/null 2>&1; uptime; sort -t$'\t' -k2 -n -r tmp/c2/c2-perf-s2-full.txt | head -8
 ```
 Rule:
 - **Stage 3 runs** if any row is over 40 ms, or over 34 ms in the full run.
@@ -856,12 +898,12 @@ The planning measurement expects it to run.
 - [ ] **Step 2: Write the failing test — fast == reference on every shared fixture**
 
 In `src/document/sweepEdges.test.ts`:
-1. Import `SWEPT_CASES` from `'./sweptCases'`.
+1. Import `SWEPT_CASES` from `'./meshCases'`.
 2. After the `b2EdgeCases` describe, add:
 ```ts
 // Chunk c2 (stage 3, amendment A2): the fast path makes no candidate of a face other bodies cover completely; every face
 // stays a wing. Judged as every fast path is: fast == reference, segments and joins, no crease joined — on every swept
-// fixture chunk c1's identity pins hash (sweptCases.ts), the loops among them.
+// fixture chunk c1's identity pins hash (meshCases.ts), the loops among them.
 describe('the fast swept edges equal the reference on every swept identity fixture (chunk c2)', () => {
   const built = SWEPT_CASES.filter(([, b]) => builtSwept(geometryBoard(b)).length > 0);
   it('the fixtures are what they claim', () => { expect(built.length).toBeGreaterThan(50); });
@@ -932,7 +974,7 @@ Then run the full suite. A DRAWING test whose hash moved (Review Focus 4: `drawi
 - [ ] **Step 6: Typecheck, full suite, commit**
 
 ```bash
-cd /home/alec/docker/sloyd && npm run build 2>&1 | tail -3 && npm test > /tmp/claude-1000/c2-t4.txt 2>&1; tail -6 /tmp/claude-1000/c2-t4.txt
+cd /home/alec/docker/sloyd && npm run build 2>&1 | tail -3 && npm test > tmp/c2/c2-t4.txt 2>&1; tail -6 tmp/c2/c2-t4.txt
 git add src/document/bodies.ts src/document/sweepEdges.test.ts src/viewport/sweptIdentity.test.ts
 git commit -m "perf(c2 stage 3): a face other bodies cover completely makes no edge candidate (stays a wing)
 
@@ -953,13 +995,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 Close the Playwright browser. Then run in sequence, never in parallel:
 ```bash
-cd /home/alec/docker/sloyd && for i in 1 2; do uptime; SLOYD_PERF_LOG=/tmp/claude-1000/c2-alone-$i.txt npx vitest run src/viewport/curvesPerf.test.ts > /dev/null 2>&1; done
-for i in 1 2; do uptime; SLOYD_PERF_LOG=/tmp/claude-1000/c2-full-$i.txt npm test > /tmp/claude-1000/c2-full-$i-out.txt 2>&1; tail -4 /tmp/claude-1000/c2-full-$i-out.txt; done
+cd /home/alec/docker/sloyd && rm -f tmp/c2/c2-alone-*.txt tmp/c2/c2-full-*.txt && for i in 1 2; do uptime; SLOYD_PERF_LOG=tmp/c2/c2-alone-$i.txt npx vitest run src/viewport/curvesPerf.test.ts > /dev/null 2>&1; done
+for i in 1 2; do uptime; SLOYD_PERF_LOG=tmp/c2/c2-full-$i.txt npm test > tmp/c2/c2-full-$i-out.txt 2>&1; tail -4 tmp/c2/c2-full-$i-out.txt; done
 python3 - <<'EOF'
 import collections
 rows = collections.defaultdict(list)
 for f in ['alone-1', 'alone-2', 'full-1', 'full-2']:
-    for line in open(f'/tmp/claude-1000/c2-{f}.txt'):
+    for line in open(f'tmp/c2/c2-{f}.txt'):
         name, ms = line.rstrip('\n').rsplit('\t', 1)
         rows[name].append((f, float(ms)))
 for name, xs in rows.items():
@@ -1071,7 +1113,7 @@ In `CLAUDE.md`:
 2. **Rounds shipped** table: one row, `chunk c2 | 10-19 | — | …`.
 3. **Where things live:**
    - add `seams.ts` under `document/`: `seamIndex`, `uncovered` (moved from grainTiling), `twinFaces`, `faceCover` (the mesh's and the fast edges' one cover, memoised on frozen bodies);
-   - add `sweptCases.ts` (TEST-ONLY) beside `sweepFixtures.ts`;
+   - add `meshCases.ts` (TEST-ONLY) beside `sweepFixtures.ts`;
    - in the `viewport/` entry, add `partMesh` (a shaped part's ONE geometry; no memo on bodies, A3).
 4. **Invariant 16:** append one sentence: "The fast path makes no candidate of a face the part's other bodies cover completely (`faceCover`); it stays a wing (chunk c2)."
 5. **Invariant 50:**
