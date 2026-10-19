@@ -5,6 +5,8 @@ import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
 import type { Board, Shape, SloydDocument } from '../document/document';
 import { profileFromFields } from '../document/profiles';
+import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
+import type { ProfileSide } from '../document/types';
 import { taperCut } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
@@ -3401,5 +3403,66 @@ describe('profile actions (profile runs a1)', () => {
     s().updateProfile('a', 'p1', { ...ro, size: 0.375 });
     expect(s().doc.shapes[0]!.profiles[0]!.size).toBe(0.375);
     expect(worldParts(s().doc).find((p) => p.id === 'b')!.profiles[0]!.size).toBe(0.375);
+  });
+});
+
+describe('band actions (edge banding 1)', () => {
+  const W0: ProfileSide = { across: 'width', from: 'min' };
+  const L1: ProfileSide = { across: 'length', from: 'max' };
+  const shelf = (id: string, z = 0) => createBoard({ id, name: id, length: 30, width: 11, thickness: 0.75, material: 'plywood', position: [0, 0, z] });
+  const setup = (doc: SloydDocument = { ...createDocument('T'), boards: [shelf('a'), shelf('b', 20)] }) => {
+    useStore.setState({ doc, selectedIds: [], past: [], future: [], tool: 'select', grabbed: null, tapeAnchor: null, tapeHover: null, explode: 0 });
+  };
+  const s = () => useStore.getState();
+  const bands = (i: number) => (s().doc.boards[i] as Board).bands;
+  it('sets sides on every named part in one undo entry, keeping each part\'s other bands', () => {
+    setup();
+    s().setBands(['a'], [L1], 'band-iron-on');
+    s().setBands(['a', 'b'], [W0], 'band-iron-on');
+    expect(bands(0)).toEqual([{ side: W0, type: 'band-iron-on' }, { side: L1, type: 'band-iron-on' }]);
+    expect(bands(1)).toEqual([{ side: W0, type: 'band-iron-on' }]);
+    expect(s().past.length).toBe(2);
+    s().setBands(['a', 'b'], [W0, L1], null);
+    expect(bands(0)).toEqual([]);
+    expect(bands(1)).toEqual([]);
+  });
+  it('a no-op pushes no undo entry (inv 4); refused while exploded (inv 47)', () => {
+    setup();
+    s().setBands(['a'], [W0], null);
+    expect(s().past.length).toBe(0);
+    s().setExplode(0.5);
+    s().setBands(['a'], [W0], 'band-iron-on');
+    expect(bands(0)).toEqual([]);
+  });
+  it('the corner rule goes through updateBoards', () => {
+    setup();
+    s().updateBoards(['a', 'b'], { cornerRule: 'mitre' });
+    expect((s().doc.boards[1] as Board).cornerRule).toBe('mitre');
+  });
+  it('an edit through one user of a shape reaches every user (shared, inv 45)', () => {
+    const shape: Shape = { id: 's1', length: 30, width: 11, thickness: 0.75, material: 'plywood', grain: 'length', posture: 'flat', cuts: [], angleCuts: [],
+      holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' };
+    setup({ ...createDocument('T'), shapes: [shape], boards: [
+      { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [0, 0, 30], rotation: 0, shape: 's1' }] } as SloydDocument);
+    s().setBands(['a'], [W0], 'band-iron-on');
+    expect(s().doc.shapes[0]!.bands).toEqual([{ side: W0, type: 'band-iron-on' }]);
+    expect(worldParts(s().doc).find((p) => p.id === 'b')!.bands).toEqual([{ side: W0, type: 'band-iron-on' }]);
+  });
+  it('a duplicate copies bands and shares no side object', () => {
+    setup();
+    s().setBands(['a'], [W0], 'band-iron-on');
+    s().duplicateBoards(['a']);
+    const copy = s().doc.boards[2] as Board;
+    expect(copy.bands).toEqual(bands(0));
+    expect(copy.bands[0]!.side).not.toBe(bands(0)[0]!.side);
+  });
+  it('applyMaterials writes band types in the same single edit; unchanged band types push nothing', () => {
+    setup();
+    const maple = newBandType('solid', [BUILT_IN_BAND]);
+    s().applyMaterials([], undefined, [BUILT_IN_BAND, maple]);
+    expect(s().doc.bandTypes).toEqual([BUILT_IN_BAND, maple]);
+    expect(s().past.length).toBe(1);
+    s().applyMaterials([], undefined, [BUILT_IN_BAND, { ...maple }]);
+    expect(s().past.length).toBe(1);
   });
 });

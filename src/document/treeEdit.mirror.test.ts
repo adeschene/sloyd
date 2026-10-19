@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyWorldEdits, translateItems } from './treeEdit';
+import { mirrorDim } from './frames';
+import { mirrorBands, withBands } from './bandModel';
 import { createDocument } from './document';
 import { flatDocument, worldParts } from './tree';
 import { profileAsCurve, profileFromFields, sameProfile } from './profiles';
@@ -372,5 +374,31 @@ describe('profiles through a mirror (profile runs a1, Review Focus 2)', () => {
   it('joinery and Refine refuse a part with profiles and no curves', () => {
     const d = doc(withProfile(chiralPart('flat')), {});
     expect(curvedRefusal(flatDocument(d), 'joinery')).toMatch(/Add joinery doesn't handle parts with curves yet/);
+  });
+});
+
+describe('bands through a mirror (edge banding 1, Review Focus 1)', () => {
+  const W0 = { across: 'width', from: 'min' } as const;
+  const L1 = { across: 'length', from: 'max' } as const;
+  const banded = (b: Board): Board => ({ ...b, bands: [{ side: W0, type: 'band-iron-on' }, { side: L1, type: 'band-iron-on' }] });
+  it('the world bands are the stored ones flipped across the mirrored dimension', () => {
+    const d0 = doc(banded(chiralPart('flat')), { mirrored: true });
+    const world = occ(d0);
+    const dMirror = mirrorDim(stored(d0) as Board);
+    expect(world.bands).toEqual(mirrorBands(stored(d0).bands, dMirror));
+  });
+  it('an edit elsewhere and a resize keep the stored bands (the same array)', () => {
+    const d0 = doc(banded(chiralPart('flat')), { mirrored: true });
+    const before = occ(d0);
+    expect(stored(applyWorldEdits(d0, [{ before, after: { ...before, name: 'Renamed' } }])).bands).toBe(stored(d0).bands);
+    expect(stored(applyWorldEdits(d0, [{ before, after: { ...before, length: before.length + 1 } }])).bands).toBe(stored(d0).bands);
+  });
+  it('a band set on the mirrored occurrence is stored un-mirrored; placing again shows the edit', () => {
+    const d0 = doc(banded(chiralPart('upright')), { mirrored: true, rotation: 90 });
+    const before = occ(d0);
+    const want = withBands(before.bands, [{ across: 'width', from: 'max' }], 'band-iron-on');
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, bands: want } }]);
+    expect(occ(d1).bands).toEqual(want);
+    expect(stored(d1).bands).toEqual(mirrorBands(want, mirrorDim(stored(d0) as Board)));
   });
 });

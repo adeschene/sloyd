@@ -70,3 +70,11 @@ export function newBandType(kind: BandType['kind'], taken: readonly BandType[]):
   }
   return { id: nextId(), name: freeName('Solid edging', taken), kind, thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
 }
+
+/** `doc` with its band types replaced by `next`: the SAME object when `next` is undefined or equal type by type
+ *  (edit()'s no-op test, inv 4). */
+export function withBandTypes<T extends { bandTypes: BandType[] }>(doc: T, next: readonly BandType[] | undefined): T {
+  if (next === undefined) return doc;
+  if (next.length === doc.bandTypes.length && next.every((t, i) => sameBandType(t, doc.bandTypes[i]!))) return doc;
+  return { ...doc, bandTypes: [...next] };
+}
