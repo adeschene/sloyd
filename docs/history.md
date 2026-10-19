@@ -521,8 +521,8 @@ and 79.
 ## What each round did
 
 **What chunk c2 did (2026-10-19)** (the restructure for swept rebuilds, fu 393(2) and 394(5); the follow-on to c1; spec
-`2026-10-19-sloyd-swept-speed-c2-design.md`, plan `…-swept-speed-c2.md`; branch `perf-c2` from `113d840`, **not merged, not deployed**; no
-schema change, so rollback is free). Commits: `d859fd9` (stage 1), `97bf8e0` (the seam index moved to `seams.ts`), `e31672f` + `1f0d6e5` +
+`2026-10-19-sloyd-swept-speed-c2-design.md`, plan `…-swept-speed-c2.md`; branch `perf-c2` from `113d840`, merged to master as `90ef45f` and **DEPLOYED 2026-10-19 as `index-Cqf9kRT7.js`**; no
+schema change, so rolling back to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Commits: `d859fd9` (stage 1), `97bf8e0` (the seam index moved to `seams.ts`), `e31672f` + `1f0d6e5` +
 `9aef27e` (stage 2 and its two fix rounds), `4a61f68` (stage 3), `a20e51b` (guards), `1fc9e97` and `88354ed` (browser baseline, after, live pass).
 
 1. **Stage 1, `partMesh`:** a shaped part draws ONE geometry (six material groups) instead of one mesh per body (313 on the ogee loop).
@@ -578,6 +578,14 @@ ms, and bead (40.2) and two loops (41.2) cross 40 in full runs. Nothing further 
 amendment): `sweepBodies` (~11 ms), `sectionSeams` (~5 ms of the edges), per-body mesh emission and swept normals (~11 ms on the ogee loop); most
 grow with the body count, which spec §1 holds fixed. Deferred review minors are in the ledger `progress.md`. Awaiting the user: A1-A4, and
 whether to merge and deploy.
+
+**Chunk c2 deployed (2026-10-19).** On the user's word ("Merge and deploy it"): merged `--no-ff` as `90ef45f`; the merged tree built,
+and its first full run failed one wall-clock guard under load (the cove loop 48.4 ms against its new 48; the whole run was slow, the ogee
+loop 56.2) and passed alone (32/32) and on a second full run (6666/6666); the tree is identical to the reviewed branch head. Deployed with
+`docker compose up -d --build`: `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css` unchanged. Verified `200` on `/` and a deep route in-network
+and at the edge, sha256 of both assets matching `dist/` at both, the old `index-TCisED7E.js` 404 in-network, the CSP at the edge, and a
+real-browser page load (the new bundle, 0 errors, the beacon, "+ Add board"; storage read empty first from the CSS asset page, the load's
+two keys removed there, read back empty).
 
 **What chunk c1 did (2026-10-19)** (the speed of swept rebuilds, fu 393(2) and 394(5); the user's target: every rebuild under
 40 ms at idle). A throwaway spike timed the stages of the slowest rows: roughly a third each to bodies, edges and the mesh, all scaling

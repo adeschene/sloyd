@@ -21,7 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is chunk c1** (deployed 2026-10-19 from the merge `65fb1fe`, bundle `index-TCisED7E.js`, CSS `index-CXYEMHnU.css` (unchanged); no schema
+- **Production is chunk c2** (deployed 2026-10-19 from the merge `90ef45f`, bundle `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css` (unchanged); no schema
+  change, so rolling back to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Chunk c1 was deployed from `65fb1fe` (no schema
   change, so rolling back to b2 (`7794999`, `index-BhtaBf2G.js`) is free). Profile runs b2 was deployed 2026-10-19 from `31d88fd` (**SCHEMA 18**,
   unchanged): rolling back to b1 (`dc49b01`, `index-CDDCzMGJ.js`) REFUSES a project holding a two-side stopped run — export first —
   and builds a one-side stop on a turned path as a2's straight prism (on an arch it vanishes; its data intact). Rolling back further, to
@@ -168,7 +169,7 @@ handicraft education tradition built around hand woodworking.
   skip. Alone, min of 9: ogee loop 80 → 61, cove 61 → 45, bead 56 → 46, two loops 58 → 36, two-side cove 56 → 43 ms; guards lowered only.
   Still over a frame: bead, cove, ogee loops and the two-side cove — **c2** (a spec: the swept mesh and edges built directly, one
   geometry per part; not byte-identical) is next. No schema change; rollback free.
-- **Chunk c2 (2026-10-19, branch `perf-c2`, NOT merged, NOT deployed; plan `…-swept-speed-c2.md`; no schema change, so rollback is free)**: the restructure for swept rebuilds, in three stages. Stage 1:
+- **Chunk c2 (2026-10-19, MERGED to master as `90ef45f`, DEPLOYED 2026-10-19 as `index-Cqf9kRT7.js`; plan `…-swept-speed-c2.md`; no schema change, so rollback is free)**: the restructure for swept rebuilds, in three stages. Stage 1:
   a shaped part draws ONE geometry (`partMesh`), not a mesh per body (313 meshes on the ogee loop). Stage 2: an exact twin seam draws nothing without
   `minusCover` (`seams.ts`: `twinFaces`, `faceCover`). Stage 3: a face the part's other bodies cover completely makes no edge candidate (it stays a wing).
   Bodies unchanged. **Gate MISSED**: alone, every row but the ogee loop (48.1) is <= 40; in full runs the bead loop (40.2) and two loops (41.2) also cross 40. Worst minimum, before → after, alone with alone: ogee loop 63–72 → 48.1,
