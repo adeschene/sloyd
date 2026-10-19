@@ -6619,6 +6619,10 @@ following stop can now reach it too (b2 Task 3's deferred M4); still open (the f
 "the note says too tight" closed (b2: `runsStraightNote` by cause — too tight, overlap, runs off) and its "Stopped greyed when
 leaving All round" closed (B7 lifted). The rest unchanged.
 
+**Status:** chunk c1 (2026-10-19, byte-identical): (2)'s rows now — bead loop ~46 alone (guard 71), cove ~45 (62), ogee ~61 (89),
+two loops ~36 (51); still over a frame: bead, cove, ogee — for c2 (the restructure). The presets' per-frame cost, `holeFaults`' rebuild and
+the air test's full scan are unchanged (unmeasured by c1). The rest unchanged.
+
 ## From the profile runs round (chunk b2) — 2026-10-19
 
 **394. Profile runs b2 residue.** Parked and deferred review minors, record-only unless noted:
