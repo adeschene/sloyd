@@ -321,6 +321,36 @@ export function drawsAsBox(board: Board, body: Body, holes: readonly Hole[]): bo
 }
 
 /**
+ * Chunk c1: bodyMesh runs once per BODY (a swept ogee loop: ~313 per rebuild), and rebuilt the part's face plans and arc
+ * chords every time. Both are pure functions of a few board fields, so each is kept per board object (the geometry view —
+ * a part with profiles — or the stored part itself) together with exactly the fields it reads, and rebuilt when any of
+ * them differs: the same inputs give the same plans and chords, so every mesh is byte-for-byte what it was. Neither result
+ * is ever mutated by bodyMesh (read by index and by `get`).
+ * - facePlans reads the three dimensions, `posture` and `rotation` (axisFrame), `material` and `grain`;
+ * - curveChords reads the three dimensions and `curves` (each curve's outline and segments; the array is immutable, as
+ *   every reader of the geometry view assumes).
+ */
+interface PlansMemo { length: number; width: number; thickness: number; posture: Board['posture']; rotation: Board['rotation']; material: string; grain: Board['grain']; plans: FacePlan[] }
+const plansMemo = new WeakMap<object, PlansMemo>();
+function memoPlans(board: Board): FacePlan[] {
+  const m = plansMemo.get(board);
+  if (m && m.length === board.length && m.width === board.width && m.thickness === board.thickness && m.posture === board.posture
+    && m.rotation === board.rotation && m.material === board.material && m.grain === board.grain) return m.plans;
+  const plans = facePlans(board);
+  plansMemo.set(board, { length: board.length, width: board.width, thickness: board.thickness, posture: board.posture, rotation: board.rotation, material: board.material, grain: board.grain, plans });
+  return plans;
+}
+interface ChordsMemo { length: number; width: number; thickness: number; curves: readonly CurveCut[]; chords: Map<string, Chord[]> }
+const chordsMemo = new WeakMap<object, ChordsMemo>();
+function memoChords(board: Board): Map<string, Chord[]> {
+  const m = chordsMemo.get(board);
+  if (m && m.length === board.length && m.width === board.width && m.thickness === board.thickness && m.curves === board.curves) return m.chords;
+  const chords = curveChords(board);
+  chordsMemo.set(board, { length: board.length, width: board.width, thickness: board.thickness, curves: board.curves, chords });
+  return chords;
+}
+
+/**
  * Triangles for one CLIPPED body (angle-cuts spec §3.3): positions relative
  * to the board's centre, UVs from the SAME face plans as boardUVs (invariant
  * 17: board-relative, FIT against the board), grouped by BoxGeometry's
@@ -345,7 +375,7 @@ export function drawsAsBox(board: Board, body: Body, holes: readonly Hole[]): bo
  */
 export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; normals?: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   board = geometryBoard(board);
-  const plans = facePlans(board);
+  const plans = memoPlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
   const [ou, ov] = boardUVOffset(board.id);
@@ -361,7 +391,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   const faces = part?.faces.get(body) ?? (seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces);
   const candidates = part?.points ?? null;
   const toWorld = (local: readonly number[]): V3 => [0, 1, 2].map((i) => local[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
-  const chordsOf = curved ? curveChords(board) : null;
+  const chordsOf = curved ? memoChords(board) : null;
   // A stopped profile's run-out normals, built per curve on its first run-out face (a part with none never builds one), and
   // shared by every body of the part through partGeometry's frozen bodies (final fix F1: was rebuilt per call, ~48× an ogee).
   const runouts = curved ? runoutMemo(bodies) : new Map<string, RunoutNormals | null>();
@@ -704,7 +734,7 @@ interface Chord { a: P2; b: P2; arc: LocalArc; iu: number; iv: number }
 
 /**
  * Every curve's arc chords (curves spec §3.4), by curve id — the outline's own chord points (curveOutline), so a chord
- * face's vertices are these numbers. Built once per bodyMesh call.
+ * face's vertices are these numbers. Built once per board object (memoChords).
  */
 function curveChords(board: Board): Map<string, Chord[]> {
   const out = new Map<string, Chord[]>();
