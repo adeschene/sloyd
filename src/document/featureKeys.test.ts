@@ -178,11 +178,12 @@ describe('swept profile keys, fix round 1', () => {
 });
 
 it('a stopped run on a turned path or across two sides keys `, stopped` with no run words (profile runs b2, Q22)', () => {
-  const curveKeys = (b: Board) => partFeatures(b, IMPERIAL).filter((f) => f.tags[0]!.includes('curve')).map((f) => f.text).slice(-1);
-  expect(curveKeys(stopOnCorner())).toEqual(['Roundover 1/4", stopped']);
-  expect(curveKeys(stopOnArch)).toEqual(['Roundover 1/4", stopped']);
-  expect(curveKeys(frontAndEnds())).toEqual(['Roundover 1/4", stopped']);
-  expect(curveKeys(twoSideSharp)).toEqual(['Roundover 1/4", stopped']);
-  expect(curveKeys(stopOnCorner('cove', 0.375))).toEqual(['Cove 3/8", stopped']);
-  expect(curveKeys({ ...twoSideSharp, profiles: [{ ...twoSide('t', { across: 'width', from: 'min' }, 20, { across: 'length', from: 'max' }, 5, 0.375, 'cove'), fillet: 1 / 16 }] })).toEqual(['Cove 3/8", with a 1/16" fillet, stopped']);
+  const curveKeys = (b: Board) => partFeatures(b, IMPERIAL).filter((f) => f.tags[0]!.includes('curve')).map((f) => f.text);
+  const lastKey = (b: Board) => { const t = curveKeys(b); expect(t).toHaveLength((b.curves.length === 4 ? 1 : b.curves.length) + 1); return t.slice(-1); };
+  expect(lastKey(stopOnCorner())).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(stopOnArch)).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(frontAndEnds())).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(twoSideSharp)).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(stopOnCorner('cove', 0.375))).toEqual(['Cove 3/8", stopped']);
+  expect(lastKey({ ...twoSideSharp, profiles: [{ ...twoSide('t', { across: 'width', from: 'min' }, 20, { across: 'length', from: 'max' }, 5, 0.375, 'cove'), fillet: 1 / 16 }] })).toEqual(['Cove 3/8", with a 1/16" fillet, stopped']);
 });

@@ -250,7 +250,12 @@ describe('swept profile words, fix round 1 (Q7 amended, implementation b1)', () 
 });
 
 describe('stopped runs on a turned path and two-side runs (profile runs b2, Q21)', () => {
-  const lastLine = (b: Parameters<typeof curveLines>[0], u: typeof IMPERIAL) => [curveLines(b, u).at(-1)!];
+  // Exactly the curves' lines (four corners collapse to one) then the profile's: the profile is the last of them.
+  const lastLine = (b: Parameters<typeof curveLines>[0], u: typeof IMPERIAL) => {
+    const lines = curveLines(b, u);
+    expect(lines).toHaveLength((b.curves.length === 4 ? 1 : b.curves.length) + 1);
+    return [lines.at(-1)!];
+  };
   const sd = (across: 'length' | 'width', from: 'min' | 'max') => ({ across, from });
   const FRONT = 'Roundover 1/4" on the edge between the width face (min side) and the thickness face (max side), along the length';
   const withRun = (b: ReturnType<typeof topCorners>, p: ProfileCut) => ({ ...b, profiles: [p] });
@@ -306,8 +311,36 @@ describe('stopped runs on a turned path and two-side runs (profile runs b2, Q21)
   });
   it('the part diagram notes carry the stop words, not b1\'s run words', () => {
     const notes = buildDiagrams(stopOnCorner(), IMPERIAL).flatMap((v) => v.curveNotes.map((n) => n.text));
-    expect(notes.length).toBeGreaterThan(0);
+    expect(notes).toHaveLength(2);
     expect(notes.at(-1)).toBe(`${FRONT}, from ${formatLength(1.1, IMPERIAL)} to 30" (stopped)`);
-    for (const n of notes.slice(-1)) expect(n).toBe(`${FRONT}, from ${formatLength(1.1, IMPERIAL)} to 30" (stopped)`);
+  });
+  const oneCorner = (u: 'min' | 'max', v: 'min' | 'max', p: ProfileCut) => createBoard({ length: 36, width: 20, thickness: 0.75,
+    curves: [{ id: 'k', ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: v, radius: 2 }) }], profiles: [p] });
+  const through = (s: ReturnType<typeof sd>, which: 'min' | 'max') => ({ side: s, through: which }) as const;
+  const at = (s: ReturnType<typeof sd>, n: number) => ({ side: s, from: 'min' as const, at: n });
+  it('a through end reads round the corner only at the end that carries a corner arc (ascending side)', () => {
+    const f = sd('width', 'min');
+    const toArc: ProfileCut = { ...endToEnd('p', f), run: { start: at(f, 20), end: through(f, 'max') } };
+    const toSharp: ProfileCut = { ...endToEnd('p', f), run: { start: through(f, 'min'), end: at(f, 20) } };
+    expect(curveLines(oneCorner('max', 'min', toArc), IMPERIAL)[1]).toBe(`${FRONT}, round the corner, from 20" to the length max end (stopped)`);
+    expect(curveLines(oneCorner('max', 'min', toSharp), IMPERIAL)[1]).toBe(`${FRONT}, from the length min end to 20" (stopped)`);
+  });
+  const FRONT_MAX = 'Roundover 1/4" on the edge between the width face (max side) and the thickness face (max side), along the length';
+  it('the same on a descending side (width max)', () => {
+    const b = sd('width', 'max');
+    const toArc: ProfileCut = { ...endToEnd('p', b), run: { start: through(b, 'max'), end: at(b, 16) } };
+    const toSharp: ProfileCut = { ...endToEnd('p', b), run: { start: at(b, 16), end: through(b, 'min') } };
+    expect(curveLines(oneCorner('max', 'max', toArc), IMPERIAL)[1]).toBe(`${FRONT_MAX}, round the corner, from 16" to the length max end (stopped)`);
+    expect(curveLines(oneCorner('max', 'max', toSharp), IMPERIAL)[1]).toBe(`${FRONT_MAX}, from the length min end to 16" (stopped)`);
+  });
+  it('a bottom-face stop stored highest first reads low to high', () => {
+    const f = sd('width', 'min');
+    const p: ProfileCut = { ...stopOnCorner().profiles[0]!, face: 'min', run: { start: at(f, 30), end: at(f, 1.1) } };
+    expect(lastLine(withRun(topCorners(2), p), IMPERIAL)[0]).toBe(
+      `Roundover 1/4" on the edge between the width face (min side) and the thickness face (min side), along the length, from ${formatLength(1.1, IMPERIAL)} to 30" (stopped)`);
+  });
+  it('a two-side run ending through at a rounded corner pins its current words (Q21 as set; no corner clause)', () => {
+    const p: ProfileCut = { ...twoSide('t', sd('width', 'min'), 20, sd('length', 'max'), 5), run: { start: at(sd('width', 'min'), 10), end: through(sd('length', 'max'), 'max') } };
+    expect(lastLine(withRun(topCorners(2), p), IMPERIAL)[0]).toBe('Roundover 1/4" on the thickness face (max side), from the width min side at 10" round the corner to the length max end at its width max side (stopped)');
   });
 });
