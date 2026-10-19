@@ -2,7 +2,8 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, createBoard, createDocument, profileOf } from '../document/document';
-import { loop, topCorners } from '../document/sweepFixtures';
+import { loop, stopOnCorner, stopped, topCorners } from '../document/sweepFixtures';
+import { isSwept } from '../document/profilePath';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
 import { curveEditRefusal, refusalFor } from './curveRefusal';
@@ -424,5 +425,39 @@ describe('Curves refuses an edit that adds a profile fault (profile runs b1)', (
     await user.click(screen.getByRole('button', { name: '+ Add curve' }));
     expect(screen.getByRole('button', { name: 'Rounded corner' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Rounded corners' })).toBeInTheDocument();
+  });
+});
+
+// ── profile runs b2, Task 9 (Review Focus 3): a corner edit under a stop on a turned path ──
+describe('Curves under a stop (profile runs b2)', () => {
+  const W_MIN = { across: 'width', from: 'min' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const radiusOf = (i: number) => cornerFields(curves()[i]!)!.radius;
+  const profileLine = () => screen.getAllByRole('button', { name: /^Remove profile \(/ })[0]!.getAttribute('aria-label')!;
+
+  it('shrinking the min/min corner to 1" under the stop at 1.1 is accepted: the stop now lies on the straight front, its line unchanged', async () => {
+    const user = userEvent.setup();
+    const b = named(stopOnCorner());
+    expect(isSwept(b, b.profiles[0]!)).toBe(true);
+    open(b);
+    const line = profileLine();
+    const radius = screen.getAllByLabelText('Radius')[0]!;                      // the first corner row: cminmin
+    await user.clear(radius); await user.type(radius, '1{Enter}');
+    expect(radiusOf(0)).toBe(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+    const after = useStore.getState().doc.boards[0] as Board;
+    expect(isSwept(after, after.profiles[0]!)).toBe(false);
+    expect(profileLine()).toBe(line);
+  });
+
+  it('shrinking it to 0.2" under a 3/8" stop at 0.1 (on the arc) is refused in the profile\'s words: an ADDED too-tight', async () => {
+    const user = userEvent.setup();
+    // At 0.2" the stop at 0.1 still lies on the corner arc (stopOnCorner's 1.1 would land on the straight front, clean).
+    open(named(topCorners(2, { ...stopped('p1', W_MIN, 0.1, 30), size: 0.375 })));
+    const radius = screen.getAllByLabelText('Radius')[0]!;
+    await user.clear(radius); await user.type(radius, '0.2{Enter}');
+    expect(radiusOf(0)).toBe(2);
+    expect(radius).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert').textContent).toBe('Too tight for the roundover — reduce the roundover first.');
   });
 });

@@ -5,14 +5,14 @@ import {
   profileOf, profileToFields, uvDims, DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
 import type { Board, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
-import { canonicalRun, endPos, endToEnd, oneSide, profileFaults, runDim, runsStraight, viewProfileFaults } from '../document/profiles';
-import { isSwept } from '../document/profilePath';
-import { curveFaultText, curveLine, profileFaultNote, sweptLine, RUNS_STRAIGHT_NOTE } from '../document/curveText';
+import { canonicalRun, endPos, endToEnd, fallbackCause, oneSide, profileFaults, runDim, runsStraight, travelSign, viewProfileFaults } from '../document/profiles';
+import { isSwept, throughConsistent } from '../document/profilePath';
+import { curveFaultText, curveLine, profileFaultNote, runsStraightNote, sweptLine } from '../document/curveText';
 import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, optionReason, refusalFor, PROFILE_REFUSAL } from './curveRefusal';
+import { curveEditRefusal, holeRefusal, optionReason, refusalFor, PROFILE_REFUSAL } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
@@ -39,8 +39,6 @@ const PRESET_EDGES: readonly ProfileEdge[] = [...PROFILE_EDGES].sort((a, b) => {
 });
 type RunKind = 'through' | 'stopped' | 'loop';
 const RUN_LABEL: Record<RunKind, string> = { through: 'End to end', stopped: 'Stopped', loop: 'All round' };
-/** B7: until b2, a stop is offered only on a side whose End to end run is straight (a station run stays a2's construction). */
-export const TURNED_STOP = 'A stop on a curved or cornered run comes later.';
 type StationRun = { start: ProfileEnd; end: ProfileEnd };
 /** The End to end run on `side` (the form `isSwept` judges a side by). */
 const throughRun = (side: ProfileSide): StationRun => ({ start: { side: { ...side }, through: 'min' }, end: { side: { ...side }, through: 'max' } });
@@ -82,45 +80,61 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const curve = vp ? null : board.curves.find((c) => c.id === profile.id)!;
   const loop = 'loop' in profile.run;
   // The row's fields: chunk 1's, from the stored profile. A loop has no side, so its fields are read as the End to end run
-  // on the default edge's side (never shown: Side is hidden, and `build` puts the loop back).
-  const p = useMemo(() => profileToFields(loop ? { ...profile, run: throughRun(sideOfEdge(DEFAULT_PROFILE_EDGE)) } : profile), [profile, loop]);
+  // on the default edge's side (never shown: Side is hidden, and `build` puts the loop back); a run on two sides (b2, B3) as
+  // the End to end run on its START side (the Side select's value; `build` puts the stored run back).
+  const p = useMemo(() => profileToFields('loop' in profile.run ? { ...profile, run: throughRun(sideOfEdge(DEFAULT_PROFILE_EDGE)) }
+    : oneSide(profile.run) ? profile : { ...profile, run: throughRun((profile.run as StationRun).start.side) }), [profile]);
   const [error, setError] = useState<string | null>(null);
   const line = vp ? sweptLine(board, vp, units) : curveLine(board, curve!, units);
   // The first stored fault as a note: a curve fault reads " at this size." (a resize caused it), a profile fault through
-  // profileFaultNote (an overlap does not: F5). A swept profile has no chunk-1 curve: its own faults only. An End to end the
-  // view runs straight (too tight to follow its curve: final review I1) has no fault — its straight form is clean — and says so.
+  // profileFaultNote (an overlap does not: F5). A swept profile has no chunk-1 curve: its own faults only. A run the view
+  // runs straight (final review I1; a saved stop too, Q10) has no fault — its straight form is clean — and says why, by the
+  // cause that decided it (`fallbackCause`).
   const storedFaults = vp ? viewProfileFaults(vp).map(profileFaultNote)
     : [...curveFaults(board, curve!).map((x) => `${cap(curveFaultText(x))} at this size.`), ...viewProfileFaults(curve!).map(profileFaultNote),
-      ...(runsStraight(curve!) ? [RUNS_STRAIGHT_NOTE] : [])];
-  // A two-side run is refused on load (spec P2/P10); a loop reads as its fields' side above.
+      ...(runsStraight(curve!) ? [runsStraightNote(fallbackCause(curve!) ?? 'too-tight')] : [])];
+  // A loop reads as its fields' side above. Side is Start's side; Stop side (b2, Q26) is End's.
   const run0: StationRun = loop ? throughRun(sideOfEdge(DEFAULT_PROFILE_EDGE)) : profile.run as StationRun;
   const side: ProfileSide = run0.start.side;
+  const stopSide: ProfileSide = run0.end.side;
+  const twoSides = !loop && !sameSide(side, stopSide);
   const dim = runDim(side);
   const L = stored_[dim];
   const stopped = !loop && !endToEnd(run0);
   /** The stored next profile for new fields: the run kept (a loop stays a loop), its ends re-sided and re-ordered (a Face
-   *  or Side change keeps the stations; P11). */
+   *  or Side change keeps the stations; P11). A run on two sides is kept as stored — never re-sided (its Side select moves
+   *  Start alone) or re-ordered (Q16) — except that a Face change swaps its ends, so the same sides stay profiled (Q26: the
+   *  travel reverses on the other face, as `mirrorProfile`'s thickness mirror does). */
   const build = (nextFields: ProfileFields, run: ProfileCut['run'] = profile.run): Next => {
     const next = profileFromFields(normal(nextFields));
     if ('loop' in run) return { ...next, run: { loop: true } };
     if (endToEnd(run)) return next;
+    if (!oneSide(run)) {
+      const two = run as StationRun;   // oneSide's guard narrows its false branch to never: a station run's type is one shape
+      return { ...next, run: next.face === profile.face ? two : { start: two.end, end: two.start } };
+    }
     const ns = next.run as StationRun;
     const reSide = (e: ProfileEnd): ProfileEnd => ({ ...e, side: { ...ns.start.side } });
     return { ...next, run: canonicalRun(stored_, next.face, { start: reSide(run.start), end: reSide(run.end) }) };
   };
-  /** True when `s`'s End to end run follows a curve or corner (profile runs b1, Q2): a "turned" side. */
-  const turned = (s: ProfileSide) => isSwept(stored_, { ...profile, run: throughRun(s) });
-  /** The refusal for `next` (nothing stored), or null: a stop ADDED on a turned side (B7), then an ADDED profile fault, then
-   *  — for a straight next — chunk 1's curve and hole refusals, or — for a swept next — the hole refusal alone (a swept
-   *  profile has no chunk-1 curve). */
+  /** The refusal for `next` (nothing stored), or null: a profile fault it ADDS — its own first, in the row's words, then any
+   *  other profile's on the part, named as Curves names it (`curveEditRefusal`; Task 3's ledger 3: a two-side run never
+   *  falls back, so it could fault a neighbour) — then, for a straight next, chunk 1's curve and hole refusals, or, for a
+   *  swept next, the hole refusal alone (a swept profile has no chunk-1 curve). Every profile is judged before and after,
+   *  by kind, as Curves' `profileRefusal` does. */
   const refuse = (next: Next, control: Control | null): string | null => {
-    const nr = next.run;
-    if (oneSide(nr) && !endToEnd(nr) && turned(nr.start.side)
-      && !(stopped && sameSide(nr.start.side, side))) return TURNED_STOP;
-    const after: Board = { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? { ...next, id: x.id } : x)) };
-    const had = new Set(profileFaults(stored_, profile).map((f) => f.kind));
-    const added = profileFaults(after, { ...next, id: profile.id }).find((f) => !had.has(f.kind));
+    const mine: ProfileCut = { ...next, id: profile.id };
+    const after: Board = { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? mine : x)) };
+    const kinds = (b: Board, q: ProfileCut) => new Set(profileFaults(b, q).map((f) => f.kind));
+    const had = kinds(stored_, profile);
+    const added = profileFaults(after, mine).find((f) => !had.has(f.kind));
     if (added) return PROFILE_REFUSAL[added.kind];
+    for (const [i, q] of stored_.profiles.entries()) {
+      if (q.id === profile.id) continue;
+      const was = kinds(stored_, q);
+      const hit = profileFaults(after, after.profiles[i]!).find((f) => !was.has(f.kind));
+      if (hit) return curveEditRefusal(hit, q);
+    }
     const nextView = geometryBoard(after);
     if (nextView.profiles.some((x) => x.id === profile.id)) return holeRefusal(board, after);
     const nextCurve = nextView.curves.find((c) => c.id === profile.id)!;
@@ -146,6 +160,34 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const asKind = (kind: ProfileKind): ProfileFields => profileFields(defaultProfile(board, kind, p, kind === 'roundover' || kind === 'cove' ? 'v' : p.facing))!;
   const withFace = (face: CutFrom): ProfileFields => ({ ...p, vFrom: face });
   const withSide = (s: ProfileSide): ProfileFields => ({ ...p, through: runDim(s), uFrom: s.from });
+  /**
+   * Q26: one end of a stopped run moved onto side `s` (Start for `which` 'start', Stop for 'end'). The end keeps its station
+   * when the moved run's own `profileFaults` gains no kind; else it is seeded `min(3, L/4)` in from the corner where travel
+   * LEAVES Start's side (Start) or ENTERS Stop's side (Stop), `travelSign` giving the direction, written from the min end
+   * (Run → Stopped's precedent). Equal sides make a one-side run in canonical order (P11); two sides are never re-ordered.
+   */
+  const moveEnd = (which: 'start' | 'end', s: ProfileSide): Next => {
+    const base = profileFromFields(normal(p));
+    const other = which === 'start' ? run0.end : run0.start;
+    const runWith = (e: ProfileEnd): Next['run'] => {
+      const r = which === 'start' ? { start: e, end: other } : { start: run0.start, end: e };
+      return sameSide(r.start.side, r.end.side) ? canonicalRun(stored_, base.face, r) : r;
+    };
+    const moved = run0[which];
+    const kept: ProfileEnd = 'through' in moved ? { side: { ...s }, through: moved.through } : { side: { ...s }, from: moved.from, at: moved.at };
+    const had = new Set(profileFaults(stored_, profile).map((f) => f.kind));
+    const keptNext: ProfileCut = { ...base, id: profile.id, run: runWith(kept) };
+    const after: Board = { ...stored_, profiles: stored_.profiles.map((x) => (x.id === profile.id ? keptNext : x)) };
+    if (profileFaults(after, keptNext).every((f) => had.has(f.kind))) return { ...base, run: keptNext.run };
+    const Ls = stored_[runDim(s)];
+    const seed = Math.min(3, Ls / 4);
+    // The run travels toward the run dimension's max end when travelSign is +1: it enters a side at its min end and leaves at
+    // its max end.
+    const atMax = (travelSign(base.face, s) > 0) === (which === 'start');
+    return { ...base, run: runWith({ side: { ...s }, from: 'min', at: atMax ? Ls - seed : seed }) };
+  };
+  /** The Side select: on a one-side run both ends move (a2, the stations kept); on two sides, Start alone (Q26). */
+  const onSide = (s: ProfileSide): Next => (twoSides ? moveEnd('start', s) : build(withSide(s)));
   /** Run → Stopped seeds 3" in from each end (or a quarter of the run, if shorter). */
   const stoppedRun = (): Next['run'] => {
     const start = Math.min(3, L / 4);
@@ -164,7 +206,9 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
   const faceR = useReasons(key, board, ['max', 'min'] as const, p.vFrom, (f) => refuse(build(withFace(f)), null));
   const sideKeys = ['0', '1', '2', '3'] as const;
   const sideR = useReasons(key, board, sideKeys, String(SIDES.findIndex((x) => sameSide(x, side))) as (typeof sideKeys)[number],
-    (i) => refuse(build(withSide(SIDES[Number(i)]!)), null));
+    (i) => refuse(onSide(SIDES[Number(i)]!), null));
+  const stopSideR = useReasons(key, board, sideKeys, String(SIDES.findIndex((x) => sameSide(x, stopSide))) as (typeof sideKeys)[number],
+    (i) => refuse(moveEnd('end', SIDES[Number(i)]!), null));
   const runKeys: readonly RunKind[] = ['through', 'stopped', 'loop'];
   const runNow: RunKind = loop ? 'loop' : stopped ? 'stopped' : 'through';
   const runR = useReasons(key, board, runKeys, runNow, (k) => refuse(withRun(k), null));
@@ -172,27 +216,41 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
     const why = reasons[key];
     return <option key={key} value={key} disabled={why !== undefined}>{why ? `${label} — ${why}` : label}</option>;
   };
-  // The stations, lo then hi along the run from its min end; an edited one becomes a station written from the min end, an
-  // untouched end (a through end, or a station from the max end) is kept as stored.
-  const ends = stopped ? [run0.start, run0.end].sort((a, b) => endPos(stored_, a) - endPos(stored_, b)) : null;
+  // The stations. One side: lo then hi along the run from its min end; an edited one becomes a station written from the min
+  // end, an untouched end (a through end, or a station from the max end) is kept as stored. Two sides (b2, Q16): Start then
+  // Stop as stored, each measured from ITS side's run dimension's min end, each field editing its own end.
+  const ends = !stopped ? null : twoSides ? [run0.start, run0.end] : [run0.start, run0.end].sort((a, b) => endPos(stored_, a) - endPos(stored_, b));
+  /** A typed position that READS the same as an end of the part, in the project's units, is that end (F4 fix 1: fu 354's
+   *  reads-the-same rule: a 36" part's Stop shows 914 mm, and 914 mm typed back is 35.984"). */
+  const shown = (n: number) => formatLength(n, units);
+  const snapEnd = (typed: number, len: number) => (shown(typed) === shown(0) ? 0 : shown(typed) === shown(len) ? len : typed);
+  /** Final fix F4 (spec I2): a station typed AT an end of the part (0, or the run's full length) runs out through that end. */
+  const station = (e: ProfileEnd, pos: number, len: number): ProfileEnd => (endPos(stored_, e) === pos ? e
+    : pos === 0 ? { side: { ...e.side }, through: 'min' }
+    : pos === len ? { side: { ...e.side }, through: 'max' }
+    : { side: { ...e.side }, from: 'min', at: pos });
   const stationEdit = (which: 0 | 1, typed: number): string | undefined => {
+    const base = profileFromFields(normal(p));
+    if (twoSides) {
+      const e = which === 0 ? run0.start : run0.end;
+      const len = stored_[runDim(e.side)];
+      const at = snapEnd(typed, len);
+      const pair = (x: ProfileEnd) => (which === 0 ? { start: x, end: run0.end } : { start: run0.start, end: x });
+      // Q17: a typed 0 or full length is a through end only where travel ENTERS Start's side or LEAVES Stop's side; anywhere
+      // else it stays a station at that end, which `attempt` refuses as the stop-off it adds. No crossing check (Q16).
+      let x = station(e, at, len);
+      if ('through' in x && x !== e && !throughConsistent({ ...base, id: profile.id, run: pair(x) })) x = { side: { ...e.side }, from: 'min', at };
+      return attempt({ ...base, run: pair(x) }, null) ?? undefined;
+    }
     const [lo, hi] = ends!;
-    // F4 fix 1: a typed position that READS the same as an end of the part, in the project's units, is that end (fu 354's
-    // reads-the-same rule: a 36" part's Stop shows 914 mm, and 914 mm typed back is 35.984"). Mapped FIRST, so the crossing
-    // checks below judge the end itself.
-    const shown = (n: number) => formatLength(n, units);
-    const at = shown(typed) === shown(0) ? 0 : shown(typed) === shown(L) ? L : typed;
+    // Mapped FIRST, so the crossing checks below judge the end itself.
+    const at = snapEnd(typed, L);
     // Final fix F3: a crossed (or meeting) entry is refused in the row's own words, as Depth and Reach are — canonicalRun
     // would otherwise swap the ends silently and both fields would show numbers other than the ones typed.
     if (which === 0 && at >= endPos(stored_, hi!)) return 'Start must be before the Stop';
     if (which === 1 && at <= endPos(stored_, lo!)) return 'Stop must be after the Start';
-    // Final fix F4 (spec I2): a station typed AT an end of the part (0, or the run's full length) runs out through that end.
-    const station = (e: ProfileEnd, pos: number): ProfileEnd => (endPos(stored_, e) === pos ? e
-      : pos === 0 ? { side: { ...e.side }, through: 'min' }
-      : pos === L ? { side: { ...e.side }, through: 'max' }
-      : { side: { ...e.side }, from: 'min', at: pos });
-    const pair = which === 0 ? [station(lo!, at), hi!] : [lo!, station(hi!, at)];
-    const next = { ...profileFromFields(normal(p)), run: canonicalRun(stored_, profile.face, { start: pair[0]!, end: pair[1]! }) };
+    const pair = which === 0 ? [station(lo!, at, L), hi!] : [lo!, station(hi!, at, L)];
+    const next = { ...base, run: canonicalRun(stored_, profile.face, { start: pair[0]!, end: pair[1]! }) };
     return attempt(next, null) ?? undefined;
   };
   return (
@@ -216,8 +274,18 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
           <div className="field">
             <label htmlFor={`profile-side-${profile.id}`}>Side</label>
             <select id={`profile-side-${profile.id}`} className="input" value={SIDES.findIndex((x) => sameSide(x, side))} {...sideR.focus}
-              onChange={(e) => set(build(withSide(SIDES[Number(e.target.value)]!)))}>
+              onChange={(e) => set(onSide(SIDES[Number(e.target.value)]!))}>
               {SIDES.map((s, i) => opt(sideR.reasons, String(i), sideLabel(s)))}
+            </select>
+          </div>
+        )}
+        {stopped && (
+          // Stopped only (b2, Q26): the side the run stops on, the Side's by default.
+          <div className="field">
+            <label htmlFor={`profile-stop-side-${profile.id}`}>Stop side</label>
+            <select id={`profile-stop-side-${profile.id}`} className="input" value={SIDES.findIndex((x) => sameSide(x, stopSide))} {...stopSideR.focus}
+              onChange={(e) => set(moveEnd('end', SIDES[Number(e.target.value)]!))}>
+              {SIDES.map((s, i) => opt(stopSideR.reasons, String(i), sideLabel(s)))}
             </select>
           </div>
         )}
@@ -231,8 +299,8 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
         {ends && (
           // min 0, not DimensionField's own greater-than-zero: 0 is the min end itself (a through end, F4).
           <>
-            <DimensionField label={`Start (from the ${dim} min end)`} value={endPos(stored_, ends[0]!)} min={0} units={units} onCommit={(at) => stationEdit(0, at)} />
-            <DimensionField label={`Stop (from the ${dim} min end)`} value={endPos(stored_, ends[1]!)} min={0} units={units} onCommit={(at) => stationEdit(1, at)} />
+            <DimensionField label={`Start (from the ${runDim(ends[0]!.side)} min end)`} value={endPos(stored_, ends[0]!)} min={0} units={units} onCommit={(at) => stationEdit(0, at)} />
+            <DimensionField label={`Stop (from the ${runDim(ends[1]!.side)} min end)`} value={endPos(stored_, ends[1]!)} min={0} units={units} onCommit={(at) => stationEdit(1, at)} />
           </>
         )}
         <div className="field">
@@ -265,8 +333,9 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
             <label htmlFor={`profile-facing-${profile.id}`}>Facing</label>
             <select id={`profile-facing-${profile.id}`} className="input" value={p.facing} onChange={(e) => set(build({ ...p, facing: e.target.value as 'u' | 'v' }))}>
               <option value="v">{`Top: ${sideText(v, p.vFrom)}`}</option>
-              {/* A loop's other face is the outline's edge, no single named face (the bench line's own words, Q7). */}
-              <option value="u">{loop ? 'Top: the edge' : `Top: ${sideText(u, p.uFrom)}`}</option>
+              {/* A loop's or a two-side run's other face is the outline's edge, no single named face (the bench line's own
+                  words, Q7; Q27). */}
+              <option value="u">{loop || twoSides ? 'Top: the edge' : `Top: ${sideText(u, p.uFrom)}`}</option>
             </select>
           </div>
         )}
