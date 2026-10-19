@@ -34,7 +34,7 @@ import { profileAsCurve, viewProfileFaults } from './profiles';
 import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame, type StopFrame } from './runout';
 import type { Hole } from './holes';
 import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
-import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton } from './skeleton';
+import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton, type StationClip } from './skeleton';
 import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
 import { DIMENSION_ORDER } from './geometry';
 
@@ -127,7 +127,7 @@ export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; cl
   const sk = pathSkeleton(chain.chords, chain.loop, reach, chain.rays);
   if (!sk) return null;
   let wave = sk.wave;
-  for (const st of chain.stations) wave = clipLine(wave, st.n, st.d);
+  for (const st of chain.stations) if (clips(st, wave)) wave = clipLine(wave, st.n, st.d);
   const pts = wave.map((q) => [q[0], q[1]] as P2);
   return pts.length >= 2 ? { pts, closed: chain.loop } : null;
 }
@@ -135,6 +135,16 @@ export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; cl
 /** The plan pieces of a swept profile before they become half-spaces: the chain, its skeleton, each face (station-clipped),
  *  and the rest of the outline. */
 export interface SweptPlan { chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number }
+
+/**
+ * Does a station's half-plane clip these plan points? A B1 station's always does (its ε extension's face is cut back at the
+ * tangent point; b1's bytes). A b2 STOP's never needs to: the skeleton already ends its band on the stop's ray, the plane
+ * itself (Q12), so on every face that lies on the kept side the clip is a no-op, applied as before (the same bytes). A face or
+ * wave reaching past the plane by more than 1e-9 is the run's OWN band wrapping round (two whole sides between the ends):
+ * the router keeps cutting there, so it is not clipped (the Task 5 review's I1, fix round 1).
+ */
+const clips = (st: StationClip, pts: readonly P2[]): boolean =>
+  !st.stop || pts.every((q) => st.n[0] * q[0] + st.n[1] * q[1] + st.d >= -1e-9);
 
 /** A convex polygon clipped to n·x + d >= 0. */
 function clip2(poly: readonly P2[], n: P2, d: number): P2[] {
@@ -180,8 +190,8 @@ export function sweptPlan(view: SweepBoard, p: ProfileCut, opts?: { events?: boo
   let faces = sk.faces;
   let wave = sk.wave;
   for (const st of chain.stations) {
-    faces = faces.map((f) => (f.length >= 3 ? tidy(clip2(f, st.n, st.d)) : f));
-    wave = clipLine(wave, st.n, st.d);
+    faces = faces.map((f) => (f.length >= 3 && clips(st, f) ? tidy(clip2(f, st.n, st.d)) : f));
+    if (clips(st, wave)) wave = clipLine(wave, st.n, st.d);
   }
   let rest: P2[];
   if (chain.loop) rest = tidy(wave);
@@ -391,6 +401,8 @@ interface SweptWaste {
   /** t from (x_thickness): face max t = T − z, face min t = z. */
   depthOf: (z: number) => number;
   stations: { at: P2; tangent: P2; axis: P2 }[];
+  /** b2: some end is a user's stop (the union rule below); false keeps b1's exclusive station rule byte for byte. */
+  stops: boolean;
 }
 const SURFACE_EPS = 1e-9; // CURVE_EPS: ON the surface (profileAirTester's tolerance)
 const outward = (s: ProfileSide): P2 => (s.across === 'length' ? [s.from === 'min' ? -1 : 1, 0] : [0, s.from === 'min' ? -1 : 1]);
@@ -439,10 +451,16 @@ function sweptWaste(view: SweepBoard, p: ProfileCut, built: boolean): SweptWaste
         : e.kind === 'stop'
           ? [{ at: e.at, tangent: e.tangent, axis: [e.at[0] - BEARING * e.normal[0], e.at[1] - BEARING * e.normal[1]] as P2 }]
           : [])),
+      stops: (path.ends ?? []).some((e) => e.kind === 'stop'),
     };
   }
   m.set(key, out);
   return out;
+}
+
+/** TEST-ONLY seam: the end stations (at, tangent, axis) `sweptWaste` stores — `built` the probe's path, else the holes'. */
+export function sweptWasteStations(view: SweepBoard, p: ProfileCut, built: boolean): readonly { at: P2; tangent: P2; axis: P2 }[] {
+  return sweptWaste(view, p, built)?.stations ?? [];
 }
 
 /** THE stock probe's air for one swept profile (above), as a hoisted closure on board-local (length, width, thickness). */
@@ -452,6 +470,21 @@ export function sweptAirTester(view: SweepBoard, p: ProfileCut): (pt: V3) => boo
   return ([x, y, z]) => {
     const t = w.depthOf(z);
     if (!(t < w.depth)) return false;
+    if (w.stops) {
+      // b2 (fix round 1): a run with a stop may wrap (two whole sides between its ends), so its own band comes back into the
+      // half-plane past a stop, and is cut there. The air is the UNION of the band's (the distance to the path's chords) and
+      // each end's run-out past its plane (the bodies subtract the run-out from every body and build the band unclipped by a
+      // stop). The band's rounded end cap needs no exclusion: past an end's plane |q − axis| − BEARING <= |q − at| (the
+      // triangle inequality, |at − axis| = BEARING) and tau never rises with s, so the cap's air lies inside the cutter's.
+      const air = (d: number) => d >= 0 && d < w.reach && t < w.tau(d) - SURFACE_EPS;
+      for (const st of w.stations) {
+        if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] <= 0) continue;
+        if (air(Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING)) return true;
+      }
+      let band = Infinity;
+      for (const [a, b] of w.segs) { const v = distSeg(x, y, a, b); if (v < band) band = v; }
+      return air(band);
+    }
     let beyond = Infinity;
     for (const st of w.stations) {
       if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] > 0) beyond = Math.min(beyond, Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING);

@@ -7,7 +7,7 @@ import { inPolygonClosed, mirrorCurveCut, twiceArea, type P2, type ViewCurve } f
 import { mirrorPart } from './frames';
 import { oneSideCurve, sweptStops } from './sweep';
 import {
-  bowFront, chiralTwoSide, frontAndEnds, stopOnArch, stopOnCorner, stopOnNotch, stopped, topCorners, twoSideSharp, zoneStop,
+  bowFront, chiralTwoSide, frontAndEnds, stopOnArch, stopOnCorner, stopOnNotch, stopped, topCorners, twoSideSharp, wrapFour, wrapThree, zoneStop,
 } from './sweepFixtures';
 import type { Board, ProfileCut, ProfileSide } from './types';
 
@@ -102,30 +102,34 @@ function stopOracle(board: Board, p: ProfileCut): StopOracle {
   const outline = faceOutline(board)!.chords.map((c) => c.a);
   const { stops, stations } = handStops(board, p);
   const axes = [...stops, ...stations];
-  const D = (q: P2, near: readonly [P2, P2][] = segs) => {
-    let beyond = Infinity;
-    for (const a of axes) if (dot(sub(q, a.at), a.F) > 0) beyond = Math.min(beyond, len(sub(q, a.axis)) - BIT);
-    if (beyond !== Infinity) return beyond;
-    let d = Infinity;
-    for (const [a, b] of near) d = Math.min(d, distSeg(q, a, b));
-    return d;
+  // The waste is the UNION of the band's and each run-out's (Task 5 fix round 1, I1: a run with stops may wrap back into a
+  // stop's half-plane, where its own band is still cut). Past an end's plane only the band's rounded end CAP is not waste
+  // (the bodies build none): a point whose nearest path point is that end. tau of the union is the larger tau. With the
+  // true cutter the cap lies inside the cutter's waste anyway (|q − axis| − BIT <= |q − at|); with the inscribed one
+  // (`tauInscribed`) it does not, so it is excluded here.
+  const tauOf = (d: number) => (d >= 0 && d < reach ? tau(d) : 0);
+  const D = (q: P2, near: readonly [P2, P2][] = segs, stretch = 1) => {
+    let band = Infinity;
+    for (const [a, b] of near) band = Math.min(band, distSeg(q, a, b));
+    let cut = 0, cap = false;
+    for (const a of axes) {
+      if (dot(sub(q, a.at), a.F) <= 0) continue;
+      cut = Math.max(cut, tauOf(stretch * len(sub(q, a.axis)) - BIT));
+      if (len(sub(q, a.at)) <= band + 1e-12) cap = true;
+    }
+    return Math.max(cut, cap ? 0 : tauOf(band));
   };
-  const tauAt = (q: P2) => { const d = D(q); return d >= 0 && d < reach ? tau(d) : 0; };
+  const tauAt = (q: P2) => D(q);
   // The sectors over a half turn of radius BIT + reach: the fewest whose chord sagitta is within CURVE_TOLERANCE (0.005"),
   // written here from the tolerance alone, not read from runout.ts (b1's oracle's rule).
   const nSec = Math.min(24, Math.max(2, Math.ceil(Math.PI / (2 * Math.acos(1 - 0.005 / (BIT + reach))) - 1e-9)));
   const stretch = 1 / Math.cos(Math.PI / (2 * nSec));
-  const tauInscribed = (q: P2) => {
-    let beyond = Infinity;
-    for (const a of axes) if (dot(sub(q, a.at), a.F) > 0) beyond = Math.min(beyond, stretch * len(sub(q, a.axis)) - BIT);
-    const d = beyond !== Infinity ? beyond : D(q);
-    return d >= 0 && d < reach ? tau(d) : 0;
-  };
+  const tauInscribed = (q: P2) => D(q, segs, stretch);
   // A chord farther than reach + the cell's half-diagonal from its centre is farther than the reach from every point in it,
   // so dropping it changes no answer below the reach (tau is 0 at and past it).
   const cellTau = (cx: number, cy: number, half: number) => {
     const near = segs.filter(([a, b]) => distSeg([cx, cy], a, b) <= reach + half * Math.SQRT2 + 1e-9);
-    return (q: P2) => { const d = D(q, near); return d >= 0 && d < reach ? tau(d) : 0; };
+    return (q: P2) => D(q, near);
   };
   const near = (q: P2, margin = 0.05) => segs.some(([a, b]) => distSeg(q, a, b) <= reach + margin) || axes.some((a) => len(sub(q, a.axis)) <= BIT + reach + margin);
   // Point in outline (closed, as inPolygonClosed: within 1e-9 of an edge is inside), the edges bucketed by 1/4" rows.
@@ -221,6 +225,8 @@ const CASES: [string, () => Board][] = [
   ['bowFront — both stops on a convex bow', () => bowFront],
   ['frontAndEnds() — two sides round the corner arcs', () => frontAndEnds()],
   ['frontAndEnds(cove 3/8)', () => frontAndEnds('cove', 0.375)],
+  ['wrapThree — three sides: the back band passes back through the start stop\'s half-plane (Task 5 fix round 1, I1)', () => wrapThree()],
+  ['wrapFour — four sides round three arcs: both stops\' half-planes hold the run\'s own band (I1)', () => wrapFour()],
   ['twoSideSharp — two sides round a sharp corner (R6\'s mitre; the distance to two chords meeting convexly IS the mitre)', () => twoSideSharp],
 ];
 

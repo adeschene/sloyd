@@ -64,3 +64,9 @@ export const zoneStop = (): Board => {
   const t = 1 - (0.5 * 0.25 * Math.tan(Math.PI / 48)) / l;
   return topCorners(2, stopped('p1', side('width', 'min'), c.a[0] + t * (c.b[0] - c.a[0]), 30));
 };
+/** Task 5 fix round 1 (I1): runs that wrap back into a stop's half-plane. A plain 30 × 4 board, the front at 20 round the
+ *  length max end to the back (width max) at 10: three sides. */
+export const wrapThree = (): Board => createBoard({ length: 30, width: 4, thickness: 0.75,
+  profiles: [twoSide('p1', side('width', 'min'), 20, side('width', 'max'), 10)] });
+/** topCorners(2): the front at 20 round the length max end and the back to the length min end at 10: four sides, three arcs. */
+export const wrapFour = (): Board => topCorners(2, twoSide('p1', side('width', 'min'), 20, side('length', 'min'), 10));

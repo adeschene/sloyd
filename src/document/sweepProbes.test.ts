@@ -7,9 +7,10 @@ import { boardSnapPoints } from './snapPoints';
 import { fromWorldOffset, axisFrame } from './geometry';
 import { geometryBoard, profileFaults } from './profiles';
 import { BEARING, profileSection, sectionFrame, stopAxis } from './runout';
-import { keptSection, oneSideCurve, sweptStops } from './sweep';
+import { keptSection, oneSideCurve, sweptStops, sweptWasteStations } from './sweep';
+import { partGeometry, type Body } from './bodies';
 import { builtPath, profilePath } from './profilePath';
-import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners } from './sweepFixtures';
+import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, wrapFour, wrapThree, zoneStop } from './sweepFixtures';
 import type { P2 } from './curves';
 import type { Board, HoleRow } from './types';
 
@@ -226,6 +227,10 @@ describe('b2: the stock probe beyond a stop on a turned path is the run-out (P3)
         expect(Math.hypot(fr.N[0] - e.normal[0], fr.N[1] - e.normal[1])).toBeLessThan(1e-12);
         const ax = plus(e.at, [e.normal, -BEARING]);
         const sa = stopAxis(fr);
+        // The axis the probe's waste STORES (fix round 1, M2) is Task 4's stopAxis, the one the run-out pieces revolve about.
+        const stored = sweptWasteStations(v, v.profiles![0]!, true).find((st) => Math.hypot(st.at[0] - e.at[0], st.at[1] - e.at[1]) < 1e-12)!;
+        expect(stored).toBeDefined();
+        expect(Math.hypot(stored.axis[0] - sa[0], stored.axis[1] - sa[1])).toBeLessThan(1e-12);
         expect(Math.hypot(ax[0] - sa[0], ax[1] - sa[1])).toBeLessThan(1e-12);
         // The axis is OUTSIDE the wood: the stop's normal points in (a point 0.05 along it is stock under the face).
         expect(stockProbe(b)(at(...plus(e.at, [e.normal, 0.05]), 0.1))).toBe(true);
@@ -333,3 +338,143 @@ describe('b2: a stop\'s junction points snap as corners (P17, Q25); b1\'s statio
     expect(sha(boardSnapPoints(frontOnly).map((q) => ({ kind: q.kind, at: q.at })))).toBe('65567c56647670e9dc35724ba8d44b1a184f6abeb57f554e762af5da3c2a540b');
   });
 });
+
+/*
+ * Fix round 1 (the Task 5 review's I1): a run with a stop may pass up to two whole sides, so its own band comes back into the
+ * half-plane past a stop. There the air is the UNION of the cutter's and the band's; the half-plane takes away only the band's
+ * rounded end cap. Pinned against the BODIES (the built wood), never against the rule restated.
+ */
+const threeSides = wrapThree;
+const fourSides = wrapFour;
+function inBodies(bodies: readonly Body[], eps: number) {
+  const bs = bodies.map((b) => ({
+    planes: b.faces.map((f) => ({ n: f.n, d: f.n[0] * f.verts[0]![0] + f.n[1] * f.verts[0]![1] + f.n[2] * f.verts[0]![2] })),
+    lo: [0, 1, 2].map((k) => Math.min(...b.faces.flatMap((f) => f.verts.map((q) => q[k]!)))),
+    hi: [0, 1, 2].map((k) => Math.max(...b.faces.flatMap((f) => f.verts.map((q) => q[k]!)))),
+  }));
+  return (q: readonly number[]) => bs.some((b) => q.every((x, k) => x >= b.lo[k]! - eps && x <= b.hi[k]! + eps)
+    && b.planes.every((h) => h.n[0] * q[0]! + h.n[1] * q[1]! + h.n[2] * q[2]! <= h.d + eps));
+}
+const rng = (seed: number) => { let r = seed; return () => { r = (r * 1103515245 + 12345) % 2147483648; return r / 2147483648; }; };
+const segDist = (q: P2, a: P2, b: P2) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const u = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / l2));
+  return Math.hypot(q[0] - a[0] - u * dx, q[1] - a[1] - u * dy);
+};
+/** Random points within reach + 0.05 of the built path's chords and t in [0, 1.2·depth]; those the probe and the bodies
+ *  disagree on, leaving out each stop's run-out (within BEARING + reach + 0.02 of its axis: a2's inscribed-sector sliver,
+ *  pinned exactly by Task 4's oracle) and a 1e-6 skin round every body face (the probe's surface is closed stock). */
+function probeVsBodies(b: Board, count: number): P2[] {
+  const v = geometryBoard(b);
+  const p = v.profiles![0]!;
+  const path = builtPath(v, p)!;
+  const axes = sweptStops(v, p).map((fr) => stopAxis(fr));
+  const probe = stockProbe(b);
+  const geo = partGeometry(b);
+  const inner = inBodies(geo.bodies, -1e-6), outer = inBodies(geo.bodies, 1e-6);
+  const rand = rng(5);
+  const bad: P2[] = [];
+  let tested = 0;
+  while (tested < count) {
+    const q: P2 = [rand() * b.length, rand() * b.width];
+    if (!path.chords.some((c) => segDist(q, c.a, c.b) < 0.3)) continue;
+    if (axes.some((a) => Math.hypot(q[0] - a[0], q[1] - a[1]) < BEARING + 0.25 + 0.02)) continue;
+    const z = T - rand() * 0.3;
+    const pt = [q[0], q[1], z] as const;
+    const wood = inner(pt), notAir = outer(pt);
+    if (wood !== notAir) continue; // on a face
+    tested += 1;
+    if (probe(at(q[0], q[1], z)) !== wood) bad.push(q);
+  }
+  return bad;
+}
+
+describe('b2 fix round 1: a wrapping run\'s band past a stop\'s plane is still air (I1)', () => {
+  it('the repros hold what they claim: both build, unfaulted, with two stops', () => {
+    for (const b of [threeSides(), fourSides()]) {
+      const v = geometryBoard(b);
+      expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+      expect(v.profiles!.length).toBe(1);
+      expect(sweptStops(v, v.profiles![0]!).length).toBe(2);
+    }
+  });
+
+  it('(a) three sides: on the back band (in the start stop\'s half-plane x < 20) the probe reads air, as the bodies do', () => {
+    const b = threeSides();
+    const probe = stockProbe(b);
+    const wood = inBodies(partGeometry(b).bodies, 1e-12);
+    expect(wood([15, 3.95, T - 0.06])).toBe(false);
+    expect(probe(at(15, 3.95, T - 0.06))).toBe(false);
+    // The back band 0.3" in is stock either way.
+    expect(probe(at(15, 3.7, T - 0.06))).toBe(true);
+    // Near the start stop: 0.1" past it along the front, 0.05" in, 0.06" down — the cutter's air (tau 0.0805), still air.
+    expect(wood([19.9, 0.05, T - 0.06])).toBe(false);
+    expect(probe(at(19.9, 0.05, T - 0.06))).toBe(false);
+    // ...and the rounded cap's region below the cutter's waste (0.1" down) stays stock.
+    expect(probe(at(19.9, 0.05, T - 0.1))).toBe(true);
+    expect(probeVsBodies(b, 4000)).toEqual([]);
+  });
+
+  it('(b) four sides: the back and front bands and both profiled arcs read air, as the bodies do', () => {
+    const b = fourSides();
+    const probe = stockProbe(b);
+    const wood = inBodies(partGeometry(b).bodies, 1e-12);
+    const r = 1.95 / Math.SQRT2; // 0.05" in on an arc's 45° radius
+    for (const q of [[15, 19.95], [25, 0.05], [34 + r, 18 + r], [34 + r, 2 - r], [2 - r, 18 + r]] as const) {
+      expect(wood([q[0], q[1], T - 0.06])).toBe(false);
+      expect(probe(at(q[0], q[1], T - 0.06))).toBe(false);
+    }
+    // The front-left arc is not profiled (the run starts at x = 20 on the front, ends at y = 10 on the left end).
+    expect(probe(at(2 - r, 2 - r, T - 0.06))).toBe(true);
+    expect(probeVsBodies(b, 4000)).toEqual([]);
+  });
+
+  it('(b) four sides: no snap mark sits in the routed-away wood (invariant 16)', () => {
+    const b = fourSides();
+    const wood = inBodies(partGeometry(b).bodies, 1e-9);
+    const frame = axisFrame(b);
+    const bad = boardSnapPoints(b).filter((q) => q.kind !== 'face-center').filter((q) => {
+      const l = [0, 1, 2].map((i) => fromWorldOffset(b, i, q.at[i]! - b.position[i]!));
+      const pt = { [frame[0]!.dim]: l[0], [frame[1]!.dim]: l[1], [frame[2]!.dim]: l[2] } as Point;
+      return !wood([pt.length, pt.width, pt.thickness]);
+    });
+    expect(bad).toEqual([]);
+  });
+});
+
+describe('b2 fix round 1: the probe reads the BUILT stop, the holes the TYPED one (M1, zoneStop)', () => {
+  const b = zoneStop();
+  const v = geometryBoard(b);
+  const p = v.profiles![0]!;
+  const typed = (profilePath(v, p)!.ends![0] as unknown as StopEnd);
+  const built = (builtPath(v, p)!.ends![0] as unknown as StopEnd);
+  it('the two stops differ: typed (0.5804, 0.5919), built at the chord vertex (0.5858, 0.5858), tangents apart', () => {
+    expect(typed.kind).toBe('stop');
+    expect(built.kind).toBe('stop');
+    expect(typed.at[0]).toBeCloseTo(0.5804, 4); expect(typed.at[1]).toBeCloseTo(0.5919, 4);
+    expect(built.at[0]).toBeCloseTo(0.5858, 4); expect(built.at[1]).toBeCloseTo(0.5858, 4);
+    expect(Math.hypot(typed.tangent[0] - built.tangent[0], typed.tangent[1] - built.tangent[1])).toBeGreaterThan(0.1);
+  });
+  it('the probe: a point whose verdict the two stops split reads the built stop\'s cutter', () => {
+    // 0.2" past the built stop along its F, 0.05" in: the built cutter's s is rho_b − BEARING; the typed one's differs.
+    const q = plus(built.at, [built.tangent, 0.2], [built.normal, 0.05]);
+    const ax = (e: StopEnd) => plus(e.at, [e.normal, -BEARING]);
+    const beyond = (e: StopEnd) => (q[0] - e.at[0]) * e.tangent[0] + (q[1] - e.at[1]) * e.tangent[1] > 0;
+    expect(beyond(built) && beyond(typed)).toBe(true);
+    const sb = Math.hypot(q[0] - ax(built)[0], q[1] - ax(built)[1]) - BEARING;
+    const st = Math.hypot(q[0] - ax(typed)[0], q[1] - ax(typed)[1]) - BEARING;
+    const tb = tauAt(b, sb), tt = tauAt(b, st);
+    expect(Math.abs(tb - tt)).toBeGreaterThan(1e-3);
+    const tMid = (tb + tt) / 2;
+    expect(stockProbe(b)(at(q[0], q[1], T - tMid))).toBe(!(tMid < tb));
+  });
+  it('the holes: a hole the typed stop\'s extension reaches breaks out; the built one\'s would not', () => {
+    const reach = 0.25, r = 0.125;
+    const dStar = Math.sqrt((reach + r) ** 2 - 0.3 ** 2);
+    const c = plus(typed.at, [typed.tangent, BEARING + reach + dStar - 0.01], [typed.normal, 0.3]);
+    const eB = plus(built.at, [built.tangent, BEARING + reach]);
+    expect(Math.hypot(c[0] - eB[0], c[1] - eB[1]) - r).toBeGreaterThan(reach + 0.01);
+    expect(faults(b, hole(c[1], { station: c[0] }))).toEqual([{ index: 0, kind: 'breaks-out', curve: { id: 'p1', kind: null, profile: 'roundover' } }]);
+  });
+});
+
