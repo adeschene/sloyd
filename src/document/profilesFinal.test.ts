@@ -228,11 +228,13 @@ describe('M1: profile faults memoised with the geometry view', () => {
 
 /** Every reader's output on b1 (`git archive dc49b01`, the same `fingerprint`, in a scratch tree beside this one), where a
  *  station run was always a2's view curve. */
-const B1_STOPS: Record<'tightStop' | 'i2Pair' | 'halfPair' | 'pairStops', Record<string, string>> = {
+const B1_STOPS: Record<'tightStop' | 'i2Pair' | 'halfPair' | 'pairStops' | 'neighbour' | 'twoHalves', Record<string, string>> = {
   tightStop: { view: "1054ecf87297fb07", bodies: "dfb29cb158c78bbb", edges: "dbee615cebf7af6e", mesh: "b9d0078d006e6ef0", draw: "c122975151bda641", lines: "[\"Round all four corners to a 1/4\\\" radius\",\"Roundover 3/8\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1/8\\\" to 30\\\" (stopped)\"]", keys: "281b8bca8d673e23", snaps: "a6f79def32fe1688", probe: "cc4fe20f91aa6de0", holes: "483e5592e3019aca", diagrams: "55167618198983f8", cutlist: "756df6d46713b83d" },
   i2Pair: { view: "28b92e78f1a823bc", bodies: "04542209e67e4e21", edges: "fdef9d305c978416", mesh: "651f78ec1cf9f151", draw: "5b82f644ae8072f2", lines: "[\"Round all four corners to a 2\\\" radius\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1\\\" to 30\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "3ba5b48e50e9c45a", snaps: "510287cd171e1619", probe: "6faca64595193e6c", holes: "50b347f9f2d15bbe", diagrams: "956f366ea7172127", cutlist: "e1af034ccf1c36d2" },
   halfPair: { view: "07b88ed5231062ab", bodies: "486aaa995dc928b6", edges: "36ab9e631c4cc884", mesh: "855a83d98a6dae88", draw: "d26a032dc562ba3d", lines: "[\"Round all four corners to a 2\\\" radius\",\"Arch on the width min side, from 14\\\" to 14-3/8\\\" from the length min end: 3/16\\\" rise (radius 3/16\\\")\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from the length min end to 30\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "3b3d54d7f78f25dd", snaps: "950d87d25b0efb17", probe: "6faca64595193e6c", holes: "50b347f9f2d15bbe", diagrams: "757504a8b465a7a2", cutlist: "8736ea5c3268cdb6" },
   pairStops: { view: "01deadbe799cb11a", bodies: "0aa15dd77bc4418e", edges: "6c20c0801052e7c5", mesh: "d2f1127c9be96252", draw: "b7e4d4c4d8d77794", lines: "[\"Round the corner of the length min end and the width min side to a 2\\\" radius\",\"Arch on the width min side, from 14\\\" to 14-3/8\\\" from the length min end: 3/16\\\" rise (radius 3/16\\\")\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, from 1/2\\\" to 4\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1/2\\\" to 20\\\" (stopped)\"]", keys: "010f2a1d7bd834b9", snaps: "43c5cb5fe2f5699d", probe: "fc31011d835641c5", holes: "d8f69535b34e7910", diagrams: "b4b4f6d1154e0488", cutlist: "c007553ac7438733" },
+  neighbour: { view: "eb0e169308706c87", bodies: "8d31836f87c451fe", edges: "5fec6cf9b860de93", mesh: "191496d72d2f0ff8", draw: "9983fe1c265844b0", lines: "[\"Round all four corners to a 1/4\\\" radius\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from the length min end to 1/8\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "0ac7184bb93dfae5", snaps: "67122402cda428c0", probe: "948f258c4ffe2a53", holes: "4f53cda18c2baa0c", diagrams: "4b6ba820d5ba3375", cutlist: "22c6ec9ea55c9ce5" },
+  twoHalves: { view: "71009bf6fce360ca", bodies: "fef026931f0f62e2", edges: "8707cd9428be8849", mesh: "702d4b714314ecb8", draw: "a17155b35b680249", lines: "[\"Round all four corners to a 1/4\\\" radius\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from the length min end to 1/8\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the width face (max side) and the thickness face (max side), along the length, from the length min end to 1/8\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "dd5060c2a63ee38e", snaps: "d2ee9d0248454693", probe: "948f258c4ffe2a53", holes: "4f53cda18c2baa0c", diagrams: "f15afb7b0c19ff19", cutlist: "3ae2260765ad4e3a" },
 };
 /** `fits`' bodies on dc49b01 (a2's prism over the arch): b2 makes it follow, so its bodies differ (the B10 change). */
 const B1_FITS_BODIES = '1a9fef6716d8cd09';
@@ -303,6 +305,38 @@ describe('Q10: saved a2 stops on a turned path (B10 for stops)', () => {
     expect(['A', 'B'].map((id) => runsStraight(view.curves.find((c) => c.id === id)!))).toEqual([true, true]);
     expect(['A', 'B'].map((id) => fallbackCause(view.curves.find((c) => c.id === id)!))).toEqual(['overlap', 'too-tight']);
     expect(fingerprint(b)).toEqual(B1_STOPS.pairStops);
+  });
+  it('a stop that follows never changes a neighbour\'s build (Task 3 fix round 1, I2): b1\'s End to end beside a saved half-stop', () => {
+    // 1/4" corners, Roundover 1/4": an End to end on the length min end (b1 built it round its corners) and a saved a2
+    // half-stop on the front out through the length min end to 0.1" (on the corner arc). Following, the half-stop would be
+    // the End to end's B1a partner and make it too tight (a mitre on 1/4" corners), so it falls back; both build as on b1.
+    for (const order of [['b', 'a'], ['a', 'b']]) {
+      const ps = { a: halfStop('a', side('width', 'min'), 0.1, 0.25), b: e2e('b', side('length', 'min')) } as Record<string, ProfileCut>;
+      const b = loaded(top(0.25, order.map((id) => ps[id]!)));
+      const ia = order.indexOf('a'), ib = order.indexOf('b');
+      expect(stopFallsBack(b, b.profiles[ia]!)).toBe(true);
+      const view = geometryBoard(b);
+      expect(builtSwept(view).map((p) => p.id)).toEqual(['b']);
+      expect(runsStraight(view.curves.find((c) => c.id === 'a')!)).toBe(true);
+      expect(profileFaults(b, b.profiles[ib]!)).toEqual([]);
+      expect(profileFaults(b, b.profiles[ia]!)).toEqual([{ kind: 'too-tight' }]);   // the fault its following would cause
+      const fresh = { ...b };   // judged afresh (no view cache): the same answer
+      expect(profileFaults(fresh, fresh.profiles[ia]!)).toEqual([{ kind: 'too-tight' }]);
+      expect(profileFaults(fresh, fresh.profiles[ib]!)).toEqual([]);
+      expect(fallbackCause(view.curves.find((c) => c.id === 'a')!)).toBe('too-tight');
+      expect(fingerprint(b)).toEqual(B1_STOPS.neighbour);
+    }
+  });
+  it('two half-stops that only TOGETHER would change the End to end (one at each of its corners) both fall back', () => {
+    // 1/4" corners: the End to end on the length min end, a front half-stop out through its min corner to 0.1", and a back
+    // half-stop from 0.1" out through its min corner. Either alone mitres one of the End to end's corners; the harm is judged
+    // against b1's baseline (every station run straight), so each is charged with it, whatever the other does.
+    const halfAt = (id: string, s: ProfileSide, at: number, first: boolean): ProfileCut => ({ ...e2e(id, s),
+      run: first ? { start: { side: s, through: 'min' }, end: { side: { ...s }, from: 'min', at } } : { start: { side: s, from: 'min', at }, end: { side: { ...s }, through: 'min' } } });
+    const b = loaded(top(0.25, [e2e('b', side('length', 'min')), halfAt('a', side('width', 'min'), 0.1, true), halfAt('c', side('width', 'max'), 0.1, false)]));
+    expect(b.profiles.map((p) => stopFallsBack(b, p))).toEqual([false, true, true]);
+    expect(builtSwept(geometryBoard(b)).map((p) => p.id)).toEqual(['b']);
+    expect(fingerprint(b)).toEqual(B1_STOPS.twoHalves);
   });
   it('a stop that fits FOLLOWS: in builtSwept, its bodies differ from b1\'s (the B10 change, recorded)', () => {
     const b = fits();

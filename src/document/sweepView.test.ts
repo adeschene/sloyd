@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, partGeometry, boardEdges, boardBodies, geometryKey } from './document';
 import { curvedEdges } from './bodies';
-import { fallbackCause, geometryBoard, profileAsCurve, profileFaults, runsStraight, shapedPart, sweptProfiles, viewProfileFaults } from './profiles';
-import { sweptPieces } from './sweep';
+import { fallbackCause, geometryBoard, profileAsCurve, profileFaults, runsStraight, shapedPart, stopFallsBack, sweptProfiles, viewProfileFaults } from './profiles';
+import { builtSwept, sweptPieces } from './sweep';
 import { archCurve, bowCurve, cornerCurve, spanOf } from './curves';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, straightTopLong, stopped, topCorners, twoSide, frontAndEnds, twoSideSharp } from './sweepFixtures';
 import { curveDrawEdges, curveEdgeLifts, curveSilhouettes, silhouetteLines } from './curveDrawing';
@@ -210,6 +210,36 @@ describe('no silent empty build (the b2 Task 2 review, I2): a swept profile that
     expect(empty).toBeGreaterThan(0);
     expect(swept).toBeGreaterThan(empty);   // measured 2026-10-18: 4 to 219 of ~800 per part build nothing, each faulted
   });
+  // Fix round 1 (the controller's ruling M6, with I1): bead and thumbnail, each facing, alone and beside an End to end on the
+  // side before Start's (the corner the run enters), on a coarser grid; 29.7 → 27.9 on the bow is the reviewer's bead.
+  const kinds: [string, Partial<ProfileCut>][] = [
+    ['bead facing the face', { kind: 'bead', size: 0.25, fillet: 1 / 16, facing: 'face' }],
+    ['bead facing the edge', { kind: 'bead', size: 0.25, fillet: 1 / 16, facing: 'edge' }],
+    ['thumbnail facing the face', { kind: 'thumbnail', size: 0.375, depth: 0.25, fillet: undefined, facing: 'face' }],
+    ['thumbnail facing the edge', { kind: 'thumbnail', size: 0.375, depth: 0.25, fillet: undefined, facing: 'edge' }],
+  ];
+  const cases = parts.flatMap(([n, part]) => kinds.flatMap(([k, over]) => [false, true].map((nb) => [`${n}, ${k}${nb ? ', beside an End to end' : ''}`, part, over, nb] as const)));
+  it.each(cases)('%s', (_n, part, over, nb) => {
+    let swept = 0;
+    for (const face of ['max', 'min'] as const) for (const [i, sA] of S.entries()) for (const sB of [S[i]!, S[(i + 1) % 4]!, S[(i + 2) % 4]!]) {
+      const LA = part[sA.across === 'width' ? 'length' : 'width'], LB = part[sB.across === 'width' ? 'length' : 'width'];
+      const at = (L: number) => [0.3, L / 2, L - 2.1, L - 0.3];
+      for (const a of at(LA)) for (const b of at(LB)) {
+        if (sA === sB && b <= a) continue;
+        const raw: ProfileCut = { ...twoSide('t', sA, a, sB, b), ...over, face };
+        if (raw.fillet === undefined) delete (raw as { fillet?: number }).fillet;
+        const profiles = nb ? [raw, { ...endToEnd('e', S[(i + 3) % 4]!), face }] : [raw];
+        const board = { ...part, profiles };
+        const v = geometryBoard(board);
+        for (const q of v.profiles) {
+          swept += 1;
+          if (sweptPieces(v, q).length > 0) continue;
+          expect(viewProfileFaults(q), JSON.stringify({ face, id: q.id, run: raw.run })).not.toEqual([]);
+        }
+      }
+    }
+    expect(swept).toBeGreaterThan(0);
+  });
 });
 
 describe('M-e: every reader runs on a loaded two-side run without throwing (profile runs b2)', () => {
@@ -223,5 +253,35 @@ describe('M-e: every reader runs on a loaded two-side run without throwing (prof
     expect(() => stockProbe(b)({ length: 1, width: 1, thickness: 0.7 })).not.toThrow();
     expect(() => buildDiagrams(b, UNITS)).not.toThrow();
     expect(() => buildCutList({ ...createDocument('T'), boards: [b] })).not.toThrow();
+  });
+});
+
+describe('Q10 is order-independent (Task 3 fix round 1): every stored order of a set of saved stops decides alike', () => {
+  const W_MIN: ProfileSide = { across: 'width', from: 'min' }, W_MAX: ProfileSide = { across: 'width', from: 'max' };
+  const L_MIN: ProfileSide = { across: 'length', from: 'min' }, L_MAX: ProfileSide = { across: 'length', from: 'max' };
+  const half = (id: string, s: ProfileSide, at: number, out: 'min' | 'max', first: boolean): ProfileCut => ({ ...endToEnd(id, s),
+    run: first ? { start: { side: s, through: out }, end: { side: { ...s }, from: 'min', at } } : { start: { side: s, from: 'min', at }, end: { side: { ...s }, through: out } } });
+  const notch = { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) };
+  const sets: [string, Board][] = [
+    ['1/4" corners: an End to end and two half-stops at its corners', { ...topCorners(0.25), profiles: [endToEnd('b', L_MIN), half('a', W_MIN, 0.1, 'min', true), half('c', W_MAX, 0.1, 'min', false)] }],
+    ['2" corners: four half-stops sharing the corner arcs pairwise', { ...topCorners(2), profiles: [half('f', W_MIN, 30, 'min', true), half('r', L_MAX, 16, 'min', true), half('k', W_MAX, 6, 'max', true), half('l', L_MIN, 16, 'min', false)] }],
+    ['2" corners and a notch: a half-stop through the notch, an End to end, a stop on the arc', { ...topCorners(2), curves: [...topCorners(2).curves, notch], profiles: [half('q', W_MIN, 30, 'min', true), endToEnd('p', L_MIN), stopped('s', L_MAX, 1, 10)] }],
+    ['two stops sharing a corner arc beside an End to end', { ...topCorners(2), curves: [...topCorners(2).curves, notch], profiles: [stopped('A', L_MIN, 0.5, 4), stopped('B', W_MIN, 0.5, 20), endToEnd('e', W_MAX)] }],
+  ];
+  const perms = <T,>(xs: T[]): T[][] => (xs.length <= 1 ? [xs] : xs.flatMap((x, i) => perms([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r])));
+  it.each(sets)('%s', (_n, base) => {
+    const summary = (b: Board) => {
+      const v = geometryBoard(b), built = builtSwept(v).map((p) => p.id);
+      const probe = stockProbe(b), wood: boolean[] = [];
+      for (let i = 0; i <= 36; i++) for (let j = 0; j <= 20; j++) wood.push(probe({ length: i * b.length / 36, width: j * b.width / 20, thickness: b.thickness - 0.02 }));
+      const per = Object.fromEntries([...b.profiles].sort((x, y) => (x.id < y.id ? -1 : 1)).map((p) => {
+        const vc = v.profiles.find((x) => x.id === p.id) ?? v.curves.find((x) => x.id === p.id)!;
+        return [p.id, { swept: v.profiles.some((x) => x.id === p.id), built: built.includes(p.id), straight: runsStraight(vc), cause: fallbackCause(vc),
+          falls: stopFallsBack(b, p), view: viewProfileFaults(vc), stored: profileFaults(b, p) }];
+      }));
+      return { per, wood: wood.map((w) => (w ? 1 : 0)).join('') };
+    };
+    const first = summary(base);
+    for (const order of perms(base.profiles)) expect(summary({ ...base, profiles: order })).toEqual(first);
   });
 });

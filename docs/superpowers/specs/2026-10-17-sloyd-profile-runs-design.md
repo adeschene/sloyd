@@ -179,6 +179,15 @@ profiles; a grain fix (fu 336).
   (`fallbackCause`: a stop's phase 1, an End to end's `profileFaults`). (3) A fallen-back stop's own `profileFaults` stays its
   swept judgement (authoring's, as I1's fallen-back End to end reads `too-tight`); the row reads `viewProfileFaults` (its a2
   faults), clean.
+  *Amended (implementation, b2 Task 3 fix round 1; the controller's rulings I1, I2)*: (4) A stop that follows never changes a
+  neighbour's build: a saved stop also falls back when FOLLOWING would ADD a fault to any other profile on its face, so its
+  own swept judgement includes the faults its following causes in its neighbours (`harmFaults`). Each neighbour is judged
+  (phase 1) with that stop alone following against b1's baseline, every one-side station run read straight (a1/a2 built them
+  so) — never against the other stops' shapes, so two half-stops that only together would mitre both corners of a saved End
+  to end are each charged with it. Decided in phase 1 only: order-independent, no cycle. A b1 End to end beside a saved a2
+  half-stop therefore keeps b1's build (pinned on dc49b01). *Cost:* such a stop stays straight where it could have followed.
+  (5) The fault decision reads the reach the build uses: a swept profile whose built plan does not exist (the built path's
+  chain, its skeleton at `bandReach`, which a bead's quirk wall widens by `WALL_MARGIN`) is `too-tight`, never clean.
 
 **Planning rulings for chunk b1** (*Amended (planning)*, 2026-10-18; the probe: `docs/superpowers/plans/b1-probe/`):
 - **Q1 The view.** `geometryBoard`'s `profiles` holds exactly the SWEPT profiles (stored order); straight ones stay view curves

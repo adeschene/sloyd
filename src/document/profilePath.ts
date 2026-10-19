@@ -381,8 +381,9 @@ function mitre(pieces: Piece[], corner: number[], atStart: boolean, outline: Fac
   return ray ? { pieces: out, at, ray } : null;
 }
 
-/** `build`: B1's ε and Q13's zone; `snap`: the zone only; `presence` / `keep`: B1a's partners (`neighbourTakes`). */
-export type Opts = { build?: boolean; snap?: boolean; presence?: boolean; keep?: ProfileCut };
+/** `build`: B1's ε and Q13's zone; `snap`: the zone only; `presence` / `keep`: B1a's partners (`neighbourTakes`);
+ *  `without`: profiles read as fallen back — no B1a partner (Q10's neighbour test, Task 3 fix round 1; by set identity). */
+export type Opts = { build?: boolean; snap?: boolean; presence?: boolean; keep?: ProfileCut; without?: ReadonlySet<ProfileCut> };
 
 /** The corner arc's chords at a stretch's start (`atStart`) or end: the run of chords carrying the end chord's curve id. */
 function cornerChords(outline: FaceOutline, s: Stretch, atStart: boolean): number[] {
@@ -421,7 +422,7 @@ function planEnds(board: Pick<Board, Dimension>, q: ProfileCut): [ProfileEnd, Pr
  */
 function neighbourTakes(board: PathBoard, outline: FaceOutline, p: ProfileCut, adj: ProfileSide, corner: number[], atEnd: boolean, opts?: Opts): boolean {
   return (board.profiles ?? []).some((q) => {
-    if (q === p || q.id === p.id || q.face !== p.face) return false;
+    if (q === p || q.id === p.id || q.face !== p.face || opts?.without?.has(q)) return false;
     const ends = planEnds(board, q);
     const e = ends && ends[atEnd ? 1 : 0];
     if (!e || !('through' in e) || !sameSide(e.side, adj)) return false;
@@ -651,12 +652,14 @@ export function profilePath(board: PathBoard, p: ProfileCut, opts?: Opts): Profi
   let byKeep = byOpts.get(key);
   if (!byKeep) { byKeep = new Map(); byOpts.set(key, byKeep); }
   const keep = opts?.presence ? undefined : opts?.keep;
-  if (byKeep.has(keep)) return byKeep.get(keep)!;
+  let byWithout = byKeep.get(keep);
+  if (!byWithout) { byWithout = new Map(); byKeep.set(keep, byWithout); }
+  if (byWithout.has(opts?.without)) return byWithout.get(opts?.without)!;
   const path = computePath(board, p, opts);
-  byKeep.set(keep, path);
+  byWithout.set(opts?.without, path);
   return path;
 }
-const pathMemo = new WeakMap<object, WeakMap<ProfileCut, Map<string, Map<ProfileCut | undefined, ProfilePath | null>>>>();
+const pathMemo = new WeakMap<object, WeakMap<ProfileCut, Map<string, Map<ProfileCut | undefined, Map<ReadonlySet<ProfileCut> | undefined, ProfilePath | null>>>>>();
 function computePath(board: PathBoard, p: ProfileCut, opts?: Opts): ProfilePath | null {
   const outline = faceOutline(board);
   if (!outline) return null;

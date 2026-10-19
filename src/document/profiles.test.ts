@@ -580,6 +580,19 @@ describe('b2 stop faults (profile runs b2, Task 3: Q13, Q15–Q17, Q19)', () => 
     expect(profileFaults(bf, bf.profiles[0]!)).toEqual([]);
     expect(sweptPieces(geometryBoard(bf), geometryBoard(bf).profiles[0]!).length).toBeGreaterThan(0);
   });
+  it('no silent empty build at the BUILD\'s reach (Task 3 fix round 1, I1): a bead judged at bandReach, quirk wall included', () => {
+    // the reviewer's repro: a bowed front, a two-side Bead 1/4" (1/16" quirk) from the front at 29.7 to the back at 27.9
+    const bow = createBoard({ length: 30, width: 5, thickness: 0.75, curves: [{ id: 'c1', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) }] });
+    const bead: ProfileCut = { ...twoSide('t', W_MIN, 29.7, { across: 'width', from: 'max' }, 27.9), kind: 'bead', fillet: 1 / 16 };
+    const b = { ...bow, profiles: [bead] }, v = geometryBoard(b);
+    expect(sweptPieces(v, v.profiles[0]!)).toHaveLength(0);
+    expect(profileFaults(b, bead)).toEqual([{ kind: 'too-tight' }]);
+    expect(viewProfileFaults(v.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    // the roundover of the same run builds, and is clean
+    const ro = { ...bead, kind: 'roundover' as const, fillet: 0 }, r = { ...bow, profiles: [ro] }, rv = geometryBoard(r);
+    expect(sweptPieces(rv, rv.profiles[0]!).length).toBeGreaterThan(0);
+    expect(profileFaults(r, ro)).toEqual([]);
+  });
   it('overlap on a two-side path (Q19): passing a corner arc a neighbour\'s End to end takes', () => {
     const b = createBoard({ ...topCorners(2), profiles: [frontAndEnds().profiles[0]!, endToEnd('e', L_MAX)] });
     expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'e' }]);
