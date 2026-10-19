@@ -3395,7 +3395,7 @@ describe('profile actions (profile runs a1)', () => {
     expect({ ...b, id: a.id }).toEqual(a);
   });
   it('an edit through one user of a shape reaches every user (shared, inv 45)', () => {
-    const shape: Shape = { id: 's1', length: 36, width: 20, thickness: 0.75, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [{ ...ro, id: 'p1' }] };
+    const shape: Shape = { id: 's1', length: 36, width: 20, thickness: 0.75, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [{ ...ro, id: 'p1' }], bands: [], cornerRule: 'long' };
     setup({ ...createDocument('T'), shapes: [shape], boards: [
       { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [0, 0, 30], rotation: 0, shape: 's1' }] });
     s().updateProfile('a', 'p1', { ...ro, size: 0.375 });

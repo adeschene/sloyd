@@ -10,6 +10,7 @@ import { dissolveShapes, pruneShapes, isShaped } from './shapes';
 import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
+import { BUILT_IN_BAND } from './bandModel';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
 import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
@@ -43,6 +44,7 @@ export type { Hole, Plane } from './holes';
 export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords, boundaryDistance, wasteContains, isAir, circleMeetsWaste, rectMeetsWaste, curveFaults, archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, deriveCurveKind, curveKindWord, curveAs, curveKindChoice, curvePlacement, defaultArch, defaultNotch, defaultBow, defaultCorner, defaultCorners, mirrorCurveCut, convexPieces, curvePlan, splitPieces, smoothLines } from './curves';
 export type { P2, LocalArc, LocalLine, LocalSeg, Outline, CurveFaultKind, CurveFault, ArchFields, BowFields, CornerFields, CurveKind, CurveKindChoice, CurvePlacement } from './curves';
 export { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields, profileAsCurve, profileOf, profileFromFields, profileToFields, mirrorProfile, sameProfile, copyProfile, geometryBoard, endToEnd, PROFILE_FIELDS, profileValues } from './profiles';
+export { BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_SIDES, withBands, bandOn, sameBands, copyBand, mirrorBands, canonicalBands, newBandType, sameBandType } from './bandModel';
 export type { ProfileEdge, ProfileFields, ProfileKind } from './profiles';
 export { DRAWING_HOLE_SEGMENTS, holeDrawingSegments } from './holeDrawing';
 export { holeFaults, holeInStock, stockChecks } from './holeFaults';
@@ -256,6 +258,8 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     holes: [],
     curves: [],
     profiles: [],
+    bands: [],
+    cornerRule: 'long',
     ...partial,
   };
 }
@@ -272,6 +276,7 @@ export function createDocument(name = 'Untitled'): FlatDocument {
     definitions: [],
     shapes: [],
     materials: [],
+    bandTypes: [BUILT_IN_BAND],
   };
 }
 
@@ -694,7 +699,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved] } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: [], cornerRule: 'long' } };
 }
 
 /**
@@ -1014,6 +1019,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
     definitions,
     shapes: validateShapes(d.shapes, known),
     materials,
+    bandTypes: [BUILT_IN_BAND], // the loader (edge banding task 3) reads the stored band types
   };
   // Links first, while each stored part is still the object validateBoard
   // built (the `legacy` map is keyed by object). worldParts tolerates missing

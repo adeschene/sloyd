@@ -154,7 +154,7 @@ describe('shared definitions', () => {
         instances: [{ id: 'k1', name: 'Knob', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
       { id: 'd2', boards: [createBoard({ id: 'n1', name: 'Knob' })], instances: [] },
     ],
-    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [] }],
+    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const }],
   });
 
   it('shareInstance names the same definition with a fresh id', () => {
