@@ -547,12 +547,26 @@ describe('a stop\'s run-out joins smoothly (profile runs b2, invariant 16)', () 
   }
 });
 
-/** Fast against reference, segments and joins (the comparison of the describes above, for the b2 arrays below). */
+/*
+ * Task 7 fix round 1 (I1): an INDEPENDENT presence rule, since fast == reference shares smoothPair and cannot see a crease the
+ * rule itself drops. A join is a stretch judged smooth: two faces of one curved surface's facets. Every arc in these parts
+ * takes at least 4 chords per quarter circle (CURVE_TOLERANCE 0.005" at r >= 1/4: 22.5 deg a step), and a run-out's inscribed
+ * sectors step no more (measured: the largest join over every b1, b2 and sweep case is 22.63 deg, b1's own B1 run-outs). Two
+ * faces meeting at more than CREASE_MIN are no facets of one surface: a line must be drawn there, so no join may cross it.
+ */
+const CREASE_MIN = 30;
+const joinAngle = (j: SmoothJoin) => Math.acos(Math.max(-1, Math.min(1, j.f1.n[0] * j.f2.n[0] + j.f1.n[1] * j.f2.n[1] + j.f1.n[2] * j.f2.n[2]))) * 180 / Math.PI;
+const creasesJoined = (joins: readonly SmoothJoin[]) => joins.filter((j) => joinAngle(j) > CREASE_MIN).map((j) => `${joinAngle(j).toFixed(1)} deg at ${j.a} → ${j.b}`);
+
+/** Fast against reference, segments and joins (the comparison of the describes above, for the b2 arrays below), and no
+ *  crease joined in either (CREASE_MIN). */
 function fastIsReference(board: Board): void {
   const bodies = boardBodies(board);
   const jr: SmoothJoin[] = [], jf: SmoothJoin[] = [];
   const ref = curvedEdges(board, bodies, jr, { reference: true }) as Seg3[];
   const fast = curvedEdges(board, bodies, jf) as Seg3[];
+  expect(creasesJoined(jr)).toEqual([]);
+  expect(creasesJoined(jf)).toEqual([]);
   expect(sameRuns(merged(fast), merged(ref))).toBeNull();
   const a = joinRuns(jf), b = joinRuns(jr);
   expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
@@ -580,7 +594,8 @@ describe('the fast swept edges equal the reference on every b2 fixture (profile 
  * adjacency assumptions break (N4: a run's two ends' overlap beside corner arcs; N5: one stop's run-out reaching the other
  * end's band). Every section kind; on a 30 × 10 × 3/4 part:
  * - SHARP: a two-side run from the right end at `a` round the back and the left end to the front at 30 − `g` (both stops
- *   near the SHARP front-right corner), the other three corners rounded at r = 0, 1/4 or 2;
+ *   near the SHARP front-right corner), the other three corners rounded at r = 0, 1/4, 0.4 or 2 (at 1/4 only the roundover
+ *   builds; at 0.4 the roundover, both ogees and the bead — the Task 6 review's N4 repros — fix round 1, M1);
  * - ARC: all four corners rounded at r = 1/4 or 2; a one-side run on the front stopped `d` from each corner arc's tangent
  *   point (d < 0 on the arc, d > 0 on the straight), and a two-side run from the left end round the front to the right end,
  *   both stops `d` from the front corners' tangent points on the ends;
@@ -611,7 +626,7 @@ const sweepCases: { name: string; family: string; kind: string; board: Board }[]
   { name: 'N5: a bead, one stop 0.05" from the sharp corner (0.5", 0.05")', family: 'named', kind: 'bead', board: sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05) },
   { name: 'N5: a bead, the other stop 0.05" from the sharp corner (0.05", 0.5")', family: 'named', kind: 'bead', board: sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.05, 0.5) },
   ...overlapKinds.flatMap(([name, kind, size, extra]) => [
-    ...[0, 0.25, 2].flatMap((r) => GAPS.map(([a, g]) => ({ name: `sharp, r ${r}: ${name}, stops ${a}" and ${g}"`, family: 'sharp', kind: name, board: sharpCase(kind, size, extra, r, a, g) }))),
+    ...[0, 0.25, 0.4, 2].flatMap((r) => GAPS.map(([a, g]) => ({ name: `sharp, r ${r}: ${name}, stops ${a}" and ${g}"`, family: 'sharp', kind: name, board: sharpCase(kind, size, extra, r, a, g) }))),
     ...[0.25, 2].flatMap((r) => ARC_ONE.map(([lo, hi]) => ({ name: `arc, r ${r}: ${name}, one side, stops ${lo}" and ${hi}" from the tangent points`, family: 'arc', kind: name, board: arcOneSide(kind, size, extra, r, lo, hi) }))),
     ...[0.25, 2].flatMap((r) => ARC_D.map((d) => ({ name: `arc, r ${r}: ${name}, two sides, stops ${d}" from the tangent points`, family: 'arc', kind: name, board: arcTwoSide(kind, size, extra, r, d) }))),
   ]),
@@ -621,7 +636,7 @@ const sweepCases: { name: string; family: string; kind: string; board: Board }[]
       profiles: [{ ...twoSide('p1', side('width', 'min'), 29.95, side('length', 'max'), 0.5, 0.25, 'bead'), fillet: 1 / 16, face: 'min' }] }) },
 ];
 /** The sweep's built cases, counted (a coverage pin: a change that stops building some must say so). */
-const SWEEP_BUILT = 133;
+const SWEEP_BUILT = 153;
 const builtCase = (b: Board) => b.profiles.every((p) => profileFaults(b, p).length === 0) && builtSwept(geometryBoard(b)).length === b.profiles.length;
 const sweepBuilt = sweepCases.filter((c) => builtCase(c.board));
 describe('the fast swept edges equal the reference across stops and their run-outs (profile runs b2, the parametric sweep)', () => {
@@ -631,6 +646,48 @@ describe('the fast swept edges equal the reference across stops and their run-ou
       expect(sweepBuilt.filter((c) => c.kind === name && c.family === family).length, `${name}, ${family}`).toBeGreaterThanOrEqual(4);
     }
     expect(sweepBuilt.length).toBe(SWEEP_BUILT);
+    // M1: at r 0.4 the bead and both ogees build (an overlap beside a SMALL corner arc, the N4 class).
+    for (const kind of ['bead 1/4 + 1/16 quirk', 'ogee 3/8', 'ogee 3/8 facing the edge']) expect(sweepBuilt.filter((c) => c.name.startsWith('sharp, r 0.4:') && c.kind === kind).length, kind).toBe(5);
   });
   it.each(sweepBuilt.map((c) => [c.name, c.board] as [string, Board]))('%s', (_name, board) => fastIsReference(board));
+});
+
+
+/*
+ * Task 7 fix round 1 (I1): where a run's two router passes meet, the crease between them is drawn. a2's rule joins only one
+ * run-out's faces (its facets, and the band at its own stop plane); a b2 run whose two ends come to one corner meets itself
+ * there in a real crease. Pinned by the independent rule (CREASE_MIN) on the corner family, and by the lines themselves:
+ * - cornerGap(0.1, 0.1): the two passes are mirror images in the sharp corner's bisector plane x + y = 30 (stops 0.1" either
+ *   side of the corner, one section), so they meet ON it: a ridge in that plane, below the top, drawn.
+ * - N5's bead (0.5", 0.05"): the front's quirk wall (y = 5/16) meets the right end's run-out's revolved wall in a line along
+ *   the thickness, from the quirk floor (t = 1/16 down: z = 11/16) to the top: 1/16" long, drawn.
+ */
+describe('where a run\'s two passes meet, the crease is drawn (Task 7 fix round 1, I1)', () => {
+  const lines = (b: Board) => (boardEdges(b) as Segment[]).map(pts);
+  const named: [string, Board][] = [
+    ['cornerGap(0.1, 0.1)', cornerGap(0.1, 0.1)], ['cornerGap(0.2, 0.05)', cornerGap(0.2, 0.05)],
+    ...overlapCases().map((c) => [c.name, c.board] as [string, Board]),
+    ['N5 bead (0.5", 0.05")', sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05)], ['N5 bead (0.05", 0.5")', sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.05, 0.5)],
+    ['stopOnCorner()', stopOnCorner()], ['stopOnCorner(cove, 3/8)', stopOnCorner('cove', 0.375)],
+  ];
+  it.each(named)('%s: no join where faces meet at more than CREASE_MIN', (_n, b) => {
+    const j: SmoothJoin[] = [];
+    curvedEdges(b, boardBodies(b), j, { reference: true });
+    expect(creasesJoined(j)).toEqual([]);
+    const jf: SmoothJoin[] = [];
+    curvedEdges(b, boardBodies(b), jf);
+    expect(creasesJoined(jf)).toEqual([]);
+  });
+  it('cornerGap(0.1, 0.1): the ridge in the corner\'s bisector plane is drawn, below the top', () => {
+    const ridge = lines(cornerGap(0.1, 0.1)).filter((s) => s.every((q) => Math.abs(q[0] + q[1] - 30) <= 1e-9 && q[2] < 0.75 - 1e-9 && q[2] > 0.5 - 1e-9));
+    const length = ridge.reduce((n, [a, c]) => n + Math.hypot(...sub3(c, a)), 0);
+    // From where the stops' sections meet ((29.9, 0.1) at the band's depth) out toward the corner: about 0.17" (the review).
+    expect(length).toBeGreaterThan(0.1);
+  });
+  it('N5\'s bead: the 1/16" line where the quirk wall meets the run-out\'s wall is drawn', () => {
+    const wall = lines(sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05)).filter(([a, c]) =>
+      [a, c].every((q) => Math.abs(q[1] - 0.3125) <= 1e-9 && q[0] > 29.6 && q[0] < 29.8) && Math.abs(a[0] - c[0]) <= 1e-9);
+    expect(wall.length).toBeGreaterThan(0);
+    for (const [a, c] of wall) expect(Math.abs(c[2] - a[2])).toBeCloseTo(1 / 16, 9);
+  });
 });

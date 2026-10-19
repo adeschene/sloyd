@@ -834,6 +834,34 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // space (sweep.ts): registered beside its B1 run-outs, so a2's rule joins their faces. The section's smooth flags are the
   // same for every one-side curve of the profile (one section), so any one serves.
   for (const p of swept) if (!stopped.has(p.id) && sweptStops(board, p).length > 0) stopped.set(p.id, curveOutline(board, oneSideCurve(p)).smooth);
+  // Task 7 fix round 1 (I1): a2's rule joins only faces of ONE run-out, which in a2 was all a profile's run-out could meet. A
+  // b2 run may bring both its ends to one corner (stops within reach of a sharp corner are no fault), and there the two
+  // router passes INTERSECT — one end's run-out against the other's, or against the other end's band, off its own stop plane —
+  // at a real crease, sharing the profile id and a section-edge index. So for a profile with a stop, a run-out face joins only
+  // faces of its OWN end: another face of the same run-out (one `runout` tag), or the band of that end's path chord (the
+  // band meets its run-out at its stop plane). Every b1 profile (no stop) keeps a2's rule unguarded, byte for byte.
+  const ownEnd = new Map<string, (a: BodyFace, b: BodyFace) => boolean>();
+  for (const p of swept) {
+    if (sweptStops(board, p).length === 0) continue;
+    const path = builtPath(board, p);
+    if (!path || path.loop) continue;
+    // Each `runout` tag's path end(s), face frame: a stop's tag IS its end (0 'lo', 1 'hi'); a B1 station's is a2's (by its
+    // span), so the two kinds may share a tag — then that tag stands for both ends.
+    const ends = new Map<'lo' | 'hi', Set<number>>([['lo', new Set()], ['hi', new Set()]]);
+    for (const fr of sweptStops(board, p)) ends.get(fr.end)!.add(fr.end === 'lo' ? 0 : 1);
+    (path.ends ?? []).forEach((e, i) => {
+      if (e.kind !== 'station') return;
+      const k = oneSideCurve(p, e.side).through === 'length' ? 0 : 1;
+      ends.get(e.tangent[k]! > 0 ? 'hi' : 'lo')!.add(i);
+    });
+    const last = path.chords.length - 1;
+    ownEnd.set(p.id, (a, b) => {
+      if (a.runout !== undefined && b.runout !== undefined) return a.runout === b.runout;
+      const [r, o] = a.runout !== undefined ? [a, b] : [b, a];
+      if (o.sweep === undefined) return true;
+      return [...ends.get(r.runout!)!].some((end) => o.sweep === (end === 0 ? 0 : last));
+    });
+  }
   const a2Pair = stopped.size > 0
     ? (a: BodyFace, b: BodyFace) => {
       if (a.runout === undefined && b.runout === undefined) return false;
@@ -841,6 +869,7 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
       if (!ea || !eb || ea[0] !== eb[0]) return false;
       const smooth = stopped.get(ea[0]);
       if (!smooth) return false;
+      if (ownEnd.get(ea[0])?.(a, b) === false) return false;
       const m = smooth.length;
       const span = ([, a, b]: [string, number, number]) => { const out = [a]; for (let j = a; j !== b; ) { j = (j + 1) % m; out.push(j); } return out; };
       const sa = span(ea), sb = span(eb);
