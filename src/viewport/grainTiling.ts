@@ -7,8 +7,8 @@ import {
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { geometryBoard, profileValues, shapedPart, sweptProfiles } from '../document/profiles';
 import { profileEdgeOf } from '../document/bodies';
-import { runoutAxis, runoutNormals, sectionFrame } from '../document/runout';
-import { sweptNormals, sweptRunouts } from '../document/sweep';
+import { runoutAxis, runoutNormals, sectionFrame, stopAxis, stopRunoutNormals } from '../document/runout';
+import { oneSideCurve, sweptNormals, sweptRunouts, sweptStops } from '../document/sweep';
 import { spanOf } from '../document/curves';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
@@ -387,6 +387,18 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
       const a = runoutAxis(board, c, end);
       const v = verts[0]!;
       const d = Math.hypot(v[f.k]! - a.run, v[f.iu]! - a.u);
+      if (d < bestD) { bestD = d; best = runouts.get(key)!; }
+    });
+    // A b2 STOP's run-out (profile runs b2, Task 6): its faces carry the path's FACE-FRAME end, which need not be a2's
+    // run-dimension end a B1 station's carries ('lo' on both of stationFrontToBack's), so a stop is matched by its own
+    // frame's tag and, among every candidate with that tag, the nearest bit axis wins. A part with no stop builds no frame.
+    sweptStops(board, p).forEach((fr, i) => {
+      if (fr.end !== end) return;
+      const key = `${id}@stop${i}`;
+      if (!runouts.has(key)) runouts.set(key, stopRunoutNormals(board, oneSideCurve(p), fr));
+      const a = stopAxis(fr);
+      const v = verts[0]!;
+      const d = Math.hypot(v[0]! - a[0], v[1]! - a[1]);
       if (d < bestD) { bestD = d; best = runouts.get(key)!; }
     });
     return best;

@@ -223,6 +223,18 @@ function chains(outline: FaceOutline): { start: number; end: number }[] {
  * end is `'arc'`. Null when the side has no stretch (taken by a neighbour's waste) or it is not one run.
  */
 export function sideStretch(board: Pick<Board, Dimension>, outline: FaceOutline, side: ProfileSide): Stretch | null {
+  // Memoised per (outline, board dimensions, side) (Task 6: ~20% of a fresh trial part's profileFaults was this walk, asked
+  // for each side many times per judgement); the outline is frozen and never mutated, the result frozen.
+  let m = stretchMemo.get(outline);
+  if (!m) { m = new Map(); stretchMemo.set(outline, m); }
+  const key = `${board.length},${board.width},${side.across},${side.from}`;
+  if (m.has(key)) return m.get(key)!;
+  const s = computeStretch(board, outline, side);
+  m.set(key, s ? Object.freeze(s) : null);
+  return m.get(key)!;
+}
+const stretchMemo = new WeakMap<FaceOutline, Map<string, Stretch | null>>();
+function computeStretch(board: Pick<Board, Dimension>, outline: FaceOutline, side: ProfileSide): Stretch | null {
   const L = board.length, W = board.width;
   const E = edgeOfSide(side);
   const ch = outline.chords;

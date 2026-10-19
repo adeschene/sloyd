@@ -401,3 +401,66 @@ export function runoutNormals(board: Pick<Board, Dimension>, c: ViewCurve): {
     },
   };
 }
+
+/**
+ * `runoutNormals` for ONE stop of a swept profile, in its frame (profile runs b2, Task 6; §4.2 (b2), Q12): the same three
+ * methods and the same arc choice, with ρ⃗ the PLAN (length, width) offset of a board-local point from the stop's bit axis
+ * (`stopAxis`), s = |ρ⃗| − BEARING and t = vIn·(x_thickness − vFace), the normal lifted as [n_s·ρ̂, n_t·vIn] — the cutter
+ * `stopRunoutPieces` revolves. `c` gives only the (s, t) section and the broad face (`oneSideCurve(p)`); `end` is accepted
+ * for the shared shape and ignored (a frame has one end). a2's `runoutNormals` is untouched: on a straight side this equals
+ * it to ~1e-12.
+ */
+export function stopRunoutNormals(board: Pick<Board, Dimension>, c: ViewCurve, fr: StopFrame): ReturnType<typeof runoutNormals> {
+  const f = sectionFrame(board, c);
+  if (f.iv !== 2) throw new Error('stopRunoutNormals: a profile curve\'s depth runs along the thickness');
+  const { pts } = profileSection(board, c);
+  const { arcs } = sectionArcs(board, c, pts);
+  const reach = BEARING + Math.max(...pts.map((q) => q[0]));
+  const sagitta = reach * (1 - Math.cos(Math.PI / (2 * sectors(reach)))) * (1 + 1e-9) + CURVE_EPS;
+  const axis = stopAxis(fr);
+  const stOf = (p: readonly number[]): { st: P2; rx: number; ry: number; rho: number } => {
+    const rx = p[0]! - axis[0], ry = p[1]! - axis[1];
+    const rho = Math.hypot(rx, ry);
+    return { st: [rho - BEARING, f.vIn * (p[2]! - f.vFace)], rx, ry, rho };
+  };
+  const lift = (p: readonly number[], ns: number, nt: number): V3 => {
+    const { rx, ry, rho } = stOf(p);
+    return [(ns * rx) / rho, (ns * ry) / rho, nt * f.vIn];
+  };
+  const near = (q: P2, arc: SectionArc) => Math.min(...arc.chords.map(([a, b]) => distToSegment(q, a, b)));
+  return {
+    lineNormals(_end, verts, a, b) {
+      const p0 = pts[a]!, p1 = pts[(b + 1) % pts.length]!;
+      if (verts.some((p) => distToSegment(stOf(p).st, p0, p1) > sagitta)) return null;
+      const l = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+      const ns = -(p1[1] - p0[1]) / l, nt = (p1[0] - p0[0]) / l;
+      return (p) => lift(p, ns, nt);
+    },
+    arcOf(_end, verts) {
+      if (arcs.length === 0) return null;
+      const sts = verts.map((p) => stOf(p).st);
+      let best = 0, bestD = Infinity;
+      arcs.forEach((arc, i) => {
+        let d = 0;
+        for (const q of sts) d = Math.max(d, near(q, arc));
+        if (d < bestD) { bestD = d; best = i; }
+      });
+      // As `runoutNormals`: within the sector chords' sagitta of one arc, or of SOME arc at every vertex (the ogee's
+      // collinear inflection chords), else on no arc.
+      if (bestD <= sagitta) return best;
+      if (sts.every((q) => arcs.some((arc) => near(q, arc) <= sagitta))) return 'nearest';
+      return null;
+    },
+    normal(_end, p, i) {
+      const { st } = stOf(p);
+      let arc = arcs[0]!;
+      if (i === 'nearest') {
+        let bestD = Infinity;
+        for (const a of arcs) { const d = near(st, a); if (d < bestD) { bestD = d; arc = a; } }
+      } else arc = arcs[i]!;
+      const ds = st[0] - arc.centre[0], dt = st[1] - arc.centre[1];
+      const l = Math.hypot(ds, dt);
+      return lift(p, (arc.sign * ds) / l, (arc.sign * dt) / l);
+    },
+  };
+}

@@ -289,7 +289,16 @@ function extentOf(board: Pick<Board, Dimension>, p: ProfileCut): [number, number
 const OVERLAP_EPS = 1e-9;
 type FaultBoard = Pick<Board, Dimension> & { curves?: readonly CurveCut[]; profiles: readonly ProfileCut[] };
 const NO_CURVES: readonly CurveCut[] = Object.freeze([]);
-const withCurves = (b: FaultBoard): Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] } => (b.curves ? (b as Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }) : { ...b, curves: NO_CURVES as CurveCut[] });
+type CurvedFaultBoard = Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] };
+/** A fault board with a `curves` key: the board itself when it has one, else ONE derived copy per board object (Task 6, the
+ *  Task 3 review's M5: a fresh copy per call missed every per-part memo keyed on it — paths, outline, stops, skeletons). */
+const curvedCopies = new WeakMap<object, CurvedFaultBoard>();
+const withCurves = (b: FaultBoard): CurvedFaultBoard => {
+  if (b.curves) return b as CurvedFaultBoard;
+  let c = curvedCopies.get(b);
+  if (!c) { c = { ...b, curves: NO_CURVES as CurveCut[] }; curvedCopies.set(b, c); }
+  return c;
+};
 /** A profile's two extents (canonical a along T, b down the other face), as stored: [reach in plan, depth down the edge]. */
 export function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
   const [ea, eb] = extents(p.kind, p);
@@ -511,7 +520,10 @@ const skeletonMemo = new WeakMap<object, Map<string, boolean>>();
 function skeletonFits(board: object, chain: NonNullable<ReturnType<typeof planChain>>, reach: number): boolean {
   let m = skeletonMemo.get(board);
   if (!m) { m = new Map(); skeletonMemo.set(board, m); }
-  const key = JSON.stringify([reach, chain.loop, chain.chords, chain.rays]);
+  // Task 6: the key holds exactly what `pathSkeleton` reads — each chord's two ends, never its curve id or arc (the JSON
+  // of those was ~20% of a fresh trial part's profileFaults) — every number in its exact round-trip form.
+  let key = `${reach}|${chain.loop}|${chain.rays ? chain.rays.join(',') : ''}|`;
+  for (const c of chain.chords) key += `${c.a[0]},${c.a[1]},${c.b[0]},${c.b[1]};`;
   const hit = m.get(key);
   if (hit !== undefined) return hit;
   const ok = !!pathSkeleton(chain.chords, chain.loop, reach, chain.rays);

@@ -472,6 +472,23 @@ describe('b2 fix round 1: the probe reads the BUILT stop, the holes the TYPED on
     const tMid = (tb + tt) / 2;
     expect(stockProbe(b)(at(q[0], q[1], T - tMid))).toBe(!(tMid < tb));
   });
+  // Task 6 (carried, Task 5's concern): the snap source `sweptStops` reads the BUILT path. The expectation comes from
+  // `builtPath`'s own end, never from `sweptStops` (which the stopOnCorner snap test reads, so it moves with the flag).
+  it('the snaps: both junction corners sit on the BUILT stop (at + s·normal), none on the typed one', () => {
+    const { reach, depth } = keptSection(v, p);
+    const f = sectionFrame(v, oneSideCurve(p));
+    const frame = axisFrame(b);
+    const corners = boardSnapPoints(b).filter((q) => q.kind === 'corner').map((q) => [0, 1, 2].map((i) => fromWorldOffset(b, i, q.at[i]! - b.position[i]!)))
+      .map((l) => { const pt = {} as Point; for (let i = 0; i < 3; i += 1) pt[frame[i]!.dim] = l[i]!; return pt; });
+    const has = (e: StopEnd, s: number, t: number) => {
+      const xy = plus(e.at, [e.normal, s]);
+      return corners.some((c) => Math.abs(c.length - xy[0]) < 1e-9 && Math.abs(c.width - xy[1]) < 1e-9 && Math.abs(c.thickness - (f.vFace + f.vIn * t)) < 1e-9);
+    };
+    for (const [s, t] of [[reach, 0], [0, depth]] as const) {
+      expect(has(built, s, t)).toBe(true);
+      expect(has(typed, s, t)).toBe(false);
+    }
+  });
   it('the holes: a hole the typed stop\'s extension reaches breaks out; the built one\'s would not', () => {
     const reach = 0.25, r = 0.125;
     const dStar = Math.sqrt((reach + r) ** 2 - 0.3 ** 2);
