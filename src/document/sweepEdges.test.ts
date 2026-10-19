@@ -11,6 +11,7 @@ import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, st
   overlapKinds, twoSide, stopOnArch, stopOnNotch, bowFront, frontAndEnds, twoSideSharp, chiralTwoSide, zoneStop, wrapThree, wrapFour,
   shortEnds, stationRightToBack, stationFrontToBack, stationFrontToRight, cornerGap } from './sweepFixtures';
 import type { Board, ProfileCut } from './types';
+import { SWEPT_CASES } from './meshCases';
 
 /*
  * A swept profile's EDGE LINES (profile runs b1, Task 6; spec §5 Lines, invariant 16). Every count below is derived by hand
@@ -590,6 +591,15 @@ describe('the fast swept edges equal the reference on every b2 fixture (profile 
     for (const [name, b] of b2EdgeCases) expect(builtSwept(geometryBoard(b)).length, name).toBe(b.profiles.length);
   });
   it.each(b2EdgeCases)('%s', (_name, board) => fastIsReference(board));
+});
+
+// Chunk c2 (stage 3, amendment A2): the fast path makes no candidate of a face other bodies cover completely; every face
+// stays a wing. Judged as every fast path is: fast == reference, segments and joins, no crease joined — on every swept
+// fixture chunk c1's identity pins hash (meshCases.ts), the loops among them.
+describe('the fast swept edges equal the reference on every swept identity fixture (chunk c2)', () => {
+  const built = SWEPT_CASES.filter(([, b]) => builtSwept(geometryBoard(b)).length > 0);
+  it('the fixtures are what they claim', () => { expect(built.length).toBeGreaterThan(50); });
+  it.each(built)('%s', (_name, board) => fastIsReference(board));
 });
 
 /*
