@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, createBoard, createDocument, profileOf } from '../document/document';
-import { loop, stopOnCorner, stopped, topCorners } from '../document/sweepFixtures';
+import { loop, stopOnCorner, stopped, topCorners, twoSide } from '../document/sweepFixtures';
 import { isSwept } from '../document/profilePath';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
@@ -461,5 +461,37 @@ describe('Curves under a stop (profile runs b2)', () => {
     expect(radius).toHaveValue('0.2');                                          // the typed text kept
     expect(radius).toHaveFocus();
     expect(screen.getByRole('alert').textContent).toBe('Too tight for the roundover — reduce the roundover first.');
+  });
+});
+
+// ── profile runs b2, the final review's I1 (the controller's ruling): Scenario B ──
+describe('Curves refuses a corner edit that crosses a two-side run\'s stations on the shared arc (b2 final review I1)', () => {
+  const L_MAX = { across: 'length', from: 'max' } as const, W_MIN = { across: 'width', from: 'min' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const radiusOf = (i: number) => cornerFields(curves()[i]!)!.radius;
+
+  it('raising the front-right corner from 1/4" to 2" under the length max end at 1/2" to the front at 35-1/2" is refused naming the profile', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(0.25, twoSide('p1', L_MAX, 0.5, W_MIN, 35.5))));
+    const stored = (useStore.getState().doc.boards[0] as Board).profiles;
+    const radius = screen.getAllByLabelText('Radius')[2]!;                      // corners: cminmin, cminmax, cmaxmin, …
+    expect(curves()[2]!.id).toBe('cmaxmin');
+    await user.clear(radius); await user.type(radius, '2{Enter}');
+    expect(radiusOf(2)).toBe(0.25);
+    expect((useStore.getState().doc.boards[0] as Board).profiles).toEqual(stored);
+    expect(radius).toHaveAttribute('aria-invalid', 'true');
+    expect(radius).toHaveValue('2');                                            // the typed text kept
+    expect(radius).toHaveFocus();
+    expect(screen.getByRole('alert').textContent).toBe('A stop on the roundover runs off the part — move it first.');
+  });
+
+  it('the same 2" edit under a two-side run clear of that corner is accepted', async () => {
+    const user = userEvent.setup();
+    // a run on the far (back-left) part of the top, nowhere near the front-right corner: raising cmaxmin adds nothing
+    open(named(topCorners(0.25, twoSide('p1', { across: 'width', from: 'max' }, 10, { across: 'length', from: 'min' }, 10))));
+    const radius = screen.getAllByLabelText('Radius')[2]!;
+    await user.clear(radius); await user.type(radius, '2{Enter}');
+    expect(radiusOf(2)).toBe(2);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

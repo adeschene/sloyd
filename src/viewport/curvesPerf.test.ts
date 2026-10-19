@@ -205,7 +205,9 @@ describe('a b2 profile\'s part rebuilds inside a frame (profile runs b2)', () =>
     ['a roundover 3/8" stopped on the notch (14.5") to 25"', stopOnNotch, 2, 60],
     ['a roundover 1/4" stopped on a bow (5", 25")', bowFront, 2, 40],
     ['a roundover 1/4" on two sides, the front and both ends', frontAndEnds(), 2, 51],
-    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 102],
+    // The final review's M4 (the controller's ruling): Task 1's 102 was ~1.85× the product's time; tightened to the measured
+    // full-suite minimum + 25% (2026-10-19: 55.3 ms alone, 55.0 in a full run → ⌈55.0 × 1.25⌉ = 69).
+    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 69],
     ['a roundover 1/4" round four sides and three arcs (wrapFour)', wrapFour(), 2, WRAP_FOUR],
   ];
   for (const [name, board, stops, bound] of b2) {

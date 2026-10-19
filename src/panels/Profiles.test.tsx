@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import {
@@ -7,7 +7,7 @@ import {
 } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
-import { canonicalRun, endPos, travelSign } from '../document/profiles';
+import { canonicalRun, endPos, profileFaults, travelSign } from '../document/profiles';
 import { holeRefusal, pastHalfCircle, profileRefusal, refusalFor } from './curveRefusal';
 import { apronArch, endToEnd as endToEndP, frontAndEnds, frontOnly, loop as loopP, stopOnCorner, stopped as stoppedRun, topCorners, twoSide, twoSideSharp } from '../document/sweepFixtures';
 import { sweptLine } from '../document/curveText';
@@ -1289,4 +1289,42 @@ describe('fix round 2: R6 (opposite Stop side keeps the shown Start) and N2 (a m
       });
     }
   }
+});
+
+// ── profile runs b2, the final review's I1 (the controller's ruling): Scenario A in the row ──
+describe('the row refuses crossed stations on the corner arc two sides share (b2 final review I1)', () => {
+  const L_MAX = { across: 'length', from: 'max' } as const, W_MIN = { across: 'width', from: 'min' } as const, W_MAX = { across: 'width', from: 'max' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+
+  // Scenario A cannot be TYPED from a clean run: with one station on the front-right arc and the other off it the run
+  // re-enters a side (review M1, already stop-off), so a single typed station never lands there from a clean state. It is
+  // reached by Stop side: the length max end at 1/2" round the corner to the back at 35-1/2" (both on arcs, clean), then
+  // Stop side -> Width min side keeps the Stop's shown 35-1/2" (R5's moveEnd) — Scenario A.
+  const start = () => named(topCorners(2, twoSide('p1', L_MAX, 0.5, W_MAX, 35.5)));
+
+  it('Stop side -> Width min side is disabled and says why while the select has focus', async () => {
+    const user = userEvent.setup();
+    open(start());
+    await user.click(inRow('Stop side'));
+    expect(within(inRow('Stop side')).getByRole('option', { name: 'Width min side — a stop runs off the part' })).toBeDisabled();
+  });
+
+  it('Stop side -> Width min side changed anyway is refused on the row: nothing stored, the select on the stored side', () => {
+    open(start());
+    const stored = profiles()[0];
+    expect(profileFaults(start(), stored!)).toEqual([]);
+    fireEvent.change(inRow('Stop side'), { target: { value: '0' } });   // SIDES[0]: the width min side
+    expect(profiles()[0]).toEqual(stored);
+    expect(selected('Stop side')).toBe('Width max side');
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop runs off the part — move it first.');
+  });
+
+  it('the uncrossed short run on that arc is still reached by Stop side: the front at 35 round the corner to the length max end at 1', () => {
+    open(named(topCorners(2, twoSide('p1', W_MIN, 35, W_MAX, 1))));     // the front at 35 round the right end to the back at 1
+    fireEvent.change(inRow('Stop side'), { target: { value: '3' } });   // SIDES[3]: the length max end
+    expect(profiles()[0]!.run).toEqual({ start: { side: W_MIN, from: 'min', at: 35 }, end: { side: L_MAX, from: 'min', at: 1 } });
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
+  });
 });

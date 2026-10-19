@@ -648,11 +648,13 @@ describe('b2: stops and two-side paths', () => {
     const a = stationPoint(b, o, L_MIN, 1)!, z = stationPoint(b, o, W_MIN, 0.1)!;
     expect([o.chords[a.chord]!.curve, o.chords[z.chord]!.curve]).toEqual(['cminmin', 'cminmin']);   // both on the shared arc
     expect(profilePath(b, p)).toBeNull();
-    expect(profilePath(b, { ...p, face: 'min' })).not.toBeNull();   // seen from below the same ends are a short run on the arc
+    // seen from below the same ends make a hop on the arc that the sides' order reads as the long way round: CROSSED (the b2
+    // final review's I1, the controller's ruling), no path either (was a path before that ruling)
+    expect(profilePath(b, { ...p, face: 'min' })).toBeNull();
     // its mirror image on the other face reads the same: Stop's side ahead of Start's
     const q = twoSide('q', W_MIN, 0.1, L_MIN, 1), qb = topCorners(2, q);
     expect(profilePath(qb, { ...q, face: 'min' })).toBeNull();
-    expect(profilePath(qb, q)!.cover.every((c) => o.chords[c.chord]!.curve === 'cminmin')).toBe(true);
+    expect(profilePath(qb, q)).toBeNull();   // crossed (I1): was a hop on cminmin before that ruling
     // each half of the rule alone: the walk comes back onto Start's side ahead (its shared arc), or onto Stop's behind
     expect(profilePath(b, twoSide('f', W_MIN, 10, L_MIN, 1))).toBeNull();    // ends on cminmin, which the front's stretch holds
     expect(profilePath(b, twoSide('g', W_MIN, 0.1, L_MIN, 10))).toBeNull();   // starts on cminmin, which the end's stretch holds

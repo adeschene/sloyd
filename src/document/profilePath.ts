@@ -538,7 +538,8 @@ export function throughConsistent(p: ProfileCut): boolean {
  * that vertex lies strictly inside the walk (Q13: the run shortened, never lengthened). A `through` end at a corner treats it as End to end does (B1, B1a widened by Q18).
  * Null when an end cannot be placed (a station off its stretch, a stretch that cannot be traced, an inconsistent through end),
  * the two ends are one point (Q16), a two-side walk would come back onto a side it left (Q16 as ruled, m3: at most two whole
- * sides between Start's and Stop's, touching four), or —
+ * sides between Start's and Stop's, touching four), its two stations are CROSSED on the corner arc its two sides share
+ * (the b2 final review's I1: the walk never leaves the arc at Start's head, a hop the sides' order reads as the long way), or —
  * built or judged only — the zone moves both ends onto one vertex (the fault path then exists: Task 3 maps that to
  * too-tight).
  */
@@ -588,6 +589,17 @@ function stopRun(board: PathBoard, outline: FaceOutline, p: ProfileCut, opts?: O
       return false;
     };
     if (reenters(ps.side, walked) || reenters(pe.side, walked.slice().reverse())) return null;
+    // CROSSED stations (the b2 final review's I1, the controller's ruling): in plan order, the two sides' stretches share
+    // the corner arc where travel ENTERS Start's side (Start's stretch's FIRST chord lies in Stop's stretch, so the arc is
+    // Start's head and Stop's tail) and the walk from Start to Stop never leaves that shared arc. Q16's travel from Start's
+    // side to Stop's then passes no whole side, yet the sides' order says it goes the long way round (stopWords names two
+    // sides between): the path would be a hop on the arc. No path: stop-off. The uncrossed short run on an arc (Stop's side
+    // NEXT after Start's, the arc Start's tail) and a run with only one end on the arc (review M1) are not this rule's.
+    const sS = sideStretch(board, outline, ps.side), sT = sideStretch(board, outline, pe.side);
+    if (sS && sT) {
+      const onS = new Set(stretchIndices(m, sS)), onT = new Set(stretchIndices(m, sT));
+      if (onT.has(sS.from) && walked.every((i) => onS.has(i) && onT.has(i))) return null;
+    }
   }
   // Q13 (build and the skeleton's judgement only): a station inside its end-chord zone is built at the next vertex inward,
   // and only at a vertex strictly INSIDE the walk (the b2 Task 2 review, I2): a run within one chord passes no vertex, so it

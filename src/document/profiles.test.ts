@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, curveValues, mirrorCurveCut, sameCurve, spanOf } from './curves';
-import { createBoard, partGeometry } from './document';
+import { createBoard, createDocument, migrateDocument, partGeometry } from './document';
+import { bodyVolume } from './bodies';
+import { mirrorPart } from './frames';
+import { curveLines } from './curveText';
+import { IMPERIAL } from '../units/length';
+import type { Board } from './types';
 import type { P2 } from './curves';
 import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults, viewProfileFaults, runsStraight, stopFallsBack } from './profiles';
 import { builtPath, faceOutline, isSwept, judgedPath, profilePath } from './profilePath';
@@ -617,5 +622,74 @@ describe('b2 stop faults (profile runs b2, Task 3: Q13, Q15–Q17, Q19)', () => 
     expect(builtSwept(geometryBoard(fit)).map((q) => q.id)).toEqual(['q', 'p']);
     expect(profilePath(fit, fit.profiles[1]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'mitre']);
     expect(fit.profiles.map((q) => profileFaults(fit, q))).toEqual([[], []]);
+  });
+});
+
+// ── profile runs b2, the final review's I1 (the controller's ruling): crossed stations on the corner arc two sides share ──
+describe('crossed stations on a shared corner arc are stop-off (b2 final review I1)', () => {
+  const L_MAX = { across: 'length', from: 'max' } as const;
+  const W_MIN = { across: 'width', from: 'min' } as const;
+  // Scenario A: the length max end at 1/2" (on the front-right 2" arc, ~-48.6°) to the front at 35-1/2" (~-41.4°): along
+  // plan-CCW travel Start meets the arc before Stop, so the plan walk is a 0.26" hop while the sides' order goes round the
+  // back and the left end.
+  const A = twoSide('p1', L_MAX, 0.5, W_MIN, 35.5);
+  const faults = (b: Board) => profileFaults(b, b.profiles[0]!);
+  const volume = (b: Board) => partGeometry(b).bodies.reduce((v, x) => v + bodyVolume(x), 0);
+
+  it('Scenario A has no path and faults stop-off, on face max and its face-min image', () => {
+    const b = topCorners(2, A);
+    expect.soft(profilePath(b, A)).toBeNull();
+    expect.soft(faults(b)).toEqual([{ kind: 'stop-off' }]);
+    // face min, the same sides profiled: Start and Stop swap (plan order is unchanged)
+    const m: ProfileCut = { ...twoSide('p1', W_MIN, 35.5, L_MAX, 0.5), face: 'min' };
+    expect.soft(profilePath(topCorners(2, m), m)).toBeNull();
+    expect.soft(faults(topCorners(2, m))).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('mirrored: through the thickness and along the length, still stop-off', () => {
+    const b = topCorners(2, A);
+    const t = { ...b, profiles: [mirrorProfile(A, 'thickness')] };
+    expect.soft(faults(t)).toEqual([{ kind: 'stop-off' }]);
+    const l = mirrorPart(b);
+    expect.soft(faults(l)).toEqual([{ kind: 'stop-off' }]);
+    const w = { ...b, profiles: [mirrorProfile(A, 'width')] };
+    expect.soft(faults(w)).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('a through end at the shared arc makes the same hop: crossed too', () => {
+    const s: ProfileCut = { ...A, run: { start: { side: L_MAX, through: 'min' }, end: { side: W_MIN, from: 'min', at: 35.5 } } };
+    expect.soft(faults(topCorners(2, s))).toEqual([{ kind: 'stop-off' }]);
+    const e: ProfileCut = { ...A, run: { start: { side: L_MAX, from: 'min', at: 0.5 }, end: { side: W_MIN, through: 'max' } } };
+    expect.soft(faults(topCorners(2, e))).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('neighbours keep their behaviour: the uncrossed short run on the arc, the 1/4" corners\' long run, M1', () => {
+    // the front at 35 to the length max end at 1, both on the front-right arc: Stop's side NEXT after Start's (the arc is
+    // Start's tail) — a short run round the corner, on both faces
+    const short = twoSide('p1', W_MIN, 35, L_MAX, 1), sb = topCorners(2, short);
+    expect(faults(sb)).toEqual([]);
+    const sp = profilePath(sb, short)!;
+    expect(sp.cover.every((c) => faceOutline(sb)!.chords[c.chord]!.curve === 'cmaxmin')).toBe(true);
+    const shortMin: ProfileCut = { ...twoSide('p1', L_MAX, 1, W_MIN, 35), face: 'min' };
+    expect(faults(topCorners(2, shortMin))).toEqual([]);
+    // Scenario B's start: the same stations on 1/4" corners lie on straight chords — the long way round, clean
+    const long = topCorners(0.25, A);
+    expect(faults(long)).toEqual([]);
+    expect(profilePath(long, A)!.chords.reduce((s, c) => s + Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]), 0)).toBeGreaterThan(100);   // ~110"
+    // M1 (one station on the shared arc) is left as it was: stop-off by the re-entry rule
+    expect(faults(topCorners(2, twoSide('p1', L_MAX, 0.5, W_MIN, 33)))).toEqual([{ kind: 'stop-off' }]);
+    expect(faults(topCorners(2, twoSide('p1', L_MAX, 2.5, W_MIN, 35.5)))).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('a SAVED crossed run loads, kept and faulted: built as nothing, its bench line ending in the check', () => {
+    const b = migrateDocument(JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [{ ...topCorners(2, A), id: 'top', name: 'Top' }] }))).boards[0] as Board;
+    expect(b.profiles).toHaveLength(1);
+    expect(b.profiles[0]!.run).toEqual(A.run);
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['p1']);
+    expect(viewProfileFaults(view.profiles[0]!)).toEqual([{ kind: 'stop-off' }]);
+    expect(builtSwept(view)).toEqual([]);
+    expect(volume(b)).toBeCloseTo(volume({ ...b, profiles: [] }), 9);
+    expect(curveLines(b, IMPERIAL).find((l) => l.startsWith('Roundover'))).toBe('Roundover 1/4" on the thickness face (max side), from the length max end at 1/2" round the width max side and the length min end to the width min side at 35-1/2" (stopped) — check: a stop runs off the part');
   });
 });
