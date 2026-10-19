@@ -11,6 +11,7 @@ import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profi
 import { builtSwept, oneSideCurve, outlineCurves, sweptPieces, sweptRunouts, sweptStops, type SweptPiece } from './sweep';
 import type { CurveCut, ProfileCut } from './types';
 import { builtPath } from './profilePath';
+import { faceCover, twinFaces } from './seams';
 import { sweptSmoothPair } from './sweptEdges';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -831,9 +832,13 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // polygon, facing each other: they cancel wherever they are judged, and every edge of one is also an edge of its body's
   // neighbouring face) is dropped first (`withoutSeams`), and the lines where two section faces of one profile meet are
   // found by their tags and planes and decided by the swept rule without bodyEdges (`sectionSeams`). The same line set and
-  // the same joins, pinned on every swept fixture (sweepEdges.test.ts).
+  // the same joins, pinned on every swept fixture (sweepEdges.test.ts). Chunk c2: a face the part's other bodies cover
+  // completely makes no candidate (it stays a wing).
   const sweptHere = board.profiles.length > 0 ? builtSwept(board) : [];
   const fast = sweptHere.length > 0 && !opts?.reference;
+  // Chunk c2 (stage 3, amendment A2): what other bodies cover, read off the bodies AS GIVEN (partGeometry's frozen array, so
+  // the mesh's faceCover is reused) before the seams are dropped. A face with no visible remainder makes no candidate below.
+  const hidden = fast ? faceCover(bodies).remains : null;
   if (fast) bodies = withoutSeams(bodies);
   const axes = [...new Set(board.curves.map((c) => DIMENSION_ORDER.indexOf(c.through)))];
   const faces = bodies.flatMap((b) => b.faces);
@@ -966,8 +971,14 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // The fast path's section seams (above), decided by the swept rule alone: two section faces of one profile.
   const loops = new Map(swept.map((p) => [p.id, loopLength(board, swept, p.id)]));
   const seams = fast && sweptPair ? sectionSeams(bodies, sweptPair, (id) => loops.get(id) ?? null) : null;
-  const judged = bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins,
-    seams?.skip);
+  // Chunk c2 (stage 3): a face other bodies cover completely (faceCover's remainder empty) is inside the part: an edge of its
+  // own is never the only edge on a stretch you can see — a crease is bounded by a face that is seen, whose own edge makes the
+  // candidate — so it makes none, and those lines are not judged (a planning measurement on master, 2026-10-19: of the ogee loop's 416 judged
+  // lines, 208 were judged to no wings and 104 judged nothing, so only 52 drew anything).
+  // It still gives its wings to every line that is judged (inv 16: a face taken away as a wing drew phantom lines).
+  const covered = hidden ? (f: BodyFace) => hidden.get(f)!.length === 0 : null;
+  const skip = covered ? (f: BodyFace, a: V3) => covered(f) || (seams?.skip(f, a) ?? false) : seams?.skip;
+  const judged = bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n), smoothPair, joins, skip);
   const place = (seg: [V3, V3]) => {
     const u = unit(sub(seg[1], seg[0]));
     if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));
@@ -1167,29 +1178,8 @@ function loopLength(view: Board, swept: readonly ProfileCut[], id: string): numb
  * rounded key misses (a vertex on a rounding boundary) is kept: only slower. Faces keep their objects (joins name them).
  */
 function withoutSeams(bodies: readonly Body[]): Body[] {
-  // A face's key: its vertices rounded to 1e-6", combined in an order-free way (a sum and an xor of each one's hash).
-  // Two faces of one polygon get one key; a collision only costs a `same` test.
-  const keyOf = (f: BodyFace) => {
-    let sum = 0, xor = 0;
-    for (const p of f.verts) {
-      const h = Math.imul(Math.round(p[0] * 1e6), 73856093) ^ Math.imul(Math.round(p[1] * 1e6), 19349663) ^ Math.imul(Math.round(p[2] * 1e6), 83492791);
-      sum = (sum + h) | 0;
-      xor ^= h;
-    }
-    return (Math.imul(sum, 31) ^ xor ^ f.verts.length) | 0;
-  };
-  const byKey = new Map<number, BodyFace[]>();
-  const drop = new Set<BodyFace>();
-  const same = (a: BodyFace, b: BodyFace) => a.verts.length === b.verts.length
-    && dot(a.n, b.n) < -1 + BODY_EPS
-    && a.verts.every((p) => b.verts.some((q) => Math.abs(p[0] - q[0]) <= BODY_EPS && Math.abs(p[1] - q[1]) <= BODY_EPS && Math.abs(p[2] - q[2]) <= BODY_EPS));
-  for (const b of bodies) for (const f of b.faces) {
-    const k = keyOf(f);
-    const list = byKey.get(k);
-    const twin = list?.find((g) => !drop.has(g) && same(f, g));
-    if (twin) { drop.add(twin); drop.add(f); continue; }
-    if (list) list.push(f); else byKey.set(k, [f]);
-  }
+  // The twin test has one home (seams.ts' twinFaces: the mesh and the edges drop the same pairs).
+  const drop = twinFaces(bodies);
   if (drop.size === 0) return bodies as Body[];
   return bodies.map((b) => (b.faces.some((f) => drop.has(f)) ? { box: b.box, faces: b.faces.filter((f) => !drop.has(f)) } : b));
 }

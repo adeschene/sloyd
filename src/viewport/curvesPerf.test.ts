@@ -4,11 +4,12 @@ import type { Board, CurveCut, HoleRow } from '../document/document';
 import type { ProfileCut, ProfileEnd } from '../document/types';
 import { canonicalRun, geometryBoard } from '../document/profiles';
 import { spanOf } from '../document/curves';
-import { bodyMesh } from './grainTiling';
+import { partMesh } from './grainTiling';
 import { builtSwept, sweptStops } from '../document/sweep';
 import { apronArch, bowFront, frontAndEnds, frontOnly, loop, notchEdge, stopOnArch, stopOnCorner, stopOnNotch, topCorners, wrapFour } from '../document/sweepFixtures';
 
 /**
+ * Chunk c2: the mesh is partMesh, the one geometry BoardMesh draws.
  * Curve rebuild performance (curves spec §3.6). A resize drag rebuilds a curved part every frame — bodies, EDGES (the
  * spike's slow step: bodyEdges over an arch's slices measured 25 ms at 18 chords, 135 ms at 48) and every body's mesh.
  * Each case is a full rebuild through partGeometry with a fresh geometry key (the length moves by a micro-inch), the
@@ -55,7 +56,7 @@ function rebuild(make: (len: number) => Board): number {
   const start = performance.now();
   const g = partGeometry(board);
   void g.edges;
-  for (const body of g.bodies) bodyMesh(board, body, g.holes, g.bodies);
+  partMesh(board, g.bodies, g.holes);
   return performance.now() - start;
 }
 const minOf9 = (make: (k: number) => Board) => {
@@ -183,12 +184,15 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
     // 2026-10-19: worst full-run minimum 37.2 ms → 47, over a frame. Chunk c1: 21.7–22.3 alone, 23.0–23.6 full → 40.
     ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 40],
     // 2026-10-19: worst full-run minimum 70.8 ms → 89. Chunk c1: 45.8 alone, 55.6–56.6 full → ⌈56.6 × 1.25⌉ = 71.
-    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 71],
+    // Chunk c2: 36.8–39.1 alone, 38.9–40.2 full → ⌈40.2 × 1.25⌉ = 51.
+    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 51],
     // 2026-10-19: worst full-run minimum 68.1 ms → 86. Chunk c1: 45.5–49.4 alone, 46.0–47.1 full → ⌈49.4 × 1.25⌉ = 62.
-    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 62],
+    // Chunk c2: 33.3–34.9 alone, 35.8–38.2 full → ⌈38.2 × 1.25⌉ = 48.
+    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 48],
     // Chunk c1: 60.9–62.6 alone, 64.3–64.7 full. Re-measured 2026-10-19 (c1 review I1), alone: 71.1 (load 1.3), then 57.6/56.9/60.8
     // → worst 71.1 → ⌈71.1 × 1.25⌉ = 89 (was 113).
-    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 89],
+    // Chunk c2: 46.5–48.1 alone, 46.5–47.3 full → ⌈48.1 × 1.25⌉ = 61.
+    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 61],
   ];
   for (const [name, board, bound] of swept) {
     it(`${name}: at most ${bound} ms`, () => {
@@ -200,6 +204,7 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
   // Review Focus 4: All round the top AND the bottom (one outline, two swept profiles). Measured 59.9 / 61.9 (alone / full
   // suite, Task 6; was 76.8 / 83.0): guarded at 61.9 + 25%.
   // 2026-10-19: worst full-run minimum 65.6 ms → 82. Chunk c1: 36.5–37.2 alone, 38.1–40.3 full → ⌈40.3 × 1.25⌉ = 51.
+  // Chunk c2: 35.2–37.4 alone, 39.9–41.2 full → ⌈41.2 × 1.25⌉ = 52 > 51, so the guard stays 51 (never raised).
   it('a roundover all round the top and the bottom of the 2" top: at most 51 ms', () => {
     const board: Board = { ...topCorners(2), profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] };
     expect(builtSwept(geometryBoard(board))).toHaveLength(2);
@@ -228,7 +233,8 @@ describe('a b2 profile\'s part rebuilds inside a frame (profile runs b2)', () =>
     // full-suite minimum + 25% (2026-10-19: 55.3 ms alone, 55.0 in a full run → ⌈55.0 × 1.25⌉ = 69).
     // 2026-10-19 (re-baseline after the merge): worst full-run minimum 57.8 ms → 73.
     // Chunk c1: 42.9–46.3 alone, 47.4–48.9 full → ⌈48.9 × 1.25⌉ = 62.
-    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 62],
+    // Chunk c2: 35.2–37.4 alone, 36.0–38.2 full → ⌈38.2 × 1.25⌉ = 48.
+    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 48],
     ['a roundover 1/4" round four sides and three arcs (wrapFour)', wrapFour(), 2, WRAP_FOUR],
   ];
   for (const [name, board, stops, bound] of b2) {

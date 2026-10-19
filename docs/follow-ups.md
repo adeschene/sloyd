@@ -6623,6 +6623,10 @@ leaving All round" closed (B7 lifted). The rest unchanged.
 two loops ~36 (51); still over a frame: bead, cove, ogee — for c2 (the restructure). The presets' per-frame cost, `holeFaults`' rebuild and
 the air test's full scan are unchanged (unmeasured by c1). The rest unchanged.
 
+**Status:** chunk c2 (2026-10-19, branch `perf-c2`, unmerged; no schema change): (2)'s rows, worst minimum alone/full of four runs: ogee loop 48.1
+(guard 61), cove 38.2 (48), bead 40.2 (51), two loops 41.2 (51); the ogee loop stays over 40 and bead/two loops cross it in full runs.
+Levers left: `sweepBodies` ~11 ms, `sectionSeams` ~5, per-body mesh emission and swept normals. Still open.
+
 ## From the profile runs round (chunk b2) — 2026-10-19
 
 **394. Profile runs b2 residue.** Parked and deferred review minors, record-only unless noted:
@@ -6678,3 +6682,6 @@ not model B1's ε (it fails at r ≤ 1" on bodies identical to deployed b1); the
 hold for monotone sections only (roundover, cove); Task 8's m4 (the two-side through-START wording); `twoSideSharp`'s closed form
 alone survives a `BEARING` 0.26 mutation (the axis pins catch it). **Status:** open (record-only; (1) owed to the user's eye and
 review; (5) for chunk c).
+
+**Status:** chunk c2 (2026-10-19, branch `perf-c2`, unmerged): (5)'s two-side cove 38.2 (guard 48; was 43-44); `wrapFour` measured 27.9 in c2's four runs. Rows still over 40 are the ogee loop (48.1) and, in full runs, bead (40.2) and two loops (41.2); the
+wall-clock guards stay flaky under load. Still open.

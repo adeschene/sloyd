@@ -520,6 +520,65 @@ and 79.
 
 ## What each round did
 
+**What chunk c2 did (2026-10-19)** (the restructure for swept rebuilds, fu 393(2) and 394(5); the follow-on to c1; spec
+`2026-10-19-sloyd-swept-speed-c2-design.md`, plan `…-swept-speed-c2.md`; branch `perf-c2` from `113d840`, **not merged, not deployed**; no
+schema change, so rollback is free). Commits: `d859fd9` (stage 1), `97bf8e0` (the seam index moved to `seams.ts`), `e31672f` + `1f0d6e5` +
+`9aef27e` (stage 2 and its two fix rounds), `4a61f68` (stage 3), `a20e51b` (guards), `1fc9e97` and `88354ed` (browser baseline, after, live pass).
+
+1. **Stage 1, `partMesh`:** a shaped part draws ONE geometry (six material groups) instead of one mesh per body (313 on the ogee loop).
+2. **Stage 2, `seams.ts`:** an exact twin seam (an opposite, coplanar, equal face of another body) draws nothing without `minusCover`
+   (`twinFaces`, `faceCover`); `withoutSeams` shares `twinFaces`, so the mesh and the edges cannot drift. Judged by area, grain and normals
+   against the reference route (`twinSkip.test.ts`, which has its own part memo: 68 s -> 4 s).
+3. **Stage 3:** in `bodyEdges`' fast path a face that the part's other bodies cover completely makes no edge candidate; it stays a wing.
+
+**Planning prototypes** (master `52ebda5`, c1 as deployed, throwaway, reverted): twin skip in `curvedPart` took the ogee loop's mesh 28 -> 18 ms
+(cove 19 -> 13, bead 16 -> 12, two-side cove 17 -> 13), all 54 `sweptIdentity` pins byte-identical; lazy per-face data in `bodyEdges` gained
+nothing (521 of the ogee loop's 782 faces are read as wings anyway), so it was dropped; no candidate from a covered face took `bodyEdges` 14 ->
+7.7 ms (cove 11 -> 6.7, bead 11.7 -> 9.9, two loops 7.6 -> 7.4, two-side cove 12 -> 8.4) with all 307 `sweepEdges` tests passing (of the ogee
+loop's 416 judged lines only 52 draw anything). The plan expected the ogee loop at ~45-50 ms and said so.
+
+**Amendments** (spec §5; for the user's review): **A1** stage 2 decides by the twin test alone, with no `internal` tag (a tag in `buildPieces`
+would break the byte-for-byte bodies pins, contradicting spec §1; the twin test IS the spec's definition of "present"); **A2** stage 3 removes
+CANDIDATES, never faces (b2's lesson: a dropped face drew phantom lines; a crease is always bounded by a visible face whose own edge makes
+the candidate); **A3** no memo on `partMesh` (frozen bodies are shared by parts with one `geometryKey`, which holds no pose and no id, while
+positions and UVs differ per part; BoardMesh's `useMemo` is the memo); **A4** stage 3 runs (rows were within 15% of 40 after stage 2).
+
+**Mutations.** Stage 2 (`seams.ts`): (1) drop any face with ANY opposite coplanar face: failed (many `curvesWatertight`, `twinSkip`); (2) drop
+none: failed (`the ogee loop has twins`); (3) loosen `same` to `verts[0]` only: survived 280/280 at first (the key hash gates it), so the fix
+round added a synthetic `twinFaces` test (a vertex 2e-7 off in the same hash bucket) and it then FAILS. Stage 3: (1) skip any face with some cover:
+92 tests fail (72 in the b2 sweep, 8 in the c2 describe, 5 N1/N2, 3 N1 station, 2 b2 fixtures, 2 every-swept-fixture); (2) covered faces also
+removed as wings: 292 fail. Stage 3 moved 51 `sweptIdentity` edges slots (27 cases, both lengths; order only, bodies, meshes and caps slots
+unmoved), each proved fast == reference, including at 1.000123x by a scratch describe.
+
+**Stage table** (ms, min of 9, curvesPerf harness; before = planning measurement; after stage 2 and 3 = alone / full; stage 1 not measured in Node):
+
+| Row | before c2 | after stage 2 | after stage 3 | final worst of 4 |
+|---|---|---|---|---|
+| ogee loop | 63-72 | 55.0 / 57.3 | 46.9 / 45.7 | 48.1 |
+| cove loop | 45-49 | 40.4 / 41.5 | 36.2 / 37.5 | 38.2 |
+| bead loop | 41-42 | 41.6 / 47.5 | 41.1 / 41.5 | 40.2 |
+| two loops | 35-37 | 36.9 / 39.7 | 38.9 / 36.3 | 41.2 |
+| two-side cove | 43-44 | 38.1 / 46.4 | 33.5 / 42.8 | 38.2 |
+
+Breakdown after (bodies / edges / mesh / total): ogee 10.9 / 23.2 / 14.5 / 51.2; cove 8.3 / 16.0 / 9.5 / 34.0; bead 7.6 / 18.8 / 9.3 / 38.0; two loops
+11.6 / 15.9 / 7.0 / 36.5; two-side cove 9.9 / 16.5 / 9.9 / 37.5. Before (bodies / edges / mesh): ogee 10.6 / 23.6 / 28-32. The mesh halved; the
+edges barely moved in this harness (`g.edges` whole; the non-`bodyEdges` part dominates).
+
+**Guards** (four runs: alone twice, full twice; worst + 25%, lowered only): ogee 89 -> 61, bead 71 -> 51, cove 62 -> 48, two-side cove 62 -> 48;
+two loops stays 51 (its worst, 41.2, would give 52: never raised). Full suite 184 files, 6611 tests, twice green.
+
+**Browser** (production build, vite preview, software GL, viewport 900 x 500, the ogee loop's Length commit; baseline at `113d840`, after at `a20e51b`):
+two idle frames 320 -> ~183 ms median (-43%: one `<mesh>` where there were 313, each in the main and shadow pass); a commit's two frames
+431 -> ~270-290 ms; the rebuild's own excess over idle ~112 -> ~85-106 ms, within the metric's noise (the Node rebuild fell ~63-72 -> ~47).
+The live pass on the dev server (swept loop whole, picking once, section cap, shaded <-> plain with undo, fading, a stop and a two-side run,
+0 console errors) is in `docs/browser-verification-swept-speed-c2.md`.
+
+**Gate: MISSED.** The target "every rebuild under 40 ms" holds for cove and the two-side cove alone; the ogee loop's worst minimum alone is 48.1
+ms, and bead (40.2) and two loops (41.2) cross 40 in full runs. Nothing further was started. The three levers left (the user's decision, a spec
+amendment): `sweepBodies` (~11 ms), `sectionSeams` (~5 ms of the edges), per-body mesh emission and swept normals (~11 ms on the ogee loop); most
+grow with the body count, which spec §1 holds fixed. Deferred review minors are in the ledger `progress.md`. Awaiting the user: A1-A4, and
+whether to merge and deploy.
+
 **What chunk c1 did (2026-10-19)** (the speed of swept rebuilds, fu 393(2) and 394(5); the user's target: every rebuild under
 40 ms at idle). A throwaway spike timed the stages of the slowest rows: roughly a third each to bodies, edges and the mesh, all scaling
 with ~300 seam-heavy bodies (an ogee loop: 313 bodies, 1926 faces); path, skeleton and faults ~1.5 ms; r3f reconciling 313 per-body
@@ -4676,8 +4735,6 @@ silently removed the veneer rotation on plywood's face — the rule now promotes
 among the two non-thickness dimensions for sheet goods, so the ply stack still spans
 the true thickness *and* the veneer still turns; see follow-up 46 for the traced case.
 
-
----
 
 ## Follow-ups recap, as it stood on 2026-08-14
 
