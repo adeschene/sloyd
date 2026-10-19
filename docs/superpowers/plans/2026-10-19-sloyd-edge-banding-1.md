@@ -34,8 +34,16 @@ Recorded here and copied into the spec's §2.2/§5.2 as *Amended (planning)* blo
 - **P4 — a solid band type's material is a built-in solid or a custom solid already in this project** (`doc.materials`);
   a custom material created in the same dialog Save is not offered until saved (one Save would otherwise have to order a
   material upsert before a band type that names it).
-- **P5 — Buying's tape line uses Buying's own line style** (`… · $10.20`, as every other buy line), not the spec's
-  `— $10.20`.
+- **P5 — wording that differs from the spec's examples**, each for the user's review:
+  - Buying's tape line uses Buying's own line style with its verb: `Iron-on veneer, 7/8" wide: buy 15′ · $4.50` (the
+    spec: `…: 34′ — $10.20`). Metric: `Iron-on veneer, 7/8" (22 mm) wide: 2.2 m, buy 8′ · no price` (the spec:
+    `10.4 m (35′) — $10.50`).
+  - Strip rows are named per strip, `Shelf edging (width min side)`, and collapse by cut size as any row does (its names
+    list the strips); the spec's `Shelf edging (width min, width max)` was one combined name.
+  - The corner words (`long edges run through`, …) print only where two ADJACENT bands with thickness meet and one is
+    solid — the rule that decides when the corner rule matters (§3.2). The spec's §4.1 example printed them for two
+    OPPOSITE sides, where no corner exists; under this rule that example reads `Band: the width min side and the width max
+    side — Maple edging 1/4"; finished 24" × 11-1/4"`.
 
 ## Global Constraints
 
@@ -82,7 +90,10 @@ Recorded here and copied into the spec's §2.2/§5.2 as *Amended (planning)* blo
 
 **Files:**
 - Modify: `src/document/types.ts` (band types; `Board.bands`, `Board.cornerRule`; `SloydDocument.bandTypes`)
-- Create: `src/document/banding.ts` (the model half: constants, compare, copy, mirror, canonical order, `withBands`)
+- Create: `src/document/bandModel.ts` (the model: constants, compare, copy, mirror, canonical order, `withBands`). It
+  imports ONLY `ids`, `names` and `types`: `links.ts`, `shapes.ts`, `frames.ts`, `treeEdit.ts` and `document.ts` import it,
+  and Task 4's `banding.ts` (which imports the outline code, `profilePath.ts` → `profiles.ts` → `sweep.ts` …) must never be
+  reachable from them — a cycle there reads `BUILT_IN_BAND` as undefined at module load, not as a clean failure.
 - Modify: `src/document/links.ts` (`LINK_FIELDS.bands`/`cornerRule: 'shared'`, `_sharedPrimitives`, `sharedOf`,
   `sharedPatch`, `sameShared`)
 - Modify: `src/document/shapes.ts:35` (`resolveBoard` copies `bands`)
@@ -103,7 +114,7 @@ Recorded here and copied into the spec's §2.2/§5.2 as *Amended (planning)* blo
   // Board gains: bands: Band[]; cornerRule: CornerRule;
   // SloydDocument gains: bandTypes: BandType[];
   ```
-- Produces (banding.ts): `BUILT_IN_BAND_ID = 'band-iron-on'`, `BUILT_IN_BAND: TapeBand`, `BAND_KINDS`,
+- Produces (bandModel.ts; `banding.ts` re-exports all of it from Task 4 on): `BUILT_IN_BAND_ID = 'band-iron-on'`, `BUILT_IN_BAND: TapeBand`, `BAND_KINDS`,
   `BAND_SIDES: readonly ProfileSide[]`, `CORNER_RULES: readonly CornerRule[]`, `BAND_FIELDS`, `sideIndex(s): number`,
   `sameSide(a, b): boolean`, `bandValues(b): string`, `sameBands(a, b): boolean`, `copyBand(b): Band`,
   `canonicalBands(bands): Band[]`, `mirrorBands(bands, d): Band[]`, `withBands(bands, sides, type): Band[]`,
@@ -118,7 +129,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BAND_SIDES, BUILT_IN_BAND, BUILT_IN_BAND_ID, bandOn, canonicalBands, copyBand, mirrorBands, newBandType, sameBands,
   sameBandType, withBands,
-} from './banding';
+} from './bandModel';
 import { createBoard, createDocument } from './document';
 import { sameShared } from './links';
 import type { Band, ProfileSide } from './types';
@@ -209,7 +220,7 @@ describe('the band model (edge banding spec §2)', () => {
   bandTypes: BandType[];
 ```
 
-  - `banding.ts` (the model half; Task 4 appends the arithmetic):
+  - `bandModel.ts`:
 
 ```ts
 import { nextId } from './ids';
@@ -287,7 +298,7 @@ export function newBandType(kind: BandType['kind'], taken: readonly BandType[]):
     `} else if (k === 'bands') { if (!sameBands(a.bands, b.bands)) return false; }`.
   - `shapes.ts:35`: add `: k === 'bands' ? s.bands.map(copyBand)` before `: s[k]`.
   - `document.ts`: `createBoard` default `bands: [], cornerRule: 'long',` after `profiles: []`; `createDocument` adds
-    `bandTypes: [BUILT_IN_BAND],`. Re-export from `./banding`: `BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_SIDES, withBands,
+    `bandTypes: [BUILT_IN_BAND],`. Re-export from `./bandModel`: `BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_SIDES, withBands,
     bandOn, sameBands, copyBand, mirrorBands, canonicalBands, newBandType, sameBandType`; types `Band, BandType,
     TapeBand, SolidBand, CornerRule` from `./types`.
   - `generated.ts:294,305,317`: add `bands: [], cornerRule: 'long'` beside `profiles: []`. (Generate's DESIGN_SCHEMA is
@@ -325,7 +336,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: create `src/document/bandingLoad.test.ts`
 
 **Interfaces:**
-- Consumes: `BUILT_IN_BAND`, `BAND_KINDS`, `canonicalBands`, `CORNER_RULES` (Task 1).
+- Consumes: `BUILT_IN_BAND`, `BAND_KINDS`, `canonicalBands`, `CORNER_RULES` (Task 1, from `./bandModel`).
 - Produces: `CURRENT_VERSION = 19`; loaded documents carry validated `bandTypes` (the built-in first) and parts/shapes
   carry validated `bands` and `cornerRule`. `materialUses(doc)` includes every solid band type's material.
 
@@ -334,7 +345,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```ts
 import { describe, expect, it } from 'vitest';
 import { CURRENT_VERSION, DocumentError, createBoard, createDocument, migrateDocument } from './document';
-import { BUILT_IN_BAND } from './banding';
+import { BUILT_IN_BAND } from './bandModel';
 import type { Board } from './types';
 
 const raw = (over: object) => JSON.parse(JSON.stringify({ ...createDocument('T'), version: 19, ...over }));
@@ -431,7 +442,7 @@ describe('loading schema 19 (edge banding spec §2.3)', () => {
 ```
 
   - After the profiles validators add (import `BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_KINDS, CORNER_RULES, canonicalBands`
-    from `./banding`; `isSheetGood` is already imported from `./types`):
+    from `./bandModel`; `isSheetGood` is already imported from `./types`):
 
 ```ts
 /** A band type this build cannot use (spec §2.3): the whole document is refused, as a newer version is. */
@@ -545,7 +556,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   applyMaterials: (upserts: CustomMaterial[], assign?: { ids: string[]; material: string }, bandTypes?: BandType[]) => void;
   ```
   `cornerRule` is written through `updateBoards(ids, { cornerRule })` (a shared primitive; no new action).
-- Produces (document, exported from `banding.ts`): `withBandTypes<T extends { bandTypes: BandType[] }>(doc: T, next: readonly BandType[] | undefined): T`
+- Produces (document, exported from `bandModel.ts`): `withBandTypes<T extends { bandTypes: BandType[] }>(doc: T, next: readonly BandType[] | undefined): T`
   — the SAME object when `next` is undefined or equal type by type (`sameBandType`), else `{ ...doc, bandTypes: [...next] }`.
 
 - [ ] **Step 1: Write the failing tests.**
@@ -581,9 +592,9 @@ describe('bands through a mirror (edge banding 1, Review Focus 1)', () => {
 ```
 
     Check `mirrorDim`'s home and export (`frames.ts`); if it is not exported, export it (it is a pure helper) rather than
-    re-deriving the dimension in the test. Import `mirrorBands, withBands` from `./banding`.
+    re-deriving the dimension in the test. Import `mirrorBands, withBands` from `./bandModel`.
   - Append to `src/store/store.test.ts` (after the profile actions block; import `BUILT_IN_BAND`, `newBandType` from
-    `../document/banding`; `ProfileSide`, `Shape` as types):
+    `../document/bandModel`; `ProfileSide`, `Shape` as types):
 
 ```ts
 describe('band actions (edge banding 1)', () => {
@@ -688,7 +699,8 @@ function lowerBands(storedBefore: Board, draft: Board): Band[] {
 ```
 
     Check `oneEditPerTarget`'s real signature (`treeEdit.ts:215`) and how `updateBoards` builds `t`; match it.
-  - `withBandTypes` in `banding.ts` (see Interfaces). `updateBoards` gains `bandTypes?: BandType[]` and wraps its base
+  - `withBandTypes` in `bandModel.ts` (see Interfaces). Every Task 3 import of the model in `src/document/` is from
+    `./bandModel`, never `./banding`. `updateBoards` gains `bandTypes?: BandType[]` and wraps its base
     document: `mapWorld(withBandTypes(adopt ? upsertMaterials(doc, adopt) : doc, bandTypes), …)`. `applyMaterials` gains
     `bandTypes?: BandType[]`: pass it to `updateBoards` on the assign path; on the plain path
     `edit((doc) => withBandTypes(kept.length > 0 ? upsertMaterials(doc, kept) : doc, bandTypes))` — guarded so an unchanged
@@ -715,7 +727,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 4: The arithmetic — core, strips, tape runs, faults
 
 **Files:**
-- Modify: `src/document/banding.ts` (append)
+- Create: `src/document/banding.ts` (the arithmetic; first line `export * from './bandModel';`, so higher layers —
+  `cutlist.ts`, `purchase.ts`, panels — import everything band-related from `./banding`)
 - Test: append to `src/document/banding.test.ts`
 
 **Interfaces:**
@@ -865,7 +878,7 @@ describe('the arithmetic (edge banding spec §3)', () => {
 
 - [ ] **Step 2: Run.** `npx vitest run src/document/banding.test.ts`. Expected: FAIL (the arithmetic does not exist).
 
-- [ ] **Step 3: Implement** (append to `banding.ts`; import `faceOutline, sideStretch` from `./profilePath`, `endWord` from
+- [ ] **Step 3: Implement** (in `banding.ts`; import `faceOutline, sideStretch` from `./profilePath`, `endWord` from
   `./holeText`, `deepFreeze` from wherever `profilePath.ts` imports it, and the `Board`, `FlatDocument`, `SolidBand`,
   `TapeBand` types):
 
@@ -954,8 +967,9 @@ export function coreSize(part: Board, types: readonly BandType[]) {
     `tapeRuns`: for each side with an unfaulted TAPE band: the sum over its stretch chords of `chordLength`, a chord ALSO in
     an adjacent side's stretch (a shared corner arc: `j.chords` of the two sides `i` is adjacent to — for a long edge the
     ends, for an end the long edges) weighted ½ when that adjacent side carries an unfaulted tape band, else 1; then
-    `+ type.lengthAllowance`. Return in canonical side order. Both memoised by the same (part, types) key — add `strips`
-    and `tapeRuns` lazily onto the judged record, or a second `WeakMap` pair; never recompute per call.
+    `+ type.lengthAllowance`. Return in canonical side order. Each memoised in its OWN `WeakMap<Board, WeakMap<readonly BandType[], …>>` pair (the judged record is deep-frozen:
+    never add a property to it — a frozen object throws on assignment in an ES module); results deep-frozen; never
+    recompute per call.
 
 ```ts
 export const stripId = (s: Pick<Strip, 'part' | 'side'>) => `${s.part}#band:${s.side.across}-${s.side.from}`;
@@ -1017,6 +1031,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: `coreSize`, `strips`, `stripBoard`, `stripId`, `bandFaults`, `bandFaultText`, `bandSignature`, `cutStock` (Task 4).
 - Produces: `CutListRow.stripIds: string[]` (empty on a part row; the strip ids on a strip row); `CutList.notes: string[]`
   (empty when nothing is banded).
+
+- [ ] **Step 0: Pin today's bytes (Global Constraints' byte-for-byte promise; the `sweptIdentity` pattern).** BEFORE any
+  code change in this task, create `src/document/bandFreeIdentity.test.ts`: for `shakerTableFixture` (`shakerTableFixture.ts`)
+  and two or three existing cut-list fixtures (a sheet-goods project with nesting, a by-the-piece priced project — reuse
+  `cutlist.test.ts`' and `purchase.test.ts`' own documents), hash
+  `JSON.stringify(buildCutList(d), strip)` and `JSON.stringify(buildPurchase(d, buildCutList(d), shop), strip)` with a
+  replacer `strip` that drops the keys `stripIds`, `notes` and `banding`; assert each hash against a LITERAL captured on the
+  untouched tree (run once, paste the printed hashes, commit). It must pass now and after Tasks 5 and 6 unchanged; never
+  re-capture a literal to make it pass. Use the hash helper `sweptIdentity.test.ts` uses.
 
 - [ ] **Step 1: Write the failing tests.** Create `src/document/cutlistBands.test.ts`:
 
@@ -1192,7 +1215,7 @@ function stripSetup(s: Strip): string {
     `<p className="cutlist-note" key={i}>{n}</p>` directly under the sheet header (reuse an existing note class if the
     sheet has one; no new CSS otherwise).
 
-- [ ] **Step 4: Run.** The Step 2 command → PASS; then `npx vitest run src/document/cutlist.test.ts src/panels/CutList.test.tsx`
+- [ ] **Step 4: Run.** The Step 2 command → PASS; then `npx vitest run src/document/bandFreeIdentity.test.ts src/document/cutlist.test.ts src/panels/CutList.test.tsx`
   → PASS unchanged (byte for byte on band-free documents; any `CutListRow` literal in a test gains `stripIds: []`).
 
 - [ ] **Step 5: Mutate.** Each must turn a test red; restore after each.
@@ -1335,7 +1358,7 @@ function tapeToBuy(doc: FlatDocument): Purchase['banding'] {
     Match the entries' own heading element (read lines 182–193); render the Buying section when `entries.length > 0 ||
     purchase.banding`.
 
-- [ ] **Step 4: Run.** `npx vitest run src/document/purchaseBands.test.ts src/document/purchase.test.ts src/panels/CutList.test.tsx` → PASS
+- [ ] **Step 4: Run.** `npx vitest run src/document/purchaseBands.test.ts src/document/purchase.test.ts src/document/bandFreeIdentity.test.ts src/panels/CutList.test.tsx` → PASS
   (`purchase.test.ts` unchanged except a `banding: null` where a test compares a whole `Purchase`).
 
 - [ ] **Step 5: Mutate.** Each must turn a test red; restore after each.
@@ -1668,6 +1691,9 @@ describe('the Edge banding section (edge banding spec §5.2)', () => {
     row but the built-in; `+ Add band type ▾` (`Popover`: `Tape`, `Solid`). All disabled while `locked`. The dialog's
     existing `valid`/`result` gates include `planBandTypes` (a refusal disables Save and shows the message, the same element
     as the materials' refusal). `save()` puts `bandTypes` on the `SavePlan`.
+  - The dialog's footer note becomes: `Your materials and prices are stored in this browser; each project also keeps a copy
+    of the materials it uses, and its own band types and tape prices. Undo reverts the project's copies and band types, not
+    your library or material prices.` (tape prices live in the document, spec §2.1, so the old sentence would be false).
   - `App.tsx`: pass `bandTypes={doc.bandTypes}`, `parts={worldParts(doc)}`, `solids={…}`; in `onSave` call
     `applyMaterials(plan.project, plan.assign ?? undefined, plan.bandTypes ?? undefined)` when
     `plan.project.length > 0 || plan.assign || plan.bandTypes`, and count `plan.bandTypes !== null` in `projectChanged`.
@@ -1715,7 +1741,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
     shipped row; Versioning row `18→19`; `CURRENT_VERSION` **19**; a new **invariant 54** (condensed: `banding.ts` is the
     ONE place band numbers are computed; the model is the FINISHED size, the cut list the CORE; a faulted band adds
     nothing; bands are flag-flipped through mirrors; Joinery/Refine/Repair refuse banded projects); invariant 49 amended
-    (`pruneMaterials` keeps a band type's material); the file index gains `banding.ts`, `bandedRefusal.ts`, `Banding.tsx`,
+    (`pruneMaterials` keeps a band type's material); the file index gains `bandModel.ts` (the model; imports only ids, names, types), `banding.ts`, `bandedRefusal.ts`, `Banding.tsx`,
     `bandingRefusal.ts`, `bandTypesDraft.ts`; Commands' test count.
   - `docs/follow-ups.md`: 267's banding half — chunk 1 done, chunk 2 next; the hardware half stays open. New entries:
     bodies split into core and band (spec §7, open by decision), bands through joinery/Refine/Repair, a browser library of
