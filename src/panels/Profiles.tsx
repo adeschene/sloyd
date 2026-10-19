@@ -224,6 +224,12 @@ function ProfileRow({ board: stored_, profile }: { board: Board; profile: Profil
     if (twoSides || sameSide(s, side)) return moveEnd('end', s);
     if (s.across !== side.across) return moveNearer(s);
     const [lo, hi] = [run0.start, run0.end].sort((a, b) => endPos(stored_, a) - endPos(stored_, b));
+    // R7 (fix round 3, NF1, the controller's ruling): a shown Start that runs out THROUGH where travel leaves its side cannot
+    // be the stored Start (Q17: a through Start names where travel enters). What the person sees is the wood on the kept
+    // side, so that extent is kept: the stored run stays (its start the shown Stop's station, its through end where it leaves
+    // through, now the corner passed) and the stored end moves, seeded per Q26 on the new side.
+    const shownFirst: ProfileCut = { ...profile, run: { start: lo!, end: { side: { ...s }, from: 'min', at: 0 } } };
+    if ('through' in lo! && !throughConsistent(shownFirst)) return moveEnd('end', s);
     return moveEnd('end', s, { start: lo!, end: hi! });
   };
   /** The Side select: on a one-side run both ends move (a2, the stations kept); on two sides, Start alone (Q26). */

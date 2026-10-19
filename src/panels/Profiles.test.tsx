@@ -1248,6 +1248,29 @@ describe('fix round 2: R6 (opposite Stop side keeps the shown Start) and N2 (a m
       expect(within(profileRow()).getByText(new RegExp(` round ${words(passed)} to ${words(opp)} at `))).toBeInTheDocument();
     });
   }
+  // Fix round 3 (NF1, the controller's ruling R7): a shown Start that is a THROUGH end where the run LEAVES its side cannot be
+  // the stored Start (Q17). The shown extent on the kept side is kept instead: the stored start stays the shown Stop's
+  // station, the run still leaves through, and the moved end is seeded per Q26 on the opposite side.
+  for (const [s, face] of R6.slice(0, 4)) {
+    it(`R7: ${label(s)}, face ${face}: the shown Start runs out through; Stop side -> the opposite side keeps 0 to L - 5 there`, async () => {
+      const user = userEvent.setup();
+      const dim = s.across === 'width' ? 'length' : 'width';
+      const L = dims[dim];
+      open(named(topCorners(2, stopOn(s, face, { side: { ...s }, through: 'min' }, L - 5))));
+      expect(within(profileRow()).getByLabelText(`Start (from the ${dim} min end)`)).toHaveValue('0"');
+      const kept = ends().start;
+      expect(kept).toEqual({ side: s, from: 'min', at: L - 5 });                         // canonical: travel −1, so L − 5 first
+      const before = useStore.getState().past.length;
+      const opp: S = { across: s.across, from: flip(s.from) };
+      await user.selectOptions(inRow('Stop side'), label(opp));
+      expect(within(profileRow()).queryByRole('alert')).toBeNull();
+      expect(useStore.getState().past.length).toBe(before + 1);
+      const seed = Math.min(3, L / 4);
+      expect(ends()).toEqual({ start: kept, end: { side: opp, from: 'min', at: travelSign(face, opp) > 0 ? seed : L - seed } });
+      const passed: S = { across: dim, from: 'min' };                                    // travel −1 leaves through the min end
+      expect(within(profileRow()).getByText(new RegExp(`from ${words(s)} at ${L - 5}" round ${words(passed)} to ${words(opp)} at `))).toBeInTheDocument();
+    });
+  }
   const sides: S[] = [{ across: 'width', from: 'min' }, { across: 'width', from: 'max' }, { across: 'length', from: 'min' }, { across: 'length', from: 'max' }];
   for (const face of ['max', 'min'] as const) {
     for (const s of sides) {
