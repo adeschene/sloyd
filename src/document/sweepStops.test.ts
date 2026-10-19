@@ -8,6 +8,7 @@ import { mirrorPart } from './frames';
 import { oneSideCurve, sweptStops } from './sweep';
 import {
   bowFront, chiralTwoSide, frontAndEnds, stopOnArch, stopOnCorner, stopOnNotch, stopped, topCorners, twoSideSharp, wrapFour, wrapThree, zoneStop,
+  stationFrontToBack, stationFrontToRight, stationRightToBack, shortEnds,
 } from './sweepFixtures';
 import type { Board, ProfileCut, ProfileSide } from './types';
 
@@ -217,7 +218,7 @@ function runoutMismatches(p: ProfileCut, bodies: readonly Body[], o: StopOracle,
 }
 const multiPiece = (p: ProfileCut) => p.kind !== 'roundover';
 
-const CASES: [string, () => Board][] = [
+const CASES: [string, () => Board, number?][] = [
   ['stopOnCorner() — roundover 1/4 stopped on a convex corner arc', () => stopOnCorner()],
   ['stopOnCorner(cove 3/8)', () => stopOnCorner('cove', 0.375)],
   ['stopOnArch — both stops on the concave arch', () => stopOnArch],
@@ -227,18 +228,22 @@ const CASES: [string, () => Board][] = [
   ['frontAndEnds(cove 3/8)', () => frontAndEnds('cove', 0.375)],
   ['wrapThree — three sides: the back band passes back through the start stop\'s half-plane (Task 5 fix round 1, I1)', () => wrapThree()],
   ['wrapFour — four sides round three arcs: both stops\' half-planes hold the run\'s own band (I1)', () => wrapFour()],
+  ['stationRightToBack — a B1 station on the front, the run round to the back (Task 5 fix round 2, N1)', () => stationRightToBack(), 1],
+  ['stationFrontToBack — a stop on the front, a B1 station on the left end (N1)', () => stationFrontToBack(), 1],
+  ['stationFrontToRight — a stop on the front, a B1 station on the back (N1)', () => stationFrontToRight(), 1],
+  ['shortEnds — b1: an End to end whose B1 stations take no ε (the station clip is real there; fix round 2)', () => shortEnds(), 0],
   ['twoSideSharp — two sides round a sharp corner (R6\'s mitre; the distance to two chords meeting convexly IS the mitre)', () => twoSideSharp],
 ];
 
 describe('the wood of a stop on a turned path matches the independent oracle (R-a)', () => {
-  for (const [name, make] of CASES) {
+  for (const [name, make, stopCount = 2] of CASES) {
     it(name, () => {
       const board = make();
       const p = board.profiles[0]!;
       expect(profileFaults(board, p)).toEqual([]);
       expect(geometryBoard(board).profiles.length).toBe(1);   // swept (Q9)
       const o = stopOracle(board, p);
-      expect(o.stops.length).toBe(2);
+      expect(o.stops.length).toBe(stopCount);
       const bodies = boardBodies(board);
       const v = totalVolume(bodies);
       const ov = (oracleVolume(board, o, 1) + oracleVolume(board, o, 99)) / 2;
@@ -380,12 +385,12 @@ describe('the sharp corner (twoSideSharp, R6\'s mitre): a closed form', () => {
 
 describe('the stop\'s frame', () => {
   it('no step at any stop: the waste width just behind and just beyond the stop plane agree (≤ 1e-6") at 60 depths', () => {
-    for (const [name, make] of [...CASES, ['zoneStop()', zoneStop] as [string, () => Board]]) {
+    for (const [name, make, stopCount = 2] of [...CASES, ['zoneStop()', zoneStop] as [string, () => Board]]) {
       const board = make();
       const view = geometryBoard(board);
       const p = view.profiles[0]!;
       const frames = sweptStops(view, p);
-      expect(frames.length, name).toBe(2);
+      expect(frames.length, name).toBe(stopCount);
       const inB = inBodiesFn(boardBodies(board));
       const pts = profileSection(board, oneSideCurve(p)).pts;
       const reach = Math.max(...pts.map((q) => q[0])), depth = Math.max(...pts.map((q) => q[1]));

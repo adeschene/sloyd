@@ -127,7 +127,7 @@ export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; cl
   const sk = pathSkeleton(chain.chords, chain.loop, reach, chain.rays);
   if (!sk) return null;
   let wave = sk.wave;
-  for (const st of chain.stations) if (clips(st, wave)) wave = clipLine(wave, st.n, st.d);
+  for (const st of chain.stations) if (!st.stop) wave = clipWave(chain, wave, st);
   const pts = wave.map((q) => [q[0], q[1]] as P2);
   return pts.length >= 2 ? { pts, closed: chain.loop } : null;
 }
@@ -136,15 +136,43 @@ export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; cl
  *  and the rest of the outline. */
 export interface SweptPlan { chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number }
 
-/**
- * Does a station's half-plane clip these plan points? A B1 station's always does (its ε extension's face is cut back at the
- * tangent point; b1's bytes). A b2 STOP's never needs to: the skeleton already ends its band on the stop's ray, the plane
- * itself (Q12), so on every face that lies on the kept side the clip is a no-op, applied as before (the same bytes). A face or
- * wave reaching past the plane by more than 1e-9 is the run's OWN band wrapping round (two whole sides between the ends):
- * the router keeps cutting there, so it is not clipped (the Task 5 review's I1, fix round 1).
+/*
+ * The station clips (fix rounds 1 and 2 of b2 Task 5; I1, N1). A b2 STOP never clips: the skeleton already ends its band on
+ * the stop's ray N, which lies IN the stop plane (`planChain`, Q12), and Q13's zone keeps the end chord's back vertex behind
+ * it. A B1 STATION clips its END of the band, back from the end to the first face wholly on the kept side. With B1's ε
+ * extension the station plane sits at the built end and the end ray (the extension's own normal) lies in it, so the clip
+ * cuts nothing; it is real only where the next side is too short for ε (the ray is then the arc's bisector, `shortEnds`).
+ * A two-side run (b2) may carry its band round two whole sides, out of the station's half-plane and back in elsewhere: that
+ * band is the router's too, and is not clipped (N1). Every face wholly on the kept side still passes through
+ * `tidy(clip2(…))`, a no-op clip, because that is b1's bytes (dropping it changes sweepEdges' pinned hashes). With no such
+ * far face (every b1 run: an End to end never wraps) every face and the wave clip exactly as before, byte for byte.
  */
-const clips = (st: StationClip, pts: readonly P2[]): boolean =>
-  !st.stop || pts.every((q) => st.n[0] * q[0] + st.n[1] * q[1] + st.d >= -1e-9);
+const BEYOND = -1e-9;
+const gOf = (st: StationClip, q: P2) => st.n[0] * q[0] + st.n[1] * q[1] + st.d;
+/** Is the station at the chain's start (else its end)? Its `at` is the tangent point, within ε of that end. */
+const atStart = (chain: PlanChain, st: StationClip): boolean => {
+  const a = chain.chords[0]!.a, b = chain.chords[chain.chords.length - 1]!.b;
+  return Math.hypot(st.at[0] - a[0], st.at[1] - a[1]) <= Math.hypot(st.at[0] - b[0], st.at[1] - b[1]);
+};
+function clipFaces(chain: PlanChain, faces: P2[][], st: StationClip): P2[][] {
+  const beyond = (f: readonly P2[]) => f.some((q) => gOf(st, q) < BEYOND);
+  const local = new Set<number>();
+  const start = atStart(chain, st);
+  for (let i = start ? 0 : faces.length - 1; i >= 0 && i < faces.length; i += start ? 1 : -1) {
+    if (faces[i]!.length >= 3 && !beyond(faces[i]!)) break;
+    local.add(i);
+  }
+  return faces.map((f, i) => (f.length >= 3 && (local.has(i) || !beyond(f)) ? tidy(clip2(f, st.n, st.d)) : f));
+}
+function clipWave(chain: PlanChain, wave: P2[], st: StationClip): P2[] {
+  const start = atStart(chain, st);
+  let k = start ? 0 : wave.length - 1;
+  while (k >= 0 && k < wave.length && gOf(st, wave[k]!) < BEYOND) k += start ? 1 : -1;
+  const far = wave.some((q, i) => (start ? i > k : i < k) && gOf(st, q) < BEYOND);
+  if (!far) return clipLine(wave, st.n, st.d);
+  return start ? [...clipLine(wave.slice(0, k + 1), st.n, st.d), ...wave.slice(k + 1)]
+    : [...wave.slice(0, k), ...clipLine(wave.slice(k), st.n, st.d)];
+}
 
 /** A convex polygon clipped to n·x + d >= 0. */
 function clip2(poly: readonly P2[], n: P2, d: number): P2[] {
@@ -190,8 +218,9 @@ export function sweptPlan(view: SweepBoard, p: ProfileCut, opts?: { events?: boo
   let faces = sk.faces;
   let wave = sk.wave;
   for (const st of chain.stations) {
-    faces = faces.map((f) => (f.length >= 3 && clips(st, f) ? tidy(clip2(f, st.n, st.d)) : f));
-    if (clips(st, wave)) wave = clipLine(wave, st.n, st.d);
+    if (st.stop) continue;
+    faces = clipFaces(chain, faces, st);
+    wave = clipWave(chain, wave, st);
   }
   let rest: P2[];
   if (chain.loop) rest = tidy(wave);

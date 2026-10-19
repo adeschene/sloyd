@@ -8,9 +8,10 @@ import { fromWorldOffset, axisFrame } from './geometry';
 import { geometryBoard, profileFaults } from './profiles';
 import { BEARING, profileSection, sectionFrame, stopAxis } from './runout';
 import { keptSection, oneSideCurve, sweptStops, sweptWasteStations } from './sweep';
-import { partGeometry, type Body } from './bodies';
+import { bodyVolume, partGeometry, type Body } from './bodies';
 import { builtPath, profilePath } from './profilePath';
-import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, wrapFour, wrapThree, zoneStop } from './sweepFixtures';
+import { apronArch, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, wrapFour, wrapThree, zoneStop,
+  stationFrontToBack, stationFrontToRight, stationRightToBack } from './sweepFixtures';
 import type { P2 } from './curves';
 import type { Board, HoleRow } from './types';
 
@@ -368,7 +369,10 @@ function probeVsBodies(b: Board, count: number): P2[] {
   const v = geometryBoard(b);
   const p = v.profiles![0]!;
   const path = builtPath(v, p)!;
-  const axes = sweptStops(v, p).map((fr) => stopAxis(fr));
+  // Every run-out's axis: each stop's (stopAxis) and each B1 station's (a2's, BEARING outside its side).
+  const out = (sd: { across: string; from: string }): P2 => (sd.across === 'length' ? [sd.from === 'min' ? -1 : 1, 0] : [0, sd.from === 'min' ? -1 : 1]);
+  const axes = [...sweptStops(v, p).map((fr) => stopAxis(fr)),
+    ...path.ends!.flatMap((e) => (e.kind === 'station' ? [plus(e.at, [out(e.side), BEARING])] : []))];
   const probe = stockProbe(b);
   const geo = partGeometry(b);
   const inner = inBodies(geo.bodies, -1e-6), outer = inBodies(geo.bodies, 1e-6);
@@ -478,3 +482,25 @@ describe('b2 fix round 1: the probe reads the BUILT stop, the holes the TYPED on
   });
 });
 
+
+describe('b2 fix round 2: a B1 station in a two-side run clips only its own end of the band (N1)', () => {
+  // The waste each run removes beyond the four 2" corners (4·(4 − π)·T), from Task 4's INDEPENDENT oracle's integration
+  // (sweepStops.test.ts R-a, recorded here; the reviewer's hand estimates 0.69, ~1, ~0.5 agree): never read off the bodies.
+  const CORNERS = 4 * (4 - Math.PI) * T;
+  for (const [name, make, waste] of [
+    ['stationRightToBack', stationRightToBack, 0.7079],
+    ['stationFrontToBack', stationFrontToBack, 1.0752],
+    ['stationFrontToRight', stationFrontToRight, 0.5615],
+  ] as const) {
+    it(`${name}: unfaulted, swept, one stop and one station; the wood removed is the profile's; probe and bodies agree`, () => {
+      const b = make();
+      expect(profileFaults(b, b.profiles[0]!)).toEqual([]);
+      const v = geometryBoard(b);
+      expect(v.profiles!.length).toBe(1);
+      expect(builtPath(v, v.profiles![0]!)!.ends!.map((e) => e.kind).sort()).toEqual(['station', 'stop']);
+      const vol = partGeometry(b).bodies.reduce((a, x) => a + bodyVolume(x), 0);
+      expect(Math.abs(36 * 20 * T - CORNERS - vol - waste)).toBeLessThan(2e-3);
+      expect(probeVsBodies(b, 6000)).toEqual([]);
+    }, 60_000);
+  }
+});

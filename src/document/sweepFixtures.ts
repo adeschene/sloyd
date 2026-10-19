@@ -70,3 +70,17 @@ export const wrapThree = (): Board => createBoard({ length: 30, width: 4, thickn
   profiles: [twoSide('p1', side('width', 'min'), 20, side('width', 'max'), 10)] });
 /** topCorners(2): the front at 20 round the length max end and the back to the length min end at 10: four sides, three arcs. */
 export const wrapFour = (): Board => topCorners(2, twoSide('p1', side('width', 'min'), 20, side('length', 'min'), 10));
+/** Task 5 fix round 2 (N1): two-side runs with a THROUGH end at a corner arc, so a B1 station (and its ε extension) at
+ *  that end, wrapping away from the station's half-plane. All on topCorners(2). */
+const throughEnd = (s: ProfileSide, through: 'min' | 'max') => ({ side: { ...s }, through });
+const stopEnd = (s: ProfileSide, at: number) => ({ side: { ...s }, from: 'min' as const, at });
+const runOf = (start: object, end: object): ProfileCut => ({ ...endToEnd('p1', side('width', 'min')), run: { start, end } as ProfileCut['run'] });
+/** The right end through min (the front-right arc: a station on the front) round to the back, stopped at 10. */
+export const stationRightToBack = (): Board => topCorners(2, runOf(throughEnd(side('length', 'max'), 'min'), stopEnd(side('width', 'max'), 10)));
+/** The front stopped at 20 round to the back through min (the back-left arc: a station on the left end). */
+export const stationFrontToBack = (): Board => topCorners(2, runOf(stopEnd(side('width', 'min'), 20), throughEnd(side('width', 'max'), 'min')));
+/** The front stopped at 20 round to the right end through max (the back-right arc: a station on the back). */
+export const stationFrontToRight = (): Board => topCorners(2, runOf(stopEnd(side('width', 'min'), 20), throughEnd(side('length', 'max'), 'max')));
+/** Fix round 2: an End to end on the front of a 36 × 4.02 part with 2" corners: each end's straight side is 0.02", under 2ε (0.0327),
+ *  so its B1 stations take NO ε extension and the band's end ray is the arc's bisector, not the station plane (the clip acts). */
+export const shortEnds = (): Board => createBoard({ length: 36, width: 4.02, thickness: 0.75, curves: corners(2), profiles: [endToEnd('p1', side('width', 'min'))] });
