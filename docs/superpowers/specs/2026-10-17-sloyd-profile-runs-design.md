@@ -7,9 +7,15 @@ merged as `305934d`); chunk a2 implemented (plan `docs/superpowers/plans/2026-10
 run-out), **a1 and a2 deployed together** 2026-10-18 (`index-BbXkYYy4.js`). The rulings marked *Amended (implementation, a2)* (I1, I2)
 await the user's review. **Chunk b designed** in a second brainstorm, 2026-10-18 (rulings B1–B9 below, "Yes, that looks right" ×3,
 then "Yes, write the spec"); it splits into b1 (following) and b2 (stops on a turned path, two-side runs). **Chunk b1 implemented and merged** 2026-10-18 (plan
-`docs/superpowers/plans/2026-10-18-sloyd-profile-runs-b1.md`; not deployed; no schema change): the rulings marked *Amended
+`docs/superpowers/plans/2026-10-18-sloyd-profile-runs-b1.md`; deployed 2026-10-18 as `index-CDDCzMGJ.js`; no schema change): the rulings marked *Amended
 (implementation, b1…)* (B1's ε, B1a, Q3/Q6's Task 3 amendments, Q7) and Q6's *Amended (final review, the controller's ruling, I2)*
-await the user's review; B10's *Amended (final review, the user's ruling, I1)* is the user's own. **b2 next.** **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
+await the user's review; B10's *Amended (final review, the user's ruling, I1)* is the user's own. b2's planning rulings Q9–Q27 are in the b2 plan's *Planning questions* (approved by the user 2026-10-18); they amend this spec where they speak, and §4.1's `stop-off` clause on a run-out leaving the face yields to P13 (a run-out past the part's end is no fault, as a2 and b1 ship).
+**Chunk b2 implemented** 2026-10-19 (plan `docs/superpowers/plans/2026-10-18-sloyd-profile-runs-b2.md`; code complete at `5027ff9`;
+not yet merged or deployed; no schema change): stops on a turned path and two-side runs, so **chunk b is complete**. The blocks
+marked *Amended (implementation, b2…)* and *Amended (final review, b2…)* await the user's review, including B3's crossed stations
+and M1, B10's b2 Task 3 amendments (stops decided first; the neighbour-harm fallback), §3.2's rollback note, §4.2's frame, clips
+and overlap intersection, §5's junction shading, §6's R5–R7 and the moved through end. Next: chunk (c), the speed of following
+coves, ogees and beads (fu 393, 394). **Schema 18** (chunk a): a build that understands only 17 refuses a v18 document, so rolling back past chunk (a)
 strands every project saved since — export first.
 
 This spec supersedes the edge profiles chunk 1 spec's §7 plan for chunk 2 ("one stored range along `through`"): a range along one
@@ -82,6 +88,20 @@ profiles; a grain fix (fu 336).
   to the edge (a2's rule, kept on curved sides). A station may sit on an arch, a bow or a corner arc.
 - **B3 Two-side runs** are in chunk b: a stopped run may start on one side and stop on another, following the outline between them
   round any corners (a rounded top profiled front and ends, the back against a wall left plain).
+  *Amended (implementation, b2; the controller's ruling m3 on Q16)*: "up to three sides" means a two-side run may pass up to
+  two whole sides BETWEEN Start's side and Stop's side (touching four sides in all); its walk never comes back onto Start's
+  side, nor (read backwards) onto Stop's. A run that would re-enter one, or whose two ends are one point, has no path and is
+  `stop-off` (never `runs-off`). A deliberate near-full wrap is authored as two runs or a loop.
+  *Amended (final review, b2; the controller's ruling I1; for the user's review)*: CROSSED stations are `stop-off`. This refines
+  Q16's "has no crossed state". A two-side run is crossed when Stop's side stretch holds the FIRST chord of Start's (the corner arc
+  the two sides share is where travel enters Start's side) and the walk from Start to Stop never leaves that arc. Before, such a
+  run built a fraction-of-an-inch hop (0.26", 0.0086 in³ on a 36 × 20 top with 2" corners) while its bench line named two whole
+  sides, and a Curves edit (that corner 1/4" → 2") collapsed a 110" run into the hop unrefused. Now it has no path: refused on
+  authoring, kept and faulted on load (`— check: a stop runs off the part`), built as nothing. Through ends on the shared arc are
+  caught by the same walk. Curves names the profile on an added `stop-off`: `A stop on the roundover runs off the part — move it
+  first.` *Cost:* a run that wants the short hop is authored as a one-side stop. Left open (M1, a spec question): a long-way run
+  with ONE station on that shared arc is also `stop-off` (the re-entry rule counts the arc in both stretches), conservative but
+  worded `A stop runs off the part`.
 - **B4 Two builders, one view.** A run whose whole path is ONE straight segment keeps a1/a2's view curve, bodies, mesh and words
   byte for byte. Every other run (a curved side, a corner arc, two sides, All round) is a SWEPT profile, built by §4.2's kept-wood
   construction, with a2's run-out where it stops. The choice is structural (`profilePath.ts`). Rejected: one new builder for every
@@ -163,6 +183,27 @@ profiles; a grain fix (fu 336).
   Authoring still judges an End to end on a cornered or arched side by its swept faults (`profileFaults`, unchanged): the
   Profiles row and Curves' `profileRefusal` refuse an ADDED swept fault, so authoring never creates a new one; a saved one,
   or a resize that makes it too tight, falls back.
+  *Amended (implementation, b2 Task 3; Q10 for stops)*: a one-side STATION run falls back by the same test
+  (`stopFallsBack`), decided FIRST with every other profile read by its shape and every path by stored presence ("phase 1"),
+  so no fallback depends on another's; every other judgement ("phase 2", what `profileFaults` returns) then reads a
+  fallen-back stop as straight. (1) B1a (Q18) never mitres a neighbour against a fallen-back stop on the stored part — a2's
+  prism takes no arc — so the neighbour carries round to B1's station exactly as it is built (the view holds no fallen-back
+  stop), and no half of a corner arc is left unprofiled; the profile being judged is always read as present by the others'
+  paths (its swept judgement asks what it would claim if it followed). (2) Phase 2 is not always a subset of phase 1 in
+  practice: two saved stops sharing only a corner arc both fall back, and the one whose only swept fault was the other has
+  an EMPTY phase-2 swept judgement; the row's note therefore names the cause from the judgement that DECIDED the fallback
+  (`fallbackCause`: a stop's phase 1, an End to end's `profileFaults`). (3) A fallen-back stop's own `profileFaults` stays its
+  swept judgement (authoring's, as I1's fallen-back End to end reads `too-tight`); the row reads `viewProfileFaults` (its a2
+  faults), clean.
+  *Amended (implementation, b2 Task 3 fix round 1; the controller's rulings I1, I2)*: (4) A stop that follows never changes a
+  neighbour's build: a saved stop also falls back when FOLLOWING would ADD a fault to any other profile on its face, so its
+  own swept judgement includes the faults its following causes in its neighbours (`harmFaults`). Each neighbour is judged
+  (phase 1) with that stop alone following against b1's baseline, every one-side station run read straight (a1/a2 built them
+  so) — never against the other stops' shapes, so two half-stops that only together would mitre both corners of a saved End
+  to end are each charged with it. Decided in phase 1 only: order-independent, no cycle. A b1 End to end beside a saved a2
+  half-stop therefore keeps b1's build (pinned on dc49b01). *Cost:* such a stop stays straight where it could have followed.
+  (5) The fault decision reads the reach the build uses: a swept profile whose built plan does not exist (the built path's
+  chain, its skeleton at `bandReach`, which a bead's quirk wall widens by `WALL_MARGIN`) is `too-tight`, never clean.
 
 **Planning rulings for chunk b1** (*Amended (planning)*, 2026-10-18; the probe: `docs/superpowers/plans/b1-probe/`):
 - **Q1 The view.** `geometryBoard`'s `profiles` holds exactly the SWEPT profiles (stored order); straight ones stay view curves
@@ -197,6 +238,8 @@ profiles; a grain fix (fu 336).
   a2's prism follows no curve, so it never claims a corner arc's or an arch's chords (over them it cuts only the curve's
   waste). A saved a2 stop inside a corner arc beside a B10 End to end on the adjacent side therefore stays clean, as on a2;
   a stop that shares a straight stretch with a swept run still overlaps.
+  *Amended (planning, b2; the user approved 2026-10-18, the plan's contradiction 3)*: B6 makes station runs follow, so this
+  holds only for a station run that FALLS BACK (Q10); a following one claims its path's cover like any swept profile.
 - **Q7 Words:** `all round` reads `<name> all round <faceName>` (the collapse's own face words, so `the thickness face (max
   side)`, not §5's shorthand "the top"); its key `<name><fillet>, all round`. Bench lines list curves, then straight profiles,
   then swept, each in stored order.
@@ -268,6 +311,10 @@ interface ProfileCut {
   precedent: a new kind needs no bump).
 - *(B)* b1 lifts the loader's refusal of `{loop: true}`, and b2 lifts its refusal of ends on two sides, with no schema bump
   (P2's purpose): a build one chunk back refuses such a document instead of drawing it wrong.
+  *Amended (final review, b2, M5)*: that holds for two-side runs only. A one-side stop on a turned path (an arch, notch, bow or
+  corner arc; authorable since B7 lifted) is a station run b1 already loads, so b1 opens it SILENTLY — no fault, no note, the same
+  bench line — and builds it as a2's straight prism, which on an arch cuts only air (the profile vanishes). Its data is intact, and
+  it follows again when reopened on b2.
 - **Pin:** for every chunk-1 fixture (each kind × 8 edges × facings, the four-edge sets, the mixed shelf), the migrated part's
   bodies hold the same wood: volume to 1e-8 and the point oracle.
 - Versioning row: *16→17 … | 17→18 | `profiles` on parts and shapes (default `[]`; recognised profile curves moved in; malformed
@@ -333,6 +380,16 @@ For each profile, in stored order, each current body is split three ways. Every 
   construction byte for byte. In b1 a swept run stops only where B1 leaves a corner arc onto a straight side, so a2's inscribed
   run-out applies unchanged there, meeting a swept band. *(b2)* A station on a curve runs out with the cutter revolved about the
   bit's axis 1/4" outside the outline along its outward normal, the forward half bounded by the plane across the path's tangent.
+  *Amended (implementation, b2 Tasks 4–5)*: per Q12 the frame is the station's MODEL chord (`StopFrame`: F along it, N inward,
+  the axis `BEARING` outside along −N), not the true arc's tangent, so the band (built on chords) and the run-out share one section.
+  A stop never clips the band (the skeleton's stop ray already ends it in the stop plane), and a B1 station clips only its own END
+  of it; clipping every face by every station's half-plane deleted a wrapping run's own band where it re-entered (a four-side wrap
+  built 400.5 in³ against ~536).
+  *Amended (implementation, b2 Task 6 fix round 1, I2; the implementer's ruling, endorsed)*: when an open run's two ends come
+  within reach of each other round one sharp corner, their bands overlap. The overlap is NOT a fault (`overlap` is between two
+  profiles; these stops are legal): the router cuts both passes, so the wood there is what NEITHER removes — the intersection of
+  both chords' kept sections (`SweptPlan.bands`, the rest split into simple loops). Before, the bodies were the union of both
+  passes' kept wood (225.515 in³ in a 225 in³ box). *Cost if wrong:* such a run should refuse instead.
 - Chunk (a) builds only straight runs: a profile on a side that a through-thickness curve has cut offers only End to end, built as
   chunk 1's prism.
 
@@ -351,6 +408,11 @@ For each profile, in stored order, each current body is split three ways. Every 
 - **Shading.** Vertex normals on a `profile` face are the true swept surface's: the profile arc's normal in (s, t), turned by the
   path's tangent frame at that vertex. A straight band's normals equal chunk 1's. The mesh is welded, conformed and fanned from
   centroids (inv 50: watertight). Grain takes each face's nearest axis plan (inv 35); the seam around an arc is accepted (fu 336).
+  *Amended (implementation, b2 Task 6 fix round 1; the controller's ruling, for the user's review)*: a b2 stop's run-out is shaded
+  by the section revolved about its own axis, except a vertex ON the stop plane, which takes the band's normal (`sweptNormals` of
+  the end segment), so band and run-out agree there to 1e-6. At a stop on a corner arc they otherwise differed by up to ~0.9°
+  (0.016 rad, about 3× b1's accepted tangent step): a shading choice, not geometry. Bodies, the axis and Q12 are untouched.
+  *Cost if wrong:* the run-out's first sector interpolates a slightly bent normal.
 - **Lines (inv 16).** A profile draws:
   - each SHARP profile vertex, swept along the path (a crease line: where a cove or ogee meets a face, a bead's quirk, a fillet's
     shoulder);
@@ -380,6 +442,9 @@ For each profile, in stored order, each current body is split three ways. Every 
   - *(B)* Chunk 1's four-edge collapse stays for four End to end profiles on a sharp-cornered face (a2 ruled it; a loop has its
     own line). A two-side stopped run (b2): `Roundover 1/4" from the length min end at 4" round the width max side to the length max
     end at 4" (stopped)`, in the row's Face/Side words.
+    *Amended (planning, b2; the user approved 2026-10-18):* the example passed the wrong side and named no face — on the top face
+    travel from the length min end to the length max end passes the width MIN side; the line names its face (Q21 of the b2 plan:
+    `<name> on <face><top><fillet>, from <Start> round <between> to <Stop> (stopped)`).
   - Fillet words as today. Plans keys use the same text.
 - Stock, the cut list's sizes and nesting are unchanged.
 
@@ -397,6 +462,16 @@ For each profile, in stored order, each current body is split three ways. Every 
   hidden) and greys Stopped on a turned path with its reason until b2.
 - A stopped run's ends on two different sides (the stored form allows it) are offered from chunk (b2), by a second Side select for
   Stop.
+  *Amended (implementation, b2 Task 9; the controller's rulings R5–R7, for the user's review)*: what the person sees governs. A
+  one-side run keeps a2's lo/hi display (Start the lower station). **R5:** Stop side onto an ADJACENT side moves the station NEARER
+  the corner the two sides share, keeps the other, and stores the run so the route goes the short way through that corner (Side
+  and Stop side may trade roles afterwards); it had moved the field labelled Start, and the run went the long way round. **R6:**
+  onto the OPPOSITE side it keeps the station SHOWN as Start and moves the one shown as Stop; Q16 routes it. **R7:** where keeping
+  the shown Start would make an inconsistent `through` Start (Q17), it keeps the profiled extent on the kept side instead (the run
+  still leaves through; the stored end moves). A moved end keeps the number it shows when that adds no fault to its own profile;
+  a moved `through` end has no number, so it counts as at the corner its run leaves through and is always seeded `min(3, L/4)` in
+  (Q26). Side on a one-side run stays a2's (both ends move; an end it runs off is greyed, not seeded — M2, for the user). Two-side
+  runs: Side moves only Start, Stop side only Stop. *Cost if wrong:* the select's semantics reworked.
 - `+ Add profile ▾` keeps chunk 1's presets (End to end on the top long edge), with the withhold rule.
 - The store gets `addProfiles` / `updateProfile` / `removeProfile` (one edit; held points re-judged after, as curves'). `profiles`
   is absent from the reorient predicate (inv 2).

@@ -7,7 +7,8 @@ import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
 import { geometryBoard, shapedPart } from './profiles';
-import { builtSwept } from './sweep';
+import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
+import { sectionFrame } from './runout';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
@@ -202,6 +203,26 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
           if (swept && kind !== 'face-center' && !touchesStock(local)) continue;
           const at = toWorld(board, local);
           if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind, at, owner });
+        }
+      }
+    }
+  }
+  // A swept profile's stops (profile runs b2, P17, Q25): at each stop the section's two junction points on the stop plane —
+  // (s, t) = (reach, 0) on the broad face and (0, depth) on the side face, `keptSection`'s — are 'corner's, at `at + s·N` in
+  // plan and `vFace + vIn·t` through the thickness (`sectionFrame`). Only a stop has frames (`sweptStops`: a loop, an End to
+  // end and a B1 station none), so every other part's marks are byte for byte as before. Kept only on stock (invariant 16).
+  if (swept) {
+    for (const p of builtSwept(board)) {
+      const frames = sweptStops(board, p);
+      if (frames.length === 0) continue;
+      const { reach, depth } = keptSection(board, p);
+      const f = sectionFrame(board, oneSideCurve(p));
+      for (const fr of frames) {
+        for (const [s, t] of [[reach, 0], [0, depth]] as const) {
+          const local: Point = { length: fr.at[0] + s * fr.N[0], width: fr.at[1] + s * fr.N[1], thickness: f.vFace + f.vIn * t };
+          if (!touchesStock(local)) continue;
+          const at = toWorld(board, local);
+          if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind: 'corner', at, owner });
         }
       }
     }

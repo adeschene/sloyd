@@ -1,14 +1,17 @@
 import { clipPolygon, createBoard, defaultProfile, PROFILE_EDGES, profileCurve, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeFaults, holeInStock, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
 import type { Board, CurveCut, Hole, HoleRow, V3 } from '../document/document';
 import type { ProfileCut, ProfileEnd, ProfileKind } from '../document/types';
-import { canonicalRun, geometryBoard } from '../document/profiles';
+import { canonicalRun, geometryBoard, profileFaults, shapedPart } from '../document/profiles';
 import { spanOf } from '../document/curves';
 import { runoutReach } from '../document/runout';
 import { capFill } from './capFill';
 import { bodyMesh, drawsAsBox, holesMesh } from './grainTiling';
 import { chamferCut } from '../document/angleCuts';
-import { builtSwept } from '../document/sweep';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners } from '../document/sweepFixtures';
+import { builtSwept, sweptStops } from '../document/sweep';
+import { mirrorPart } from '../document/frames';
+import { defaultHole } from '../document/holes';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, bowFront, chiralTwoSide, frontAndEnds, shortEnds, stationFrontToBack,
+  stationFrontToRight, stationRightToBack, cornerGap, overlapCases, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
 
 /**
  * A curved part's mesh is WATERTIGHT (whole-branch review, finding 1): a SPLIT curve leaves its slices' faces meeting
@@ -174,7 +177,8 @@ function capCracks(board: Board, axis: 'top' | 'front', at: number): number {
   expect(c).not.toBeNull();
   const capN: V3 = [0, 0, 0];
   capN[axis === 'top' ? 1 : 2] = 1;
-  const fill = Float32Array.from(capFill(c.pieces, capN, board.curves.length > 0));
+  // BoardMesh's own conform flag (a swept part with no curves — wrapThree, twoSideSharp — conforms too).
+  const fill = Float32Array.from(capFill(c.pieces, capN, shapedPart(geometryBoard(board))));
   const key = (i: number) => `${fill[3 * i]},${fill[3 * i + 1]},${fill[3 * i + 2]}`;
   const pt = (i: number): V3 => [fill[3 * i]!, fill[3 * i + 1]!, fill[3 * i + 2]!];
   const count = new Map<string, number>();
@@ -341,5 +345,91 @@ describe('a swept profile\'s mesh is watertight, and its cap has no interior cra
   it.each(sweptCases)('%s: the cap across the band', (_name, board) => {
     expect(capCracks(board, 'top', 0.6)).toBe(0);
     if (board.profiles.some((p) => p.face === 'min')) expect(capCracks(board, 'top', 0.15)).toBe(0);
+  });
+});
+
+// Profile runs b2 (Task 6): a stop on a turned path (its run-out revolved about the bit's axis outside the stop's model chord,
+// `stopRunoutPieces`) and runs across two sides must close too — every Task 4 wood case, Task 5's wrapping and station repros,
+// the chiral two-side run and its mirror, and the arch's stops with a 1/4" bore beside the run-out.
+const archHole: HoleRow = { id: 'h', ...defaultHole(stopOnArch), station: 21, inset: 1.75 };
+const b2Cases: [string, Board, number][] = [
+  ['stopOnCorner() — roundover 1/4 stopped on a convex corner arc', stopOnCorner(), 2],
+  ['stopOnCorner(cove 3/8)', stopOnCorner('cove', 0.375), 2],
+  ['stopOnArch — both stops on the concave arch', stopOnArch, 2],
+  ['stopOnNotch — a stop on the half-round notch', stopOnNotch, 2],
+  ['bowFront — both stops on a convex bow', bowFront, 2],
+  ['frontAndEnds() — two sides round the corner arcs', frontAndEnds(), 2],
+  ['frontAndEnds(cove 3/8)', frontAndEnds('cove', 0.375), 2],
+  ['twoSideSharp — two sides round a sharp corner (R6\'s mitre)', twoSideSharp, 2],
+  ['zoneStop() — a stop inside the end-chord zone (Q13)', zoneStop(), 2],
+  ['wrapThree — three sides, back through the start stop\'s half-plane', wrapThree(), 2],
+  ['wrapFour — four sides round three arcs', wrapFour(), 2],
+  ['stationRightToBack — a B1 station and a stop', stationRightToBack(), 1],
+  ['stationFrontToBack — a stop and a B1 station', stationFrontToBack(), 1],
+  ['stationFrontToRight — a stop and a B1 station', stationFrontToRight(), 1],
+  ['shortEnds — b1: B1 stations with no ε', shortEnds(), 0],
+  ['chiralTwoSide(flat)', chiralTwoSide('flat'), 2],
+  ['chiralTwoSide(flat) mirrored (mirrorPart)', mirrorPart(chiralTwoSide('flat')), 2],
+  ['stopOnArch with a 1/4" bore beside the run-out', { ...stopOnArch, holes: [archHole] }, 2],
+];
+describe('a b2 profile\'s mesh is watertight, and its cap has no interior crack (profile runs b2)', () => {
+  it('the fixtures are what they claim: every profile swept, built and unfaulted, its stops counted, the bore clean', () => {
+    for (const [name, b, stops] of b2Cases) {
+      const v = geometryBoard(b);
+      expect(b.profiles.flatMap((q) => profileFaults(b, q)), name).toEqual([]);
+      expect(builtSwept(v), name).toHaveLength(1);
+      expect(sweptStops(v, v.profiles[0]!), name).toHaveLength(stops);
+    }
+    const holed = b2Cases[b2Cases.length - 1]![1];
+    expect(holeFaults(holed, holed.holes[0]!)).toEqual([]);
+    for (const h of partGeometry(holed).holes) expect(holeInStock(holed, h, stockChecks(holed))).toBe(true);
+  });
+  it.each(b2Cases)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it.each(b2Cases)('%s: the cap across the band', (_name, board) => {
+    expect(capCracks(board, 'top', 0.6)).toBe(0);
+  });
+});
+
+// Task 6 fix round 1 (the review's I2): a four-side run whose two stops sit near ONE sharp corner — within the reach of it on
+// both sides the two ends' bands overlap. Stops 0.05–0.3" from the corner on each side (the review's cases among them).
+const GAPS = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3];
+const gapCases: [string, Board][] = GAPS.flatMap((a) => GAPS.map((g) => [`right end at ${a}, front at 30 − ${g}`, cornerGap(a, g)] as [string, Board]));
+describe('a run whose two stops meet near one sharp corner is watertight (Task 6 fix round 1, I2)', () => {
+  it('the fixtures are what they claim: unfaulted, built swept, two stops', () => {
+    for (const [name, b] of gapCases) {
+      const v = geometryBoard(b);
+      expect(profileFaults(b, b.profiles[0]!), name).toEqual([]);
+      expect(builtSwept(v), name).toHaveLength(1);
+      expect(sweptStops(v, v.profiles[0]!), name).toHaveLength(2);
+    }
+  });
+  it.each(gapCases)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it.each(gapCases)('%s: the cap across the band', (_name, board) => {
+    expect(capCracks(board, 'top', 0.6)).toBe(0);
+  });
+});
+
+// Task 6 fix round 2 (N2): the two ends' overlap for every section kind (cove with a fillet, ogee both facings, bead, thumbnail),
+// a mirrored part and a face-min part — watertight, with an uncracked cap.
+const kindGapCases: [string, Board][] = overlapCases().map((c) => [c.name, c.board]);
+describe('a run whose two ends\' bands overlap is watertight for every section kind (Task 6 fix round 2, N2)', () => {
+  it.each(kindGapCases)('%s', (_name, board) => {
+    expect(profileFaults(board, board.profiles[0]!)).toEqual([]);
+    expect(builtSwept(geometryBoard(board))).toHaveLength(1);
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it.each(kindGapCases)('%s: the cap across the band', (_name, board) => {
+    const p = board.profiles[0]!;
+    expect(capCracks(board, 'top', p.face === 'max' ? 0.7 : 0.05)).toBe(0);
   });
 });

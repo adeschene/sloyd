@@ -10,7 +10,10 @@ import { curveDrawEdges, profileSilhouettes, silhouetteLines, DRAWING_CURVE_SEGM
 import { featureTag } from './featureKeys';
 import { drawView, FRONT, ISO, SIDE, TOP, type View } from './drawing';
 import { toWorld } from './snapPoints';
-import { apronArch, endToEnd, frontOnly, loop, topCorners } from './sweepFixtures';
+import { apronArch, endToEnd, frontOnly, loop, topCorners, stopOnCorner, stopOnArch, frontAndEnds } from './sweepFixtures';
+import { geometryBoard } from './profiles';
+import { sweptStops } from './sweep';
+import { stopAxis } from './runout';
 
 type V3 = [number, number, number];
 const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
@@ -292,4 +295,75 @@ describe('every line the swept profile makes carries its feature tag (Q5; planKe
       }
     });
   }
+});
+
+/*
+ * Profile runs b2 (Task 7): a STOP's run-out on the Plans sheet. Every model edge in a run-out (past its stop's plane, within
+ * the reach of the bit's axis: BEARING + reach) carries the profile's feature tag, as does every silhouette of it, on the
+ * sheet in every view; and a concave run-out (the cove's) turning from the isometric outlines itself by a facet chain
+ * (profileSilhouettes, read off the joins a2's rule now makes for a stop: no line along `through`, the links meeting end to end).
+ */
+describe('a stop\'s run-out on the Plans sheet carries its profile\'s tag; its contour is a facet chain (profile runs b2)', () => {
+  const W = (b: Board, p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! }) as V3;
+  /** Board-local points past a stop's plane within `reach` of its bit's axis (plan), per stop. */
+  const inRunout = (b: Board, reach: number) => {
+    const v = geometryBoard(b);
+    const stops = sweptStops(v, v.profiles[0]!);
+    return (q: readonly number[]) => stops.some((fr) => {
+      const ax = stopAxis(fr);
+      return (q[0]! - fr.at[0]) * fr.F[0] + (q[1]! - fr.at[1]) * fr.F[1] > 1e-6 && Math.hypot(q[0]! - ax[0], q[1]! - ax[1]) <= reach + 1e-9;
+    });
+  };
+  // Each with the run-out's plan reach (BEARING + the profile's reach) and its depth (the section's: 1/4 or 3/8 below the top).
+  const CASES: [string, Board, number, number][] = [
+    ['stopOnCorner()', stopOnCorner(), 0.5, 0.25], ['stopOnCorner(cove, 3/8)', stopOnCorner('cove', 0.375), 0.625, 0.375], ['stopOnArch', stopOnArch, 0.5, 0.25],
+    ['frontAndEnds()', frontAndEnds(), 0.5, 0.25], ['frontAndEnds(cove, 3/8)', frontAndEnds('cove', 0.375), 0.625, 0.375],
+  ];
+  for (const [name, b, reach, depth] of CASES) {
+    it(`${name}: every model edge inside a run-out is the profile's (curve p1), and there are some`, () => {
+      const inside = inRunout(b, reach);
+      // Inside: both ends past the stop plane, within the reach and the section's depth of the top.
+      const runout = curveDrawEdges(b).filter((e) => [e.p, e.q].every((q) => inside(q) && q[2] >= T - depth - 1e-9));
+      expect(runout.length).toBeGreaterThan(0);
+      for (const e of runout) expect(e.curve, `${e.p} ${e.q}`).toBe('p1');
+    });
+    it(`${name}: on the sheet, the profile's tag is on exactly its edges' lines and its silhouettes, in every view`, () => {
+      // The b1 describe's measure (above): the tagged length on the sheet equals the profile's edges' drawn polylines plus
+      // its silhouettes, projected — the run-outs' edges and contours among them.
+      const tag = featureTag(b.id, 'curve', 'p1');
+      for (const view of VIEWS) {
+        const d = drawView([b], view);
+        const len = (ss: { a: number[]; b: number[] }[]) => ss.reduce((n, x) => n + Math.hypot(x.b[0]! - x.a[0]!, x.b[1]! - x.a[1]!), 0);
+        const proj = (p: readonly number[]) => [dot(p, view.right), dot(p, view.up)];
+        const edgeOn = Math.abs(dot(sub(W(b, [0, 0, 1]), W(b, [0, 0, 0])), view.toward)) <= 1e-9;
+        let want = 0;
+        for (const e of curveDrawEdges(b)) {
+          if (e.curve !== 'p1') continue;
+          const ps = e.path && !edgeOn ? e.path.pts : [e.p, e.q];
+          for (let i = 0; i + 1 < ps.length; i++) { const a = proj(W(b, ps[i]!)), c = proj(W(b, ps[i + 1]!)); want += Math.hypot(c[0]! - a[0]!, c[1]! - a[1]!); }
+        }
+        for (const x of profileSilhouettes(b, view.toward)) { const a = proj(x.A), c = proj(x.E); want += Math.hypot(c[0]! - a[0]!, c[1]! - a[1]!); }
+        expect(Math.abs(len([...d.visible, ...d.hidden].filter((x) => x.feature === tag)) - want), view.title).toBeLessThan(1e-4);
+      }
+    });
+  }
+  it('the cove stopped on the corner arc: its run-outs turn from the isometric and outline themselves by facet chains', () => {
+    const b = stopOnCorner('cove', 0.375);
+    const inside = inRunout(b, 0.625);
+    const v = geometryBoard(b);
+    const o = W(b, [0, 0, 0]);
+    const ax = [W(b, [1, 0, 0]), W(b, [0, 1, 0]), W(b, [0, 0, 1])].map((x) => sub(x, o));
+    const L = (P: readonly number[]): V3 => { const r = sub(P, o); return [dot(r, ax[0]!), dot(r, ax[1]!), dot(r, ax[2]!)]; };
+    const sil = profileSilhouettes(b, ISO.toward).filter((s) => inside(L(s.A)) && inside(L(s.E)));
+    expect(sweptStops(v, v.profiles[0]!)).toHaveLength(2);
+    expect(sil.length).toBeGreaterThan(2);
+    expect(sil.every((s) => s.curve === 'p1')).toBe(true);
+    // Facet edges of the revolved surface: not lines along `through` (each link moves in plan).
+    for (const s of sil) { const a = L(s.A), e = L(s.E); expect(Math.hypot(e[0] - a[0], e[1] - a[1])).toBeGreaterThan(1e-6); }
+    // A chain: some link shares an end with another (the contour runs over several facets).
+    const key = (p: readonly number[]) => p.map((x) => x.toFixed(7)).join();
+    const ends = new Map<string, number>();
+    for (const s of sil) for (const k of [key(s.A), key(s.E)]) ends.set(k, (ends.get(k) ?? 0) + 1);
+    expect([...ends.values()].some((n) => n >= 2)).toBe(true);
+  });
 });

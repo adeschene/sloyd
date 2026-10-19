@@ -539,12 +539,13 @@ function refuseProfile(why: string): never {
  * quirk is not > 0; an unknown face or facing; an end whose side is not length/width × min/max, or which is neither a
  * `through` end nor a `from` min/max with a finite `at` >= 0; a run that is not an object; two `through` ends of one value.
  * A symmetric kind's facing is normalised to 'face'. Stored in `canonicalRun` order (P11): an End to end run min → max, a
- * station run start before end along travel. REFUSED (the document, decided before any drop, spec §3.2/P2): an unknown
+ * station run start before end along travel; a run with ends on two sides as stored (Q16: never re-ordered). REFUSED (the document, decided before any drop, spec §3.2/P2): an unknown
  * kind string; a run key other than loop/start/end; a `loop` that is not exactly true, or a `loop` beside `start`/`end`
  * (`all round`; exactly `{ loop: true }` loads since b1, pushed as a fresh `{ loop: true }`, no canonical order); an end
  * whose side parses and which has a key other than side/through/from/at, or carries `through` together with `from`/`at`
- * (`stopped`, fu 391(1)), or a `through` that is not min/max; ends on two sides. One-side station runs now load (a2). A
- * faulted but well-formed profile is KEPT.
+ * (`stopped`, fu 391(1)), or a `through` that is not min/max. One-side station runs load since a2; ends on two sides since
+ * b2 (spec §3.2 (B), no schema bump: a b1 build refuses them). A faulted but well-formed profile is KEPT (an inconsistent
+ * two-side through end is `stop-off`, Q17).
  */
 function validateProfiles(raw: unknown, seen: Set<string>, dims: Pick<Board, Dimension>): ProfileCut[] {
   if (!Array.isArray(raw)) return [];
@@ -580,9 +581,6 @@ function validateProfiles(raw: unknown, seen: Set<string>, dims: Pick<Board, Dim
         if ('through' in e && ('from' in e || 'at' in e)) refuseProfile('stopped');
         if ('through' in e && !VALID_FROMS.includes(e.through as CutFrom)) refuseProfile('run "through"');
       }
-      const s = endOf(r.start);
-      const e = endOf(r.end);
-      if (s && e && (s.side.across !== e.side.across || s.side.from !== e.side.from)) refuseProfile('ends on two sides');
     }
     if (!PROFILE_KINDS.includes(p.kind as ProfileKind)) continue;
     const kind = p.kind as ProfileKind;

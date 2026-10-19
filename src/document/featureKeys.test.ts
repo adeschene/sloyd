@@ -5,7 +5,7 @@ import { mirrorPart } from './frames';
 import { IMPERIAL } from '../units/length';
 import { canonicalRun, profileCurve, profileFromFields } from './profiles';
 import { ARCH } from './curveFixtures';
-import { apronArch, frontOnly, loop, plainLoop, topCorners } from './sweepFixtures';
+import { apronArch, frontAndEnds, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, twoSide, twoSideSharp } from './sweepFixtures';
 import { FAULT_SUFFIX, featureTag, partFeatures } from './featureKeys';
 import type { Board } from './types';
 
@@ -175,4 +175,15 @@ describe('swept profile keys, fix round 1', () => {
       profiles: [{ id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } }] });
     expect(partFeatures(one, IMPERIAL).map((f) => f.text)).toEqual(['Rounded corner, 2" radius', 'Roundover 1/4", round the corner']);
   });
+});
+
+it('a stopped run on a turned path or across two sides keys `, stopped` with no run words (profile runs b2, Q22)', () => {
+  const curveKeys = (b: Board) => partFeatures(b, IMPERIAL).filter((f) => f.tags[0]!.includes('curve')).map((f) => f.text);
+  const lastKey = (b: Board) => { const t = curveKeys(b); expect(t).toHaveLength((b.curves.length === 4 ? 1 : b.curves.length) + 1); return t.slice(-1); };
+  expect(lastKey(stopOnCorner())).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(stopOnArch)).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(frontAndEnds())).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(twoSideSharp)).toEqual(['Roundover 1/4", stopped']);
+  expect(lastKey(stopOnCorner('cove', 0.375))).toEqual(['Cove 3/8", stopped']);
+  expect(lastKey({ ...twoSideSharp, profiles: [{ ...twoSide('t', { across: 'width', from: 'min' }, 20, { across: 'length', from: 'max' }, 5, 0.375, 'cove'), fillet: 1 / 16 }] })).toEqual(['Cove 3/8", with a 1/16" fillet, stopped']);
 });

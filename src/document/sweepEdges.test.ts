@@ -1,13 +1,16 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { boardBodies, boardEdges, curvedEdges, type SmoothJoin } from './bodies';
-import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve } from './document';
+import { createBoard, mirrorPart, defaultHingeCup, chamferCut, archCurve, cornerCurve } from './document';
 import { geometryBoard, profileFaults } from './profiles';
-import { builtSwept, keptSection } from './sweep';
-import { builtPath, profilePath } from './profilePath';
+import { builtSwept, keptSection, sweptStops } from './sweep';
+import { stopAxis } from './runout';
+import { builtPath, faceOutline, profilePath } from './profilePath';
 import type { Segment } from './cuts';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners } from './sweepFixtures';
-import type { Board } from './types';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, plainLoop, stopped, straightTopLong, topCorners, overlapCases, stopOnCorner,
+  overlapKinds, twoSide, stopOnArch, stopOnNotch, bowFront, frontAndEnds, twoSideSharp, chiralTwoSide, zoneStop, wrapThree, wrapFour,
+  shortEnds, stationRightToBack, stationFrontToBack, stationFrontToRight, cornerGap } from './sweepFixtures';
+import type { Board, ProfileCut } from './types';
 
 /*
  * A swept profile's EDGE LINES (profile runs b1, Task 6; spec §5 Lines, invariant 16). Every count below is derived by hand
@@ -479,5 +482,264 @@ describe('the station extension decides no fault, and falls back where the side 
     const [s, e] = builtPath(b, b.profiles[0]!)!.ends! as { at: [number, number] }[];
     expect(s!.at).toEqual([0, 0.5]);
     expect(e!.at).toEqual([36, 0.5]);
+  });
+});
+
+// Task 6 fix round 2 (N1, N2): where a run's two ends' bands overlap, the fast path's lines are the reference's (bodyEdges
+// over the bodies) for every section kind — a line inside the overlap judged against BOTH passes' faces (inv 16).
+describe('the fast swept edges equal the reference where a run\'s two ends\' bands overlap (N1, N2)', () => {
+  it.each(overlapCases().map((c) => [c.name, c.board] as [string, Board]))('%s', (_name, board) => {
+    const bodies = boardBodies(board);
+    const jr: SmoothJoin[] = [], jf: SmoothJoin[] = [];
+    const ref = curvedEdges(board, bodies, jr, { reference: true }) as Seg3[];
+    const fast = curvedEdges(board, bodies, jf) as Seg3[];
+    expect(sameRuns(merged(fast), merged(ref))).toBeNull();
+    const a = joinRuns(jf), b = joinRuns(jr);
+    expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
+    for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
+  });
+});
+
+/*
+ * Profile runs b2 (Task 7): a STOP's run-out (Q12) joins smoothly, as a2's does: its facets meet each other, and the band's
+ * section at the stop plane, without a line (one section, so nothing across the stop either); its outline on the broad face
+ * and on the side face (the corner arc's chord faces) is drawn. stopOnCorner: a roundover 1/4" stopped at 1.1 on the 2"
+ * corner arc (mid-chord) and at 30 on the straight front. The run-out lies past the stop plane (F, away from the run) within
+ * BEARING + 1/4 = 1/2" of the bit's axis (BEARING outside the stop's model chord).
+ */
+describe('a stop\'s run-out joins smoothly (profile runs b2, invariant 16)', () => {
+  const b = stopOnCorner();
+  const v = geometryBoard(b);
+  const outline = faceOutline(v)!;
+  const toSide = (q: P) => Math.min(...outline.chords.map((c) => {
+    const dx = c.b[0] - c.a[0], dy = c.b[1] - c.a[1];
+    const t = Math.max(0, Math.min(1, ((q[0] - c.a[0]) * dx + (q[1] - c.a[1]) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(q[0] - c.a[0] - t * dx, q[1] - c.a[1] - t * dy);
+  }));
+  const lines = (boardEdges(b) as Segment[]).map(pts);
+  const stops = sweptStops(v, v.profiles[0]!);
+  it('the fixture is what it claims: two stops, one on the corner arc (off the straight front)', () => {
+    expect(stops).toHaveLength(2);
+    expect(stops.map((f) => f.at[1] > 1e-6)).toEqual([true, false]);
+  });
+  for (const k of [0, 1]) {
+    describe(`stop ${k}`, () => {
+      const fr = stops[k]!;
+      const ax = stopAxis(fr);
+      const past = (q: P) => (q[0] - fr.at[0]) * fr.F[0] + (q[1] - fr.at[1]) * fr.F[1];
+      // Every line with both ends within the run-out's reach of the axis and not before the stop plane.
+      const near = lines.filter((s) => s.every((q) => Math.hypot(q[0] - ax[0], q[1] - ax[1]) <= 0.5 + 1e-9 && past(q) >= -1e-9));
+      const onTop = (s: [P, P]) => s.every((q) => Math.abs(q[2] - 0.75) <= 1e-9);
+      const onSide = (s: [P, P]) => s.every((q) => toSide(q) <= 1e-9);
+      it('no line inside the run-out: every line there lies on the broad face or the side face', () => {
+        expect(near.filter((s) => !onTop(s) && !onSide(s))).toEqual([]);
+      });
+      it('no line across the stop plane between the band and the run-out (one section, Q12)', () => {
+        expect(lines.filter((s) => s.every((q) => Math.abs(past(q)) <= 1e-9) && !onTop(s) && !onSide(s))).toEqual([]);
+      });
+      it('the run-out\'s outline is drawn: on the broad face (its ring, 1/2" from the axis) and on the side face', () => {
+        // A sector chord of the ring, or one clipped where it leaves through the side face: at least one end on the ring.
+        const ring = near.filter((s) => onTop(s) && s.some((q) => Math.abs(Math.hypot(q[0] - ax[0], q[1] - ax[1]) - 0.5) <= 1e-6));
+        expect(ring.length).toBeGreaterThan(2);
+        expect(near.filter((s) => onSide(s) && !onTop(s) && s.some((q) => q[2] > 0.5 + 1e-9)).length).toBeGreaterThan(0);
+      });
+    });
+  }
+});
+
+/*
+ * Task 7 fix round 1 (I1): an INDEPENDENT presence rule, since fast == reference shares smoothPair and cannot see a crease the
+ * rule itself drops. A join is a stretch judged smooth: two faces of one curved surface's facets. One chord of an arc of
+ * radius ρ at CURVE_TOLERANCE (0.005") turns at most 2·acos(1 − 0.005/ρ), under 30 deg exactly when ρ > ~0.147". The smallest
+ * arc in these fixtures is the 3/8" ogee's, ρ = 3/16 (at most 26.5 deg a chord; its quarter arcs take 4 chords, 22.5 deg); a
+ * run-out's sectors (reach >= 1/2) step at most 15 deg; measured, the largest join over every b1, b2 and sweep case is
+ * 22.63 deg (b1's own B1 run-out facets). Two faces meeting at more than CREASE_MIN are no facets of one surface here, so a
+ * line must be drawn there and no join may cross it. A TEST ORACLE FOR THESE FIXTURES ONLY (fix round 2, M3), not a law: a
+ * 1/8" roundover steps 30 deg a chord, a 1/16" one 45 — never apply it to profiles under about 0.15".
+ */
+const CREASE_MIN = 30;
+const joinAngle = (j: SmoothJoin) => Math.acos(Math.max(-1, Math.min(1, j.f1.n[0] * j.f2.n[0] + j.f1.n[1] * j.f2.n[1] + j.f1.n[2] * j.f2.n[2]))) * 180 / Math.PI;
+const creasesJoined = (joins: readonly SmoothJoin[]) => joins.filter((j) => joinAngle(j) > CREASE_MIN).map((j) => `${joinAngle(j).toFixed(1)} deg at ${j.a} → ${j.b}`);
+
+/** Fast against reference, segments and joins (the comparison of the describes above, for the b2 arrays below), and no
+ *  crease joined in either (CREASE_MIN). */
+function fastIsReference(board: Board): void {
+  const bodies = boardBodies(board);
+  const jr: SmoothJoin[] = [], jf: SmoothJoin[] = [];
+  const ref = curvedEdges(board, bodies, jr, { reference: true }) as Seg3[];
+  const fast = curvedEdges(board, bodies, jf) as Seg3[];
+  expect(creasesJoined(jr)).toEqual([]);
+  expect(creasesJoined(jf)).toEqual([]);
+  expect(sameRuns(merged(fast), merged(ref))).toBeNull();
+  const a = joinRuns(jf), b = joinRuns(jr);
+  expect([...a.keys()].sort()).toEqual([...b.keys()].sort());
+  for (const [k, runs] of b) expect(sameRuns(a.get(k)!, runs), k).toBeNull();
+}
+
+// Profile runs b2 (Task 7): every b2 fixture, fast against the reference (a NEW array: sweptEdgeCases and BODIES are b1's pins).
+const b2EdgeCases: [string, Board][] = [
+  ['stopOnCorner', stopOnCorner()], ['stopOnCorner cove 3/8', stopOnCorner('cove', 0.375)], ['stopOnArch', stopOnArch],
+  ['stopOnNotch', stopOnNotch], ['bowFront', bowFront], ['frontAndEnds', frontAndEnds()], ['frontAndEnds cove 3/8', frontAndEnds('cove', 0.375)],
+  ['twoSideSharp', twoSideSharp], ['chiralTwoSide flat', chiralTwoSide('flat')], ['chiralTwoSide upright', chiralTwoSide('upright')],
+  ['chiralTwoSide on-edge', chiralTwoSide('on-edge')], ['zoneStop', zoneStop()], ['wrapThree', wrapThree()], ['wrapFour', wrapFour()],
+  ['shortEnds', shortEnds()], ['stationRightToBack', stationRightToBack()], ['stationFrontToBack', stationFrontToBack()],
+  ['stationFrontToRight', stationFrontToRight()], ['cornerGap(0.1, 0.1)', cornerGap(0.1, 0.1)], ['cornerGap(0.2, 0.05)', cornerGap(0.2, 0.05)],
+];
+describe('the fast swept edges equal the reference on every b2 fixture (profile runs b2)', () => {
+  it('the fixtures are what they claim: every profile built', () => {
+    for (const [name, b] of b2EdgeCases) expect(builtSwept(geometryBoard(b)).length, name).toBe(b.profiles.length);
+  });
+  it.each(b2EdgeCases)('%s', (_name, board) => fastIsReference(board));
+});
+
+/*
+ * Profile runs b2 (Task 7): a PARAMETRIC fast == reference sweep over stops and their run-outs, where the fast path's
+ * adjacency assumptions break (N4: a run's two ends' overlap beside corner arcs; N5: one stop's run-out reaching the other
+ * end's band). Every section kind; on a 30 × 10 × 3/4 part:
+ * - SHARP: a two-side run from the right end at `a` round the back and the left end to the front at 30 − `g` (both stops
+ *   near the SHARP front-right corner), the other three corners rounded at r = 0, 1/4, 0.4 or 2 (at 1/4 only the roundover
+ *   builds; at 0.4 the roundover, both ogees and the bead — the Task 6 review's N4 repros — fix round 1, M1);
+ * - ARC: all four corners rounded at r = 1/4 or 2; a one-side run on the front stopped `d` from each corner arc's tangent
+ *   point (d < 0 on the arc, d > 0 on the straight), and a two-side run from the left end round the front to the right end,
+ *   both stops `d` from the front corners' tangent points on the ends;
+ * - a mirrored part (mirrorPart) and a face-min part.
+ * Faulted parts (a cove too tight for a 1/4" corner; a stop off its stretch) build nothing and are left out, but each
+ * (kind, family) keeps a floor of built cases, so the sweep cannot pass by building nothing. N4's and N5's repros are named rows.
+ */
+const PART = { length: 30, width: 10, thickness: 0.75 } as const;
+const roundCorners = (r: number, keep: (u: 'min' | 'max', v: 'min' | 'max') => boolean) => r === 0 ? [] : (['min', 'max'] as const)
+  .flatMap((u) => (['min', 'max'] as const).filter((w) => keep(u, w)).map((w) => ({ id: `c${u}${w}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: w, radius: r }) })));
+const asKind = (p: ProfileCut, kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>): ProfileCut => ({ ...p, kind, size, ...extra });
+/** SHARP: the front-right corner (length max, width min) left sharp. */
+const sharpCase = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, a: number, g: number): Board =>
+  createBoard({ ...PART, curves: roundCorners(r, (u, w) => !(u === 'max' && w === 'min')),
+    profiles: [asKind(twoSide('p1', side('length', 'max'), a, side('width', 'min'), 30 - g), kind, size, extra)] });
+/** ARC, one side: the front from `lo` past the min corner arc's tangent point (lo < 0: on the arc, so the run is swept) to
+ *  `hi` short of the max one's (hi < 0: on that arc too). */
+const arcOneSide = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, lo: number, hi: number): Board =>
+  createBoard({ ...PART, curves: roundCorners(r, () => true), profiles: [asKind(stopped('p1', side('width', 'min'), r + lo, 30 - r - hi), kind, size, extra)] });
+const arcTwoSide = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, d: number): Board =>
+  createBoard({ ...PART, curves: roundCorners(r, () => true),
+    profiles: [asKind(twoSide('p1', side('length', 'min'), r + d, side('length', 'max'), r + d), kind, size, extra)] });
+const GAPS: [number, number][] = [[0.05, 0.05], [0.1, 0.1], [0.2, 0.05], [0.5, 0.05], [0.05, 0.5]];
+const ARC_D = [-0.2, -0.05, 0.05, 0.2, 0.5];
+const ARC_ONE: [number, number][] = [[-0.2, -0.05], [-0.2, 0.05], [-0.05, 0.2], [-0.05, 0.5]];
+const sweepCases: { name: string; family: string; kind: string; board: Board }[] = [
+  { name: 'N4: 1/4" corners, roundover stops 0.1" and 0.1" from the sharp corner', family: 'named', kind: 'roundover', board: sharpCase('roundover', 0.25, {}, 0.25, 0.1, 0.1) },
+  { name: 'N5: a bead, one stop 0.05" from the sharp corner (0.5", 0.05")', family: 'named', kind: 'bead', board: sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05) },
+  { name: 'N5: a bead, the other stop 0.05" from the sharp corner (0.05", 0.5")', family: 'named', kind: 'bead', board: sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.05, 0.5) },
+  ...overlapKinds.flatMap(([name, kind, size, extra]) => [
+    ...[0, 0.25, 0.4, 2].flatMap((r) => GAPS.map(([a, g]) => ({ name: `sharp, r ${r}: ${name}, stops ${a}" and ${g}"`, family: 'sharp', kind: name, board: sharpCase(kind, size, extra, r, a, g) }))),
+    ...[0.25, 2].flatMap((r) => ARC_ONE.map(([lo, hi]) => ({ name: `arc, r ${r}: ${name}, one side, stops ${lo}" and ${hi}" from the tangent points`, family: 'arc', kind: name, board: arcOneSide(kind, size, extra, r, lo, hi) }))),
+    ...[0.25, 2].flatMap((r) => ARC_D.map((d) => ({ name: `arc, r ${r}: ${name}, two sides, stops ${d}" from the tangent points`, family: 'arc', kind: name, board: arcTwoSide(kind, size, extra, r, d) }))),
+  ]),
+  { name: 'mirrored (mirrorPart): ogee facing the edge, sharp, r 2, stops 0.1" and 0.1"', family: 'named', kind: 'ogee', board: mirrorPart(sharpCase('ogee', 0.375, { facing: 'edge' }, 2, 0.1, 0.1)) },
+  { name: 'face min: bead, sharp, r 2, stops 0.5" and 0.05"', family: 'named', kind: 'bead',
+    board: createBoard({ ...PART, curves: roundCorners(2, (u, w) => !(u === 'max' && w === 'min')),
+      profiles: [{ ...twoSide('p1', side('width', 'min'), 29.95, side('length', 'max'), 0.5, 0.25, 'bead'), fillet: 1 / 16, face: 'min' }] }) },
+];
+/** The sweep's built cases, counted (a coverage pin: a change that stops building some must say so). */
+const SWEEP_BUILT = 153;
+const builtCase = (b: Board) => b.profiles.every((p) => profileFaults(b, p).length === 0) && builtSwept(geometryBoard(b)).length === b.profiles.length;
+const sweepBuilt = sweepCases.filter((c) => builtCase(c.board));
+describe('the fast swept edges equal the reference across stops and their run-outs (profile runs b2, the parametric sweep)', () => {
+  it('the sweep builds what it claims: every named row, and at least 4 built cases per kind and family', () => {
+    for (const c of sweepCases.filter((x) => x.family === 'named')) expect(builtCase(c.board), c.name).toBe(true);
+    for (const [name] of overlapKinds) for (const family of ['sharp', 'arc']) {
+      expect(sweepBuilt.filter((c) => c.kind === name && c.family === family).length, `${name}, ${family}`).toBeGreaterThanOrEqual(4);
+    }
+    expect(sweepBuilt.length).toBe(SWEEP_BUILT);
+    // M1: at r 0.4 the bead and both ogees build (an overlap beside a SMALL corner arc, the N4 class).
+    for (const kind of ['bead 1/4 + 1/16 quirk', 'ogee 3/8', 'ogee 3/8 facing the edge']) expect(sweepBuilt.filter((c) => c.name.startsWith('sharp, r 0.4:') && c.kind === kind).length, kind).toBe(5);
+  });
+  it.each(sweepBuilt.map((c) => [c.name, c.board] as [string, Board]))('%s', (_name, board) => fastIsReference(board));
+});
+
+
+/*
+ * Task 7 fix round 1 (I1): where a run's two router passes meet, the crease between them is drawn. a2's rule joins only one
+ * run-out's faces (its facets, and the band at its own stop plane); a b2 run whose two ends come to one corner meets itself
+ * there in a real crease. Pinned by the independent rule (CREASE_MIN) on the corner family, and by the lines themselves:
+ * - cornerGap(0.1, 0.1): the two passes are mirror images in the sharp corner's bisector plane x + y = 30 (stops 0.1" either
+ *   side of the corner, one section), so they meet ON it: a ridge in that plane, below the top, drawn.
+ * - N5's bead (0.5", 0.05"): the front's quirk wall (y = 5/16) meets the right end's run-out's revolved wall in a line along
+ *   the thickness, from the quirk floor (t = 1/16 down: z = 11/16) to the top: 1/16" long, drawn.
+ */
+describe('where a run\'s two passes meet, the crease is drawn (Task 7 fix round 1, I1)', () => {
+  const lines = (b: Board) => (boardEdges(b) as Segment[]).map(pts);
+  const named: [string, Board][] = [
+    ['cornerGap(0.1, 0.1)', cornerGap(0.1, 0.1)], ['cornerGap(0.2, 0.05)', cornerGap(0.2, 0.05)],
+    ...overlapCases().map((c) => [c.name, c.board] as [string, Board]),
+    ['N5 bead (0.5", 0.05")', sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05)], ['N5 bead (0.05", 0.5")', sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.05, 0.5)],
+    ['stopOnCorner()', stopOnCorner()], ['stopOnCorner(cove, 3/8)', stopOnCorner('cove', 0.375)],
+  ];
+  it.each(named)('%s: no join where faces meet at more than CREASE_MIN', (_n, b) => {
+    const j: SmoothJoin[] = [];
+    curvedEdges(b, boardBodies(b), j, { reference: true });
+    expect(creasesJoined(j)).toEqual([]);
+    const jf: SmoothJoin[] = [];
+    curvedEdges(b, boardBodies(b), jf);
+    expect(creasesJoined(jf)).toEqual([]);
+  });
+  it('cornerGap(0.1, 0.1): the ridge in the corner\'s bisector plane is drawn, below the top', () => {
+    const ridge = lines(cornerGap(0.1, 0.1)).filter((s) => s.every((q) => Math.abs(q[0] + q[1] - 30) <= 1e-9 && q[2] < 0.75 - 1e-9 && q[2] > 0.5 - 1e-9));
+    const length = ridge.reduce((n, [a, c]) => n + Math.hypot(...sub3(c, a)), 0);
+    // From where the stops' sections meet ((29.9, 0.1) at the band's depth) out toward the corner: about 0.17" (the review).
+    expect(length).toBeGreaterThan(0.1);
+  });
+  it('N5\'s bead: the 1/16" line where the quirk wall meets the run-out\'s wall is drawn', () => {
+    const wall = lines(sharpCase('bead', 0.25, { fillet: 1 / 16 }, 0, 0.5, 0.05)).filter(([a, c]) =>
+      [a, c].every((q) => Math.abs(q[1] - 0.3125) <= 1e-9 && q[0] > 29.6 && q[0] < 29.8) && Math.abs(a[0] - c[0]) <= 1e-9);
+    expect(wall.length).toBeGreaterThan(0);
+    for (const [a, c] of wall) expect(Math.abs(c[2] - a[2])).toBeCloseTo(1 / 16, 9);
+  });
+});
+
+/*
+ * Task 7 fix round 2 (N1): a run from a STOP to a B1 STATION, on a narrow rail with rounded corners: the front stopped just
+ * past the front-left arc (0.02" off its tangent point), round the right end and the back, through the back's min end to a B1
+ * station on the left end — across the front-left arc from the stop. The stop's run-out and the station's (a2's) meet there.
+ * A stop's `runout` tag is its path end; a B1 station's is a2's, which here is also 'lo': the guard must key a run-out face on
+ * its END, or it joins the two passes. Pinned by CREASE_MIN (in fastIsReference) and by the ridge itself: the lines where
+ * the two run-outs meet lie within both bits' reach (BEARING + the reach, of the stop's axis and of the station's: BEARING
+ * outside the left end at the station), off the top and off every side face — drawn, not joined.
+ */
+const stationRail = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, W: number, d: number): Board =>
+  createBoard({ length: 30, width: W, thickness: 0.75, curves: roundCorners(r, () => true), profiles: [{ ...endToEnd('p1', side('width', 'min'), size, kind), ...extra,
+    run: { start: { side: side('width', 'min'), from: 'min', at: r + d }, end: { side: side('width', 'max'), through: 'min' } } } as ProfileCut] });
+const STATION_RAILS: [string, Board, number][] = [
+  ['cove 3/8 + 1/16 fillet, r 1/2, W 1.1', stationRail('cove', 0.375, { fillet: 1 / 16 }, 0.5, 1.1, 0.02), 0.25 + 0.4375],
+  ['ogee 3/8, r 1/2, W 1.1', stationRail('ogee', 0.375, {}, 0.5, 1.1, 0.02), 0.25 + 0.375],
+  ['bead 1/4 + 1/16 quirk, r 3/8, W 0.8', stationRail('bead', 0.25, { fillet: 1 / 16 }, 0.375, 0.8, 0.02), 0.25 + 0.3125],
+  ['roundover 1/4, r 1/4, W 0.6', stationRail('roundover', 0.25, {}, 0.25, 0.6, 0.02), 0.25 + 0.25],
+];
+describe('a stop and a B1 station on one run: where their passes meet, the crease is drawn (Task 7 fix round 2, N1)', () => {
+  it('the rails are what they claim: unfaulted, built, a stop at end 0 and a B1 station at end 1, both tagged \'lo\'', () => {
+    for (const [name, b] of STATION_RAILS) {
+      const v = geometryBoard(b), p = v.profiles[0]!;
+      expect(profileFaults(b, b.profiles[0]!), name).toEqual([]);
+      expect(builtSwept(v).map((x) => x.id), name).toEqual(['p1']);
+      expect(sweptStops(v, p).map((f) => f.end), name).toEqual(['lo']);
+      expect(builtPath(v, p)!.ends!.map((e) => e.kind), name).toEqual(['stop', 'station']);
+      const tags = new Set(boardBodies(b).flatMap((x) => x.faces).flatMap((f) => (f.runout ? [f.runout] : [])));
+      expect([...tags], name).toEqual(['lo']);
+    }
+  });
+  it.each(STATION_RAILS.map(([n, b]) => [n, b] as [string, Board]))('%s: fast == reference, no join past CREASE_MIN', (_n, b) => fastIsReference(b));
+  it.each(STATION_RAILS)('%s: the ridge where the two run-outs meet is drawn', (_n, b, R) => {
+    const v = geometryBoard(b), p = v.profiles[0]!;
+    const stopAx = stopAxis(sweptStops(v, p)[0]!);
+    const st = builtPath(v, p)!.ends![1] as { at: [number, number] };
+    const stationAx: [number, number] = [st.at[0] - 0.25, st.at[1]];   // the left end (x = 0): BEARING outside it
+    const outline = faceOutline(v)!;
+    const toSide = (q: P) => Math.min(...outline.chords.map((c) => {
+      const dx = c.b[0] - c.a[0], dy = c.b[1] - c.a[1];
+      const t = Math.max(0, Math.min(1, ((q[0] - c.a[0]) * dx + (q[1] - c.a[1]) * dy) / (dx * dx + dy * dy)));
+      return Math.hypot(q[0] - c.a[0] - t * dx, q[1] - c.a[1] - t * dy);
+    }));
+    const inBoth = (q: P) => [stopAx, stationAx].every((ax) => Math.hypot(q[0] - ax[0], q[1] - ax[1]) <= R + 1e-9);
+    const ridge = (boardEdges(b) as Segment[]).map(pts).filter((s) => s.every((q) => inBoth(q) && q[2] < 0.75 - 1e-9 && toSide(q) > 1e-9));
+    // Measured 0.14" (roundover, bead) to 0.35" (cove); 0 with the two passes joined (fix round 1's tag keying).
+    expect(ridge.reduce((n, [a, c]) => n + Math.hypot(...sub3(c, a)), 0)).toBeGreaterThan(0.1);
   });
 });

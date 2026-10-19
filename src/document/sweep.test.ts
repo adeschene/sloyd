@@ -7,8 +7,8 @@ import { mirrorCurveCut, twiceArea, CURVE_TOLERANCE, type P2 } from './curves';
 import { mirrorPart } from './frames';
 import { createBoard } from './document';
 import { chamferCut } from './angleCuts';
-import { keptSection, sweptPieces, sweptPlan } from './sweep';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners } from './sweepFixtures';
+import { keptSection, sweptInnerLine, sweptPieces, sweptPlan } from './sweep';
+import { apronArch, cornerGap, endToEnd, frontOnly, loop, notchEdge, topCorners } from './sweepFixtures';
 import { archCurve } from './curves';
 import type { Board, Cut, ProfileCut, ProfileSide } from './types';
 
@@ -428,6 +428,52 @@ describe('an END chord the offset swallows is too-tight, never a throw (pathSkel
     // it — chunk 1's prism, the profile as its plain curve — rather than nothing.
     expect(boardBodies(board)).not.toEqual(boardBodies({ ...board, profiles: [] }));
     expect(boardBodies(board)).toEqual(boardBodies({ ...board, curves: [...board.curves, profileAsCurve(board.profiles[0]!)], profiles: [] }));
+  });
+});
+
+// Task 6 fix round 1 (M2): `skeletonFits` memoises per PART on exactly what `pathSkeleton` reads. Two swept profiles of one
+// part with the same reach and both open, one whose end chord the offset swallows and one that fits, must each keep their
+// own verdict whichever is judged first (a key missing the chords, or truncated, would hand one the other's).
+describe('the skeleton memo keeps two same-reach paths of one part apart (M2)', () => {
+  const notchAt = (id: string, sd: 'min' | 'max', start: number) =>
+    ({ id, ...archCurve({ through: 'thickness', along: 'length', side: sd, from: 'min', start, span: 2, rise: 1 }) });
+  const board = createBoard({ length: 30, width: 5, thickness: 0.75,
+    curves: [notchAt('c1', 'min', 0.2), notchAt('c2', 'max', 14)],
+    profiles: [endToEnd('tight', side('width', 'min'), 0.375), endToEnd('fits', side('width', 'max'), 0.375)] });
+  const [tight, fits] = board.profiles as [ProfileCut, ProfileCut];
+  it('the fixture is what it claims: both swept, the same reach, both open', () => {
+    expect(profilePath(board, tight)!.loop).toBe(false);
+    expect(profilePath(board, fits)!.loop).toBe(false);
+    expect(keptSection(board, tight).reach).toBe(keptSection(board, fits).reach);
+  });
+  it('judged in either order on one part object: the swallowed one too-tight, the other clean', () => {
+    const a = { ...board };
+    expect(profileFaults(a, tight)).toEqual([{ kind: 'too-tight' }]);
+    expect(profileFaults(a, fits)).toEqual([]);
+    const b = { ...board };
+    expect(profileFaults(b, fits)).toEqual([]);
+    expect(profileFaults(b, tight)).toEqual([{ kind: 'too-tight' }]);
+  });
+});
+
+// Task 6 fix round 1 (I2): where a run's two ends' bands overlap (two stops 0.1" either side of one sharp corner) the inner
+// line is the loop between its own crossing — no tail runs on into the other end's band.
+describe('the inner line of a run whose two ends\' bands overlap (I2)', () => {
+  it('cornerGap(0.1, 0.1): closed at the crossing (29.75, 0.25), and it never crosses itself', () => {
+    const b = cornerGap(0.1, 0.1);
+    const line = sweptInnerLine(geometryBoard(b), b.profiles[0]!)!;
+    expect(line.closed).toBe(true);
+    expect(line.pts[0]![0]).toBeCloseTo(29.75, 12);
+    expect(line.pts[0]![1]).toBeCloseTo(0.25, 12);
+    const n = line.pts.length;
+    const cross = (p: P2, q: P2, r: P2, t: P2) => {
+      const o = (a: P2, b2: P2, c: P2) => Math.sign((b2[0] - a[0]) * (c[1] - a[1]) - (b2[1] - a[1]) * (c[0] - a[0]));
+      return o(p, q, r) * o(p, q, t) < 0 && o(r, t, p) * o(r, t, q) < 0;
+    };
+    for (let i = 0; i < n; i += 1) for (let j = i + 2; j < n; j += 1) {
+      if (i === 0 && j === n - 1) continue;
+      expect(cross(line.pts[i]!, line.pts[(i + 1) % n]!, line.pts[j]!, line.pts[(j + 1) % n]!), `${i} ${j}`).toBe(false);
+    }
   });
 });
 

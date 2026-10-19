@@ -4,7 +4,9 @@ import { buildDiagrams } from './diagram';
 import { createBoard } from './document';
 import { faceOutline } from './profilePath';
 import { curveLines } from './curveText';
-import { apronArch, endToEnd, frontOnly, loop, straightTopLong, topCorners } from './sweepFixtures';
+import { apronArch, endToEnd, frontOnly, loop, straightTopLong, topCorners, stopOnCorner, frontAndEnds } from './sweepFixtures';
+import { geometryBoard } from './profiles';
+import { sweptStops } from './sweep';
 import type { Board } from './types';
 
 /*
@@ -91,5 +93,48 @@ describe('a swept profile on the part diagrams', () => {
     ]);
     // A face-min one opens the bottom's.
     expect(buildDiagrams(topCorners(0.125, loop('p1', 0.25, 'roundover', 'min')), IMPERIAL).map((v) => v.key)).toEqual(['thickness|min']);
+  });
+});
+
+/*
+ * Profile runs b2 (Task 7; Q24, P16): a swept STOP on the part diagrams. Q8 for every swept stop: the face's thickness view
+ * opens and its inner line runs up to each stop's plane (no run-out arc drawn: the line is the band's wavefront, which the
+ * skeleton ends on each stop's ray N, in the stop plane); no end view opens to hatch the profile (P16).
+ */
+describe('a swept stop on the part diagrams (profile runs b2, Q24)', () => {
+  /** The stop planes (through `at`, normal F: the plane holds N and the thickness axis), as plan lines. */
+  const planes = (b: Board) => { const v = geometryBoard(b); return sweptStops(v, v.profiles[0]!); };
+  const offPlane = (q: P2, fr: { at: readonly number[]; F: readonly number[] }) => Math.abs((q[0] - fr.at[0]!) * fr.F[0]! + (q[1] - fr.at[1]!) * fr.F[1]!);
+  it('stopOnCorner: only the top\'s thickness view opens; its open inner line ends on each stop\'s plane; no end-view hatch', () => {
+    const b = stopOnCorner();
+    const views = buildDiagrams(b, IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    const [w, ...more] = views[0]!.sweeps!;
+    expect(more).toEqual([]);
+    expect(w!.id).toBe('p1');
+    expect(w!.closed).toBe(false);
+    const [lo, hi] = planes(b);
+    expect(offPlane(w!.pts[0]!, lo!)).toBeLessThanOrEqual(1e-9);
+    expect(offPlane(w!.pts[w!.pts.length - 1]!, hi!)).toBeLessThanOrEqual(1e-9);
+    // Every point of it lies the reach in from the outline (the line runs to the stop plane, never round the run-out).
+    for (const q of w!.pts) expect(toOutline(b, q)).toBeCloseTo(0.25, 9);
+    // The hatch is the corners' waste only, never the profile's.
+    expect(views[0]!.curves.map((c) => c.id).sort()).toEqual(['cmaxmax', 'cmaxmin', 'cminmax', 'cminmin']);
+  });
+  it('frontAndEnds: ONE open inner line round the front and both corners, ending on the two stop planes', () => {
+    const b = frontAndEnds();
+    const views = buildDiagrams(b, IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    expect(views[0]!.sweeps).toHaveLength(1);
+    const [w] = views[0]!.sweeps!;
+    expect(w!.closed).toBe(false);
+    const [lo, hi] = planes(b);
+    expect(offPlane(w!.pts[0]!, lo!)).toBeLessThanOrEqual(1e-9);
+    expect(offPlane(w!.pts[w!.pts.length - 1]!, hi!)).toBeLessThanOrEqual(1e-9);
+    for (const q of w!.pts) expect(toOutline(b, q)).toBeCloseTo(0.25, 9);
+    // Round both front corners: points inside each front corner's arc square, and along the front between them.
+    expect(w!.pts.some((q) => q[0] < 2 && q[1] < 2 && q[0] > 0.25 + 1e-6)).toBe(true);
+    expect(w!.pts.some((q) => q[0] > 34 && q[1] < 2 && q[0] < 35.75 - 1e-6)).toBe(true);
+    expect(views[0]!.curves.map((c) => c.id).sort()).toEqual(['cmaxmax', 'cmaxmin', 'cminmax', 'cminmin']);
   });
 });

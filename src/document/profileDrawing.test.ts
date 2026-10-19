@@ -12,7 +12,7 @@ import { canonicalRun } from './profiles';
 import { featureTag } from './featureKeys';
 import { drawView, FRONT, ISO, SIDE, TOP, type View } from './drawing';
 import { toWorld } from './snapPoints';
-import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners } from './sweepFixtures';
+import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, stopOnCorner, stopOnArch, frontAndEnds } from './sweepFixtures';
 
 type V3 = [number, number, number];
 const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
@@ -248,6 +248,25 @@ describe('a swept profile on the Plans sheet (profile runs b1)', () => {
       for (const view of [FRONT, SIDE, TOP, ISO]) for (const m of mismatches(b, view)) bad.push(`${name}: ${m}`);
       expect(bad).toEqual([]);
       expect(COUNT.checked).toBeGreaterThan(20);
+    });
+  }
+});
+
+// Profile runs b2 (Task 7): a SWEPT run with STOPS on the Plans sheet — a stop on a corner arc, stops on the arch, and a
+// two-side run round both front corners. Every model edge (a stop's run-out facets now join smoothly, so none is drawn) and
+// every silhouette (a run-out's contour is a facet chain, profileSilhouettes) agrees with the ray oracle.
+describe('a swept run with stops on the Plans sheet (profile runs b2)', () => {
+  const CASES: [string, Board][] = [
+    ['stopOnCorner()', stopOnCorner()], ['stopOnArch', stopOnArch], ['frontAndEnds()', frontAndEnds()], ['frontAndEnds(cove, 3/8)', frontAndEnds('cove', 0.375)],
+  ];
+  for (const [name, b] of CASES) {
+    it(`${name}: every model edge and every silhouette agrees with the ray oracle, in FRONT, SIDE, TOP and ISO`, { timeout: 60_000 }, () => {
+      Object.assign(COUNT, { checked: 0, hidden: 0, silhouettes: 0, visibleSilhouettes: 0 });
+      const bad: string[] = [];
+      for (const view of [FRONT, SIDE, TOP, ISO]) for (const m of mismatches(b, view)) bad.push(`${name}: ${m}`);
+      expect(bad).toEqual([]);
+      expect(COUNT.checked).toBeGreaterThan(20);
+      expect(COUNT.hidden).toBeGreaterThan(0);
     });
   }
 });

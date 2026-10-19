@@ -107,8 +107,9 @@ export function profileRefusal(board: Board, after: Board, before: ProfileFaults
 /**
  * A profile fault a CURVE edit would add, in the Curves row's words (Task 9 fix round 1, the user's ruling): the profile
  * named by `curveWord` (THE home of "the roundover", "the cove", …), and the remedy aimed at it — in the Curves row "the
- * size" would read as the curve's. Built from `profileFaultText` where its words fit. A stop runs off only through a
- * station and the part's dimensions, which no curve edit changes: unreachable here, so it keeps the row's own words.
+ * size" would read as the curve's. Built from `profileFaultText` where its words fit. A curve edit CAN add stop-off: it
+ * moves a corner arc under a station (a station off its stretch, or a two-side run's stations crossed on the arc its sides
+ * share — the b2 final review's I1), so it names the profile too: `A stop on the roundover runs off the part — move it first.`
  */
 export function curveEditRefusal(f: ProfileFault, p: ProfileCut): string {
   const w = curveWord({ kind: null, profile: p.kind });
@@ -117,7 +118,7 @@ export function curveEditRefusal(f: ProfileFault, p: ProfileCut): string {
     case 'too-tight': return `Too tight for ${w} — reduce ${w} first.`;
     case 'runs-off': return `${said(profileFaultText(f))} — reduce ${w} first.`;
     case 'overlap': return `${said(profileFaultText(f))} — move ${w} first.`;
-    case 'stop-off': return PROFILE_REFUSAL['stop-off'];
+    case 'stop-off': return `A stop on ${w} runs off the part — move it first.`;
   }
 }
 

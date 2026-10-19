@@ -1,0 +1,424 @@
+// THROWAWAY probe (profile runs chunk b2, Task 1; spec §4.2 (b2), B2, B3, B6): a STOP on a turned path. The swept band is
+// b1's construction (planChain → pathSkeleton → band × kept section, plus the rest of the outline) fed a HAND-MADE path that
+// ends at a station on any outline chord; the run-out beyond each station is the cutter revolved about the bit's axis
+// BEARING outside the station's chord along its outward normal, bounded by the plane across the chord (the forward half):
+// a2's inscribed sectors, written in a general plan frame (F forward, N into the wood). Not product code; run with
+// `npx tsx probe.ts [case prefix]` from a scratch copy (rename .txt → .ts). Product modules are imported, never changed.
+import { createBoard } from '/home/alec/docker/sloyd/src/document/document';
+import type { Board, CurveCut, ProfileCut, ProfileSide } from '/home/alec/docker/sloyd/src/document/types';
+import { boardBodies, bodyEdges, bodyVolume, clipConvex, type Body, type BodyFace } from '/home/alec/docker/sloyd/src/document/bodies';
+import { archCurve, bowCurve, cornerCurve, convexPieces, inPolygonClosed, twiceArea, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type P2, type ViewCurve } from '/home/alec/docker/sloyd/src/document/curves';
+import { faceOutline, sideStretch, type FaceOutline, type ProfilePath, type PathEnd } from '/home/alec/docker/sloyd/src/document/profilePath';
+import { leftNormal, pathSkeleton, planChain, tidy } from '/home/alec/docker/sloyd/src/document/skeleton';
+import { bandReach, keptSection, oneSideCurve } from '/home/alec/docker/sloyd/src/document/sweep';
+import { outlineRun, profileSection, runoutPieces, sectionFrame, BEARING } from '/home/alec/docker/sloyd/src/document/runout';
+import { bodyMesh } from '/home/alec/docker/sloyd/src/viewport/grainTiling';
+import { appendFileSync, writeFileSync } from 'node:fs';
+import { loadavg } from 'node:os';
+
+type V3 = [number, number, number];
+type H = { n: V3; d: number };
+const OUT = process.env.OUT ?? './results.txt';   // run from the scratch copy's directory
+const log = (s: string) => { console.log(s); appendFileSync(OUT, s + '\n'); };
+const deepFreeze = <T,>(o: T): T => { if (typeof o === 'object' && o !== null && !Object.isFrozen(o)) { Object.freeze(o); for (const v of Object.values(o)) deepFreeze(v); } return o; };
+const NOHOLES: never[] = Object.freeze([]) as never[];
+const sub = (a: P2, b: P2): P2 => [a[0] - b[0], a[1] - b[1]];
+const dot = (a: P2, b: P2) => a[0] * b[0] + a[1] * b[1];
+const len = (a: P2) => Math.hypot(a[0], a[1]);
+const unit = (a: P2): P2 => { const l = len(a); return [a[0] / l, a[1] / l]; };
+const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+const distSeg = (q: P2, a: P2, b: P2) => { const d = sub(b, a); const t = Math.max(0, Math.min(1, dot(sub(q, a), d) / dot(d, d))); return len(sub(q, [a[0] + t * d[0], a[1] + t * d[1]])); };
+const clip2 = (poly: readonly P2[], n: P2, d: number): P2[] => {
+  const out: P2[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i]!, b = poly[(i + 1) % poly.length]!, ga = dot(n, a) + d, gb = dot(n, b) + d;
+    if (ga >= 0) out.push(a);
+    if (ga * gb < 0) { const t = ga / (ga - gb); out.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); }
+  }
+  return out;
+};
+const minOf9 = (f: () => void) => { for (let i = 0; i < 3; i++) f(); const ts: number[] = []; for (let i = 0; i < 9; i++) { const t0 = performance.now(); f(); ts.push(performance.now() - t0); } return Math.min(...ts); };
+
+// ---------- the path: a station is a point on its side's stretch at run coordinate x (B2), on the MODEL chords ----------
+interface Station { k: number; t: number; at: P2 }
+const runAxis = (s: ProfileSide) => (s.across === 'width' ? 0 : 1);
+function stationOn(board: Board, o: FaceOutline, side: ProfileSide, x: number): Station {
+  const s = sideStretch(board, o, side);
+  if (!s) throw new Error('no stretch');
+  const n = o.chords.length, kk = runAxis(side);
+  for (let i = s.from; ; i = (i + 1) % n) {
+    const c = o.chords[i]!;
+    const xa = c.a[kk]!, xb = c.b[kk]!;
+    if (xa !== xb && (x - xa) * (x - xb) <= 0) {
+      const t = (x - xa) / (xb - xa);
+      return { k: i, t, at: t === 0 ? c.a : t === 1 ? c.b : [c.a[0] + t * (c.b[0] - c.a[0]), c.a[1] + t * (c.b[1] - c.a[1])] };
+    }
+    if (i === s.to) break;
+  }
+  throw new Error(`station ${x} not on the stretch`);
+}
+/** A start on a chord's far end is the next chord's start; an end on a chord's near end is the previous chord's end. */
+function normalStation(o: FaceOutline, st: Station, start: boolean): Station {
+  const n = o.chords.length;
+  if (start && st.t === 1) return { k: (st.k + 1) % n, t: 0, at: o.chords[(st.k + 1) % n]!.a };
+  if (!start && st.t === 0) return { k: (st.k - 1 + n) % n, t: 1, at: o.chords[(st.k - 1 + n) % n]!.b };
+  return st;
+}
+/** A chord's unit travel direction (plan CCW). */
+const dirOf = (o: FaceOutline, k: number) => unit(sub(o.chords[k]!.b, o.chords[k]!.a));
+/** The CCW path from station s to station e (face max), as b1's ProfilePath: both ends `station`, tangent along their own
+ *  chord away from the run (planChain's station ray is then the chord's own normal: the band ends square to the chord). */
+function stopPath(o: FaceOutline, s: Station, e: Station, sideS: ProfileSide, sideE: ProfileSide): ProfilePath {
+  const n = o.chords.length;
+  const cover: { chord: number; t0: number; t1: number }[] = [];
+  if (s.k === e.k && s.t < e.t) cover.push({ chord: s.k, t0: s.t, t1: e.t });
+  else {
+    if (s.t < 1) cover.push({ chord: s.k, t0: s.t, t1: 1 });
+    for (let i = (s.k + 1) % n; i !== e.k; i = (i + 1) % n) cover.push({ chord: i, t0: 0, t1: 1 });
+    if (e.t > 0) cover.push({ chord: e.k, t0: 0, t1: e.t });
+  }
+  const at = (c: { chord: number; t0: number; t1: number }, t: number): P2 => { const ch = o.chords[c.chord]!; return t === 0 ? ch.a : t === 1 ? ch.b : [ch.a[0] + t * (ch.b[0] - ch.a[0]), ch.a[1] + t * (ch.b[1] - ch.a[1])]; };
+  const chords = cover.map((c) => ({ ...o.chords[c.chord]!, a: at(c, c.t0), b: at(c, c.t1) }));
+  const u0 = dirOf(o, cover[0]!.chord), u1 = dirOf(o, cover[cover.length - 1]!.chord);
+  const ends: [PathEnd, PathEnd] = [
+    { kind: 'station', at: chords[0]!.a, tangent: [-u0[0] + 0, -u0[1] + 0], side: sideS },
+    { kind: 'station', at: chords[chords.length - 1]!.b, tangent: u1, side: sideE },
+  ];
+  return { chords, loop: false, ends, cover };
+}
+/** The end-chord zone (planning question Q13): the distance from a station to the next path vertex inward under which the
+ *  skeleton swallows the end piece — reach · tan(φ/2), φ the turn at that vertex (0 when the turn is concave). */
+function zone(o: FaceOutline, s: Station, start: boolean, reach: number): { piece: number; limit: number } {
+  const n = o.chords.length, c = o.chords[s.k]!;
+  const l = len(sub(c.b, c.a));
+  const piece = start ? (1 - s.t) * l : s.t * l;
+  const other = start ? (s.k + 1) % n : (s.k - 1 + n) % n;
+  const u = dirOf(o, s.k), w = dirOf(o, other);
+  const [a, b] = start ? [u, w] : [w, u];
+  const turn = Math.atan2(a[0] * b[1] - a[1] * b[0], dot(a, b));   // > 0: a left (convex, wood-side) turn
+  return { piece, limit: turn > 0 ? reach * Math.tan(turn / 2) : 0 };
+}
+/** Snap-back (build only): a station inside the zone is built at that vertex — the run shortened, never lengthened. */
+function snapped(o: FaceOutline, s: Station, start: boolean): Station {
+  const n = o.chords.length;
+  return start ? { k: (s.k + 1) % n, t: 0, at: o.chords[(s.k + 1) % n]!.a } : { k: (s.k - 1 + n) % n, t: 1, at: o.chords[(s.k - 1 + n) % n]!.b };
+}
+
+// ---------- the band: b1's construction (sweep.ts' sweptPlan + buildPieces, tags dropped), from today's exports ----------
+function bandPieces(board: Board, p: ProfileCut, path: ProfilePath): { planes: H[]; bb: number[] }[] | null {
+  const o = faceOutline(board)!;
+  const chain = planChain(board, path, 'max');
+  if (!chain) return null;
+  const sec = keptSection(board, p);
+  const sk = pathSkeleton(chain.chords, false, bandReach(sec), chain.rays);
+  if (!sk) return null;   // an end chord swallowed (the zone)
+  let faces = sk.faces, wave = sk.wave;
+  for (const st of chain.stations) {
+    faces = faces.map((f) => (f.length >= 3 ? tidy(clip2(f, st.n, st.d)) : f));
+    const w: P2[] = [];
+    for (let i = 0; i < wave.length; i++) {
+      const a = wave[i]!, g = dot(st.n, a) + st.d;
+      if (g >= 0) w.push(a);
+      if (i + 1 < wave.length) { const b = wave[i + 1]!, gb = dot(st.n, b) + st.d; if (g * gb < 0) { const t = g / (g - gb); w.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]); } }
+    }
+    wave = w;
+  }
+  const m = o.chords.length, c0 = path.cover[0]!, c1 = path.cover[path.cover.length - 1]!;
+  const rest: P2[] = [];
+  const push = (q: P2) => { if (!rest.length || len(sub(rest[rest.length - 1]!, q)) > 1e-12) rest.push(q); };
+  push(chain.chords[chain.chords.length - 1]!.b);
+  push(o.chords[c1.chord]!.b);
+  for (let k = (c1.chord + 1) % m; k !== c0.chord; k = (k + 1) % m) push(o.chords[k]!.b);
+  push(o.chords[c0.chord]!.a);
+  push(chain.chords[0]!.a);
+  for (const q of wave) push(q);
+  if (rest.length > 1 && len(sub(rest[0]!, rest[rest.length - 1]!)) <= 1e-12) rest.pop();
+  const f = sectionFrame(board, oneSideCurve(p));
+  const prism = (poly: readonly P2[]): H[] => poly.flatMap((a, i) => {
+    const b = poly[(i + 1) % poly.length]!, l = len(sub(b, a));
+    if (l < 1e-14) return [];
+    const nn: V3 = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l, 0];
+    return [{ n: nn, d: -(nn[0] * a[0] + nn[1] * a[1]) }];
+  });
+  const bb = (poly: readonly P2[]) => [Math.min(...poly.map((q) => q[0])), Math.min(...poly.map((q) => q[1])), Math.max(...poly.map((q) => q[0])), Math.max(...poly.map((q) => q[1]))];
+  const out: { planes: H[]; bb: number[] }[] = [];
+  faces.forEach((face, i) => {
+    if (face.length < 3 || twiceArea(face) / 2 < 1e-14) return;
+    const ch = chain.chords[i]!, nIn = leftNormal(ch.a, ch.b), nP = dot(nIn, ch.a);
+    for (const fp of convexPieces(face, face.map(() => false)).map((x) => x.pts)) {
+      for (const kp of sec.pieces) {
+        const planes = prism(fp);
+        kp.pts.forEach((a, j) => {
+          const b = kp.pts[(j + 1) % kp.pts.length]!, l = len(sub(b, a));
+          if (l < 1e-14) return;
+          const ns = -(b[1] - a[1]) / l, nt = (b[0] - a[0]) / l, c = -(ns * a[0] + nt * a[1]);
+          planes.push({ n: [ns * nIn[0], ns * nIn[1], nt * f.vIn], d: c - ns * nP - nt * f.vIn * f.vFace });
+        });
+        out.push({ planes, bb: bb(fp) });
+      }
+    }
+  });
+  const r = tidy(rest);
+  if (r.length >= 3 && twiceArea(r) / 2 > 1e-14) for (const rp of convexPieces(r, r.map(() => false))) out.push({ planes: prism(rp.pts), bb: bb(rp.pts) });
+  return out;
+}
+
+// ---------- the run-out on a curve (spec §4.2 (b2)): a2's inscribed sectors in a general plan frame ----------
+function sectors(r: number): number {
+  const step = CURVE_TOLERANCE >= 2 * r ? Math.PI : 2 * Math.acos(1 - CURVE_TOLERANCE / r);
+  return Math.min(CURVE_SEGMENTS_MAX, Math.max(2, Math.ceil(Math.PI / step - 1e-9)));
+}
+/** Waste pieces (inside: n·x + d >= 0) beyond a station at `at`: F forward (away from the run, along the station's chord),
+ *  N into the wood (the chord's inward normal); the axis BEARING outside: at − BEARING·N. θ from −π/2 (out, into air) to
+ *  π/2 (N, into the wood): dir(θ) = cos θ·F + sin θ·N; s = m·(x − axis)/cos h − BEARING (exact on each sector ray). */
+function frameRunout(board: Board, p: ProfileCut, at: P2, F: P2, N: P2): H[][] {
+  const c = oneSideCurve(p);
+  const f = sectionFrame(board, c);
+  const sec = profileSection(board, c);
+  const pieces = convexPieces(sec.pts, sec.arc).map(({ pts }) => pts.flatMap((a, i) => {
+    const b = pts[(i + 1) % pts.length]!, l = len(sub(b, a));
+    if (l < 1e-14) return [];
+    const ns = -(b[1] - a[1]) / l, nt = (b[0] - a[0]) / l;
+    return [{ ns, nt, c: -(ns * a[0] + nt * a[1]), diagonal: outlineRun(sec.pts, a, b) === null }];
+  })).map((es) => [...es.filter((e) => !e.diagonal), ...es.filter((e) => e.diagonal)]);   // a2's order: diagonals last
+  const maxS = Math.max(...sec.pts.map((q) => q[0]));
+  const n = sectors(BEARING + maxS);
+  const axis: P2 = [at[0] - BEARING * N[0], at[1] - BEARING * N[1]];
+  const dir = (th: number): P2 => [F[0] * Math.cos(th) + N[0] * Math.sin(th), F[1] * Math.cos(th) + N[1] * Math.sin(th)];
+  const out: H[][] = [];
+  for (let i = 0; i < n; i++) {
+    const th0 = -Math.PI / 2 + (i / n) * Math.PI, th1 = -Math.PI / 2 + ((i + 1) / n) * Math.PI;
+    const m = dir((th0 + th1) / 2);
+    const radial = (th: number): H => { const d = dir(th); let a = -d[1], b = d[0]; if (a * m[0] + b * m[1] < 0) { a = -a; b = -b; } return { n: [a, b, 0], d: -(a * axis[0] + b * axis[1]) }; };
+    const ch = Math.cos((th1 - th0) / 2), mA = dot(m, axis);
+    for (const edges of pieces) {
+      out.push([radial(th0), radial(th1), ...edges.map((e) => {
+        const nx = (e.ns * m[0]) / ch, ny = (e.ns * m[1]) / ch, nz = e.nt * f.vIn, l = Math.hypot(nx, ny, nz);
+        return { n: [nx / l, ny / l, nz / l] as V3, d: (e.c - (e.ns * mA) / ch - e.ns * BEARING - e.nt * f.vIn * f.vFace) / l };
+      })]);
+    }
+  }
+  return out;
+}
+
+// ---------- bodies: the box intersected with the band pieces (b1's sweepBodies), then each run-out subtracted ----------
+const volOf = (faces: BodyFace[]) => bodyVolume({ box: null, faces });
+function intersect(bodies: Body[], pieces: { planes: H[]; bb: number[] }[]): Body[] {
+  const out: Body[] = [];
+  for (const body of bodies) for (const pc of pieces) {
+    let f = body.faces;
+    for (const h of pc.planes) { f = clipConvex(f, h); if (f.length === 0) break; }
+    if (f.length >= 4 && volOf(f) > 1e-12) out.push({ box: null, faces: f });
+  }
+  return out;
+}
+function subtract(bodies: Body[], pieces: H[][]): Body[] {
+  let parts = bodies.map((b) => b.faces);
+  for (const piece of pieces) {
+    const next: BodyFace[][] = [];
+    for (const part of parts) {
+      if (piece.some((h) => part.every((f) => f.verts.every((q) => dot3(h.n, q) + h.d <= 1e-9)))) { next.push(part); continue; }
+      let rest = part; const frags: BodyFace[][] = [];
+      for (const h of piece) {
+        if (rest.length === 0) break;
+        const outside = clipConvex(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d });
+        if (outside.length >= 4 && volOf(outside) > 1e-12) frags.push(outside);
+        rest = clipConvex(rest, h);
+      }
+      if (rest.length < 4 || volOf(rest) <= 1e-12) next.push(part); else next.push(...frags);
+    }
+    parts = next;
+  }
+  return parts.map((faces) => ({ box: null, faces }));
+}
+
+// ---------- the INDEPENDENT oracle (b1's sweptAirTester rule, frame-general; no construction plane) ----------
+function oracle(board: Board, p: ProfileCut, path: ProfilePath, frames: { at: P2; F: P2; N: P2 }[]) {
+  const pts = profileSection(board, oneSideCurve(p)).pts;
+  const { reach, depth } = keptSection(board, p);
+  const tau = (s: number) => {
+    if (!(s >= 0 && s <= reach)) return 0;
+    let best = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i]!, b = pts[(i + 1) % pts.length]!, lo = Math.min(a[0], b[0]), hi = Math.max(a[0], b[0]);
+      if (s < lo - 1e-15 || s > hi + 1e-15) continue;
+      const t = hi - lo < 1e-15 ? Math.max(a[1], b[1]) : a[1] + ((s - a[0]) / (b[0] - a[0])) * (b[1] - a[1]);
+      if (t > best) best = t;
+    }
+    return best;
+  };
+  const segs = path.chords.map((c) => [c.a, c.b] as [P2, P2]);
+  const outline = faceOutline(board)!.chords.map((c) => c.a);
+  const axes = frames.map((fr) => ({ ...fr, axis: [fr.at[0] - BEARING * fr.N[0], fr.at[1] - BEARING * fr.N[1]] as P2 }));
+  const D = (q: P2) => {
+    let beyond = Infinity;
+    for (const a of axes) if (dot(sub(q, a.at), a.F) > 0) beyond = Math.min(beyond, len(sub(q, a.axis)) - BEARING);
+    if (beyond !== Infinity) return beyond;
+    let d = Infinity; for (const [a, b] of segs) d = Math.min(d, distSeg(q, a, b));
+    return d;
+  };
+  const tauAt = (q: P2) => { const d = D(q); return d >= 0 && d < reach ? tau(d) : 0; };
+  const near = (q: P2, margin = 0.05) => segs.some(([a, b]) => distSeg(q, a, b) <= reach + margin) || axes.some((a) => len(sub(q, a.axis)) <= BEARING + reach + margin);
+  return { tauAt, near, inside: (q: P2) => inPolygonClosed(outline, q), depth, reach, outline };
+}
+function inBodiesFn(bodies: Body[]) {
+  const bs = bodies.map((b) => ({ planes: b.faces.map((f) => ({ n: f.n, d: dot3(f.n, f.verts[0]!) })),
+    lo: [0, 1, 2].map((k) => Math.min(...b.faces.flatMap((f) => f.verts.map((v) => v[k]!)))), hi: [0, 1, 2].map((k) => Math.max(...b.faces.flatMap((f) => f.verts.map((v) => v[k]!)))) }));
+  return (q: V3) => bs.some((b) => q.every((x, k) => x >= b.lo[k]! - 1e-12 && x <= b.hi[k]! + 1e-12) && b.planes.every((h) => dot3(h.n, q) <= h.d + 1e-12));
+}
+function watertight(board: Board, bodies0: Body[]) {
+  const count = new Map<string, number>(); let tris = 0;
+  const bodies = deepFreeze(structuredClone(bodies0));
+  for (const body of bodies) {
+    const q = bodyMesh(board, body, NOHOLES, bodies).positions;
+    const key = (i: number) => `${q[3 * i]},${q[3 * i + 1]},${q[3 * i + 2]}`;
+    for (let t = 0; t < q.length / 9; t++) { tris++; const k = [key(3 * t), key(3 * t + 1), key(3 * t + 2)]; for (let e = 0; e < 3; e++) { const ed = `${k[e]}|${k[(e + 1) % 3]}`; count.set(ed, (count.get(ed) ?? 0) + 1); } }
+  }
+  let unmatched = 0; for (const [ed, n] of count) { const [a, b] = ed.split('|'); if ((count.get(`${b}|${a}`) ?? 0) !== n) unmatched++; }
+  return { tris, unmatched };
+}
+
+// ---------- cases ----------
+const side = (across: 'length' | 'width', from: 'min' | 'max'): ProfileSide => ({ across, from });
+const prof = (kind: ProfileCut['kind'], size: number): ProfileCut => ({ id: 'p', face: 'max', kind, size, ...(kind === 'thumbnail' ? { depth: 0.25 } : { fillet: kind === 'bead' ? 1 / 16 : 0 }), facing: 'face', run: { loop: true } });
+const corners = (r: number): CurveCut[] => (['min', 'max'] as const).flatMap((u) => (['min', 'max'] as const).map((v) => ({ id: `c${u}${v}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: v, radius: r }) })));
+const top = (r: number) => ({ length: 36, width: 20, thickness: 0.75, curves: corners(r) });
+const apron = (c: Omit<CurveCut, 'id'>) => ({ length: 30, width: 5, thickness: 0.75, curves: [{ id: 'c1', ...c }] });
+const ARCH = archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 });
+const NOTCH = archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 });
+const BOW = bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 });
+interface Case { name: string; dims: { length: number; width: number; thickness: number; curves: CurveCut[] }; p: ProfileCut; s: [ProfileSide, number | 'vertex' | 'zone']; e: [ProfileSide, number]; snap?: boolean }
+const front = side('width', 'min');
+const cases: Case[] = [
+  { name: 'A roundover 1/4, stop on a convex 2" corner arc (u 1.1, mid-chord) to the front at 30', dims: top(2), p: prof('roundover', 0.25), s: [front, 1.1], e: [front, 30] },
+  { name: 'B cove 3/8, the same', dims: top(2), p: prof('cove', 0.375), s: [front, 1.1], e: [front, 30] },
+  { name: 'C roundover 1/4, the stop ON a chord vertex of the corner arc', dims: top(2), p: prof('roundover', 0.25), s: [front, 'vertex'], e: [front, 30] },
+  { name: 'D1 roundover 1/4, the stop inside the end-chord zone, truncated', dims: top(2), p: prof('roundover', 0.25), s: [front, 'zone'], e: [front, 30] },
+  { name: 'D2 roundover 1/4, the stop inside the end-chord zone, snapped back', dims: top(2), p: prof('roundover', 0.25), s: [front, 'zone'], e: [front, 30], snap: true },
+  { name: 'E roundover 1/4, both stops on the concave arch (10, 20)', dims: apron(ARCH), p: prof('roundover', 0.25), s: [front, 10], e: [front, 20] },
+  { name: 'F roundover 3/8, a stop on the concave half-round notch (14.5) to 25', dims: apron(NOTCH), p: prof('roundover', 0.375), s: [front, 14.5], e: [front, 25] },
+  { name: 'G roundover 1/4, both stops on a convex bow (5, 25)', dims: apron(BOW), p: prof('roundover', 0.25), s: [front, 5], e: [front, 25] },
+  { name: 'H roundover 1/4, two sides: the length min end at 4 round the front to the length max end at 4', dims: top(2), p: prof('roundover', 0.25), s: [side('length', 'min'), 4], e: [side('length', 'max'), 4] },
+  { name: 'I cove 3/8, two sides, the same', dims: top(2), p: prof('cove', 0.375), s: [side('length', 'min'), 4], e: [side('length', 'max'), 4] },
+];
+
+writeFileSync(OUT, '');
+log(`load: ${loadavg().map((x) => x.toFixed(2)).join(' ')}`);
+const only = process.argv[2];
+for (const cs of cases) {
+  if (only && !cs.name.startsWith(only)) continue;
+  log(`\n## ${cs.name}`);
+  const make = (k = 1) => createBoard({ ...cs.dims, length: cs.dims.length * k });
+  const board = make();
+  const o = faceOutline(board)!;
+  const { reach } = keptSection(board, cs.p);
+  const T = board.thickness;
+  // Resolve the start station.
+  let s0: Station;
+  if (cs.s[1] === 'vertex' || cs.s[1] === 'zone') {
+    // The corner arc's middle chord vertex at the front's min end (the 2" corner: 12 chords, vertex 6 at 45°).
+    const arc = o.chords.map((c, i) => ({ c, i })).filter(({ c }) => c.curve === 'cminmin');
+    const v = arc[Math.floor(arc.length / 2)]!;
+    if (cs.s[1] === 'vertex') s0 = { k: v.i, t: 0, at: v.c.a };
+    else {
+      const prev = (v.i - 1 + o.chords.length) % o.chords.length;
+      const z = zone(o, { k: prev, t: 0, at: o.chords[prev]!.a }, true, reach);
+      const l = len(sub(o.chords[prev]!.b, o.chords[prev]!.a));
+      const t = 1 - (0.5 * z.limit) / l;   // half the zone short of the vertex
+      const c = o.chords[prev]!;
+      s0 = { k: prev, t, at: [c.a[0] + t * (c.b[0] - c.a[0]), c.a[1] + t * (c.b[1] - c.a[1])] };
+    }
+  } else s0 = normalStation(o, stationOn(board, o, cs.s[0], cs.s[1]), true);
+  const e0 = normalStation(o, stationOn(board, o, cs.e[0], cs.e[1]), false);
+  const zs = zone(o, s0, true, reach), ze = zone(o, e0, false, reach);
+  log(`  stations: start chord ${s0.k} t ${s0.t.toFixed(6)} at (${s0.at.map((x) => x.toFixed(4))}) zone ${zs.piece.toFixed(5)} vs limit ${zs.limit.toFixed(5)}; end chord ${e0.k} t ${e0.t.toFixed(6)} zone ${ze.piece.toFixed(5)} vs limit ${ze.limit.toFixed(5)}`);
+  const build = (b: Board, ol: FaceOutline, s: Station, e: Station) => {
+    const sb = cs.snap && zone(ol, s, true, reach).piece < zone(ol, s, true, reach).limit ? snapped(ol, s, true) : s;
+    const eb = cs.snap && zone(ol, e, false, reach).piece < zone(ol, e, false, reach).limit ? snapped(ol, e, false) : e;
+    const path = stopPath(ol, sb, eb, cs.s[0], cs.e[0]);
+    const pieces = bandPieces(b, cs.p, path);
+    if (!pieces) return null;
+    const frame = (st: Station, start: boolean) => { const u = dirOf(ol, st.k); return { at: st.at, F: (start ? [-u[0], -u[1]] : u) as P2, N: leftNormal(ol.chords[st.k]!.a, ol.chords[st.k]!.b) }; };
+    const frames = [frame(sb, true), frame(eb, false)];
+    let bodies = intersect(boardBodies(createBoard({ length: b.length, width: b.width, thickness: b.thickness })), pieces);
+    for (const fr of frames) bodies = subtract(bodies, frameRunout(b, cs.p, fr.at, fr.F, fr.N));
+    return { bodies, path, frames, pieces: pieces.length };
+  };
+  const built = build(board, o, s0, e0);
+  if (!built) { log('  SKELETON NULL: the end chord was swallowed (expected only for D1)'); continue; }
+  const { bodies } = built;
+  // The oracle reads the TRUE (typed) stations, never the snapped ones.
+  const truth = stopPath(o, s0, e0, cs.s[0], cs.e[0]);
+  const tf = (st: Station, start: boolean) => { const u = dirOf(o, st.k); return { at: st.at, F: (start ? [-u[0], -u[1]] : u) as P2, N: leftNormal(o.chords[st.k]!.a, o.chords[st.k]!.b) }; };
+  const orc = oracle(board, cs.p, truth, [tf(s0, true), tf(e0, false)]);
+  const v = bodies.reduce((a, b) => a + bodyVolume(b), 0);
+  const ov = (seed: number) => {
+    let rnd = seed; const rand = () => { rnd = (rnd * 1103515245 + 12345) % 2147483648; return rnd / 2147483648; };
+    const h = 0.004, C = 0.256; let waste = 0;
+    for (let cx = 0; cx < board.length; cx += C) for (let cy = 0; cy < board.width; cy += C) {
+      if (!orc.near([cx + C / 2, cy + C / 2], 0.05 + C)) continue;   // a cell holding waste has its centre within reach + C·√2/2
+      const nx = Math.round(C / h);   // a whole number of samples per cell (C / h = 62.5 double-counted a strip)
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nx; j++) {
+        const q: P2 = [cx + (i + rand()) * h, cy + (j + rand()) * h];
+        if (orc.inside(q)) waste += orc.tauAt(q) * h * h;
+      }
+    }
+    return (twiceArea(orc.outline) / 2) * T - waste;
+  };
+  const o1 = ov(1), o2 = ov(99), om = (o1 + o2) / 2, wv = (twiceArea(orc.outline) / 2) * T - om;
+  log(`  bodies ${bodies.length} (pieces ${built.pieces}), all convex ${bodies.every((b) => b.faces.every((f) => b.faces.every((g) => g.verts.every((q) => dot3(f.n, q) <= dot3(f.n, f.verts[0]!) + 1e-7))))}`);
+  log(`  volume ${v.toFixed(5)} oracle ${om.toFixed(5)} (seed spread ${Math.abs(o1 - o2).toExponential(1)}) err ${(v - om).toExponential(2)} = ${((100 * (v - om)) / wv).toFixed(3)}% of the waste (${wv.toFixed(4)})`);
+  // Pointwise: 50k points near the path and the run-outs; a mismatch's distance from the nearer TRUE station plane.
+  const inB = inBodiesFn(bodies);
+  let rnd = 7; const rand = () => { rnd = (rnd * 1103515245 + 12345) % 2147483648; return rnd / 2147483648; };
+  let tested = 0, bad = 0, far = 0;
+  while (tested < 50000) {
+    const q: P2 = [rand() * board.length, rand() * board.width];
+    if (!orc.near(q) || !orc.inside(q)) continue;
+    const t = rand() * orc.depth * 1.2; tested++;
+    if ((t > orc.tauAt(q)) !== inB([q[0], q[1], T - t])) {
+      bad++;
+      const dPlane = Math.min(...[tf(s0, true), tf(e0, false)].map((fr) => Math.abs(dot(sub(q, fr.at), fr.F))));
+      far = Math.max(far, dPlane);
+    }
+  }
+  log(`  pointwise: ${bad}/${tested} misclassified; the farthest from a true station plane ${far.toExponential(2)}"`);
+  // The step at each BUILT station: the waste width along N just behind and just beyond the plane, at 60 depths.
+  for (const [i, fr] of built.frames.entries()) {
+    let step = 0, at = 0;
+    for (let t = 0.002; t < orc.depth; t += orc.depth / 60) {
+      const w = (sgn: number) => {
+        const q = (s: number): V3 => [fr.at[0] + sgn * 1e-6 * fr.F[0] + s * fr.N[0], fr.at[1] + sgn * 1e-6 * fr.F[1] + s * fr.N[1], T - t];
+        let lo = 0, hi = reach + 0.01; if (!inB(q(hi))) return NaN;
+        for (let k = 0; k < 50; k++) { const mid = (lo + hi) / 2; if (inB(q(mid))) hi = mid; else lo = mid; }
+        return hi;
+      };
+      const d = Math.abs(w(-1) - w(1));
+      if (d > step) { step = d; at = t; }
+    }
+    log(`  station ${i === 0 ? 'start' : 'end'}: max step across the station plane ${step.toExponential(2)}" (t ${at.toFixed(3)})`);
+  }
+  // a2 equivalence: a station on a STRAIGHT side, the frame run-out against a2's runoutPieces on the same span.
+  for (const [i, fr] of built.frames.entries()) {
+    const ch = o.chords[(i === 0 ? s0 : e0).k]!;
+    if (ch.curve !== undefined) continue;
+    const sd = i === 0 ? cs.s[0] : cs.e[0];
+    const c = oneSideCurve(cs.p, sd);
+    const k = c.through === 'length' ? 0 : 1, x = fr.at[k]!;
+    const span = fr.F[k]! > 0 ? { lo: 0, hi: x, stopLo: false, stopHi: true } : { lo: x, hi: board[c.through], stopLo: true, stopHi: false };
+    const a2 = runoutPieces(board, { ...c, span } as ViewCurve).map((x) => x.planes);
+    const mine = frameRunout(board, cs.p, fr.at, fr.F, fr.N);
+    let worst = a2.length === mine.length ? 0 : Infinity;
+    if (worst === 0) a2.forEach((pc, j) => pc.forEach((h, q) => { const g = mine[j]![q]!; worst = Math.max(worst, Math.hypot(h.n[0] - g.n[0], h.n[1] - g.n[1], h.n[2] - g.n[2]), Math.abs(h.d - g.d)); }));
+    log(`  a2 equivalence at the ${i === 0 ? 'start' : 'end'} (a straight side): ${a2.length} pieces, worst plane difference ${worst.toExponential(2)}`);
+  }
+  let tick = 0;
+  const tB = minOf9(() => { tick++; const b = make(1 + tick * 1e-9); const ol = faceOutline(b)!; build(b, ol, normalStation(ol, stationOn(b, ol, cs.s[0], typeof cs.s[1] === 'number' ? cs.s[1] : s0.at[0]), true), normalStation(ol, stationOn(b, ol, cs.e[0], cs.e[1]), false)); });
+  let raw: unknown[] = [];
+  const tE = minOf9(() => { raw = bodyEdges(bodies); });
+  const fb = deepFreeze(structuredClone(bodies));
+  const tM = minOf9(() => { for (const body of fb) bodyMesh(board, body, NOHOLES, fb); });
+  const wt = watertight(board, bodies);
+  log(`  ms (min of 9): bodies ${tB.toFixed(1)}, +bodyEdges ${tE.toFixed(1)} [${raw.length} raw], mesh ${tM.toFixed(1)} (tris ${wt.tris}, unmatched edges ${wt.unmatched}); TOTAL ≈ ${(tB + tE + tM).toFixed(1)} ms`);
+}
+log(`load: ${loadavg().map((x) => x.toFixed(2)).join(' ')}`);

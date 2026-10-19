@@ -9,7 +9,7 @@ import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
 import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } from './curveText';
-import { geometryBoard, profileFields, viewProfileFaults } from './profiles';
+import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './profiles';
 
 /**
  * The Plans sheet's feature keys (feature callouts spec §2.2, §3): ONE home for a feature's identity, the segment tags it
@@ -94,6 +94,10 @@ function curveText(c: CurveCut, b: Board, units: Units, collapsed: boolean): str
 /** A swept profile's key (profile runs b1, Q7): `<name><fillet>, all round` / `…, round the corners`, or the straight
  *  key's words when it only follows its own side (an arch, a notch). The run words are `sweptRun`'s. */
 function sweptText(b: Board, p: ProfileCut, units: Units): string {
+  // A stopped run (one side's station, or two sides — profile runs b2, Q22) keys `, stopped` and no run words: a key carries no positions.
+  if (!('loop' in p.run) && !endToEnd(p.run)) {
+    return `${profileName(p, units)}${filletWords(p, units)}, stopped`;
+  }
   const run = sweptRun(b, p);
   return `${profileName(p, units)}${filletWords(p, units)}${run ? `, ${run}` : ''}`;
 }

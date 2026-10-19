@@ -6524,6 +6524,10 @@ outline: this entry).
 **Status:** open — chunk b1 implemented and merged 2026-10-18 (not deployed; no schema change): End to end follows a cut side and
 carries round its corner arcs (B1, B1a), All round follows the whole outline, and a saved End to end follows on load (B10) or, too
 tight to follow, runs straight as a2 built it (the user's ruling). Next: b2 (two-side runs, B3; stops on a turned run). Residue 393.
+**Status:** closed — chunk b complete: profile runs b2 (2026-10-19, code complete at `5027ff9`; not yet merged or deployed; no
+schema change) makes a stop on an arch, bow, notch or corner arc follow and run out there, and a stopped run start on one side and
+stop on another (B3); saved a2 stops on a turned path follow on load or run straight by cause. Chunk c (speed) stays under 393(2)
+and 394(5); blind curved recesses under 365. Residue 394.
 
 ## From the profile runs round (chunk a1) — 2026-10-17
 
@@ -6608,3 +6612,61 @@ profile id"; `boardBodiesForTest` is exported from a product module; `SURFACE_EP
 CURVE_EPS; `sharesEdge` is redundant after both `has(E)`; `normalsMemo`/`perFace` key on identity, frozen or not; `lineDist`
 duplicates `distToLine`, no box prefilter in `sweptDrawing`; the `runoutSilhouettes` alias. **Status:** open (record-only; (1)
 owed to the user's eye and review; (2) for chunk c; (3) for b2 or a ruling).
+**Status:** open — re-read after profile runs b2 (2026-10-19). (3) against Q18: b2 adds NO half-arc gap for stops — B1a never mitres
+a neighbour against a stop that fell back (`neighbourTakes` skips it on the stored part), so the neighbour carries round to B1's
+station as it is built. b1's own case — an End to end mitring against an End to end that ran straight — is unchanged, and a
+following stop can now reach it too (b2 Task 3's deferred M4); still open (the fix sits on the same fault-decision cycle). (6)'s
+"the note says too tight" closed (b2: `runsStraightNote` by cause — too tight, overlap, runs off) and its "Stopped greyed when
+leaving All round" closed (B7 lifted). The rest unchanged.
+
+## From the profile runs round (chunk b2) — 2026-10-19
+
+**394. Profile runs b2 residue.** Parked and deferred review minors, record-only unless noted:
+(1) **Owed to the user** (real hardware, a real print, or a ruling). Rulings awaiting review: R5–R7 (the Stop side select: an
+adjacent side moves the station nearer the shared corner, the short way round; an opposite side keeps the station SHOWN as Start,
+or, where that would make an inconsistent through Start, the profiled extent on the kept side; a moved `through` end is always
+seeded per Q26); the crossed-stations `stop-off` rule (final review I1); **M1** — a long-way two-side run with ONE station on the
+corner arc its two sides share (`L_MAX@0.5 → W_MIN@33` on 2" corners) is refused as `stop-off` with `A stop runs off the part`,
+conservative but misleading (a spec question); **M2** — on a one-side run, Side onto a shorter side is greyed (a2) rather than
+seeded; the neighbour-refusal words, `The roundover overlaps another profile on this edge — move the roundover first.`, cannot say
+which of two of one kind (a proposed `… on the width max side …`), and Curves' new `A stop on the roundover runs off the part —
+move it first.`; Task 6's junction override (a run-out vertex on the stop plane takes the band's normal). By eye: the shading at a
+curved stop, the GPU section cap and picking through a run-out on an arc and an overlap piece, the stop-junction snap markers on a
+curve, R5–R7 and redo in the real store, a two-side run in a mirrored instance edited through Properties, a real print of M3's
+doubled segment (below).
+(2) **Upgrade and rollback** (no schema change): a saved a2 stop on a turned path that fits changes its wood on first open
+(`stopOnArch` 97.527 → 97.375 in³; bench line unchanged); rolling back to `dc49b01` refuses a two-side run but loads a turned
+one-side stop SILENTLY as a2's prism (on an arch it cuts only air: the profile vanishes; data intact) — final review M5. Task 3's
+M1: a saved stop whose a2 form was already faulted and whose swept form faults builds nothing on upgrade (Q10 as approved; the b1
+End to end twin). Task 3's M2: a following stop uses b1's cautious hole check (40 probe documents gained a hole `— check:`).
+Task 3's M4: a following stop still mitres against an End to end that ran straight — see 393(3).
+(3) **Geometry and edges:** final review M2 — the one break in byte for byte: a saved a2 ogee, cove or bead stop on a corner arc
+beside a B10 End to end draws two FEWER edge lines than `dc49b01` (b1 drew two its own reference does not; a fix, from Task 7's
+N4; `profilesFinal`'s fingerprints are roundover-only, an ogee hash could be pinned); M3 — the fast edge path emits some
+smooth-join stretches twice where a stop or run-out lies on a loop's or End to end's arc (1 segment in 300 in one Top view;
+present on `dc49b01`; `fastIsReference`'s `merged()` cannot see it); Task 7 N3 — a through→through two-side run whose B1 stations
+land 0.002" apart joins their run-outs at 155–157° with zero drawn length (unpinned); a run-out meeting its own band on a SECOND
+chord would lose the join (`ownEnd` reads the end's path chord; no fixture); `coveredBothSides` with three strips on one line falls
+back (correct, slower); Task 6's latent limits — `endOverlaps` skips a non-convex face, a triple-covered area would emit twice;
+Task 2's M-c — `stationPoint` trusts a monotone stretch (a hand-made line waste could make one station name several points;
+unreachable from presets); the probe past a stop plane reads only cutter distance inside that half-plane (a path curving back
+into it would misread; none does); `from` is not canonicalised, so a loaded `from: 'max'` station and an equal `from: 'min'` one
+split cut-list rows (pre-existing).
+(4) **Q13's zone, its cost:** a stop within reach·tan(φ/2) of the next convex vertex is BUILT at that vertex (never lengthened;
+faults read the typed station): 0.008" short for a 1/4" roundover on 2" corners, ~0.05" at R10's limit (1/4" on 1/4" corners),
+0.07" for a 1/2" roundover on 1/2" corners. Q14: a stop inside a neighbour's B1 ε overlaps that cut by up to ε (≤ 0.084").
+(5) **Chunk c, speed** (minimum of 9, wall-clock; guard = measured + 25%): bead loop 73 (measured 60–63 since Task 7's N4 fix, b1 rows
++5–13% on `dc49b01`), cove loop 81, ogee loop 113, two loops 78, `wrapFour` 57 (measured 39–45.5), the two-side cove 69 (55.0) —
+the last two over the 40 ms frame during a resize drag; `stationFrontToBack` ~38 with no row. The guards are honest at idle and
+FLAKY under load: a full run once read 40.47 ms on the 2" roundover loop's 40 (load 4.5; 28.5 alone), and at ~1.4× inflation the
+cove, bead, two-loops and B1 front rows would fail too (fu 340's class). `profileFaults` ~0.8 ms a call on fresh trial parts
+(`deepFreeze` and the outline build); the Side and Stop side selects judge every profile per option on focus (3–25 ms; unmeasured
+on a busy part); `sweepView.test` ~30 s, `sweepEdges.test` ~16 s, `sweepStops.test` ~95 s alone.
+(6) **Test gaps:** only the `top` cap plane through a run-out is committed (side and front planes checked in review only); the Plans
+oracle checks visibility, not presence (Task 7 M2; presence is guarded through the edge tests); CREASE_MIN (30°) is a fixture-only
+oracle (a 1/8" roundover steps 30°); the `skeletonFits` key and `runoutFor`'s stop end-tag check are unpinned (equivalent on every
+fixture); a stop's ogee `'nearest'` arc branch is unpinned; the probe's step measure cannot resolve below ~1e-6; the R-a oracle does
+not model B1's ε (it fails at r ≤ 1" on bodies identical to deployed b1); the `tauInscribed` allowance and the new normal formulas
+hold for monotone sections only (roundover, cove); Task 8's m4 (the two-side through-START wording); `twoSideSharp`'s closed form
+alone survives a `BEARING` 0.26 mutation (the axis pins catch it). **Status:** open (record-only; (1) owed to the user's eye and
+review; (5) for chunk c).

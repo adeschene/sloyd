@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import {
@@ -7,10 +7,11 @@ import {
 } from '../document/document';
 import type { Board, CurveCut, HoleRow } from '../document/document';
 import { Properties } from './Properties';
-import { canonicalRun, endPos } from '../document/profiles';
+import { canonicalRun, endPos, profileFaults, travelSign } from '../document/profiles';
 import { holeRefusal, pastHalfCircle, profileRefusal, refusalFor } from './curveRefusal';
-import { apronArch, endToEnd as endToEndP, frontOnly, loop as loopP, stopped as stoppedRun, topCorners } from '../document/sweepFixtures';
+import { apronArch, endToEnd as endToEndP, frontAndEnds, frontOnly, loop as loopP, stopOnCorner, stopped as stoppedRun, topCorners, twoSide, twoSideSharp } from '../document/sweepFixtures';
 import { sweptLine } from '../document/curveText';
+import { formatLength } from '../units/length';
 import { isSwept } from '../document/profilePath';
 
 const top = (over: Partial<Board> = {}) => createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75, ...over });
@@ -782,29 +783,33 @@ describe('swept profiles in the row (profile runs b1)', () => {
     expect(within(run).getByRole('option', { name: 'All round — too tight for the curve' })).toBeDisabled();
   });
 
-  it('Stopped is greyed on a turned path with B7\'s reason; choosing it anyway is refused, nothing stored', async () => {
+  it('Stopped is offered on a turned path (B7 lifted, profile runs b2): Run -> Stopped stores a stop round the corners', async () => {
     const user = userEvent.setup();
     open(named(frontOnly));
     const run = inRow('Run');
     act(() => run.focus());
-    expect(within(run).getByRole('option', { name: 'Stopped — a stop on a curved or cornered run comes later' })).toBeDisabled();
+    expect(within(run).getByRole('option', { name: 'Stopped' })).toBeEnabled();
     act(() => run.blur());
-    // A stale list: the change itself refuses in the row's words.
     await user.selectOptions(run, 'Stopped');
-    expect(profiles()[0]).toEqual(frontOnly.profiles[0]);
-    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop on a curved or cornered run comes later.');
+    expect(profiles()[0]!.run).toEqual({ start: { side: W_MIN, from: 'min', at: 3 }, end: { side: W_MIN, from: 'min', at: 33 } });
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
   });
 
-  it('a stopped a2 run on a side later cornered keeps its stations editable (B7 refuses only an ADDED stop)', async () => {
+  it('a stopped a2 run on a side later cornered keeps its stations editable; a Side change moves it (B7 lifted)', async () => {
     const user = userEvent.setup();
     open(named(topCorners(2, stoppedRun('p1', W_MIN, 5, 30))));
     const start = within(profileRow()).getByLabelText('Start (from the length min end)');
     await user.clear(start); await user.type(start, '6{Enter}');
     const r = profiles()[0]!.run as { start: Parameters<typeof endPos>[1]; end: Parameters<typeof endPos>[1] };
     expect([endPos(frontOnly, r.start), endPos(frontOnly, r.end)].sort((a, b) => a - b)).toEqual([6, 30]);
-    // ... but a Side change onto another turned side is a NEW stop there: refused.
+    // ... and (B7 lifted, profile runs b2) a Side change onto another turned side moves the stop there.
+    const before = useStore.getState().past.length;
     await user.selectOptions(inRow('Side'), 'Width max side');
-    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop on a curved or cornered run comes later.');
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
+    const at = (x: number) => ({ side: { across: 'width', from: 'max' } as const, from: 'min' as const, at: x });
+    expect(profiles()[0]!.run).toEqual(canonicalRun(frontOnly, 'max', { start: at(6), end: at(30) }));
+    expect(profiles()[0]!.run).toEqual({ start: at(30), end: at(6) });               // travel −1 on the back: 30 first
+    expect(useStore.getState().past.length).toBe(before + 1);
   });
 
   it('swept rows render without throwing, each with sweptLine\'s line: End to end round the corners, along the arch, a loop', () => {
@@ -939,5 +944,387 @@ describe('swept profiles in the row (profile runs b1)', () => {
     const fit = named(topCorners(2, { ...endToEndP('p1', W_MIN), size: 0.375 }));
     const tight = { ...fit, curves: fit.curves.map((c) => (c.id === 'cminmin' ? { ...c, ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 0.25 }), id: c.id } : c)) };
     expect(profileRefusal(fit, tight)).toBe('Too tight for the roundover — reduce the roundover first.');
+  });
+});
+
+// ── profile runs b2, Task 9: Stopped on any side, the Stop side select, side changes (Q26, Review Focus 5) ──
+describe('the b2 row: stops on a turned path and two-side runs (profile runs b2)', () => {
+  const W_MIN = { across: 'width', from: 'min' } as const;
+  const W_MAX = { across: 'width', from: 'max' } as const;
+  const L_MIN = { across: 'length', from: 'min' } as const;
+  const L_MAX = { across: 'length', from: 'max' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+  const past = () => useStore.getState().past.length;
+  const lineOf = (b: Board) => { const v = geometryBoard(b); return sweptLine(v, v.profiles[0]!, useStore.getState().doc.units); };
+  const loadedPart = (b: Board) => migrateDocument(JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [named(b)] }))).boards[0] as Board;
+
+  it('a stop on the cornered front shows Side, Stop side, Start and Stop, and sweptLine\'s line', () => {
+    const b = named(stopOnCorner());
+    open(b);
+    expect(isSwept(b, b.profiles[0]!)).toBe(true);
+    expect(selected('Side')).toBe('Width min side');
+    expect(selected('Stop side')).toBe('Width min side');
+    expect(within(profileRow()).getByLabelText('Start (from the length min end)')).toHaveValue(formatLength(1.1, useStore.getState().doc.units));
+    expect(within(profileRow()).getByLabelText('Stop (from the length min end)')).toHaveValue('30"');
+    expect(within(profileRow()).getByText(lineOf(b))).toBeInTheDocument();
+  });
+
+  it('an End to end row has no Stop side select', () => {
+    open(named(frontOnly));
+    expect(within(profileRow()).queryByLabelText('Stop side')).toBeNull();
+  });
+
+  it('Review Focus 5: Stop side, then Side, then Side onto the Stop side; each one undo entry', async () => {
+    const user = userEvent.setup();
+    open(named(stopOnCorner()));
+    const start0 = (profiles()[0]!.run as { start: object }).start;
+    // Stop side -> Length max end: 30 does not fit a 20" side, so the Stop is seeded min(3, 20/4) = 3 past the corner the
+    // travel enters (travelSign('max', L_MAX) = +1: it enters at the width min end).
+    let before = past();
+    await user.selectOptions(inRow('Stop side'), 'Length max end');
+    expect(profiles()[0]!.run).toEqual({ start: start0, end: { side: L_MAX, from: 'min', at: 3 } });
+    expect(past()).toBe(before + 1);
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
+    // Side -> Length min end: only Start moves, keeping 1.1 (it fits there).
+    before = past();
+    await user.selectOptions(inRow('Side'), 'Length min end');
+    expect(profiles()[0]!.run).toEqual({ start: { side: L_MIN, from: 'min', at: 1.1 }, end: { side: L_MAX, from: 'min', at: 3 } });
+    expect(past()).toBe(before + 1);
+    expect(within(profileRow()).getByLabelText('Start (from the width min end)')).toBeInTheDocument();
+    expect(within(profileRow()).getByLabelText('Stop (from the width min end)')).toBeInTheDocument();
+    // Side -> the Stop side's own side: a one-side run, in canonical order.
+    before = past();
+    await user.selectOptions(inRow('Side'), 'Length max end');
+    const run = profiles()[0]!.run as { start: Parameters<typeof endPos>[1]; end: Parameters<typeof endPos>[1] };
+    expect(run.start.side).toEqual(L_MAX);
+    expect(run.end.side).toEqual(L_MAX);
+    expect(run).toEqual(canonicalRun(stopOnCorner(), 'max', run));
+    expect([endPos(stopOnCorner(), run.start), endPos(stopOnCorner(), run.end)]).toEqual([1.1, 3]);
+    expect(past()).toBe(before + 1);
+    expect(selected('Stop side')).toBe('Length max end');
+  });
+
+  it('a moved Start that would add a fault is seeded min(3, L/4) in from the corner its travel leaves', async () => {
+    const user = userEvent.setup();
+    // The front at 20 round the length max end to 5 (twoSideSharp); Start -> Length min end keeping 20 is off its 10" side:
+    // travelSign('max', L_MIN) = -1, so travel leaves the length min end at its width min end: Start = 0 + min(3, 10/4) = 2.5.
+    open(named(twoSideSharp));
+    await user.selectOptions(inRow('Side'), 'Length min end');
+    expect(profiles()[0]!.run).toEqual({ start: { side: L_MIN, from: 'min', at: 2.5 }, end: { side: L_MAX, from: 'min', at: 5 } });
+  });
+
+  it('Face -> Bottom on a two-side run swaps Start and Stop (the same sides profiled), one undo entry', async () => {
+    const user = userEvent.setup();
+    const b = named(frontAndEnds());
+    open(b);
+    const r0 = b.profiles[0]!.run as { start: object; end: object };
+    const before = past();
+    await user.selectOptions(inRow('Face'), 'Bottom');
+    expect(profiles()[0]).toMatchObject({ face: 'min', run: { start: r0.end, end: r0.start } });
+    expect(past()).toBe(before + 1);
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
+    // A size edit keeps the stored run (no swap).
+    const radius = within(profileRow()).getByLabelText('Radius');
+    await user.clear(radius); await user.type(radius, '3/16{Enter}');
+    expect(profiles()[0]).toMatchObject({ face: 'min', size: 0.1875, run: { start: r0.end, end: r0.start } });
+  });
+
+  it('typing Start at its side\'s leaving end is refused as the stop-off it adds: the field\'s own error, typed text kept', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2, twoSide('p1', L_MIN, 1.1, L_MAX, 3))));
+    const stored = profiles()[0];
+    const start = within(profileRow()).getByLabelText('Start (from the width min end)');
+    await user.clear(start); await user.type(start, '0{Enter}');
+    expect(profiles()[0]).toEqual(stored);
+    expect(start).toHaveAttribute('aria-invalid', 'true');
+    expect(start).toHaveValue('0');
+    expect(start).toHaveFocus();
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop runs off the part — move it first.');
+  });
+
+  it('Q17: a typed 0 where travel LEAVES Start\'s side is never a through end, even where stop-off is already stored', async () => {
+    const user = userEvent.setup();
+    // The Stop at 30 on the 20" length max end is already off its side (stored stop-off), so a second stop-off is no ADDED
+    // kind and the edit is stored: as a station at 0, not an inconsistent through end.
+    open(named(topCorners(2, twoSide('p1', L_MIN, 1.1, L_MAX, 30))));
+    await typeInto(user, 'Start (from the width min end)', '0');
+    expect(profiles()[0]!.run).toEqual({ start: { side: L_MIN, from: 'min', at: 0 }, end: { side: L_MAX, from: 'min', at: 30 } });
+  });
+
+  it('two sides: each field edits its own end, no crossing check; a typed end where travel enters Start\'s side is a through end (Q17)', async () => {
+    const user = userEvent.setup();
+    open(named(twoSideSharp));
+    expect(within(profileRow()).getByLabelText('Start (from the length min end)')).toHaveValue('20"');
+    expect(within(profileRow()).getByLabelText('Stop (from the width min end)')).toHaveValue('5"');
+    await typeInto(user, 'Stop (from the width min end)', '8');
+    expect(profiles()[0]!.run).toEqual({ start: { side: W_MIN, from: 'min', at: 20 }, end: { side: L_MAX, from: 'min', at: 8 } });
+    // Start 0 on the front: travel enters the front at its length min end, so 0 is a through end there.
+    await typeInto(user, 'Start (from the length min end)', '0');
+    expect(profiles()[0]!.run).toEqual({ start: { side: W_MIN, through: 'min' }, end: { side: L_MAX, from: 'min', at: 8 } });
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
+  });
+
+  it('a two-side run loaded through migrateDocument renders its row (Task 3 ledger 1)', () => {
+    const b = loadedPart(frontAndEnds());
+    expect(b.profiles[0]!.run).toEqual(frontAndEnds().profiles[0]!.run);
+    open(b);
+    expect(within(profileRow()).getByText(lineOf(b))).toBeInTheDocument();
+    expect(selected('Side')).toBe('Length min end');
+    expect(selected('Stop side')).toBe('Length max end');
+    expect(selected('Run')).toBe('Stopped');
+  });
+
+  it('a two-side asymmetric row\'s Facing offers Top: the edge', async () => {
+    const user = userEvent.setup();
+    open(named(frontAndEnds('ogee', 0.375)));
+    const facing = inRow('Facing');
+    expect([...facing.options].map((o) => o.textContent)).toContain('Top: the edge');
+    await user.selectOptions(facing, 'Top: the edge');
+    expect(profiles()[0]).toMatchObject({ facing: 'edge', run: frontAndEnds().profiles[0]!.run });
+  });
+
+  it('the fallback note says why (Q10): too tight for the saved tight stop, an overlap for I2\'s stop', () => {
+    const corners = (r: number) => topCorners(r).curves;
+    const stop = (id: string, s: typeof W_MIN, lo: number, hi: number, size = 0.25) => ({ ...stoppedRun(id, s, lo, hi), size });
+    open(loadedPart(createBoard({ length: 36, width: 20, thickness: 0.75, curves: corners(0.25), profiles: [stop('s', W_MIN, 0.1, 30, 0.375)] })));
+    expect(within(profileRow()).getByRole('status')).toHaveTextContent(/^Runs straight: too tight to follow the curve\.$/);
+    document.body.innerHTML = '';
+    open(loadedPart(createBoard({ length: 36, width: 20, thickness: 0.75, curves: corners(2),
+      profiles: [stop('a', W_MIN, 1, 30), endToEndP('b', L_MIN)] })));
+    expect(within(profileRow(0)).getByRole('status')).toHaveTextContent(/^Runs straight: it would overlap another profile if it followed the curve\.$/);
+  });
+
+  it('an edit that ADDS a fault to ANOTHER profile is refused naming it: a two-side Stop typed onto the back\'s corner arc', async () => {
+    const user = userEvent.setup();
+    // t already overlaps x (the front End to end): stored, so another overlap adds no KIND to t. Its Stop at 19.9 on the
+    // length max end lies on the back-right arc, which y (the back End to end) carries round: y gains an overlap.
+    open(named(createBoard({ length: 36, width: 20, thickness: 0.75, curves: topCorners(2).curves,
+      profiles: [twoSide('t', L_MIN, 4, L_MAX, 4), endToEndP('x', W_MIN), endToEndP('y', W_MAX)] })));
+    const stored = profiles();
+    const stop = within(profileRow(0)).getByLabelText('Stop (from the width min end)');
+    await user.clear(stop); await user.type(stop, '19.9{Enter}');
+    expect(profiles()).toEqual(stored);
+    expect(stop).toHaveAttribute('aria-invalid', 'true');
+    expect(within(profileRow(0)).getByRole('alert')).toHaveTextContent('The roundover overlaps another profile on this edge — move the roundover first.');
+    // 17 stays clear of y's arc: stored.
+    await user.clear(stop); await user.type(stop, '17{Enter}');
+    expect(profiles()[0]!.run).toMatchObject({ end: { side: L_MAX, from: 'min', at: 17 } });
+  });
+});
+
+// ── profile runs b2, Task 9 fix round 1 ──
+describe('fix round 1: Stop side on a one-side stop onto an adjacent side moves the NEARER station (R5)', () => {
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+  const label = (s: { across: 'width' | 'length'; from: 'min' | 'max' }) => `${s.across === 'width' ? 'Width' : 'Length'} ${s.from} ${s.across === 'width' ? 'side' : 'end'}`;
+  type S = { across: 'width' | 'length'; from: 'min' | 'max' };
+  const cases: [S, 'min' | 'max'][] = [
+    [{ across: 'width', from: 'min' }, 'max'], [{ across: 'width', from: 'max' }, 'max'],
+    [{ across: 'length', from: 'min' }, 'max'], [{ across: 'length', from: 'max' }, 'max'],
+    [{ across: 'width', from: 'min' }, 'min'], [{ across: 'length', from: 'max' }, 'min'],
+  ];
+  for (const [s, face] of cases) {
+    it(`${label(s)}, face ${face}: stop 5 to L - 5, Stop side -> the adjacent side at its max end; 5 stays, the route goes round the one corner`, async () => {
+      const user = userEvent.setup();
+      const dims = topCorners(2);
+      const dim = s.across === 'width' ? 'length' : 'width';
+      const L = dims[dim];
+      const p0 = stoppedRun('p1', s, 5, L - 5);
+      const p = { ...p0, face, run: canonicalRun(dims, face, p0.run as never) };
+      open(named(topCorners(2, p)));
+      expect(within(profileRow()).getByLabelText(`Start (from the ${dim} min end)`)).toHaveValue('5"');
+      const adj: S = { across: dim, from: 'max' };
+      const before = useStore.getState().past.length;
+      await user.selectOptions(inRow('Stop side'), label(adj));
+      expect(within(profileRow()).queryByRole('alert')).toBeNull();
+      expect(useStore.getState().past.length).toBe(before + 1);
+      const run = profiles()[0]!.run as { start: Parameters<typeof endPos>[1]; end: Parameters<typeof endPos>[1] };
+      const kept = [run.start, run.end].find((e) => e.side.across === s.across && e.side.from === s.from)!;
+      const moved = [run.start, run.end].find((e) => e !== kept)!;
+      expect(endPos(dims, kept)).toBe(5);                                             // the station far from the corner stays
+      expect(moved.side).toEqual(adj);
+      // Fix round 2: the moved end's exact station. A width side's L - 5 = 31 is off the 20" end, so it is seeded
+      // min(3, 20/4) = 3 past the shared corner (at the side's own end of the width); a length end's 15 fits the 36" side, kept.
+      expect(endPos(dims, moved)).toBe(s.across === 'width' ? (s.from === 'min' ? 3 : 17) : 15);
+      // The kept number shows in its own side's field; the route passes the shared corner only (Q21's between words).
+      expect(within(profileRow()).getByLabelText(new RegExp(`^(Start|Stop) \\(from the ${dim} min end\\)$`))).toHaveValue('5"');
+      expect(within(profileRow()).getByText(/ round the corner to /)).toBeInTheDocument();
+    });
+  }
+});
+
+describe('fix round 1: M1 and M4', () => {
+  const W_MAX = { across: 'width', from: 'max' } as const;
+  const L_MIN = { across: 'length', from: 'min' } as const;
+  const L_MAX = { across: 'length', from: 'max' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+  const loadedPart = (b: Board) => migrateDocument(JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [named(b)] }))).boards[0] as Board;
+
+  it('M1: a loaded Stop stored from the max end keeps the number it SHOWS when Stop side moves it', async () => {
+    const user = userEvent.setup();
+    const p = { ...twoSide('p1', L_MIN, 4, L_MAX, 0), run: { start: { side: L_MIN, from: 'min', at: 4 }, end: { side: L_MAX, from: 'max', at: 16 } } } as ReturnType<typeof twoSide>;
+    const b = loadedPart(topCorners(2, p));
+    expect((b.profiles[0]!.run as { end: object }).end).toEqual({ side: L_MAX, from: 'max', at: 16 });
+    open(b);
+    expect(within(profileRow()).getByLabelText('Stop (from the width min end)')).toHaveValue('4"');
+    await user.selectOptions(inRow('Stop side'), 'Width max side');
+    expect(profiles()[0]!.run).toEqual({ start: { side: L_MIN, from: 'min', at: 4 }, end: { side: W_MAX, from: 'min', at: 4 } });
+    expect(within(profileRow()).getByLabelText('Stop (from the length min end)')).toHaveValue('4"');
+  });
+
+  it('M4: a Stop typed at its side\'s ENTERING end is refused as the stop-off it adds, the field\'s own error', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2, twoSide('p1', L_MIN, 4, L_MAX, 4))));
+    const stored = profiles()[0];
+    const stop = within(profileRow()).getByLabelText('Stop (from the width min end)');
+    await user.clear(stop); await user.type(stop, '0{Enter}');
+    expect(profiles()[0]).toEqual(stored);
+    expect(stop).toHaveAttribute('aria-invalid', 'true');
+    expect(stop).toHaveValue('0');
+    expect(stop).toHaveFocus();
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop runs off the part — move it first.');
+  });
+
+  it('M4: one row switched two-side -> All round -> Stopped -> End to end renders throughout (hooks above every branch)', async () => {
+    const user = userEvent.setup();
+    open(named(topCorners(2, twoSide('p1', L_MIN, 4, L_MAX, 4))));
+    await user.selectOptions(inRow('Run'), 'All round');
+    expect(profiles()[0]!.run).toEqual({ loop: true });
+    expect(within(profileRow()).queryByLabelText('Stop side')).toBeNull();
+    await user.selectOptions(inRow('Run'), 'Stopped');
+    expect(within(profileRow()).getByLabelText('Stop side')).toBeInTheDocument();
+    await user.selectOptions(inRow('Stop side'), 'Length max end');
+    await user.selectOptions(inRow('Run'), 'End to end');
+    expect(within(profileRow()).queryByLabelText('Stop side')).toBeNull();
+    expect(selected('Run')).toBe('End to end');
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('fix round 2: R6 (opposite Stop side keeps the shown Start) and N2 (a moved through end is seeded)', () => {
+  type S = { across: 'width' | 'length'; from: 'min' | 'max' };
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+  const label = (s: S) => `${s.across === 'width' ? 'Width' : 'Length'} ${s.from} ${s.across === 'width' ? 'side' : 'end'}`;
+  const words = (s: S) => `the ${s.across} ${s.from} ${s.across === 'width' ? 'side' : 'end'}`;
+  const flip = (f: 'min' | 'max') => (f === 'min' ? 'max' : 'min');
+  const dims = topCorners(2);
+  type End = Parameters<typeof endPos>[1];
+  const ends = () => profiles()[0]!.run as { start: End; end: End };
+  const stopOn = (s: S, face: 'min' | 'max', lo: End | number, hi: End | number) => {
+    const p0 = stoppedRun('p1', s, 5, 6);
+    const e = (x: End | number): End => (typeof x === 'number' ? { side: { ...s }, from: 'min', at: x } : x);
+    return { ...p0, face, run: canonicalRun(dims, face, { start: e(lo), end: e(hi) }) };
+  };
+  const R6: [S, 'min' | 'max'][] = [
+    [{ across: 'width', from: 'max' }, 'max'], [{ across: 'length', from: 'min' }, 'max'],
+    [{ across: 'width', from: 'min' }, 'min'], [{ across: 'length', from: 'max' }, 'min'],      // the four min-travel sides
+    [{ across: 'width', from: 'min' }, 'max'], [{ across: 'length', from: 'max' }, 'max'],      // two max-travel sides
+  ];
+  for (const [s, face] of R6) {
+    it(`R6: ${label(s)}, face ${face}: Stop side -> the opposite side keeps the shown Start and moves the shown Stop`, async () => {
+      const user = userEvent.setup();
+      const dim = s.across === 'width' ? 'length' : 'width';
+      const L = dims[dim];
+      open(named(topCorners(2, stopOn(s, face, 5, L - 5))));
+      expect(within(profileRow()).getByLabelText(`Start (from the ${dim} min end)`)).toHaveValue('5"');
+      const before = useStore.getState().past.length;
+      const opp: S = { across: s.across, from: flip(s.from) };
+      await user.selectOptions(inRow('Stop side'), label(opp));
+      expect(within(profileRow()).queryByRole('alert')).toBeNull();
+      expect(useStore.getState().past.length).toBe(before + 1);
+      expect(ends().start.side).toEqual(s);
+      expect(endPos(dims, ends().start)).toBe(5);
+      expect(ends().end.side).toEqual(opp);
+      expect(within(profileRow()).getByLabelText(`Start (from the ${dim} min end)`)).toHaveValue('5"');
+      // Q16's route from the kept Start: along its side toward the end its travel heads for, past that one side.
+      const passed: S = { across: dim, from: (travelSign(face, s) > 0) ? 'max' : 'min' };
+      expect(within(profileRow()).getByText(new RegExp(` round ${words(passed)} to ${words(opp)} at `))).toBeInTheDocument();
+    });
+  }
+  // Fix round 3 (NF1, the controller's ruling R7): a shown Start that is a THROUGH end where the run LEAVES its side cannot be
+  // the stored Start (Q17). The shown extent on the kept side is kept instead: the stored start stays the shown Stop's
+  // station, the run still leaves through, and the moved end is seeded per Q26 on the opposite side.
+  for (const [s, face] of R6.slice(0, 4)) {
+    it(`R7: ${label(s)}, face ${face}: the shown Start runs out through; Stop side -> the opposite side keeps 0 to L - 5 there`, async () => {
+      const user = userEvent.setup();
+      const dim = s.across === 'width' ? 'length' : 'width';
+      const L = dims[dim];
+      open(named(topCorners(2, stopOn(s, face, { side: { ...s }, through: 'min' }, L - 5))));
+      expect(within(profileRow()).getByLabelText(`Start (from the ${dim} min end)`)).toHaveValue('0"');
+      const kept = ends().start;
+      expect(kept).toEqual({ side: s, from: 'min', at: L - 5 });                         // canonical: travel −1, so L − 5 first
+      const before = useStore.getState().past.length;
+      const opp: S = { across: s.across, from: flip(s.from) };
+      await user.selectOptions(inRow('Stop side'), label(opp));
+      expect(within(profileRow()).queryByRole('alert')).toBeNull();
+      expect(useStore.getState().past.length).toBe(before + 1);
+      const seed = Math.min(3, L / 4);
+      expect(ends()).toEqual({ start: kept, end: { side: opp, from: 'min', at: travelSign(face, opp) > 0 ? seed : L - seed } });
+      const passed: S = { across: dim, from: 'min' };                                    // travel −1 leaves through the min end
+      expect(within(profileRow()).getByText(new RegExp(`from ${words(s)} at ${L - 5}" round ${words(passed)} to ${words(opp)} at `))).toBeInTheDocument();
+    });
+  }
+  const sides: S[] = [{ across: 'width', from: 'min' }, { across: 'width', from: 'max' }, { across: 'length', from: 'min' }, { across: 'length', from: 'max' }];
+  for (const face of ['max', 'min'] as const) {
+    for (const s of sides) {
+      it(`N2: ${label(s)}, face ${face}: the near end runs out through max; Stop side -> the adjacent side at max seeds it 3" (or L/4) past the shared corner`, async () => {
+        const user = userEvent.setup();
+        const dim = s.across === 'width' ? 'length' : 'width';
+        open(named(topCorners(2, stopOn(s, face, 5, { side: { ...s }, through: 'max' }))));
+        const adj: S = { across: dim, from: 'max' };
+        await user.selectOptions(inRow('Stop side'), label(adj));
+        expect(within(profileRow()).queryByRole('alert')).toBeNull();
+        const r = ends();
+        const kept = [r.start, r.end].find((e) => e.side.across === s.across && e.side.from === s.from)!;
+        const moved = [r.start, r.end].find((e) => e !== kept)!;
+        expect(endPos(dims, kept)).toBe(5);
+        expect(moved).toEqual({ side: adj, from: 'min', at: s.from === 'min' ? Math.min(3, dims[s.across] / 4) : dims[s.across] - Math.min(3, dims[s.across] / 4) });
+      });
+    }
+  }
+});
+
+// ── profile runs b2, the final review's I1 (the controller's ruling): Scenario A in the row ──
+describe('the row refuses crossed stations on the corner arc two sides share (b2 final review I1)', () => {
+  const L_MAX = { across: 'length', from: 'max' } as const, W_MIN = { across: 'width', from: 'min' } as const, W_MAX = { across: 'width', from: 'max' } as const;
+  const named = (b: Board) => ({ ...b, id: 'top', name: 'Top' });
+  const profileRow = (i = 0) => screen.getAllByRole('button', { name: /^Remove profile \(/ })[i]!.closest('.cut') as HTMLElement;
+  const inRow = (label: string, i = 0) => within(profileRow(i)).getByLabelText(label) as HTMLSelectElement;
+
+  // Scenario A cannot be TYPED from a clean run: with one station on the front-right arc and the other off it the run
+  // re-enters a side (review M1, already stop-off), so a single typed station never lands there from a clean state. It is
+  // reached by Stop side: the length max end at 1/2" round the corner to the back at 35-1/2" (both on arcs, clean), then
+  // Stop side -> Width min side keeps the Stop's shown 35-1/2" (R5's moveEnd) — Scenario A.
+  const start = () => named(topCorners(2, twoSide('p1', L_MAX, 0.5, W_MAX, 35.5)));
+
+  it('Stop side -> Width min side is disabled and says why while the select has focus', async () => {
+    const user = userEvent.setup();
+    open(start());
+    await user.click(inRow('Stop side'));
+    expect(within(inRow('Stop side')).getByRole('option', { name: 'Width min side — a stop runs off the part' })).toBeDisabled();
+  });
+
+  it('Stop side -> Width min side changed anyway is refused on the row: nothing stored, the select on the stored side', () => {
+    open(start());
+    const stored = profiles()[0];
+    expect(profileFaults(start(), stored!)).toEqual([]);
+    fireEvent.change(inRow('Stop side'), { target: { value: '0' } });   // SIDES[0]: the width min side
+    expect(profiles()[0]).toEqual(stored);
+    expect(selected('Stop side')).toBe('Width max side');
+    expect(within(profileRow()).getByRole('alert')).toHaveTextContent('A stop runs off the part — move it first.');
+  });
+
+  it('the uncrossed short run on that arc is still reached by Stop side: the front at 35 round the corner to the length max end at 1', () => {
+    open(named(topCorners(2, twoSide('p1', W_MIN, 35, W_MAX, 1))));     // the front at 35 round the right end to the back at 1
+    fireEvent.change(inRow('Stop side'), { target: { value: '3' } });   // SIDES[3]: the length max end
+    expect(profiles()[0]!.run).toEqual({ start: { side: W_MIN, from: 'min', at: 35 }, end: { side: L_MAX, from: 'min', at: 1 } });
+    expect(within(profileRow()).queryByRole('alert')).toBeNull();
   });
 });

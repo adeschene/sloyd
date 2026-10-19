@@ -1,10 +1,10 @@
-import type { Board, CurveCut, Dimension, ProfileCut } from './types';
+import type { Board, CurveCut, Dimension, ProfileCut, ProfileEnd, ProfileSide } from './types';
 import { formatLength, type Units } from '../units/length';
 import { edgeName, endWord } from './holeText';
 import {
   archFields, bowFields, cornerFields, curveFaults, localSegments, spanOf, uvDims, type CurveFault, type LocalArc,
 } from './curves';
-import { geometryBoard, profileAsymmetric, profileFields, profileToFields, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
+import { endPos, endToEnd, geometryBoard, oneSide, profileAsymmetric, profileFields, profileToFields, runDim, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
 import { faceOutline, sideStretch } from './profilePath';
 import { faceName } from './angleText';
 
@@ -39,15 +39,23 @@ export function profileFaultText(f: ProfileFault): string {
   }
 }
 
+/** The Profiles row's note for a swept-shaped End to end that runs STRAIGHT (`runsStraight`; final review I1, the user's
+ *  ruling): too tight to follow its curve, it is cut as a2 cut it. A row note only — the bench line describes what is cut. */
+export const RUNS_STRAIGHT_NOTE = 'Runs straight: too tight to follow the curve.';
+/** The fallback note by its cause (Q10; one home): the first kind of the profile's swept judgement (`fallbackCause`). */
+export function runsStraightNote(kind: ProfileFault['kind']): string {
+  switch (kind) {
+    case 'too-tight': return RUNS_STRAIGHT_NOTE;
+    case 'overlap': return 'Runs straight: it would overlap another profile if it followed the curve.';
+    case 'runs-off': case 'stop-off': return 'Runs straight: it would run off the part if it followed the curve.';
+  }
+}
 /**
  * A stored profile fault as the Properties row's note (final fix F5), from the same words: a stop off the part, a profile
  * running off it and one too tight for its curve are what a resize causes (" at this size."); an overlap never is — every
  * row station is measured from the min end, so a resize cannot make one (an a1 file's stacked identical profiles, faulted
  * on load by P12) — so it reads without the clause.
  */
-/** The Profiles row's note for a swept-shaped End to end that runs STRAIGHT (`runsStraight`; final review I1, the user's
- *  ruling): too tight to follow its curve, it is cut as a2 cut it. A row note only — the bench line describes what is cut. */
-export const RUNS_STRAIGHT_NOTE = 'Runs straight: too tight to follow the curve.';
 export function profileFaultNote(f: ProfileFault): string {
   const cap = (t: string) => `${t[0]!.toUpperCase()}${t.slice(1)}`;
   const t = profileFaultText(f);
@@ -142,9 +150,51 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
 export function sweptRun(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut): 'all round' | 'round the corner' | 'round the corners' | null {
   if ('loop' in p.run) return 'all round';
   const outline = faceOutline(view);
-  const s = outline ? sideStretch(view, outline, p.run.start.side) : null;
-  const arcs = s ? (s.startEnd === 'arc' ? 1 : 0) + (s.endEnd === 'arc' ? 1 : 0) : 0;
+  let arcs = 0;
+  for (const e of [p.run.start, p.run.end]) {
+    const s = outline ? sideStretch(view, outline, e.side) : null;
+    if (!s) continue;
+    if (endToEnd(p.run)) { arcs = (s.startEnd === 'arc' ? 1 : 0) + (s.endEnd === 'arc' ? 1 : 0); break; }
+    // Any other run (profile runs b2) takes the corner arcs of its THROUGH ends only: a station ends the run where it stands.
+    if (!('through' in e)) continue;
+    // The stretch runs plan-CCW: ascending along the run dimension on the width-min and length-max sides, descending on the others.
+    const ascending = e.side.across === 'width' ? e.side.from === 'min' : e.side.from === 'max';
+    const atStart = ascending === (e.through === 'min');
+    if ((atStart ? s.startEnd : s.endEnd) === 'arc') arcs++;
+  }
   return arcs === 0 ? null : arcs === 1 ? 'round the corner' : 'round the corners';
+}
+
+/** The rectangle's sides in plan-CCW order; a run on face max travels this way round, on face min the other (Q21). */
+const SIDE_ORDER: readonly ProfileSide[] = [
+  { across: 'width', from: 'min' }, { across: 'length', from: 'max' }, { across: 'width', from: 'max' }, { across: 'length', from: 'min' },
+];
+const sideIndex = (s: ProfileSide) => SIDE_ORDER.findIndex((x) => x.across === s.across && x.from === s.from);
+const sideName = (s: ProfileSide) => edgeName({ dim: s.across, side: s.from });
+
+/**
+ * A stopped run's stations in words (profile runs b2, Q21): THE one home (invariant 19). One side: `, from <a> to <b>
+ * (stopped)`, lo then hi along the run dimension, a through end reading as that end. Two sides: `, from <Start> round
+ * <between> to <Stop> (stopped)`, each end `<side> at <station>` or `<side> at its <runDim> <min|max> end`; <between> names
+ * the sides strictly between Start and Stop in the FACE's travel order (face max plan-CCW, face min the reverse): none
+ * `the corner`, one its name, two `<a> and <b>`. Stations go through `formatLength` and `endPos`, never typed.
+ */
+export function stopWords(view: Pick<Board, Dimension>, p: ProfileCut, units: Units): string {
+  if ('loop' in p.run || endToEnd(p.run)) return '';
+  const { start, end } = p.run;
+  const rd = (e: ProfileEnd) => runDim(e.side);
+  const one = (e: ProfileEnd) => ('through' in e ? `the ${rd(e)} ${e.through} ${endWord(rd(e))}` : formatLength(endPos(view, e), units));
+  if (oneSide(p.run)) {
+    const [lo, hi] = endPos(view, start) <= endPos(view, end) ? [start, end] : [end, start];
+    return `, from ${one(lo)} to ${one(hi)} (stopped)`;
+  }
+  const at = (e: ProfileEnd) => `${sideName(e.side)} at ${'through' in e ? `its ${rd(e)} ${e.through} ${endWord(rd(e))}` : formatLength(endPos(view, e), units)}`;
+  const i = sideIndex(start.side), j = sideIndex(end.side);
+  const step = p.face === 'max' ? 1 : 3;
+  const between: string[] = [];
+  for (let k = (i + step) % 4; k !== j; k = (k + step) % 4) between.push(sideName(SIDE_ORDER[k]!));
+  const round = between.length === 0 ? 'the corner' : between.join(' and ');
+  return `, from ${at(start)} round ${round} to ${at(end)} (stopped)`;
 }
 
 /**
@@ -159,9 +209,11 @@ export function sweptLine(view: Pick<Board, Dimension | 'curves'>, p: ProfileCut
   const run = sweptRun(view, p);
   const face = faceName('thickness', p.face);
   const top = profileAsymmetric(p) && p.facing === 'edge' ? ', top on the edge' : '';
+  // A run with ends on two sides (profile runs b2) has no chunk-1 line: Q21's head `<name> on <face><top><fillet>`, then its stops.
   const base = 'loop' in p.run
     ? `${profileName(p, units)} all round ${face}${top}${filletWords(p, units)}`
-    : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}`;
+    : !oneSide(p.run) ? `${profileName(p, units)} on ${face}${top}${filletWords(p, units)}${stopWords(view, p, units)}`
+      : `${profileLine(profileToFields(p), units)}${run ? `, ${run}` : ''}${stopWords(view, p, units)}`;
   return withCheck(base, viewProfileFaults(p).map(profileFaultText));
 }
 

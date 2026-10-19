@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { arcOf, archCurve, bowCurve, cornerCurve, curveFaults, curveValues, mirrorCurveCut, sameCurve, spanOf } from './curves';
-import { createBoard, partGeometry } from './document';
+import { createBoard, createDocument, migrateDocument, partGeometry } from './document';
+import { bodyVolume } from './bodies';
+import { mirrorPart } from './frames';
+import { curveLines } from './curveText';
+import { IMPERIAL } from '../units/length';
+import type { Board } from './types';
 import type { P2 } from './curves';
-import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults, viewProfileFaults } from './profiles';
-import { profilePath } from './profilePath';
-import { apronArch, endToEnd as sweepEndToEnd, frontOnly, loop, notchEdge, plainLoop, stopped as sweepStopped, topCorners } from './sweepFixtures';
+import { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, copyProfile, defaultProfile, geometryBoard, mirrorProfile, profileAsCurve, profileAsymmetric, profileCurve, profileFields, endToEnd, profileFromFields, profileOf, profileToFields, profileValues, sameProfile, runDim, endPos, travelSign, canonicalRun, profileSpan, profileFaults, viewProfileFaults, runsStraight, stopFallsBack } from './profiles';
+import { builtPath, faceOutline, isSwept, judgedPath, profilePath } from './profilePath';
+import { builtSwept, sweptPieces } from './sweep';
+import { apronArch, endToEnd as sweepEndToEnd, frontOnly, loop, notchEdge, plainLoop, stopped as sweepStopped, topCorners, twoSide, frontAndEnds, zoneStop, bowFront } from './sweepFixtures';
 import type { ProfileFields } from './profiles';
 import type { CurveCut, ProfileCut } from './types';
 
@@ -453,7 +459,17 @@ describe('swept profile faults (profile runs b1, Q6)', () => {
     const overArch = sweepStopped('s', { across: 'width', from: 'min' }, 10, 20);
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, near] }, near)).toEqual([{ kind: 'overlap', other: 'p1' }]);
     expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, off] }, off)).toEqual([]);
-    expect(profileFaults({ ...apronArch, profiles: [apronArch.profiles[0]!, overArch] }, overArch)).toEqual([]);
+    // b2 (Q10, changed by design): the stop over the arch is SWEPT-shaped now, and its own profileFaults is its swept
+    // judgement (authoring's, as I1's fallen-back End to end reads too-tight): it would overlap the arched side's End to
+    // end. Its straight (a2) faults are none, so it FALLS BACK: the row (the view curve's faults) is clean, it is built as
+    // a2 built it and claims straight chords only (I2), so the End to end stays clean and builds.
+    const over = { ...apronArch, profiles: [apronArch.profiles[0]!, overArch] };
+    expect(profileFaults(over, overArch)).toEqual([{ kind: 'overlap', other: 'p1' }]);
+    const ov = geometryBoard(over), oc = ov.curves.find((c) => c.id === 's')!;
+    expect(viewProfileFaults(oc)).toEqual([]);
+    expect(runsStraight(oc)).toBe(true);
+    expect(profileFaults(over, over.profiles[0]!)).toEqual([]);
+    expect(builtSwept(ov).map((q) => q.id)).toEqual(['p1']);
   });
   it('B10 + B1a: a saved four-edge set on a rounded-corner top loads with NO fault, each path ending in two mitres', () => {
     // In a2 each was a straight prism through the corner waste; under B10 each carries round its corner arcs, and B1a mitres
@@ -490,5 +506,190 @@ describe('swept profile faults (profile runs b1, Q6)', () => {
     const b = topCorners(0.25, loop('p1', 0.375));
     expect(viewProfileFaults(geometryBoard(b).profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
     expect(viewProfileFaults(b.profiles[0]!)).toEqual([]);   // the stored object is not a view's
+  });
+});
+
+describe('b2 stop faults (profile runs b2, Task 3: Q13, Q15–Q17, Q19)', () => {
+  const W_MIN = { across: 'width', from: 'min' } as const;
+  const L_MIN = { across: 'length', from: 'min' } as const, L_MAX = { across: 'length', from: 'max' } as const;
+  const endToEnd = sweepEndToEnd, stopped = sweepStopped;
+  it('stop-off (b2): a station off its stretch, a zero-length two-side run, an inconsistent through end', () => {
+    const lineCorner = createBoard({ length: 30, width: 10, thickness: 0.75,
+      curves: [{ id: 'k', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [{ type: 'line', to: [2, 0] }, { type: 'line', to: [0, 2] }, { type: 'line', to: [0, 0] }] }] });
+    const off = twoSide('t', W_MIN, 1, L_MAX, 5);   // 1" lies in the clipped corner's waste: not on the front's stretch
+    expect(profileFaults({ ...lineCorner, profiles: [off] }, off).map((f) => f.kind)).toContain('stop-off');
+    const b = topCorners(2), atEnd = twoSide('t', W_MIN, 1.2, L_MIN, 0);   // a station AT an end of its side, as a2
+    expect(profileFaults({ ...b, profiles: [atEnd] }, atEnd).map((f) => f.kind)).toContain('stop-off');
+    // zero length: both ends on the 2" corner arc's 45° vertex, named from the front and from the length min end
+    const o = faceOutline(b)!, V = o.chords.filter((c) => c.curve === 'cminmin')[6]!.a;
+    const zero = twoSide('t', W_MIN, V[0], L_MIN, V[1]);
+    expect(profileFaults({ ...b, profiles: [zero] }, zero)).toEqual([{ kind: 'stop-off' }]);
+    const bad = { ...twoSide('t', W_MIN, 5, L_MAX, 4), run: { start: { side: W_MIN, through: 'max' as const }, end: { side: L_MAX, from: 'min' as const, at: 4 } } };
+    expect(profileFaults({ ...b, profiles: [bad] }, bad)).toEqual([{ kind: 'stop-off' }]);
+    const fine = frontAndEnds();
+    expect(profileFaults(fine, fine.profiles[0]!)).toEqual([]);
+  });
+  it('stop-off (M-d, Q16): a two-side run that would re-enter Start\'s side faults stop-off, never runs-off', () => {
+    // the Task 2 reviewer's case: Start on the length min end at width 1, Stop on the front at 0.1, both on the cminmin arc
+    const b = topCorners(2), re = twoSide('t', L_MIN, 1, W_MIN, 0.1);
+    expect(profilePath({ ...b, profiles: [re] }, re)).toBeNull();
+    expect(profileFaults({ ...b, profiles: [re] }, re)).toEqual([{ kind: 'stop-off' }]);
+  });
+  it('stop-off (Q17) on an untraceable outline: an inconsistent through end is stop-off without a path to judge', () => {
+    // two corner curves at one corner (their perimeter stretches overlap): faceOutline is null, so no path exists either way
+    const twoK = createBoard({ length: 30, width: 10, thickness: 0.75, curves: [
+      { id: 'k1', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 2 }) },
+      { id: 'k2', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }) }] });
+    expect(faceOutline(twoK)).toBeNull();
+    const ok = twoSide('t', W_MIN, 5, L_MAX, 4);
+    expect(profileFaults({ ...twoK, profiles: [ok] }, ok)).toEqual([{ kind: 'runs-off' }]);
+    const bad = { ...ok, run: { start: { side: W_MIN, through: 'max' as const }, end: { side: L_MAX, from: 'min' as const, at: 4 } } };
+    expect(profileFaults({ ...twoK, profiles: [bad] }, bad)).toEqual([{ kind: 'stop-off' }]);
+  });
+  it('B1a widened (Q18): two half-stops out through one corner arc mitre each other, both build, no fault', () => {
+    // the front from the length min end (through) to 30", and the length min end from 16" out through its width min end
+    const front: ProfileCut = { ...endToEnd('f', W_MIN), run: { start: { side: W_MIN, through: 'min' }, end: { side: W_MIN, from: 'min', at: 30 } } };
+    const end: ProfileCut = { ...endToEnd('l', L_MIN), run: { start: { side: L_MIN, from: 'min', at: 16 }, end: { side: L_MIN, through: 'min' } } };
+    const b = { ...topCorners(2), profiles: [front, end] };
+    expect(b.profiles.map((p) => stopFallsBack(b, p))).toEqual([false, false]);
+    expect(b.profiles.map((p) => profileFaults(b, p))).toEqual([[], []]);
+    expect(profilePath(b, front)!.ends!.map((e) => e.kind)).toEqual(['mitre', 'stop']);
+    expect(profilePath(b, end)!.ends!.map((e) => e.kind)).toEqual(['stop', 'mitre']);
+    expect(builtSwept(geometryBoard(b)).map((p) => p.id)).toEqual(['f', 'l']);
+  });
+  it('too-tight on a stop: the path\'s arcs only (Q15); the zone never decides (Q13)', () => {
+    const tight = topCorners(0.25, twoSide('t', L_MIN, 4, L_MAX, 4, 0.375));
+    expect(profileFaults(tight, tight.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    // a 30 × 5 apron with a 2" corner and a notch tighter than the bearing (r 0.2): a stop round the corner that ends
+    // before the notch is swept and clean (the notch lies outside its path); one running through the notch is too tight
+    const apronCN = (hi: number) => createBoard({ length: 30, width: 5, thickness: 0.75, curves: [
+      { id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 2 }) },
+      { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) }],
+      profiles: [stopped('q', W_MIN, 1, hi)] });
+    expect(isSwept(apronCN(10), apronCN(10).profiles[0]!)).toBe(true);
+    expect(profileFaults(apronCN(10), apronCN(10).profiles[0]!)).toEqual([]);
+    expect(profileFaults(apronCN(20), apronCN(20).profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    // a stop half the zone short of a 2" corner chord vertex: clean (its skeleton is judged on the snapped path)
+    expect(profileFaults(zoneStop(), zoneStop().profiles[0]!)).toEqual([]);
+  });
+  it('no silent empty build (the Task 2 review, I2): a path whose judged or built path is null is too-tight', () => {
+    // the straddle case: round the sharp corner of a plain 30 × 10 part, both ends inside the corner's zone
+    const plain = createBoard({ length: 30, width: 10, thickness: 0.75 });
+    const s = twoSide('t', W_MIN, 29.85, L_MAX, 0.15), b = { ...plain, profiles: [s] };
+    expect(profilePath(b, s)).not.toBeNull();
+    expect(judgedPath(b, s)).toBeNull();
+    expect(builtPath(b, s)).toBeNull();
+    expect(profileFaults(b, s)).toEqual([{ kind: 'too-tight' }]);
+    // bowFront 29.8 → 29.95 builds (Task 2: within one chord, the zone never applies) and is clean
+    const bf = { ...bowFront, profiles: [stopped('p1', W_MIN, 29.8, 29.95)] };
+    expect(profileFaults(bf, bf.profiles[0]!)).toEqual([]);
+    expect(sweptPieces(geometryBoard(bf), geometryBoard(bf).profiles[0]!).length).toBeGreaterThan(0);
+  });
+  it('no silent empty build at the BUILD\'s reach (Task 3 fix round 1, I1): a bead judged at bandReach, quirk wall included', () => {
+    // the reviewer's repro: a bowed front, a two-side Bead 1/4" (1/16" quirk) from the front at 29.7 to the back at 27.9
+    const bow = createBoard({ length: 30, width: 5, thickness: 0.75, curves: [{ id: 'c1', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) }] });
+    const bead: ProfileCut = { ...twoSide('t', W_MIN, 29.7, { across: 'width', from: 'max' }, 27.9), kind: 'bead', fillet: 1 / 16 };
+    const b = { ...bow, profiles: [bead] }, v = geometryBoard(b);
+    expect(sweptPieces(v, v.profiles[0]!)).toHaveLength(0);
+    expect(profileFaults(b, bead)).toEqual([{ kind: 'too-tight' }]);
+    expect(viewProfileFaults(v.profiles[0]!)).toEqual([{ kind: 'too-tight' }]);
+    // the roundover of the same run builds, and is clean
+    const ro = { ...bead, kind: 'roundover' as const, fillet: 0 }, r = { ...bow, profiles: [ro] }, rv = geometryBoard(r);
+    expect(sweptPieces(rv, rv.profiles[0]!).length).toBeGreaterThan(0);
+    expect(profileFaults(r, ro)).toEqual([]);
+  });
+  it('overlap on a two-side path (Q19): passing a corner arc a neighbour\'s End to end takes', () => {
+    const b = createBoard({ ...topCorners(2), profiles: [frontAndEnds().profiles[0]!, endToEnd('e', L_MAX)] });
+    expect(profileFaults(b, b.profiles[0]!)).toEqual([{ kind: 'overlap', other: 'e' }]);
+    const clean = createBoard({ ...topCorners(2), profiles: [frontAndEnds().profiles[0]!, endToEnd('k', { across: 'width', from: 'max' })] });
+    expect(profileFaults(clean, clean.profiles[0]!)).toEqual([]);   // the back: B1 stations at the far tangent points touch only
+  });
+  it('M-g / m1: an End to end never mitres against a half-stop that falls back to a2 (fault path = built path)', () => {
+    const corners = (r: number) => (['min', 'max'] as const).flatMap((u) => (['min', 'max'] as const).map((v) => ({ id: `c${u}${v}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: v, radius: r }) })));
+    const half = (size: number): ProfileCut => ({ ...endToEnd('q', W_MIN, size), run: { start: { side: W_MIN, through: 'min' }, end: { side: W_MIN, from: 'min', at: 30 } } });
+    const pair = (size: number) => createBoard({ length: 36, width: 20, thickness: 0.75, curves: corners(0.25), profiles: [half(size), endToEnd('p', L_MIN, 0.125)] });
+    // 3/8" is too tight round 1/4" corners: the half-stop falls back; the End to end carries round to B1's station
+    const fb = pair(0.375);
+    expect(stopFallsBack(fb, fb.profiles[0]!)).toBe(true);
+    const v = geometryBoard(fb);
+    expect(builtSwept(v).map((q) => q.id)).toEqual(['p']);
+    expect(profilePath(fb, fb.profiles[1]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'station']);
+    expect(builtPath(v, v.profiles[0]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'station']);
+    expect(profileFaults(fb, fb.profiles[1]!)).toEqual([]);
+    // 1/8" fits: the half-stop follows its corner, and the two meet in a B1a mitre (Q18)
+    const fit = pair(0.125);
+    expect(stopFallsBack(fit, fit.profiles[0]!)).toBe(false);
+    expect(builtSwept(geometryBoard(fit)).map((q) => q.id)).toEqual(['q', 'p']);
+    expect(profilePath(fit, fit.profiles[1]!)!.ends!.map((e) => e.kind)).toEqual(['station', 'mitre']);
+    expect(fit.profiles.map((q) => profileFaults(fit, q))).toEqual([[], []]);
+  });
+});
+
+// ── profile runs b2, the final review's I1 (the controller's ruling): crossed stations on the corner arc two sides share ──
+describe('crossed stations on a shared corner arc are stop-off (b2 final review I1)', () => {
+  const L_MAX = { across: 'length', from: 'max' } as const;
+  const W_MIN = { across: 'width', from: 'min' } as const;
+  // Scenario A: the length max end at 1/2" (on the front-right 2" arc, ~-48.6°) to the front at 35-1/2" (~-41.4°): along
+  // plan-CCW travel Start meets the arc before Stop, so the plan walk is a 0.26" hop while the sides' order goes round the
+  // back and the left end.
+  const A = twoSide('p1', L_MAX, 0.5, W_MIN, 35.5);
+  const faults = (b: Board) => profileFaults(b, b.profiles[0]!);
+  const volume = (b: Board) => partGeometry(b).bodies.reduce((v, x) => v + bodyVolume(x), 0);
+
+  it('Scenario A has no path and faults stop-off, on face max and its face-min image', () => {
+    const b = topCorners(2, A);
+    expect.soft(profilePath(b, A)).toBeNull();
+    expect.soft(faults(b)).toEqual([{ kind: 'stop-off' }]);
+    // face min, the same sides profiled: Start and Stop swap (plan order is unchanged)
+    const m: ProfileCut = { ...twoSide('p1', W_MIN, 35.5, L_MAX, 0.5), face: 'min' };
+    expect.soft(profilePath(topCorners(2, m), m)).toBeNull();
+    expect.soft(faults(topCorners(2, m))).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('mirrored: through the thickness and along the length, still stop-off', () => {
+    const b = topCorners(2, A);
+    const t = { ...b, profiles: [mirrorProfile(A, 'thickness')] };
+    expect.soft(faults(t)).toEqual([{ kind: 'stop-off' }]);
+    const l = mirrorPart(b);
+    expect.soft(faults(l)).toEqual([{ kind: 'stop-off' }]);
+    const w = { ...b, profiles: [mirrorProfile(A, 'width')] };
+    expect.soft(faults(w)).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('a through end at the shared arc makes the same hop: crossed too', () => {
+    const s: ProfileCut = { ...A, run: { start: { side: L_MAX, through: 'min' }, end: { side: W_MIN, from: 'min', at: 35.5 } } };
+    expect.soft(faults(topCorners(2, s))).toEqual([{ kind: 'stop-off' }]);
+    const e: ProfileCut = { ...A, run: { start: { side: L_MAX, from: 'min', at: 0.5 }, end: { side: W_MIN, through: 'max' } } };
+    expect.soft(faults(topCorners(2, e))).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('neighbours keep their behaviour: the uncrossed short run on the arc, the 1/4" corners\' long run, M1', () => {
+    // the front at 35 to the length max end at 1, both on the front-right arc: Stop's side NEXT after Start's (the arc is
+    // Start's tail) — a short run round the corner, on both faces
+    const short = twoSide('p1', W_MIN, 35, L_MAX, 1), sb = topCorners(2, short);
+    expect(faults(sb)).toEqual([]);
+    const sp = profilePath(sb, short)!;
+    expect(sp.cover.every((c) => faceOutline(sb)!.chords[c.chord]!.curve === 'cmaxmin')).toBe(true);
+    const shortMin: ProfileCut = { ...twoSide('p1', L_MAX, 1, W_MIN, 35), face: 'min' };
+    expect(faults(topCorners(2, shortMin))).toEqual([]);
+    // Scenario B's start: the same stations on 1/4" corners lie on straight chords — the long way round, clean
+    const long = topCorners(0.25, A);
+    expect(faults(long)).toEqual([]);
+    expect(profilePath(long, A)!.chords.reduce((s, c) => s + Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]), 0)).toBeGreaterThan(100);   // ~110"
+    // M1 (one station on the shared arc) is left as it was: stop-off by the re-entry rule
+    expect(faults(topCorners(2, twoSide('p1', L_MAX, 0.5, W_MIN, 33)))).toEqual([{ kind: 'stop-off' }]);
+    expect(faults(topCorners(2, twoSide('p1', L_MAX, 2.5, W_MIN, 35.5)))).toEqual([{ kind: 'stop-off' }]);
+  });
+
+  it('a SAVED crossed run loads, kept and faulted: built as nothing, its bench line ending in the check', () => {
+    const b = migrateDocument(JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [{ ...topCorners(2, A), id: 'top', name: 'Top' }] }))).boards[0] as Board;
+    expect(b.profiles).toHaveLength(1);
+    expect(b.profiles[0]!.run).toEqual(A.run);
+    const view = geometryBoard(b);
+    expect(view.profiles.map((p) => p.id)).toEqual(['p1']);
+    expect(viewProfileFaults(view.profiles[0]!)).toEqual([{ kind: 'stop-off' }]);
+    expect(builtSwept(view)).toEqual([]);
+    expect(volume(b)).toBeCloseTo(volume({ ...b, profiles: [] }), 9);
+    expect(curveLines(b, IMPERIAL).find((l) => l.startsWith('Roundover'))).toBe('Roundover 1/4" on the thickness face (max side), from the length max end at 1/2" round the width max side and the length min end to the width min side at 35-1/2" (stopped) — check: a stop runs off the part');
   });
 });

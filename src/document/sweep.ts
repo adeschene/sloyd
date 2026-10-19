@@ -31,10 +31,10 @@
 import { convexPieces, distToSegment, twiceArea, type P2, type ViewCurve } from './curves';
 import { builtPath, faceOutline, profilePath, type OutlineChord } from './profilePath';
 import { profileAsCurve, viewProfileFaults } from './profiles';
-import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame } from './runout';
+import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame, type StopFrame } from './runout';
 import type { Hole } from './holes';
 import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
-import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton } from './skeleton';
+import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton, type StationClip } from './skeleton';
 import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
 import { DIMENSION_ORDER } from './geometry';
 
@@ -42,7 +42,7 @@ export { pathSkeleton } from './skeleton';
 
 type V3 = [number, number, number];
 /** A piece plane's cap tag (a subset of `BodyFace`'s; bodies.ts copies it onto the cap). */
-export type BodyFaceTag = { curve?: string; profileEdge?: string; sweep?: number };
+export type BodyFaceTag = { curve?: string; profileEdge?: string; sweep?: number; overlap?: true };
 type SweepBoard = Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] };
 
 /** One convex piece: board-local half-spaces (kept where n·x + d >= 0), each plane's cap tag, the plan bounding box
@@ -127,14 +127,65 @@ export function sweptInnerLine(view: SweepBoard, p: ProfileCut): { pts: P2[]; cl
   const sk = pathSkeleton(chain.chords, chain.loop, reach, chain.rays);
   if (!sk) return null;
   let wave = sk.wave;
-  for (const st of chain.stations) wave = clipLine(wave, st.n, st.d);
+  for (const st of chain.stations) if (!st.stop) wave = clipWave(chain, wave, st);
   const pts = wave.map((q) => [q[0], q[1]] as P2);
+  // I2 (Task 6 fix round 1): an open run whose two ends' bands overlap crosses its own wavefront there; the inner line is
+  // the loop between the crossing (the tails lie inside the other end's band). No other wavefront crosses itself.
+  const trimmed = chain.loop ? null : trimWave(pts);
+  if (trimmed) return trimmed;
   return pts.length >= 2 ? { pts, closed: chain.loop } : null;
 }
 
 /** The plan pieces of a swept profile before they become half-spaces: the chain, its skeleton, each face (station-clipped),
  *  and the rest of the outline. */
-export interface SweptPlan { chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number }
+export interface SweptPlan {
+  chain: PlanChain; skeleton: Skeleton; faces: P2[][]; rest: P2[]; reach: number;
+  /** Task 6 fix round 1 (I2): only when two NON-adjacent faces of an open path overlap (a run whose two ends come within the
+   *  reach of each other, round one sharp corner): the band polygons that replace `faces` — each with the chord it carries
+   *  and, for the overlap itself, `also` the other chord, whose kept section it takes too (the router's two passes remove
+   *  the UNION of their waste, so the wood there is the intersection of both kept sections) — and the rest of the outline's
+   *  further simple loops (`rest` is the first). Absent otherwise: every other plan is byte for byte as before. */
+  bands?: { index: number; poly: P2[]; also?: number }[];
+  restMore?: P2[][];
+}
+
+/*
+ * The station clips (fix rounds 1 and 2 of b2 Task 5; I1, N1). A b2 STOP never clips: the skeleton already ends its band on
+ * the stop's ray N, which lies IN the stop plane (`planChain`, Q12), and Q13's zone keeps the end chord's back vertex behind
+ * it. A B1 STATION clips its END of the band, back from the end to the first face wholly on the kept side. With B1's ε
+ * extension the station plane sits at the built end and the end ray (the extension's own normal) lies in it, so the clip
+ * cuts nothing; it is real only where the next side is too short for ε (the ray is then the arc's bisector, `shortEnds`).
+ * A two-side run (b2) may carry its band round two whole sides, out of the station's half-plane and back in elsewhere: that
+ * band is the router's too, and is not clipped (N1). Every face wholly on the kept side still passes through
+ * `tidy(clip2(…))`, a no-op clip, because that is b1's bytes (dropping it changes sweepEdges' pinned hashes). With no such
+ * far face (every b1 run: an End to end never wraps) every face and the wave clip exactly as before, byte for byte.
+ */
+const BEYOND = -1e-9;
+const gOf = (st: StationClip, q: P2) => st.n[0] * q[0] + st.n[1] * q[1] + st.d;
+/** Is the station at the chain's start (else its end)? Its `at` is the tangent point, within ε of that end. */
+const atStart = (chain: PlanChain, st: StationClip): boolean => {
+  const a = chain.chords[0]!.a, b = chain.chords[chain.chords.length - 1]!.b;
+  return Math.hypot(st.at[0] - a[0], st.at[1] - a[1]) <= Math.hypot(st.at[0] - b[0], st.at[1] - b[1]);
+};
+function clipFaces(chain: PlanChain, faces: P2[][], st: StationClip): P2[][] {
+  const beyond = (f: readonly P2[]) => f.some((q) => gOf(st, q) < BEYOND);
+  const local = new Set<number>();
+  const start = atStart(chain, st);
+  for (let i = start ? 0 : faces.length - 1; i >= 0 && i < faces.length; i += start ? 1 : -1) {
+    if (faces[i]!.length >= 3 && !beyond(faces[i]!)) break;
+    local.add(i);
+  }
+  return faces.map((f, i) => (f.length >= 3 && (local.has(i) || !beyond(f)) ? tidy(clip2(f, st.n, st.d)) : f));
+}
+function clipWave(chain: PlanChain, wave: P2[], st: StationClip): P2[] {
+  const start = atStart(chain, st);
+  let k = start ? 0 : wave.length - 1;
+  while (k >= 0 && k < wave.length && gOf(st, wave[k]!) < BEYOND) k += start ? 1 : -1;
+  const far = wave.some((q, i) => (start ? i > k : i < k) && gOf(st, q) < BEYOND);
+  if (!far) return clipLine(wave, st.n, st.d);
+  return start ? [...clipLine(wave.slice(0, k + 1), st.n, st.d), ...wave.slice(k + 1)]
+    : [...wave.slice(0, k), ...clipLine(wave.slice(k), st.n, st.d)];
+}
 
 /** A convex polygon clipped to n·x + d >= 0. */
 function clip2(poly: readonly P2[], n: P2, d: number): P2[] {
@@ -180,8 +231,9 @@ export function sweptPlan(view: SweepBoard, p: ProfileCut, opts?: { events?: boo
   let faces = sk.faces;
   let wave = sk.wave;
   for (const st of chain.stations) {
-    faces = faces.map((f) => (f.length >= 3 ? tidy(clip2(f, st.n, st.d)) : f));
-    wave = clipLine(wave, st.n, st.d);
+    if (st.stop) continue;
+    faces = clipFaces(chain, faces, st);
+    wave = clipWave(chain, wave, st);
   }
   let rest: P2[];
   if (chain.loop) rest = tidy(wave);
@@ -198,8 +250,102 @@ export function sweptPlan(view: SweepBoard, p: ProfileCut, opts?: { events?: boo
     for (const q of wave) push(q);
     if (pts.length > 1 && near(pts[0]!, pts[pts.length - 1]!)) pts.pop();
     rest = tidy(pts);
+    const overlaps = endOverlaps(faces);
+    if (overlaps.length > 0) {
+      // The rest polygon crosses itself where the two ends' bands overlap: its simple loops, the doubly covered (negative)
+      // one dropped — the overlap belongs to the bands.
+      const loops = simpleLoops(rest).filter((l) => area(l) > 1e-14).map((l) => tidy(l));
+      const bands: { index: number; poly: P2[]; also?: number }[] = [];
+      const polys = faces.map((f) => [f]);
+      for (const { i, j } of overlaps) {
+        polys[i] = polys[i]!.flatMap((f) => convexMinus(f, faces[j]!));
+        polys[j] = polys[j]!.flatMap((f) => convexMinus(f, faces[i]!));
+      }
+      polys.forEach((ps, i) => { for (const poly of ps) bands.push({ index: i, poly }); });
+      for (const { i, j, o } of overlaps) bands.push({ index: i, poly: o, also: j });
+      return { chain, skeleton: sk, faces, rest: loops[0] ?? [], reach, bands, restMore: loops.slice(1) };
+    }
   }
   return { chain, skeleton: sk, faces, rest, reach };
+}
+
+/** A polygon made counter-clockwise. */
+const ccw = (p: readonly P2[]): P2[] => (area(p) < 0 ? p.slice().reverse() : p.slice());
+/** A convex polygon intersected with a convex polygon. */
+function convexAnd(a: readonly P2[], c: readonly P2[]): P2[] {
+  const k = ccw(c);
+  let out: P2[] = a.slice();
+  for (let e = 0; e < k.length && out.length >= 3; e += 1) {
+    const n = leftNormal(k[e]!, k[(e + 1) % k.length]!);
+    out = clip2(out, n, -(n[0] * k[e]![0] + n[1] * k[e]![1]));
+  }
+  return out.length >= 3 ? tidy(out) : [];
+}
+/** A convex polygon minus a convex polygon, as convex pieces: outside each edge of `c` in turn, inside the edges before it. */
+function convexMinus(a: readonly P2[], c: readonly P2[]): P2[][] {
+  const k = ccw(c);
+  const out: P2[][] = [];
+  let rem: P2[] = a.slice();
+  for (let e = 0; e < k.length && rem.length >= 3; e += 1) {
+    const n = leftNormal(k[e]!, k[(e + 1) % k.length]!);
+    const d = -(n[0] * k[e]![0] + n[1] * k[e]![1]);
+    const outside = tidy(clip2(rem, [-n[0], -n[1]], -d));
+    if (outside.length >= 3 && Math.abs(area(outside)) > 1e-14) out.push(outside);
+    rem = clip2(rem, n, d);
+  }
+  return out;
+}
+/** The pairs of NON-adjacent convex faces of an open path that overlap with area, and their overlap (I2). */
+function endOverlaps(faces: readonly P2[][]): { i: number; j: number; o: P2[] }[] {
+  const out: { i: number; j: number; o: P2[] }[] = [];
+  const ok = faces.map((f) => f.length >= 3 && Math.abs(area(f)) > 1e-14 && isConvex(ccw(f)));
+  const bbs = faces.map((f) => (f.length ? bbOf(f) : null));
+  for (let i = 0; i < faces.length; i += 1) {
+    for (let j = i + 2; j < faces.length; j += 1) {
+      if (!ok[i] || !ok[j]) continue;
+      const a = bbs[i]!, b = bbs[j]!;
+      if (a[0] >= b[2] - 1e-12 || b[0] >= a[2] - 1e-12 || a[1] >= b[3] - 1e-12 || b[1] >= a[3] - 1e-12) continue;
+      const o = convexAnd(faces[i]!, faces[j]!);
+      if (o.length >= 3 && Math.abs(area(o)) > 1e-12) out.push({ i, j, o });
+    }
+  }
+  return out;
+}
+/** The proper crossing point of segments p–q and r–s, or null. */
+function crossing(p: P2, q: P2, r: P2, s: P2): P2 | null {
+  const d1: P2 = [q[0] - p[0], q[1] - p[1]], d2: P2 = [s[0] - r[0], s[1] - r[1]];
+  const den = d1[0] * d2[1] - d1[1] * d2[0];
+  if (Math.abs(den) < 1e-18) return null;
+  const t = ((r[0] - p[0]) * d2[1] - (r[1] - p[1]) * d2[0]) / den;
+  const u = ((r[0] - p[0]) * d1[1] - (r[1] - p[1]) * d1[0]) / den;
+  if (t <= 1e-12 || t >= 1 - 1e-12 || u <= 1e-12 || u >= 1 - 1e-12) return null;
+  return [p[0] + t * d1[0], p[1] + t * d1[1]];
+}
+/** A closed polygon split at its proper self-crossings into simple loops (their orientations kept). */
+function simpleLoops(poly: readonly P2[]): P2[][] {
+  const n = poly.length;
+  for (let i = 0; i < n; i += 1) {
+    for (let j = i + 2; j < n; j += 1) {
+      if (i === 0 && j === n - 1) continue;
+      const x = crossing(poly[i]!, poly[(i + 1) % n]!, poly[j]!, poly[(j + 1) % n]!);
+      if (!x) continue;
+      const one = [x, ...poly.slice(i + 1, j + 1)];
+      const two = [...poly.slice(j + 1), ...poly.slice(0, i + 1), x];
+      return [...simpleLoops(one), ...simpleLoops(two)];
+    }
+  }
+  return [poly.slice()];
+}
+/** An open wavefront that crosses itself (I2: the two ends' bands overlap) trimmed to the loop between its first crossing. */
+function trimWave(wave: readonly P2[]): { pts: P2[]; closed: boolean } | null {
+  const n = wave.length;
+  for (let i = 0; i + 1 < n; i += 1) {
+    for (let j = n - 2; j >= i + 2; j -= 1) {
+      const x = crossing(wave[i]!, wave[i + 1]!, wave[j]!, wave[j + 1]!);
+      if (x) return { pts: [x, ...wave.slice(i + 1, j + 1)], closed: true };
+    }
+  }
+  return null;
 }
 
 /** Does segment p–q lie along chord c (both ends on its line, its midpoint within its extent)? */
@@ -261,38 +407,49 @@ function buildPieces(view: SweepBoard, p: ProfileCut, opts?: { events?: boolean 
   };
   const { chain } = plan;
   let groups = 0;
-  plan.faces.forEach((face, i) => {
-    if (face.length < 3 || area(face) < 1e-14) return;
-    const parts = isConvex(face) ? [face] : convexPieces(face, face.map(() => false)).map((x) => x.pts);
+  /** One kept-section piece's planes and tags in chord i's frame, appended. */
+  const section = (i: number, kp: (typeof sec.pieces)[number], planes: { n: V3; d: number }[], tags: BodyFaceTag[]) => {
     const ch: OutlineChord = chain.chords[i]!;
     const P = ch.a;
     const nIn = leftNormal(ch.a, ch.b);
     const nP = nIn[0] * P[0] + nIn[1] * P[1];
     const seg = chain.index[i]!;
     const sTag: BodyFaceTag = ch.curve !== undefined ? { curve: ch.curve } : {};
+    kp.pts.forEach((a, j) => {
+      const b = kp.pts[(j + 1) % kp.pts.length]!;
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (l < 1e-14) return;
+      const ns = -(b[1] - a[1]) / l, nt = (b[0] - a[0]) / l, c = -(ns * a[0] + nt * a[1]);
+      // ns·s + nt·t + c >= 0 with s = nIn·x − nIn·P and t = vIn·(z − vFace).
+      planes.push({ n: [ns * nIn[0], ns * nIn[1], nt * vIn], d: c - ns * nP - nt * vIn * vFace });
+      const name = kp.edge[j]!;
+      tags.push(name !== null ? { profileEdge: name, sweep: seg } : a[0] === 0 && b[0] === 0 ? sTag : {});
+    });
+  };
+  const bands = plan.bands ?? plan.faces.map((poly, index) => ({ index, poly }));
+  for (const { index: i, poly: face, also } of bands as { index: number; poly: P2[]; also?: number }[]) {
+    if (face.length < 3 || area(face) < 1e-14) continue;
+    const parts = isConvex(face) ? [face] : convexPieces(face, face.map(() => false)).map((x) => x.pts);
     for (const fp of parts) {
       const base = prism(fp, chordTag);
       const group = groups;
       groups += 1;
       for (const kp of sec.pieces) {
-        const planes = base.planes.slice();
-        const tags = base.tags.slice();
-        kp.pts.forEach((a, j) => {
-          const b = kp.pts[(j + 1) % kp.pts.length]!;
-          const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
-          if (l < 1e-14) return;
-          const ns = -(b[1] - a[1]) / l, nt = (b[0] - a[0]) / l, c = -(ns * a[0] + nt * a[1]);
-          // ns·s + nt·t + c >= 0 with s = nIn·x − nIn·P and t = vIn·(z − vFace).
-          planes.push({ n: [ns * nIn[0], ns * nIn[1], nt * vIn], d: c - ns * nP - nt * vIn * vFace });
-          const name = kp.edge[j]!;
-          tags.push(name !== null ? { profileEdge: name, sweep: seg } : a[0] === 0 && b[0] === 0 ? sTag : {});
-        });
-        out.push({ planes, tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
+        // I2: the two ends' overlap takes BOTH chords' kept sections (each pair of pieces, intersected).
+        for (const kq of also === undefined ? [null] : sec.pieces) {
+          const planes = base.planes.slice();
+          const tags = base.tags.slice();
+          section(i, kp, planes, tags);
+          if (kq) section(also!, kq, planes, tags);
+          // Fix round 2 (N1): every face this piece cuts is marked, so the fast edges leave it to bodyEdges (bodies.ts).
+          out.push({ planes, tags: kq ? tags.map((t) => ({ ...t, overlap: true as const })) : tags, bb: bbOf(fp), band: true, group, prefix: base.planes.length });
+        }
       }
     }
-  });
-  if (plan.rest.length >= 3 && area(plan.rest) > 1e-14) {
-    for (const rp of convexPieces(plan.rest, plan.rest.map(() => false))) {
+  }
+  for (const rest of [plan.rest, ...(plan.restMore ?? [])]) {
+    if (rest.length < 3 || area(rest) <= 1e-14) continue;
+    for (const rp of convexPieces(rest, rest.map(() => false))) {
       const { planes, tags } = prism(rp.pts, chordTag);
       out.push({ planes, tags, bb: bbOf(rp.pts), band: false });
     }
@@ -352,11 +509,34 @@ export function sweptRunouts(view: SweepBoard, p: ProfileCut): ViewCurve[] {
   return out;
 }
 
+const stopsMemo = new WeakMap<object, Map<string, readonly StopFrame[]>>();
+/**
+ * A swept profile's STOPS (b2, §4.2 (b2), Q12): one frame per user's Start or Stop on the BUILT path (Q13's zone applied),
+ * from `planChain`'s station clips that carry `stop` — F the clip's tangent (along the stop's model chord, away from the run),
+ * N that chord's plan inward normal, `end` the path's face-frame end. A B1 station or a through or mitre end has none (B1
+ * stations keep a2's `sweptRunouts`). Memoised per (view, profile id), deep-frozen: never mutate a result.
+ */
+export function sweptStops(view: SweepBoard, p: ProfileCut): readonly StopFrame[] {
+  let m = stopsMemo.get(view);
+  if (!m) { m = new Map(); stopsMemo.set(view, m); }
+  const hit = m.get(p.id);
+  if (hit) return hit;
+  const path = builtPath(view, p);
+  const chain = path && !path.loop ? planChain(view, path, p.face) : null;
+  const out: StopFrame[] = chain
+    ? chain.stations.flatMap((st) => (st.stop ? [{ at: st.at, F: st.tangent, N: st.stop.N, end: st.stop.end }] : []))
+    : [];
+  const frozen = deepFreeze(out);
+  m.set(p.id, frozen);
+  return frozen;
+}
+
 /*
  * The swept waste as PROBES read it (profile runs b1, Task 4; invariant 16, P3, P14): the b1 oracle's rule on the model chords.
  * A point is waste when, d its plan distance to the path's chords and t its depth in from the profile's broad face,
  * 0 <= d < reach and t < tau(d) (strictly, by CURVE_EPS: a point ON the profile surface is stock, P3's open form); past a
- * STATION end (B1) d is instead the distance to a2's bit axis, BEARING outside the side, less BEARING. tau(s) is the top of
+ * STATION end (B1) d is instead the distance to a2's bit axis, BEARING outside the side, less BEARING; past a b2 STOP, to the
+ * bit's axis BEARING outside the stop's model chord (`stopAxis`), less BEARING. tau(s) is the top of
  * the profile's own (s, t) section (`profileSection`, a2's) at s. Read only for the profiles `builtSwept` builds: a faulted
  * swept profile builds nothing, so its waste is neither air nor a hole's fault.
  */
@@ -368,6 +548,8 @@ interface SweptWaste {
   /** t from (x_thickness): face max t = T − z, face min t = z. */
   depthOf: (z: number) => number;
   stations: { at: P2; tangent: P2; axis: P2 }[];
+  /** b2: some end is a user's stop (the union rule below); false keeps b1's exclusive station rule byte for byte. */
+  stops: boolean;
 }
 const SURFACE_EPS = 1e-9; // CURVE_EPS: ON the surface (profileAirTester's tolerance)
 const outward = (s: ProfileSide): P2 => (s.across === 'length' ? [s.from === 'min' ? -1 : 1, 0] : [0, s.from === 'min' ? -1 : 1]);
@@ -409,13 +591,23 @@ function sweptWaste(view: SweepBoard, p: ProfileCut, built: boolean): SweptWaste
       segs: path.chords.map((c) => [c.a, c.b]),
       tau, reach, depth,
       depthOf: p.face === 'max' ? (z) => T - z : (z) => z,
+      // A B1 station's axis is a2's, BEARING outside its side; a b2 stop's is BEARING outside its MODEL chord along the
+      // inward normal (`stopAxis`, Q12: the axis Task 4's run-out pieces revolve about).
       stations: (path.ends ?? []).flatMap((e) => (e.kind === 'station'
         ? [{ at: e.at, tangent: e.tangent, axis: [e.at[0] + BEARING * outward(e.side)[0], e.at[1] + BEARING * outward(e.side)[1]] as P2 }]
-        : [])),
+        : e.kind === 'stop'
+          ? [{ at: e.at, tangent: e.tangent, axis: [e.at[0] - BEARING * e.normal[0], e.at[1] - BEARING * e.normal[1]] as P2 }]
+          : [])),
+      stops: (path.ends ?? []).some((e) => e.kind === 'stop'),
     };
   }
   m.set(key, out);
   return out;
+}
+
+/** TEST-ONLY seam: the end stations (at, tangent, axis) `sweptWaste` stores — `built` the probe's path, else the holes'. */
+export function sweptWasteStations(view: SweepBoard, p: ProfileCut, built: boolean): readonly { at: P2; tangent: P2; axis: P2 }[] {
+  return sweptWaste(view, p, built)?.stations ?? [];
 }
 
 /** THE stock probe's air for one swept profile (above), as a hoisted closure on board-local (length, width, thickness). */
@@ -425,6 +617,21 @@ export function sweptAirTester(view: SweepBoard, p: ProfileCut): (pt: V3) => boo
   return ([x, y, z]) => {
     const t = w.depthOf(z);
     if (!(t < w.depth)) return false;
+    if (w.stops) {
+      // b2 (fix round 1): a run with a stop may wrap (two whole sides between its ends), so its own band comes back into the
+      // half-plane past a stop, and is cut there. The air is the UNION of the band's (the distance to the path's chords) and
+      // each end's run-out past its plane (the bodies subtract the run-out from every body and build the band unclipped by a
+      // stop). The band's rounded end cap needs no exclusion: past an end's plane |q − axis| − BEARING <= |q − at| (the
+      // triangle inequality, |at − axis| = BEARING) and tau never rises with s, so the cap's air lies inside the cutter's.
+      const air = (d: number) => d >= 0 && d < w.reach && t < w.tau(d) - SURFACE_EPS;
+      for (const st of w.stations) {
+        if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] <= 0) continue;
+        if (air(Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING)) return true;
+      }
+      let band = Infinity;
+      for (const [a, b] of w.segs) { const v = distSeg(x, y, a, b); if (v < band) band = v; }
+      return air(band);
+    }
     let beyond = Infinity;
     for (const st of w.stations) {
       if ((x - st.at[0]) * st.tangent[0] + (y - st.at[1]) * st.tangent[1] > 0) beyond = Math.min(beyond, Math.hypot(x - st.axis[0], y - st.axis[1]) - BEARING);
@@ -457,7 +664,7 @@ function segRectDist(a: P2, b: P2, lo: P2, hi: P2): number {
 /**
  * Does a hole meet one swept profile's waste (§4.1; P14, CONSERVATIVE; touching is meeting)? Its plan footprint — the disc
  * along the thickness, else the rectangle its side entry projects to — comes within the reach of the path's chords, each
- * station end's band run on straight along its tangent by the run-out's reach (BEARING + reach, P14), AND its depth interval
+ * station or stop end's band run on straight along its tangent by the run-out's reach (BEARING + reach, P14), AND its depth interval
  * in from the profile's face meets [0, depth]. A hole just clear of the true waste may be judged into it.
  */
 export function sweptWasteMeets(view: SweepBoard, p: ProfileCut, hole: Pick<Hole, 'axis' | 'centre' | 'radius' | 'depth' | 'dir'>): boolean {

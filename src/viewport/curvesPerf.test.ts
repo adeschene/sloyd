@@ -5,8 +5,8 @@ import type { ProfileCut, ProfileEnd } from '../document/types';
 import { canonicalRun, geometryBoard } from '../document/profiles';
 import { spanOf } from '../document/curves';
 import { bodyMesh } from './grainTiling';
-import { builtSwept } from '../document/sweep';
-import { apronArch, frontOnly, loop, notchEdge, topCorners } from '../document/sweepFixtures';
+import { builtSwept, sweptStops } from '../document/sweep';
+import { apronArch, bowFront, frontAndEnds, frontOnly, loop, notchEdge, stopOnArch, stopOnCorner, stopOnNotch, topCorners, wrapFour } from '../document/sweepFixtures';
 
 /**
  * Curve rebuild performance (curves spec §3.6). A resize drag rebuilds a curved part every frame — bodies, EDGES (the
@@ -41,6 +41,9 @@ const stile = { length: 30, width: 5, thickness: 0.75 };
 const stileArch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 6, span: 18, rise: 1 }) };
 const cup = (b: Board): HoleRow[] => [{ id: 'c', ...defaultHingeCup(b), station: 10 }];
 
+/** wrapFour's guard (Task 6): a NEW row with no probe guard, over the 40 ms default — its product's minimum of 9 measured
+ *  38.0–42.5 alone (load ~1.4) and 41.3–45.5 in three full runs, so the highest, 45.5, + 25% (b1's Q4 amendment), for chunk c. */
+const WRAP_FOUR = 57;
 let tick = 0;
 function rebuild(make: (len: number) => Board): number {
   tick += 1;
@@ -186,4 +189,34 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
     expect(builtSwept(geometryBoard(board))).toHaveLength(2);
     expect(minOf9(at(board))).toBeLessThanOrEqual(78);
   });
+});
+
+// Profile runs b2 (Task 6; the Global Constraints' table): a stop on a turned path — the swept band, the stop's run-out
+// revolved about the bit's axis outside its model chord (`stopRunoutPieces`), every body's mesh with its stop normals — and
+// runs across two sides, rebuilt as above. Guards are Task 1's (the probe's TOTAL × 1.8 ≤ 40 → 40, else ⌈TOTAL × 1.8 × 1.25⌉),
+// each checked against the PRODUCT's minimum of 9 alone and in a full run (Task 6's report has the table). The worst of Task
+// 5's repros (wrapThree, wrapFour, shortEnds and the three station runs), wrapFour, has no probe guard: measured + 25%.
+describe('a b2 profile\'s part rebuilds inside a frame (profile runs b2)', () => {
+  const at = (b: Board) => (k: number) => createBoard({ ...b, length: b.length * k });
+  const b2: [string, Board, number, number][] = [
+    ['a roundover 1/4" stopped on a 2" corner arc to 30"', stopOnCorner(), 2, 40],
+    ['a cove 3/8" stopped on a 2" corner arc to 30"', stopOnCorner('cove', 0.375), 2, 40],
+    ['a roundover 1/4" stopped on the arch (10", 20")', stopOnArch, 2, 40],
+    ['a roundover 3/8" stopped on the notch (14.5") to 25"', stopOnNotch, 2, 60],
+    ['a roundover 1/4" stopped on a bow (5", 25")', bowFront, 2, 40],
+    ['a roundover 1/4" on two sides, the front and both ends', frontAndEnds(), 2, 51],
+    // The final review's M4 (the controller's ruling): Task 1's 102 was ~1.85× the product's time; tightened to the measured
+    // full-suite minimum + 25% (2026-10-19: 55.3 ms alone, 55.0 in a full run → ⌈55.0 × 1.25⌉ = 69).
+    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 69],
+    ['a roundover 1/4" round four sides and three arcs (wrapFour)', wrapFour(), 2, WRAP_FOUR],
+  ];
+  for (const [name, board, stops, bound] of b2) {
+    it(`${name}: at most ${bound} ms`, () => {
+      // The fixture is what it claims: one built swept profile with its stops.
+      const v = geometryBoard(board);
+      expect(builtSwept(v)).toHaveLength(1);
+      expect(sweptStops(v, v.profiles[0]!)).toHaveLength(stops);
+      expect(minOf9(at(board))).toBeLessThanOrEqual(bound);
+    });
+  }
 });

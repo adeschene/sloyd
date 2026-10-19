@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { CURRENT_VERSION, DocumentError, createBoard, createDocument, migrateDocument, partGeometry, bodyVolume, profileCurve, profileFromFields, archCurve, geometryBoard } from './document';
-import { travelSign } from './profiles';
+import { CURRENT_VERSION, createBoard, createDocument, migrateDocument, partGeometry, bodyVolume, profileCurve, profileFromFields, archCurve, geometryBoard } from './document';
+import { profileFaults, travelSign } from './profiles';
+import { frontAndEnds, twoSide } from './sweepFixtures';
 import type { Board, ProfileCut } from './types';
 
 const v17 = (boards: object[], shapes: object[] = []) => JSON.parse(JSON.stringify({ ...createDocument('T'), version: 17, boards, shapes }));
@@ -75,16 +76,8 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
   });
   // Spec P2: a later build's run must never be drawn full length here.
   const side = { across: 'width', from: 'max' } as const;
-  // b1 lifted the a1 'all round' case ({ loop: true } now loads: see the b1 block below); two sides still refuse (b2).
-  for (const [why, run] of [
-    ['ends on two sides', { start: { side, through: 'min' }, end: { side: { across: 'length', from: 'max' }, through: 'max' } }],
-  ] as const) {
-    it(`a run this build cannot build refuses the document: ${why}`, () => {
-      const raw = { ...v17([part({ profiles: [{ ...p1(), run }] })]), version: 18 };
-      expect(() => load(raw)).toThrow(DocumentError);
-      expect(() => load(raw)).toThrow(`This project has an edge profile this version of Sloyd can't build (${why}) — it was saved by a newer version of Sloyd.`);
-    });
-  }
+  // b1 lifted the a1 'all round' case ({ loop: true } now loads: see the b1 block below); b2 lifted ends on two sides (spec
+  // §3.2 (B), changed by design: see the b2 block below).
   // Spec §3.2: an unknown key, a non-true loop and a station end each refuse; a refusal outranks any drop.
   const through = (m: 'min' | 'max') => ({ side, through: m });
   const okRun = { start: through('min'), end: through('max') };
@@ -181,12 +174,47 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
       expect(() => load(raw)).toThrow('This project has an edge profile this version of Sloyd can\'t build (all round) — it was saved by a newer version of Sloyd.');
     });
   }
-  it('ends on two sides still refuse beside a loading loop (b2)', () => {
+  it('ends on two sides load beside a loading loop (b2, changed by design: spec §3.2 (B))', () => {
     const two = { start: { side, through: 'min' }, end: { side: { across: 'length', from: 'max' }, through: 'max' } };
     const raw = { ...v17([part({ profiles: [{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }] })]), version: 18 };
-    expect(() => load(raw)).toThrow('(ends on two sides)');
+    expect(board0(load(raw)).profiles).toEqual([{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }]);
   });
   it('a v19 file is refused by the version gate', () => {
     expect(() => load({ ...v17([part({})]), version: 19 })).toThrow(/newer version/);
+  });
+});
+
+// Profile runs b2: ends on two sides load (spec §3.2 (B), no schema bump); a two-side run is never re-ordered (Q16).
+describe('loading two-side runs (profile runs b2)', () => {
+  const saved = (b: Board) => ({ ...v17([JSON.parse(JSON.stringify(b))]), version: 18 });
+  it('frontAndEnds() saved in a v18 file loads and round-trips byte for byte; its run is never re-ordered', () => {
+    const b = frontAndEnds();
+    const got = board0(load(saved(b)));
+    expect(got.profiles).toEqual(b.profiles);
+    expect(JSON.stringify(got.profiles)).toBe(JSON.stringify(b.profiles));
+    expect(board0(load(saved(got))).profiles).toEqual(b.profiles);
+  });
+  it('the long way round (L_MAX at 4 to L_MIN at 4) loads as stored too: no canonical swap for two sides', () => {
+    const long = twoSide('p1', { across: 'length', from: 'max' }, 4, { across: 'length', from: 'min' }, 4);
+    const b = { ...frontAndEnds(), profiles: [long] };
+    expect(board0(load(saved(b))).profiles).toEqual([long]);
+    // unequal stations, where P11's one-side swap WOULD reverse it (6 then 4 against travel): kept as stored
+    const longer = twoSide('p1', { across: 'length', from: 'max' }, 6, { across: 'length', from: 'min' }, 4);
+    expect(board0(load(saved({ ...b, profiles: [longer] }))).profiles).toEqual([longer]);
+    // and on face min, where the same ends read the other way round
+    const lowFace = { ...long, face: 'min' as const };
+    expect(board0(load(saved({ ...b, profiles: [lowFace] }))).profiles).toEqual([lowFace]);
+  });
+  it('a two-side run with an inconsistent through end loads (KEPT) and faults stop-off (Q17)', () => {
+    const bad: ProfileCut = { ...twoSide('t', { across: 'width', from: 'min' }, 5, { across: 'length', from: 'max' }, 4), run: { start: { side: { across: 'width', from: 'min' }, through: 'max' }, end: { side: { across: 'length', from: 'max' }, from: 'min', at: 4 } } };
+    const got = board0(load(saved({ ...frontAndEnds(), profiles: [bad] })));
+    expect(got.profiles).toEqual([bad]);
+    expect(profileFaults(got, got.profiles[0]!)).toEqual([{ kind: 'stop-off' }]);
+  });
+  it('a loop still loads; geometryBoard reads a two-side run without throwing (M-e)', () => {
+    const got = board0(load(saved({ ...frontAndEnds(), profiles: [...frontAndEnds().profiles, { ...frontAndEnds().profiles[0]!, id: 'w', face: 'min', run: { loop: true } }] })));
+    expect(got.profiles.map((p) => p.id)).toEqual(['p1', 'w']);
+    expect(() => partGeometry(got)).not.toThrow();
+    expect(geometryBoard(got).profiles.map((p) => p.id)).toEqual(['p1', 'w']);
   });
 });

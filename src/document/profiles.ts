@@ -1,8 +1,9 @@
 import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide } from './types';
 import { curveFaults, sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
-import { faceOutline, isSwept, profilePath, sideStretch, type FaceOutline, type OutlineChord } from './profilePath';
+import { faceOutline, isSwept, profilePath, sideStretch, stationPoint, throughConsistent, type FaceOutline, type OutlineChord, type Opts as PathOpts } from './profilePath';
 import { BEARING } from './runout';
 import { pathSkeleton, planChain } from './skeleton';
+import { bandReach, keptSection } from './sweep';
 
 /**
  * Edge profiles (edge profiles spec, chunk 1): a full-length routed edge is a plain `CurveCut` running along the edge
@@ -191,8 +192,10 @@ export function endPos(board: Pick<Board, Dimension>, e: ProfileEnd): number {
 export function oneSide(run: ProfileRun): run is { start: ProfileEnd; end: ProfileEnd } {
   return !('loop' in run) && run.start.side.across === run.end.side.across && run.start.side.from === run.end.side.from;
 }
-/** The stored order (P11): End to end min → max (P3); a station run with start before end along `travelSign`. */
+/** The stored order (P11): End to end min → max (P3); a station run with start before end along `travelSign`. A run with
+ *  ends on two sides is never re-ordered (Q16: it travels from Start to Stop as stored). */
 export function canonicalRun(board: Pick<Board, Dimension>, face: CutFrom, run: { start: ProfileEnd; end: ProfileEnd }): { start: ProfileEnd; end: ProfileEnd } {
+  if (!oneSide(run)) return run;
   if (endToEnd(run)) {
     return run.start.through === 'min' ? run : { start: { ...run.end, side: { ...run.end.side } }, end: { ...run.start, side: { ...run.start.side } } };
   }
@@ -286,7 +289,16 @@ function extentOf(board: Pick<Board, Dimension>, p: ProfileCut): [number, number
 const OVERLAP_EPS = 1e-9;
 type FaultBoard = Pick<Board, Dimension> & { curves?: readonly CurveCut[]; profiles: readonly ProfileCut[] };
 const NO_CURVES: readonly CurveCut[] = Object.freeze([]);
-const withCurves = (b: FaultBoard): Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] } => (b.curves ? (b as Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }) : { ...b, curves: NO_CURVES as CurveCut[] });
+type CurvedFaultBoard = Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] };
+/** A fault board with a `curves` key: the board itself when it has one, else ONE derived copy per board object (Task 6, the
+ *  Task 3 review's M5: a fresh copy per call missed every per-part memo keyed on it — paths, outline, stops, skeletons). */
+const curvedCopies = new WeakMap<object, CurvedFaultBoard>();
+const withCurves = (b: FaultBoard): CurvedFaultBoard => {
+  if (b.curves) return b as CurvedFaultBoard;
+  let c = curvedCopies.get(b);
+  if (!c) { c = { ...b, curves: NO_CURVES as CurveCut[] }; curvedCopies.set(b, c); }
+  return c;
+};
 /** A profile's two extents (canonical a along T, b down the other face), as stored: [reach in plan, depth down the edge]. */
 export function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
   const [ea, eb] = extents(p.kind, p);
@@ -300,10 +312,10 @@ export function reachDepth(p: Omit<ProfileCut, 'id'>): [number, number] {
  * run-dimension coordinate lies within its extent (B2: stations are measured along the run dimension). Null when the
  * stretch cannot be traced.
  */
-function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }, outline: FaceOutline, p: ProfileCut, swept = isSwept(board, p)): Map<number, [number, number]> | null {
+function coverage(board: Pick<Board, Dimension | 'curves'> & { profiles: readonly ProfileCut[] }, outline: FaceOutline, p: ProfileCut, swept = isSwept(board, p), opts?: PathOpts): Map<number, [number, number]> | null {
   const out = new Map<number, [number, number]>();
   if (swept) {
-    const path = profilePath(board, p);
+    const path = profilePath(board, p, opts);
     if (!path) return null;
     for (const c of path.cover) out.set(c.chord, [c.t0, c.t1]);
     return out;
@@ -368,36 +380,122 @@ export function profileFaults(board: FaultBoard, p: ProfileCut, opts?: { straigh
   const straight = !!opts?.straight;
   const view = views.get(board);
   const cache = view && view !== board ? faultCaches.get(view)?.get(p) : undefined;
-  if (!cache) return judge(board, p, straight);
-  return straight ? (cache.straight ??= frozenFaults(judge(board, p, true))) : (cache.judged ??= frozenFaults(judge(board, p, false)));
+  if (!cache) return straight ? judge(board, p, true) : withHarm(board, p, judge(board, p, false));
+  return straight ? (cache.straight ??= frozenFaults(judge(board, p, true))) : (cache.judged ??= frozenFaults(withHarm(board, p, judge(board, p, false))));
 }
-function judge(board: FaultBoard, p: ProfileCut, straight: boolean): ProfileFault[] {
+/** A fault's identity (kind, and the other profile for an overlap): `withHarm` adds each one once. */
+const faultKey = (f: ProfileFault) => (f.kind === 'overlap' ? `overlap:${f.other}` : f.kind);
+/** `faults` (a swept judgement of `p`) with the faults its FOLLOWING causes in its neighbours (`harmFaults`), each once. */
+function withHarm(board: FaultBoard, p: ProfileCut, faults: ProfileFault[]): ProfileFault[] {
+  const seen = new Set(faults.map(faultKey));
+  for (const f of harmFaults(board, p)) if (!seen.has(faultKey(f))) { seen.add(faultKey(f)); faults.push(f); }
+  return faults;
+}
+const harmMemo = new WeakMap<object, Map<ProfileCut, readonly ProfileFault[]>>();
+/**
+ * Q10 extended (Task 3 fix round 1, the controller's ruling I2): a stop that follows must never change a neighbour's build.
+ * For a swept-shaped one-side STATION run `q`, the faults its following ADDS to the other profiles on its face: each
+ * neighbour judged in phase 1 with `q` ALONE following — every other one-side station run read as fallen back (straight,
+ * no B1a partner: `without`) — against phase 1 with every station run read so (b1's view: a1/a2 built every station run
+ * straight). Measured against that baseline, never against the other stops' shapes, so two stops that only TOGETHER would
+ * change a neighbour (each mitring one of its corners) are each charged with it. A fault naming `q` itself (their
+ * overlap) is `q`'s own already. Phase 1 only — no fallback depends on another's and nothing cycles. Empty for any other
+ * run. Memoised per part object, frozen.
+ */
+function harmFaults(board: FaultBoard, q: ProfileCut): readonly ProfileFault[] {
+  if (!oneSide(q.run) || endToEnd(q.run)) return NO_FAULTS;
+  let m = harmMemo.get(board);
+  if (!m) { m = new Map(); harmMemo.set(board, m); }
+  const hit = m.get(q);
+  if (hit) return hit;
+  const out: ProfileFault[] = [];
+  if (isSwept(withCurves(board), q)) {
+    const all = stationRuns(board), others = new Set([...all].filter((x) => x !== q));
+    for (const r of board.profiles) {
+      if (r === q || r.id === q.id || r.face !== q.face) continue;
+      const before = new Set(judge(board, r, false, true, all).map(faultKey));
+      for (const f of judge(board, r, false, true, others)) {
+        if ((f.kind === 'overlap' && f.other === q.id) || before.has(faultKey(f))) continue;
+        if (!out.some((g) => faultKey(g) === faultKey(f))) out.push(f);
+      }
+    }
+  }
+  const frozen = frozenFaults(out);
+  m.set(q, frozen);
+  return frozen;
+}
+const NO_FAULTS: readonly ProfileFault[] = Object.freeze([]);
+const stationMemo = new WeakMap<object, ReadonlySet<ProfileCut>>();
+/** A part's one-side STATION runs (what a1/a2 built straight), one set object per part (the path memo keys on it). */
+function stationRuns(board: FaultBoard): ReadonlySet<ProfileCut> {
+  let s = stationMemo.get(board);
+  if (!s) { s = new Set(board.profiles.filter((x) => oneSide(x.run) && !endToEnd(x.run))); stationMemo.set(board, s); }
+  return s;
+}
+/**
+ * One judgement (above). `phase1` (Q10, profile runs b2): every other profile read by its SHAPE and every path by STORED
+ * presence (b1's rule) — the judgement `stopFallsBack` decides a stop's fallback by, so no fallback depends on another's.
+ * Otherwise (phase 2, what `profileFaults` returns) a one-side station run that falls back is read STRAIGHT (a2's rule
+ * beside a straight profile, else its I2 coverage), and takes no B1a mitre (`neighbourTakes`) — except `p` itself, read as
+ * present by the others' paths (its swept judgement asks what it would claim if it followed). `without` (phase 1 only,
+ * `harmFaults`): those profiles read as fallen back — straight, and no B1a partner.
+ */
+function judge(board: FaultBoard, p: ProfileCut, straight: boolean, phase1 = false, without?: ReadonlySet<ProfileCut>): ProfileFault[] {
   const out: ProfileFault[] = [];
   const stored = withCurves(board);
+  const popts: PathOpts | undefined = phase1 ? { presence: true, ...(without ? { without } : {}) } : undefined;
   const swept = !straight && isSwept(stored, p);
-  if (swept) {
-    const [reach, depth] = reachDepth(p);
-    const path = profilePath(stored, p);
-    // b1 Task 3: a path whose plan chain cannot be built has no wood to build (runs-off); one whose skeleton swallows an
-    // END chord before the reach is too tight (the skeleton's null, never a throw).
-    const chain = path ? planChain(stored, path, p.face) : null;
-    const runsOff = !path || !chain || reach > Math.min(board.length, board.width) / 2 || depth > board.thickness;
-    if (runsOff) out.push({ kind: 'runs-off' });
-    const arcTight = !!path && path.chords.some((c) => c.arc && (c.arc.concave ? c.arc.r < BEARING : c.arc.r < reach));
-    if (arcTight || (!runsOff && !pathSkeleton(chain!.chords, chain!.loop, reach, chain!.rays))) out.push({ kind: 'too-tight' });
-  }
+  // stop-off (P12; b2: Q16, Q17), decided first: a two-side run whose path is null for its own ends is stop-off, never runs-off.
+  let stopOff = false;
   if (oneSide(p.run)) {
     const run = p.run;
     const L = board[runDim(run.start.side)];
     const station = (e: ProfileEnd) => !('through' in e) && (endPos(board, e) <= 0 || endPos(board, e) >= L);
     const [lo, hi] = extentOf(board, p)!;
-    if (station(run.start) || station(run.end) || lo >= hi) out.push({ kind: 'stop-off' });
+    stopOff = station(run.start) || station(run.end) || lo >= hi;
+  } else if (!('loop' in p.run)) {
+    // b2, a run with ends on two sides: a station at or past an end of its side (a2's rule), or off its side's stretch; an
+    // inconsistent through end (Q17); or — the outline traced — no path (the two ends one point, or a walk re-entering a
+    // side: Q16 as ruled, M-d).
+    const run = p.run as { start: ProfileEnd; end: ProfileEnd };
+    const outline = faceOutline(stored);
+    const atEnd = (e: ProfileEnd) => !('through' in e) && (endPos(board, e) <= 0 || endPos(board, e) >= board[runDim(e.side)]);
+    const offStretch = (e: ProfileEnd) => !('through' in e) && !!outline && !stationPoint(stored, outline, e.side, endPos(board, e));
+    stopOff = atEnd(run.start) || atEnd(run.end) || !throughConsistent(p) || offStretch(run.start) || offStretch(run.end)
+      || (!!outline && profilePath(stored, p, popts) === null);
   }
+  if (swept) {
+    const [reach, depth] = reachDepth(p);
+    const path = profilePath(stored, p, popts);
+    // b2 (Q13): the skeleton reads the JUDGED path (each stop's end-chord zone); for a loop or End to end it is the path.
+    const b2 = !('loop' in p.run) && !endToEnd(p.run);
+    const judged = b2 && path ? profilePath(stored, p, { ...popts, snap: true }) : path;
+    // b1 Task 3: a path whose plan chain cannot be built has no wood to build (runs-off); one whose skeleton swallows an
+    // END chord before the reach is too tight (the skeleton's null, never a throw).
+    const chain = judged ? planChain(stored, judged, p.face) : null;
+    const runsOff = (!path && !stopOff) || (!!judged && !chain) || reach > Math.min(board.length, board.width) / 2 || depth > board.thickness;
+    if (runsOff) out.push({ kind: 'runs-off' });
+    // R10/B5 on the PATH's arcs only (Q15); b2 (the Task 2 review, I2): a stop never silently builds nothing — a path whose
+    // judged or built path is null (the zone moved both ends onto one vertex) is too tight.
+    const arcTight = !!path && path.chords.some((c) => c.arc && (c.arc.concave ? c.arc.r < BEARING : c.arc.r < reach));
+    const vanishes = b2 && !!path && (!judged || !profilePath(stored, p, { ...popts, build: true }));
+    // Fix round 1 (I1): the PLAN the build makes (sweptPlan: the built path, the band's reach — a bead's quirk wall adds
+    // WALL_MARGIN) must exist too; a swept profile whose plan is null builds nothing, so it is too tight, never clean.
+    const builds = () => {
+      const built = profilePath(stored, p, { ...popts, build: true });
+      const bc = built ? planChain(stored, built, p.face) : null;
+      return !!bc && skeletonFits(board, bc, bandReach(keptSection(stored, p)));
+    };
+    if (arcTight || vanishes || (!runsOff && !!chain && (!skeletonFits(board, chain, reach) || !builds()))) out.push({ kind: 'too-tight' });
+  }
+  if (stopOff) out.push({ kind: 'stop-off' });
   let outline: FaceOutline | null | undefined;
   let mine: Map<number, [number, number]> | null | undefined;
   for (const q of board.profiles) {
     if (q === p || q.id === p.id || q.face !== p.face) continue;
-    if (!swept && !isSwept(stored, q)) {
+    // Q10: a fallen-back stop is read straight (never in phase 1, where the fallbacks are being decided).
+    const qSwept = isSwept(stored, q) && !without?.has(q) && (phase1 || !stopFallsBack(board, q));
+    if (!swept && !qSwept) {
       // a2's rule, exactly.
       if (!oneSide(p.run) || !oneSide(q.run)) continue;
       const side = p.run.start.side;
@@ -409,11 +507,28 @@ function judge(board: FaultBoard, p: ProfileCut, straight: boolean): ProfileFaul
     }
     if (outline === undefined) outline = faceOutline(stored);
     if (!outline) continue;   // no traceable outline: the swept profile is runs-off and builds nothing
-    if (mine === undefined) mine = coverage(stored, outline, p, swept);
-    const theirs = coverage(stored, outline, q);
+    if (mine === undefined) mine = coverage(stored, outline, p, swept, popts);
+    const theirs = coverage(stored, outline, q, qSwept, phase1 ? popts : { keep: p });
     if (mine && theirs && sharedLength(outline, mine, theirs) > OVERLAP_EPS) out.push({ kind: 'overlap', other: q.id });
   }
   return out;
+}
+
+/** Whether the path's offset survives to the reach (the skeleton's null is too tight), memoised per part object on the
+ *  chain's content: Q10's two phases judge one stop's path twice, usually the same path (b2 Task 3, Step 5b). */
+const skeletonMemo = new WeakMap<object, Map<string, boolean>>();
+function skeletonFits(board: object, chain: NonNullable<ReturnType<typeof planChain>>, reach: number): boolean {
+  let m = skeletonMemo.get(board);
+  if (!m) { m = new Map(); skeletonMemo.set(board, m); }
+  // Task 6: the key holds exactly what `pathSkeleton` reads — each chord's two ends, never its curve id or arc (the JSON
+  // of those was ~20% of a fresh trial part's profileFaults) — every number in its exact round-trip form.
+  let key = `${reach}|${chain.loop}|${chain.rays ? chain.rays.join(',') : ''}|`;
+  for (const c of chain.chords) key += `${c.a[0]},${c.a[1]},${c.b[0]},${c.b[1]};`;
+  const hit = m.get(key);
+  if (hit !== undefined) return hit;
+  const ok = !!pathSkeleton(chain.chords, chain.loop, reach, chain.rays);
+  m.set(key, ok);
+  return ok;
 }
 
 const views = new WeakMap<object, object>();
@@ -442,6 +557,39 @@ export function viewProfileFaults(c: object): readonly ProfileFault[] {
 export function runsStraight(c: object): boolean {
   return viewSources.get(c)?.fallback ?? false;
 }
+/** The fallback note's cause (Q10): for a view curve that runs straight (`runsStraight`), the first kind of the SWEPT
+ *  judgement that decided it — a stop's phase-1 judgement (`stopFallsBack`; its phase-2 one, `profileFaults`, can be empty
+ *  once a neighbour stop is read straight), an End to end's `profileFaults` (b1's I1); null for anything else. */
+export function fallbackCause(c: object): ProfileFault['kind'] | null {
+  const src = viewSources.get(c);
+  if (!src?.fallback) return null;
+  const decided = stopMemo.get(src.board)?.get(src.profile)?.swept ?? profileFaults(src.board, src.profile);
+  return decided[0]?.kind ?? null;
+}
+/** True for a geometry view itself (`geometryBoard`'s result): its `profiles` already hold only what is built swept. */
+export const isGeometryView = (b: object): boolean => views.get(b) === b;
+
+const stopMemo = new WeakMap<object, Map<ProfileCut, { falls: boolean; swept?: readonly ProfileFault[] }>>();
+/**
+ * Q10 (B10 for stops; profile runs b2): a SAVED a2 stop on a turned path follows its outline when the bit fits. A
+ * swept-shaped one-side STATION run whose swept faults are non-empty while its straight faults (a2's: its view curve's
+ * `curveFaults` and a2's profile faults) are none falls back: built, drawn, worded and keyed exactly as a2 built it. Stops
+ * are decided FIRST, each judged against every other profile by its shape (`judge`'s phase 1), so b1's I2 holds: every
+ * other judgement then reads a fallen-back stop as straight. End to end keeps b1's `fallsBack`; a loop or a two-side run
+ * never falls back. Memoised per part object (a panel's trial part is a new object, judged afresh).
+ */
+export function stopFallsBack(board: FaultBoard, q: ProfileCut): boolean {
+  if (!oneSide(q.run) || endToEnd(q.run)) return false;
+  let m = stopMemo.get(board);
+  if (!m) { m = new Map(); stopMemo.set(board, m); }
+  const hit = m.get(q);
+  if (hit) return hit.falls;
+  const stored = withCurves(board);
+  const swept = isSwept(stored, q) ? frozenFaults(withHarm(board, q, judge(board, q, false, true))) : undefined;
+  const falls = !!swept && swept.length > 0 && judge(board, q, true, true).length === 0 && curveFaults(stored, profileAsCurve(q)).length === 0;
+  m.set(q, { falls, ...(falls ? { swept } : {}) });
+  return falls;
+}
 /**
  * I1 (final review, the user's ruling, "Fall back to straight"): a swept-shaped End to end profile (never a loop) whose
  * SWEPT faults are non-empty while its STRAIGHT form — chunk 1's view curve and a2's profile faults — has none is built,
@@ -450,7 +598,10 @@ export function runsStraight(c: object): boolean {
  * authoring judges by.
  */
 function fallsBack(board: FaultBoard & Pick<Board, 'curves'>, p: ProfileCut, cache: FaultCache): boolean {
-  if ('loop' in p.run) return false;
+  // A loop never falls back, nor a run with ends on two sides (new in b2: it has no a2 form, and profileToFields throws on
+  // it — M-e); a one-side station run is decided stops-first (Q10).
+  if ('loop' in p.run || !oneSide(p.run)) return false;
+  if (!endToEnd(p.run)) return stopFallsBack(board, p);
   return (cache.judged = frozenFaults(judge(board, p, false))).length > 0
     && (cache.straight = frozenFaults(judge(board, p, true))).length === 0
     && curveFaults(board, profileAsCurve(p)).length === 0;
