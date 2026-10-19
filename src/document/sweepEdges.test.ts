@@ -549,10 +549,13 @@ describe('a stop\'s run-out joins smoothly (profile runs b2, invariant 16)', () 
 
 /*
  * Task 7 fix round 1 (I1): an INDEPENDENT presence rule, since fast == reference shares smoothPair and cannot see a crease the
- * rule itself drops. A join is a stretch judged smooth: two faces of one curved surface's facets. Every arc in these parts
- * takes at least 4 chords per quarter circle (CURVE_TOLERANCE 0.005" at r >= 1/4: 22.5 deg a step), and a run-out's inscribed
- * sectors step no more (measured: the largest join over every b1, b2 and sweep case is 22.63 deg, b1's own B1 run-outs). Two
- * faces meeting at more than CREASE_MIN are no facets of one surface: a line must be drawn there, so no join may cross it.
+ * rule itself drops. A join is a stretch judged smooth: two faces of one curved surface's facets. One chord of an arc of
+ * radius ρ at CURVE_TOLERANCE (0.005") turns at most 2·acos(1 − 0.005/ρ), under 30 deg exactly when ρ > ~0.147". The smallest
+ * arc in these fixtures is the 3/8" ogee's, ρ = 3/16 (at most 26.5 deg a chord; its quarter arcs take 4 chords, 22.5 deg); a
+ * run-out's sectors (reach >= 1/2) step at most 15 deg; measured, the largest join over every b1, b2 and sweep case is
+ * 22.63 deg (b1's own B1 run-out facets). Two faces meeting at more than CREASE_MIN are no facets of one surface here, so a
+ * line must be drawn there and no join may cross it. A TEST ORACLE FOR THESE FIXTURES ONLY (fix round 2, M3), not a law: a
+ * 1/8" roundover steps 30 deg a chord, a 1/16" one 45 — never apply it to profiles under about 0.15".
  */
 const CREASE_MIN = 30;
 const joinAngle = (j: SmoothJoin) => Math.acos(Math.max(-1, Math.min(1, j.f1.n[0] * j.f2.n[0] + j.f1.n[1] * j.f2.n[1] + j.f1.n[2] * j.f2.n[2]))) * 180 / Math.PI;
@@ -689,5 +692,54 @@ describe('where a run\'s two passes meet, the crease is drawn (Task 7 fix round 
       [a, c].every((q) => Math.abs(q[1] - 0.3125) <= 1e-9 && q[0] > 29.6 && q[0] < 29.8) && Math.abs(a[0] - c[0]) <= 1e-9);
     expect(wall.length).toBeGreaterThan(0);
     for (const [a, c] of wall) expect(Math.abs(c[2] - a[2])).toBeCloseTo(1 / 16, 9);
+  });
+});
+
+/*
+ * Task 7 fix round 2 (N1): a run from a STOP to a B1 STATION, on a narrow rail with rounded corners: the front stopped just
+ * past the front-left arc (0.02" off its tangent point), round the right end and the back, through the back's min end to a B1
+ * station on the left end — across the front-left arc from the stop. The stop's run-out and the station's (a2's) meet there.
+ * A stop's `runout` tag is its path end; a B1 station's is a2's, which here is also 'lo': the guard must key a run-out face on
+ * its END, or it joins the two passes. Pinned by CREASE_MIN (in fastIsReference) and by the ridge itself: the lines where
+ * the two run-outs meet lie within both bits' reach (BEARING + the reach, of the stop's axis and of the station's: BEARING
+ * outside the left end at the station), off the top and off every side face — drawn, not joined.
+ */
+const stationRail = (kind: ProfileCut['kind'], size: number, extra: Partial<ProfileCut>, r: number, W: number, d: number): Board =>
+  createBoard({ length: 30, width: W, thickness: 0.75, curves: roundCorners(r, () => true), profiles: [{ ...endToEnd('p1', side('width', 'min'), size, kind), ...extra,
+    run: { start: { side: side('width', 'min'), from: 'min', at: r + d }, end: { side: side('width', 'max'), through: 'min' } } } as ProfileCut] });
+const STATION_RAILS: [string, Board, number][] = [
+  ['cove 3/8 + 1/16 fillet, r 1/2, W 1.1', stationRail('cove', 0.375, { fillet: 1 / 16 }, 0.5, 1.1, 0.02), 0.25 + 0.4375],
+  ['ogee 3/8, r 1/2, W 1.1', stationRail('ogee', 0.375, {}, 0.5, 1.1, 0.02), 0.25 + 0.375],
+  ['bead 1/4 + 1/16 quirk, r 3/8, W 0.8', stationRail('bead', 0.25, { fillet: 1 / 16 }, 0.375, 0.8, 0.02), 0.25 + 0.3125],
+  ['roundover 1/4, r 1/4, W 0.6', stationRail('roundover', 0.25, {}, 0.25, 0.6, 0.02), 0.25 + 0.25],
+];
+describe('a stop and a B1 station on one run: where their passes meet, the crease is drawn (Task 7 fix round 2, N1)', () => {
+  it('the rails are what they claim: unfaulted, built, a stop at end 0 and a B1 station at end 1, both tagged \'lo\'', () => {
+    for (const [name, b] of STATION_RAILS) {
+      const v = geometryBoard(b), p = v.profiles[0]!;
+      expect(profileFaults(b, b.profiles[0]!), name).toEqual([]);
+      expect(builtSwept(v).map((x) => x.id), name).toEqual(['p1']);
+      expect(sweptStops(v, p).map((f) => f.end), name).toEqual(['lo']);
+      expect(builtPath(v, p)!.ends!.map((e) => e.kind), name).toEqual(['stop', 'station']);
+      const tags = new Set(boardBodies(b).flatMap((x) => x.faces).flatMap((f) => (f.runout ? [f.runout] : [])));
+      expect([...tags], name).toEqual(['lo']);
+    }
+  });
+  it.each(STATION_RAILS.map(([n, b]) => [n, b] as [string, Board]))('%s: fast == reference, no join past CREASE_MIN', (_n, b) => fastIsReference(b));
+  it.each(STATION_RAILS)('%s: the ridge where the two run-outs meet is drawn', (_n, b, R) => {
+    const v = geometryBoard(b), p = v.profiles[0]!;
+    const stopAx = stopAxis(sweptStops(v, p)[0]!);
+    const st = builtPath(v, p)!.ends![1] as { at: [number, number] };
+    const stationAx: [number, number] = [st.at[0] - 0.25, st.at[1]];   // the left end (x = 0): BEARING outside it
+    const outline = faceOutline(v)!;
+    const toSide = (q: P) => Math.min(...outline.chords.map((c) => {
+      const dx = c.b[0] - c.a[0], dy = c.b[1] - c.a[1];
+      const t = Math.max(0, Math.min(1, ((q[0] - c.a[0]) * dx + (q[1] - c.a[1]) * dy) / (dx * dx + dy * dy)));
+      return Math.hypot(q[0] - c.a[0] - t * dx, q[1] - c.a[1] - t * dy);
+    }));
+    const inBoth = (q: P) => [stopAx, stationAx].every((ax) => Math.hypot(q[0] - ax[0], q[1] - ax[1]) <= R + 1e-9);
+    const ridge = (boardEdges(b) as Segment[]).map(pts).filter((s) => s.every((q) => inBoth(q) && q[2] < 0.75 - 1e-9 && toSide(q) > 1e-9));
+    // Measured 0.14" (roundover, bead) to 0.35" (cove); 0 with the two passes joined (fix round 1's tag keying).
+    expect(ridge.reduce((n, [a, c]) => n + Math.hypot(...sub3(c, a)), 0)).toBeGreaterThan(0.1);
   });
 });

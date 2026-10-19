@@ -37,6 +37,10 @@ export interface BodyFace {
   /** A face cut by a swept profile's OVERLAP piece (profile runs b2, Task 6 fix rounds 1–2, I2/N1): where a run's two ends'
    *  bands overlap, so its planes hold both passes' sections; absent everywhere else. */
   overlap?: true;
+  /** A run-out face of a swept profile's b2 STOP (profile runs b2, Task 7 fix round 2, N1): its `runout` is then the path's
+   *  face-frame end (0 'lo', 1 'hi'), where a B1 station's run-out carries a2's tag by its span — the two may coincide on one
+   *  run. Absent on every other face (a2's and b1's run-outs keep their bytes). */
+  stop?: true;
 }
 
 /**
@@ -87,7 +91,7 @@ function ring(points: V3[], n: V3): V3[] {
  * clipped body from an untouched one. A face lying on the plane is kept as is
  * and no cap is added (the plane is already a face).
  */
-function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number; overlap?: true }): BodyFace[] {
+function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string; runout?: 'lo' | 'hi'; profileEdge?: string; sweep?: number; overlap?: true; stop?: true }): BodyFace[] {
   const g = (p: V3) => dot(h.n, p) + h.d;
   const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
   if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
@@ -127,6 +131,7 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; c
       if (tag.profileEdge !== undefined) capFace.profileEdge = tag.profileEdge;
       if (tag.sweep !== undefined) capFace.sweep = tag.sweep;
       if (tag.overlap) capFace.overlap = true;
+      if (tag.stop) capFace.stop = true;
       out.push(capFace);
     }
   }
@@ -217,7 +222,7 @@ function buildBodies(board: Board, opts?: { events?: boolean }): Body[] {
     const c = oneSideCurve(p);
     const name = sectionEdgeNamer(profileSection(board, c).pts, p.id);
     for (const fr of stops) {
-      const pieces = stopRunoutPieces(board, c, fr).map((x) => ({ ...x, edge: x.edge.map(name) }));
+      const pieces = stopRunoutPieces(board, c, fr).map((x) => ({ ...x, edge: x.edge.map(name), stop: true as const }));
       bodies = bodies.flatMap((body) => subtractPieces(body.faces, pieces, p.id)
         .flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : [])));
     }
@@ -269,7 +274,7 @@ export { profileEdgeName, profileEdgeOf } from './sectionEdges';
 
 /** `edge` (stopped profiles only): per plane, the `profileEdge` its caps carry (`profileEdgeName`: the section-outline edge
  *  run it lies on, written only for an edge off the part's faces), or null. */
-type Piece = { planes: { n: V3; d: number }[]; onArc: boolean[]; runout?: 'lo' | 'hi'; edge?: (string | null)[] };
+type Piece = { planes: { n: V3; d: number }[]; onArc: boolean[]; runout?: 'lo' | 'hi'; edge?: (string | null)[]; stop?: true };
 /**
  * A stopped profile's waste (profile runs P9), always down the SPLIT path (never `clipAll`): the band — each of
  * `splitPieces`' pieces bounded by the slab at each stop (x_k >= lo, x_k <= hi; n into the waste, first, as the planning
@@ -368,8 +373,8 @@ function subtractPieces(faces: BodyFace[], pieces: readonly Piece[], curve: stri
         const edge = piece.edge?.[i] ?? null;
         const tag = edge !== null
           // A stopped profile's outline face (T6 fix 1): `curve` on arc chords only (bodyMesh reads it as a chord face).
-          ? { ...(piece.onArc[i] ? { curve } : {}), ...(piece.runout ? { runout: piece.runout } : {}), profileEdge: edge }
-          : piece.onArc[i] ? (piece.runout ? { curve, runout: piece.runout } : { curve }) : {};
+          ? { ...(piece.onArc[i] ? { curve } : {}), ...(piece.runout ? { runout: piece.runout } : {}), profileEdge: edge, ...(piece.stop ? { stop: true as const } : {}) }
+          : piece.onArc[i] ? (piece.runout ? { curve, runout: piece.runout, ...(piece.stop ? { stop: true as const } : {}) } : { curve }) : {};
         const outside = clip(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d }, tag);
         if (outside.length >= 4) frags.push(outside);
         rest = outside === rest ? [] : clip(rest, h, tag);
@@ -838,28 +843,31 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // b2 run may bring both its ends to one corner (stops within reach of a sharp corner are no fault), and there the two
   // router passes INTERSECT — one end's run-out against the other's, or against the other end's band, off its own stop plane —
   // at a real crease, sharing the profile id and a section-edge index. So for a profile with a stop, a run-out face joins only
-  // faces of its OWN end: another face of the same run-out (one `runout` tag), or the band of that end's path chord (the
+  // faces of its OWN path end: another face of that end's run-out (fix round 2, N1: by its end, never by the bare `runout` tag,
+  // which a stop and a B1 station on one run may share), or the band of that end's path chord (the
   // band meets its run-out at its stop plane). Every b1 profile (no stop) keeps a2's rule unguarded, byte for byte.
   const ownEnd = new Map<string, (a: BodyFace, b: BodyFace) => boolean>();
   for (const p of swept) {
     if (sweptStops(board, p).length === 0) continue;
     const path = builtPath(board, p);
     if (!path || path.loop) continue;
-    // Each `runout` tag's path end(s), face frame: a stop's tag IS its end (0 'lo', 1 'hi'); a B1 station's is a2's (by its
-    // span), so the two kinds may share a tag — then that tag stands for both ends.
-    const ends = new Map<'lo' | 'hi', Set<number>>([['lo', new Set()], ['hi', new Set()]]);
-    for (const fr of sweptStops(board, p)) ends.get(fr.end)!.add(fr.end === 'lo' ? 0 : 1);
+    // A run-out face's path END (face frame): a stop's face (`stop`) carries its end as its tag (0 'lo', 1 'hi'); a B1
+    // station's carries a2's tag (by its span), which may equal the stop's on one run (fix round 2, N1: a stop at end 0 and
+    // a station at end 1 both 'lo'), so a station's tag is read only among the stations — one per end, so never ambiguous.
+    const station = new Map<'lo' | 'hi', number>();
     (path.ends ?? []).forEach((e, i) => {
       if (e.kind !== 'station') return;
       const k = oneSideCurve(p, e.side).through === 'length' ? 0 : 1;
-      ends.get(e.tangent[k]! > 0 ? 'hi' : 'lo')!.add(i);
+      station.set(e.tangent[k]! > 0 ? 'hi' : 'lo', i);
     });
+    const endOf = (f: BodyFace): number | undefined => (f.stop ? (f.runout === 'lo' ? 0 : 1) : station.get(f.runout!));
     const last = path.chords.length - 1;
     ownEnd.set(p.id, (a, b) => {
-      if (a.runout !== undefined && b.runout !== undefined) return a.runout === b.runout;
+      if (a.runout !== undefined && b.runout !== undefined) return endOf(a) === endOf(b);
       const [r, o] = a.runout !== undefined ? [a, b] : [b, a];
       if (o.sweep === undefined) return true;
-      return [...ends.get(r.runout!)!].some((end) => o.sweep === (end === 0 ? 0 : last));
+      const end = endOf(r);
+      return end !== undefined && o.sweep === (end === 0 ? 0 : last);
     });
   }
   const a2Pair = stopped.size > 0
