@@ -186,8 +186,9 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
     ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 71],
     // 2026-10-19: worst full-run minimum 68.1 ms → 86. Chunk c1: 45.5–49.4 alone, 46.0–47.1 full → ⌈49.4 × 1.25⌉ = 62.
     ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 62],
-    // Chunk c1: 60.9–62.6 alone, 64.3–64.7 full → ⌈64.7 × 1.25⌉ = 81 (was 113).
-    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 81],
+    // Chunk c1: 60.9–62.6 alone, 64.3–64.7 full. Re-measured 2026-10-19 (c1 review I1), alone: 71.1 (load 1.3), then 57.6/56.9/60.8
+    // → worst 71.1 → ⌈71.1 × 1.25⌉ = 89 (was 113).
+    ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 89],
   ];
   for (const [name, board, bound] of swept) {
     it(`${name}: at most ${bound} ms`, () => {
