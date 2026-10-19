@@ -641,6 +641,27 @@ does not follow the curve; on an arch it cuts only air, so the profile vanishes 
 0.1297 vs 0.2984). Its data is intact (a b1 load, save and reload reproduces the JSON), and it follows again when reopened on b2.
 Saved a2 stops that b2 made follow return to a2's build on b1. Everything else is identical.
 
+**Perf guards re-baselined after the merge (2026-10-19).** After `0e41f87`, two full `npm test` runs each failed one
+`curvesPerf` row: the cove stopped on a 2" corner arc measured 42.3 ms against 40 (load 5.2), and the two loops measured 80.0
+against 78. Both passed alone; b2's fast-edge change (Task 7, N4) made b1 rebuilds 5–13% slower. **The user's ruling:**
+re-measure each row alone and in a full run, and set its guard to the measured time + 25% (b1's Q4 precedent), loosening
+nothing beyond that. Each row's minimum of 9 was logged through `SLOYD_PERF_LOG`: three runs alone (load 0.56–1.05) and two
+full runs (load 1.1 → 4.4, then 4.4 → 4.6). Guard = ⌈worst full-run minimum × 1.25⌉. A 40 ms row stays at 40 unless that exceeds
+40, and no guard was lowered. Changed rows (alone ×3 / full ×2, ms → guard):
+four-edge ogee top 25.8 32.8 29.2 / 36.3 28.4 → 46 (was 40; over a frame);
+2" roundover loop 30.2 29.0 28.7 / 30.6 35.4 → 45 (40; over a frame);
+thumbnail loop 28.4 29.3 28.8 / 32.9 28.1 → 42 (40; over a frame);
+B1 front 29.3 30.9 30.5 / 37.2 32.0 → 47 (40; over a frame);
+bead loop 59.4 57.5 58.3 / 70.8 60.6 → 89 (73);
+cove loop 63.1 67.0 62.7 / 68.1 66.5 → 86 (81);
+two loops 61.1 64.3 62.8 / 65.6 63.3 → 82 (78);
+cove stopped on a corner arc 28.9 30.1 29.7 / 32.5 31.2 → 41 (40; over a frame);
+two-side cove 56.1 65.9 56.0 / 57.8 56.6 → 73 (69).
+Kept: ogee loop 113 (worst 86.8 → 109), `wrapFour` 57 (43.1 → 54), the notch stop 60 (36.1 → 46), the two-side roundover 51 (31.4 → 40).
+Every other row stays at 40; the highest of those were the stopped arch at 30.4 (→ 38) and the stopped ogee shelf at 27.0 (→ 34).
+The bound is measured at load ≤ 4.6: the 42.3 ms that started this round came at load 5.2, above the stopped corner cove's new
+41, so a heavier load can still fail it (fu 340's class; fu 394(5)).
+
 **What profile runs chunk b1 did (2026-10-18)** (a profile follows the outline, fu 390; chunk b designed in a second brainstorm,
 "Yes, that looks right" ×3, then "Yes, write the spec" — rulings B1–B9, split into b1/b2 —, B10 ruled by the user while planning;
 plan `…-profile-runs-b1.md`, probe `docs/superpowers/plans/b1-probe/`; branch `profile-runs-b1` from `65947fd`, code complete at `fafc8b6`;

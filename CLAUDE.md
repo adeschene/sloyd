@@ -157,7 +157,7 @@ handicraft education tradition built around hand woodworking.
   with `A stop runs off the part` words), M2 (Side onto a shorter side on a one-side run is greyed, as a2, not seeded), the neighbour-refusal
   words (`The roundover overlaps another profile on this edge — move the roundover first.`, ambiguous between two of one kind)
   and Curves' `A stop on the roundover runs off the part — move it first.`, and Task 6's junction shading override. Open near
-  it: 394 (residue; chunk c's speed rows — the two-side cove ~55 ms guarded 69, wrapFour 57 — and wall-clock guards flaky
+  it: 394 (residue; chunk c's speed rows — the two-side cove ~57 ms guarded 73, wrapFour 57 — and wall-clock guards flaky
   under load). Live pass: `docs/browser-verification-profile-runs-b2.md`.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; presets batch, presets minors and edge profiles chunk 1 since). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
@@ -1183,12 +1183,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `runoutMemo.test.ts` pins mesh and edge hashes), with a stopped ogee in `curvesPerf`. A SWEPT profile's mesh is watertight too
     (every b1 case, a hinge cup and two loops on one part included; its cap has no interior crack), shaded by `sweptNormals` — the
     true swept surface's, memoised per (view, profile), per face (a ~0.005 rad step at a tangent point, accepted); a B1 run-out cap
-    takes the cutter's. Its rebuild guards (`curvesPerf`, MINIMUM of 9): the apron, notch, 1/2" and 2" roundover loops, thumbnail loop and B1 front at 40 ms;
-    the bead loop 73, cove 81, ogee 113 and two loops (top and bottom) 78 ms — measured + 25%, chunk c's speed rows (fu 393). b2's
+    takes the cutter's. Its rebuild guards (`curvesPerf`, MINIMUM of 9): the apron, notch and 1/2" roundover loop at 40 ms;
+    the 2" roundover loop 45, thumbnail loop 42, B1 front 47 (over a frame), the bead loop 89, cove 86, ogee 113 and two loops (top and
+    bottom) 82 ms — the worst full-run minimum + 25% (re-baselined after b2's merge, 2026-10-19, the user's ruling), chunk c's speed rows (fu 393). b2's
     STOPS are watertight too (every b2 fixture, the station runs, the 36 `cornerGap` rows and the 14 overlap cases, a bore beside a
     run-out; caps uncracked), shaded by `stopRunoutNormals` (the revolved normal, memoised on the frozen bodies as a2's), except a
     vertex ON the stop plane, which takes the band's normal (`sweptNormals`: the junction override, so band and run-out agree at
-    1e-6); stop rows at 40/51/60, the two-side cove 69, `wrapFour` 57 ms (chunk c, fu 394). **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
+    1e-6); stop rows at 40/51/60 (the cove stopped on a corner arc 41, over a frame), the two-side cove 73, `wrapFour` 57 ms (chunk c, fu 394). **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
     into strips, so a mouth straddles them): every plane a CLEAN hole opens into is the union of its faces (`unionLoops`,
     chained), triangulated with the rings as holes — the wall's own ring vertices — and each triangle conformed; a plane a
     faulted hole reaches, or whose rings overlap, keeps the per-face `faceTriangles` path (residue, drawn approximately). **Rebuild performance —
@@ -1258,7 +1259,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     segment `type` refuses the whole document** with the newer-version message (a spline needs no schema bump). Joinery,
     Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
     checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
-    a hand-edited non-convex waste too since fu 368, the four-edge cove, bead and ogee tops since edge profiles; MINIMUM of 9, wall-clock).
+    a hand-edited non-convex waste too since fu 368, the four-edge cove and bead tops since edge profiles — the ogee top 46 since 2026-10-19,
+    over a frame; MINIMUM of 9, wall-clock).
     **Edge profiles are stored as `ProfileCut`s** (`Board.profiles`, schema 18; profile runs a1): every geometry, word and fault
     reader (bodies, edges, drawings, silhouettes, snap points, stockProbe, diagrams, bench lines, keys, hole faults, the cut list,
     the mesh and UV signature) reads the part through `geometryBoard`, which presents each profile as the exact `CurveCut` chunk 1

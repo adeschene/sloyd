@@ -114,12 +114,15 @@ describe('a curved part rebuilds inside a frame', () => {
   // bodyEdges ~120 of it). Now a fragment a piece never reaches stays whole and a split waste's diagonals are peeled last
   // (ogee 51 bodies, bead 4, cove 61: no diagonals), and bodyEdges and clip compute each number once (edges byte-identical
   // for the same bodies). The table is in the round's final-fix report.
+  // 2026-10-19: the ogee's worst full-run minimum 36.3 ms → ⌈36.3 × 1.25⌉ = 46, over a frame (cove, bead stay at 40).
+  const fourEdgeBound = { cove: 40, bead: 40, ogee: 46 } as const;
   for (const kind of ['cove', 'bead', 'ogee'] as const) {
-    it(`a top with the four-edge ${kind} set: at most 40 ms`, () => {
+    const bound = fourEdgeBound[kind];
+    it(`a top with the four-edge ${kind} set: at most ${bound} ms`, () => {
       const dims = { width: 20, thickness: 0.75 };
       const curves = PROFILE_EDGES.filter((e) => e.vFrom === 'max').map((e, i) => ({ id: `p${i}`, ...defaultProfile({ length: 36, ...dims }, kind, e) }));
       expect(curvePlan({ length: 36, ...dims }, curves[0]!)).toMatchObject({ clip: false });
-      expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(40);
+      expect(minOf9((k) => createBoard({ length: 36 * k, ...dims, curves }))).toBeLessThanOrEqual(bound);
     });
   }
   it('a shelf with an ogee on a long edge and a bead on an end (mixed axes): at most 40 ms', () => {
@@ -168,11 +171,16 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
     ['a roundover 1/4" along the arched apron', apronArch, 40],
     ['a roundover 1/4" all round the 1/2" corner top', topCorners(0.5), 40],
     ['a roundover 3/8" round the notch', notchEdge, 40],
-    ['a roundover 1/4" all round the 2" corner top', topCorners(2), 40],
-    ['a thumbnail all round the 2" top', topCorners(2, loop('p1', 0.75, 'thumbnail')), 40],
-    ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 40],
-    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 73],
-    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 81],
+    // 2026-10-19: worst full-run minimum 35.4 ms → 45, over a frame.
+    ['a roundover 1/4" all round the 2" corner top', topCorners(2), 45],
+    // 2026-10-19: worst full-run minimum 32.9 ms → 42, over a frame.
+    ['a thumbnail all round the 2" top', topCorners(2, loop('p1', 0.75, 'thumbnail')), 42],
+    // 2026-10-19: worst full-run minimum 37.2 ms → 47, over a frame.
+    ['a roundover End to end on the front of the 2" top (B1 run-outs)', frontOnly, 47],
+    // 2026-10-19: worst full-run minimum 70.8 ms → 89.
+    ['a bead all round the 2" top', topCorners(2, loop('p1', 0.25, 'bead')), 89],
+    // 2026-10-19: worst full-run minimum 68.1 ms → 86.
+    ['a cove all round the 2" top', topCorners(2, loop('p1', 0.375, 'cove')), 86],
     ['an ogee all round the 2" top', topCorners(2, loop('p1', 0.375, 'ogee')), 113],
   ];
   for (const [name, board, bound] of swept) {
@@ -184,10 +192,11 @@ describe('a swept profile\'s part rebuilds inside a frame (profile runs b1)', ()
   }
   // Review Focus 4: All round the top AND the bottom (one outline, two swept profiles). Measured 59.9 / 61.9 (alone / full
   // suite, Task 6; was 76.8 / 83.0): guarded at 61.9 + 25%.
-  it('a roundover all round the top and the bottom of the 2" top: at most 78 ms', () => {
+  // 2026-10-19: worst full-run minimum 65.6 ms → 82.
+  it('a roundover all round the top and the bottom of the 2" top: at most 82 ms', () => {
     const board: Board = { ...topCorners(2), profiles: [loop('t'), loop('m', 0.25, 'roundover', 'min')] };
     expect(builtSwept(geometryBoard(board))).toHaveLength(2);
-    expect(minOf9(at(board))).toBeLessThanOrEqual(78);
+    expect(minOf9(at(board))).toBeLessThanOrEqual(82);
   });
 });
 
@@ -200,14 +209,16 @@ describe('a b2 profile\'s part rebuilds inside a frame (profile runs b2)', () =>
   const at = (b: Board) => (k: number) => createBoard({ ...b, length: b.length * k });
   const b2: [string, Board, number, number][] = [
     ['a roundover 1/4" stopped on a 2" corner arc to 30"', stopOnCorner(), 2, 40],
-    ['a cove 3/8" stopped on a 2" corner arc to 30"', stopOnCorner('cove', 0.375), 2, 40],
+    // 2026-10-19: worst full-run minimum 32.5 ms → 41, over a frame.
+    ['a cove 3/8" stopped on a 2" corner arc to 30"', stopOnCorner('cove', 0.375), 2, 41],
     ['a roundover 1/4" stopped on the arch (10", 20")', stopOnArch, 2, 40],
     ['a roundover 3/8" stopped on the notch (14.5") to 25"', stopOnNotch, 2, 60],
     ['a roundover 1/4" stopped on a bow (5", 25")', bowFront, 2, 40],
     ['a roundover 1/4" on two sides, the front and both ends', frontAndEnds(), 2, 51],
     // The final review's M4 (the controller's ruling): Task 1's 102 was ~1.85× the product's time; tightened to the measured
     // full-suite minimum + 25% (2026-10-19: 55.3 ms alone, 55.0 in a full run → ⌈55.0 × 1.25⌉ = 69).
-    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 69],
+    // 2026-10-19 (re-baseline after the merge): worst full-run minimum 57.8 ms → 73.
+    ['a cove 3/8" on two sides, the front and both ends', frontAndEnds('cove', 0.375), 2, 73],
     ['a roundover 1/4" round four sides and three arcs (wrapFour)', wrapFour(), 2, WRAP_FOUR],
   ];
   for (const [name, board, stops, bound] of b2) {

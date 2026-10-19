@@ -6657,7 +6657,11 @@ faults read the typed station): 0.008" short for a 1/4" roundover on 2" corners,
 0.07" for a 1/2" roundover on 1/2" corners. Q14: a stop inside a neighbour's B1 ε overlaps that cut by up to ε (≤ 0.084").
 (5) **Chunk c, speed** (minimum of 9, wall-clock; guard = measured + 25%): bead loop 73 (measured 60–63 since Task 7's N4 fix, b1 rows
 +5–13% on `dc49b01`), cove loop 81, ogee loop 113, two loops 78, `wrapFour` 57 (measured 39–45.5), the two-side cove 69 (55.0) —
-the last two over the 40 ms frame during a resize drag; `stationFrontToBack` ~38 with no row. The guards are honest at idle and
+the last two over the 40 ms frame during a resize drag; **re-baselined 2026-10-19 after the merge** (two full runs each failed one
+row: the stopped corner cove 42.3 on 40 at load 5.2, two loops 80.0 on 78; the user's ruling: the worst full-run minimum + 25%, never
+lower than the old guard): bead loop 89, cove loop 86, two loops 82, the two-side cove 73, and over a frame the 2" roundover loop 45,
+thumbnail loop 42, B1 front 47, the four-edge ogee top 46, the cove stopped on a corner arc 41; ogee loop 113 and `wrapFour` 57 kept
+(the table is in `docs/history.md`, b2); `stationFrontToBack` ~38 with no row. The guards are honest at idle and
 FLAKY under load: a full run once read 40.47 ms on the 2" roundover loop's 40 (load 4.5; 28.5 alone), and at ~1.4× inflation the
 cove, bead, two-loops and B1 front rows would fail too (fu 340's class). `profileFaults` ~0.8 ms a call on fresh trial parts
 (`deepFreeze` and the outline build); the Side and Stop side selects judge every profile per option on focus (3–25 ms; unmeasured
