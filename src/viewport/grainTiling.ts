@@ -607,8 +607,8 @@ function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Can
 
 /**
  * A curved part's drawn faces, per body, and the vertices its faces conform to (whole-branch review, finding 1): every
- * body's faces minus the seams other bodies cover (`uncovered`, for EVERY body of the part — a box cell beside the slices
- * included), each vertex WELDED to one representative (conform.ts' welder), and the representatives of every drawn
+ * body's faces minus the seams other bodies cover (`faceCover`: `uncovered`'s remainder, or nothing for an exact twin, for EVERY
+ * body of the part — a box cell beside the slices included), each vertex WELDED to one representative (conform.ts' welder), and the representatives of every drawn
  * face's vertices — a seam remainder's new corners included, since a neighbour's edge in another plane may pass through
  * one. Built once per FROZEN bodies array (partGeometry's) and kept by its identity, as seamIndex is: bodyMesh runs once
  * per body, so building it per call would be quadratic. An unfrozen array is built afresh (invariant 50's rule).

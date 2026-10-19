@@ -11,6 +11,7 @@ import { geometryBoard, profileValues, shapedPart, sweptProfiles } from './profi
 import { builtSwept, oneSideCurve, outlineCurves, sweptPieces, sweptRunouts, sweptStops, type SweptPiece } from './sweep';
 import type { CurveCut, ProfileCut } from './types';
 import { builtPath } from './profilePath';
+import { twinFaces } from './seams';
 import { sweptSmoothPair } from './sweptEdges';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -1167,29 +1168,8 @@ function loopLength(view: Board, swept: readonly ProfileCut[], id: string): numb
  * rounded key misses (a vertex on a rounding boundary) is kept: only slower. Faces keep their objects (joins name them).
  */
 function withoutSeams(bodies: readonly Body[]): Body[] {
-  // A face's key: its vertices rounded to 1e-6", combined in an order-free way (a sum and an xor of each one's hash).
-  // Two faces of one polygon get one key; a collision only costs a `same` test.
-  const keyOf = (f: BodyFace) => {
-    let sum = 0, xor = 0;
-    for (const p of f.verts) {
-      const h = Math.imul(Math.round(p[0] * 1e6), 73856093) ^ Math.imul(Math.round(p[1] * 1e6), 19349663) ^ Math.imul(Math.round(p[2] * 1e6), 83492791);
-      sum = (sum + h) | 0;
-      xor ^= h;
-    }
-    return (Math.imul(sum, 31) ^ xor ^ f.verts.length) | 0;
-  };
-  const byKey = new Map<number, BodyFace[]>();
-  const drop = new Set<BodyFace>();
-  const same = (a: BodyFace, b: BodyFace) => a.verts.length === b.verts.length
-    && dot(a.n, b.n) < -1 + BODY_EPS
-    && a.verts.every((p) => b.verts.some((q) => Math.abs(p[0] - q[0]) <= BODY_EPS && Math.abs(p[1] - q[1]) <= BODY_EPS && Math.abs(p[2] - q[2]) <= BODY_EPS));
-  for (const b of bodies) for (const f of b.faces) {
-    const k = keyOf(f);
-    const list = byKey.get(k);
-    const twin = list?.find((g) => !drop.has(g) && same(f, g));
-    if (twin) { drop.add(twin); drop.add(f); continue; }
-    if (list) list.push(f); else byKey.set(k, [f]);
-  }
+  // The twin test has one home (seams.ts' twinFaces: the mesh and the edges drop the same pairs).
+  const drop = twinFaces(bodies);
   if (drop.size === 0) return bodies as Body[];
   return bodies.map((b) => (b.faces.some((f) => drop.has(f)) ? { box: b.box, faces: b.faces.filter((f) => !drop.has(f)) } : b));
 }

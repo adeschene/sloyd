@@ -1,5 +1,6 @@
 import { boardBodiesForTest } from '../document/bodies';
 import { partGeometry } from '../document/document';
+import type { Body, BodyFace } from '../document/document';
 import { faceCover, twinFaces } from '../document/seams';
 import { geometryBoard, shapedPart } from '../document/profiles';
 import { CURVED_CASES, SWEPT_CASES } from '../document/meshCases';
@@ -59,7 +60,7 @@ function sameGrain(got: PartMeshData, ref: PartMeshData): string | null {
   };
   const R = triangles(ref);
   const buckets = new Map<string, T[]>();
-  for (const [m, ts] of R) for (const t of ts) { if (area(t.p) <= 1e-12) continue; const k = `${m}|${key(t.p)}`; buckets.set(k, [...(buckets.get(k) ?? []), t]); }
+  for (const [m, ts] of R) for (const t of ts) { if (area(t.p) <= 1e-12) continue; const k = `${m}|${key(t.p)}`; { const l = buckets.get(k); if (l) l.push(t); else buckets.set(k, [t]); } }
   for (const [m, ts] of triangles(got)) {
     for (const t of ts) {
       if (area(t.p) <= 1e-12) continue;   // a zero-area sliver draws nothing: no plane, no point to find
@@ -110,8 +111,11 @@ describe('stage 2: exact twins draw nothing (chunk c2)', () => {
     const a = areas(got), b = areas(ref);
     expect([...a.keys()]).toEqual([...b.keys()]);
     for (const [m, x] of b) expect(Math.abs(a.get(m)! - x), `material ${m}`).toBeLessThanOrEqual(1e-9);
+    // Identical bytes carry the property trivially; only a differing mesh needs the point-by-point check.
+    const same = (x: ArrayLike<number>, y: ArrayLike<number>) => x.length === y.length && Array.prototype.every.call(x, (v: number, i: number) => v === y[i]);
+    if (same(got.positions, ref.positions) && same(got.uvs, ref.uvs) && same(got.normals, ref.normals) && JSON.stringify(got.groups) === JSON.stringify(ref.groups)) return;
     expect(sameGrain(got, ref)).toBeNull();
-  }, 120_000);
+  }, 30_000);   // the reference route (minusCover on every seam) is itself 5-10 s on the ogee/cove loops
   // Spec §2.2's partner-removed fixtures: a stop's run-out and a dado reshape faces next to the band; nothing they touch is
   // a twin unless its partner still lies exactly against it.
   it('partner-removed parts (a stop, a dado through the band) are in the list and drop twins elsewhere', () => {
@@ -119,5 +123,20 @@ describe('stage 2: exact twins draw nothing (chunk c2)', () => {
     expect(names).toContain('stopOnCorner');
     expect(names).toContain('loop over a dado and a chamfer');
     expect(twinFaces(partGeometry(stopOnCorner()).bodies).size).toBeGreaterThan(0);
+  });
+
+  // Review I1: keyOf buckets at 1e-6, `same` decides at 1e-9. A vertex 2e-7 off hashes alike but is no twin.
+  describe('twinFaces decides at 1e-9, inside the 1e-6 hash bucket', () => {
+    const quad = (z: number, n: [number, number, number], flip: boolean, dx = 0): BodyFace => {
+      const v: [number, number, number][] = [[0, 0, z], [1, 0, z], [1, 1, z], [0 + dx, 1, z]];
+      return { verts: flip ? [v[0]!, v[3]!, v[2]!, v[1]!] : v, n } as unknown as BodyFace;
+    };
+    const body = (f: BodyFace): Body => ({ faces: [f] } as unknown as Body);
+    it('exact twins: both dropped', () => {
+      expect(twinFaces([body(quad(0, [0, 0, 1], false)), body(quad(0, [0, 0, -1], true))]).size).toBe(2);
+    });
+    it('one vertex 2e-7 off (same hash bucket: 2e-7 rounds to 0 at 1e-6, 5e-7 would not): not twins', () => {
+      expect(twinFaces([body(quad(0, [0, 0, 1], false)), body(quad(0, [0, 0, -1], true, 2e-7))]).size).toBe(0);
+    });
   });
 });
