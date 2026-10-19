@@ -21,7 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is profile runs b2** (deployed 2026-10-19 from `31d88fd`, the merge `0e41f87`, bundle `index-BhtaBf2G.js`, CSS `index-CXYEMHnU.css` (unchanged); **SCHEMA 18**,
+- **Production is chunk c1** (deployed 2026-10-19 from the merge `65fb1fe`, bundle `index-TCisED7E.js`, CSS `index-CXYEMHnU.css` (unchanged); no schema
+  change, so rolling back to b2 (`7794999`, `index-BhtaBf2G.js`) is free). Profile runs b2 was deployed 2026-10-19 from `31d88fd` (**SCHEMA 18**,
   unchanged): rolling back to b1 (`dc49b01`, `index-CDDCzMGJ.js`) REFUSES a project holding a two-side stopped run — export first —
   and builds a one-side stop on a turned path as a2's straight prism (on an arch it vanishes; its data intact). Rolling back further, to
   a1 + a2 (`3ee667e`, `index-BbXkYYy4.js`), also REFUSES a project holding an All round profile; an End to end saved by b1 loads on a2 unchanged.
@@ -160,7 +161,7 @@ handicraft education tradition built around hand woodworking.
   and Curves' `A stop on the roundover runs off the part — move it first.`, and Task 6's junction shading override. Open near
   it: 394 (residue; chunk c's speed rows — the two-side cove ~57 ms guarded 73, wrapFour 57 — and wall-clock guards flaky
   under load). Live pass: `docs/browser-verification-profile-runs-b2.md`.
-- **Chunk c1 (2026-10-19, branch `perf-c1`, NOT yet merged)**: byte-identical speed fixes for swept rebuilds (the spike's
+- **Chunk c1 (2026-10-19, MERGED to master as `65fb1fe`, DEPLOYED 2026-10-19 as `index-TCisED7E.js`)**: byte-identical speed fixes for swept rebuilds (the spike's
   bounded half; the user's target "all under 40 ms"). Kept: a part's face plans and arc chords built once per board (`grainTiling`), a
   faster `deepFreeze`, scalar `clipPolygon`/`minusCover`/`twiceArea` (`holes`), `clip`/`ring` without per-face arrays (`bodies`), `bodyMesh`
   straight into Float32Arrays and `bodyEdges`' setup as scalars. Dropped (not provably byte-identical): the piece reject and the twin

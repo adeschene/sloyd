@@ -535,7 +535,7 @@ the pin stayed green with its tolerance loosened to 1e-5, so it could not have g
 the worst minimum + 25%, never below 40: bead 71, cove 62, ogee 89 (from a fresh 71.1 ms alone: the review's I1), two loops 51,
 two-side cove 62. The final review (opus): ready to merge; every kept rewrite checked line by line against master's arithmetic; the
 pin caught every value-changing mutation, misses sign-only, threshold-only and Float32-hidden ones (record); a memo-key test was
-added (`facePlansMemo.test.ts`); swept drawings are covered only through the pinned bodies and edges (record). Next: c2.
+added (`facePlansMemo.test.ts`); swept drawings are covered only through the pinned bodies and edges (record). Merged as `65fb1fe` and **deployed 2026-10-19** as `index-TCisED7E.js` (CSS unchanged) on the user's "Merge and deploy it" — hashes in-network and at the edge, the CSP, a page load with 0 errors and storage read back empty. Next: c2.
 
 **What profile runs chunk b2 did (2026-10-19)** (stops on a turned path and two-side runs, B3/B6; fu 390's last half; plan
 `…-profile-runs-b2.md`, probe `docs/superpowers/plans/b2-probe/`; the user approved the plan's Planning questions Q9–Q27 as
