@@ -6626,6 +6626,7 @@ the air test's full scan are unchanged (unmeasured by c1). The rest unchanged.
 **Status:** chunk c2 (2026-10-19, branch `perf-c2`, unmerged; no schema change): (2)'s rows, worst minimum alone/full of four runs: ogee loop 48.1
 (guard 61), cove 38.2 (48), bead 40.2 (51), two loops 41.2 (51); the ogee loop stays over 40 and bead/two loops cross it in full runs.
 Levers left: `sweepBodies` ~11 ms, `sectionSeams` ~5, per-body mesh emission and swept normals. Still open.
+**Status:** (2) the speed rows: chunk c2 MERGED (`90ef45f`) and DEPLOYED 2026-10-19 (`index-Cqf9kRT7.js`). **The ogee loop (48.1 ms alone, guard 61) is left as is by the user's ruling (2026-10-19: "Leave the ogee loop as is for now")** — its remaining levers (`sweepBodies`, `sectionSeams`, per-body mesh emission and swept normals) need relaxing c2 spec §1 (the bodies fixed); do not pursue unasked. The bead loop and two loops cross 40 only in full runs (guards 51). (2) stays open by decision; the rest of 393 as above.
 
 ## From the profile runs round (chunk b2) — 2026-10-19
 
@@ -6685,3 +6686,4 @@ review; (5) for chunk c).
 
 **Status:** chunk c2 (2026-10-19, branch `perf-c2`, unmerged): (5)'s two-side cove 38.2 (guard 48; was 43-44); `wrapFour` measured 27.9 in c2's four runs. Rows still over 40 are the ogee loop (48.1) and, in full runs, bead (40.2) and two loops (41.2); the
 wall-clock guards stay flaky under load. Still open.
+**Status:** (5): chunk c2 MERGED and DEPLOYED 2026-10-19 (`index-Cqf9kRT7.js`): the two-side cove ≤ 38.2 (guard 48), `wrapFour` 27.9 (40). (5) is CLOSED for b2's rows; the ogee loop (fu 393) is left as is by the user's ruling. A merged full run flaked the cove loop's new 48 guard once (48.4, under load; passed alone and on a re-run) — wall-clock flakiness under load stays as noted.

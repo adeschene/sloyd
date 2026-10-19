@@ -1351,7 +1351,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 edge banding / hardware BOM, 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); chunk c (the bead/cove/ogee loops' speed, fu 393; b2's two-side cove and four-side wrap, fu 394). (390 closed by profile runs b2.)
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
@@ -1360,7 +1360,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
