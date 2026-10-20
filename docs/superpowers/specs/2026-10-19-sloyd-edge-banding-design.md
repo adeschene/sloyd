@@ -4,7 +4,8 @@
 **Chunk 1 MERGED** to master as `b7f700b` 2026-10-20 (plan `docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`; final
 review's fixes `9f36387`), **DEPLOYED 2026-10-20** as `index-Df8FpxEW.js` (schema 19). **Chunk 2** (§8: viewport, Plans sheet,
 part diagrams; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`) is MERGED (`5e55b17`) and DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`, no schema
-change. The blocks marked *Amended (planning)* (P1–P5), *Amended (implementation, chunk 1)* below await the user's review; the
+change. The *Amended (planning)* blocks (P1–P5) were APPROVED by the user 2026-10-20; the *Amended (implementation, chunk 1)* blocks
+below await the user's review; the
 *Amended (planning, chunk 2)* block (Q1–Q7) is APPROVED by the user (Q1 their own ruling, Q2–Q7 approved 2026-10-20).
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
 inv 45), mirrored frames (inv 44), the cut list (`cutlist.ts`, inv 18, 40), sheet nesting (`nesting.ts`), Buying
@@ -82,7 +83,7 @@ SloydDocument.bandTypes: BandType[]
 - A solid band type's `material` is a reference for `pruneMaterials`: a custom material a band type uses is KEPT in
   `doc.materials` (inv 49's "exactly the materials its parts and shapes use" widens to "and its band types").
 
-> **P2** *Amended (planning)*: a SOLID band type's thickness must be **> 0** (a zero-thickness strip is not a strip; the
+> **P2** *Amended (planning)* — **approved by the user 2026-10-20**: a SOLID band type's thickness must be **> 0** (a zero-thickness strip is not a strip; the
 > loader drops one, the dialog refuses it). A tape type keeps `>= 0`.
 
 ### 2.2 Bands (part and Shape level)
@@ -110,7 +111,7 @@ Board.cornerRule?: 'ends' | 'mitre';   // absent = long edges run through; only 
   compares bands in order, the cut list by `bandSignature` (§4.1).
 - **Reorient** (inv 2): `bands` and `cornerRule` are absent from the reorient predicate (a band moves nothing).
 
-> **P1** *Amended (planning)*: **`cornerRule` is always present, in memory and stored — `'long' | 'ends' | 'mitre'`,
+> **P1** *Amended (planning)* — **approved by the user 2026-10-20**: **`cornerRule` is always present, in memory and stored — `'long' | 'ends' | 'mitre'`,
 > default `'long'`** (on `Board` and `Shape`). The text above stored only `'ends'`/`'mitre'` so that absent and `'long'`
 > could never read as different; a required field reaches the same end more simply: `links.ts`' `_sharedPrimitives` tsc
 > check (inv 45) rejects an optional shared field (`undefined` is not a string), and fu 231 warns against classifying
@@ -224,7 +225,7 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 - The cut list header carries one line when any part is banded: `Cut sizes are before banding; band before machining —
   every cut, hole and curve is measured on the banded part.`
 
-> **P5 (corner words)** *Amended (planning)*: the corner words (`long edges run through`, …) print only where two ADJACENT
+> **P5 (corner words)** *Amended (planning)* — **approved by the user 2026-10-20**: the corner words (`long edges run through`, …) print only where two ADJACENT
 > bands with thickness meet and one of them is solid — the rule that decides when the corner rule matters (§3.2;
 > `bandsMeetAtCorner`, also the Corners select's rule). The example above names two OPPOSITE sides, where no corner exists;
 > under this rule it reads `Band: the width min side and the width max side — Maple edging 1/4"; finished 24" × 11-1/4"`.
@@ -259,7 +260,7 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
   chunk 1 (a cut-free view of the strip's length × width); chunk 2 draws its mitred ends.
 - Strips of a SOLID material only (the band type's material select offers solid materials only, §5.2).
 
-> **P5 (strip names)** *Amended (planning)*: strip rows are named PER STRIP, `Shelf edging (width min side)`, and collapse
+> **P5 (strip names)** *Amended (planning)* — **approved by the user 2026-10-20**: strip rows are named PER STRIP, `Shelf edging (width min side)`, and collapse
 > by cut size as any row does (its names list the strips: `Tabletop edging (width min side), Tabletop edging (width max
 > side)`); the spec's `Shelf edging (width min, width max)` was one combined name.
 
@@ -293,7 +294,7 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   sizes), so the price is always the rounded-up feet × the price.
 - Printed: the block prints inside Buying's own page (fu 383).
 
-> **P5 (the tape line)** *Amended (planning)*: Buying's tape line uses Buying's own line style with its verb:
+> **P5 (the tape line)** *Amended (planning)* — **approved by the user 2026-10-20**: Buying's tape line uses Buying's own line style with its verb:
 > `Iron-on veneer, 7/8" wide: buy 15′ · $4.50` (above: `…: 34′ — $10.20`). Metric: `Iron-on veneer, 7/8" (22 mm) wide:
 > 2.2 m, buy 8′ · no price` (above: `10.4 m (35′) — $10.50`).
 
@@ -330,10 +331,10 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
 - The dialog's ONE Save writes band types with the rest of the project edit (one undo entry); band types are project
   state, so the library and browser prices are untouched by them.
 
-> **P3** *Amended (planning)*: a new band type's kind is chosen from `+ Add band type ▾` and is **never a select**, even
+> **P3** *Amended (planning)* — **approved by the user 2026-10-20**: a new band type's kind is chosen from `+ Add band type ▾` and is **never a select**, even
 > on an unsaved row (the menu choice is enough and removes a re-default path).
 >
-> **P4** *Amended (planning)*: a solid band type's material is a **built-in solid or a custom solid already in this
+> **P4** *Amended (planning)* — **approved by the user 2026-10-20**: a solid band type's material is a **built-in solid or a custom solid already in this
 > project** (`doc.materials`); a custom material created in the same dialog Save is not offered until saved (one Save
 > would otherwise have to order a material upsert before a band type that names it).
 
