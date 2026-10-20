@@ -8,11 +8,15 @@ export interface PopoverItem {
   run: () => void;
   /** Shown but not choosable (the exploded view's lock on an editing item, fu 262). */
   disabled?: boolean;
+  /** The item's tooltip: why a disabled item cannot be chosen (edge banding spec §5.1). */
+  title?: string;
 }
 
 interface Props {
   label: ReactNode;
-  items: PopoverItem[];
+  /** The items, or a function building them, called only while the popup is open (judged on open, never per render:
+   *  fu 388's rule, edge banding spec §5.1). */
+  items: PopoverItem[] | (() => PopoverItem[]);
   title?: string;
   align?: 'start' | 'end';
   className?: string;
@@ -90,8 +94,8 @@ export function Popover({ label, items, title, align = 'start', className }: Pro
       </button>
       {open && (
         <div className={`popover-popup popover-${align}`}>
-          {items.map((it) => (
-            <button key={it.label} className="popover-item" aria-label={it.label} disabled={it.disabled}
+          {(typeof items === 'function' ? items() : items).map((it) => (
+            <button key={it.label} className="popover-item" aria-label={it.label} disabled={it.disabled} title={it.title}
               onClick={() => { trigger.current?.focus(); setOpen(false); it.run(); }}>
               <span className="popover-item-label">{it.label}</span>
               {it.detail && <span className="popover-item-detail">{it.detail}</span>}

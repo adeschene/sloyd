@@ -121,6 +121,20 @@ export const bandFaults = (part: Board, types: readonly BandType[]): readonly Ba
 
 const NO_BANDS = (part: Board) => part.bands.length === 0;
 
+/** Adjacent side pairs, as `BAND_SIDES` indices: each long edge with each end. */
+const CORNERS: readonly (readonly [number, number])[] = [[0, 2], [0, 3], [1, 2], [1, 3]];
+
+/** THE corner rule's reach (spec §3.2, Amended (planning) P5): two ADJACENT unfaulted bands with thickness meet and one is
+ *  solid. The cut list prints its corner words, and Properties shows its Corners select, only where this holds. */
+export function bandsMeetAtCorner(part: Board, types: readonly BandType[]): boolean {
+  if (NO_BANDS(part)) return false;
+  const j = judge(part, types);
+  return CORNERS.some(([a, c]) => {
+    const p = j.type[a], q = j.type[c];
+    return !!p && !!q && j.t[a]! > 0 && j.t[c]! > 0 && (p.kind === 'solid' || q.kind === 'solid');
+  });
+}
+
 /** The part's CORE size (spec §3.1): each unfaulted banded side's thickness off its dimension, whatever the corner rule. */
 export function coreSize(part: Board, types: readonly BandType[]): { length: number; width: number; thickness: number } {
   if (NO_BANDS(part)) return { length: part.length, width: part.width, thickness: part.thickness };

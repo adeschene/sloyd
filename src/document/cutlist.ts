@@ -19,7 +19,7 @@ import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
 import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
 import { geometryBoard, profileValues, sweptProfiles } from './profiles';
-import { BAND_SIDES, bandFaultText, bandFaults, bandOn, bandSignature, coreSize, cutStock, sameSide, stripBoard, strips } from './banding';
+import { bandFaultText, bandFaults, bandSignature, bandsMeetAtCorner, coreSize, cutStock, sameSide, stripBoard, strips } from './banding';
 import type { BandFaultKind, Strip } from './banding';
 import { edgeName } from './holeText';
 
@@ -210,8 +210,6 @@ function tenonLine(t: Tenon, units: Units): string {
 
 const sideWords = (s: ProfileSide) => edgeName({ dim: s.across, side: s.from });
 const CORNER_WORDS: Record<CornerRule, string> = { long: 'long edges run through', ends: 'ends run through', mitre: 'mitred corners' };
-/** Adjacent side pairs, as `BAND_SIDES` indices: each long edge with each end. */
-const CORNERS: readonly (readonly [number, number])[] = [[0, 2], [0, 3], [1, 2], [1, 3]];
 
 /**
  * THE band line (edge banding spec §4.1, Amended (planning) P5): one clause per band type (sides in canonical order),
@@ -232,14 +230,7 @@ function bandLine(board: Board, types: readonly BandType[], units: Units): strin
   }
   const clauses = [...groups.values()].map(({ type, fault, sides }) =>
     `${sides.map(sideWords).join(' and ')} — ${types.find((t) => t.id === type)!.name}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
-  const live = (s: ProfileSide) => {
-    const b = bandOn(board.bands, s);
-    return !b || faultOf(s) ? undefined : types.find((t) => t.id === b.type);
-  };
-  const meets = CORNERS.some(([a, c]) => {
-    const p = live(BAND_SIDES[a]!), q = live(BAND_SIDES[c]!);
-    return !!p && !!q && p.thickness > 0 && q.thickness > 0 && (p.kind === 'solid' || q.kind === 'solid');
-  });
+  const meets = bandsMeetAtCorner(board, types);
   const core = coreSize(board, types);
   const finished = core.length !== board.length || core.width !== board.width ? `; finished ${formatSize([board.length, board.width], units)}` : '';
   return `Band: ${clauses.join('; ')}${meets ? `, ${CORNER_WORDS[board.cornerRule]}` : ''}${finished}`;
