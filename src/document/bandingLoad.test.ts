@@ -72,7 +72,7 @@ describe('loading schema 19 (edge banding spec §2.3)', () => {
   });
   it('a shape carries bands too', () => {
     const shape = { id: 's1', length: 30, width: 11, thickness: 0.75, material: 'plywood', grain: 'length', posture: 'flat', cuts: [], angleCuts: [],
-      holes: [], curves: [], profiles: [], bands: [{ side: W0, type: 'band-iron-on' }], cornerRule: 'long' };
+      holes: [], curves: [], profiles: [], bands: [{ side: W0, type: 'band-iron-on' }], cornerRule: 'long', hardware: [] };
     const d = migrateDocument(raw({ shapes: [shape], boards: [
       { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [0, 0, 20], rotation: 0, shape: 's1' }] }));
     expect(d.shapes[0]!.bands).toEqual([{ side: W0, type: 'band-iron-on' }]);

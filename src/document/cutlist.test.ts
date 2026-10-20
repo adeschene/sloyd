@@ -659,7 +659,7 @@ describe('mirrored copies on the cut list (mirrored-instances spec §6)', () => 
       { id: 'l', name: 'Left', definition: 'd', position: [0, 0, 0], rotation: 0 },
       { id: 'r', name: 'Right', definition: 'd', position: [40, 0, 0], rotation: 0, mirrored: true },
     ],
-    definitions: [{ id: 'd', boards: [{ ...b, id: 'p' }], instances: [] }],
+    definitions: [{ id: 'd', boards: [{ ...b, id: 'p' }], instances: [], hardware: [] }],
   });
   const rowsOf = (d: SloydDocument) => buildCutList(flatDocument(d)).groups.flatMap((g) => g.rows);
   it('a one-handed part and its mirror are two rows; a symmetric part is one row of 2', () => {

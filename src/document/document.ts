@@ -266,6 +266,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     profiles: [],
     bands: [],
     cornerRule: 'long',
+    hardware: [],
     ...partial,
   };
 }
@@ -283,6 +284,8 @@ export function createDocument(name = 'Untitled'): FlatDocument {
     shapes: [],
     materials: [],
     bandTypes: [BUILT_IN_BAND],
+    hardwareTypes: [],
+    hardware: [],
   };
 }
 
@@ -759,7 +762,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long' } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: [] } };
 }
 
 /**
@@ -868,7 +871,7 @@ function validateDefinitions(raw: unknown, known: ReadonlySet<string>, bandIds: 
     ids.add(d.id);
     const seen = new Set<string>();
     const boards = d.boards.map((b, i) => validateBoard(b, i, seen, known, bandIds, legacy));
-    out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen) });
+    out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen), hardware: [] });
   }
   return out;
 }
@@ -1082,6 +1085,8 @@ export function migrateDocument(raw: unknown): SloydDocument {
     shapes: validateShapes(d.shapes, known, bandIds),
     materials,
     bandTypes,
+    hardwareTypes: [],
+    hardware: [],
   };
   // Links first, while each stored part is still the object validateBoard
   // built (the `legacy` map is keyed by object). worldParts tolerates missing

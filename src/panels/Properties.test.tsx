@@ -1357,7 +1357,7 @@ describe('Properties shared copies', () => {
 
   it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', async () => {
     const d = assemblyDoc();
-    const cab = { id: 'dc', boards: [], instances: [{ ...d.instances[0]!, id: 'k1', name: 'Drawer' }] };
+    const cab = { id: 'dc', boards: [], instances: [{ ...d.instances[0]!, id: 'k1', name: 'Drawer' }], hardware: [] };
     const doc = {
       ...d, boards: [], definitions: [...d.definitions, cab],
       instances: [

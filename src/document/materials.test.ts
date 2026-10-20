@@ -101,7 +101,7 @@ describe('uses, pruning and upserts', () => {
   });
   it('reads uses from plain parts, definition parts and shapes', () => {
     const d = docWith(['m-s-ash1'], [ash, birch, hardboard]);
-    const withDef = { ...d, definitions: [{ id: 'd1', boards: [createBoard({ id: 'q', material: 'm-v-bb55' })], instances: [] }] };
+    const withDef = { ...d, definitions: [{ id: 'd1', boards: [createBoard({ id: 'q', material: 'm-v-bb55' })], instances: [], hardware: [] }] };
     const shape = { ...createBoard({ material: 'm-p-hb48' }), id: 's1' };
     const { id: _i, name: _n, position: _p, rotation: _r, ...shared } = shape;
     const withShape = { ...withDef, shapes: [{ ...shared, id: 's1' }] };

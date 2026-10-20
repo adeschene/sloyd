@@ -190,7 +190,7 @@ describe('the Banding section (edge banding spec §5.1)', () => {
   it('Corners reads Mixed where qualifying parts disagree; untouched it writes nothing; a choice writes both (inv 5)', async () => {
     const user = userEvent.setup();
     const bands = [{ side: W0, type: 'm' }, { side: L0, type: 'm' }];
-    open([plain({ bands, cornerRule: 'long' }), plain({ id: 'z', name: 'Other', bands, cornerRule: 'mitre' })], ['a', 'z']);
+    open([plain({ bands, cornerRule: 'long', hardware: [] }), plain({ id: 'z', name: 'Other', bands, cornerRule: 'mitre' })], ['a', 'z']);
     const corners = screen.getByLabelText('Corners') as HTMLSelectElement;
     expect(corners.value).toBe('__mixed');
     expect(corners.selectedOptions[0]!.textContent).toBe('Mixed');

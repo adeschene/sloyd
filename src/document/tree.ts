@@ -1,10 +1,10 @@
-import type { Board, Definition, Instance, SloydDocument, StoredBoard, FlatDocument } from './types';
+import type { Board, HardwareUse, Definition, Instance, SloydDocument, StoredBoard, FlatDocument } from './types';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { IDENTITY_LINEAR, composeLinear, placeBoard } from './frames';
 import type { Linear } from './frames';
 
 /** A container's contents: the root (the document itself) or a definition. */
-export interface Container { boards: StoredBoard[]; instances: Instance[] }
+export interface Container { boards: StoredBoard[]; instances: Instance[]; hardware: HardwareUse[] }
 
 export const PATH_SEPARATOR = '/';
 export const NAME_SEPARATOR = ' › ';

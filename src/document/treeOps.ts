@@ -41,6 +41,7 @@ export function insertItems(
 ): SloydDocument {
   const withDefs = add.definitions?.length ? { ...doc, definitions: [...doc.definitions, ...add.definitions] } : doc;
   return updateContainer(withDefs, path, (c) => ({
+    ...c,
     boards: [...c.boards, ...(add.boards ?? [])],
     instances: [...c.instances, ...(add.instances ?? [])],
   }));
@@ -74,6 +75,7 @@ export function removeItems(doc: SloydDocument, paths: readonly string[]): Sloyd
   let out = doc;
   for (const [c, ids] of byContainer) {
     out = updateContainer(out, c, (k) => ({
+      ...k,
       boards: k.boards.filter((b) => !ids.has(b.id)),
       instances: k.instances.filter((i) => !ids.has(i.id)),
     }));
@@ -151,7 +153,7 @@ export function groupItems(doc: SloydDocument, container: string | null, paths: 
   const boards = c.boards.filter((b) => ids.has(b.id));
   const instances = c.instances.filter((i) => ids.has(i.id));
   if (boards.length + instances.length !== ids.size) return null;
-  const def: Definition = { id: nextId(), boards, instances };
+  const def: Definition = { id: nextId(), boards, instances, hardware: [] };
   const keptBoards = c.boards.filter((b) => !ids.has(b.id));
   const keptInstances = c.instances.filter((i) => !ids.has(i.id));
   const inst: Instance = {
@@ -159,7 +161,7 @@ export function groupItems(doc: SloydDocument, container: string | null, paths: 
     definition: def.id, position: [0, 0, 0], rotation: 0,
   };
   const withDef = { ...doc, definitions: [...doc.definitions, def] };
-  const out = updateContainer(withDef, container, () => ({ boards: keptBoards, instances: [...keptInstances, inst] }));
+  const out = updateContainer(withDef, container, (c) => ({ ...c, boards: keptBoards, instances: [...keptInstances, inst] }));
   const path = joinPath(container, inst.id);
   return {
     doc: out, path,
@@ -214,6 +216,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
     return named;
   });
   const out = dissolveShapes(pruneShapes(pruneDefinitions(updateContainer(doc, container, (k) => ({
+    ...k,
     boards: [...k.boards, ...boards],
     instances: [...keptInstances, ...instances],
   })))));
@@ -331,6 +334,7 @@ export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument 
       ? { ...b, position: [...b.position] as [number, number, number] }
       : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand) })),
     instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
+    hardware: [],
   };
   const withDef = { ...doc, definitions: [...doc.definitions, copy] };
   return updateContainer(withDef, parentPath(path), (c) => ({

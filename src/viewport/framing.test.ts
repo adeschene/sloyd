@@ -70,7 +70,7 @@ describe('subsetBounds', () => {
       ...createDocument('Explode'),
       boards: [cube('r', [10, 0, 0])],
       instances: [{ id: 'i', name: 'Box', definition: 'd', position: [0, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'd', boards: [cube('p', [0, 0, 0]), cube('q', [4, 0, 0])], instances: [] }],
+      definitions: [{ id: 'd', boards: [cube('p', [0, 0, 0]), cube('q', [4, 0, 0])], instances: [], hardware: [] }],
     };
     const parts = worldParts(doc);
     const offsets = explodeOffsets(doc, 1);

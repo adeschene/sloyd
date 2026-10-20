@@ -312,7 +312,7 @@ describe('documentToDesign — miters, bevels and chamfers (AI-angles spec §6)'
     const part = { ...createBoard({ id: 'p', name: 'Slat', length: 20, width: 3, thickness: 0.75, position: [0, 0, 0] }), angleCuts: [
       { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, createBoard({ length: 20, width: 3, thickness: 0.75 })) },
     ] };
-    const doc = { ...createDocument('T'), definitions: [{ id: 'd', boards: [part], instances: [] }],
+    const doc = { ...createDocument('T'), definitions: [{ id: 'd', boards: [part], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'A', definition: 'd', position: [0, 0, 0] as [number, number, number], rotation: 0 as const }, { id: 'i2', name: 'B', definition: 'd', position: [0, 0, 10] as [number, number, number], rotation: 0 as const }] };
     const r = documentToDesign(doc, MAX);
     if ('refused' in r) throw new Error(r.refused.message);

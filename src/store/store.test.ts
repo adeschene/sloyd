@@ -3121,7 +3121,7 @@ describe('hole-row actions (spec §7)', () => {
     useStore.getState().replaceDocument({
       ...createDocument('T'), boards: [],
       instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', length: 30, width: 11.25, thickness: 0.75 })], instances: [] }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', length: 30, width: 11.25, thickness: 0.75 })], instances: [], hardware: [] }],
     });
     s().addHoleRows('i/a', [row]);
     const stored = (s().doc.definitions[0]!.boards[0] as Board).holes;
@@ -3197,7 +3197,7 @@ describe('curve actions (spec §8)', () => {
     useStore.getState().replaceDocument({
       ...createDocument('T'), boards: [],
       instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', length: 30, width: 5, thickness: 0.75 })], instances: [] }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', length: 30, width: 5, thickness: 0.75 })], instances: [], hardware: [] }],
     });
     s().addCurves('i/a', [arch]);
     expect((s().doc.definitions[0]!.boards[0] as Board).curves).toHaveLength(1);
@@ -3222,7 +3222,7 @@ describe('edit() prunes custom materials (custom materials spec §2.3)', () => {
     const start: SloydDocument = {
       ...createDocument(), boards: [], materials: [ash],
       instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], instances: [] }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], instances: [], hardware: [] }],
     };
     useStore.getState().replaceDocument(start);
     useStore.getState().updateBoard('i/a', { name: 'Side' }); // an edit while the part still uses it keeps it
@@ -3397,7 +3397,7 @@ describe('profile actions (profile runs a1)', () => {
     expect({ ...b, id: a.id }).toEqual(a);
   });
   it('an edit through one user of a shape reaches every user (shared, inv 45)', () => {
-    const shape: Shape = { id: 's1', length: 36, width: 20, thickness: 0.75, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [{ ...ro, id: 'p1' }], bands: [], cornerRule: 'long' };
+    const shape: Shape = { id: 's1', length: 36, width: 20, thickness: 0.75, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [{ ...ro, id: 'p1' }], bands: [], cornerRule: 'long', hardware: [] };
     setup({ ...createDocument('T'), shapes: [shape], boards: [
       { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [0, 0, 30], rotation: 0, shape: 's1' }] });
     s().updateProfile('a', 'p1', { ...ro, size: 0.375 });
@@ -3441,7 +3441,7 @@ describe('band actions (edge banding 1)', () => {
   });
   it('an edit through one user of a shape reaches every user (shared, inv 45)', () => {
     const shape: Shape = { id: 's1', length: 30, width: 11, thickness: 0.75, material: 'plywood', grain: 'length', posture: 'flat', cuts: [], angleCuts: [],
-      holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' };
+      holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] };
     setup({ ...createDocument('T'), shapes: [shape], boards: [
       { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [0, 0, 30], rotation: 0, shape: 's1' }] } as SloydDocument);
     s().setBands(['a'], [W0], 'band-iron-on');

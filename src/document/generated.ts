@@ -291,7 +291,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'taper', detail: `${label} has a taper whose start or amount is not a finite number or is beyond 10,000in.` });
     return null;
   }
-  const made = taperCutsFor({ id: '', angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', ...fields } as Board, tapers);
+  const made = taperCutsFor({ id: '', angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [], ...fields } as Board, tapers);
   if ('fault' in made) {
     rejected.push({ name: label, reason: 'taper', detail: `${label} ${made.fault}.` });
     return null;
@@ -302,7 +302,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has a miter, bevel or chamfer whose numbers are not finite or are beyond 10,000in.` });
     return null;
   }
-  const board = { id: '', angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', ...fields } as Board;
+  const board = { id: '', angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [], ...fields } as Board;
   const angled = angleCutsFor(board, { miters: p.miters ?? [], bevels: p.bevels ?? [], chamfers }, exactAngles);
   if ('fault' in angled) {
     rejected.push({ name: label, reason: 'angle', detail: `${label} ${angled.fault}.` });
@@ -314,7 +314,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has angle cuts that together leave no wood.` });
     return null;
   }
-  return { ...fields, angleCuts, holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' };
+  return { ...fields, angleCuts, holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] };
 }
 
 /**
@@ -372,7 +372,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     });
     if (parts.length === 0) { rejected.push({ name: label, reason: 'empty' }); continue; }
     if (origins.length === 0) { rejected.push({ name: label, reason: 'unplaced' }); continue; }
-    const def: Definition = { id: nextId(), boards: parts, instances: [] };
+    const def: Definition = { id: nextId(), boards: parts, instances: [], hardware: [] };
     definitions.push(def);
     labelOf.set(def.id, label);
     for (const o of origins) instances.push({ id: nextId(), name: o.name, definition: def.id, position: o.at, rotation: 0 });

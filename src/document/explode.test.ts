@@ -17,8 +17,8 @@ const doc = (): SloydDocument => ({
   instances: [{ id: 'i', name: 'Box', definition: 'd', position: [0, 0, 0], rotation: 0 }],
   definitions: [
     { id: 'd', boards: [cube('p', [0, 0, 0]), cube('q', [4, 0, 0])],
-      instances: [{ id: 'j', name: 'Peg', definition: 'd2', position: [0, 4, 0], rotation: 0 }] },
-    { id: 'd2', boards: [cube('s', [0, 0, 0])], instances: [] },
+      instances: [{ id: 'j', name: 'Peg', definition: 'd2', position: [0, 4, 0], rotation: 0 }], hardware: [] },
+    { id: 'd2', boards: [cube('s', [0, 0, 0])], instances: [], hardware: [] },
   ],
 });
 
@@ -71,7 +71,7 @@ describe('explodeOffsets', () => {
     // a x 0..2, b x 8..10 inside wrapper W, the root's only item; W in turn may hold only V.
     // A one-child level does not count: a's term is full weight, (1,1,1) − (5,1,1) = (−4,0,0),
     // exactly the flat document's. Before the fix it moved by EXPLODE_INNER·(−4,0,0).
-    const inner = { id: 'dv', boards: [cube('a', [0, 0, 0]), cube('b', [8, 0, 0])], instances: [] };
+    const inner = { id: 'dv', boards: [cube('a', [0, 0, 0]), cube('b', [8, 0, 0])], instances: [], hardware: [] };
     const wrapped: SloydDocument = { ...createDocument('Wrapped'),
       instances: [{ id: 'W', name: 'Wrapper', definition: 'dv', position: [0, 0, 0], rotation: 0 }],
       definitions: [inner] };
@@ -79,7 +79,7 @@ describe('explodeOffsets', () => {
     expectVec(explodeOffsets(wrapped, 1).get('W/b'), [4, 0, 0]);
     const doubly: SloydDocument = { ...createDocument('Doubly'),
       instances: [{ id: 'W', name: 'Wrapper', definition: 'dw', position: [0, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'dw', boards: [], instances: [{ id: 'V', name: 'Inner', definition: 'dv', position: [0, 0, 0], rotation: 0 }] }, inner] };
+      definitions: [{ id: 'dw', boards: [], instances: [{ id: 'V', name: 'Inner', definition: 'dv', position: [0, 0, 0], rotation: 0 }], hardware: [] }, inner], hardware: [] };
     expectVec(explodeOffsets(doubly, 1).get('W/V/a'), [-4, 0, 0]);
   });
 

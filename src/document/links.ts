@@ -5,6 +5,7 @@ import { copyHoleRow, sameHoleRow } from './holes';
 import { copyCurve, sameCurve } from './curves';
 import { copyProfile, sameProfile } from './profiles';
 import { copyBand, sameBands } from './bandModel';
+import { copyHardwareUse, sameHardware } from './hardwareModel';
 
 /**
  * Which Board fields a link shares (linking spec §2): the shared ones live in
@@ -16,7 +17,7 @@ export const LINK_FIELDS = {
   id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
-  bands: 'shared', cornerRule: 'shared',
+  bands: 'shared', cornerRule: 'shared', hardware: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
 
 export type SharedField = {
@@ -33,12 +34,12 @@ const _shapeMatchesTable: [Exclude<keyof Shape, 'id'>] extends [SharedField] ? (
 void _shapeMatchesTable;
 
 /**
- * `sameShared` compares every shared field except `cuts`, `angleCuts`, `holes`, `curves`, `profiles` and `bands` with `!==`, which is
+ * `sameShared` compares every shared field except `cuts`, `angleCuts`, `holes`, `curves`, `profiles`, `bands` and `hardware` with `!==`, which is
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
  */
-const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands'>] extends string | number ? true : never = true;
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
 
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
@@ -53,6 +54,7 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     curves: b.curves.map(copyCurve),
     profiles: b.profiles.map(copyProfile),
     bands: b.bands.map(copyBand), cornerRule: b.cornerRule,
+    hardware: b.hardware.map(copyHardwareUse),
   };
 }
 
@@ -67,6 +69,7 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.curves) out.curves = patch.curves.map(copyCurve);
   if (patch.profiles) out.profiles = patch.profiles.map(copyProfile);
   if (patch.bands) out.bands = patch.bands.map(copyBand);
+  if (patch.hardware) out.hardware = patch.hardware.map(copyHardwareUse);
   return out;
 }
 
@@ -111,6 +114,8 @@ export function sameShared(a: Board, b: Board): boolean {
       }
     } else if (k === 'bands') {
       if (!sameBands(a.bands, b.bands)) return false;
+    } else if (k === 'hardware') {
+      if (!sameHardware(a.hardware, b.hardware)) return false;
     } else if (a[k] !== b[k]) {
       return false;
     }

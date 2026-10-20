@@ -197,7 +197,7 @@ describe('partFeatures: band keys (edge banding chunk 2, Q6)', () => {
   const L0 = { across: 'length' as const, from: 'min' as const };
   const L1 = { across: 'length' as const, from: 'max' as const };
   const panel = (bands: Board['bands'], over: Partial<Board> = {}): Board =>
-    ({ ...createBoard({ id: 'p', length: 36, width: 20, thickness: 0.75 }), bands, cornerRule: 'long', ...over });
+    ({ ...createBoard({ id: 'p', length: 36, width: 20, thickness: 0.75 }), bands, cornerRule: 'long', hardware: [], ...over });
   it('one key per band type: its name, its thickness, its sides in canonical order', () => {
     expect(partFeatures(panel([{ side: W0, type: 'maple' }, { side: W1, type: 'maple' }]), IMPERIAL, types).map((f) => f.text))
       .toEqual(['Maple edging 1/4": width min side, width max side']);
@@ -243,7 +243,7 @@ describe('partFeatures: band keys (edge banding chunk 2, Q6)', () => {
   });
   it('without band types: what it returned before (no band feature)', () => {
     const holed = { ...side, holes: [{ id: 'h', ...defaultHole(side) }] };
-    const b = { ...holed, bands: [{ side: W0, type: 'maple' }], cornerRule: 'long' as const };
+    const b = { ...holed, bands: [{ side: W0, type: 'maple' }], cornerRule: 'long' as const, hardware: [] };
     expect(partFeatures(b, IMPERIAL)).toEqual(partFeatures(holed, IMPERIAL));
     expect(partFeatures(b, IMPERIAL, [])).toEqual(partFeatures(holed, IMPERIAL));
     expect(partFeatures(holed, IMPERIAL, types)).toEqual(partFeatures(holed, IMPERIAL));
