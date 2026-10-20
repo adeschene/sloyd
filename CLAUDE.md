@@ -21,7 +21,9 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is the Banding section on the additions' pattern** (deployed 2026-10-20 from the merge `dc8d5c3`, bundle `index-ymPlKpkL.js`,
+- **Production is band wording** (deployed 2026-10-20 from the merge `4a6d6a1`, bundle `index-QDQAnB8n.js`, CSS unchanged: sides as a list,
+  `all four sides`, band types counted apart in Buying's tail; no schema change, so rolling back to `dc8d5c3` (`index-ymPlKpkL.js`) is free).
+  The Banding section on the additions' pattern was deployed 2026-10-20 from the merge `dc8d5c3` (bundle `index-ymPlKpkL.js`,
   CSS `index-CgWDfdXW.css` (unchanged); `+ Add banding ▾` until a part is banded, `New solid edging…`; no schema change, so rolling back to
   edge banding chunk 2 (`834ce5a`, `index-Vul7x2lO.js`) is free). Edge banding chunk 2 was deployed 2026-10-20 from `834ce5a` (merge
   `5e55b17`; no schema change, so rolling back from it to chunk 1 (`37ced13`, `index-Df8FpxEW.js`) is free). Chunk 1 was deployed
@@ -308,6 +310,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (deployed `index-Df8FpxEW.js`) |
 | edge banding (chunk 2) | 10-20 | — | Bands visible: band looks by a triangle post-pass (`bandFaces.ts`), glue lines (`glueLines`) in the viewport and on the Plans sheet (`band` tags, a key per band type), part diagrams' band marks, band and core notes, a strip's mitres (deployed `index-Vul7x2lO.js`) |
 | + Add banding | 10-20 | — | The Banding section on the additions' pattern (`+ Add banding ▾`, then the selects and `Band ▾`); `New solid edging…` opens Materials & prices with a new Solid row (deployed `index-ymPlKpkL.js`) |
+| band wording | 10-20 | — | Band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart (fu 395(2)–(3); deployed `index-QDQAnB8n.js`) |
 
 ### The deployment rule
 

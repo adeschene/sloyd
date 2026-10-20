@@ -524,7 +524,8 @@ and 79.
 (`the width min side, the width max side and the length max end`) and reads `all four sides` when one type bands all four (`bandText.ts`
 `sideList`; the cut list and the diagrams' band note share it); Buying's unpriced tail counts band types apart (`unpricedTail`:
 `2 materials and 1 band type have no price`; materials alone byte for byte as before). fu 395(4) left as is by the user. Every edge
-banding spec amendment approved the same day. No schema change.
+banding spec amendment approved the same day. No schema change. Merged as `4a6d6a1`; DEPLOYED 2026-10-20 as `index-QDQAnB8n.js` (rollback to
+`index-ymPlKpkL.js` free).
 
 **Banding section on the additions' pattern (2026-10-20, the user's request; branch `banding-add-button`)**: an unbanded selection
 shows only `+ Add banding ▾`; once any selected part is banded, the side selects, Corners, fault notes and `Band ▾` (bulk edits,
