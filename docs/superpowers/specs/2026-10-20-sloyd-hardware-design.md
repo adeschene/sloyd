@@ -1,6 +1,6 @@
 # Sloyd — hardware bill of materials
 
-**Date:** 2026-10-20 · **Status:** draft, builder-checked, for the user's review. Written from fu 267 at the user's request ("skip the
+**Date:** 2026-10-20 · **Status:** APPROVED by the user 2026-10-20 (written spec, builder-checked; every §10 call and the builder-check settlements approved with it). Written from fu 267 at the user's request ("skip the
 questions, write it from fu 267"), so **every decision below is Claude's call** unless marked as the user's; §10 lists
 them for review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the tree (`worldParts`,
