@@ -1,0 +1,306 @@
+# Sloyd — rounds and status log
+
+> Split out of `CLAUDE.md` on 2026-10-20. One row per shipped round (the table), then the Status
+> bullets as `CLAUDE.md` carried them up to 2026-10-20 — per round: what shipped, its merge and
+> bundle, rollback cost and what awaited the user's review. Add a row (and, if needed, a bullet)
+> when a round ships; the full narrative goes in `docs/history.md`. Every bundle hash and runbook
+> entry: `DEPLOYMENT.local.md`.
+
+## Rounds shipped
+
+
+| Round | Date | Schema | What it added |
+|---|---|---|---|
+| v1–v3 | 07-29/31 | 1–3 | boards, gizmo, names, grid; grain orientation, textures; posture, part-local grain |
+| joinery (cuts) | 07-31 | 4 | `Cut`: stock removed by sub-box decomposition |
+| cut list line | 08-01 | — | printable sheet, diagrams, label layout, per-face views, board feet, ghost box |
+| sheet nesting | 08-02 | 5 | guillotine-cuttable layout; `stock: { kerf }` |
+| snap-move, grabs, cut points | 08-02/03 | — | the Move tool; snap points on cuts |
+| guides + tape, type-anywhere, cardinal guides | 08-04 | 6 | the Tape tool, `guides` |
+| project library | 08-14 | — | multiple projects; `sloyd.library.v1` (layout 1) |
+| 08-31 batch | 08-31 | — | fu 157/158, 97/131, 148, 92, 140, 159–163 (163 from a bug report: ply UV sign) |
+| generate, batch variety, held and stable, key check | 10-03 | — | prototypes via Claude (inv 36, 39) |
+| stopped cuts, phantom cut, joinery | 10-04 | 7 | `stopMin`/`stopMax`; "Add joinery…" (inv 40, 41) |
+| cut words / lines / storage, 198–200, 197 | 10-04/05 | — | `cutShape`, `storedAsShape`, `clippedRegion` |
+| joinery fixes, joinery residues | 10-05 | — | fu 182–191, 201–203 |
+| multi-select, hide/unhide | 10-05 | — | `selectedIds` (inv 42), `hiddenIds` (inv 43) |
+| quarter turns | 10-05 | 8 | true 0/90/180/270 turns, `axisFrame` (inv 44) |
+| copy in a row | 10-05 | — | `rowLayout`, `copyInRow` (inv 25) |
+| linking | 10-06 | 9 | `Board.link` (retired in 11) |
+| assemblies | 10-06 | 10 | `instances` + `definitions`, Group/Ungroup (inv 46) |
+| components | 10-07 | 11 | shared definitions, links as `Shape`s (inv 45, 46) |
+| generate assemblies | 10-09 | — | generated assemblies + role-linked components, distinct-part cap |
+| refine | 10-09 | — | refine by instruction: new project + change list (fu 179) |
+| refine joined | 10-09 | — | refine keeps joints: unjoin + exact gate, fixed choices (fu 238) |
+| repair joints | 10-09 | — | Repair joints: prune pre-a899b51 strays, prove by the gate (fu 240) |
+| estimate range | 10-09 | — | Refine/joinery cost shown as a measured range (fu 236) |
+| refined name | 10-10 | — | Derived project names count a repeat ("— refined 2", "copy 2"; fu 237) |
+| join repair text | 10-10 | — | A joined Refine labels joinery's repair rounds "Choosing joints — …" (fu 242) |
+| record-only 243/244 | 10-10 | — | Dialog memos refuse instead of throwing; residue tests; live pass (fu 243, 244) |
+| older record-only | 10-10 | — | Fu 211–239 triaged and closed: eye toggles share one undo entry, no-op edits push none, guards, ~140 tests |
+| joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned; residue fu 245 |
+| opposite-end cut | 10-10 | — | A full-span cut stored into the far end runs out the grown length too (fu 245) |
+| posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
+| 246/226/227 | 10-11 | — | Deleting an assembly's last part removes it; dead eyes say why; `›` reserved in written names; sweep re-run on flipped views |
+| 229/233 | 10-11 | — | Ungroup keeps the other copy's hidden assembly hidden (as its children); one cap report for one fault |
+| mirrored instances | 10-11 | 13 | `Instance.mirrored`: a live mirrored copy through the one composition; Mirrored checkbox, Copy mirrored, ⇋ badge |
+| ui polish | 10-11 | — | Grey/walnut palette; tools and view float over the viewport; Claude ▾; action row with More ▾ and a trash icon; Guides footer |
+| 248–250 | 10-11 | — | Viewport colours approved on real hardware; ProjectMenu gets Popover's Safari focusout guard; snap markers in muted milk-paint tones |
+| plans sheet | 10-11 | — | Printable Plans sheet (exploded isometric, dimensioned third-angle elevations of the piece and each assembly); viewport Explode slider, read-only while exploded (inv 47) |
+| lumber yield & cost | 10-12 | — | Cut list Buying section: board feet × waste factor, by-the-piece boards packed and swapped to the cheapest size, sheets; prices per browser (`sloyd.shop.v1`) in a Lumber & prices dialog |
+| 254/264/273 | 10-12 | — | Plans trio height cap (tall pieces print on one page); a one-child container is not an explode level and its drawing is not repeated; a note when a smaller unpriced size would hold a board |
+| angle cuts (chunk 1) | 10-12 | 14 | `Board.angleCuts` (half-space plane cuts, stored `kind`); `boardBodies` clips pocket cells; tapers drawn, edged, snapped, on the Plans sheet, cut list (bench lines, short point) and part diagrams; Taper preset; joinery/Refine refuse angled projects |
+| angle cuts (chunk 2) | 10-12 | — | Miter preset: "+ Add ▾" (Taper, Miter, Miter both ends — one undo entry), End/Across/Long point/Angle controls (ratio stored, 45° exact), AngleField (DimensionField with a degree parse/format), the miter line names the long point |
+| angle cuts (chunk 3) | 10-12 | — | Bevel (Face, Long point, Angle; along the length) and Chamfer (any of 12 edges, Size; exact legs) presets and their final bench wording; the angle-cuts feature is complete |
+| AI tapers (chunk 1) | 10-13 | — | Add joinery and Repair accept tapers; the taper-at-joint refusal; checks trust only a taper's flat wood (`contactSolids`) |
+| AI tapers (chunk 2) | 10-13 | — | Generate and Refine read/write tapers in world words (`taperWorld.ts`); the taper-joint design fault; joined Refine with tapers |
+| turned links | 10-13 | — | Role linking aligns angle-cut ids and tries quarter turns: four tapered legs are one component (fu 301); cut order is not geometry |
+| 309–313 | 10-13 | — | AI-tapers residue: Refine refuses a taper the converter would reject; the change list diffs tapers face by face; an unjoined Refine states its fault once; taper tests in every pose |
+| 302/303 | 10-13 | — | Overlap and the tip check read a tapered part's real bodies (`clipConvex`, `partMass`); untapered results byte-for-byte unchanged |
+| standard views + image | 10-13 | — | Front/Side/Top/Iso (the Plans sheet's views; camera up stays +Y, Top tilted 1e-4 rad); Save image (one clean frame, `toBlob`, `StorageAdapter.exportImage`); framing frames exploded parts where drawn (fu 260) |
+| AI angles (chunk 1) | 10-13 | — | Add joinery and Repair accept miters, bevels and chamfers: contact trusts their flat wood (`touchedRegion`/`splitRegion`), a cut running into a joint refuses unless it clears the tenon (`angleConflicts`), joinery keeps angle cuts on their wood (`rebaseAngleCuts`, fu 307) |
+| AI angles (chunk 2) | 10-14 | — | Generate and Refine write miters, bevels and chamfers in world words (`angleWorld.ts`); exact untouched angles (`angleRatiosOf`); `angle-joint` design fault; the change list names them; chamfered legs link through turns; the design schema in `$defs` (the API's compiled-grammar cap) |
+| custom materials (chunk 1) | 10-14 | 15 | User-defined solid and sheet materials (kind in the id, inv 49): a browser library and per-project copies (`doc.materials`, pruned to what parts use); Materials & prices (was Lumber & prices); Properties picks project/library materials and New material…; Refine keeps them (per-project schema enum; Generate's byte-identical) |
+| custom materials (chunk 2) | 10-14 | — | Nominal lumber names (`units/nominal.ts`, exact match): cut-list rows named when every board is the section, Buying `2×4 × 8′`, a Properties Nominal size select, the Sold in nominal sizes switch; pine is nominal |
+| holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects |
+| holes (chunk 2) | 10-14 | — | Plans sheet: hole rims (96-gons; edge-on as one segment) and wall silhouettes through the one hidden-line pass, occluded by the hole-free bodies; plan paths chain within a part; part diagrams: ellipses, centre marks, dashed depth sides, each row's bench line as a note; the Hinge cup preset |
+| section cut | 10-15 | — | Viewport section: one Front/Side/Top plane (slider, exact field, Flip), GPU-clipped parts and edges, exact solid caps from the bodies minus bores (one winding, outline = union boundary), picking/snapping on the kept side (guides exempt); view state only (inv 51) |
+| metric display (chunks 1–2) | 10-15 | — | Per-project `in \| mm` Units switch; whole mm for fields, typing (a bare number is mm), tape, cut list, bench lines (holes to 0.1 mm), drag snap; drawings bare mm + "Dimensions in mm" note; Buying parts in mm, trade sizes with mm brackets; metric grid (inv 52) |
+| fu 354 | 10-15 | — | Metric parts match nominal sections and stock when they READ the same whole mm (`nominalName`, `fitsStock`, one `mmTicks` rounding); imperial exact |
+| fu 360 + 355 | 10-15 | — | Built-in pine's default stock adds the nominal 2× and 4×4 sizes (36); metric design faults show mm in the Joinery/Refine dialogs (`Violation.shown`), the model's text unchanged |
+| fu 357 | 10-15 | — | A metric sheet's `Dimensions in mm` repeats in every printed page's top margin (`@page metric-sheet`, margin box) |
+| curves (chunk 1) | 10-15 | 17 | `Board.curves` (`CurveCut`: a closed waste outline of lines and minor arcs in a face's (u, v), cut clean through one dimension; inv 53): clipped or split bodies, built edges, smooth normals, a watertight mesh and cap; arc snap points; bench lines and grouping; Curves section (Arch, Half-round notch, Bow, Rounded corner(s)); holes into a curve's waste fault; joinery/Refine/Repair refuse curved projects; an unknown segment type refuses the document |
+| curves (chunk 2) | 10-15 | — | Plans sheet: arcs at `DRAWING_CURVE_TOLERANCE` 0.001" (≤96 chords) through `curveDrawEdges`, visibility on the model chord, edge-on views unrefined; silhouettes of curved surfaces (`silhouetteLines`; fixes open rounded-top ends and the missing arch crown). Part diagrams: hatched waste, sharp-vertex lines on their own face, curve notes (`curveLineEntries`). Fu 361 |
+| follow-ups 1 | 10-15 | — | Fu 369 (a curved part's holed planes as one region: watertight, ~3x faster), 375, 339, 262 (+261), 338/359 (the user's rulings), 335, 348, 344 + 263, 316, 296 |
+| fu 368 | 10-16 | — | A non-convex waste rebuilds ~52 → ~6 ms: `bodyEdges` lookups indexed (byte-identical), convex pieces merged (Hertel–Mehlhorn) |
+| follow-ups 2 | 10-16 | — | Fu 297, 290, 314, 287/292 (rulings), 208/209 (undo, redo, delete refused mid-drag), 210 |
+| follow-ups 3 | 10-16 | — | From the 1–178 triage: fu 168 (failed run's spend), 53, 152, 95, 35 (unopenable project says why), 3, 18, 9, 23, 40, 14, 57, 11 |
+| fu 96 | 10-16 | — | Sheet and board layouts: a part too small for its number gets a callout row beside the drawing, with a leader |
+| follow-ups 4 | 10-16 | — | Fu 127, 13, 54, 2 (test gaps), 98 (Saw kerf field), 154 (two tabs: pinned), 6 (spaced mixed lengths) |
+| plans balloons | 10-16 | — | One numbered balloon per cut-list row on the Plans sheet's exploded view; the cut list and its layouts print the row number (fu 252) |
+| feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
+| follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78; 151 (row actions on keyboard focus) |
+| print sections | 10-16 | — | Fu 383: each cut-list section and Buying prints on a new page; 381(4) a part keyed once |
+| follow-ups 6 | 10-17 | — | Fu 8, 17, 19, 27, 126, 128, 169, 175, 234 (the last small items); 269 cheapest-plan Buying |
+| section views | 10-17 | — | Plans sheet: the viewport's section as a hatched Section A–A of the assembled piece after its trio, the A–A line on one elevation (fu 256) |
+| presets batch | 10-17 | — | Taper two/four faces (fu 278); the Chamfer row edits each leg and a Raised panel preset (fu 298); a Kind select on curve rows, `curveAs` (fu 367) |
+| presets minors | 10-17 | — | The Kind select judged on focus (not every render) and a greyed option says why; preset menu details read the project's units |
+| edge profiles (chunk 1) | 10-17 | — | Full-length Roundover, Cove, Roman ogee, Bead, Thumbnail (+ fillet) as recognised `CurveCut`s; a Profiles section, bench lines, Plans keys (fu 365 half); fu 386 (`EDGE_ON`); curved edges no longer graze hidden; four-edge tops rebuild in a frame |
+| profile runs (a1) | 10-17 | 18 | Edge profiles stored as `Board.profiles` (moved from `curves` on load); every reader through `geometryBoard`; unbuildable runs refused |
+| profile runs (a2) | 10-18 | — | Stopped profiles on a straight side with the router's run-out (`runout.ts`): bodies, edges, smooth watertight mesh, silhouettes, snaps, words; presets take the first fitting edge |
+| profile runs (b1) | 10-18 | — | Profiles follow the outline: End to end round corner arcs and along arches, All round (loops load); swept bodies (`profilePath.ts`, `sweep.ts`), edges, mesh, drawings, faults, words; a saved run too tight to follow runs straight |
+| profile runs (b2) | 10-19 | — | Stops on a turned path (a run-out about the bit's axis in the station chord's frame) and two-side runs (Stop side); a saved a2 stop on a turned path follows, or runs straight with its cause |
+| chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
+| chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
+| edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (deployed `index-Df8FpxEW.js`) |
+| edge banding (chunk 2) | 10-20 | — | Bands visible: band looks by a triangle post-pass (`bandFaces.ts`), glue lines (`glueLines`) in the viewport and on the Plans sheet (`band` tags, a key per band type), part diagrams' band marks, band and core notes, a strip's mitres (deployed `index-Vul7x2lO.js`) |
+| + Add banding | 10-20 | — | The Banding section on the additions' pattern (`+ Add banding ▾`, then the selects and `Band ▾`); `New solid edging…` opens Materials & prices with a new Solid row (deployed `index-ymPlKpkL.js`) |
+| band wording | 10-20 | — | Band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart (fu 395(2)–(3); deployed `index-QDQAnB8n.js`) |
+
+## Status log (to 2026-10-20)
+
+- **Production is band wording** (deployed 2026-10-20 from the merge `4a6d6a1`, bundle `index-QDQAnB8n.js`, CSS unchanged: sides as a list,
+  `all four sides`, band types counted apart in Buying's tail; no schema change, so rolling back to `dc8d5c3` (`index-ymPlKpkL.js`) is free).
+  The Banding section on the additions' pattern was deployed 2026-10-20 from the merge `dc8d5c3` (bundle `index-ymPlKpkL.js`,
+  CSS `index-CgWDfdXW.css` (unchanged); `+ Add banding ▾` until a part is banded, `New solid edging…`; no schema change, so rolling back to
+  edge banding chunk 2 (`834ce5a`, `index-Vul7x2lO.js`) is free). Edge banding chunk 2 was deployed 2026-10-20 from `834ce5a` (merge
+  `5e55b17`; no schema change, so rolling back from it to chunk 1 (`37ced13`, `index-Df8FpxEW.js`) is free). Chunk 1 was deployed
+  2026-10-20 from `37ced13` (merge `b7f700b`; **SCHEMA 19**: rolling back from it to chunk c2 (`90ef45f`, `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css`) REFUSES every
+  project saved since — export first). Chunk c2 was deployed 2026-10-19 from the merge `90ef45f` (no schema
+  change, so rolling back from it to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Chunk c1 was deployed from `65fb1fe` (no schema
+  change, so rolling back to b2 (`7794999`, `index-BhtaBf2G.js`) is free). Profile runs b2 was deployed 2026-10-19 from `31d88fd` (**SCHEMA 18**,
+  unchanged): rolling back to b1 (`dc49b01`, `index-CDDCzMGJ.js`) REFUSES a project holding a two-side stopped run — export first —
+  and builds a one-side stop on a turned path as a2's straight prism (on an arch it vanishes; its data intact). Rolling back further, to
+  a1 + a2 (`3ee667e`, `index-BbXkYYy4.js`), also REFUSES a project holding an All round profile; an End to end saved by b1 loads on a2 unchanged.
+  Rolling back to edge profiles chunk 1 + fu 388 (`5a9ead8`, `index-B_aEoJl0.js`) or earlier REFUSES every project saved since schema 18 — export first.
+  Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
+  `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
+  is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
+  is under Commands.
+- **Curves chunk 1 (spec `2026-10-15-sloyd-curves-design.md`, plan `…-curves-chunk1.md`, inv 53)**: deployed. Arch,
+  Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, edges, section caps, snap points, cut list, Properties.
+  The execution rulings marked *Amended (implementation, chunk 1)* in the spec await the user's review. Open near it:
+  361 closed (chunk 2), 362–367 (spec §12), 368 closed 2026-10-16, 369–373 (residue; 370 real-hardware looks: smooth shading, the grain seam).
+- **Curves chunk 2 (drawings; plan `…-curves-chunk2.md`, inv 47/53, fu 361 closed)**: deployed (merge `1e16c01`). **No schema change** (17). The Plans sheet draws arcs at 0.001" and the silhouettes of curved surfaces (a live defect on master: open rounded-top
+  ends, no arch crown); part diagrams draw the waste, sharp-vertex lines and curve notes. Rulings Q1–Q6 (marked *Amended
+  (implementation, chunk 2)* in the spec) await the user's review. Open near it: 374–379 (residue).
+- **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
+  sections and stock they read the same as). 359 closed (follow-ups 1: imperial omits a plane note that reads the same), 356/358 record-only. 355, 357 and 360 closed and deployed (357's real Brave print is owed for the user's eye).
+- **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
+  hardware), 349–350, 352 record-only (348 closed: a drilled cap's outline is built, ~10.6 ms) (351 closed: inv 43 amended).
+- **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
+  Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
+  looks owed), 345–346 (335, 338, 339, 344 closed in follow-ups 1).
+- **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master as `333bddf` and DEPLOYED as `index-LdkILHkB.js`; no schema change, so
+  rolling it back costs nothing)**: closed 369 (a curved part's holed planes drawn as one region: watertight, the pinned
+  arched side ~52 → 16 ms), 375 (silhouettes clipped to the wood), 339, 262 (+261 not reproducible), 338 and 359 (the
+  user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Its two implementation rulings were APPROVED by the user
+  2026-10-16: 296 (angle-cuts spec §7 amended) and 262's set of view-only actions (Hide others, Select copies, Select
+  linked, the guides disclosure).
+- **Fu 368 (2026-10-16, merged as `1015f08`, deployed as `index-DG6bkBPk.js`)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
+  coplanar lookups indexed (byte-identical, A/B over 21 fixtures), ear-clip triangles merged into convex pieces
+  (Hertel–Mehlhorn; 83 bodies → 16); the frozen-bodies hypothesis did not reproduce. No schema change.
+- **Follow-ups 2 (2026-10-16, merged as `0f4d732`, deployed as `index-BFCf2c3f.js`; no schema change)**: closed 297 (offset miters read-only),
+  290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
+  kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
+- **Follow-ups 3 (2026-10-16, merged as `11743cd`, deployed as `index-DwWqjN7c.js`; no schema change)**: from the 1–178 triage, closed 168 (a
+  failed run's spend reported, `< $0.01`), 53 (offset refused past `posDim - width`), 152 (Escape returns focus to the caret), 95
+  (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
+  and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). The user's rulings (2026-10-16): 37
+  record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
+- **Fu 96 (2026-10-16, merged as `9a31093`, deployed as `index-BspJH3pS.js`; no schema change)**: a sheet or board layout part too small for its index
+  number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
+- **Follow-ups 4 (2026-10-16, merged as `c27f8ff`, deployed as `index-BxqTdZO2.js`; no schema change)**: the triage's last code-sized opens —
+  test gaps 127, 13, 54 (`groupFields`: the group key is the row key's prefix), 2 (an import test that could not fail, fixed);
+  98 (a Saw kerf field in the cut list header, `setKerf`), 154 (closed: the index is re-read on every write; pinned with two
+  adapters), 6 (`1  1/2`, `1 - 1/2` parse).
+- **Plans balloons (2026-10-16, spec `2026-10-16-sloyd-plans-balloons-design.md`, plan `…-plans-balloons.md`, merged as
+  `2cbfff4`, deployed as `index-CCbseJx_.js`; no schema change)**: fu 252 closed — one numbered balloon per cut-list row on the Plans sheet's exploded view; the
+  cut list prints the row number, and its layouts label small parts with it (the user's ruling: one series). Residue 380 (column
+  balance, for the user's eye; the real print).
+- **Feature callouts (2026-10-16, spec `2026-10-16-sloyd-feature-callouts-design.md`, plan `…-feature-callouts.md`, merged as
+  `ec438c9`, deployed as `index-CaMRIw2a.js`; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
+  its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
+  (tags over dimension lines, for the user's eye; the real print).
+- **Follow-ups 5 (2026-10-16, merged as `007ea3a`, deployed as `index-uIgR_wtf.js`; no schema change)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
+  the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
+  (no sliver cell; it was marked crossing), 151 (row actions reveal on KEYBOARD focus; the user approved the look). 207
+  record-only by the user's ruling (rare; the one remedy re-enables orbit mid-press). Residue 382.
+- **Fu 383 + 381(4) (2026-10-16, on master after follow-ups 5; no schema change; deployed 2026-10-17 as `index-BGflwWYN.js`)**: the printed cut list starts each
+  material section and Buying on a new page (the user's ruling), checked with a real Chromium PDF (`page.pdf()` via the
+  Playwright code runner — a real print IS possible on this host); a stored part is keyed once on the Plans sheet (381(4)).
+  The user's real print closed 70, 79, 84, 94, 254, 345, 374, 379, 380(4), 381(3).
+- **Follow-ups 6 (2026-10-17, merged as `51f022f`; with fu 269 deployed as `index-D-v_Ne4g.js`; no schema change)**: closed 8 (`storage/index.ts`, guarded), 17
+  (`viewport/gizmoPatch.ts`), 19 (showX/Y/Z honoured; the patch unit-tested), 27 (`pointer.test.ts`), 126, 128, 169 (`api_error`
+  retryable), 175 (a throwing cost function no longer strands a batch), 234 (the concept planner knows assemblies AND tapers);
+  12 by decision, 31 by measurement. **269** (the user's go): priced by-the-piece Buying keeps the cheapest of a plan per
+  preferred opener (was largest-first only: up to 44% dearer); unpriced stock unchanged (the user: "keep unpriced as is").
+- **Section views (2026-10-17, spec `2026-10-17-sloyd-section-views-design.md`, plan `…-section-views.md`, merged to master as `114f449`; DEPLOYED as
+  `index-CosJqZi4.js`; no schema change)**: fu 256 closed — with the viewport's Section on, the Plans sheet marks A–A on one edge-on elevation of the piece
+  trio and draws a hatched Section A–A of the ASSEMBLED piece after it (`drawView`'s `section` option, `sectionView.ts`). Residue 384
+  (hatch density and the cut line's weight for the user's eye on a real print).
+- **Presets batch (2026-10-17, spec `2026-10-17-sloyd-presets-batch-design.md`, plan `…-presets-batch.md`, merged to master as `ec795fb`; DEPLOYED as `index-D8voXrmI.js`;
+  no schema change)**: fu 278 (Taper two/four faces), 298 (the Chamfer row edits each leg; a Raised panel preset), 367 (a Kind select on
+  curve rows, `curveAs`) closed. Residue 385 closed by the user's ruling (an end chamfer that leaves a tongue sets no short point), deployed as `index-JgTwUVAc.js`. The bevels' look on real hardware: approved by the user.
+- **Presets minors (2026-10-17, merged to master as `e776ecc`; DEPLOYED as `index-fwemJPwC.js`; no schema change)**: the presets batch's three deferred review minors — the
+  curve Kind select judged on focus with the reason on a greyed option, and the preset menu details in the project's units.
+- **Edge profiles chunk 1 (2026-10-17, spec `2026-10-17-sloyd-edge-profiles-design.md`, plan `…-edge-profiles.md`, merged to master as `7b04744`; DEPLOYED as
+  `index-D9D90lOX.js`; no schema change)**: fu 365's full-length half and fu 386 closed — Roundover, Cove, Roman ogee, Bead, Thumbnail (an optional
+  fillet) along a long edge or an end, as plain `CurveCut`s recognised by `profileFields`; a Profiles section; bench lines, a four-edge
+  collapse, Plans key lines. Fu 386's cause was single-axis (`EDGE_ON`). The final review's fixes: a curved part's edges no longer graze
+  hidden in their own wood (`curveEdgeLifts`), and a four-edge ogee top rebuilds in ~30 ms (was 142). Open near it: 365 (blind curved recesses;
+  stopped profiles shipped in a2), 387, 389, 390 (a profile following a curved edge), 391 ((1) closed in a2). **Fu 388** (the Profile select greys a
+  refused option and says why; the user's ruling) merged as `b64b7a1`, DEPLOYED as `index-B_aEoJl0.js`. Real-hardware look: approved.
+- **Profile runs chunk a1 (2026-10-17, spec `2026-10-17-sloyd-profile-runs-design.md`, plan `…-profile-runs-a1.md`, merged to master as
+  `305934d`; DEPLOYED with a2 2026-10-18; **SCHEMA 18**)**: edge profiles are stored as `Board.profiles` (`ProfileCut`), moved out
+  of `curves` on every load; every geometry, word and fault reader goes through `geometryBoard`; a run this build cannot build (all
+  round, stopped, ends on two sides) or an unknown kind refuses the document. No visible change (a v17 project reads byte for byte the
+  same, checked live). **Rolling back below 18 refuses every project saved since — export first.** **Deploy a1 together with a2, never alone**
+  (a1 shows nothing new; its loader's last gate hole, fu 391(1), closed in a2). Planning rulings P1–P8 are in the spec (*Amended (planning)*).
+- **Profile runs chunk a2 (2026-10-18, plan `…-profile-runs-a2.md`, merged to master as `a0b0186`; DEPLOYED with a1 2026-10-18 as `index-BbXkYYy4.js`; schema 18,
+  unchanged by a2)**: a profile on a straight side may stop short of either end (Run → Stopped; Start/Stop from the run dimension's min
+  end) and runs out as the router's bit would — the profile revolved about the bit's axis `BEARING` 1/4" outside the edge
+  (`runout.ts`; inscribed sectors, no step at the station). Bodies, edges (`smoothPair`), smooth run-out normals, a watertight mesh,
+  span-clipped and facet-chain silhouettes, snap points (P17), hole faults (P14), bench lines (`, from <a> to <b> (stopped)`) and keys
+  (`, stopped`). Rulings P9–P19 (*Amended (planning)*) and I1/I2 (*Amended (implementation, a2)*: a preset takes the FIRST edge its
+  default fits, its detail names the edge; a typed 0 or full length makes that end run out through) — I1/I2 await the user's review.
+  Open near it: 392 (residue; the run-outs' shading on real hardware and the cove's dashed contours on a real print for the user's eye).
+  **Rolling back below 18 refuses every project saved since — export first.** Chunks b1 and b2 followed (below).
+- **Profile runs chunk b1 (2026-10-18, plan `…-profile-runs-b1.md`, code complete at `fafc8b6`; MERGED to master as `dc49b01`, DEPLOYED 2026-10-18 as `index-CDDCzMGJ.js`; no
+  schema change, 18)**: a profile follows the outline. End to end on a side an Arch, notch, Bow or Rounded corner has cut follows that
+  side's stretch and carries round its corner arcs to run out at the far tangent point (B1); two End to end runs sharing only a corner
+  arc mitre at its middle (B1a); Run → All round (`{ loop: true }`, now loaded) follows the whole outline. Built as SWEPT profiles
+  (`profilePath.ts`, `sweep.ts`: the outline's skeleton bands × the kept section, inv 48), shaded smooth and watertight, edged
+  (`sweptSmoothPair`), probed, drawn (fine-path creases, facet-chain silhouettes), diagrammed (the thickness view's inner line),
+  faulted (`runs-off`, `too-tight`, overlap on the path's cover), worded (`all round <face>`, `, round the corner(s)`) and keyed; a
+  straight run keeps a1/a2's bytes. Saved End to end profiles on a cut side follow on load (B10); one too tight to follow runs
+  straight as a2 built it, its row noting `Runs straight: too tight to follow the curve.` (the final review's I1; **the user's ruling,
+  approved**: "Fall back to straight"). Curves refuses an edit that ADDS a profile fault, naming the profile. **b1 can deploy alone
+  (B7)**: the row greys Stopped on a turned run (`A stop on a curved or cornered run comes later`). **Rollback:** a2 REFUSES a b1
+  project holding a loop (All round), so rolling back to `3ee667e` / `index-BbXkYYy4.js` refuses such projects — export first; a b1
+  End to end loads on a2 unchanged (drawn as a2's straight prism). Await the user's review: the *Amended (implementation, b1)* blocks
+  (B1a; Q3/Q6's Task 3 amendments — dropped cells, the odd-count mitre projection, a swallowed end chord is `too-tight`), B1's ε
+  (the built run goes on 2·reach·tan(φ/2) past the tangent point, up to 0.084"; never a decision), Q7's wording (`, top on the edge`,
+  `, round the corner(s)`), and Q6's I2 amendment (the controller's ruling: a station run claims only straight side chords). Open
+  near it: 393 (residue; the user's eye; its speed rows went to chunk c — the ogee loop's 48 ms left as is by the user's ruling). b2 followed (below).
+- **Profile runs chunk b2 (2026-10-19, plan `…-profile-runs-b2.md`, code complete at `5027ff9`; MERGED to master as `0e41f87` (guards re-baselined `bbc46fd`), DEPLOYED 2026-10-19 as `index-BhtaBf2G.js`; no
+  schema change, 18)**: chunk b complete (fu 390 closed). A Start or Stop may sit on an arch, a bow, a notch or a corner arc
+  (B2, `stationPoint`) and runs out there with the cutter revolved about the bit's axis `BEARING` outside the station's MODEL
+  chord (Q12, `StopFrame`, `stopRunoutPieces`). A stopped run may start on one side and stop on another, round every corner
+  between (B3; a second select, **Stop side**; up to two whole sides between, never back onto Start's side). Stopped is offered
+  on any side (B7 lifted). A one-side stop on a turned path is SWEPT (Q9). A saved a2 stop there follows on load when the bit
+  fits; it runs straight as a2 built it when it does not, or when following would ADD a fault to another profile (Q10, decided
+  first: `stopFallsBack`), its row note worded by cause (`runsStraightNote(fallbackCause(…))`). A two-side run never falls
+  back. Built, shaded (junction vertices take the band's normal), watertight, edged, probed, snapped, drawn, diagrammed,
+  faulted, worded (`, from <Start> round <between> to <Stop> (stopped)`, Q21) and keyed (`, stopped`). The row refuses an edit
+  that adds a fault to ANY profile; Curves names the profile on an added `stop-off`. Deploys on top of b1 alone. **On upgrade**
+  a saved a2 stop on a turned path that fits changes its wood on first open (`stopOnArch` 97.527 → 97.375 in³), its bench line
+  unchanged. **Rollback** to `dc49b01` / `index-CDDCzMGJ.js`: a project holding a two-side run is REFUSED (export first); a
+  one-side stop on a turned path (an arch, notch, bow or corner arc) loads SILENTLY on b1 (no fault, no note, the same bench
+  line) and is built as a2's straight prism along the side, which on an arch cuts only air, so the profile vanishes. Its data
+  is intact, and it follows again when reopened on b2. Await the user's review: R5–R7 (the Stop side select: an adjacent side
+  moves the station NEARER the shared corner, the short way round; an opposite side keeps the station SHOWN as Start, or, where
+  that would make an inconsistent through Start, the profiled extent on the kept side; a moved through end is seeded), the
+  crossed-stations `stop-off` rule (inv 53), M1 (a long-way run with ONE station on the arc its two sides share is refused as `stop-off`,
+  with `A stop runs off the part` words), M2 (Side onto a shorter side on a one-side run is greyed, as a2, not seeded), the neighbour-refusal
+  words (`The roundover overlaps another profile on this edge — move the roundover first.`, ambiguous between two of one kind)
+  and Curves' `A stop on the roundover runs off the part — move it first.`, and Task 6's junction shading override. Open near
+  it: 394 (residue; its speed rows closed by chunk c — the two-side cove ≤ 38.2 ms, wrapFour 27.9 — and wall-clock guards flaky
+  under load). Live pass: `docs/browser-verification-profile-runs-b2.md`.
+- **Chunk c1 (2026-10-19, MERGED to master as `65fb1fe`, DEPLOYED 2026-10-19 as `index-TCisED7E.js`)**: byte-identical speed fixes for swept rebuilds (the spike's
+  bounded half; the user's target "all under 40 ms"). Kept: a part's face plans and arc chords built once per board (`grainTiling`), a
+  faster `deepFreeze`, scalar `clipPolygon`/`minusCover`/`twiceArea` (`holes`), `clip`/`ring` without per-face arrays (`bodies`), `bodyMesh`
+  straight into Float32Arrays and `bodyEdges`' setup as scalars. Dropped (not provably byte-identical): the piece reject and the twin
+  skip. Alone, min of 9: ogee loop 80 → 61, cove 61 → 45, bead 56 → 46, two loops 58 → 36, two-side cove 56 → 43 ms; guards lowered only.
+  Still over a frame then: bead, cove, ogee loops and the two-side cove — **c2** followed (below). No schema change; rollback free.
+- **Chunk c2 (2026-10-19, MERGED to master as `90ef45f`, DEPLOYED 2026-10-19 as `index-Cqf9kRT7.js`; plan `…-swept-speed-c2.md`; no schema change, so rollback is free)**: the restructure for swept rebuilds, in three stages. Stage 1:
+  a shaped part draws ONE geometry (`partMesh`), not a mesh per body (313 meshes on the ogee loop). Stage 2: an exact twin seam draws nothing without
+  `minusCover` (`seams.ts`: `twinFaces`, `faceCover`). Stage 3: a face the part's other bodies cover completely makes no edge candidate (it stays a wing).
+  Bodies unchanged. **Gate MISSED**: alone, every row but the ogee loop (48.1) is <= 40; in full runs the bead loop (40.2) and two loops (41.2) also cross 40. Worst minimum, before → after, alone with alone: ogee loop 63–72 → 48.1,
+  cove 45–49 → 38.2, bead 41–42 → 39.1, two loops 35–37 → 37.4, two-side cove 43–44 → 38.2. Guards lowered: ogee 89 → 61, bead
+  71 → 51, cove 62 → 48, two-side cove 62 → 48; two loops stays 51. Levers left (spec §5, the user's decision; most grow with the body count, which
+  spec §1 holds fixed): `sweepBodies` (~11 ms), `sectionSeams` (~5), per-body mesh emission and swept normals. Browser (production, software GL):
+  idle two frames 320 → ~183 ms, a commit's two frames 431 → ~270–290. Amendments A1–A4 (*Amended (planning)* in the spec: stage 2 by the twin test alone with no
+  `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) were APPROVED by the user 2026-10-19. Merged and deployed (Production, above). **The ogee loop's 48 ms is left as is by the user's ruling
+  (2026-10-19): fu 393(2), open by decision — do not pursue unasked.**
+- **Edge banding chunk 1 (2026-10-19/20, spec `2026-10-19-sloyd-edge-banding-design.md`, plan `…-edge-banding-1.md`, inv 54; branch
+  `edge-banding-1`, MERGED to master as `b7f700b` (final review's fixes `9f36387`); DEPLOYED 2026-10-20 as `index-Df8FpxEW.js`; **SCHEMA 19**)**: fu 267's
+  banding half. Band types (`doc.bandTypes`: tape or solid, the built-in `Iron-on veneer` always present) and bands on a part's four
+  broad-face sides (`Board.bands`, `cornerRule`); the model is the FINISHED size, the cut list the CORE, with band lines, a header note,
+  solid strip rows (numbered, no balloon), cores nested; Buying adds strips to their material and an `Edge banding` tape block; a Banding
+  section in Properties and an Edge banding section in Materials & prices; Curves refuses breaking a band; joinery, Refine and Repair
+  refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). Every amendment in the spec (P1–P5, *Amended (implementation,
+  chunk 1)*) was APPROVED by the user 2026-10-20; fu 395 (the live pass's items) closed
+  the same day. **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 followed (below).
+- **Edge banding chunk 2 (2026-10-20, plan `…-edge-banding-2.md`, spec §8; branch `edge-banding-2`, MERGED to master as `5e55b17`;
+  DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`; no schema change, 19)**: bands made visible. Viewport: a banded side's triangles take the band's look by a
+  POST-PASS (`viewport/bandFaces.ts`: tape the part's long grain, no plies; solid the band's colour), solid bands draw glue lines
+  (`glueLines`, `banding.ts`), clipped by the section. Plans sheet: glue lines as `band`-tagged segments, a key line per (part,
+  band type). Part diagrams: heavy marks on banded sides, the band line and a core note (fu 395(1), the user's ruling: drawn at
+  the finished size), a strip's mitred ends hatched. The spec's *Amended (planning, chunk 2)* Q2–Q7 were APPROVED by the user 2026-10-20. Open
+  near it: fu 402 (real hardware and a real print). Live pass: `docs/browser-verification-edge-banding-2.md`. Rollback is free (no schema change).
+- **+ Add banding (2026-10-20, the user's request; merged `dc8d5c3`, DEPLOYED as `index-ymPlKpkL.js`; no schema change)**: the Banding
+  section follows the additions' pattern — only `+ Add banding ▾` until a selected part is banded, then the side selects, Corners, notes
+  and `Band ▾` — and both menus end with `New solid edging…` (Materials & prices opens on a new Solid row; solid edging was reachable
+  only from the cut list). Spec §5.1 records the change.
+- **Band wording (2026-10-20, the user's choices on fu 395(2)–(3); merged `4a6d6a1`, DEPLOYED as `index-QDQAnB8n.js`; no schema change)**:
+  band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart. **Edge banding is
+  complete and every spec amendment is approved; fu 395 is closed.**
+- **NEXT (audited 2026-10-20, session close):** nothing is pending deploy (production is `4a6d6a1`; later commits are docs). Owed to the
+  user: fu 402(1)–(2) (band looks on real hardware, glue lines on a real print). As the user directs: fu 396–403 (396, 397 open by
+  decision; 398–400 features; 401, 403 record-only), and fu 267's hardware bill of materials (needs its own spec). Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
+  the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
+  feature spec (the feature-sized list), the user's eye or hardware (the owed list), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
+  entry's last `**Status:**` line tagged `(triaged 2026-10-16)`); 381–384 came later. `docs/follow-ups.md` is authoritative —
+  some entries close mid-line (`… **Status:** closed.` after an older `- **Status:** open.` bullet), so read an entry whole.
+- **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
+  it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
+  byte-identical bundles (test-only). Check what a later commit touches before reading
+  `git log` as a pending release.
+- Every runbook entry and bundle hash: `DEPLOYMENT.local.md`. Per-round narrative and the
+  deployment record: `docs/history.md`. Design specs:
+  `docs/superpowers/specs/<date>-sloyd-<slug>-design.md`; live checks:
+  `docs/browser-verification-<slug>.md`; screenshots: `docs/img/` (prefer a DOM readout,
+  add an image when the finding is spatial).
+- **Do not re-propose** two items declined on purpose: CSV/clipboard export and name
+  run-collapsing (`Leg 1..4`).

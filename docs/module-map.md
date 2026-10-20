@@ -1,0 +1,334 @@
+# Sloyd — module map
+
+> Split out of `CLAUDE.md` on 2026-10-20: the annotated source tree, as maintained. `CLAUDE.md`
+> keeps a short index and the per-file rules. Where a file's own doc comment is the stated single
+> source of truth, read it there. Rules are in `docs/invariants.md` (`inv N`).
+
+
+An index; the rules are in Invariants (`inv N`). The fully annotated tree as of
+2026-10-07 is in `docs/history.md`. Where a file's own doc comment is the stated single
+source of truth — `tapeHover`'s clearing enumeration, `tapeAxis`'s structural rule,
+`TapeAxis`'s world-vs-board-local argument, `woodCut`'s seam argument, `App.tsx`'s
+`pending` — **read it there.**
+
+```
+src/
+├── units/            length.ts (Units; parseLength/formatLength(…, units)/canBeginLength; capture set {0-9 . -}; formatMm,
+│                     formatLengthBare, formatSize, floorToTick; inv 52), nominal.ts
+│                     (NOMINAL_SECTIONS, nominalName — EXACT at 1e-9, either order —, stockLengthText: whole feet `8′`),
+│                     quantity.ts (board/square feet, two decimals fixed)
+├── document/
+│   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
+│   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`)
+│   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
+│   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes
+│   ├── ids.ts            nextId, the one id minter
+│   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
+│   │                     the derived-PROJECT name ("— refined 2", fu 237)
+│   ├── geometry.ts       axisFrame, the ONE turn table, and its crossings (inv 44);
+│   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds
+│   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46); mirrorPart/withMirror/toLocal (mirrored frames)
+│   ├── mirrorCut.ts      mirrorCutAlong (moved verbatim), mirrorCut, clamp (inv 44)
+│   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument
+│   ├── treeEdit.ts       every write-back: applyWorldEdits (storageKey), lowerEdit,
+│   │                     translateItems, writeBackFlat (inv 46); lower/lowerCuts are the exact inverse
+│   │                     of a mirrored placement; postureRefusal (flat<->upright across a mirror), sameSideFirst
+│   ├── treeOps.ts        group/ungroup, shareInstance, makeUniqueItem, removeItems, turnInstance;
+│   │                     setMirrored / mirroredCopy over placedBox / replaceKeepingBox (mirrored instances)
+│   ├── treeRepair.ts     repairTree, dropUnresolved (load repair)
+│   ├── shapes.ts         resolveBoard (THE shape reader), shapeUsers, prune/dissolveShapes (inv 45)
+│   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45; refuses
+│   │                     a member with no occurrence on the source's side of a mirror)
+│   ├── linksToShapes.ts  the v10→v11 step
+│   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
+│   │                     cutShape (THE description of a cut), cutLabel, openSides,
+│   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
+│   ├── angleCuts.ts      AngleCut model (inv 48): ANGLE_CUT_FIELDS (inv 40), keptHalfSpace, depthAt/zeroStation, touchedRegion
+│   │                     (the box a cut can remove) / splitRegion (a cell split around it: contact's flat wood),
+│   │                     mirrorAngleCut (inv 44), deriveKind; the shop-field conversions per kind — taperFields,
+│   │                     MiterFields/BevelFields (stored slope RATIO, miterRatio 45° → 1), ChamferFields (12 canonical
+│   │                     CHAMFER_EDGES, exact legs) — each with its xCut writer and default; imports only types/geometry
+│   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
+│   │                     shortPointLine (corner minimum, fu 281; an end chamfer leaving a tongue excluded, fu 385), angleDegrees (→ units)
+│   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
+│   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44),
+│   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
+│   │                     the min end of the LONGER in-face dimension, 22.5 mm in; fu 343), holeInstances/boardHoles, holeRing/
+│   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
+│   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean);
+│   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`)
+│   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
+│   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units);
+│   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
+│   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
+│   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
+│   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
+│   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
+│   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
+│   ├── curves.ts         THE curve model (inv 53): CURVE_FIELDS (inv 40), CURVE_TOLERANCE 0.005 / SEGMENTS_MAX
+│   │                     24 / STORED_MAX 64, copyCurve, mirrorCurveCut (inv 44), localSegments/arcOf (LocalArc: centre, radius,
+│   │                     rise, crown), curveOutline (chords ON the arc), smoothLines, bowsInto, wasteContains/isAir (P3),
+│   │                     circleMeetsWaste/rectMeetsWaste, curveFaults (THE decider: runs-off, cuts-through), convexPieces (ear
+│   │                     clip), curvePlan (CLIP or SPLIT; the strengthened P6), splitPieces; writers/readers archCurve/archFields,
+│   │                     bowCurve/bowFields, cornerCurve/cornerFields, deriveCurveKind, curveKindWord, presets defaultArch/
+│   │                     Notch/Bow/Corner/Corners; CurveSpan / ViewCurve / spanOf (a stopped profile's VIEW-ONLY `span: {lo, hi, stopLo, stopHi}`,
+│   │                     never stored; `curveValues` appends it only when present, P18); runtime imports `geometry` only
+│   ├── curveDrawing.ts   curves on paper (inv 47, 53): DRAWING_CURVE_TOLERANCE 0.001 / DRAWING_CURVE_SEGMENTS_MAX 96,
+│   │                     curveDrawEdges (each model chord + a fine path of nodes ON the true arc; ends stay on the chord, Q4;
+│   │                     deep-frozen, memoised), curveSilhouettes / silhouetteLines (Q1; the probe offset); EDGE_ON 1e-9 / facing (THE one
+│   │                     facing test, fu 386), outlineFaces, curveEdgeLifts (every model edge's along-view probe lift); imports geometry, bodies, snapPoints, curves
+│   ├── profiles.ts       edge profiles (inv 53): ProfileKind/PROFILE_KINDS, ProfileEdge/PROFILE_EDGES (8: long edges and ends, never through
+│   │                     the thickness), profileCurve (THE writer), profileFields (THE reader: rewrite + exact sameCurve; a thumbnail with
+│   │                     depth = size reads as a Roundover), profileAsymmetric (symmetric kinds stored at facing 'v'), defaultProfile
+│   │                     (scaled per axis), DEFAULT_PROFILE_EDGE; the stored form (schema 18): PROFILE_FIELDS, profileValues/sameProfile/
+│   │                     copyProfile, endToEnd, profileToFields/profileFromFields (v is always thickness: face = vFrom, side = u at
+│   │                     uFrom, facing v ↔ 'face'), profileAsCurve (THE profile → geometry step), profileOf (the migration's reader),
+│   │                     mirrorProfile (flag flips; a station run swaps on every mirror), geometryBoard (THE geometry view: curves then
+│   │                     profiles as chunk 1's CurveCuts, memoised per part, idempotent, the same object with no profiles; a stopped one carries `span`);
+│   │                     a2: runDim, travelSign, endPos (THE station → coordinate), oneSide, canonicalRun (P11), profileSpan,
+│   │                     profileFaults / viewProfileFaults (THE profile fault decider: stop-off, overlap; b1: runs-off, too-tight,
+│   │                     overlap on the path's cover; memoised per view, deep-frozen); b1: the view's `profiles` holds exactly the SWEPT
+│   │                     profiles (Q1; straight ones stay view curves), sweptProfiles, shapedPart (THE routing predicate: curves or swept
+│   │                     profiles), fallsBack / runsStraight (the straight fallback: a saved End to end too tight to follow stays a2's view
+│   │                     curve, I1 — ONE decision, in geometryBoard), reachDepth; b2: stopFallsBack (Q10: a saved one-side station run's
+│   │                     fallback, decided FIRST — phase 1, every other profile by its shape, every path by stored presence —, memoised per
+│   │                     part), harmFaults (what its following ADDS to another profile, against b1's all-straight baseline; part of its swept
+│   │                     judgement), fallbackCause (the cause from the judgement that DECIDED the fallback), skeletonFits (memoised on chain
+│   │                     content); the decision order: stops first, then every other judgement (phase 2) reads a fallen-back stop as straight;
+│   │                     stop-off before runs-off; a two-side run never falls back
+│   ├── profilePath.ts    THE place a run becomes a path (b1, spec §3.3): faceOutline (the rectangle with the through-thickness curves' chord
+│   │                     chains spliced in, each chord carrying its curve id and true arc), sideStretch (a side's chords; ends 'sharp' or
+│   │                     'arc'), profilePath (the path at the TANGENT POINT: every fault and decision reads it; ends through / station /
+│   │                     B1a mitre; `cover`, THE overlap source) vs builtPath (the same plus B1's ε past a station — construction only),
+│   │                     isSwept (Q2: a loop, or an End to end whose stretch is not its side's one straight segment); memoised, frozen;
+│   │                     b2: stationPoint (B2: THE station → outline point on its side's stretch, on the MODEL chords; a vertex belongs to the
+│   │                     run-side chord, Q11), the `'stop'` PathEnd (`at`, `tangent` and inward `normal` from the station's full model chord,
+│   │                     Q12), stopZone (Q13: the end-chord zone), throughConsistent (Q17), stopRun (one side or two; the re-entry and CROSSED
+│   │                     rules → null), judgedPath (the skeleton's path: `snap`, Q13's zone — never a fault's), `Opts` (`build`, `snap`,
+│   │                     `presence`, `keep`, `without`), neighbourTakes (Q18's widened B1a; never against a fallen-back stop); isSwept (Q9)
+│   │                     also a two-side run, or a one-side station run whose fault path is not one curve-free chord
+│   ├── skeleton.ts       planChain, pathSkeleton (the path's truncated straight skeleton: a swallowed chord collapses, its neighbours
+│   │                     rejoin), station clips (b2: a `stop` clip — the plane across the stop's model chord, its ray N, `end` lo/hi); a leaf
+│   │                     below profiles/sweep so the fault decider can ask for it without a cycle
+│   ├── sweep.ts          THE place a swept profile becomes geometry (b1, Q3, inv 48): sweptPlan/sweptPieces (skeleton faces × the kept
+│   │                     section's convex pieces, plus the rest of the outline), keptSection (WALL_MARGIN 1/64": a wall at the reach held
+│   │                     inside the band), builtSwept (the unfaulted swept profiles), sweptRunouts (a B1 station's a2 run-out),
+│   │                     sweptAirTester / sweptWasteMeets (probe, hole faults), sweptNormals (smooth shading), sweptInnerLine (diagrams);
+│   │                     the tag contract (`curve` on an outline chord's plane, `profileEdge` + `sweep` on a section face); memoised, frozen;
+│   │                     b2: sweptStops (each stop's `StopFrame`, read off the BUILT path; memoised per view, frozen), bandReach; a B1 station
+│   │                     clips only its own END of the band (`clipFaces`/`clipWave`: from that end to the first face wholly kept), a stop never
+│   │                     clips; `SweptPlan.bands`/`restMore` only when an open path's two ends overlap (`endOverlaps`, `convexMinus`,
+│   │                     `simpleLoops`, `trimWave`): the overlap takes BOTH chords' kept sections (any new plan reader takes `bands` when present);
+│   │                     the `overlap` face tag on faces an overlap piece cuts; the probe past a stop is band air ∪ cutter air (a union)
+│   ├── seams.ts          (chunk c2) seamIndex and `uncovered` (moved verbatim from grainTiling), `twinFaces` (exact opposite coplanar twin seams; one test shared with
+│   │                     `withoutSeams`), `faceCover` (the mesh's and the fast edges' ONE cover of a face by the other bodies, memoised on frozen bodies)
+│   ├── sectionEdges.ts   profileEdgeName / profileEdgeOf (moved from bodies.ts, re-exported there) and sectionEdgeNamer: one section-edge
+│   │                     naming for a2's run-outs and b1's bands; a leaf
+│   ├── sweptEdges.ts     sweptSmoothPair (inv 16): which two faces of one swept profile meet with no crease, both ways
+│   ├── runout.ts         THE run-out geometry (profile runs a2; inv 48, 53): BEARING 1/4", profileSection, sectionFrame, runoutAxis,
+│   │                     runoutPieces (the profile revolved about the bit's axis in INSCRIBED sectors — ρ_eff = m·(x−axis)/cos h,
+│   │                     exact on every sector ray, so no step at the station), profileWasteContains/profileWasteTester (the closed
+│   │                     oracle), profileAirTester (stockProbe's open form, P3), runoutNormal(s) (smooth shading), runoutReach (P14);
+│   │                     b2: StopFrame ({at, F, N, end}: the station's MODEL chord, Q12), stopAxis (`at − BEARING·N`), stopRunoutPieces (a2's
+│   │                     inscribed sectors in that frame; a2's functions untouched), stopRunoutNormals (the revolved normal about stopAxis)
+│   ├── curveText.ts      curveLine/curveLines (THE bench lines; four equal corners collapse; four equal unfaulted profiles on one face
+│   │                     collapse — a stopped profile never; profileName, filletWords), curveFaultText, profileFaultText / profileFaultNote
+│   │                     (THE fault words) (→ units); b1: sweptLine (`<name> all round <face>`, `, round the corner(s)`, `, top on the
+│   │                     edge`), RUNS_STRAIGHT_NOTE (the fallback's row note; the bench line has none); b2: runsStraightNote(kind) (the note
+│   │                     by cause: too tight, would overlap another profile, would run off the part), stopWords (`, from <a> to <b>
+│   │                     (stopped)` one side; `, from <Start> round <between> to <Stop> (stopped)` two, `<between>` walking the sides in travel
+│   │                     order — never the path), sweptRun (a stop's `round the corner(s)` only for a through end at a corner arc)
+│   ├── curvedRefusal.ts  curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
+│   ├── bandModel.ts      edge banding's stored model (inv 54; imports only `ids` and `types`): BUILT_IN_BAND (`band-iron-on`),
+│   │                     BAND_KINDS, CORNER_RULES, BAND_SIDES (canonical: width-min, width-max, length-min, length-max), BAND_FIELDS
+│   │                     (inv 40), canonicalBands, mirrorBands (inv 44: a flag flip), copyBand/sameBands/bandValues, withBands,
+│   │                     withBandTypes, newBandType (`Tape 2`, `Solid edging`), sameBandType
+│   ├── banding.ts        THE band arithmetic (inv 54; re-exports bandModel; no `units`): coreSize, strips (per corner rule; a mitre at
+│   │                     `atan(n / t)`), tapeRuns (true arcs; a corner arc shared by two taped sides half each), bandFaults
+│   │                     (needs-straight, no-side, too-thick, tape-narrow) / bandFaultText, bandsMeetAtCorner (THE corner-words and
+│   │                     Corners-select rule), cutStock (core copies, `bands: []`), stripBoard, stripId, bandSignature; memoised per
+│   │                     (part, band types), deep-frozen; glueLines (chunk 2: THE glue-line geometry, board-local, per corner rule)
+│   ├── bandText.ts       bandLine (THE band line, moved from cutlist.ts), coreNote (`Drawn at the finished size; cut … before banding.`) (→ units)
+│   ├── bandedRefusal.ts  bandedParts / bandedRefusal: joinery, Refine and Repair refuse a banded project (after curves')
+│   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
+│   │                     curvedEdges' boundary of coplanar convex pieces
+│   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
+│   │                     stored via the Properties writers), worldAngles (structural standard forms), angleRatiosOf (the exact-angle
+│   │                     map), ratioFor, sortAngleCuts (the one stored order)
+│   ├── taperWorld.ts     Dir/WorldTaper: design tapers in world words; dirToLocal/localToDir (inv 44), worldTapers
+│   │                     (stored → design form, structural standard form), taperCutsFor (design → taperCuts, §2.2 rules)
+│   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
+│   │                     partGeometry: THE cached reader of both, plus the frozen `holes` (shared, frozen; see per-file rules);
+│   │                     curve waste clipped or split (`BodyFace.curve` on chord faces), curvedEdges (BUILT
+│   │                     edges, inv 53), edgesOf (THE three-way choice: pocketEdges / curvedEdges / bodyEdges), SMOOTH_EPS; a stopped profile's band and
+│   │                     run-out faces tagged `runout: 'lo'|'hi'` and `profileEdge` (profileEdgeName / profileEdgeOf: THE one builder
+│   │                     and parser), smoothJoins / runoutSilhouettes (a2); b2: a stop's run-out (`stopRunoutPieces`, after B1's) on faces tagged
+│   │                     `BodyFace.stop` (its `runout` is then the path's face-frame END); `BodyFace.overlap`; curvedEdges registers each stopped
+│   │                     swept profile in a2's `stopped` map behind an `ownEnd` guard; `sectionSeams` decides a line only where both strips
+│   │                     cover it (`coveredBothSides`) and never takes a face away from `bodyEdges`
+│   ├── tenons.ts         findTenons
+│   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder; `number` (THE row number, display order) and `boardIds`
+│   ├── depthField.ts     buildDepthField (inv 20)
+│   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
+│   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
+│   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3);
+│   │                     per view `curves` (waste polygons, hatched), `curveLines` (sharp-vertex lines, only on a face
+│   │                     the vertex lies on) and `curveNotes` (`curveLineEntries`); a curve opens its through face's min view only when
+│   │                     neither side exists, AFTER holes' entry views
+│   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
+│                         grain locked, largest size opened first) and grainFootprint
+│   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
+│   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses (band
+│   │                     types' solid materials included, inv 54),
+│   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
+│   ├── purchase.ts       (by the piece: the cheapest of a plan per preferred opener when priced, fu 269) ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
+│   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
+│                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
+│                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
+│   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26); hole centres ('face-center', entry
+│   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception); b2: each swept stop offers its
+│   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`)
+│   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
+│   ├── generated.ts      DESIGN_SCHEMA (part + direction in `$defs`: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
+│   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE)
+│   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45);
+│                     turnCandidates (other quarter turns keeping the world box and grain axis; every kind re-stored via taperWorld/angleWorld; none
+│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut ids)
+│   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
+│   │                     per authored fault; "fix the assembly" only for overlaps)
+│   ├── refineDesign.ts   documentToDesign (Refine's input + refusals, incl. 'taper-form'/'angle-form'; definitions normalised),
+│   │                     carryGrain, designValues (exact values kept; angles via the exact-angle map), definitionCorner
+│   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units); taperLines/angleLines (kind `angle`;
+│   │                     a bevel placed by face AND long point)
+│   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
+│   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
+│   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48)
+│   ├── featureKeys.ts    THE feature keys (feature callouts spec §3): partFeatures (identity, owned segment tags, key line —
+│   │                     a short bench line, no positions —, fault suffix, true axis/normal), featureTag, FAULT_SUFFIX; b2: every stopped
+│   │                     run, swept or straight, one side or two, keys `<name><fillet>, stopped` (Q22)
+│   ├── drawing.ts        drawView: exact hidden-line vector drawing; every segment TAGGED with its feature (`Seg2.feature`); edges from boardEdges (inv 16) plus hole lines from
+│   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry;
+│   │                     a curved part's edges come through `curveDrawEdges`, plus `silhouetteLines`; `opts.section` clips lines and occluders to
+│   │                     the kept side and returns `caps` (from sectionCaps; absent without a section)
+│   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
+│   ├── sectionView.ts    section views on the Plans sheet (fu 256): sectionViewOf (flipped = the proper opposite view), markedView,
+│   │                     sectionTitle (→ units; from the piece's own min), cuttingLine (null off the piece), hatchPatterns (touching
+│   │                     caps differ; boxes first)
+│   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
+│   │                     sectionCaps (board-local caps minus bores, a per-part local cache), unionOutline
+│   │                     (moved to outline.ts and re-exported)
+│   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
+│   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity); `keyed` / pieceKeyed: which trio keys a part
+│   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44; chiralCurved);
+│                         curveFixtures.ts (TEST-ONLY ARCH, CORNER: never import a test module, it re-registers its suite);
+│                         sweepFixtures.ts (TEST-ONLY b1: apronArch, topCorners, notchEdge, frontOnly, plainLoop; b2: twoSide,
+│                         stopOnCorner, stopOnArch, stopOnNotch, bowFront, frontAndEnds, twoSideSharp, chiralTwoSide, zoneStop,
+│                         wrapThree, wrapFour, the station runs stationRightToBack/FrontToBack/FrontToRight, shortEnds, cornerGap,
+│                         cornerGapAs, overlapKinds/overlapCases; loader-free);
+│                         meshCases.ts (TEST-ONLY c2: sweptIdentity's swept fixtures, moved verbatim, shared by the mesh and edge tests);
+│                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
+├── store/
+│   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
+│   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46);
+│   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
+│   │                     addCurves/updateCurve/removeCurve, the same shape
+│   ├── assemblyPick.ts   clickTarget (inv 46)
+│   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
+│   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
+├── storage/          index.ts (THE import site: the chosen adapter, fu 8), types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31); get/setShopSettings
+│                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback; a write
+│                     folds `extra` into `materials`); get/setMaterialLibrary (`sloyd.materials.v1`, layout 1; an
+│                     unusable or newer value reads empty with `readFailed`, and the dialog never saves over it);
+│                     exportProject/exportImage share ONE anchor download helper
+├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
+├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), estimate.ts (cost ranges: measured
+│                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
+│                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
+│                     shared by Generate and Refine, runRefine, runJoinery),
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
+│                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
+│                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
+│                     and its twin the same stored part; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
+├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
+├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers,
+│                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
+│                     framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
+│                     with explode offsets, zoom/distance); Viewport's `ViewportHandle` (showView, capture — the clean
+│                     frame hides Gizmo/MoveTool/TapeTool by a `hidden` prop, NEVER by unmounting them)
+│                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent;
+│                     grainTiling.ts' hole path (inv 50): bodyMesh (holed faces; seam faces subtracted only in holed
+│                     bodies), faceTriangles (rings as holes, clip-split fallback), holeMesh (one hole's wall + bottom;
+│                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard)
+│                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap; sectionPerf.test.ts
+│                     grainTiling's drawsAsBox (THE BoxGeometry-or-bodyMesh routing: a box no hole reaches,
+│                     on a part WITHOUT curves), bodyMesh's radial normals on chord faces and curvedPart (seams dropped, welded,
+│                     conformed); conform.ts (insertOnEdges, centroidFan, welder, CONFORM_EPS 1e-7); capFill.ts (THE cap fan,
+│                     moved out of BoardMesh; conformed for a curved part); curvesPerf.test.ts (the guard),
+│                     curvesWatertight.test.ts (every directed edge matched), bodyMeshIdentity.test.ts (holed, uncurved: master's bytes)
+│                     bandFaces.ts (edge banding chunk 2): bandLooks, bandViewSignature (BoardMesh's memo key), bandedMesh (THE band paint:
+│                     a post-pass moving on-side triangles into groups 6+, UVs along the stretch); bandFaces.test.ts
+│                     c2: grainTiling's `partMesh` (a shaped part's ONE geometry, six material groups; no memo on the bodies, A3: they are shared across poses and ids), twinSkip.test.ts
+│                     b1: bodyMesh shades a swept profile's faces by `sweptNormals` (sweptNormals.test.ts; per face, so a ~0.005 rad step at a
+│                     tangent point); `runoutFor` falls back to `runoutOf` for every view-curve id; b2: a `stop` face takes its cutter from the
+│                     stop frames only (`stopRunoutNormals`), any other run-out face from `sweptRunouts` only; a vertex ON a stop plane takes the
+│                     band's normal (`stopJunctions`); stopNormals.test.ts
+├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
+│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
+│                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
+│                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map), diagramScale, diagramLabels (inv 19); planBalloons
+│                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); planKeys (a trio's
+│                     feature tags: chooseView, letters, anchors, merge and push; pure); Popover (Claude ▾, More ▾; an item may carry a
+│                     `title`, and `items` may be a function, called on each render while open),
+│                     Banding (the Banding section, the additions' pattern: while no selected part is banded only `+ Add banding ▾`; once
+│                     any is, a select per side, `Band ▾` — each type's all edges / long edges / ends, Remove all bands —, Corners only where
+│                     `bandsMeetAtCorner`; both menus end with `New solid edging…` (`onNewBandType`: App opens Materials & prices with
+│                     `newBand`, a new Solid row's name focused — read off the KEPT state, StrictMode runs initializers twice); options judged on focus, a refused one greyed with its reason; Mixed
+│                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
+│                     fault on any selected part; bandsShownCorner),
+│                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
+│                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
+│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
+│                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
+│                     end AND it is the same part, so a hidden rim dashes continuously); PartDiagram draws hole ellipses
+│                     (rx = r·sx, ry = r·sy), centre crosses, dashed sides and the hole notes (keyed by row);
+│                     MaterialsDialog ("Materials & prices": built-in prices, custom definitions + prices, library rows;
+│                     one Save = one project edit + library + prices; refuses, never clamps) on materialsDraft.ts (THE
+│                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; its Edge banding section on bandTypesDraft.ts
+│                     (THE pure band rows: newBandRow, fromDraft, bandRowRefusal — an ADDED fault judged against the STORED band
+│                     types, a name clash refused only when typed —, planBandTypes, rebaseBandRows; kind from `+ Add band type ▾`,
+│                     never a select, P3; delete refused while used, `Used by N parts` in world parts); CutList's Buying section
+│                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
+│                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
+│                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
+│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers);
+│                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
+│                     corner, Rounded corners —; rows by derived kind; a Kind select (`curveAs`) whose options are judged ONLY while it has focus — never per render, every edit frame is one; refusalFor: half circle first, then an ADDED curve fault,
+│                     then a hole into the waste) — on curveRefusal.ts (Draft, Control, HALF_CIRCLE, pastHalfCircle, holeRefusal,
+│                     refusalFor, optionReason: shared with Profiles; b1: profileRefusal / profileFaultsBefore / curveEditRefusal — a curve edit
+│                     that ADDS a profile fault is refused naming the profile, `Too tight for the roundover — reduce the roundover first.`;
+│                     b2: an added stop-off reads `A stop on the roundover runs off the part — move it first.`);
+│                     Curves skips profiles and offers Rounded corner through the thickness only;
+│                     Profiles (the Profiles section: "+ Add profile ▾" — a preset takes the FIRST edge its default fits, DEFAULT_PROFILE_EDGE first,
+│                     and its detail names that edge (I1); withheld only when no edge fits; rows:
+│                     Face, Side (hidden on a loop), Run (End to end / Stopped / All round; Stopped on any side since b2, B7 lifted), Stop side (b2,
+│                     Stopped only, default the Side: on a two-side run Side moves only Start and Stop side only Stop (`moveEnd`); on a one-side
+│                     run Side moves both ends (a2; an end it runs off is greyed) and Stop side onto an ADJACENT side moves the station nearer the
+│                     shared corner (`moveNearer`, R5), onto the OPPOSITE side keeps the station shown as Start (R6) or the kept side's extent (R7);
+│                     a moved end keeps the number it shows unless that adds an own fault, a moved through end is always seeded `min(3, L/4)` in
+│                     from the corner; Face on a two-side run swaps Start and Stop; one `set`, one undo entry), Start/Stop (each from its own
+│                     side's run dimension's min end; one side: the lower and higher
+│                     station; a typed 0 or full length — as the field SHOWS it — is a through end, I2, on two sides only where `throughConsistent`;
+│                     crossed ends refused on one side, two sides shown as stored), Profile (a change takes the new kind's default; options judged on focus, a refused one greyed with
+│                     its reason, fu 388), the size, Depth (thumbnail), Fillet or Quirk (bead),
+│                     Facing for asymmetric kinds (`Top: the edge` on a loop or two-side run); a fallen-back run's note by cause
+│                     (`runsStraightNote(fallbackCause(…))`); an edit refused when it ADDS a fault to ANY profile on the part, the row's own
+│                     in `PROFILE_REFUSAL` words, another's through `curveEditRefusal`)
+├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
+└── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
+                      (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
+```
+
+Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
+`security-headers.conf`.
