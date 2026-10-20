@@ -405,7 +405,7 @@ function MaterialSelect({ ids, value, library, onNewMaterial }: {
   );
 }
 
-function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler }) {
+function GroupProperties({ library, onNewMaterial, onNewBandType }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler; onNewBandType?: () => void }) {
   const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
@@ -486,7 +486,7 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
         <MaterialSelect ids={selectedIds} value={material} library={library} onNewMaterial={onNewMaterial} />
       </div>
       </div>
-      <Banding boards={boards} />
+      <Banding boards={boards} onNewBandType={onNewBandType} />
       </>}
       </EditLock>
     </div>
@@ -558,7 +558,11 @@ function InstanceProperties({ path }: { path: string }) {
   );
 }
 
-export function Properties({ library = [], onNewMaterial }: { library?: CustomMaterial[]; onNewMaterial?: NewMaterialHandler } = {}) {
+export function Properties({ library = [], onNewMaterial, onNewBandType }: {
+  library?: CustomMaterial[]; onNewMaterial?: NewMaterialHandler;
+  /** "New solid edging…" in the Banding section: App opens Materials & prices with a new Solid band type row. */
+  onNewBandType?: () => void;
+} = {}) {
   const board = useStore((s) =>
     s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined);
   const instPath = useStore((s) => (s.selectedIds.length === 1 && instanceAt(s.doc, s.selectedIds[0]!) ? s.selectedIds[0]! : null));
@@ -597,7 +601,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
     }
   }, [board?.id]);
 
-  if (groupSize >= 2) return <GroupProperties library={library} onNewMaterial={onNewMaterial} />;
+  if (groupSize >= 2) return <GroupProperties library={library} onNewMaterial={onNewMaterial} onNewBandType={onNewBandType} />;
   if (instPath) return <InstanceProperties path={instPath} />;
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
@@ -717,7 +721,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
       <Holes board={board} />
       <Curves board={board} />
       <Profiles board={board} />
-      <Banding boards={[board]} />
+      <Banding boards={[board]} onNewBandType={onNewBandType} />
       </EditLock>
     </div>
   );

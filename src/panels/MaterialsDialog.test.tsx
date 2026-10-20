@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MaterialsDialog } from './MaterialsDialog';
@@ -427,6 +428,31 @@ describe('MaterialsDialog — the Edge banding section (edge banding spec §5.2)
     const plan = onSave.mock.calls[0]![0].plan;
     expect(plan.bandTypes).toHaveLength(3);
     expect(plan.bandTypes![2]).toMatchObject({ kind: 'solid', name: 'Solid edging', thickness: 0.25, material: 'maple', widthAllowance: 0.0625 });
+  });
+
+  it('newBand: "New solid edging…" opens with a new Solid row, its name focused, saved with the list', async () => {
+    const { onSave } = openBands({ newBand: 'solid' });
+    const name = section().getByRole('textbox', { name: 'Solid edging: name' });
+    expect(name).toHaveValue('Solid edging');
+    expect(name).toHaveFocus();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const plan = onSave.mock.calls[0]![0].plan;
+    expect(plan.bandTypes).toHaveLength(3);
+    expect(plan.bandTypes![2]).toMatchObject({ kind: 'solid', name: 'Solid edging', thickness: 0.25 });
+  });
+
+  it('newBand focuses the new row under StrictMode too (initializers run twice there)', () => {
+    const onSave = vi.fn(async () => null as string | null);
+    render(<StrictMode><MaterialsDialog shop={defaultShop()} readFailed={false} project={[]} library={[]} libraryReadFailed={false}
+      locked={false} newFor={null} newBand="solid" bandTypes={bandTypes} parts={[]} solids={solids} onSave={onSave} onClose={() => {}} /></StrictMode>);
+    expect(section().getAllByRole('textbox', { name: 'Solid edging: name' })).toHaveLength(1);
+    expect(section().getByRole('textbox', { name: 'Solid edging: name' })).toHaveFocus();
+  });
+
+  it('without newBand no row is added and the sheet keeps focus', () => {
+    openBands();
+    expect(section().queryByRole('textbox', { name: 'Solid edging: name' })).toBeNull();
   });
 
   it('an edited thickness saves the edited list', async () => {

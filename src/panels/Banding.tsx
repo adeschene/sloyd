@@ -64,9 +64,11 @@ function SideSelect({ parts, ids, side, types }: { parts: readonly Board[]; ids:
   );
 }
 
-/** The Banding section (edge banding spec §5.1): a select per side, `Band ▾`, the Corners select and each faulted band's
- *  note. For one part or a multi-selection of parts; the caller wraps it in its `EditLock` (inv 47). */
-export function Banding({ boards }: { boards: readonly Board[] }) {
+/** The Banding section (edge banding spec §5.1), on the pattern of the other additions: while no selected part is banded,
+ *  only `+ Add banding ▾`; once any is, a select per side, the Corners select, each faulted band's note and `Band ▾` for
+ *  bulk edits. Both menus list each band type's all edges / long edges / ends, then `New solid edging…` (when the caller
+ *  can open Materials & prices). For one part or a multi-selection of parts; the caller wraps it in its `EditLock` (inv 47). */
+export function Banding({ boards, onNewBandType }: { boards: readonly Board[]; onNewBandType?: () => void }) {
   const types = useStore((s) => s.doc.bandTypes);
   const setBands = useStore((s) => s.setBands);
   const updateBoards = useStore((s) => s.updateBoards);
@@ -77,20 +79,31 @@ export function Banding({ boards }: { boards: readonly Board[] }) {
   const reachedIds = reached.map((b) => b.id);
   const corner = reached.length === 0 ? MIXED : common(reached.map((b) => b.cornerRule));
   // Built only while the menu is open: Popover calls it on each of its renders while open, never while closed.
+  const banded = boards.some((b) => b.bands.length > 0);
   const menu = (): PopoverItem[] => [
     ...types.flatMap((t) => MENU.map(([words, sides]) => {
       const refused = bandEditRefusal(boards, types, sides, t.id);
       return { label: `${t.name}: ${words}`, run: () => setBands(ids, sides, t.id), disabled: !!refused, title: refused ?? undefined };
     })),
-    { label: 'Remove all bands', run: () => setBands(ids, BAND_SIDES, null) },
+    ...(banded ? [{ label: 'Remove all bands', run: () => setBands(ids, BAND_SIDES, null) }] : []),
+    ...(onNewBandType ? [{ label: 'New solid edging…', run: onNewBandType }] : []),
   ];
+  // One part counts its banded sides, as Holes and Curves count their rows; a multi-selection shows no count.
+  const count = boards.length === 1 && banded ? boards[0]!.bands.length : 0;
+  const heading = <h3>Banding{count > 0 && <span className="h3-count"> · {count}</span>}</h3>;
+  if (!banded) return (
+    <>
+      {heading}
+      <Popover className="add-band" label={<>+ Add banding<span aria-hidden="true"> ▾</span></>} title="Band this part's edges" items={menu} />
+    </>
+  );
   const notes = boards.flatMap((b) => bandFaults(b, types).map((f) => ({
     key: `${b.id}:${f.side.across}-${f.side.from}:${f.kind}`,
     text: `${boards.length > 1 ? `${b.name} — ${sideText(f.side)}` : cap(sideText(f.side))}: ${bandFaultText(f.kind)}`,
   })));
   return (
     <>
-      <h3>Banding</h3>
+      {heading}
       <div className="field-grid field-grid-2">
         {BAND_SIDES.map((side) => <SideSelect key={`${side.across}-${side.from}`} parts={boards} ids={ids} side={side} types={types} />)}
         {bandsShownCorner(boards, types) && (

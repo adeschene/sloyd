@@ -520,6 +520,14 @@ and 79.
 
 ## What each round did
 
+**Banding section on the additions' pattern (2026-10-20, the user's request; branch `banding-add-button`)**: an unbanded selection
+shows only `+ Add banding ▾`; once any selected part is banded, the side selects, Corners, fault notes and `Band ▾` (bulk edits,
+Remove all bands) appear, and one part's heading counts its banded sides. Both menus end with `New solid edging…` (the user: solid
+edging was reachable only through the cut list's Materials & prices), which opens Materials & prices with a new Solid band type
+row, its name focused and scrolled into view. The live check caught what jsdom could not: under the app's StrictMode the dialog's
+`useState` initializer ran twice and the recorded new-row id named the DISCARDED row, so nothing took focus — the id is now read
+off the kept state, pinned by a StrictMode render test. No schema change.
+
 **What edge banding chunk 2 did (2026-10-20)** (spec §8; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`; branch
 `edge-banding-2` from `69008a3`, MERGED to master as `5e55b17`; **no schema change** (19); **DEPLOYED 2026-10-20 from `834ce5a` as `index-Vul7x2lO.js`** (CSS `index-CgWDfdXW.css`; rollback to `index-Df8FpxEW.js` free); subagent-driven, four tasks plus the controller's live pass). Bands
 are visible: on screen, on the Plans sheet and in part diagrams.
