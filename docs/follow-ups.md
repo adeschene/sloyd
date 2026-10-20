@@ -6787,6 +6787,8 @@ face's glue lines are hidden and dash under the visible ones (as outline edges a
 (4) **A wholly faulted band type is still keyed** and lands in `Not shown in these views: … — check the cut list`.
 (5) **The Plans key gives one line per (part, band type)** (Q6), where the spec said "a key line per banded part".
 **Status:** open (owed to the user's eye).
+**Status:** (3), (4), (5) CLOSED 2026-10-20 — the user approved Q6 and Q7 as built (one key line per band type; a wholly faulted
+type keyed under `Not shown in these views`; the strip diagram's distortion lived with). (1), (2) open (real hardware, a real print).
 
 **403. Edge banding chunk 2: deferred review minors and test gaps** (record-only unless noted).
 - Tests: the ends-rule glue test asserts two sides and counts the rest; no thick-tape case under Ends, no Mitred case with a solid

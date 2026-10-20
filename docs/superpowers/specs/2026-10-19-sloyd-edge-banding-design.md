@@ -4,8 +4,8 @@
 **Chunk 1 MERGED** to master as `b7f700b` 2026-10-20 (plan `docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`; final
 review's fixes `9f36387`), **DEPLOYED 2026-10-20** as `index-Df8FpxEW.js` (schema 19). **Chunk 2** (§8: viewport, Plans sheet,
 part diagrams; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`) is MERGED (`5e55b17`) and DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`, no schema
-change. The blocks marked *Amended (planning)* (P1–P5), *Amended (implementation, chunk 1)* and *Amended (planning, chunk 2)*
-(Q2–Q7; Q1 is the user's ruling) below await the user's review.
+change. The blocks marked *Amended (planning)* (P1–P5), *Amended (implementation, chunk 1)* below await the user's review; the
+*Amended (planning, chunk 2)* block (Q1–Q7) is APPROVED by the user (Q1 their own ruling, Q2–Q7 approved 2026-10-20).
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
 inv 45), mirrored frames (inv 44), the cut list (`cutlist.ts`, inv 18, 40), sheet nesting (`nesting.ts`), Buying
 (`purchase.ts`), custom materials (inv 49), the outline and side stretches of profile runs b1 (`profilePath.ts`:
@@ -383,7 +383,7 @@ section, the Materials dialog's Edge banding section, Curves' band refusal, `ban
 - **Part diagrams:** a heavy mark along each banded side in the broad-face view, and the band line as an HTML note (inv
   19); a strip row's own diagram (the strip, mitred ends drawn).
 
-> *Amended (planning, chunk 2)*, for the user's review (Q1 is the user's ruling):
+> *Amended (planning, chunk 2)* — **APPROVED by the user 2026-10-20** (Q1 their own ruling; Q2–Q7 approved as written):
 > - **Q1 — a banded part's diagram is drawn at the FINISHED size** (the user, 2026-10-20, fu 395(1)): heavy marks on the banded
 >   sides, the band line as a note, and `Drawn at the finished size; cut 35-1/2" × 19-1/2" before banding.` when the core differs.
 > - **Q2 — the viewport paints by moving triangles, not by recolouring a material slot** (a slot holds every face pointing one
