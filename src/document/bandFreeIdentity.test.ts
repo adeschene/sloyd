@@ -38,7 +38,27 @@ const shopWith = (over: Record<string, MaterialBuying>): ShopSettings => {
   const s = defaultShop();
   return { ...s, materials: { ...s.materials, ...over } };
 };
-const docOf = (boards: Board[], over: Partial<FlatDocument> = {}): FlatDocument => ({ ...createDocument('T'), boards, ...over });
+const docOf = (boards: Board[], over: Partial<FlatDocument> = {}): FlatDocument => fixIds({ ...createDocument('T'), boards, ...over });
+
+/**
+ * Every fixture id FIXED (fix round 1 of Task 8): a minted id is `id_<Date.now() base36>_<counter base36>`, and nesting breaks
+ * ties between identical parts by `a.id.localeCompare(b.id)` — a counter crossing a base-36 digit (`z` → `10`) inside one
+ * millisecond inverted that order against creation order, and a millisecond tick between the two mints did not, so the pin
+ * flaked under load. The fixtures' own parts carry literal
+ * ids (`id_fix_NN`); any id minted inside a builder (the Shaker table's `designToDocument`, joinery) is renamed to a literal
+ * `id_fix_NNNN` in CREATION order (timestamp, then counter, compared as numbers). Both still match `canonical`'s pattern, so
+ * the pinned hashes are unchanged.
+ */
+const MINTED = /id_([0-9a-z]+)_([0-9a-z]+)/g;
+function fixIds<T>(x: T): T {
+  const json = JSON.stringify(x);
+  const minted = [...new Set([...json.matchAll(MINTED)].filter((m) => m[1] !== 'fix').map((m) => m[0]))];
+  const order = (id: string) => id.split('_').slice(1).map((p) => parseInt(p, 36));
+  minted.sort((a, b) => { const [ta, ca] = order(a), [tb, cb] = order(b); return ta! - tb! || ca! - cb!; });
+  const fixed = new Map(minted.map((id, i) => [id, `id_fix_${String(i).padStart(4, '0')}`]));
+  return JSON.parse(json.replace(MINTED, (m) => fixed.get(m) ?? m)) as T;
+}
+const fid = (n: number) => `id_fix_${String(n).padStart(2, '0')}`;
 
 /** The generated, joined Shaker table (refine.test's flow): tenons, tapers, oak by the board foot. */
 function shaker(): FlatDocument {
@@ -46,32 +66,40 @@ function shaker(): FlatDocument {
   const flat = flatDocument(made.doc);
   const sites = findSites(flat);
   const joined = applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites)));
-  return flatDocument(migrateDocument(writeBackFlat(made.doc, flat.boards, worldParts(joined.doc))));
+  return fixIds(flatDocument(migrateDocument(writeBackFlat(made.doc, flat.boards, worldParts(joined.doc)))));
 }
 
-/** Sheet goods with nesting beside solid parts. */
-const sheets = (): FlatDocument => docOf([
-  ...Array.from({ length: 5 }, (_, i) => createBoard({ name: `Side ${i}`, material: 'plywood', length: 30, width: 23.25, thickness: 0.75 })),
-  createBoard({ name: 'Back', material: 'plywood', length: 40, width: 30, thickness: 0.5 }),
-  createBoard({ name: 'Shelf', material: 'mdf', length: 36, width: 11.25, thickness: 0.75 }),
-  createBoard({ name: 'Rail', material: 'pine', length: 34.5, width: 3.5, thickness: 0.75 }),
+/**
+ * Sheet goods with nesting beside solid parts, its eight parts' ids given. The five Sides tie in nesting, which orders them
+ * by id STRING. The pinned literals were captured with minted ids, so each case's ids reproduce the order it was captured in
+ * (fix round 1 of Task 8, read off the minted ids of a capture run): `sheet goods` ran after the Shaker table, its counter
+ * crossing `z` → `10` between Side 2 and Side 3 (`…_x … _z, …_10 …`), so Sides 3 and 4 sorted FIRST; `sheet goods, metric`
+ * ran with counters `19 … 1g`, in creation order. Each is now a literal, so neither can flip with the clock.
+ */
+const ROLLED_OVER = ['x', 'y', 'z', '10', '11', '12', '13', '14'].map((c) => `id_fix_${c}`);
+const IN_ORDER = Array.from({ length: 8 }, (_, i) => fid(i));
+const sheets = (ids: readonly string[]): FlatDocument => docOf([
+  ...Array.from({ length: 5 }, (_, i) => createBoard({ id: ids[i]!, name: `Side ${i}`, material: 'plywood', length: 30, width: 23.25, thickness: 0.75 })),
+  createBoard({ id: ids[5]!, name: 'Back', material: 'plywood', length: 40, width: 30, thickness: 0.5 }),
+  createBoard({ id: ids[6]!, name: 'Shelf', material: 'mdf', length: 36, width: 11.25, thickness: 0.75 }),
+  createBoard({ id: ids[7]!, name: 'Rail', material: 'pine', length: 34.5, width: 3.5, thickness: 0.75 }),
 ]);
 
 /** By the piece, priced pine; with an arch, a loop profile and a cut so the setup lines are exercised too. */
 const pieces = (): FlatDocument => docOf([
-  createBoard({ name: 'p1', material: 'pine', length: 40, width: 5, thickness: 0.75 }),
-  createBoard({ name: 'p2', material: 'pine', length: 40, width: 5, thickness: 0.75, curves: [ARCH] }),
-  createBoard({ name: 'p3', material: 'pine', length: 30, width: 5, thickness: 0.75,
+  createBoard({ id: fid(10), name: 'p1', material: 'pine', length: 40, width: 5, thickness: 0.75 }),
+  createBoard({ id: fid(11), name: 'p2', material: 'pine', length: 40, width: 5, thickness: 0.75, curves: [ARCH] }),
+  createBoard({ id: fid(12), name: 'p3', material: 'pine', length: 30, width: 5, thickness: 0.75,
     cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 }] }),
-  { ...topCorners(2, loop('p1', 0.5, 'ogee')), name: 'Top', material: 'pine' },
+  { ...topCorners(2, loop('p1', 0.5, 'ogee')), id: fid(13), name: 'Top', material: 'pine' },
 ]);
 const PIECE_SHOP = shopWith({ pine: { mode: 'piece', stock: [size('A', 0.75, 5.5, 96, 12), size('B', 0.75, 7.25, 96, 18), size('C', 0.75, 5.5, 72, 9), size('D', 1.5, 12, 96, 30), size('E', 0.75, 5.5, 48, null)] } });
 
 const CASES: [string, () => FlatDocument, ShopSettings][] = [
   ['shaker table', shaker, defaultShop()],
-  ['sheet goods', sheets, defaultShop()],
+  ['sheet goods', () => sheets(ROLLED_OVER), defaultShop()],
   ['by the piece', pieces, PIECE_SHOP],
-  ['sheet goods, metric', () => ({ ...sheets(), units: { display: 'metric-mm', precision: 16 } }), defaultShop()],
+  ['sheet goods, metric', () => ({ ...sheets(IN_ORDER), units: { display: 'metric-mm', precision: 16 } }), defaultShop()],
 ];
 
 // The CutList hashes (first of each pair): captured 2026-10-20 on edge-banding-1 at 6e5d6dd, before Task 5 touched

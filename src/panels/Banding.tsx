@@ -72,7 +72,7 @@ export function Banding({ boards }: { boards: readonly Board[] }) {
   const updateBoards = useStore((s) => s.updateBoards);
   const ids = boards.map((b) => b.id);
   const corner = common(boards.map((b) => b.cornerRule));
-  // Built only while the menu is open (Popover calls it then), never per render.
+  // Built only while the menu is open: Popover calls it on each of its renders while open, never while closed.
   const menu = (): PopoverItem[] => [
     ...types.flatMap((t) => MENU.map(([words, sides]) => {
       const refused = bandEditRefusal(boards, types, sides, t.id);

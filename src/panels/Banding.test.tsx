@@ -138,6 +138,25 @@ describe('the Banding section (edge banding spec §5.1)', () => {
     expect(undoDepth()).toBe(before + 1);
   });
 
+  it('Corners reads Mixed where qualifying parts disagree; untouched it writes nothing; a choice writes both (inv 5)', async () => {
+    const user = userEvent.setup();
+    const bands = [{ side: W0, type: 'm' }, { side: L0, type: 'm' }];
+    open([plain({ bands, cornerRule: 'long' }), plain({ id: 'z', name: 'Other', bands, cornerRule: 'mitre' })], ['a', 'z']);
+    const corners = screen.getByLabelText('Corners') as HTMLSelectElement;
+    expect(corners.value).toBe('__mixed');
+    expect(corners.selectedOptions[0]!.textContent).toBe('Mixed');
+    const before = undoDepth();
+    act(() => corners.focus());
+    act(() => corners.blur());
+    fireEvent.blur(corners);
+    expect(undoDepth()).toBe(before);
+    expect([part('a').cornerRule, part('z').cornerRule]).toEqual(['long', 'mitre']);
+    await user.selectOptions(corners, 'ends');
+    expect([part('a').cornerRule, part('z').cornerRule]).toEqual(['ends', 'ends']);
+    expect(undoDepth()).toBe(before + 1);
+    expect((screen.getByLabelText('Corners') as HTMLSelectElement).value).toBe('ends');
+  });
+
   it('a faulted band is noted under the selects', () => {
     open([arched({ bands: [{ side: W0, type: 'm' }] })]);
     expect(screen.getByText('Width min side: needs a straight edge')).toBeInTheDocument();

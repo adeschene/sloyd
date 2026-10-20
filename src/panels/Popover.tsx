@@ -14,8 +14,9 @@ export interface PopoverItem {
 
 interface Props {
   label: ReactNode;
-  /** The items, or a function building them, called only while the popup is open (judged on open, never per render:
-   *  fu 388's rule, edge banding spec §5.1). */
+  /** The items, or a function building them. A function is called only while the popup is open — never while it is
+   *  closed — and again on every render while it is open (fu 388's spirit, edge banding spec §5.1: no judging per edit
+   *  frame while closed). */
   items: PopoverItem[] | (() => PopoverItem[]);
   title?: string;
   align?: 'start' | 'end';
