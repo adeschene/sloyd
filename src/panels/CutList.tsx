@@ -181,7 +181,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
           ))
         )}
 
-        {purchase.entries.length > 0 && (
+        {(purchase.entries.length > 0 || purchase.banding) && (
           <section className="cutlist-buying" aria-label="Buying">
             <h3>Buying</h3>
             {purchase.entries.map((e) => (
@@ -192,6 +192,12 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                 {layouts && e.layouts.map((l) => <SheetLayout key={l.key} nesting={l.nesting} stock={l.stock} noun={l.title} numbers={rowNumbers} />)}
               </div>
             ))}
+            {purchase.banding && (
+              <div className="cutlist-buying-entry">
+                <h4>Edge banding</h4>
+                {purchase.banding.lines.map((line, i) => <p className="cutlist-buying-line" key={`t${i}`}>{line}</p>)}
+              </div>
+            )}
             <p className="cutlist-buying-total">{purchase.totalLabel}</p>
           </section>
         )}

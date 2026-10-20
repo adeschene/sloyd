@@ -325,4 +325,24 @@ describe('printed page breaks (fu 383)', () => {
     for (const g of groups.slice(1)) expect(g.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
     expect(container.querySelector('.cutlist-buying')?.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
   });
+
+  it('a by-the-piece board layout labels each strip with its strip row\'s number (edge banding spec §4.4)', () => {
+    const maple = { id: 'm', name: 'Maple edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'walnut', widthAllowance: 0.0625 };
+    useStore.getState().replaceDocument({
+      ...createDocument('Test'),
+      bandTypes: [maple],
+      boards: [createBoard({ name: 'Back', material: 'plywood', length: 20, width: 10, thickness: 0.75 }),
+        createBoard({ name: 'Shelf', material: 'plywood', length: 30, width: 12, thickness: 0.75,
+        bands: [{ side: { across: 'length', from: 'min' }, type: 'm' }] })],
+    });
+    const s = defaultShop();
+    s.materials.walnut = { mode: 'piece', stock: [{ id: 'k', thickness: 1, width: 6, length: 96, price: null }] };
+    const { container } = render(<CutList onClose={() => {}} shop={s} />);
+    const maple$ = [...container.querySelectorAll('.cutlist-group')].find((g) => g.querySelector('h3')?.textContent?.includes('Walnut'))!;
+    const num = maple$.querySelector('.cutlist-num')!.textContent!;
+    const buying = screen.getByRole('region', { name: 'Buying' });
+    const layout = buying.querySelector('svg')!;
+    expect(Number(num)).toBeGreaterThan(2);   // after both plywood rows, so a bare index (1) could not pass for it
+    expect(within(layout as unknown as HTMLElement).getAllByText(num).length).toBeGreaterThan(0);
+  });
 });
