@@ -1,15 +1,17 @@
-import type { AngleCut, Board, CurveCut, Dimension, HoleRow, ProfileCut } from './types';
+import type { AngleCut, BandType, Board, CurveCut, Dimension, HoleRow, ProfileCut } from './types';
 import type { Vec3 } from './frames';
 import { formatLength, type Units } from '../units/length';
 import { DIMENSION_ORDER } from './geometry';
 import { toWorld } from './snapPoints';
 import { holeFaults } from './holeFaults';
-import { holePitchText, holeSizeText } from './holeText';
+import { edgeName, holePitchText, holeSizeText } from './holeText';
 import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
 import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } from './curveText';
 import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './profiles';
+import { BAND_SIDES, bandFaults, sameSide } from './banding';
+import { faceOutline, sideStretch } from './profilePath';
 
 /**
  * The Plans sheet's feature keys (feature callouts spec §2.2, §3): ONE home for a feature's identity, the segment tags it
@@ -17,7 +19,7 @@ import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './pro
  * and the part diagram has the stations) and the directions it shows true from. Lengths through the document's units
  * (inv 52); every string built here (inv 19).
  */
-export type FeatureKind = 'hole' | 'angle' | 'curve';
+export type FeatureKind = 'hole' | 'angle' | 'curve' | 'band';
 export const featureTag = (part: string, kind: FeatureKind, id: string) => `${part}:${kind}:${id}`;
 export const FAULT_SUFFIX = ' — check the cut list';
 
@@ -102,7 +104,55 @@ function sweptText(b: Board, p: ProfileCut, units: Units): string {
   return `${profileName(p, units)}${filletWords(p, units)}${run ? `, ${run}` : ''}`;
 }
 
-export function partFeatures(b: Board, units: Units): PartFeature[] {
+/** Whether a band type's name already carries its formatted thickness as a BOUNDED token (final review 1): starting the
+ *  name or after a space, and ending it or followed by a space — so `Maple edging 1/4"` does, `Edging 1-1/4"` does not
+ *  carry `1/4"`, and `Maple 16 mm` does not carry `6 mm`. */
+const namesThickness = (name: string, thick: string): boolean => ` ${name} `.includes(` ${thick} `);
+
+/** One key per band type a part uses (edge banding chunk 2, Q6): `<type name>[ <thickness>]: <sides>` (the thickness left
+ *  out when the name already carries it, `namesThickness`), its sides in
+ *  canonical order (faulted ones included, the key then carrying the fault suffix), types in canonical order of first use.
+ *  Its tags: the band tag (on the glue lines and the untagged outline edges on its sides' planes, `drawView`) and, for each of its
+ *  unfaulted bands on a curved stretch, every curve its stretch's chords carry — so no segment is retagged. Read off the
+ *  STORED part, as `bandFaults` and the outline judge it. */
+function bandFeatures(b: Board, units: Units, types: readonly BandType[]): PartFeature[] {
+  if (types.length === 0 || b.bands.length === 0) return [];
+  const faults = bandFaults(b, types);
+  const out: PartFeature[] = [];
+  const byType = new Map<string, { type: BandType; sides: string[]; faulted: boolean; curves: string[] }>();
+  for (const side of BAND_SIDES) {
+    const band = b.bands.find((x) => sameSide(x.side, side));
+    const type = band && types.find((t) => t.id === band.type);
+    if (!band || !type) continue;
+    let entry = byType.get(type.id);
+    if (!entry) { entry = { type, sides: [], faulted: false, curves: [] }; byType.set(type.id, entry); }
+    entry.sides.push(edgeName({ dim: side.across, side: side.from }).slice(4));
+    if (faults.some((f) => sameSide(f.side, side))) { entry.faulted = true; continue; }
+    const outline = faceOutline(b);
+    const st = outline && sideStretch(b, outline, side);
+    if (!outline || !st) continue;
+    const n = outline.chords.length;
+    for (let i = st.from; ; i = (i + 1) % n) {
+      const c = outline.chords[i]!.curve;
+      if (c !== undefined && !entry.curves.includes(c)) entry.curves.push(c);
+      if (i === st.to) break;
+    }
+  }
+  for (const { type, sides, faulted, curves } of byType.values()) {
+    const tag = featureTag(b.id, 'band', type.id);
+    const thick = type.thickness > 0 && !namesThickness(type.name, formatLength(type.thickness, units))
+      ? ` ${formatLength(type.thickness, units)}` : '';
+    const text = `${type.name}${thick}: ${sides.join(', ')}`;
+    out.push({
+      key: tag, tags: [tag, ...curves.map((c) => featureTag(b.id, 'curve', c))], part: b.id,
+      text: faulted ? text + FAULT_SUFFIX : text, trueAxis: axisOf(b, 'thickness'), trueNormal: null,
+    });
+  }
+  return out;
+}
+
+export function partFeatures(b: Board, units: Units, bandTypes: readonly BandType[] = []): PartFeature[] {
+  const bands = bandFeatures(b, units, bandTypes);
   b = geometryBoard(b);
   const out: PartFeature[] = [];
   const push = (kind: FeatureKind, ids: string[], text: string, faulted: boolean, trueAxis: Vec3 | null, trueNormal: Vec3 | null) => {
@@ -128,5 +178,6 @@ export function partFeatures(b: Board, units: Units): PartFeature[] {
     const cs = e.ids.map((id) => b.curves.find((c) => c.id === id)!);
     push('curve', e.ids, curveText(cs[0]!, b, units, e.ids.length === 4), cs.some((c) => curveFaulted(b, c)), axisOf(b, cs[0]!.through), null);
   }
+  out.push(...bands);
   return out;
 }

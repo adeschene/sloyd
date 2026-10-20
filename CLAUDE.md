@@ -188,12 +188,17 @@ handicraft education tradition built around hand woodworking.
   section in Properties and an Edge banding section in Materials & prices; Curves refuses breaking a band; joinery, Refine and Repair
   refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). Await the user's
   review: the spec's P1–P5 *Amended (planning)* and its *Amended (implementation, chunk 1)* blocks; fu 395 (the live pass's items for the
-  user's eye). **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 (viewport, Plans
-  sheet, part diagrams) is next.
-- **NEXT (2026-10-20, after edge banding chunk 1 deployed):** (1) fu 395's items and the spec's P1–P5 / *Amended (implementation,
-  chunk 1)* blocks for the user's review; (2) **edge banding chunk 2** (spec §8: viewport colouring and glue lines, Plans sheet glue lines and keys, part diagrams' band
-  marks and a strip's own diagram) — needs its own plan (`…-edge-banding-2.md`) from the approved spec; (3) fu 395–401 as the user
-  directs. Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
+  user's eye). **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 followed (below).
+- **Edge banding chunk 2 (2026-10-20, plan `…-edge-banding-2.md`, spec §8; branch `edge-banding-2`, MERGED to master (see Rounds);
+  NOT yet deployed; no schema change, 19)**: bands made visible. Viewport: a banded side's triangles take the band's look by a
+  POST-PASS (`viewport/bandFaces.ts`: tape the part's long grain, no plies; solid the band's colour), solid bands draw glue lines
+  (`glueLines`, `banding.ts`), clipped by the section. Plans sheet: glue lines as `band`-tagged segments, a key line per (part,
+  band type). Part diagrams: heavy marks on banded sides, the band line and a core note (fu 395(1), the user's ruling: drawn at
+  the finished size), a strip's mitred ends hatched. Await the user's review: the spec's *Amended (planning, chunk 2)* Q2–Q7; fu 402
+  (the user's eye and real hardware). Live pass: `docs/browser-verification-edge-banding-2.md`. Rollback is free (no schema change).
+- **NEXT (2026-10-20, after edge banding chunk 2 merged):** (1) the user's deploy decision for chunk 2 (no schema change); (2) the
+  spec's P1–P5, *Amended (implementation, chunk 1)* and *Amended (planning, chunk 2)* blocks and fu 395(2)–(4), 402 for the user's
+  review; (3) fu 396–403 as the user directs (the banding feature of fu 267 is complete; its hardware BOM half needs a spec). Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
   the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
   feature spec (the feature-sized list), the user's eye or hardware (the owed list), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
   entry's last `**Status:**` line tagged `(triaged 2026-10-16)`); 381–384 came later. `docs/follow-ups.md` is authoritative —
@@ -298,6 +303,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
 | chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
 | edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (deployed `index-Df8FpxEW.js`) |
+| edge banding (chunk 2) | 10-20 | — | Bands visible: band looks by a triangle post-pass (`bandFaces.ts`), glue lines (`glueLines`) in the viewport and on the Plans sheet (`band` tags, a key per band type), part diagrams' band marks, band and core notes, a strip's mitres |
 
 ### The deployment rule
 
@@ -352,7 +358,7 @@ Each layer depends only on the ones before it:
 reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts`
 (`formatLength`, so one dimension never reads two ways on one sheet) and
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so does `designCheck.ts` (a metric violation's
-`shown` copy, fu 355; its model `message` stays decimal inches), and `sectionView.ts` (the section's heading).
+`shown` copy, fu 355; its model `message` stays decimal inches), and `sectionView.ts` (the section's heading), and `bandText.ts` (the band line and the core note; `banding.ts` stays numbers-only).
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
 `document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
@@ -545,7 +551,8 @@ src/
 │   │                     `atan(n / t)`), tapeRuns (true arcs; a corner arc shared by two taped sides half each), bandFaults
 │   │                     (needs-straight, no-side, too-thick, tape-narrow) / bandFaultText, bandsMeetAtCorner (THE corner-words and
 │   │                     Corners-select rule), cutStock (core copies, `bands: []`), stripBoard, stripId, bandSignature; memoised per
-│   │                     (part, band types), deep-frozen
+│   │                     (part, band types), deep-frozen; glueLines (chunk 2: THE glue-line geometry, board-local, per corner rule)
+│   ├── bandText.ts       bandLine (THE band line, moved from cutlist.ts), coreNote (`Drawn at the finished size; cut … before banding.`) (→ units)
 │   ├── bandedRefusal.ts  bandedParts / bandedRefusal: joinery, Refine and Repair refuse a banded project (after curves')
 │   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
 │   │                     curvedEdges' boundary of coplanar convex pieces
@@ -664,6 +671,8 @@ src/
 │                     conformed); conform.ts (insertOnEdges, centroidFan, welder, CONFORM_EPS 1e-7); capFill.ts (THE cap fan,
 │                     moved out of BoardMesh; conformed for a curved part); curvesPerf.test.ts (the guard),
 │                     curvesWatertight.test.ts (every directed edge matched), bodyMeshIdentity.test.ts (holed, uncurved: master's bytes)
+│                     bandFaces.ts (edge banding chunk 2): bandLooks, bandViewSignature (BoardMesh's memo key), bandedMesh (THE band paint:
+│                     a post-pass moving on-side triangles into groups 6+, UVs along the stretch); bandFaces.test.ts
 │                     c2: grainTiling's `partMesh` (a shaped part's ONE geometry, six material groups; no memo on the bodies, A3: they are shared across poses and ids), twinSkip.test.ts
 │                     b1: bodyMesh shades a swept profile's faces by `sweptNormals` (sweptNormals.test.ts; per face, so a ~0.005 rad step at a
 │                     tangent point); `runoutFor` falls back to `runoutOf` for every view-curve id; b2: a `stop` face takes its cutter from the
@@ -870,7 +879,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
     the same failure. It includes every hole row (BoardMesh's memo keys on it) and every curve (its
     id and `CURVE_FIELDS` values, as `geometryKey` does) — profiles included, through `geometryBoard` (as chunk 1's curves); a swept profile (b1) appends its own suffix to the signature,
-    `geometryKey` and the cut list's, only when the view holds one.
+    `geometryKey` and the cut list's, only when the view holds one. Bands are NOT in `boardUVSignature`: BoardMesh's geometry and
+    edge memos add `bandViewSignature(board, bandTypes)` (`viewport/bandFaces.ts`: each unfaulted band's side, kind, thickness and
+    solid material, plus the corner rule once a glue line exists; `''` with none), because a band type edit keeps the board object.
 16. **Edge lines come from `boardEdges` (the cell grid's `pocketEdges`, or `bodyEdges` once a part has angle
     cuts), not from the solids.** General
     rule: a marker or line must sit on a feature that is actually drawn. A hole draws its rim on its entry face (and exit
@@ -1137,7 +1148,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     around EDITING regions only (fu 262): the ActionBar sits outside it and disables its own non-`view` actions (Hide others,
     Select copies stay live), as do Select linked and the guides footer's disclosure. The explode
     offset is a render-time translation, never written back (inv 1). `drawView` TAGS each segment with the feature it is
-    drawn for (`Seg2.feature`, absent otherwise); the tag changes nothing else. Drawings take lines from `boardEdges` and hole
+    drawn for (`Seg2.feature`, absent otherwise); the tag changes nothing else. A band (edge banding chunk 2) tags its glue lines
+    and every untagged outline edge lying on its side's plane `<part>:band:<band type id>` (a corner edge on two planes: the first
+    side in `BAND_SIDES` order; a curve or angle tag always wins); drawn only when `drawView` gets `opts.bandTypes`, and PlanFigure's
+    trio cache is keyed on band types THEN parts. Drawings take lines from `boardEdges` and hole
     lines from `holeDrawingSegments` (one list, one hidden-line pass), and occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
     solids is inside. The exploded set is
     lifted so its lowest part never goes below the assembled lowest point. Occluders are the HOLE-FREE bodies: you
@@ -1389,13 +1403,22 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     is numbered in the ONE series but carries no `boardIds` (its ids in `stripIds`): every reader of a row's parts must
     handle an empty list, and `planBalloons` SKIPS it (never a hidden part). A band-free document's cut list and Buying are
     byte for byte as before (`bandFreeIdentity.test.ts`, FIXED ids: `nesting.ts` breaks ties by id string).
+    **On screen and on paper (chunk 2):** `glueLines` (`banding.ts`) is the ONE glue-line geometry (unfaulted SOLID bands only, both
+    broad faces; a strip that runs through draws full length, one that gives way or any under Mitred core corner to core corner, a
+    mitre line once — on the long strip when it is solid). The viewport paints a band by MOVING triangles that lie on the side's
+    outline stretch into material groups 6+ (`bandedMesh`, float32 tolerance `8·2⁻²³·max(extents)`) — never by recolouring a
+    material slot (a slot holds dado walls, hole facets and seams) — and leaves `bodyMesh`/`partMesh`/`boardBodies` untouched; a
+    banded part's bodies all draw through `bodyMesh` (pinned equal to BoxGeometry's UVs). A faulted band paints, draws and marks
+    nothing but is still keyed (` — check the cut list`) and noted. Band types reach `drawView`, `partFeatures` and
+    `buildDiagrams` as an OPTIONAL argument; with none, every output is byte for byte as before. A banded part's diagram is drawn at
+    the FINISHED size (fu 395(1)) with `bands` marks and `bandNotes` (the band line, then `coreNote`) on its first thickness view.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 6785 tests across 194 files
+npm test           # Vitest, currently 6834 tests across 197 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1408,19 +1431,20 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding chunk 1 built, chunk 2 next; the hardware BOM half open), 268, 270,
+- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding built, chunks 1–2; the hardware BOM half open), 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
-  draws nothing); the edge banding spec's P1–P5 *Amended (planning)* and *Amended (implementation, chunk 1)* blocks, and fu 395
-  (a banded row's diagram at the finished size beside the core dims, the four-side `and … and` wording, tape counted as an
-  unpriced material, strips taking the series' first numbers).
+  draws nothing); the edge banding spec's P1–P5 *Amended (planning)*, *Amended (implementation, chunk 1)* and *Amended (planning,
+  chunk 2)* (Q2–Q7) blocks, fu 395(2)–(4) (the four-side `and … and` wording, tape counted as an unpriced material, strips taking
+  the series' first numbers; (1) closed by chunk 2) and fu 402 (band looks on real hardware, glue lines on a real print, a strip
+  diagram's distortion, a faulted band type's key).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it). Record-only: 401 (banding chunk 1's review minors and test gaps).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

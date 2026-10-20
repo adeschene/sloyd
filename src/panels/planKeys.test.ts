@@ -3,6 +3,9 @@ import { FRONT, SIDE, TOP, drawView, type Drawing, type Seg2 } from '../document
 import { partFeatures, type PartFeature } from '../document/featureKeys';
 import { topCorners } from '../document/sweepFixtures';
 import { IMPERIAL } from '../units/length';
+import { trioDrawings } from './PlanFigure';
+import { createBoard } from '../document/document';
+import type { BandType, Board } from '../document/types';
 import { KEY_LEADER, chooseView, letterOf, planKeys, type KeyView } from './planKeys';
 
 const seg = (a: [number, number], b: [number, number], part: string, feature?: string): Seg2 => (feature ? { a, b, part, feature } : { a, b, part });
@@ -148,5 +151,21 @@ describe('a swept profile on real drawings (profile runs b1, Task 8)', () => {
     const k = planKeys(fs, kv, 1, { width: 2000, height: 2000 });
     expect(k.notShown).toEqual([]);
     expect(k.lines.map((l) => l.text)).toContain('Roundover 1/4", all round');
+  });
+});
+
+describe('trioDrawings: cached per band types too (edge banding chunk 2)', () => {
+  it('one parts array under two band type arrays draws two different trios; the same pair hits the cache', () => {
+    const maple = (thickness: number): BandType =>
+      ({ id: 'maple', name: 'Maple edging', kind: 'solid', thickness, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 });
+    const parts: Board[] = [{ ...createBoard({ id: 'p', length: 36, width: 20, thickness: 0.75 }),
+      bands: [{ side: { across: 'width', from: 'min' }, type: 'maple' }], cornerRule: 'long' }];
+    const thin = [maple(0.25)];
+    const thick = [maple(0.5)];
+    const a = trioDrawings(parts, thin);
+    const b = trioDrawings(parts, thick);
+    expect(b).not.toBe(a);
+    expect(b).not.toEqual(a);
+    expect(trioDrawings(parts, thin)).toBe(a);
   });
 });

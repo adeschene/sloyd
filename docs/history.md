@@ -520,6 +520,34 @@ and 79.
 
 ## What each round did
 
+**What edge banding chunk 2 did (2026-10-20)** (spec §8; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`; branch
+`edge-banding-2` from `69008a3`; **no schema change** (19); subagent-driven, four tasks plus the controller's live pass). Bands
+are visible: on screen, on the Plans sheet and in part diagrams.
+1. `44826d0` — `glueLines` (`banding.ts`): board-local glue lines per unfaulted SOLID band on both broad faces, trimmed per the
+   corner rule (Q5: through → full side; gives way or Mitred → core corner to core corner; a mitre line once, on the long strip
+   when solid). Memoised, frozen.
+2. `49cbd6e` — the viewport (`viewport/bandFaces.ts`): `bandLooks`, `bandViewSignature` (in BoardMesh's memos), `bandedMesh` —
+   a POST-PASS moving each triangle that lies on a banded side's outline stretch (float32 tolerance `8·2⁻²³·max(extents)`;
+   thickness-free outward normal; all three vertices on one chord) into material group 6+i, its UVs rewritten along the stretch.
+   `bodyMesh`/`partMesh`/`boardBodies` untouched; a banded part's bodies all go through `bodyMesh` (pinned to BoxGeometry's UVs).
+   Glue lines join the edge buffer (clipped by the section plane). Tape: the part's long-grain look; solid: the band's colour.
+3. `d959e9a` — the Plans sheet: `drawView(…, { bandTypes })` adds glue lines as `band`-tagged segments in the one hidden-line
+   pass and tags outline edges on a banded side's plane; `partFeatures(b, units, bandTypes)` keys one line per (part, band type);
+   PlanFigure's trio cache keyed on band types THEN parts (`withBandTypes` keeps `doc.boards`).
+4. `f344cb8` — part diagrams: `bandText.ts` (`bandLine` moved verbatim from `cutlist.ts`, `coreNote`); `buildDiagrams(board, units,
+   bandTypes)` opens a thickness view with `bands` marks and `bandNotes` (Q1, the user's ruling: drawn finished, core noted);
+   `stripDiagrams` hatches each mitred end's waste (`mitres`).
+5. Final review (`4b7633a`, `ffd8eb1`): the live pass's L1 (`Maple edging 1/4" 1/4"` — a name carrying its thickness keyed it
+   twice; now left out when the name holds it as a bounded token — a plain substring test would drop `6 mm` from `Maple 16 mm`);
+   tape on a rounded-corner side is band-tagged on its straight runs (the one-chord condition dropped); multi-cell UV pin;
+   `fromWorldOffset` takes a frame; the one-mitre test checks which end.
+
+Live pass: `docs/browser-verification-edge-banding-2.md`. Maple edging and plywood plies read alike by eye at full size, so the look
+was checked with walnut on a 4 × 3 copy. The live pass's own Chrome GPU process (rendering the canvas, ~120% CPU) loaded the
+host enough to fail wall-clock perf guards during the fix wave; closing the browser cleared it — close the MCP browser before a
+full run. Rulings: the plan's Q1–Q7 (spec §8, *Amended (planning, chunk 2)*) and the ledger's (fixture words corrected to the
+code three times; a dado side is two rectangles). Residue: fu 402 (the user's eye), 403 (record-only).
+
 **What edge banding chunk 1 did (2026-10-19/20)** (fu 267's banding half; spec `2026-10-19-sloyd-edge-banding-design.md`, approved by
 the user 2026-10-19; plan `…-edge-banding-1.md`; branch `edge-banding-1` from `f246943`; **SCHEMA 19**; code complete at `90e9bde`
 plus this docs commit; the final whole-branch review's fixes `9f36387`; **MERGED to master as `b7f700b`** (2026-10-20, the user's word);

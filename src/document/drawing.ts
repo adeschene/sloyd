@@ -1,4 +1,4 @@
-import type { Board } from './types';
+import type { BandType, Board } from './types';
 import type { Vec3 } from './frames';
 import { partGeometry } from './bodies';
 import { worldBox } from './designCheck';
@@ -10,6 +10,8 @@ import { featureTag } from './featureKeys';
 import { curveDrawEdges, curveEdgeLifts, profileSilhouettes, silhouetteLines } from './curveDrawing';
 import { sectionAxisIndex, sectionCaps, SECTION_EPS, type Section } from './section';
 import { geometryBoard, shapedPart } from './profiles';
+import { BAND_SIDES, bandFaults, glueLines, sameSide } from './banding';
+import { faceOutline, sideStretch } from './profilePath';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -34,7 +36,7 @@ export const ISO: View = {
 };
 
 export type P2 = [number, number];
-/** `feature`: the hole row, angle cut or curve the segment is drawn for (`featureTag`; feature callouts spec §4.1) — ABSENT,
+/** `feature`: the hole row, angle cut, curve or band type the segment is drawn for (`featureTag`; feature callouts spec §4.1) — ABSENT,
  *  not undefined, on every other segment, so a featureless part's drawing is byte-for-byte what it was. */
 export interface Seg2 { a: P2; b: P2; part: string; feature?: string }
 /** A part's section cap on paper (section views spec §3.1): the cut faces' pieces, projected, and their outline. */
@@ -177,9 +179,46 @@ function angleTag(b: Board, p: readonly number[], q: readonly number[]): string 
 const withTag = <T extends object>(s: T, feature: string | undefined): T & { feature?: string } => (feature ? { ...s, feature } : s);
 const local = (s: { length: number; width: number; thickness: number }) => [s.length, s.width, s.thickness];
 
-function partSegments(b: Board, toward: readonly number[]): Seg3[] {
+/** A band's side plane on paper (edge banding chunk 2, Q6): the local axis index across the side, the plane's coordinate
+ *  there, and the band's tag. Every unfaulted band with a stretch, in `BAND_SIDES` order, so an edge on two planes (a
+ *  corner's through-thickness edge) takes the first side's tag. A stretch of several chords (round corner arcs, along an
+ *  arch) counts too (final review 2): only its edges ON the plane take the tag, and a chord a curve or angle cut already
+ *  tags keeps that tag. Read off the STORED part (the one `bandFaults` and the outline judge); nothing without band types
+ *  or bands. */
+interface BandPlane { k: 0 | 1; at: number; tag: string }
+function bandPlanes(b: Board, bandTypes: readonly BandType[] | undefined): BandPlane[] {
+  if (!bandTypes || bandTypes.length === 0 || b.bands.length === 0) return [];
+  const faults = bandFaults(b, bandTypes);
+  const outline = faceOutline(b);
+  const out: BandPlane[] = [];
+  for (const side of BAND_SIDES) {
+    const band = b.bands.find((x) => sameSide(x.side, side));
+    if (!band || !bandTypes.some((t) => t.id === band.type)) continue;
+    if (faults.some((f) => sameSide(f.side, side))) continue;
+    const st = outline && sideStretch(b, outline, side);
+    if (!st) continue;
+    out.push({ k: side.across === 'length' ? 0 : 1, at: side.from === 'min' ? 0 : b[side.across], tag: featureTag(b.id, 'band', band.type) });
+  }
+  return out;
+}
+const BAND_EPS = 1e-9;
+function bandTag(planes: readonly BandPlane[], p: readonly number[], q: readonly number[]): string | undefined {
+  for (const pl of planes) {
+    if (Math.abs(p[pl.k]! - pl.at) <= BAND_EPS && Math.abs(q[pl.k]! - pl.at) <= BAND_EPS) return pl.tag;
+  }
+  return undefined;
+}
+
+function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly BandType[]): Seg3[] {
+  const planes = bandPlanes(b, bandTypes);
   b = geometryBoard(b);
-  if (!shapedPart(b)) return partGeometry(b).edges.map(([p, q]) => withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, local(p), local(q))));
+  if (!shapedPart(b)) {
+    return partGeometry(b).edges.map(([p, q]) => {
+      const lp = local(p);
+      const lq = local(q);
+      return withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, lp, lq) ?? (planes.length ? bandTag(planes, lp, lq) : undefined));
+    });
+  }
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   // Final review F1: an edge a curve's outline bounds carries the silhouettes' lift, so a shallow viewer-facing face
   // does not graze it hidden in its own wood. The lift moves only the hidden-line probe.
@@ -187,7 +226,7 @@ function partSegments(b: Board, toward: readonly number[]): Seg3[] {
   return curveDrawEdges(b).map((e, i) => {
     const A = W(e.p);
     const E = W(e.q);
-    const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q);
+    const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q) ?? (planes.length ? bandTag(planes, e.p, e.q) : undefined);
     const lift = lifts[i];
     if (!e.path) return withTag(lift ? { A, E, lift } : { A, E }, tag);
     const step = [e.p[0], e.p[1], e.p[2]];
@@ -236,10 +275,13 @@ function keptRange(A: Vec3, E: Vec3, s: Section): [number, number] | null {
  * `boardEdges` (invariant 16) — on a curved part through `curveDrawEdges`, the fine path drawn with its chord's
  * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `silhouetteLines` (ruling Q1; each hidden-line probe is stepped PROBE = 4 x DRAW_EPS along the outward normal of each viewer-facing adjacent face, grazing lines still hide); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact. With opts.section (section views spec §3.1), every line and
- * occluder is clipped to the kept half-space and the caps are returned.
+ * occluder is clipped to the kept half-space and the caps are returned. With opts.bandTypes (edge banding chunk 2, Q4–Q6),
+ * each solid band's glue lines join the pass and the untagged outline edges on a banded side's plane carry its band tag;
+ * without it nothing band-related is drawn or tagged.
  */
-export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>, opts: { hiddenLines?: boolean; section?: Section } = {}): Drawing {
+export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>, opts: { hiddenLines?: boolean; section?: Section; bandTypes?: readonly BandType[] } = {}): Drawing {
   const section = opts.section;
+  const bandTypes = opts.bandTypes;
   // A view drawn without hidden lines (the exploded isometric, fu 344) skips the hole lines that can only be hidden.
   const visibleOnly = opts.hiddenLines === false;
   const proj = (p: readonly number[]): P2 => [dot(p, view.right), dot(p, view.up)];
@@ -290,12 +332,14 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     // Board edges (invariant 16) and hole lines (holes spec §3.4): one list, one hidden-line pass, the same occluders —
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
     const segments: Seg3[] = [
-      ...partSegments(b, view.toward),
+      ...partSegments(b, view.toward, bandTypes),
       ...holeDrawingTagged(b, view.toward, visibleOnly).map(({ A, E, row }) => ({ A, E, feature: featureTag(b.id, 'hole', row) })),
       ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
       // Profile runs a2: a stopped profile's run-outs outline themselves by facet-chain silhouettes; b1: so does a swept
       // profile's surface (none on any other part).
       ...profileSilhouettes(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
+      // Edge banding chunk 2 (Q4/Q5): a solid band's glue lines, board-local through `toWorld` (inv 44), in this one pass.
+      ...(bandTypes ? glueLines(b, bandTypes).map(({ a, b: e, type }) => ({ A: toWorld(b, a), E: toWorld(b, e), feature: featureTag(b.id, 'band', type) })) : []),
     ];
     for (const seg of segments) {
       const A = plus(seg.A, off);

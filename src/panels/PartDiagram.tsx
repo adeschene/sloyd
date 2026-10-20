@@ -387,6 +387,25 @@ export function PartDiagram({ view }: { view: DiagramView }) {
             : <polyline key={w.id} className="cutlist-diagram-sweep" points={points} />;
         })}
 
+        {(view.bands ?? []).map((b) => (
+          // A band's heavy mark (edge banding 2, Q1): the side's stretch of the finished outline, over the outline.
+          <polyline
+            key={`band:${b.side.across}-${b.side.from}`}
+            className="cutlist-diagram-band"
+            points={b.points.map(([h, v]) => `${left + fit.offsetX + h * fit.sx},${top + (view.vUp ? view.v - v : v) * fit.sy}`).join(' ')}
+          />
+        ))}
+
+        {(view.mitres ?? []).map((m, i) => (
+          // A strip's mitre waste (edge banding 2, Q7): hatched like an angle cut's, not to scale.
+          <polygon
+            key={`mitre:${i}`}
+            className="cutlist-diagram-angle"
+            points={m.poly.map(([h, v]) => `${left + fit.offsetX + h * fit.sx},${top + (view.vUp ? view.v - v : v) * fit.sy}`).join(' ')}
+            fill={`url(#${hatch})`}
+          />
+        ))}
+
         {view.curveLines.map((l, i) => {
           const X = (h: number) => left + fit.offsetX + h * fit.sx;
           const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
@@ -508,6 +527,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       ))}
       {view.curveNotes.map((n) => (
         <p className="cutlist-diagram-curve-note" key={n.key}>{n.text}</p>
+      ))}
+      {(view.bandNotes ?? []).map((text, i) => (
+        <p className="cutlist-diagram-band-note" key={i}>{text}</p>
       ))}
     </figure>
   );

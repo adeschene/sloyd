@@ -119,8 +119,8 @@ export function toWorldOffset(board: Board, axis: number, u: number, frame: read
 }
 
 /** The inverse of toWorldOffset (the same reflection). */
-export function fromWorldOffset(board: Board, axis: number, w: number): number {
-  return toWorldOffset(board, axis, w);
+export function fromWorldOffset(board: Board, axis: number, w: number, frame: readonly AxisMap[] = axisFrame(board)): number {
+  return toWorldOffset(board, axis, w, frame);
 }
 
 /** A part span → a world-offset span, still [min, max]. */

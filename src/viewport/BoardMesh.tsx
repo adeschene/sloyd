@@ -6,6 +6,10 @@ import {
   sectionPlaneOf, stockChecks, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Board, Section, V3 } from '../document/document';
+import { glueLines } from '../document/banding';
+import type { BandType } from '../document/types';
+import type { MaterialCatalog } from '../document/materials';
+import { bandedMesh, bandLooks, bandViewSignature } from './bandFaces';
 import type { ThreeEvent } from '@react-three/fiber';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { bodyMesh, boardUVs, boardUVSignature, drawsAsBox, holesMesh, partMesh } from './grainTiling';
@@ -103,9 +107,13 @@ interface Props {
   color: string;
   /** The section cut, or null (invariant 51). Clips this part's materials and edges; draws its cap. */
   section: Section | null;
+  /** The document's band types (edge banding chunk 2): a band's look and its glue lines read them (inv 54). */
+  bandTypes: readonly BandType[];
+  /** The document's catalog: a solid band's colour is its own material's. */
+  catalog: MaterialCatalog;
 }
 
-export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset, color, section }: Props) {
+export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset, color, section, bandTypes, catalog }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
   // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
@@ -121,6 +129,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     c.getHSL(hsl);
     return c.setHSL(hsl.h, hsl.s * FADED_SATURATION, hsl.l);
   }, [color]);
+  // Edge banding chunk 2 (Q2, Q3): each unfaulted band's look; none on a band-free part, which draws exactly as before.
+  const bandSig = bandViewSignature(board, bandTypes);
+  const looks = bandLooks(board, bandTypes);
   const fadedEdgeColor = useMemo(
     () => fadedColor.clone().multiplyScalar(EDGE_DARKEN),
     [fadedColor],
@@ -169,10 +180,22 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     // Chunk c2 (stage 1, spec §2.1): a shaped part (curves or swept profiles) is ONE geometry, its bodies' meshes re-laid by
     // material (partMesh): one <mesh>, not one per body (313 for an ogee loop). Every other part is drawn as before.
     const shaped = shapedPart(geometryBoard(board));
+    // A banded part (Q2): ONE geometry whose triangles on a banded side are moved into the look's group (6 + i), every body
+    // through bodyMesh (a box cell's BoxGeometry draws the same faces and UVs, pinned in bandFaces.test). Holes stay apart.
+    const banded = looks.length > 0 ? (() => {
+      const m = bandedMesh(board, looks, shaped ? [partMesh(board, bodies, holes)] : bodies.map((x) => bodyMesh(board, x, holes, bodies)));
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+      for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
+      if (m.normals) geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+      else geo.computeVertexNormals();
+      return { geo, center: [0, 0, 0] as [number, number, number] };
+    })() : null;
     return {
       placeholder: false,
       items: [
-        ...(shaped ? [meshGeo(partMesh(board, bodies, holes))] : bodies.map((body) => {
+        ...(banded ? [banded] : shaped ? [meshGeo(partMesh(board, bodies, holes))] : bodies.map((body) => {
           if (drawsAsBox(board, body, holes)) {
             // Today's path, byte-for-byte (angle-cuts spec §3.3; holes spec §3.2: a part with no holes keeps it; a
             // curved part never takes it, so its box cells conform to the slices beside them — finding 1).
@@ -201,6 +224,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   }, [
     extents[0], extents[1], extents[2],
     boardUVSignature(board),
+    bandSig,
   ]);
 
   // Every geometry, not just the first — disposing one of N leaks the rest
@@ -233,10 +257,13 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     const rims = partGeometry(board).holes.flatMap((h) => holeRims(h).flatMap(([a, b]) => [
       ...pointToLocalXYZ(board, toPt(a)), ...pointToLocalXYZ(board, toPt(b)),
     ]));
+    // A solid band's glue lines (edge banding chunk 2, Q4/Q5), board-local points like the part's own edges; the same
+    // material, so the section plane clips them too (inv 51). A band-free part adds nothing.
+    const glue = glueLines(board, bandTypes).flatMap(({ a, b }) => [...pointToLocalXYZ(board, a), ...pointToLocalXYZ(board, b)]);
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute([...points, ...rims], 3));
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([...points, ...rims, ...glue], 3));
     return geo;
-  }, [extents[0], extents[1], extents[2], boardUVSignature(board), geometries]);
+  }, [extents[0], extents[1], extents[2], boardUVSignature(board), geometries, bandSig]);
 
   useEffect(() => () => edges.dispose(), [edges]);
 
@@ -348,7 +375,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
               clippingPlanes={clip}
               clipShadows
             />
-          ) : kinds.map((kind, i) => (
+          ) : [...kinds.map((kind, i) => (
             // Keyed on `faded` so the material remounts when the grain map
             // comes or goes: three.js compiles map use into the shader and
             // a prop change alone would not recompile it.
@@ -370,7 +397,27 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
               // Without it the removed half still casts its shadow (Material.clipShadows defaults to false).
               clipShadows
             />
-          ))}
+          )), ...looks.map((look, i) => (
+            // A band's look (Q3), group 6 + i: tape in the part's own colour, a solid band in its material's. Keyed as the
+            // six are, so the map's coming and going recompiles.
+            <meshStandardMaterial
+              key={`${6 + i}-${look.kind}-${faded}`}
+              attach={`material-${6 + i}`}
+              map={faded ? null : grainTexture(look.family, look.kind)}
+              color={faded ? fadedColor : look.material === board.material ? color : catalog.color(look.material)}
+              roughness={0.72}
+              metalness={0}
+              emissive={selected ? SELECTED : '#000000'}
+              emissiveIntensity={selected ? 0.16 : 0}
+              transparent={faded}
+              opacity={faded ? FADED_OPACITY : 1}
+              polygonOffset
+              polygonOffsetFactor={1}
+              polygonOffsetUnits={1}
+              clippingPlanes={clip}
+              clipShadows
+            />
+          ))]}
         </mesh>
       ))}
 

@@ -7,6 +7,7 @@ export * from './bandModel';
  * band-related from here.
  */
 import { BAND_SIDES, bandValues, sideIndex } from './bandModel';
+import type { Point } from './cuts';
 import { faceOutline, sideStretch, type OutlineChord } from './profilePath';
 import type { BandType, Board, FlatDocument, ProfileSide, SolidBand, TapeBand } from './types';
 
@@ -228,4 +229,47 @@ export function cutStock(doc: Pick<FlatDocument, 'boards' | 'bandTypes'>): Board
     return c.length === b.length && c.width === b.width ? b : { ...b, length: c.length, width: c.width, bands: [] };
   });
   return [...parts, ...doc.boards.flatMap((b) => strips(b, doc.bandTypes).map(stripBoard))];
+}
+
+/** One solid band's glue line: a segment on the part's finished outline, board-local, at one thickness coordinate. */
+export interface GlueLine { side: ProfileSide; type: string; a: Point; b: Point }
+
+const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly GlueLine[] => {
+  const j = judge(part, types);
+  const out: GlueLine[] = [];
+  const rule = part.cornerRule;
+  for (let i = 0; i < 4; i += 1) {
+    const bt = j.type[i];
+    if (!bt || bt.kind !== 'solid') continue;   // Q4: only a solid band draws a glue line; a faulted one is null here
+    const side = BAND_SIDES[i]!;
+    const long = i < 2;
+    const nb = long ? [2, 3] : [0, 1];
+    const r: 'length' | 'width' = long ? 'length' : 'width';
+    const across = side.across;
+    const o = side.from === 'min' ? j.t[i]! : part[across] - j.t[i]!;
+    const through = rule === 'long' ? long : rule === 'ends' ? !long : false;
+    const lo = through ? 0 : j.t[nb[0]!]!;
+    const hi = part[r] - (through ? 0 : j.t[nb[1]!]!);
+    const point = (rc: number, ac: number, th: number): Point => ({ [r]: rc, [across]: ac, thickness: th } as Point);
+    const push = (rc0: number, ac0: number, rc1: number, ac1: number) => {
+      for (const th of [0, part.thickness]) out.push({ side, type: bt.id, a: point(rc0, ac0, th), b: point(rc1, ac1, th) });
+    };
+    push(lo, o, hi, o);
+    if (rule !== 'mitre') continue;
+    for (const k of [0, 1] as const) {
+      const n = nb[k]!;
+      if (j.t[n]! <= 0) continue;                                  // a zero-thickness neighbour makes no mitre
+      if (!long && j.type[n]!.kind === 'solid') continue;          // the long strip beside it draws this mitre line, once
+      push(k ? hi : lo, o, k ? part[r] : 0, side.from === 'min' ? 0 : part[across]);
+    }
+  }
+  return freeze(out);
+});
+
+/** The solid bands' glue lines on a part's finished outline (chunk 2, Q4/Q5): a strip that runs through draws its line over the
+ *  full side, one that gives way (or any strip under Mitred) from core corner to core corner; a mitre between two bands with
+ *  thickness adds its line, core corner to finished corner, once. Per side in canonical order: the run at thickness 0, then at
+ *  the part's thickness, then each mitre (end 0, end 1) the same way. */
+export function glueLines(part: Board, types: readonly BandType[]): readonly GlueLine[] {
+  return NO_BANDS(part) ? EMPTY : glueLinesOf(part, types);
 }

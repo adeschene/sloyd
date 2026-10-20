@@ -1,5 +1,5 @@
 import { memo, useId, useMemo } from 'react';
-import type { Board, SloydDocument } from '../document/types';
+import type { BandType, Board, SloydDocument } from '../document/types';
 import { worldParts } from '../document/tree';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type View } from '../document/drawing';
 import { dimensionView, type DimLine } from '../document/dimensions';
@@ -134,31 +134,41 @@ function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: n
   );
 }
 
-/** The trio's three drawings, cached on the parts ARRAY (worldParts and planAssemblies hand out stable arrays), so the
- *  section block reads the piece trio's scale without drawing it twice (section views spec §3.3, as amended). */
-const trioCache = new WeakMap<readonly Board[], readonly [Drawing, Drawing, Drawing]>();
-function trioDrawings(parts: readonly Board[]): readonly [Drawing, Drawing, Drawing] {
-  const hit = trioCache.get(parts);
+/** No band types: ONE stable array, so the trio cache and the memos below hold for a caller that passes none. */
+const NO_BAND_TYPES: readonly BandType[] = Object.freeze([]);
+
+/** The trio's three drawings, cached on the band types ARRAY then the parts ARRAY (worldParts and planAssemblies hand out
+ *  stable arrays), so the section block reads the piece trio's scale without drawing it twice (section views spec §3.3, as
+ *  amended). Two levels (edge banding chunk 2): a band type edit keeps `doc.boards` — and so a parts-only key — while it
+ *  moves every glue line. */
+const trioCache = new WeakMap<readonly BandType[], WeakMap<readonly Board[], readonly [Drawing, Drawing, Drawing]>>();
+export function trioDrawings(parts: readonly Board[], bandTypes: readonly BandType[]): readonly [Drawing, Drawing, Drawing] {
+  let byParts = trioCache.get(bandTypes);
+  if (!byParts) { byParts = new WeakMap(); trioCache.set(bandTypes, byParts); }
+  const hit = byParts.get(parts);
   if (hit) return hit;
-  const out = [drawView(parts, FRONT), drawView(parts, SIDE), drawView(parts, TOP)] as const;
-  trioCache.set(parts, out);
+  const opts = { bandTypes };
+  const out = [drawView(parts, FRONT, undefined, opts), drawView(parts, SIDE, undefined, opts), drawView(parts, TOP, undefined, opts)] as const;
+  byParts.set(parts, out);
   return out;
 }
-export function trioScale(parts: readonly Board[]): number {
-  const [f, s, t] = trioDrawings(parts);
+export function trioScale(parts: readonly Board[], bandTypes: readonly BandType[] = NO_BAND_TYPES): number {
+  const [f, s, t] = trioDrawings(parts, bandTypes);
   return layoutTrio(f.bounds, s.bounds, t.bounds).scale;
 }
 
 /** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2), and, when `keyed`, the features of
  *  those parts as lettered tags with a key list (feature callouts spec §4). Memoised on its props (fu 263): a tick of the
  *  sheet's Explode slider re-renders the sheet, never these — so `keyed` must be a stable set. */
-export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section }: {
+export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section, bandTypes = NO_BAND_TYPES }: {
   parts: readonly Board[]; units: Units; label: string; keyed?: ReadonlySet<string>; section?: Section | null;
+  /** The project's band types (`doc.bandTypes`): glue lines and band keys (edge banding chunk 2). */
+  bandTypes?: readonly BandType[];
 }) {
   const views = useMemo(() => {
-    const ds = trioDrawings(parts);
+    const ds = trioDrawings(parts, bandTypes);
     return [FRONT, SIDE, TOP].map((view: View, i) => ({ view, d: ds[i]!, dims: dimensionView(parts, view, units) }));
-  }, [parts, units]);
+  }, [parts, units, bandTypes]);
   const [front, side, top] = views as [typeof views[0], typeof views[0], typeof views[0]];
   const lay = layoutTrio(front.d.bounds, side.d.bounds, top.d.bounds);
   const notes: string[] = [];
@@ -173,7 +183,7 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, sec
   const drawn = [draw(top, lay.top), draw(front, lay.front), draw(side, lay.side)];
   const marked = section ? (markedView(section) === 'top' ? { x: top, at: lay.top } : { x: front, at: lay.front }) : null;
   const line = section && marked ? cuttingLine(section, marked.x.view, marked.x.d) : null;
-  const features = useMemo(() => (keyed ? parts.filter((b) => keyed.has(b.id)).flatMap((b) => partFeatures(b, units)) : []), [parts, units, keyed]);
+  const features = useMemo(() => (keyed ? parts.filter((b) => keyed.has(b.id)).flatMap((b) => partFeatures(b, units, bandTypes)) : []), [parts, units, keyed, bandTypes]);
   // `lay` is a pure function of `views`.
   const keys = useMemo(() => planKeys(features,
     [{ view: TOP, d: top.d, at: lay.top }, { view: FRONT, d: front.d, at: lay.front }, { view: SIDE, d: side.d, at: lay.side }],
@@ -238,11 +248,11 @@ const polysPath = (polys: P2[][], map: ToSvg) =>
 
 /** Section A–A (section views spec §2.3): the assembled piece cut by the viewport's plane, at the piece trio's scale —
  *  hatched caps over a paper ground, the visible lines beyond, the cap outlines heavy. No dimensions, tags or hidden lines. */
-export const SectionBlock = memo(function SectionBlock({ parts, section, units, scale, exploded }: {
-  parts: readonly Board[]; section: Section; units: Units; scale: number; exploded: boolean;
+export const SectionBlock = memo(function SectionBlock({ parts, section, units, scale, exploded, bandTypes = NO_BAND_TYPES }: {
+  parts: readonly Board[]; section: Section; units: Units; scale: number; exploded: boolean; bandTypes?: readonly BandType[];
 }) {
   const pid = useId();
-  const d = useMemo(() => drawView(parts, sectionViewOf(section), undefined, { hiddenLines: false, section }), [parts, section]);
+  const d = useMemo(() => drawView(parts, sectionViewOf(section), undefined, { hiddenLines: false, section, bandTypes }), [parts, section, bandTypes]);
   const caps = d.caps ?? [];
   const hatch = useMemo(() => hatchPatterns(caps), [caps]);
   const title = sectionTitle(section, parts, units);
@@ -302,7 +312,7 @@ function Balloon({ b, r }: { b: PlacedBalloon; r: number }) {
  *  props (fu 263): the sheet passes it a DEFERRED amount, so the slider's urgent render leaves it alone. One numbered
  *  balloon per cut-list row, in columns beside the drawing (plans balloons spec §3–4). */
 export const ExplodedFigure = memo(function ExplodedFigure({ doc, amount }: { doc: SloydDocument; amount: number }) {
-  const d = useMemo(() => drawView(worldParts(doc), ISO, explodeOffsets(doc, amount), { hiddenLines: false }), [doc, amount]);
+  const d = useMemo(() => drawView(worldParts(doc), ISO, explodeOffsets(doc, amount), { hiddenLines: false, bandTypes: doc.bandTypes }), [doc, amount]);
   // The cut list's own numbering (plans balloons spec §2): the sheet and the cut list cannot disagree.
   const rows = useMemo(() => buildCutList(flatDocument(doc)).groups.flatMap((g) => g.rows), [doc]);
   const plan = useMemo(() => anchorsFor(d, rows), [d, rows]);

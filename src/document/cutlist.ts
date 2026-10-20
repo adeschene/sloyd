@@ -1,6 +1,6 @@
 import { isSheetGood, type SheetStock } from './types';
 import { catalogOf } from './materials';
-import type { BandType, Board, CornerRule, Cut, Grain, ProfileSide, Region, FlatDocument } from './types';
+import type { BandType, Board, Cut, Grain, Region, FlatDocument } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
 import { angleCutValues, angleCutsThatRemoveStock } from './angleCuts';
@@ -11,7 +11,7 @@ import { curveLines } from './curveText';
 import { curveValues } from './curves';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
-import { buildDiagrams } from './diagram';
+import { buildDiagrams, stripDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { buildNesting } from './nesting';
 import type { Nesting } from './nesting';
@@ -19,9 +19,9 @@ import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
 import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
 import { geometryBoard, profileValues, sweptProfiles } from './profiles';
-import { bandFaultText, bandFaults, bandSignature, bandsMeetAtCorner, coreSize, cutStock, sameSide, stripBoard, strips } from './banding';
-import type { BandFaultKind, Strip } from './banding';
-import { edgeName } from './holeText';
+import { bandSignature, coreSize, cutStock, stripBoard, strips } from './banding';
+import type { Strip } from './banding';
+import { bandLine } from './bandText';
 
 /**
  * One row of the cut list: every part that is cut from the same stock, in the
@@ -206,38 +206,6 @@ function setupLine(board: Board, cut: Cut, units: Units, solids: Region[]): stri
 function tenonLine(t: Tenon, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   return `${f(t.length)} tenon, ${f(t.thickness)} thick × ${f(t.width)} wide — at the length ${t.end} end`;
-}
-
-const sideWords = (s: ProfileSide) => edgeName({ dim: s.across, side: s.from });
-const CORNER_WORDS: Record<CornerRule, string> = { long: 'long edges run through', ends: 'ends run through', mitre: 'mitred corners' };
-
-/**
- * THE band line (edge banding spec §4.1, Amended (planning) P5): one clause per band type (sides in canonical order),
- * faulted sides their own clause with its check; the corner words only where two ADJACENT unfaulted bands with thickness
- * meet and one is solid (the corner rule matters nowhere else); `finished` only when the core differs from the part.
- */
-function bandLine(board: Board, types: readonly BandType[], units: Units): string | null {
-  if (board.bands.length === 0) return null;
-  const faults = bandFaults(board, types);
-  const faultOf = (s: ProfileSide) => faults.find((f) => sameSide(f.side, s));
-  const groups = new Map<string, { type: string; fault: BandFaultKind | undefined; sides: ProfileSide[] }>();
-  const nameOf = new Map(types.map((t) => [t.id, t.name]));
-  for (const b of board.bands) {
-    // A band naming no type contributes nothing (as `judge` skips it); the loader and store never leave one.
-    if (!nameOf.has(b.type)) continue;
-    const fault = faultOf(b.side)?.kind;
-    const key = fault ? `${b.type}|${fault}` : b.type;
-    const g = groups.get(key);
-    if (g) g.sides.push(b.side);
-    else groups.set(key, { type: b.type, fault, sides: [b.side] });
-  }
-  const clauses = [...groups.values()].map(({ type, fault, sides }) =>
-    `${sides.map(sideWords).join(' and ')} — ${nameOf.get(type)!}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
-  if (clauses.length === 0) return null;
-  const meets = bandsMeetAtCorner(board, types);
-  const core = coreSize(board, types);
-  const finished = core.length !== board.length || core.width !== board.width ? `; finished ${formatSize([board.length, board.width], units)}` : '';
-  return `Band: ${clauses.join('; ')}${meets ? `, ${CORNER_WORDS[board.cornerRule]}` : ''}${finished}`;
 }
 
 const deg = (r: number) => `${Number(((r * 180) / Math.PI).toFixed(1))}°`;
@@ -455,7 +423,7 @@ export function buildCutList(doc: FlatDocument): CutList {
   const cutParts = cutStock(doc).slice(0, doc.boards.length);
   doc.boards.forEach((board, i) => {
     visit(board, cutParts[i]!, rowKey(board, units, doc.bandTypes),
-      () => ({ setup: setupLines(board, units, doc.bandTypes), diagrams: buildDiagrams(board, units) }), false);
+      () => ({ setup: setupLines(board, units, doc.bandTypes), diagrams: buildDiagrams(board, units, doc.bandTypes) }), false);
   });
   // Strip rows (edge banding spec §4.2): in the group of the edging material and the strip's thickness, collapsed by cut
   // size, material and ends. "After its parts" is the SORT's job below: strip rows last in a group, strip-only groups
@@ -464,7 +432,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     for (const s of strips(part, doc.bandTypes)) {
       const sb = stripBoard(s);
       visit(sb, sb, `${rowKey(sb, units, doc.bandTypes)}|strip|${endsKey(s)}`,
-        () => ({ setup: [stripSetup(s)], diagrams: buildDiagrams(sb, units) }), true);
+        () => ({ setup: [stripSetup(s)], diagrams: stripDiagrams(s, units) }), true);
     }
   }
 

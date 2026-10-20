@@ -7,7 +7,8 @@ import { canonicalRun, profileCurve, profileFromFields } from './profiles';
 import { ARCH } from './curveFixtures';
 import { apronArch, frontAndEnds, frontOnly, loop, plainLoop, stopOnArch, stopOnCorner, topCorners, twoSide, twoSideSharp } from './sweepFixtures';
 import { FAULT_SUFFIX, featureTag, partFeatures } from './featureKeys';
-import type { Board } from './types';
+import type { BandType, Board } from './types';
+import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from './banding';
 
 const MM = { display: 'metric-mm' as const, precision: 16 };
 const side = createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75 });
@@ -186,4 +187,65 @@ it('a stopped run on a turned path or across two sides keys `, stopped` with no 
   expect(lastKey(twoSideSharp)).toEqual(['Roundover 1/4", stopped']);
   expect(lastKey(stopOnCorner('cove', 0.375))).toEqual(['Cove 3/8", stopped']);
   expect(lastKey({ ...twoSideSharp, profiles: [{ ...twoSide('t', { across: 'width', from: 'min' }, 20, { across: 'length', from: 'max' }, 5, 0.375, 'cove'), fillet: 1 / 16 }] })).toEqual(['Cove 3/8", with a 1/16" fillet, stopped']);
+});
+
+describe('partFeatures: band keys (edge banding chunk 2, Q6)', () => {
+  const maple: BandType = { id: 'maple', name: 'Maple edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
+  const types: BandType[] = [BUILT_IN_BAND, maple];
+  const W0 = { across: 'width' as const, from: 'min' as const };
+  const W1 = { across: 'width' as const, from: 'max' as const };
+  const L0 = { across: 'length' as const, from: 'min' as const };
+  const L1 = { across: 'length' as const, from: 'max' as const };
+  const panel = (bands: Board['bands'], over: Partial<Board> = {}): Board =>
+    ({ ...createBoard({ id: 'p', length: 36, width: 20, thickness: 0.75 }), bands, cornerRule: 'long', ...over });
+  it('one key per band type: its name, its thickness, its sides in canonical order', () => {
+    expect(partFeatures(panel([{ side: W0, type: 'maple' }, { side: W1, type: 'maple' }]), IMPERIAL, types).map((f) => f.text))
+      .toEqual(['Maple edging 1/4": width min side, width max side']);
+    const tape = partFeatures(panel([{ side: L0, type: BUILT_IN_BAND_ID }]), IMPERIAL, types);
+    expect(tape.map((f) => f.text)).toEqual(['Iron-on veneer: length min end']);
+    expect(tape[0]!.tags).toEqual([featureTag('p', 'band', BUILT_IN_BAND_ID)]);
+    expect(tape[0]!.key).toBe('p:band:band-iron-on');
+    expect(tape[0]!.trueAxis).toEqual([0, 1, 0]);   // flat: seen true looking down the thickness
+    expect(tape[0]!.trueNormal).toBeNull();
+  });
+  it('two types on one part: two features, in canonical order of first use; metric thickness', () => {
+    const b = panel([{ side: W1, type: 'maple' }, { side: L0, type: BUILT_IN_BAND_ID }, { side: L1, type: 'maple' }]);
+    expect(partFeatures(b, IMPERIAL, types).map((f) => f.text)).toEqual(['Maple edging 1/4": width max side, length max end', 'Iron-on veneer: length min end']);
+    expect(partFeatures(b, MM, types).map((f) => f.text)[0]).toBe('Maple edging 6 mm: width max side, length max end');
+  });
+  it('a name already carrying its thickness as a bounded token does not repeat it (final review 1)', () => {
+    const key = (t: BandType, u = IMPERIAL) => partFeatures(panel([{ side: W0, type: t.id }]), u, [BUILT_IN_BAND, t]).map((f) => f.text);
+    expect(key({ ...maple, name: 'Maple edging 1/4"' })).toEqual(['Maple edging 1/4": width min side']);
+    expect(key({ ...maple, name: '1/4" maple' })).toEqual(['1/4" maple: width min side']);
+    expect(key({ ...maple, name: 'Maple 1/4" edging' })).toEqual(['Maple 1/4" edging: width min side']);
+    // Not a bounded token: `1/4"` inside `1-1/4"`, `6 mm` inside `16 mm`.
+    expect(key({ ...maple, name: 'Edging 1-1/4"' })).toEqual(['Edging 1-1/4" 1/4": width min side']);
+    expect(key({ ...maple, name: 'Maple 16 mm', thickness: 6 / 25.4 }, MM)).toEqual(['Maple 16 mm 6 mm: width min side']);
+    expect(key({ ...maple, name: 'Maple 6 mm', thickness: 6 / 25.4 }, MM)).toEqual(['Maple 6 mm: width min side']);
+    expect(key(maple)).toEqual(['Maple edging 1/4": width min side']);
+  });
+  it('tape on an arched side is keyed through the arch\'s chords too', () => {
+    const arch = { id: 'c9', ...archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 6, span: 24, rise: 2 }) };
+    const b = panel([{ side: W1, type: BUILT_IN_BAND_ID }], { curves: [arch] });
+    const band = partFeatures(b, IMPERIAL, types).find((f) => f.key === 'p:band:band-iron-on')!;
+    expect(band.text).toBe('Iron-on veneer: width max side');
+    expect(band.tags).toEqual(['p:band:band-iron-on', 'p:curve:c9']);
+    // A straight side lists only its band tag.
+    expect(partFeatures(panel([{ side: W0, type: BUILT_IN_BAND_ID }], { curves: [arch] }), IMPERIAL, types)
+      .find((f) => f.key === 'p:band:band-iron-on')!.tags).toEqual(['p:band:band-iron-on']);
+  });
+  it('a faulted band\'s key ends with the fault suffix', () => {
+    const thick: BandType = { ...maple, id: 'thick', name: 'Thick', thickness: 18 };
+    const b = panel([{ side: L0, type: 'thick' }, { side: L1, type: 'thick' }, { side: W0, type: BUILT_IN_BAND_ID }]);
+    expect(partFeatures(b, IMPERIAL, [...types, thick]).map((f) => f.text))
+      .toEqual(['Iron-on veneer: width min side', 'Thick 18": length min end, length max end — check the cut list']);
+    expect(FAULT_SUFFIX).toBe(' — check the cut list');
+  });
+  it('without band types: what it returned before (no band feature)', () => {
+    const holed = { ...side, holes: [{ id: 'h', ...defaultHole(side) }] };
+    const b = { ...holed, bands: [{ side: W0, type: 'maple' }], cornerRule: 'long' as const };
+    expect(partFeatures(b, IMPERIAL)).toEqual(partFeatures(holed, IMPERIAL));
+    expect(partFeatures(b, IMPERIAL, [])).toEqual(partFeatures(holed, IMPERIAL));
+    expect(partFeatures(holed, IMPERIAL, types)).toEqual(partFeatures(holed, IMPERIAL));
+  });
 });
