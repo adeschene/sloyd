@@ -1,6 +1,6 @@
 # Sloyd — hardware bill of materials
 
-**Date:** 2026-10-20 · **Status:** draft, for the user's review. Written from fu 267 at the user's request ("skip the
+**Date:** 2026-10-20 · **Status:** draft, builder-checked, for the user's review. Written from fu 267 at the user's request ("skip the
 questions, write it from fu 267"), so **every decision below is Claude's call** unless marked as the user's; §10 lists
 them for review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the tree (`worldParts`,
@@ -120,9 +120,11 @@ Hardware section, Buying, Properties' copy notes, the dialog's `Used by` — rea
   placements, so a nested assembly counts once per placement of every ancestor).
 - **The project:** each entry adds `count`.
 - **Hidden parts count** (inv 43: hidden-ness is view state). **Exploded** changes nothing.
-- `uses` is for the cut list's where-used line: one entry per (holder name, each) with `times` the number of placements
-  — parts by their flat names (`flatDocument`'s path names, inv 46), assemblies by their instance path names, the project
-  as `Project`. Uses with the same flat name and count collapse (`times` summed).
+- `uses` is for the cut list's where-used line: **one entry per STORED holder** (a stored part or Shape user in its
+  container, a definition, the project), `each` its count, `times` its number of placements. *Amended (builder check):*
+  flat names are unique per placement (`displayNames`, inv 8), so keying by flat name could never collapse copies; the
+  holder is named by its FIRST placement's flat path name (`Base cabinet › Left door`), an assembly by its first
+  instance's path name, the project as `Project`. No further collapse.
 - Types with total 0 are omitted. Order: `doc.hardwareTypes` order.
 
 `hardwareUsedBy(doc, typeId) → number` — the number of PLACED holders using a type (a part placed twice counts twice;
@@ -136,14 +138,14 @@ After the material groups, before Buying, shown only when `hardwareTotals` is no
 
 ```
 Hardware
-Euro hinge, 35 mm full overlay        8    Left door, Right door: 2 each × 2
+Euro hinge, 35 mm full overlay        8    Base cabinet › Left door: 2 × 2; Base cabinet › Right door: 2 × 2
 Drawer slides, 18" (pair)             6    Base cabinet: 3 × 2
 #8 × 1-1/4" wood screw              120    Base cabinet: 40 × 2; Project: 40
 ```
 
-- One row per type: name, total, where-used. A use reads `<names>: <each> each` for parts sharing a count (each part
-  named), `× <times>` appended when a holder is placed more than once (the builder may refine the words; the numbers
-  must multiply out to the total on the row).
+- One row per type: name, total, where-used. A use reads `<name>: <each>`, with `× <times>` appended when the holder is
+  placed more than once; uses joined by `; ` (the builder may refine the words; the numbers must multiply out to the
+  total on the row).
 - Not numbered in the cut list's part series and carries no `boardIds` (the strip rows' rule: every reader of a row's
   parts handles an empty list; this is a separate section, so no cut-list row reader sees it at all — the plan confirms
   `planBalloons` and `rowNumbers` never read it).
@@ -168,6 +170,9 @@ After the Edge banding block, one line per type with a total:
 
 Shown for ONE selected part (`Properties`), ONE selected assembly (`InstanceProperties`), and — new — the empty state
 when nothing is selected, where it reads as **Project hardware** under the existing `Select a part to edit it.` line.
+  *Amended (builder check, Claude's call):* while an assembly is OPEN (`openPath`), the empty state edits the open
+  assembly's own hardware instead, headed `<assembly name> hardware` (the open level is the container being worked in,
+  and an open assembly cannot be selected from inside it).
 - While the holder has no hardware: only `+ Add hardware ▾` (the pattern of `+ Add banding ▾`). Its items: every
   hardware type by name (a type the holder already has is listed greyed, `Already added`), then `New hardware type…`,
   which opens Materials & prices on a new Hardware row, its name focused (the `New solid edging…` precedent); saving it
@@ -204,16 +209,31 @@ types' price field, `null` when emptied).
 - **Duplicate, copy in a row, Copy mirrored, Make Unique**: hardware travels with what is copied (`copyBoard` copies the
   field; a definition copy copies its `hardware`). **Delete** removes a holder's hardware with it.
 - **Add joinery and Repair ACCEPT hardware projects**: they edit cuts and sizes through the write-back's changed fields
-  only (inv 46), so hardware rides through untouched. The plan pins it (a jointed project's hardware byte-identical
-  before and after) — if the write-back proves to rebuild the field, this becomes a refusal and comes back to the user.
+  only (inv 46), so a part's hardware rides through untouched.
+  *Amended (builder check, Claude's call):* the write-back does rebuild DEFINITIONS — `writeBackFlat` →
+  `splitAssemblies` → `copyDefinition` (`treeEdit.ts`) splits a shared definition whose copies get different joints, and
+  builds `{ id, boards, instances }` only. **`copyDefinition` copies `hardware`**, so a split-off copy carries its
+  assembly's hardware and every total holds. Every other place that builds a `Definition` by hand is covered too (making
+  `hardware` a REQUIRED field makes tsc list them): `repairTree` (`treeRepair.ts`, runs on every load — it must keep the
+  field, or assembly hardware is stripped after validation), Make Unique (`treeOps.ts`, copies it), `generated.ts`
+  (writes `[]`), Group (`treeOps.ts`, writes `[]`). The joinery/Repair test asserts **totals unchanged** and parts'
+  entries byte-identical (a split changes definition ids, so the document as a whole cannot be byte-identical).
+- **Link** (`linkPlan`) makes the linked parts take the first part's shared fields, so linking two parts with different
+  hardware gives them the first part's — as it already does for holes, bands and profiles. *Claude's call:* accepted, no
+  new refusal (the precedent); the Link UI's existing behaviour is unchanged.
 - **Refine** refuses a project whose PARTS or ASSEMBLIES carry hardware (`hardwareRefusal`, after the banded refusal,
   naming the holders: `Refine doesn't handle hardware on parts yet (Left door, Drawer…). Refine before adding hardware,
   or remove it first.`): the refined design's parts are new, so their hardware cannot be mapped. Hardware TYPES and the
   PROJECT's hardware are carried into the refined project (nothing in them names a part), as custom materials are,
-  before `migrateDocument`.
+  before `migrateDocument` — at both places Refine re-attaches materials (`generate/run.ts`), and the refusal at both
+  Refine gates (`refineDesign.ts`'s `documentToDesign`, `generate/refine.ts`).
 - **Generate** never writes hardware; `DESIGN_SCHEMA` is byte-identical (fu 322).
 - **Design checks, snap, tape, gizmo, section, drawings, nesting**: unchanged.
 - **Export/import, autosave**: the document carries `hardwareTypes` and `hardware` like any field.
+
+**Wiring notes for the plan** (builder check): the cut list and `buildPurchase` take a `FlatDocument`, whose
+`definitions` is empty, so `hardwareTotals` takes the full stored document (the caller passes both); the Materials
+dialog today receives only the placed parts (`App.tsx`), so it also needs the document for `hardwareUsedBy`.
 
 ## 7. Chunks
 
@@ -268,6 +288,11 @@ gets built, first:
 9. **Ungroup moves an assembly's hardware to its parent** rather than refusing (§6).
 10. **No Hardware section for a multi-selection** this round (§5.1).
 11. **Schema 20** — rollback below it refuses every project saved since (§2.3).
+
+Settled after the builder check (Claude's calls): a split-off assembly copy keeps its hardware (`copyDefinition`), so
+joinery and Repair still accept; where-used names a stored holder by its first placement with `× copies`; the empty
+state edits the OPEN assembly's hardware when one is open; Link gives linked parts the first part's hardware, as for
+every other shared field.
 
 ## 11. Follow-ups this round leaves
 
