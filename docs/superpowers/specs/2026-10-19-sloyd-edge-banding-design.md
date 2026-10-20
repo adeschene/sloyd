@@ -323,6 +323,12 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   edge`). A shaped part's edit goes to its Shape (`applyWorldEdits`).
 - Locked while exploded (inv 47: inside `EditLock`).
 
+> **Changed 2026-10-20 at the user's request** (after chunk 2; merged `dc8d5c3`): the section follows the pattern of the other
+> additions. While no selected part is banded it shows only `+ Add banding ▾` (the `Band ▾` items); once any selected part is
+> banded, the side selects, Corners, fault notes and `Band ▾` (with `Remove all bands`) appear, and one part's heading counts its
+> banded sides. Both menus end with `New solid edging…`, which opens Materials & prices on a new Solid band type row, its name
+> focused (a solid type was reachable only from the cut list's Materials & prices). Saving it bands nothing: the user then picks sides.
+
 ### 5.2 Materials & prices — the Edge banding section
 
 - One row per band type: name; kind (a select only on an unsaved row); thickness; length allowance; for tape, width and

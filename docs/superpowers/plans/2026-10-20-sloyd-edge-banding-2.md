@@ -1,5 +1,8 @@
 # Edge banding, chunk 2 (on screen and on paper) Implementation Plan
 
+**Status (2026-10-20):** EXECUTED (subagent-driven; Tasks 1–4 `44826d0`, `49cbd6e`, `d959e9a`, `f344cb8`; final review `4b7633a`,
+`ffd8eb1`), merged to master as `5e55b17`, DEPLOYED as `index-Vul7x2lO.js`. Q1–Q7 approved by the user. Record: `docs/history.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Bands become visible: in the viewport a banded edge takes its band's look and a solid band draws its glue lines;

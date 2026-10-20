@@ -1,5 +1,8 @@
 # Edge banding, chunk 1 (schema 19: data and the cut list) Implementation Plan
 
+**Status (2026-10-20):** EXECUTED, merged to master as `b7f700b` (final review's fixes `9f36387`), DEPLOYED as `index-Df8FpxEW.js`
+(schema 19). P1–P5 and the *Amended (implementation, chunk 1)* items approved by the user. Record: `docs/history.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A part's four broad-face sides can carry a named band type (iron-on tape by default, solid edging optionally);

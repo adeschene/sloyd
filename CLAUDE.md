@@ -201,9 +201,16 @@ handicraft education tradition built around hand woodworking.
   band type). Part diagrams: heavy marks on banded sides, the band line and a core note (fu 395(1), the user's ruling: drawn at
   the finished size), a strip's mitred ends hatched. The spec's *Amended (planning, chunk 2)* Q2–Q7 were APPROVED by the user 2026-10-20. Open
   near it: fu 402 (real hardware and a real print). Live pass: `docs/browser-verification-edge-banding-2.md`. Rollback is free (no schema change).
-- **NEXT (2026-10-20, after edge banding chunk 2 deployed):** (1) nothing pending deploy; (2) the
-  fu 402(1)–(2) (real hardware, a real print; every banding amendment approved 2026-10-20, fu 395 closed) for the user's
-  review; (3) fu 396–403 as the user directs (the banding feature of fu 267 is complete; its hardware BOM half needs a spec). Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
+- **+ Add banding (2026-10-20, the user's request; merged `dc8d5c3`, DEPLOYED as `index-ymPlKpkL.js`; no schema change)**: the Banding
+  section follows the additions' pattern — only `+ Add banding ▾` until a selected part is banded, then the side selects, Corners, notes
+  and `Band ▾` — and both menus end with `New solid edging…` (Materials & prices opens on a new Solid row; solid edging was reachable
+  only from the cut list). Spec §5.1 records the change.
+- **Band wording (2026-10-20, the user's choices on fu 395(2)–(3); merged `4a6d6a1`, DEPLOYED as `index-QDQAnB8n.js`; no schema change)**:
+  band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart. **Edge banding is
+  complete and every spec amendment is approved; fu 395 is closed.**
+- **NEXT (audited 2026-10-20, session close):** nothing is pending deploy (production is `4a6d6a1`; later commits are docs). Owed to the
+  user: fu 402(1)–(2) (band looks on real hardware, glue lines on a real print). As the user directs: fu 396–403 (396, 397 open by
+  decision; 398–400 features; 401, 403 record-only), and fu 267's hardware bill of materials (needs its own spec). Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
   the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
   feature spec (the feature-sized list), the user's eye or hardware (the owed list), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
   entry's last `**Status:**` line tagged `(triaged 2026-10-16)`); 381–384 came later. `docs/follow-ups.md` is authoritative —
