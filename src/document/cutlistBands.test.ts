@@ -39,6 +39,23 @@ describe('the cut list with bands (edge banding spec §4.1, §4.2)', () => {
     expect(partRow(d).setup.find((l) => l.startsWith('Band:'))).toBe(
       'Band: the width min side and the length max end — Maple edging 1/4", mitred corners; finished 30" × 12"');
   });
+  it('three sides of one type read as a list (fu 395(2))', () => {
+    const d = flat([shelf('a', [{ side: W0, type: 'm' }, { side: W1, type: 'm' }, { side: L1, type: 'm' }])]);
+    expect(partRow(d).setup.find((l) => l.startsWith('Band:'))).toBe(
+      'Band: the width min side, the width max side and the length max end — Maple edging 1/4", long edges run through; finished 30" × 12"');
+  });
+  it('four sides of one type read `all four sides` (fu 395(2))', () => {
+    const tape = flat([shelf('a', BAND_SIDES.map((side) => ({ side, type: 'band-iron-on' })))]);
+    expect(rowsOf(tape)[0]!.setup).toContain('Band: all four sides — Iron-on veneer');
+    const mitred = flat([shelf('a', BAND_SIDES.map((side) => ({ side, type: 'm' })), { cornerRule: 'mitre' })]);
+    expect(partRow(mitred).setup.find((l) => l.startsWith('Band:'))).toBe(
+      'Band: all four sides — Maple edging 1/4", mitred corners; finished 30" × 12"');
+  });
+  it('four sides split between two types keep one clause each', () => {
+    const d = flat([shelf('a', [{ side: W0, type: 'm' }, { side: W1, type: 'm' }, { side: BAND_SIDES[2]!, type: 'band-iron-on' }, { side: L1, type: 'band-iron-on' }])]);
+    expect(partRow(d).setup.find((l) => l.startsWith('Band:'))).toBe(
+      'Band: the width min side and the width max side — Maple edging 1/4"; the length min end and the length max end — Iron-on veneer; finished 30" × 12"');
+  });
   it('differently banded parts are different rows; alike ones collapse', () => {
     const d = flat([shelf('a', [{ side: W0, type: 'm' }]), shelf('b', [{ side: W0, type: 'm' }]), shelf('c', [{ side: W1, type: 'm' }])]);
     const parts = rowsOf(d).filter((r) => r.g.startsWith('Plywood'));

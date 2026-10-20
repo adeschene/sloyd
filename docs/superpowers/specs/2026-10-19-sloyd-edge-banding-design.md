@@ -4,9 +4,10 @@
 **Chunk 1 MERGED** to master as `b7f700b` 2026-10-20 (plan `docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`; final
 review's fixes `9f36387`), **DEPLOYED 2026-10-20** as `index-Df8FpxEW.js` (schema 19). **Chunk 2** (§8: viewport, Plans sheet,
 part diagrams; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`) is MERGED (`5e55b17`) and DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`, no schema
-change. The *Amended (planning)* blocks (P1–P5) were APPROVED by the user 2026-10-20; the *Amended (implementation, chunk 1)* blocks
-below await the user's review; the
-*Amended (planning, chunk 2)* block (Q1–Q7) is APPROVED by the user (Q1 their own ruling, Q2–Q7 approved 2026-10-20).
+change. **Every amendment is APPROVED by the user (2026-10-20)**: the *Amended (planning)* blocks (P1–P5), the *Amended
+(implementation, chunk 1)* blocks (all sixteen items; the two wording items in §4.1 changed as the user chose: a list and `all four
+sides`, and band types counted apart in Buying's unpriced tail), and the *Amended (planning, chunk 2)* block (Q1 the user's own
+ruling, Q2–Q7).
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
 inv 45), mirrored frames (inv 44), the cut list (`cutlist.ts`, inv 18, 40), sheet nesting (`nesting.ts`), Buying
 (`purchase.ts`), custom materials (inv 49), the outline and side stretches of profile runs b1 (`profilePath.ts`:
@@ -189,7 +190,7 @@ size.` for a resize). **Curves refuses an edit that adds a band fault**, naming 
 (`Edging on the width max side needs a straight edge — remove the band first.`), per band, as it does for profiles; the
 Materials dialog refuses a band type edit that adds a fault to any part, naming the first part and the count.
 
-> *Amended (implementation, chunk 1)*, for the user's review:
+> *Amended (implementation, chunk 1)* — **approved by the user 2026-10-20**:
 > - **`too-thick` faults only the bands WITH thickness** in the opposite pair. A zero-thickness band opposite cannot cause
 >   the fault, and faulting it would drop real tape from Buying ("both bands of the pair" read as both bands that consume
 >   the dimension). Cost: none known beyond a part already carrying a faulted edging.
@@ -230,15 +231,18 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 > `bandsMeetAtCorner`, also the Corners select's rule). The example above names two OPPOSITE sides, where no corner exists;
 > under this rule it reads `Band: the width min side and the width max side — Maple edging 1/4"; finished 24" × 11-1/4"`.
 
-> *Amended (implementation, chunk 1)*, for the user's review:
+> *Amended (implementation, chunk 1)* — **approved by the user 2026-10-20**:
 > - **A nominal name is judged on the CORE** (the cut thickness and width): it names what is cut (inv 18). Identical for
 >   band-free parts.
 > - **A banded row's diagrams (and its setup lines other than the band line) describe the FINISHED part**, while its
 >   `dims` print the core. Seen live: the mitred tabletop's row reads `35-1/2" × 19-1/2"` beside a diagram labelled
->   `36"` × `20"`. A bench reader sees two sizes on one row (fu 395; chunk 2 redraws the diagrams anyway).
+>   `36"` × `20"`. A bench reader sees two sizes on one row (fu 395; chunk 2 redraws the diagrams anyway). **Settled by chunk 2's
+>   Q1** (the user's ruling): drawn at the finished size, the banded sides marked, and a core note.
 > - Seen live, wording for the user's eye: four sides sharing a type read `Band: the width min side and the width max
 >   side and the length min end and the length max end — …` (no list-joining of three or more), and Buying's unpriced
->   tail counts a tape type as a material (`3 materials have no price`).
+>   tail counts a tape type as a material (`3 materials have no price`). **Changed 2026-10-20 by the user's choice:** three or more
+>   sides read as a list (`the width min side, the width max side and the length max end`), all four of one type as `all four
+>   sides`; the tail counts band types apart (`2 materials and 1 band type have no price`; materials alone read as before).
 > - **The row key carries the corner rule ONLY where `bandsMeetAtCorner` holds** (final review 1): the band text and the
 >   strips depend on the rule only there (a strip's finished length and mitre ends read a NEIGHBOUR's thickness, which is
 >   that condition), and the core never does. So two shelves each banded on one side, one `long` and one `mitre`, read
@@ -264,7 +268,7 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 > by cut size as any row does (its names list the strips: `Tabletop edging (width min side), Tabletop edging (width max
 > side)`); the spec's `Shelf edging (width min, width max)` was one combined name.
 
-> *Amended (implementation, chunk 1)*: **"after its parts"** reads: within a material, a group holding only strips sorts
+> *Amended (implementation, chunk 1)* — **approved by the user 2026-10-20** (strips keep the material order; not renumbered last): **"after its parts"** reads: within a material, a group holding only strips sorts
 > after the groups holding parts, and within a shared group strips follow parts (edging is milled from what is left). A
 > material whose section holds only strips (the maple of a plywood tabletop) still sorts by material, so its strip rows can
 > take the first numbers of the series (seen live: strips 1–2, parts 3–5, the Plans sheet's balloons 3, 4, 5).
@@ -311,7 +315,7 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   with thickness AND at least one of them is solid (the corner rule makes strips; tape has none, §3.3).
 - Multi-selection: a select shows `Mixed` where parts disagree; choosing writes that side on every selected part in one
   edit (an untouched mixed select writes nothing, inv 5).
-  > *Amended (implementation, chunk 1; final review 1)*: **Corners reads and writes only the selected parts where a corner
+  > *Amended (implementation, chunk 1; final review 1)* — **approved by the user 2026-10-20**: **Corners reads and writes only the selected parts where a corner
   > qualifies** (`bandsMeetAtCorner`): its value or `Mixed` is over those parts, and a choice writes those parts alone, so a
   > selected part the rule cannot change is never stamped with a rule the then-hidden select could not reset.
 - Refusal (fu 388's pattern): options are judged on focus, never per render; an option that would ADD a fault to any
@@ -338,7 +342,7 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
 > project** (`doc.materials`); a custom material created in the same dialog Save is not offered until saved (one Save
 > would otherwise have to order a material upsert before a band type that names it).
 
-> *Amended (implementation, chunk 1)*, for the user's review:
+> *Amended (implementation, chunk 1)* — **approved by the user 2026-10-20**:
 > - **A band type edit's added fault is judged with "before" = the STORED band types** and "after" = the full planned
 >   list (every row's draft). Judged against the other rows' drafts, two edits could each hide the other's added fault.
 > - **A name clash refuses only when one side's name was TYPED** (the materials' rule): the loader dedupes exactly, so an

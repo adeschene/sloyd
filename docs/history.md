@@ -520,6 +520,12 @@ and 79.
 
 ## What each round did
 
+**Band wording (2026-10-20, the user's choices on fu 395(2)–(3); branch `band-wording`)**: the band line lists three or more sides
+(`the width min side, the width max side and the length max end`) and reads `all four sides` when one type bands all four (`bandText.ts`
+`sideList`; the cut list and the diagrams' band note share it); Buying's unpriced tail counts band types apart (`unpricedTail`:
+`2 materials and 1 band type have no price`; materials alone byte for byte as before). fu 395(4) left as is by the user. Every edge
+banding spec amendment approved the same day. No schema change.
+
 **Banding section on the additions' pattern (2026-10-20, the user's request; branch `banding-add-button`)**: an unbanded selection
 shows only `+ Add banding ▾`; once any selected part is banded, the side selects, Corners, fault notes and `Band ▾` (bulk edits,
 Remove all bands) appear, and one part's heading counts its banded sides. Both menus end with `New solid edging…` (the user: solid

@@ -307,6 +307,15 @@ function tapeToBuy(doc: FlatDocument): { banding: Purchase['banding']; unpriced:
  * The by-the-piece packer is a HEURISTIC, not an optimum: open the largest size that fits, then swap each
  * board down to the cheapest size that still holds its parts, proved by re-packing them.
  */
+/** Buying's unpriced tail: materials and band types counted apart (fu 395(3)); materials alone read as they always did. */
+function unpricedTail(materials: number, bandTypes: number): string {
+  const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
+  if (materials > 0 && bandTypes > 0) return `(${n(materials, 'material')} and ${n(bandTypes, 'band type')} have no price)`;
+  const only = materials > 0 ? n(materials, 'material') : bandTypes > 0 ? n(bandTypes, 'band type') : '';
+  if (!only) return '';
+  return `(${only} ${(materials || bandTypes) === 1 ? 'has' : 'have'} no price)`;
+}
+
 export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings): Purchase {
   const catalog = catalogOf(doc);
   const stock = cutStock(doc);
@@ -346,10 +355,10 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
   const { banding, unpriced: tapeUnpriced } = tapeToBuy(doc);
   const total = entries.reduce((n, e) => n + (e.cost ?? 0), 0) + (banding?.cost ?? 0);
   // A material is unpriced when it has something to buy (a buy line) but no cost; one that bought nothing is not.
-  const unpriced = entries.filter((e) => e.cost === null && e.lines.length > 0).length + tapeUnpriced;
+  const unpriced = entries.filter((e) => e.cost === null && e.lines.length > 0).length;
   const unplaced = entries.reduce((n, e) => n + e.unplaceable, 0);
   const tail = [
-    unpriced > 0 ? `(${unpriced} material${unpriced === 1 ? ' has' : 's have'} no price)` : '',
+    unpricedTail(unpriced, tapeUnpriced),
     unplaced > 0 ? `(${unplaced} part${unplaced === 1 ? '' : 's'} not placed)` : '',
   ].filter(Boolean).join(' ');
   const amount = entries.some((e) => e.cost !== null) || banding?.cost != null ? formatMoney(total) : '—';

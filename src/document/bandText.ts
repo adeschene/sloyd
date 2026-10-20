@@ -5,6 +5,12 @@ import { edgeName } from './holeText';
 import { formatLength, formatSize, type Units } from '../units/length';
 
 const sideWords = (s: ProfileSide) => edgeName({ dim: s.across, side: s.from });
+/** Sides as a list (fu 395(2)): `a`, `a and b`, `a, b and c`; all four as `all four sides`. */
+const sideList = (sides: readonly ProfileSide[]) => {
+  if (sides.length === 4) return 'all four sides';
+  const w = sides.map(sideWords);
+  return w.length <= 2 ? w.join(' and ') : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`;
+};
 const CORNER_WORDS: Record<CornerRule, string> = { long: 'long edges run through', ends: 'ends run through', mitre: 'mitred corners' };
 
 /**
@@ -28,7 +34,7 @@ export function bandLine(board: Board, types: readonly BandType[], units: Units)
     else groups.set(key, { type: b.type, fault, sides: [b.side] });
   }
   const clauses = [...groups.values()].map(({ type, fault, sides }) =>
-    `${sides.map(sideWords).join(' and ')} — ${nameOf.get(type)!}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
+    `${sideList(sides)} — ${nameOf.get(type)!}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
   if (clauses.length === 0) return null;
   const meets = bandsMeetAtCorner(board, types);
   const core = coreSize(board, types);

@@ -6713,6 +6713,9 @@ by the ruled order, but it may read oddly.
 **Status:** (1) CLOSED by edge banding chunk 2 (the user's ruling, 2026-10-20: "Finished + marks + core note"): a banded part's
 diagram is drawn at the finished size, with a heavy mark on each banded side, the band line as a note, and a second note giving
 the core (`Drawn at the finished size; cut 35-1/2" × 19-1/2" before banding.`). (2)–(4) open (owed to the user's eye).
+**Status:** CLOSED 2026-10-20 (the user's choices): (2) three or more sides read as a list, all four of one type as `all four
+sides`; (3) Buying's tail counts band types apart (`2 materials and 1 band type have no price`); (4) left as is — strips keep the
+material order.
 
 **396. A part whose `faceOutline` is null faults every band `no-side`.** A faulted or overlapping through-thickness curve
 leaves no outline. Every band on that part then contributes nothing: no core reduction, no strip, no tape. While the curve
