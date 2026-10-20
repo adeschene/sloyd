@@ -1382,6 +1382,12 @@ select.input { cursor: pointer; }
 .material-note { margin: 4px 0; color: var(--ink-dim); }
 .material-delete { position: absolute; top: 4px; right: 8px; }
 .custom-material.is-deleted legend, .custom-material.is-deleted .material-definition { text-decoration: line-through; color: var(--ink-dim); }
+/* The Edge banding section (edge banding spec §5.2): one wrapping row per band type, a rule between rows. */
+.band-type { display: flex; flex-wrap: wrap; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--rule-soft); }
+.band-type .input.band-name { width: 11em; }
+.band-kind { margin: 4px 12px 4px 0; color: var(--ink-dim); }
+.band-type.is-deleted .band-name { text-decoration: line-through; color: var(--ink-dim); }
+.band-types .popover { margin-top: 8px; }
 .link-button { padding: 0; border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; }
 
 /* fu 357: the metric sheet's running note, in the top margin of every printed page (a margin box: Chromium 131+, so Chrome,

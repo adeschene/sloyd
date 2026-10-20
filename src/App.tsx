@@ -34,7 +34,8 @@ import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
 import { isTextEntry } from './textEntry';
 import type { SloydDocument } from './document/document';
-import type { CustomMaterial, MaterialKind } from './document/types';
+import { MATERIALS, isSheetGood, type CustomMaterial, type MaterialKind } from './document/types';
+import { worldParts } from './document/tree';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { storage } from './storage';
 import { useStore } from './store/store';
@@ -1035,10 +1036,16 @@ export default function App() {
           libraryReadFailed={library.readFailed}
           locked={exploded}
           newFor={newMaterialFor}
-          // ONE Save (spec §4.1): the project's copies in one edit (one undo entry), then the library, then the
+          bandTypes={doc.bandTypes}
+          parts={worldParts(doc)}
+          // Amended (planning) P4: a solid band type names a built-in solid or a custom solid already in this project.
+          solids={[...Object.keys(MATERIALS).filter((m) => !isSheetGood(m)), ...doc.materials.filter((m) => m.kind === 'solid').map((m) => m.id)]}
+          // ONE Save (spec §4.1): the project's copies and band types in one edit (one undo entry), then the library, then the
           // prices. A failed browser write is reported and does not roll back the project edit.
           onSave={async ({ shop: s, plan }) => {
-            if (plan.project.length > 0 || plan.assign) useStore.getState().applyMaterials(plan.project, plan.assign ?? undefined);
+            if (plan.project.length > 0 || plan.assign || plan.bandTypes) {
+              useStore.getState().applyMaterials(plan.project, plan.assign ?? undefined, plan.bandTypes ?? undefined);
+            }
             const failed: string[] = [];
             if (plan.library) {
               if (await storage.setMaterialLibrary(plan.library)) setLibrary({ materials: plan.library, readFailed: false });
@@ -1050,7 +1057,7 @@ export default function App() {
             } else failed.push('your prices');
             if (failed.length === 0) return null;
             // Claimed only when this Save did change the project (not for prices, the library alone, or exploded).
-            const projectChanged = plan.project.length > 0 || plan.assign !== null;
+            const projectChanged = plan.project.length > 0 || plan.assign !== null || plan.bandTypes !== null;
             return `Could not save ${failed.join(' or ')}: this browser is not letting Sloyd store settings.`
               + (projectChanged ? " The project's changes were made." : '');
           }}
