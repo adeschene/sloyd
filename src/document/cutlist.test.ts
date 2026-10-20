@@ -16,7 +16,7 @@ const docWith = (...boards: Partial<Board>[]): FlatDocument => ({
 
 describe('buildCutList', () => {
   it('returns no groups for an empty document', () => {
-    expect(buildCutList(createDocument('Test'))).toEqual({ groups: [] });
+    expect(buildCutList(createDocument('Test'))).toEqual({ groups: [], notes: [] });
   });
 
   it('collapses two identical boards into one row of quantity 2', () => {

@@ -47,6 +47,17 @@ describe('CutList', () => {
     expect(screen.getByText(/3\/4" dado, 1\/4" deep/)).toBeInTheDocument();
   });
 
+  it('a banded project carries the banding note in the header; a band-free one does not (edge banding spec §4.1)', () => {
+    const note = /Cut sizes are before banding/;
+    load({ material: 'plywood' });
+    const { unmount } = render(<CutList onClose={() => {}} />);
+    expect(screen.queryByText(note)).toBeNull();
+    unmount();
+    load({ material: 'plywood', bands: [{ side: { across: 'width', from: 'min' }, type: 'band-iron-on' }] });
+    render(<CutList onClose={() => {}} />);
+    expect(screen.getByText(note).closest('header')).not.toBeNull();
+  });
+
   it('closes on the close button', async () => {
     let closed = false;
     render(<CutList onClose={() => { closed = true; }} />);

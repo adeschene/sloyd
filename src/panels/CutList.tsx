@@ -47,7 +47,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
   const flat = flatDocument(doc);
   const list = buildCutList(flat);
   // Each part's row number, so its layouts label small parts in the cut list's own series (plans balloons).
-  const rowNumbers = new Map(list.groups.flatMap((g) => g.rows).flatMap((r) => r.boardIds.map((id) => [id, r.number] as const)));
+  const rowNumbers = new Map(list.groups.flatMap((g) => g.rows).flatMap((r) => [...r.boardIds, ...r.stripIds].map((id) => [id, r.number] as const)));
   const purchase = buildPurchase(flat, list, shop);
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
@@ -82,6 +82,8 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
           <div>
             <h2>Cut list — {doc.name}</h2>
             {isMetric(doc.units) && <p className="sheet-units-note">Dimensions in mm</p>}
+            {/* Edge banding spec §4.1: the sheet's notes (empty when nothing is banded), in the header's note style. */}
+            {list.notes.map((n, i) => <p className="sheet-units-note" key={`note${i}`}>{n}</p>)}
           </div>
           <div className="cutlist-actions">
             <label className="cutlist-diagram-mode">

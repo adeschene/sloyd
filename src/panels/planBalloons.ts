@@ -36,7 +36,8 @@ const length = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
 
 /**
  * Each row's anchor (§3.1): among its parts, the one with the most visible line (a tie: the first listed); the midpoint
- * of that part's longest visible segment (a tie: the first drawn). A row with no visible segment is `hidden`. A
+ * of that part's longest visible segment (a tie: the first drawn). A row with no visible segment is `hidden`; a row with
+ * no parts at all (an edging strip row, edge banding spec §4.2) is skipped, neither anchored nor hidden. A
  * zero-length segment adds nothing to a total and loses to any real one, so it can never be the anchor.
  */
 export function anchorsFor(d: Drawing, rows: readonly BalloonRow[]): Anchors {
@@ -50,6 +51,7 @@ export function anchorsFor(d: Drawing, rows: readonly BalloonRow[]): Anchors {
   const anchors: Anchor[] = [];
   const hidden: number[] = [];
   for (const row of rows) {
+    if (row.boardIds.length === 0) continue; // a strip row draws no part (edge banding spec §4.2): no balloon, not hidden
     let best: Seg2[] | null = null;
     let bestLength = 0;
     for (const id of row.boardIds) {
