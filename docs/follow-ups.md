@@ -6710,6 +6710,9 @@ plan-mandated wording.
 tabletop) sorts by material, so its strips came first live and the Plans sheet's balloons started at 3. This is correct
 by the ruled order, but it may read oddly.
 **Status:** open (owed to the user's eye; (1) with chunk 2).
+**Status:** (1) CLOSED by edge banding chunk 2 (the user's ruling, 2026-10-20: "Finished + marks + core note"): a banded part's
+diagram is drawn at the finished size, with a heavy mark on each banded side, the band line as a note, and a second note giving
+the core (`Drawn at the finished size; cut 35-1/2" × 19-1/2" before banding.`). (2)–(4) open (owed to the user's eye).
 
 **396. A part whose `faceOutline` is null faults every band `no-side`.** A faulted or overlapping through-thickness curve
 leaves no outline. Every band on that part then contributes nothing: no core reduction, no strip, no tape. While the curve
@@ -6773,3 +6776,30 @@ first).
   fresh arrays, so the `(part, types)` memo never hits), and the open `Band ▾` menu rebuilds `faceOutline` per item via
   `{ ...part, bands }`. Fine at today's project sizes; key the outline on dimensions plus curves if it ever shows.
 **Status:** open (record-only).
+
+**402. Edge banding chunk 2: for the user's eye and real hardware.**
+(1) **The band looks on real hardware.** The live pass ran under software GL: the walnut/maple `'edge'` texture's scale on a 3/4"
+face, the tape look on MDF (its `'face'` texture), and a faded solid band (it takes the PART's faded colour, as everything outside
+an open assembly greys). At full size maple edging and plywood plies read alike by eye; the check used walnut on a 4 × 3 part.
+(2) **Glue lines on a real print** sit 1/4" inside the outline and print as a near-coincident double line at plan scale; the far
+face's glue lines are hidden and dash under the visible ones (as outline edges already do).
+(3) **A strip's diagram is not to scale** (Q7): the sliver clamp makes sx ≠ sy, so a 45° mitre's hatched wedge reads steeper.
+(4) **A wholly faulted band type is still keyed** and lands in `Not shown in these views: … — check the cut list`.
+(5) **The Plans key gives one line per (part, band type)** (Q6), where the spec said "a key line per banded part".
+**Status:** open (owed to the user's eye).
+
+**403. Edge banding chunk 2: deferred review minors and test gaps** (record-only unless noted).
+- Tests: the ends-rule glue test asserts two sides and counts the rest; no thick-tape case under Ends, no Mitred case with a solid
+  long side and a thick-tape end; no banded HOLED part (a bore into a banded edge: painted area = side − mouth, watertight); no
+  render test that PlansSheet passes `doc.bandTypes` (dropping the prop would remove every glue line and band key silently); no
+  vUp-vs-not mark position, no metric core note or mitre; the square-strip equality test is near-tautological; the viewport look on
+  a mirrored copy is not pinned (the Plans sheet's mirrored case is).
+- Code: four walks of a side's stretch (`bandFaces.ts` `runOf`, `diagram.ts`, `featureKeys.ts`, the bandFaces test) — one helper
+  in `profilePath.ts` would leave one definition; `judge`'s per-side chords stay private in `banding.ts`. `as Point` on a
+  computed-key object (`banding.ts`); `bandLine` computed twice in `buildDiagrams`; `+ 0` (−0 normalisation) uncommented.
+- Perf: no guard row for a banded rebuild. Measured by the final review: the post-pass is 1.3 ms on a 1140-triangle ogee loop with
+  tape all round (its `partMesh` 22.3 ms), 0.3 ms on the arched apron; a banded plain box now draws through `bodyMesh` (Q2).
+- A corner arc shared by two taped sides takes the first look in canonical order: invisible, since a tape look is always the
+  part's own material and a solid band on an arc faults `needs-straight`.
+**Status:** open (record-only).
+

@@ -2,8 +2,10 @@
 
 **Date:** 2026-10-19 · **Status:** approved by the user 2026-10-19 (in conversation section by section, then the written spec).
 **Chunk 1 MERGED** to master as `b7f700b` 2026-10-20 (plan `docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`; final
-review's fixes `9f36387`), **not yet deployed** (schema 19). **Chunk 2** (§8: viewport, Plans sheet, part diagrams) is next and has
-no plan yet. The blocks marked *Amended (planning)* (P1–P5) and *Amended (implementation, chunk 1)* below await the user's review.
+review's fixes `9f36387`), **DEPLOYED 2026-10-20** as `index-Df8FpxEW.js` (schema 19). **Chunk 2** (§8: viewport, Plans sheet,
+part diagrams; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`) is built on branch `edge-banding-2`, no schema
+change. The blocks marked *Amended (planning)* (P1–P5), *Amended (implementation, chunk 1)* and *Amended (planning, chunk 2)*
+(Q2–Q7; Q1 is the user's ruling) below await the user's review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
 inv 45), mirrored frames (inv 44), the cut list (`cutlist.ts`, inv 18, 40), sheet nesting (`nesting.ts`), Buying
 (`purchase.ts`), custom materials (inv 49), the outline and side stretches of profile runs b1 (`profilePath.ts`:
@@ -380,6 +382,26 @@ section, the Materials dialog's Edge banding section, Curves' band refusal, `ban
   byte-identical (`drawingIdentity`).
 - **Part diagrams:** a heavy mark along each banded side in the broad-face view, and the band line as an HTML note (inv
   19); a strip row's own diagram (the strip, mitred ends drawn).
+
+> *Amended (planning, chunk 2)*, for the user's review (Q1 is the user's ruling):
+> - **Q1 — a banded part's diagram is drawn at the FINISHED size** (the user, 2026-10-20, fu 395(1)): heavy marks on the banded
+>   sides, the band line as a note, and `Drawn at the finished size; cut 35-1/2" × 19-1/2" before banding.` when the core differs.
+> - **Q2 — the viewport paints by moving triangles, not by recolouring a material slot** (a slot holds every face pointing one
+>   way: a dado wall, a hole facet, a seam). Only triangles lying ON the side's outline stretch take the look; a banded part's
+>   bodies are then all drawn through `bodyMesh` (pinned to draw BoxGeometry's UVs on every other face).
+> - **Q3 — the looks.** Tape: the PART's material with its long-grain texture (wood `'edge'`, plywood and MDF `'face'`: no plies).
+>   Solid: the BAND's material colour and its `'edge'` texture. A band face's UVs run along the side's stretch (u) and across the
+>   thickness (v); per-board variation stays in the UVs (inv 12).
+> - **Q4 — only SOLID bands draw glue lines**; a faulted band is painted with nothing and draws no line or mark.
+> - **Q5 — glue line extents**: a strip that runs through draws its glue line full length; one that gives way, or any strip under
+>   Mitred, core corner to core corner; under Mitred each mitre line (core corner to finished corner) is drawn ONCE, on the
+>   long-edge strip when it is solid, else on the end strip.
+> - **Q6 — Plans keys: one line per (part, band type)**, `<name>[ <thickness>]: <sides>` (`Iron-on veneer: length min end`);
+>   the thickness is left out when the name already carries it as a separate token (`Maple edging 1/4"`, the final review). Its
+>   tag sits on the glue lines and on every outline edge lying on a banded side's plane (the straight runs of a rounded-corner
+>   side included, the final review); a band on a curved stretch is keyed through that curve's tags.
+> - **Q7 — a strip's diagram** is its blank with each mitred end's waste hatched (long point on the finished edge, half the length
+>   allowance in from the blank's end). It is not to scale: the sliver clamp makes a mitre read steeper.
 
 ## 9. Testing
 
