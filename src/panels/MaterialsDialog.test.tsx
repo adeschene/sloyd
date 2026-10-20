@@ -479,3 +479,29 @@ describe('MaterialsDialog — the Edge banding section (edge banding spec §5.2)
     expect(screen.getByText(/each project also keeps a copy of the materials it uses, and its own band types and tape prices\. Undo reverts the project's copies and band types, not your library or material prices\./)).toBeInTheDocument();
   });
 });
+
+describe('MaterialsDialog — band rows after a partial failure (task 9 review)', () => {
+  it('a saved new band type becomes a stored row, and a second Save plans no band types', async () => {
+    let rerender: (ui: ReactElement) => void = () => {};
+    const props = (bandTypes: SavePlan['bandTypes'] & object) => ({ shop: defaultShop(), readFailed: false, project: [], library: [],
+      libraryReadFailed: false, locked: false, newFor: null, onClose: () => {}, bandTypes, parts: [], solids: ['maple'] });
+    // App applies the project edit before the failed browser write resolves: the props change first.
+    const onSave = vi.fn(async ({ plan }: { shop: ShopSettings; plan: SavePlan }) => {
+      if (plan.bandTypes) rerender(<MaterialsDialog {...props(plan.bandTypes)} onSave={onSave} />);
+      return 'Could not save your prices: …';
+    });
+    ({ rerender } = render(<MaterialsDialog {...props([BUILT_IN_BAND])} onSave={onSave} />));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add band type ▾' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solid' }));
+    expect(screen.getByRole('button', { name: 'Remove Solid edging' })).toBeInTheDocument();
+    fireEvent.click(saveBtn());
+    expect(await screen.findByText('Could not save your prices: …')).toBeInTheDocument();
+    expect(onSave.mock.calls[0]![0].plan.bandTypes).toHaveLength(2);
+    // Now a stored row: Delete, not Remove.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete Solid edging' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Remove Solid edging' })).toBeNull();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0].plan.bandTypes).toBeNull();
+  });
+});

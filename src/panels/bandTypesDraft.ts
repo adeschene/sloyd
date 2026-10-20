@@ -85,6 +85,9 @@ function listed(rows: readonly BandRow[], swap?: { id: string; type: BandType | 
   });
 }
 
+const nameKey = (r: BandRow) => (r.draft.name ?? '').trim().toLowerCase();
+const nameTyped = (r: BandRow) => r.original === null || nameKey(r) !== r.original.name.trim().toLowerCase();
+
 /** Why this row cannot be saved, or null. Order (spec §5.2): the name, each number, a solid's thickness and material, a
  *  deletion in use, then the fault rule — an edit that ADDS a (side, kind) fault to a part using the type. */
 export function bandRowRefusal(r: BandRow, rows: readonly BandRow[], ctx: BandCtx): string | null {
@@ -93,10 +96,12 @@ export function bandRowRefusal(r: BandRow, rows: readonly BandRow[], ctx: BandCt
     if (r.id === BUILT_IN_BAND_ID || users.length === 0) return null;
     return users.length === 1 ? 'Used by 1 part — change its bands first.' : `Used by ${users.length} parts — change their bands first.`;
   }
-  const key = (r.draft.name ?? '').trim().toLowerCase();
+  const key = nameKey(r);
   if (!key) return 'Give the band type a name.';
-  const other = live(rows).find((o) => o.id !== r.id && (o.draft.name ?? '').trim().toLowerCase() === key);
-  if (other) return `Another band type is called "${other.draft.name!.trim()}".`;
+  const other = live(rows).find((o) => o.id !== r.id && nameKey(o) === key);
+  // A clash refuses only when one side's NAME was typed: the loader dedupes names exactly, so an imported `Tape` and
+  // `tape` load side by side, and refusing them untouched would block every Save, prices included (the materials' rule).
+  if (other && (nameTyped(r) || nameTyped(other))) return `Another band type is called "${other.draft.name!.trim()}".`;
   for (const f of [...BASE_FIELDS, ...KIND_FIELDS[r.kind]]) {
     const v = lengthOf(r.draft[f.key], storedNumber(r, f.key));
     if (v === undefined || (f.key === 'tapeWidth' && v <= 0)) return `${f.label} must be a length.`;
@@ -106,11 +111,12 @@ export function bandRowRefusal(r: BandRow, rows: readonly BandRow[], ctx: BandCt
     if (lengthOf(r.draft.thickness, storedNumber(r, 'thickness')) === 0) return 'Solid edging needs a thickness.';
     if (!ctx.solids.has(r.draft.material ?? '')) return 'Edging comes from solid wood.';
   }
-  // The fault rule: only a part using this type can change. Before: the list with this row as stored; after: as drafted
-  // (this row's draft, which `rows` may hold an older copy of).
+  // The fault rule: only a part using this type can change. Before: the list AS STORED (every row's original — a baseline
+  // of other rows' drafts let two edits each hide the other's added fault); after: as planned, with this row's draft
+  // (which `rows` may hold an older copy of).
   const drafted = fromDraft(r);
   if (r.original && drafted && users.length > 0) {
-    const before = listed(rows, { id: r.id, type: r.original });
+    const before = rows.flatMap((x) => (x.original ? [x.original] : []));
     const after = listed(rows, { id: r.id, type: drafted });
     for (const p of users) {
       const had = new Set(bandFaults(p, before).map((f) => `${f.side.across}:${f.side.from}:${f.kind}`));

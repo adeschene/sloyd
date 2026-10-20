@@ -42,3 +42,26 @@ describe('the Edge banding section (edge banding spec §5.2)', () => {
     expect(bandRowRefusal({ ...m, draft: { ...m.draft, thickness: '12' } }, rows, ctx)).toBe('Shelf: leaves no core.');
   });
 });
+
+describe('the fault rule judges against the STORED list (task 9 review)', () => {
+  it('two edits that together leave no core are refused, though each alone reads the other as given', () => {
+    const a: BandType = { ...maple, id: 'a1', name: 'A' };
+    const b: BandType = { ...maple, id: 'b1', name: 'B' };
+    const part = { ...shelf, bands: [{ side: { across: 'width', from: 'min' } as const, type: 'a1' }, { side: { across: 'width', from: 'max' } as const, type: 'b1' }] };
+    const types = [BUILT_IN_BAND, a, b];
+    const rows = initialBandRows(types).map((r) => (r.id === 'a1' || r.id === 'b1' ? { ...r, draft: { ...r.draft, thickness: '11-3/4' } } : r));
+    expect(planBandTypes(rows, types, { ...ctx, parts: [part] })).toEqual({ refused: 'Shelf: leaves no core.' });
+  });
+});
+
+describe('a name clash refuses only a TYPED name (task 9 review)', () => {
+  it('an imported pair differing only in case is not refused untouched, and an edit onto it is', () => {
+    const t1: BandType = { ...BUILT_IN_BAND, id: 't1', name: 'Tape' };
+    const t2: BandType = { ...BUILT_IN_BAND, id: 't2', name: 'tape' };
+    const types = [BUILT_IN_BAND, t1, t2];
+    const rows = initialBandRows(types);
+    expect(planBandTypes(rows, types, ctx)).toBeNull();
+    expect(bandRowRefusal({ ...rows[1]!, draft: { ...rows[1]!.draft, name: 'TAPE ' } }, rows, ctx)).toBeNull(); // the same name, re-cased
+    expect(bandRowRefusal({ ...rows[0]!, draft: { ...rows[0]!.draft, name: 'tape' } }, rows, ctx)).toBe('Another band type is called "Tape".');
+  });
+});
