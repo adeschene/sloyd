@@ -17,8 +17,14 @@ import { loop, topCorners } from './sweepFixtures';
  * `sweptIdentity` pattern); the replacer drops only the keys banding adds (`stripIds`, `notes`, `banding`). Never
  * re-capture a literal to make this pass.
  */
-const DROPPED = new Set(['stripIds', 'notes', 'banding']);
-const strip = (k: string, v: unknown) => (DROPPED.has(k) ? undefined : v);
+const DROPPED = new Set(['stripIds', 'banding']);
+/** Drops what banding adds: `stripIds` and `banding` anywhere, and `notes` ONLY on the CutList itself — Buying's own
+ *  `PurchaseEntry.notes` (plane, fits-no-stock, end grain, the fu 273 smaller-size note) stay pinned (fix round 1). */
+function strip(this: unknown, k: string, v: unknown) {
+  if (DROPPED.has(k)) return undefined;
+  if (k === 'notes' && typeof this === 'object' && this !== null && 'groups' in this) return undefined;
+  return v;
+}
 /** Minted ids carry `Date.now()` (ids.ts), so each is renamed by first appearance; their relations are kept. */
 function canonical(json: string): string {
   const seen = new Map<string, string>();
@@ -59,7 +65,7 @@ const pieces = (): FlatDocument => docOf([
     cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 }] }),
   { ...topCorners(2, loop('p1', 0.5, 'ogee')), name: 'Top', material: 'pine' },
 ]);
-const PIECE_SHOP = shopWith({ pine: { mode: 'piece', stock: [size('A', 0.75, 5.5, 96, 12), size('B', 0.75, 7.25, 96, 18), size('C', 0.75, 5.5, 72, 9), size('D', 1.5, 12, 96, 30)] } });
+const PIECE_SHOP = shopWith({ pine: { mode: 'piece', stock: [size('A', 0.75, 5.5, 96, 12), size('B', 0.75, 7.25, 96, 18), size('C', 0.75, 5.5, 72, 9), size('D', 1.5, 12, 96, 30), size('E', 0.75, 5.5, 48, null)] } });
 
 const CASES: [string, () => FlatDocument, ShopSettings][] = [
   ['shaker table', shaker, defaultShop()],
@@ -68,12 +74,16 @@ const CASES: [string, () => FlatDocument, ShopSettings][] = [
   ['sheet goods, metric', () => ({ ...sheets(), units: { display: 'metric-mm', precision: 16 } }), defaultShop()],
 ];
 
-// Captured 2026-10-20 on edge-banding-1 at 6e5d6dd (before Task 5 touched cutlist.ts; before Task 6 touched purchase.ts).
+// The CutList hashes (first of each pair): captured 2026-10-20 on edge-banding-1 at 6e5d6dd, before Task 5 touched
+// cutlist.ts; never re-captured. The Buying hashes (second): RE-CAPTURED once in Task 5's fix round 1 (at 1d8c5b2), because
+// the first replacer dropped `notes` at every depth and so left Buying's own PurchaseEntry.notes unpinned; the by-the-piece
+// shop also gained an unpriced 4' size so its Buying carries the fu 273 note beside its fits-no-stock note. purchase.ts was
+// still untouched since master then, so these are still today's Buying bytes.
 const PINNED: Record<string, [string, string]> = {
-  'shaker table': ['2fd0edc02a046a21', 'fc03aadea642f331'],
-  'sheet goods': ['465fd867e3bb167e', 'a124fae07b29b33d'],
-  'by the piece': ['460c41c5b698657d', 'd6efcd77fc6dd403'],
-  'sheet goods, metric': ['5721bb7e74c90ef4', '2ef12b2fc9cf932d'],
+  'shaker table': ['2fd0edc02a046a21', '4fd16a9b34e7bb78'],
+  'sheet goods': ['465fd867e3bb167e', 'c77f0e028fe8b2ce'],
+  'by the piece': ['460c41c5b698657d', 'e8695353ca0f459d'],
+  'sheet goods, metric': ['5721bb7e74c90ef4', '8f53656cbbabb8ef'],
 };
 
 describe('a band-free document: the cut list and Buying byte for byte (edge banding 1)', () => {

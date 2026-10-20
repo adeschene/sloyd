@@ -366,6 +366,11 @@ function stockInchesOf(board: Board): number {
     : board.length * board.width * board.thickness;
 }
 
+/** 1 for an edging strip row (edge banding spec §4.2), 0 for a part row: the sorts' first key, so strips come last. */
+const isStripRow = (r: CutListRow) => (r.stripIds.length > 0 ? 1 : 0);
+/** 1 for a group holding only strip rows, 0 for one holding any part. */
+const stripOnly = (g: CutListGroup) => (g.rows.every((r) => r.stripIds.length > 0) ? 1 : 0);
+
 export function buildCutList(doc: FlatDocument): CutList {
   const units = doc.units;
   const catalog = catalogOf(doc);
@@ -457,8 +462,9 @@ export function buildCutList(doc: FlatDocument): CutList {
     visit(board, cutParts[i]!, rowKey(board, units, doc.bandTypes),
       () => ({ setup: setupLines(board, units, doc.bandTypes), diagrams: buildDiagrams(board, units) }), false);
   });
-  // Strip rows (edge banding spec §4.2): in the edging material's group, after its parts (each row's place is then set by
-  // the group's sort), collapsed by cut size, material and ends.
+  // Strip rows (edge banding spec §4.2): in the group of the edging material and the strip's thickness, collapsed by cut
+  // size, material and ends. "After its parts" is the SORT's job below: strip rows last in a group, strip-only groups
+  // after the material's part groups.
   for (const part of doc.boards) {
     for (const s of strips(part, doc.bandTypes)) {
       const sb = stripBoard(s);
@@ -471,8 +477,9 @@ export function buildCutList(doc: FlatDocument): CutList {
   for (const group of out) {
     // `key` as the final tiebreak so the order is total: tests assert on it
     // and React keys off it, the same reason `mergeAlong` sorts.
+    // Strip rows after part rows (edge banding spec §4.2), each by the same order; a band-free group has none.
     group.rows.sort(
-      (a, b) => b.length - a.length || b.width - a.width || a.key.localeCompare(b.key),
+      (a, b) => isStripRow(a) - isStripRow(b) || b.length - a.length || b.width - a.width || a.key.localeCompare(b.key),
     );
     const format = isSheetGood(group.material) ? formatSquareFeet : formatBoardFeet;
     group.stock = format(group.stockInches);
@@ -490,6 +497,8 @@ export function buildCutList(doc: FlatDocument): CutList {
   out.sort(
     (a, b) =>
       catalog.label(a.material).localeCompare(catalog.label(b.material)) ||
+      // A material's strip-only groups after its groups holding any part (edge banding spec §4.2: "after its parts").
+      stripOnly(a) - stripOnly(b) ||
       b.thickness - a.thickness,
   );
   // The ONE numbering (plans balloons spec §2): display order, after both sorts.

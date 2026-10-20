@@ -79,6 +79,25 @@ describe('the cut list with bands (edge banding spec §4.1, §4.2)', () => {
     const parts = rowsOf(d).filter((r) => r.g.startsWith('Plywood'));
     expect(parts.map((r) => [r.qty, r.dims])).toEqual([[1, '30" × 12"'], [1, '30" × 11-15/16"']]);
   });
+  it('strip rows sort after their material\'s parts: a strip-only group after the part groups, numbers in display order (fix round 1)', () => {
+    const d = flat([
+      shelf('a', [{ side: W0, type: 'm' }]),
+      createBoard({ id: 'r', name: 'Rail', length: 20, width: 2, thickness: 0.75, material: 'maple' }),
+    ]);
+    const list = buildCutList(d);
+    expect(list.groups.map((g) => g.label)).toEqual(['Maple — 3/4"', 'Maple — 13/16"', 'Plywood — 3/4"']);
+    const numbers = list.groups.flatMap((g) => g.rows.map((r) => r.number));
+    expect(numbers).toEqual(numbers.map((_, i) => i + 1));
+  });
+  it('in a shared group the strip row comes last, even when longer (fix round 1)', () => {
+    // A 13/16" maple part 10" long shares the strips' group; the 30-1/2" strip still prints after it.
+    const d = flat([
+      shelf('a', [{ side: W0, type: 'm' }]),
+      createBoard({ id: 'r', name: 'Rail', length: 10, width: 2, thickness: 0.8125, material: 'maple' }),
+    ]);
+    const g = buildCutList(d).groups.find((x) => x.material === 'maple')!;
+    expect(g.rows.map((r) => [r.dims, r.stripIds.length > 0])).toEqual([['10" × 2"', false], ['30-1/2" × 1/4"', true]]);
+  });
   it('sheet nesting lays out cores', () => {
     const d = flat([shelf('a', BAND_SIDES.map((side) => ({ side, type: 'm' })))]);
     const ply = buildCutList(d).groups.find((g) => g.material === 'plywood')!;
