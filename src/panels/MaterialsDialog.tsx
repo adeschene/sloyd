@@ -32,6 +32,8 @@ interface Props {
   locked: boolean;
   /** "New material…" from Properties: these parts take the new material on Save; `kind` starts the new row. */
   newFor: { ids: string[]; kind: MaterialKind } | null;
+  /** "New solid edging…" from the Banding section: the Edge banding section opens with a new Solid row, its name focused. */
+  newBand?: 'solid' | null;
   /** The project's band types (doc.bandTypes; edge banding spec §5.2). App always passes the three band props; the
    *  defaults serve only tests that do not look at the Edge banding section. */
   bandTypes?: BandType[];
@@ -109,11 +111,12 @@ function fromDraft(d: Draft): MaterialBuying | undefined {
  * listener closes it (it renders above the cut list, which ignores Escape while it is open).
  */
 export function MaterialsDialog({
-  shop, readFailed, project, library, libraryReadFailed, locked, newFor, onSave, onClose,
+  shop, readFailed, project, library, libraryReadFailed, locked, newFor, newBand = null, onSave, onClose,
   bandTypes = DEFAULT_BAND_TYPES, parts = NO_PARTS, solids = BUILT_IN_SOLIDS,
 }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const newName = useRef<HTMLInputElement>(null);
+  const newBandName = useRef<HTMLInputElement>(null);
   const builtIns = Object.keys(MATERIALS);
   const [rows, setRows] = useState<Row[]>(() => {
     const r = initialRows(project, library);
@@ -121,7 +124,14 @@ export function MaterialsDialog({
   });
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries([...builtIns, ...rows.map((r) => r.id)].map((m) => [m, toDraft(shop.materials[m] ?? defaultBuying(m, nominalIn(rows, m)))])));
-  const [bandRows, setBandRows] = useState<BandRow[]>(() => initialBandRows(bandTypes));
+  const newBandId = useRef<string | null>(null);
+  const [bandRows, setBandRows] = useState<BandRow[]>(() => {
+    const r = initialBandRows(bandTypes);
+    if (!newBand) return r;
+    const row = newBandRow(newBand, r);
+    newBandId.current = row.id;
+    return [...r, row];
+  });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // A Save that reported a failure leaves the dialog open over a CHANGED project (App applies the project edit
@@ -155,8 +165,12 @@ export function MaterialsDialog({
     set(m, next);
   };
 
-  // "New material…" opens on the new row's name; otherwise the sheet takes focus, as before.
-  useEffect(() => { (newFor ? newName.current : sheet.current)?.focus(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // "New material…" and "New solid edging…" open on the new row's name; otherwise the sheet takes focus, as before.
+  useEffect(() => {
+    const target = newFor ? newName.current : newBand ? newBandName.current : sheet.current;
+    target?.focus();
+    if (target === newBandName.current) target?.scrollIntoView?.({ block: 'center' });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -341,6 +355,7 @@ export function MaterialsDialog({
           <div className={`band-type${r.deleted ? ' is-deleted' : ''}`} key={r.id}>
             <label>Name
               <input className="input band-name" aria-label={`${name}: name`} value={r.draft.name ?? ''} disabled={r.deleted}
+                ref={r.id === newBandId.current ? newBandName : undefined}
                 aria-invalid={bad((r.draft.name ?? '').trim() !== '')} onChange={(e) => editBand(r, 'name', e.target.value)} />
             </label>
             <span className="band-kind">{r.kind === 'tape' ? 'Tape' : 'Solid'}</span>

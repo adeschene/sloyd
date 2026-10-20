@@ -107,6 +107,7 @@ export default function App() {
   // "New material…" (spec §4.2): the parts that take the dialog's new material on Save. Cleared whenever the
   // dialog closes, so a later plain opening starts no new row.
   const [newMaterialFor, setNewMaterialFor] = useState<{ ids: string[]; kind: MaterialKind } | null>(null);
+  const [newBandFor, setNewBandFor] = useState<'solid' | null>(null);
   // Generated this session and not yet opened (spec §6.3). Session-only:
   // not persisted and not in the store — a badge is a property of this
   // sitting, and nothing about it belongs on the undo stack.
@@ -976,7 +977,8 @@ export default function App() {
             <section className="panel panel-props">
               <h2>Properties</h2>
               {/* Properties locks its own editing regions while exploded (EditLock, fu 262), so its view actions stay live. */}
-              <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }} />
+              <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }}
+                onNewBandType={() => { setNewBandFor('solid'); setDialog('prices'); }} />
             </section>
             {/*
               Keyed per project (ui-polish spec §4.5): the footer opens itself
@@ -1036,6 +1038,7 @@ export default function App() {
           libraryReadFailed={library.readFailed}
           locked={exploded}
           newFor={newMaterialFor}
+          newBand={newBandFor}
           bandTypes={doc.bandTypes}
           parts={worldParts(doc)}
           // Amended (planning) P4: a solid band type names a built-in solid or a custom solid already in this project.
@@ -1061,7 +1064,7 @@ export default function App() {
             return `Could not save ${failed.join(' or ')}: this browser is not letting Sloyd store settings.`
               + (projectChanged ? " The project's changes were made." : '');
           }}
-          onClose={() => { setDialog(null); setNewMaterialFor(null); }}
+          onClose={() => { setDialog(null); setNewMaterialFor(null); setNewBandFor(null); }}
         />
       )}
       {dialog === 'generate' && (

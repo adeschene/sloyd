@@ -429,6 +429,23 @@ describe('MaterialsDialog — the Edge banding section (edge banding spec §5.2)
     expect(plan.bandTypes![2]).toMatchObject({ kind: 'solid', name: 'Solid edging', thickness: 0.25, material: 'maple', widthAllowance: 0.0625 });
   });
 
+  it('newBand: "New solid edging…" opens with a new Solid row, its name focused, saved with the list', async () => {
+    const { onSave } = openBands({ newBand: 'solid' });
+    const name = section().getByRole('textbox', { name: 'Solid edging: name' });
+    expect(name).toHaveValue('Solid edging');
+    expect(name).toHaveFocus();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const plan = onSave.mock.calls[0]![0].plan;
+    expect(plan.bandTypes).toHaveLength(3);
+    expect(plan.bandTypes![2]).toMatchObject({ kind: 'solid', name: 'Solid edging', thickness: 0.25 });
+  });
+
+  it('without newBand no row is added and the sheet keeps focus', () => {
+    openBands();
+    expect(section().queryByRole('textbox', { name: 'Solid edging: name' })).toBeNull();
+  });
+
   it('an edited thickness saves the edited list', async () => {
     const { onSave } = openBands();
     fireEvent.change(section().getByRole('textbox', { name: 'Maple edging: thickness' }), { target: { value: '3/8' } });
