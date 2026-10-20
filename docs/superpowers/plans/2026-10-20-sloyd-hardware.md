@@ -23,7 +23,7 @@ before Task 1, and the task's own sections again before each task. Its *Amended 
 
 ## Amended (planning)
 
-For the user's review; copied into the spec as an *Amended (planning)* block in Task 10.
+**APPROVED by the user 2026-10-20 (P1, P2).** Copied into the spec as an *Amended (planning)* block in Task 10.
 - **P1 — Ungroup is REFUSED when a merged count would exceed `HARDWARE_COUNT_MAX` (999).** Spec §6 merges the dissolved
   assembly's hardware into its parent's by adding counts; a sum above the loader's bound would be DROPPED on the next load
   (silent loss). `ungroupItem` returns null for it, like its other refusals. Reachable only with counts in the hundreds.
