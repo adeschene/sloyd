@@ -189,7 +189,7 @@ handicraft education tradition built around hand woodworking.
   refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). Await the user's
   review: the spec's P1–P5 *Amended (planning)* and its *Amended (implementation, chunk 1)* blocks; fu 395 (the live pass's items for the
   user's eye). **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 followed (below).
-- **Edge banding chunk 2 (2026-10-20, plan `…-edge-banding-2.md`, spec §8; branch `edge-banding-2`, MERGED to master (see Rounds);
+- **Edge banding chunk 2 (2026-10-20, plan `…-edge-banding-2.md`, spec §8; branch `edge-banding-2`, MERGED to master as `5e55b17`;
   NOT yet deployed; no schema change, 19)**: bands made visible. Viewport: a banded side's triangles take the band's look by a
   POST-PASS (`viewport/bandFaces.ts`: tape the part's long grain, no plies; solid the band's colour), solid bands draw glue lines
   (`glueLines`, `banding.ts`), clipped by the section. Plans sheet: glue lines as `band`-tagged segments, a key line per (part,
