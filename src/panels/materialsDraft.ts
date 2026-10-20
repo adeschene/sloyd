@@ -1,4 +1,4 @@
-import { MATERIALS, type CustomMaterial, type MaterialKind } from '../document/types';
+import { MATERIALS, type BandType, type CustomMaterial, type MaterialKind } from '../document/types';
 import { labelKey, mintMaterialId, sameMaterial, validateCustomMaterial } from '../document/materials';
 import { IMPERIAL, formatLength, imperialAt, parseLength } from '../units/length';
 
@@ -15,7 +15,11 @@ export interface Row {
   addToLibrary: boolean;
   deleted: boolean;
 }
-export interface SavePlan { project: CustomMaterial[]; library: CustomMaterial[] | null; assign: { ids: string[]; material: string } | null }
+/** What `planSave` decides: the material rows' share of a Save. */
+export interface MaterialsPlan { project: CustomMaterial[]; library: CustomMaterial[] | null; assign: { ids: string[]; material: string } | null }
+/** The dialog's ONE Save: the materials' plan plus the project's band types (null: unchanged; edge banding spec §5.2),
+ *  all written in the one project edit. */
+export interface SavePlan extends MaterialsPlan { bandTypes: BandType[] | null }
 
 // Ruling P1 (metric display): stock and sheet sizes in the Materials dialog stay imperial.
 const lengthText = (v: number) => formatLength(v, imperialAt(64));
@@ -106,7 +110,7 @@ export function rowNotes(r: Row, rows: readonly Row[], library: readonly CustomM
 
 export function planSave(input: {
   rows: readonly Row[]; library: readonly CustomMaterial[]; libraryWritable: boolean; assignIds: string[] | null; locked: boolean;
-}): SavePlan | { refused: string } {
+}): MaterialsPlan | { refused: string } {
   const { rows, library, libraryWritable, assignIds, locked } = input;
   if (locked) return { project: [], library: null, assign: null };
   for (const r of live(rows)) {

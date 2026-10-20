@@ -1,7 +1,9 @@
 # Sloyd — edge banding
 
 **Date:** 2026-10-19 · **Status:** design approved in conversation section by section (§1–§4 and the chunk split);
-this written spec awaits the user's review.
+this written spec awaits the user's review. **Chunk 1 built** 2026-10-19/20 on branch `edge-banding-1` (plan
+`docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`); the blocks marked *Amended (planning)* (P1–P5) and *Amended
+(implementation, chunk 1)* below await the user's review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
 inv 45), mirrored frames (inv 44), the cut list (`cutlist.ts`, inv 18, 40), sheet nesting (`nesting.ts`), Buying
 (`purchase.ts`), custom materials (inv 49), the outline and side stretches of profile runs b1 (`profilePath.ts`:
@@ -78,12 +80,16 @@ SloydDocument.bandTypes: BandType[]
 - A solid band type's `material` is a reference for `pruneMaterials`: a custom material a band type uses is KEPT in
   `doc.materials` (inv 49's "exactly the materials its parts and shapes use" widens to "and its band types").
 
+> **P2** *Amended (planning)*: a SOLID band type's thickness must be **> 0** (a zero-thickness strip is not a strip; the
+> loader drops one, the dialog refuses it). A tape type keeps `>= 0`.
+
 ### 2.2 Bands (part and Shape level)
 
 ```ts
 interface Band { side: ProfileSide; type: string }   // side = profiles' { across, from }
 Board.bands: Band[];             // also Shape.bands; default []
 Board.cornerRule?: 'ends' | 'mitre';   // absent = long edges run through; only these two values are stored
+                                         // (superseded by P1 below: always present, 'long' | 'ends' | 'mitre')
 ```
 
 - **Sides** are the four sides of the broad face (length × width), named as profiles name them: `across: 'width'` is a
@@ -101,6 +107,14 @@ Board.cornerRule?: 'ends' | 'mitre';   // absent = long edges run through; only 
 - **Same banding** (inv 40): `BAND_FIELDS` (`side`, `type`), `satisfies` against `Band`, every field exact; `sameShared`
   compares bands in order, the cut list by `bandSignature` (§4.1).
 - **Reorient** (inv 2): `bands` and `cornerRule` are absent from the reorient predicate (a band moves nothing).
+
+> **P1** *Amended (planning)*: **`cornerRule` is always present, in memory and stored — `'long' | 'ends' | 'mitre'`,
+> default `'long'`** (on `Board` and `Shape`). The text above stored only `'ends'`/`'mitre'` so that absent and `'long'`
+> could never read as different; a required field reaches the same end more simply: `links.ts`' `_sharedPrimitives` tsc
+> check (inv 45) rejects an optional shared field (`undefined` is not a string), and fu 231 warns against classifying
+> optional shared fields. The loader still reads an absent or unknown value as `'long'`, so a hand-written file without
+> the field loads as before. (§2.3's "`cornerRule` other than `'ends'`/`'mitre'` dropped" reads: anything other than the
+> three values becomes `'long'`.)
 
 ### 2.3 Loading (17→18 precedent; step 18→19)
 
@@ -172,6 +186,26 @@ size.` for a resize). **Curves refuses an edit that adds a band fault**, naming 
 (`Edging on the width max side needs a straight edge — remove the band first.`), per band, as it does for profiles; the
 Materials dialog refuses a band type edit that adds a fault to any part, naming the first part and the count.
 
+> *Amended (implementation, chunk 1)*, for the user's review:
+> - **`too-thick` faults only the bands WITH thickness** in the opposite pair. A zero-thickness band opposite cannot cause
+>   the fault, and faulting it would drop real tape from Buying ("both bands of the pair" read as both bands that consume
+>   the dimension). Cost: none known beyond a part already carrying a faulted edging.
+> - **A part whose `faceOutline` is null** (a faulted or overlapping through-thickness curve) **keeps every band faulted
+>   `no-side`** — conservative: the part already carries a curve fault to fix, and judging against the plain rectangle
+>   could mis-size a band the faulted curve cuts into. Cost: such a part loses its core reduction, strips and tape from
+>   the cut list until its curve is fixed (fu 396).
+> - **A Curves PRESET whose default would add a band fault is withheld** from `+ Add curve ▾` (not shown, then refused),
+>   as AngleCuts', Holes' and Profiles' presets already are; the refusal words above are reached through a curve row's
+>   controls (its Side select). Cost: an Arch preset missing on a banded part with no reason shown.
+> - A band naming an unknown type id contributes nothing and no fault (the loader drops such a band; only an in-memory
+>   inconsistency could reach it).
+> - **Curves' band refusal is worded by the band's kind** (final review 3): solid `Edging on the width max side needs a
+>   straight edge — remove the band first.` (as above, unchanged), tape `Tape on the … needs a straight edge — …` (a tape
+>   WITH thickness), and `no-side` as a sentence: `The band on the width min side would have no edge left — remove the
+>   band first.`
+> - **A tape type with no `pricePerFoot` key loads unpriced** (`null`; final review 4): absence is the default. A present
+>   value other than `null` or a number ≥ 0 still drops the type (§2.3).
+
 ## 4. The cut list, nesting and Buying (chunk 1)
 
 ### 4.1 Part rows
@@ -188,6 +222,26 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 - The cut list header carries one line when any part is banded: `Cut sizes are before banding; band before machining —
   every cut, hole and curve is measured on the banded part.`
 
+> **P5 (corner words)** *Amended (planning)*: the corner words (`long edges run through`, …) print only where two ADJACENT
+> bands with thickness meet and one of them is solid — the rule that decides when the corner rule matters (§3.2;
+> `bandsMeetAtCorner`, also the Corners select's rule). The example above names two OPPOSITE sides, where no corner exists;
+> under this rule it reads `Band: the width min side and the width max side — Maple edging 1/4"; finished 24" × 11-1/4"`.
+
+> *Amended (implementation, chunk 1)*, for the user's review:
+> - **A nominal name is judged on the CORE** (the cut thickness and width): it names what is cut (inv 18). Identical for
+>   band-free parts.
+> - **A banded row's diagrams (and its setup lines other than the band line) describe the FINISHED part**, while its
+>   `dims` print the core. Seen live: the mitred tabletop's row reads `35-1/2" × 19-1/2"` beside a diagram labelled
+>   `36"` × `20"`. A bench reader sees two sizes on one row (fu 395; chunk 2 redraws the diagrams anyway).
+> - Seen live, wording for the user's eye: four sides sharing a type read `Band: the width min side and the width max
+>   side and the length min end and the length max end — …` (no list-joining of three or more), and Buying's unpriced
+>   tail counts a tape type as a material (`3 materials have no price`).
+> - **The row key carries the corner rule ONLY where `bandsMeetAtCorner` holds** (final review 1): the band text and the
+>   strips depend on the rule only there (a strip's finished length and mitre ends read a NEIGHBOUR's thickness, which is
+>   that condition), and the core never does. So two shelves each banded on one side, one `long` and one `mitre`, read
+>   the same and are ONE row; where a corner qualifies the rule still splits rows (its words differ). A band naming an
+>   unknown type contributes nothing to the band line (as it contributes no fault).
+
 ### 4.2 Strip rows
 
 - In the edging material's section, after its parts. Strips with equal cut size, ends and material collapse to one row
@@ -202,6 +256,15 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 - **Diagrams stay always populated** (`CutListRow.diagrams`' own rule): a strip row carries its plain broad-face view in
   chunk 1 (a cut-free view of the strip's length × width); chunk 2 draws its mitred ends.
 - Strips of a SOLID material only (the band type's material select offers solid materials only, §5.2).
+
+> **P5 (strip names)** *Amended (planning)*: strip rows are named PER STRIP, `Shelf edging (width min side)`, and collapse
+> by cut size as any row does (its names list the strips: `Tabletop edging (width min side), Tabletop edging (width max
+> side)`); the spec's `Shelf edging (width min, width max)` was one combined name.
+
+> *Amended (implementation, chunk 1)*: **"after its parts"** reads: within a material, a group holding only strips sorts
+> after the groups holding parts, and within a shared group strips follow parts (edging is milled from what is left). A
+> material whose section holds only strips (the maple of a plywood tabletop) still sorts by material, so its strip rows can
+> take the first numbers of the series (seen live: strips 1–2, parts 3–5, the Plans sheet's balloons 3, 4, 5).
 
 ### 4.3 Sheet nesting
 
@@ -228,6 +291,10 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   sizes), so the price is always the rounded-up feet × the price.
 - Printed: the block prints inside Buying's own page (fu 383).
 
+> **P5 (the tape line)** *Amended (planning)*: Buying's tape line uses Buying's own line style with its verb:
+> `Iron-on veneer, 7/8" wide: buy 15′ · $4.50` (above: `…: 34′ — $10.20`). Metric: `Iron-on veneer, 7/8" (22 mm) wide:
+> 2.2 m, buy 8′ · no price` (above: `10.4 m (35′) — $10.50`).
+
 ## 5. Controls (chunk 1)
 
 ### 5.1 Properties — the Banding section
@@ -241,6 +308,9 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   with thickness AND at least one of them is solid (the corner rule makes strips; tape has none, §3.3).
 - Multi-selection: a select shows `Mixed` where parts disagree; choosing writes that side on every selected part in one
   edit (an untouched mixed select writes nothing, inv 5).
+  > *Amended (implementation, chunk 1; final review 1)*: **Corners reads and writes only the selected parts where a corner
+  > qualifies** (`bandsMeetAtCorner`): its value or `Mixed` is over those parts, and a choice writes those parts alone, so a
+  > selected part the rule cannot change is never stamped with a rule the then-hidden select could not reset.
 - Refusal (fu 388's pattern): options are judged on focus, never per render; an option that would ADD a fault to any
   selected part is greyed with its reason (`Needs a straight edge`, `Leaves no core`, `Narrower than the part`, `No such
   edge`). A shaped part's edit goes to its Shape (`applyWorldEdits`).
@@ -257,6 +327,23 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   the part named (§3.4).
 - The dialog's ONE Save writes band types with the rest of the project edit (one undo entry); band types are project
   state, so the library and browser prices are untouched by them.
+
+> **P3** *Amended (planning)*: a new band type's kind is chosen from `+ Add band type ▾` and is **never a select**, even
+> on an unsaved row (the menu choice is enough and removes a re-default path).
+>
+> **P4** *Amended (planning)*: a solid band type's material is a **built-in solid or a custom solid already in this
+> project** (`doc.materials`); a custom material created in the same dialog Save is not offered until saved (one Save
+> would otherwise have to order a material upsert before a band type that names it).
+
+> *Amended (implementation, chunk 1)*, for the user's review:
+> - **A band type edit's added fault is judged with "before" = the STORED band types** and "after" = the full planned
+>   list (every row's draft). Judged against the other rows' drafts, two edits could each hide the other's added fault.
+> - **A name clash refuses only when one side's name was TYPED** (the materials' rule): the loader dedupes exactly, so an
+>   imported `Tape` and `tape` load side by side, and refusing them untouched would block every Save.
+> - **`Used by N parts` counts placed (world) parts**: a part placed twice counts twice (what the viewport shows). The
+>   plural reads `Used by N parts — change their bands first.`
+> - New band types are named `Tape 2`, `Solid edging` by a local free-name rule (`base`, `base 2`, …), not `uniqueName`'s
+>   `(n)` form.
 
 ## 6. Elsewhere
 
@@ -317,7 +404,8 @@ section, the Materials dialog's Edge banding section, Curves' band refusal, `ban
 
 **Added or changed since the user approved §1–§4 in conversation** (each is a decision, not a detail):
 - Side names are the existing edge words (`the width min side`), not Front/Back/Left end/Right end (§2.2).
-- `cornerRule` stores only `'ends'`/`'mitre'`; absent means long edges run through (§2.2, so links never see two forms).
+- ~~`cornerRule` stores only `'ends'`/`'mitre'`; absent means long edges run through~~ — superseded by P1 (§2.2): always
+  stored, `'long'` the default; absent or unknown loads as `'long'`.
 - **An amendment to invariant 49**: `pruneMaterials` also keeps a custom material used only by a band type (§2.1, §2.3).
 - A fourth fault, `tape-narrow` (tape narrower than the part's thickness), and `no-side` (§3.4).
 - A mitre between bands of differing thickness is cut at `atan(n / t)`, not 45°; strips print the long point (§3.2).

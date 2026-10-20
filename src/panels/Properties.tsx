@@ -12,6 +12,7 @@ import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
 import { Curves } from './Curves';
 import { Profiles } from './Profiles';
+import { Banding } from './Banding';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -485,6 +486,7 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
         <MaterialSelect ids={selectedIds} value={material} library={library} onNewMaterial={onNewMaterial} />
       </div>
       </div>
+      <Banding boards={boards} />
       </>}
       </EditLock>
     </div>
@@ -715,6 +717,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
       <Holes board={board} />
       <Curves board={board} />
       <Profiles board={board} />
+      <Banding boards={[board]} />
       </EditLock>
     </div>
   );

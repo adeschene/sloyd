@@ -3,6 +3,7 @@ import { dissolveShapes, isShaped, pruneShapes, resolveBoard, shapeMap } from '.
 import { nextId } from './ids';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
+import { copyBand } from './bandModel';
 import { copyHoleRow } from './holes';
 import { copyAngleCut } from './angleCuts';
 import { uniqueName } from './names';
@@ -202,7 +203,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
-      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile) };
+      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand) };
     taken.push(named);
     return [named];
   });
@@ -328,7 +329,7 @@ export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument 
     id: nextId(),
     boards: def.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand) })),
     instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
   const withDef = { ...doc, definitions: [...doc.definitions, copy] };

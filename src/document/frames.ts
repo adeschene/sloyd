@@ -5,6 +5,7 @@ import { mirrorAngleCut } from './angleCuts';
 import { mirrorHoleRow } from './holes';
 import { mirrorCurveCut } from './curves';
 import { mirrorProfile } from './profiles';
+import { mirrorBands } from './bandModel';
 
 export type Vec3 = [number, number, number];
 
@@ -77,6 +78,7 @@ export function mirrorPart(b: Board): Board {
     holes: b.holes.map((r) => mirrorHoleRow(r, d)),
     curves: b.curves.map((c) => mirrorCurveCut(c, d)),
     profiles: b.profiles.map((p) => mirrorProfile(p, d)),
+    bands: mirrorBands(b.bands, d),
   };
 }
 

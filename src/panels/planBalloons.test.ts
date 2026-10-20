@@ -124,3 +124,10 @@ describe('leaders keep clear of other balloons (final review #1)', () => {
     }
   });
 });
+
+describe('anchorsFor — strip rows', () => {
+  it('a row with no parts (a strip row) is neither anchored nor hidden (edge banding 1, Review Focus 5)', () => {
+    const d = { visible: [], hidden: [], bounds: { min: [0, 0], max: [10, 10] } } as unknown as Drawing;
+    expect(anchorsFor(d, [{ number: 7, boardIds: [] }])).toEqual({ anchors: [], hidden: [] });
+  });
+});

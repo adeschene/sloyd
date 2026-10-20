@@ -7,6 +7,7 @@ import type { Violation } from '../../document/designCheck';
 import type { Units } from '../../units/length';
 import { holedRefusal } from '../../document/holedRefusal';
 import { curvedRefusal } from '../../document/curvedRefusal';
+import { bandedRefusal } from '../../document/bandedRefusal';
 import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import { findSites } from './sites';
@@ -131,6 +132,8 @@ export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocu
   if (holed) return holed;
   const curved = curvedRefusal(flat, 'joinery');
   if (curved) return curved;
+  const banded = bandedRefusal(flat, 'joinery');
+  if (banded) return banded;
   return jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 

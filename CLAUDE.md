@@ -178,6 +178,16 @@ handicraft education tradition built around hand woodworking.
   idle two frames 320 → ~183 ms, a commit's two frames 431 → ~270–290. Amendments A1–A4 (*Amended (planning)* in the spec: stage 2 by the twin test alone with no
   `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) were APPROVED by the user 2026-10-19. Merged and deployed (Production, above). **The ogee loop's 48 ms is left as is by the user's ruling
   (2026-10-19): fu 393(2), open by decision — do not pursue unasked.**
+- **Edge banding chunk 1 (2026-10-19/20, spec `2026-10-19-sloyd-edge-banding-design.md`, plan `…-edge-banding-1.md`, inv 54; branch
+  `edge-banding-1`, code complete — NOT yet merged or deployed: the merge waits on the final review and the user's word; **SCHEMA 19**)**: fu 267's
+  banding half. Band types (`doc.bandTypes`: tape or solid, the built-in `Iron-on veneer` always present) and bands on a part's four
+  broad-face sides (`Board.bands`, `cornerRule`); the model is the FINISHED size, the cut list the CORE, with band lines, a header note,
+  solid strip rows (numbered, no balloon), cores nested; Buying adds strips to their material and an `Edge banding` tape block; a Banding
+  section in Properties and an Edge banding section in Materials & prices; Curves refuses breaking a band; joinery, Refine and Repair
+  refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). Await the user's
+  review: the spec's P1–P5 *Amended (planning)* and its *Amended (implementation, chunk 1)* blocks; fu 395 (the live pass's items for the
+  user's eye). **Once deployed, rolling back below 19 refuses every project saved since — export first.** Chunk 2 (viewport, Plans
+  sheet, part diagrams) is next.
 - **NEXT: ask** (audited 2026-10-17, after section views deployed; since then presets batch, presets minors, edge profiles chunk 1, profile runs
   a1–b2 and speed chunks c1–c2 shipped, re-checked 2026-10-19). **No follow-up is open as code-sized work**: the triage's
   four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
@@ -284,6 +294,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | profile runs (b2) | 10-19 | — | Stops on a turned path (a run-out about the bit's axis in the station chord's frame) and two-side runs (Stop side); a saved a2 stop on a turned path follows, or runs straight with its cause |
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
 | chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
+| edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (branch, unmerged) |
 
 ### The deployment rule
 
@@ -299,7 +310,7 @@ removing them "is just a waste of time"); never clear the dev profile wholesale 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (18 since profile runs a1)
+**Rollback cost is a schema question.** A build understanding less than the file's version (18 since profile runs a1; 19 once edge banding chunk 1 lands)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -314,7 +325,7 @@ user's own key (`dangerouslyAllowBrowser`), stored only in `sloyd.llm.v1`; the C
 
 **The plain-JSON document is the source of truth; the Three.js scene is derived from it
 and is never authoritative.** A document is
-`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials }`.
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes }`.
 Dragging computes a number, writes it to the document, and the scene re-renders — never
 the reverse. That keeps undo, save/load and export simple. **A board's `position` is its
 min corner**, not its centre (inv 2).
@@ -351,7 +362,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **18**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **19**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -373,6 +384,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 15→16 | `holes` on parts and shapes (default `[]`; malformed entry dropped — non-finite, non-positive diameter or depth, non-integer count, negative pitch/station/inset, `along === face`, unknown enum; a faulted but well-formed row KEPT) | document-level, no step | silent loss on round trip (every hole dropped) |
 | 16→17 | `curves` on parts and shapes (default `[]`; malformed entry dropped — non-finite number, unknown enum, no segments or more than 64, an arc with both/neither of `rise`/`radius`, a non-positive one, a zero chord, a rise over half its chord or a radius under half, an outline not closing EXACTLY at `start` (P1), crossing itself or enclosing no area; a faulted but well-formed curve KEPT); a string segment `type` other than `line`/`arc` REFUSES THE DOCUMENT (the newer-version gate keyed on content: a spline needs no bump) | document-level, no step | silent loss on round trip (every curve dropped) |
 | 17→18 | `profiles` on parts and shapes (default `[]`; every curve `profileOf` recognises is MOVED in, keeping its id, on EVERY load; ids share the curve scope; malformed dropped — non-finite or non-positive size, a thumbnail depth outside (0, size), a negative fillet, a bead without a quirk, an unknown face or facing, a bad end; a symmetric kind normalised to facing `face`, an End to end run to min→max; a faulted but well-formed profile KEPT); an unknown `kind` string REFUSES THE DOCUMENT (spec P2: a later run needs no bump) — a station end loads since a2, a loop (exactly `{ loop: true }`) since b1, ends on two sides since b2 (kept as stored, never re-ordered; an inconsistent `through` end kept and faulted `stop-off`), so a2 refuses a b1 loop and b1 refuses a b2 two-side run | document-level, no step | silent loss (every profile dropped, then autosaved) |
+| 18→19 | `bandTypes` (document; validated AFTER materials and BEFORE parts; the built-in `band-iron-on` re-added first if absent; malformed dropped — non-finite or negative number, `tapeWidth <= 0`, a SOLID type of thickness 0; an ABSENT tape `pricePerFoot` read as `null`; a solid type whose material is not a solid falls back to pine; ids by `takeId`, names deduped) and `bands` + `cornerRule` on parts and shapes (`bands` default `[]`; an unknown side, a non-string or dangling type, a second band on a side dropped; sorted to canonical order; `cornerRule` always stored, `'long' \| 'ends' \| 'mitre'`, absent or unknown read as `'long'`, P1); an unknown band type `kind` string REFUSES THE DOCUMENT (a later kind needs no bump); `pruneMaterials` keeps a band type's material | document-level, no step | silent loss (every band and band type dropped, then autosaved; a banded panel's FINISHED size printed as its cut size) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -522,6 +534,16 @@ src/
 │   │                     (stopped)` one side; `, from <Start> round <between> to <Stop> (stopped)` two, `<between>` walking the sides in travel
 │   │                     order — never the path), sweptRun (a stop's `round the corner(s)` only for a through end at a corner arc)
 │   ├── curvedRefusal.ts  curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
+│   ├── bandModel.ts      edge banding's stored model (inv 54; imports only `ids` and `types`): BUILT_IN_BAND (`band-iron-on`),
+│   │                     BAND_KINDS, CORNER_RULES, BAND_SIDES (canonical: width-min, width-max, length-min, length-max), BAND_FIELDS
+│   │                     (inv 40), canonicalBands, mirrorBands (inv 44: a flag flip), copyBand/sameBands/bandValues, withBands,
+│   │                     withBandTypes, newBandType (`Tape 2`, `Solid edging`), sameBandType
+│   ├── banding.ts        THE band arithmetic (inv 54; re-exports bandModel; no `units`): coreSize, strips (per corner rule; a mitre at
+│   │                     `atan(n / t)`), tapeRuns (true arcs; a corner arc shared by two taped sides half each), bandFaults
+│   │                     (needs-straight, no-side, too-thick, tape-narrow) / bandFaultText, bandsMeetAtCorner (THE corner-words and
+│   │                     Corners-select rule), cutStock (core copies, `bands: []`), stripBoard, stripId, bandSignature; memoised per
+│   │                     (part, band types), deep-frozen
+│   ├── bandedRefusal.ts  bandedParts / bandedRefusal: joinery, Refine and Repair refuse a banded project (after curves')
 │   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
 │   │                     curvedEdges' boundary of coplanar convex pieces
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
@@ -550,7 +572,8 @@ src/
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
-│   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses,
+│   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses (band
+│   │                     types' solid materials included, inv 54),
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
 │   ├── purchase.ts       (by the piece: the cheapest of a plan per preferred opener when priced, fu 269) ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
 │   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
@@ -648,7 +671,12 @@ src/
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
 │                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map), diagramScale, diagramLabels (inv 19); planBalloons
 │                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); planKeys (a trio's
-│                     feature tags: chooseView, letters, anchors, merge and push; pure); Popover (Claude ▾, More ▾),
+│                     feature tags: chooseView, letters, anchors, merge and push; pure); Popover (Claude ▾, More ▾; an item may carry a
+│                     `title`, and `items` may be a function, called on each render while open),
+│                     Banding (the Banding section: a select per side, `Band ▾` — each type's all edges / long edges / ends, Remove all
+│                     bands —, Corners only where `bandsMeetAtCorner`; options judged on focus, a refused one greyed with its reason; Mixed
+│                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
+│                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
@@ -657,7 +685,10 @@ src/
 │                     (rx = r·sx, ry = r·sy), centre crosses, dashed sides and the hole notes (keyed by row);
 │                     MaterialsDialog ("Materials & prices": built-in prices, custom definitions + prices, library rows;
 │                     one Save = one project edit + library + prices; refuses, never clamps) on materialsDraft.ts (THE
-│                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; CutList's Buying section
+│                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; its Edge banding section on bandTypesDraft.ts
+│                     (THE pure band rows: newBandRow, fromDraft, bandRowRefusal — an ADDED fault judged against the STORED band
+│                     types, a name clash refused only when typed —, planBandTypes, rebaseBandRows; kind from `+ Add band type ▾`,
+│                     never a select, P3; delete refused while used, `Used by N parts` in world parts); CutList's Buying section
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
 │                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
@@ -799,7 +830,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
    edits have their own store actions. A future tool that moves *and* turns in one gesture
    must carry its own `position` in the same patch.
     `angleCuts` and `holes` are absent from the reorient predicate too (a slope or a bore moves nothing), and so are
-    `curves` and `profiles`.
+    `curves` and `profiles`, and `bands` and `cornerRule` (a band moves nothing).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -938,7 +969,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes: part and instance ids per
     container; definition and shape ids per document; cut ids per board (per shape for a
     shape), and so angle-cut, hole and curve ids; profile ids share the part's CURVE scope (curves validated first), so the
-    geometry view never holds two curves with one id. `/` in an id is re-minted. A guide with no id is dropped. References
+    geometry view never holds two curves with one id. Band type ids per document (one `seen` set; the built-in's id fixed);
+    bands carry no id (keyed by side). `/` in an id is re-minted. A guide with no id is dropped. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
     at a board by id breaks the single-pass repair.
@@ -990,6 +1022,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     compared field by field in order: the cut list groups by them as a multiset, ids ignored; `sameShared` in order, ids included.
     Profiles have `PROFILE_FIELDS` (`profiles.ts`, `satisfies`), every field but `id`, exact, `run` structurally; the cut list groups
     them through the geometry view (as curves); `sameShared` in order, ids included.
+    Bands have `BAND_FIELDS` (`bandModel.ts`, `satisfies`: `side`, `type`), exact; the cut list keys by `bandSignature` (the corner
+    rule appended ONLY where `bandsMeetAtCorner` holds, the one case its words depend on it; final review 1); `sameShared` in canonical order.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -1044,6 +1078,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     end run keeps min→max; a station run's ends swap on EVERY mirror, since a reflection reverses travel round the face);
     `lowerProfiles` is its exact inverse, reusing an untouched stored array. A two-side run (b2) swaps Start and Stop on every
     mirror too, each end's flags flipped by its own side (Q20; pinned with `chiralTwoSide`, and 3600 runs × 3 mirrors in review).
+    A band reflects by a flag flip too (`mirrorBands`: `side.from` when `side.across` is the mirrored dimension; `cornerRule`
+    never flips); `lowerBands` is its exact inverse, reusing an untouched stored array.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -1053,7 +1089,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     re-pivoting posture. `linkPlan` is the ONE Link decider. A one-user shape dissolves
     (users counted as STORED parts). Joinery keeps sharing where cuts are identical by
     geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
-    must not come back.** `curves` and `profiles` are SHARED in `LINK_FIELDS` (arrays, so excluded from `_sharedPrimitives`' primitive check as cuts, angle cuts and holes are).
+    must not come back.** `curves` and `profiles` are SHARED in `LINK_FIELDS` (arrays, so excluded from `_sharedPrimitives`' primitive check as cuts, angle cuts and holes are), and so are `bands` (an array)
+    and `cornerRule` (a REQUIRED primitive — an optional shared field fails `_sharedPrimitives`' tsc check, so `'long'` is stored, P1).
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -1175,7 +1212,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     disagrees with its id drops the entry, and nothing may change a stored material's kind (only an UNSAVED new dialog row
     has a kind select). Label, colour and sheet size come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global
     registry: a background Refine or joinery run reads its own document's. **A document carries exactly the custom
-    materials its parts and shapes use**: `pruneMaterials` runs at the end of the load and inside `edit()` (same object
+    materials its parts, shapes and band types use** (a solid band type's material is kept, inv 54): `pruneMaterials` runs at the end of the load and inside `edit()` (same object
     when nothing goes, inv 4); a part change that adopts a library material does it in the SAME edit
     (`updateBoards(…, adopt)`, `applyMaterials`). Every path that makes a project from another carries them; Refine's
     converter gets them BEFORE `migrateDocument` (`designToDocument(…, { materials })`), or they become pine. Generate's
@@ -1332,12 +1369,30 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `curveLineEntries` (`{ ids, text }`; a view lists the entries any of whose ids it draws, a curve run wholly off its face
     still in the view it opened); a part with no curves keeps its diagrams byte-for-byte.
 
+54. **`banding.ts` is the ONE place band numbers are computed** (core size, strips, tape runs, faults; edge banding spec §3).
+    The cut list, nesting, Buying, Properties' and the Materials dialog's refusals, and Curves' band refusal all read it;
+    nothing else derives a band number. It imports `document` modules only (no `units`: `cutlist.ts` and `purchase.ts` format,
+    inv 52), and its results are memoised per (part object, band types array object) and deep-frozen: never mutate them.
+    **The model is the FINISHED size; the cut list prints the CORE** (the finished part minus its unfaulted bands'
+    thicknesses; the corner rule never changes the core) — drawings, snaps, checks, section caps and every geometry reader
+    stay on the finished part, and the bodies are untouched (splitting them is fu 397). Nesting lays out cores (`cutStock`,
+    whose core copies carry `bands: []` so nothing subtracts twice). **A faulted band adds nothing** — no core reduction, no
+    strip, no tape — and prints its band line with `— check: <words>` (`bandFaultText`, the one home); `too-thick` faults only
+    the bands WITH thickness; a part with no `faceOutline` faults every band `no-side` (fu 396). Authoring refuses an ADDED
+    (side, kind) fault, decided before any mutation (the Banding selects and `Band ▾`, the Materials dialog judged against the
+    STORED band types, Curves naming the band — a preset that would add one is withheld); a fault a later edit causes is
+    KEPT. **Bands are flag-flipped through mirrors** (`mirrorBands`/`lowerBands`, inv 44) and shared through links (inv 45).
+    **Joinery, Refine and Repair refuse a banded project at entry** (`bandedRefusal`, after holes' and curves'). A strip row
+    is numbered in the ONE series but carries no `boardIds` (its ids in `stripIds`): every reader of a row's parts must
+    handle an empty list, and `planBalloons` SKIPS it (never a hidden part). A band-free document's cut list and Buying are
+    byte for byte as before (`bandFreeIdentity.test.ts`, FIXED ids: `nesting.ts` breaks ties by id string).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 6666 tests across 184 files
+npm test           # Vitest, currently 6785 tests across 194 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1346,21 +1401,23 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–394). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–401). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 edge banding / hardware BOM, 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
+- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding chunk 1 built, chunk 2 next; the hardware BOM half open), 268, 270,
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
-  draws nothing).
+  draws nothing); the edge banding spec's P1–P5 *Amended (planning)* and *Amended (implementation, chunk 1)* blocks, and fu 395
+  (a banded row's diagram at the finished size beside the core dims, the four-side `and … and` wording, tape counted as an
+  unpriced material, strips taking the series' first numbers).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it). Record-only: 401 (banding chunk 1's review minors and test gaps).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

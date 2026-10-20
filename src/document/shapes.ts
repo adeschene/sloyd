@@ -3,6 +3,7 @@ import { SHARED_KEYS } from './links';
 import { copyAngleCut } from './angleCuts';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
+import { copyBand } from './bandModel';
 import { copyHoleRow } from './holes';
 import type { SharedField } from './links';
 
@@ -32,7 +33,7 @@ export function resolveBoard(shapes: ReadonlyMap<string, Shape>, b: StoredBoard)
   const shared: Record<string, unknown> = {};
   for (const k of SHARED_KEYS) {
     if (!(k in s)) continue;
-    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : k === 'profiles' ? s.profiles.map(copyProfile) : s[k];
+    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : k === 'profiles' ? s.profiles.map(copyProfile) : k === 'bands' ? s.bands.map(copyBand) : s[k];
   }
   const { shape, ...own } = b;
   return { ...own, ...(shared as Pick<Board, SharedField>), shape };

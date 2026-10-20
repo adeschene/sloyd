@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MaterialsDialog } from './MaterialsDialog';
 import { defaultBuying, defaultShop, type ShopSettings } from '../document/purchase';
 import type { SavePlan } from './materialsDraft';
 import { EXPLODED_TITLE } from './ViewportControls';
+import { BUILT_IN_BAND } from '../document/banding';
 
 type SaveOut = { shop: ShopSettings; plan: SavePlan };
 const fixed = { project: [], library: [], libraryReadFailed: false, locked: false, newFor: null };
@@ -183,7 +184,7 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     const { plan, shop } = onSave.mock.calls[0]![0];
-    expect(plan).toEqual({ project: [], library: null, assign: null });
+    expect(plan).toEqual({ project: [], library: null, assign: null, bandTypes: null });
     expect(Object.keys(shop.materials).sort()).toEqual(Object.keys(defaultShop().materials).sort());
   });
   it('the remove button names the typed label; the New material… row has none; it is off while locked', () => {
@@ -228,7 +229,7 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     fireEvent.change(field('Oak: price per board foot'), { target: { value: '8' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    expect(onSave.mock.calls[0]![0].plan).toEqual({ project: [], library: null, assign: null });
+    expect(onSave.mock.calls[0]![0].plan).toEqual({ project: [], library: null, assign: null, bandTypes: null });
   });
   it('stays open and shows the message when the save reports a failure', async () => {
     const { onSave, onClose } = open({ project: [ash] });
@@ -397,5 +398,110 @@ describe('Sold in nominal sizes (custom materials spec §5)', () => {
     const out = onSave.mock.calls[0]![0];
     expect(out.plan.project[0]).not.toHaveProperty('nominal');
     expect(out.shop.materials['m-s-spf1']).toEqual(defaultBuying('m-s-spf1', true));
+  });
+});
+
+describe('MaterialsDialog — the Edge banding section (edge banding spec §5.2)', () => {
+  const mapleBand = { id: 'm', name: 'Maple edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
+  const bandTypes = [BUILT_IN_BAND, mapleBand];
+  const solids = ['pine', 'oak', 'maple', 'walnut', 'cherry'];
+  const openBands = (over: Partial<Parameters<typeof MaterialsDialog>[0]> = {}) => open({ bandTypes, parts: [], solids, ...over });
+  const section = () => within(screen.getByRole('group', { name: 'Edge banding' }));
+
+  it('lists the built-in and the project\'s band types', () => {
+    openBands();
+    expect(section().getByRole('textbox', { name: 'Iron-on veneer: name' })).toHaveValue('Iron-on veneer');
+    expect(section().getByRole('textbox', { name: 'Maple edging: name' })).toHaveValue('Maple edging');
+    expect(section().getByRole('textbox', { name: 'Maple edging: thickness' })).toHaveValue('1/4"');
+    expect(section().getByRole('combobox', { name: 'Maple edging: material' })).toHaveValue('maple');
+    expect(section().getByRole('textbox', { name: 'Iron-on veneer: tape width' })).toHaveValue('7/8"');
+  });
+
+  it('+ Add band type ▾ → Solid adds a row, saved with the list', async () => {
+    const { onSave } = openBands();
+    fireEvent.click(section().getByRole('button', { name: '+ Add band type ▾' }));
+    fireEvent.click(section().getByRole('button', { name: 'Solid' }));
+    expect(section().getByRole('textbox', { name: 'Solid edging: name' })).toHaveValue('Solid edging');
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const plan = onSave.mock.calls[0]![0].plan;
+    expect(plan.bandTypes).toHaveLength(3);
+    expect(plan.bandTypes![2]).toMatchObject({ kind: 'solid', name: 'Solid edging', thickness: 0.25, material: 'maple', widthAllowance: 0.0625 });
+  });
+
+  it('an edited thickness saves the edited list', async () => {
+    const { onSave } = openBands();
+    fireEvent.change(section().getByRole('textbox', { name: 'Maple edging: thickness' }), { target: { value: '3/8' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.bandTypes).toEqual([BUILT_IN_BAND, { ...mapleBand, thickness: 0.375 }]);
+  });
+
+  it('an untouched dialog plans no band types', async () => {
+    const { onSave } = openBands();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.bandTypes).toBeNull();
+  });
+
+  it('a zero solid thickness disables Save and shows the refusal', () => {
+    openBands();
+    fireEvent.change(section().getByRole('textbox', { name: 'Maple edging: thickness' }), { target: { value: '0' } });
+    expect(saveBtn()).toBeDisabled();
+    expect(screen.getByText('Solid edging needs a thickness.')).toBeInTheDocument();
+  });
+
+  it('the built-in row has no delete; a project type can be deleted', async () => {
+    const { onSave } = openBands();
+    expect(section().queryByRole('button', { name: 'Delete Iron-on veneer' })).toBeNull();
+    fireEvent.click(section().getByRole('button', { name: 'Delete Maple edging' }));
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.bandTypes).toEqual([BUILT_IN_BAND]);
+  });
+
+  it('every band control is disabled when locked, and Save plans no band types', async () => {
+    const { onSave } = openBands({ locked: true });
+    const controls = [
+      ...section().getAllByRole('textbox'), ...section().getAllByRole('combobox'), ...section().getAllByRole('button'),
+    ];
+    expect(controls.length).toBeGreaterThan(0);
+    expect(section().getByRole('button', { name: '+ Add band type ▾' })).toBeDisabled();
+    expect(section().getByRole('button', { name: 'Delete Maple edging' })).toBeDisabled();
+    for (const c of controls) expect(c).toBeDisabled();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.bandTypes).toBeNull();
+  });
+
+  it('the footer note says band types and tape prices live in the project', () => {
+    openBands();
+    expect(screen.getByText(/each project also keeps a copy of the materials it uses, and its own band types and tape prices\. Undo reverts the project's copies and band types, not your library or material prices\./)).toBeInTheDocument();
+  });
+});
+
+describe('MaterialsDialog — band rows after a partial failure (task 9 review)', () => {
+  it('a saved new band type becomes a stored row, and a second Save plans no band types', async () => {
+    let rerender: (ui: ReactElement) => void = () => {};
+    const props = (bandTypes: SavePlan['bandTypes'] & object) => ({ shop: defaultShop(), readFailed: false, project: [], library: [],
+      libraryReadFailed: false, locked: false, newFor: null, onClose: () => {}, bandTypes, parts: [], solids: ['maple'] });
+    // App applies the project edit before the failed browser write resolves: the props change first.
+    const onSave = vi.fn(async ({ plan }: { shop: ShopSettings; plan: SavePlan }) => {
+      if (plan.bandTypes) rerender(<MaterialsDialog {...props(plan.bandTypes)} onSave={onSave} />);
+      return 'Could not save your prices: …';
+    });
+    ({ rerender } = render(<MaterialsDialog {...props([BUILT_IN_BAND])} onSave={onSave} />));
+    fireEvent.click(screen.getByRole('button', { name: '+ Add band type ▾' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Solid' }));
+    expect(screen.getByRole('button', { name: 'Remove Solid edging' })).toBeInTheDocument();
+    fireEvent.click(saveBtn());
+    expect(await screen.findByText('Could not save your prices: …')).toBeInTheDocument();
+    expect(onSave.mock.calls[0]![0].plan.bandTypes).toHaveLength(2);
+    // Now a stored row: Delete, not Remove.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete Solid edging' })).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Remove Solid edging' })).toBeNull();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0].plan.bandTypes).toBeNull();
   });
 });

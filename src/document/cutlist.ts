@@ -1,6 +1,6 @@
 import { isSheetGood, type SheetStock } from './types';
 import { catalogOf } from './materials';
-import type { Board, Cut, Grain, Region, FlatDocument } from './types';
+import type { BandType, Board, CornerRule, Cut, Grain, ProfileSide, Region, FlatDocument } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
 import { angleCutValues, angleCutsThatRemoveStock } from './angleCuts';
@@ -19,6 +19,9 @@ import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
 import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
 import { geometryBoard, profileValues, sweptProfiles } from './profiles';
+import { bandFaultText, bandFaults, bandSignature, bandsMeetAtCorner, coreSize, cutStock, sameSide, stripBoard, strips } from './banding';
+import type { BandFaultKind, Strip } from './banding';
+import { edgeName } from './holeText';
 
 /**
  * One row of the cut list: every part that is cut from the same stock, in the
@@ -37,8 +40,10 @@ export interface CutListRow {
   /** 1-based position in display order across every group (plans balloons spec §2): the ONE row number, printed on
    *  the cut list and on the Plans sheet's balloons. Assigned once, after the sort below; never stored. */
   number: number;
-  /** The ids of the row's boards, in document order (`flatDocument` ids, which are `worldParts` ids). */
+  /** The ids of the row's boards, in document order (`flatDocument` ids, which are `worldParts` ids). [] on a strip row. */
   boardIds: string[];
+  /** A strip row's strip ids (edge banding spec §4.2), so a board layout labels a strip with its number; [] on a part row. */
+  stripIds: string[];
   /** Board names, in document order. Unique per invariant 8. */
   names: string[];
   length: number;
@@ -129,6 +134,8 @@ export interface CutListGroup {
 
 export interface CutList {
   groups: CutListGroup[];
+  /** Sheet notes (edge banding spec §4.1); [] when nothing is banded. */
+  notes: string[];
 }
 
 /**
@@ -201,8 +208,51 @@ function tenonLine(t: Tenon, units: Units): string {
   return `${f(t.length)} tenon, ${f(t.thickness)} thick × ${f(t.width)} wide — at the length ${t.end} end`;
 }
 
-/** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged. */
-function setupLines(board: Board, units: Units): string[] {
+const sideWords = (s: ProfileSide) => edgeName({ dim: s.across, side: s.from });
+const CORNER_WORDS: Record<CornerRule, string> = { long: 'long edges run through', ends: 'ends run through', mitre: 'mitred corners' };
+
+/**
+ * THE band line (edge banding spec §4.1, Amended (planning) P5): one clause per band type (sides in canonical order),
+ * faulted sides their own clause with its check; the corner words only where two ADJACENT unfaulted bands with thickness
+ * meet and one is solid (the corner rule matters nowhere else); `finished` only when the core differs from the part.
+ */
+function bandLine(board: Board, types: readonly BandType[], units: Units): string | null {
+  if (board.bands.length === 0) return null;
+  const faults = bandFaults(board, types);
+  const faultOf = (s: ProfileSide) => faults.find((f) => sameSide(f.side, s));
+  const groups = new Map<string, { type: string; fault: BandFaultKind | undefined; sides: ProfileSide[] }>();
+  const nameOf = new Map(types.map((t) => [t.id, t.name]));
+  for (const b of board.bands) {
+    // A band naming no type contributes nothing (as `judge` skips it); the loader and store never leave one.
+    if (!nameOf.has(b.type)) continue;
+    const fault = faultOf(b.side)?.kind;
+    const key = fault ? `${b.type}|${fault}` : b.type;
+    const g = groups.get(key);
+    if (g) g.sides.push(b.side);
+    else groups.set(key, { type: b.type, fault, sides: [b.side] });
+  }
+  const clauses = [...groups.values()].map(({ type, fault, sides }) =>
+    `${sides.map(sideWords).join(' and ')} — ${nameOf.get(type)!}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
+  if (clauses.length === 0) return null;
+  const meets = bandsMeetAtCorner(board, types);
+  const core = coreSize(board, types);
+  const finished = core.length !== board.length || core.width !== board.width ? `; finished ${formatSize([board.length, board.width], units)}` : '';
+  return `Band: ${clauses.join('; ')}${meets ? `, ${CORNER_WORDS[board.cornerRule]}` : ''}${finished}`;
+}
+
+const deg = (r: number) => `${Number(((r * 180) / Math.PI).toFixed(1))}°`;
+/** A strip's bench line (spec §4.2): trim flush, then its mitred ends, each its own angle. */
+function stripSetup(s: Strip): string {
+  const m = s.ends.filter((e) => e.mitre !== null).map((e) => e.mitre!);
+  if (m.length === 0) return 'Trim flush';
+  if (m.length === 1) return `Trim flush; mitre one end ${deg(m[0]!)}`;
+  return Math.abs(m[0]! - m[1]!) <= 1e-12 ? `Trim flush; mitre both ends ${deg(m[0]!)}` : `Trim flush; mitre ends ${deg(m[0]!)} and ${deg(m[1]!)}`;
+}
+/** A strip row's identity tail: its ends, exact (a square and a mitred strip of one cut size are two setups). */
+const endsKey = (s: Strip) => s.ends.map((e) => (e.mitre === null ? 'sq' : String(e.mitre))).join(',');
+
+/** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged; the band line last. */
+function setupLines(board: Board, units: Units, types: readonly BandType[]): string[] {
   const tenons = findTenons(board);
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
   const done = new Set<Tenon>();
@@ -218,6 +268,8 @@ function setupLines(board: Board, units: Units): string[] {
   if (short) lines.push(short);
   for (const r of board.holes) lines.push(holeLine(board, r, units));
   lines.push(...curveLines(board, units));
+  const band = bandLine(board, types, units);
+  if (band) lines.push(band);
   return lines;
 }
 
@@ -269,12 +321,15 @@ function groupFields(board: Board, units: Units): string[] {
   return [board.material, formatLength(board.thickness, units)];
 }
 
-function rowKey(board: Board, units: Units): string {
+function rowKey(board: Board, units: Units, types: readonly BandType[]): string {
   const f = (n: number) => formatLength(n, units);
+  // A banded part is cut at its CORE size (edge banding spec §4.1); a band-free part's core is its own size.
+  const core = coreSize(board, types);
+  const bands = bandSignature(board, types);
   return [
     ...groupFields(board, units),
-    f(board.length),
-    f(board.width),
+    f(core.length),
+    f(core.width),
     board.grain,
     // A cut a board edit has left removing nothing changes nothing you cut,
     // so it must not split a row (follow-up 178).
@@ -283,6 +338,8 @@ function rowKey(board: Board, units: Units): string {
     angleSignature(board),
     holeSignature(board),
     curveSignature(board),
+    // Appended only when non-empty, so a band-free key is byte for byte what it was.
+    ...(bands === '' ? [] : [bands]),
   ].join('|');
 }
 
@@ -304,6 +361,11 @@ function stockInchesOf(board: Board): number {
     : board.length * board.width * board.thickness;
 }
 
+/** 1 for an edging strip row (edge banding spec §4.2), 0 for a part row: the sorts' first key, so strips come last. */
+const isStripRow = (r: CutListRow) => (r.stripIds.length > 0 ? 1 : 0);
+/** 1 for a group holding only strip rows, 0 for one holding any part. */
+const stripOnly = (g: CutListGroup) => (g.rows.every((r) => r.stripIds.length > 0) ? 1 : 0);
+
 export function buildCutList(doc: FlatDocument): CutList {
   const units = doc.units;
   const catalog = catalogOf(doc);
@@ -314,7 +376,12 @@ export function buildCutList(doc: FlatDocument): CutList {
   // carries rows (representative) rather than boards.
   const groupBoards = new Map<CutListGroup, Board[]>();
 
-  for (const board of doc.boards) {
+  /**
+   * One visit: `board` is what the row describes (a stored part, or a strip as a part), `cut` what is cut from stock
+   * (the part at its CORE size, the same object when it has no bands; a strip is its own cut). A row is made from its
+   * FIRST visit's `make()`.
+   */
+  const visit = (board: Board, cut: Board, key: string, make: () => Pick<CutListRow, 'setup' | 'diagrams'>, strip: boolean) => {
     const groupKey = groupFields(board, units).join('|');
     let group = groups.get(groupKey);
     if (!group) {
@@ -332,7 +399,6 @@ export function buildCutList(doc: FlatDocument): CutList {
 
     // rowKey starts with the group's own two fields, so a row key is unique
     // across the whole list and belongs to exactly one group.
-    const key = rowKey(board, units);
     let row = rows.get(key);
     if (!row) {
       row = {
@@ -341,11 +407,12 @@ export function buildCutList(doc: FlatDocument): CutList {
         number: 0,
         names: [],
         boardIds: [],
-        length: board.length,
-        width: board.width,
+        stripIds: [],
+        length: cut.length,
+        width: cut.width,
         thickness: board.thickness,
         grain: board.grain,
-        dims: formatSize([board.length, board.width], units),
+        dims: formatSize([cut.length, cut.width], units),
         // The setup lines are the FIRST board's, and the row's other boards
         // hold numerically identical cuts — `cutSignature` is exact, so that
         // much really is by construction. The WORD is not: `cutLabel` decides
@@ -358,36 +425,56 @@ export function buildCutList(doc: FlatDocument): CutList {
         // the noun is the representative's. Left as is deliberately: at the
         // precision the sheet is printed to, the representative's word is the
         // more useful one at the bench. Follow-up 55.
-        setup: setupLines(board, units),
-        diagrams: buildDiagrams(board, units),
-        nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width, units) : null,
+        ...make(),
+        nominal: catalog.get(board.material)?.nominal ? nominalName(cut.thickness, cut.width, units) : null,
         stockInches: 0,
         stock: '',
       };
       rows.set(key, row);
       group.rows.push(row);
     }
-    if (row.qty > 0 && row.nominal !== null && nominalName(board.thickness, board.width, units) !== row.nominal) row.nominal = null;
+    if (row.qty > 0 && row.nominal !== null && nominalName(cut.thickness, cut.width, units) !== row.nominal) row.nominal = null;
     row.qty += 1;
     row.names.push(board.name);
-    row.boardIds.push(board.id);
+    // A strip row draws no part (edge banding spec §4.2): its ids are strip ids, never board ids.
+    (strip ? row.stripIds : row.boardIds).push(board.id);
 
     // Accumulated HERE, in the same visit that increments `qty`, and from this
     // board's own exact dimensions — see stockInches' doc comment. Adding to
     // the group in the same statement is what makes a subtotal and its rows
     // impossible to disagree: they are the same additions, not two passes.
-    const stock = stockInchesOf(board);
+    // A banded part's stock is its CORE (edge banding spec §4.1).
+    const stock = stockInchesOf(cut);
     row.stockInches += stock;
     group.stockInches += stock;
-    groupBoards.get(group)!.push(board);
+    groupBoards.get(group)!.push(cut);
+  };
+
+  // What is cut from stock (banding.ts): every part at its core size, index for index with `doc.boards`. Nesting reads
+  // these, never the stored boards (edge banding spec §4.3).
+  const cutParts = cutStock(doc).slice(0, doc.boards.length);
+  doc.boards.forEach((board, i) => {
+    visit(board, cutParts[i]!, rowKey(board, units, doc.bandTypes),
+      () => ({ setup: setupLines(board, units, doc.bandTypes), diagrams: buildDiagrams(board, units) }), false);
+  });
+  // Strip rows (edge banding spec §4.2): in the group of the edging material and the strip's thickness, collapsed by cut
+  // size, material and ends. "After its parts" is the SORT's job below: strip rows last in a group, strip-only groups
+  // after the material's part groups.
+  for (const part of doc.boards) {
+    for (const s of strips(part, doc.bandTypes)) {
+      const sb = stripBoard(s);
+      visit(sb, sb, `${rowKey(sb, units, doc.bandTypes)}|strip|${endsKey(s)}`,
+        () => ({ setup: [stripSetup(s)], diagrams: buildDiagrams(sb, units) }), true);
+    }
   }
 
   const out = [...groups.values()];
   for (const group of out) {
     // `key` as the final tiebreak so the order is total: tests assert on it
     // and React keys off it, the same reason `mergeAlong` sorts.
+    // Strip rows after part rows (edge banding spec §4.2), each by the same order; a band-free group has none.
     group.rows.sort(
-      (a, b) => b.length - a.length || b.width - a.width || a.key.localeCompare(b.key),
+      (a, b) => isStripRow(a) - isStripRow(b) || b.length - a.length || b.width - a.width || a.key.localeCompare(b.key),
     );
     const format = isSheetGood(group.material) ? formatSquareFeet : formatBoardFeet;
     group.stock = format(group.stockInches);
@@ -405,10 +492,15 @@ export function buildCutList(doc: FlatDocument): CutList {
   out.sort(
     (a, b) =>
       catalog.label(a.material).localeCompare(catalog.label(b.material)) ||
+      // A material's strip-only groups after its groups holding any part (edge banding spec §4.2: "after its parts").
+      stripOnly(a) - stripOnly(b) ||
       b.thickness - a.thickness,
   );
   // The ONE numbering (plans balloons spec §2): display order, after both sorts.
   let n = 0;
   for (const group of out) for (const row of group.rows) row.number = ++n;
-  return { groups: out };
+  const notes = doc.boards.some((b) => b.bands.length > 0)
+    ? ['Cut sizes are before banding; band before machining — every cut, hole and curve is measured on the banded part.']
+    : [];
+  return { groups: out, notes };
 }

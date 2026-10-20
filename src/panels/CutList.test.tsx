@@ -47,6 +47,17 @@ describe('CutList', () => {
     expect(screen.getByText(/3\/4" dado, 1\/4" deep/)).toBeInTheDocument();
   });
 
+  it('a banded project carries the banding note in the header; a band-free one does not (edge banding spec §4.1)', () => {
+    const note = /Cut sizes are before banding/;
+    load({ material: 'plywood' });
+    const { unmount } = render(<CutList onClose={() => {}} />);
+    expect(screen.queryByText(note)).toBeNull();
+    unmount();
+    load({ material: 'plywood', bands: [{ side: { across: 'width', from: 'min' }, type: 'band-iron-on' }] });
+    render(<CutList onClose={() => {}} />);
+    expect(screen.getByText(note).closest('header')).not.toBeNull();
+  });
+
   it('closes on the close button', async () => {
     let closed = false;
     render(<CutList onClose={() => { closed = true; }} />);
@@ -313,5 +324,25 @@ describe('printed page breaks (fu 383)', () => {
     expect(groups).toHaveLength(3);
     for (const g of groups.slice(1)) expect(g.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
     expect(container.querySelector('.cutlist-buying')?.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
+  });
+
+  it('a by-the-piece board layout labels each strip with its strip row\'s number (edge banding spec §4.4)', () => {
+    const maple = { id: 'm', name: 'Maple edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'walnut', widthAllowance: 0.0625 };
+    useStore.getState().replaceDocument({
+      ...createDocument('Test'),
+      bandTypes: [maple],
+      boards: [createBoard({ name: 'Back', material: 'plywood', length: 20, width: 10, thickness: 0.75 }),
+        createBoard({ name: 'Shelf', material: 'plywood', length: 30, width: 12, thickness: 0.75,
+        bands: [{ side: { across: 'length', from: 'min' }, type: 'm' }] })],
+    });
+    const s = defaultShop();
+    s.materials.walnut = { mode: 'piece', stock: [{ id: 'k', thickness: 1, width: 6, length: 96, price: null }] };
+    const { container } = render(<CutList onClose={() => {}} shop={s} />);
+    const maple$ = [...container.querySelectorAll('.cutlist-group')].find((g) => g.querySelector('h3')?.textContent?.includes('Walnut'))!;
+    const num = maple$.querySelector('.cutlist-num')!.textContent!;
+    const buying = screen.getByRole('region', { name: 'Buying' });
+    const layout = buying.querySelector('svg')!;
+    expect(Number(num)).toBeGreaterThan(2);   // after both plywood rows, so a bare index (1) could not pass for it
+    expect(within(layout as unknown as HTMLElement).getAllByText(num).length).toBeGreaterThan(0);
   });
 });

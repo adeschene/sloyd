@@ -1,9 +1,10 @@
 import { boardExtents } from './geometry';
-import type { AngleCut, Board, Cut, CurveCut, ProfileCut, Definition, HoleRow, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
+import type { AngleCut, Band, Board, Cut, CurveCut, ProfileCut, Definition, HoleRow, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { angleCutValues, copyAngleCut, mirrorAngleCut, sameAngleCut } from './angleCuts';
 import { copyCurve, curveValues, mirrorCurveCut, sameCurve } from './curves';
 import { copyProfile, mirrorProfile, profileValues, sameProfile } from './profiles';
+import { bandValues, copyBand, mirrorBands, sameBands } from './bandModel';
 import { copyHoleRow, holeRowValues, mirrorHoleRow, sameHoleRow } from './holes';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
@@ -129,6 +130,13 @@ function lowerProfiles(storedBefore: Board, draft: Board): ProfileCut[] {
   return out.length === storedBefore.profiles.length && out.every((p, i) => p === storedBefore.profiles[i]) ? storedBefore.profiles : out;
 }
 
+/** A part's bands lowered back through ONE mirror (edge banding spec §2.2): a flag flip, its own inverse; equal to the
+ *  stored bands: the stored array. */
+function lowerBands(storedBefore: Board, draft: Board): Band[] {
+  const back = mirrorBands(draft.bands, mirrorDim(draft));
+  return sameBands(back, storedBefore.bands) ? storedBefore.bands : back;
+}
+
 /**
  * A part's curves lowered back through ONE mirror (curves spec §6.2): like lowerHoles, a flag flip, exact and size-free;
  * a curve equal to the stored one with the same id maps back to THAT object; all reused: the stored array.
@@ -171,6 +179,7 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     holes: lowerHoles(lowerBefore, draft),
     curves: lowerCurves(lowerBefore, draft),
     profiles: lowerProfiles(lowerBefore, draft),
+    bands: lowerBands(lowerBefore, draft),
   };
 }
 
@@ -336,9 +345,13 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
       // As curves.
       return rec(before)[k] !== rec(after)[k] || (cur.profiles !== after.profiles && cur.profiles !== resolved.profiles);
     }
+    if (k === 'bands') {
+      // As profiles.
+      return rec(before)[k] !== rec(after)[k] || (cur.bands !== after.bands && cur.bands !== resolved.bands);
+    }
     return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
@@ -491,7 +504,7 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
  *  (regroupShapes) and to compare placements of one definition (resultSignature, fu 316). */
 function groupSignature(b: Board): unknown[] {
   const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation
@@ -532,7 +545,7 @@ function copyDefinition(d: Definition): Definition {
     id: nextId(),
     boards: d.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand) })),
     instances: d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
 }

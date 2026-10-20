@@ -5512,6 +5512,13 @@ merge `bfde00c`, deployed, no schema change). **Closed.** Residue: 324, 325, 326
 
 **267. Edge banding and a hardware bill of materials** (`docs/feature-gaps.md` §3). **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** the BANDING half: spec `docs/superpowers/specs/2026-10-19-sloyd-edge-banding-design.md` (approved 2026-10-19);
+**chunk 1** (schema 19: band types, bands, the corner rule, `banding.ts`'s arithmetic, the cut list's core sizes, band lines
+and strip rows, nesting at core size, Buying's strips and Edge banding block, Properties' Banding section, the Materials
+dialog's Edge banding section, Curves' band refusal, joinery/Refine/Repair refusing banded projects) **built** on branch
+`edge-banding-1` (2026-10-20; merge and deploy pending the final review and the user). **Chunk 2** (viewport looks, Plans
+sheet glue lines and keys, part diagrams) is next. The HARDWARE half (a hardware bill of materials, with fu 332's dowels)
+stays open, feature-sized, for its own spec. Residue: 395–401.
 
 **268. Glue-ups from narrow stock.** A part wider than every stock board is "too wide"; edge-gluing narrower boards is
 not modelled. **Status:** open.
@@ -6687,3 +6694,75 @@ review; (5) for chunk c).
 **Status:** chunk c2 (2026-10-19, branch `perf-c2`, unmerged): (5)'s two-side cove 38.2 (guard 48; was 43-44); `wrapFour` measured 27.9 in c2's four runs. Rows still over 40 are the ogee loop (48.1) and, in full runs, bead (40.2) and two loops (41.2); the
 wall-clock guards stay flaky under load. Still open.
 **Status:** (5): chunk c2 MERGED and DEPLOYED 2026-10-19 (`index-Cqf9kRT7.js`): the two-side cove ≤ 38.2 (guard 48), `wrapFour` 27.9 (40). (5) is CLOSED for b2's rows; the ogee loop (fu 393) is left as is by the user's ruling. A merged full run flaked the cove loop's new 48 guard once (48.4, under load; passed alone and on a re-run) — wall-clock flakiness under load stays as noted.
+
+## From the edge banding round (chunk 1) — 2026-10-20
+
+**395. Edge banding chunk 1: the live pass's findings, for the user's eye.**
+(1) **A banded row prints two sizes.** Its `dims` are the CORE (`35-1/2" × 19-1/2"` on the live tabletop), but its part
+diagram, and every setup line except the band line, describe the FINISHED part (`36"` × `20"`). This was Task 5's deferred
+minor and is recorded in the spec's §4.1 *Amended (implementation, chunk 1)*. Chunk 2 redraws the part diagrams, so decide
+there whether a banded part's diagram shows the core, the finished part with the band marked, or both.
+(2) **Wording:** four sides of one type read `Band: the width min side and the width max side and the length min end and the
+length max end — …`. Nothing joins three or more sides as a list (`, … and`) or collapses them (`all four sides`).
+(3) **Buying's unpriced tail counts a tape type as a material** (`3 materials have no price`). Task 6 kept this as
+plan-mandated wording.
+(4) **Strip rows can take the first numbers of the series.** A material holding only strips (the maple of a plywood
+tabletop) sorts by material, so its strips came first live and the Plans sheet's balloons started at 3. This is correct
+by the ruled order, but it may read oddly.
+**Status:** open (owed to the user's eye; (1) with chunk 2).
+
+**396. A part whose `faceOutline` is null faults every band `no-side`.** A faulted or overlapping through-thickness curve
+leaves no outline. Every band on that part then contributes nothing: no core reduction, no strip, no tape. While the curve
+is faulted, the cut list prints the finished size as the cut size, and Buying drops that part's edging. This is
+conservative by the Task 4 ruling: the part already carries a curve fault. Judging the bands against the plain rectangle
+in that case is the alternative. **Status:** open by decision (ask first).
+
+**397. Split a banded part's bodies into core and band** (spec §7). Today a hole drilled into a solid band, a section through
+edging and a profile routed into it all read as one piece of wood. The fix would be a final `boardBodies` stage with
+`BodyFace.band`. **Status:** open by decision: take it only when a real project needs it.
+
+**398. Bands through joinery, Refine and Repair** (spec §6). Today all three refuse a banded project at entry
+(`bandedRefusal`). Carrying bands through would need: joinery keeping a tenon out of edging, Refine reading and writing
+bands, and Repair proving them. **Status:** open (feature; needs a spec).
+
+**399. A browser library of band types** (spec §1's non-goal). Band types are per project; a shop's usual edging has to be
+re-made in each project. This would follow the materials library precedent (`sloyd.materials.v1`). Prices raise a
+question: band prices live in the document (fu 265's direction). **Status:** open (feature; ask first).
+
+**400. Corner rules per corner** (spec §1's non-goal). One rule per part today (`cornerRule`). **Status:** open (feature; ask
+first).
+
+**401. Edge banding chunk 1: deferred review minors and test gaps** (record-only unless noted).
+(1) **Tests:**
+- No App-level `onSave` test: a band-types-only Save should make one undo entry, and a no-op Save none. Verified by reading,
+  and live (one undo entry, step 2 of the verification).
+- Curves' preset-withheld test clicks `+ Add curve` only `if (add)`, so it may pass vacuously. Assert that the trigger exists.
+- No test that a curve edit leaving or removing an existing band fault is accepted.
+- Buying gaps: the whole-foot boundary (24"), mixed priced and unpriced tape, tape-only priced, and the tape-only unpriced
+  total `—`.
+- No UI-level test of the Materials dialog's in-use delete or fault refusal; the plural wording is untested.
+- `bandIds` on a definition part and a dangling band on a shape are untested (the threading is correct).
+- A band naming an unknown type id is skipped silently, untested (the loader drops such bands). **Closed** for the cut list's
+  band line (final review 2, `cutlistBands.test.ts`).
+(2) **Behaviour:**
+- Corners reads `Mixed` when a selected part that does not qualify keeps the default `'long'`. **Closed** (final review 1):
+  Corners reads and writes only the parts `bandsMeetAtCorner` reaches, and the row key carries the rule only there.
+- The Materials dialog's `freeName` for a new row is case-sensitive, but the name-clash refusal is case-insensitive, so a
+  new row can arrive refused.
+- An exponent-form price (in a hand-edited import) fails `PRICE_RE` and blocks Save.
+- `Edging comes from solid wood.` marks no field, and a library name clash hides a band refusal message.
+- The loader's `dedupeNames` runs before the built-in is prepended, so a same-named user type can duplicate the built-in's
+  name. A stored `band-iron-on` of kind solid counts as the built-in present.
+- New band type names use `base 2` (a local `freeName`), not `names.ts`' `(n)`.
+(3) **Code notes:**
+- `coreSize` returns a fresh, unfrozen object on each call.
+- `BAND_SIDES` elements are not frozen; `sameBandType` casts instead of narrowing.
+- `bandLine`'s `types.find(…)!` relies on the loader and store never leaving a dangling band type. **Closed** (final review 2):
+  a band naming an unknown type is skipped in the line.
+- `groupSignature` joins bands unsorted (it relies on canonical order).
+- Nesting's `groupBoards` receives strip boards (harmless: solid only).
+- Banding option reasons are capitalised (`— Needs a straight edge`), unlike Profiles' lower-case `optionReason`.
+- Global DOM ids `band-width-min` / `band-corners`.
+- The Materials dialog's band props are optional, with defaults.
+- `names` is imported mid-file in `document.ts`.
+**Status:** open (record-only).

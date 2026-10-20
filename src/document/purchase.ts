@@ -1,4 +1,5 @@
-import type { Board, FlatDocument, SheetStock } from './types';
+import type { Board, FlatDocument, SheetStock, TapeBand } from './types';
+import { cutStock, tapeRuns } from './banding';
 import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
@@ -147,7 +148,7 @@ export interface PurchaseEntry {
   cost: number | null;
   unplaceable: number;
 }
-export interface Purchase { entries: PurchaseEntry[]; total: number; totalLabel: string }
+export interface Purchase { entries: PurchaseEntry[]; banding: { lines: string[]; cost: number | null } | null; total: number; totalLabel: string }
 
 /** A stock size as the yard names it: `2×4 × 8′` for a nominal material's section, else actual `t × w × l`. */
 const sizeDims = (s: StockBoard, units: Units, nominal: boolean) => {
@@ -277,6 +278,27 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
   return { material, label, mode: 'piece', lines, notes, layouts, cost: used.length > 0 ? cost : null, unplaceable };
 }
 
+/** Tape to buy (edge banding spec §4.4): per tape type, the runs' total rounded UP to whole feet (what is bought is rounded,
+ *  inv 18); priced by the foot; metric reads metres to 0.1 with the bought feet beside. Null when nothing is taped. `cost` is
+ *  null only when no line is priced; `unpriced` counts the lines with no price. */
+function tapeToBuy(doc: FlatDocument): { banding: Purchase['banding']; unpriced: number } {
+  const inches = new Map<string, number>();
+  for (const b of doc.boards) for (const r of tapeRuns(b, doc.bandTypes)) inches.set(r.type.id, (inches.get(r.type.id) ?? 0) + r.length);
+  if (inches.size === 0) return { banding: null, unpriced: 0 };
+  let cost = 0;
+  let priced = false;
+  let unpriced = 0;
+  const lines = doc.bandTypes.filter((t): t is TapeBand => t.kind === 'tape' && inches.has(t.id)).map((t) => {
+    const total = inches.get(t.id)!;
+    const feet = Math.ceil(total / 12 - EPS);
+    const c = t.pricePerFoot === null ? null : feet * t.pricePerFoot;
+    if (c === null) unpriced++; else { cost += c; priced = true; }
+    const amount = isMetric(doc.units) ? `${(total * 0.0254).toFixed(1)} m, buy ${feet}′` : `buy ${feet}′`;
+    return `${t.name}, ${tradeLength(t.tapeWidth, doc.units)} wide: ${amount} · ${priceText(c)}`;
+  });
+  return { banding: { lines, cost: priced ? cost : null }, unpriced };
+}
+
 /**
  * What to buy and what it costs (lumber yield and cost spec §3). Pure. Takes the cut list already built
  * from `doc`, so its groups (material x thickness, exact `stockInches`, sheet nesting) are the ones the
@@ -287,6 +309,7 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
  */
 export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings): Purchase {
   const catalog = catalogOf(doc);
+  const stock = cutStock(doc);
   const materials = [...new Set(list.groups.map((g) => g.material))];
   const entries: PurchaseEntry[] = materials.map((m) => {
     const label = catalog.label(m);
@@ -294,7 +317,7 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
     const buying = shop.materials[m] ?? defaultBuying(m, nominal);
     const groups = list.groups.filter((g) => g.material === m);
     if (buying.mode === 'piece' && !isSheetGood(m)) {
-      return byThePiece(m, label, doc.boards.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal);
+      return byThePiece(m, label, stock.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal);
     }
     if (buying.mode === 'board-foot' && !isSheetGood(m)) {
       const price = buying.pricePerBoardFoot;
@@ -320,14 +343,15 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
     return { material: m, label, mode: 'sheet', lines, notes: [], layouts: [], cost: price === null ? null : sum, unplaceable };
   });
 
-  const total = entries.reduce((n, e) => n + (e.cost ?? 0), 0);
+  const { banding, unpriced: tapeUnpriced } = tapeToBuy(doc);
+  const total = entries.reduce((n, e) => n + (e.cost ?? 0), 0) + (banding?.cost ?? 0);
   // A material is unpriced when it has something to buy (a buy line) but no cost; one that bought nothing is not.
-  const unpriced = entries.filter((e) => e.cost === null && e.lines.length > 0).length;
+  const unpriced = entries.filter((e) => e.cost === null && e.lines.length > 0).length + tapeUnpriced;
   const unplaced = entries.reduce((n, e) => n + e.unplaceable, 0);
   const tail = [
     unpriced > 0 ? `(${unpriced} material${unpriced === 1 ? ' has' : 's have'} no price)` : '',
     unplaced > 0 ? `(${unplaced} part${unplaced === 1 ? '' : 's'} not placed)` : '',
   ].filter(Boolean).join(' ');
-  const amount = entries.some((e) => e.cost !== null) ? formatMoney(total) : '—';
-  return { entries, total, totalLabel: `Estimated materials: ${amount}${tail ? ` ${tail}` : ''}` };
+  const amount = entries.some((e) => e.cost !== null) || banding?.cost != null ? formatMoney(total) : '—';
+  return { entries, banding, total, totalLabel: `Estimated materials: ${amount}${tail ? ` ${tail}` : ''}` };
 }

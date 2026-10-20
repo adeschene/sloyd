@@ -63,6 +63,8 @@ describe('I2 (the controller\'s ruling): a station run claims only its straight 
 // ── I1 (the user's ruling, "Fall back to straight") ─────────────────────────────────────────────────────────────────────
 
 const sha = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
+const BAND_KEYS = new Set(['stripIds', 'notes', 'banding']);
+const shaBandFree = (x: unknown) => createHash('sha256').update(JSON.stringify(x, (k, v) => (BAND_KEYS.has(k) ? undefined : v))).digest('hex').slice(0, 16);
 function meshHash(board: Board): string {
   const { bodies, holes } = partGeometry(board);
   const h = createHash('sha256');
@@ -94,7 +96,9 @@ function fingerprint(b: Board): Record<string, string> {
     keys: sha(partFeatures(b, IMPERIAL)),
     snaps: sha(boardSnapPoints(b)), probe: sha(pts), holes: sha(holeFaults(withHole, bore)),
     diagrams: sha(buildDiagrams(b, IMPERIAL)),
-    cutlist: sha(buildCutList({ version: 18, name: 's', units: 'imperial', stock: { kerf: 0.125 }, guides: [], boards: [b], instances: [], definitions: [], shapes: [], materials: [] } as never)),
+    // Edge banding 1 adds `stripIds` and `notes` (always empty without bands): dropped, as bandFreeIdentity.test does, so the
+    // a2/b1 pins stand unre-captured.
+    cutlist: shaBandFree(buildCutList({ version: 18, name: 's', units: 'imperial', stock: { kerf: 0.125 }, guides: [], boards: [b], instances: [], definitions: [], shapes: [], materials: [] } as never)),
   };
 }
 const ROUNDOVER_LINE = 'Roundover 3/8" on the edge between the width face (min side) and the thickness face (max side), along the length';

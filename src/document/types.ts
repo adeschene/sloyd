@@ -172,6 +172,14 @@ export type Region = Record<Dimension, Span>;
 export type ProfileKind = 'roundover' | 'cove' | 'ogee' | 'bead' | 'thumbnail';
 /** One side of a broad (thickness) face: the edge at `across`'s `from` end, running along the face's other dimension. */
 export interface ProfileSide { across: 'length' | 'width'; from: CutFrom }
+/** Where two banded sides with thickness meet (edge banding spec §3.2; Amended (planning) P1: always present). */
+export type CornerRule = 'long' | 'ends' | 'mitre';
+interface BandTypeBase { id: string; name: string; thickness: number; lengthAllowance: number }
+export interface TapeBand extends BandTypeBase { kind: 'tape'; tapeWidth: number; pricePerFoot: number | null }
+export interface SolidBand extends BandTypeBase { kind: 'solid'; material: string; widthAllowance: number }
+export type BandType = TapeBand | SolidBand;
+/** An edge band on one side of the broad face, of the band type `type` (by id). Bands carry no id: keyed by side. */
+export interface Band { side: ProfileSide; type: string }
 /** A run's end: a station along the side measured from the named end of its run dimension, or — at a side's sharp corner —
  *  out through that end face (chunk 1's full-length profile). Chunk a1 builds only `through` ends on one side. */
 export type ProfileEnd = { side: ProfileSide; from: CutFrom; at: number } | { side: ProfileSide; through: CutFrom };
@@ -221,6 +229,11 @@ export interface Board {
   curves: CurveCut[];
   /** Edge profiles (profile runs spec §3). Empty for most parts. Geometry reads them through `geometryBoard`. */
   profiles: ProfileCut[];
+  /** Edge bands on the broad face's four sides (edge banding spec §2.2), canonical order, at most one per side. Empty for
+   *  most parts. Numbers come only from `banding.ts`. */
+  bands: Band[];
+  /** Where two banded sides with thickness meet (spec §3.2; Amended (planning) P1: always present, default 'long'). */
+  cornerRule: CornerRule;
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a
@@ -310,6 +323,8 @@ export interface SloydDocument {
   shapes: Shape[];
   /** Exactly the custom materials this document's parts and shapes use (custom materials spec §2.3). */
   materials: CustomMaterial[];
+  /** This project's band types (edge banding spec §2.1); the built-in `band-iron-on` always present, first. Kept when unused. */
+  bandTypes: BandType[];
 }
 
 /**

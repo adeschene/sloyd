@@ -520,6 +520,71 @@ and 79.
 
 ## What each round did
 
+**What edge banding chunk 1 did (2026-10-19/20)** (fu 267's banding half; spec `2026-10-19-sloyd-edge-banding-design.md`, approved by
+the user 2026-10-19; plan `…-edge-banding-1.md`; branch `edge-banding-1` from `f246943`; **SCHEMA 19**; code complete at `90e9bde`
+plus this docs commit, **NOT merged or deployed** at the time of writing — the merge waits on the final whole-branch review and the
+user's word). Rolling back below 19, once deployed, refuses every project saved since: export first.
+
+The user's rulings in the design conversation: banding first (the hardware bill of materials is a later spec); **the model is the
+FINISHED size**, the cut list subtracts band thickness to give the CORE (cut) size; a solid band is a property of the part's edge, not a
+part (a derived strip row on the cut list, priced with its species); ONE corner rule per part (long edges run through, ends run through,
+mitred); band types named and per project, no browser library; bands follow the outline for zero thickness, a band WITH thickness needs a
+straight side; strips cut oversize (width allowance 1/16", length allowance 1/2"); bodies untouched (§7, splitting is a follow-up); two
+chunks — chunk 1 data, arithmetic, cut list, nesting, Buying and controls; chunk 2 viewport, Plans sheet, part diagrams.
+
+Ten tasks, fourteen commits:
+1. `dbd0039` — the stored model (`bandModel.ts`, imports only `ids` and `types`): `BandType` (tape | solid), `Band { side, type }`,
+   `cornerRule`, `BAND_SIDES` canonical order, `mirrorBands` (a flag flip), `bands`/`cornerRule` SHARED in `LINK_FIELDS`.
+2. `c85f612` — schema 19's loader: band types validated after materials and before parts, the built-in `band-iron-on` re-added first,
+   an unknown kind STRING refuses the document, a solid type's material falls back to pine, dangling and duplicate-side bands dropped;
+   `materialUses` keeps a band type's solid material (inv 49 amended).
+3. `1e2588b` — write-back through mirrors (`lowerBands` the exact inverse), copies, groups; store actions (`setBands`,
+   `updateBoards`' 4th argument, `applyMaterials`' 3rd), each refused while exploded.
+4. `21de68d`, `6e5d6dd` — `banding.ts`, THE arithmetic: `coreSize`, `strips` (per corner rule, mitre angle `atan(n / t)`), `tapeRuns`
+   (true arcs, a shared corner arc half to each taped side), `bandFaults` (`needs-straight`, `no-side`, `too-thick`, `tape-narrow`),
+   `bandFaultText`, `cutStock`, `stripBoard`, `bandSignature`; memoised per (part, band types), deep-frozen, no `units` edge (`endWord`
+   inlined).
+5. `bddf259`, `1d8c5b2`, `2261ed3` — the band-free pin first (`bandFreeIdentity.test.ts`: cut list and Buying bytes of band-free
+   documents), then the cut list: core dims and keys, band lines, the header note, strip rows sorted after their material's parts
+   (`stripIds`, no `boardIds`), cores nested; `planBalloons` skips a partless row.
+6. `e1a45c4` — Buying: strips into their material (board feet × waste, or packed by the piece as ripped off a board's edge), the `Edge
+   banding` tape block (feet rounded up, priced per foot from the document).
+7. `373fbc4` — `bandedRefusal`: joinery, Refine and Repair refuse a banded project; Curves refuses an edit that breaks a band (a preset
+   that would is withheld).
+8. `9067595`, `f11ea3a` — Properties' Banding section (`Banding.tsx`, `bandingRefusal.ts`): a select per side, `Band ▾`, Corners where
+   adjacent thick bands meet and one is solid, options judged on focus and greyed with their reason, Mixed; `Popover` items with a
+   `title` and items as a function.
+9. `7428ef0`, `90e9bde` — the Materials dialog's Edge banding section (`bandTypesDraft.ts`): `+ Add band type ▾`, refusals, in-use
+   delete refused, saved in the one project edit.
+10. This commit — the live pass and the docs.
+
+**Planning amendments P1–P5** (in the spec, for the user's review): P1 `cornerRule` always stored (`'long'` default; an optional shared
+field fails `_sharedPrimitives`' tsc check); P2 a solid type's thickness > 0; P3 the kind is chosen from the menu, never a select; P4 a
+solid type's material is a built-in solid or one already in the project; P5 wordings (Buying's tape line in Buying's style, strips named
+per strip, corner words only where adjacent thick bands meet).
+
+**Execution rulings** (the ledger's; the product ones are in the spec's *Amended (implementation, chunk 1)* blocks): `too-thick` spares a
+zero-thickness band opposite; a null `faceOutline` faults every band `no-side` (fu 396); core copies carry no bands (no double
+subtraction); strip rows after their material's parts; a Curves preset that would break a band is withheld, not refused; the Materials
+dialog judges an added fault against the STORED band types, refuses a name clash only for a typed name, and counts `Used by N` in world
+parts. Process rulings: Task 4's tests import any Task 1 helper from `./banding`; the band-free pin drops `notes` only on the CutList
+object and re-captured Buying's hashes before Task 6 touched `purchase.ts`; its fixtures use FIXED ids, because `nesting.ts` breaks ties
+between identical parts by id string and a base-36 counter rollover within one millisecond flipped the order (one flake in Task 8's
+run); the merge (Task 10 Step 4) is the controller's, after the final review.
+
+**Mutations** ran in every task (each red, restored); notable: Task 4's seven (corner branches swapped, `atan(own / n)`, a shared corner
+chord in full, an arc chord by its straight length, the memo keyed on the part only, a faulted band subtracting, half-weight by stretch
+membership only), Task 8's judge-every-render and Mixed-writes-on-blur.
+
+**Live pass** (`docs/browser-verification-edge-banding-1.md`, dev server, 2026-10-20): every number the plan computed matched — four taped
+shelves `buy 21′` (8 × 30.5" = 244"); a solid `Maple edging 1/4"` type saved, undone, redone as one entry; a mitred tabletop's core
+`35-1/2" × 19-1/2"` with strips `2 × 36-1/2" × 1/4"` and `2 × 20-1/2" × 1/4"` at `Maple — 13/16"`, `Trim flush; mitre both ends 45°`,
+Buying `0.21 bd ft`; an arched apron greyed `Maple edging 1/4" — Needs a straight edge` and took tape at 30.610957" (the true arc,
+24.110957"), Buying `buy 23′`; a real Chromium PDF of the cut list (4 pages) and Plans (balloons 3, 5, 4 — no strip balloon, no hidden
+note); a reload kept every band at version 19. For the user's eye (fu 395): a banded row's diagram shows the finished size beside the
+core dims; four sides join with repeated `and`; Buying's unpriced tail counts the tape as a material; strips can take the series' first
+numbers.
+
 **What chunk c2 did (2026-10-19)** (the restructure for swept rebuilds, fu 393(2) and 394(5); the follow-on to c1; spec
 `2026-10-19-sloyd-swept-speed-c2-design.md`, plan `…-swept-speed-c2.md`; branch `perf-c2` from `113d840`, merged to master as `90ef45f` and **DEPLOYED 2026-10-19 as `index-Cqf9kRT7.js`**; no
 schema change, so rolling back to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Commits: `d859fd9` (stage 1), `97bf8e0` (the seam index moved to `seams.ts`), `e31672f` + `1f0d6e5` +
