@@ -189,9 +189,9 @@ handicraft education tradition built around hand woodworking.
   broad-face sides (`Board.bands`, `cornerRule`); the model is the FINISHED size, the cut list the CORE, with band lines, a header note,
   solid strip rows (numbered, no balloon), cores nested; Buying adds strips to their material and an `Edge banding` tape block; a Banding
   section in Properties and an Edge banding section in Materials & prices; Curves refuses breaking a band; joinery, Refine and Repair
-  refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). The spec's P1–P5 *Amended (planning)* were APPROVED by the user
-  2026-10-20; its *Amended (implementation, chunk 1)* blocks await review; fu 395 (the live pass's items for the
-  user's eye). **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 followed (below).
+  refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). Every amendment in the spec (P1–P5, *Amended (implementation,
+  chunk 1)*) was APPROVED by the user 2026-10-20; fu 395 (the live pass's items) closed
+  the same day. **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 followed (below).
 - **Edge banding chunk 2 (2026-10-20, plan `…-edge-banding-2.md`, spec §8; branch `edge-banding-2`, MERGED to master as `5e55b17`;
   DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`; no schema change, 19)**: bands made visible. Viewport: a banded side's triangles take the band's look by a
   POST-PASS (`viewport/bandFaces.ts`: tape the part's long grain, no plies; solid the band's colour), solid bands draw glue lines
@@ -200,7 +200,7 @@ handicraft education tradition built around hand woodworking.
   the finished size), a strip's mitred ends hatched. The spec's *Amended (planning, chunk 2)* Q2–Q7 were APPROVED by the user 2026-10-20. Open
   near it: fu 402 (real hardware and a real print). Live pass: `docs/browser-verification-edge-banding-2.md`. Rollback is free (no schema change).
 - **NEXT (2026-10-20, after edge banding chunk 2 deployed):** (1) nothing pending deploy; (2) the
-  spec's *Amended (implementation, chunk 1)* blocks (P1–P5 approved 2026-10-20) and fu 395(2)–(4), 402(1)–(2) for the user's
+  fu 402(1)–(2) (real hardware, a real print; every banding amendment approved 2026-10-20, fu 395 closed) for the user's
   review; (3) fu 396–403 as the user directs (the banding feature of fu 267 is complete; its hardware BOM half needs a spec). Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
   the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
   feature spec (the feature-sized list), the user's eye or hardware (the owed list), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
@@ -1424,7 +1424,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 6842 tests across 197 files
+npm test           # Vitest, currently 6846 tests across 197 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1443,9 +1443,7 @@ This list is the triage's open set — when an entry's status changes, change it
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
-  draws nothing); the edge banding spec's *Amended (implementation, chunk 1)* blocks
-  (P1–P5 and chunk 2's Q2–Q7 approved 2026-10-20), fu 395(2)–(4) (the four-side `and … and` wording, tape counted as an unpriced material, strips taking
-  the series' first numbers; (1) closed by chunk 2) and fu 402(1)–(2) (band looks on real hardware, glue lines on a real print).
+  draws nothing); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open

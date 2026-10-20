@@ -19,7 +19,14 @@ describe('Buying with bands (edge banding spec §4.4)', () => {
     // per shelf: 30.5 + 30.5 + 12.5 + 12.5 = 86"; two shelves 172" = 14.33 ft → 15′
     expect(p.banding!.lines).toEqual(['Iron-on veneer, 7/8" wide: buy 15′ · no price']);
     expect(p.banding!.cost).toBeNull();
-    expect(p.totalLabel).toMatch(/no price/);
+    // the plywood (default shop: unpriced sheets) is a material, the tape a band type (fu 395(3))
+    expect(p.totalLabel).toBe('Estimated materials: — (1 material and 1 band type have no price)');
+  });
+  it('tape the only unpriced item: the tail names the band type alone', () => {
+    const shop = defaultShop();
+    const priced = { ...shop, materials: { ...shop.materials, plywood: { mode: 'sheet' as const, pricePerSheet: 50 } } };
+    const p = buy(flat([shelf('a', BUILT_IN_BAND.id)], [BUILT_IN_BAND]), priced);
+    expect(p.totalLabel).toBe('Estimated materials: $50.00 (1 band type has no price)');
   });
   it('priced tape joins the total', () => {
     const priced = { ...BUILT_IN_BAND, pricePerFoot: 0.3 };
