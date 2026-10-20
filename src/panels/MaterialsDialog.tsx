@@ -124,14 +124,12 @@ export function MaterialsDialog({
   });
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries([...builtIns, ...rows.map((r) => r.id)].map((m) => [m, toDraft(shop.materials[m] ?? defaultBuying(m, nominalIn(rows, m)))])));
-  const newBandId = useRef<string | null>(null);
   const [bandRows, setBandRows] = useState<BandRow[]>(() => {
     const r = initialBandRows(bandTypes);
-    if (!newBand) return r;
-    const row = newBandRow(newBand, r);
-    newBandId.current = row.id;
-    return [...r, row];
+    return newBand ? [...r, newBandRow(newBand, r)] : r;
   });
+  // Read off the KEPT state, never recorded inside the initializer: StrictMode runs initializers twice and keeps one result.
+  const [newBandId] = useState<string | null>(() => (newBand ? bandRows[bandRows.length - 1]!.id : null));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // A Save that reported a failure leaves the dialog open over a CHANGED project (App applies the project edit
@@ -355,7 +353,7 @@ export function MaterialsDialog({
           <div className={`band-type${r.deleted ? ' is-deleted' : ''}`} key={r.id}>
             <label>Name
               <input className="input band-name" aria-label={`${name}: name`} value={r.draft.name ?? ''} disabled={r.deleted}
-                ref={r.id === newBandId.current ? newBandName : undefined}
+                ref={r.id === newBandId ? newBandName : undefined}
                 aria-invalid={bad((r.draft.name ?? '').trim() !== '')} onChange={(e) => editBand(r, 'name', e.target.value)} />
             </label>
             <span className="band-kind">{r.kind === 'tape' ? 'Tape' : 'Solid'}</span>

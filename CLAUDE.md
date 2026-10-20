@@ -686,8 +686,10 @@ src/
 │                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); planKeys (a trio's
 │                     feature tags: chooseView, letters, anchors, merge and push; pure); Popover (Claude ▾, More ▾; an item may carry a
 │                     `title`, and `items` may be a function, called on each render while open),
-│                     Banding (the Banding section: a select per side, `Band ▾` — each type's all edges / long edges / ends, Remove all
-│                     bands —, Corners only where `bandsMeetAtCorner`; options judged on focus, a refused one greyed with its reason; Mixed
+│                     Banding (the Banding section, the additions' pattern: while no selected part is banded only `+ Add banding ▾`; once
+│                     any is, a select per side, `Band ▾` — each type's all edges / long edges / ends, Remove all bands —, Corners only where
+│                     `bandsMeetAtCorner`; both menus end with `New solid edging…` (`onNewBandType`: App opens Materials & prices with
+│                     `newBand`, a new Solid row's name focused — read off the KEPT state, StrictMode runs initializers twice); options judged on focus, a refused one greyed with its reason; Mixed
 │                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
 │                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
