@@ -6,7 +6,7 @@ import {
 import { createBoard, createDocument } from './document';
 import { sameShared } from './links';
 import type { Band, BandType, ProfileSide } from './types';
-import { bandFaults, bandFaultText, bandSignature, coreSize, cutStock, sameSide, stripBoard, strips, tapeRuns } from './banding';
+import { bandFaults, bandFaultText, bandSignature, coreSize, cutStock, glueLines, sameSide, stripBoard, strips, tapeRuns } from './banding';
 import { archCurve, cornerCurve } from './curves';
 
 const W0: ProfileSide = { across: 'width', from: 'min' };
@@ -198,5 +198,87 @@ describe('the arithmetic (edge banding spec §3)', () => {
     expect(bandSignature(shelf(corner), ty)).not.toBe(bandSignature(shelf(corner, 'mitre'), ty));
     expect(bandSignature(shelf([{ side: W0, type: 'm' }]), ty)).toBe(bandSignature(shelf([{ side: W0, type: 'm' }], 'mitre'), ty));
     expect(bandSignature(shelf([{ side: W0, type: 'm' }]), ty)).not.toBe(bandSignature(shelf([{ side: W1, type: 'm' }]), ty));
+  });
+});
+
+describe('glueLines (edge banding chunk 2, Q4/Q5)', () => {
+  const maple: BandType = { id: 'maple', name: 'Maple edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
+  const tape16: BandType = { id: 'tape16', name: 'Tape 1/16', kind: 'tape', thickness: 1 / 16, lengthAllowance: 0.5, tapeWidth: 0.875, pricePerFoot: null };
+  const types: BandType[] = [BUILT_IN_BAND, maple, tape16];
+  const part = (bands: Band[], cornerRule: 'long' | 'ends' | 'mitre' = 'long', over: object = {}) =>
+    ({ ...createBoard({ id: 'p', name: 'Panel', length: 36, width: 20, thickness: 0.75, material: 'plywood' }), bands, cornerRule, ...over });
+  const solid = (...sides: ProfileSide[]): Band[] => sides.map((side) => ({ side, type: 'maple' }));
+  const four = solid(...BAND_SIDES);
+  // [length, width, thickness]
+  const at = (g: { side: ProfileSide; a: { length: number; width: number; thickness: number }; b: { length: number; width: number; thickness: number } }) => ({
+    side: `${g.side.across}-${g.side.from}`,
+    a: [g.a.length, g.a.width, g.a.thickness], b: [g.b.length, g.b.width, g.b.thickness],
+  });
+  const line = (side: string, a: number[], b: number[]) => ({ side, a, b });
+  const both = (side: string, a: [number, number], b: [number, number]) =>
+    [0, 0.75].map((th) => line(side, [a[0], a[1], th], [b[0], b[1], th]));
+
+  it('long rule, four solid sides: long strips run through, end strips give way (8 lines, run at 0 then at thickness)', () => {
+    const g = glueLines(part(four, 'long'), types);
+    expect(g).toHaveLength(8);
+    expect(g.map(at)).toEqual([
+      ...both('width-min', [0, 0.25], [36, 0.25]),
+      ...both('width-max', [0, 19.75], [36, 19.75]),
+      ...both('length-min', [0.25, 0.25], [0.25, 19.75]),
+      ...both('length-max', [35.75, 0.25], [35.75, 19.75]),
+    ]);
+    expect(g.every((l) => l.type === 'maple')).toBe(true);
+  });
+  it('ends rule: the mirror image', () => {
+    const g = glueLines(part(four, 'ends'), types).map(at);
+    expect(g).toHaveLength(8);
+    expect(g.slice(0, 2)).toEqual(both('width-min', [0.25, 0.25], [35.75, 0.25]));
+    expect(g.slice(4, 6)).toEqual(both('length-min', [0.25, 0], [0.25, 20]));
+  });
+  it('mitre rule: core corner to core corner, plus a mitre line on each long strip end only', () => {
+    const g = glueLines(part(four, 'mitre'), types);
+    expect(g).toHaveLength(16);
+    const m = g.map(at);
+    // width-min: run, then end 0 and end 1 mitre lines
+    expect(m.slice(0, 2)).toEqual(both('width-min', [0.25, 0.25], [35.75, 0.25]));
+    expect(m.slice(2, 4)).toEqual(both('width-min', [0.25, 0.25], [0, 0]));
+    expect(m.slice(4, 6)).toEqual(both('width-min', [35.75, 0.25], [36, 0]));
+    expect(m.slice(6, 8)).toEqual(both('width-max', [0.25, 19.75], [35.75, 19.75]));
+    expect(m.slice(8, 10)).toEqual(both('width-max', [0.25, 19.75], [0, 20]));
+    expect(m.slice(10, 12)).toEqual(both('width-max', [35.75, 19.75], [36, 20]));
+    // end strips: a run line each, no mitre lines
+    expect(m.slice(12, 14)).toEqual(both('length-min', [0.25, 0.25], [0.25, 19.75]));
+    expect(m.slice(14, 16)).toEqual(both('length-max', [35.75, 0.25], [35.75, 19.75]));
+    expect(m.filter((l) => l.side.startsWith('length'))).toHaveLength(4);
+  });
+  it('mitre, solid long side, built-in tape end: a zero-thickness neighbour makes no mitre and shortens nothing', () => {
+    const p = part([...solid(BAND_SIDES[0]!), { side: BAND_SIDES[2]!, type: BUILT_IN_BAND_ID }], 'mitre');
+    expect(glueLines(p, types).map(at)).toEqual(both('width-min', [0, 0.25], [36, 0.25]));
+  });
+  it('mitre, solid ends, tape16 on width-min: the end strip draws the mitre; tape draws no line itself', () => {
+    const p = part([{ side: BAND_SIDES[0]!, type: 'tape16' }, ...solid(BAND_SIDES[2]!, BAND_SIDES[3]!)], 'mitre');
+    const m = glueLines(p, types).map(at);
+    expect(m).toEqual([
+      ...both('length-min', [0.25, 0.0625], [0.25, 20]),
+      ...both('length-min', [0.25, 0.0625], [0, 0]),
+      ...both('length-max', [35.75, 0.0625], [35.75, 20]),
+      ...both('length-max', [35.75, 0.0625], [36, 0]),
+    ]);
+  });
+  it('faulted draws nothing: solid 12 bands on both long edges of a 20 wide part leave no core', () => {
+    const thick: BandType = { ...maple, id: 'thick', thickness: 12 };
+    const p = part([{ side: BAND_SIDES[0]!, type: 'thick' }, { side: BAND_SIDES[1]!, type: 'thick' }]);
+    expect(bandFaults(p, [...types, thick]).length).toBe(2);
+    expect(glueLines(p, [...types, thick])).toEqual([]);
+  });
+  it('tape only draws nothing; no bands draws nothing; memoised per (part, types)', () => {
+    expect(glueLines(part([{ side: BAND_SIDES[0]!, type: 'tape16' }, { side: BAND_SIDES[2]!, type: BUILT_IN_BAND_ID }]), types)).toEqual([]);
+    const none = part([]);
+    expect(glueLines(none, types)).toEqual([]);
+    expect(glueLines(none, types)).toBe(glueLines(none, types));
+    const banded = part(four);
+    expect(glueLines(banded, types)).toBe(glueLines(banded, types));
+    expect(Object.isFrozen(glueLines(banded, types))).toBe(true);
+    expect(Object.isFrozen(glueLines(banded, types)[0]!.a)).toBe(true);
   });
 });
