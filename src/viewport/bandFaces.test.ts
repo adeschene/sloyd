@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { axisFrame, boardExtents, createBoard, defaultArch, fromWorldOffset, mm, partGeometry, toWorldOffset } from '../document/document';
+import { axisFrame, boardExtents, createBoard, defaultArch, fromWorldOffset, mm, partGeometry, solidWorldBox, toWorldOffset } from '../document/document';
 import type { Board, Cut } from '../document/document';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from '../document/banding';
 import type { BandType, ProfileSide } from '../document/types';
@@ -205,6 +205,46 @@ describe('bandFaces (edge banding chunk 2, Q2/Q3)', () => {
         expect([...got.entries()].sort(), `${b.id} face ${f}`).toEqual([...want.entries()].sort());
       }
     }
+  });
+
+  it('a multi-cell part: every body through bodyMesh draws what its cell\'s BoxGeometry drew, per face (final review 3)', () => {
+    // A banded part routes EVERY body through bodyMesh (BoardMesh), so a cut part's cells must keep BoxGeometry's
+    // positions and UVs (boardUVs over the cell's box) face by face, or adding a band would move the grain.
+    const dado: Cut = { id: 'c1', face: 'thickness', from: 'max', across: 'length', offset: 5, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const rabbet: Cut = { id: 'c2', face: 'thickness', from: 'max', across: 'length', offset: 0, width: 0.5, depth: 0.375, stopMin: 0, stopMax: 0 };
+    const poses: Partial<Board>[] = [{}, { posture: 'upright', rotation: 90 }, { posture: 'on-edge', rotation: 270, material: 'pine' }];
+    let checked = 0;
+    for (const cut of [dado, rabbet]) {
+      for (const pose of poses) {
+        const b = panel({ id: `${cut.id}-${pose.posture ?? 'flat'}`, cuts: [cut], ...pose });
+        const { bodies } = partGeometry(b);
+        expect(bodies.length, b.id).toBeGreaterThan(1);
+        // Positions keyed at 1e-5 (a cell box's corners are its centre ± half its size, summed in doubles); UVs exact.
+        const key = (x: number, y: number, z: number) => [x, y, z].map((n) => Math.round(n * 1e5) / 1e5).join(',');
+        for (const [i, body] of bodies.entries()) {
+          expect(body.box, `${b.id} body ${i}`).toBeDefined();
+          const m = bodyMesh(b, body, [], bodies);
+          const { center, size } = solidWorldBox(b, body.box!);
+          const box = new THREE.BoxGeometry(size[0], size[1], size[2]);
+          const bp = box.getAttribute('position');
+          const buv = boardUVs(b, body.box!);
+          for (let f = 0; f < 6; f += 1) {
+            const want = new Map<string, string>();
+            for (let k = 4 * f; k < 4 * f + 4; k += 1) {
+              want.set(key(bp.getX(k) + center[0], bp.getY(k) + center[1], bp.getZ(k) + center[2]), [buv[2 * k]!, buv[2 * k + 1]!].join(','));
+            }
+            const got = new Map<string, string>();
+            const g = m.groups.find((x) => x.materialIndex === f)!;
+            for (let k = g.start; k < g.start + g.count; k += 1) {
+              got.set(key(m.positions[3 * k]!, m.positions[3 * k + 1]!, m.positions[3 * k + 2]!), [m.uvs[2 * k]!, m.uvs[2 * k + 1]!].join(','));
+              checked += 1;
+            }
+            expect([...got.entries()].sort(), `${b.id} body ${i} face ${f}`).toEqual([...want.entries()].sort());
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('a faulted band paints nothing', () => {

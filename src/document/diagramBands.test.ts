@@ -96,9 +96,19 @@ describe('a strip\'s diagram (Q7)', () => {
     expect(views[0]!.h).toBe(36.5);
   });
 
-  it('one mitred end draws one polygon', () => {
-    const one = { ...strip, ends: [{ mitre: null }, strip.ends[1]] } as typeof strip;
-    expect(stripDiagrams(one, IMPERIAL)[0]!.mitres).toHaveLength(1);
+  it('one mitred end draws one polygon, at THAT end (final review 5)', () => {
+    const same = (got: readonly (readonly number[])[], want: number[][]) => {
+      expect(got).toHaveLength(want.length);
+      got.forEach((p, i) => { expect(p[0]).toBeCloseTo(want[i]![0]!, 9); expect(p[1]).toBeCloseTo(want[i]![1]!, 9); });
+    };
+    // The far end (h = the cut length, 36.5) mitred, the near square: one polygon, at h = 36.5.
+    const far = stripDiagrams({ ...strip, ends: [{ mitre: null }, strip.ends[1]] } as typeof strip, IMPERIAL)[0]!.mitres!;
+    expect(far).toHaveLength(1);
+    same(far[0]!.poly, [[36.5, 0], [36.25, 0], [36, 0.25], [36.5, 0.25]]);
+    // The near end (h = 0) mitred, the far square: one polygon, at h = 0.
+    const near = stripDiagrams({ ...strip, ends: [strip.ends[0], { mitre: null }] } as typeof strip, IMPERIAL)[0]!.mitres!;
+    expect(near).toHaveLength(1);
+    same(near[0]!.poly, [[0, 0], [0.25, 0], [0.5, 0.25], [0, 0.25]]);
   });
 
   it('a square-ended strip equals chunk 1\'s diagram exactly', () => {

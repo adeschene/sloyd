@@ -103,7 +103,7 @@ export function bandedMesh(board: Board, looks: readonly BandLook[], meshes: rea
 
   // Board-local (length, width, thickness) of vertex k of a mesh.
   const local = (pos: Float32Array, k: number, out: Record<string, number>) => {
-    for (let a = 0; a < 3; a += 1) out[dims[a]!] = fromWorldOffset(board, a, pos[3 * k + a]! + ext[a]! / 2);
+    for (let a = 0; a < 3; a += 1) out[dims[a]!] = fromWorldOffset(board, a, pos[3 * k + a]! + ext[a]! / 2, frame);
   };
   const v0: Record<string, number> = {}, v1: Record<string, number> = {}, v2: Record<string, number> = {};
   // Which look (and chord) a triangle lies on, or -1.
