@@ -21,8 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is chunk c2** (deployed 2026-10-19 from the merge `90ef45f`, bundle `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css` (unchanged); no schema
-  change, so rolling back to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Chunk c1 was deployed from `65fb1fe` (no schema
+- **Production is edge banding chunk 1** (deployed 2026-10-20 from `37ced13` (merge `b7f700b`), bundle `index-Df8FpxEW.js`, CSS
+  `index-_pn-uYEW.css`; **SCHEMA 19**: rolling back to chunk c2 (`90ef45f`, `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css`) REFUSES every
+  project saved since — export first). Chunk c2 was deployed 2026-10-19 from the merge `90ef45f` (no schema
+  change, so rolling back from it to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Chunk c1 was deployed from `65fb1fe` (no schema
   change, so rolling back to b2 (`7794999`, `index-BhtaBf2G.js`) is free). Profile runs b2 was deployed 2026-10-19 from `31d88fd` (**SCHEMA 18**,
   unchanged): rolling back to b1 (`dc49b01`, `index-CDDCzMGJ.js`) REFUSES a project holding a two-side stopped run — export first —
   and builds a one-side stop on a turned path as a2's straight prism (on an arch it vanishes; its data intact). Rolling back further, to
@@ -179,18 +181,17 @@ handicraft education tradition built around hand woodworking.
   `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) were APPROVED by the user 2026-10-19. Merged and deployed (Production, above). **The ogee loop's 48 ms is left as is by the user's ruling
   (2026-10-19): fu 393(2), open by decision — do not pursue unasked.**
 - **Edge banding chunk 1 (2026-10-19/20, spec `2026-10-19-sloyd-edge-banding-design.md`, plan `…-edge-banding-1.md`, inv 54; branch
-  `edge-banding-1`, MERGED to master as `b7f700b` (final review's fixes `9f36387`); NOT yet deployed; **SCHEMA 19**)**: fu 267's
+  `edge-banding-1`, MERGED to master as `b7f700b` (final review's fixes `9f36387`); DEPLOYED 2026-10-20 as `index-Df8FpxEW.js`; **SCHEMA 19**)**: fu 267's
   banding half. Band types (`doc.bandTypes`: tape or solid, the built-in `Iron-on veneer` always present) and bands on a part's four
   broad-face sides (`Board.bands`, `cornerRule`); the model is the FINISHED size, the cut list the CORE, with band lines, a header note,
   solid strip rows (numbered, no balloon), cores nested; Buying adds strips to their material and an `Edge banding` tape block; a Banding
   section in Properties and an Edge banding section in Materials & prices; Curves refuses breaking a band; joinery, Refine and Repair
   refuse banded projects. Live pass: `docs/browser-verification-edge-banding-1.md` (every planned number matched). Await the user's
   review: the spec's P1–P5 *Amended (planning)* and its *Amended (implementation, chunk 1)* blocks; fu 395 (the live pass's items for the
-  user's eye). **Once deployed, rolling back below 19 refuses every project saved since — export first.** Chunk 2 (viewport, Plans
+  user's eye). **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 (viewport, Plans
   sheet, part diagrams) is next.
-- **NEXT (audited 2026-10-20, after edge banding chunk 1 merged):** (1) the user's deploy decision for chunk 1 (schema 19: export
-  before any rollback below it), with fu 395's items and the spec's P1–P5 / *Amended (implementation, chunk 1)* blocks for the user's
-  review; (2) **edge banding chunk 2** (spec §8: viewport colouring and glue lines, Plans sheet glue lines and keys, part diagrams' band
+- **NEXT (2026-10-20, after edge banding chunk 1 deployed):** (1) fu 395's items and the spec's P1–P5 / *Amended (implementation,
+  chunk 1)* blocks for the user's review; (2) **edge banding chunk 2** (spec §8: viewport colouring and glue lines, Plans sheet glue lines and keys, part diagrams' band
   marks and a strip's own diagram) — needs its own plan (`…-edge-banding-2.md`) from the approved spec; (3) fu 395–401 as the user
   directs. Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
   the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
@@ -296,7 +297,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | profile runs (b2) | 10-19 | — | Stops on a turned path (a run-out about the bit's axis in the station chord's frame) and two-side runs (Stop side); a saved a2 stop on a turned path follows, or runs straight with its cause |
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
 | chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
-| edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (merged `b7f700b`, not deployed) |
+| edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (deployed `index-Df8FpxEW.js`) |
 
 ### The deployment rule
 
@@ -312,7 +313,7 @@ removing them "is just a waste of time"); never clear the dev profile wholesale 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (18 since profile runs a1; 19 once edge banding chunk 1 lands)
+**Rollback cost is a schema question.** A build understanding less than the file's version (19 since edge banding chunk 1, deployed 2026-10-20)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects

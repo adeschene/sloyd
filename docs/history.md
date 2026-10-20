@@ -522,8 +522,13 @@ and 79.
 
 **What edge banding chunk 1 did (2026-10-19/20)** (fu 267's banding half; spec `2026-10-19-sloyd-edge-banding-design.md`, approved by
 the user 2026-10-19; plan `…-edge-banding-1.md`; branch `edge-banding-1` from `f246943`; **SCHEMA 19**; code complete at `90e9bde`
-plus this docs commit; the final whole-branch review's fixes `9f36387`; **MERGED to master as `b7f700b`** (2026-10-20, the user's word),
-not yet deployed). Rolling back below 19, once deployed, refuses every project saved since: export first.
+plus this docs commit; the final whole-branch review's fixes `9f36387`; **MERGED to master as `b7f700b`** (2026-10-20, the user's word);
+**DEPLOYED 2026-10-20 from `37ced13` as `index-Df8FpxEW.js`, CSS `index-_pn-uYEW.css`** (the user's go). Rolling back below 19 (to c2,
+`90ef45f` / `index-Cqf9kRT7.js`) refuses every project saved since: export first. Deploy check: the build and a full run on master
+(6785/6785); `200` on `/` and a deep route in-network and at the edge; both assets' sha256 matching `dist/` at both; the old
+`index-Cqf9kRT7.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; the edge bundle carries
+`Iron-on veneer`; a real-browser load: the new bundle, 0 errors, the beacon present, "+ Add board" present; storage read empty first
+from the CSS asset page, the load's two keys removed there, read back empty after 3s.
 
 The user's rulings in the design conversation: banding first (the hardware bill of materials is a later spec); **the model is the
 FINISHED size**, the cut list subtracts band thickness to give the CORE (cut) size; a solid band is a property of the part's edge, not a
