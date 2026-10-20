@@ -221,7 +221,10 @@ function bandLine(board: Board, types: readonly BandType[], units: Units): strin
   const faults = bandFaults(board, types);
   const faultOf = (s: ProfileSide) => faults.find((f) => sameSide(f.side, s));
   const groups = new Map<string, { type: string; fault: BandFaultKind | undefined; sides: ProfileSide[] }>();
+  const nameOf = new Map(types.map((t) => [t.id, t.name]));
   for (const b of board.bands) {
+    // A band naming no type contributes nothing (as `judge` skips it); the loader and store never leave one.
+    if (!nameOf.has(b.type)) continue;
     const fault = faultOf(b.side)?.kind;
     const key = fault ? `${b.type}|${fault}` : b.type;
     const g = groups.get(key);
@@ -229,7 +232,8 @@ function bandLine(board: Board, types: readonly BandType[], units: Units): strin
     else groups.set(key, { type: b.type, fault, sides: [b.side] });
   }
   const clauses = [...groups.values()].map(({ type, fault, sides }) =>
-    `${sides.map(sideWords).join(' and ')} — ${types.find((t) => t.id === type)!.name}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
+    `${sides.map(sideWords).join(' and ')} — ${nameOf.get(type)!}${fault ? ` — check: ${bandFaultText(fault)}` : ''}`);
+  if (clauses.length === 0) return null;
   const meets = bandsMeetAtCorner(board, types);
   const core = coreSize(board, types);
   const finished = core.length !== board.length || core.width !== board.width ? `; finished ${formatSize([board.length, board.width], units)}` : '';
@@ -321,7 +325,7 @@ function rowKey(board: Board, units: Units, types: readonly BandType[]): string 
   const f = (n: number) => formatLength(n, units);
   // A banded part is cut at its CORE size (edge banding spec §4.1); a band-free part's core is its own size.
   const core = coreSize(board, types);
-  const bands = bandSignature(board);
+  const bands = bandSignature(board, types);
   return [
     ...groupFields(board, units),
     f(core.length),

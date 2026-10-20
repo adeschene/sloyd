@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
-import { BAND_SIDES, bandFaultText, bandFaults, bandOn } from '../document/banding';
+import { BAND_SIDES, bandFaultText, bandFaults, bandOn, bandsMeetAtCorner } from '../document/banding';
 import type { BandType, Board, CornerRule, ProfileSide } from '../document/types';
 import { endWord } from '../document/holeText';
 import { Popover } from './Popover';
@@ -71,7 +71,11 @@ export function Banding({ boards }: { boards: readonly Board[] }) {
   const setBands = useStore((s) => s.setBands);
   const updateBoards = useStore((s) => s.updateBoards);
   const ids = boards.map((b) => b.id);
-  const corner = common(boards.map((b) => b.cornerRule));
+  // Corners reaches only the parts where a corner qualifies (`bandsMeetAtCorner`): it reads and writes those alone, so a
+  // selected part its rule cannot change is neither Mixed nor stamped with a rule it then hides (final review 1).
+  const reached = boards.filter((b) => bandsMeetAtCorner(b, types));
+  const reachedIds = reached.map((b) => b.id);
+  const corner = reached.length === 0 ? MIXED : common(reached.map((b) => b.cornerRule));
   // Built only while the menu is open: Popover calls it on each of its renders while open, never while closed.
   const menu = (): PopoverItem[] => [
     ...types.flatMap((t) => MENU.map(([words, sides]) => {
@@ -93,7 +97,7 @@ export function Banding({ boards }: { boards: readonly Board[] }) {
           <div className="field">
             <label htmlFor="band-corners">Corners</label>
             <select id="band-corners" className="input" value={corner}
-              onChange={(e) => { const v = e.target.value; if (v !== MIXED) updateBoards(ids, { cornerRule: v as CornerRule }); }}>
+              onChange={(e) => { const v = e.target.value; if (v !== MIXED) updateBoards(reachedIds, { cornerRule: v as CornerRule }); }}>
               {corner === MIXED && <option value={MIXED} disabled>Mixed</option>}
               {(Object.keys(CORNER_LABEL) as CornerRule[]).map((r) => <option key={r} value={r}>{CORNER_LABEL[r]}</option>)}
             </select>

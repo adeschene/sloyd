@@ -44,6 +44,25 @@ describe('the cut list with bands (edge banding spec §4.1, §4.2)', () => {
     const parts = rowsOf(d).filter((r) => r.g.startsWith('Plywood'));
     expect(parts.map((r) => r.qty).sort()).toEqual([1, 2]);
   });
+  it('the corner rule splits no row where no corner qualifies (final review 1): one W0 tape shelf long, one mitre -> one row', () => {
+    const d = flat([shelf('a', [{ side: W0, type: 'band-iron-on' }], { cornerRule: 'long' }), shelf('b', [{ side: W0, type: 'band-iron-on' }], { cornerRule: 'mitre' })]);
+    const parts = rowsOf(d).filter((r) => r.g.startsWith('Plywood'));
+    expect(parts.map((r) => r.qty)).toEqual([2]);
+    // a solid band on one side: no adjacent band, so no corner either
+    const e = flat([shelf('a', [{ side: W0, type: 'm' }], { cornerRule: 'long' }), shelf('b', [{ side: W0, type: 'm' }], { cornerRule: 'ends' })]);
+    expect(rowsOf(e).filter((r) => r.g.startsWith('Plywood')).map((r) => r.qty)).toEqual([2]);
+  });
+  it('the corner rule still splits rows where two adjacent bands meet (its words differ)', () => {
+    const bands = [{ side: W0, type: 'm' }, { side: L1, type: 'm' }];
+    const d = flat([shelf('a', bands, { cornerRule: 'long' }), shelf('b', bands, { cornerRule: 'mitre' })]);
+    expect(rowsOf(d).filter((r) => r.g.startsWith('Plywood')).map((r) => r.qty)).toEqual([1, 1]);
+  });
+  it('a band naming an unknown type contributes nothing to the band line (final review 2)', () => {
+    const d = flat([shelf('a', [{ side: W0, type: 'm' }, { side: W1, type: 'gone' }])]);
+    expect(partRow(d).setup.find((l) => l.startsWith('Band:'))).toBe('Band: the width min side — Maple edging 1/4"; finished 30" × 12"');
+    const only = flat([shelf('a', [{ side: W1, type: 'gone' }])]);
+    expect(rowsOf(only)[0]!.setup.some((l) => l.startsWith('Band'))).toBe(false);
+  });
   it('strip rows: in the edging material\'s group, collapsed, numbered in the one series, no boardIds', () => {
     const d = flat([shelf('a', BAND_SIDES.map((side) => ({ side, type: 'm' }))), shelf('b', BAND_SIDES.map((side) => ({ side, type: 'm' })))]);
     const list = buildCutList(d);

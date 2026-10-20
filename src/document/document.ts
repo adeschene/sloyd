@@ -646,8 +646,10 @@ function validateBandTypes(raw: unknown, known: ReadonlySet<string>): BandType[]
     const base = { name: cleanName(t.name.trim()), thickness: t.thickness, lengthAllowance: t.lengthAllowance };
     if (t.kind === 'tape') {
       if (!finite(t.tapeWidth) || t.tapeWidth <= 0) continue;
-      if (t.pricePerFoot !== null && !nonNeg(t.pricePerFoot)) continue;
-      out.push({ ...base, id: takeId(t.id, seen), kind: 'tape', tapeWidth: t.tapeWidth, pricePerFoot: t.pricePerFoot });
+      // An ABSENT price reads as unpriced (final review 4); a present one must be null or >= 0, else the type is dropped.
+      const price = t.pricePerFoot === undefined ? null : t.pricePerFoot;
+      if (price !== null && !nonNeg(price)) continue;
+      out.push({ ...base, id: takeId(t.id, seen), kind: 'tape', tapeWidth: t.tapeWidth, pricePerFoot: price });
     } else if (t.kind === 'solid') {
       if (t.thickness === 0 || !nonNeg(t.widthAllowance)) continue;
       const material = typeof t.material === 'string' && known.has(t.material) && !isSheetGood(t.material) ? t.material : DEFAULT_MATERIAL;

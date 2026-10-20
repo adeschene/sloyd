@@ -6742,9 +6742,11 @@ first).
   total `—`.
 - No UI-level test of the Materials dialog's in-use delete or fault refusal; the plural wording is untested.
 - `bandIds` on a definition part and a dangling band on a shape are untested (the threading is correct).
-- A band naming an unknown type id is skipped silently, untested (the loader drops such bands).
+- A band naming an unknown type id is skipped silently, untested (the loader drops such bands). **Closed** for the cut list's
+  band line (final review 2, `cutlistBands.test.ts`).
 (2) **Behaviour:**
-- Corners reads `Mixed` when a selected part that does not qualify keeps the default `'long'`.
+- Corners reads `Mixed` when a selected part that does not qualify keeps the default `'long'`. **Closed** (final review 1):
+  Corners reads and writes only the parts `bandsMeetAtCorner` reaches, and the row key carries the rule only there.
 - The Materials dialog's `freeName` for a new row is case-sensitive, but the name-clash refusal is case-insensitive, so a
   new row can arrive refused.
 - An exponent-form price (in a hand-edited import) fails `PRICE_RE` and blocks Save.
@@ -6755,7 +6757,8 @@ first).
 (3) **Code notes:**
 - `coreSize` returns a fresh, unfrozen object on each call.
 - `BAND_SIDES` elements are not frozen; `sameBandType` casts instead of narrowing.
-- `bandLine`'s `types.find(…)!` relies on the loader and store never leaving a dangling band type.
+- `bandLine`'s `types.find(…)!` relies on the loader and store never leaving a dangling band type. **Closed** (final review 2):
+  a band naming an unknown type is skipped in the line.
 - `groupSignature` joins bands unsorted (it relies on canonical order).
 - Nesting's `groupBoards` receives strip boards (harmless: solid only).
 - Banding option reasons are capitalised (`— Needs a straight edge`), unlike Profiles' lower-case `optionReason`.

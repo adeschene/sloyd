@@ -2,7 +2,7 @@ import {
   bowFields, archFields, cornerFields, curveFaults, holeFaults, uvDims, CURVE_EPS, profileFields,
 } from '../document/document';
 import type { Board, CurveCut, Dimension } from '../document/document';
-import { bandFaults, bandFaultText, sideIndex } from '../document/banding';
+import { bandFaults, bandFaultText, bandOn, sideIndex } from '../document/banding';
 import type { BandType } from '../document/types';
 import { profileFaults } from '../document/profiles';
 import type { ProfileFault } from '../document/profiles';
@@ -137,5 +137,10 @@ export function bandCurveRefusal(before: Board, after: Board, types: readonly Ba
   const added = bandFaults(after, types).find((f) => !had.has(`${sideIndex(f.side)}:${f.kind}`));
   if (!added) return null;
   const side = edgeName({ dim: added.side.across, side: added.side.from }).replace(/^the /, '');
-  return `Edging on the ${side} ${bandFaultText(added.kind)} — remove the band first.`;
+  if (added.kind === 'no-side') return `The band on the ${side} would have no edge left — remove the band first.`;
+  // Worded by the band's kind (final review 3): solid `Edging on …`, tape `Tape on …`.
+  const id = bandOn(after.bands, added.side)?.type;
+  const tape = types.find((t) => t.id === id)?.kind === 'tape';
+  const words = added.kind === 'tape-narrow' ? `is ${bandFaultText(added.kind)}` : bandFaultText(added.kind);
+  return `${tape ? 'Tape' : 'Edging'} on the ${side} ${words} — remove the band first.`;
 }

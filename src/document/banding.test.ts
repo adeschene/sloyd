@@ -87,7 +87,7 @@ describe('the arithmetic (edge banding spec §3)', () => {
     expect(coreSize(p, types())).toEqual({ length: 30, width: 12, thickness: 0.75 });
     expect(strips(p, types())).toEqual([]);
     expect(tapeRuns(p, types())).toEqual([]);
-    expect(bandSignature(p)).toBe('');
+    expect(bandSignature(p, types())).toBe('');
   });
   it('core subtracts each banded side\'s thickness, whatever the corner rule', () => {
     for (const rule of ['long', 'ends', 'mitre'] as const) {
@@ -192,8 +192,11 @@ describe('the arithmetic (edge banding spec §3)', () => {
     ]);
     expect(stripBoard(strips(p, types(maple()))[0]!).name).toBe('Shelf edging (width min side)');
   });
-  it('bandSignature: sides, type ids and the corner rule, exact', () => {
-    expect(bandSignature(shelf([{ side: W0, type: 'm' }]))).not.toBe(bandSignature(shelf([{ side: W0, type: 'm' }], 'mitre')));
-    expect(bandSignature(shelf([{ side: W0, type: 'm' }]))).not.toBe(bandSignature(shelf([{ side: W1, type: 'm' }])));
+  it('bandSignature: sides and type ids, exact; the corner rule only where a corner qualifies (final review 1)', () => {
+    const ty = types(maple());
+    const corner = [{ side: W0, type: 'm' }, { side: L0, type: 'm' }];
+    expect(bandSignature(shelf(corner), ty)).not.toBe(bandSignature(shelf(corner, 'mitre'), ty));
+    expect(bandSignature(shelf([{ side: W0, type: 'm' }]), ty)).toBe(bandSignature(shelf([{ side: W0, type: 'm' }], 'mitre'), ty));
+    expect(bandSignature(shelf([{ side: W0, type: 'm' }]), ty)).not.toBe(bandSignature(shelf([{ side: W1, type: 'm' }]), ty));
   });
 });

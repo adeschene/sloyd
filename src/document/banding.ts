@@ -210,8 +210,14 @@ export function stripBoard(s: Strip): Board {
   };
 }
 
-/** A part's bands for grouping keys: sides, type ids and the corner rule, exact; '' with no bands. */
-export const bandSignature = (part: Board) => (part.bands.length === 0 ? '' : `${part.bands.map(bandValues).join(';')}/${part.cornerRule}`);
+/** A part's bands for grouping keys: sides and type ids, exact; '' with no bands. The corner rule is appended ONLY where
+ *  `bandsMeetAtCorner` holds — the one case its words and strips depend on it (the core never does) — so two parts reading
+ *  the same are one row whatever rule a part not reaching a corner carries (final review 1). */
+export const bandSignature = (part: Board, types: readonly BandType[]) => {
+  if (part.bands.length === 0) return '';
+  const bands = part.bands.map(bandValues).join(';');
+  return bandsMeetAtCorner(part, types) ? `${bands}/${part.cornerRule}` : bands;
+};
 
 /** What is cut from stock (spec §4.3, §4.4): every part at its CORE size (the same object when it has no bands or no
  *  unfaulted thickness), then every solid strip as a part. THE input for nesting and by-the-piece packing. */

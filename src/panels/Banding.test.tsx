@@ -157,6 +157,20 @@ describe('the Banding section (edge banding spec §5.1)', () => {
     expect((screen.getByLabelText('Corners') as HTMLSelectElement).value).toBe('ends');
   });
 
+  it('Corners reads and writes only the parts it reaches: a selected part with no corner is neither Mixed nor written (final review 1)', async () => {
+    const user = userEvent.setup();
+    open([plain({ bands: [{ side: W0, type: 'm' }, { side: L0, type: 'm' }], cornerRule: 'mitre' }),
+      plain({ id: 'z', name: 'Other', bands: [{ side: W0, type: 'm' }], cornerRule: 'ends' })], ['a', 'z']);
+    const corners = screen.getByLabelText('Corners') as HTMLSelectElement;
+    expect(corners.value).toBe('mitre');
+    expect([...corners.options].map((o) => o.value)).not.toContain('__mixed');
+    const before = undoDepth();
+    await user.selectOptions(corners, 'long');
+    expect(part('a').cornerRule).toBe('long');
+    expect(part('z').cornerRule).toBe('ends');
+    expect(undoDepth()).toBe(before + 1);
+  });
+
   it('a faulted band is noted under the selects', () => {
     open([arched({ bands: [{ side: W0, type: 'm' }] })]);
     expect(screen.getByText('Width min side: needs a straight edge')).toBeInTheDocument();

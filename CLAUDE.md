@@ -384,7 +384,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 15→16 | `holes` on parts and shapes (default `[]`; malformed entry dropped — non-finite, non-positive diameter or depth, non-integer count, negative pitch/station/inset, `along === face`, unknown enum; a faulted but well-formed row KEPT) | document-level, no step | silent loss on round trip (every hole dropped) |
 | 16→17 | `curves` on parts and shapes (default `[]`; malformed entry dropped — non-finite number, unknown enum, no segments or more than 64, an arc with both/neither of `rise`/`radius`, a non-positive one, a zero chord, a rise over half its chord or a radius under half, an outline not closing EXACTLY at `start` (P1), crossing itself or enclosing no area; a faulted but well-formed curve KEPT); a string segment `type` other than `line`/`arc` REFUSES THE DOCUMENT (the newer-version gate keyed on content: a spline needs no bump) | document-level, no step | silent loss on round trip (every curve dropped) |
 | 17→18 | `profiles` on parts and shapes (default `[]`; every curve `profileOf` recognises is MOVED in, keeping its id, on EVERY load; ids share the curve scope; malformed dropped — non-finite or non-positive size, a thumbnail depth outside (0, size), a negative fillet, a bead without a quirk, an unknown face or facing, a bad end; a symmetric kind normalised to facing `face`, an End to end run to min→max; a faulted but well-formed profile KEPT); an unknown `kind` string REFUSES THE DOCUMENT (spec P2: a later run needs no bump) — a station end loads since a2, a loop (exactly `{ loop: true }`) since b1, ends on two sides since b2 (kept as stored, never re-ordered; an inconsistent `through` end kept and faulted `stop-off`), so a2 refuses a b1 loop and b1 refuses a b2 two-side run | document-level, no step | silent loss (every profile dropped, then autosaved) |
-| 18→19 | `bandTypes` (document; validated AFTER materials and BEFORE parts; the built-in `band-iron-on` re-added first if absent; malformed dropped — non-finite or negative number, `tapeWidth <= 0`, a SOLID type of thickness 0; a solid type whose material is not a solid falls back to pine; ids by `takeId`, names deduped) and `bands` + `cornerRule` on parts and shapes (`bands` default `[]`; an unknown side, a non-string or dangling type, a second band on a side dropped; sorted to canonical order; `cornerRule` always stored, `'long' \| 'ends' \| 'mitre'`, absent or unknown read as `'long'`, P1); an unknown band type `kind` string REFUSES THE DOCUMENT (a later kind needs no bump); `pruneMaterials` keeps a band type's material | document-level, no step | silent loss (every band and band type dropped, then autosaved; a banded panel's FINISHED size printed as its cut size) |
+| 18→19 | `bandTypes` (document; validated AFTER materials and BEFORE parts; the built-in `band-iron-on` re-added first if absent; malformed dropped — non-finite or negative number, `tapeWidth <= 0`, a SOLID type of thickness 0; an ABSENT tape `pricePerFoot` read as `null`; a solid type whose material is not a solid falls back to pine; ids by `takeId`, names deduped) and `bands` + `cornerRule` on parts and shapes (`bands` default `[]`; an unknown side, a non-string or dangling type, a second band on a side dropped; sorted to canonical order; `cornerRule` always stored, `'long' \| 'ends' \| 'mitre'`, absent or unknown read as `'long'`, P1); an unknown band type `kind` string REFUSES THE DOCUMENT (a later kind needs no bump); `pruneMaterials` keeps a band type's material | document-level, no step | silent loss (every band and band type dropped, then autosaved; a banded panel's FINISHED size printed as its cut size) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -1022,8 +1022,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     compared field by field in order: the cut list groups by them as a multiset, ids ignored; `sameShared` in order, ids included.
     Profiles have `PROFILE_FIELDS` (`profiles.ts`, `satisfies`), every field but `id`, exact, `run` structurally; the cut list groups
     them through the geometry view (as curves); `sameShared` in order, ids included.
-    Bands have `BAND_FIELDS` (`bandModel.ts`, `satisfies`: `side`, `type`), exact; the cut list keys by `bandSignature` (with the
-    corner rule); `sameShared` in canonical order.
+    Bands have `BAND_FIELDS` (`bandModel.ts`, `satisfies`: `side`, `type`), exact; the cut list keys by `bandSignature` (the corner
+    rule appended ONLY where `bandsMeetAtCorner` holds, the one case its words depend on it; final review 1); `sameShared` in canonical order.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -1392,7 +1392,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 6777 tests across 193 files
+npm test           # Vitest, currently 6785 tests across 194 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

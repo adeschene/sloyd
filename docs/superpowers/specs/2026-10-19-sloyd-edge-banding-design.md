@@ -199,6 +199,12 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 >   controls (its Side select). Cost: an Arch preset missing on a banded part with no reason shown.
 > - A band naming an unknown type id contributes nothing and no fault (the loader drops such a band; only an in-memory
 >   inconsistency could reach it).
+> - **Curves' band refusal is worded by the band's kind** (final review 3): solid `Edging on the width max side needs a
+>   straight edge — remove the band first.` (as above, unchanged), tape `Tape on the … needs a straight edge — …` (a tape
+>   WITH thickness), and `no-side` as a sentence: `The band on the width min side would have no edge left — remove the
+>   band first.`
+> - **A tape type with no `pricePerFoot` key loads unpriced** (`null`; final review 4): absence is the default. A present
+>   value other than `null` or a number ≥ 0 still drops the type (§2.3).
 
 ## 4. The cut list, nesting and Buying (chunk 1)
 
@@ -230,6 +236,11 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 > - Seen live, wording for the user's eye: four sides sharing a type read `Band: the width min side and the width max
 >   side and the length min end and the length max end — …` (no list-joining of three or more), and Buying's unpriced
 >   tail counts a tape type as a material (`3 materials have no price`).
+> - **The row key carries the corner rule ONLY where `bandsMeetAtCorner` holds** (final review 1): the band text and the
+>   strips depend on the rule only there (a strip's finished length and mitre ends read a NEIGHBOUR's thickness, which is
+>   that condition), and the core never does. So two shelves each banded on one side, one `long` and one `mitre`, read
+>   the same and are ONE row; where a corner qualifies the rule still splits rows (its words differ). A band naming an
+>   unknown type contributes nothing to the band line (as it contributes no fault).
 
 ### 4.2 Strip rows
 
@@ -297,6 +308,9 @@ from `banding.ts`; a part with no bands is unchanged. `turned` and grain rules u
   with thickness AND at least one of them is solid (the corner rule makes strips; tape has none, §3.3).
 - Multi-selection: a select shows `Mixed` where parts disagree; choosing writes that side on every selected part in one
   edit (an untouched mixed select writes nothing, inv 5).
+  > *Amended (implementation, chunk 1; final review 1)*: **Corners reads and writes only the selected parts where a corner
+  > qualifies** (`bandsMeetAtCorner`): its value or `Mixed` is over those parts, and a choice writes those parts alone, so a
+  > selected part the rule cannot change is never stamped with a rule the then-hidden select could not reset.
 - Refusal (fu 388's pattern): options are judged on focus, never per render; an option that would ADD a fault to any
   selected part is greyed with its reason (`Needs a straight edge`, `Leaves no core`, `Narrower than the part`, `No such
   edge`). A shaped part's edit goes to its Shape (`applyWorldEdits`).

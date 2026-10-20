@@ -34,6 +34,14 @@ describe('loading schema 19 (edge banding spec §2.3)', () => {
     ];
     expect(migrateDocument(raw({ bandTypes: [...bad, maple] })).bandTypes.map((t) => t.id)).toEqual(['band-iron-on', 'e1']);
   });
+  it('a tape type with NO pricePerFoot key loads unpriced (null); a present invalid price still drops it (final review 4)', () => {
+    const { pricePerFoot: _omit, ...noPrice } = { ...BUILT_IN_BAND, id: 'tp', name: 'PVC' };
+    const d = migrateDocument(raw({ bandTypes: [noPrice, { ...BUILT_IN_BAND, id: 'tq', name: 'Bad', pricePerFoot: 'x' }] }));
+    expect(d.bandTypes.map((t) => t.id)).toEqual(['band-iron-on', 'tp']);
+    const tp = d.bandTypes[1]!;
+    expect('pricePerFoot' in tp).toBe(true);
+    expect(tp.kind === 'tape' ? tp.pricePerFoot : 'not tape').toBeNull();
+  });
   it('an unknown kind string refuses the document', () => {
     const r = raw({ bandTypes: [{ ...maple, kind: 'pvc' }] });
     expect(() => migrateDocument(r)).toThrow(DocumentError);
