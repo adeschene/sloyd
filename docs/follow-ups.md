@@ -5516,7 +5516,7 @@ merge `bfde00c`, deployed, no schema change). **Closed.** Residue: 324, 325, 326
 **chunk 1** (schema 19: band types, bands, the corner rule, `banding.ts`'s arithmetic, the cut list's core sizes, band lines
 and strip rows, nesting at core size, Buying's strips and Edge banding block, Properties' Banding section, the Materials
 dialog's Edge banding section, Curves' band refusal, joinery/Refine/Repair refusing banded projects) **built** on branch
-`edge-banding-1` (2026-10-20; merge and deploy pending the final review and the user). **Chunk 2** (viewport looks, Plans
+`edge-banding-1` (2026-10-20), merged to master as `b7f700b`; deploy pending the user. **Chunk 2** (viewport looks, Plans
 sheet glue lines and keys, part diagrams) is next. The HARDWARE half (a hardware bill of materials, with fu 332's dowels)
 stays open, feature-sized, for its own spec. Residue: 395–401.
 

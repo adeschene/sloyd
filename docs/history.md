@@ -522,8 +522,8 @@ and 79.
 
 **What edge banding chunk 1 did (2026-10-19/20)** (fu 267's banding half; spec `2026-10-19-sloyd-edge-banding-design.md`, approved by
 the user 2026-10-19; plan `…-edge-banding-1.md`; branch `edge-banding-1` from `f246943`; **SCHEMA 19**; code complete at `90e9bde`
-plus this docs commit, **NOT merged or deployed** at the time of writing — the merge waits on the final whole-branch review and the
-user's word). Rolling back below 19, once deployed, refuses every project saved since: export first.
+plus this docs commit; the final whole-branch review's fixes `9f36387`; **MERGED to master as `b7f700b`** (2026-10-20, the user's word),
+not yet deployed). Rolling back below 19, once deployed, refuses every project saved since: export first.
 
 The user's rulings in the design conversation: banding first (the hardware bill of materials is a later spec); **the model is the
 FINISHED size**, the cut list subtracts band thickness to give the CORE (cut) size; a solid band is a property of the part's edge, not a

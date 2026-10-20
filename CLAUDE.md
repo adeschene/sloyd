@@ -179,7 +179,7 @@ handicraft education tradition built around hand woodworking.
   `internal` tag; stage 3 removes candidates, never faces; no memo on `partMesh`; stage 3 runs) were APPROVED by the user 2026-10-19. Merged and deployed (Production, above). **The ogee loop's 48 ms is left as is by the user's ruling
   (2026-10-19): fu 393(2), open by decision — do not pursue unasked.**
 - **Edge banding chunk 1 (2026-10-19/20, spec `2026-10-19-sloyd-edge-banding-design.md`, plan `…-edge-banding-1.md`, inv 54; branch
-  `edge-banding-1`, code complete — NOT yet merged or deployed: the merge waits on the final review and the user's word; **SCHEMA 19**)**: fu 267's
+  `edge-banding-1`, MERGED to master as `b7f700b` (final review's fixes `9f36387`); NOT yet deployed; **SCHEMA 19**)**: fu 267's
   banding half. Band types (`doc.bandTypes`: tape or solid, the built-in `Iron-on veneer` always present) and bands on a part's four
   broad-face sides (`Board.bands`, `cornerRule`); the model is the FINISHED size, the cut list the CORE, with band lines, a header note,
   solid strip rows (numbered, no balloon), cores nested; Buying adds strips to their material and an `Edge banding` tape block; a Banding
@@ -294,7 +294,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | profile runs (b2) | 10-19 | — | Stops on a turned path (a run-out about the bit's axis in the station chord's frame) and two-side runs (Stop side); a saved a2 stop on a turned path follows, or runs straight with its cause |
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
 | chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
-| edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (branch, unmerged) |
+| edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (merged `b7f700b`, not deployed) |
 
 ### The deployment rule
 
