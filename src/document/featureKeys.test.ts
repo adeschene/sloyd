@@ -213,6 +213,17 @@ describe('partFeatures: band keys (edge banding chunk 2, Q6)', () => {
     expect(partFeatures(b, IMPERIAL, types).map((f) => f.text)).toEqual(['Maple edging 1/4": width max side, length max end', 'Iron-on veneer: length min end']);
     expect(partFeatures(b, MM, types).map((f) => f.text)[0]).toBe('Maple edging 6 mm: width max side, length max end');
   });
+  it('a name already carrying its thickness as a bounded token does not repeat it (final review 1)', () => {
+    const key = (t: BandType, u = IMPERIAL) => partFeatures(panel([{ side: W0, type: t.id }]), u, [BUILT_IN_BAND, t]).map((f) => f.text);
+    expect(key({ ...maple, name: 'Maple edging 1/4"' })).toEqual(['Maple edging 1/4": width min side']);
+    expect(key({ ...maple, name: '1/4" maple' })).toEqual(['1/4" maple: width min side']);
+    expect(key({ ...maple, name: 'Maple 1/4" edging' })).toEqual(['Maple 1/4" edging: width min side']);
+    // Not a bounded token: `1/4"` inside `1-1/4"`, `6 mm` inside `16 mm`.
+    expect(key({ ...maple, name: 'Edging 1-1/4"' })).toEqual(['Edging 1-1/4" 1/4": width min side']);
+    expect(key({ ...maple, name: 'Maple 16 mm', thickness: 6 / 25.4 }, MM)).toEqual(['Maple 16 mm 6 mm: width min side']);
+    expect(key({ ...maple, name: 'Maple 6 mm', thickness: 6 / 25.4 }, MM)).toEqual(['Maple 6 mm: width min side']);
+    expect(key(maple)).toEqual(['Maple edging 1/4": width min side']);
+  });
   it('tape on an arched side is keyed through the arch\'s chords too', () => {
     const arch = { id: 'c9', ...archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 6, span: 24, rise: 2 }) };
     const b = panel([{ side: W1, type: BUILT_IN_BAND_ID }], { curves: [arch] });

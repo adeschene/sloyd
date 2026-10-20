@@ -180,9 +180,11 @@ const withTag = <T extends object>(s: T, feature: string | undefined): T & { fea
 const local = (s: { length: number; width: number; thickness: number }) => [s.length, s.width, s.thickness];
 
 /** A band's side plane on paper (edge banding chunk 2, Q6): the local axis index across the side, the plane's coordinate
- *  there, and the band's tag. Only an unfaulted band on a side whose stretch is ONE chord, in `BAND_SIDES` order, so an
- *  edge on two planes (a corner's through-thickness edge) takes the first side's tag. Read off the STORED part (the one
- *  `bandFaults` and the outline judge); nothing without band types or bands. */
+ *  there, and the band's tag. Every unfaulted band with a stretch, in `BAND_SIDES` order, so an edge on two planes (a
+ *  corner's through-thickness edge) takes the first side's tag. A stretch of several chords (round corner arcs, along an
+ *  arch) counts too (final review 2): only its edges ON the plane take the tag, and a chord a curve or angle cut already
+ *  tags keeps that tag. Read off the STORED part (the one `bandFaults` and the outline judge); nothing without band types
+ *  or bands. */
 interface BandPlane { k: 0 | 1; at: number; tag: string }
 function bandPlanes(b: Board, bandTypes: readonly BandType[] | undefined): BandPlane[] {
   if (!bandTypes || bandTypes.length === 0 || b.bands.length === 0) return [];
@@ -194,7 +196,7 @@ function bandPlanes(b: Board, bandTypes: readonly BandType[] | undefined): BandP
     if (!band || !bandTypes.some((t) => t.id === band.type)) continue;
     if (faults.some((f) => sameSide(f.side, side))) continue;
     const st = outline && sideStretch(b, outline, side);
-    if (!st || st.from !== st.to) continue;
+    if (!st) continue;
     out.push({ k: side.across === 'length' ? 0 : 1, at: side.from === 'min' ? 0 : b[side.across], tag: featureTag(b.id, 'band', band.type) });
   }
   return out;
@@ -274,7 +276,7 @@ function keptRange(A: Vec3, E: Vec3, s: Section): [number, number] | null {
  * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `silhouetteLines` (ruling Q1; each hidden-line probe is stepped PROBE = 4 x DRAW_EPS along the outward normal of each viewer-facing adjacent face, grazing lines still hide); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact. With opts.section (section views spec §3.1), every line and
  * occluder is clipped to the kept half-space and the caps are returned. With opts.bandTypes (edge banding chunk 2, Q4–Q6),
- * each solid band's glue lines join the pass and the outline edges on a straight banded side's plane carry its band tag;
+ * each solid band's glue lines join the pass and the untagged outline edges on a banded side's plane carry its band tag;
  * without it nothing band-related is drawn or tagged.
  */
 export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>, opts: { hiddenLines?: boolean; section?: Section; bandTypes?: readonly BandType[] } = {}): Drawing {

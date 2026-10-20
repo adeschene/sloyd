@@ -104,9 +104,15 @@ function sweptText(b: Board, p: ProfileCut, units: Units): string {
   return `${profileName(p, units)}${filletWords(p, units)}${run ? `, ${run}` : ''}`;
 }
 
-/** One key per band type a part uses (edge banding chunk 2, Q6): `<type name>[ <thickness>]: <sides>`, its sides in
+/** Whether a band type's name already carries its formatted thickness as a BOUNDED token (final review 1): starting the
+ *  name or after a space, and ending it or followed by a space — so `Maple edging 1/4"` does, `Edging 1-1/4"` does not
+ *  carry `1/4"`, and `Maple 16 mm` does not carry `6 mm`. */
+const namesThickness = (name: string, thick: string): boolean => ` ${name} `.includes(` ${thick} `);
+
+/** One key per band type a part uses (edge banding chunk 2, Q6): `<type name>[ <thickness>]: <sides>` (the thickness left
+ *  out when the name already carries it, `namesThickness`), its sides in
  *  canonical order (faulted ones included, the key then carrying the fault suffix), types in canonical order of first use.
- *  Its tags: the band tag (on the glue lines and the straight banded sides' outline edges, `drawView`) and, for each of its
+ *  Its tags: the band tag (on the glue lines and the untagged outline edges on its sides' planes, `drawView`) and, for each of its
  *  unfaulted bands on a curved stretch, every curve its stretch's chords carry — so no segment is retagged. Read off the
  *  STORED part, as `bandFaults` and the outline judge it. */
 function bandFeatures(b: Board, units: Units, types: readonly BandType[]): PartFeature[] {
@@ -134,7 +140,8 @@ function bandFeatures(b: Board, units: Units, types: readonly BandType[]): PartF
   }
   for (const { type, sides, faulted, curves } of byType.values()) {
     const tag = featureTag(b.id, 'band', type.id);
-    const thick = type.thickness > 0 ? ` ${formatLength(type.thickness, units)}` : '';
+    const thick = type.thickness > 0 && !namesThickness(type.name, formatLength(type.thickness, units))
+      ? ` ${formatLength(type.thickness, units)}` : '';
     const text = `${type.name}${thick}: ${sides.join(', ')}`;
     out.push({
       key: tag, tags: [tag, ...curves.map((c) => featureTag(b.id, 'curve', c))], part: b.id,

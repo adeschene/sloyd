@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument } from './document';
+import { cornerCurve } from './curves';
 import { BAND_SIDES, BUILT_IN_BAND, BUILT_IN_BAND_ID, bandFaults } from './banding';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type Seg2, type View } from './drawing';
 import { mirrorDim } from './frames';
@@ -109,6 +110,29 @@ describe('drawView: glue lines (edge banding chunk 2, Q4/Q5)', () => {
     const hs = find(s2.hidden, SIDE, mixed, [0, 0, 0], [0, 0, 0.75]);
     expect(hs).toHaveLength(1);
     expect(hs[0]!.feature).toBe('p:band:band-iron-on');
+  });
+  it('tape on a side with rounded corners: its straight outline edges carry the band tag, the arcs keep theirs (final review 2)', () => {
+    // A side whose stretch carries round its corner arcs is more than one chord; its straight chord still lies on the plane.
+    const corners = (['min', 'max'] as const).flatMap((u) => (['min', 'max'] as const).map((v) =>
+      ({ id: `c${u}${v}`, ...cornerCurve({ through: 'thickness', uFrom: u, vFrom: v, radius: 2 }) })));
+    const b = part([{ side: W0, type: BUILT_IN_BAND_ID }], { curves: corners });
+    expect(bandFaults(b, types)).toEqual([]);
+    const d = drawView([b], TOP, undefined, { bandTypes: types });
+    const all = [...d.visible, ...d.hidden];
+    const T = 0.75;
+    // The near (top) straight edge at width 0, visible, tagged; the far one lies behind it on the same screen line.
+    const near = find(d.visible, TOP, b, [2, 0, T], [34, 0, T]);
+    expect(near).toHaveLength(1);
+    expect(near[0]!.feature).toBe('p:band:band-iron-on');
+    // Every band-tagged segment is one of those straight edges at width 0: none elsewhere, none on an arc.
+    const bands = all.filter(isBand);
+    expect(bands.length).toBeGreaterThanOrEqual(1);
+    const onW0 = find(all, TOP, b, [2, 0, T], [34, 0, T]);
+    expect(bands.every((s) => onW0.includes(s))).toBe(true);
+    expect(onW0.every((s) => s.feature === 'p:band:band-iron-on')).toBe(true);
+    // The corner arcs keep their own curve tags, all four of them.
+    const curveTags = new Set(all.flatMap((s) => (s.feature?.includes(':curve:') ? [s.feature] : [])));
+    expect([...curveTags].sort()).toEqual(['p:curve:cmaxmax', 'p:curve:cmaxmin', 'p:curve:cminmax', 'p:curve:cminmin']);
   });
   it('no band types → no band segments: exactly what a band-free copy draws', () => {
     const plain = { ...four, bands: [] };
