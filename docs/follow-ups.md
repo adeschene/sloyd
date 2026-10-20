@@ -6736,7 +6736,8 @@ first).
 (1) **Tests:**
 - No App-level `onSave` test: a band-types-only Save should make one undo entry, and a no-op Save none. Verified by reading,
   and live (one undo entry, step 2 of the verification).
-- Curves' preset-withheld test clicks `+ Add curve` only `if (add)`, so it may pass vacuously. Assert that the trigger exists.
+- Curves' preset-withheld test clicks `+ Add curve` only `if (add)`. Not vacuous (the final review's mutation of the withheld rule
+  turns it red), but asserting the trigger exists, or the `No curve preset fits this part.` note, would state the intent.
 - No test that a curve edit leaving or removing an existing band fault is accepted.
 - Buying gaps: the whole-foot boundary (24"), mixed priced and unpriced tape, tape-only priced, and the tape-only unpriced
   total `—`.
@@ -6765,4 +6766,10 @@ first).
 - Global DOM ids `band-width-min` / `band-corners`.
 - The Materials dialog's band props are optional, with defaults.
 - `names` is imported mid-file in `document.ts`.
+(4) **From the final whole-branch review (deferred):**
+- Properties' band fault note has no `… at this size.` suffix for a fault a resize caused (spec §3.4); the cut list's `— check:`
+  covers the sheet.
+- The Materials dialog re-judges every part's band faults on each render (`parts={worldParts(doc)}` and the before/after lists are
+  fresh arrays, so the `(part, types)` memo never hits), and the open `Band ▾` menu rebuilds `faceOutline` per item via
+  `{ ...part, bands }`. Fine at today's project sizes; key the outline on dimensions plus curves if it ever shows.
 **Status:** open (record-only).

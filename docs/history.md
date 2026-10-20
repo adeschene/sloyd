@@ -532,7 +532,7 @@ mitred); band types named and per project, no browser library; bands follow the 
 straight side; strips cut oversize (width allowance 1/16", length allowance 1/2"); bodies untouched (§7, splitting is a follow-up); two
 chunks — chunk 1 data, arithmetic, cut list, nesting, Buying and controls; chunk 2 viewport, Plans sheet, part diagrams.
 
-Ten tasks, fourteen commits:
+Ten tasks and a final fix wave, fifteen branch commits, then the merge:
 1. `dbd0039` — the stored model (`bandModel.ts`, imports only `ids` and `types`): `BandType` (tape | solid), `Band { side, type }`,
    `cornerRule`, `BAND_SIDES` canonical order, `mirrorBands` (a flag flip), `bands`/`cornerRule` SHARED in `LINK_FIELDS`.
 2. `c85f612` — schema 19's loader: band types validated after materials and before parts, the built-in `band-iron-on` re-added first,
@@ -556,7 +556,13 @@ Ten tasks, fourteen commits:
    `title` and items as a function.
 9. `7428ef0`, `90e9bde` — the Materials dialog's Edge banding section (`bandTypesDraft.ts`): `+ Add band type ▾`, refusals, in-use
    delete refused, saved in the one project edit.
-10. This commit — the live pass and the docs.
+10. `4203a45` — the live pass and the docs.
+11. `9f36387` — the final whole-branch review's fix wave (verdict "with fixes", one Important): the corner rule split identical cut-list
+    rows where no corner qualifies, and Corners stamped a hidden, unresettable rule onto every selected part — now the row key carries
+    the rule only where `bandsMeetAtCorner` holds and Corners reads and writes only the parts it reaches; also `bandLine` skips a band of
+    an unknown type, Curves' band refusal is worded by kind (`Edging`/`Tape`) with a grammatical `no-side`, and an absent tape
+    `pricePerFoot` loads as unpriced. Merged `--no-ff` as `b7f700b` (the merged tree byte-identical to the tested branch: 6785 tests,
+    194 files; build clean).
 
 **Planning amendments P1–P5** (in the spec, for the user's review): P1 `cornerRule` always stored (`'long'` default; an optional shared
 field fails `_sharedPrimitives`' tsc check); P2 a solid type's thickness > 0; P3 the kind is chosen from the menu, never a select; P4 a

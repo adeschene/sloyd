@@ -1,9 +1,9 @@
 # Sloyd — edge banding
 
-**Date:** 2026-10-19 · **Status:** design approved in conversation section by section (§1–§4 and the chunk split);
-this written spec awaits the user's review. **Chunk 1 built** 2026-10-19/20 on branch `edge-banding-1` (plan
-`docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`); the blocks marked *Amended (planning)* (P1–P5) and *Amended
-(implementation, chunk 1)* below await the user's review.
+**Date:** 2026-10-19 · **Status:** approved by the user 2026-10-19 (in conversation section by section, then the written spec).
+**Chunk 1 MERGED** to master as `b7f700b` 2026-10-20 (plan `docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`; final
+review's fixes `9f36387`), **not yet deployed** (schema 19). **Chunk 2** (§8: viewport, Plans sheet, part diagrams) is next and has
+no plan yet. The blocks marked *Amended (planning)* (P1–P5) and *Amended (implementation, chunk 1)* below await the user's review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
 inv 45), mirrored frames (inv 44), the cut list (`cutlist.ts`, inv 18, 40), sheet nesting (`nesting.ts`), Buying
 (`purchase.ts`), custom materials (inv 49), the outline and side stretches of profile runs b1 (`profilePath.ts`:
@@ -212,7 +212,7 @@ Materials dialog refuses a band type edit that adds a fault to any part, naming 
 
 - A banded part's row prints its CORE size as `dims` (and as `length`/`width`, so the sheet layout and every reader of a
   row agree). Stock collapsing at display precision (inv 18) applies to the core.
-- The row key gains `bandSignature`: each band's side and type id in canonical order, plus the corner rule — exact. The
+- The row key gains `bandSignature`: each band's side and type id in canonical order, plus the corner rule — exact (*amended below: the corner rule only where a corner qualifies*). The
   type's VALUES reach the key through the core and strips they produce, so a band type edit regroups and nothing goes
   stale. Two shelves banded differently are two rows.
 - A band line in `setup`, built in `cutlist.ts` (→ units): `Band: the width min side and the width max side — Maple

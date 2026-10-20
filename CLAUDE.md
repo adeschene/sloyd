@@ -188,11 +188,13 @@ handicraft education tradition built around hand woodworking.
   review: the spec's P1–P5 *Amended (planning)* and its *Amended (implementation, chunk 1)* blocks; fu 395 (the live pass's items for the
   user's eye). **Once deployed, rolling back below 19 refuses every project saved since — export first.** Chunk 2 (viewport, Plans
   sheet, part diagrams) is next.
-- **NEXT: ask** (audited 2026-10-17, after section views deployed; since then presets batch, presets minors, edge profiles chunk 1, profile runs
-  a1–b2 and speed chunks c1–c2 shipped, re-checked 2026-10-19). **No follow-up is open as code-sized work**: the triage's
-  four (207, 216, 234, 269) are done — 207 record-only by the user's ruling, 216/234/269 closed — and fu 256 shipped as section views.
-  What is left, all under Open follow-ups below: a feature spec (the feature-sized list), the user's eye or hardware (the owed
-  list, 384(2) the newest), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
+- **NEXT (audited 2026-10-20, after edge banding chunk 1 merged):** (1) the user's deploy decision for chunk 1 (schema 19: export
+  before any rollback below it), with fu 395's items and the spec's P1–P5 / *Amended (implementation, chunk 1)* blocks for the user's
+  review; (2) **edge banding chunk 2** (spec §8: viewport colouring and glue lines, Plans sheet glue lines and keys, part diagrams' band
+  marks and a strip's own diagram) — needs its own plan (`…-edge-banding-2.md`) from the approved spec; (3) fu 395–401 as the user
+  directs. Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
+  the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
+  feature spec (the feature-sized list), the user's eye or hardware (the owed list), or an open-by-decision item (ask first). Every follow-up 1–380 was TRIAGED 2026-10-16 (each
   entry's last `**Status:**` line tagged `(triaged 2026-10-16)`); 381–384 came later. `docs/follow-ups.md` is authoritative —
   some entries close mid-line (`… **Status:** closed.` after an older `- **Status:** open.` bullet), so read an entry whole.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
