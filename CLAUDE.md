@@ -21,8 +21,9 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is edge banding chunk 1** (deployed 2026-10-20 from `37ced13` (merge `b7f700b`), bundle `index-Df8FpxEW.js`, CSS
-  `index-_pn-uYEW.css`; **SCHEMA 19**: rolling back to chunk c2 (`90ef45f`, `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css`) REFUSES every
+- **Production is edge banding chunk 2** (deployed 2026-10-20 from `834ce5a` (merge `5e55b17`), bundle `index-Vul7x2lO.js`, CSS
+  `index-CgWDfdXW.css`; no schema change, so rolling back to chunk 1 (`37ced13`, `index-Df8FpxEW.js`) is free). Chunk 1 was deployed
+  2026-10-20 from `37ced13` (merge `b7f700b`; **SCHEMA 19**: rolling back from it to chunk c2 (`90ef45f`, `index-Cqf9kRT7.js`, CSS `index-CXYEMHnU.css`) REFUSES every
   project saved since — export first). Chunk c2 was deployed 2026-10-19 from the merge `90ef45f` (no schema
   change, so rolling back from it to c1 (`65fb1fe`, `index-TCisED7E.js`) is free). Chunk c1 was deployed from `65fb1fe` (no schema
   change, so rolling back to b2 (`7794999`, `index-BhtaBf2G.js`) is free). Profile runs b2 was deployed 2026-10-19 from `31d88fd` (**SCHEMA 18**,
@@ -190,13 +191,13 @@ handicraft education tradition built around hand woodworking.
   review: the spec's P1–P5 *Amended (planning)* and its *Amended (implementation, chunk 1)* blocks; fu 395 (the live pass's items for the
   user's eye). **Rolling back below 19 refuses every project saved since — export first.** Chunk 2 followed (below).
 - **Edge banding chunk 2 (2026-10-20, plan `…-edge-banding-2.md`, spec §8; branch `edge-banding-2`, MERGED to master as `5e55b17`;
-  NOT yet deployed; no schema change, 19)**: bands made visible. Viewport: a banded side's triangles take the band's look by a
+  DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`; no schema change, 19)**: bands made visible. Viewport: a banded side's triangles take the band's look by a
   POST-PASS (`viewport/bandFaces.ts`: tape the part's long grain, no plies; solid the band's colour), solid bands draw glue lines
   (`glueLines`, `banding.ts`), clipped by the section. Plans sheet: glue lines as `band`-tagged segments, a key line per (part,
   band type). Part diagrams: heavy marks on banded sides, the band line and a core note (fu 395(1), the user's ruling: drawn at
   the finished size), a strip's mitred ends hatched. Await the user's review: the spec's *Amended (planning, chunk 2)* Q2–Q7; fu 402
   (the user's eye and real hardware). Live pass: `docs/browser-verification-edge-banding-2.md`. Rollback is free (no schema change).
-- **NEXT (2026-10-20, after edge banding chunk 2 merged):** (1) the user's deploy decision for chunk 2 (no schema change); (2) the
+- **NEXT (2026-10-20, after edge banding chunk 2 deployed):** (1) nothing pending deploy; (2) the
   spec's P1–P5, *Amended (implementation, chunk 1)* and *Amended (planning, chunk 2)* blocks and fu 395(2)–(4), 402 for the user's
   review; (3) fu 396–403 as the user directs (the banding feature of fu 267 is complete; its hardware BOM half needs a spec). Otherwise no follow-up is open as code-sized work: the triage's four (207, 216, 234, 269) are done — 207 record-only by
   the user's ruling, 216/234/269 closed — and fu 256 shipped as section views. What is left, all under Open follow-ups below: a
@@ -303,7 +304,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | chunk c1 | 10-19 | — | Swept rebuilds faster, byte for byte (`sweptIdentity` pin): plans/chords once per part, scalar clip/minusCover, float32 mesh, scalar bodyEdges setup; ogee loop 80 → 61 ms, two loops 58 → 36 |
 | chunk c2 | 10-19 | — | A shaped part is ONE geometry (`partMesh`); exact twin seams skipped (`seams.ts`); covered faces make no edge candidate; ogee loop 63–72 → 48 ms (gate missed), others ≤ 41; idle frame 320 → 183 ms (software GL) |
 | edge banding (chunk 1) | 10-20 | 19 | Band types and bands (`banding.ts`, inv 54): the cut list's core sizes, band lines and solid strip rows; nesting at core size; Buying's strips and tape block; Banding in Properties, Edge banding in Materials & prices; joinery/Refine/Repair refuse banded projects (deployed `index-Df8FpxEW.js`) |
-| edge banding (chunk 2) | 10-20 | — | Bands visible: band looks by a triangle post-pass (`bandFaces.ts`), glue lines (`glueLines`) in the viewport and on the Plans sheet (`band` tags, a key per band type), part diagrams' band marks, band and core notes, a strip's mitres |
+| edge banding (chunk 2) | 10-20 | — | Bands visible: band looks by a triangle post-pass (`bandFaces.ts`), glue lines (`glueLines`) in the viewport and on the Plans sheet (`band` tags, a key per band type), part diagrams' band marks, band and core notes, a strip's mitres (deployed `index-Vul7x2lO.js`) |
 
 ### The deployment rule
 

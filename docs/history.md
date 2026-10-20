@@ -521,7 +521,7 @@ and 79.
 ## What each round did
 
 **What edge banding chunk 2 did (2026-10-20)** (spec §8; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`; branch
-`edge-banding-2` from `69008a3`, MERGED to master as `5e55b17`; **no schema change** (19); not yet deployed; subagent-driven, four tasks plus the controller's live pass). Bands
+`edge-banding-2` from `69008a3`, MERGED to master as `5e55b17`; **no schema change** (19); **DEPLOYED 2026-10-20 from `834ce5a` as `index-Vul7x2lO.js`** (CSS `index-CgWDfdXW.css`; rollback to `index-Df8FpxEW.js` free); subagent-driven, four tasks plus the controller's live pass). Bands
 are visible: on screen, on the Plans sheet and in part diagrams.
 1. `44826d0` — `glueLines` (`banding.ts`): board-local glue lines per unfaulted SOLID band on both broad faces, trimmed per the
    corner rule (Q5: through → full side; gives way or Mitred → core corner to core corner; a mitre line once, on the long strip

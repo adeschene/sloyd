@@ -3,7 +3,7 @@
 **Date:** 2026-10-19 · **Status:** approved by the user 2026-10-19 (in conversation section by section, then the written spec).
 **Chunk 1 MERGED** to master as `b7f700b` 2026-10-20 (plan `docs/superpowers/plans/2026-10-19-sloyd-edge-banding-1.md`; final
 review's fixes `9f36387`), **DEPLOYED 2026-10-20** as `index-Df8FpxEW.js` (schema 19). **Chunk 2** (§8: viewport, Plans sheet,
-part diagrams; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`) is built on branch `edge-banding-2`, no schema
+part diagrams; plan `docs/superpowers/plans/2026-10-20-sloyd-edge-banding-2.md`) is MERGED (`5e55b17`) and DEPLOYED 2026-10-20 as `index-Vul7x2lO.js`, no schema
 change. The blocks marked *Amended (planning)* (P1–P5), *Amended (implementation, chunk 1)* and *Amended (planning, chunk 2)*
 (Q2–Q7; Q1 is the user's ruling) below await the user's review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), shapes and links (`LINK_FIELDS`,
