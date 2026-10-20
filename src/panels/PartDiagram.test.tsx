@@ -1,6 +1,8 @@
 import { IMPERIAL } from '../units/length';
 import { cleanup, render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
+import { stripDiagrams } from '../document/diagram';
+import { BAND_SIDES, BUILT_IN_BAND, strips } from '../document/banding';
 import type { Cut } from '../document/document';
 import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
 import { archCurve, defaultCorners } from '../document/curves';
@@ -1118,5 +1120,40 @@ describe('PartDiagram: a swept profile\'s inner line (profile runs b1, Q8)', () 
   it('a view with no swept profile draws none', () => {
     const { container } = render(<PartDiagram view={view(dado())} />);
     expect(container.querySelectorAll('.cutlist-diagram-sweep')).toHaveLength(0);
+  });
+});
+
+describe('PartDiagram: bands and a strip\'s mitres (edge banding 2, Q1, Q7)', () => {
+  const maple = { id: 'm', name: 'Maple edging 1/4"', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
+  const types = [BUILT_IN_BAND, maple];
+  const banded = {
+    ...createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75, material: 'maple' }),
+    bands: BAND_SIDES.map((side) => ({ side, type: 'm' })), cornerRule: 'mitre' as const,
+  };
+
+  it('a banded view draws one heavy polyline per band and the two notes', () => {
+    const v = buildDiagrams(banded, IMPERIAL, types).find((x) => x.key === 'thickness|min')!;
+    const { container } = render(<PartDiagram view={v} />);
+    expect(container.querySelectorAll('polyline.cutlist-diagram-band')).toHaveLength(4);
+    const notes = [...container.querySelectorAll('p.cutlist-diagram-band-note')].map((n) => n.textContent);
+    expect(notes).toEqual(v.bandNotes);
+    expect(notes).toHaveLength(2);
+    expect(notes[1]).toBe('Drawn at the finished size; cut 35-1/2" × 19-1/2" before banding.');
+  });
+
+  it('an unbanded view draws none', () => {
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    expect(container.querySelectorAll('.cutlist-diagram-band, .cutlist-diagram-band-note')).toHaveLength(0);
+  });
+
+  it('a mitred strip\'s view draws its mitre polygons', () => {
+    const s = strips(banded, types)[0]!;
+    const sv = stripDiagrams(s, IMPERIAL)[0]!;
+    const { container } = render(<PartDiagram view={sv} />);
+    expect(container.querySelectorAll('polygon.cutlist-diagram-angle')).toHaveLength(2);
+    cleanup();
+    const sq = strips({ ...banded, cornerRule: 'long' as const }, types)[0]!;
+    const { container: c2 } = render(<PartDiagram view={stripDiagrams(sq, IMPERIAL)[0]!} />);
+    expect(c2.querySelectorAll('polygon.cutlist-diagram-angle')).toHaveLength(0);
   });
 });

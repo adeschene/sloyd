@@ -1208,6 +1208,14 @@ select.input { cursor: pointer; }
   stroke-width: 1;
 }
 
+/* A band's heavy mark (edge banding 2, Q1): the side's stretch of the finished outline. */
+.cutlist-diagram-band {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 6;
+  stroke-linecap: butt;
+}
+
 /* A swept profile's inner line (profile runs b1, Q8): thin and solid, no fill. */
 .cutlist-diagram-sweep {
   fill: none;
@@ -1235,7 +1243,8 @@ select.input { cursor: pointer; }
 .cutlist-diagram-crossings,
 .cutlist-diagram-angle-note,
 .cutlist-diagram-hole-note,
-.cutlist-diagram-curve-note {
+.cutlist-diagram-curve-note,
+.cutlist-diagram-band-note {
   margin: 2px 0 0;
   font-size: 0.78em;
   color: var(--ink-faint);
@@ -1454,6 +1463,7 @@ select.input { cursor: pointer; }
   .cutlist-diagram-angle-note,
   .cutlist-diagram-hole-note,
   .cutlist-diagram-curve-note,
+  .cutlist-diagram-band-note,
   .cutlist-setup,
   .cutlist-layout-count,
   .cutlist-layout-head,

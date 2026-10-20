@@ -1,4 +1,4 @@
-import type { Board, CurveCut, CutFrom, Dimension, HoleRow, Span } from './types';
+import type { BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, Span } from './types';
 import { holeInstances } from './holes';
 import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
@@ -12,6 +12,9 @@ import { curveLineEntries } from './curveText';
 import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
 import { geometryBoard } from './profiles';
 import { builtSwept, sweptInnerLine } from './sweep';
+import { bandFaults, sameSide, stripBoard, type Strip } from './banding';
+import { bandLine, coreNote } from './bandText';
+import { faceOutline, sideStretch } from './profilePath';
 
 /** One angle cut in a view (spec §4.3): the wedge it removes, in (h, v) board inches, and its bench line. */
 export interface DiagramAngle { id: string; poly: [number, number][]; label: string }
@@ -127,6 +130,14 @@ export interface DiagramView {
   /** Swept profiles' inner lines (profile runs b1, Q8): the path offset by the reach, in this face's (h, v), board inches.
    *  Present only on a view that draws one, so every other part's views are byte for byte as they were. */
   sweeps?: { id: string; pts: [number, number][]; closed: boolean }[];
+  /** A banded part's heavy marks (edge banding 2, Q1), on every thickness view: each unfaulted band's side stretch along
+   *  the FINISHED outline, in (h, v) = (length, width) board inches. Present only on a banded view. */
+  bands?: { side: ProfileSide; points: [number, number][] }[];
+  /** The band line, then the core note when the core differs (Q1): on the first thickness view only (inv 19: built in
+   *  bandText.ts). Present only on a banded part's view. */
+  bandNotes?: string[];
+  /** A strip's mitred ends' waste (Q7), in the strip's own (h, v) = (cut length, band thickness). Present only on a mitred strip's view. */
+  mitres?: { poly: [number, number][] }[];
 }
 
 const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
@@ -179,7 +190,8 @@ function wasteOnFace(board: Board, c: CurveCut, W: number, H: number): [number, 
  * this module does not recompute what counts as a crossing (see
  * `depthField.ts`'s own doc comment for that rule).
  */
-export function buildDiagrams(board: Board, units: Units): DiagramView[] {
+export function buildDiagrams(board: Board, units: Units, bandTypes: readonly BandType[] = []): DiagramView[] {
+  const stored = board;
   board = geometryBoard(board);
   const u = units;
   const f = (n: number) => formatLengthBare(n, units);
@@ -390,6 +402,34 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
     for (const e of curveEntries) if (e.ids.some((id) => drawn.has(id))) view.curveNotes.push({ key: e.ids[0]!, text: e.text });
   }
 
+  // A banded part's marks (edge banding 2, Q1): every thickness view carries them, a thickness view opened when there is
+  // none. The part is drawn at its FINISHED size, so the marks are the finished outline's side stretches (model points,
+  // judged on the STORED part as banding.ts does). A faulted band is not marked; it still shows in the band line.
+  const banded = bandTypes.length > 0 && stored.bands.length > 0 && bandLine(stored, bandTypes, units) !== null;
+  if (banded) {
+    const faults = bandFaults(stored, bandTypes);
+    const outline = faceOutline(stored);
+    const marks: NonNullable<DiagramView['bands']> = [];
+    for (const b of stored.bands) {
+      if (!bandTypes.some((t) => t.id === b.type) || faults.some((f) => sameSide(f.side, b.side))) continue;
+      const st = outline ? sideStretch(stored, outline, b.side) : null;
+      if (!outline || !st) continue;
+      const n = outline.chords.length;
+      const points: [number, number][] = [];
+      for (let i = st.from; ; i = (i + 1) % n) {
+        const c = outline.chords[i]!;
+        if (points.length === 0) points.push([c.a[0] + 0, c.a[1] + 0]);
+        points.push([c.b[0] + 0, c.b[1] + 0]);
+        if (i === st.to) break;
+      }
+      marks.push({ side: b.side, points });
+    }
+    if (![...views.values()].some((v) => v.face === 'thickness')) ensure('thickness', 'min');
+    if (marks.length > 0) {
+      for (const v of views.values()) if (v.face === 'thickness') v.bands = marks.map((m) => ({ side: m.side, points: m.points.map((p) => [p[0], p[1]] as [number, number]) }));
+    }
+  }
+
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.
   if (views.size === 0) ensure('thickness', 'min');
@@ -416,5 +456,30 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
       DIMENSION_ORDER.indexOf(a.face) - DIMENSION_ORDER.indexOf(b.face) ||
       FROM_ORDER.indexOf(a.from) - FROM_ORDER.indexOf(b.from),
   );
+  if (banded) {
+    // The notes ride on the FIRST thickness view in the final order, once (Q1).
+    const note = [bandLine(stored, bandTypes, units)!, coreNote(stored, bandTypes, units)].filter((x): x is string => x !== null);
+    out.find((v) => v.face === 'thickness')!.bandNotes = note;
+  }
   return out;
+}
+
+/**
+ * A strip's diagrams (edge banding 2, Q7): its blank (chunk 1's view: cut length × band thickness) with each mitred
+ * end's waste as a polygon. The long point sits on v = 0 (the strip's finished edge), half the length allowance in from
+ * the blank's end; the short point on v = width, `width · tan(mitre)` further in. A square-ended strip is exactly
+ * `buildDiagrams(stripBoard(s), units)`.
+ */
+export function stripDiagrams(s: Strip, units: Units): DiagramView[] {
+  const views = buildDiagrams(stripBoard(s), units);
+  if (s.ends.every((e) => e.mitre === null)) return views;
+  const w = s.width, h = s.length, a = (s.length - s.finished) / 2;
+  const mitres: NonNullable<DiagramView['mitres']> = [];
+  s.ends.forEach((e, k) => {
+    if (e.mitre === null) return;
+    const n = w * Math.tan(e.mitre);
+    mitres.push({ poly: k === 0 ? [[0, 0], [a, 0], [a + n, w], [0, w]] : [[h, 0], [h - a, 0], [h - a - n, w], [h, w]] });
+  });
+  views[0]!.mitres = mitres;
+  return views;
 }
