@@ -42,8 +42,10 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
   ONCE: on the long-edge strip when it is solid, else on the end strip.
 - **Q6 — Plans keys: one key line per (part, band type)**, `<type name>[ <thickness>]: <sides>` — `Maple edging 1/4": width
   min side, width max side`, `Iron-on veneer: length min end` (thickness omitted at 0). Its tag sits on the glue lines and
-  on the part's own outline edges lying on a straight banded side's plane (so tape is keyed too). A tape band on a curved
-  side has no tagged segment and lands in `Not shown in these views:` (recorded as residue, not fixed).
+  on the part's own outline edges lying on a straight banded side's plane (so tape is keyed too). A band on a CURVED side
+  (tape on an arch) is keyed through its stretch's chords: its feature's `tags` also list `featureTag(part, 'curve', id)`
+  for every curve id on those chords (`owns` matches any listed tag), so no segment is retagged. An edge lying on two
+  banded side planes (a corner's through-thickness edge) takes the FIRST side's tag in `BAND_SIDES` order.
 - **Q7 — a strip's diagram** is its blank (cut length × band thickness, chunk 1's view) with each mitred end's waste drawn
   as a hatched polygon: the long point sits on v = 0 (the strip's finished edge), half the length allowance in from the
   blank's end; the short point on v = width, `n = width · tan(mitre)` further in. A square end draws nothing new. The view
@@ -62,7 +64,9 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
 - Sides: `ProfileSide { across, from }`; `across: 'width'` is a long edge running along `length`, `across: 'length'` an end
   running along `width`. Canonical order `BAND_SIDES` (width-min, width-max, length-min, length-max). Side words without the
   article: `edgeName(...).slice(4)` → `width min side`.
-- Tolerances: a point "on" a plane or chord within `1e-9` in inches (inv 22's float tolerance).
+- Tolerances: document-level tests (Task 1, Task 3's local endpoints, Task 4) compare exact or within `1e-9` (inv 22).
+  The viewport post-pass (Task 2) reads FLOAT32 positions, so it uses `tol = 8 · 2⁻²³ · max(extents)` (a few float32 ulps
+  of the part's largest coordinate) for both its on-chord and its normal test — never `1e-9` there.
 - Branch `edge-banding-2` from master (Task 1 Step 0). Commit after each task, message ending
   `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Merge locally `--no-ff`; no pull request.
 
@@ -164,8 +168,13 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
   - `a turned part`: posture `upright`, rotation 90 — the moved triangles still map back to local width 11.25.
   - `a dado facing the banded side keeps the part's look`: the part with a dado whose wall faces +width — group 6 still
     holds 6 vertices, all at width 11.25.
+  - `a metric part paints too`: 762 × 305 × 19 mm (`mm(762)`, … from `holes.ts`: non-dyadic) taped on width-max → group 6
+    holds 6 vertices.
   - `an arched tape side`: an Arch on width-max (`defaultArch`), tape there — group 6 holds the arch's chord faces (every
-    vertex within 1e-6 of a chord of `sideStretch`), more than 6 vertices.
+    vertex within `tol` of a chord of `sideStretch`), more than 6 vertices.
+  - `UVs off the band faces are what BoxGeometry drew`: for a plain box part, `bodyMesh`'s (vertex → uv) set per group 0–5
+    equals `boardUVs`' per BoxGeometry face (as sets, positions keyed at float32), so adding a band does not jump the grain
+    on the other faces.
   - `a faulted band paints nothing`: `bandLooks` is `[]` for a solid band on the arched side.
   - `bandViewSignature`: `''` for no bands; changes when the band type's thickness or material changes with the same part.
 - [ ] **Step 2: Run** `npx vitest run src/viewport/bandFaces.test.ts` → FAIL (module missing).
@@ -174,7 +183,9 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
   all three vertices' (length, width) lie within 1e-9 of ONE chord of `sideStretch(board, faceOutline(board), side)`
   (straight sides: one chord). s = chord-start distance along the stretch + projection on that chord. Memoise the stretch
   per call, not across calls.
-- [ ] **Step 4: Run** → PASS. Mutate: drop the outward-normal test (the dado case must fail); restore.
+- [ ] **Step 4: Run** → PASS. Mutate: drop the outward-normal test (the dado case must fail); set `tol` to `1e-9` (the
+  metric case must fail); restore. If the BoxGeometry-UV test fails, stop and report: the routing in Step 5 then needs the
+  user's decision (it is not to be "fixed" by changing `bodyMesh`).
 - [ ] **Step 5: Wire `BoardMesh.tsx`.** Props gain `bandTypes: readonly BandType[]` and `catalog: MaterialCatalog`.
   `looks = bandLooks(board, bandTypes)`. In `geometries`: when `looks.length > 0` and the part has bodies, build ONE
   geometry from `bandedMesh(board, looks, bodies.map((x) => bodyMesh(board, x, holes, bodies)))` (normals from the data
@@ -216,6 +227,9 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
     tagged `p:band:maple` on the near broad face lying at the glue offsets; FRONT → the far face's glue lines hidden.
   - `outline edges on a straight banded side carry the tag`: built-in tape on width-min → the outline edges at width 0
     carry `p:band:band-iron-on`; edges elsewhere carry no `feature` key (`'feature' in s === false`).
+  - `a corner edge takes the first side's tag`: maple on width-min and length-min → the through-thickness edge at
+    (length 0, width 0), seen in FRONT or SIDE, carries `p:band:maple` once; with built-in tape on width-min and maple on
+    length-min it carries `p:band:band-iron-on` (width-min comes first).
   - `no band types → no band segments`: the same part with `bandTypes` omitted draws exactly what a band-free copy draws.
   - `a section removes the far side's glue line`: a Side section at width 10 kept toward min → no `band` segment at width
     19.75.
@@ -224,7 +238,8 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
     side.
   - `faulted bands draw nothing`: too-thick ends → no `band` segment.
   In `featureKeys.test.ts`: `band keys` → `['Maple edging 1/4": width min side, width max side']` (type named `Maple
-  edging`), `Iron-on veneer: length min end`, two types on one part → two features; a faulted band's text ends ` — check
+  edging`), `Iron-on veneer: length min end`, two types on one part → two features; tape on an arched width-max side →
+  its feature's tags include `p:curve:<arch id>`; a faulted band's text ends ` — check
   the cut list`; `partFeatures(b, units)` with no band types returns what it returned before (no band feature). In
   `planKeys.test.ts`: `trioDrawings` returns different drawings for one parts array under two band type arrays (thickness
   0.25 vs 0.5).
@@ -233,8 +248,9 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
   bandTypes)` as `{ A: toWorld(b, a), E: toWorld(b, b), feature: featureTag(b.id, 'band', type) }` (nothing when
   `bandTypes` is absent). In `partSegments`, an edge with no angle/curve tag whose two local endpoints both lie on an
   unfaulted band's straight side plane (`across` = 0 or `part[across]`, within 1e-9, and the side's stretch is one chord)
-  gets that band's tag. `partFeatures` pushes, per band type used on the part (canonical order of first use), one feature:
-  tags `[featureTag(b.id, 'band', id)]`, text per Q6 (`formatLength(thickness, units)`), faulted when any of its bands is
+  gets the tag of the first such band in `BAND_SIDES` order. `partFeatures` pushes, per band type used on the part
+  (canonical order of first use), one feature: tags `[featureTag(b.id, 'band', id)]` plus, for each of its unfaulted bands
+  on a curved stretch, `featureTag(b.id, 'curve', c)` for every curve id `c` its chords carry (Q6), text per Q6 (`formatLength(thickness, units)`), faulted when any of its bands is
   in `bandFaults`, `trueAxis = axisOf(b, 'thickness')`. `trioCache` becomes `WeakMap<bandTypes, WeakMap<parts, …>>`.
 - [ ] **Step 4: Run** the three files, then `npx vitest run src/document/drawingIdentity.test.ts
   src/document/profilesFinal.test.ts src/panels` → PASS, identity pins unchanged.
@@ -303,8 +319,9 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
 **Files:**
 - Create: `docs/browser-verification-edge-banding-2.md`
 - Modify: `CLAUDE.md` (Status, Rounds row, inv 54 chunk 2 paragraph, inv 15 (`bandViewSignature` in BoardMesh's memo),
-  inv 47 (band tags), the file index for `bandFaces.ts`/`bandText.ts`, test count), `docs/history.md`, `docs/follow-ups.md`
-  (395(1) closed by Q1; new residue entries: Q6's curved tape key, Q7's distortion, real-hardware looks), the spec (status
+  inv 47 (band tags), the file index for `bandFaces.ts`/`bandText.ts`, the `→ units` edge rule's list (`bandText.ts` takes
+  it), test count), `docs/history.md`, `docs/follow-ups.md`
+  (395(1) closed by Q1; new residue entries: Q7's distortion, real-hardware looks), the spec (status
   line; Q1–Q7 as *Amended (planning, chunk 2)*)
 
 - [ ] **Step 1: Full gate.** `npm run build` and `npx vitest run` → all green (record the count).
@@ -314,6 +331,7 @@ Copied into the spec as *Amended (planning, chunk 2)* blocks in Task 5, for the 
   edging (glue lines clipped); the Plans sheet (glue lines, the key line, a mirrored copy); the cut list's diagrams (marks,
   both notes, a strip's mitres); a real Chromium PDF of the cut list and Plans sheet (`page.pdf()`). Record DOM readouts,
   screenshots where spatial, and what software GL cannot confirm (owed to the user's eye: the looks on real hardware).
+  Band and unband one plain part and compare the grain on its other faces (screenshots before and after).
 - [ ] **Step 3: Docs** as listed above.
 - [ ] **Step 4: Final whole-branch review**, fixes, then `git checkout master && git merge --no-ff edge-banding-2`, build
   and full run on the merged tree, delete the branch. Deploy only on the user's word.
