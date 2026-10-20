@@ -317,7 +317,7 @@ task:
   - `CutList.test.tsx`: the section renders `Hardware`, a row `Euro hinge, 35 mm` / `8` / `Base cabinet › Left door: 2 × 2;
     …`; absent with no hardware; the Buying block `Hardware` appears after `Edge banding`; the section is not numbered
     (no `rowNumbers` entry) and contributes no balloon (`planBalloons` untouched — assert its output unchanged on a
-    fixture with hardware).
+    fixture with hardware); hiding a part (store `hide`) leaves the section's totals unchanged.
   - **Mutate:** round packs with `Math.round`; drop the hardware cost from the total — tests must fail.
 - [ ] **Step 2: Run** the three files — expect FAIL.
 - [ ] **Step 3: Implement.**
