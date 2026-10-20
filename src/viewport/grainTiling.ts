@@ -134,6 +134,17 @@ const TILES: Record<GrainFamily, Record<GrainKind, [Tile, Tile]>> = {
   mdf:     { face: [8, 8],   edge: [8, 8],    end: [8, 8] },
 };
 
+/**
+ * A fixed tile's inches [along u, along v] (edge banding chunk 2, Q3: a band face's look reads `TILES` directly). Throws on
+ * a FIT axis: FIT resolves against a board's extent, which a band face has no business guessing — none of the band looks
+ * (wood edge, plywood face, mdf face) uses FIT.
+ */
+export function tileOf(family: GrainFamily, kind: GrainKind): [number, number] {
+  const [u, v] = TILES[family][kind];
+  if (u === FIT || v === FIT) throw new Error(`tileOf: ${family} ${kind} is FIT, not a fixed tile`);
+  return [u, v];
+}
+
 export interface FacePlan {
   kind: GrainKind;
   /** True when the drawn texture must be turned a quarter turn to follow the grain. */

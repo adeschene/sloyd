@@ -513,6 +513,8 @@ export function Viewport({
           selectable={tool === 'select'}
           color={catalog.color(board.material)}
           section={section}
+          bandTypes={doc.bandTypes}
+          catalog={catalog}
         />
       ))}
 
