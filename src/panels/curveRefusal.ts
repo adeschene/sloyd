@@ -2,6 +2,8 @@ import {
   bowFields, archFields, cornerFields, curveFaults, holeFaults, uvDims, CURVE_EPS, profileFields,
 } from '../document/document';
 import type { Board, CurveCut, Dimension } from '../document/document';
+import { bandFaults, bandFaultText, sideIndex } from '../document/banding';
+import type { BandType } from '../document/types';
 import { profileFaults } from '../document/profiles';
 import type { ProfileFault } from '../document/profiles';
 import type { ProfileCut } from '../document/document';
@@ -126,4 +128,14 @@ export function curveEditRefusal(f: ProfileFault, p: ProfileCut): string {
  *  `Puts hole 1 into the cove — move it first.` reads `Cove — puts hole 1 into the cove`. */
 export function optionReason(refused: string): string {
   return refused.split(' — ')[0]!.replace(/^./, (c) => c.toLowerCase()).replace(/\.$/, '');
+}
+
+/** A curve edit that ADDS a band fault (edge banding spec §3.4), named by its side; the first added, or null. */
+export function bandCurveRefusal(before: Board, after: Board, types: readonly BandType[]): string | null {
+  if (after.bands.length === 0) return null;
+  const had = new Set(bandFaults(before, types).map((f) => `${sideIndex(f.side)}:${f.kind}`));
+  const added = bandFaults(after, types).find((f) => !had.has(`${sideIndex(f.side)}:${f.kind}`));
+  if (!added) return null;
+  const side = edgeName({ dim: added.side.across, side: added.side.from }).replace(/^the /, '');
+  return `Edging on the ${side} ${bandFaultText(added.kind)} — remove the band first.`;
 }

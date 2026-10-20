@@ -11,7 +11,7 @@ import { endWord } from '../document/holeText';
 import { formatLength } from '../units/length';
 import { DimensionField } from './DimensionField';
 import { Popover } from './Popover';
-import { holeRefusal, profileFaultsBefore, profileRefusal, refusalFor, optionReason } from './curveRefusal';
+import { bandCurveRefusal, holeRefusal, profileFaultsBefore, profileRefusal, refusalFor, optionReason } from './curveRefusal';
 import type { Control, Draft } from './curveRefusal';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
@@ -32,14 +32,17 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
   const units = useStore((s) => s.doc.units);
   const updateCurve = useStore((s) => s.updateCurve);
   const removeCurve = useStore((s) => s.removeCurve);
+  const bandTypes = useStore((s) => s.doc.bandTypes);
   const [error, setError] = useState<string | null>(null);
   const f = (n: number) => formatLength(n, units);
   const line = curveLine(board, curve, units);
   const stored = curveFaults(board, curve);
   /** The refusal for `next` (nothing stored), or null: the curve's own (`refusalFor`), then a fault it would ADD to a profile
    *  on this part (profile runs b1, Review Focus 2: a corner shrunk under a roundover's reach). */
-  const refuse = (next: Draft, control: Control | null): string | null => refusalFor(board, curve, next, control)
-    ?? profileRefusal(board, { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) });
+  const refuse = (next: Draft, control: Control | null): string | null => {
+    const after: Board = { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
+    return refusalFor(board, curve, next, control) ?? profileRefusal(board, after) ?? bandCurveRefusal(board, after, bandTypes);
+  };
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
   const attempt = (next: Draft, control: Control | null): string | null => {
     const refused = refuse(next, control);
@@ -192,6 +195,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
 export function Curves({ board }: { board: Board }) {
   const addCurves = useStore((s) => s.addCurves);
   const units = useStore((s) => s.doc.units);
+  const bandTypes = useStore((s) => s.doc.bandTypes);
   // A preset whose default would fault on this part — a curve fault, a hole it would put into the waste, or a fault it would
   // ADD to a profile on the part (profile runs b1) — is withheld, not added and refused (the AngleCuts/Holes precedent).
   // Judged once per stored part and units, not per render (a resize drag renders every frame).
@@ -202,7 +206,8 @@ export function Curves({ board }: { board: Board }) {
       if (!cs) return false;
       if (cs.some((c) => curveFaults(board, c).length > 0)) return false;
       const after: Board = { ...board, curves: [...board.curves, ...cs.map((c, i) => ({ ...c, id: `__preset${i}` }))] };
-      return holeRefusal(board, after) === null && profileRefusal(board, after, before) === null;
+      return holeRefusal(board, after) === null && profileRefusal(board, after, before) === null
+        && bandCurveRefusal(board, after, bandTypes) === null;
     };
     const one = (c: Draft | null) => (c ? [c] : null);
     const arch = one(defaultArch(board));
@@ -217,7 +222,7 @@ export function Curves({ board }: { board: Board }) {
       ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
       ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),
     ];
-  }, [board, units, addCurves]);
+  }, [board, units, addCurves, bandTypes]);
   const shown = board.curves;
   return (
     <>

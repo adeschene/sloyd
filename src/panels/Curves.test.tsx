@@ -495,3 +495,43 @@ describe('Curves refuses a corner edit that crosses a two-side run\'s stations o
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+// Edge banding 1, spec §3.4: a curve edit that would break a band is refused, per (side, kind), naming the side.
+describe('Curves refuses an edit that breaks a band (edge banding 1)', () => {
+  const maple = { id: 'm', name: 'Maple', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
+  const part = (sides: Array<'min' | 'max'>) => createBoard({ id: 'top', name: 'Top', length: 30, width: 12, thickness: 0.75, material: 'plywood',
+    bands: sides.map((from) => ({ side: { across: 'width' as const, from }, type: 'm' })) } as Partial<Board>);
+  const openBanded = (b: Board) => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [b], bandTypes: [maple] } as never);
+    useStore.getState().selectBoard(b.id);
+    render(<Properties />);
+  };
+
+  it('an Arch preset that would break a band is withheld from the menu', async () => {
+    const user = userEvent.setup();
+    openBanded(part(['min']));
+    // The Arch, Notch and Bow all cut the banded min side: none of the three is offered.
+    const add = screen.queryByRole('button', { name: '+ Add curve' });
+    if (add) await user.click(add);
+    for (const name of ['Arch', 'Half-round notch', 'Bow']) expect(screen.queryByRole('button', { name })).toBeNull();
+    expect(curves()).toEqual([]);
+  });
+
+  const arch = (side: 'min' | 'max') => ({ id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side, from: 'min', start: 3, span: 24, rise: 1.25 }) });
+
+  it('an Arch moved onto a banded side is refused in the band words, nothing stored', async () => {
+    const user = userEvent.setup();
+    openBanded({ ...part(['min']), curves: [arch('max')] });
+    await user.selectOptions(screen.getByLabelText('Side'), 'min');
+    expect(archFields(curves()[0]!)!.side).toBe('max');
+    expect(screen.getByRole('alert').textContent).toBe('Edging on the width min side needs a straight edge — remove the band first.');
+  });
+
+  it('a band already faulted on one side does not license a new fault on another (compared per side AND kind)', async () => {
+    const user = userEvent.setup();
+    openBanded({ ...part(['min', 'max']), curves: [arch('min')] });     // the min side's band is already needs-straight
+    await user.selectOptions(screen.getByLabelText('Side'), 'max');      // would fault the max side's band: ADDED
+    expect(archFields(curves()[0]!)!.side).toBe('min');
+    expect(screen.getByRole('alert').textContent).toBe('Edging on the width max side needs a straight edge — remove the band first.');
+  });
+});

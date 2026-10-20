@@ -3,6 +3,7 @@ import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/doc
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { holedParts } from '../../document/holedRefusal';
 import { curvedParts } from '../../document/curvedRefusal';
+import { bandedParts } from '../../document/bandedRefusal';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
 
 /**
@@ -103,6 +104,7 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
     const flat = flatDocument(doc);
     if (holedParts(flat).length > 0) return null; // withheld, not refused (holes spec §6): the dialog has already refused
     if (curvedParts(flat).length > 0) return null; // withheld (curves spec §7)
+    if (bandedParts(flat).length > 0) return null; // withheld (edge banding §6)
     const r = repairJoints(flat, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
     const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));
