@@ -49,7 +49,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Custom materials | `MATERIALS` is a fixed seven entries; the `SheetStock` doc comment anticipates this round (ash, poplar, 5×5 Baltic birch, ½" ply…) | merged 2026-10-14 (custom materials chunk 1, schema 15: library + per-project copies, Materials & prices dialog, Refine keeps them) |
 | Nominal dimensional lumber | A 2×4 is 1½ × 3½ | merged 2026-10-14 (custom materials chunk 2: names in the cut list and Buying, a Nominal size select, a per-material switch) |
 | Edge banding | Banded edges flagged on the cut list | shipped 2026-10-20 (schema 19: band types, bands, core sizes, strips and tape in Buying, looks, glue lines; deployed `index-QDQAnB8n.js`) |
-| Hardware / accessories BOM | Screws, hinges, slides, pulls | built 2026-10-21 on branch `hardware` (schema 20: per-project types with pack size and price, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's block); pending merge and deploy |
+| Hardware / accessories BOM | Screws, hinges, slides, pulls | deployed 2026-10-21 (schema 20: per-project types with pack size and price, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's block); pending merge and deploy |
 | Weight | OpenCutList reports cost and weight together | open |
 | Printable part labels | OpenCutList-style stickers; distinct from the diagram label layout | open |
 | Metric display | Input already parses metric; `units.display` only allows `'imperial-fractional'` | shipped 2026-10-15 in two chunks (Units switch, fields, typing, tape, cut list, bench lines; drawings bare mm + sheet note, Buying brackets, metric grid) |

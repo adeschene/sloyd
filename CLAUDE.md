@@ -43,23 +43,23 @@ outline, two-side runs); edge banding (tape and solid edging).
 
 ## Status
 
-- **Production: `4a6d6a1`, bundle `index-QDQAnB8n.js`, CSS `index-CgWDfdXW.css`, SCHEMA 19** (band
-  wording, deployed 2026-10-20). Edge banding is complete; every spec amendment through it is
-  approved.
+- **Production: `98c7df4`, bundle `index-BZhrLswD.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (the
+  hardware bill of materials, merged and deployed 2026-10-21). Owed to the user: fu 410–412 (wording) and
+  the hardware spec's *Amended (implementation)* words.
 - **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
 
   | Roll back to | Bundle | Schema | Cost |
   |---|---|---|---|
-  | `dc8d5c3` / `834ce5a` / `37ced13` | `index-ymPlKpkL.js` / `index-Vul7x2lO.js` / `index-Df8FpxEW.js` | 19 | free |
+  | `4a6d6a1` (band wording) | `index-QDQAnB8n.js` | 19 | REFUSES every project saved at 20 — export first |
+  | `dc8d5c3` / `834ce5a` / `37ced13` | `index-ymPlKpkL.js` / `index-Vul7x2lO.js` / `index-Df8FpxEW.js` | 19 | same |
   | `90ef45f` (chunk c2) | `index-Cqf9kRT7.js` | 18 | REFUSES every project saved at 19 — export first |
   | `dc49b01` (b1) | `index-CDDCzMGJ.js` | 18 | also REFUSES a two-side stopped run; a one-side stop on a turned path loads SILENTLY as a2's straight prism (on an arch it vanishes; data intact) |
   | `3ee667e` (a1 + a2) | `index-BbXkYYy4.js` | 18 | also REFUSES an All round loop |
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **Hardware round (2026-10-21): BUILT on branch `hardware`, pending merge and deploy** (schema 20; spec
-  `2026-10-20-sloyd-hardware-design.md`, live check `docs/browser-verification-hardware.md`; merge `--no-ff`, then deploy is the user's call;
-  the line and rollback table above change at deploy). Owed to the user: fu 410–412 (wording) and the spec's *Amended (implementation)* words.
+- **Hardware round (2026-10-21): DEPLOYED** (schema 20; spec `2026-10-20-sloyd-hardware-design.md`, live check
+  `docs/browser-verification-hardware.md`; merge `98c7df4`).
 - **NEXT (audited 2026-10-20):** nothing else is pending deploy. Owed to the user: fu 402(1)–(2) (band
   looks on real hardware, glue lines on a real print). As the user directs: fu 396–403 (396, 397
   open by decision; 398–400 features; 401, 403 record-only) and fu 267's hardware bill of materials
@@ -639,8 +639,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding and hardware built; closed once deployed), 404–408 (hardware residue), 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–331, 334 (332 closed once deployed, like 267); curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
+- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 404–408 (hardware residue), 268, 270,
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–331, 334; curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*

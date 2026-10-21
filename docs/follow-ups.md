@@ -5519,7 +5519,7 @@ dialog's Edge banding section, Curves' band refusal, joinery/Refine/Repair refus
 `edge-banding-1` (2026-10-20), merged to master as `b7f700b`; deploy pending the user. **Chunk 2** (viewport looks, Plans
 sheet glue lines and keys, part diagrams) is next. The HARDWARE half (a hardware bill of materials, with fu 332's dowels)
 stays open, feature-sized, for its own spec. Residue: 395–401.
-**Status:** the HARDWARE half is CLOSED by the hardware round (schema 20; spec `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md`; built on branch `hardware` 2026-10-21, pending merge and deploy): hardware types, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's Hardware block. Residue: 404–412.
+**Status:** the HARDWARE half is CLOSED by the hardware round (schema 20; spec `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md`; merged `98c7df4` and deployed 2026-10-21 as `index-BZhrLswD.js`): hardware types, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's Hardware block. Residue: 404–412.
 
 **268. Glue-ups from narrow stock.** A part wider than every stock board is "too wide"; edge-gluing narrower boards is
 not modelled. **Status:** open.
@@ -5979,7 +5979,7 @@ edges (inv 50's convex bodies stay). **Status:** open (spec §11).
 **332. Dowels as hardware.** A dowel joint is two holes placed by hand (the user's ruling); dowels as objects belong with
 the hardware bill of materials (fu 267). **Status:** open (spec §11).
 **Status:** open (feature; needs a spec) (with 267). (triaged 2026-10-16)
-**Status:** closed by the hardware round (2026-10-21): a dowel is a hardware type counted by hand on the part that carries the joint (spec §2.1); counting dowels from hole pairs is fu 404. Pending merge and deploy.
+**Status:** closed by the hardware round (2026-10-21): a dowel is a hardware type counted by hand on the part that carries the joint (spec §2.1); counting dowels from hole pairs is fu 404. Deployed 2026-10-21 (`index-BZhrLswD.js`).
 
 **333. Hole callouts on the Plans sheet.** Dimensioned hole positions and sizes on the sheet; joins fu 252 (callouts).
 **Status:** open (spec §11).

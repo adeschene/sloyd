@@ -1,6 +1,6 @@
 # Sloyd — hardware bill of materials
 
-**Date:** 2026-10-20 · **Status:** APPROVED by the user 2026-10-20 (written spec, builder-checked; every §10 call and the builder-check settlements approved with it). **IMPLEMENTED 2026-10-21 on branch `hardware` (commits 6049fff..c9d5c08); not merged, not deployed.** Written from fu 267 at the user's request ("skip the
+**Date:** 2026-10-20 · **Status:** APPROVED by the user 2026-10-20 (written spec, builder-checked; every §10 call and the builder-check settlements approved with it). **IMPLEMENTED 2026-10-21, MERGED as `98c7df4`, DEPLOYED 2026-10-21 as `index-BZhrLswD.js` (schema 20).** Written from fu 267 at the user's request ("skip the
 questions, write it from fu 267"), so **every decision below is Claude's call** unless marked as the user's; §10 lists
 them for review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the tree (`worldParts`,
