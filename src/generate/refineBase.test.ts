@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { refineDialogInfo, refineRefusal, plainForRefine } from './refine';
 import type { RefineSettings } from './refine';
-import { JOINERY_OUTPUT_PER_SITE, joineryEstimateUsd, refineEstimateUsd } from './run';
+import { JOINERY_OUTPUT_PER_SITE, joineryEstimateUsd, refineEstimateUsd, runRefine } from './run';
 import { CHARS_PER_TOKEN } from './estimate';
 import { JOINERY_PROMPT, JOINT_SCHEMA } from './joints/choose';
 import { designToDocument } from '../document/generated';
@@ -121,6 +121,13 @@ describe('holes (holes spec §6)', () => {
     expect('refused' in base && base.refused.reason).toBe('holes');
     expect(gate).not.toHaveBeenCalled();
   });
+  it('a joined Refine of a holed project refuses in Refine\'s words before joineryRefusal', async () => {
+    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
+    const out = await runRefine(c, withHole(joined, 'Top'), S, new AbortController().signal, () => {});
+    if (!('refused' in out)) throw new Error('expected a refusal');
+    expect(out.refused.message.startsWith("Refine doesn't handle parts with holes yet")).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+  });
   it('the dialog reads it as neither joined nor repairable', () => {
     const info = refineDialogInfo(withHole(joined, 'Top'));
     expect(info.joined).toBe(false);
@@ -146,6 +153,28 @@ describe('estimate ranges (fu 236)', () => {
     const first = spy.mock.calls[0]![0];
     expect(first.cacheWriteTokens).toBe(Math.ceil((JOINERY_PROMPT.length + JSON.stringify(JOINT_SCHEMA).length) / CHARS_PER_TOKEN));
     expect(first.outputTokens).toBe(findSites(flatDocument(plain)).length * JOINERY_OUTPUT_PER_SITE);
+  });
+
+  describe('with holes (joinery-holes spec §3.5)', () => {
+    // The estimate prices the sites still sent: a caller (the dialog) hands it the narrowed list.
+    const sites = findSites(flatDocument(plain));
+    const shapeOf = (open?: typeof sites) => {
+      const spy = vi.fn((u: LlmUsage) => u.inputTokens);
+      joineryEstimateUsd({ ...client, estimateCostUsd: spy }, plain, open);
+      return spy.mock.calls[0]?.[0];
+    };
+    const butt = (s: (typeof sites)[number]) => ({ ...s, allowed: ['butt' as const] });
+    it('estimate counts only sites still sent', () => {
+      expect(sites.length).toBeGreaterThan(1);
+      const all = shapeOf(sites)!;
+      const fewer = shapeOf([butt(sites[0]!), ...sites.slice(1)])!;
+      expect(fewer.outputTokens).toBe((sites.length - 1) * JOINERY_OUTPUT_PER_SITE);
+      expect(fewer.outputTokens).toBeLessThan(all.outputTokens);
+      expect(fewer.inputTokens + fewer.cacheWriteTokens).toBeLessThan(all.inputTokens + all.cacheWriteTokens);
+    });
+    it('estimate is null when every site is left butt', () => {
+      expect(joineryEstimateUsd(client, plain, sites.map(butt))).toBeNull();
+    });
   });
 
   it('joinery: null with no sites', () => {

@@ -2,17 +2,20 @@ import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import type { Board, FlatDocument, SloydDocument } from '../../document/document';
-import { flatDocument, groupItems, migrateDocument, sharedOf, writeBackFlat } from '../../document/document';
+import { flatDocument, groupItems, migrateDocument, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
+import { JOINERY_PROMPT, JOINT_SCHEMA } from './choose';
+import { createHash } from 'node:crypto';
+import type { HoleRow } from '../../document/types';
 import { applyJoints } from './recipes';
 import { findSites, jointKey } from './sites';
 import { defaultChoice, validChoice } from './choose';
 import { checkDesign } from '../../document/designCheck';
 import { ARCH } from '../../document/curveFixtures';
 import { taperCut } from '../../document/angleCuts';
-import { axisFrame, endFacing } from '../../document/geometry';
+import { axisDimensions, axisFrame, endFacing, fromWorldOffset } from '../../document/geometry';
 import type { AngleCut } from '../../document/types';
 
 vi.mock('./recipes', async (orig) => {
@@ -193,30 +196,29 @@ describe('runJoinery', () => {
     });
 
     // Joinery-holes spec §4.5: the Shape carries the hole row (holes are a SHARED field, inv 45), so a join that cuts only
-    // ONE user must split it. Joinery's write-back is replayed here (applyJoints, then writeBackFlat) because `run` still
-    // refuses holed documents until the wiring task lifts it.
-    const onlyLegA = (shared: Partial<Board>): { doc: SloydDocument; out: SloydDocument } => {
+    // ONE user must split it. The real run path, as the angle-cut sibling goes: a scripted answer tenons Leg A only.
+    const onlyLegA = async (shared: Partial<Board>): Promise<{ doc: SloydDocument; out: SloydDocument }> => {
       const d = linked(['Leg A', 'Leg B']);
       const withShared: SloydDocument = { ...d, shapes: d.shapes.map((sh) => ({ ...sh, ...shared })) };
       const flat = flatDocument(withShared);
       const sites = findSites(flat);
       const legA = flat.boards.findIndex((b) => b.name === 'Leg A');
-      const choices = sites.map((s) => (s.receive === legA
-        ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 } : { site: s.id, joint: 'butt' as const }));
-      const joined = applyJoints(flat, sites, choices);
-      return { doc: withShared, out: migrateDocument(writeBackFlat(withShared, flat.boards, worldParts(joined.doc))) };
+      const answer = { joints: sites.map((s) => (s.receive === legA ? { site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 } : { site: s.id, joint: 'butt' })) };
+      const res = await run(client(answer), withShared);
+      if ('noSites' in res || 'refused' in res) throw new Error('expected sites');
+      return { doc: withShared, out: res.result.doc };
     };
     const HOLES = [{ id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.25, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 10, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 }];
 
-    it('two parts on one shape with an angle cut: only one tenoned unlinks the pair (the fixture the hole case follows)', () => {
-      const { out } = onlyLegA({ angleCuts: [{ id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [3, 0]] }] });
+    it('two parts on one shape with an angle cut: only one tenoned unlinks the pair (the fixture the hole case follows)', async () => {
+      const { out } = await onlyLegA({ angleCuts: [{ id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [3, 0]] }] });
       const legs = worldParts(out).filter((b) => b.name.startsWith('Leg'));
       expect(legs.map((l) => l.angleCuts.length)).toEqual([1, 1]);
       expect(out.shapes).toHaveLength(0); // the cut differs, so neither user keeps the shape (a one-user shape dissolves, inv 45)
     });
 
-    it('two parts on one shape with a hole row: only one tenoned', () => {
-      const { doc, out } = onlyLegA({ holes: HOLES });
+    it('two parts on one shape with a hole row: only one tenoned', async () => {
+      const { doc, out } = await onlyLegA({ holes: HOLES });
       const legs = (d: SloydDocument) => worldParts(d).filter((b) => b.name.startsWith('Leg'));
       expect(legs(out).filter((l) => l.cuts.length > 0).map((l) => l.name)).toEqual(['Leg A']);
       // Every hole row is where it was: joinery grew only Leg A across its width, and the row is measured from the min end.
@@ -526,12 +528,11 @@ describe('runJoinery — tapered legs (AI-tapers spec §4)', () => {
   const tapered = (doc: FlatDocument, start: number): FlatDocument =>
     ({ ...doc, boards: doc.boards.map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [face(b, 0, start), face(b, 2, start)] } : b)) });
 
-  it('refuses a document with holes before any call (holes spec §6)', async () => {
+  it('a document with holes no longer refuses: it runs (joinery-holes spec §3)', async () => {
     const c = client({ joints: [] });
     const holed = { ...CORNER, boards: CORNER.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 }] } : b)) };
     const out = await run(c, holed);
-    expect('refused' in out).toBe(true);
-    expect(c.complete).not.toHaveBeenCalled();
+    expect('refused' in out).toBe(false);
   });
   it('refuses a document with curves before any call (curves spec §7)', async () => {
     const c = client({ joints: [] });
@@ -578,5 +579,82 @@ describe('runJoinery — tapered legs (AI-tapers spec §4)', () => {
     const leg = flatDocument(out.result.doc).boards.find((b) => b.name === 'Leg')!;
     expect(leg.length).toBe(28.5);
     expect(leg.angleCuts).toEqual(cuts);
+  });
+});
+
+// Joinery-holes spec §3.5: a holed project runs, and only the joints a hole is in the way of are ruled out.
+describe('runJoinery with holes (joinery-holes spec §3.5)', () => {
+  type V3 = [number, number, number];
+  /** A one-hole row drilled along world axis k from its fromSide face (the featureZones tests' helper, in brief). */
+  const holeAt = (b: Board, k: number, fromSide: -1 | 1, at: V3, diameter: number, depth: number): HoleRow => {
+    const dims = axisDimensions(b);
+    const [p, q] = [0, 1, 2].filter((a) => a !== k);
+    const local = (a: number) => fromWorldOffset(b, a, at[a] - b.position[a]);
+    return { id: 'h', face: dims[k], from: endFacing(b, k, fromSide), diameter, depth, along: dims[p], alongFrom: 'min', station: local(p), count: 1, pitch: 0, acrossFrom: 'min', inset: local(q) };
+  };
+  const build = (parts: P[], holes: Record<string, (b: Board) => HoleRow[]>): SloydDocument => {
+    const d = designToDocument({
+      name: 'T',
+      parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
+    }, { centre: false }).doc;
+    const flat = flatDocument(d).boards;
+    return { ...d, boards: d.boards.map((b) => (holes[b.name] ? { ...b, holes: holes[b.name](flat.find((f) => f.name === b.name)!) } : b)) };
+  };
+  // 3/8 deep from the outer face of 3/4 stock under a 1/2-thick shelf: the tenon is ruled out, the dado kept.
+  const TENON_OUT = () => build(
+    [{ name: 'Side', at: [0, 0, 0], size: [0.75, 30, 11.25] }, { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.5, 11.25] }],
+    { Side: (b) => [holeAt(b, 0, -1, [0, 12.25, 5], 0.25, 0.375)] },
+  );
+  // Dowel holes in the rail's end: every growing kind is ruled out, the site is left butt.
+  const ALL_OUT = () => build(
+    [{ name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] }, { name: 'Rail', at: [1.75, 23.5, 0], size: [18, 3.5, 0.75] }],
+    { Rail: (b) => [24.5, 26].map((y, i) => ({ ...holeAt(b, 0, -1, [0, y, 0.375], 0.375, 1), id: `d${i}` })) },
+  );
+  const sent = (c: LlmClient) => String((c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[0]);
+
+  it('a holed project runs: the sites sent list narrowed allowed', async () => {
+    const c = client({ joints: [{ site: 1, joint: 'dado', depth: 0.25 }] });
+    const out = await run(c, TENON_OUT());
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    const msg = sent(c);
+    expect(msg).toContain('dado (depth');
+    expect(msg).not.toContain('mortise-tenon');
+    expect(out.result.applied.map((a) => a.joint)).toEqual(['dado']);
+  });
+
+  it('the summary lines lead the notes', async () => {
+    // The model asks for the ruled-out tenon: its own note follows the summary line.
+    const out = await run(client({ joints: [{ site: 1, joint: 'mortise-tenon', tenonLength: 0.25 }] }), TENON_OUT());
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(out.notes[0]).toBe("Shelf → Side: mortise and tenon ruled out — Side's holes are in the way.");
+    expect(out.notes[1]).toContain('mortise-tenon is not possible there');
+  });
+
+  it('every site left butt: no call', async () => {
+    const c = client({ joints: [] });
+    const out = await run(c, ALL_OUT());
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(c.complete).toHaveBeenCalledTimes(0);
+    expect(out.chosen).toBe(0);
+    expect(out.result.applied.map((a) => a.joint)).toEqual(['butt']);
+    expect(out.notes).toEqual(["Rail → Leg: left as a butt — Rail's holes are in the way of every joint."]);
+  });
+
+  it('the fallback path carries the summary lines too', async () => {
+    const out = await run(client(new LlmError('overloaded', 'down')), TENON_OUT());
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(out.fallback).toBeDefined();
+    expect(out.notes[0]).toContain('mortise and tenon ruled out');
+  });
+
+  it('a project with no hole sends every allowed kind (byte for byte)', async () => {
+    const c = client(long);
+    await run(c);
+    expect(sent(c)).toContain('mortise-tenon');
+  });
+
+  it('JOINERY_PROMPT and JOINT_SCHEMA are unchanged', () => {
+    const hash = createHash('sha256').update(JOINERY_PROMPT).update('\0').update(JSON.stringify(JOINT_SCHEMA)).digest('hex');
+    expect(hash).toBe('dbc570dee7e8e91791a460737c20a9d76f5d9907d9ad7755c58291386a653328');
   });
 });

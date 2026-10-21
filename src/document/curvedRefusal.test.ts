@@ -16,9 +16,9 @@ describe('curvedRefusal (curves spec §7)', () => {
     expect(curvedRefusal(flatDocument(doc(4)), 'joinery')).toContain('(Apron 1, Apron 2, Apron 3…)');
     expect(curvedRefusal(flatDocument(doc(1)), 'refine')).toMatch(/^Refine /);
   });
-  it('a part with both holes and curves: the holes refusal comes first at joinery entry (pinned order)', () => {
+  it('a part with both holes and curves: the curves refusal is the joinery refusal (holes no longer refuse)', () => {
     const d = { ...createDocument('T'), boards: [createBoard({ id: 'b0', name: 'Apron 1', curves: [ARCH], holes: [pin] })] };
     expect(curvedRefusal(flatDocument(d), 'joinery')).not.toBeNull();
-    expect(joineryRefusal(d)).toContain('with holes');
+    expect(joineryRefusal(d)).toContain('with curves');
   });
 });

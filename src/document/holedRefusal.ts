@@ -9,12 +9,10 @@ const list = (names: string[]) => `${names.slice(0, 3).join(', ')}${names.length
 
 /**
  * The refusal for a document with holes (holes spec §6), or null. Decided at entry, before any mutation or paid call.
- * Joinery is box-based and would cut a pocket through a hole; Refine cannot describe one.
+ * Refine cannot describe a hole. (Add joinery no longer refuses: it rules out only the joints a hole is in the way of.)
  */
-export function holedRefusal(flat: FlatDocument, action: 'joinery' | 'refine'): string | null {
+export function holedRefusal(flat: FlatDocument, _action: 'refine'): string | null {
   const names = holedParts(flat);
   if (names.length === 0) return null;
-  return action === 'joinery'
-    ? `Add joinery doesn't handle parts with holes yet (${list(names)}). Add joinery before drilling, or remove the holes first.`
-    : `Refine doesn't handle parts with holes yet (${list(names)}). Refine before drilling, or remove the holes first.`;
+  return `Refine doesn't handle parts with holes yet (${list(names)}). Refine before drilling, or remove the holes first.`;
 }
