@@ -139,7 +139,7 @@ src/
 │   │                     (stopped)` one side; `, from <Start> round <between> to <Stop> (stopped)` two, `<between>` walking the sides in travel
 │   │                     order — never the path), sweptRun (a stop's `round the corner(s)` only for a through end at a corner arc)
 │   ├── curvedRefusal.ts  curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
-│   ├── bandModel.ts      edge banding's stored model (inv 54; imports only `./types`): BUILT_IN_BAND (`band-iron-on`),
+│   ├── bandModel.ts      edge banding's stored model (inv 54; imports only `ids` and `types`): BUILT_IN_BAND (`band-iron-on`),
 │   │                     BAND_KINDS, CORNER_RULES, BAND_SIDES (canonical: width-min, width-max, length-min, length-max), BAND_FIELDS
 │   │                     (inv 40), canonicalBands, mirrorBands (inv 44: a flag flip), copyBand/sameBands/bandValues, withBands,
 │   │                     withBandTypes, newBandType (`Tape 2`, `Solid edging`), sameBandType
@@ -150,7 +150,7 @@ src/
 │   │                     (part, band types), deep-frozen; glueLines (chunk 2: THE glue-line geometry, board-local, per corner rule)
 │   ├── bandText.ts       bandLine (THE band line, moved from cutlist.ts), coreNote (`Drawn at the finished size; cut … before banding.`) (→ units)
 │   ├── bandedRefusal.ts  bandedParts / bandedRefusal: joinery, Refine and Repair refuse a banded project (after curves')
-│   ├── hardwareModel.ts  hardware's stored model (inv 55; imports only `ids` and `types`): HARDWARE_FIELDS (inv 40), HARDWARE_COUNT_MAX (999),
+│   ├── hardwareModel.ts  hardware's stored model (inv 55; imports only `./types`): HARDWARE_FIELDS (inv 40), HARDWARE_COUNT_MAX (999),
 │   │                     PACK_SIZE_MAX, canonicalHardware, copyHardwareUse/sameHardware/sameHardwareType, withHardwareUse, mergeHardware
 │   │                     (Ungroup); `hardware` is a SHARED field in LINK_FIELDS (inv 45)
 │   ├── hardware.ts       THE hardware arithmetic (inv 55; no `units`): hardwareTotals (a part per placement, an assembly per placement of
