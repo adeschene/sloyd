@@ -103,7 +103,7 @@ const STAGE1 = (eWidth: number): P[] => [
 const BLOCKER_CASE: P[] = [...BACK_CASE, { name: 'Top', at: [0, 30, -0.25], size: [21.5, 0.75, 12.25] }];
 const foot = (name: string, x: number): P => ({ name, at: [x, 0, 0], size: [2, 2, 11.25] });
 
-const FIXTURES: { label: string; make: () => FlatDocument }[] = [
+const FIXTURES: { label: string; make: () => FlatDocument; layout?: (b: Board) => HoleRow[] }[] = [
   { label: 'leg and rail', make: () => design(...LEG_RAIL) },
   { label: 'rail between two legs', make: () => design(...RAIL_TWO_LEGS) },
   { label: 'side and shelf', make: () => design({ name: 'Side', at: [0, 0, 0], size: [0.75, 30, 11.25] }, { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] }) },
@@ -279,6 +279,21 @@ const FIXTURES: { label: string; make: () => FlatDocument }[] = [
     return flatDocument(grouped);
   } })),
   { label: 'shaker table', make: () => flatDocument(designToDocument(SHAKER_TABLE_JSON as never, { centre: false }).doc) },
+  // The grid lands in every crossing notch, so with it correct code rules half-lap out at every lap fixture. These two
+  // place their holes by hand instead, beside the notches (some TANGENT to a notch's end: touching is allowed), so a
+  // half-lap is really applied through the holes, single-partner and in a grid. Notches are board-local length spans.
+  ...[0, 1].map((k) => ({ label: `half-lap, holes beside the notch${k ? ', turned 90' : ''}`, make: () => (k ? quarterTurned(LAP, 1) : design(...LAP)),
+    // Both parts are notched over length [9, 11]: 8.875 and 11.125 touch it, 4 and 16 are clear.
+    layout: (b: Board) => pinsAt(b, [4, 8.875, 11.125, 16]) })),
+  { label: 'half-lap stretcher grid, one lap set clear', make: () => design(
+    { name: 'LowA', at: [0, 5, 0], size: [20, 0.75, 2] },
+    { name: 'LowB', at: [0, 5, 10], size: [20, 0.75, 2] },
+    { name: 'UpA', at: [2, 5.75, -4], size: [2, 0.75, 20] },
+    { name: 'UpB', at: [12, 5.75, -4], size: [2, 0.75, 20] },
+  ),
+  // LowA and LowB are notched over [2, 4] (by UpA) and [12, 14] (by UpB); UpA and UpB over [4, 6] and [14, 16]. One hole
+  // in UpA's notch in LowA rules UpA's lap set out; UpB's set, clear (14.125 and 6.125 tangent), is applied.
+  layout: (b: Board) => pinsAt(b, b.name === 'LowA' ? [3, 8, 14.125, 17.5] : b.name.startsWith('Low') ? [8, 14.125, 17.5] : [6.125, 10]) },
 ];
 
 /**
@@ -294,7 +309,16 @@ const grid = (b: Board): HoleRow[] => {
     { id: 'oracle-end', face: 'length', from: 'min', diameter: 0.25, depth: 0.75, along: 'width', alongFrom: 'min', station: b.width / 2, count: 1, pitch: 0, acrossFrom: 'min', inset: b.thickness / 2 },
   ];
 };
-const holed = (doc: FlatDocument): FlatDocument => ({ ...doc, boards: doc.boards.map((b) => ({ ...b, holes: grid(b) })) });
+/** A hand layout: one 1/4in hole at each length station from EACH thickness face (half the thickness deep, inset half the
+ *  width, as the grid), plus the grid's end hole. */
+const pinsAt = (b: Board, stations: number[]): HoleRow[] => [
+  ...stations.flatMap((station, i) => (['min', 'max'] as const).map((from): HoleRow => ({
+    id: `oracle-pin${i}-${from}`, face: 'thickness', from, diameter: 0.25, depth: b.thickness / 2,
+    along: 'length', alongFrom: 'min', station, count: 1, pitch: 0, acrossFrom: 'min', inset: b.width / 2,
+  }))),
+  grid(b)[2]!,
+];
+const holed = (doc: FlatDocument, layout: (b: Board) => HoleRow[] = grid): FlatDocument => ({ ...doc, boards: doc.boards.map((b) => ({ ...b, holes: layout(b) })) });
 
 const DIMS = ['length', 'width', 'thickness'] as const;
 /** Overlap beyond float noise on all three dimensions: touching is allowed (spec §3.3, amended). */
@@ -384,8 +408,8 @@ function perKindRuns(doc: FlatDocument, sites: Site[]): { label: string; choices
 describe('the oracle: no joint takes wood from a hole, and no hole is lost (joinery-holes spec §7)', () => {
   const results: { label: string; input: FlatDocument; sites: Site[]; ruledOut: number; defaults: JointChoice[]; runs: Run[] }[] = [];
   beforeAll(() => {
-    for (const { label, make } of FIXTURES) {
-      const input = holed(make());
+    for (const { label, make, layout } of FIXTURES) {
+      const input = holed(make(), layout);
       const found = findSites(input);
       const { sites, ruledOut } = featureAllowed(input, found);
       // The default run as runJoinery builds it: a site features left with only butt is joined as a butt, never chosen.
@@ -415,6 +439,21 @@ describe('the oracle: no joint takes wood from a hole, and no hole is lost (join
 
   it('every run: no cut meets a hole, no new hole fault, holes stay put in the wood, every row kept', () => {
     expect(results.flatMap(({ input, runs }) => runs.flatMap((run) => breaches(input, run)))).toEqual([]);
+  });
+
+  it('the hand-laid lap fixtures really lap: beside the notches applied, in UpA\'s notch ruled out', () => {
+    const of = (label: string) => results.find((r) => r.label === label)!;
+    const lapsIn = (label: string) => of(label).runs[0]!.out.applied.filter((a) => a.joint === 'half-lap').map((a) => a.site);
+    for (const label of ['half-lap, holes beside the notch', 'half-lap, holes beside the notch, turned 90']) {
+      expect(of(label).ruledOut, label).toBe(0);
+      expect(lapsIn(label), label).toEqual([1]);
+    }
+    const grid = of('half-lap stretcher grid, one lap set clear');
+    const name = (i: number) => grid.input.boards[i]!.name;
+    expect(grid.sites.map((s) => [name(s.enter), name(s.receive), s.allowed]), 'narrowed').toEqual([
+      ['UpA', 'LowA', ['butt']], ['UpA', 'LowB', ['butt']], ['UpB', 'LowA', ['half-lap', 'butt']], ['UpB', 'LowB', ['half-lap', 'butt']],
+    ]);
+    expect(lapsIn('half-lap stretcher grid, one lap set clear')).toEqual(grid.sites.filter((s) => name(s.enter) === 'UpB').map((s) => s.id));
   });
 
   it('is not vacuous: non-butt joints are applied, and kinds are ruled out', () => {
