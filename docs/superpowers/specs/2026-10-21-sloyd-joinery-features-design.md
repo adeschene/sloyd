@@ -78,8 +78,8 @@ one per recipe in `applyJoints`:
 |---|---|---|
 | mortise-tenon, dado, stopped-dado | receiver | the box-contact patch × depth into the receiver up to the largest allowed depth (`tenonLength[1]`, `dadoDepth[1]`) |
 | mortise-tenon, dado, stopped-dado | entering | the **joined end** (§3.4): the growth region beyond the end plus the end face itself |
-| rabbet | receiver | the patch region along the receiver's edge × `rabbetDepth[1]` into its thickness |
-| rabbet | trimmed parts | each part the rabbet path (`recipes.ts` ~525–540) may trim, at the trimmed end, up to that trim's largest depth |
+| rabbet | receiver | the rabbet's pocket: along the receiver's edge, `rabbetDepth[1]` into it, and the panel's thickness along the contact axis (`recipes.ts` ~509–515) |
+| rabbet | trimmed parts | each part the rabbet path (`recipes.ts` ~496–581) may trim, at the trimmed end, up to that trim's largest depth over the allowed `rabbetDepth` (the panel's own trim is largest at `rabbetDepth[0]`) |
 | half-lap | both | the crossing patch × the notch's largest depth into each part |
 | anything `rest()` cuts or moves | as that code reads | derived by the builder from `rest()`; a move alone is no zone (features are board-local) |
 
@@ -93,8 +93,9 @@ that.
 
 ### 3.3 A feature's region
 
-Each feature is tested on its real wood, board-local, with touching allowed (overlap must exceed `TOUCH` on all three
-axes, the box contacts' own tolerance) **(my call)**:
+Each feature is tested on its real wood, board-local, with touching allowed: a conflict is an overlap above **float
+noise (1e-9)** on all three axes, `clearsTenon`'s tolerance and `holeFaults`' (*amended after the builder check:* the draft
+said `TOUCH`, 1/32", which let a dado break 1/32" into a hole's bottom, the anti-goal itself) **(my call)**:
 
 - **Hole:** each hole of the row (`holeInstances`) as its bore's box (mouth to bottom × diameter). A box is enough here.
   The zone is a box, and the cylinder–box difference is at most a corner sliver, so I'm choosing the conservative test.
@@ -103,8 +104,10 @@ axes, the box contacts' own tolerance) **(my call)**:
 - **Profile:** its waste through `geometryBoard`'s view, plus a swept profile's waste, from the same sources the bodies
   use. The builder may use the profile's section box (`profileSection`) × the run's extent if that is exactly as
   conservative.
-- **Band:** the band's strip region on its side: the band's thickness in from that side × the side's full run × the part's
-  thickness.
+- **Band:** solid edging's strip region on its side: the band's thickness in from that side × the side's full run × the
+  part's thickness. **Tape has no thickness** (`bandModel.ts`), so it has no region and a joint through a taped edge is
+  accepted, as it is in the shop (a through dado across a taped front edge); a tape band on the moving end's own side is
+  still refused by §3.4 **(my call, amended after the builder check)**.
 
 ### 3.4 The growing end (entering part of an end-into-face site)
 
@@ -124,6 +127,10 @@ Joinery grows the entering part at the joined end: a tenon or a dado's housed le
   **(my call, by direct analogy with the angle ruling; see §8 Q2 for bands)**
 - A hole's `'through'` along the grown dimension takes no exception and always conflicts **(my call: rare, and a bore
   through a tenon is never intended)**.
+- **Trimmed ends** (a rabbet's trims, `recipes.ts` ~522–581) take the same rule with the same exception: a feature stored
+  as running through the trimmed dimension is shortened with the part and does not conflict; one that merely reaches the
+  trimmed end does, unless it is measured from the far end and lies outside the trimmed slab **(my call, amended after the
+  builder check)**.
 
 ### 3.5 The refusal
 
@@ -145,8 +152,9 @@ Joinery grows the entering part at the joined end: a tenon or a dado's housed le
 - **Refused:** shelf-pin holes in a side panel whose rows run under a shelf's dado.
 - **Refused:** dowel holes hand-drilled at a butt joint. "Add joinery" would cut a tenon through them.
 - **Refused:** a band on a shelf's end that enters a dado.
-- **Refused:** a hole drilled from a side's outer face, 3/8" deep in 3/4" stock, under a dado. A dado can go up to half
-  the depth, 3/8", so the zone reaches it and touching is not enough to clear.
+- **Refused:** a hole drilled from a side's outer face, 3/8" deep in 3/4" stock, under a 1/2"-thick shelf. The mortise
+  zone reaches 1/2" in (`tenonLength[1]` = depth − 1/4), so it overlaps the hole. (*Amended:* the draft blamed the dado,
+  whose 3/8" zone only touches the hole, which passes.)
 - **Fine:** shelf-pin holes clear of every joint.
 - **Fine:** an apron arched along its bottom edge between the legs, with the arch stopping short of the ends.
 - **Fine:** a rail with a 1/4" roundover along its top edges, tenoned at both ends (it clears a 1/2" shoulder).
@@ -236,8 +244,11 @@ Vitest per chunk, then a live check.
   section's bounds), and a hole `'through'` along the grown dimension refused.
 - **No mutation, no call** on every refusal: the existing pattern asserts the call count, never message text.
 - **The oracle:** across every joinery fixture (`recipes.test`, `runJoinery.test`, `shakerTableFixture`) with features
-  added clear of their zones, no part gains a fault (`holeFaults`, `curveFaults`, `profileFaults`, band faults) it lacked
-  before joining. Both new fixtures and the existing ones are run with features added. This catches a missing zone row.
+  added clear of their zones, after joining, **no joint's wood (each new or changed rectangular cut's region, and each
+  growth or trim slab) overlaps any feature's region (§3.3) beyond 1e-9**, except the §3.4 run-through cases. It is
+  measured directly, because only `holeFaults` reads cuts: `curveFaults`, `profileFaults` and band faults never would
+  flag a joint cut through them (*amended after the builder check*). Also, no part gains a `holeFaults` fault. This
+  catches a missing zone row.
 - **Gate:** a holed, then curved, then banded joined project passes `gateUnjoin`. Moving a feature by 1e-3 after joining
   fails it.
 - **Repair:** the fu 240 bug fixture with a hole row added is repaired, and its holes are byte-for-byte unchanged.
