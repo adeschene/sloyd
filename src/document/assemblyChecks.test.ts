@@ -32,7 +32,7 @@ describe('distinctParts', () => {
     const { doc } = designToDocument({ name: 'T', parts: [P('Top')], assemblies: [
       { name: 'Drawer', parts: [P('Front'), P('Side')], placements: [{ name: 'A', at: v3(0, 0, 0) }] },
     ] });
-    const orphan = { id: 'orphan', boards: doc.definitions[0]!.boards.map((b) => ({ ...b, id: `o-${b.id}` })), instances: [] };
+    const orphan = { id: 'orphan', boards: doc.definitions[0]!.boards.map((b) => ({ ...b, id: `o-${b.id}` })), instances: [], hardware: [] };
     expect(distinctParts({ ...doc, definitions: [...doc.definitions, orphan] })).toBe(3);
     expect(distinctParts({ ...doc, instances: [] })).toBe(1);
   });
@@ -41,7 +41,7 @@ describe('distinctParts', () => {
       { name: 'Drawer', parts: [P('Front'), P('Side')], placements: [{ name: 'A', at: v3(0, 0, 0) }] },
     ] });
     const inner = doc.definitions[0]!;
-    const outer = { id: 'outer', boards: [{ ...inner.boards[0]!, id: 'ob' }], instances: [{ id: 'oi', name: 'In', definition: inner.id, position: [0, 0, 0] as [number, number, number], rotation: 0 as const }] };
+    const outer = { id: 'outer', boards: [{ ...inner.boards[0]!, id: 'ob' }], instances: [{ id: 'oi', name: 'In', definition: inner.id, position: [0, 0, 0] as [number, number, number], rotation: 0 as const }], hardware: [] };
     const root = { id: 'ri', name: 'Out', definition: 'outer', position: [0, 0, 0] as [number, number, number], rotation: 0 as const };
     // inner is no longer placed at the root; only outer is, and it reaches inner. A cycle must not loop.
     const nested = { ...doc, instances: [root], definitions: [inner, outer] };

@@ -1152,7 +1152,7 @@ describe('PartDiagram: bands and a strip\'s mitres (edge banding 2, Q1, Q7)', ()
     const { container } = render(<PartDiagram view={sv} />);
     expect(container.querySelectorAll('polygon.cutlist-diagram-angle')).toHaveLength(2);
     cleanup();
-    const sq = strips({ ...banded, cornerRule: 'long' as const }, types)[0]!;
+    const sq = strips({ ...banded, cornerRule: 'long' as const, hardware: [] }, types)[0]!;
     const { container: c2 } = render(<PartDiagram view={stripDiagrams(sq, IMPERIAL)[0]!} />);
     expect(c2.querySelectorAll('polygon.cutlist-diagram-angle')).toHaveLength(0);
   });

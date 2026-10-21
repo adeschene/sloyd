@@ -5519,6 +5519,7 @@ dialog's Edge banding section, Curves' band refusal, joinery/Refine/Repair refus
 `edge-banding-1` (2026-10-20), merged to master as `b7f700b`; deploy pending the user. **Chunk 2** (viewport looks, Plans
 sheet glue lines and keys, part diagrams) is next. The HARDWARE half (a hardware bill of materials, with fu 332's dowels)
 stays open, feature-sized, for its own spec. Residue: 395–401.
+**Status:** the HARDWARE half is CLOSED by the hardware round (schema 20; spec `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md`; built on branch `hardware` 2026-10-21, pending merge and deploy): hardware types, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's Hardware block. Residue: 404–412.
 
 **268. Glue-ups from narrow stock.** A part wider than every stock board is "too wide"; edge-gluing narrower boards is
 not modelled. **Status:** open.
@@ -5978,6 +5979,7 @@ edges (inv 50's convex bodies stay). **Status:** open (spec §11).
 **332. Dowels as hardware.** A dowel joint is two holes placed by hand (the user's ruling); dowels as objects belong with
 the hardware bill of materials (fu 267). **Status:** open (spec §11).
 **Status:** open (feature; needs a spec) (with 267). (triaged 2026-10-16)
+**Status:** closed by the hardware round (2026-10-21): a dowel is a hardware type counted by hand on the part that carries the joint (spec §2.1); counting dowels from hole pairs is fu 404. Pending merge and deploy.
 
 **333. Hole callouts on the Plans sheet.** Dimensioned hole positions and sizes on the sheet; joins fu 252 (callouts).
 **Status:** open (spec §11).
@@ -6808,3 +6810,65 @@ type keyed under `Not shown in these views`; the strip diagram's distortion live
   part's own material and a solid band on an arc faults `needs-straight`.
 **Status:** open (record-only).
 
+## From the hardware round — 2026-10-21
+
+**404. Hardware from holes.** Linking a hole row to the hardware it receives: counts derived from holes where a rule exists
+(dowel pairs, hinge cups, shelf-pin rows). Today counts are typed by hand (spec §1, §10 call 2). Also the dowel half of fu 332
+beyond hand counts. **Status:** open (feature; needs a spec) (hardware spec §11).
+
+**405. A browser library of hardware types across projects**, with fu 399's band types. Hardware types live in the document, so a
+new project starts with none. **Status:** open (feature; needs a spec) (hardware spec §11).
+
+**406. Hardware on the Plans sheet** (a table, or keyed balloons). Hardware appears in the cut list and Buying only.
+**Status:** open (feature; needs a spec) (hardware spec §11).
+
+**407. Hardware for a multi-selection** (mixed counts). Properties shows no Hardware section for more than one selected part.
+**Status:** open (feature; needs a spec) (hardware spec §11).
+
+**408. Handedness and structured sizes** for hardware (left/right hinges, a size parsed from the name), if real projects need
+them. Names are free text and never parsed (no `units` edge, inv 52). **Status:** open by decision (only when a real project
+needs it) (hardware spec §11).
+
+**409. Hardware round: deferred review minors and test gaps** (record-only unless noted).
+(1) **Tests:**
+- `hardwareModel` tests are thin: `sameHardware` with a differing type, `withHardwareUse` replace, `mergeHardware` with a duplicate
+  in the input, `copyHardwareUse`/`sameHardwareType` directly, and `lowerEdit`/`groupSignature`'s hardware branches (Task 3's tree
+  tests cover the paths).
+- Task 1 had no strict RED run (mutations ran instead). Task 7's tests were written after the code (RED by revert).
+- Task 2: the plan's named mutation (entries before types) cannot fail the dangling-type tests; the set-emptying mutation guards
+  the order rule instead.
+- `copyInRow`'s hardware test does not say whether the count includes the original.
+- Nested PART naming two levels deep is untested in `hardwareTotals`.
+- Task 5: no test for a double-placement one-edit-per-target, no `readOnly` test for part and assembly targets, a stale assembly
+  path is untested.
+- Task 6: the hardware tests sit inside the fu 383 describe; a material-count regex is loose; `hardwareFreeIdentity` covers two
+  fixtures only.
+- Task 7: an inline ref callback per render; no shaped-part-then-reopen-assembly UI test. (The shaped-part render test was added by
+  the live-bug fix, c9d5c08.)
+- Task 8: App's hardware Save gate, `projectChanged` and the `newHardware` clear have no test (a mutation would pass).
+- Task 9: the joined Refine re-attach site is redundant today and unpinned (the materials precedent).
+(2) **Behaviour and code:**
+- `deepFreeze` in `hardware.ts` freezes the document's own `HardwareType` objects (`total.type`): a side effect on document state.
+- `hardwareUsedBy` is not memoised (the dialog only); the dialog's `useMemo` is dead because App passes a new closure per render.
+- `holderPlacements` is a dense ternary. `CutList` calls `hardwareTotals` in the render body (memoised by a WeakMap in `hardware.ts`).
+- `setHardware` refuses `count: null` (remove) for an unknown type: unreachable while delete-while-used is refused.
+- `ungroupItem` replaces the parent's hardware with an equal new array when the definition's is empty (identity churn).
+- Properties' Hardware: a pending-focus flag can survive a refused or no-op add and steal focus later.
+- The dialog's name-clash check compares the pre-`cleanName` text; the hardware fieldset reuses the `band-*` CSS classes.
+- `bandFreeIdentity`'s DROPPED set drops any `hardware` key: narrow it to null-only so a leak still fails the hash.
+- `.cutlist-hardware` has `break-inside: avoid` on the whole section (a long table could move to the rows).
+- The refusal name-list helper is duplicated (`bandedRefusal`, `hardwareRefusal`, `refineDesign`); `hardwareRefusal` names a part
+  placed twice twice (the `bandedRefusal` precedent).
+**Status:** open (record-only).
+
+**410. Ungroup refused for overflow is silent.** Ungroup merges an assembly's hardware into its parent by adding counts; a sum above
+999 is refused (P1, *Amended (planning)*, approved), but the UI gives no reason: the button does nothing. Reachable only with
+counts in the hundreds. **Status:** open (a wording decision for the user: a message, or leave it).
+
+**411. The link note does not mention hardware.** `Linked with 1 other part: edits to size, material, grain, posture or cuts change
+all 2.` is unchanged, yet hardware is now a shared field too (and two parts differing only in hardware do not link). For the user's
+eye. **Status:** open (wording; the user's eye).
+
+**412. `Counted once per copy: <n> in all.` sums different types.** On a Drawer placed 3 times carrying a Pull and Drawer slides, it
+reads `6 in all` (1 + 1, times 3). The words are the spec's own (§5.1); the sum across types may not be what a reader wants. For the
+user's eye. **Status:** open (wording; the user's eye).

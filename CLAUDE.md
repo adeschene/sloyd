@@ -57,10 +57,13 @@ outline, two-side runs); edge banding (tape and solid edging).
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **NEXT (audited 2026-10-20):** nothing is pending deploy. Owed to the user: fu 402(1)–(2) (band
+- **Hardware round (2026-10-21): BUILT on branch `hardware`, pending merge and deploy** (schema 20; spec
+  `2026-10-20-sloyd-hardware-design.md`, live check `docs/browser-verification-hardware.md`; merge `--no-ff`, then deploy is the user's call;
+  the line and rollback table above change at deploy). Owed to the user: fu 410–412 (wording) and the spec's *Amended (implementation)* words.
+- **NEXT (audited 2026-10-20):** nothing else is pending deploy. Owed to the user: fu 402(1)–(2) (band
   looks on real hardware, glue lines on a real print). As the user directs: fu 396–403 (396, 397
   open by decision; 398–400 features; 401, 403 record-only) and fu 267's hardware bill of materials
-  (needs its own spec). No follow-up is open as code-sized work: what is left is a feature spec, the
+  (banding half done; hardware built, fu 404–409 are its residue). No follow-up is open as code-sized work: what is left is a feature spec, the
   user's eye or hardware, or an open-by-decision item (ask first) — all under Open follow-ups below.
   Every follow-up 1–380 was triaged 2026-10-16; some entries close mid-line, so read an entry whole.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
@@ -101,7 +104,7 @@ user's own key (`dangerouslyAllowBrowser`), stored only in `sloyd.llm.v1`; the C
 
 **The plain-JSON document is the source of truth; the Three.js scene is derived from it
 and is never authoritative.** A document is
-`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes }`.
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes, hardwareTypes, hardware }`.
 Dragging computes a number, writes it to the document, and the scene re-renders — never
 the reverse. That keeps undo, save/load and export simple. **A board's `position` is its
 min corner**, not its centre (inv 2).
@@ -138,7 +141,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **19**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **20**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The full table — what each step validates, drops and refuses — is `docs/versioning.md`; update it
 with every bump.
@@ -161,6 +164,7 @@ with every bump.
 | 16→17 | `curves`; an unknown segment `type` REFUSES the document | every curve dropped |
 | 17→18 | `profiles` (curves `profileOf` recognises MOVED in on every load); an unknown `kind` REFUSES | every profile dropped, then autosaved |
 | 18→19 | `bandTypes`, `bands`, `cornerRule`; an unknown band type `kind` REFUSES | every band dropped; a banded panel's FINISHED size printed as its cut size |
+| 19→20 | `hardwareTypes`, `hardware` on parts, shapes, definitions and the project | every hardware type and entry dropped, then autosaved |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument. A content-keyed
@@ -196,6 +200,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | holes | `holes.ts`, `holeFaults.ts`, `holeText.ts`, `holeDrawing.ts` (inv 50) |
 | curves | `curves.ts`, `curveDrawing.ts`, `curveText.ts` (inv 53) |
 | edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `skeleton.ts`, `sweep.ts`, `runout.ts`, `sweptEdges.ts`, `sectionEdges.ts` (inv 48, 53) |
+| hardware | `hardwareModel.ts`, `hardware.ts` (inv 55), `hardwareRefusal.ts` |
 | edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts` (inv 54) |
 | bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Refine/Repair | `holedRefusal.ts`, `curvedRefusal.ts`, `bandedRefusal.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
@@ -610,12 +615,18 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     band by MOVING triangles into material groups 6+ (`bandedMesh`), never by recolouring a slot;
     `glueLines` is the ONE glue-line geometry; band types reach the drawings as an OPTIONAL argument.
 
+55. **`hardware.ts` is the ONE place hardware is counted** (a part per placement via `placementsOf`, its own walk whose agreement with
+    `worldParts` is pinned by the oracle test; an assembly per placement of its definition, the project once; hidden parts count). **Hardware never groups the cut list, never touches geometry, and every Definition copy
+    carries it** (Ungroup merges it into the parent, REFUSED above 999 — P1). `hardware` is a SHARED field (inv 45). **`holderHardware`
+    returns STORED arrays, never `resolveBoard`'s copy** (a selector returning a fresh array crashes React). Refine refuses hardware
+    on parts (`hardwareRefusal` takes the STORED document, P2); joinery and Repair accept it. Hardware is typed, never derived from holes.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 6846 tests across 197 files
+npm test           # Vitest, currently 7014 tests across 208 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -628,8 +639,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
-- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding built, chunks 1–2; the hardware BOM half open), 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
+- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding and hardware built; closed once deployed), 404–408 (hardware residue), 268, 270,
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–331, 334 (332 closed once deployed, like 267); curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
@@ -638,7 +649,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's). For the user's eye: 410–412 (hardware wording).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

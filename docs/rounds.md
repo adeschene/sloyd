@@ -96,9 +96,16 @@
 | edge banding (chunk 2) | 10-20 | — | Bands visible: band looks by a triangle post-pass (`bandFaces.ts`), glue lines (`glueLines`) in the viewport and on the Plans sheet (`band` tags, a key per band type), part diagrams' band marks, band and core notes, a strip's mitres (deployed `index-Vul7x2lO.js`) |
 | + Add banding | 10-20 | — | The Banding section on the additions' pattern (`+ Add banding ▾`, then the selects and `Band ▾`); `New solid edging…` opens Materials & prices with a new Solid row (deployed `index-ymPlKpkL.js`) |
 | band wording | 10-20 | — | Band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart (fu 395(2)–(3); deployed `index-QDQAnB8n.js`) |
+| hardware (BOM) | 10-21 | 20 | Hardware types (name, pack size, price) per project; counts on parts, assemblies and the project that multiply with copies (`hardware.ts`, inv 55); the cut list's Hardware section with where-used lines, Buying's Hardware block; Properties' Hardware section, Materials & prices' Hardware section; Refine refuses hardware on parts. **Built on branch `hardware`, pending merge and deploy** |
 
 ## Status log (to 2026-10-20)
 
+- **Hardware bill of materials (2026-10-21; BUILT on branch `hardware` 218816a..c9d5c08, NOT merged, NOT deployed; schema 20)**: spec
+  `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md` (approved, P1/P2 approved). Ten tasks; the full suite passes (CLAUDE.md has the count),
+  `npm run build` green. The live pass on the dev server (`docs/browser-verification-hardware.md`) found one crash, a SHAPED part's
+  Properties Hardware section (a fresh array per `getSnapshot`), fixed in `c9d5c08`. **Rollback once deployed:** a build below 20 REFUSES every
+  project saved at 20, so export first. Owed to the user: the spec's *Amended (implementation)* wording (fu 410–412) and the four dialog
+  refusal words. Review minors: fu 409; spec §11: fu 404–408. Merge `--no-ff`, verify the merged tree, delete the branch; deploy is the user's call.
 - **Production is band wording** (deployed 2026-10-20 from the merge `4a6d6a1`, bundle `index-QDQAnB8n.js`, CSS unchanged: sides as a list,
   `all four sides`, band types counted apart in Buying's tail; no schema change, so rolling back to `dc8d5c3` (`index-ymPlKpkL.js`) is free).
   The Banding section on the additions' pattern was deployed 2026-10-20 from the merge `dc8d5c3` (bundle `index-ymPlKpkL.js`,

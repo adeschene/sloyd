@@ -589,3 +589,30 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     nothing but is still keyed (` — check the cut list`) and noted. Band types reach `drawView`, `partFeatures` and
     `buildDiagrams` as an OPTIONAL argument; with none, every output is byte for byte as before. A banded part's diagram is drawn at
     the FINISHED size (fu 395(1)) with `bands` marks and `bandNotes` (the band line, then `coreNote`) on its first thickness view.
+
+55. **`hardware.ts` is the ONE place hardware is counted** (hardware spec §3). A part's entry counts once per PLACEMENT (`holdersOf`'s own walk
+    with `placementsOf`; its agreement with `worldParts` is pinned by the oracle test), an assembly's once per placement of its definition (`placementsOf`: a nested assembly counts once
+    per placement of every ancestor), the project's once. **Hidden parts count** (inv 43: hidden-ness is view state) and `explode`
+    changes nothing. Every reader — the cut list's Hardware section, Buying's Hardware block, Properties' copy note, the dialog's
+    `Used by` — reads `hardwareTotals`/`hardwareUsedBy`; nothing else counts. **Hardware never groups the cut list** (the row
+    describes what is cut, inv 18), never touches geometry, bodies, edges, drawings or meshes (a document with no hardware types and
+    no entries gives today's cut list, Buying, drawings and meshes byte for byte, `hardwareFreeIdentity.test.ts`), and never enters
+    `boardUVSignature` (inv 15). `hardware` is a SHARED field in `LINK_FIELDS` (inv 45): stored once on the Shape, so two parts
+    that differ only in hardware do not link, and `linkPlan`/`linkByRole` judge by `sameShared` alone. It has no mirror pair (no side,
+    no position) and is absent from the reorient predicate (inv 2). Entries are at most one per type per holder in canonical order
+    (ascending `type` id) and carry no id; counts are whole, 1..`HARDWARE_COUNT_MAX` (999) and fields REFUSE out-of-range input,
+    never clamp. **Every `Definition` copy carries `hardware`**: `copyDefinition` (joinery's split of a shared definition),
+    `makeUniqueItem`, `repairTree` (runs on every load; losing the field strips assembly hardware after validation),
+    `ungroupItem`; `generated.ts` and Group write `[]`. **Ungroup merges the dissolved assembly's hardware into its parent by adding
+    counts per type, so every total is unchanged (inv 46), and is REFUSED when a merged count would exceed 999** (P1: the loader
+    would drop it; the refusal is silent in the UI, fu 410). **Reads of a holder's list go through `holderHardware`, which returns the
+    STORED array for every target, never `resolveBoard`'s copy**: a selector that returns a fresh array per call crashes React
+    (`getSnapshot` must be cached; found live on a shaped part, `c9d5c08`) — return the stored array or a frozen empty one. **Hardware
+    types** are per document (`hardwareTypes`, ids in the document id scope, inv 33), have no built-in, are KEPT when unused, are
+    deleted only while no placed holder uses them (`Used by N`), and carry free-text names that are never parsed (no `units` edge,
+    inv 52). Prices are dollars per pack in the document; Buying rounds packs up and leaves unpriced types out of the total.
+    **Joinery and Repair accept hardware projects** (the write-back keeps `hardware` through changed-fields-only edits, inv 46);
+    **Refine refuses hardware on parts and assemblies** (`hardwareRefusal`, which takes the STORED document, P2: `flatDocument`
+    empties `definitions`) and carries types and the project's hardware into the refined project before `migrateDocument`. Generate
+    never writes hardware (`DESIGN_SCHEMA` byte-identical, fu 322). Load order: materials, band types, hardware types, parts/shapes/
+    definitions, the project's `hardware`, `pruneMaterials`.

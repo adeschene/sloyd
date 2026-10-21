@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MATERIALS, isSheetGood, type BandType, type Board, type CustomMaterial, type MaterialKind } from '../document/types';
+import { MATERIALS, isSheetGood, type BandType, type Board, type CustomMaterial, type HardwareType, type MaterialKind } from '../document/types';
+import { HARDWARE_PRESETS } from '../document/hardwareModel';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from '../document/banding';
 import {
   defaultBuying, DEFAULT_WASTE_FACTOR, WASTE_FACTOR_MAX, WASTE_FACTOR_MIN,
@@ -18,6 +19,9 @@ import { Popover } from './Popover';
 import {
   bandFieldValid, initialBandRows, newBandRow, planBandTypes, rebaseBandRows, type BandRow,
 } from './bandTypesDraft';
+import {
+  hardwareFieldValid, initialHardwareRows, newHardwareRow, planHardwareTypes, rebaseHardwareRows, type HardwareField, type HardwareRow,
+} from './hardwareTypesDraft';
 
 interface Props {
   shop: ShopSettings;
@@ -41,6 +45,12 @@ interface Props {
   parts?: Board[];
   /** The materials a solid band type may name (Amended (planning) P4): built-in solids and this project's custom solids. */
   solids?: string[];
+  /** "New hardware type…" from Properties' Hardware section: the Hardware section opens with a new `Other` row, its name focused. */
+  newHardware?: boolean;
+  /** The project's hardware types (doc.hardwareTypes; hardware spec §5.2). App always passes both hardware props. */
+  hardwareTypes?: HardwareType[];
+  /** How many placed holders use a type, read off the STORED document: a type in use cannot be deleted. */
+  hardwareUsedBy?: (id: string) => number;
   /** Resolves null on success, else the message to show (the dialog then stays open). */
   onSave: (out: { shop: ShopSettings; plan: SavePlan }) => Promise<string | null>;
   onClose: () => void;
@@ -51,6 +61,9 @@ const nominalIn = (rows: readonly Row[], id: string) => rows.find((r) => r.id ==
 const BUILT_IN_SOLIDS = Object.keys(MATERIALS).filter((m) => !isSheetGood(m));
 const NO_PARTS: Board[] = [];
 const DEFAULT_BAND_TYPES: BandType[] = [BUILT_IN_BAND];
+const NO_HARDWARE: HardwareType[] = [];
+const NOT_USED = () => 0;
+const OTHER_PRESET = HARDWARE_PRESETS.find((p) => p.name === 'Other')!;
 
 const LIBRARY_UNREADABLE_TITLE = 'Your saved materials could not be read';
 
@@ -113,10 +126,12 @@ function fromDraft(d: Draft): MaterialBuying | undefined {
 export function MaterialsDialog({
   shop, readFailed, project, library, libraryReadFailed, locked, newFor, newBand = null, onSave, onClose,
   bandTypes = DEFAULT_BAND_TYPES, parts = NO_PARTS, solids = BUILT_IN_SOLIDS,
+  newHardware = false, hardwareTypes = NO_HARDWARE, hardwareUsedBy = NOT_USED,
 }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const newName = useRef<HTMLInputElement>(null);
   const newBandName = useRef<HTMLInputElement>(null);
+  const newHardwareName = useRef<HTMLInputElement>(null);
   const builtIns = Object.keys(MATERIALS);
   const [rows, setRows] = useState<Row[]>(() => {
     const r = initialRows(project, library);
@@ -130,6 +145,11 @@ export function MaterialsDialog({
   });
   // Read off the KEPT state, never recorded inside the initializer: StrictMode runs initializers twice and keeps one result.
   const [newBandId] = useState<string | null>(() => (newBand ? bandRows[bandRows.length - 1]!.id : null));
+  const [hardwareRows, setHardwareRows] = useState<HardwareRow[]>(() => {
+    const r = initialHardwareRows(hardwareTypes);
+    return newHardware ? [...r, newHardwareRow(OTHER_PRESET, r)] : r;
+  });
+  const [newHardwareId] = useState<string | null>(() => (newHardware ? hardwareRows[hardwareRows.length - 1]!.id : null));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // A Save that reported a failure leaves the dialog open over a CHANGED project (App applies the project edit
@@ -142,9 +162,10 @@ export function MaterialsDialog({
     if (!rebasePending) return;
     setRows((all) => rebaseRows(all, project, library));
     setBandRows((all) => rebaseBandRows(all, bandTypes));
+    setHardwareRows((all) => rebaseHardwareRows(all, hardwareTypes));
     if (savedAssign.current !== null && project.some((m) => m.id === savedAssign.current)) setAssignDone(true);
     setRebasePending(false);
-  }, [rebasePending, project, library, bandTypes]);
+  }, [rebasePending, project, library, bandTypes, hardwareTypes]);
   const nextId = useRef(0);
   // Built-ins are false here (pine is handled inside defaultBuying); a row follows its draft's switch.
   const nominalOf = (id: string) => nominalIn(rows, id);
@@ -165,9 +186,9 @@ export function MaterialsDialog({
 
   // "New material…" and "New solid edging…" open on the new row's name; otherwise the sheet takes focus, as before.
   useEffect(() => {
-    const target = newFor ? newName.current : newBand ? newBandName.current : sheet.current;
+    const target = newFor ? newName.current : newBand ? newBandName.current : newHardware ? newHardwareName.current : sheet.current;
     target?.focus();
-    if (target === newBandName.current) target?.scrollIntoView?.({ block: 'center' });
+    if (target === newBandName.current || target === newHardwareName.current) target?.scrollIntoView?.({ block: 'center' });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -186,9 +207,13 @@ export function MaterialsDialog({
   const bandCtx = useMemo(() => ({ parts, solids: new Set(solids) }), [parts, solids]);
   const bandPlan = locked ? null : planBandTypes(bandRows, bandTypes, bandCtx);
   const bandRefused = bandPlan !== null && 'refused' in bandPlan ? bandPlan.refused : null;
-  const refused = 'refused' in result || bandRefused !== null;
-  // The materials' row refusals show on their rows; the rest (a library clash, a band type's) in the one element below.
-  const shownRefusal = 'refused' in result && !rowRefused ? result.refused : bandRefused;
+  // Hardware types are project state too: off while exploded. The usage counts come from the STORED document.
+  const hardwareCtx = useMemo(() => ({ usedBy: hardwareUsedBy }), [hardwareUsedBy]);
+  const hardwarePlan = locked ? null : planHardwareTypes(hardwareRows, hardwareTypes, hardwareCtx);
+  const hardwareRefused = hardwarePlan !== null && 'refused' in hardwarePlan ? hardwarePlan.refused : null;
+  const refused = 'refused' in result || bandRefused !== null || hardwareRefused !== null;
+  // The materials' row refusals show on their rows; the rest (a library clash, a band type's, a hardware type's) in the one element below.
+  const shownRefusal = 'refused' in result && !rowRefused ? result.refused : (bandRefused ?? hardwareRefused);
   const set = (m: string, d: Draft) => setDrafts((all) => ({ ...all, [m]: d }));
   const setSize = (m: string, i: number, field: keyof DraftSize, value: string) => {
     const d = drafts[m] as Extract<Draft, { mode: 'piece' }>;
@@ -239,7 +264,7 @@ export function MaterialsDialog({
   };
 
   const save = async () => {
-    if (!valid || 'refused' in result || (bandPlan !== null && 'refused' in bandPlan)) return;
+    if (!valid || 'refused' in result || (bandPlan !== null && 'refused' in bandPlan) || hardwareRefused !== null) return;
     setSaving(true);
     const listed = new Set(keys);
     const message = await onSave({
@@ -253,7 +278,7 @@ export function MaterialsDialog({
         },
         ...(shop.extra ? { extra: shop.extra } : {}),
       },
-      plan: { ...result, bandTypes: bandPlan },
+      plan: { ...result, bandTypes: bandPlan, hardwareTypes: hardwarePlan !== null && 'refused' in hardwarePlan ? null : hardwarePlan },
     });
     setSaving(false);
     if (message === null) onClose();
@@ -399,6 +424,51 @@ export function MaterialsDialog({
     </fieldset>
   );
 
+  // The Hardware section (hardware spec §5.2), the band section's shape: one fieldset, disabled while exploded.
+  const editHardware = (r: HardwareRow, key: HardwareField, value: string) =>
+    setHardwareRows((all) => all.map((x) => (x.id === r.id ? { ...x, draft: { ...x.draft, [key]: value } } : x)));
+  const hardwareInput = (r: HardwareRow, name: string, key: HardwareField, text: string, ref?: React.Ref<HTMLInputElement>) => (
+    <label>{text}
+      <input className="input" aria-label={`${name}: ${text.toLowerCase()}`} value={r.draft[key]} ref={ref}
+        aria-invalid={bad(hardwareFieldValid(r, key))} onChange={(e) => editHardware(r, key, e.target.value)} />
+    </label>
+  );
+  const hardwareSection = (
+    <fieldset className="lumber-material band-types" disabled={locked} title={lockTitle}>
+      <legend>Hardware</legend>
+      {hardwareRows.map((r) => {
+        const name = r.original?.name ?? (r.draft.name || 'New hardware type');
+        return (
+          <div className={`band-type${r.deleted ? ' is-deleted' : ''}`} key={r.id}>
+            <label>Name
+              <input className="input band-name" aria-label={`${name}: name`} value={r.draft.name} disabled={r.deleted}
+                ref={r.id === newHardwareId ? newHardwareName : undefined}
+                aria-invalid={bad(hardwareFieldValid(r, 'name'))} onChange={(e) => editHardware(r, 'name', e.target.value)} />
+            </label>
+            {!r.deleted && (
+              <>
+                {hardwareInput(r, name, 'packSize', 'Pack size')}
+                {hardwareInput(r, name, 'pricePerPack', 'Price per pack')}
+              </>
+            )}
+            {r.original === null ? (
+              <button aria-label={`Remove ${name}`} onClick={() => setHardwareRows((all) => all.filter((x) => x.id !== r.id))}>✕</button>
+            ) : r.deleted ? (
+              <span className="material-note">Deleted on Save{' '}
+                <button onClick={() => setHardwareRows((all) => all.map((x) => (x.id === r.id ? { ...x, deleted: false } : x)))}>Undo delete</button>
+              </span>
+            ) : (
+              <button aria-label={`Delete ${name}`}
+                onClick={() => setHardwareRows((all) => all.map((x) => (x.id === r.id ? { ...x, deleted: true } : x)))}>✕</button>
+            )}
+          </div>
+        );
+      })}
+      <Popover label="+ Add hardware type ▾"
+        items={HARDWARE_PRESETS.map((p) => ({ label: p.name, run: () => setHardwareRows((all) => [...all, newHardwareRow(p, all)]) }))} />
+    </fieldset>
+  );
+
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Materials and prices">
       <div className="modal-sheet lumber-sheet" ref={sheet} tabIndex={-1}>
@@ -473,6 +543,7 @@ export function MaterialsDialog({
         })}
         <button disabled={libraryOff} title={libraryTitle} onClick={addMaterial}>Add material</button>
         {bandSection}
+        {hardwareSection}
         {!valid && <p className="field-error" role="status">Fix the highlighted fields: prices are dollars (or empty), sizes are positive lengths, waste factor is {WASTE_FACTOR_MIN}–{WASTE_FACTOR_MAX}.</p>}
         {shownRefusal !== null && <p className="field-error" role="status">{shownRefusal}</p>}
         {error && <p className="field-error" role="status">{error}</p>}

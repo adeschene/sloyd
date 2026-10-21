@@ -1,5 +1,7 @@
 # Hardware bill of materials (schema 20) Implementation Plan
 
+**Status:** EXECUTED 2026-10-21 on branch `hardware` (commits 6049fff..c9d5c08 plus the docs commit); not merged, not deployed. The spec records the live-check amendments.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Projects name their hardware (per-project types with a pack size and a price per pack); parts, assemblies and

@@ -38,7 +38,7 @@ const v = (x: number, y: number, z: number) => ({ x, y, z });
 // Bound from OUTSIDE the converter: the expected extents come from the
 // existing boardExtents, never from orient's own arithmetic (invariant 23).
 const asBoard = (o: ReturnType<typeof orient>): Board => ({
-  id: 'x', name: 'x', position: [0, 0, 0], grain: 'length', material: 'pine', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, ...o,
+  id: 'x', name: 'x', position: [0, 0, 0], grain: 'length', material: 'pine', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [], ...o,
 });
 
 describe('orient', () => {

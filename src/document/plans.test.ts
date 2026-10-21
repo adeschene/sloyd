@@ -35,7 +35,7 @@ describe('planAssemblies', () => {
 
   it('skips a definition with no parts and returns nothing for a flat document', () => {
     const doc = { ...createDocument('Empty'), instances: [{ id: 'e', name: 'Empty', definition: 'de', position: [0, 0, 0] as [number, number, number], rotation: 0 as const }],
-      definitions: [{ id: 'de', boards: [], instances: [] }] };
+      definitions: [{ id: 'de', boards: [], instances: [], hardware: [] }] };
     expect(planAssemblies(doc)).toEqual([]);
     expect(planAssemblies(createDocument('Flat'))).toEqual([]);
   });
@@ -47,7 +47,7 @@ describe('planAssemblies', () => {
     wrapped.definitions = [...wrapped.definitions,
       { id: 'dwrap', boards: [createBoard({ id: 'top', name: 'Top' })],
         instances: [{ id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
-                    { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [30, 0, 0], rotation: 0 }] }];
+                    { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [30, 0, 0], rotation: 0 }], hardware: [] }];
     // dwrap is the root's sole child → skipped. dc is placed twice beside dwrap's `top` → kept. dd is not a
     // sole child either (dc also holds `side`) → kept. Titles keep the wrapper's name.
     expect(planAssemblies(wrapped).map((a) => [a.definition, a.title, a.copies])).toEqual([
@@ -61,8 +61,8 @@ describe('planAssemblies', () => {
     const doc: SloydDocument = { ...createDocument('Chain'), boards: [createBoard({ id: 'r', name: 'Top' })],
       instances: [{ id: 'X', name: 'Box', definition: 'dx', position: [0, 0, 0], rotation: 0 },
                   { id: 'L', name: 'Loose', definition: 'dd', position: [9, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'dx', boards: [], instances: [{ id: 'D', name: 'Drawer', definition: 'dd', position: [0, 0, 0], rotation: 0 }] },
-                    { id: 'dd', boards: [createBoard({ id: 'front', name: 'Front' })], instances: [] }] };
+      definitions: [{ id: 'dx', boards: [], instances: [{ id: 'D', name: 'Drawer', definition: 'dd', position: [0, 0, 0], rotation: 0 }], hardware: [] },
+                    { id: 'dd', boards: [createBoard({ id: 'front', name: 'Front' })], instances: [], hardware: [] }] };
     // dx: one placement, not a sole child (root has r, X, L) → kept. dd: X/D is a sole child, L is not → kept.
     expect(planAssemblies(doc).map((a) => a.definition)).toEqual(['dx', 'dd']);
     // Now drop the loose copy: dd's only placement is dx's sole child → skipped; dx still kept.
@@ -101,9 +101,9 @@ describe('keyed parts (feature callouts spec §2.1)', () => {
         { id: 'b', name: 'Right', definition: 'dB', position: at(40), rotation: 0 },
       ],
       definitions: [
-        { id: 'dA', boards: [], instances: [{ id: 'u', name: 'Hinge', definition: 'dU', position: at(0), rotation: 0 }] },
-        { id: 'dB', boards: [], instances: [{ id: 'u', name: 'Hinge', definition: 'dU', position: at(5), rotation: 0 }] },
-        { id: 'dU', boards: [createBoard({ id: 'cup', name: 'Cup' })], instances: [] },
+        { id: 'dA', boards: [], instances: [{ id: 'u', name: 'Hinge', definition: 'dU', position: at(0), rotation: 0 }], hardware: [] },
+        { id: 'dB', boards: [], instances: [{ id: 'u', name: 'Hinge', definition: 'dU', position: at(5), rotation: 0 }], hardware: [] },
+        { id: 'dU', boards: [createBoard({ id: 'cup', name: 'Cup' })], instances: [], hardware: [] },
       ],
     };
     const as = planAssemblies(doc);
@@ -116,7 +116,7 @@ describe('keyed parts (feature callouts spec §2.1)', () => {
     const doc: SloydDocument = {
       ...createDocument('W'),
       instances: [{ id: 'w', name: 'Wrap', definition: 'dw', position: [0, 0, 0], rotation: 0 }],
-      definitions: [{ id: 'dw', boards: [createBoard({ id: 'b', name: 'B' })], instances: [] }],
+      definitions: [{ id: 'dw', boards: [createBoard({ id: 'b', name: 'B' })], instances: [], hardware: [] }],
     };
     const as = planAssemblies(doc);
     expect(as).toEqual([]);

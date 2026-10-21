@@ -15,6 +15,7 @@ import type { RecordedJoint } from './joints/unjoin';
 import { holedRefusal } from '../document/holedRefusal';
 import { curvedRefusal } from '../document/curvedRefusal';
 import { bandedRefusal } from '../document/bandedRefusal';
+import { hardwareRefusal } from '../document/hardwareRefusal';
 import { joineryRefusal } from './joints/tapers';
 import { findSites } from './joints/sites';
 
@@ -69,6 +70,9 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     // Edge bands (edge banding spec §6): the same, right after curves.
     const banded = bandedRefusal(flat, 'refine');
     if (banded) return { refused: { reason: 'bands', message: banded } };
+    // Hardware on parts or assemblies (hardware spec §6): the same, right after bands, from the STORED document (P2).
+    const hardware = hardwareRefusal(doc);
+    if (hardware) return { refused: { reason: 'hardware', message: hardware } };
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
     const g = gateUnjoin(flat);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };

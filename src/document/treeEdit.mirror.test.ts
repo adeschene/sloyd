@@ -26,8 +26,8 @@ const doc = (b: Board, A: Partial<Instance>, B?: Partial<Instance>): SloydDocume
     ...createDocument('Mirror'),
     instances: [{ id: 'i1', name: 'Outer', definition: 'd1', position: [6, 0, 3], rotation: 0, ...A }],
     definitions: B
-      ? [{ id: 'd1', boards: [], instances: [inner] }, { id: 'd2', boards: [{ ...b, id: 'b1' }], instances: [] }]
-      : [{ id: 'd1', boards: [{ ...b, id: 'b1' }], instances: [] }],
+      ? [{ id: 'd1', boards: [], instances: [inner], hardware: [] }, { id: 'd2', boards: [{ ...b, id: 'b1' }], instances: [], hardware: [] }]
+      : [{ id: 'd1', boards: [{ ...b, id: 'b1' }], instances: [], hardware: [] }],
   };
 };
 const occ = (d: SloydDocument) => worldParts(d).find((p) => p.id.endsWith('b1'))!;

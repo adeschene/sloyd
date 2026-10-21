@@ -56,11 +56,11 @@ describe('worldParts (assemblies spec §2.1)', () => {
   });
 
   it('worldParts resolves a shaped part inside a turned assembly', () => {
-    const shape: Shape = { id: 's1', length: 10, width: 2, thickness: 1, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const };
+    const shape: Shape = { id: 's1', length: 10, width: 2, thickness: 1, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
     const doc: SloydDocument = {
       ...createDocument(),
       instances: [{ id: 'i1', name: 'A', definition: 'd1', position: [0, 0, 0], rotation: 90 }],
-      definitions: [{ id: 'd1', boards: [{ id: 'b1', name: 'P', position: [0, 0, 0], rotation: 0, shape: 's1' }], instances: [] }],
+      definitions: [{ id: 'd1', boards: [{ id: 'b1', name: 'P', position: [0, 0, 0], rotation: 0, shape: 's1' }], instances: [], hardware: [] }],
       shapes: [shape],
     };
     const [p] = worldParts(doc);
@@ -146,9 +146,9 @@ describe('flatDocument', () => {
     ],
     definitions: [
       { id: 'da', boards: [createBoard({ id: 'p', name: 'Rail', position: [0.5, 0, 0.25] })],
-        instances: [{ id: 'n', name: 'Foot', definition: 'dn', position: [3, 0, 4], rotation: 0 }] },
-      { id: 'dn', boards: [createBoard({ id: 'q', name: 'Pad', position: [0.125, 0, 0.5] })], instances: [] },
-      { id: 'db', boards: [createBoard({ id: 'u', name: 'Slat', length: 8, width: 2, thickness: 1, position: [2, 0, 3] })], instances: [] },
+        instances: [{ id: 'n', name: 'Foot', definition: 'dn', position: [3, 0, 4], rotation: 0 }], hardware: [] },
+      { id: 'dn', boards: [createBoard({ id: 'q', name: 'Pad', position: [0.125, 0, 0.5] })], instances: [], hardware: [] },
+      { id: 'db', boards: [createBoard({ id: 'u', name: 'Slat', length: 8, width: 2, thickness: 1, position: [2, 0, 3] })], instances: [], hardware: [] },
     ],
   });
 

@@ -6,6 +6,9 @@ import { defaultBuying, defaultShop, type ShopSettings } from '../document/purch
 import type { SavePlan } from './materialsDraft';
 import { EXPLODED_TITLE } from './ViewportControls';
 import { BUILT_IN_BAND } from '../document/banding';
+import { useStore } from '../store/store';
+import { createDocument } from '../document/document';
+import type { HardwareType } from '../document/types';
 
 type SaveOut = { shop: ShopSettings; plan: SavePlan };
 const fixed = { project: [], library: [], libraryReadFailed: false, locked: false, newFor: null };
@@ -185,7 +188,7 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     const { plan, shop } = onSave.mock.calls[0]![0];
-    expect(plan).toEqual({ project: [], library: null, assign: null, bandTypes: null });
+    expect(plan).toEqual({ project: [], library: null, assign: null, bandTypes: null, hardwareTypes: null });
     expect(Object.keys(shop.materials).sort()).toEqual(Object.keys(defaultShop().materials).sort());
   });
   it('the remove button names the typed label; the New material… row has none; it is off while locked', () => {
@@ -230,7 +233,7 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     fireEvent.change(field('Oak: price per board foot'), { target: { value: '8' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
-    expect(onSave.mock.calls[0]![0].plan).toEqual({ project: [], library: null, assign: null, bandTypes: null });
+    expect(onSave.mock.calls[0]![0].plan).toEqual({ project: [], library: null, assign: null, bandTypes: null, hardwareTypes: null });
   });
   it('stays open and shows the message when the save reports a failure', async () => {
     const { onSave, onClose } = open({ project: [ash] });
@@ -529,5 +532,113 @@ describe('MaterialsDialog — band rows after a partial failure (task 9 review)'
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
     expect(onSave.mock.calls[1]![0].plan.bandTypes).toBeNull();
+  });
+});
+
+describe('MaterialsDialog — the Hardware section (hardware spec §5.2)', () => {
+  const hinge: HardwareType = { id: 'h', name: 'Hinge', packSize: 2, pricePerPack: 3.5 };
+  const screws: HardwareType = { id: 's', name: 'Screw', packSize: 100, pricePerPack: null };
+  const section = () => within(screen.getByRole('group', { name: 'Hardware' }));
+  const openHw = (over: Partial<Parameters<typeof MaterialsDialog>[0]> = {}) =>
+    open({ hardwareTypes: [hinge, screws], hardwareUsedBy: () => 0, ...over });
+  const addPreset = (name: string) => {
+    fireEvent.click(section().getByRole('button', { name: '+ Add hardware type ▾' }));
+    fireEvent.click(section().getByRole('button', { name }));
+  };
+
+  it('lists the project\'s hardware types', () => {
+    openHw();
+    expect(section().getByRole('textbox', { name: 'Hinge: name' })).toHaveValue('Hinge');
+    expect(section().getByRole('textbox', { name: 'Hinge: pack size' })).toHaveValue('2');
+    expect(section().getByRole('textbox', { name: 'Hinge: price per pack' })).toHaveValue('3.5');
+    expect(section().getByRole('textbox', { name: 'Screw: price per pack' })).toHaveValue('');
+  });
+  it('a preset adds a prefilled row, saved with the list', async () => {
+    const { onSave } = openHw();
+    addPreset('Shelf pin');
+    expect(section().getByRole('textbox', { name: 'Shelf pin: pack size' })).toHaveValue('20');
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const plan = onSave.mock.calls[0]![0].plan;
+    expect(plan.hardwareTypes).toHaveLength(3);
+    expect(plan.hardwareTypes![2]).toMatchObject({ name: 'Shelf pin', packSize: 20, pricePerPack: null });
+  });
+  it('a second Hinge preset is named Hinge 2', () => {
+    openHw({ hardwareTypes: [] });
+    addPreset('Hinge');
+    addPreset('Hinge');
+    expect(section().getByRole('textbox', { name: 'Hinge: name' })).toHaveValue('Hinge');
+    expect(section().getByRole('textbox', { name: 'Hinge 2: name' })).toHaveValue('Hinge 2');
+  });
+  it('a bad pack size or price refuses and turns Save off; empty price saves null', async () => {
+    const { onSave } = openHw();
+    for (const v of ['0', '1.5', '10001']) {
+      fireEvent.change(section().getByRole('textbox', { name: 'Hinge: pack size' }), { target: { value: v } });
+      expect(saveBtn()).toBeDisabled();
+      expect(section().getByRole('textbox', { name: 'Hinge: pack size' })).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText('Pack size must be a whole number from 1 to 10000.')).toBeInTheDocument();
+    }
+    fireEvent.change(section().getByRole('textbox', { name: 'Hinge: pack size' }), { target: { value: '4' } });
+    fireEvent.change(section().getByRole('textbox', { name: 'Hinge: price per pack' }), { target: { value: '-1' } });
+    expect(saveBtn()).toBeDisabled();
+    fireEvent.change(section().getByRole('textbox', { name: 'Hinge: price per pack' }), { target: { value: '' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.hardwareTypes).toEqual([{ ...hinge, packSize: 4, pricePerPack: null }, screws]);
+  });
+  it('Delete is refused while used, and deletes an unused type', async () => {
+    const { onSave } = openHw({ hardwareUsedBy: (id: string) => (id === 'h' ? 3 : 0) });
+    fireEvent.click(section().getByRole('button', { name: 'Delete Hinge' }));
+    expect(screen.getByText('Used by 3 — remove it from them first.')).toBeInTheDocument();
+    expect(saveBtn()).toBeDisabled();
+    fireEvent.click(section().getByRole('button', { name: 'Undo delete' }));
+    fireEvent.click(section().getByRole('button', { name: 'Delete Screw' }));
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.hardwareTypes).toEqual([hinge]);
+  });
+  it('an untouched dialog plans no hardware types', async () => {
+    const { onSave } = openHw();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.hardwareTypes).toBeNull();
+  });
+  it('newHardware opens with a new Other row, its name focused (also under StrictMode)', async () => {
+    const onSave = vi.fn(async (_: SaveOut) => null as string | null);
+    render(<StrictMode><MaterialsDialog shop={defaultShop()} readFailed={false} project={[]} library={[]} libraryReadFailed={false}
+      locked={false} newFor={null} newHardware hardwareTypes={[hinge]} hardwareUsedBy={() => 0} onSave={onSave} onClose={() => {}} /></StrictMode>);
+    expect(section().getAllByRole('textbox', { name: 'Other: name' })).toHaveLength(1);
+    expect(section().getByRole('textbox', { name: 'Other: name' })).toHaveFocus();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.hardwareTypes![1]).toMatchObject({ name: 'Other', packSize: 1, pricePerPack: null });
+  });
+  it('the whole section is disabled when locked, and Save plans no hardware types', async () => {
+    const { onSave } = openHw({ locked: true });
+    for (const c of [...section().getAllByRole('textbox'), ...section().getAllByRole('button')]) expect(c).toBeDisabled();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]![0].plan.hardwareTypes).toBeNull();
+  });
+  it('one Save carries a band type edit and a hardware type edit as ONE undo entry', async () => {
+    useStore.getState().replaceDocument({ ...createDocument('HW'), hardwareTypes: [hinge], bandTypes: [BUILT_IN_BAND] });
+    const onSave = vi.fn(async ({ plan }: SaveOut) => {
+      useStore.getState().applyMaterials(plan.project, plan.assign ?? undefined, plan.bandTypes ?? undefined, plan.hardwareTypes ?? undefined);
+      return null as string | null;
+    });
+    render(<MaterialsDialog shop={defaultShop()} readFailed={false} project={[]} library={[]} libraryReadFailed={false}
+      locked={false} newFor={null} bandTypes={[BUILT_IN_BAND]} hardwareTypes={[hinge]} hardwareUsedBy={() => 0} onSave={onSave} onClose={() => {}} />);
+    const past = useStore.getState().past.length;
+    fireEvent.change(screen.getByRole('textbox', { name: 'Iron-on veneer: thickness' }), { target: { value: '1/32' } });
+    fireEvent.change(section().getByRole('textbox', { name: 'Hinge: pack size' }), { target: { value: '6' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const s = useStore.getState();
+    expect(s.past.length).toBe(past + 1);
+    expect(s.doc.hardwareTypes[0]!.packSize).toBe(6);
+    expect(s.doc.bandTypes[0]!.thickness).toBe(1 / 32);
+    s.undo();
+    expect(useStore.getState().doc.hardwareTypes[0]!.packSize).toBe(2);
+    expect(useStore.getState().doc.bandTypes[0]!.thickness).toBe(BUILT_IN_BAND.thickness);
   });
 });

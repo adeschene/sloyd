@@ -207,7 +207,7 @@ export function stripBoard(s: Strip): Board {
   return {
     id: stripId(s), name: `${s.partName} edging (${s.side.across} ${s.side.from} ${endWord(s.side.across)})`,
     length: s.length, width: s.width, thickness: s.thickness, position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
-    material: s.type.material, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long',
+    material: s.type.material, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [],
   };
 }
 

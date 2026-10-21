@@ -60,7 +60,7 @@ describe('moveCandidates with assemblies', () => {
 describe('moveCandidates with shared definitions (components spec §4.1)', () => {
   const part = (id: string, x: number) => ({ id, name: `P ${id}`, length: 10, width: 4, thickness: 0.75,
     position: [x, 0, 0] as [number, number, number], rotation: 0 as const, posture: 'flat' as const,
-    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const });
+    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] });
   const doc: SloydDocument = {
     ...createDocument(),
     instances: [
@@ -68,8 +68,8 @@ describe('moveCandidates with shared definitions (components spec §4.1)', () =>
       { id: 'i2', name: 'Box (1)', definition: 'd1', position: [50, 0, 0], rotation: 0 },
     ],
     definitions: [
-      { id: 'd1', boards: [part('b1', 0), part('b2', 12)], instances: [{ id: 'g', name: 'Inner', definition: 'dg', position: [0, 5, 0], rotation: 0 }] },
-      { id: 'dg', boards: [part('b3', 0)], instances: [] },
+      { id: 'd1', boards: [part('b1', 0), part('b2', 12)], instances: [{ id: 'g', name: 'Inner', definition: 'dg', position: [0, 5, 0], rotation: 0 }], hardware: [] },
+      { id: 'dg', boards: [part('b3', 0)], instances: [], hardware: [] },
     ],
   };
   const world = worldParts(doc);

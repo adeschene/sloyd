@@ -123,7 +123,7 @@ describe('copies, removal, pruning', () => {
   });
   it('pruneDefinitions drops an unreferenced definition', () => {
     const doc = assemblyDoc();
-    const out = pruneDefinitions({ ...doc, definitions: [...doc.definitions, { id: 'dz', boards: [], instances: [] }] });
+    const out = pruneDefinitions({ ...doc, definitions: [...doc.definitions, { id: 'dz', boards: [], instances: [], hardware: [] }] });
     expect(out.definitions.map((d) => d.id)).toEqual(['d1', 'd2']);
   });
 });
@@ -151,10 +151,10 @@ describe('shared definitions', () => {
     ],
     definitions: [
       { id: 'd1', boards: [createBoard({ id: 'b1', name: 'Side' }), { id: 'b2', name: 'Leg', position: [1, 0, 1], rotation: 0, shape: 's1' }],
-        instances: [{ id: 'k1', name: 'Knob', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
-      { id: 'd2', boards: [createBoard({ id: 'n1', name: 'Knob' })], instances: [] },
+        instances: [{ id: 'k1', name: 'Knob', definition: 'd2', position: [0, 0, 0], rotation: 0 }], hardware: [] },
+      { id: 'd2', boards: [createBoard({ id: 'n1', name: 'Knob' })], instances: [], hardware: [] },
     ],
-    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const }],
+    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] }],
   });
 
   it('shareInstance names the same definition with a fresh id', () => {
@@ -317,8 +317,8 @@ describe('shared definitions', () => {
       boards: [createBoard({ id: 'r1', name: 'Top' })],
       instances: [{ id: 'i1', name: 'Case', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
       definitions: [
-        { id: 'd1', boards: [], instances: [{ id: 'i2', name: 'Drawer', definition: 'd2', position: [1, 0, 0], rotation: 0 }] },
-        { id: 'd2', boards: [createBoard({ id: 'b3', name: 'Front' })], instances: [] },
+        { id: 'd1', boards: [], instances: [{ id: 'i2', name: 'Drawer', definition: 'd2', position: [1, 0, 0], rotation: 0 }], hardware: [] },
+        { id: 'd2', boards: [createBoard({ id: 'b3', name: 'Front' })], instances: [], hardware: [] },
       ],
     });
 
@@ -362,7 +362,7 @@ describe('shared definitions', () => {
       const withEmpty: SloydDocument = {
         ...doc,
         instances: [...doc.instances, { id: 'e', name: 'Empty', definition: 'de', position: [5, 0, 0], rotation: 0 }],
-        definitions: [...doc.definitions, { id: 'de', boards: [], instances: [] }],
+        definitions: [...doc.definitions, { id: 'de', boards: [], instances: [], hardware: [] }],
       };
       const out = removeItems(withEmpty, ['r1']);
       expect(out.instances.map((i) => i.id)).toEqual(['i1', 'e']);

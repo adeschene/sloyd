@@ -5,6 +5,7 @@ import { isMetric } from '../units/length';
 import { PartDiagram } from './PartDiagram';
 import { SheetLayout } from './SheetLayout';
 import { DimensionField } from './DimensionField';
+import { hardwareTotals, hardwareUseText } from '../document/hardware';
 import { buildPurchase, defaultShop, type ShopSettings } from '../document/purchase';
 
 const DEFAULT_SHOP = defaultShop();
@@ -48,7 +49,9 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
   const list = buildCutList(flat);
   // Each part's row number, so its layouts label small parts in the cut list's own series (plans balloons).
   const rowNumbers = new Map(list.groups.flatMap((g) => g.rows).flatMap((r) => [...r.boardIds, ...r.stripIds].map((id) => [id, r.number] as const)));
-  const purchase = buildPurchase(flat, list, shop);
+  // Hardware (spec §4): totals read the STORED doc (flat has no definitions); not part of the numbered series or the balloons.
+  const hardware = hardwareTotals(doc);
+  const purchase = buildPurchase(flat, list, shop, hardware);
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
   /**
@@ -181,7 +184,24 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
           ))
         )}
 
-        {(purchase.entries.length > 0 || purchase.banding) && (
+        {hardware.length > 0 && (
+          <section className="cutlist-hardware" aria-label="Hardware">
+            <h3>Hardware</h3>
+            <table>
+              <tbody>
+                {hardware.map((t) => (
+                  <tr key={t.type.id}>
+                    <td className="cutlist-hardware-name">{t.type.name}</td>
+                    <td className="cutlist-hardware-total">{t.total}</td>
+                    <td className="cutlist-hardware-uses">{hardwareUseText(t)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        {(purchase.entries.length > 0 || purchase.banding || purchase.hardware) && (
           <section className="cutlist-buying" aria-label="Buying">
             <h3>Buying</h3>
             {purchase.entries.map((e) => (
@@ -196,6 +216,12 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
               <div className="cutlist-buying-entry">
                 <h4>Edge banding</h4>
                 {purchase.banding.lines.map((line, i) => <p className="cutlist-buying-line" key={`t${i}`}>{line}</p>)}
+              </div>
+            )}
+            {purchase.hardware && (
+              <div className="cutlist-buying-entry">
+                <h4>Hardware</h4>
+                {purchase.hardware.lines.map((line, i) => <p className="cutlist-buying-line" key={`h${i}`}>{line}</p>)}
               </div>
             )}
             <p className="cutlist-buying-total">{purchase.totalLabel}</p>

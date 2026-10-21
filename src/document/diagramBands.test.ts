@@ -112,7 +112,7 @@ describe('a strip\'s diagram (Q7)', () => {
   });
 
   it('a square-ended strip equals chunk 1\'s diagram exactly', () => {
-    const sq = strips(top([{ side: W0!, type: 'm' }, { side: W1!, type: 'm' }], { cornerRule: 'long' }), types)[0]!;
+    const sq = strips(top([{ side: W0!, type: 'm' }, { side: W1!, type: 'm' }], { cornerRule: 'long', hardware: [] }), types)[0]!;
     expect(sq.ends).toEqual([{ mitre: null }, { mitre: null }]);
     expect(stripDiagrams(sq, IMPERIAL)).toEqual(buildDiagrams(stripBoard(sq), IMPERIAL));
     expect(L0).toBeDefined();

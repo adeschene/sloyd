@@ -1,4 +1,4 @@
-import { MATERIALS, type BandType, type CustomMaterial, type MaterialKind } from '../document/types';
+import { MATERIALS, type BandType, type CustomMaterial, type HardwareType, type MaterialKind } from '../document/types';
 import { labelKey, mintMaterialId, sameMaterial, validateCustomMaterial } from '../document/materials';
 import { IMPERIAL, formatLength, imperialAt, parseLength } from '../units/length';
 
@@ -19,7 +19,7 @@ export interface Row {
 export interface MaterialsPlan { project: CustomMaterial[]; library: CustomMaterial[] | null; assign: { ids: string[]; material: string } | null }
 /** The dialog's ONE Save: the materials' plan plus the project's band types (null: unchanged; edge banding spec §5.2),
  *  all written in the one project edit. */
-export interface SavePlan extends MaterialsPlan { bandTypes: BandType[] | null }
+export interface SavePlan extends MaterialsPlan { bandTypes: BandType[] | null; hardwareTypes: HardwareType[] | null }
 
 // Ruling P1 (metric display): stock and sheet sizes in the Materials dialog stay imperial.
 const lengthText = (v: number) => formatLength(v, imperialAt(64));

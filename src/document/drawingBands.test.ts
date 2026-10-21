@@ -16,7 +16,7 @@ const L1: ProfileSide = { across: 'length', from: 'max' };
 const maple: BandType = { id: 'maple', name: 'Maple edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
 const types: BandType[] = [BUILT_IN_BAND, maple];
 const part = (bands: Band[], over: Partial<Board> = {}): Board =>
-  ({ ...createBoard({ id: 'p', name: 'Panel', length: 36, width: 20, thickness: 0.75, material: 'plywood' }), bands, cornerRule: 'long', ...over });
+  ({ ...createBoard({ id: 'p', name: 'Panel', length: 36, width: 20, thickness: 0.75, material: 'plywood' }), bands, cornerRule: 'long', hardware: [], ...over });
 const solid = (...sides: ProfileSide[]): Band[] => sides.map((side) => ({ side, type: 'maple' }));
 
 const isBand = (s: Seg2) => s.feature !== undefined && s.feature.includes(':band:');
@@ -159,7 +159,7 @@ describe('drawView: glue lines (edge banding chunk 2, Q4/Q5)', () => {
   it('a mirrored instance: the glue line lies where the reflected width-min side lands (the world part\'s width-max)', () => {
     const inner = part(solid(W0), { posture: 'upright', id: 'q' });
     expect(mirrorDim(inner)).toBe('width');
-    const def: Definition = { id: 'd', boards: [inner], instances: [] };
+    const def: Definition = { id: 'd', boards: [inner], instances: [], hardware: [] };
     const doc = (mirrored: boolean): SloydDocument => ({
       ...createDocument('M'), bandTypes: types, definitions: [def],
       instances: [{ id: 'i', name: 'A', definition: 'd', position: [40, 0, 0], rotation: 0, ...(mirrored ? { mirrored: true } : {}) }],

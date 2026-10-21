@@ -62,16 +62,16 @@ describe('the cut list with bands (edge banding spec §4.1, §4.2)', () => {
     expect(parts.map((r) => r.qty).sort()).toEqual([1, 2]);
   });
   it('the corner rule splits no row where no corner qualifies (final review 1): one W0 tape shelf long, one mitre -> one row', () => {
-    const d = flat([shelf('a', [{ side: W0, type: 'band-iron-on' }], { cornerRule: 'long' }), shelf('b', [{ side: W0, type: 'band-iron-on' }], { cornerRule: 'mitre' })]);
+    const d = flat([shelf('a', [{ side: W0, type: 'band-iron-on' }], { cornerRule: 'long', hardware: [] }), shelf('b', [{ side: W0, type: 'band-iron-on' }], { cornerRule: 'mitre' })]);
     const parts = rowsOf(d).filter((r) => r.g.startsWith('Plywood'));
     expect(parts.map((r) => r.qty)).toEqual([2]);
     // a solid band on one side: no adjacent band, so no corner either
-    const e = flat([shelf('a', [{ side: W0, type: 'm' }], { cornerRule: 'long' }), shelf('b', [{ side: W0, type: 'm' }], { cornerRule: 'ends' })]);
+    const e = flat([shelf('a', [{ side: W0, type: 'm' }], { cornerRule: 'long', hardware: [] }), shelf('b', [{ side: W0, type: 'm' }], { cornerRule: 'ends' })]);
     expect(rowsOf(e).filter((r) => r.g.startsWith('Plywood')).map((r) => r.qty)).toEqual([2]);
   });
   it('the corner rule still splits rows where two adjacent bands meet (its words differ)', () => {
     const bands = [{ side: W0, type: 'm' }, { side: L1, type: 'm' }];
-    const d = flat([shelf('a', bands, { cornerRule: 'long' }), shelf('b', bands, { cornerRule: 'mitre' })]);
+    const d = flat([shelf('a', bands, { cornerRule: 'long', hardware: [] }), shelf('b', bands, { cornerRule: 'mitre' })]);
     expect(rowsOf(d).filter((r) => r.g.startsWith('Plywood')).map((r) => r.qty)).toEqual([1, 1]);
   });
   it('a band naming an unknown type contributes nothing to the band line (final review 2)', () => {

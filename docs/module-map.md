@@ -150,6 +150,13 @@ src/
 │   │                     (part, band types), deep-frozen; glueLines (chunk 2: THE glue-line geometry, board-local, per corner rule)
 │   ├── bandText.ts       bandLine (THE band line, moved from cutlist.ts), coreNote (`Drawn at the finished size; cut … before banding.`) (→ units)
 │   ├── bandedRefusal.ts  bandedParts / bandedRefusal: joinery, Refine and Repair refuse a banded project (after curves')
+│   ├── hardwareModel.ts  hardware's stored model (inv 55; imports only `./types`): HARDWARE_FIELDS (inv 40), HARDWARE_COUNT_MAX (999),
+│   │                     PACK_SIZE_MAX, canonicalHardware, copyHardwareUse/sameHardware/sameHardwareType, withHardwareUse, mergeHardware
+│   │                     (Ungroup); `hardware` is a SHARED field in LINK_FIELDS (inv 45)
+│   ├── hardware.ts       THE hardware arithmetic (inv 55; no `units`): hardwareTotals (a part per placement, an assembly per placement of
+│   │                     its definition, the project once; hidden parts count; where-used lines per STORED holder), hardwareUsedBy, holderHardware
+│   │                     (STORED arrays, never resolveBoard's copy: live bug c9d5c08), holderPlacements; memoised and deep-frozen
+│   ├── hardwareRefusal.ts hardwareHolders / hardwareRefusal: Refine refuses hardware on parts and assemblies (takes the STORED document, P2)
 │   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
 │   │                     curvedEdges' boundary of coplanar convex pieces
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
@@ -219,6 +226,7 @@ src/
 │   │                     (moved to outline.ts and re-exported)
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity); `keyed` / pieceKeyed: which trio keys a part
+│   ├── hardwareTree.test.ts  (hardware through the tree: copy, Ungroup merge, Make Unique, repairTree, joinery split)
 │   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44; chiralCurved);
 │                         curveFixtures.ts (TEST-ONLY ARCH, CORNER: never import a test module, it re-registers its suite);
 │                         sweepFixtures.ts (TEST-ONLY b1: apronArch, topCorners, notchEdge, frontOnly, plainLoop; b2: twoSide,
@@ -298,11 +306,14 @@ src/
 │                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; its Edge banding section on bandTypesDraft.ts
 │                     (THE pure band rows: newBandRow, fromDraft, bandRowRefusal — an ADDED fault judged against the STORED band
 │                     types, a name clash refused only when typed —, planBandTypes, rebaseBandRows; kind from `+ Add band type ▾`,
-│                     never a select, P3; delete refused while used, `Used by N parts` in world parts); CutList's Buying section
+│                     never a select, P3; delete refused while used, `Used by N parts` in world parts); its Hardware section on hardwareTypesDraft.ts (THE pure
+│                     hardware rows/refusals: name, clash, pack size, price; delete refused while used, `Used by N — remove it from them first.`); CutList's Buying section
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
 │                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
-│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers);
+│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
+│                     Hardware (the Hardware section: `+ Add hardware ▾`, a count per type, `New hardware type…`; a part, an assembly or, with
+│                     nothing selected, the project — inv 55; reads `holderHardware`, whose arrays are STORED);
 │                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
 │                     corner, Rounded corners —; rows by derived kind; a Kind select (`curveAs`) whose options are judged ONLY while it has focus — never per render, every edit frame is one; refusalFor: half circle first, then an ADDED curve fault,
 │                     then a hole into the waste) — on curveRefusal.ts (Draft, Control, HALF_CIRCLE, pastHalfCircle, holeRefusal,

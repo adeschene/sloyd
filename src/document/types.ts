@@ -234,6 +234,8 @@ export interface Board {
   bands: Band[];
   /** Where two banded sides with thickness meet (spec §3.2; Amended (planning) P1: always present, default 'long'). */
   cornerRule: CornerRule;
+  /** Hardware this part carries (hardware spec §2): per-type counts, canonical (sorted by type, one entry per type). Empty for most parts. */
+  hardware: HardwareUse[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a
@@ -283,6 +285,22 @@ export interface Definition {
   id: string;
   boards: StoredBoard[];
   instances: Instance[];
+  /** Hardware of the assembly itself, once per copy (hardware spec §2). */
+  hardware: HardwareUse[];
+}
+
+/** A kind of hardware (hardware spec §2.1): bought in packs of `packSize`, at `pricePerPack` when known. */
+export interface HardwareType {
+  id: string;
+  name: string;
+  packSize: number;
+  pricePerPack: number | null;
+}
+
+/** `count` of hardware type `type` carried by a part, an assembly or the project. */
+export interface HardwareUse {
+  type: string;
+  count: number;
 }
 
 /** A part's shared fields, stored once and used by every part naming it
@@ -325,6 +343,10 @@ export interface SloydDocument {
   materials: CustomMaterial[];
   /** This project's band types (edge banding spec §2.1); the built-in `band-iron-on` always present, first. Kept when unused. */
   bandTypes: BandType[];
+  /** This project's hardware types (hardware spec §2.1). */
+  hardwareTypes: HardwareType[];
+  /** Hardware of the project itself (hardware spec §2), canonical. */
+  hardware: HardwareUse[];
 }
 
 /**

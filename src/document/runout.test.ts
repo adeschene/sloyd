@@ -349,7 +349,7 @@ describe('a stopped profile through a mirror', () => {
   const place = (b: Board, rotation: 0 | 90): SloydDocument => ({
     ...createDocument('Mirror'),
     instances: [{ id: 'i1', name: 'Outer', definition: 'd1', position: [6, 0, 3], rotation, mirrored: true }],
-    definitions: [{ id: 'd1', boards: [{ ...b, id: 'b1' }], instances: [] }],
+    definitions: [{ id: 'd1', boards: [{ ...b, id: 'b1' }], instances: [], hardware: [] }],
   });
   const cases: { name: string; s: Spec; posture: Board['posture'] }[] = [
     // flat: mirrored along the length — the run dimension (the stations swap ends).

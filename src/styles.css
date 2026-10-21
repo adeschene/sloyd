@@ -1362,6 +1362,12 @@ select.input { cursor: pointer; }
 }
 
 /* The cut list's Buying section (lumber yield and cost spec §4). */
+.cutlist-hardware { margin-top: 28px; padding-top: 12px; border-top: 2px solid var(--rule-strong); break-inside: avoid; }
+.cutlist-hardware h3 { margin: 0 0 8px; }
+.cutlist-hardware table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.cutlist-hardware td { padding: 3px 12px 3px 0; vertical-align: top; border-bottom: 1px solid var(--rule); }
+.cutlist-hardware-total { text-align: right; font-weight: 600; }
+.cutlist-hardware-uses { color: var(--ink-dim); }
 .cutlist-buying { margin-top: 28px; padding-top: 12px; border-top: 2px solid var(--rule-strong); }
 .cutlist-buying h3 { margin: 0 0 8px; }
 .cutlist-buying-entry { margin: 12px 0; break-inside: avoid; }

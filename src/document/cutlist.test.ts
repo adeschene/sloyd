@@ -15,6 +15,16 @@ const docWith = (...boards: Partial<Board>[]): FlatDocument => ({
 });
 
 describe('buildCutList', () => {
+  it('hardware never groups the cut list: parts differing only in hardware stay one row (spec 2.2, inv 55)', () => {
+    const doc = { ...docWith({ id: 'ha' }, { id: 'hb', hardware: [{ type: 'h1', count: 4 }] }),
+      hardwareTypes: [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: null }] };
+    const list = buildCutList(doc);
+    expect(list.groups).toHaveLength(1);
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
+    expect(list.groups[0].rows[0].boardIds).toEqual(['ha', 'hb']);
+  });
+
   it('returns no groups for an empty document', () => {
     expect(buildCutList(createDocument('Test'))).toEqual({ groups: [], notes: [] });
   });
@@ -659,7 +669,7 @@ describe('mirrored copies on the cut list (mirrored-instances spec §6)', () => 
       { id: 'l', name: 'Left', definition: 'd', position: [0, 0, 0], rotation: 0 },
       { id: 'r', name: 'Right', definition: 'd', position: [40, 0, 0], rotation: 0, mirrored: true },
     ],
-    definitions: [{ id: 'd', boards: [{ ...b, id: 'p' }], instances: [] }],
+    definitions: [{ id: 'd', boards: [{ ...b, id: 'p' }], instances: [], hardware: [] }],
   });
   const rowsOf = (d: SloydDocument) => buildCutList(flatDocument(d)).groups.flatMap((g) => g.rows);
   it('a one-handed part and its mirror are two rows; a symmetric part is one row of 2', () => {

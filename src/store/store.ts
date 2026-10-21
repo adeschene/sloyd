@@ -3,16 +3,18 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { BandType, ProfileSide, AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { BandType, HardwareType, ProfileSide, AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
 import { copyProfile, sameProfile } from '../document/profiles';
 import { copyBand, sameBands, withBands, withBandTypes } from '../document/bandModel';
+import { copyHardwareUse, HARDWARE_COUNT_MAX, sameHardware, withHardwareTypes, withHardwareUse } from '../document/hardwareModel';
+import type { HardwareTarget } from '../document/hardware';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -239,12 +241,12 @@ interface StoreState {
    * single edits sharing one snapshot. Unknown ids are ignored.
    */
   /** `adopt`: custom materials copied into the document in the SAME edit (a library pick, spec §4.2). */
-  updateBoards: (ids: string[], patch: Partial<Board>, adopt?: CustomMaterial[], bandTypes?: BandType[]) => void;
+  updateBoards: (ids: string[], patch: Partial<Board>, adopt?: CustomMaterial[], bandTypes?: BandType[], hardwareTypes?: HardwareType[]) => void;
   /**
    * The Materials & prices dialog's project write (spec §4.1): its edited copies, and with `assign` the
    * selection's new material — ONE edit, one undo entry. Unused copies are pruned by edit(). Refused while exploded.
    */
-  applyMaterials: (upserts: CustomMaterial[], assign?: { ids: string[]; material: string }, bandTypes?: BandType[]) => void;
+  applyMaterials: (upserts: CustomMaterial[], assign?: { ids: string[]; material: string }, bandTypes?: BandType[], hardwareTypes?: HardwareType[]) => void;
   /**
    * The group gizmo's path (multi-select spec §4.1). `minCorner` is the
    * ABSOLUTE place the group's min corner should go — not a delta, because
@@ -389,6 +391,8 @@ interface StoreState {
   removeProfile: (boardId: string, profileId: string) => void;
   /** Sets `sides` to band type `type` (null clears) on every named part, one edit, one undo entry; refused while exploded. */
   setBands: (ids: string[], sides: readonly ProfileSide[], type: string | null) => void;
+  /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
+  setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
   /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
@@ -879,6 +883,7 @@ export const useStore = create<StoreState>((set, get) => {
       curves: source.curves.map((c) => ({ ...copyCurve(c), id: nextId() })),
       profiles: source.profiles.map((p) => ({ ...copyProfile(p), id: nextId() })),
       bands: source.bands.map(copyBand),
+      hardware: source.hardware.map(copyHardwareUse),
     });
   };
 
@@ -1113,7 +1118,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     updateBoard: (id, patch) => get().updateBoards([id], patch),
 
-    updateBoards: (ids, patch, adopt, bandTypes) => {
+    updateBoards: (ids, patch, adopt, bandTypes, hardwareTypes) => {
       if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
@@ -1177,7 +1182,7 @@ export const useStore = create<StoreState>((set, get) => {
       const shapeOf = new Map(world.map((b) => [b.id, b.shape]));
       const mates = sameSideFirst(get().doc, others, (id) => { const sh = shapeOf.get(id); return sh === undefined ? undefined : sideOfShape.get(sh); });
       const o = new Set([...oneEditPerTarget(get().doc, [...t, ...mates])].filter((id) => !t.has(id)));
-      edit((doc) => mapWorld(withBandTypes(adopt ? upsertMaterials(doc, adopt) : doc, bandTypes), (w) => w.map((b) =>
+      edit((doc) => mapWorld(withHardwareTypes(withBandTypes(adopt ? upsertMaterials(doc, adopt) : doc, bandTypes), hardwareTypes), (w) => w.map((b) =>
         t.has(b.id) ? patchBoard(b, patch) : o.has(b.id) ? patchBoard(b, shared) : b)));
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
@@ -1193,11 +1198,11 @@ export const useStore = create<StoreState>((set, get) => {
       judgeHeld();
     },
 
-    applyMaterials: (upserts, assign, bandTypes) => {
+    applyMaterials: (upserts, assign, bandTypes, hardwareTypes) => {
       if (readOnly()) return; // exploded: refuse at entry (invariant 47)
       if (assign) {
         const before = get().doc;
-        get().updateBoards(assign.ids, { material: assign.material }, upserts, bandTypes);
+        get().updateBoards(assign.ids, { material: assign.material }, upserts, bandTypes, hardwareTypes);
         // updateBoards edits nothing when no id names a part or a posture refusal bails: the upserts must not be
         // lost with it (App reports the Save as done), so fall through to the plain path below.
         if (get().doc !== before) return;
@@ -1206,7 +1211,7 @@ export const useStore = create<StoreState>((set, get) => {
       // so edit()'s same-object test would miss it and push an empty undo entry (invariant 4).
       const used = materialUses(get().doc);
       const kept = upserts.filter((m) => used.has(m.id));
-      if (kept.length > 0 || bandTypes !== undefined) edit((doc) => withBandTypes(kept.length > 0 ? upsertMaterials(doc, kept) : doc, bandTypes));
+      if (kept.length > 0 || bandTypes !== undefined || hardwareTypes !== undefined) edit((doc) => withHardwareTypes(withBandTypes(kept.length > 0 ? upsertMaterials(doc, kept) : doc, bandTypes), hardwareTypes));
     },
 
     deleteBoard: (id) => get().deleteBoards([id]),
@@ -1787,6 +1792,34 @@ export const useStore = create<StoreState>((set, get) => {
         return sameBands(next, b.bands) ? b : { ...b, bands: next };
       })));
       judgeHeld();
+    },
+
+    setHardware: (target, type, count) => {
+      if (readOnly()) return;
+      const doc0 = get().doc;
+      if (count !== null && !doc0.hardwareTypes.some((t) => t.id === type)) return; // a stranded entry (type gone) can still be removed
+      if (count !== null && !(Number.isInteger(count) && count >= 1 && count <= HARDWARE_COUNT_MAX)) return;
+      if (target.kind === 'part') {
+        const world = worldParts(doc0);
+        if (!world.some((b) => b.id === target.id)) return;
+        const t = oneEditPerTarget(doc0, [target.id]);
+        edit((doc) => mapWorld(doc, (w) => w.map((b) => {
+          if (!t.has(b.id)) return b;
+          const next = withHardwareUse(b.hardware, type, count);
+          return sameHardware(next, b.hardware) ? b : { ...b, hardware: next };
+        })));
+        judgeHeld();
+        return;
+      }
+      const apply = (uses: readonly { type: string; count: number }[]) => { const next = withHardwareUse(uses, type, count); return sameHardware(next, uses) ? null : next; };
+      if (target.kind === 'project') {
+        const next = apply(doc0.hardware);
+        if (next) edit((doc) => ({ ...doc, hardware: next }));
+        return;
+      }
+      const d = definitionAt(doc0, target.path);
+      const next = d ? apply(d.hardware) : null;
+      if (next) edit((doc) => updateContainer(doc, target.path, (c) => ({ ...c, hardware: next })));
     },
 
     linkBoards: (ids) => {

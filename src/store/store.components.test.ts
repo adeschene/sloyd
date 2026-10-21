@@ -8,8 +8,8 @@ const drawerDoc = (): SloydDocument => ({
   ...createDocument(),
   instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
   definitions: [{ id: 'd1', boards: [
-    { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const },
-  ], instances: [] }],
+    { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] },
+  ], instances: [], hardware: [] }],
 });
 const s = () => useStore.getState();
 beforeEach(() => { s().replaceDocument(drawerDoc()); s().setTool('select'); });
@@ -45,7 +45,7 @@ describe('components in the store', () => {
         { id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
         { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [40, 0, 0], rotation: 90 },
       ],
-      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }] }],
+      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }], hardware: [] }],
     });
     s().openAssembly('c1'); s().openAssembly('c1/i1');
     s().selectItem('c1/i1/b1', false);
@@ -60,7 +60,7 @@ describe('components in the store', () => {
         { id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
         { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [40, 0, 0], rotation: 90 },
       ],
-      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }] }],
+      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }], hardware: [] }],
     });
     s().openAssembly('c1'); s().openAssembly('c1/i1');
     expect(() => s().updateBoards(['c1/i1/b1', 'c2/i1/b1'], { position: [3, 1, 2] })).not.toThrow();
@@ -147,7 +147,7 @@ describe('components in the store', () => {
         { id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
         { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [40, 0, 0], rotation: 0 },
       ],
-      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }] }],
+      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }], hardware: [] }],
     });
     anchorOn('c2/i1/b1');
     s().openAssembly('c1');
@@ -161,7 +161,7 @@ describe('links are shapes', () => {
     ...createDocument(),
     boards: [0, 1, 2, 3].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, length: 28, width: 1.75, thickness: 1.75,
       position: [k * 10, 0, 0] as [number, number, number], rotation: ([0, 90, 180, 270] as const)[k]!, posture: 'upright' as const,
-      grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const })),
+      grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] })),
   });
 
   it('Link stores one shape and makes every member a shaped part', () => {
@@ -313,7 +313,7 @@ describe('links are shapes', () => {
       ...legs(),
       boards: legs().boards.slice(0, 1),
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [40, 0, 3], rotation: 90 }],
-      definitions: [{ id: 'd1', boards: [{ ...legs().boards[1]!, id: 'p1', name: 'Post' }], instances: [] }],
+      definitions: [{ id: 'd1', boards: [{ ...legs().boards[1]!, id: 'p1', name: 'Post' }], instances: [], hardware: [] }],
     };
     s().replaceDocument(doc);
     const placed = worldParts(s().doc).map((b) => [b.position, b.rotation]);
@@ -343,7 +343,7 @@ describe('links are shapes', () => {
       ...legs(),
       boards: legs().boards.slice(0, 2),
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [40, 0, 3], rotation: 90 }],
-      definitions: [{ id: 'd1', boards: [{ ...legs().boards[1]!, id: 'p1', name: 'Post' }], instances: [] }],
+      definitions: [{ id: 'd1', boards: [{ ...legs().boards[1]!, id: 'p1', name: 'Post' }], instances: [], hardware: [] }],
     };
     s().replaceDocument(doc);
     s().linkBoards(['l0', 'l1', 'i1/p1']);
@@ -359,7 +359,7 @@ describe('links are shapes', () => {
 describe('other copies after Delete, Group and Ungroup in a shared definition (components spec §4.2)', () => {
   const part = (id: string, x: number) => ({ id, name: `Part ${id}`, length: 10, width: 4, thickness: 0.75,
     position: [x, 0, 0] as [number, number, number], rotation: 0 as const, posture: 'flat' as const,
-    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const });
+    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] });
   const shared = (): SloydDocument => ({
     ...createDocument(),
     instances: [
@@ -367,8 +367,8 @@ describe('other copies after Delete, Group and Ungroup in a shared definition (c
       { id: 'i2', name: 'Box (1)', definition: 'd1', position: [50, 0, 20], rotation: 90 },
     ],
     definitions: [
-      { id: 'd1', boards: [part('b1', 0), part('b2', 12)], instances: [{ id: 'g', name: 'Inner', definition: 'dg', position: [0, 5, 0], rotation: 0 }] },
-      { id: 'dg', boards: [part('b3', 0)], instances: [] },
+      { id: 'd1', boards: [part('b1', 0), part('b2', 12)], instances: [{ id: 'g', name: 'Inner', definition: 'dg', position: [0, 5, 0], rotation: 0 }], hardware: [] },
+      { id: 'dg', boards: [part('b3', 0)], instances: [], hardware: [] },
     ],
   });
   const realPoint = (id: string) => snapPointsFor(worldParts(s().doc).find((b) => b.id === id)!)[0]!;
@@ -422,8 +422,8 @@ describe('other copies after Delete, Group and Ungroup in a shared definition (c
   it('(c3) every lifted child, a nested assembly and a clashing id included, takes the hidden-ness once (fu 229)', () => {
     const doc = shared();
     // dg gains a second part, a part whose id clashes with one beside the group (b1), and a nested assembly.
-    doc.definitions.push({ id: 'dn', boards: [part('b9', 0)], instances: [] });
-    doc.definitions[1] = { id: 'dg', boards: [part('b3', 0), part('b1', 3)], instances: [{ id: 'n', name: 'Nested', definition: 'dn', position: [0, 2, 0], rotation: 0 }] };
+    doc.definitions.push({ id: 'dn', boards: [part('b9', 0)], instances: [], hardware: [] });
+    doc.definitions[1] = { id: 'dg', boards: [part('b3', 0), part('b1', 3)], instances: [{ id: 'n', name: 'Nested', definition: 'dn', position: [0, 2, 0], rotation: 0 }], hardware: [] };
     s().replaceDocument(doc);
     s().setHidden('i2/g/b3', true); // covered once i2/g is hidden too: it must not appear twice
     s().setHidden('i2/g', true);
@@ -444,7 +444,7 @@ describe('other copies after Delete, Group and Ungroup in a shared definition (c
   it('(c4) two assemblies ungrouped at once each pass their hidden-ness on in the other copy (fu 229)', () => {
     const doc = shared();
     doc.definitions[0]!.instances.push({ id: 'h', name: 'Second', definition: 'dh', position: [0, 9, 0], rotation: 0 });
-    doc.definitions.push({ id: 'dh', boards: [part('b5', 0)], instances: [] });
+    doc.definitions.push({ id: 'dh', boards: [part('b5', 0)], instances: [], hardware: [] });
     s().replaceDocument(doc);
     s().setHidden('i2/g', true);
     s().setHidden('i2/h', true);
@@ -487,7 +487,7 @@ describe('commitSnapMove refuses a twin target (fu 230)', () => {
       { id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 },
       { id: 'i2', name: 'Drawer (1)', definition: 'd1', position: [50, 0, 0], rotation: 0 },
     ],
-    boards: [{ id: 'r1', name: 'Rail', length: 10, width: 2, thickness: 1, position: [0, 30, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const }],
+    boards: [{ id: 'r1', name: 'Rail', length: 10, width: 2, thickness: 1, position: [0, 30, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] }],
   });
   const cornerOf = (path: string) => {
     const w = worldParts(s().doc).find((b) => b.id === path)!;

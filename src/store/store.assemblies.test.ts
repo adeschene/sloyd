@@ -266,8 +266,8 @@ describe('moving and copying assemblies (assemblies spec §4.2)', () => {
       ...assemblyDoc(),
       instances: [{ id: 'i1', name: 'Case', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
       definitions: [
-        { id: 'd1', boards: [], instances: [{ id: 'i2', name: 'Peg', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
-        { id: 'd2', boards: [b3], instances: [] },
+        { id: 'd1', boards: [], instances: [{ id: 'i2', name: 'Peg', definition: 'd2', position: [0, 0, 0], rotation: 0 }], hardware: [] },
+        { id: 'd2', boards: [b3], instances: [], hardware: [] },
       ],
     });
     s().openAssembly('i1');
@@ -1040,7 +1040,7 @@ describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
       return {
         ...createDocument('Twins'),
         instances: [{ id: 'm', name: 'Pair', definition: 'dp', position: [5.1, 0, 2.3], rotation: 90, mirrored: true }],
-        definitions: [{ id: 'dp', boards: [part('L', 0.1), cutsOnR ? r : { ...r, cuts: [] }], instances: [] }],
+        definitions: [{ id: 'dp', boards: [part('L', 0.1), cutsOnR ? r : { ...r, cuts: [] }], instances: [], hardware: [] }],
       };
     };
     const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
@@ -1135,7 +1135,7 @@ describe('Link through the store API across a mirror and through mixed first occ
         { id: 'i0', name: 'L', definition: 'D', position: [0, 0, 0], rotation: 0 },
         { id: 'i1', name: 'R', definition: 'D', position: [40, 0, 0], rotation: 0, mirrored: true },
       ],
-      definitions: [{ id: 'D', boards: [part], instances: [] }] });
+      definitions: [{ id: 'D', boards: [part], instances: [], hardware: [] }] });
     // M: a root part equal AS SEEN to the mirrored occurrence i1/S.
     const seen = worldParts(s().doc).find((b) => b.id === 'i1/S')!;
     load({ ...s().doc, boards: [{ ...seen, id: 'M', name: 'M', position: [seen.position[0], 20, seen.position[2]] }] });

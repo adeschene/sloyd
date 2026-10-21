@@ -159,7 +159,7 @@ describe('trioDrawings: cached per band types too (edge banding chunk 2)', () =>
     const maple = (thickness: number): BandType =>
       ({ id: 'maple', name: 'Maple edging', kind: 'solid', thickness, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 });
     const parts: Board[] = [{ ...createBoard({ id: 'p', length: 36, width: 20, thickness: 0.75 }),
-      bands: [{ side: { across: 'width', from: 'min' }, type: 'maple' }], cornerRule: 'long' }];
+      bands: [{ side: { across: 'width', from: 'min' }, type: 'maple' }], cornerRule: 'long', hardware: [] }];
     const thin = [maple(0.25)];
     const thick = [maple(0.5)];
     const a = trioDrawings(parts, thin);

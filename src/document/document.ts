@@ -2,7 +2,7 @@ import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from '
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
   Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
-  Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule,
+  Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse,
 } from './types';
 import type { SharedField } from './links';
 import type { LengthDisplay } from '../units/length';
@@ -11,6 +11,7 @@ import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_KINDS, CORNER_RULES, canonicalBands } from './bandModel';
+import { canonicalHardware, HARDWARE_COUNT_MAX, PACK_SIZE_MAX } from './hardwareModel';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
 import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
@@ -170,8 +171,12 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * step — absent fields default ([BUILT_IN_BAND], [], 'long'). Harm a v18 build would do: silent loss — it drops every band
  * and band type and autosaves, and a banded panel's cut list prints its FINISHED size as the cut size. From v19 on, a band
  * type `kind` this build does not know refuses the document, so a later kind needs no bump.
+ *
+ * v20 (hardware spec §2.3): `hardwareTypes` (document) and `hardware` (document, part, shape, definition), document-level, no
+ * step — absent fields default to []. Harm a v19 build would do: silent loss — it drops every hardware type and entry and
+ * autosaves. Hardware types validate BEFORE the parts, so an entry naming a type this file carries keeps it.
  */
-export const CURRENT_VERSION = 19;
+export const CURRENT_VERSION = 20;
 
 export class DocumentError extends Error {
   /**
@@ -266,6 +271,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     profiles: [],
     bands: [],
     cornerRule: 'long',
+    hardware: [],
     ...partial,
   };
 }
@@ -283,6 +289,8 @@ export function createDocument(name = 'Untitled'): FlatDocument {
     shapes: [],
     materials: [],
     bandTypes: [BUILT_IN_BAND],
+    hardwareTypes: [],
+    hardware: [],
   };
 }
 
@@ -660,6 +668,40 @@ function validateBandTypes(raw: unknown, known: ReadonlySet<string>): BandType[]
   return named.some((t) => t.id === BUILT_IN_BAND_ID) ? named : [{ ...BUILT_IN_BAND }, ...named];
 }
 
+/**
+ * Hardware types (hardware spec §2.1, §2.3), validated before every holder. Dropped, never clamped: a non-string or empty
+ * name; a pack size that is not an integer in [1, PACK_SIZE_MAX]; a price that is neither absent/null nor a finite number
+ * >= 0. Ids per document (inv 33, first wins); names deduped (`dedupeNames`).
+ */
+function validateHardwareTypes(raw: unknown): HardwareType[] {
+  const out: HardwareType[] = [];
+  const seen = new Set<string>();
+  for (const item of Array.isArray(raw) ? raw : []) {
+    if (typeof item !== 'object' || item === null) continue;
+    const t = item as Record<string, unknown>;
+    if (typeof t.name !== 'string' || t.name.trim() === '') continue;
+    if (typeof t.packSize !== 'number' || !Number.isInteger(t.packSize) || t.packSize < 1 || t.packSize > PACK_SIZE_MAX) continue;
+    const price = t.pricePerPack === undefined ? null : t.pricePerPack;
+    if (price !== null && !(typeof price === 'number' && Number.isFinite(price) && price >= 0)) continue;
+    out.push({ id: takeId(t.id, seen), name: cleanName(t.name.trim()), packSize: t.packSize, pricePerPack: price });
+  }
+  return dedupeNames(out);
+}
+
+/** A holder's hardware (hardware spec §2.2): an entry whose count is not an integer in [1, HARDWARE_COUNT_MAX], or whose
+ *  type names no hardware type, is dropped; one per type (the first wins), canonical order. */
+function validateHardware(raw: unknown, typeIds: ReadonlySet<string>): HardwareUse[] {
+  if (!Array.isArray(raw)) return [];
+  const out: HardwareUse[] = [];
+  for (const item of raw) {
+    const u = item as Record<string, unknown> | null;
+    if (!u || typeof u.type !== 'string' || !typeIds.has(u.type)) continue;
+    if (typeof u.count !== 'number' || !Number.isInteger(u.count) || u.count < 1 || u.count > HARDWARE_COUNT_MAX) continue;
+    out.push({ type: u.type, count: u.count });
+  }
+  return canonicalHardware(out);
+}
+
 /** A part's bands (spec §2.2): a band whose side is not one of the four, or whose type names no band type, is dropped;
  *  one per side (the first wins), canonical order. */
 function validateBands(raw: unknown, typeIds: ReadonlySet<string>): Band[] {
@@ -722,7 +764,7 @@ const validRotation = (r: unknown): Rotation => (VALID_ROTATIONS.includes(r as n
  * number: the caller decides whether that refuses the file (a part) or drops
  * the thing (a shape). `bad` names the first bad dimension.
  */
-function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<string>, bandIds: ReadonlySet<string>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {
+function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, hardwareIds: ReadonlySet<string>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {
   for (const key of ['length', 'width', 'thickness'] as const) {
     if (!isPositiveFinite(b[key])) return { bad: key };
   }
@@ -759,7 +801,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long' } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds) } };
 }
 
 /**
@@ -772,7 +814,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
  * non-blank string `link` is recorded under the object returned, which is
  * what `linksToShapes` keys on. The key itself never reaches a stored part.
  */
-function validateBoard(raw: unknown, index: number, seen: Set<string>, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, legacy?: Map<StoredBoard, string>): StoredBoard {
+function validateBoard(raw: unknown, index: number, seen: Set<string>, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, hardwareIds: ReadonlySet<string>, legacy?: Map<StoredBoard, string>): StoredBoard {
   const where = `board ${index + 1}`;
   if (typeof raw !== 'object' || raw === null) {
     throw new DocumentError(`${where} is not an object`);
@@ -780,7 +822,7 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>, known: Re
   const b = raw as Record<string, unknown>;
   const shaped = typeof b.shape === 'string' && b.shape !== '' && !('length' in b);
 
-  const shared = shaped ? null : validateSharedFields(b, known, bandIds);
+  const shared = shaped ? null : validateSharedFields(b, known, bandIds, hardwareIds);
   if (shared && 'bad' in shared) {
     throw new DocumentError(`${where} has an invalid ${shared.bad} — must be a positive number`);
   }
@@ -807,7 +849,7 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>, known: Re
  * dropped duplicate leaves no reference to rewrite; a part naming a dropped
  * shape is dropped later (`dropUnresolved`, step 5).
  */
-export function validateShapes(raw: unknown, known: ReadonlySet<string> = BUILT_IN_MATERIAL_IDS, bandIds: ReadonlySet<string> = new Set([BUILT_IN_BAND_ID])): Shape[] {
+export function validateShapes(raw: unknown, known: ReadonlySet<string> = BUILT_IN_MATERIAL_IDS, bandIds: ReadonlySet<string> = new Set([BUILT_IN_BAND_ID]), hardwareIds: ReadonlySet<string> = new Set()): Shape[] {
   if (!Array.isArray(raw)) return [];
   const ids = new Set<string>();
   const out: Shape[] = [];
@@ -817,7 +859,7 @@ export function validateShapes(raw: unknown, known: ReadonlySet<string> = BUILT_
     if (typeof s.id !== 'string' || !s.id || ids.has(s.id)) continue;
     // A shape with a bad size claims no id, so a later good one may keep it:
     // validateDefinitions' rule for a definition with no boards list.
-    const shared = validateSharedFields(s, known, bandIds);
+    const shared = validateSharedFields(s, known, bandIds, hardwareIds);
     if ('bad' in shared) continue;
     ids.add(s.id);
     out.push({ id: s.id, ...shared.fields });
@@ -857,7 +899,7 @@ const validateInstances = (raw: unknown, seen: Set<string>): Instance[] =>
  * repairTree): treeEdit routes that id to the root container, so keeping it
  * would send every edit inside it to the root's parts.
  */
-function validateDefinitions(raw: unknown, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, legacy?: Map<StoredBoard, string>): Definition[] {
+function validateDefinitions(raw: unknown, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, hardwareIds: ReadonlySet<string>, legacy?: Map<StoredBoard, string>): Definition[] {
   if (!Array.isArray(raw)) return [];
   const ids = new Set<string>();
   const out: Definition[] = [];
@@ -867,8 +909,8 @@ function validateDefinitions(raw: unknown, known: ReadonlySet<string>, bandIds: 
     if (typeof d.id !== 'string' || !d.id || d.id === ROOT_STORAGE_ID || ids.has(d.id) || !Array.isArray(d.boards)) continue;
     ids.add(d.id);
     const seen = new Set<string>();
-    const boards = d.boards.map((b, i) => validateBoard(b, i, seen, known, bandIds, legacy));
-    out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen) });
+    const boards = d.boards.map((b, i) => validateBoard(b, i, seen, known, bandIds, hardwareIds, legacy));
+    out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen), hardware: validateHardware(d.hardware, hardwareIds) });
   }
   return out;
 }
@@ -1055,6 +1097,9 @@ export function migrateDocument(raw: unknown): SloydDocument {
   const known = new Set([...BUILT_IN_MATERIAL_IDS, ...materials.map((m) => m.id)]);
   const bandTypes = validateBandTypes(d.bandTypes, known);
   const bandIds = new Set(bandTypes.map((t) => t.id));
+  // Hardware spec §2.3: types BEFORE every holder's entries — an entry naming no type is dropped against this set.
+  const hardwareTypes = validateHardwareTypes(d.hardwareTypes);
+  const hardwareIds = new Set(hardwareTypes.map((t) => t.id));
   const boardIds = new Set<string>();
 
   // ONE `seen` set threaded across the whole list, which is why this is not
@@ -1067,9 +1112,9 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // records each plain part's label under the object it returns; a v11 file's
   // stray `link` is ignored (no map is passed).
   const legacy = d.version < 11 ? new Map<StoredBoard, string>() : undefined;
-  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds, known, bandIds, legacy));
+  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds, known, bandIds, hardwareIds, legacy));
   const instances = validateInstances(d.instances, boardIds);
-  const definitions = validateDefinitions(d.definitions, known, bandIds, legacy);
+  const definitions = validateDefinitions(d.definitions, known, bandIds, hardwareIds, legacy);
   let doc: SloydDocument = {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
@@ -1079,9 +1124,11 @@ export function migrateDocument(raw: unknown): SloydDocument {
     boards,
     instances,
     definitions,
-    shapes: validateShapes(d.shapes, known, bandIds),
+    shapes: validateShapes(d.shapes, known, bandIds, hardwareIds),
     materials,
     bandTypes,
+    hardwareTypes,
+    hardware: validateHardware(d.hardware, hardwareIds),
   };
   // Links first, while each stored part is still the object validateBoard
   // built (the `legacy` map is keyed by object). worldParts tolerates missing
