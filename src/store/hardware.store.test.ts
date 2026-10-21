@@ -15,6 +15,17 @@ const base = (): SloydDocument => ({ ...createDocument('HW'), hardwareTypes: TYP
 beforeEach(() => s().replaceDocument(base()));
 
 describe('setHardware', () => {
+  it('a stranded entry (its type gone) is removed by null, one undo entry; setting it is still refused', () => {
+    const stranded = { ...part('a', 0), hardware: [{ type: 'h-gone', count: 2 }] };
+    s().replaceDocument({ ...base(), boards: [stranded, part('b', 10)] });
+    const past = s().past.length;
+    s().setHardware({ kind: 'part', id: 'a' }, 'h-gone', 3);
+    expect(s().past.length).toBe(past);
+    s().setHardware({ kind: 'part', id: 'a' }, 'h-gone', null);
+    expect(worldParts(s().doc).find((b) => b.id === 'a')!.hardware).toEqual([]);
+    expect(s().past.length).toBe(past + 1);
+  });
+
   it('a part set is one undo entry and undo restores the previous doc', () => {
     const before = s().doc;
     const past = s().past.length;

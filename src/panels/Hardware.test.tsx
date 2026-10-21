@@ -31,6 +31,17 @@ const add = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
 afterEach(() => { vi.restoreAllMocks(); act(() => useStore.getState().setExplode(0)); });
 
 describe('the Hardware section (hardware spec §5.1)', () => {
+  it('a refused or no-op add leaves no pending focus to steal later', async () => {
+    const user = userEvent.setup();
+    open({ boards: [plain()] });
+    const real = useStore.getState().setHardware;
+    act(() => useStore.setState({ setHardware: () => {} }));
+    await add(user, 'Hinge');
+    act(() => useStore.setState({ setHardware: real }));
+    act(() => useStore.getState().setHardware({ kind: 'part', id: 'a' }, 'h1', 2));
+    expect(screen.getByLabelText('Hinge')).not.toHaveFocus();
+  });
+
   it('an empty holder shows only + Add hardware ▾; choosing Hinge writes count 1 and focuses the count', async () => {
     const user = userEvent.setup();
     open({ boards: [plain()] });

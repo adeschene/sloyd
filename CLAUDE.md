@@ -615,8 +615,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     band by MOVING triangles into material groups 6+ (`bandedMesh`), never by recolouring a slot;
     `glueLines` is the ONE glue-line geometry; band types reach the drawings as an OPTIONAL argument.
 
-55. **`hardware.ts` is the ONE place hardware is counted** (a part per placement, an assembly per placement of its definition,
-    the project once; hidden parts count). **Hardware never groups the cut list, never touches geometry, and every Definition copy
+55. **`hardware.ts` is the ONE place hardware is counted** (a part per placement via `placementsOf`, its own walk whose agreement with
+    `worldParts` is pinned by the oracle test; an assembly per placement of its definition, the project once; hidden parts count). **Hardware never groups the cut list, never touches geometry, and every Definition copy
     carries it** (Ungroup merges it into the parent, REFUSED above 999 — P1). `hardware` is a SHARED field (inv 45). **`holderHardware`
     returns STORED arrays, never `resolveBoard`'s copy** (a selector returning a fresh array crashes React). Refine refuses hardware
     on parts (`hardwareRefusal` takes the STORED document, P2); joinery and Repair accept it. Hardware is typed, never derived from holes.
@@ -640,7 +640,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 267 (banding and hardware built; closed once deployed), 404–408 (hardware residue), 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–332, 334; curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328–331, 334 (332 closed once deployed, like 267); curves 363, 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*

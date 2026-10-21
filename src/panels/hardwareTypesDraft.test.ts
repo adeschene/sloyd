@@ -63,6 +63,13 @@ describe('the Hardware section (hardware spec §5.2)', () => {
     const imported = [hinge, { ...screws, name: 'hinge' }];
     expect(planHardwareTypes(initialHardwareRows(imported), imported, none)).toBeNull();
   });
+  it('names are keyed after cleanName: A\u203aB and A>B clash when one side was typed', () => {
+    const orig = [{ ...hinge, name: 'A>B' }, screws];
+    const rows = initialHardwareRows(orig).map((r) => (r.id === 's' ? { ...r, draft: { ...r.draft, name: 'a\u203ab' } } : r));
+    expect(hardwareRowRefusal(rows[1]!, rows, none)).toBe('Another hardware type is called "A>B".');
+    expect(hardwareRowRefusal(rows[0]!, rows, none)).toBe('Another hardware type is called "a\u203ab".');
+    expect(planHardwareTypes(rows, orig, none)).toEqual({ refused: expect.stringContaining('Another hardware type') });
+  });
   it('delete refused for assembly and project use; an unused type deletes', () => {
     const rows = initialHardwareRows(original).map((r) => ({ ...r, deleted: true }));
     const ctx = { usedBy: (id: string) => (id === 'h' ? 3 : 0) };

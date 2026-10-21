@@ -53,8 +53,10 @@ function fromDraft(r: HardwareRow): HardwareType | null {
   return { id: r.id, name, packSize, pricePerPack };
 }
 
-const nameKey = (r: HardwareRow) => r.draft.name.trim().toLowerCase();
-const nameTyped = (r: HardwareRow) => r.original === null || nameKey(r) !== r.original.name.trim().toLowerCase();
+/** Keyed AFTER `cleanName` (the loader renames `›` to `>`, so `A›B` and `A>B` are one name). */
+const keyOf = (name: string) => cleanName(name.trim()).toLowerCase();
+const nameKey = (r: HardwareRow) => keyOf(r.draft.name);
+const nameTyped = (r: HardwareRow) => r.original === null || nameKey(r) !== keyOf(r.original.name);
 
 /** Why this row cannot be saved, or null. Order (spec §5.2): a deletion in use, the name, the pack size, the price. A
  *  name clash refuses only when one side's name was TYPED (the band types' amended rule: the loader keeps imported

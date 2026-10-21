@@ -1797,7 +1797,7 @@ export const useStore = create<StoreState>((set, get) => {
     setHardware: (target, type, count) => {
       if (readOnly()) return;
       const doc0 = get().doc;
-      if (!doc0.hardwareTypes.some((t) => t.id === type)) return;
+      if (count !== null && !doc0.hardwareTypes.some((t) => t.id === type)) return; // a stranded entry (type gone) can still be removed
       if (count !== null && !(Number.isInteger(count) && count >= 1 && count <= HARDWARE_COUNT_MAX)) return;
       if (target.kind === 'part') {
         const world = worldParts(doc0);

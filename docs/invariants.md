@@ -590,8 +590,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `buildDiagrams` as an OPTIONAL argument; with none, every output is byte for byte as before. A banded part's diagram is drawn at
     the FINISHED size (fu 395(1)) with `bands` marks and `bandNotes` (the band line, then `coreNote`) on its first thickness view.
 
-55. **`hardware.ts` is the ONE place hardware is counted** (hardware spec §3). A part's entry counts once per PLACEMENT (`worldParts`,
-    which multiplies instances), an assembly's once per placement of its definition (`placementsOf`: a nested assembly counts once
+55. **`hardware.ts` is the ONE place hardware is counted** (hardware spec §3). A part's entry counts once per PLACEMENT (`holdersOf`'s own walk
+    with `placementsOf`; its agreement with `worldParts` is pinned by the oracle test), an assembly's once per placement of its definition (`placementsOf`: a nested assembly counts once
     per placement of every ancestor), the project's once. **Hidden parts count** (inv 43: hidden-ness is view state) and `explode`
     changes nothing. Every reader — the cut list's Hardware section, Buying's Hardware block, Properties' copy note, the dialog's
     `Used by` — reads `hardwareTotals`/`hardwareUsedBy`; nothing else counts. **Hardware never groups the cut list** (the row

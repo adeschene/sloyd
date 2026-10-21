@@ -115,7 +115,7 @@ ONE pure module, numbers only (no `units`), memoised per document object and dee
 Hardware section, Buying, Properties' copy notes, the dialog's `Used by` — reads it; nothing else counts hardware.
 
 `hardwareTotals(doc) → { type: HardwareType; total: number; uses: { holder: string; each: number; times: number }[] }[]`
-- **Parts:** for every placed part (`worldParts`, which already multiplies instances), each entry adds `count`.
+- **Parts:** for every part, counted once per placement (`holdersOf`'s own walk with `placementsOf`; its agreement with `worldParts` is pinned by the oracle test), each entry adds `count`.
 - **Assemblies:** for every definition, each entry adds `count × placements(definition)` (`placementsOf`, world
   placements, so a nested assembly counts once per placement of every ancestor).
 - **The project:** each entry adds `count`.

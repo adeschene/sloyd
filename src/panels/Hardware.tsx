@@ -33,7 +33,11 @@ export function Hardware({ target, heading, onNewHardwareType }: { target: Hardw
       const had = entries.some((u) => u.type === t.id);
       return {
         label: t.name, detail: had ? 'Already added' : undefined, disabled: had, title: had ? 'Already added' : undefined,
-        run: () => { pending.current = t.id; setHardware(target, t.id, 1); },
+        run: () => {
+          const before = useStore.getState().doc;
+          setHardware(target, t.id, 1);
+          pending.current = useStore.getState().doc === before ? null : t.id; // only a write that changed the doc earns the focus
+        },
       };
     }),
     { label: 'New hardware type…', run: onNewHardwareType },
