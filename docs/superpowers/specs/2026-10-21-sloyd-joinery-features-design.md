@@ -145,6 +145,13 @@ means it rules out all three growing kinds (mortise-tenon, dado, stopped-dado) a
   sent, so Claude never offers it, `defaultChoice` never picks it, and `validChoice` rejects it. One pure function
   (`featureAllowed(flat, sites)` or the builder's name) returns the narrowed sites and, per site, which kinds went and the
   feature that removed each. It is THE one decider; `runJoinery` and the dialog both call it.
+- **Rabbets go as a unit.** `applyJoints` resolves a panel's rabbet sites on one face together (`rabbetUnits`, keyed
+  `enter|axis|side`) and moves the panel into its frame by the rabbet depth. If one member kept rabbet while another lost
+  it, the panel would move into the butt member's part. So **when a feature rules rabbet out at any site of a unit, it is
+  ruled out at every site of that unit**, each named in the summary (*amended before handover*).
+- **A trim's zone belongs to the site that trims.** A feature on a part that a rabbet would trim (§3.2's trimmed-parts
+  row, §3.4's trimmed ends) rules out rabbet at the site doing the trimming, and with it that site's whole unit. It does
+  not rule anything out at the trimmed part's own sites.
 - **A site left with only butt is still a site** and is joined as a butt. It is not sent to the chooser **(my call)**: a
   choice of one is no choice, and it saves tokens. A run whose every open site is left butt makes no call.
 - **The summary says why**, one line per site that lost a kind, built in `document/` beside `angledRefusal.ts` because it
@@ -152,6 +159,8 @@ means it rules out all three growing kinds (mortise-tenon, dado, stopped-dado) a
   - "`<Enter>` → `<Receive>`: dado ruled out — `<Part>`'s roundover is in the way."
   - "`<Enter>` → `<Receive>`: left as a butt — `<Part>`'s holes are in the way of every joint."
   Feature words: `holes`, `curve`, `<kind> profile`, `edge band`.
+- **The dialog's estimate.** `joineryEstimateUsd` (shown when `joineryRefusal` is null, `App.tsx` ~1107) counts only the
+  sites still sent to the chooser, and shows no cost when none are, so the dialog never quotes money for a free run.
 - **The prompt.** `JOINERY_PROMPT` (the fixed system prefix) stays byte-identical. The user turn's site list
   (`siteMessage`) lists each site's narrowed `allowed`, as it lists `allowed` today; that is the only change in what Claude
   reads.
@@ -212,6 +221,9 @@ field is a spec bug, not a builder's choice:
   part's stored cuts, with no knowledge of joints, so a HAND-made notch at a banded end shortens its strip too. That is a
   change for existing documents **(my call: it is the same fact, and the number was wrong before)**; listed in the round's
   record. A band-free document stays byte for byte (`bandFreeIdentity.test.ts`).
+- Checked before handover: `mortiseTenon` stores each shoulder's waste as ONE cut spanning the part's whole thickness
+  (`recipes.ts` ~272), so the single-cut rule fires for tenons. The builder confirms the stopped dado's notch is one cut
+  too; if it is not, the rule reads "the part's cuts together".
 
 ### 4.5 The inverse
 `readJoints`' `resizeAt` (`unjoin.ts`) calls each new rebase exactly as it calls `rebaseAngleCuts`, so the plain part
