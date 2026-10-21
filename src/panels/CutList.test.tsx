@@ -6,6 +6,8 @@ import { buildCutList, createBoard, createDocument, flatDocument } from '../docu
 import type { Board } from '../document/document';
 import { assemblyDoc } from '../document/treeFixtures';
 import { CutList } from './CutList';
+import { anchorsFor, layoutBalloons } from './planBalloons';
+import { hardwareTotals } from '../document/hardware';
 import { defaultShop, type ShopSettings } from '../document/purchase';
 
 const load = (...boards: Partial<Board>[]) =>
@@ -345,67 +347,89 @@ describe('printed page breaks (fu 383)', () => {
     expect(Number(num)).toBeGreaterThan(2);   // after both plywood rows, so a bare index (1) could not pass for it
     expect(within(layout as unknown as HTMLElement).getAllByText(num).length).toBeGreaterThan(0);
   });
+});
 
-  describe('Hardware (hardware spec §4)', () => {
-    const hwDoc = (withHardware = true) => {
-      const door = createBoard({ id: 'door', name: 'Left door', material: 'pine', length: 20, width: 10, thickness: 0.75, hardware: withHardware ? [{ type: 'h1', count: 2 }] : [] });
-      return {
-        ...createDocument('HW'),
-        hardwareTypes: [{ id: 'h1', name: 'Euro hinge, 35 mm', packSize: 1, pricePerPack: 4.5 }],
-        instances: [1, 2].map((n) => ({ id: `i${n}`, name: 'Base cabinet', definition: 'd1', position: [n * 30, 0, 0] as [number, number, number], rotation: 0 as const })),
-        definitions: [{ id: 'd1', boards: [door], instances: [], hardware: [] }],
-      };
+describe('Hardware (hardware spec §4)', () => {
+  const hwDoc = (withHardware = true) => {
+    const door = createBoard({ id: 'door', name: 'Left door', material: 'pine', length: 20, width: 10, thickness: 0.75, hardware: withHardware ? [{ type: 'h1', count: 2 }] : [] });
+    return {
+      ...createDocument('HW'),
+      hardwareTypes: [{ id: 'h1', name: 'Euro hinge, 35 mm', packSize: 1, pricePerPack: 4.5 }],
+      instances: [1, 2].map((n) => ({ id: `i${n}`, name: 'Base cabinet', definition: 'd1', position: [n * 30, 0, 0] as [number, number, number], rotation: 0 as const })),
+      definitions: [{ id: 'd1', boards: [door], instances: [], hardware: [] }],
     };
+  };
 
-    it('renders the section after the groups and before Buying, with name, total and where-used', () => {
-      useStore.getState().replaceDocument(hwDoc());
-      const { container } = render(<CutList onClose={() => {}} />);
-      const section = screen.getByRole('region', { name: 'Hardware' });
-      expect(within(section).getByRole('heading', { name: 'Hardware' })).toBeInTheDocument();
-      const row = within(section).getByText('Euro hinge, 35 mm').closest('tr')!;
-      expect(within(row).getByText('4')).toBeInTheDocument();
-      expect(within(row).getByText('Base cabinet › Left door: 2 × 2')).toBeInTheDocument();
-      expect(section.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
-      expect(section.nextElementSibling?.classList.contains('cutlist-buying')).toBe(true);
-      expect(container.querySelectorAll('.cutlist-hardware')).toHaveLength(1);
-    });
+  it('renders the section after the groups and before Buying, with name, total and where-used', () => {
+    useStore.getState().replaceDocument(hwDoc());
+    const { container } = render(<CutList onClose={() => {}} />);
+    const section = screen.getByRole('region', { name: 'Hardware' });
+    expect(within(section).getByRole('heading', { name: 'Hardware' })).toBeInTheDocument();
+    const row = within(section).getByText('Euro hinge, 35 mm').closest('tr')!;
+    expect(within(row).getByText('4')).toBeInTheDocument();
+    expect(within(row).getByText('Base cabinet › Left door: 2 × 2')).toBeInTheDocument();
+    expect(section.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
+    expect(section.nextElementSibling?.classList.contains('cutlist-buying')).toBe(true);
+    expect(container.querySelectorAll('.cutlist-hardware')).toHaveLength(1);
+  });
 
-    it('is absent with no hardware', () => {
-      useStore.getState().replaceDocument(hwDoc(false));
-      render(<CutList onClose={() => {}} />);
-      expect(screen.queryByRole('region', { name: 'Hardware' })).toBeNull();
-    });
+  it('is absent with no hardware', () => {
+    useStore.getState().replaceDocument(hwDoc(false));
+    render(<CutList onClose={() => {}} />);
+    expect(screen.queryByRole('region', { name: 'Hardware' })).toBeNull();
+  });
 
-    it('Buying gets a Hardware block after Edge banding, and the total includes it', () => {
-      useStore.getState().replaceDocument(hwDoc());
-      render(<CutList onClose={() => {}} />);
-      const buying = screen.getByRole('region', { name: 'Buying' });
-      const heads = within(buying).getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
-      expect(heads[heads.length - 1]).toBe('Hardware');
-      expect(within(buying).getByText('Euro hinge, 35 mm: buy 4 · $18.00')).toBeInTheDocument();
-      expect(within(buying).getByText(/Estimated materials: \$18\.00/)).toBeInTheDocument();
-    });
+  it('Buying gets a Hardware block after Edge banding, and the total includes it', () => {
+    useStore.getState().replaceDocument(hwDoc());
+    render(<CutList onClose={() => {}} />);
+    const buying = screen.getByRole('region', { name: 'Buying' });
+    const heads = within(buying).getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
+    expect(heads[heads.length - 1]).toBe('Hardware');
+    expect(within(buying).getByText('Euro hinge, 35 mm: buy 4 · $18.00')).toBeInTheDocument();
+    expect(within(buying).getByText(/Estimated materials: \$18\.00/)).toBeInTheDocument();
+  });
 
-    it('is not numbered and leaves the cut list rows, and so the balloons\' input, unchanged', () => {
-      const doc = hwDoc();
-      const plain = { ...doc, hardwareTypes: [], definitions: [{ ...doc.definitions[0]!, boards: [{ ...doc.definitions[0]!.boards[0]!, hardware: [] }] }] };
-      const rows = (d: typeof doc) => buildCutList(flatDocument(d)).groups.flatMap((g) => g.rows).map((r) => [r.number, r.boardIds, r.stripIds]);
-      expect(rows(doc)).toEqual(rows(plain as unknown as typeof doc));
-      useStore.getState().replaceDocument(doc);
-      const { container } = render(<CutList onClose={() => {}} />);
-      expect(container.querySelector('.cutlist-hardware .cutlist-num')).toBeNull();
-    });
+  it('is not numbered and contributes no balloon: the balloon layout is unchanged (plans balloons)', () => {
+    const doc = hwDoc();
+    const plain = { ...doc, hardwareTypes: [], definitions: [{ ...doc.definitions[0]!, boards: [{ ...doc.definitions[0]!.boards[0]!, hardware: [] }] }] };
+    const balloons = (d: typeof doc) => {
+      const rows = buildCutList(flatDocument(d)).groups.flatMap((g) => g.rows).map((r) => ({ number: r.number, boardIds: r.boardIds }));
+      const ids = rows.flatMap((r) => r.boardIds);
+      const segs = ids.flatMap((id, k) => [{ part: id, a: [k * 10, 0] as [number, number], b: [k * 10 + 8, 0] as [number, number] }, { part: id, a: [k * 10, 0] as [number, number], b: [k * 10, 6] as [number, number] }]);
+      const drawing = { visible: segs, hidden: [], bounds: { min: [0, 0] as [number, number], max: [Math.max(10, ids.length * 10), 6] as [number, number] } };
+      const plan = anchorsFor(drawing, rows);
+      return { rows, plan, layout: layoutBalloons(drawing, plan) };
+    };
+    expect(balloons(doc)).toEqual(balloons(plain as unknown as typeof doc));
+    useStore.getState().replaceDocument(doc);
+    const { container } = render(<CutList onClose={() => {}} />);
+    expect(container.querySelector('.cutlist-hardware .cutlist-num')).toBeNull();
+  });
 
-    it('hiding a part leaves the totals unchanged (inv 43)', () => {
-      const doc = { ...createDocument('HW'), hardwareTypes: hwDoc().hardwareTypes,
-        boards: [createBoard({ id: 'b1', name: 'Door', material: 'pine', length: 20, width: 10, thickness: 0.75, hardware: [{ type: 'h1', count: 3 }] })] };
-      useStore.getState().replaceDocument(doc);
-      const { container } = render(<CutList onClose={() => {}} />);
-      const before = container.querySelector('.cutlist-hardware')!.textContent;
-      expect(before).toContain('Door: 3');
-      act(() => useStore.getState().setHidden('b1', true));
-      expect(useStore.getState().hiddenIds).toContain('b1');
-      expect(container.querySelector('.cutlist-hardware')!.textContent).toBe(before);
-    });
+  it('Buying lists Edge banding, then Hardware', () => {
+    const tape = { id: 'tb', name: 'Oak tape', kind: 'tape' as const, tapeWidth: 1, pricePerFoot: 1 };
+    const doc = hwDoc();
+    const d0 = doc.definitions[0]!;
+    useStore.getState().replaceDocument({ ...doc, bandTypes: [tape],
+      definitions: [{ ...d0, boards: [{ ...d0.boards[0]!, bands: [{ side: { across: 'length', from: 'min' }, type: 'tb' }] } as never] }] });
+    render(<CutList onClose={() => {}} />);
+    const heads = within(screen.getByRole('region', { name: 'Buying' })).getAllByRole('heading', { level: 4 }).map((h) => h.textContent);
+    expect(heads.slice(-2)).toEqual(['Edge banding', 'Hardware']);
+  });
+
+  it('hiding a part leaves the totals unchanged (inv 43)', () => {
+    const doc = { ...createDocument('HW'), hardwareTypes: hwDoc().hardwareTypes,
+      boards: [createBoard({ id: 'b1', name: 'Door', material: 'pine', length: 20, width: 10, thickness: 0.75, hardware: [{ type: 'h1', count: 3 }] })] };
+    useStore.getState().replaceDocument(doc);
+    const totals = hardwareTotals(useStore.getState().doc);
+    const first = render(<CutList onClose={() => {}} />);
+    const before = first.container.querySelector('.cutlist-hardware')!.textContent;
+    expect(before).toContain('Door: 3');
+    act(() => useStore.getState().setHidden('b1', true));
+    expect(useStore.getState().hiddenIds).toContain('b1');
+    expect(hardwareTotals(useStore.getState().doc)).toEqual(totals);
+    first.unmount();
+    const again = render(<CutList onClose={() => {}} />);
+    expect(again.container.querySelector('.cutlist-hardware')!.textContent).toBe(before);
   });
 });
