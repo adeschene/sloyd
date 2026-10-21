@@ -82,8 +82,8 @@ task:
    `rabbet goes as a unit`.
 4. **Twin placements of one definition, where one copy's site is ruled out and the other's is not** (flat twins share one
    `cuts` array; the trial clones per board). Task 4, `twin placements are judged per placement`.
-5. **The dialog estimate when every open site is left butt.** No cost is shown. Task 5,
-   `estimate is null when every site is left butt`.
+5. **The dialog estimate when every open site is left butt.** No cost is shown and Run stays offered. Task 5,
+   `estimate is null when every site is left butt`. The trials never run while the dialog is closed: Task 5's App memo.
 
 ---
 
@@ -106,6 +106,8 @@ task:
     `holeInstances` + `worldBox`) is unchanged within 1e-12. Cover `along === d && alongFrom === end` (station) and
     `acrossOf(row) === d && acrossFrom === end` (inset).
   - `a hole measured from the far end is untouched`: the same row object is kept (`toBe`).
+  - `a trimmed part keeps every hole row`: the ids and count survive `applyJoints` (its closing `migrateDocument` drops a
+    malformed row silently).
   - `resize then resizeAt restores every number within GATE_TOLERANCE`: call the exported `readJoints` on the joined flat
     document and compare its `plain` board's rows to the original.
   - `a metric station round-trips within tolerance`: a station of `127 / 25.4` (5 in, stored unrounded) and a tenon
@@ -328,6 +330,8 @@ task:
   - `refineBase.test.ts`:
     - `estimate counts only sites still sent`: fewer open sites give a smaller `prefix + message` shape;
     - `estimate is null when every site is left butt`.
+  - App: `featureAllowed is not called while the joinery dialog is closed`. Spy the module in an App-level test if one
+    exists. Otherwise confirm it in Task 8's live check with a console count, and record it there.
   - `holedRefusal.test.ts`: remove the `'joinery'` cases. That use is gone, and the narrowed type makes them a compile
     error.
   - Refine order: `a joined Refine of a holed project refuses in Refine's words before joineryRefusal`. Assert the
@@ -347,9 +351,15 @@ task:
     - names come from `flat.boards`.
 
     Prepend the lines to `notes` in `build`, so the fallback path carries them too.
-  - `joineryShape` uses the narrowed sites, minus butt-only ones, and returns null when none are left.
-  - In `App.tsx`, compute the estimate in a `useMemo` keyed on `[llmSettings, doc, joineryRefusal]` instead of in JSX, so
-    the trials run once per document change.
+  - `joineryShape` takes the narrowed sites, minus butt-only ones, and returns null when none are left. The signature
+    becomes `joineryEstimateUsd(client: LlmClient, doc: SloydDocument, sites?: readonly Site[])`. With no `sites`, it
+    narrows them itself, which keeps `refineBase.test.ts`' existing calls valid.
+  - In `App.tsx`, compute `featureAllowed(flat, sites)` INSIDE the existing `joineryFlat` memo, which is gated on
+    `dialog === 'joinery'`, so no trial ever runs while the dialog is closed (a drag frame must never pay for it). Pass the
+    narrowed sites to the refusal and the estimate, and compute the estimate in a `useMemo` over `joineryFlat`, not in
+    JSX.
+  - `JoineryDialog` only hides the cost when `estimate === null` (`JoineryDialog.tsx` ~105), so a free run still shows
+    Run. Its test file is unchanged.
 
 - [ ] **Step 4: Mutate.** Leave butt-only sites in `open` (the no-call test goes red). Pass the un-narrowed `sites` to
   `siteMessage` (the narrowed-list test goes red). Restore.
@@ -372,11 +382,17 @@ task:
     deterministic hole grid on every part: 1/4" diameter, half the thickness deep, from each thickness face, at stations
     1/5, 1/2 and 4/5 of the length, inset half the width. Also add one 1/4" hole drilled into each part's length-min end,
     3/4" deep.
-  - **Run:** `featureAllowed`, then `applyJoints` with `defaultChoice` over the narrowed sites.
+  - **Run:** `featureAllowed`, then two kinds of run over the narrowed sites:
+    - `applyJoints` with `defaultChoice` at every site;
+    - **one run per (site, narrowed allowed kind)**: that site alone, every other site butt, at the P1 trial sizes
+      (stopped-dado per stop end, rabbet per unit at both depths). Defaults never pick a stopped dado or a maximum tenon,
+      and the zones are claims about everything the model may choose.
   - **Assert:**
     1. no cut on any joined part overlaps any hole region on that part beyond 1e-9 on all three dimensions;
     2. no part gains a `holeFaults` fault it lacked before;
-    3. every part not in `result.moved` keeps each hole's world box within 1e-9.
+    3. every part not in `result.moved` keeps each hole's world box within 1e-9;
+    4. every part keeps every hole row, by id and count. `migrateDocument` DROPS a malformed row, so without this a lost
+       row would pass 1–3 vacuously.
 
     Pin non-vacuity: across all fixtures, at least one non-butt joint is applied AND at least one kind is ruled out.
 
