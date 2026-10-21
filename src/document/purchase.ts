@@ -1,6 +1,7 @@
 import type { Board, FlatDocument, SheetStock, TapeBand } from './types';
 import { cutStock, tapeRuns } from './banding';
 import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
+import type { HardwareTotal } from './hardware';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { fitsStock, packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
@@ -148,7 +149,14 @@ export interface PurchaseEntry {
   cost: number | null;
   unplaceable: number;
 }
-export interface Purchase { entries: PurchaseEntry[]; banding: { lines: string[]; cost: number | null } | null; total: number; totalLabel: string }
+export interface Purchase {
+  entries: PurchaseEntry[];
+  banding: { lines: string[]; cost: number | null } | null;
+  /** Hardware to buy (hardware spec §4.2); null when the project carries none. */
+  hardware: { lines: string[]; cost: number | null } | null;
+  total: number;
+  totalLabel: string;
+}
 
 /** A stock size as the yard names it: `2×4 × 8′` for a nominal material's section, else actual `t × w × l`. */
 const sizeDims = (s: StockBoard, units: Units, nominal: boolean) => {
@@ -307,16 +315,38 @@ function tapeToBuy(doc: FlatDocument): { banding: Purchase['banding']; unpriced:
  * The by-the-piece packer is a HEURISTIC, not an optimum: open the largest size that fits, then swap each
  * board down to the cheapest size that still holds its parts, proved by re-packing them.
  */
-/** Buying's unpriced tail: materials and band types counted apart (fu 395(3)); materials alone read as they always did. */
-function unpricedTail(materials: number, bandTypes: number): string {
+/** Buying's unpriced tail: materials, band types (fu 395(3)) and hardware items (hardware spec §4.2) counted apart; one kind
+ *  alone reads as it always did, two or three join as `a, b and c`. */
+function unpricedTail(materials: number, bandTypes: number, hardware: number): string {
   const n = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 's'}`;
-  if (materials > 0 && bandTypes > 0) return `(${n(materials, 'material')} and ${n(bandTypes, 'band type')} have no price)`;
-  const only = materials > 0 ? n(materials, 'material') : bandTypes > 0 ? n(bandTypes, 'band type') : '';
-  if (!only) return '';
-  return `(${only} ${(materials || bandTypes) === 1 ? 'has' : 'have'} no price)`;
+  const parts = [
+    materials > 0 ? n(materials, 'material') : '',
+    bandTypes > 0 ? n(bandTypes, 'band type') : '',
+    hardware > 0 ? n(hardware, 'hardware item') : '',
+  ].filter(Boolean);
+  if (parts.length === 0) return '';
+  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return `(${list} ${(materials || bandTypes || hardware) === 1 && parts.length === 1 ? 'has' : 'have'} no price)`;
 }
 
-export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings): Purchase {
+/** Hardware to buy (hardware spec §4.2): packs rounded UP (what is bought is rounded, inv 18), priced per pack. Null when
+ *  there is none. `cost` is null only when no line is priced; `unpriced` counts the lines with no price. */
+function hardwareToBuy(hardware: readonly HardwareTotal[]): { hardware: Purchase['hardware']; unpriced: number } {
+  if (hardware.length === 0) return { hardware: null, unpriced: 0 };
+  let cost = 0;
+  let priced = false;
+  let unpriced = 0;
+  const lines = hardware.map(({ type, total }) => {
+    const packs = Math.ceil(total / type.packSize);
+    const c = type.pricePerPack === null ? null : packs * type.pricePerPack;
+    if (c === null) unpriced++; else { cost += c; priced = true; }
+    const what = type.packSize === 1 ? `buy ${total}` : `${total}, buy ${packs} pack${packs === 1 ? '' : 's'} of ${type.packSize}`;
+    return `${type.name}: ${what} · ${priceText(c)}`;
+  });
+  return { hardware: { lines, cost: priced ? cost : null }, unpriced };
+}
+
+export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings, hardwareList: readonly HardwareTotal[] = []): Purchase {
   const catalog = catalogOf(doc);
   const stock = cutStock(doc);
   const materials = [...new Set(list.groups.map((g) => g.material))];
@@ -353,14 +383,15 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
   });
 
   const { banding, unpriced: tapeUnpriced } = tapeToBuy(doc);
-  const total = entries.reduce((n, e) => n + (e.cost ?? 0), 0) + (banding?.cost ?? 0);
+  const { hardware, unpriced: hardwareUnpriced } = hardwareToBuy(hardwareList);
+  const total = entries.reduce((n, e) => n + (e.cost ?? 0), 0) + (banding?.cost ?? 0) + (hardware?.cost ?? 0);
   // A material is unpriced when it has something to buy (a buy line) but no cost; one that bought nothing is not.
   const unpriced = entries.filter((e) => e.cost === null && e.lines.length > 0).length;
   const unplaced = entries.reduce((n, e) => n + e.unplaceable, 0);
   const tail = [
-    unpricedTail(unpriced, tapeUnpriced),
+    unpricedTail(unpriced, tapeUnpriced, hardwareUnpriced),
     unplaced > 0 ? `(${unplaced} part${unplaced === 1 ? '' : 's'} not placed)` : '',
   ].filter(Boolean).join(' ');
-  const amount = entries.some((e) => e.cost !== null) || banding?.cost != null ? formatMoney(total) : '—';
-  return { entries, banding, total, totalLabel: `Estimated materials: ${amount}${tail ? ` ${tail}` : ''}` };
+  const amount = entries.some((e) => e.cost !== null) || banding?.cost != null || hardware?.cost != null ? formatMoney(total) : '—';
+  return { entries, banding, hardware, total, totalLabel: `Estimated materials: ${amount}${tail ? ` ${tail}` : ''}` };
 }

@@ -17,7 +17,7 @@ import { loop, topCorners } from './sweepFixtures';
  * `sweptIdentity` pattern); the replacer drops only the keys banding adds (`stripIds`, `notes`, `banding`). Never
  * re-capture a literal to make this pass.
  */
-const DROPPED = new Set(['stripIds', 'banding']);
+const DROPPED = new Set(['stripIds', 'banding', 'hardware']); // 'hardware': Purchase.hardware (hardware round, Task 6), null here
 /** Drops what banding adds: `stripIds` and `banding` anywhere, and `notes` ONLY on the CutList itself — Buying's own
  *  `PurchaseEntry.notes` (plane, fits-no-stock, end grain, the fu 273 smaller-size note) stay pinned (fix round 1). */
 function strip(this: unknown, k: string, v: unknown) {
