@@ -398,7 +398,7 @@ export async function runJoinery(
       }
     }
   }
-  const open = sites.filter((s) => !fixed.has(s.id) && !buttOnly(s));
+  const open = sites.filter((s) => !fixed.has(s.id) && !leftButt(s, found));
   const merge = (chosen: JointChoice[]) => sites.map((s) => fixed.get(s.id) ?? chosen.find((c) => c.site === s.id) ?? { site: s.id, joint: 'butt' as const });
   const build = (choices: JointChoice[], notes: string[]) => {
     const joined = applyJoints(flat, sites, choices);
@@ -435,6 +435,12 @@ export async function runJoinery(
 /** The sites the chooser is asked about: features have narrowed them, and a site left only butt is built, not sent. */
 const buttOnly = (s: Site) => s.allowed.length === 1 && s.allowed[0] === 'butt';
 
+/**
+ * A site FEATURES narrowed to butt alone (not one `allowedFor` already offered only butt: that site is still sent, as
+ * before). `raw` is the un-narrowed list; ids agree between the two.
+ */
+const leftButt = (s: Site, raw: readonly Site[]) => buttOnly(s) && !buttOnly(raw.find((r) => r.id === s.id) ?? s);
+
 /** One summary line per site that lost kinds (spec §3.5), naming the part of its first ruled-out kind (P3). */
 function ruledOutLines(flat: FlatDocument, sites: readonly Site[], ruledOut: readonly RuledOut[]): string[] {
   const lines: string[] = [];
@@ -452,7 +458,8 @@ function ruledOutLines(flat: FlatDocument, sites: readonly Site[], ruledOut: rea
 /** One joinery call over the sites still sent (`sites`, else every site of `doc`, narrowed); null when none is left. */
 function joineryShape(doc: SloydDocument, sites?: readonly Site[]): CallShape | null {
   const flat = flatDocument(doc);
-  const open = (sites ?? featureAllowed(flat, findSites(flat)).sites).filter((s) => !buttOnly(s));
+  const raw = findSites(flat);
+  const open = (sites ?? featureAllowed(flat, raw).sites).filter((s) => !leftButt(s, raw));
   if (open.length === 0) return null;
   return {
     prefixChars: JOINERY_PROMPT.length + JSON.stringify(JOINT_SCHEMA).length,

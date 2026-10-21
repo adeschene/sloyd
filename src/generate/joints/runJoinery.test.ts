@@ -5,7 +5,7 @@ import type { Board, FlatDocument, SloydDocument } from '../../document/document
 import { flatDocument, groupItems, migrateDocument, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
-import { runJoinery } from '../run';
+import { joineryEstimateUsd, runJoinery } from '../run';
 import { JOINERY_PROMPT, JOINT_SCHEMA } from './choose';
 import { createHash } from 'node:crypto';
 import type { HoleRow } from '../../document/types';
@@ -532,7 +532,10 @@ describe('runJoinery — tapered legs (AI-tapers spec §4)', () => {
     const c = client({ joints: [] });
     const holed = { ...CORNER, boards: CORNER.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 }] } : b)) };
     const out = await run(c, holed);
-    expect('refused' in out).toBe(false);
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(out.result.doc).toBeDefined();
+    expect(out.result.applied.length).toBeGreaterThan(0);
+    expect(out.result.applied.some((a) => a.joint === 'mortise-tenon')).toBe(true);
   });
   it('refuses a document with curves before any call (curves spec §7)', async () => {
     const c = client({ joints: [] });
@@ -651,6 +654,22 @@ describe('runJoinery with holes (joinery-holes spec §3.5)', () => {
     const c = client(long);
     await run(c);
     expect(sent(c)).toContain('mortise-tenon');
+  });
+
+  it('a hole-free site whose allowed is already butt alone is still sent, counted and priced', async () => {
+    // A 0.2 in panel is too thin for any dado or mortise: allowedFor offers butt alone, with no feature involved.
+    const thin = build(
+      [{ name: 'Panel', at: [0, 0, 0], size: [0.2, 10, 10] }, { name: 'Rail', at: [0.2, 4, 2], size: [10, 1, 0.75] }], {},
+    );
+    const sites = findSites(flatDocument(thin));
+    expect(sites.map((s) => s.allowed)).toEqual([['butt']]);
+    const c = client({ joints: [{ site: 1, joint: 'butt' }] });
+    const out = await run(c, thin);
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(c.complete).toHaveBeenCalledTimes(1);
+    expect(sent(c)).toContain('Allowed: butt.');
+    expect(out.chosen).toBe(1);
+    expect(joineryEstimateUsd(client(), thin)).not.toBeNull();
   });
 
   it('JOINERY_PROMPT and JOINT_SCHEMA are unchanged', () => {
