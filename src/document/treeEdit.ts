@@ -553,7 +553,7 @@ function copyDefinition(d: Definition): Definition {
       ? { ...b, position: [...b.position] as [number, number, number] }
       : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand), hardware: b.hardware.map(copyHardwareUse) })),
     instances: d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
-    hardware: [],
+    hardware: d.hardware.map(copyHardwareUse),
   };
 }
 

@@ -13,6 +13,7 @@ import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
 import { copyProfile, sameProfile } from '../document/profiles';
 import { copyBand, sameBands, withBands, withBandTypes } from '../document/bandModel';
+import { copyHardwareUse } from '../document/hardwareModel';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -879,6 +880,7 @@ export const useStore = create<StoreState>((set, get) => {
       curves: source.curves.map((c) => ({ ...copyCurve(c), id: nextId() })),
       profiles: source.profiles.map((p) => ({ ...copyProfile(p), id: nextId() })),
       bands: source.bands.map(copyBand),
+      hardware: source.hardware.map(copyHardwareUse),
     });
   };
 

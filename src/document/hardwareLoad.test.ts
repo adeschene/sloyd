@@ -59,7 +59,10 @@ describe('loading schema 20 (hardware spec §2.3)', () => {
     const loadDoc = (list: unknown[]) => migrateDocument(raw({ hardwareTypes: TYPES, hardware: list })).hardware;
     const loadShape = (list: unknown[]) =>
       (migrateDocument(raw({ hardwareTypes: TYPES, shapes: [{ ...createBoard({ id: 's1' }), hardware: list }], boards: [users('u1'), users('u2')] })).shapes[0] as Shape).hardware;
-    for (const [where, load] of [['part', loadPart], ['document', loadDoc], ['shape', loadShape]] as const) {
+    // A definition must be placed to survive repairTree (an unplaced one is dropped).
+    const loadDef = (list: unknown[]) =>
+      migrateDocument(raw({ hardwareTypes: TYPES, instances: [{ id: 'i1', name: 'A', definition: 'd1', position: [0, 0, 0], rotation: 0 }], definitions: [{ id: 'd1', boards: [part({ id: 'x' })], instances: [], hardware: list }] })).definitions[0]!.hardware;
+    for (const [where, load] of [['part', loadPart], ['document', loadDoc], ['shape', loadShape], ['definition', loadDef]] as const) {
       describe(where, () => {
         it.each([['count 0', 0], ['count 1.5', 1.5], ['count 1000', 1000]])('drops %s', (_n, count) =>
           expect(load(hw([{ type: 'h1', count }]))).toEqual([]));

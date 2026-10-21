@@ -2,6 +2,7 @@ import type { Definition, Instance, SloydDocument, StoredBoard } from './types';
 import { nextId } from './ids';
 import { dedupeNames } from './names';
 import { isShaped } from './shapes';
+import { copyHardwareUse } from './hardwareModel';
 import type { Container } from './tree';
 
 /** One container's names deduped across its parts AND assemblies (invariant 8, restated). */
@@ -49,7 +50,8 @@ export function repairTree(doc: SloydDocument, opts: { copyShared: boolean }): S
       const id = used.has(d.id) ? nextId() : d.id;
       used.add(id);
       const inner = dedupeContainer(fix(d, new Set([...onPath, d.id])));
-      fixed.set(id, { id, boards: inner.boards, instances: inner.instances, hardware: [] });
+      // The assembly's hardware is kept (hardware spec §6); a below-v11 copy owns its own array.
+      fixed.set(id, { id, boards: inner.boards, instances: inner.instances, hardware: id === d.id ? inner.hardware : inner.hardware.map(copyHardwareUse) });
       instances.push(inst.definition === id ? inst : { ...inst, definition: id });
     }
     return { boards: c.boards, instances, hardware: c.hardware };

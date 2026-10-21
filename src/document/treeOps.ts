@@ -4,6 +4,7 @@ import { nextId } from './ids';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
+import { copyHardwareUse, mergeHardware } from './hardwareModel';
 import { copyHoleRow } from './holes';
 import { copyAngleCut } from './angleCuts';
 import { uniqueName } from './names';
@@ -183,6 +184,10 @@ export function ungroupItem(doc: SloydDocument, path: string):
   const container = parentPath(path);
   const c = containerAt(doc, container);
   if (!inst || !def || !c) return null;
+  // The assembly's own hardware moves to the parent, counts added per type, so every total holds (hardware spec §6);
+  // refused when a sum would pass HARDWARE_COUNT_MAX (Amended P1). The definition itself keeps it for its other placements.
+  const hardware = mergeHardware(c.hardware, def.hardware);
+  if (!hardware) return null;
   const keptInstances = c.instances.filter((i) => i.id !== inst.id);
   const taken: Named[] = [...c.boards, ...keptInstances];
   const seen = new Set(taken.map((t) => t.id));
@@ -205,7 +210,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
-      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand) };
+      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand), hardware: placed.hardware.map(copyHardwareUse) };
     taken.push(named);
     return [named];
   });
@@ -219,6 +224,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
     ...k,
     boards: [...k.boards, ...boards],
     instances: [...keptInstances, ...instances],
+    hardware,
   })))));
   // The ungrouped assembly under EVERY placement of its container (a shared
   // definition is ungrouped in every copy) stands for its lifted children there.
@@ -332,9 +338,9 @@ export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument 
     id: nextId(),
     boards: def.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand), hardware: b.hardware.map(copyHardwareUse) })),
     instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
-    hardware: [],
+    hardware: def.hardware.map(copyHardwareUse),
   };
   const withDef = { ...doc, definitions: [...doc.definitions, copy] };
   return updateContainer(withDef, parentPath(path), (c) => ({
