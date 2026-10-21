@@ -14,6 +14,7 @@ import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
 import { MaterialsDialog } from './panels/MaterialsDialog';
+import { hardwareUsedBy } from './document/hardware';
 import { defaultShop, type ShopSettings } from './document/purchase';
 import { useGenerations } from './useGenerations';
 import { useJoinery } from './useJoinery';
@@ -108,6 +109,7 @@ export default function App() {
   // dialog closes, so a later plain opening starts no new row.
   const [newMaterialFor, setNewMaterialFor] = useState<{ ids: string[]; kind: MaterialKind } | null>(null);
   const [newBandFor, setNewBandFor] = useState<'solid' | null>(null);
+  const [newHardware, setNewHardware] = useState(false);
   // Generated this session and not yet opened (spec §6.3). Session-only:
   // not persisted and not in the store — a badge is a property of this
   // sitting, and nothing about it belongs on the undo stack.
@@ -979,7 +981,7 @@ export default function App() {
               {/* Properties locks its own editing regions while exploded (EditLock, fu 262), so its view actions stay live. */}
               <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }}
                 onNewBandType={() => { setNewBandFor('solid'); setDialog('prices'); }}
-                onNewHardwareType={() => setDialog('prices')} />
+                onNewHardwareType={() => { setNewHardware(true); setDialog('prices'); }} />
             </section>
             {/*
               Keyed per project (ui-polish spec §4.5): the footer opens itself
@@ -1041,14 +1043,17 @@ export default function App() {
           newFor={newMaterialFor}
           newBand={newBandFor}
           bandTypes={doc.bandTypes}
+          newHardware={newHardware}
+          hardwareTypes={doc.hardwareTypes}
+          hardwareUsedBy={(id) => hardwareUsedBy(doc, id)}
           parts={worldParts(doc)}
           // Amended (planning) P4: a solid band type names a built-in solid or a custom solid already in this project.
           solids={[...Object.keys(MATERIALS).filter((m) => !isSheetGood(m)), ...doc.materials.filter((m) => m.kind === 'solid').map((m) => m.id)]}
           // ONE Save (spec §4.1): the project's copies and band types in one edit (one undo entry), then the library, then the
           // prices. A failed browser write is reported and does not roll back the project edit.
           onSave={async ({ shop: s, plan }) => {
-            if (plan.project.length > 0 || plan.assign || plan.bandTypes) {
-              useStore.getState().applyMaterials(plan.project, plan.assign ?? undefined, plan.bandTypes ?? undefined);
+            if (plan.project.length > 0 || plan.assign || plan.bandTypes || plan.hardwareTypes) {
+              useStore.getState().applyMaterials(plan.project, plan.assign ?? undefined, plan.bandTypes ?? undefined, plan.hardwareTypes ?? undefined);
             }
             const failed: string[] = [];
             if (plan.library) {
@@ -1061,11 +1066,11 @@ export default function App() {
             } else failed.push('your prices');
             if (failed.length === 0) return null;
             // Claimed only when this Save did change the project (not for prices, the library alone, or exploded).
-            const projectChanged = plan.project.length > 0 || plan.assign !== null || plan.bandTypes !== null;
+            const projectChanged = plan.project.length > 0 || plan.assign !== null || plan.bandTypes !== null || plan.hardwareTypes !== null;
             return `Could not save ${failed.join(' or ')}: this browser is not letting Sloyd store settings.`
               + (projectChanged ? " The project's changes were made." : '');
           }}
-          onClose={() => { setDialog(null); setNewMaterialFor(null); setNewBandFor(null); }}
+          onClose={() => { setDialog(null); setNewMaterialFor(null); setNewBandFor(null); setNewHardware(false); }}
         />
       )}
       {dialog === 'generate' && (
