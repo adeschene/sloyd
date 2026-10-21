@@ -8,7 +8,7 @@ import { axisDimensions, boardExtents, endFacing } from '../../document/geometry
 import { findSites } from './sites';
 import { applyJoints, rebaseHoles } from './recipes';
 import type { JointChoice } from './recipes';
-import { GATE_TOLERANCE, readJoints } from './unjoin';
+import { GATE_TOLERANCE, gateUnjoin, readJoints } from './unjoin';
 
 // Joinery-holes spec §4.1 and §4.5: a hole row's numbers measured from a grown or trimmed end shift with it, and
 // readJoints' resizeAt is the exact inverse.
@@ -123,6 +123,7 @@ describe('a metric station', () => {
     const got = back.plain.find((b) => b.name === 'Rail')!.holes[0].station;
     // Recorded: the read-back was bitwise equal to 127 / 25.4 for this tenon (L = 1.25). The tolerance is what is pinned.
     expect(Math.abs(got - x)).toBeLessThanOrEqual(GATE_TOLERANCE);
+    expect('refused' in gateUnjoin(out.doc)).toBe(false);
   });
 });
 

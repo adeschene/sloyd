@@ -4,7 +4,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import type { FlatDocument, Cut } from '../../document/document';
 import { SNAP_INCHES } from '../../document/geometry';
-import { GATE_REFUSAL, cutBox, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameJoined, unjoin } from './unjoin';
+import { GATE_REFUSAL, cutBox, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameHoles, sameJoined, unjoin } from './unjoin';
 import { applyJoints } from './recipes';
 import type { JointChoice } from './recipes';
 import { findSites, jointKey, rangesOf } from './sites';
@@ -14,6 +14,8 @@ import { boxOf } from './pocket';
 import { plainForRefine } from '../refine';
 import { worldSolids } from '../../document/designCheck';
 import { taperCut } from '../../document/angleCuts';
+import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
+import type { HoleRow } from '../../document/document';
 
 // The harness and fixtures of the measured spike (126/126 exact round trips), made permanent.
 
@@ -501,5 +503,63 @@ describe('sameJoined — cut order is not geometry (fu 301)', () => {
     expect(sameJoined(withCuts([c1, c2]), withCuts([c1, { ...c2, depth: 0.5 }]))).toBe(false);
     expect(sameJoined(withCuts([c1, c2]), withCuts([c1]))).toBe(false);
     expect(sameJoined(withCuts([c1, c2]), withCuts([c1, { ...c1, id: 'z' }]))).toBe(false);
+  });
+});
+
+// Joinery-holes spec §4.5: hole rows are part of what the gate proves. Shelf-pin-like rows on the legs (clear of the
+// aprons, which fill the top 5in) and a row on an apron measured from the end a dado grows.
+describe('the gate compares holes (joinery-holes spec §4.5)', () => {
+  const pin = (id: string, o: Partial<HoleRow> = {}): HoleRow => ({ id, face: 'thickness', from: 'min', diameter: 0.25, depth: 0.25,
+    along: 'length', alongFrom: 'min', station: 10, count: 3, pitch: 1.5, acrossFrom: 'min', inset: 0.5, ...o });
+  const holedTable = () => {
+    const flat = flatDocument(designToDocument(SHAKER_TABLE_JSON as never, { centre: false }).doc);
+    return { ...flat, boards: flat.boards.map((b) => (b.name.startsWith('Leg') ? { ...b, holes: [pin('p')] }
+      : b.name === 'Apron F' ? { ...b, holes: [pin('a', { station: 3, count: 1, pitch: 0, inset: 1 })] } : b)) };
+  };
+  const joinedTable = () => {
+    const P = holedTable();
+    const sites = findSites(P);
+    return { P, J: applyJoints(P, sites, sites.map((s) => defaultChoice(s, P, sites))).doc };
+  };
+
+  it('gateUnjoin passes a joined project with holes', () => {
+    const { P, J } = joinedTable();
+    expect(J.boards.some((b) => b.cuts.length > 0)).toBe(true);
+    expect('refused' in gateUnjoin(J)).toBe(false);
+    const u = gateUnjoin(J);
+    if ('refused' in u) throw new Error(u.refused);
+    // The plain parts carry the rows as the input had them (the read-back is the exact inverse of the re-anchoring).
+    u.plain.forEach((b, i) => expect(sameHoles(b.holes, P.boards[i]!.holes), b.name).toBe(true));
+  });
+
+  it('sameJoined refuses when a hole moved after joining', () => {
+    const { J } = joinedTable();
+    const moved = (f: (r: HoleRow) => HoleRow): FlatDocument => ({ ...J, boards: J.boards.map((b) => (b.name === 'Leg FL' ? { ...b, holes: b.holes.map(f) } : b)) });
+    expect(sameJoined(J, J)).toBe(true);
+    expect(sameJoined(J, moved((r) => ({ ...r, station: r.station + 1e-3 })))).toBe(false);
+    expect(sameJoined(J, moved((r) => ({ ...r, id: 'other' })))).toBe(true);
+  });
+});
+
+describe('sameHoles', () => {
+  const r: HoleRow = { id: 'a', face: 'width', from: 'max', diameter: 0.25, depth: 'through', along: 'length', alongFrom: 'min', station: 2, count: 2, pitch: 1, acrossFrom: 'min', inset: 1 };
+  it('ignores ids, takes numbers within tolerance, and compares every other field exactly', () => {
+    expect(sameHoles([r], [{ ...r, id: 'b' }])).toBe(true);
+    expect(sameHoles([r], [{ ...r, station: r.station + GATE_TOLERANCE / 2 }])).toBe(true);
+    expect(sameHoles([r], [{ ...r, station: r.station + 1e-6 }])).toBe(false);
+    expect(sameHoles([r], [{ ...r, face: 'thickness' }])).toBe(false);
+    expect(sameHoles([r], [{ ...r, alongFrom: 'max' }])).toBe(false);
+    expect(sameHoles([r], [{ ...r, count: 3 }])).toBe(false);
+  });
+  it("'through' is only equal to 'through'", () => {
+    expect(sameHoles([r], [{ ...r, depth: 5 }])).toBe(false);
+    expect(sameHoles([{ ...r, depth: 5 }], [r])).toBe(false);
+    expect(sameHoles([r], [{ ...r }])).toBe(true);
+  });
+  it('compares in stored order and by length', () => {
+    const s = { ...r, id: 's', station: 4 };
+    expect(sameHoles([r, s], [s, r])).toBe(false);
+    expect(sameHoles([r], [r, s])).toBe(false);
+    expect(sameHoles([], [])).toBe(true);
   });
 });

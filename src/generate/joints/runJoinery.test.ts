@@ -2,7 +2,7 @@ import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import type { Board, FlatDocument, SloydDocument } from '../../document/document';
-import { flatDocument, groupItems, migrateDocument, sharedOf } from '../../document/document';
+import { flatDocument, groupItems, migrateDocument, sharedOf, writeBackFlat } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
@@ -190,6 +190,40 @@ describe('runJoinery', () => {
       const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs.length).toBe(2);
       for (const l of legs) expect('shape' in l).toBe(false);
+    });
+
+    // Joinery-holes spec §4.5: the Shape carries the hole row (holes are a SHARED field, inv 45), so a join that cuts only
+    // ONE user must split it. Joinery's write-back is replayed here (applyJoints, then writeBackFlat) because `run` still
+    // refuses holed documents until the wiring task lifts it.
+    const onlyLegA = (shared: Partial<Board>): { doc: SloydDocument; out: SloydDocument } => {
+      const d = linked(['Leg A', 'Leg B']);
+      const withShared: SloydDocument = { ...d, shapes: d.shapes.map((sh) => ({ ...sh, ...shared })) };
+      const flat = flatDocument(withShared);
+      const sites = findSites(flat);
+      const legA = flat.boards.findIndex((b) => b.name === 'Leg A');
+      const choices = sites.map((s) => (s.receive === legA
+        ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 } : { site: s.id, joint: 'butt' as const }));
+      const joined = applyJoints(flat, sites, choices);
+      return { doc: withShared, out: migrateDocument(writeBackFlat(withShared, flat.boards, worldParts(joined.doc))) };
+    };
+    const HOLES = [{ id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.25, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 10, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 }];
+
+    it('two parts on one shape with an angle cut: only one tenoned unlinks the pair (the fixture the hole case follows)', () => {
+      const { out } = onlyLegA({ angleCuts: [{ id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [3, 0]] }] });
+      const legs = worldParts(out).filter((b) => b.name.startsWith('Leg'));
+      expect(legs.map((l) => l.angleCuts.length)).toEqual([1, 1]);
+      expect(out.shapes).toHaveLength(0); // the cut differs, so neither user keeps the shape (a one-user shape dissolves, inv 45)
+    });
+
+    it('two parts on one shape with a hole row: only one tenoned', () => {
+      const { doc, out } = onlyLegA({ holes: HOLES });
+      const legs = (d: SloydDocument) => worldParts(d).filter((b) => b.name.startsWith('Leg'));
+      expect(legs(out).filter((l) => l.cuts.length > 0).map((l) => l.name)).toEqual(['Leg A']);
+      // Every hole row is where it was: joinery grew only Leg A across its width, and the row is measured from the min end.
+      expect(legs(out).map((l) => l.holes)).toEqual(legs(doc).map((l) => l.holes));
+      expect(legs(out).map((l) => l.holes.length)).toEqual([1, 1]);
+      expect(legs(out).map((l) => l.position)).toEqual(legs(doc).map((l) => l.position));
+      expect(out.shapes).toHaveLength(0); // the cut differs, so neither user keeps the shape (a one-user shape dissolves, inv 45)
     });
 
     it('a linked pair joinery does not cut keeps its link', async () => {
