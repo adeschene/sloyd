@@ -1,5 +1,5 @@
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
-import type { SloydDocument } from '../document/document';
+import type { FlatDocument, SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
 import { builtInCatalog, catalogOf, pruneMaterials } from '../document/materials';
 import type { CustomMaterial } from '../document/types';
@@ -13,6 +13,9 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
+import { featureAllowed } from './joints/featureZones';
+import type { RuledOut } from './joints/featureZones';
+import { ruledOutLine } from '../document/ruledOutText';
 import { joineryRefusal, jointFaults } from './joints/tapers';
 import { angleRatiosOf } from '../document/angleWorld';
 import type { Site } from './joints/sites';
@@ -357,10 +360,14 @@ export async function runJoinery(
   // dialog, decided before any mutation or call. Joinery reads the FLAT document (assemblies
   // spec §6.1): placed parts named by their display paths, written back by index.
   const flat = flatDocument(doc);
-  const sites = findSites(flat);
-  const refusal = joineryRefusal(doc, flat, sites);
+  const found = findSites(flat);
+  const refusal = joineryRefusal(doc, flat, found);
   if (refusal) return { refused: refusal };
-  if (sites.length === 0) return { noSites: true };
+  if (found.length === 0) return { noSites: true };
+  // Features rule out only the joint kinds they would be cut by (joinery-holes spec §3.5), decided before any call or
+  // mutation (inv 41). Everything below reads the narrowed list, and a site left with only butt is never sent.
+  const { sites, ruledOut } = featureAllowed(flat, found);
+  const summary = ruledOutLines(flat, sites, ruledOut);
   const keyOf = (s: Site) => jointKey(flat.boards[s.enter]!.name, flat.boards[s.receive]!.name, s.axis, s.side);
   const fixed = new Map<number, JointChoice>();
   for (const s of sites) {
@@ -391,7 +398,7 @@ export async function runJoinery(
       }
     }
   }
-  const open = sites.filter((s) => !fixed.has(s.id));
+  const open = sites.filter((s) => !fixed.has(s.id) && !leftButt(s, found));
   const merge = (chosen: JointChoice[]) => sites.map((s) => fixed.get(s.id) ?? chosen.find((c) => c.site === s.id) ?? { site: s.id, joint: 'butt' as const });
   const build = (choices: JointChoice[], notes: string[]) => {
     const joined = applyJoints(flat, sites, choices);
@@ -401,7 +408,7 @@ export async function runJoinery(
     const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };
     const kept = joined.applied.filter((a) => a.joint !== 'butt' && fixed.has(a.site)).length;
-    return { doc: tree, violations, result, notes, preexisting: [...preexisting, ...raw.filter(also)], kept, chosen: open.length };
+    return { doc: tree, violations, result, notes: [...summary, ...notes], preexisting: [...preexisting, ...raw.filter(also)], kept, chosen: open.length };
   };
   if (open.length === 0) return { ...build(merge([]), []), usage: ZERO_USAGE };
   try {
@@ -425,20 +432,44 @@ export async function runJoinery(
   }
 }
 
-/** One joinery call over every site of `doc`, as the estimate sees it; null when there is none. */
-function joineryShape(doc: SloydDocument): CallShape | null {
+/** The sites the chooser is asked about: features have narrowed them, and a site left only butt is built, not sent. */
+const buttOnly = (s: Site) => s.allowed.length === 1 && s.allowed[0] === 'butt';
+
+/**
+ * A site FEATURES narrowed to butt alone (not one `allowedFor` already offered only butt: that site is still sent, as
+ * before). `raw` is the un-narrowed list; ids agree between the two.
+ */
+const leftButt = (s: Site, raw: readonly Site[]) => buttOnly(s) && !buttOnly(raw.find((r) => r.id === s.id) ?? s);
+
+/** One summary line per site that lost kinds (spec §3.5), naming the part of its first ruled-out kind (P3). */
+function ruledOutLines(flat: FlatDocument, sites: readonly Site[], ruledOut: readonly RuledOut[]): string[] {
+  const lines: string[] = [];
+  for (const s of sites) {
+    const mine = ruledOut.filter((r) => r.site === s.id);
+    if (mine.length === 0) continue;
+    lines.push(ruledOutLine({
+      enter: flat.boards[s.enter]!.name, receive: flat.boards[s.receive]!.name,
+      kinds: mine.map((r) => r.kind), butt: buttOnly(s), part: flat.boards[mine[0]!.part]!.name, feature: mine[0]!.feature,
+    }));
+  }
+  return lines;
+}
+
+/** One joinery call over the sites still sent (`sites`, else every site of `doc`, narrowed); null when none is left. */
+function joineryShape(doc: SloydDocument, sites?: readonly Site[]): CallShape | null {
   const flat = flatDocument(doc);
-  const sites = findSites(flat);
-  if (sites.length === 0) return null;
+  const raw = findSites(flat);
+  const open = (sites ?? featureAllowed(flat, raw).sites).filter((s) => !leftButt(s, raw));
+  if (open.length === 0) return null;
   return {
     prefixChars: JOINERY_PROMPT.length + JSON.stringify(JOINT_SCHEMA).length,
-    messageChars: siteMessage(flat, sites).length,
-    outputTokens: sites.length * JOINERY_OUTPUT_PER_SITE,
+    messageChars: siteMessage(flat, open).length,
+    outputTokens: open.length * JOINERY_OUTPUT_PER_SITE,
   };
 }
 
 /** Before-you-run range (fu 236): one call low, every repair round high; null with no sites. */
-export function joineryEstimateUsd(client: LlmClient, doc: SloydDocument): CostRange | null {
-  const shape = joineryShape(doc);
+export function joineryEstimateUsd(client: LlmClient, doc: SloydDocument, sites?: readonly Site[]): CostRange | null {
+  const shape = joineryShape(doc, sites);
   return shape ? costRange(client, shape, 1 + MAX_REPAIRS) : null;
 }

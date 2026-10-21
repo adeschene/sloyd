@@ -1,11 +1,12 @@
 import { clippedRegion, CUT_GEOMETRY_KEYS } from '../../document/document';
-import type { Board, Cut, FlatDocument } from '../../document/document';
+import type { Board, Cut, FlatDocument, HoleRow } from '../../document/document';
+import { HOLE_KEYS } from '../../document/holes';
 import { TOUCH } from '../../document/designCheck';
 import { sameAngleCut } from '../../document/angleCuts';
 import { axisDimensions, axisFrame, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
 import type { Site } from './sites';
-import { applyJoints, rebaseAngleCuts } from './recipes';
+import { applyJoints, rebaseAngleCuts, rebaseHoles } from './recipes';
 import type { JointChoice } from './recipes';
 import { boxOf } from './pocket';
 import type { V3, WorldBox } from './pocket';
@@ -95,6 +96,8 @@ export function readJoints(flat: FlatDocument):
     // The exact inverse of `resize`'s angle-cut re-anchoring (AI-angles spec §4): numbers measured from the moving end
     // shift back by the same amount, so the plain part carries the cut as it was before joinery.
     rebaseAngleCuts(boards[i], d, endFacing(boards[i], k, side), amount);
+    // The same for hole rows (joinery-holes spec §4.5): the exact inverse of `resize`'s re-anchoring.
+    rebaseHoles(boards[i], d, endFacing(boards[i], k, side), amount);
   };
 
   // 1. Grow joints (mortise-tenon, dado, stopped dado), applied LAST forward, undone first.
@@ -277,6 +280,17 @@ const same = (a: unknown, b: unknown) =>
   typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= GATE_TOLERANCE : a === b;
 export const sameCut = (c: Cut, d: Cut) => CUT_GEOMETRY_KEYS.every((k) => same(c[k], d[k]));
 
+/**
+ * Hole rows in stored order (they are a list the part owns, and `rebaseHoles` keeps it), ids ignored, every HOLE_FIELDS
+ * field (inv 40): enumerations exactly, numbers within GATE_TOLERANCE, and `'through'` only equal to `'through'`. The
+ * numbers need the tolerance because `rebaseHoles` re-anchors a station or inset by a sum its inverse undoes only to the
+ * last bit (a metric station); a genuinely moved hole is off by far more. A single bore's pitch is not special-cased:
+ * `rebaseHoles` never touches it, so a round trip returns it exactly.
+ */
+export function sameHoles(a: readonly HoleRow[], b: readonly HoleRow[]): boolean {
+  return a.length === b.length && a.every((r, i) => HOLE_KEYS.every((k) => same(r[k], b[i]![k])));
+}
+
 /** The same cuts in any order: equal length, each of a matched to a distinct cut of b by sameCut (order is not geometry). */
 function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
   if (a.length !== b.length) return false;
@@ -292,7 +306,7 @@ function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
 /**
  * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
  * EXACTLY; cuts are matched as a MULTISET (order is not geometry, sameCutSet); every number (position, length/width/thickness, each numeric cut field) within
- * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut). The gate is
+ * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut); hole rows by sameHoles. The gate is
  * only as good as this.
  */
 export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
@@ -305,7 +319,8 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
       sameCutSet(p.cuts, q.cuts) &&
       // Exact, by design: joinery re-anchors angle cuts only by `rebaseAngleCuts`, which `readJoints` undoes exactly, so
       // their round trip is identity (AI-tapers spec §5.4a; AI-angles spec §4).
-      p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!));
+      p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!)) &&
+      sameHoles(p.holes, q.holes);
   });
 }
 

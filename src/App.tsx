@@ -38,8 +38,11 @@ import type { SloydDocument } from './document/document';
 import { MATERIALS, isSheetGood, type CustomMaterial, type MaterialKind } from './document/types';
 import { worldParts } from './document/tree';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
+import { featureAllowed } from './generate/joints/featureZones';
 import { storage } from './storage';
 import { useStore } from './store/store';
+
+const HOLE_CHECK_FAILED = "Sloyd couldn't check this project's holes against its joints. Add joinery before drilling, or remove the holes first.";
 
 export default function App() {
   const undo = useStore((s) => s.undo);
@@ -85,11 +88,25 @@ export default function App() {
   const joineryFlat = useMemo(() => {
     if (dialog !== 'joinery') return null;
     const flat = flatDocument(doc);
-    return { flat, sites: findSites(flat) };
+    // Features rule out joint kinds per site (joinery-holes spec §3.5). The trials live HERE, behind the dialog gate, so
+    // none runs while the dialog is closed and a drag frame never pays for them. `found` is what the refusal reads.
+    const found = findSites(flat);
+    // The refusal is decided FIRST, from the un-narrowed sites, in runJoinery's own order: a refused project never pays
+    // for (or risks) the trials.
+    const refusal = decideJoineryRefusal(doc, flat, found);
+    if (refusal) return { flat, found, sites: found, refusal };
+    try {
+      return { flat, found, sites: featureAllowed(flat, found).sites, refusal: null };
+    } catch (e) {
+      // A latent recipe throw must not blank the app (fu 244). The dialog is REFUSED: it must never run with
+      // un-narrowed sites, which would cut holes.
+      console.error('Sloyd: checking holes against joints threw', e);
+      return { flat, found, sites: found, refusal: HOLE_CHECK_FAILED };
+    }
   }, [dialog, doc]);
   const joinerySites = useMemo(() => (joineryFlat ? joineryFlat.sites.map((s) => siteLabel(s, joineryFlat.flat)) : []), [joineryFlat]);
-  // THE joinery refusal (AI-tapers spec §4.2) — the same decider runJoinery calls, fed the sites above.
-  const joineryRefusal = useMemo(() => (joineryFlat ? decideJoineryRefusal(doc, joineryFlat.flat, joineryFlat.sites) : null), [doc, joineryFlat]);
+  // THE joinery refusal (AI-tapers spec §4.2) — the same decider runJoinery calls, decided in the memo above.
+  const joineryRefusal = useMemo(() => (joineryFlat ? joineryFlat.refusal : null), [joineryFlat]);
   const joineryRepair = useMemo(() => (dialog === 'joinery' ? repairDocument(doc) : null), [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
@@ -98,6 +115,12 @@ export default function App() {
   // left reading only the old flag.
   const modalOpen = cutListOpen || plansOpen || dialog !== null;
   const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
+  // Over the NARROWED sites, so only the sites still sent to Claude are counted; null when every one is left butt.
+  const joineryEstimate = useMemo(
+    () => (llmSettings && joineryFlat && !joineryRefusal
+      ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc, joineryFlat.sites) : null),
+    [llmSettings, joineryFlat, joineryRefusal, doc],
+  );
   // The browser-level lumber and price settings (lumber yield and cost spec §2): read once, replaced on a
   // successful save. Not document state — never on the undo stack, never exported with a project.
   const [shop, setShop] = useState<ShopSettings>(defaultShop);
@@ -1104,7 +1127,7 @@ export default function App() {
           sites={joinerySites}
           model={llmSettings?.model ?? null}
           refusal={joineryRefusal}
-          estimate={llmSettings && !joineryRefusal ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
+          estimate={joineryEstimate}
           run={joinery.run}
           repairNotice={repairNotice(joineryRepair, 'joinery')}
           live={joinery.live}

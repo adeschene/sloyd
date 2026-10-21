@@ -10,6 +10,14 @@ import { storage } from './storage';
 import { assemblyDoc } from './document/treeFixtures';
 import { designToDocument } from './document/generated';
 import { groupItems } from './document/document';
+import { ARCH } from './document/curveFixtures';
+import * as featureZones from './generate/joints/featureZones';
+
+// Wrapped, not replaced: the real trials still run unless a test overrides the spy.
+vi.mock('./generate/joints/featureZones', async (orig) => {
+  const a = await orig<typeof import('./generate/joints/featureZones')>();
+  return { ...a, featureAllowed: vi.fn(a.featureAllowed) };
+});
 
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
@@ -2056,6 +2064,52 @@ describe('App assemblies', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Add joinery' });
     expect(dialog.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/No joints to add/)).toBeNull();
+  });
+});
+
+describe('Add joinery with holes (joinery-holes final review)', () => {
+  const HOLE = { id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.25, depth: 0.25, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.5 };
+  const holedDoc = (extra: Record<string, unknown> = {}) => {
+    const flat = designToDocument({
+      name: 'T',
+      parts: [
+        { name: 'Leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+        { name: 'Rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3.5, z: 0.75 } },
+      ],
+    }).doc;
+    return { ...flat, boards: flat.boards.map((b, i) => (i === 1 ? { ...b, holes: [HOLE], ...extra } : b)) } as SloydDocument;
+  };
+  const open = async (d: SloydDocument) => {
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => { useStore.getState().replaceDocument(d); });
+    vi.mocked(featureZones.featureAllowed).mockClear();
+    const user = userEvent.setup();
+    await claudeItem(user, 'Add joinery…');
+    return screen.findByRole('dialog', { name: 'Add joinery' });
+  };
+
+  it('a refused project (holes and a curve) never runs the hole trials', async () => {
+    const dialog = await open(holedDoc({ curves: [ARCH] }));
+    expect(within(dialog).getByRole('status').textContent).toMatch(/curve/i);
+    expect(featureZones.featureAllowed).not.toHaveBeenCalled();
+  });
+
+  it('a throwing hole check refuses the dialog with the stated message and the app survives', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(featureZones.featureAllowed).mockImplementation(() => { throw new Error('boom'); });
+    try {
+      const dialog = await open(holedDoc());
+      expect(within(dialog).getByRole('status').textContent)
+        .toBe("Sloyd couldn't check this project's holes against its joints. Add joinery before drilling, or remove the holes first.");
+      expect((within(dialog).getByRole('button', { name: 'Add joinery' }) as HTMLButtonElement).disabled).toBe(true);
+      expect(err).toHaveBeenCalledWith('Sloyd: checking holes against joints threw', expect.any(Error));
+    } finally {
+      err.mockRestore();
+      const real = await vi.importActual<typeof import('./generate/joints/featureZones')>('./generate/joints/featureZones');
+      vi.mocked(featureZones.featureAllowed).mockImplementation(real.featureAllowed);
+    }
   });
 });
 

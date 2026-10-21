@@ -7,11 +7,11 @@ const doc = (n: number) => ({ ...createDocument('T'), boards: Array.from({ lengt
 
 describe('holedRefusal (spec §6)', () => {
   it('null without holes', () => {
-    expect(holedRefusal(flatDocument(doc(0)), 'joinery')).toBeNull();
+    expect(holedRefusal(flatDocument(doc(0)), 'refine')).toBeNull();
   });
   it('names the holed parts, three and an ellipsis at most', () => {
     expect(holedParts(flatDocument(doc(2)))).toEqual(['Side 1', 'Side 2']);
-    expect(holedRefusal(flatDocument(doc(4)), 'joinery')).toContain('(Side 1, Side 2, Side 3…)');
+    expect(holedRefusal(flatDocument(doc(4)), 'refine')).toContain('(Side 1, Side 2, Side 3…)');
     expect(holedRefusal(flatDocument(doc(1)), 'refine')).toMatch(/^Refine /);
   });
 });

@@ -6,7 +6,7 @@ import f4 from './fixtures/4-cases-every-kind.json?raw';
 import f5 from './fixtures/5-rail-enters-once.json?raw';
 import f6 from './fixtures/6-nested.json?raw';
 import { flatDocument, makeUniqueItem, migrateDocument, removeItems, writeBackFlat } from '../../document/document';
-import type { AngleCut, Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
+import type { AngleCut, Board, Cut, FlatDocument, HoleRow, SloydDocument } from '../../document/document';
 import { ARCH } from '../../document/curveFixtures';
 import { findSites, jointKey } from './sites';
 import { applyJoints } from './recipes';
@@ -123,13 +123,21 @@ describe('repairJoints returns null for designs this bug did not damage', () => 
   });
 });
 
-describe('repairDocument withholds a holed document (holes spec §6)', () => {
-  it('a damaged fixture with a hole row is not repaired', () => {
+describe('repairDocument repairs a holed document (joinery-holes spec §5)', () => {
+  const HOLE: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 };
+  it('repairDocument repairs a holed bug fixture', () => {
     const fx = load(f1);
-    expect(repairDocument(fx.damaged)).not.toBeNull();
-    const doc = { ...fx.damaged, boards: fx.damaged.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)),
-      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)) })) };
-    expect(repairDocument(doc)).toBeNull();
+    const plainOut = repairDocument(fx.damaged);
+    if (plainOut === null || 'refused' in plainOut) throw new Error('expected a repair');
+    // A hole on one twin part, away from its joints; the same row in a definition when the part is placed from one.
+    const doc = { ...fx.damaged, boards: fx.damaged.boards.map((b, i) => (i === 0 ? { ...b, holes: [HOLE] } : b)),
+      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map((b, i) => (i === 0 ? { ...b, holes: [HOLE] } : b)) })) };
+    const out = repairDocument(doc);
+    if (out === null || 'refused' in out) throw new Error(`expected a repair, got ${JSON.stringify(out)}`);
+    expect(out.dropped).toBe(plainOut.dropped);
+    const rows = (d: SloydDocument) => flatDocument(d).boards.map((b) => b.holes);
+    expect(rows(out.doc)).toEqual(rows(doc));
+    expect(rows(out.doc).flat()).not.toHaveLength(0);
   });
 });
 

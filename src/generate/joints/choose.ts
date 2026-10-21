@@ -110,7 +110,8 @@ function defaultJoint(s: Site, doc: FlatDocument): JointKind {
     return has('dado') ? 'dado' : 'butt';
   }
   if (s.kind === 'face-against-edge') return has('rabbet') ? 'rabbet' : 'butt';
-  return 'half-lap';
+  // A crossing whose half-lap a feature ruled out is a butt (joinery-holes spec §3.5: never a ruled-out kind).
+  return has('half-lap') ? 'half-lap' : 'butt';
 }
 
 /** A site's tenon cross-section in world space, on E's thickness and width axes (as mortiseTenon builds it). */

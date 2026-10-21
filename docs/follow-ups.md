@@ -5962,6 +5962,7 @@ independent of row order); the Hinge cup runs along the longer in-face dimension
 Carrying holes through needs a rebase for rows measured from an end joinery grows or trims (as `rebaseAngleCuts`, fu 307),
 `readJoints`' exact undo of it, and a hole-in-pocket refusal (a hole meeting a mortise or tenon). **Status:** open (spec §11).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** closed for joinery and Repair (joinery-features chunk 1, branch `joinery-holes`: `featureAllowed` rules out joint kinds, `rebaseHoles`, the gate compares holes); Refine stays with fu 329.
 
 **329. Generate and Refine authoring holes.** Holes in world words in the design schema — a `DESIGN_SCHEMA` change, so one
 live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
@@ -6872,3 +6873,12 @@ eye. **Status:** open (wording; the user's eye).
 **412. `Counted once per copy: <n> in all.` sums different types.** On a Drawer placed 3 times carrying a Pull and Drawer slides, it
 reads `6 in all` (1 + 1, times 3). The words are the spec's own (§5.1); the sum across types may not be what a reader wants. For the
 user's eye. **Status:** open (wording; the user's eye).
+
+**413. `sameAngleCut`'s exact gate comparison can be refused by rounding.** A number goes out as `x' = x + L` and back as `(x' - L) + L`;
+when `x' > 2L` that subtraction rounds, so a re-join need not reproduce an angle cut bitwise. Holes compare within `GATE_TOLERANCE` for
+this reason (joinery-features plan P2); the angle-cut clause was left exact. **Status:** open (record-only until a real refusal shows; ask first).
+
+**414. A lap set whose full set is not coplanar but a model-chosen subset is.** With three or more half-lap partners, the unit trial
+(`featureAllowed`) joins the whole set; if the full set is not coplanar the trial skips and rules nothing out, yet the model may choose
+a coplanar subset that the real run laps through a hole. No fixture reaches it. **Status:** open (record-only; the oracle,
+`holesOracle.test.ts`, is the backstop).
