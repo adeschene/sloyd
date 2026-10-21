@@ -55,6 +55,19 @@ describe('documentToDesign', () => {
     expect(refused(shaped)?.reason).toBe('curves');
   });
 
+  it('refuses hardware on a part or an assembly, never the project\'s (hardware spec §6, defence in depth)', () => {
+    const doc = { ...table(), hardwareTypes: [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: null }] };
+    const HW = [{ type: 'h1', count: 2 }];
+    expect(refused({ ...doc, hardware: HW })).toBeNull();
+    const onPart = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, hardware: HW } : b)) };
+    expect(refused(onPart)).toEqual({ reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." });
+    const onShape = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, hardware: HW } : s)) };
+    expect(doc.shapes.length).toBeGreaterThan(0);
+    expect(refused(onShape)?.reason).toBe('hardware');
+    const onAssembly = { ...doc, definitions: doc.definitions.map((d) => ({ ...d, hardware: HW })) };
+    expect(refused(onAssembly)).toEqual({ reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Left drawer, Right drawer). Refine before adding hardware, or remove it first." });
+  });
+
   it('round-trips: converting back (centre: false) reproduces every placed part exactly', () => {
     const doc = table();
     const r = documentToDesign(doc, MAX);

@@ -599,6 +599,57 @@ describe('runRefine — custom materials (custom materials spec §6)', () => {
   });
 });
 
+describe('runRefine — hardware (hardware spec §6)', () => {
+  const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const TYPES = [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: 4.5 }, { id: 'h2', name: 'Screw', packSize: 100, pricePerPack: null }];
+  const PROJECT = [{ type: 'h1', count: 2 }, { type: 'h2', count: 40 }];
+  /** Types and project hardware, through the load gate, as a saved file would be. */
+  const kitted = (doc: SloydDocument): SloydDocument => migrateDocument({ ...doc, hardwareTypes: TYPES, hardware: PROJECT });
+  const box = kitted(designToDocument({ name: 'Box', parts: [bp('Base', [0, 0, 0], [10, 1, 10]), bp('Top', [0, 1, 0], [10, 1, 10])], assemblies: [] }).doc);
+
+  it('the fixture is what it claims: the types and the project hardware survive the load', () => {
+    expect(box.hardwareTypes).toEqual(TYPES);
+    expect(box.hardware).toEqual(PROJECT);
+  });
+
+  it('refuses hardware on a part with no call', async () => {
+    const doc = { ...box, boards: box.boards.map((b) => (b.name === 'Top' ? { ...b, hardware: [{ type: 'h1', count: 2 }] } : b)) };
+    const { client } = fakeClient([GOOD]);
+    const out = await go(client, doc);
+    expect(out).toEqual({ refused: { reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." } });
+    expect(client.complete).not.toHaveBeenCalled();
+  });
+
+  it('a plain result carries the types and the project hardware', async () => {
+    const { client } = fakeClient([echo(box)]);
+    const out = await go(client, box);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.doc.hardwareTypes).toEqual(TYPES);
+    expect(out.doc.hardware).toEqual(PROJECT);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('a joined result carries them through the re-join', async () => {
+    const flat = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const joined = kitted(migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc));
+    expect(flatDocument(joined).boards.some((b) => b.cuts.length > 0)).toBe(true);
+    const p = plainForRefine(joined); if ('refused' in p) throw new Error(p.refused.message);
+    const { client } = fakeClient([echo(p.plain)]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.doc.hardwareTypes).toEqual(TYPES);
+    expect(out.doc.hardware).toEqual(PROJECT);
+  });
+});
+
 describe('runRefine — joined designs', () => {
   const RS = { instruction: 'change it', width: null, depth: null, height: null, detail: 'moderate' as const };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});

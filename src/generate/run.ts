@@ -252,8 +252,9 @@ export async function runRefine(
     first: refineMessage(from.design, settings, catalog),
     evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, units: doc.units }),
   }, signal, onProgress);
-  // Document-level facts the model never sees travel with the result; custom materials the result no longer uses go.
-  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials });
+  // Document-level facts the model never sees travel with the result (hardware types and the project's own hardware too:
+  // nothing in them names a part, hardware spec §6); custom materials the result no longer uses go.
+  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
   let violations = out.violations;
   let present = out.present;
   let usage = out.usage;
@@ -283,7 +284,7 @@ export async function runRefine(
     } else if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [] };
     } else {
-      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials });
+      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
       violations = [...violations, ...jo.violations];
       const shown = new Set(present.map(problemKey));
       present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];

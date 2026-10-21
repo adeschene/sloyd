@@ -89,6 +89,25 @@ describe('curves (curves spec §7)', () => {
   });
 });
 
+describe('hardware (hardware spec §6)', () => {
+  const HW = [{ type: 'h1', count: 2 }];
+  const typed = (d: SloydDocument): SloydDocument => ({ ...d, hardwareTypes: [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: null }] });
+  const withHardware = (d: SloydDocument, name: string): SloydDocument => ({ ...typed(d), boards: d.boards.map((b) => (b.name === name ? { ...b, hardware: HW } : b)) });
+  it('a plain document with hardware on a part is refused as hardware', () => {
+    const base = plainForRefine(withHardware(plain, 'Top'));
+    expect('refused' in base && base.refused).toEqual({ reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." });
+  });
+  it('a joined document with hardware on a part is refused as hardware before the gate', () => {
+    gate.mockClear();
+    const base = plainForRefine(withHardware(joined, 'Top'));
+    expect('refused' in base && base.refused.reason).toBe('hardware');
+    expect(gate).not.toHaveBeenCalled();
+  });
+  it('the project\'s own hardware is not refused', () => {
+    expect(plainForRefine({ ...typed(joined), hardware: HW })).not.toHaveProperty('refused');
+  });
+});
+
 describe('holes (holes spec §6)', () => {
   const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
   const withHole = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, holes: [row] } : b)) });

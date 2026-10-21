@@ -10,6 +10,7 @@ import type { AngleFaultCode } from './angleWorld';
 import { holedRefusal } from './holedRefusal';
 import { curvedRefusal } from './curvedRefusal';
 import { bandedRefusal } from './bandedRefusal';
+import { hardwareRefusal } from './hardwareRefusal';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
 
@@ -20,7 +21,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint' | 'holes' | 'curves' | 'bands';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint' | 'holes' | 'curves' | 'bands' | 'hardware';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -80,6 +81,9 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   if (curved) return refuse('curves', curved);
   const banded = bandedRefusal(flatDocument(doc), 'refine');
   if (banded) return refuse('bands', banded);
+  // Hardware on parts or assemblies (hardware spec §6), from the STORED document (P2: flatDocument empties definitions).
+  const hardware = hardwareRefusal(doc);
+  if (hardware) return refuse('hardware', hardware);
   const stored: StoredBoard[] = [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
   // Defence in depth: Refine's own path never reaches this with cuts (plainForRefine's joint gate
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.
