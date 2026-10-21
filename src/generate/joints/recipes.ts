@@ -1,6 +1,7 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
 import type { Board, Cut, CutFrom, Dimension, FlatDocument, SloydDocument } from '../../document/document';
 import { pocketCells, cutRegion } from '../../document/cuts';
+import { acrossOf } from '../../document/holes';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -49,6 +50,7 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
   // The part end facing the world `side`: a turn may reverse axis k.
   rebaseCuts(b, d, endFacing(b, k, side), amount, was);
   rebaseAngleCuts(b, d, endFacing(b, k, side), amount);
+  rebaseHoles(b, d, endFacing(b, k, side), amount);
 }
 
 /**
@@ -196,6 +198,22 @@ export function rebaseAngleCuts(b: Board, d: Dimension, end: CutFrom, amount: nu
     const q = c.face === d && c.from === end ? amount : 0;
     if (s === 0 && q === 0) return c;
     return { ...c, points: [[c.points[0][0] + s, c.points[0][1] + q], [c.points[1][0] + s, c.points[1][1] + q]] };
+  });
+}
+
+/**
+ * Joinery-holes spec §4.1: `b` grew (or, negative, was trimmed) by `amount` at `end` of dimension `d`, so a hole row's
+ * number MEASURED FROM that end — the station when `along` is `d`, the inset when its across dimension is `d` — shifts
+ * by `amount`, and every hole stays exactly where it was in the wood. One addition per number; a row measured from the
+ * other end is the same object. A `face === d` row is never shifted: it is ruled out before it reaches here (§3.4), and
+ * its far-end form is correct untouched. `readJoints` (`unjoin.ts`) calls it with the opposite amount, its exact inverse.
+ */
+export function rebaseHoles(b: Board, d: Dimension, end: CutFrom, amount: number): void {
+  b.holes = b.holes.map((r) => {
+    const s = r.along === d && r.alongFrom === end ? amount : 0;
+    const q = acrossOf(r) === d && r.acrossFrom === end ? amount : 0;
+    if (s === 0 && q === 0) return r;
+    return { ...r, station: r.station + s, inset: r.inset + q };
   });
 }
 
