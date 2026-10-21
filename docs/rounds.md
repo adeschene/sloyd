@@ -105,8 +105,8 @@
   `npm run build` green. The live pass on the dev server (`docs/browser-verification-hardware.md`) found one crash, a SHAPED part's
   Properties Hardware section (a fresh array per `getSnapshot`), fixed in `c9d5c08`. **Rollback once deployed:** a build below 20 REFUSES every
   project saved at 20, so export first. Owed to the user: the spec's *Amended (implementation)* wording (fu 410–412) and the four dialog
-  refusal words. Review minors: fu 409; spec §11: fu 404–408. Merge `--no-ff`, verify the merged tree, delete the branch; deploy is the user's call.
-- **Production is band wording** (deployed 2026-10-20 from the merge `4a6d6a1`, bundle `index-QDQAnB8n.js`, CSS unchanged: sides as a list,
+  refusal words. Review minors: fu 409; spec §11: fu 404–408. Merged `--no-ff` (merged tree verified, 7018 tests, build green), branch deleted; deployed and verified by bundle hash, CSP and a clean real-browser load.
+- **Band wording** (production until the hardware round; deployed 2026-10-20 from the merge `4a6d6a1`, bundle `index-QDQAnB8n.js`, CSS unchanged: sides as a list,
   `all four sides`, band types counted apart in Buying's tail; no schema change, so rolling back to `dc8d5c3` (`index-ymPlKpkL.js`) is free).
   The Banding section on the additions' pattern was deployed 2026-10-20 from the merge `dc8d5c3` (bundle `index-ymPlKpkL.js`,
   CSS `index-CgWDfdXW.css` (unchanged); `+ Add banding ▾` until a part is banded, `New solid edging…`; no schema change, so rolling back to
