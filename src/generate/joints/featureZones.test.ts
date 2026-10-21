@@ -265,6 +265,53 @@ describe('Review Focus', () => {
     });
   });
 
+  describe('half-laps go as a unit: a part lapping several partners', () => {
+    // UpA and UpB each drop into LowA and LowB (y [5, 5.75]); alone, either lap's drop would meet the other partner and
+    // skip, so a part's laps on one axis are trialled together, as the real run joins them.
+    const GRID = () => design(
+      { name: 'LowA', at: [0, 5, 0], size: [20, 0.75, 2] },
+      { name: 'LowB', at: [0, 5, 10], size: [20, 0.75, 2] },
+      { name: 'UpA', at: [2, 5.75, -4], size: [2, 0.75, 20] },
+      { name: 'UpB', at: [12, 5.75, -4], size: [2, 0.75, 20] },
+    );
+    const laps = (doc: FlatDocument, sites: readonly Site[]) => sites.map((s) => `${doc.boards[s.enter].name}>${doc.boards[s.receive].name}`);
+
+    it('the precondition: four crossings, and a lone lap\'s trial skips', () => {
+      const doc = GRID();
+      const sites = findSites(doc);
+      expect(laps(doc, sites).sort()).toEqual(['UpA>LowA', 'UpA>LowB', 'UpB>LowA', 'UpB>LowB']);
+      expect(sites.map((s) => s.allowed)).toEqual(sites.map(() => ['half-lap', 'butt']));
+      const lone = siteOf(doc, sites, 'UpA', 'LowA');
+      expect(applyJoints(doc, sites, [{ site: lone.id, joint: 'half-lap' }]).skipped.map((k) => k.site)).toEqual([lone.id]);
+    });
+
+    it('a hole in one crossing\'s notch rules half-lap out at every member of that part\'s unit', () => {
+      // From LowA's top face, inside the notch UpA cuts into LowA (x [2, 4], z [0, 2], LowA's upper half).
+      const doc = withHoles(GRID(), { LowA: (b) => [holeAt(b, 1, 1, [3, 0, 1], 0.25, 0.25)] });
+      const sites = findSites(doc);
+      const out = featureAllowed(doc, sites);
+      const lowA = indexOf(doc, 'LowA');
+      const unit = [siteOf(doc, sites, 'UpA', 'LowA'), siteOf(doc, sites, 'UpA', 'LowB')].sort((a, b) => a.id - b.id);
+      expect(out.ruledOut).toEqual(unit.map((s) => ({ site: s.id, kind: 'half-lap', part: lowA, feature: 'holes' })));
+      for (const s of unit) expect(out.sites[sites.indexOf(s)].allowed).toEqual(['butt']);
+      // UpB's crossings are clear of the hole: kept, same objects.
+      for (const s of [siteOf(doc, sites, 'UpB', 'LowA'), siteOf(doc, sites, 'UpB', 'LowB')]) expect(out.sites[sites.indexOf(s)]).toBe(s);
+    });
+
+    it('holes clear of every notch keep half-lap everywhere', () => {
+      const doc = withHoles(GRID(), {
+        LowA: (b) => [holeAt(b, 1, 1, [8, 0, 1], 0.25, 0.25)],
+        UpA: (b) => [holeAt(b, 1, -1, [3, 0, 6], 0.25, 0.25)],
+      });
+      const sites = findSites(doc);
+      // The unit trial is not vacuous: all four laps apply together.
+      expect(applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const }))).skipped).toEqual([]);
+      const out = featureAllowed(doc, sites);
+      expect(out.sites).toBe(sites);
+      expect(out.ruledOut).toEqual([]);
+    });
+  });
+
   it('twin placements are judged per placement', () => {
     // One side panel placed twice; a shelf enters the left copy at y 12 and another the right copy at y 20. A through
     // hole on the definition's side at y 12.375 lies under the left copy's site only.

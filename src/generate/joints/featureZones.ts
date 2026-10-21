@@ -72,7 +72,9 @@ const firstHit = (flat: FlatDocument, sites: readonly Site[], trials: JointChoic
  * THE one decider of which joint kinds features rule out, per site (joinery-holes spec §3.5; P1: zones by trial). Each
  * (site, kind) is joined alone in a watched trial at the size that reaches furthest, and the kind is ruled out when the
  * trial would cut, grow or trim into a hole. Pure, and decided before any call or mutation (inv 41).
- * - mortise-tenon at `tenonLength[1]`, dado at `dadoDepth[1]`, half-lap once.
+ * - mortise-tenon at `tenonLength[1]`, dado at `dadoDepth[1]`.
+ * - half-lap once per UNIT (the entering part's half-lap sites on one axis and side, as `applyJoints` drops it into all
+ *   its partners together); a conflict rules half-lap out at every member.
  * - stopped-dado once per stop end, at `dadoDepth[1]` and that end's smallest inset; any conflicting end rules the kind
  *   out (the stop end is Claude's to choose).
  * - rabbet once per UNIT (the panel's rabbet sites on one face, `applyJoints`' `rabbetUnits`), all members rabbeted
@@ -96,13 +98,24 @@ export function featureAllowed(flat: FlatDocument, sites: readonly Site[]): { si
     }
     return units.get(key)!;
   };
+  // A part's half-laps along one axis are one UNIT: the real run can drop it into all its chosen partners at once and
+  // refuses a partial set (the drop would drive it into an unchosen partner), so a lone crossing's trial skips.
+  const laps = new Map<string, number | null>();
+  const lapUnit = (s: Site): number | null => {
+    const key = unitKey(s);
+    if (!laps.has(key)) {
+      const members = sites.filter((m) => m.allowed.includes('half-lap') && unitKey(m) === key);
+      laps.set(key, firstHit(flat, sites, [members.map((m): JointChoice => ({ site: m.id, joint: 'half-lap' }))]));
+    }
+    return laps.get(key)!;
+  };
   const conflict = (s: Site, kind: Exclude<JointKind, 'butt'>): number | null => {
     const r = rangesOf(s, flat);
     switch (kind) {
       case 'mortise-tenon': return firstHit(flat, sites, [[{ site: s.id, joint: kind, tenonLength: r.tenonLength[1] }]]);
       case 'dado': return firstHit(flat, sites, [[{ site: s.id, joint: kind, depth: r.dadoDepth[1] }]]);
       case 'stopped-dado': return firstHit(flat, sites, s.stopEnds.map((e) => [{ site: s.id, joint: kind, depth: r.dadoDepth[1], stopAt: e, inset: r.inset(e)[0] }]));
-      case 'half-lap': return firstHit(flat, sites, [[{ site: s.id, joint: kind }]]);
+      case 'half-lap': return lapUnit(s);
       case 'rabbet': return rabbetUnit(s);
     }
   };

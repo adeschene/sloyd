@@ -31,6 +31,14 @@ describe('defaultChoice', () => {
   it('a wide shelf gets a dado a third of the side deep', () => {
     expect(defaultChoice(shelf, doc, sites)).toEqual({ site: shelf.id, joint: 'dado', depth: 0.25 });
   });
+  it('a crossing a feature narrowed to butt only defaults to butt, never the ruled-out half-lap (joinery-holes §3.5)', () => {
+    const d = design({ name: 'Lower', at: [0, 5, 9], size: [20, 0.75, 2] }, { name: 'Upper', at: [9, 5.75, 0], size: [2, 0.75, 20] });
+    const [lap] = findSites(d);
+    expect(lap.kind).toBe('crossing');
+    expect(defaultChoice(lap, d, [lap]).joint).toBe('half-lap');
+    const narrowed = { ...lap, allowed: ['butt' as const] };
+    expect(defaultChoice(narrowed, d, [narrowed])).toEqual({ site: lap.id, joint: 'butt' });
+  });
 });
 
 describe('defaultChoice (receiver shape)', () => {
