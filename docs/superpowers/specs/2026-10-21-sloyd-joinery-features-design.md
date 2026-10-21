@@ -1,6 +1,6 @@
 # Sloyd: Add joinery and Repair accept holes, curves, profiles and bands
 
-**Date:** 2026-10-21 · **Status:** draft, awaiting the user's approval.
+**Date:** 2026-10-21 · **Status:** draft, awaiting the user's approval. Builder-checked; the user's two rulings (§8) folded in.
 **Builds on:** the joinery, repair-joints and refine-joined specs; the AI-tapers and AI-angles specs
 (`2026-10-13-sloyd-ai-angles-design.md`, the pattern this spec follows: the checks, joinery and Repair accept a feature
 before Generate and Refine do); the holes (§6), curves (§7), edge profiles, profile runs (§6) and edge banding (§6) specs,
@@ -22,8 +22,9 @@ inherited from an earlier ruling is marked **(my call)**.
 ## 1. Goal, non-goals, anti-goals
 
 **Goal:** a project whose parts carry holes, curves, edge profiles or edge bands can be joined (Add joinery) and repaired
-(Repair joints). A feature that sits clear of every joint rides through unchanged on the wood. A feature that is in the way
-of a joint refuses the run before any paid call, naming the part, as a taper or miter does today.
+(Repair joints). A feature that sits clear of every joint rides through unchanged on the wood. Where a feature is in the
+way of a joint, **only the joint kinds that would cut into it are ruled out at that site** before any paid call; the run
+goes ahead, a site with nothing left stays a plain butt, and the summary says why (the user's ruling, 2026-10-21, §3.5).
 
 **Non-goals (this spec):**
 - **Refine stays refused** for all four features (`holedRefusal`/`curvedRefusal`/`bandedRefusal` with `'refine'`, and their
@@ -40,7 +41,7 @@ of a joint refuses the run before any paid call, naming the part, as a taper or 
   other than where it was in world space.
 - **A joint cut through a feature without saying so.** For example, a tenon through a hole, a mortise through edging, or a
   dado across a curve's waste.
-- **A paid call spent and then refused.** Every refusal is decided before the call and before any mutation (inv 41).
+- **A paid call spent and then refused.** Every ruling-out is decided before the call and before any mutation (inv 41).
 - **Repair "proving" a result its gate cannot see.** The gate must compare the features it now accepts (§5).
 
 ## 2. Chunks
@@ -67,16 +68,20 @@ angle cut always opens on a face. These features don't have to. A blind hole dri
 curve's waste or a stopped profile can sit inside a mortise's or dado's depth without touching the plane. So the test here
 is about **volume**: does the feature's wood overlap the wood the joint might take?
 
-### 3.2 A site's joint zone
+### 3.2 A joint kind's zone at a site
 
-For each site, its **joint zone** is, per part, the board-local region of wood that **any allowed choice** at that site
-(`Site.allowed`, sizes up to the upper bound of `rangesOf(s, flat)`) could remove, add or trim. It is computed before the
-call from the site and the flat document alone, so the refusal is decided before any call or mutation (inv 41). The rows,
-one per recipe in `applyJoints`:
+For each site and **each joint kind** in `Site.allowed` (butt excepted), its **zone** is, per part, the board-local region
+of wood that kind could remove, add or trim at that site, at any size up to the upper bound of `rangesOf(s, flat)`. It is
+computed before the call from the site and the flat document alone, so the ruling-out is decided before any call or
+mutation (inv 41). Per kind, not per site (*amended after the builder check, the user's ruling*): a dado is allowed
+wherever a tenon is, and a dado takes the whole patch, so a per-site union would rule out every joint at a rounded-over
+leg with a flush apron that a tenon clears. The rows, one per recipe in `applyJoints`:
 
 | Recipe | Part | Zone |
 |---|---|---|
-| mortise-tenon, dado, stopped-dado | receiver | the box-contact patch × depth into the receiver up to the largest allowed depth (`tenonLength[1]`, `dadoDepth[1]`) |
+| mortise-tenon | receiver | the mortise: the tenon's section (`tenonSection`, placed in the patch as `mortiseTenon` places it) × `tenonLength[1]` into the receiver |
+| dado | receiver | the whole box-contact patch × `dadoDepth[1]` into the receiver |
+| stopped-dado | receiver | the patch less the smallest allowed stop inset at each allowed stop end, × `dadoDepth[1]` (the builder may take the whole patch, the dado's zone, if that is simpler: it is only more conservative) |
 | mortise-tenon, dado, stopped-dado | entering | the **joined end** (§3.4): the growth region beyond the end plus the end face itself |
 | rabbet | receiver | the rabbet's pocket: along the receiver's edge, `rabbetDepth[1]` into it, and the panel's thickness along the contact axis (`recipes.ts` ~509–515) |
 | rabbet | trimmed parts | each part the rabbet path (`recipes.ts` ~496–581) may trim, at the trimmed end, up to that trim's largest depth over the allowed `rabbetDepth` (the panel's own trim is largest at `rabbetDepth[0]`) |
@@ -100,19 +105,20 @@ said `TOUCH`, 1/32", which let a dado break 1/32" into a hole's bottom, the anti
 - **Hole:** each hole of the row (`holeInstances`) as its bore's box (mouth to bottom × diameter). A box is enough here.
   The zone is a box, and the cylinder–box difference is at most a corner sliver, so I'm choosing the conservative test.
 - **Curve:** its waste on the real outline (`curveOutline`) extruded through `through`, not its bounding box. The box test
-  would refuse a bow along a rail's bottom edge, whose waste reaches the ends only at a point.
+  would rule out every joint at a bow along a rail's bottom edge, whose waste reaches the ends only at a point.
 - **Profile:** its waste through `geometryBoard`'s view, plus a swept profile's waste, from the same sources the bodies
   use. The builder may use the profile's section box (`profileSection`) × the run's extent if that is exactly as
   conservative.
 - **Band:** solid edging's strip region on its side: the band's thickness in from that side × the side's full run × the
   part's thickness. **Tape has no thickness** (`bandModel.ts`), so it has no region and a joint through a taped edge is
-  accepted, as it is in the shop (a through dado across a taped front edge); a tape band on the moving end's own side is
-  still refused by §3.4 **(my call, amended after the builder check)**.
+  accepted, as it is in the shop (a through dado across a taped front edge); a tape band on the moving end's own side
+  still rules the growing kinds out (§3.4) **(my call, amended after the builder check)**.
 
 ### 3.4 The growing end (entering part of an end-into-face site)
 
 Joinery grows the entering part at the joined end: a tenon or a dado's housed length. §4's rebase keeps every number
-**measured from** that end fixed in world space. A feature that **reaches** the joined end is different:
+**measured from** that end fixed in world space. A feature that **reaches** the joined end is different. "Conflicts" here
+means it rules out all three growing kinds (mortise-tenon, dado, stopped-dado) at that site:
 
 - **It conflicts** if its region touches the end face with positive area, however small its overlap with the patch. This
   is the AI-angles growing-end ruling. Examples: a hole drilled into the end (`face` is the grown dimension, mouth on that
@@ -123,8 +129,9 @@ Joinery grows the entering part at the joined end: a tenon or a dado's housed le
   tenon's section (`tenonSection`: thickness `[cheek, t − cheek]` × width `[shoulder, w − shoulder]`, touching allowed).
   This is `clearsTenon` generalised from angle cuts. It covers a roundover along a rail's top edge (a profile ending
   `through` both ends), a curve whose `through` is the grown dimension (a rounded arris along the rail), and a thin band
-  along the rail's long edge. The tenon is the narrowest joint joinery can choose there, so every joint kind stays whole.
-  **(my call, by direct analogy with the angle ruling; see §8 Q2 for bands)**
+  along the rail's long edge. The exception holds for all three growing kinds, as the angle ruling does: a tenon stays whole, and a dado's housing
+  shows a small gap where the feature runs in, which is what happens in the shop. **(my call, by direct analogy with the
+  angle ruling; bands' strip length is §4.4)**
 - A hole's `'through'` along the grown dimension takes no exception and always conflicts **(my call: rare, and a bore
   through a tenon is never intended)**.
 - **Trimmed ends** (a rabbet's trims, `recipes.ts` ~522–581) take the same rule with the same exception: a feature stored
@@ -132,29 +139,38 @@ Joinery grows the entering part at the joined end: a tenon or a dado's housed le
   trimmed end does, unless it is measured from the far end and lies outside the trimmed slab **(my call, amended after the
   builder check)**.
 
-### 3.5 The refusal
+### 3.5 Ruling joint kinds out (the user's ruling, 2026-10-21)
 
-- **Conflicts per part, one sentence per part, in part order.** Precedence on one part: taper, then angle, then hole, curve,
-  profile, band (the order the features shipped). `jointRefusal` gains these kinds. The text is built in
-  `document/angledRefusal.ts` or a sibling, because it is a string a person reads.
-- **Wording (my call; for the user's eye, as fu 410–412):**
-  - "`<Part>`'s holes run into its joint with `<Other>` — add joinery before drilling them, or remove them."
-  - "`<Part>`'s curve runs into its joint with `<Other>` — add joinery before cutting it, or remove it."
-  - "`<Part>`'s `<kind>` profile runs into its joint with `<Other>` — add joinery before routing it, or remove it."
-  - "`<Part>`'s edge band runs into its joint with `<Other>` — add joinery before banding, or remove the band."
-- **The whole run refuses.** It does not leave that one site as a butt. This is the taper and angle precedent; see §8 Q1.
-- `joineryRefusal` stays THE one decider (the dialog, `runJoinery` and a joined Refine's `plainForRefine` all call it). In a
-  feature's chunk, its blanket `'joinery'` refusal call is removed from `joineryRefusal`. The `'refine'` calls stay.
+- **Per site, a kind whose zone a feature enters is ruled out**: removed from that site's `allowed` before the sites are
+  sent, so Claude never offers it, `defaultChoice` never picks it, and `validChoice` rejects it. One pure function
+  (`featureAllowed(flat, sites)` or the builder's name) returns the narrowed sites and, per site, which kinds went and the
+  feature that removed each. It is THE one decider; `runJoinery` and the dialog both call it.
+- **A site left with only butt is still a site** and is joined as a butt. It is not sent to the chooser **(my call)**: a
+  choice of one is no choice, and it saves tokens. A run whose every open site is left butt makes no call.
+- **The summary says why**, one line per site that lost a kind, built in `document/` beside `angledRefusal.ts` because it
+  is a string a person reads. Wording (my call; for the user's eye, as fu 410–412):
+  - "`<Enter>` → `<Receive>`: dado ruled out — `<Part>`'s roundover is in the way."
+  - "`<Enter>` → `<Receive>`: left as a butt — `<Part>`'s holes are in the way of every joint."
+  Feature words: `holes`, `curve`, `<kind> profile`, `edge band`.
+- **The prompt.** `JOINERY_PROMPT` (the fixed system prefix) stays byte-identical. The user turn's site list
+  (`siteMessage`) lists each site's narrowed `allowed`, as it lists `allowed` today; that is the only change in what Claude
+  reads.
+- **Tapers and other angle cuts keep their whole-run refusal** (`taperConflicts`, `angleConflicts`, unchanged words). This
+  spec does not move them onto ruling-out; doing so is a follow-up to raise with the user (§10).
+- `joineryRefusal` stays THE refusal decider (the dialog, `runJoinery` and a joined Refine's `plainForRefine` call it). In a
+  feature's chunk, its blanket `'joinery'` refusal call is removed. The `'refine'` calls stay.
+- **Kept joints (a joined Refine's `fixed`)** are unreachable while Refine refuses these features; `validChoice` reading
+  the narrowed `allowed` covers them when that changes.
 - A joined Refine still refuses these documents first, through `refine.ts`' and `refineDesign.ts`' own refine refusals,
   which run before its `joineryRefusal` call (`refine.ts` ~65–83). A test pins that order.
 
 **Examples:**
-- **Refused:** shelf-pin holes in a side panel whose rows run under a shelf's dado.
-- **Refused:** dowel holes hand-drilled at a butt joint. "Add joinery" would cut a tenon through them.
-- **Refused:** a band on a shelf's end that enters a dado.
-- **Refused:** a hole drilled from a side's outer face, 3/8" deep in 3/4" stock, under a 1/2"-thick shelf. The mortise
-  zone reaches 1/2" in (`tenonLength[1]` = depth − 1/4), so it overlaps the hole. (*Amended:* the draft blamed the dado,
-  whose 3/8" zone only touches the hole, which passes.)
+- **Left as a butt:** shelf-pin holes in a side panel whose rows run under a shelf's dado and through its mortise zone.
+- **Left as a butt:** dowel holes hand-drilled at a butt joint (every kind would cut through them).
+- **Left as a butt:** a band on a shelf's end that enters a dado (the joined end, §3.4).
+- **Dado ruled out, tenon kept:** a leg rounded over on its outer corner, apron flush with that face.
+- **Tenon ruled out, dado kept:** a hole drilled from a side's outer face, 3/8" deep in 3/4" stock, under a 1/2"-thick
+  shelf. The mortise zone reaches 1/2" in (`tenonLength[1]` = depth − 1/4); the dado's 3/8" only touches the hole.
 - **Fine:** shelf-pin holes clear of every joint.
 - **Fine:** an apron arched along its bottom edge between the legs, with the arch stopping short of the ends.
 - **Fine:** a rail with a 1/4" roundover along its top edges, tenoned at both ends (it clears a 1/2" shoulder).
@@ -165,14 +181,14 @@ Joinery grows the entering part at the joined end: a tenon or a dado's housed le
 `resize` (`recipes.ts`) calls `rebaseCuts` and `rebaseAngleCuts`. Each chunk adds its feature's rebase beside them, with
 the same signature `(b, d, end, amount)` and the same rule: **every stored number measured FROM the moving end of `d`
 shifts by `amount`**. Growth is `+a` and a trim is `−a`, one addition per number, nothing re-derived. Everything else is
-untouched. A feature that reaches the moving end has already been refused by §3.4, except the run-through cases, which
+untouched. A feature that reaches the moving end has already had the growing kinds ruled out by §3.4, except the run-through cases, which
 need no number changed because they are stored as spanning `d`. **Every stored number is classified below**, so a missed
 field is a spec bug, not a builder's choice:
 
 ### 4.1 `rebaseHoles` (chunk 1)
 - `station`: shifts when `along === d && alongFrom === end`.
 - `inset`: shifts when the third dimension (`acrossFrom`'s) is `d` and `acrossFrom === end`.
-- `face === d`: refused (§3.4), so never reached. A row with `face === d` but `from` the OTHER end and a numeric depth is
+- `face === d` with its mouth on the moving end, or `'through'`: the growing kinds are ruled out (§3.4), so never reached. A row with `face === d` but `from` the OTHER end and a numeric depth is
   measured from the far end and stays put. It is untouched, and it only conflicts if its bore reaches the zone.
 - `diameter`, `count`, `pitch`, `depth` (from a face that is not `d`): untouched.
 
@@ -185,11 +201,17 @@ field is a spec bug, not a builder's choice:
 ### 4.3 `rebaseProfiles` (chunk 2)
 - A `ProfileEnd` with a station: `at` shifts when its run dimension is `d` and its `from === end`.
 - A `through` end, `loop`, `face`, `size`, `depth`, `fillet` and `facing`: untouched. A profile ON the moving end's own
-  side, or a loop, is refused by §3.4.
+  side, or a loop, has the growing kinds ruled out by §3.4.
 
 ### 4.4 Bands (chunk 3)
-- Bands store no number. A band on the moving end's side is refused (§3.4). A band along `d` grows with the part. Its
-  strip and core numbers are re-derived by `banding.ts` from the new size; see §8 Q2.
+- Bands store no number. A band on the moving end's side rules the growing kinds out (§3.4). A band along `d` grows with
+  the part, and its core numbers are re-derived by `banding.ts` from the new size.
+- **Strips and tape count only the visible length** (the user's ruling, 2026-10-21): a band's run stops where a rectangular
+  cut removes the side's face across the part's whole thickness at an end of the run, as a tenon's shoulders and a stopped
+  dado's notch do; into a plain dado's housing it runs on, since the face is still there. Decided in `banding.ts` from the
+  part's stored cuts, with no knowledge of joints, so a HAND-made notch at a banded end shortens its strip too. That is a
+  change for existing documents **(my call: it is the same fact, and the number was wrong before)**; listed in the round's
+  record. A band-free document stays byte for byte (`bandFreeIdentity.test.ts`).
 
 ### 4.5 The inverse
 `readJoints`' `resizeAt` (`unjoin.ts`) calls each new rebase exactly as it calls `rebaseAngleCuts`, so the plain part
@@ -219,10 +241,11 @@ that path already does, and pin it.
 
 On each chunk's ship, in full in `docs/invariants.md` and condensed in CLAUDE.md (every PROHIBITION verbatim):
 
-- **inv 41:** joinery's one decider gains the feature zones. Each feature re-anchors on resize by its own `rebase…`, and
+- **inv 41:** joinery gains a second decider beside `joineryRefusal`: the per-kind feature zones that rule joint kinds
+  out before the call (§3.5). Each feature re-anchors on resize by its own `rebase…`, and
   `readJoints`' `resizeAt` undoes them exactly.
 - **inv 50, 53, 54:** "Joinery, Refine and Repair refuse holed / curved / banded projects" becomes "Refine refuses …;
-  joinery refuses only a joint zone a feature enters (§3); Repair accepts".
+  joinery rules out only the joint kinds whose zone a feature enters (§3); Repair accepts".
 - Follow-ups:
   - **fu 328:** closed for joinery and Repair; Refine stays with fu 329.
   - **fu 363:** first piece closed.
@@ -238,11 +261,16 @@ Vitest per chunk, then a live check.
   - the feature's world position is unchanged after `resize`, sampled through the geometry the viewport reads;
   - `resize` then `resizeAt` restores every stored number within the gate's comparison;
   - each shift is mutated (drop it, flip its sign, test the wrong `from`) and goes red.
+- **Ruling-out:** per §3.5 example, the narrowed `allowed`, the summary line, and a run whose every site is left butt
+  making no call (call count asserted). `siteMessage` lists the narrowed kinds; `JOINERY_PROMPT` pinned unchanged.
+- **Bands' visible length (chunk 3):** a tenoned banded rail's strip stops at both shoulders; a dadoed shelf's runs into
+  the housing; a stopped dado's notch shortens it; each mutated.
 - **Zones, one fixture per row of §3.2,** each mutated by deleting the row. Each §3.3 region gets a touching case (passes)
-  and an overlap-by-a-sliver case (refused), mutated `>` → `>=`. The §3.5 examples are all fixtures.
+  and an overlap-by-a-sliver case (ruled out), mutated `>` → `>=`. The §3.5 examples are all fixtures.
 - **§3.4:** the growing-end conflict, the clearance exception for each feature that has one (mutated against the tenon
-  section's bounds), and a hole `'through'` along the grown dimension refused.
-- **No mutation, no call** on every refusal: the existing pattern asserts the call count, never message text.
+  section's bounds), and a hole `'through'` along the grown dimension ruling the growing kinds out.
+- **No mutation, no call** before the ruling-out is decided: the existing pattern asserts the call count, never message
+  text.
 - **The oracle:** across every joinery fixture (`recipes.test`, `runJoinery.test`, `shakerTableFixture`) with features
   added clear of their zones, after joining, **no joint's wood (each new or changed rectangular cut's region, and each
   growth or trim slab) overlaps any feature's region (§3.3) beyond 1e-9**, except the §3.4 run-through cases. It is
@@ -257,24 +285,18 @@ Vitest per chunk, then a live check.
 - **Byte-for-byte:** a document with none of the chunk's feature joins exactly as before (existing joinery tests
   unmodified and green).
 - **Live (dev server), per chunk:**
-  - **Free:** the joinery dialog's refusal for one conflicting fixture, and Repair offered on a holed bug fixture.
+  - **Free:** Repair offered on a holed bug fixture. (Ruling-out shows only in a run's summary, so it is checked in the
+    paid run below or not live.)
   - **Free, my call:** import a document joined by test code (exported JSON) and check in the viewport that the
     features sit where they were, beside their joints.
   - **Paid:** one real Add joinery run on a feature-bearing project, **only with the user's approval at the time**.
 
-## 8. Open questions for the user
+## 8. The user's rulings (2026-10-21)
 
-Q1–Q2 were raised while writing. The builder check may add to them.
-
-- **Q1: Refuse the whole run, or leave that joint plain?** When one feature is in one joint's way, this spec refuses the
-  whole Add joinery run, as tapers and miters do today. The alternative is to run anyway, leave that one joint as a butt,
-  and say why in the summary.
-- **Q2: Bands on a part that grows.** A shelf with tape on its front edge, dadoed or tenoned at its ends, gets longer when
-  joined. `banding.ts` then computes the tape run and solid-edge strip over the new length, so the strip includes the
-  housed or tenon length: a small over-buy.
-  - For a dado this is right, since the edge runs into the housing.
-  - For a tenon it is wrong by the tenon's length, since the edging stops at the shoulder.
-  - Options: accept the over-buy, or refuse a band along a part that gets a tenon.
+- **Q1, in the way of a joint:** rule out only the joint kinds that would cut into the feature, per site, before the call;
+  a site with nothing left stays a butt and the summary says why (§3.2, §3.5). Chosen over refusing the whole run after the
+  builder check showed per-site refusal would turn away a rounded-over leg with a flush apron.
+- **Q2, edging on a part that grows:** count only the visible length (§4.4), over accepting the over-buy or refusing.
 
 ## 9. What does not change
 
@@ -287,4 +309,5 @@ before.
 
 Refine reading and writing holes, curves, profiles and bands (fu 329, 363, 398). Generate writing them. Design checks on
 curved bodies (fu 363). Dowel joints derived from holes (fu 404). Counterbores meeting holes (fu 330). Joints through
-edging (fu 398's "tenon out of edging" beyond the clearance rule).
+edging (fu 398's "tenon out of edging" beyond the clearance rule). Moving tapers and other angle cuts from whole-run
+refusal onto ruling-out (§3.5; a new follow-up, ask first).
