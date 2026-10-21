@@ -1,6 +1,6 @@
 # Sloyd — hardware bill of materials
 
-**Date:** 2026-10-20 · **Status:** APPROVED by the user 2026-10-20 (written spec, builder-checked; every §10 call and the builder-check settlements approved with it). Written from fu 267 at the user's request ("skip the
+**Date:** 2026-10-20 · **Status:** APPROVED by the user 2026-10-20 (written spec, builder-checked; every §10 call and the builder-check settlements approved with it). **IMPLEMENTED 2026-10-21 on branch `hardware` (commits 6049fff..c9d5c08); not merged, not deployed.** Written from fu 267 at the user's request ("skip the
 questions, write it from fu 267"), so **every decision below is Claude's call** unless marked as the user's; §10 lists
 them for review.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the tree (`worldParts`,
@@ -301,3 +301,27 @@ every other shared field.
 - Hardware on the Plans sheet (a table, or keyed balloons).
 - Hardware for a multi-selection (mixed counts).
 - Handedness and structured sizes, if real projects need them.
+
+## Amended (planning)
+
+**APPROVED by the user 2026-10-20 (P1, P2).**
+- **P1 — Ungroup is REFUSED when a merged count would exceed `HARDWARE_COUNT_MAX` (999).** §6 merges the dissolved assembly's
+  hardware into its parent's by adding counts; a sum above the loader's bound would be DROPPED on the next load (silent loss).
+  `ungroupItem` returns null for it, like its other refusals. Reachable only with counts in the hundreds.
+- **P2 — `hardwareRefusal` takes the STORED document**, not the flat one: `flatDocument` empties `definitions`, so an assembly's
+  hardware is invisible from it.
+
+## Amended (implementation)
+
+**For the user's review (2026-10-21).**
+- **A live crash and its fix (`c9d5c08`).** Selecting a SHAPED part crashed the app (`The result of getSnapshot should be cached`,
+  `Maximum update depth exceeded`): `holderHardware` read the part through `resolveBoard`, which copies `hardware` per call, and
+  Properties' selector returned that fresh array every time. `holderHardware` now returns the STORED array for every target
+  (the Shape's for a shaped part) and a frozen empty one when there is none. Unit tests had not rendered the section for a shaped
+  part; identity tests and a shaped-part render test now do (both RED on the old code). Invariant 55 records the rule.
+- **Four dialog refusal words the spec does not fix (§5.2 fixes only the `Used by` words), chosen by the implementer:**
+  `Give the hardware type a name.`, `Another hardware type is called "X".`, `Pack size must be a whole number from 1 to 10000.`,
+  `Price must be dollars or empty.`
+- **The count field's refusal:** `Enter a whole number, 1 to 999` (the shared `CountField` generalised from Holes' count).
+- **Wording left for the user's eye (follow-ups 410–412):** Ungroup refused for overflow is silent; the link note does not
+  mention hardware; `Counted once per copy: <n> in all.` sums different types.

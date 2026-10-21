@@ -24,7 +24,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Miters and bevels | Picture-frame and case miters, bevelled panel edges; a miter is faked as a butt today | shipped 2026-10-12: Miter (chunk 2), Bevel and Chamfer (chunk 3) |
 | Splayed / raked legs, compound angles | Windsor chairs, splayed stools; SketchUp has a dedicated extension | open |
 | Curves | Arched aprons, curved stretchers, rounded tops, bandsawn parts | chunk 1 shipped 2026-10-15 (schema 17: Arch, Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, section, snap, cut list), deployed 2026-10-15; chunk 2 (drawings: finer arcs, silhouettes, part diagrams; fu 361) deployed 2026-10-15 (no schema change); Claude features on curves fu 363 |
-| Edge profiles | Chamfers, roundovers, eased edges; mostly visual, but expected | chamfers shipped 2026-10-12 (angle cuts chunk 3); roundovers open |
+| Edge profiles | Chamfers, roundovers, eased edges; mostly visual, but expected | chamfers shipped 2026-10-12 (angle cuts chunk 3); roundovers and other profiles shipped 2026-10-17 to 10-19 (edge profiles chunk 1, profile runs a1–c2; deployed `index-Cqf9kRT7.js` and later) |
 | Holes | Dowels, shelf-pin rows, hardware bores | shipped 2026-10-14: chunk 1 (schema 16: bores and shelf-pin rows, cut list) and chunk 2 (drawings, Hinge cup), both deployed 2026-10-14; holes through joinery/Refine and Generate still open (fu 328, 329) |
 | Dovetails, box joints | Joinery generator is rectangular joints only | open |
 | Claude features on angled parts | Generate/Refine/Add joinery refused angle cuts after they shipped | tapers shipped 2026-10-13 (AI tapers chunks 1–2, turned links); miters, bevels and chamfers shipped 2026-10-13/14 (AI angles chunks 1–2); splined/biscuited miter joints still open (fu 276) |
@@ -48,8 +48,8 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Cost | Price per board foot / per sheet, project total (OpenCutList, CutList Plus, SketchList 3D) | shipped (lumber yield & cost round, deployed 2026-10-12) |
 | Custom materials | `MATERIALS` is a fixed seven entries; the `SheetStock` doc comment anticipates this round (ash, poplar, 5×5 Baltic birch, ½" ply…) | merged 2026-10-14 (custom materials chunk 1, schema 15: library + per-project copies, Materials & prices dialog, Refine keeps them) |
 | Nominal dimensional lumber | A 2×4 is 1½ × 3½ | merged 2026-10-14 (custom materials chunk 2: names in the cut list and Buying, a Nominal size select, a per-material switch) |
-| Edge banding | Banded edges flagged on the cut list | open |
-| Hardware / accessories BOM | Screws, hinges, slides, pulls | open |
+| Edge banding | Banded edges flagged on the cut list | shipped 2026-10-20 (schema 19: band types, bands, core sizes, strips and tape in Buying, looks, glue lines; deployed `index-QDQAnB8n.js`) |
+| Hardware / accessories BOM | Screws, hinges, slides, pulls | built 2026-10-21 on branch `hardware` (schema 20: per-project types with pack size and price, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's block); pending merge and deploy |
 | Weight | OpenCutList reports cost and weight together | open |
 | Printable part labels | OpenCutList-style stickers; distinct from the diagram label layout | open |
 | Metric display | Input already parses metric; `units.display` only allows `'imperial-fractional'` | shipped 2026-10-15 in two chunks (Units switch, fields, typing, tape, cut list, bench lines; drawings bare mm + sheet note, Buying brackets, metric grid) |
