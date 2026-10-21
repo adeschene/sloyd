@@ -459,6 +459,19 @@ export function holeRims(h: Hole): [V3, V3][] {
   return [holeRing(h, 0), holeRing(h, h.depth)].flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
 }
 
+/** The bore's board-local box (joinery-holes spec §3.3): mouth to bottom along `axis`, centre ± radius across. Not clipped
+ *  to the board; a through hole spans its whole dimension. */
+export function holeRegion(h: Hole): Region {
+  const { a } = frameOf(h);
+  const out = {} as Region;
+  DIMENSION_ORDER.forEach((d, i) => {
+    out[d] = i === a
+      ? [Math.min(h.centre[a], h.centre[a] + h.dir * h.depth), Math.max(h.centre[a], h.centre[a] + h.dir * h.depth)]
+      : [h.centre[i]! - h.radius, h.centre[i]! + h.radius];
+  });
+  return out;
+}
+
 /** The hole's bounding box overlaps the region (closed). Conservative: it decides only whether a body leaves the box path. */
 export function holeTouchesBox(h: Hole, r: Region): boolean {
   const { a } = frameOf(h);

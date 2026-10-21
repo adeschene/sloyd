@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
+  holeRegion, holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
 } from './holes';
 import { parseLength, IMPERIAL } from '../units/length';
 import type { V3 } from './angleCuts';
@@ -74,6 +74,21 @@ describe('hole instances (spec §2.2)', () => {
   it('boardHoles is every row in stored order', () => {
     const b = { ...side, holes: [PIN, { ...PIN, id: 'h2', inset: 9.75 }] };
     expect(boardHoles(b).map((h) => `${h.row}:${h.index}`).slice(20, 22)).toEqual(['h1:20', 'h2:0']);
+  });
+});
+
+describe('holeRegion (joinery-holes spec §3.3)', () => {
+  const bore: HoleRow = { ...PIN, diameter: 0.375, depth: 0.5, count: 1 };
+  it('a 3/8 bore 1/2 deep from the thickness max face: mouth to bottom, centre ± radius across', () => {
+    expect(holeRegion(holeInstances(side, bore)[0]!)).toEqual({ length: [1.8125, 2.1875], width: [1.3125, 1.6875], thickness: [0.25, 0.75] });
+  });
+  it('from the min face it runs up from 0', () => {
+    expect(holeRegion(holeInstances(side, { ...bore, from: 'min' })[0]!).thickness).toEqual([0, 0.5]);
+  });
+  it('a through hole spans the whole dimension', () => {
+    expect(holeRegion(holeInstances(side, { ...bore, depth: 'through' })[0]!).thickness).toEqual([0, 0.75]);
+    const along: HoleRow = { ...bore, face: 'length', from: 'min', depth: 'through', along: 'width', station: 2, acrossFrom: 'min', inset: 0.375 };
+    expect(holeRegion(holeInstances(side, along)[0]!)).toEqual({ length: [0, 30], width: [1.8125, 2.1875], thickness: [0.1875, 0.5625] });
   });
 });
 
