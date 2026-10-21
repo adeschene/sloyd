@@ -99,7 +99,7 @@ export function featureAllowed(flat: FlatDocument, sites: readonly Site[]): { si
     return units.get(key)!;
   };
   // A part's half-laps along one axis are one UNIT: the real run can drop it into all its chosen partners at once and
-  // refuses a partial set (the drop would drive it into an unchosen partner), so a lone crossing's trial skips.
+  // may refuse a partial set (an unchosen partner in the drop path; the unit over-rules by design), so a lone crossing's trial skips.
   const laps = new Map<string, number | null>();
   const lapUnit = (s: Site): number | null => {
     const key = unitKey(s);

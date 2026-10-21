@@ -643,6 +643,13 @@ describe('runJoinery with holes (joinery-holes spec §3.5)', () => {
     expect(out.notes).toEqual(["Rail → Leg: left as a butt — Rail's holes are in the way of every joint."]);
   });
 
+  it('the estimate with no sites given narrows through the real decider: every site ruled out to butt prices nothing', () => {
+    const doc = ALL_OUT();
+    expect(joineryEstimateUsd(client({ joints: [] }), doc)).toBeNull();
+    // The same project without its holes is priced, so the null is the holes' doing.
+    expect(joineryEstimateUsd(client({ joints: [] }), { ...doc, boards: doc.boards.map((b) => ({ ...b, holes: [] })) })).not.toBeNull();
+  });
+
   it('the fallback path carries the summary lines too', async () => {
     const out = await run(client(new LlmError('overloaded', 'down')), TENON_OUT());
     if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
