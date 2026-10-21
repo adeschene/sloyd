@@ -13,6 +13,7 @@ import { Holes } from './Holes';
 import { Curves } from './Curves';
 import { Profiles } from './Profiles';
 import { Banding } from './Banding';
+import { Hardware } from './Hardware';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -494,7 +495,7 @@ function GroupProperties({ library, onNewMaterial, onNewBandType }: { library: C
 }
 
 /** The panel for one selected assembly (assemblies spec §10): name, turn and the item actions. */
-function InstanceProperties({ path }: { path: string }) {
+function InstanceProperties({ path, onNewHardwareType }: { path: string; onNewHardwareType: () => void }) {
   const inst = useStore((s) => instanceAt(s.doc, path));
   const duplicateBoards = useStore((s) => s.duplicateBoards);
   const deleteBoards = useStore((s) => s.deleteBoards);
@@ -554,15 +555,22 @@ function InstanceProperties({ path }: { path: string }) {
       </label>
       </div>
       </EditLock>
+      <Hardware target={{ kind: 'assembly', path }} heading="Hardware" onNewHardwareType={onNewHardwareType} />
     </div>
   );
 }
 
-export function Properties({ library = [], onNewMaterial, onNewBandType }: {
+export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHardwareType }: {
   library?: CustomMaterial[]; onNewMaterial?: NewMaterialHandler;
   /** "New solid edging…" in the Banding section: App opens Materials & prices with a new Solid band type row. */
   onNewBandType?: () => void;
+  /** "New hardware type…" in the Hardware section: App opens Materials & prices (Task 8: on a new Hardware row). */
+  onNewHardwareType?: () => void;
 } = {}) {
+  const noNewHardware = () => {};
+  const newHardware = onNewHardwareType ?? noNewHardware;
+  const openPath = useStore((s) => s.openPath);
+  const openName = useStore((s) => (s.openPath ? instanceAt(s.doc, s.openPath)?.name ?? null : null));
   const board = useStore((s) =>
     s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined);
   const instPath = useStore((s) => (s.selectedIds.length === 1 && instanceAt(s.doc, s.selectedIds[0]!) ? s.selectedIds[0]! : null));
@@ -602,8 +610,16 @@ export function Properties({ library = [], onNewMaterial, onNewBandType }: {
   }, [board?.id]);
 
   if (groupSize >= 2) return <GroupProperties library={library} onNewMaterial={onNewMaterial} onNewBandType={onNewBandType} />;
-  if (instPath) return <InstanceProperties path={instPath} />;
-  if (!board) return <p className="empty">Select a part to edit it.</p>;
+  if (instPath) return <InstanceProperties path={instPath} onNewHardwareType={newHardware} />;
+  if (!board) return (
+    <>
+      <p className="empty">Select a part to edit it.</p>
+      {/* Spec §5.1: the project's hardware, or the OPEN assembly's own (an open assembly cannot be selected from inside). */}
+      {openPath && openName !== null
+        ? <Hardware key={openPath} target={{ kind: 'assembly', path: openPath }} heading={`${openName} hardware`} onNewHardwareType={newHardware} />
+        : <Hardware target={{ kind: 'project' }} heading="Project hardware" onNewHardwareType={newHardware} />}
+    </>
+  );
 
   // Once per render, shared by every CutRow's label (no memo key to go stale — inv 15).
   const solids = pocketCells(board);
@@ -723,6 +739,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType }: {
       <Profiles board={board} />
       <Banding boards={[board]} onNewBandType={onNewBandType} />
       </EditLock>
+      <Hardware target={{ kind: 'part', id: board.id }} heading="Hardware" onNewHardwareType={newHardware} />
     </div>
   );
 }

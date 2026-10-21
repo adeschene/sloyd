@@ -978,7 +978,8 @@ export default function App() {
               <h2>Properties</h2>
               {/* Properties locks its own editing regions while exploded (EditLock, fu 262), so its view actions stay live. */}
               <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }}
-                onNewBandType={() => { setNewBandFor('solid'); setDialog('prices'); }} />
+                onNewBandType={() => { setNewBandFor('solid'); setDialog('prices'); }}
+                onNewHardwareType={() => setDialog('prices')} />
             </section>
             {/*
               Keyed per project (ui-polish spec §4.5): the footer opens itself
