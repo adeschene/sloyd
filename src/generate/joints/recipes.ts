@@ -21,6 +21,21 @@ export interface JoinResult<D extends SloydDocument = FlatDocument> {
   sizeAfter: V3;
 }
 
+/**
+ * Told, per part (a flat-document index), every pocket about to be pushed and
+ * every resize about to happen, before it does. Reads only: a watched run
+ * returns exactly what an unwatched one does.
+ */
+export interface JoinWatch {
+  /** A pocket about to be pushed onto part `part` (a flat-document index), as stored on `board` at that moment. */
+  cut(part: number, board: Board, cut: Cut): void;
+  /** `board` (part `part`) about to grow (amount > 0) or shrink at `end` of `d`, before anything changes. */
+  resize(part: number, board: Board, d: Dimension, end: CutFrom, amount: number): void;
+}
+/** The watch with the part index of each cloned board. */
+type Tap = { watch: JoinWatch; index: Map<Board, number> };
+const tapCut = (tap: Tap | undefined, b: Board, cut: Cut) => { tap?.watch.cut(tap.index.get(b)!, b, cut); };
+
 const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 
 export const tenonSection = (thickness: number, width: number) => {
@@ -40,8 +55,9 @@ const positive = (b: Span) => [0, 1, 2].every((k) => b.max[k] - b.min[k] > 1e-9)
 const span = (b: WorldBox, k: number): [number, number] => [b.min[k], b.max[k]];
 
 /** Grow (or, negative, shrink) a part along world axis k on its `side` face. */
-function resize(b: Board, k: number, side: -1 | 1, amount: number) {
+function resize(b: Board, k: number, side: -1 | 1, amount: number, tap?: Tap) {
   const d = axisDimensions(b)[k];
+  tap?.watch.resize(tap.index.get(b)!, b, d, endFacing(b, k, side), amount);
   // The old dimension is passed on rather than recovered as `b[d] - amount`,
   // which can be an ulp off for decimal sizes.
   const was = b[d];
@@ -277,9 +293,9 @@ function lapStillMeets(E: Board, R: Board, k: number, side: -1 | 1, alreadyIn: b
   return side === -1 ? r.max[k] <= e.min[k] + TOUCH : r.min[k] >= e.max[k] - TOUCH;
 }
 
-function mortiseTenon(E: Board, R: Board, k: number, side: -1 | 1, L: number) {
+function mortiseTenon(E: Board, R: Board, k: number, side: -1 | 1, L: number, tap?: Tap) {
   const before = boxOf(E);
-  resize(E, k, side, L);
+  resize(E, k, side, L, tap);
   const ext = extension(before, k, side, L);
   const dims = axisDimensions(E);
   const tAx = dims.indexOf('thickness');
@@ -289,14 +305,16 @@ function mortiseTenon(E: Board, R: Board, k: number, side: -1 | 1, L: number) {
   const [w0, w1] = span(before, wAx);
   const box = (t: [number, number], w: [number, number]) => withSpans(before, { [k]: ext, [tAx]: t, [wAx]: w });
   for (const waste of [box([t0, t0 + c], [w0, w1]), box([t1 - c, t1], [w0, w1]), box([t0, t1], [w0, w0 + sh]), box([t0, t1], [w1 - sh, w1])]) {
-    if (positive(waste)) E.cuts.push(pocketFor(E, waste));
+    if (positive(waste)) { const cut = pocketFor(E, waste); tapCut(tap, E, cut); E.cuts.push(cut); }
   }
-  R.cuts.push(pocketFor(R, box([t0 + c, t1 - c], [w0 + sh, w1 - sh])));
+  const mortise = pocketFor(R, box([t0 + c, t1 - c], [w0 + sh, w1 - sh]));
+  tapCut(tap, R, mortise);
+  R.cuts.push(mortise);
 }
 
-function dado(E: Board, R: Board, k: number, side: -1 | 1, d: number, stop?: { at: StopEnd; inset: number }) {
+function dado(E: Board, R: Board, k: number, side: -1 | 1, d: number, stop?: { at: StopEnd; inset: number }, tap?: Tap) {
   const before = boxOf(E);
-  resize(E, k, side, d);
+  resize(E, k, side, d, tap);
   const ext = extension(before, k, side, d);
   let pocket = withSpans(before, { [k]: ext });
   if (stop) {
@@ -305,9 +323,13 @@ function dado(E: Board, R: Board, k: number, side: -1 | 1, d: number, stop?: { a
     const keep: [number, number] = stop.at.end === 'min' ? [lo + stop.inset, hi] : [lo, hi - stop.inset];
     const strip: [number, number] = stop.at.end === 'min' ? [lo, lo + stop.inset] : [hi - stop.inset, hi];
     pocket = withSpans(pocket, { [p]: keep });
-    E.cuts.push(pocketFor(E, withSpans(before, { [k]: ext, [p]: strip })));
+    const notch = pocketFor(E, withSpans(before, { [k]: ext, [p]: strip }));
+    tapCut(tap, E, notch);
+    E.cuts.push(notch);
   }
-  R.cuts.push(pocketFor(R, pocket));
+  const groove = pocketFor(R, pocket);
+  tapCut(tap, R, groove);
+  R.cuts.push(groove);
 }
 
 /** Indices of parts (not `skip`) whose face butts E's `side` face on k, sharing real area. */
@@ -340,11 +362,12 @@ const RANK: Record<Site['kind'], number> = { crossing: 0, 'face-against-edge': 1
  * and skipped, with a reason, when its parts no longer touch (a half-lap
  * needs only that they still cross in plan with the receiver wholly below).
  */
-export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoice[]): JoinResult {
+export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoice[], watch?: JoinWatch): JoinResult {
   // Per board: one structuredClone of the whole array keeps aliasing, and
   // twin placements of a shared definition share one `cuts` array in the
   // flat document, so a pocket pushed into one would land in both.
   const boards: Board[] = doc.boards.map((b) => structuredClone(b));
+  const tap: Tap | undefined = watch && { watch, index: new Map(boards.map((b, i) => [b, i])) };
   const byId = new Map(choices.map((c) => [c.site, c]));
   const applied: JoinResult['applied'] = [];
   const skipped: JoinResult['skipped'] = [];
@@ -357,7 +380,7 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
     // is trimmed (Task 5).
     rabbetReceivers: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'rabbet').map((s) => `${s.enter}->${s.receive}`)),
     halfLapPartners: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'half-lap').map((s) => `${s.enter}->${s.receive}`)),
-    rabbetUnits: new Map(),
+    rabbetUnits: new Map(), tap,
   };
 
   // Recipes that MOVE parts run first (spec §4.7, final review C1): a move
@@ -402,9 +425,9 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
       continue;
     }
     switch (joint) {
-      case 'mortise-tenon': mortiseTenon(E, R, k, side, c!.tenonLength!); break;
-      case 'dado': dado(E, R, k, side, c!.depth!); break;
-      case 'stopped-dado': dado(E, R, k, side, c!.depth!, { at: c!.stopAt!, inset: c!.inset! }); break;
+      case 'mortise-tenon': mortiseTenon(E, R, k, side, c!.tenonLength!, tap); break;
+      case 'dado': dado(E, R, k, side, c!.depth!, undefined, tap); break;
+      case 'stopped-dado': dado(E, R, k, side, c!.depth!, { at: c!.stopAt!, inset: c!.inset! }, tap); break;
       case 'rabbet': {
         const unit = sites.filter((s) => s.id === site.id || (!done.has(s.id) && byId.get(s.id)?.joint === 'rabbet' &&
           s.enter === site.enter && s.axis === k && s.side === side));
@@ -446,6 +469,7 @@ type State = {
   rabbetReceivers: Set<string>; halfLapPartners: Set<string>;
   /** "<panel>|<axis>|<side>" -> each of that unit's sites: null when applied, else why it was skipped. */
   rabbetUnits: Map<string, Map<number, string | null>>;
+  tap?: Tap;
 };
 
 function rest(joint: JointKind, site: Site, boards: Board[], state: State): string | null {
@@ -581,7 +605,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
   const cuts = pockets.map(({ R, box }) => pocketFor(R, box));
 
   for (const [j, d] of trims) {
-    resize(boards[j], k, (side === 1 ? -1 : 1) as -1 | 1, -d);
+    resize(boards[j], k, (side === 1 ? -1 : 1) as -1 | 1, -d, state.tap);
     state.trimmed.add(boards[j].name);
   }
   for (const i of [e, ...carried]) {
@@ -589,10 +613,10 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     state.moved.add(boards[i].name);
   }
   for (let a = 0; a < 3; a++) {
-    if (fin.min[a] > movedBox.min[a]) { resize(E, a, -1, -(fin.min[a] - movedBox.min[a])); state.trimmed.add(E.name); }
-    if (fin.max[a] < movedBox.max[a]) { resize(E, a, 1, -(movedBox.max[a] - fin.max[a])); state.trimmed.add(E.name); }
+    if (fin.min[a] > movedBox.min[a]) { resize(E, a, -1, -(fin.min[a] - movedBox.min[a]), state.tap); state.trimmed.add(E.name); }
+    if (fin.max[a] < movedBox.max[a]) { resize(E, a, 1, -(movedBox.max[a] - fin.max[a]), state.tap); state.trimmed.add(E.name); }
   }
-  pockets.forEach(({ R }, n) => R.cuts.push(cuts[n]));
+  pockets.forEach(({ R }, n) => { tapCut(state.tap, R, cuts[n]); R.cuts.push(cuts[n]); });
   state.movedFace.set(`${e}|${k}`, side);
   for (const { site } of members) outcome.set(site.id, null);
   return outcome;
@@ -648,7 +672,11 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const cross = (a: number): [number, number] => [Math.max(eb.min[a], rb.min[a]), Math.min(eb.max[a], rb.max[a])];
   const [p, q] = [0, 1, 2].filter((a) => a !== k);
   const crossing = { [p]: cross(p), [q]: cross(q) };
-  E.cuts.push(pocketFor(E, withSpans(eb, { ...crossing, [k]: side === -1 ? lower : upper })));
-  R.cuts.push(pocketFor(R, withSpans(rb, { ...crossing, [k]: side === -1 ? upper : lower })));
+  const notchE = pocketFor(E, withSpans(eb, { ...crossing, [k]: side === -1 ? lower : upper }));
+  tapCut(state.tap, E, notchE);
+  E.cuts.push(notchE);
+  const notchR = pocketFor(R, withSpans(rb, { ...crossing, [k]: side === -1 ? upper : lower }));
+  tapCut(state.tap, R, notchR);
+  R.cuts.push(notchR);
   return null;
 }
