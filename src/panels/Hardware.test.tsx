@@ -149,3 +149,18 @@ describe('the Hardware section (hardware spec §5.1)', () => {
     expect(screen.getByLabelText('Hinge')).toBeDisabled();
   });
 });
+
+describe('the Hardware section on a shaped part (inv 43)', () => {
+  it('renders for a linked part and a count edit lands on the Shape', async () => {
+    const user = userEvent.setup();
+    load({ boards: [plain({ id: 'a', name: 'A', hardware: [{ type: 'h1', count: 2 }] }), plain({ id: 'b', name: 'B', hardware: [{ type: 'h1', count: 2 }] })] });
+    act(() => { useStore.getState().linkBoards(['a', 'b']); useStore.getState().selectBoard('a'); });
+    expect(useStore.getState().doc.shapes).toHaveLength(1);
+    render(<Properties onNewHardwareType={() => {}} />);
+    const field = screen.getByLabelText('Hinge');
+    expect(field).toHaveValue('2');
+    await user.clear(field);
+    await user.type(field, '7{Enter}');
+    expect(useStore.getState().doc.shapes[0]!.hardware).toEqual([{ type: 'h1', count: 7 }]);
+  });
+});

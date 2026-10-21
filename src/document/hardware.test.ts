@@ -148,3 +148,19 @@ describe('agreement with the independent oracle', () => {
   };
   for (const [name, doc] of Object.entries(fixtures)) it(name, () => expect(counted(doc)).toEqual(totalsByType(doc)));
 });
+
+describe('holderHardware returns stored arrays (inv 43: selectors need a stable value)', () => {
+  it('is identical across calls for a plain part, a shaped part, an assembly and the project; a shaped part reads its Shape', () => {
+    const shape: Shape = { id: 's1', length: 10, width: 4, thickness: 0.75, material: 'pine', hardware: hw(['h1', 2]) } as unknown as Shape;
+    const shaped = { id: 'sp', name: 'sp', shape: 's1', position: [0, 0, 0] } as unknown as StoredBoard;
+    const doc = docWith({
+      boards: [part('pl', hw(['h2', 1])), shaped], shapes: [shape], hardware: hw(['h3', 5]),
+      instances: [inst('i1', 'd1')], definitions: [def('d1', [], [], hw(['h1', 1]))],
+    });
+    for (const t of [{ kind: 'part', id: 'pl' }, { kind: 'part', id: 'sp' }, { kind: 'assembly', path: 'i1' }, { kind: 'project' }, { kind: 'part', id: 'nope' }] as const) {
+      expect(holderHardware(doc, t)).toBe(holderHardware(doc, t));
+    }
+    expect(holderHardware(doc, { kind: 'part', id: 'sp' })).toBe(doc.shapes[0]!.hardware);
+    expect(holderHardware(doc, { kind: 'part', id: 'pl' })).toBe((doc.boards[0] as Board).hardware);
+  });
+});

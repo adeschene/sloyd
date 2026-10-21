@@ -1,5 +1,5 @@
 import type { Definition, HardwareType, HardwareUse, SloydDocument } from './types';
-import { NAME_SEPARATOR, definitionAt, parentPath, placementsOf, resolvedPartAt } from './tree';
+import { NAME_SEPARATOR, definitionAt, parentPath, partAt, placementsOf } from './tree';
 import { resolveBoard, shapeMap } from './shapes';
 
 /** What a hardware entry list is read from (hardware spec §3): a part by occurrence path, an assembly by instance path, or the project. */
@@ -87,11 +87,17 @@ export function holderPlacements(doc: SloydDocument, target: HardwareTarget): nu
   return placementsOf(doc).get(def.id) ?? 0;
 }
 
-/** The stored entry list of a target (a shaped part's from its Shape). */
+const NO_HARDWARE: readonly HardwareUse[] = Object.freeze([]);
+
+/** The stored entry list of a target (a shaped part's from its Shape). Always a STORED array (or the frozen empty one),
+ *  never a copy: it is read by store selectors, which must return a stable value (inv 43). */
 export function holderHardware(doc: SloydDocument, target: HardwareTarget): readonly HardwareUse[] {
   if (target.kind === 'project') return doc.hardware;
-  if (target.kind === 'assembly') return definitionAt(doc, target.path)?.hardware ?? [];
-  return resolvedPartAt(doc, target.id)?.hardware ?? [];
+  if (target.kind === 'assembly') return definitionAt(doc, target.path)?.hardware ?? NO_HARDWARE;
+  const p = partAt(doc, target.id);
+  if (!p) return NO_HARDWARE;
+  if ('shape' in p && p.shape !== undefined) return doc.shapes.find((sh) => sh.id === p.shape)?.hardware ?? NO_HARDWARE;
+  return (p as { hardware?: readonly HardwareUse[] }).hardware ?? NO_HARDWARE;
 }
 
 /** The cut list's where-used line (spec §4.1): `<holder>: <each>`, ` × <times>` when placed more than once, joined by `; `. */
