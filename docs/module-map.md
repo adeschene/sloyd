@@ -61,7 +61,7 @@ src/
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units);
 │   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
 │   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
-│   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
+│   ├── holedRefusal.ts   holedParts / holedRefusal: Refine refuses a holed project, naming the parts (joinery rules out kinds, Repair accepts; chunk 1)
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
@@ -253,7 +253,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units, stopped dado whole); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (holes re-anchored on resize, undone by `resizeAt`); `document/ruledOutText.ts` (the dialog's one line per site, P3); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty

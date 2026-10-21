@@ -97,6 +97,7 @@
 | + Add banding | 10-20 | — | The Banding section on the additions' pattern (`+ Add banding ▾`, then the selects and `Band ▾`); `New solid edging…` opens Materials & prices with a new Solid row (deployed `index-ymPlKpkL.js`) |
 | band wording | 10-20 | — | Band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart (fu 395(2)–(3); deployed `index-QDQAnB8n.js`) |
 | hardware (BOM) | 10-21 | 20 | Hardware types (name, pack size, price) per project; counts on parts, assemblies and the project that multiply with copies (`hardware.ts`, inv 55); the cut list's Hardware section with where-used lines, Buying's Hardware block; Properties' Hardware section, Materials & prices' Hardware section; Refine refuses hardware on parts. **Built on merged `98c7df4`, deployed 2026-10-21 (`index-BZhrLswD.js`)** |
+| joinery accepts holes (chunk 1) | 10-21 | — | Add joinery rules out only the joint kinds whose zone a hole enters (`featureZones.ts`, watched trials; rabbet and lap units), says why per site (`ruledOutText.ts`); `rebaseHoles` + `resizeAt` inverse; the gate compares holes; Repair accepts holed projects; Refine still refuses (branch `joinery-holes`, not yet merged or deployed; inv 41/50; fu 328 closed, 413, 414) |
 
 ## Status log (to 2026-10-21)
 

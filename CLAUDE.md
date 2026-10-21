@@ -205,7 +205,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55), `hardwareRefusal.ts` |
 | edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts` (inv 54) |
 | bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
-| refusals of joinery/Refine/Repair | `holedRefusal.ts`, `curvedRefusal.ts`, `bandedRefusal.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
+| refusals of joinery/Refine/Repair | `holedRefusal.ts` (Refine only), `generate/joints/featureZones.ts` (per-site ruling-out), `ruledOutText.ts`, `curvedRefusal.ts`, `bandedRefusal.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
 | cut list, nesting, Buying | `cutlist.ts` (inv 18), `nesting.ts` (inv 19, 22, 23), `purchase.ts`, `materials.ts` (inv 49) |
 | drawings | `drawing.ts` `drawView` (inv 47), `diagram.ts`, `plans.ts`, `featureKeys.ts`, `sectionView.ts`, `section.ts` (inv 51) |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `refineDesign.ts`, `roleLinks.ts`, `generate/` (inv 41) |
@@ -487,7 +487,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `cutIntoEnd`. Angle cuts: one decider, `joineryRefusal` (`taperConflicts`,
     `angleConflicts`, `clearsTenon`), one sentence per part; `rebaseAngleCuts` re-anchors on
     resize and `readJoints`' `resizeAt` undoes it exactly. The unjoin gate compares cuts as a
-    MULTISET (`sameCutSet`, exact at 1e-9). A joined Refine is refused up front when an angle cut
+    MULTISET (`sameCutSet`, exact at 1e-9). On a holed project joinery rules kinds out per site BEFORE the call (`featureAllowed`: one watched trial per (site, kind) through `JoinWatch`; a rabbet unit and a half-lap set go as a unit; a stopped dado whole; a skipped trial rules nothing out); `rebaseHoles` re-anchors on resize and `resizeAt` undoes it; `sameJoined` compares holes within `GATE_TOLERANCE`. A joined Refine is refused up front when an angle cut
     already runs into a joint; a conflicting result comes back UNJOINED, never joined over it.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
@@ -575,7 +575,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     convex. `holeFaults` is the ONE strict-rule decider** (`breaks-out` — a curve's waste
     included, keyed apart by `faultKey` —, `off-flat`, `meets-hole`, `too-deep`). An add is
     refused on any fault, an edit only when it ADDS one; a fault a later edit causes is KEPT,
-    noted, never clamped. Joinery, Refine and Repair refuse holed projects. `drawsAsBox` is the ONE
+    noted, never clamped. Refine refuses holed projects; joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
     BoxGeometry routing; a part with no holes and no curves keeps its bytes. **A curved part's mesh
     is WATERTIGHT** (welded, conformed, centroid-fanned; `curvesWatertight.test.ts`); a shaped part
     is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks
@@ -628,7 +628,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7018 tests across 208 files
+npm test           # Vitest, currently 7136 tests across 213 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

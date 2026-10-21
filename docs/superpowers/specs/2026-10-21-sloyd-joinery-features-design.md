@@ -51,7 +51,7 @@ real-world blocker, and they set up the shared machinery.
 
 | Chunk | Accepts | Builds |
 |---|---|---|
-| **1: holes** | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
+| **1: holes** (implemented on branch `joinery-holes`; merge hash TBD, Task 8) | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
 | **2: curves and profiles** | parts with curves or profiles (`curvedParts` counts both) | §4.2 / §4.3 rebases, curve and profile conflict rows, gate extension, Repair |
 | **3: bands** | banded parts | §4.4, band conflict rows, gate extension, Repair |
 
@@ -323,3 +323,49 @@ Refine reading and writing holes, curves, profiles and bands (fu 329, 363, 398).
 curved bodies (fu 363). Dowel joints derived from holes (fu 404). Counterbores meeting holes (fu 330). Joints through
 edging (fu 398's "tenon out of edging" beyond the clearance rule). Moving tapers and other angle cuts from whole-run
 refusal onto ruling-out (§3.5; a new follow-up, ask first).
+
+## Amended (planning)
+
+Chunk 1's plan amendments (2026-10-21).
+
+- **P1: zones by trial.** The §3.2 table becomes one trial `applyJoints` per (site, kind), watched (`JoinWatch`). Sizes per trial:
+  - **mortise-tenon:** `tenonLength[1]`.
+  - **dado:** `dadoDepth[1]`.
+  - **stopped-dado:** once per stop end, at `dadoDepth[1]` and that end's `inset(e)[0]`.
+  - **half-lap:** once.
+  - **rabbet:** once per unit (every site sharing `enter|axis|side` with rabbet allowed, all rabbeted together), at every
+    member's `rabbetDepth[0]` and again at every member's `rabbetDepth[1]`. Depth grows the pocket; the panel's trim
+    shrinks as depth grows.
+
+  Every site but the trial's is left butt. Zones are judged before any other joint runs: the spec's stated assumption,
+  with the oracle as backstop. A row's "mutation test" is deleting one watch call.
+- **P2: gate tolerance, decided without the measurement step.** A hole number goes out as `x' = x + L` and is read back as
+  `x' - L`. When `x' > 2L` that subtraction rounds (Sterbenz does not apply), so re-joining need not give back `x'`
+  bitwise. Hole numbers are therefore compared within `GATE_TOLERANCE`, as §5's default said. The same reasoning applies to
+  `sameAngleCut`'s exact comparison: raised as fu 413, not changed here.
+- **P3: one part per summary line.** When several parts or kinds rule out kinds at one site, the line names the part of
+  the first ruled-out kind in `JOINTS` order. §3.5 asks for one line per site.
+
+## Amended (execution)
+
+Rulings made while executing chunk 1.
+
+- **Half-laps go as a unit**, like rabbet units (commit `31972de`): a part's half-lap set (every half-lap-allowed site
+  sharing the entering part and axis, `applyJoints`' own lap-partner grouping) is trialled together, and a hole anywhere in
+  it rules half-lap out at every member. The real run can only lap a part into all its partners at once. Cost: a lap at a
+  clear crossing is withheld when a sibling crossing is blocked.
+- **`defaultJoint` respects `allowed` at crossings** (`choose.ts`): `has('half-lap') ? 'half-lap' : 'butt'`, so
+  `defaultChoice` never picks a ruled-out kind (§3.5).
+- **A stopped dado is ruled out whole** when any stop end's trial conflicts; stop ends are not narrowed per end.
+- **A skipped trial rules nothing out**: a recipe that skips the joint produced no zone, and the real run would skip the
+  same way from the same state in isolation. The oracle is the backstop.
+- **Holes take no run-through exception at trimmed ends either** (§3.4): a hole is never stored as running a trimmed
+  dimension except `through`, which §3.4 already refuses an exception. Chunks 2 and 3 implement the exception for curves,
+  profiles and bands.
+- **Butt-only exclusion** applies only to sites a FEATURE narrowed to butt; sites `allowedFor` already makes butt-only are
+  still sent, as before (hole-free projects stay byte for byte).
+- **§5, Repair's gate:** "a hole moved after joining is refused" is unreachable at `gateUnjoin` (a hole moved in the joined
+  state round-trips unchanged), so it is pinned through `sameJoined` instead, with a plain-equals-input assertion in the
+  passing gate test.
+- **Known gap (fu 414):** a lap set of three or more partners whose full set is not coplanar but a model-chosen subset is:
+  the unit trial skips and rules nothing out. No fixture reaches it.
