@@ -407,7 +407,7 @@ describe('Hardware (hardware spec §4)', () => {
   });
 
   it('Buying lists Edge banding, then Hardware', () => {
-    const tape = { id: 'tb', name: 'Oak tape', kind: 'tape' as const, tapeWidth: 1, pricePerFoot: 1 };
+    const tape = { id: 'tb', name: 'Oak tape', kind: 'tape' as const, thickness: 0.02, lengthAllowance: 0, tapeWidth: 1, pricePerFoot: 1 };
     const doc = hwDoc();
     const d0 = doc.definitions[0]!;
     useStore.getState().replaceDocument({ ...doc, bandTypes: [tape],
