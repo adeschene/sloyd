@@ -634,7 +634,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–415). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–416). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 

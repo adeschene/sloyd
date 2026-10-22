@@ -511,7 +511,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `cuts-through` (the kept face falls apart or empties), exact against the true arcs. Authoring refuses a fault an edit
     ADDS (or a hole it puts into the waste), decided before any mutation; a fault a later resize causes is KEPT and noted
     (`… at this size.`, `— check: …`), never clamped. **Every edit, typed or selected, is refused when an arc would pass a
-    half circle** (`pastHalfCircle`, the loader's own exact rule), because the loader DROPS such an arc — silent loss. A
+    half circle** (`pastHalfCircle`, exact), because the loader DROPS such an arc — silent loss. The loader alone holds an
+    arc within 4 ulps of its coordinates past the bound TO the bound (a metric Half-round notch stored before 2026-10-22, whose
+    rise was span / 2 against a chord of (start + span) − start), and `archCurve` stores a notch's rise as half its STORED chord. A
     Bow is stored at its edge's length when written and refit by every edit; a resize never stretches it (P2). **A curved
     part's edges are BUILT** (`curvedEdges`: `unionOutline` on the planes square to `through`, then `bodyEdges` on the rest
     with smooth lines dropped per interval), never `bodyEdges` over its slices (25 ms at 18 chords, 135 at 48). **An unknown

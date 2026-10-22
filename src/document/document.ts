@@ -508,7 +508,9 @@ function validateCurveCuts(raw: unknown, seen: Set<string> = new Set()): CurveCu
         // A half circle stored a few ulps past its chord (a metric Half-round notch before 2026-10-22: its rise was
         // span / 2 against a chord of (start + span) − start) is held to the bound, never dropped; anything further
         // past it is malformed.
-        const ulps = (x: number) => x <= 4 * Number.EPSILON * chord;
+        // The rounding is half an ulp of the coordinates (a chord of (start + span) − start), so it scales with them.
+        const scale = Math.max(chord, Math.abs(at[0]), Math.abs(at[1]), Math.abs(to[0]), Math.abs(to[1]));
+        const ulps = (x: number) => x <= 4 * Number.EPSILON * scale;
         if (hasRise) {
           if (!finite(s.rise) || s.rise <= 0) { ok = false; break; }
           if (s.rise > chord / 2 && !ulps(s.rise - chord / 2)) { ok = false; break; }

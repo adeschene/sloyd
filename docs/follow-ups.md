@@ -6893,3 +6893,11 @@ min(0.5, w/4) (`bowAt`, curves.ts: ¼ of the in-face dimension that is not `alon
 is min(0.5, snap(w/4)) (`tenonSection`, recipes.ts: the entering part's width) — equal for ordinary widths (any width of 2 in or more,
 or one whose quarter is on the 1/16 grid) — so a default bow's end waste lies wholly in the shoulder band, and the candidate clearance
 exception would reliably restore tenons on bowed aprons. **Status:** open (record-only; ask the user first).
+
+**416. A metric Half-round notch was dropped on its next load (2026-10-22).** `archCurve` stored `to = start + span` and `rise = span / 2`;
+on a metric part `(start + 2) − start` need not be 2, so the preset (and a typed notch) could store a rise a few ulps past half its chord
+and the loader DROPPED the curve on the next load (e.g. a 370 mm part), or read it back as an Arch. Found by the joinery-features chunk 2
+final fix wave; it predates joinery. **Status:** CLOSED 2026-10-22 — `archCurve` stores a notch's rise as half its STORED chord, and the
+loader holds a rise (radius) within 4 ulps of its coordinates past the bound to the bound, so a notch already saved that way loads
+instead of being dropped; tests sweep every metric length 1–3600 mm. A chord that rounded the other way was never dropped and still
+reads as an Arch (switching its Kind makes it a notch).

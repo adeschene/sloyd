@@ -557,9 +557,10 @@ export function rectMeetsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boole
  * An axis-aligned rectangle [lo, hi] OVERLAPS the waste by more than float noise (joinery features spec §3.3, P4: touching
  * passes): the rectangle shrunk by 2·CURVE_EPS per side, then `rectMeetsWaste`'s closed test on it, so a rect that only
  * touches (an edge on a leg, a side tangent to a crown) is CURVE_EPS clear. Empty once shrunk: false.
- * One difference from calling `rectMeetsWaste`: a side's outline hits are kept only within CURVE_EPS of the rectangle.
- * `segArcHits` admits a hit up to CURVE_EPS past a side's end in its PARAMETER, i.e. CURVE_EPS × the side's length past
- * it (2e-9 on a 2" side), which would let a rect touching a tangent arc at its corner count as an overlap.
+ * One difference from calling `rectMeetsWaste`: a side counts only where a stretch of it lies inside the waste
+ * (`wasteOnSegment`), never on a lone outline hit. `segArcHits` admits a hit up to CURVE_EPS past a side's end in its
+ * PARAMETER (CURVE_EPS × the side's length), and a circle crossing just past an arc's end (a side touching a Bow's end edge
+ * at the height its arc starts); either would count a touching rect as an overlap.
  */
 export function rectOverlapsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boolean {
   const e = 2 * CURVE_EPS;
