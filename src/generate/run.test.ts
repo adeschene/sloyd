@@ -642,6 +642,48 @@ describe('runRefine — hardware (hardware spec §6)', () => {
   });
 });
 
+describe('runRefine — band types (refine-features spec §3.3)', () => {
+  const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  /** A custom solid band type NO part uses, naming a custom material: only the document-level merge can keep it. */
+  const EDGING = { id: 'e1', name: 'Ash edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
+  const box = migrateDocument({ ...designToDocument({ name: 'Box', parts: [bp('Base', [0, 0, 0], [10, 1, 10])], assemblies: [] }).doc,
+    materials: [ASH], bandTypes: [createDocument('x').bandTypes[0]!, EDGING] });
+
+  it('the fixture is what it claims: the custom band type and its material survive the load, no part uses them', () => {
+    expect(box.bandTypes.map((t) => t.id)).toEqual(['band-iron-on', 'e1']);
+    expect(box.materials).toEqual([ASH]);
+    expect(flatDocument(box).boards.every((b) => b.bands.length === 0)).toBe(true);
+  });
+
+  it('runRefine keeps custom band types (and the material a band type names)', async () => {
+    const { client } = fakeClient([echo(box)]);
+    const out = await go(client, box);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.doc.bandTypes).toEqual(box.bandTypes);
+    expect(out.doc.materials).toEqual([ASH]);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('a joined result keeps them through the re-join', async () => {
+    const flat = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const joined = migrateDocument({ ...migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc), materials: [ASH], bandTypes: box.bandTypes });
+    const p = plainForRefine(joined); if ('refused' in p) throw new Error(p.refused.message);
+    const { client } = fakeClient([echo(p.plain)]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.doc.bandTypes).toEqual(box.bandTypes);
+    expect(out.doc.materials).toEqual([ASH]);
+  });
+});
+
 describe('runRefine — joined designs', () => {
   const RS = { instruction: 'change it', width: null, depth: null, height: null, detail: 'moderate' as const };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});

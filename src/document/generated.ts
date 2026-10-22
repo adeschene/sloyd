@@ -12,7 +12,12 @@ import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
 import { builtInCatalog } from './materials';
 import type { MaterialCatalog } from './materials';
-import type { Band, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareUse, HoleRow, Instance, Posture, ProfileCut, Rotation } from './types';
+import { copyHoleRow } from './holes';
+import { copyCurve } from './curves';
+import { copyProfile } from './profiles';
+import { copyBand } from './bandModel';
+import { copyHardwareUse } from './hardwareModel';
+import type { Band, BandType, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareType, HardwareUse, HoleRow, Instance, Posture, ProfileCut, Rotation } from './types';
 
 /**
  * What the model sends back (spec §4.1). The model thinks in WORLD BOXES —
@@ -261,6 +266,18 @@ export function orient(size: [number, number, number]): Pick<Board, 'length' | '
   throw new Error(`orient: no encoding for ${DIMENSION_ORDER.join('/')} ${size.join('x')}`);
 }
 
+/**
+ * World extents → Sloyd's encoding in a GIVEN frame (refine-features spec §3.2): a carried part keeps the original's
+ * posture and rotation, and the dimension `axisDimensions` puts on world axis k takes `size[k]` — the same box, the
+ * original's hand, so board-local features stay on the same wood. The turn table is read, never restated.
+ */
+export function frameFor(size: [number, number, number], frame: { posture: Posture; rotation: Rotation }): Pick<Board, 'length' | 'width' | 'thickness' | 'posture' | 'rotation'> {
+  const dims = axisDimensions({ posture: frame.posture, rotation: frame.rotation } as Board);
+  const out = { posture: frame.posture, rotation: frame.rotation } as Pick<Board, 'length' | 'width' | 'thickness' | 'posture' | 'rotation'>;
+  dims.forEach((d, k) => { out[d] = size[k]!; });
+  return out;
+}
+
 export interface AuthoredPart { label: string; assembly: string | null; placement: string | null }
 /** What the model wrote, for naming violations back to it (spec §5.3). */
 export interface Authored {
@@ -293,7 +310,9 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
-  const fields = { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az] as Vec, ...orient([sx, sy, sz]) };
+  const fields = { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az] as Vec,
+    // A part carrying a board-local feature keeps the original's frame (spec §3.2); everything else is encoded by orient.
+    ...(p.carry?.frame ? frameFor([sx, sy, sz], p.carry.frame) : orient([sx, sy, sz])) };
   // Tapers (spec §2.1): numbers snapped as size is, unless exact; checked after the snap; mapped through taperWorld.
   const tapers = (p.tapers ?? []).map((t) => ({ ...t, start: exact?.has(t.start) ? t.start : snap(t.start), amount: exact?.has(t.amount) ? t.amount : snap(t.amount) }));
   if (!tapers.every((t) => usable(t.start) && usable(t.amount))) {
@@ -324,7 +343,14 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has angle cuts that together leave no wood.` });
     return null;
   }
-  return { ...fields, angleCuts, holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] };
+  // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
+  // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
+  const c = p.carry;
+  return {
+    ...fields, angleCuts,
+    holes: c ? c.holes.map(copyHoleRow) : [], curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
+    bands: c ? c.bands.map(copyBand) : [], cornerRule: c ? c.cornerRule : 'long', hardware: c ? c.hardware.map(copyHardwareUse) : [],
+  };
 }
 
 /**
@@ -336,14 +362,15 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
  * never definition-local coordinates (`opts.centre === false` skips the
  * horizontal centring and keeps only the floor rule; `opts.exact` lists values to keep unsnapped; `opts.exactAngles` maps a
  * degree value Refine wrote to the stored slope, AI-angles spec §6.2; `opts.materials`, Refine: the project's custom
- * materials, so the load gate keeps a part naming one instead of falling it back to pine, custom materials spec §6) —
+ * materials, so the load gate keeps a part naming one instead of falling it back to pine, custom materials spec §6;
+ * `opts.bandTypes` / `opts.hardwareTypes`, Refine: the project's, so carried bands and hardware survive the gate) —
  * then migrateDocument, the same gate an imported file passes, which dedupes names (inv 8), checks ids (inv 33) and
  * prunes a custom material no part uses.
  *
  * Every id is minted here with nextId so `roles` (stored part id → role) and
  * the definition → assembly label map survive the load gate.
  */
-export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number>; materials?: readonly CustomMaterial[] } = {}): {
+export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number>; materials?: readonly CustomMaterial[]; bandTypes?: readonly BandType[]; hardwareTypes?: readonly HardwareType[] } = {}): {
   doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
@@ -382,7 +409,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     });
     if (parts.length === 0) { rejected.push({ name: label, reason: 'empty' }); continue; }
     if (origins.length === 0) { rejected.push({ name: label, reason: 'unplaced' }); continue; }
-    const def: Definition = { id: nextId(), boards: parts, instances: [], hardware: [] };
+    const def: Definition = { id: nextId(), boards: parts, instances: [], hardware: a.carry ? a.carry.hardware.map(copyHardwareUse) : [] };
     definitions.push(def);
     labelOf.set(def.id, label);
     for (const o of origins) instances.push({ id: nextId(), name: o.name, definition: def.id, position: o.at, rotation: 0 });
@@ -410,7 +437,13 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   }
 
   const name = design.name.trim() || 'Generated design';
-  const doc = linkByRole(migrateDocument({ ...createDocument(name), boards: loose, instances, definitions, materials: [...(opts.materials ?? [])] }), roles);
+  // Band and hardware types go in BEFORE the load gate, which drops a band or hardware use naming an unknown type
+  // (spec §3.3); absent (Generate), createDocument's defaults stand.
+  const doc = linkByRole(migrateDocument({
+    ...createDocument(name), boards: loose, instances, definitions, materials: [...(opts.materials ?? [])],
+    ...(opts.bandTypes ? { bandTypes: opts.bandTypes.map((t) => ({ ...t })) } : {}),
+    ...(opts.hardwareTypes ? { hardwareTypes: opts.hardwareTypes.map((t) => ({ ...t })) } : {}),
+  }), roles);
   return { doc, rejected, authored: authoredIndex(doc, labelOf) };
 }
 

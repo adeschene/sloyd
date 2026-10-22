@@ -2,7 +2,7 @@ import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../doc
 import type { FlatDocument, SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
 import { builtInCatalog, catalogOf, pruneMaterials } from '../document/materials';
-import type { CustomMaterial } from '../document/types';
+import type { BandType, CustomMaterial, HardwareType } from '../document/types';
 import type { GeneratedDesign } from '../document/generated';
 import { collapseViolations, distinctParts, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
@@ -157,6 +157,10 @@ interface EvaluateOpts {
   /** Refine: the project's custom materials — a part may name one (parseDesign's catalog), and the converter's load
    *  gate keeps it instead of falling it back to pine (custom materials spec §6). Generate: none, built-ins only. */
   materials?: readonly CustomMaterial[];
+  /** Refine: the project's band and hardware types, so the converter's load gate keeps carried bands and hardware
+   *  (refine-features spec §3.3). Generate: none, createDocument's defaults. */
+  bandTypes?: readonly BandType[];
+  hardwareTypes?: readonly HardwareType[];
   /** Refine: the project's units, for the faults' displayed copy (fu 355) — the conversion itself is imperial. Generate:
    *  none (its projects are imperial). The model's feedback is inches either way. */
   units?: Units;
@@ -173,7 +177,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   const catalog = opts.materials ? catalogOf({ materials: opts.materials }) : builtInCatalog();
   const parsed = res.json === null ? null : parseDesign(res.json, catalog);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
-  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials });
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials, bandTypes: opts.bandTypes, hardwareTypes: opts.hardwareTypes });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
   // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
   const flat = flatDocument(converted.doc);
@@ -254,11 +258,12 @@ export async function runRefine(
     system: SYSTEM_PROMPT,
     schema: designSchema(catalog),
     first: refineMessage(from.design, settings, catalog),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, units: doc.units }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units }),
   }, signal, onProgress);
-  // Document-level facts the model never sees travel with the result (hardware types and the project's own hardware too:
-  // nothing in them names a part, hardware spec §6); custom materials the result no longer uses go.
-  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+  // Document-level facts the model never sees travel with the result (band types, hardware types and the project's own
+  // hardware too: nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result
+  // no longer uses go.
+  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
   let violations = out.violations;
   let present = out.present;
   let usage = out.usage;
@@ -288,7 +293,7 @@ export async function runRefine(
     } else if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [] };
     } else {
-      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
       violations = [...violations, ...jo.violations];
       const shown = new Set(present.map(problemKey));
       present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
