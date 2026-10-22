@@ -231,6 +231,53 @@ describe('the visible run (P12)', () => {
     expect(tapeRuns(rail(20, [along], on(BUILT_IN_BAND_ID, W0)), types)).toEqual([]);
   });
 
+  describe('nothing visible is judged AFTER give-way (final review F1)', () => {
+    // A 10 × 12 panel, 3/4 edging on width min and on both ends, one hand cut through the edging from the min end along
+    // width min. The raw run [lo, 10] is positive, but under Ends width min gives way to the length-max end's 3/4.
+    const e34: BandType = { ...maple, id: 'e34', thickness: 0.75 };
+    const ts = [...types, e34];
+    const probe = (rule: Board['cornerRule'], cuts: Cut[]) => shelf(10, cuts, on('e34', W0, L0, L1), rule);
+    const to = (at: number) => cut('width', 'min', 'thickness', 0, at, 1);
+    const from = (at: number) => cut('width', 'min', 'thickness', at, 10 - at, 1);
+    const sideOf = (b: Board, side: ProfileSide) => strips(b, ts).filter((s) => s.side.across === side.across && s.side.from === side.from);
+    const w0Lines = (b: Board) => glueLines(b, ts).filter((g) => g.side.across === 'width' && g.side.from === 'min')
+      .map((g) => [g.a.length, g.a.width, g.b.length, g.b.width]);
+    it('Ends, one shortened end: no strip (the probe: was −0.35), no glue line (was 9.6 back to 9.25)', () => {
+      const b = probe('ends', [to(9.6)]);
+      expect(visibleRun(b, W0, 0.75)).toEqual({ lo: 9.6, hi: 10, shortLo: true, shortHi: false });
+      expect(sideOf(b, W0)).toEqual([]);
+      expect(w0Lines(b)).toEqual([]);
+      // every strip left is positive; the cut reaches through L0's band too (at width 0), so L0 starts at 1
+      expect(strips(b, ts).map((s) => [s.side.across, s.side.from, s.finished])).toEqual([['length', 'min', 11], ['length', 'max', 12]]);
+    });
+    it('Ends, both ends shortened: a raw sliver [9.4, 9.5] inside the far give-way makes no strip and no line', () => {
+      const b = probe('ends', [to(9.4), from(9.5)]);
+      expect(visibleRun(b, W0, 0.75)).toEqual({ lo: 9.4, hi: 9.5, shortLo: true, shortHi: true });
+      expect(sideOf(b, W0)).toEqual([]);
+      expect(w0Lines(b)).toEqual([]);
+    });
+    it('Mitre, one shortened end: the strip stays (+0.40), but no backward run line and no mitre from a removed core corner', () => {
+      const b = probe('mitre', [to(9.6)]);
+      expect(sideOf(b, W0).map((s) => s.finished)).toEqual([10 - 9.6]);
+      expect(w0Lines(b)).toEqual([]);
+    });
+    it('Mitre, both ends shortened: the strip stays (0.1), no line', () => {
+      const b = probe('mitre', [to(9.4), from(9.5)]);
+      expect(sideOf(b, W0).map((s) => s.finished)).toEqual([9.5 - 9.4]);
+      expect(w0Lines(b)).toEqual([]);
+    });
+    it('Mitre, the boundary: visible wood starting exactly at the core corner keeps the mitre line, 2e-9 past it does not', () => {
+      const at = probe('mitre', [to(9.25)]);
+      expect(w0Lines(at)).toEqual([[9.25, 0.75, 10, 0], [9.25, 0.75, 10, 0]]);   // the empty run draws nothing; the mitre stays
+      expect(w0Lines(probe('mitre', [to(9.25 + 2e-9)]))).toEqual([]);
+    });
+    it('the cut list for the probe under Ends has no strip row for width min', () => {
+      const doc = { ...createDocument('T'), boards: [{ ...probe('ends', [to(9.6)]), id: 'p', name: 'Panel' }], bandTypes: ts } as FlatDocument;
+      const rows = buildCutList(doc).groups.flatMap((g) => g.rows).filter((row) => row.key.includes('|strip|'));
+      expect(rows.map((row) => row.length).sort((x, y) => x - y)).toEqual([11.5, 12.5]);
+    });
+  });
+
   describe('tape on a bow at a tenoned end (P13)', () => {
     // fu 415's default bow (rise 1/2, the shoulder) on width min over the rail's original 18; grown 1 at its max end and
     // shouldered there. The outline then runs: the arc, the step (18, 1/2) → (18, 0), the tenon's bottom (18, 0) → (19, 0).

@@ -272,6 +272,9 @@ const stripsOf = memoised((part: Board, types: readonly BandType[]): readonly St
     const len = sideLength(part, side);
     const start = short[0] ? startAt(run.lo, givesWay, t0) : givesWay ? t0 : 0;
     const stop = short[1] ? endAt(run.hi, givesWay, len - t1) : len - (givesWay ? t1 : 0);
+    // F1: nothing visible is judged AFTER give-way — a shortened end's visible wood can lie wholly inside the far
+    // neighbour's give-way (no strip, never a negative one). Unshortened, `too-thick` already leaves a core > EPS.
+    if (stop - start <= EPS) continue;
     const finished = !short[0] && !short[1] ? len - (givesWay ? t0 + t1 : 0) : stop - start;
     const end = (k: number): StripEnd => {
       const n = j.t[nb[k]!]!;
@@ -380,11 +383,17 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
     const push = (rc0: number, ac0: number, rc1: number, ac1: number) => {
       for (const th of [0, part.thickness]) out.push({ side, type: bt.id, a: point(rc0, ac0, th), b: point(rc1, ac1, th) });
     };
-    push(lo, o, hi, o);
+    // F1: the run line and each mitre line are decided apart, AFTER give-way. A run with nothing left between its ends
+    // draws no run line (never a backward one); a mitre whose core corner lies in a removed stretch (strictly, beyond
+    // EPS: `[0, run.lo]` at a shortened min end, `[run.hi, part[r]]` at a shortened max end) draws nothing, while one
+    // whose corner is exactly where the visible wood starts is wholly on standing wood and stays.
+    if (hi - lo > EPS) push(lo, o, hi, o);
     if (rule !== 'mitre') continue;
+    const removed = (c: number) => (run.shortLo && c < run.lo - EPS) || (run.shortHi && c > run.hi + EPS);
     for (const k of [0, 1] as const) {
       const n = nb[k]!;
       if (k ? run.shortHi : run.shortLo) continue;                // a shortened end's corner is gone: no mitre (P12)
+      if (removed(k ? hi : lo)) continue;                          // its core corner was cut away (F1)
       if (j.t[n]! <= 0) continue;                                  // a zero-thickness neighbour makes no mitre
       if (!long && j.type[n]!.kind === 'solid') continue;          // the long strip beside it draws this mitre line, once
       push(k ? hi : lo, o, k ? part[r] : 0, side.from === 'min' ? 0 : part[across]);
@@ -396,7 +405,8 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
 /** The solid bands' glue lines on a part's finished outline (chunk 2, Q4/Q5): a strip that runs through draws its line over the
  *  full side, one that gives way (or any strip under Mitred) from core corner to core corner; a mitre between two bands with
  *  thickness adds its line, core corner to finished corner, once. A shortened end (P12) stops the line at the visible end and
- *  draws no mitre; a run with nothing visible draws nothing (P14). Per side in canonical order: the run at thickness 0, then at
+ *  draws no mitre; a run with nothing visible draws nothing (P14), judged after give-way, and a mitre whose core corner was
+ *  cut away draws nothing (final review F1). Per side in canonical order: the run at thickness 0, then at
  *  the part's thickness, then each mitre (end 0, end 1) the same way. */
 export function glueLines(part: Board, types: readonly BandType[]): readonly GlueLine[] {
   return NO_BANDS(part) ? EMPTY : glueLinesOf(part, types);
