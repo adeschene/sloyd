@@ -1,6 +1,6 @@
 # Sloyd: Add joinery and Repair accept holes, curves, profiles and bands
 
-**Date:** 2026-10-21 · **Status:** approved 2026-10-21 (builder-checked; the user's two rulings, §8, folded in). Chunks 1 and 2 deployed 2026-10-22; chunk 3 not started (§2). Later rulings: the *Amended* blocks at the end.
+**Date:** 2026-10-21 · **Status:** approved 2026-10-21 (builder-checked; the user's two rulings, §8, folded in). Chunks 1 and 2 deployed 2026-10-22; chunk 3 implemented on branch `joinery-bands` 2026-10-22, not yet merged or deployed (§2). Later rulings: the *Amended* blocks at the end.
 **Builds on:** the joinery, repair-joints and refine-joined specs; the AI-tapers and AI-angles specs
 (`2026-10-13-sloyd-ai-angles-design.md`, the pattern this spec follows: the checks, joinery and Repair accept a feature
 before Generate and Refine do); the holes (§6), curves (§7), edge profiles, profile runs (§6) and edge banding (§6) specs,
@@ -53,7 +53,7 @@ real-world blocker, and they set up the shared machinery.
 |---|---|---|
 | **1: holes** (merged `f3493a7`, deployed 2026-10-22 as `index-ChnyDt9R.js`) | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
 | **2: curves and profiles** (merged `133c669`, deployed 2026-10-22 as `index-CYPvNoJ0.js`) | parts with curves or profiles (`curvedParts` counts both) | §4.2 / §4.3 rebases, curve and profile conflict rows, gate extension, Repair |
-| **3: bands** (not started; needs its own plan) | banded parts | §4.4, band conflict rows, gate extension, Repair |
+| **3: bands** (implemented on branch `joinery-bands`, plan `2026-10-22-sloyd-joinery-bands.md`; merge hash TBD; not yet deployed) | banded parts | §4.4, band conflict rows, gate extension, Repair |
 
 A chunk removes its feature's `'joinery'` refusal and Repair withholding only in that chunk, together with the rebase, the
 inverse and the gate extension. Repair must never be enabled for a feature its gate cannot compare (anti-goal 4). Until its
@@ -112,7 +112,9 @@ said `TOUCH`, 1/32", which let a dado break 1/32" into a hole's bottom, the anti
 - **Band:** solid edging's strip region on its side: the band's thickness in from that side × the side's full run × the
   part's thickness. **Tape has no thickness** (`bandModel.ts`), so it has no region and a joint through a taped edge is
   accepted, as it is in the shop (a through dado across a taped front edge); a tape band on the moving end's own side
-  still rules the growing kinds out (§3.4) **(my call, amended after the builder check)**.
+  still rules the growing kinds out (§3.4) **(my call, amended after the builder check)**. *Superseded at chunk 3
+  (P9 as amended):* a band TYPE's thickness decides, tape included (a tape type may carry one, which `coreSize` subtracts);
+  only a thickness-0 tape has no region.
 
 ### 3.4 The growing end (entering part of an end-into-face site)
 
@@ -310,6 +312,17 @@ Vitest per chunk, then a live check.
   builder check showed per-site refusal would turn away a rounded-over leg with a flush apron.
 - **Q2, edging on a part that grows:** count only the visible length (§4.4), over accepting the over-buy or refusing.
 
+Later rulings (2026-10-22, chunk 3):
+
+- **Q3, an edged shelf in a dado** (at chunk 3's planning: "a separate rule for dados"): for dado and stopped-dado, a band
+  that runs along the growing dimension (tape or solid, any thickness) is exempt; the edged shelf is housed whole, its
+  edging running into the housing as the shop does it. A band ON the growing end still rules the dado kinds out (P11).
+- **Q4, an edged receiver's stopped dado** ("Fix now", at the final review): at a stop end carrying a receiver band, the
+  stopped dado's smallest inset is raised to clear the band, in both the trial and `rangesOf`'s offered range (F2).
+- **Q5, stop ends** ("Offer clear ends", after the fix wave): `featureAllowed` narrows a site's `stopEnds` to the ends whose
+  trial clears, for every feature (one decider); stopped-dado is ruled out only when no end clears. This reverses chunk 1's
+  execution ruling ("ruled out whole").
+
 ## 9. What does not change
 
 The schema (20). Refine and Generate refuse or ignore exactly as today. `DESIGN_SCHEMA` and the joinery prompt. Sites on
@@ -357,6 +370,8 @@ Rulings made while executing chunk 1.
 - **`defaultJoint` respects `allowed` at crossings** (`choose.ts`): `has('half-lap') ? 'half-lap' : 'butt'`, so
   `defaultChoice` never picks a ruled-out kind (§3.5).
 - **A stopped dado is ruled out whole** when any stop end's trial conflicts; stop ends are not narrowed per end.
+  **Superseded 2026-10-22 (chunk 3, the user's ruling "Offer clear ends", Q5):** an end whose trial conflicts is dropped
+  from the site's `stopEnds`, and the kind is ruled out only when no end clears; see *Amended (execution, chunk 3)*.
 - **A skipped trial rules nothing out**: a recipe that skips the joint produced no zone, and the real run would skip the
   same way from the same state in isolation. The oracle is the backstop.
 - **Holes take no run-through exception at trimmed ends either** (§3.4): a hole is never stored as running a trimmed
@@ -442,3 +457,133 @@ Rulings made while executing chunk 2.
   (rise === chord / 2) in `applyJoints`' closing `migrateDocument`, with no note. So `rebaseCurves` stores an arc that was
   exactly at the half-circle bound (judged the loader's way) at the bound of its NEW chord, and clamps any other shifted arc
   the loader would now drop to that bound. Cost: an ulp of change in a stored rise or radius, within GATE_TOLERANCE.
+
+## Amended (planning, chunk 3)
+
+Chunk 3's plan amendments (2026-10-22; plan `2026-10-22-sloyd-joinery-bands.md`), as amended during execution. P9's and
+P12's tape wording is corrected here: the plan's "Tape has no region" and "`t` … 0 for tape" were superseded by the
+execution rulings below (a tape TYPE can carry thickness).
+
+- **P9: bands are judged in the original frame.** A band's region is the strip on its side of `flat.boards[part]`: the
+  band TYPE's thickness in from that side × the part's full ORIGINAL run × its thickness (`featureRegions.ts`
+  `bandRegions`). Each watched box or slab is moved into that frame by the running min-end shift, as for curves. So a
+  tenon's cheek and shoulder waste, which lies in new wood, never meets a long-edge band. The type's thickness decides,
+  tape included: only a thickness-0 tape has no region (§3.3, superseded); a thick tape is a region like solid edging.
+- **P10: faulted bands are judged as stored (my call).** A band is judged at its type's thickness whatever
+  `bandFaults` says, so fixing the fault later never reveals a joint through the edging. A band whose type is missing is
+  skipped (the loader drops it; in memory it contributes nothing, as in `judge`).
+- **P11: the end rule for bands (§3.4).**
+  - **Growth along `d` at `end`:** a band ON that end (`side.across === d && side.from === end`), tape included, rules
+    the growing kinds out.
+  - **Run-through exception:** a band that runs along `d` is exempt when `d === 'length'` and either it has no region
+    (thickness-0 tape), or its strip in width (`[0, t]` or `[w − t, w]`) does not overlap the tenon section's
+    `[shoulder, w − shoulder]` (open, so `t === shoulder` is kept). Otherwise it rules mortise-tenon out.
+  - **Dados take their own rule (the user's ruling, 2026-10-22: "a separate rule for dados", §8 Q3).** For dado and
+    stopped-dado, a band that runs along `d` (tape or solid, any thickness) is exempt: the edged shelf is housed whole, its
+    edging running into the housing as the shop does it. A stopped dado's notch then shortens the band's run (P12). A band
+    ON the growing end still rules the dado kinds out. The watch therefore knows the trial's kind: `featureAllowed` passes
+    it to the watch it builds for each trial, and only the band clause reads it.
+  - **Trims:** a band on the trimmed end (tape included) conflicts. A band running along the trimmed dimension never
+    does, because it is shortened with the part. Any other band with a region conflicts if its region meets the slab.
+- **P12: the visible run (§4.4).** For a band on side `s` (across `a`, run dimension `r`), a **qualifying cut** is a
+  stored rectangular cut whose `clippedRegion` R meets all of the following, with `EPS` = 1e-9:
+  - it covers the whole thickness: `R.thickness[0] ≤ EPS` and `R.thickness[1] ≥ thickness − EPS`;
+  - it touches the side AND reaches through the band: for `from: 'min'`, `R[a][0] ≤ EPS` and `R[a][1] ≥ t − EPS`; for
+    `'max'`, `R[a][1] ≥ part[a] − EPS` and `R[a][0] ≤ part[a] − t + EPS`, where `t` is the band TYPE's thickness, tape
+    included (a thickness-0 tape: any positive depth) — *amended in Task 1's review: a shallower cut leaves edging
+    standing, and shortening there under-buys*;
+  - it reaches an end of the run: `R[r][0] ≤ EPS` or `R[r][1] ≥ part[r] − EPS`;
+  - it has positive extent (> EPS) along both `r` and `a`.
+
+  The visible run is `[lo, hi]` (`banding.ts` `visibleRun(part, side, t)`):
+  - `lo` is the largest `R[r][1]` over qualifying cuts reaching the min end (0 if none); `hi` is the smallest `R[r][0]`
+    over those reaching the max end (`part[r]` if none).
+  - An end with a qualifying cut is **shortened**. A strip's and its glue line's run starts (at each end) at
+    `givesWay ? max(lo, tn) : lo` (`tn` the neighbour band's thickness at that end), so an unshortened end is as today
+    and a cut shallower along the run than the neighbour still gives way to it. A shortened end has no mitre and no mitre
+    glue line. Known limit: under Mitred, a cut shallower along the run than the neighbour leaves the neighbour's mitre
+    over the square-ended strip (fu 419).
+  - A run with `hi − lo ≤ EPS` yields no strip, no tape run and no glue line (my call); so does one with nothing left
+    after give-way (F1, execution below).
+
+  A cheek (part-thickness), a rabbet along the edge, or a mid-run notch never shortens. A tenon's shoulder and a stopped
+  dado's notch are each ONE full-thickness cut (`recipes.ts` `mortiseTenon`, `dado`; confirmed at planning), so the
+  single-cut rule fires for both.
+- **P13: tape on a curved stretch.** Tape runs are clipped chord by chord. A LINE chord loses the part of it inside any
+  qualifying cut's (r, a) rectangle (closed, within EPS), so the step a fu 415 bow leaves at a tenoned end is clipped
+  too. An ARC chord is counted whole: an over-buy, never an under-buy. That is reachable only through a hand cut into an
+  arc (fu 418, record-only), pinned by a test.
+- **P14: glue lines follow the visible run** (inv 16: a line sits on a feature that is actually drawn). The spec names only
+  strips and tape; the invariant decides this.
+
+## Amended (execution, chunk 3)
+
+Rulings made while executing chunk 3 (the ledger, `.superpowers/sdd/2026-10-22-sloyd-joinery-bands/progress.md`), each
+with its cost. Q4 and Q5 (§8) are the user's.
+
+- **Stop ends are narrowed per end (Q5, "Offer clear ends"; commit `b34e8f1`).** `featureAllowed` trials stopped-dado once
+  per stop end (`endHits`); an end whose trial conflicts is DROPPED from the site's `stopEnds`, and the kind is ruled out,
+  naming the first end's hit, only when no end clears (`stopEnds` then left as found). It holds for every feature (one
+  decider). The site message, `parseChoices` and `validChoice` read the narrowed `stopEnds`, so a dropped end is never
+  offered or kept. **This reverses chunk 1's execution item "A stopped dado is ruled out whole …"** (marked superseded
+  there). Cost: none found; the edged bookcase (front-edged sides, a shelf flush front and back) keeps its stopped dado at
+  the front.
+- **No summary line for a narrowed stop end** (the coordinator's call). With some end clear the kind is still offered, so
+  nothing is written to `ruledOut`. Cost: the person is not told why only one stop end was offered (fu 420, record-only).
+- **A kept stopped dado at a dropped end is re-chosen, not kept, by a Refine** (`validChoice` rejects it). Unreachable
+  while Refine refuses featured projects (§3.5's kept joints). Cost: revisit when Refine accepts features (fu 421; fu 329,
+  363, 398).
+- **An edged receiver's smallest stop inset clears the band (Q4, "Fix now"; F2, commit `6b9be5a`).** `sites.ts`
+  `bandClearance` raises `rangesOf().inset`'s minimum at a stop end beside a receiver band: a band counts when it lies on
+  R's side facing the stop end (`side.across === axisDimensions(R)[axis]`, `side.from === endFacing(…)`) and has a strip
+  (`bandRegions`' rule). Measured in world terms along the stop axis as `dado()` places the groove: the need is the strip's
+  far edge less E's stop-end face — exactly the band's thickness when E is flush with R's edge, `t − g` when E is set back
+  by `g` — the max over counting bands, snapped UP to the 1/16 grid with today's 1/4 as the floor (`range(need, half)`).
+  When the raised minimum passes the range's maximum, the range is left as today's and the trial rules stopped-dado out.
+  The trial (`inset(e)[0]`), `validChoice` and the site message all read `rangesOf`, so they agree; a band-free receiver's
+  range is today's expression byte for byte. Cost: a non-flush edged side may keep a slightly conservative minimum. This
+  supersedes Task 2's ruling that the receiver boundary is tested against the fixed 1/4 minimum (its cost was a side
+  with edging over 1/4 losing stopped-dado).
+- **Nothing visible is judged after give-way (F1, commit `66e6e4c`).** A strip whose run is empty after give-way
+  (`stop − start ≤ EPS`) is not made (a hand notch at one end of a 3/4"-edged panel left −0.35 before); the glue run line
+  is drawn only when it has positive length, and a mitre line is skipped when its core corner lies strictly inside a
+  removed stretch (a corner exactly where the visible wood starts keeps its mitre). The raw `hi − lo` check stays. Cost:
+  none found beyond the Mitred limit below.
+- **Known Mitred limits (fu 419, ask first; a candidate fix).** (a) A corner cut shallower along the run than the
+  neighbour band leaves the neighbour's mitre over the square-ended strip (a strip of 29.9 against a glue line ending at
+  29.75). (b) After F1, a hand notch can leave a too-short strip that keeps its 45° mitre at its unshortened end (0.40 of run on
+  3/4" edging, where the mitre needs 0.75: an impossible piece, its inner edge at −0.35), and that corner draws no glue or
+  mitre line. Accepted as known limits; candidate: square the end when the run is shorter than the mitre.
+- **P12 amended for depth (Task 1's review).** A qualifying cut must reach through the band (`≥ t − EPS`): a full-thickness
+  end cut shallower than the band leaves edging standing, and shortening there under-bought (reachable through a stopped
+  dado's 1/4 inset on 3/8 edging). Cost: the Mitred limit (a) above.
+- **`t` for tape is the TYPE's thickness, not 0** (tape types can carry thickness, which `coreSize` subtracts), in the
+  visible run and in the band regions alike; a thickness-0 tape has no region; tape ON a growing or trimmed end always
+  conflicts; a thick tape running along `d` takes the solid rule for mortise-tenon. Cost: a thick tape's run is shortened
+  only by a deeper cut (over-buy), and a thick tape occasionally rules out a tenon.
+- **Glue lines read "gives way" as today's `!through`, Mitred included** — the only reading that keeps unshortened glue
+  lines bit-identical. Cost: a shortened Mitred glue line's start differs at a shallow corner cut (the Mitred limit).
+- **P13's "grown by EPS" is read as a tolerance, not literal growth** (literal growth subtracts 2e-9 from exact
+  lengths). Cost: a chord ending within 1e-9 of a cut edge is counted as visible.
+- **A band with no visible run still reduces the core and its neighbour's give-way** (`judge`/`coreSize` unchanged: the
+  core is cut size, decided by thickness; P12 names only strips, tape and glue lines). `bandsMeetAtCorner` and
+  `bandSignature` likewise ignore shortened corners. Cost: an edge-case core one band thickness short (needs a cut removing
+  the whole side); record-only (fu 423).
+- **A corner cut shortens both bands meeting there** (the P12 rule is per side and symmetric). Cost: none found.
+- **The shared-corner tape chord's halves are clipped per side** (the ×0.5 applied after clipping). Cost: an over-buy
+  only (fu 422, record-only).
+- **P11's dado exemption also requires `d === 'length'`** (as P7 condition 1). Unreachable through `findSites`. Cost: a
+  dead guard.
+- **A growth through the thickness rules out any band**, and `bandTrims`' region clause only fires for a thickness trim or
+  a far-end slab: defensive, measured unreachable over every joinery test. Cost: none (a safe default).
+- **The metric `applyJoints` visible-run test lives in `src/generate/joints/bandingVisible.joined.test.ts`**, not
+  `src/document` (layer order: `document` never imports `generate`, tests included by convention). Cost: one test file in
+  a different folder.
+- **`App.test.tsx`'s "a refused project (holes and a band)" is an intended flip the planning grep missed:** its refusal
+  example is now a taper into the joint (exact words), keeping the "`featureAllowed` not called on refusal" assertion.
+  Cost: none (the refusal path is still pinned).
+- **The final whole-branch review and its fix wave ran BEFORE the live check and these records**, so both name the code
+  that will merge. Cost: none (order only).
+- **Review Focus 4's test moved from 3/8 to 5/8 edging** after F2 (at 3/8 the stopped dado now clears the strip), so a
+  pocket is still ruled out by a faulted band; it also asserts the raised minimum inset is 0.625 (P10 again). Owed to the
+  user to confirm.

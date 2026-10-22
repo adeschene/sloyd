@@ -100,9 +100,24 @@
 | joinery accepts holes (chunk 1) | 10-21 | — | Add joinery rules out only the joint kinds whose zone a hole enters (`featureZones.ts`, watched trials; rabbet and lap units), says why per site (`ruledOutText.ts`); `rebaseHoles` + `resizeAt` inverse; the gate compares holes; Repair accepts holed projects; Refine still refuses (inv 41/50; fu 328 closed, 413, 414). **Merged `f3493a7`, deployed 2026-10-22 (`index-ChnyDt9R.js`)** |
 | joinery accepts curves and profiles (chunk 2) | 10-22 | — | Add joinery rules out only the joint kinds whose zone a curve or profile enters (`featureRegions.ts`; judged in the original frame, P5; per-face run-through exception, P7); `rebaseCurves` / `rebaseProfiles` + `resizeAt` inverse; the gate compares curves and profiles; Repair accepts curved and profiled projects; Refine still refuses (inv 41/53; fu 363 first piece closed, 415). **Merged `133c669`, deployed 2026-10-22 (`index-CYPvNoJ0.js`)** |
 | notch drop + fu 415 | 10-22 | — | A metric Half-round notch stored at its stored chord's half circle; the loader holds one a few ulps past it (fu 416, closed); a curve that only meets a tenoned end keeps the growing kinds when it clears the tenon (fu 415, the user's ruling; fu 417 the cost); `rectOverlapsWaste` counts a side only where it enters the waste. **Merged `100c691`, deployed 2026-10-22 (`index-COsxvOYF.js`)** |
+| joinery accepts bands (chunk 3) | 10-22 | — | Add joinery rules out only the joint kinds a band is in the way of (`bandRegions`, judged as stored in the original frame, P9–P11; an edged shelf housed whole in a dado, the user's ruling); a stopped dado narrowed to the stop ends that clear ("Offer clear ends") with its smallest inset clearing a receiver band ("Fix now"); strips, tape and glue lines count only the visible run (`visibleRun`, P12–P14); the gate compares bands; Repair accepts banded projects; Refine still refuses (inv 41/54; fu 398's joinery and Repair half closed, 418–423). **On branch `joinery-bands`, not yet merged or deployed** |
 
 ## Status log (to 2026-10-22)
 
+- **Joinery accepts bands (joinery features chunk 3; 2026-10-22; branch `joinery-bands`, NOT YET MERGED OR DEPLOYED)**: spec
+  `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (§8 Q3–Q5, *Amended (planning, chunk 3)* P9–P14 and *Amended
+  (execution, chunk 3)*), plan `docs/superpowers/plans/2026-10-22-sloyd-joinery-bands.md`. Branch tree: 7483 tests across 221 files. No
+  schema change, so rolling back is free. Final review with one fix wave: F1 (no negative strip or backward glue line after give-way), F2
+  (the user's "Fix now": an edged receiver's stop inset clears the band), and the user's "Offer clear ends" (stop ends narrowed per end,
+  reversing chunk 1's "ruled out whole"). **§4.4 changes existing documents:** a hand-notched banded part (a full-thickness cut through
+  the band at a run end) now buys and draws a shorter strip, tape run and glue line; no existing test's number moved (Task 1). Intended
+  test flips: `bandedRefusal.test.ts`'s `'joinery'` assertions, and `App.test.tsx`'s "a refused project (holes and a band)", whose
+  refusal example is now a taper into the joint. Live check `docs/browser-verification-joinery-bands.md` (dev server: the edged rail's
+  strip at the visible run, Add joinery opening and Repair offered on banded projects, the edged bookcase joined at its front stop);
+  the paid run is not run (needs the user's approval). Owed to the user: the `edge band` summary words; P10 (faulted bands judged as
+  stored), P12's "no visible run, no strip", P13 and P14; §4.4's change to existing hand-notched documents; the chunk-3 spec amendments
+  (Review Focus 4's test moved to 5/8 edging after F2 among them); the edged rail's look on real hardware (Review Focus 5); fu 419 (the
+  Mitred limits: ask first). Record-only: fu 418, 420–423. Next: merge to master and deploy (the user's call).
 - **Notch drop + fu 415 (2026-10-22; branch `notch-and-bow`, MERGED `100c691`, DEPLOYED as `index-COsxvOYF.js`, CSS unchanged; schema 20)**: fu 416
   closed (archCurve stores a notch at its stored chord's half circle; the loader holds an arc within 4 ulps of its coordinates past the bound
   to it — swept 25–3600 mm); fu 415 closed by the user's ruling (end-face clearance; costs: fu 417 and a dadoed bowed end's step at the

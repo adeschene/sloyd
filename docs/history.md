@@ -520,6 +520,27 @@ and 79.
 
 ## What each round did
 
+**What joinery features chunk 3 (bands) did (2026-10-22)** (fu 398's joinery and Repair half; spec
+`2026-10-21-sloyd-joinery-features-design.md` §3.3, §3.4, §4.4, §5, §7; plan `2026-10-22-sloyd-joinery-bands.md`; branch `joinery-bands`
+from `ae6dc58`; **no schema change** (20); subagent-driven, six tasks plus a final review and one fix wave; NOT YET MERGED OR DEPLOYED at
+this record). Add joinery and Repair stop refusing banded projects; Refine still refuses.
+1. `aab9906`, `1623f60`, `b5bd62d` — the visible run (`banding.ts` `visibleRun`): strips, tape and glue lines count only the run a
+   full-thickness cut through the band at a run end leaves, so a tenoned edged rail buys its plain length. The review found the first
+   rule ignored the band's depth (a shallow end cut under-bought), so P12 was amended to "reaches through the band", with give-way kept
+   at a shortened end; tape's depth is its type's thickness.
+2. `abf0845` — band zones in `featureAllowed` (`featureRegions.ts` `bandRegions`, judged as stored in the original frame, P9–P11), with
+   the user's planning-time dado ruling: an edged shelf is housed whole.
+3. `96ec3ea` — the refusals lifted (`bandedRefusal` is Refine-only; `repairDocument` no longer withholds); `sameJoined` compares bands.
+4. `a81e8a6` — the bands oracle (`bandsOracle.test.ts`, independent strips from the band types; 330 documents, 6372 joined runs).
+5. Final review and fix wave: `66e6e4c` (F1, a negative strip and a backward glue line when give-way outran the visible run), `6b9be5a`
+   (F2, the user's "Fix now": a 3/4"-edged receiver lost its stopped dado to the fixed 1/4 minimum inset; now the inset clears the
+   band), `399e836` (minors). The fixer then measured that the common bookcase (front-edged sides, a shelf flush front and back) still
+   lost its stopped dado, because one conflicting stop end ruled the kind out; the user ruled "Offer clear ends" (`b34e8f1`), which
+   reverses chunk 1's execution ruling.
+6. `72a3524` — the live check on the dev server (free checks pass; the paid run is owed to the user's approval).
+
+Residue: fu 418–423 (the Mitred limits, 419, ask first; the rest record-only). 7483 tests across 221 files.
+
 **Band wording (2026-10-20, the user's choices on fu 395(2)–(3); branch `band-wording`)**: the band line lists three or more sides
 (`the width min side, the width max side and the length max end`) and reads `all four sides` when one type bands all four (`bandText.ts`
 `sideList`; the cut list and the diagrams' band note share it); Buying's unpriced tail counts band types apart (`unpricedTail`:

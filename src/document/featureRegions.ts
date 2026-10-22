@@ -5,7 +5,7 @@
  * (open, overlap above 1e-9) except where P4 keeps the closed, conservative test: a swept profile's footprint and a stopped
  * profile's run-out allowance. Holes are not here: chunk 1's rule judges them.
  */
-import type { Board, CutFrom, Dimension, ProfileCut, Region } from './types';
+import type { Band, BandType, Board, CutFrom, Dimension, ProfileCut, Region } from './types';
 import { localSegments, rectOverlapsWaste, spanOf, uvDims, wasteOnSegment, CURVE_EPS, type P2, type ViewCurve } from './curves';
 import { geometryBoard, profileFields } from './profiles';
 import { runoutReach } from './runout';
@@ -102,4 +102,25 @@ export function runsOutThrough(view: Board, f: ShapedFeature, d: Dimension, end:
 export function crossSectionOverlaps(view: Board, f: ShapedFeature, lo: P2, hi: P2): boolean {
   if (!f.curve) return true;
   return rectOverlapsWaste(localSegments(view, f.curve), lo, hi);
+}
+
+/**
+ * Joinery features chunk 3 (P9, P10): each band of `board` with its region, board-local, in stored order. A band's region
+ * is the strip on its side: the band TYPE's thickness in from that side × the side's full run × the part's thickness. Tape
+ * of thickness 0 has none (`region` null); a thick tape is a region like solid edging. Judged as stored (P10): `bandFaults`
+ * is not read, so a faulted band (a `needs-straight` solid band on a bowed edge) still has its strip. A band whose type is
+ * missing is skipped (the loader drops it; in memory it contributes nothing, as in `banding.ts`' `judge`).
+ */
+export function bandRegions(board: Board, types: readonly BandType[]): { band: Band; region: Region | null }[] {
+  const out: { band: Band; region: Region | null }[] = [];
+  for (const band of board.bands) {
+    const bt = types.find((t) => t.id === band.type);
+    if (!bt) continue;
+    if (!(bt.thickness > 0)) { out.push({ band, region: null }); continue; }
+    const region: Region = { length: [0, board.length], width: [0, board.width], thickness: [0, board.thickness] };
+    const a = band.side.across;
+    region[a] = band.side.from === 'min' ? [0, bt.thickness] : [board[a] - bt.thickness, board[a]];
+    out.push({ band, region });
+  }
+  return out;
 }

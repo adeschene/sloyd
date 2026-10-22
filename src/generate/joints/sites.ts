@@ -1,7 +1,9 @@
 import type { FlatDocument } from '../../document/document';
 import { TOUCH, faceContacts } from '../../document/designCheck';
-import { SNAP_INCHES, axisDimensions } from '../../document/geometry';
+import { bandRegions } from '../../document/featureRegions';
+import { SNAP_INCHES, axisDimensions, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { boxOf } from './pocket';
+import type { WorldBox } from './pocket';
 
 export type SiteKind = 'end-into-face' | 'face-against-edge' | 'crossing';
 export type JointKind = 'mortise-tenon' | 'dado' | 'stopped-dado' | 'rabbet' | 'half-lap' | 'butt';
@@ -44,6 +46,32 @@ const depthOf = (doc: FlatDocument, s: Site) => {
   return r.max[s.axis] - r.min[s.axis];
 };
 
+/**
+ * Final review F2 (the user's ruling, 2026-10-22): the smallest inset at stop end `st` whose groove in the RECEIVER clears
+ * the receiver's band strip at that end, or null when no band counts. A band counts when it lies on R's side facing the
+ * stop end — `side.across` is the dimension R carries on the stop axis (`axisDimensions`) and `side.from` the end of it
+ * facing that world side (`endFacing`) — and has a strip (`bandRegions`, the joinery watch's own region rule: the type's
+ * thickness in from the side; tape of thickness 0 has none; a missing type is skipped). Measured in world terms along the
+ * stop axis, as `dado()` places the groove (`keep` is E's span less the inset at that end): at a min stop the groove starts
+ * at `e.min + inset`, so it clears a strip ending at world `w` when `inset >= w - e.min`; at a max stop, mirrored. Flush
+ * (E's stop-end face on R's edge), that is exactly the band's thickness; E set back by `g`, thickness − g.
+ */
+function bandClearance(doc: FlatDocument, s: Site, st: StopEnd, e: WorldBox): number | null {
+  const R = doc.boards[s.receive];
+  if (R.bands.length === 0) return null;
+  const p = st.axis;
+  const dim = axisDimensions(R)[p];
+  const from = endFacing(R, p, st.end === 'min' ? -1 : 1);
+  let need: number | null = null;
+  for (const { band, region } of bandRegions(R, doc.bandTypes)) {
+    if (!region || band.side.across !== dim || band.side.from !== from) continue;
+    const [lo, hi] = spanToWorldOffset(R, p, region[dim]);
+    const n = st.end === 'min' ? R.position[p] + hi - e.min[p] : e.max[p] - (R.position[p] + lo);
+    need = need === null ? n : Math.max(need, n);
+  }
+  return need;
+}
+
 export function rangesOf(s: Site, doc: FlatDocument): Ranges {
   const rDepth = depthOf(doc, s);
   const e = boxOf(doc.boards[s.enter]);
@@ -51,7 +79,16 @@ export function rangesOf(s: Site, doc: FlatDocument): Ranges {
     tenonLength: range(0.5, rDepth - 0.25),
     dadoDepth: range(0.125, rDepth / 2),
     rabbetDepth: range(0.125, doc.boards[s.receive].thickness / 2),
-    inset: (st) => range(0.25, (e.max[st.axis] - e.min[st.axis]) / 2),
+    // F2: the minimum is raised, at a stop end beside the receiver's edging, to the smallest inset whose groove clears it
+    // (`bandClearance`); when that would pass the maximum the range is today's, and the trial rules stopped-dado out.
+    inset: (st) => {
+      const half = (e.max[st.axis] - e.min[st.axis]) / 2;
+      const today = range(0.25, half);
+      const need = bandClearance(doc, s, st, e);
+      if (need === null || need <= 0.25) return today;
+      const raised = range(need, half);
+      return raised[0] > raised[1] ? today : raised;
+    },
   };
 }
 

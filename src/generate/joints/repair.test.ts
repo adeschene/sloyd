@@ -346,3 +346,22 @@ describe('repairDocument — angled documents (AI-tapers spec §4.3)', () => {
     expect(tapered(r.doc).length).toBeGreaterThan(0);
   });
 });
+
+describe('repairDocument repairs a banded document (joinery-features chunk 3)', () => {
+  const BAND = { side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' };
+  it('repairDocument repairs a banded bug fixture, bands and cornerRule untouched', () => {
+    const fx = load(f1);
+    const plainOut = repairDocument(fx.damaged);
+    if (plainOut === null || 'refused' in plainOut) throw new Error('expected a repair');
+    const put = <T extends object>(b: T, i: number) => (i === 0 ? { ...b, bands: [BAND], cornerRule: 'ends' as const } : b);
+    const doc = { ...fx.damaged, boards: fx.damaged.boards.map(put),
+      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map(put) })) };
+    const out = repairDocument(doc);
+    if (out === null || 'refused' in out) throw new Error(`expected a repair, got ${JSON.stringify(out)}`);
+    expect(out.dropped).toBe(plainOut.dropped);
+    const rows = (d: SloydDocument, k: 'bands' | 'cornerRule') => flatDocument(d).boards.map((b) => b[k]);
+    expect(rows(out.doc, 'bands')).toEqual(rows(doc, 'bands'));
+    expect(rows(out.doc, 'cornerRule')).toEqual(rows(doc, 'cornerRule'));
+    expect(rows(out.doc, 'bands').flat()).not.toHaveLength(0);
+  });
+});

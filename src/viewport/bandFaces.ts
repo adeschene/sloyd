@@ -43,7 +43,9 @@ export function bandLooks(board: Board, types: readonly BandType[]): readonly Ba
 }
 
 /** Everything a banded part's viewport looks and glue lines read beyond `boardUVSignature` (inv 15): each unfaulted band's
- *  side, kind, thickness and (solid) material, plus the corner rule once any glue line exists. '' with neither. */
+ *  side, kind, thickness and (solid) material, plus the corner rule once any glue line exists. '' with neither. The part's
+ *  cuts, which decide the visible run and so the glue lines (P12, P14), are not repeated here: BoardMesh's memos key on
+ *  `boardUVSignature` too, which carries every cut's geometry. */
 export function bandViewSignature(board: Board, types: readonly BandType[]): string {
   const bands = unfaulted(board, types);
   if (bands.length === 0) return '';

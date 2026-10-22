@@ -5,8 +5,9 @@
  */
 import type { ProfileKind } from './types';
 
-/** The feature that rules a kind out, as the line names it (joinery features P8): `<kind> profile` for an edge profile. */
-export type FeatureWord = 'holes' | 'curve' | 'roundover profile' | 'cove profile' | 'Roman ogee profile' | 'bead profile' | 'thumbnail profile';
+/** The feature that rules a kind out, as the line names it (joinery features P8): `<kind> profile` for an edge profile,
+ *  `edge band` for a band (chunk 3). */
+export type FeatureWord = 'holes' | 'curve' | 'edge band' | 'roundover profile' | 'cove profile' | 'Roman ogee profile' | 'bead profile' | 'thumbnail profile';
 const PROFILE_WORDS: Record<ProfileKind, FeatureWord> = {
   roundover: 'roundover profile', cove: 'cove profile', ogee: 'Roman ogee profile', bead: 'bead profile', thumbnail: 'thumbnail profile',
 };
