@@ -6888,4 +6888,8 @@ a coplanar subset that the real run laps through a hole. No fixture reaches it. 
 rise, and the growing-end rule (any positive-area end contact rules the growing kinds out, P6 / the AI-angles ruling) applies to it,
 so the rail is joined as a butt where a tenon clearing the bow's waste would have been fine. Candidate: an end-face clearance
 exception like P7's, judged against the tenon section (a curve whose waste at the end face clears the section). Found at joinery-features
-chunk 2, Task 4; the spec's *Amended (execution, chunk 2)* records the ruling. **Status:** open (record-only; ask the user first).
+chunk 2, Task 4; the spec's *Amended (execution, chunk 2)* records the ruling. Priority note (final review M1): the default Bow's rise is
+min(0.5, w/4) (`bowAt`, curves.ts: ¼ of the in-face dimension that is not `along`, the width by default) and the default tenon shoulder
+is min(0.5, snap(w/4)) (`tenonSection`, recipes.ts: the entering part's width) — equal for ordinary widths (any width of 2 in or more,
+or one whose quarter is on the 1/16 grid) — so a default bow's end waste lies wholly in the shoulder band, and the candidate clearance
+exception would reliably restore tenons on bowed aprons. **Status:** open (record-only; ask the user first).

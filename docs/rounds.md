@@ -105,7 +105,8 @@
 - **Joinery accepts curves and profiles (joinery features chunk 2; 2026-10-22; branch `joinery-curves`, NOT YET MERGED; merge hash and deploy in Task 8)**:
   spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P4–P8 and *Amended (execution, chunk 2)*), plan
   `docs/superpowers/plans/2026-10-22-sloyd-joinery-curves.md`. Branch tree: 7374 tests across 217 files. No schema change, so rolling back is free.
-  Owed to the user: the curve and profile summary-line wording and `FEATURE_CHECK_FAILED` (P8). Record-only: fu 415 (a bowed rail
+  Owed to the user: the curve and profile summary-line wording and `FEATURE_CHECK_FAILED` (P8), and the joinery-features spec's
+  *Amended (planning, chunk 2)* and *Amended (execution, chunk 2)* blocks, in particular the bow correction. Record-only: fu 415 (a bowed rail
   loses tenon, dado and stopped dado at its ends). Next: chunk 3 (bands).
 - **Joinery accepts holes (joinery features chunk 1; 2026-10-22; branch `joinery-holes`, MERGED `f3493a7`, DEPLOYED 2026-10-22 as `index-ChnyDt9R.js` / CSS
   `index-Cj7r9G0C.css` unchanged; schema 20 unchanged)**: spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P1–P3 and
@@ -328,8 +329,9 @@
 
 ## Owed to the user: spec amendments awaiting review (moved from CLAUDE.md, 2026-10-22)
 
-The curves spec's *Amended (implementation, chunk 1/2)*
-  rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
+Spec amendments awaiting the user's review: the joinery-features spec's *Amended (planning, chunk 2)* and *Amended (execution,
+chunk 2)* blocks, in particular the bow correction (a bow at a tenoned end now loses the growing kinds, reversing the approved
+spec's example; fu 415); the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
-By eye (moved from CLAUDE.md in full): by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).
+By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).
