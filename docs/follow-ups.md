@@ -6254,8 +6254,8 @@ callouts). **Status:** open (spec §12).
 as angle cuts do, inv 41), Generate and Refine reading and writing curves (a `DESIGN_SCHEMA` change: one live compile first,
 fu 322), and the design checks (overlap, held, tip, contact) reading curved bodies. Chunk 1 refuses curved projects at entry
 (`curvedRefusal`, after holes'); `turnCandidates` returns none for a curved part. **Status:** open (spec §12).
-**Status:** first piece CLOSED (joinery and Repair accept curved and profiled projects, joinery-features chunk 2, 2026-10-22; inv 41); Generate/Refine reading curves and the design checks reading curved bodies stay open (feature; needs a spec).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** first piece CLOSED (joinery and Repair accept curved and profiled projects, joinery-features chunk 2, 2026-10-22; inv 41); Generate/Refine reading curves and the design checks reading curved bodies stay open (feature; needs a spec).
 
 **364. Splines and free curves.** A new segment type; no schema bump, because every build from 17 on refuses a document
 holding a segment type it cannot draw (spec §2.4). **Status:** open (spec §12).

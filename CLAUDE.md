@@ -578,11 +578,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     noted, never clamped. Refine refuses holed projects; joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
     BoxGeometry routing; a part with no holes and no curves keeps its bytes. **A curved part's mesh
     is WATERTIGHT** (welded, conformed, centroid-fanned; `curvesWatertight.test.ts`); a shaped part
-    is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks
-    silently:** per-hole prisms memoised by the frozen `Hole`'s identity; seam faces subtracted only
-    where needed; a CLEAN hole emitted unclipped; all holes ONE mesh. Perf guards are the MINIMUM of
-    9, lowered only, never raised; `sweptIdentity.test.ts` pins swept parts byte for byte. On paper a
-    rim is a 96-gon, an edge-on rim ONE segment; within-part path chaining is intended — do not undo it.
+    is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (the list of what is memoised and where: `docs/invariants.md`). Perf guards are the MINIMUM of
+    9, lowered only, never raised; `sweptIdentity.test.ts` pins swept parts byte for byte. Within-part path chaining on paper is intended — do not undo it.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave**; reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
     rebuild). **Caps come only from `sectionCaps`** (board-local; ONE winding before `minusPrism`;
@@ -644,10 +641,8 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 404–407 (hardware residue), 268, 270,
   271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328 (closed for joinery and Repair by joinery-features chunk 1; Refine stays under 329), 329–331, 334; curves 363 (Generate/Refine and the design checks; joinery and Repair closed by joinery chunk 2), 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone); 350 (a hand check of section markers); 106
-  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
-  rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
-  draws nothing); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print).
+  by eye — 142, 319, 380(1), 384(2), 387(1), 392(2), 393, 394, 272 (`docs/rounds.md`); 350 (a hand check of section markers); 106
+  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the *Amended (implementation)* rulings of the curves, profile runs and section views specs (list: `docs/rounds.md`, Owed to the user); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open

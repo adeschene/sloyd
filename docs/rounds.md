@@ -325,3 +325,11 @@
   add an image when the finding is spatial).
 - **Do not re-propose** two items declined on purpose: CSV/clipboard export and name
   run-collapsing (`Leg 1..4`).
+
+## Owed to the user: spec amendments awaiting review (moved from CLAUDE.md, 2026-10-22)
+
+The curves spec's *Amended (implementation, chunk 1/2)*
+  rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
+  draws nothing).
+
+By eye (moved from CLAUDE.md in full): by eye — 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).
