@@ -227,7 +227,7 @@ describe('the identity and the input', () => {
 });
 
 describe('a trim (rabbet)', () => {
-  const bookcase = (rotation: Rotation) => {
+  const bookcase = (posture: Posture, rotation: Rotation) => {
     const doc = flatDocument(designToDocument({
       name: 'T',
       parts: [
@@ -238,36 +238,47 @@ describe('a trim (rabbet)', () => {
       ].map((p) => ({ ...p, material: 'oak' })),
     }).doc);
     const shelf = doc.boards.find((b) => b.name === 'Shelf')!;
+    // The same 20 x 0.75 x 11.25 box in the world, in any pose: each world extent is given to the dimension that shows it.
+    const extents = boardExtents(shelf);
+    shelf.posture = posture;
     shelf.rotation = rotation;
-    const d = axisDimensions(shelf)[2];
+    axisDimensions(shelf).forEach((dim, a) => { shelf[dim] = extents[a]; });
+    const d = axisDimensions(shelf)[2]; // the dimension the Back's trim shortens
     const e = endFacing(shelf, 2, 1);
-    const other = d === 'length' ? 'width' : 'length';
-    // Through thickness, u = length and v = width; the arch runs along the trimmed dimension from the trimmed end.
-    shelf.curves = [{ id: 'a', ...archCurve({ through: 'thickness', along: d, side: 'min', from: e, start: 2, span: 3, rise: 0.5 }) }];
-    shelf.profiles = [
-      stopped('p1', side(other === 'length' ? 'length' : 'width', 'min'), e, 2, 5),
-      stopped('p2', side(other === 'length' ? 'length' : 'width', 'max'), flip(e), 2, 5),
-    ];
-    return { doc, shelf, e };
+    // The arch runs along d from the trimmed end (through a dimension that is not d); the stations lie on the sides that
+    // run along d (when d is thickness no side does, and they sit on the width sides, untouched). Everything starts 2 in
+    // from the end, clear of the 0.25 slab the trim removes.
+    const through = d === 'thickness' ? 'width' : 'thickness';
+    shelf.curves = [{ id: 'a', ...archCurve({ through, along: d, side: 'min', from: e, start: 2, span: 3, rise: 0.5 }) }];
+    const across = d === 'width' ? 'length' : 'width';
+    shelf.profiles = [stopped('p1', side(across, 'min'), e, 2, 5), stopped('p2', side(across, 'max'), flip(e), 2, 5)];
+    return { doc, shelf, d };
   };
   const rabbet = (doc: FlatDocument) => {
     const sites = findSites(doc);
     return applyJoints(doc, sites, sites.filter((s) => s.kind === 'face-against-edge').map((s): JointChoice => ({ site: s.id, joint: 'rabbet', depth: 0.375 })));
   };
 
-  it.each([0, 180] as Rotation[])('a curve and a station measured from the trimmed end stay put (turn %s)', (rotation) => {
-    const { doc, shelf } = bookcase(rotation);
+  it.each(POSTURES.flatMap((p) => TURNS.map((r) => [p, r] as const)))('a curve and a station measured from the trimmed end stay put (%s turn %s)', (posture, rotation) => {
+    const { doc, shelf, d } = bookcase(posture, rotation);
     const out = rabbet(doc);
     expect(out.trimmed).toContain('Shelf');
     const after = out.doc.boards.find((b) => b.name === 'Shelf')!;
     expect(after.curves.map((c) => c.id)).toEqual(['a']);
     expectSame(curvePoints(shelf), curvePoints(after));
-    expect(after.curves[0].start[after.curves[0].through === 'thickness' && axisDimensions(after)[2] === 'width' ? 1 : 0]).toBeLessThan(shelf.curves[0].start[axisDimensions(shelf)[2] === 'width' ? 1 : 0]);
+    // The arch's start is its one coordinate along d: 2 in from the end before, 1.75 after the 0.25 trim.
+    const at = uvDims(shelf.curves[0].through).indexOf(d);
+    expect(shelf.curves[0].start[at]).toBe(2);
+    expect(after.curves[0].start[at]).toBe(1.75);
     expect(after.profiles.map((p) => p.id)).toEqual(['p1', 'p2']);
     shelf.profiles.forEach((p, i) => {
       stationWorld(shelf, p).forEach((v, j) => expect(Math.abs(stationWorld(after, after.profiles[i])[j] - v)).toBeLessThan(1e-12));
     });
     expect(ordered(after.profiles[1])).toEqual(ordered(shelf.profiles[1]));
+    if (d !== 'thickness') {
+      const run = after.profiles[0].run as { start: { at: number }; end: { at: number } };
+      expect([run.start.at, run.end.at].sort()).toEqual([1.75, 4.75]);
+    }
     const back = readJoints(out.doc);
     if ('refused' in back) throw new Error(back.refused);
     const plain = back.plain.find((b) => b.name === 'Shelf')!;

@@ -74,6 +74,13 @@ describe('joinery on a mirrored pair (mirrored-instances spec §6)', () => {
 
 // Joinery-curves spec §7: a mirrored copy's curves and profile stations are lowered and re-anchored with the same
 // numbers, so the waste stays where it was in world space through joinery.
+const shape = (x: unknown) => JSON.stringify(x, (_k, v) => (typeof v === 'number' ? 0 : v));
+const numbers = (x: unknown, out: number[] = []): number[] => {
+  if (typeof x === 'number') out.push(x);
+  else if (x && typeof x === 'object') Object.values(x).forEach((v) => numbers(v, out));
+  return out;
+};
+
 describe.each([['curved', chiralCurved], ['two-side', chiralTwoSide]] as const)('a mirrored copy keeps its %s waste through joinery', (_name, fixture) => {
   const rail = fixture('flat');
   const tenonDoc = (): SloydDocument => {
@@ -137,6 +144,19 @@ describe.each([['curved', chiralCurved], ['two-side', chiralTwoSide]] as const)(
       const want = rail.curves.find((c) => c.id === 'k1')!;
       expect(Math.abs(arch.start[0] - (want.start[0] + 1))).toBeLessThanOrEqual(GATE_TOLERANCE);
       expect(b.curves.find((c) => c.id === 'k2')).toEqual(rail.curves.find((c) => c.id === 'k2'));
+      // The profile's stored form too: only the station on the side that runs along the grown dimension (length) moved.
+      expect(b.profiles.map((p) => p.id)).toEqual(rail.profiles.map((p) => p.id));
+      rail.profiles.forEach((want, i) => {
+        const got = b.profiles[i];
+        const grown = (p: typeof want) => {
+          if ('loop' in p.run) return p;
+          const bump = (e: typeof p.run.start) => ('through' in e || e.side.across !== 'width' || e.from !== 'min' ? e : { ...e, at: e.at + 1 });
+          return { ...p, run: { start: bump(p.run.start), end: bump(p.run.end) } };
+        };
+        expect(shape(got)).toBe(shape(grown(want)));
+        const g = numbers(got); const w = numbers(grown(want));
+        w.forEach((n, j) => expect(Math.abs(g[j] - n), `profile ${want.id}[${j}]`).toBeLessThanOrEqual(GATE_TOLERANCE));
+      });
     }
   });
 });
