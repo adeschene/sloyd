@@ -1,18 +1,15 @@
 import type { Board, SloydDocument, StoredBoard } from './types';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { orient } from './generated';
+import { hasFrameFeatures } from './featureCarry';
 import { distinctParts } from './assemblyChecks';
 import { boardExtents } from './geometry';
 import { taperCutsFor, worldTapers } from './taperWorld';
 import type { TaperFaultCode } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, noAngles, worldAngles } from './angleWorld';
 import type { AngleFaultCode } from './angleWorld';
-import { holedRefusal } from './holedRefusal';
-import { curvedRefusal } from './curvedRefusal';
-import { bandedRefusal } from './bandedRefusal';
-import { hardwareRefusal } from './hardwareRefusal';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
-import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
+import { flatDocument, worldParts } from './tree';
 
 /**
  * Refine's input (refine spec §2): the open design in Generate's own format —
@@ -21,7 +18,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint' | 'holes' | 'curves' | 'bands' | 'hardware';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -71,19 +68,13 @@ export function designValues(design: GeneratedDesign): Set<number> {
   return out;
 }
 
+/** The part as the pre-checks judge it: a featured part keeps its own frame (its features are stored in it); a plain one is re-oriented as the design will encode it. */
+const inOwnFrame = (b: Board): Board => (hasFrameFeatures(b) ? b : { ...b, ...orient(boardExtents(b)) });
+
 export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: GeneratedDesign } | { refused: RefineRefusal } {
   const shapes = shapeMap(doc);
   const placed = worldParts(doc).length;
   if (placed === 0) return refuse('empty', 'There is nothing to refine yet.');
-  const holed = holedRefusal(flatDocument(doc), 'refine');
-  if (holed) return refuse('holes', holed);
-  const curved = curvedRefusal(flatDocument(doc), 'refine');
-  if (curved) return refuse('curves', curved);
-  const banded = bandedRefusal(flatDocument(doc), 'refine');
-  if (banded) return refuse('bands', banded);
-  // Hardware on parts or assemblies (hardware spec §6), from the STORED document (P2: flatDocument empties definitions).
-  const hardware = hardwareRefusal(doc);
-  if (hardware) return refuse('hardware', hardware);
   const stored: StoredBoard[] = [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
   // Defence in depth: Refine's own path never reaches this with cuts (plainForRefine's joint gate
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.
@@ -100,7 +91,7 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   const unencodable = flatDocument(doc).boards.flatMap((b) => {
     const tapers = worldTapers(b);
     if (!tapers || tapers.length === 0) return [];
-    const made = taperCutsFor({ ...b, ...orient(boardExtents(b)) }, tapers);
+    const made = taperCutsFor(inOwnFrame(b), tapers);
     return 'fault' in made ? [{ name: b.name, why: TAPER_REASON[made.code] }] : [];
   });
   if (unencodable.length === 1) {
@@ -123,7 +114,7 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   const unbuildable = flatBoards.flatMap((b) => {
     const a = worldAngles(b);
     if (!a || a.miters.length + a.bevels.length + a.chamfers.length === 0) return [];
-    const made = angleCutsFor({ ...b, ...orient(boardExtents(b)) }, a, angleRatiosOf([b]));
+    const made = angleCutsFor(inOwnFrame(b), a, angleRatiosOf([b]));
     if (!('fault' in made)) return [];
     const kind = (['miter', 'bevel', 'chamfer'] as const).find((k) => made.fault.includes(k)) ?? 'angle cut';
     return [{ name: b.name, kind, why: ANGLE_REASON[made.code] }];
@@ -173,28 +164,4 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     return placements.length === 0 ? [] : [{ name: placements[0]!.name, parts: boxes(d.boards, corner), placements }];
   });
   return { design: { name: doc.name, parts, assemblies } };
-}
-
-/**
- * The model never sees grain (refine spec §4): each returned part whose flat
- * display name matches an original part takes that part's grain; an assembly
- * part tries each of its placements in order. Every other part has none, so
- * the converter gives it 'length'. Runs BEFORE conversion, so role linking's
- * sameShared judges the real values.
- */
-export function carryGrain(design: GeneratedDesign, original: SloydDocument): GeneratedDesign {
-  const grain = new Map(flatDocument(original).boards.map((b) => [b.name, b.grain] as const));
-  const set = (p: GeneratedPart, names: string[]): GeneratedPart => {
-    const { grain: _old, ...rest } = p;
-    const hit = names.map((n) => grain.get(n)).find((g) => g !== undefined);
-    return hit ? { ...rest, grain: hit } : rest;
-  };
-  return {
-    ...design,
-    parts: design.parts.map((p) => set(p, [p.name])),
-    assemblies: (design.assemblies ?? []).map((a) => ({
-      ...a,
-      parts: a.parts.map((p) => set(p, a.placements.map((pl) => `${pl.name}${NAME_SEPARATOR}${p.name}`))),
-    })),
-  };
 }

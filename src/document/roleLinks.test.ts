@@ -11,6 +11,7 @@ import { miterDegrees, taperCut } from './angleCuts';
 import { turnCandidates, alignedTo } from './roleLinks';
 import type { Board } from './types';
 import { ARCH } from './curveFixtures';
+import { BUILT_IN_BAND_ID } from './bandModel';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, role: string, at: [number, number, number], size: [number, number, number]): GeneratedPart =>
@@ -251,6 +252,13 @@ describe('turned candidates and holes', () => {
   it('offers no turned candidates for a curved part (curves spec §7)', () => {
     const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }), curves: [{ ...ARCH, start: [3, 0], segments: [{ type: 'arc', to: [6, 0], side: 'left', rise: 0.5 }, { type: 'line', to: [3, 0] }] }] };
     expect(turnCandidates({ ...leg, curves: [] }).length).toBeGreaterThan(0);   // the guard refuses, not the box
+    expect(turnCandidates(leg)).toEqual([]);
+  });
+
+  it('offers no turned candidates for a banded part (edge banding spec §3.4)', () => {
+    const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
+      bands: [{ side: { across: 'width', from: 'min' }, type: BUILT_IN_BAND_ID }] };
+    expect(turnCandidates({ ...leg, bands: [] }).length).toBeGreaterThan(0);   // the guard is what refuses, not the box
     expect(turnCandidates(leg)).toEqual([]);
   });
 });

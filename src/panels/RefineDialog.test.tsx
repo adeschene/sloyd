@@ -75,7 +75,7 @@ describe('RefineDialog', () => {
   it('shows the result: counts, new issues, at most CHANGES_SHOWN changes and "and N more"', () => {
     const changes = Array.from({ length: CHANGES_SHOWN + 3 }, (_, i) => ({ kind: 'added' as const, subject: 'part' as const, name: `P${i}`, copies: 1, text: `Added P${i}` }));
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
-      doc: {} as never, usage: {} as never, changes, joints: null,
+      doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes, joints: null,
       violations: [{ kind: 'hangs', message: 'Shelf is not held.', parts: ['Shelf'] }],
       present: [{ kind: 'overlap', message: 'A passes 0.5in into B along X.', parts: ['A', 'B'] }, { kind: 'tips', message: 't', parts: [] }],
     } };
@@ -87,9 +87,24 @@ describe('RefineDialog', () => {
     expect(screen.getByText('and 3 more')).toBeTruthy();
   });
 
+  it('lists Not kept and Check at the new size in full, 14 items each, and nothing for an empty list', () => {
+    const notKept = Array.from({ length: 14 }, (_, i) => `N${i}'s holes — no part named N${i} in the result.`);
+    const check = Array.from({ length: 14 }, (_, i) => `C${i} was resized — its holes stay measured from where they were placed; check them.`);
+    const run = (carried: { notKept: string[]; check: string[] }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried } });
+    const { unmount } = render(<RefineDialog {...base} run={run({ notKept, check })} />);
+    screen.getByText('Not kept:'); screen.getByText('Check at the new size:');
+    for (const t of [...notKept, ...check]) screen.getByText(t);
+    expect(screen.queryByText(/and \d+ more/)).toBeNull();
+    unmount();
+    render(<RefineDialog {...base} run={run({ notKept: [], check: [] })} />);
+    expect(screen.queryByText('Not kept:')).toBeNull();
+    expect(screen.queryByText('Check at the new size:')).toBeNull();
+  });
+
   it('shows a new issue\'s displayed copy (a metric project), not the model\'s inches (fu 355)', () => {
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
-      doc: {} as never, usage: {} as never, changes: [], joints: null, present: [],
+      doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], joints: null, present: [],
       violations: [{ kind: 'overlap', message: 'A passes 0.5in into B along X.', shown: 'A passes 12.7 mm into B along X.', parts: ['A', 'B'] }],
     } };
     render(<RefineDialog {...base} run={run} />);
@@ -110,17 +125,19 @@ describe('RefineDialog', () => {
 
   it('shows the joints line on a joined result', () => {
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.1, outcome: {
-      doc: {} as never, usage: {} as never, changes: [], violations: [], present: [],
-      joints: { kept: 26, chosen: 3, dropped: 2, skipped: ['Shelf 3 no longer meets Left after an earlier joint'] } } };
+      doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], violations: [], present: [],
+      joints: { kept: 26, chosen: 3, dropped: 2, skipped: ['Shelf 3 no longer meets Left after an earlier joint'],
+        notes: ['Rail meets Leg: no mortise, a bore sits in the zone.'] } } };
     render(<RefineDialog {...base} joined run={run} />);
     expect(screen.getByText('26 joints kept · 3 chosen · 2 dropped')).toBeTruthy();
     expect(screen.getByText('Shelf 3 no longer meets Left after an earlier joint')).toBeTruthy();
+    expect(screen.getByText('Rail meets Leg: no mortise, a bore sits in the zone.')).toBeTruthy();
   });
 
   it('says the joints were not re-applied when joinery refused the refined design (AI-tapers spec §5.4)', () => {
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.1, outcome: {
-      doc: {} as never, usage: {} as never, changes: [], violations: [], present: [],
-      joints: { kept: 0, chosen: 0, dropped: 0, skipped: [], notJoined: 'MSG' } } };
+      doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], violations: [], present: [],
+      joints: { kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], notJoined: 'MSG' } } };
     render(<RefineDialog {...base} joined run={run} />);
     expect(screen.getByText('Joints were not re-applied. MSG')).toBeTruthy();
     expect(screen.queryByText(/joints kept/)).toBeNull();
@@ -130,8 +147,8 @@ describe('RefineDialog', () => {
     const taper = { kind: 'angle-joint' as const, message: 'MODEL WORDS', parts: ['Leg', 'Rail'] };
     const other = { kind: 'overlap' as const, message: 'A passes 0.5in into B along X.', parts: ['A', 'B'] };
     const outcome = (notJoined?: string) => ({ status: 'ready' as const, projectId: 'p1', projectName: 'Box — refined', costUsd: 0.1, outcome: {
-      doc: {} as never, usage: {} as never, changes: [], violations: [taper, other], present: [],
-      joints: { kept: 0, chosen: 0, dropped: 0, skipped: [], ...(notJoined ? { notJoined } : {}) } } });
+      doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], violations: [taper, other], present: [],
+      joints: { kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], ...(notJoined ? { notJoined } : {}) } } });
     const { unmount } = render(<RefineDialog {...base} joined run={outcome('PERSON WORDS')} />);
     expect(screen.getByText('Joints were not re-applied. PERSON WORDS')).toBeTruthy();
     expect(screen.queryByText('MODEL WORDS')).toBeNull();

@@ -5963,6 +5963,7 @@ Carrying holes through needs a rebase for rows measured from an end joinery grow
 `readJoints`' exact undo of it, and a hole-in-pocket refusal (a hole meeting a mortise or tenon). **Status:** open (spec §11).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
 **Status:** closed for joinery and Repair (joinery-features chunk 1, merged `f3493a7`, deployed 2026-10-22: `featureAllowed` rules out joint kinds, `rebaseHoles`, the gate compares holes); Refine stays with fu 329.
+**Status:** Refine half CLOSED (refine-features, 2026-10-22: Refine carries holes by flat name in the original frame, inv 56; `holedRefusal` deleted). Fully closed; authoring holes in Refine stays fu 329.
 
 **329. Generate and Refine authoring holes.** Holes in world words in the design schema — a `DESIGN_SCHEMA` change, so one
 live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
@@ -6256,6 +6257,7 @@ fu 322), and the design checks (overlap, held, tip, contact) reading curved bodi
 (`curvedRefusal`, after holes'); `turnCandidates` returns none for a curved part. **Status:** open (spec §12).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
 **Status:** first piece CLOSED (joinery and Repair accept curved and profiled projects, joinery-features chunk 2, 2026-10-22; inv 41); Generate/Refine reading curves and the design checks reading curved bodies stay open (feature; needs a spec).
+**Status:** Refine's reading CLOSED (refine-features, 2026-10-22: Refine carries curves and profiles, inv 56; `curvedRefusal` deleted). Authoring curves in Generate/Refine (`DESIGN_SCHEMA`, fu 329-style) and the design checks reading curved bodies stay open (feature; needs a spec).
 
 **364. Splines and free curves.** A new segment type; no schema bump, because every build from 17 on refuses a document
 holding a segment type it cannot draw (spec §2.4). **Status:** open (spec §12).
@@ -6371,6 +6373,7 @@ say Rise (likely unreachable); the half-circle refusal always says Rise (a corne
 r√2); a select refusal's row alert survives later events; `refusalFor`'s `had` is keyed by fault kind only
 (plan-mandated); the Rounded-corner Corner select and Radius field and the Bow's Side select have no panel test; "No curve
 preset fits this part." and the `.curve-label` sentence-case rule are untested. **Status:** record-only.
+**Status:** (3) moot: the refusal modules were deleted (refine-features, 2026-10-22).
 
 **374. The edge-on fold (Q3).** A view looking along an arch's plane (an arch's Side view) keeps chunk 1's 24-chord arc
 unrefined, because 96 chords fold back over themselves on screen. The 24-chord fold remains as chunk 1 had it; it almost
@@ -6740,6 +6743,7 @@ length) as that spec's chunk 3, not started (needs its own plan, 2026-10-22); Re
 as `index-bKxsxRuC.js`): joinery rules out only the joint kinds a band is in the way of, Repair accepts banded projects, and strips, tape and glue lines
 count only the visible run (inv 41, 54); §4.4 changes existing hand-notched banded documents (a full-thickness cut through the band
 at a run end now shortens its strip, tape and glue line), and no existing test's number moved. The Refine half stays open (feature; needs a spec).
+**Status:** Refine half CLOSED (refine-features, 2026-10-22: Refine carries bands, band types included, in the original frame, inv 56; `bandedRefusal` deleted). Fully closed for banding; Refine authoring bands stays out of scope (record in fu 329's reading).
 
 **399. A browser library of band types** (spec §1's non-goal). Band types are per project; a shop's usual edging has to be
 re-made in each project. This would follow the materials library precedent (`sloyd.materials.v1`). Prices raise a
@@ -6868,6 +6872,7 @@ needs it) (hardware spec §11).
 - The refusal name-list helper is duplicated (`bandedRefusal`, `hardwareRefusal`, `refineDesign`); `hardwareRefusal` names a part
   placed twice twice (the `bandedRefusal` precedent).
 **Status:** open (record-only).
+**Status:** (2)'s refusal name-list helper: moot: the refusal modules were deleted (refine-features, 2026-10-22).
 
 **410. Ungroup refused for overflow is silent.** Ungroup merges an assembly's hardware into its parent by adding counts; a sum above
 999 is refused (P1, *Amended (planning)*, approved), but the UI gives no reason: the button does nothing. Reachable only with
@@ -6944,6 +6949,7 @@ show the square ends.
 `featureAllowed` dropped, so a joined Refine would re-choose such a joint rather than keep it. Unreachable while Refine refuses
 holed, curved, profiled and banded projects (spec §3.5's kept joints). **Status:** open (revisit when Refine accepts features: fu 329,
 363, 398).
+**Status:** now reachable (refine-features, 2026-10-22: Refine accepts featured projects and re-joins them); still open, to be measured on a joined, featured Refine run.
 
 **422. A shared-corner tape arc's halves are clipped per side (2026-10-22).** A corner arc shared by two taped sides is counted half to
 each (`tapeRuns`); with the visible run each half is clipped against its own side's qualifying cuts, after the ×0.5. The result can only
@@ -6959,3 +6965,19 @@ over-buy. **Status:** open (record-only).
 - a band with no visible run still reduces the core and its neighbour's give-way, and `bandsMeetAtCorner` / `bandSignature` ignore
   shortened corners (by ruling: the core is cut size; an edge-case core one band thickness short needs a cut removing the whole side).
 **Status:** open (record-only).
+
+## From the refine-features round — 2026-10-22
+
+**424. `carryGrain`'s grain-axis observation (2026-10-22).** The old `carryGrain` carried the grain's DIMENSION NAME onto a part `orient`
+re-encodes. On an original whose longest side is not its `length` (possible after Properties edits), grain could then run along a
+different world axis. `carryFromOriginal` replaced `carryGrain`, and the frame rule (inv 56) fixes this for featured parts only; plain
+parts still take the old name-based carry. To record and measure, not fixed (refine-features spec §11). **Status:** open (record-only).
+
+**425. A quarter turn in plan of a featured part is not caught (2026-10-22).** `featureTurned` (`'feature-turned'`) tests only that the
+original thickness axis is still the thinnest. A part whose length and width swap world axes with thickness unchanged reads as a resize:
+its features stay at their stored stations and the "Check at the new size" line names the part (refine-features spec §4, recorded not
+built). **Status:** open (record-only).
+
+**426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
+also receives the carry (the load gate renames it `X (1)`); `carriedSummary` does not mention it. Follows refine-features spec §2's name
+rule, as grain does. **Status:** open (record-only).

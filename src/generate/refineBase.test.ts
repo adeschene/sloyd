@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { refineDialogInfo, refineRefusal, plainForRefine } from './refine';
 import type { RefineSettings } from './refine';
-import { JOINERY_OUTPUT_PER_SITE, joineryEstimateUsd, refineEstimateUsd, runRefine } from './run';
+import { JOINERY_OUTPUT_PER_SITE, joineryEstimateUsd, refineEstimateUsd } from './run';
 import { CHARS_PER_TOKEN } from './estimate';
 import { JOINERY_PROMPT, JOINT_SCHEMA } from './joints/choose';
 import { designToDocument } from '../document/generated';
@@ -70,105 +70,39 @@ describe('the Refine dialog reads a document once (F4)', () => {
   });
 });
 
-describe('bands (joinery-features chunk 3)', () => {
-  const withBand = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, bands: [{ side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' }] } : b)) });
-  // joineryRefusal no longer refuses bands, so a joined banded project is refused by Refine's own words, before the gate and any call.
-  it('a joined Refine of a banded project refuses in Refine\'s words before the gate', async () => {
-    gate.mockClear();
-    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
-    const out = await runRefine(c, withBand(joined, 'Top'), S, new AbortController().signal, () => {});
-    if (!('refused' in out)) throw new Error('expected a refusal');
-    expect(out.refused.message.startsWith("Refine doesn't handle banded parts yet")).toBe(true);
-    expect(c.complete).not.toHaveBeenCalled();
-    expect(gate).not.toHaveBeenCalled();
-  });
-});
-
-describe('curves (curves spec §7)', () => {
-  const withCurve = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, curves: [ARCH] } : b)) });
-  it('a curved plain document is refused as curves', () => {
-    const base = plainForRefine(withCurve(plain, 'Top'));
-    expect('refused' in base && base.refused.reason).toBe('curves');
-  });
-  it('a curved joined document is refused as curves before the gate', () => {
-    gate.mockClear();
-    const base = plainForRefine(withCurve(joined, 'Top'));
-    expect('refused' in base && base.refused.reason).toBe('curves');
-    expect(gate).not.toHaveBeenCalled();
-  });
-  it('the dialog reads it as neither joined nor repairable', () => {
-    const info = refineDialogInfo(withCurve(joined, 'Top'));
-    expect(info.joined).toBe(false);
-    expect(info.repair).toBeNull();
-  });
-});
-
-describe('hardware (hardware spec §6)', () => {
+describe('featured projects reach the gate (Refine-features spec §6)', () => {
   const HW = [{ type: 'h1', count: 2 }];
+  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
+  const roundover: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { loop: true } };
+  const band = { side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' };
+  const on = (d: SloydDocument, name: string, patch: Partial<Board>): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, ...patch } : b)) });
+  const cases: [string, Partial<Board>, (b: Board) => unknown][] = [
+    ['holes', { holes: [row] }, (b) => b.holes],
+    ['curves', { curves: [ARCH] }, (b) => b.curves],
+    ['profiles', { profiles: [roundover] }, (b) => b.profiles],
+    ['bands', { bands: [band] }, (b) => b.bands],
+    ['hardware', { hardware: HW }, (b) => b.hardware],
+  ];
   const typed = (d: SloydDocument): SloydDocument => ({ ...d, hardwareTypes: [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: null }] });
-  const withHardware = (d: SloydDocument, name: string): SloydDocument => ({ ...typed(d), boards: d.boards.map((b) => (b.name === name ? { ...b, hardware: HW } : b)) });
-  it('a plain document with hardware on a part is refused as hardware', () => {
-    const base = plainForRefine(withHardware(plain, 'Top'));
-    expect('refused' in base && base.refused).toEqual({ reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." });
-  });
-  it('a joined document with hardware on a part is refused as hardware before the gate', () => {
-    gate.mockClear();
-    const base = plainForRefine(withHardware(joined, 'Top'));
-    expect('refused' in base && base.refused.reason).toBe('hardware');
-    expect(gate).not.toHaveBeenCalled();
-  });
+  for (const [what, patch, read] of cases) {
+    it(`a plain ${what} document is not refused`, () => {
+      const base = plainForRefine(typed(on(plain, 'Top', patch)));
+      expect(base).not.toHaveProperty('refused');
+      expect(refineRefusal(typed(on(plain, 'Top', patch)))).toBeNull();
+    });
+    it(`a joined ${what} document reaches the gate, and the plain part still carries it`, () => {
+      gate.mockClear();
+      const base = plainForRefine(typed(on(joined, 'Top', patch)));
+      if ('refused' in base) throw new Error(base.refused.message);
+      expect(gate).toHaveBeenCalledTimes(1);
+      expect(base.joints).not.toBeNull();
+      const top = worldParts(base.plain).find((b) => b.name === 'Top')!;
+      expect(read(top)).toHaveLength((read({ ...top, ...patch } as Board) as unknown[]).length);   // unjoin re-anchors rows on the grown part, so only their presence is pinned
+      expect((read(top) as unknown[]).length).toBeGreaterThan(0);
+    });
+  }
   it('the project\'s own hardware is not refused', () => {
     expect(plainForRefine({ ...typed(joined), hardware: HW })).not.toHaveProperty('refused');
-  });
-});
-
-describe('holes (holes spec §6)', () => {
-  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
-  const withHole = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, holes: [row] } : b)) });
-  it('a holed plain document is refused as holes', () => {
-    const base = plainForRefine(withHole(plain, 'Top'));
-    expect('refused' in base && base.refused.reason).toBe('holes');
-  });
-  it('a holed joined document is refused as holes before the gate', () => {
-    gate.mockClear();
-    const base = plainForRefine(withHole(joined, 'Top'));
-    expect('refused' in base && base.refused.reason).toBe('holes');
-    expect(gate).not.toHaveBeenCalled();
-  });
-  it('a joined Refine of a holed project refuses in Refine\'s words without a call', async () => {
-    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
-    const out = await runRefine(c, withHole(joined, 'Top'), S, new AbortController().signal, () => {});
-    if (!('refused' in out)) throw new Error('expected a refusal');
-    expect(out.refused.message.startsWith("Refine doesn't handle parts with holes yet")).toBe(true);
-    expect(c.complete).not.toHaveBeenCalled();
-  });
-  it('the dialog reads it as neither joined nor repairable', () => {
-    const info = refineDialogInfo(withHole(joined, 'Top'));
-    expect(info.joined).toBe(false);
-    expect(info.repair).toBeNull();
-  });
-});
-
-describe('curves (curves spec §7)', () => {
-  const roundover: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { loop: true } };
-  const arch = { id: 'c1', through: 'thickness' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [1, 0] as [number, number], segments: [{ type: 'arc' as const, to: [5, 0] as [number, number], side: 'left' as const, rise: 0.5 }, { type: 'line' as const, to: [1, 0] as [number, number] }] };
-  // joineryRefusal no longer refuses curves or profiles (joinery-features chunk 2), so these pin only that Refine refuses
-  // in its own words with no call; there is no ordering left to test.
-  it('a joined Refine of a curved project refuses in Refine\'s words without a call', async () => {
-    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
-    const curved = { ...joined, boards: joined.boards.map((b) => (b.name === 'Top' ? { ...b, curves: [arch] } : b)) };
-    const out = await runRefine(c, curved, S, new AbortController().signal, () => {});
-    if (!('refused' in out)) throw new Error('expected a refusal');
-    expect(out.refused.message.startsWith("Refine doesn't handle parts with curves yet")).toBe(true);
-    expect(c.complete).not.toHaveBeenCalled();
-  });
-  it('a joined Refine of a profiled-only project refuses in Refine\'s words without a call', async () => {
-    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
-    const profiled = { ...joined, boards: joined.boards.map((b) => (b.name === 'Top' ? { ...b, profiles: [roundover] } : b)) };
-    const out = await runRefine(c, profiled, S, new AbortController().signal, () => {});
-    if (!('refused' in out)) throw new Error('expected a refusal');
-    expect(out.refused.message.startsWith("Refine doesn't handle parts with curves yet (Top)")).toBe(true);
-    expect(c.complete).not.toHaveBeenCalled();
   });
 });
 

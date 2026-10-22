@@ -2,7 +2,7 @@ import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../doc
 import type { FlatDocument, SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
 import { builtInCatalog, catalogOf, pruneMaterials } from '../document/materials';
-import type { CustomMaterial } from '../document/types';
+import type { BandType, CustomMaterial, HardwareType } from '../document/types';
 import type { GeneratedDesign } from '../document/generated';
 import { collapseViolations, distinctParts, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
@@ -13,7 +13,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
-import { featureAllowed } from './joints/featureZones';
+import { FEATURE_CHECK_FAILED, featureAllowed } from './joints/featureZones';
 import type { RuledOut } from './joints/featureZones';
 import { ruledOutLine } from '../document/ruledOutText';
 import { joineryRefusal, jointFaults } from './joints/tapers';
@@ -23,8 +23,10 @@ import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, u
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import type { RefineBase, RefineSettings } from './refine';
-import { carryGrain, designValues, documentToDesign } from '../document/refineDesign';
+import { designValues, documentToDesign } from '../document/refineDesign';
+import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
+import { carriedSummary } from '../document/carryText';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
 import type { CallShape, CostRange } from './estimate';
@@ -156,9 +158,15 @@ interface EvaluateOpts {
   /** Refine: the project's custom materials — a part may name one (parseDesign's catalog), and the converter's load
    *  gate keeps it instead of falling it back to pine (custom materials spec §6). Generate: none, built-ins only. */
   materials?: readonly CustomMaterial[];
+  /** Refine: the project's band and hardware types, so the converter's load gate keeps carried bands and hardware
+   *  (refine-features spec §3.3). Generate: none, createDocument's defaults. */
+  bandTypes?: readonly BandType[];
+  hardwareTypes?: readonly HardwareType[];
   /** Refine: the project's units, for the faults' displayed copy (fu 355) — the conversion itself is imperial. Generate:
    *  none (its projects are imperial). The model's feedback is inches either way. */
   units?: Units;
+  /** Refine: faults only the original can judge (a featured part turned onto another face; refine-features spec §4). */
+  extraFaults?: (flat: FlatDocument) => Violation[];
 }
 
 /**
@@ -172,7 +180,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   const catalog = opts.materials ? catalogOf({ materials: opts.materials }) : builtInCatalog();
   const parsed = res.json === null ? null : parseDesign(res.json, catalog);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
-  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials });
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials, bandTypes: opts.bandTypes, hardwareTypes: opts.hardwareTypes });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
   // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
   const flat = flatDocument(converted.doc);
@@ -181,7 +189,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
   const display = opts.units ?? flat.units;
-  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display)];
+  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display), ...(opts.extraFaults?.(flat) ?? [])];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -219,8 +227,14 @@ export async function runGeneration(
 
 /** What re-joining a refined joined design did (refine-joined spec §4). `notJoined`: joinery refused the refined design
  *  (its taper runs into a joint the model never moved, AI-tapers spec §5.4) — the design is returned unjoined. */
-export interface JointsSummary { kept: number; chosen: number; dropped: number; skipped: string[]; notJoined?: string }
-export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null }
+export interface JointsSummary {
+  kept: number; chosen: number; dropped: number; skipped: string[]; notJoined?: string;
+  /** Joinery's ruled-out lines: a joint kind left out because a feature sits in its zone, so a meeting may be a butt. `[]` unless joined. */
+  notes: string[];
+}
+export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null;
+  /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
+  carried: { notKept: string[]; check: string[] } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
 
 /**
@@ -252,12 +266,15 @@ export async function runRefine(
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: designSchema(catalog),
-    first: refineMessage(from.design, settings, catalog),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, units: doc.units }),
+    first: refineMessage(from.design, settings, catalog, base.plain),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units, extraFaults: (f) => featureTurned(f, plainFlat0) }),
   }, signal, onProgress);
-  // Document-level facts the model never sees travel with the result (hardware types and the project's own hardware too:
-  // nothing in them names a part, hardware spec §6); custom materials the result no longer uses go.
-  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+  // Document-level facts the model never sees travel with the result (band types, hardware types and the project's own
+  // hardware too: nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result
+  // no longer uses go.
+  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+  // Plain to plain: joinery grows tenon parts, which would list every joined part as resized.
+  const carried = carriedSummary(base.plain, refined);
   let violations = out.violations;
   let present = out.present;
   let usage = out.usage;
@@ -279,24 +296,33 @@ export async function runRefine(
     const joinedFlat = flatDocument(doc);
     const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
       .filter((v) => v.parts.length > 0).map(problemKey));
-    const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
+    let jo: Awaited<ReturnType<typeof runJoinery>>;
+    try {
+      jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
+    } catch (e) {
+      // The feature trials are the one unguarded step before joinery's call (fu 244; App guards the same call). A model
+      // failure or a cancel is not that: it surfaces as before. Anything else returns the refined design unjoined.
+      if (e instanceof RunFailed || e instanceof LlmError) throw e;
+      console.error('Sloyd: checking features against joints threw', e);
+      jo = { refused: FEATURE_CHECK_FAILED };
+    }
     // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with an angle-joint fault
     // left, and joinery refuses that before any call. The refined design is kept, unjoined; the fault is in `violations`.
     if ('refused' in jo) {
-      joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notJoined: jo.refused };
+      joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], notJoined: jo.refused };
     } else if ('noSites' in jo) {
-      joints = { kept: 0, chosen: 0, dropped, skipped: [] };
+      joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [] };
     } else {
-      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
       violations = [...violations, ...jo.violations];
       const shown = new Set(present.map(problemKey));
       present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
       usage = addUsage(usage, jo.usage);
-      joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason) };
+      joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason), notes: jo.notes };
     }
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
-  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints };
+  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */
@@ -315,7 +341,7 @@ export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, setting
   if ('refused' in from) return null;
   const refine = costRange(client, {
     prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc))).length,
-    messageChars: refineMessage(from.design, settings, catalogOf(doc)).length,
+    messageChars: refineMessage(from.design, settings, catalogOf(doc), base.plain).length,
     outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
   }, 1 + MAX_REPAIRS);
   const join = base.joints === null ? null : joineryShape(base.plain);

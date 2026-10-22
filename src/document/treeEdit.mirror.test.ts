@@ -3,9 +3,8 @@ import { applyWorldEdits, translateItems } from './treeEdit';
 import { mirrorDim } from './frames';
 import { mirrorBands, withBands } from './bandModel';
 import { createDocument } from './document';
-import { flatDocument, worldParts } from './tree';
+import { worldParts } from './tree';
 import { profileAsCurve, profileFromFields, sameProfile } from './profiles';
-import { curvedRefusal } from './curvedRefusal';
 import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
 import { chiralAngled, chiralCurved, chiralHoled, chiralPart, sameSet } from './turnFixtures';
@@ -370,10 +369,6 @@ describe('profiles through a mirror (profile runs a1, Review Focus 2)', () => {
     expect(sameShared(a, { ...a, profiles: [q()] })).toBe(true);
     expect(sameShared(a, { ...a, profiles: [q({ id: 'other' })] })).toBe(false);
     expect(sameShared(a, { ...a, profiles: [q({ size: 0.375 })] })).toBe(false);
-  });
-  it('Refine refuses a part with profiles and no curves (joinery accepts it)', () => {
-    const d = doc(withProfile(chiralPart('flat')), {});
-    expect(curvedRefusal(flatDocument(d), 'refine')).toMatch(/Refine doesn't handle parts with curves yet/);
   });
 });
 

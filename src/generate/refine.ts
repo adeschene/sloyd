@@ -12,12 +12,10 @@ import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
-import { holedRefusal } from '../document/holedRefusal';
-import { curvedRefusal } from '../document/curvedRefusal';
-import { bandedRefusal } from '../document/bandedRefusal';
-import { hardwareRefusal } from '../document/hardwareRefusal';
 import { joineryRefusal } from './joints/tapers';
 import { findSites } from './joints/sites';
+import { carryFromOriginal } from '../document/featureCarry';
+import { featuredNote } from '../document/carryText';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -27,12 +25,15 @@ export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: p
 
 export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.';
 
-/** `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum
+/** `original`: the plain design the model's came from; the parts of it that carry features the JSON does not show are named (refine-features spec §5).
+ *  `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum
  *  carries only ids, and SYSTEM_PROMPT stays a fixed prefix (custom materials spec §6). None: the message is unchanged. */
-export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalog?: MaterialCatalog): string {
+export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalog?: MaterialCatalog, original?: SloydDocument): string {
+  const note = original ? featuredNote(carryFromOriginal(design, original)) : null;
   const customs = catalog ? catalog.ids.filter((id) => !catalog.get(id)!.builtIn) : [];
   return [
     'Here is the current design, in the same format you return:', JSON.stringify(design), '',
+    ...(note ? [note, ''] : []),
     ...(customs.length > 0 ? [`Custom materials in this design: ${customs.map((id) => `"${id}" is ${catalog!.label(id)}`).join('; ')}.`, ''] : []),
     `Change it as follows: ${s.instruction.trim()}`, '', KEEP_LINE, '', 'Hard limits:', ...limitLines(s),
   ].join('\n');
@@ -61,18 +62,6 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
   // does and keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
-    // Holes (holes spec §6): refused before the joint gate, so a holed joined design never reaches unjoin.
-    const holed = holedRefusal(flat, 'refine');
-    if (holed) return { refused: { reason: 'holes', message: holed } };
-    // Curves (curves spec §7): the same, right after holes.
-    const curved = curvedRefusal(flat, 'refine');
-    if (curved) return { refused: { reason: 'curves', message: curved } };
-    // Edge bands (edge banding spec §6): the same, right after curves.
-    const banded = bandedRefusal(flat, 'refine');
-    if (banded) return { refused: { reason: 'bands', message: banded } };
-    // Hardware on parts or assemblies (hardware spec §6): the same, right after bands, from the STORED document (P2).
-    const hardware = hardwareRefusal(doc);
-    if (hardware) return { refused: { reason: 'hardware', message: hardware } };
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
     const g = gateUnjoin(flat);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };

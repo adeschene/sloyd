@@ -20,8 +20,19 @@ import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
 import { CHARS_PER_TOKEN } from './estimate';
 import { miterCut, taperCut } from '../document/angleCuts';
 import { axisFrame, endFacing } from '../document/geometry';
-import type { AngleCut } from '../document/types';
+import type { AngleCut, CurveCut } from '../document/types';
 import type { WorldTaper } from '../document/taperWorld';
+import * as zones from './joints/featureZones';
+import { boardHoles } from '../document/holes';
+import { toWorld } from '../document/snapPoints';
+import { worldBodies } from '../document/drawing';
+import { sameSet } from '../document/turnFixtures';
+import { axisDimensions } from '../document/geometry';
+
+vi.mock('./joints/featureZones', async (orig) => {
+  const a = await orig<typeof import('./joints/featureZones')>();
+  return { ...a, featureAllowed: vi.fn(a.featureAllowed) };
+});
 
 const settings: GenerateSettings = {
   description: 'a box', width: null, depth: null, height: null, material: 'any', style: 'any', detail: 'simple',
@@ -420,6 +431,22 @@ describe('runRefine', () => {
     expect(client.complete).toHaveBeenCalledTimes(1);   // nothing new: no repair round
   });
 
+  it('sends a turned featured part back, and the fix clears the fault (refine-features spec §4)', async () => {
+    const base = orig([bp('Side', [0, 0, 0], [20, 4, 1])]);
+    const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
+    const doc = { ...base, boards: base.boards.map((b) => ({ ...b, holes: [HOLE] })) } as typeof base;
+    const kept = echo(doc);
+    const turned = { ...kept, parts: [{ ...kept.parts[0]!, size: v3(20, 1, 4) }] };
+    const { client, seen } = fakeClient([turned, kept]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const second = JSON.stringify(seen[1]);
+    expect(second).toContain('Side carries holes Sloyd keeps on the part; keep it the same way round, 1in along z.');
+    expect(out.violations.filter((x) => x.kind === 'feature-turned')).toEqual([]);
+    expect(flatDocument(out.doc).boards[0]!.holes).toHaveLength(1);
+  });
+
   it('keeps a typed off-grid position and size exactly, with no change reported (F2)', async () => {
     const base = orig([bp('A', [0, 0, 0], [10, 1, 8])]);
     const doc = { ...base, boards: base.boards.map((b) => ({ ...b, position: [0.03, 0, 0] as [number, number, number], length: 10.01 })) };
@@ -616,14 +643,6 @@ describe('runRefine — hardware (hardware spec §6)', () => {
     expect(box.hardware).toEqual(PROJECT);
   });
 
-  it('refuses hardware on a part with no call', async () => {
-    const doc = { ...box, boards: box.boards.map((b) => (b.name === 'Top' ? { ...b, hardware: [{ type: 'h1', count: 2 }] } : b)) };
-    const { client } = fakeClient([GOOD]);
-    const out = await go(client, doc);
-    expect(out).toEqual({ refused: { reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." } });
-    expect(client.complete).not.toHaveBeenCalled();
-  });
-
   it('a plain result carries the types and the project hardware', async () => {
     const { client } = fakeClient([echo(box)]);
     const out = await go(client, box);
@@ -647,6 +666,48 @@ describe('runRefine — hardware (hardware spec §6)', () => {
     expect(out.joints!.kept).toBeGreaterThan(0);
     expect(out.doc.hardwareTypes).toEqual(TYPES);
     expect(out.doc.hardware).toEqual(PROJECT);
+  });
+});
+
+describe('runRefine — band types (refine-features spec §3.3)', () => {
+  const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  /** A custom solid band type NO part uses, naming a custom material: only the document-level merge can keep it. */
+  const EDGING = { id: 'e1', name: 'Ash edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
+  const box = migrateDocument({ ...designToDocument({ name: 'Box', parts: [bp('Base', [0, 0, 0], [10, 1, 10])], assemblies: [] }).doc,
+    materials: [ASH], bandTypes: [createDocument('x').bandTypes[0]!, EDGING] });
+
+  it('the fixture is what it claims: the custom band type and its material survive the load, no part uses them', () => {
+    expect(box.bandTypes.map((t) => t.id)).toEqual(['band-iron-on', 'e1']);
+    expect(box.materials).toEqual([ASH]);
+    expect(flatDocument(box).boards.every((b) => b.bands.length === 0)).toBe(true);
+  });
+
+  it('runRefine keeps custom band types (and the material a band type names)', async () => {
+    const { client } = fakeClient([echo(box)]);
+    const out = await go(client, box);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.doc.bandTypes).toEqual(box.bandTypes);
+    expect(out.doc.materials).toEqual([ASH]);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('a joined result keeps them through the re-join', async () => {
+    const flat = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const joined = migrateDocument({ ...migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc), materials: [ASH], bandTypes: box.bandTypes });
+    const p = plainForRefine(joined); if ('refused' in p) throw new Error(p.refused.message);
+    const { client } = fakeClient([echo(p.plain)]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.doc.bandTypes).toEqual(box.bandTypes);
+    expect(out.doc.materials).toEqual([ASH]);
   });
 });
 
@@ -678,6 +739,96 @@ describe('runRefine — joined designs', () => {
     expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
     expect(out.joints!.kept).toBeGreaterThan(0);
     expect(out.changes).toEqual([]);
+  });
+
+  it('a joined holed project whose parts joinery grew or rebased lists nothing to check (refine-features spec §5)', async () => {
+    const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 3 } as const;
+    const holed = { ...bookFlat, boards: bookFlat.boards.map((b) => (b.name === 'Back' ? b : { ...b, holes: [HOLE] })) };
+    const hSites = findSites(holed);
+    const hJoined = migrateDocument(applyJoints(holed, hSites, hSites.map((s) => defaultChoice(s, holed, hSites))).doc);
+    expect(flatDocument(hJoined).boards.some((b) => b.holes.length > 0)).toBe(true);
+    const { client } = fakeClient([plainEcho(hJoined)]);
+    const out = await go(client, hJoined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.carried).toEqual({ notKept: [], check: [] });
+  });
+
+  it('a feature check that throws after the paid call returns the refined design unjoined, with the words, never a rejection', async () => {
+    const echo = plainEcho(joined);
+    const { client } = fakeClient([echo]);
+    const fa = vi.mocked(zones.featureAllowed);
+    fa.mockImplementationOnce(() => { throw new Error('latent recipe throw'); });
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const out = await go(client, joined);
+      if ('refused' in out) throw new Error(out.refused.message);
+      expect(fa).toHaveBeenCalled();
+      expect(out.joints).toEqual({ kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], notJoined: zones.FEATURE_CHECK_FAILED });
+      expect(flatDocument(out.doc).boards.every((b) => b.cuts.length === 0)).toBe(true);
+      expect(err).toHaveBeenCalled();
+    } finally { err.mockRestore(); }
+  });
+
+  it('a cancel or a model failure inside joinery still surfaces (only the feature check is caught)', async () => {
+    const echo = plainEcho(joined);
+    const withShelf = { ...echo, parts: [...echo.parts, { ...echo.parts.find((p) => p.name === 'Shelf 1')!, name: 'Shelf 3', at: { ...echo.parts.find((p) => p.name === 'Shelf 1')!.at, y: 60 } }] };
+    const { client } = fakeClient([withShelf, new LlmError('auth', 'bad key')]);
+    await expect(go(client, joined)).rejects.toBeInstanceOf(LlmError);
+  });
+
+  /** A shelf added where a hole in the Left side sits: joinery rules the dado out there, and says so in `notes` (the dialog shows them). */
+  it('joinery\'s ruled-out lines come back in joints.notes', async () => {
+    const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'min', station: 60, count: 1, pitch: 0, acrossFrom: 'min', inset: 3 } as const;
+    const holed = { ...bookFlat, boards: bookFlat.boards.map((b) => (b.name === 'Left side' ? { ...b, holes: [HOLE] } : b)) };
+    const hSites = findSites(holed);
+    const hJoined = migrateDocument(applyJoints(holed, hSites, hSites.map((s) => defaultChoice(s, holed, hSites))).doc);
+    const echo = plainEcho(hJoined);
+    const withShelf = { ...echo, parts: [...echo.parts, { ...echo.parts.find((p) => p.name === 'Shelf 1')!, name: 'Shelf 3', at: { ...echo.parts.find((p) => p.name === 'Shelf 1')!.at, y: 60 } }] };
+    const { client } = fakeClient([withShelf, { joints: [] }]);
+    const out = await go(client, hJoined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.notes).toEqual(["Shelf 3 → Left side: dado and stopped dado ruled out — Left side's holes are in the way."]);
+  });
+
+  it('a joined project with no ruled-out kinds has notes []', async () => {
+    const { client } = fakeClient([plainEcho(joined)]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.notes).toEqual([]);
+  });
+
+  /** World readings through the helpers (as carryConvert.test.ts): hole centres and the part's body points. */
+  const worldHoles = (b: Board) => boardHoles(b).map((h) => {
+    const k = axisDimensions(b).indexOf(h.axis);
+    const dir = [0, 0, 0];
+    dir[k] = endFacing(b, k, -1) === (h.dir === 1 ? 'min' : 'max') ? 1 : -1;
+    return [...toWorld(b, { length: h.centre[0], width: h.centre[1], thickness: h.centre[2] }), ...dir];
+  });
+  const worldPoints = (b: Board) => worldBodies(b).flatMap((w) => (w.box ? [w.box.min as number[], w.box.max as number[]] : w.verts as number[][]));
+
+  it('an echo Refine of a joined project keeps shelf-pin holes measured from the max end and a curve on a part joinery grew exactly where they were (spec §8)', async () => {
+    const PINS = { id: 'h1', face: 'thickness', from: 'min', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'max', station: 10, count: 3, pitch: 4, acrossFrom: 'min', inset: 3 } as const;
+    const ARCH1 = { id: 'c1', through: 'thickness', uFrom: 'min', vFrom: 'max', start: [8, 0], segments: [{ type: 'arc', to: [20, 0], side: 'left', rise: 1 }, { type: 'line', to: [8, 0] }] } as CurveCut;
+    const feat = { ...bookFlat, boards: bookFlat.boards.map((b) => (b.name === 'Left side' ? { ...b, holes: [PINS] } : b.name === 'Shelf 1' ? { ...b, curves: [ARCH1] } : b)) };
+    const fSites = findSites(feat);
+    const fJoined = migrateDocument(applyJoints(feat, fSites, fSites.map((s) => defaultChoice(s, feat, fSites))).doc);
+    const before = new Map(flatDocument(fJoined).boards.map((b) => [b.name, b] as const));
+    // The fixture is what it claims: the pins survive the load, the shelf was grown by its joints, the curve survived.
+    expect(before.get('Left side')!.holes[0]!.alongFrom).toBe('max');
+    expect(before.get('Shelf 1')!.curves).toHaveLength(1);
+    expect(before.get('Shelf 1')!.length).toBeGreaterThan(30);
+    const { client } = fakeClient([plainEcho(fJoined)]);
+    const out = await go(client, fJoined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    const after = new Map(flatDocument(out.doc).boards.map((b) => [b.name, b] as const));
+    for (const name of ['Left side', 'Shelf 1']) {
+      const o = before.get(name)!, r = after.get(name)!;
+      expect(sameSet(worldHoles(r), worldHoles(o)), `${name}: world holes`).toBe(true);
+      expect(sameSet(worldPoints(r), worldPoints(o)), `${name}: world bodies`).toBe(true);
+    }
+    expect(worldHoles(after.get('Left side')!)).toHaveLength(3);
   });
 
   it('adds a shelf: two calls, and the joinery message lists only the new sites', async () => {
@@ -721,7 +872,7 @@ describe('runRefine — joined designs', () => {
     const joinMsg = String((seen[1][0] as { text: string }).text);
     const listed = joinMsg.split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
     expect(listed).toHaveLength(2);   // Shelf 3 into each side
-    expect(out.joints).toEqual({ kept: 12, chosen: 2, dropped: 0, skipped: [] });
+    expect(out.joints).toEqual({ kept: 12, chosen: 2, dropped: 0, skipped: [], notes: [] });
   });
 
   it('a meeting the original left butt stays butt: refined unchanged, ONE call, the same joined design back', async () => {
@@ -733,7 +884,7 @@ describe('runRefine — joined designs', () => {
     if ('refused' in out) throw new Error(out.refused.message);
     expect(client.complete).toHaveBeenCalledTimes(1);
     expect(sameJoined(flatDocument(out.doc), flatDocument(withButt))).toBe(true);
-    expect(out.joints).toEqual({ kept: bookSites.length - 1, chosen: 0, dropped: 0, skipped: [] });
+    expect(out.joints).toEqual({ kept: bookSites.length - 1, chosen: 0, dropped: 0, skipped: [], notes: [] });
     expect(out.changes).toEqual([]);
   });
 
@@ -745,7 +896,7 @@ describe('runRefine — joined designs', () => {
     if ('refused' in out) throw new Error(out.refused.message);
     expect(client.complete).toHaveBeenCalledTimes(1);
     expect(out.joints!.dropped).toBeGreaterThan(0);
-    expect(out.joints).toEqual({ kept: 10, chosen: 0, dropped: 2, skipped: [] });   // Shelf 2's dado into each side
+    expect(out.joints).toEqual({ kept: 10, chosen: 0, dropped: 2, skipped: [], notes: [] });   // Shelf 2's dado into each side
   });
 
   it('a joined design the gate cannot explain is refused with no call (review focus 2)', async () => {
@@ -774,7 +925,7 @@ describe('runRefine — joined designs', () => {
     // 12 records: 8 dados into the sides (Top, Bottom, Shelf 1, Shelf 2, each side) re-chosen; the back's
     // rabbets into Top and Bottom kept; its rabbets into the two sides dropped. A re-chosen record is
     // never counted as dropped.
-    expect(out.joints).toEqual({ kept: 2, chosen: 8, dropped: 2, skipped: [] });
+    expect(out.joints).toEqual({ kept: 2, chosen: 8, dropped: 2, skipped: [], notes: [] });
     // The 2 dropped, grounded outside runRefine: the thinned plain design has no Back→side meetings.
     const thinFlat = flatDocument(designToDocument(thin).doc);
     const thinKeys = findSites(thinFlat).map((s) => jointKey(thinFlat.boards[s.enter]!.name, thinFlat.boards[s.receive]!.name, s.axis, s.side));
@@ -896,7 +1047,7 @@ describe('runRefine — joined designs', () => {
       expect(client.complete).toHaveBeenCalledTimes(2);
       expect(out.violations).toEqual([]);
       expect(out.present.filter(isOverlap)).toHaveLength(1);
-      expect(out.joints).toEqual({ kept: 2, chosen: 1, dropped: 0, skipped: [] });
+      expect(out.joints).toEqual({ kept: 2, chosen: 1, dropped: 0, skipped: [], notes: [] });
     });
   });
 

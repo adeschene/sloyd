@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carryGrain, designValues, documentToDesign } from './refineDesign';
+import { designValues, documentToDesign } from './refineDesign';
 import { diffDesigns } from './designDiff';
 import { groupItems } from './treeOps';
 import { designToDocument, orient, parseDesign } from './generated';
@@ -12,7 +12,8 @@ import { worldTapers } from './taperWorld';
 import { boardExtents } from './geometry';
 import { ARCH } from './curveFixtures';
 import { flatDocument } from './tree';
-import type { AngleCut, Board, Cut, Posture, Rotation, SloydDocument } from './types';
+import { refineRefusal } from '../generate/refine';
+import type { AngleCut, Board, Cut, Posture, ProfileCut, Rotation, SloydDocument } from './types';
 
 const MAX = { distinct: 60, placed: 240 };
 const v = (x: number, y: number, z: number) => ({ x, y, z });
@@ -35,37 +36,32 @@ const snapshot = (doc: SloydDocument) => flatDocument(doc).boards
   .sort((a, b) => a[0].localeCompare(b[0]));
 
 describe('documentToDesign', () => {
-  it('refuses a document with holes (holes spec §6, defence in depth)', () => {
-    const doc = table();
-    const holed = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)) };
-    expect(refused(holed)?.reason).toBe('holes');
-    // a shaped part: the row lives on its Shape
-    const shaped = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : s)) };
-    expect(doc.shapes.length).toBeGreaterThan(0);   // role-linked parts share a Shape: the case below is never skipped
-    expect(refused(shaped)?.reason).toBe('holes');
-    expect(refused(doc)).toBeNull();
-  });
+  const HOLE = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
+  const BAND = { side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' };
+  const ROUNDOVER: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { loop: true } };
 
-  it('refuses a document with curves (curves spec §7, defence in depth)', () => {
-    const doc = table();
-    const curved = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)) };
-    expect(refused(curved)?.reason).toBe('curves');
-    const shaped = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, curves: [ARCH] } : s)) };
-    expect(doc.shapes.length).toBeGreaterThan(0);
-    expect(refused(shaped)?.reason).toBe('curves');
-  });
-
-  it('refuses hardware on a part or an assembly, never the project\'s (hardware spec §6, defence in depth)', () => {
-    const doc = { ...table(), hardwareTypes: [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: null }] };
+  it('Refine accepts a holed, curved, profiled, banded project with hardware (spec §6)', () => {
+    const base = { ...table(), hardwareTypes: [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: null }] };
     const HW = [{ type: 'h1', count: 2 }];
-    expect(refused({ ...doc, hardware: HW })).toBeNull();
-    const onPart = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, hardware: HW } : b)) };
-    expect(refused(onPart)).toEqual({ reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." });
-    const onShape = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, hardware: HW } : s)) };
-    expect(doc.shapes.length).toBeGreaterThan(0);
-    expect(refused(onShape)?.reason).toBe('hardware');
-    const onAssembly = { ...doc, definitions: doc.definitions.map((d) => ({ ...d, hardware: HW })) };
-    expect(refused(onAssembly)).toEqual({ reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Left drawer, Right drawer). Refine before adding hardware, or remove it first." });
+    const featured = { ...base, boards: base.boards.map((b, i) => (i === 0 ? { ...b, holes: [HOLE], curves: [ARCH], profiles: [ROUNDOVER], bands: [BAND], hardware: HW } : b)),
+      shapes: base.shapes.map((s, i) => (i === 0 ? { ...s, holes: [HOLE], hardware: HW } : s)),
+      definitions: base.definitions.map((d) => ({ ...d, hardware: HW })) };
+    expect(base.shapes.length).toBeGreaterThan(0);
+    expect(refused(featured)).toBeNull();
+    expect(refineRefusal(featured)).toBeNull();
+    expect('design' in documentToDesign(featured, MAX)).toBe(true);
+  });
+
+  it('the taper pre-check reads a featured part in its own frame', () => {
+    // A square-ish slab whose length runs along Z: on the tie orient would put the length on X, and the taper
+    // (toward -z) would then not run along it ('along'). A holed part keeps the frame it is stored in, so it is
+    // not refused; the same part without a feature is judged as the design re-encodes it.
+    const taper = { id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 4, amount: 1 }) };
+    const mk = (holes: typeof HOLE[]) => ({ ...createBoard({ name: 'Slab', length: 10, width: 10, thickness: 1, posture: 'flat', rotation: 90 }), angleCuts: [taper], holes });
+    const own = documentToDesign({ ...createDocument('T'), boards: [mk([HOLE])] }, MAX);
+    expect('refused' in own && own.refused).toBe(false);
+    const bare = documentToDesign({ ...createDocument('T'), boards: [mk([])] }, MAX);
+    expect('refused' in bare && bare.refused).toEqual({ reason: 'taper-form', message: "Slab's taper can't be described to Refine (it no longer runs along the part's longest side) — edit it in Properties first." });
   });
 
   it('round-trips: converting back (centre: false) reproduces every placed part exactly', () => {
@@ -174,22 +170,7 @@ describe('documentToDesign — shapes and normalised assemblies', () => {
   });
 });
 
-describe('carryGrain', () => {
-  const original = designToDocument({ name: 'G', parts: [{ ...part('Shelf', [0, 0, 0], [30, 0.75, 11]), grain: 'width' }],
-    assemblies: [{ name: 'D', parts: [{ ...part('Front', [0, 0, 0], [10, 4, 0.75]), grain: 'width' }], placements: [{ name: 'Top drawer', at: v(0, 5, 0) }] }] }).doc;
-
-  it('gives a part of the same flat name the original grain, and leaves others without one', () => {
-    const out = carryGrain({ name: 'G', parts: [part('Shelf', [0, 0, 0], [30, 0.75, 11]), part('New', [0, 1, 0], [5, 1, 1])], assemblies: [] }, original);
-    expect(out.parts.map((p) => p.grain)).toEqual(['width', undefined]);
-    expect('grain' in out.parts[1]).toBe(false);
-  });
-
-  it('matches an assembly part through its placements', () => {
-    const out = carryGrain({ name: 'G', parts: [], assemblies: [{ name: 'Whatever', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Top drawer', at: v(0, 5, 0) }] }] }, original);
-    expect(out.assemblies![0].parts[0].grain).toBe('width');
-  });
-
+describe('documentToDesign — mirrored', () => {
   it('refuses a design containing a mirrored assembly (mirrored-instances spec §6)', () => {
     const d = designToDocument({ name: 'P', parts: [], assemblies: [{ name: 'Side', parts: [{ name: 'A', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 4 } }], placements: [{ name: 'L', at: { x: 0, y: 0, z: 0 } }, { name: 'R', at: { x: 30, y: 0, z: 0 } }] }] } as GeneratedDesign).doc;
     const m = { ...d, instances: d.instances.map((i, k) => (k === 1 ? { ...i, mirrored: true } : i)) };

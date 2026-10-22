@@ -62,7 +62,6 @@ src/
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units);
 │   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
 │   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
-│   ├── holedRefusal.ts   holedParts / holedRefusal: Refine refuses a holed project, naming the parts (joinery rules out kinds, Repair accepts; chunk 1)
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
@@ -141,7 +140,6 @@ src/
 │   │                     by cause: too tight, would overlap another profile, would run off the part), stopWords (`, from <a> to <b>
 │   │                     (stopped)` one side; `, from <Start> round <between> to <Stop> (stopped)` two, `<between>` walking the sides in travel
 │   │                     order — never the path), sweptRun (a stop's `round the corner(s)` only for a through end at a corner arc)
-│   ├── curvedRefusal.ts  curvedParts / curvedRefusal: Refine refuses a curved or profiled project (after holes'); joinery rules out kinds and Repair accepts (chunk 2)
 │   ├── bandModel.ts      edge banding's stored model (inv 54; imports only `ids` and `types`): BUILT_IN_BAND (`band-iron-on`),
 │   │                     BAND_KINDS, CORNER_RULES, BAND_SIDES (canonical: width-min, width-max, length-min, length-max), BAND_FIELDS
 │   │                     (inv 40), canonicalBands, mirrorBands (inv 44: a flag flip), copyBand/sameBands/bandValues, withBands,
@@ -156,14 +154,12 @@ src/
 │   │                     read by strips, tapeRuns (line chords clipped, arcs whole) and glueLines (F1: nothing after give-way, nothing);
 │   │                     tests bandingVisible.test.ts (+ generate/joints/bandingVisible.joined.test.ts, the metric applyJoints case)
 │   ├── bandText.ts       bandLine (THE band line, moved from cutlist.ts), coreNote (`Drawn at the finished size; cut … before banding.`) (→ units)
-│   ├── bandedRefusal.ts  bandedParts / bandedRefusal: Refine refuses a banded project (after curves'); joinery rules out kinds and Repair accepts (chunk 3)
 │   ├── hardwareModel.ts  hardware's stored model (inv 55; imports only `./types`): HARDWARE_FIELDS (inv 40), HARDWARE_COUNT_MAX (999),
 │   │                     PACK_SIZE_MAX, canonicalHardware, copyHardwareUse/sameHardware/sameHardwareType, withHardwareUse, mergeHardware
 │   │                     (Ungroup); `hardware` is a SHARED field in LINK_FIELDS (inv 45)
 │   ├── hardware.ts       THE hardware arithmetic (inv 55; no `units`): hardwareTotals (a part per placement, an assembly per placement of
 │   │                     its definition, the project once; hidden parts count; where-used lines per STORED holder), hardwareUsedBy, holderHardware
 │   │                     (STORED arrays, never resolveBoard's copy: live bug c9d5c08), holderPlacements; memoised and deep-frozen
-│   ├── hardwareRefusal.ts hardwareHolders / hardwareRefusal: Refine refuses hardware on parts and assemblies (takes the STORED document, P2)
 │   ├── outline.ts        unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
 │   │                     curvedEdges' boundary of coplanar convex pieces
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
@@ -210,8 +206,13 @@ src/
 │                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut ids)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps)
-│   ├── refineDesign.ts   documentToDesign (Refine's input + refusals, incl. 'taper-form'/'angle-form'; definitions normalised),
-│   │                     carryGrain, designValues (exact values kept; angles via the exact-angle map), definitionCorner
+│   ├── featureCarry.ts   carryFromOriginal (Refine carries holes, curves, profiles, bands and hardware onto returned parts by flat name, in the
+│   │                     ORIGINAL frame; replaced carryGrain; inv 56), featuredKinds, hasFrameFeatures, featureTurned ('feature-turned', fed to the
+│   │                     repair loop via EvaluateOpts.extraFaults)
+│   ├── carryText.ts      kindsText, featuredNote (the USER-turn note in refineMessage), carriedSummary (RefineOutcome.carried {notKept, check}, computed
+│   │                     plain-to-plain BEFORE runJoinery; shown in full by RefineDialog)
+│   ├── refineDesign.ts   documentToDesign (Refine's input + refusals, incl. 'taper-form'/'angle-form'; definitions normalised; pre-checks judge a
+│   │                     featured part in its own frame, inOwnFrame), designValues (exact values kept; angles via the exact-angle map), definitionCorner
 │   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units); taperLines/angleLines (kind `angle`;
 │   │                     a bevel placed by face AND long point)
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
