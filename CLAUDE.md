@@ -44,13 +44,14 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
 
 ## Status
 
-- **Production: `133c669`, bundle `index-CYPvNoJ0.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (joinery
-  features chunk 2: joinery and Repair accept curves and profiles; deployed 2026-10-22). Owed to the user: the summary-line
+- **Production: `100c691`, bundle `index-COsxvOYF.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (the metric notch
+  drop, fu 416, and fu 415's end-face clearance, on joinery features chunk 2; deployed 2026-10-22). Owed to the user: the summary-line
   and `FEATURE_CHECK_FAILED` words, the chunk-2 spec amendments (the bow correction), fu 410–412 and the hardware words.
 - **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
 
   | Roll back to | Bundle | Schema | Cost |
   |---|---|---|---|
+  | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416) |
   | `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
   | `98c7df4` (hardware) | `index-BZhrLswD.js` | 20 | free (no schema change); joinery refuses holed projects again |
   | `4a6d6a1` (band wording) | `index-QDQAnB8n.js` | 19 | REFUSES every project saved at 20 — export first |

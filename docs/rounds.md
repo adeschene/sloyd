@@ -99,9 +99,15 @@
 | hardware (BOM) | 10-21 | 20 | Hardware types (name, pack size, price) per project; counts on parts, assemblies and the project that multiply with copies (`hardware.ts`, inv 55); the cut list's Hardware section with where-used lines, Buying's Hardware block; Properties' Hardware section, Materials & prices' Hardware section; Refine refuses hardware on parts. **Built on merged `98c7df4`, deployed 2026-10-21 (`index-BZhrLswD.js`)** |
 | joinery accepts holes (chunk 1) | 10-21 | — | Add joinery rules out only the joint kinds whose zone a hole enters (`featureZones.ts`, watched trials; rabbet and lap units), says why per site (`ruledOutText.ts`); `rebaseHoles` + `resizeAt` inverse; the gate compares holes; Repair accepts holed projects; Refine still refuses (inv 41/50; fu 328 closed, 413, 414). **Merged `f3493a7`, deployed 2026-10-22 (`index-ChnyDt9R.js`)** |
 | joinery accepts curves and profiles (chunk 2) | 10-22 | — | Add joinery rules out only the joint kinds whose zone a curve or profile enters (`featureRegions.ts`; judged in the original frame, P5; per-face run-through exception, P7); `rebaseCurves` / `rebaseProfiles` + `resizeAt` inverse; the gate compares curves and profiles; Repair accepts curved and profiled projects; Refine still refuses (inv 41/53; fu 363 first piece closed, 415). **Merged `133c669`, deployed 2026-10-22 (`index-CYPvNoJ0.js`)** |
+| notch drop + fu 415 | 10-22 | — | A metric Half-round notch stored at its stored chord's half circle; the loader holds one a few ulps past it (fu 416, closed); a curve that only meets a tenoned end keeps the growing kinds when it clears the tenon (fu 415, the user's ruling; fu 417 the cost); `rectOverlapsWaste` counts a side only where it enters the waste. **Merged `100c691`, deployed 2026-10-22 (`index-COsxvOYF.js`)** |
 
 ## Status log (to 2026-10-22)
 
+- **Notch drop + fu 415 (2026-10-22; branch `notch-and-bow`, MERGED `100c691`, DEPLOYED as `index-COsxvOYF.js`, CSS unchanged; schema 20)**: fu 416
+  closed (archCurve stores a notch at its stored chord's half circle; the loader holds an arc within 4 ulps of its coordinates past the bound
+  to it — swept 25–3600 mm); fu 415 closed by the user's ruling (end-face clearance; costs: fu 417 and a dadoed bowed end's step at the
+  housing). One independent review (its loader-tolerance finding fixed). 7390 tests. Verified by bundle hash in-network and at the edge, CSP,
+  the old bundle 404s, a clean real-browser load, production storage read empty after. Rollback to `133c669` is free.
 - **Joinery accepts curves and profiles (joinery features chunk 2; 2026-10-22; branch `joinery-curves`, MERGED `133c669`, DEPLOYED 2026-10-22 as `index-CYPvNoJ0.js` (CSS unchanged); verified by bundle hash in-network and at the edge, CSP, the old bundle 404s in-network, a clean real-browser load, production storage read empty after; rollback to `f3493a7` is free)**:
   spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P4–P8 and *Amended (execution, chunk 2)*), plan
   `docs/superpowers/plans/2026-10-22-sloyd-joinery-curves.md`. Branch tree: 7382 tests across 217 files. No schema change, so rolling back is free.
