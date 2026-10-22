@@ -73,7 +73,7 @@ describe('the Refine dialog reads a document once (F4)', () => {
 describe('bands (joinery-features chunk 3)', () => {
   const withBand = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, bands: [{ side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' }] } : b)) });
   // joineryRefusal no longer refuses bands, so a joined banded project is refused by Refine's own words, before the gate and any call.
-  it('a joined Refine of a banded project refuses in Refine\'s words without a call', async () => {
+  it('a joined Refine of a banded project refuses in Refine\'s words before the gate', async () => {
     gate.mockClear();
     const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
     const out = await runRefine(c, withBand(joined, 'Top'), S, new AbortController().signal, () => {});

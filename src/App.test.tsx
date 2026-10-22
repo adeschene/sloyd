@@ -2092,7 +2092,7 @@ describe('Add joinery with holes (joinery-holes final review)', () => {
   // Bands no longer refuse (joinery-features chunk 3); a taper running into the joint is the refusal that stands.
   it('a refused project (holes and a taper into the joint) never runs the feature trials', async () => {
     const dialog = await open(holedDoc({ angleCuts: [{ id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [3, 0]] }] }));
-    expect(within(dialog).getByRole('status').textContent).toMatch(/taper|angle/i);
+    expect(within(dialog).getByRole('status').textContent).toBe("Rail's taper runs to the length min end, where it joins Leg — taper the other end, or remove it.");
     expect(featureZones.featureAllowed).not.toHaveBeenCalled();
   });
 

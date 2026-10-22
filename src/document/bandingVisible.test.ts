@@ -78,16 +78,17 @@ describe('the visible run (P12)', () => {
     it('a full-thickness cut at the end on the OPPOSITE side', () => full([cut('width', 'max', 'thickness', 0, 1, 0.5), cut('width', 'max', 'thickness', 19, 1, 0.5)]));
     it('a cut stopping 2e-9 short of the end (beyond EPS)', () => full([cut('width', 'min', 'thickness', 2e-9, 1, 0.5)]));
   });
-  it('a cut within EPS (exactly 1e-9) of the end, side and faces still shortens it', () => {
-    // offset 1e-9: R.length[0] = 1e-9 ≤ EPS; depth 3.5 − 1e-9 over 3.5: touches width max at ≥ w − EPS, never at ≥ w.
-    const b = rail(20, [cut('width', 'min', 'thickness', 1e-9, 1, 0.5)], on('m', W0));
-    expect(visibleRun(b, W0, T)).toEqual({ lo: 1 + 1e-9, hi: 20, shortLo: true, shortHi: false });
-    const far = rail(20, [cut('width', 'min', 'thickness', 19, 1 - 1e-9, 0.5)], on('m', W0));
+  it('a cut within EPS (half of EPS, 0.5e-9) of the end, side and faces still shortens it', () => {
+    // offset 0.5e-9: R.length[0] = 0.5e-9 ≤ EPS; depth 3.5 − 0.5e-9 over 3.5: touches width max at ≥ w − EPS, never at ≥ w.
+    // (Inside EPS, not on it: a value exactly EPS away is at the mercy of the subtraction's rounding.)
+    const b = rail(20, [cut('width', 'min', 'thickness', 0.5e-9, 1, 0.5)], on('m', W0));
+    expect(visibleRun(b, W0, T)).toEqual({ lo: 1 + 0.5e-9, hi: 20, shortLo: true, shortHi: false });
+    const far = rail(20, [cut('width', 'min', 'thickness', 19, 1 - 0.5e-9, 0.5)], on('m', W0));
     expect(visibleRun(far, W0, T)).toEqual({ lo: 0, hi: 19, shortLo: false, shortHi: true });
-    const opp = rail(20, [cut('width', 'min', 'thickness', 0, 1, 3.5 - 1e-9)], on('m', W1));
+    const opp = rail(20, [cut('width', 'min', 'thickness', 0, 1, 3.5 - 0.5e-9)], on('m', W1));
     expect(visibleRun(opp, W1, T).shortLo).toBe(true);
-    // the thickness within EPS: a pocket 3/4 − 1e-9 deep from the min face
-    const th = rail(20, [cut('thickness', 'min', 'width', 0, 1, 0.75 - 1e-9, [0, 3])], on('m', W0));
+    // the thickness within EPS: a pocket 3/4 − 0.5e-9 deep from the min face
+    const th = rail(20, [cut('thickness', 'min', 'width', 0, 1, 0.75 - 0.5e-9, [0, 3])], on('m', W0));
     expect(visibleRun(th, W0, T).shortLo).toBe(true);
   });
   it('memoised per part and deep-frozen', () => {
@@ -157,13 +158,13 @@ describe('the visible run (P12)', () => {
       expect(visibleRun(b, W0, 0)).toEqual({ lo: 1, hi: 20, shortLo: true, shortHi: false });
       expect(tapeRuns({ ...b, bands: on(BUILT_IN_BAND_ID, W0) }, types)[0]!.length).toBe(19 + tapeAllowance);
     });
-    it('a cut exactly t deep shortens; within EPS of t shortens; 2e-9 short of t does not', () => {
+    it('a cut exactly t deep shortens; within EPS of t (0.5e-9 short) shortens; 2e-9 short of t does not', () => {
       expect(strip(edged([cut('width', 'min', 'thickness', 0, 1, 0.25)]), W0).finished).toBe(19);
-      expect(visibleRun(edged([cut('width', 'min', 'thickness', 0, 1, 0.25 - 1e-9)]), W0, T).shortLo).toBe(true);
+      expect(visibleRun(edged([cut('width', 'min', 'thickness', 0, 1, 0.25 - 0.5e-9)]), W0, T).shortLo).toBe(true);
       expect(visibleRun(edged([cut('width', 'min', 'thickness', 0, 1, 0.25 - 2e-9)]), W0, T).shortLo).toBe(false);
       // the max side: R.width[0] against w − t
       expect(strip(edged([cut('width', 'max', 'thickness', 19, 1, 0.25)], W1), W1).finished).toBe(19);
-      expect(visibleRun(edged([cut('width', 'max', 'thickness', 19, 1, 0.25 - 1e-9)], W1), W1, T).shortHi).toBe(true);
+      expect(visibleRun(edged([cut('width', 'max', 'thickness', 19, 1, 0.25 - 0.5e-9)], W1), W1, T).shortHi).toBe(true);
       expect(visibleRun(edged([cut('width', 'max', 'thickness', 19, 1, 0.25 - 2e-9)], W1), W1, T).shortHi).toBe(false);
     });
     it('a corner cut shorter along the run than the neighbour band, where the band gives way: it starts at the neighbour', () => {

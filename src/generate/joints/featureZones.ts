@@ -108,7 +108,8 @@ function watchFeatures(shapes: ShapeCache, bands: BandCache, kind: TrialKind): {
     const moved = original(box, shiftOf(part));
     return bandHit(part, (b) => b.region !== null && overlaps(b.region, moved));
   };
-  /** P11 at a growing end. */
+  /** P11 at a growing end. The `d !== 'length'` clause also answers a THICKNESS growth: defensive, since no recipe grows a
+   *  part through its thickness today (a probe over every joinery test never reached it). */
   const bandGrows = (part: number, board: Board, d: Dimension, end: 'min' | 'max'): Hit | null => {
     const shift = shiftOf(part);
     const { shoulder } = tenonSection(board.thickness, board.width);
@@ -121,7 +122,9 @@ function watchFeatures(shapes: ShapeCache, bands: BandCache, kind: TrialKind): {
       return Math.min(region.width[1], hi) - Math.max(region.width[0], lo) > HOLE_EPS;
     });
   };
-  /** P11 at a trimmed end. */
+  /** P11 at a trimmed end. The region clause only conflicts for a THICKNESS trim (every band's strip spans the thickness)
+   *  or a far-end band a slab deeper than the part less the band would reach: defensive, since rabbet units trim only a
+   *  length or width end today (a probe over every joinery test reached no conflict there). */
   const bandTrims = (part: number, slab: Region, d: Dimension, end: 'min' | 'max'): Hit | null => {
     const moved = original(slab, shiftOf(part));
     return bandHit(part, ({ band, region }) => {

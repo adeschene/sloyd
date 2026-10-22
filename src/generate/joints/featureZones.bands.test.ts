@@ -186,6 +186,9 @@ describe('the growing end (P9, P11)', () => {
     const out = featureAllowed(doc, [site]);
     expect(out.sites[0]!.allowed).toEqual(['butt']);
     expect(out.ruledOut).toEqual([{ site: 1, kind: 'dado', part: panel, feature: 'edge band' }]);
+    // tape of thickness 0 along the width-grown end too: the `d !== 'length'` gate comes before tape's no-region exemption
+    const taped: FlatDocument = { ...doc, bandTypes: [...doc.bandTypes, tape(0)], boards: doc.boards.map((b, i) => (i === panel ? { ...b, bands: b.bands.map((x) => ({ ...x, type: 'tape-0' })) } : b)) };
+    expect(featureAllowed(taped, [site]).ruledOut).toEqual([{ site: 1, kind: 'dado', part: panel, feature: 'edge band' }]);
   });
 });
 

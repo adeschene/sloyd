@@ -502,6 +502,8 @@ function breaches(input: FlatDocument, sites: readonly Site[], { label, out }: R
           for (const s of strips) {
             if (onEnd(s.band, d, end)) { found.push(`${at}: trimmed ${-amount} at ${d} ${end}, which carries a ${s.type.id} band`); continue; }
             if (runOf(s.band.side) === d) continue; // shortened with the part
+            // Defensive: reached for a far-end band (12 times over the fixtures, measured), but it can flag only a thickness
+            // trim (no recipe makes one) or a slab deeper than the part less the band — never seen.
             if (s.region && overlaps(s.region, slab)) found.push(`${at}: trimmed slab at ${d} ${end} meets the ${s.type.id} strip on ${JSON.stringify(s.band.side)}`);
           }
         }
@@ -630,7 +632,7 @@ describe('the bands oracle: no joint takes wood from an edge band (joinery featu
     expect(results.some((r) => r.variant === 'ends' && r.ruledOut.some((o) => o.feature === 'edge band')), 'by a band on an end').toBe(true);
     expect(seen.cutsJudged, 'cuts judged on banded parts').toBeGreaterThan(0);
     expect(seen.sideCutsJudged, 'cuts judged on an edged side panel').toBeGreaterThan(0);
-    expect(seen.trims, 'trims of banded parts').toBeGreaterThan(0);
+    expect(seen.trims, 'trims of banded parts').toBeGreaterThanOrEqual(4);
     expect(seen.dadoHousedSolid, 'a dado housing a part with solid edging along it').toBeGreaterThan(0);
     expect(seen.dadoHousedTape, 'a dado housing a taped part').toBeGreaterThan(0);
     expect(seen.tenonExempt, 'a tenon grown beside a band clear of its section').toBeGreaterThan(0);
