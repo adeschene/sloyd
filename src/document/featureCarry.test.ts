@@ -67,28 +67,36 @@ describe('carryFromOriginal', () => {
     expect(c.holes).not.toBe(shaped.shapes[0]!.holes);
   });
 
+  // Two definitions (A placed as Left, B as Right) with different features and hardware, so first-match is observable.
+  const twoDefs = (): SloydDocument => {
+    const base = designToDocument({ name: 'G', parts: [], assemblies: [
+      { name: 'A', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])], placements: [{ name: 'Left', at: v(0, 0, 0) }] },
+      { name: 'B', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])], placements: [{ name: 'Right', at: v(20, 0, 0) }] },
+    ] }).doc;
+    const defOf = (name: string) => base.instances.find((i) => i.name === name)!.definition;
+    const mark = (id: string, hole: HoleRow, hw: number) => ({ ...base.definitions.find((d) => d.id === id)!,
+      boards: base.definitions.find((d) => d.id === id)!.boards.map((b) => ({ ...b, ...FEATURES, holes: [hole] } as StoredBoard)),
+      hardware: [{ type: 'hw-1', count: hw }] });
+    return { ...base, definitions: [mark(defOf('Left'), { ...HOLE, id: 'hA' }, 2), mark(defOf('Right'), { ...HOLE, id: 'hB' }, 7)] };
+  };
+  const model = (names: string[]): GeneratedDesign => ({ name: 'G', parts: [], assemblies: [{ name: 'X', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
+    placements: names.map((n) => ({ name: n, at: v(0, 0, 0) })) }] });
+
   it('an assembly part tries each placement in order', () => {
-    const base = designToDocument({ name: 'G', parts: [], assemblies: [{ name: 'D', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Left', at: v(0, 0, 0) }, { name: 'Right', at: v(20, 0, 0) }] }] }).doc;
-    const doc = { ...base, definitions: base.definitions.map((d) => ({ ...d, boards: d.boards.map((b) => ({ ...b, ...FEATURES } as StoredBoard)) })) };
-    const out = carryFromOriginal({ name: 'G', parts: [], assemblies: [{ name: 'X', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Nope', at: v(0, 0, 0) }, { name: 'Right', at: v(20, 0, 0) }] }] }, doc);
-    const c = out.assemblies![0]!.parts[0]!.carry!;
-    expect(c.holes).toEqual([HOLE]);
-    expect(c.frame).toBeDefined();
+    const doc = twoDefs();
+    expect(carryFromOriginal(model(['Right', 'Left']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hB');
+    expect(carryFromOriginal(model(['Left', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hA');
+    expect(carryFromOriginal(model(['Nope', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hB');
+    expect(carryFromOriginal(model(['Right']), doc).assemblies![0]!.parts[0]!.carry!.frame).toBeDefined();
   });
 
-  it('assembly hardware is carried by placement name', () => {
-    const base = designToDocument({ name: 'G', parts: [], assemblies: [{ name: 'D', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Left', at: v(0, 0, 0) }, { name: 'Right', at: v(20, 0, 0) }] }] }).doc;
-    const doc = { ...base, definitions: base.definitions.map((d) => ({ ...d, hardware: [{ type: 'hw-1', count: 2 }] })) };
-    const out = carryFromOriginal({ name: 'G', parts: [], assemblies: [{ name: 'X', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Right', at: v(20, 0, 0) }] }] }, doc);
-    expect(out.assemblies![0]!.carry).toEqual({ hardware: [{ type: 'hw-1', count: 2 }] });
-    expect(out.assemblies![0]!.carry!.hardware[0]).not.toBe(doc.definitions[0]!.hardware[0]);
-    const none = carryFromOriginal({ name: 'G', parts: [], assemblies: [{ name: 'X', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Zed', at: v(20, 0, 0) }] }] }, doc);
-    expect('carry' in none.assemblies![0]!).toBe(false);
+  it('assembly hardware is carried by placement name (first match)', () => {
+    const doc = twoDefs();
+    const out = carryFromOriginal(model(['Right', 'Left']), doc);
+    expect(out.assemblies![0]!.carry).toEqual({ hardware: [{ type: 'hw-1', count: 7 }] });
+    expect(out.assemblies![0]!.carry!.hardware[0]).not.toBe(doc.definitions.flatMap((d) => d.hardware).find((h) => h.count === 7));
+    expect(carryFromOriginal(model(['Left', 'Right']), doc).assemblies![0]!.carry).toEqual({ hardware: [{ type: 'hw-1', count: 2 }] });
+    expect('carry' in carryFromOriginal(model(['Zed']), doc).assemblies![0]!).toBe(false);
   });
 
   it('hardware only: carry without frame', () => {
@@ -118,10 +126,14 @@ describe('carryFromOriginal', () => {
     expect(hasFrameFeatures({ ...b, hardware: [{ type: 'h', count: 1 }] })).toBe(false);
   });
 
-  it('parseDesign drops carry', () => {
+  it('parseDesign drops carry, on parts, assemblies and assembly parts', () => {
     const json = JSON.parse(JSON.stringify(SHAKER_TABLE_JSON)) as GeneratedDesign;
-    const withCarry = { ...json, parts: json.parts.map((p, i) => (i === 0 ? { ...p, carry: { holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] } } : p)) };
+    const carry = { holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] };
+    const withCarry = { ...json, parts: json.parts.map((p, i) => (i === 0 ? { ...p, carry } : p)),
+      assemblies: [{ name: 'Asm', carry: { hardware: [] }, parts: [{ ...json.parts[0]!, carry }], placements: [{ name: 'P', at: { x: 0, y: 0, z: 0 } }] }] };
+    expect((withCarry.assemblies as unknown[]).length).toBeGreaterThan(0);
     const out = parseDesign(withCarry)!;
     expect(out.parts.every((p) => !('carry' in p))).toBe(true);
+    expect(out.assemblies!.every((a) => !('carry' in a) && a.parts.every((p) => !('carry' in p)))).toBe(true);
   });
 });
