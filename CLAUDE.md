@@ -61,16 +61,14 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **NEXT (audited 2026-10-22):** nothing is pending deploy. Joinery features chunk 3 (bands; fu 398's joinery and Repair
-  half) is next and has NO plan yet: write one from the spec (`2026-10-21-sloyd-joinery-features-design.md` §4.4, §5, §7;
-  the user's Q2 ruling, §8: count only the visible length). Owed to the user: the joinery summary-line words (`… ruled out —
-  <part>'s roundover profile is in the way.`) and `FEATURE_CHECK_FAILED`'s; that spec's chunk-2 amendments (the bow correction,
-  superseded by fu 415's ruling, and its costs: fu 417, a dadoed bowed end's step); fu 402(1)–(2) (band looks on real
-  hardware, glue lines on a real print); fu 410–412 plus the hardware spec's *Amended (implementation)* words. As the user
-  directs: fu 396–403 (396, 397 open by decision; 398–400 features; 401, 403 record-only), the hardware residue 404–409
-  (404–407 features; 408 open by decision; 409 record-only), 413/414 (record-only) and 417 (ask first). fu 267 is CLOSED (both halves shipped). No follow-up is open as code-sized work: what is left is a feature spec, the
-  user's eye or hardware, or an open-by-decision item (ask first) — all under Open follow-ups below.
-  Every follow-up 1–380 was triaged 2026-10-16; some entries close mid-line, so read an entry whole.
+- **NEXT (2026-10-22):** joinery features chunk 3 (bands; fu 398's joinery and Repair half) is implemented on branch
+  `joinery-bands`, NOT merged or deployed: merge `--no-ff` to master, verify, then deploy per `DEPLOYMENT.local.md` — the
+  user's call (`docs/rounds.md`). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
+  hand-notched banded documents, its spec amendments (`2026-10-21-sloyd-joinery-features-design.md`; Q3–Q5 in §8), the
+  paid run; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
+  by fu 415; costs fu 417 and a dadoed bowed end's step); fu 402(1)–(2) (band looks on real hardware, glue lines on a real
+  print); fu 410–412 plus the hardware spec's *Amended (implementation)* words. As the user directs: fu 396–409, 413/414,
+  417–423 (417, 419 ask first): Open follow-ups below. No follow-up is open as code-sized work.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -208,7 +206,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55), `hardwareRefusal.ts` |
 | edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts` (inv 54) |
 | bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
-| refusals of joinery/Refine/Repair | `holedRefusal.ts` and `curvedRefusal.ts` (Refine only), `generate/joints/featureZones.ts` (per-site ruling-out), `document/featureRegions.ts`, `ruledOutText.ts`, `bandedRefusal.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
+| refusals of joinery/Refine/Repair | `holedRefusal.ts`, `curvedRefusal.ts` and `bandedRefusal.ts` (Refine only), `generate/joints/featureZones.ts` (per-site ruling-out), `document/featureRegions.ts`, `sites.ts` `rangesOf` (stop insets), `ruledOutText.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
 | cut list, nesting, Buying | `cutlist.ts` (inv 18), `nesting.ts` (inv 19, 22, 23), `purchase.ts`, `materials.ts` (inv 49) |
 | drawings | `drawing.ts` `drawView` (inv 47), `diagram.ts`, `plans.ts`, `featureKeys.ts`, `sectionView.ts`, `section.ts` (inv 51) |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `refineDesign.ts`, `roleLinks.ts`, `generate/` (inv 41) |
@@ -490,7 +488,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `cutIntoEnd`. Angle cuts: one decider, `joineryRefusal` (`taperConflicts`,
     `angleConflicts`, `clearsTenon`), one sentence per part; `rebaseAngleCuts` re-anchors on
     resize and `readJoints`' `resizeAt` undoes it exactly. The unjoin gate compares cuts as a
-    MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved or profiled project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`). **A curve or profile is judged in the ORIGINAL frame (P5), never on a mid-trial board; the run-through exception is decided per growing face (P7)**; a curve or straight profile that only meets a growing end is exempt when its end-face waste clears the tenon section (fu 415). `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves and profiles. A joined Refine is refused up front when an angle cut
+    MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved, profiled or banded project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`); stop ends are narrowed to those that clear (one decider); a stopped dado's smallest inset clears a receiver band. **A curve, profile or band is judged in the ORIGINAL frame (P5, P9; a band as stored), never on a mid-trial board; the run-through exception is decided per growing face (P7)**; a curve or straight profile that only meets a growing end is exempt when its end-face waste clears the tenon section (fu 415). `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves, profiles and bands (exact). A joined Refine is refused up front when an angle cut
     already runs into a joint; a conflicting result comes back UNJOINED, never joined over it.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
@@ -611,8 +609,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 54. **`banding.ts` is the ONE place band numbers are computed** (core, strips, tape runs, faults),
     numbers-only, memoised and deep-frozen. **The model is the FINISHED size; the cut list prints the
     CORE**; bodies are untouched. **A faulted band adds nothing** and prints `— check: <words>`.
-    Authoring refuses an ADDED fault; a later one is KEPT. Joinery, Refine and Repair refuse banded
-    projects. A strip row has no `boardIds`: every reader of a row's parts handles an empty list. A
+    Authoring refuses an ADDED fault; a later one is KEPT. Refine refuses banded projects; joinery rules out only the joint kinds a band is in the way of (inv 41);
+    Repair accepts them; a strip, tape run and glue line count only the VISIBLE run (`visibleRun`, P12). A strip row has no `boardIds`: every reader of a row's parts handles an empty list. A
     band-free document is byte for byte as before (`bandFreeIdentity.test.ts`). The viewport paints a
     band by MOVING triangles into material groups 6+ (`bandedMesh`), never by recolouring a slot;
     `glueLines` is the ONE glue-line geometry; band types reach the drawings as an OPTIONAL argument.
@@ -628,7 +626,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7390 tests across 217 files
+npm test           # Vitest, currently 7483 tests across 221 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -637,19 +635,19 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–417). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–423). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
-This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
+This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 404–407 (hardware residue), 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328 (closed for joinery and Repair by joinery-features chunk 1; Refine stays under 329), 329–331, 334; curves 363 (Generate/Refine and the design checks; joinery and Repair closed by joinery chunk 2), 364, 366, 365 (blind curved recesses); banding 398 (joinery/Repair: spec'd as joinery-features chunk 3, needs a plan; Refine), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328 (closed for joinery and Repair by joinery-features chunk 1; Refine stays under 329), 329–331, 334; curves 363 (Generate/Refine and the design checks; joinery and Repair closed by joinery chunk 2), 364, 366, 365 (blind curved recesses); banding 398 (Refine; joinery and Repair closed by joinery chunk 3, on its branch), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1), 384(2), 387(1), 392(2), 393, 394, 272 (`docs/rounds.md`); 350 (a hand check of section markers); 106
-  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the *Amended (implementation)* rulings of the curves, profile runs and section views specs (list: `docs/rounds.md`, Owed to the user); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print); the joinery-features spec's chunk-2 amendments and words (NEXT above).
+  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the *Amended (implementation)* rulings of the curves, profile runs and section views specs (list: `docs/rounds.md`, Owed to the user); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print); the joinery-features spec's chunk-2 and chunk-3 amendments and words (NEXT above).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it), 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset: ask first). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop). For the user's eye: 410–412 (hardware wording).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it), 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset: ask first), 419 (Mitred limits at a shortened band end: ask first). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop), 418, 420–423 (chunk 3's residue). For the user's eye: 410–412 (hardware wording).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

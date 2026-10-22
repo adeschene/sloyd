@@ -6736,6 +6736,10 @@ edging and a profile routed into it all read as one piece of wood. The fix would
 bands, and Repair proving them. **Status:** open (feature; needs a spec).
 **Status:** open (feature). Its joinery and Repair half is spec'd (joinery-features spec §4.4, §5, §8 Q2: count only the visible
 length) as that spec's chunk 3, not started (needs its own plan, 2026-10-22); Refine stays open (needs a spec).
+**Status:** joinery and Repair half CLOSED (joinery-features chunk 3, 2026-10-22, on branch `joinery-bands`, not yet merged or
+deployed): joinery rules out only the joint kinds a band is in the way of, Repair accepts banded projects, and strips, tape and glue lines
+count only the visible run (inv 41, 54); §4.4 changes existing hand-notched banded documents (a full-thickness cut through the band
+at a run end now shortens its strip, tape and glue line), and no existing test's number moved. The Refine half stays open (feature; needs a spec).
 
 **399. A browser library of band types** (spec §1's non-goal). Band types are per project; a shop's usual edging has to be
 re-made in each project. This would follow the materials library precedent (`sloyd.materials.v1`). Prices raise a
@@ -6913,3 +6917,39 @@ no longer `[0, 0]` and `bowFields` / `cornerFields` return null: the Curves row 
 arc and 3 lines", and the bench line drops its preset words. At the far end a Bow keeps its kind but spans less than the edge, and a Rise
 edit refits it across the tenon. Geometry, the gate and unjoin are correct. A fix needs a design decision (does a bow on a tenoned rail
 run between the shoulders?). **Status:** open (feature; ask the user first).
+
+**418. Tape on a hand-cut arc is counted whole (2026-10-22).** The visible run (joinery-features chunk 3, P13) clips a tape run
+chord by chord: a LINE chord loses the part inside any qualifying cut's (run, across) rectangle, but an ARC chord is counted whole.
+Only a hand cut into an arc reaches it; the result is an over-buy, never an under-buy. Pinned by a test (`bandingVisible.test.ts`).
+**Status:** open (record-only).
+
+**419. Mitred known limits at a shortened end (2026-10-22).** Two cases from joinery-features chunk 3 (P12, F1), both at a notched banded
+corner under the Mitred rule: (a) a corner cut shallower along the run than the neighbour band leaves
+the neighbour's mitre over the square-ended strip (a strip of 29.9 against a glue line ending at 29.75); (b) a notch can leave a strip
+shorter than its mitre needs that still keeps its 45° mitre at its unshortened end (0.40 of run on 3/4" edging where the mitre needs 0.75: an
+impossible piece, its inner edge at −0.35), and that corner then draws no glue or mitre line. Candidate fix: square the end when the run
+is shorter than the mitre (and decide the neighbour's mitre at a shallow cut). **Status:** open (a candidate fix; ask the user first).
+
+**420. A dropped stop end gets no summary line (2026-10-22).** With "Offer clear ends" (joinery-features chunk 3, the user's ruling)
+`featureAllowed` drops a stop end whose trial meets a feature but keeps stopped-dado when another end clears; nothing is written to
+`ruledOut`, so the run's summary does not say why only one stop end was offered. **Status:** open (record-only).
+
+**421. Refine re-chooses a kept stopped dado at a dropped stop end (2026-10-22).** `validChoice` rejects a stop end that
+`featureAllowed` dropped, so a joined Refine would re-choose such a joint rather than keep it. Unreachable while Refine refuses
+holed, curved, profiled and banded projects (spec §3.5's kept joints). **Status:** open (revisit when Refine accepts features: fu 329,
+363, 398).
+
+**422. A shared-corner tape arc's halves are clipped per side (2026-10-22).** A corner arc shared by two taped sides is counted half to
+each (`tapeRuns`); with the visible run each half is clipped against its own side's qualifying cuts, after the ×0.5. The result can only
+over-buy. **Status:** open (record-only).
+
+**423. Joinery-features chunk 3's deferred minors and test gaps (2026-10-22).** Left after the final review's fix wave:
+- the bands oracle's floors are loose (`> 0` against 462 measured beside-edging stopped dados, `>= 4` against 454 narrowed-site ones);
+- its `tenonExempt` counter counts tape and solid together;
+- its assertion 4 (a tenoned edged rail keeps its plain length) would misfire on a part tenoned and ALSO length-trimmed (latent; no
+  fixture reaches it);
+- F1 (nothing visible after give-way) has no test under the Long rule (traced correct);
+- no "clip arcs too" mutation was run against the tape clip;
+- a band with no visible run still reduces the core and its neighbour's give-way, and `bandsMeetAtCorner` / `bandSignature` ignore
+  shortened corners (by ruling: the core is cut size; an edge-case core one band thickness short needs a cut removing the whole side).
+**Status:** open (record-only).
