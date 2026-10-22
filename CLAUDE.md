@@ -12,7 +12,7 @@
 > | `docs/invariants.md` | the FULL text of every invariant (condensed below; read the full one before touching its area) |
 > | `docs/module-map.md` | the annotated source tree, file by file |
 > | `docs/versioning.md` | the full migration table (what each loader step validates and drops) |
-> | `docs/rounds.md` | one row per shipped round, and the per-round Status log (merges, bundles, rollback, review items) |
+> | `docs/rounds.md` | one row per shipped round, and the per-round Status log (merges, bundles, rollback, review items), and the rollback table by schema boundary |
 > | `docs/follow-ups.md` | every follow-up; authoritative |
 > | `docs/history.md` | the record (narratives; text removed from this file on 2026-08-14 and 2026-10-07); not maintained |
 >
@@ -31,45 +31,21 @@ general-purpose CAD tool — the domain assumptions (boards, stock thickness, fr
 inches) are the point. The name is from *sloyd* (Swedish *slöjd*), the Scandinavian
 handicraft education tradition built around hand woodworking.
 
-What it does today (each round's row is in `docs/rounds.md`): boards with posture, quarter turns,
-grain and textures; rectangular joinery cuts (stopped too) and AI joinery; snap-move, guides and
-the tape; a project library; assemblies, components (shared shapes) and mirrored instances;
-multi-select and hide; copy in a row; Generate / Refine / Repair via Claude; the cut list
-(diagrams, sheet and board nesting, Buying with prices); the Plans sheet (exploded view with
-balloons, dimensioned elevations, feature keys, section views); angle cuts (taper, miter, bevel,
-chamfer); custom materials and nominal lumber; holes; a viewport section cut; metric display;
-curves (arch, notch, bow, rounded corners); edge profiles (straight, stopped, swept round the
-outline, two-side runs); edge banding (tape and solid edging); a hardware bill of materials (typed
-hardware counted on parts, assemblies and the project; the cut list's Hardware section and Buying).
+What it does today — boards, joinery (by hand and AI), assemblies and components, Generate/Refine/Repair via Claude,
+the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves, edge profiles, edge banding, hardware
+— is listed round by round in `docs/rounds.md`.
 
 ## Status
 
 - **Production: `3162e68`, bundle `index-DoG-TXKm.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (fu 419: a Mitred corner
   a mitre cannot be cut at is a butt, on joinery features chunk 3; deployed 2026-10-22). Owed to the user: see NEXT.
-- **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
-
-  | Roll back to | Bundle | Schema | Cost |
-  |---|---|---|---|
-  | `1d39344` (joinery chunk 3) | `index-bKxsxRuC.js` | 20 | free; a Mitred notched corner prints its old mitre again (fu 419) |
-  | `100c691` (notch drop) | `index-COsxvOYF.js` | 20 | free; joinery refuses banded projects again; a strip counts its full side again |
-  | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416); a bowed rail's ends join as butts again (fu 415) |
-  | `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
-  | `98c7df4` (hardware) | `index-BZhrLswD.js` | 20 | free (no schema change); joinery refuses holed projects again |
-  | `4a6d6a1` (band wording) | `index-QDQAnB8n.js` | 19 | REFUSES every project saved at 20 — export first |
-  | `dc8d5c3` / `834ce5a` / `37ced13` | `index-ymPlKpkL.js` / `index-Vul7x2lO.js` / `index-Df8FpxEW.js` | 19 | same |
-  | `90ef45f` (chunk c2) | `index-Cqf9kRT7.js` | 18 | REFUSES every project saved at 19 — export first |
-  | `dc49b01` (b1) | `index-CDDCzMGJ.js` | 18 | also REFUSES a two-side stopped run; a one-side stop on a turned path loads SILENTLY as a2's straight prism (on an arch it vanishes; data intact) |
-  | `3ee667e` (a1 + a2) | `index-BbXkYYy4.js` | 18 | also REFUSES an All round loop |
-  | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
-  | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
-
-- **NEXT (audited 2026-10-22):** joinery features chunk 3 (bands) and fu 419 are DEPLOYED; nothing is pending deploy and
-  no plan exists. FIRST: CLAUDE.md is over its ~60KB cap — move detail out (rules stay). Owed to the user: chunk 3's `edge band`
-  summary words, P10/P12–P14, §4.4's change to hand-notched banded documents, its spec amendments (Q3–Q5 in §8; Review Focus
-  4's test moved to 5/8 edging), fu 419's part note still reading "mitred corners" at a butted corner; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
-  by fu 415; costs fu 417 and a dadoed bowed end's step); fu 402(1)–(2) (band looks on real hardware, glue lines on a real
-  print); fu 410–412 plus the hardware spec's *Amended (implementation)* words. As the user directs: fu 396–409, 413/414,
-  417, 418, 420–423 (417 ask first): Open follow-ups below. No follow-up is open as code-sized work.
+- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free. The nearest
+  refusing boundary is `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 —
+  export first. Full table by schema boundary: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (audited 2026-10-22):** nothing is pending deploy and no plan exists; no follow-up is open as code-sized work.
+  Owed to the user: joinery chunk 3's words and spec amendments (its `docs/rounds.md` Status-log entry) and fu 419's part
+  note ("mitred corners" at a butted corner); chunk 2's (`docs/rounds.md`, Owed to the user); fu 402(1)–(2); fu 410–412.
+  As the user directs: the rest of Open follow-ups below (417 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -147,28 +123,9 @@ would be a second implementation, not a parallel path.
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
 document is trusted. `CURRENT_VERSION` is **20**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
-The full table — what each step validates, drops and refuses — is `docs/versioning.md`; update it
+The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
+would do — is `docs/versioning.md`; update it
 with every bump.
-
-| Step | Adds | Harm a build one version back would do |
-|---|---|---|
-| 1→2, 2→3, 3→4 | rotation fold, `posture`, `cuts` (per-board, raw) | — |
-| 4→5 | `stock.kerf` (defaulted, not clamped) | wrong number (sheet count) |
-| 5→6 | `guides` | silent loss on round-trip |
-| 6→7 | `Cut.stopMin`/`stopMax` | wrong geometry |
-| 7→8 `trueTurnsToV8` | true turns; mirrors cuts of 90° parts | wrong geometry |
-| 8→9 | `Board.link` | silent loss |
-| 9→10 | `instances`, `definitions` | every part in an assembly vanishes |
-| 10→11 `linksToShapes` | `shapes` (**after validation**) | un-shares every component |
-| 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness (**after validation**) | wrong geometry |
-| 12→13 | `Instance.mirrored` | a mirrored copy drawn unmirrored |
-| 13→14 | `angleCuts` | every taper/miter dropped |
-| 14→15 | `materials` (validated BEFORE the parts) | a custom material becomes pine |
-| 15→16 | `holes` | every hole dropped |
-| 16→17 | `curves`; an unknown segment `type` REFUSES the document | every curve dropped |
-| 17→18 | `profiles` (curves `profileOf` recognises MOVED in on every load); an unknown `kind` REFUSES | every profile dropped, then autosaved |
-| 18→19 | `bandTypes`, `bands`, `cornerRule`; an unknown band type `kind` REFUSES | every band dropped; a banded panel's FINISHED size printed as its cut size |
-| 19→20 | `hardwareTypes`, `hardware` on parts, shapes, definitions and the project | every hardware type and entry dropped, then autosaved |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument. A content-keyed
@@ -640,15 +597,18 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
-- **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 404–407 (hardware residue), 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328 (closed for joinery and Repair by joinery-features chunk 1; Refine stays under 329), 329–331, 334; curves 363 (Generate/Refine and the design checks; joinery and Repair closed by joinery chunk 2), 364, 366, 365 (blind curved recesses); banding 398 (Refine; joinery and Repair closed by joinery chunk 3, on its branch), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
-- **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1), 384(2), 387(1), 392(2), 393, 394, 272 (`docs/rounds.md`); 350 (a hand check of section markers); 106
-  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the *Amended (implementation)* rulings of the curves, profile runs and section views specs (list: `docs/rounds.md`, Owed to the user); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print); the joinery-features spec's chunk-2 and chunk-3 amendments and words (NEXT above).
-- **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
-  constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
-- **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it), 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset: ask first). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop), 418, 420–423 (chunk 3's residue). For the user's eye: 410–412 (hardware wording).
+- **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
+  275, 276 (joint kinds only), 280; holes 328 (Refine only, under 329), 329–331, 334; curves 363 (Generate/Refine, design
+  checks), 364–366; banding 398 (Refine), 399, 400.
+- **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
+  142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283; 410–412 (hardware
+  wording); the specs' *Amended* rulings and words (curves, profile runs, section views: `docs/rounds.md`, Owed to the user;
+  joinery features chunks 2–3: NEXT). 336's grain seam waits for a texture/shader session.
+- **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
+- **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
+  232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
+  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–423.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
@@ -681,8 +641,8 @@ before deploying.** Verify per the deployment rule above.
 - **A remedy a follow-up NAMES is a hypothesis.** Ask: is it possible, is the problem
   reachable, does it address the actual cause? Measure before adopting (fu 140, 160).
 - **This file is the rules; `docs/history.md` is the record.** When a round ships: update the
-  Status block's production line and rollback table (no per-round bullets here — they go in
-  `docs/rounds.md`'s Status log, with a row in its table); write a new invariant or a change to one
+  Status block's production line and rollback line, and `docs/rounds.md`'s rollback table (no per-round bullets
+  here — they go in `docs/rounds.md`'s Status log, with a row in its table); write a new invariant or a change to one
   in FULL in `docs/invariants.md` and CONDENSED here (every PROHIBITION verbatim in both); keep
   `docs/module-map.md` and `docs/versioning.md` current. Put the narrative in `docs/history.md`.
   Keep this file under ~60KB: when it grows, move detail out, not rules.

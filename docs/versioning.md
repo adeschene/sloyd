@@ -32,7 +32,8 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 19→20 | `hardwareTypes` (document; validated AFTER band types and BEFORE every holder; dropped — an empty or non-string name, a `packSize` that is not an integer in [1, 10000], a `pricePerPack` that is neither absent/`null` nor a finite number >= 0; an ABSENT price read as `null`; ids by `takeId`, names deduped) and `hardware` on parts, shapes, definitions and the document (default `[]`; an entry whose `count` is not an integer in [1, 999] or whose `type` is not a string naming a type this file carries is dropped; a second entry for one type dropped, first wins; sorted by type) | document-level, no step | silent loss (every hardware type and entry dropped, then autosaved) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
-  regardless. Argue *your* field's harm; don't inherit another bump's argument.
+  regardless. Argue *your* field's harm; don't inherit another bump's argument. A content-keyed
+  refusal (an unknown kind or segment type) needs no bump.
 - **v8's and v12's steps are NOT idempotent** (they mirror): the `d.version < 8` and
   `d.version < 12` guards are all that stop a file being re-mirrored on every load.
 - **v10→v11 runs after validation**, guarded by `d.version < 11`, before `repairTree`,
@@ -42,3 +43,5 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 - `validateShapes` drops a malformed shape (claiming no id) and a duplicate id (first
   wins); a definition whose id is literally `ROOT` is dropped (the write-back's root id).
   `repairTree(doc, { copyShared: version < 11 })` runs on every load (inv 46).
+- A malformed entry is DROPPED; a faulted but well-formed one is KEPT (holes, curves, profiles,
+  bands alike).

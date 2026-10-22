@@ -3,8 +3,27 @@
 > Split out of `CLAUDE.md` on 2026-10-20. One row per shipped round (the table), then the Status
 > bullets as `CLAUDE.md` carried them up to 2026-10-20 — per round: what shipped, its merge and
 > bundle, rollback cost and what awaited the user's review. Add a row (and, if needed, a bullet)
-> when a round ships; the full narrative goes in `docs/history.md`. Every bundle hash and runbook
+> when a round ships, and keep the rollback table below current; the full narrative goes in `docs/history.md`. Every bundle hash and runbook
 > entry: `DEPLOYMENT.local.md`.
+
+## Rollback cost by schema boundary (moved from CLAUDE.md, 2026-10-22)
+
+Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusing boundary). Runbook: `DEPLOYMENT.local.md`.
+
+| Roll back to | Bundle | Schema | Cost |
+|---|---|---|---|
+| `1d39344` (joinery chunk 3) | `index-bKxsxRuC.js` | 20 | free; a Mitred notched corner prints its old mitre again (fu 419) |
+| `100c691` (notch drop) | `index-COsxvOYF.js` | 20 | free; joinery refuses banded projects again; a strip counts its full side again |
+| `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416); a bowed rail's ends join as butts again (fu 415) |
+| `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
+| `98c7df4` (hardware) | `index-BZhrLswD.js` | 20 | free (no schema change); joinery refuses holed projects again |
+| `4a6d6a1` (band wording) | `index-QDQAnB8n.js` | 19 | REFUSES every project saved at 20 — export first |
+| `dc8d5c3` / `834ce5a` / `37ced13` | `index-ymPlKpkL.js` / `index-Vul7x2lO.js` / `index-Df8FpxEW.js` | 19 | same |
+| `90ef45f` (chunk c2) | `index-Cqf9kRT7.js` | 18 | REFUSES every project saved at 19 — export first |
+| `dc49b01` (b1) | `index-CDDCzMGJ.js` | 18 | also REFUSES a two-side stopped run; a one-side stop on a turned path loads SILENTLY as a2's straight prism (on an arch it vanishes; data intact) |
+| `3ee667e` (a1 + a2) | `index-BbXkYYy4.js` | 18 | also REFUSES an All round loop |
+| `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
+| `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
 ## Rounds shipped
 
