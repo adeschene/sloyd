@@ -252,8 +252,64 @@ export function coreSize(part: Board, types: readonly BandType[]): { length: num
 
 const EMPTY: readonly never[] = Object.freeze([]);
 
+/** How a band meets the band beside it at one corner: a mitre, running through, or giving way (square ends). */
+type EndMode = 'mitre' | 'through' | 'gives';
+
+/**
+ * Each band's mode at its two corners, by canonical side index then end (end k of a long edge meets end band 2 + k; end k of
+ * an end band meets long edge k). Under Long or Ends, the rule everywhere. Under Mitred, a corner is mitred only where a
+ * mitre can be cut (fu 419): a corner where either band's visible run is shortened (a cut took the corner), or where a
+ * strip's mitred inner edge would be ≤ EPS (a notch left less than its mitre), is joined as under Long at that corner — the
+ * long edge runs through, the end band gives way, both square. Breaking a corner only lengthens a long strip's inner edge
+ * and leaves an end band's unchanged (it loses the neighbour's thickness and that mitre together), so the loop settles.
+ */
+const endModesOf = memoised((part: Board, types: readonly BandType[]): readonly (readonly [EndMode, EndMode])[] => {
+  const j = judge(part, types);
+  const rule = part.cornerRule;
+  const base = (i: number): EndMode => (rule === 'mitre' ? 'mitre' : (rule === 'long') === (i < 2) ? 'through' : 'gives');
+  const modes = [0, 1, 2, 3].map((i): [EndMode, EndMode] => [base(i), base(i)]);
+  if (rule !== 'mitre') return freeze(modes);
+  const meets = (a: number, e: number) => !!j.type[a] && !!j.type[e] && j.t[a]! > 0 && j.t[e]! > 0;
+  const short = (i: number, k: number) => (k === 0 ? j.runs[i]!.shortLo : j.runs[i]!.shortHi);
+  const brk = (a: number, e: number) => { modes[a]![e - 2] = 'through'; modes[e]![a] = 'gives'; };
+  for (const [a, e] of CORNERS) if (meets(a, e) && (short(a, e - 2) || short(e, a))) brk(a, e);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let i = 0; i < 4; i += 1) {
+      if (!j.type[i] || j.t[i]! <= 0) continue;
+      const nb = i < 2 ? [2, 3] : [0, 1];
+      const mitred = [0, 1].filter((k) => modes[i]![k] === 'mitre' && meets(i < 2 ? i : nb[k]!, i < 2 ? nb[k]! : i));
+      if (mitred.length === 0) continue;
+      const { start, stop } = runEnds(part, j, i, modes[i]!, false);
+      if (stop - start - mitred.reduce((sum, k) => sum + j.t[nb[k]!]!, 0) > EPS) continue;
+      for (const k of mitred) (i < 2 ? brk(i, nb[k]!) : brk(nb[k]!, i));
+      changed = true;
+    }
+  }
+  return freeze(modes);
+});
+
+/**
+ * Where band `i`'s strip (`glue` false) or glue line (`glue` true) starts and stops along its run, by end mode: a mitred
+ * strip runs to the corner and its glue line stops at the core corner; a band that gives way stops at the neighbour's inner
+ * face; one that runs through goes to the corner. A shortened end starts at its visible end, no nearer the corner than a
+ * neighbour it gives way to (P12 amended).
+ */
+function runEnds(part: Board, j: Judged, i: number, modes: readonly [EndMode, EndMode], glue: boolean): { start: number; stop: number } {
+  const run = j.runs[i]!;
+  const nb = i < 2 ? [2, 3] : [0, 1];
+  const len = sideLength(part, BAND_SIDES[i]!);
+  const yields = (k: number) => modes[k] === 'gives' || (glue && modes[k] === 'mitre');
+  const t0 = j.t[nb[0]!]!, t1 = j.t[nb[1]!]!;
+  return {
+    start: run.shortLo ? startAt(run.lo, yields(0), t0) : yields(0) ? t0 : 0,
+    stop: run.shortHi ? endAt(run.hi, yields(1), len - t1) : len - (yields(1) ? t1 : 0),
+  };
+}
+
 const stripsOf = memoised((part: Board, types: readonly BandType[]): readonly Strip[] => {
   const j = judge(part, types);
+  const modes4 = endModesOf(part, types);
   const out: Strip[] = [];
   for (let i = 0; i < 4; i += 1) {
     const bt = j.type[i];
@@ -261,24 +317,22 @@ const stripsOf = memoised((part: Board, types: readonly BandType[]): readonly St
     const side = BAND_SIDES[i]!;
     const run = j.runs[i]!;
     if (nothingVisible(run)) continue;
-    const long = i < 2;
-    const nb = long ? [2, 3] : [0, 1];
-    const givesWay = (part.cornerRule === 'long' && !long) || (part.cornerRule === 'ends' && long);
+    const nb = i < 2 ? [2, 3] : [0, 1];
     const own = bt.thickness;
-    // P12 (amended): each end starts at `startAt` (a shortened end) or today's give-way. With neither end shortened the
-    // number is today's expression, bit for bit.
-    const short = [run.shortLo, run.shortHi];
+    // P12 (amended), fu 419: each end by its corner's mode (`endModesOf`), a shortened end from its visible end. With
+    // neither end shortened and one mode at both, the number is today's expression, bit for bit.
+    const modes = modes4[i]!;
     const t0 = j.t[nb[0]!]!, t1 = j.t[nb[1]!]!;
     const len = sideLength(part, side);
-    const start = short[0] ? startAt(run.lo, givesWay, t0) : givesWay ? t0 : 0;
-    const stop = short[1] ? endAt(run.hi, givesWay, len - t1) : len - (givesWay ? t1 : 0);
+    const { start, stop } = runEnds(part, j, i, modes, false);
     // F1: nothing visible is judged AFTER give-way — a shortened end's visible wood can lie wholly inside the far
     // neighbour's give-way (no strip, never a negative one). Unshortened, `too-thick` already leaves a core > EPS.
     if (stop - start <= EPS) continue;
-    const finished = !short[0] && !short[1] ? len - (givesWay ? t0 + t1 : 0) : stop - start;
+    const plain = !run.shortLo && !run.shortHi && modes[0] === modes[1];
+    const finished = plain ? len - (modes[0] === 'gives' ? t0 + t1 : 0) : stop - start;
     const end = (k: number): StripEnd => {
       const n = j.t[nb[k]!]!;
-      return { mitre: part.cornerRule === 'mitre' && n > 0 && !short[k] ? Math.atan(n / own) : null };
+      return { mitre: modes[k] === 'mitre' && n > 0 ? Math.atan(n / own) : null };
     };
     out.push({
       part: part.id, partName: part.name, side, type: bt, finished, length: finished + bt.lengthAllowance,
@@ -360,8 +414,8 @@ export interface GlueLine { side: ProfileSide; type: string; a: Point; b: Point 
 
 const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly GlueLine[] => {
   const j = judge(part, types);
+  const modes4 = endModesOf(part, types);
   const out: GlueLine[] = [];
-  const rule = part.cornerRule;
   for (let i = 0; i < 4; i += 1) {
     const bt = j.type[i];
     if (!bt || bt.kind !== 'solid') continue;   // Q4: only a solid band draws a glue line; a faulted one is null here
@@ -373,27 +427,21 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
     const r: 'length' | 'width' = long ? 'length' : 'width';
     const across = side.across;
     const o = side.from === 'min' ? j.t[i]! : part[across] - j.t[i]!;
-    const through = rule === 'long' ? long : rule === 'ends' ? !long : false;
-    // P14 (inv 16): a shortened end's line stops at the visible end (no nearer the corner than a neighbour it gives way
-    // to); an unshortened end keeps today's rule.
-    // A glue line gives way wherever its strip does not run through (today's rule, Mitred included).
-    const lo = run.shortLo ? startAt(run.lo, !through, j.t[nb[0]!]!) : through ? 0 : j.t[nb[0]!]!;
-    const hi = run.shortHi ? endAt(run.hi, !through, part[r] - j.t[nb[1]!]!) : part[r] - (through ? 0 : j.t[nb[1]!]!);
+    // P14 (inv 16), fu 419: by each corner's mode — a line stops at the core corner where its strip is mitred or gives way,
+    // runs to the corner where it runs through, and a shortened end's line stops at the visible end.
+    const modes = modes4[i]!;
+    const { start: lo, stop: hi } = runEnds(part, j, i, modes, true);
     const point = (rc: number, ac: number, th: number): Point => ({ [r]: rc, [across]: ac, thickness: th } as Point);
     const push = (rc0: number, ac0: number, rc1: number, ac1: number) => {
       for (const th of [0, part.thickness]) out.push({ side, type: bt.id, a: point(rc0, ac0, th), b: point(rc1, ac1, th) });
     };
-    // F1: the run line and each mitre line are decided apart, AFTER give-way. A run with nothing left between its ends
-    // draws no run line (never a backward one); a mitre whose core corner lies in a removed stretch (strictly, beyond
-    // EPS: `[0, run.lo]` at a shortened min end, `[run.hi, part[r]]` at a shortened max end) draws nothing, while one
-    // whose corner is exactly where the visible wood starts is wholly on standing wood and stays.
+    // F1: the run line and each mitre line are decided apart, AFTER give-way: a run with nothing left between its ends
+    // draws no run line (never a backward one). A mitre line exists only at a corner still mitred (fu 419): never at a
+    // shortened corner, never where the notch left less than the mitre, so its core corner is always on standing wood.
     if (hi - lo > EPS) push(lo, o, hi, o);
-    if (rule !== 'mitre') continue;
-    const removed = (c: number) => (run.shortLo && c < run.lo - EPS) || (run.shortHi && c > run.hi + EPS);
     for (const k of [0, 1] as const) {
       const n = nb[k]!;
-      if (k ? run.shortHi : run.shortLo) continue;                // a shortened end's corner is gone: no mitre (P12)
-      if (removed(k ? hi : lo)) continue;                          // its core corner was cut away (F1)
+      if (modes[k] !== 'mitre') continue;                          // a butt corner (the rule, or fu 419's) draws no mitre
       if (j.t[n]! <= 0) continue;                                  // a zero-thickness neighbour makes no mitre
       if (!long && j.type[n]!.kind === 'solid') continue;          // the long strip beside it draws this mitre line, once
       push(k ? hi : lo, o, k ? part[r] : 0, side.from === 'min' ? 0 : part[across]);

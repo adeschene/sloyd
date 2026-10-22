@@ -182,14 +182,36 @@ describe('the visible run (P12)', () => {
       expect(strip(m, W0).finished).toBe(29.5);
       expect(glueLines(m, types).filter((g) => g.side.across === 'width' && g.side.from === 'min').map((g) => g.a.length)).toEqual([0.25, 0.25]);
     });
-    it('known limit (not fixed, by ruling): under Mitred, a cut shallower along the run than the neighbour leaves its mitre over the square end', () => {
+    it('fu 419(a): under Mitred, a corner cut shallower along the run than the neighbour makes that corner a butt (long runs through, the end gives way)', () => {
       const b = shelf(30, [cut('width', 'min', 'thickness', 29.9, 0.1, 1)], on('m', W0, W1, L0, L1), 'mitre');
+      // W0 runs through to its square cut end; L1 gives way to W0 at that corner and keeps its mitre at W1's corner
       expect(strip(b, W0).finished).toBe(29.9);
+      expect(strip(b, W0).ends[0]!.mitre).toBeCloseTo(Math.PI / 4, 12);
       expect(strip(b, W0).ends[1]).toEqual({ mitre: null });
-      expect(strip(b, L1).finished).toBe(12);
-      expect(strip(b, L1).ends[0]!.mitre).toBeCloseTo(Math.PI / 4, 12);   // the neighbour's mitre, over the square end
-      const w0 = glueLines(b, types).filter((g) => g.side.across === 'width' && g.side.from === 'min');
-      expect(w0.map((g) => [g.a.length, g.b.length])).toEqual([[0.25, 29.75], [0.25, 29.75], [0.25, 0], [0.25, 0]]);
+      expect(strip(b, L1).finished).toBe(11.75);
+      expect(strip(b, L1).ends[0]).toEqual({ mitre: null });
+      expect(strip(b, L1).ends[1]!.mitre).toBeCloseTo(Math.PI / 4, 12);
+      // the other corners are untouched mitres
+      expect(strip(b, W1).finished).toBe(30);
+      expect(strip(b, W1).ends.map((e) => e.mitre)).toEqual([Math.atan(1), Math.atan(1)]);
+      expect(strip(b, L0).finished).toBe(12);
+      const lines = (side: ProfileSide, k: Dimension) => glueLines(b, types).filter((g) => g.side.across === side.across && g.side.from === side.from)
+        .map((g) => [g.a[k as 'length'], g.b[k as 'length']]);
+      // W0: its run to the cut end (it runs through there), then the end-0 mitre only
+      expect(lines(W0, 'length')).toEqual([[0.25, 29.9], [0.25, 29.9], [0.25, 0], [0.25, 0]]);
+      // L1: from W0's inner face to W1's core corner; the long strips draw the mitre lines
+      expect(lines(L1, 'width')).toEqual([[0.25, 11.75], [0.25, 11.75]]);
+    });
+    it('fu 419(a), the end band shortened instead: the long strip runs through the corner, the end band gives way', () => {
+      // 0.1 along the WIDTH at the length-max end, 1 into the length: through L1 (shortens it at width min), not through
+      // W0's 1/4 along the width (0.1 < 1/4), so W0 is not shortened and runs through square to the corner.
+      const b = shelf(30, [cut('length', 'max', 'thickness', 0, 0.1, 1)], on('m', W0, W1, L0, L1), 'mitre');
+      expect(visibleRun(b, L1, T)).toEqual({ lo: 0.1, hi: 12, shortLo: true, shortHi: false });
+      expect(visibleRun(b, W0, T).shortHi).toBe(false);
+      expect(strip(b, W0).finished).toBe(30);
+      expect(strip(b, W0).ends[1]).toEqual({ mitre: null });
+      expect(strip(b, L1).finished).toBe(11.75);   // starts at max(0.1, 1/4); mitred at W1's corner, so its outer edge runs to 12
+      expect(strip(b, L1).ends[0]).toEqual({ mitre: null });
     });
     it('a tape WITH thickness (1/16) is shortened only by a cut through it', () => {
       const tape16: BandType = { id: 'tape16', name: 'Tape 1/16', kind: 'tape', thickness: 1 / 16, lengthAllowance: 0.5, tapeWidth: 0.875, pricePerFoot: null };
@@ -257,20 +279,29 @@ describe('the visible run (P12)', () => {
       expect(sideOf(b, W0)).toEqual([]);
       expect(w0Lines(b)).toEqual([]);
     });
-    it('Mitre, one shortened end: the strip stays (+0.40), but no backward run line and no mitre from a removed core corner', () => {
+    it('fu 419(b), Mitre, one shortened end: 0.40 left is shorter than its 3/4 mitre, so that corner is a butt — a square 0.40 strip, never the impossible mitred piece', () => {
       const b = probe('mitre', [to(9.6)]);
-      expect(sideOf(b, W0).map((s) => s.finished)).toEqual([10 - 9.6]);
-      expect(w0Lines(b)).toEqual([]);
+      expect(sideOf(b, W0).map((s) => [s.finished, s.ends.map((e) => e.mitre)])).toEqual([[10 - 9.6, [null, null]]]);
+      // its line runs over the leftover (it runs through at L1's corner), never backward
+      expect(w0Lines(b)).toEqual([[9.6, 0.75, 10, 0.75], [9.6, 0.75, 10, 0.75]]);
+      // L0 is shortened by the same cut (starts at max(1, 3/4)); L1 gives way to W0 at width 0 (W1 is unbanded: square)
+      expect(strips(b, ts).map((s) => [s.side.across, s.side.from, s.finished, s.ends.map((e) => e.mitre)]))
+        .toEqual([['width', 'min', 10 - 9.6, [null, null]], ['length', 'min', 11, [null, null]], ['length', 'max', 11.25, [null, null]]]);
     });
-    it('Mitre, both ends shortened: the strip stays (0.1), no line', () => {
+    it('Mitre, both ends shortened: a square 0.1 strip, its line over it', () => {
       const b = probe('mitre', [to(9.4), from(9.5)]);
-      expect(sideOf(b, W0).map((s) => s.finished)).toEqual([9.5 - 9.4]);
-      expect(w0Lines(b)).toEqual([]);
+      expect(sideOf(b, W0).map((s) => [s.finished, s.ends.map((e) => e.mitre)])).toEqual([[9.5 - 9.4, [null, null]]]);
+      expect(w0Lines(b)).toEqual([[9.4, 0.75, 9.5, 0.75], [9.4, 0.75, 9.5, 0.75]]);
+      expect(strips(b, ts).find((s) => s.side.across === 'length' && s.side.from === 'max')!.finished).toBe(11.25);
     });
-    it('Mitre, the boundary: visible wood starting exactly at the core corner keeps the mitre line, 2e-9 past it does not', () => {
+    it('fu 419(b), the boundary: a mitre whose inner edge is exactly 0 is a butt; 2e-9 of inner edge keeps the mitre', () => {
       const at = probe('mitre', [to(9.25)]);
-      expect(w0Lines(at)).toEqual([[9.25, 0.75, 10, 0], [9.25, 0.75, 10, 0]]);   // the empty run draws nothing; the mitre stays
-      expect(w0Lines(probe('mitre', [to(9.25 + 2e-9)]))).toEqual([]);
+      expect(sideOf(at, W0).map((s) => [s.finished, s.ends[1]!.mitre])).toEqual([[0.75, null]]);
+      expect(w0Lines(at)).toEqual([[9.25, 0.75, 10, 0.75], [9.25, 0.75, 10, 0.75]]);
+      const kept = probe('mitre', [to(9.25 - 2e-9)]);
+      expect(sideOf(kept, W0)[0]!.ends[1]!.mitre).toBeCloseTo(Math.PI / 4, 12);
+      // the run (2e-9) and the mitre line from the core corner
+      expect(w0Lines(kept)).toEqual([[9.25 - 2e-9, 0.75, 9.25, 0.75], [9.25 - 2e-9, 0.75, 9.25, 0.75], [9.25, 0.75, 10, 0], [9.25, 0.75, 10, 0]]);
     });
     it('the cut list for the probe under Ends has no strip row for width min', () => {
       const doc = { ...createDocument('T'), boards: [{ ...probe('ends', [to(9.6)]), id: 'p', name: 'Panel' }], bandTypes: ts } as FlatDocument;
