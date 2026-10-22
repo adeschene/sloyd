@@ -71,8 +71,9 @@ Copied into the spec in Task 6.
 - No schema change (20). `JOINERY_PROMPT`, `DESIGN_SCHEMA` and the joinery prompt stay byte-identical.
 - Refine stays refused for bands: `bandedRefusal(flat, 'refine')` keeps its words exactly ("Refine doesn't handle banded
   parts yet (…). Refine before banding, or remove the bands first.").
-- A band-free document is byte for byte as before (`bandFreeIdentity.test.ts` unmodified and green). Existing joinery
-  tests stay unmodified and green.
+- A band-free document is byte for byte as before (`bandFreeIdentity.test.ts` unmodified and green). Every existing test
+  stays unmodified and green except the intended flips Task 3 lists (only `bandedRefusal.test.ts`'s `'joinery'`
+  assertions, found by grep at planning).
 - Feature word: `edge band`, verb `is` (§3.5, P8). Line: `<Enter> → <Receive>: left as a butt — <Part>'s edge band is in
   the way of every joint.`
 - `banding.ts` stays numbers-only (no `units` import; inv 52). It may import `clippedRegion` from `./cuts`: checked at
@@ -102,7 +103,9 @@ Copied into the spec in Task 6.
 
 **Interfaces:**
 - Produces: `export function visibleRun(part: Board, side: ProfileSide): { lo: number; hi: number; shortLo: boolean; shortHi: boolean }`
-  (P12; computed per side once inside `judge` and exposed on `Judged`; the export is for tests and Task 4's oracle).
+  (P12). A standalone pure function of the part alone (it reads only `cuts` and dimensions, never band types), memoised
+  per part object (a `WeakMap` keyed on the part, one entry per side index) and deep-frozen. `judge`, `stripsOf`,
+  `tapeRunsOf` and `glueLinesOf` call it; Task 4's oracle calls it too.
   `Strip.finished` = `(hi − lo)` minus the give-way at each NON-shortened end. `Strip.ends[k].mitre` = null at a shortened
   end.
 
@@ -124,6 +127,9 @@ Copied into the spec in Task 6.
     `featureZones.curves.test.ts`), tape on width-min, grown and shouldered at the max end → the line chords inside the
     shoulder (the tenon's bottom and the step) count 0; pin the total, and pin that an arc chord a hand cut reaches is
     counted whole.
+  - `a metric rail's strip stops at both shoulders`: a rail with mm-derived dimensions (457 × 89 × 19 mm, `mm / 25.4`
+    unrounded) and its tenons built through `mortiseTenon` itself (via `applyJoints` on a leg-rail-leg metric design), not
+    hand-built: the strip still stops at both shoulders. Float drift at the 1e-9 end test bit fu 416 and P2.
   - `two parts differing only in a hand notch give two strip rows` (Review Focus 2): `buildCutList` (or the cut list's
     exported entry point) on both → two strip rows with different lengths.
   - `Buying counts the visible tape`: `purchase.ts`' tape inches for the tenoned taped rail = 18 + allowance.
@@ -173,6 +179,9 @@ Copied into the spec in Task 6.
     dimension → kept.
   - Review Focus 4: a `needs-straight` solid band on a bowed edge is judged at its thickness (rules a pocket out); a band
     whose type id is unknown is ignored, with no throw.
+  - `a shelf with 3/4" solid edging on its front, entering a dado`: P11 gives the exemption by the tenon section (shoulder
+    1/2" < 3/4"), so dado, stopped-dado and mortise-tenon are ruled out and the site is left a butt. **The expected value
+    hangs on the user's ruling at handoff** (keep the spec's rule, or a dado-specific one); pin whichever is ruled.
   - Order: holes, then curves and profiles, then bands; one test where a hole and a band are met at one event → `holes`.
   - Byte for byte: a band-free fixture returns the SAME `sites` array (`toBe`).
   - `ruledOutText.test.ts`: the `edge band` line with `is`, both forms.
@@ -239,8 +248,7 @@ Copied into the spec in Task 6.
   every narrowed site at each allowed kind's range bounds. Independently of `featureRegions.ts` and the watch, assert:
   - no new or changed rectangular cut's region, moved into the original frame, overlaps a solid band's original-frame
     strip beyond 1e-9;
-  - no growth happened at an end carrying a band, and no trim at a banded end unless the band runs along the trimmed
-    dimension;
+  - no growth happened at an end carrying a band, and no trim removed a band on the trimmed end;
   - every band survives with the same side, type and `cornerRule`;
   - each tenoned edged rail's `visibleRun` equals its plain length.
 
