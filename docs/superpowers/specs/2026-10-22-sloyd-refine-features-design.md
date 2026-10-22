@@ -1,6 +1,6 @@
 # Sloyd: Refine accepts holes, curves, profiles, bands and hardware
 
-**Date:** 2026-10-22 · **Status:** draft, builder-checked 2026-10-22 (its findings folded in), awaiting the user's approval and §12's rulings.
+**Date:** 2026-10-22 · **Status:** approved 2026-10-22 (builder-checked; the user's three rulings, §12, folded in).
 **Builds on:** the refine, refine-joined, AI-tapers and AI-angles specs (`2026-10-13-sloyd-ai-angles-design.md`: how
 Refine learned a feature last time) and the joinery-features spec (`2026-10-21-sloyd-joinery-features-design.md`, whose
 §1 non-goal named this spec). Every rule there still holds unless this document says otherwise.
@@ -256,7 +256,10 @@ forms of every feature, the design checks, the change list, Properties, and ever
   longest side is not its `length` (possible after Properties edits), grain could then run along a different world
   axis. §3.2's frame rule fixes this for featured parts only. To record and measure, not fix here.
 
-## 12. For the user to rule on
+## 12. The user's rulings (2026-10-22)
+
+Answered: (1) features stay measured from the ends they name (§4 as written); (2) a turned featured part is sent
+back to Claude as a fault (§4 as written); (3) carry, not authoring, for this round (§2 as written). The questions as asked:
 
 1. **Resized featured parts (§4):** keep each feature at its stored station and note any fault (my call, the Properties
    precedent). The alternatives: drop the features of any resized part and list them, or refuse to carry onto a resized
