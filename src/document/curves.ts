@@ -661,15 +661,21 @@ export function curveFaults(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id
 export interface ArchFields { through: Dimension; along: Dimension; side: CutFrom; from: CutFrom; start: number; span: number; rise: number }
 
 /** An Arch (or Half-round notch: rise = span / 2) on the `side` edge of the in-face dimension that is not `along`,
- *  from `start` to `start + span` measured from `from`'s end of `along`, bowing `rise` into the wood. */
+ *  from `start` to `start + span` measured from `from`'s end of `along`, bowing `rise` into the wood.
+ *  The stored chord is `(start + span) − start`, which need not be `span` exactly (a metric start): a notch's rise is
+ *  stored as half the STORED chord, and a rise within rounding of it is held to it, so the loader (which drops
+ *  `rise > chord / 2`) keeps it and it reads back as a notch. Any other rise is stored as given. */
 export function archCurve(f: ArchFields): Omit<CurveCut, 'id'> {
   const [u] = uvDims(f.through);
+  const end = f.start + f.span;
+  const chord = end - f.start;
+  const rise = f.rise === f.span / 2 || (f.rise < f.span / 2 && f.rise > chord / 2) ? chord / 2 : f.rise;
   if (f.along === u) {
     return { through: f.through, uFrom: f.from, vFrom: f.side, start: [f.start, 0],
-      segments: [{ type: 'arc', to: [f.start + f.span, 0], side: 'left', rise: f.rise }, { type: 'line', to: [f.start, 0] }] };
+      segments: [{ type: 'arc', to: [end, 0], side: 'left', rise }, { type: 'line', to: [f.start, 0] }] };
   }
   return { through: f.through, uFrom: f.side, vFrom: f.from, start: [0, f.start],
-    segments: [{ type: 'arc', to: [0, f.start + f.span], side: 'right', rise: f.rise }, { type: 'line', to: [0, f.start] }] };
+    segments: [{ type: 'arc', to: [0, end], side: 'right', rise }, { type: 'line', to: [0, f.start] }] };
 }
 
 export function archFields(c: Omit<CurveCut, 'id'>): ArchFields | null {

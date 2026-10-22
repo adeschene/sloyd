@@ -409,3 +409,35 @@ describe('wasteOnSegment (the end line inside the closed waste; P6)', () => {
     expect(wasteOnSegment(segs, [5, 0], [5, 5])).toBe(0);
   });
 });
+
+describe('a Half-round notch is stored at the half-circle bound of its STORED chord (notch drop on metric parts)', () => {
+  // archCurve stores `to` as start + span, which on a metric part need not leave a chord of exactly `span`: a rise of
+  // span / 2 then passed the loader's `rise > chord / 2` check (the notch was dropped on reload) or fell short of it
+  // (read back as an Arch). Every metric length from 300 to 1500 mm.
+  const lengths = Array.from({ length: 1201 }, (_, i) => (300 + i) / 25.4);
+  const chordOf = (c: Omit<CurveCut, 'id'>) => c.segments[0]!.to[0] - c.start[0];
+  const rise = (c: Omit<CurveCut, 'id'>) => (c.segments[0] as { rise: number }).rise;
+
+  it('the Half-round notch preset keeps rise === chord / 2 and reads as a notch', () => {
+    const bad = lengths.filter((L) => {
+      const c = defaultNotch(createBoard({ length: L, width: 4, thickness: 0.75 }))!;
+      return rise(c) !== chordOf(c) / 2 || curveKindChoice(c) !== 'notch';
+    });
+    expect(bad).toEqual([]);
+  });
+
+  it('switching an Arch to a Half-round notch does the same', () => {
+    const bad = lengths.filter((L) => {
+      const b = createBoard({ length: L, width: 4, thickness: 0.75 });
+      const arch = archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: L / 3, span: 2, rise: 0.5 });
+      const c = curveAs('notch', arch, b)!;
+      return rise(c) !== chordOf(c) / 2 || curveKindChoice(c) !== 'notch';
+    });
+    expect(bad).toEqual([]);
+  });
+
+  it('an Arch below the bound keeps its rise exactly', () => {
+    const c = defaultArch(createBoard({ length: 370 / 25.4, width: 4, thickness: 0.75 }))!;
+    expect(rise(c)).toBe(1);
+  });
+});
