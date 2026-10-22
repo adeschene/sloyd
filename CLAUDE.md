@@ -161,10 +161,10 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | holes | `holes.ts`, `holeFaults.ts`, `holeText.ts`, `holeDrawing.ts` (inv 50) |
 | curves | `curves.ts`, `curveDrawing.ts`, `curveText.ts` (inv 53) |
 | edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `skeleton.ts`, `sweep.ts`, `runout.ts`, `sweptEdges.ts`, `sectionEdges.ts` (inv 48, 53) |
-| hardware | `hardwareModel.ts`, `hardware.ts` (inv 55), `hardwareRefusal.ts` |
+| hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
 | edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts` (inv 54) |
 | bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
-| refusals of joinery/Refine/Repair | `holedRefusal.ts`, `curvedRefusal.ts` and `bandedRefusal.ts` (Refine only), `generate/joints/featureZones.ts` (per-site ruling-out), `document/featureRegions.ts`, `sites.ts` `rangesOf` (stop insets), `ruledOutText.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
+| refusals of joinery/Repair; Refine's carry | `document/featureCarry.ts` + `carryText.ts` (Refine carries features, inv 56), `generate/joints/featureZones.ts` (per-site ruling-out), `document/featureRegions.ts`, `sites.ts` `rangesOf` (stop insets), `ruledOutText.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
 | cut list, nesting, Buying | `cutlist.ts` (inv 18), `nesting.ts` (inv 19, 22, 23), `purchase.ts`, `materials.ts` (inv 49) |
 | drawings | `drawing.ts` `drawView` (inv 47), `diagram.ts`, `plans.ts`, `featureKeys.ts`, `sectionView.ts`, `section.ts` (inv 51) |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `refineDesign.ts`, `roleLinks.ts`, `generate/` (inv 41) |
@@ -446,7 +446,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `cutIntoEnd`. Angle cuts: one decider, `joineryRefusal` (`taperConflicts`,
     `angleConflicts`, `clearsTenon`), one sentence per part; `rebaseAngleCuts` re-anchors on
     resize and `readJoints`' `resizeAt` undoes it exactly. The unjoin gate compares cuts as a
-    MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved, profiled or banded project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`); stop ends are narrowed to those that clear (one decider); a stopped dado's smallest inset clears a receiver band. **A curve, profile or band is judged in the ORIGINAL frame (P5, P9; a band as stored), never on a mid-trial board; the run-through exception is decided per growing face (P7)**; a curve or straight profile that only meets a growing end is exempt when its end-face waste clears the tenon section (fu 415). `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves, profiles and bands (exact). A joined Refine is refused up front when an angle cut
+    MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved, profiled or banded project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`); stop ends are narrowed to those that clear (one decider); a stopped dado's smallest inset clears a receiver band. **A curve, profile or band is judged in the ORIGINAL frame (P5, P9; a band as stored), never on a mid-trial board; the run-through exception is decided per growing face (P7)**; a curve or straight profile that only meets a growing end is exempt when its end-face waste clears the tenon section (fu 415). `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves, profiles and bands (exact). Refine carries features onto its plain parts BEFORE `runJoinery` (inv 56). A joined Refine is refused up front when an angle cut
     already runs into a joint; a conflicting result comes back UNJOINED, never joined over it.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
@@ -534,7 +534,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     convex. `holeFaults` is the ONE strict-rule decider** (`breaks-out` — a curve's waste
     included, keyed apart by `faultKey` —, `off-flat`, `meets-hole`, `too-deep`). An add is
     refused on any fault, an edit only when it ADDS one; a fault a later edit causes is KEPT,
-    noted, never clamped. Refine refuses holed projects; joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
+    noted, never clamped. Refine carries them (inv 56); joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
     BoxGeometry routing; a part with no holes and no curves keeps its bytes. **A curved part's mesh
     is WATERTIGHT** (welded, conformed, centroid-fanned; `curvesWatertight.test.ts`); a shaped part
     is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (the list of what is memoised and where: `docs/invariants.md`). Perf guards are the MINIMUM of
@@ -563,11 +563,11 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     the ONE profile fault decider; `profilePath.ts` the ONE path home. Faults and decisions read the
     tangent point (`profilePath`); B1's ε and Q13's zone are construction only. **The straight
     fallback** is ONE decision in `geometryBoard` (stops first, `stopFallsBack`; a two-side run never
-    falls back). Curves and Profiles refuse an edit that ADDS a fault to ANY profile, naming it. Refine refuses a curved or profiled project; joinery rules out only the joint kinds whose zone one enters; Repair accepts them.
+    falls back). Curves and Profiles refuse an edit that ADDS a fault to ANY profile, naming it. Refine carries them (inv 56); joinery rules out only the joint kinds whose zone one enters; Repair accepts them.
 54. **`banding.ts` is the ONE place band numbers are computed** (core, strips, tape runs, faults),
     numbers-only, memoised and deep-frozen. **The model is the FINISHED size; the cut list prints the
     CORE**; bodies are untouched. **A faulted band adds nothing** and prints `— check: <words>`.
-    Authoring refuses an ADDED fault; a later one is KEPT. Refine refuses banded projects; joinery rules out only the joint kinds a band is in the way of (inv 41);
+    Authoring refuses an ADDED fault; a later one is KEPT. Refine carries them (inv 56); joinery rules out only the joint kinds a band is in the way of (inv 41);
     Repair accepts them; a strip, tape run and glue line count only the VISIBLE run (`visibleRun`, P12). A strip row has no `boardIds`: every reader of a row's parts handles an empty list. A
     band-free document is byte for byte as before (`bandFreeIdentity.test.ts`). The viewport paints a
     band by MOVING triangles into material groups 6+ (`bandedMesh`), never by recolouring a slot;
@@ -576,15 +576,22 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 55. **`hardware.ts` is the ONE place hardware is counted** (a part per placement via `placementsOf`, its own walk whose agreement with
     `worldParts` is pinned by the oracle test; an assembly per placement of its definition, the project once; hidden parts count). **Hardware never groups the cut list, never touches geometry, and every Definition copy
     carries it** (Ungroup merges it into the parent, REFUSED above 999 — P1). `hardware` is a SHARED field (inv 45). **`holderHardware`
-    returns STORED arrays, never `resolveBoard`'s copy** (a selector returning a fresh array crashes React). Refine refuses hardware
-    on parts (`hardwareRefusal` takes the STORED document, P2); joinery and Repair accept it. Hardware is typed, never derived from holes.
+    returns STORED arrays, never `resolveBoard`'s copy** (a selector returning a fresh array crashes React). Refine carries hardware
+    on parts by flat name from the STORED document (P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
+
+56. **A part Refine carries holes, curves, profiles or bands onto keeps the original's posture and rotation (`frameFor`); never
+    `orient` it.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
+    types through `designToDocument`'s opts) and before `linkByRole`. `turnCandidates` never turns a part with holes, curves, profiles or
+    bands. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
+    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a
+    part that carries holes, curves, profiles or bands, and do not move the carry after `migrateDocument` or `linkByRole`.**
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7484 tests across 221 files
+npm test           # Vitest, currently 7549 tests across 220 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -593,13 +600,13 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–423). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–425). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
-  275, 276 (joint kinds only), 280; holes 328 (Refine only, under 329), 329–331, 334; curves 363 (Generate/Refine, design
-  checks), 364–366; banding 398 (Refine), 399, 400.
+  275, 276 (joint kinds only), 280; holes 329–331, 334; curves 363 (authoring; design checks reading curved bodies),
+  364–366; banding 399, 400.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283; 410–412 (hardware
@@ -608,7 +615,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–423.
+  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–425.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

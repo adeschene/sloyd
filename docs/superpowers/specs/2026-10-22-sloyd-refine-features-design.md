@@ -1,6 +1,6 @@
 # Sloyd: Refine accepts holes, curves, profiles, bands and hardware
 
-**Date:** 2026-10-22 · **Status:** approved 2026-10-22 (builder-checked; the user's three rulings, §12, folded in).
+**Date:** 2026-10-22 · **Status:** approved 2026-10-22 (builder-checked; the user's three rulings, §12, folded in); implemented on branch `refine-features` (not yet merged).
 **Builds on:** the refine, refine-joined, AI-tapers and AI-angles specs (`2026-10-13-sloyd-ai-angles-design.md`: how
 Refine learned a feature last time) and the joinery-features spec (`2026-10-21-sloyd-joinery-features-design.md`, whose
 §1 non-goal named this spec). Every rule there still holds unless this document says otherwise.
@@ -269,3 +269,9 @@ back to Claude as a fault (§4 as written); (3) carry, not authoring, for this r
 3. **Carry, not authoring, for this round (§2):** Refine keeps features but cannot change them. Is that the useful first
    step, or is authoring (at least holes, through the schema and a live compile) what you wanted from "Refine on
    features"?
+
+## Amended (execution)
+
+- **§5, when `carried` is computed.** §5 says the carried list is computed "after the joined path's re-join". It is computed
+  plain-to-plain, BEFORE `runJoinery` (`carriedSummary`, `RefineOutcome.carried`): joinery grows tenons, so after the re-join every
+  joined part would read as resized. The re-join still rebases features (§3.5); only the done-view comparison moved earlier.
