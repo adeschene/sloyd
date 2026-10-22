@@ -6736,8 +6736,8 @@ edging and a profile routed into it all read as one piece of wood. The fix would
 bands, and Repair proving them. **Status:** open (feature; needs a spec).
 **Status:** open (feature). Its joinery and Repair half is spec'd (joinery-features spec §4.4, §5, §8 Q2: count only the visible
 length) as that spec's chunk 3, not started (needs its own plan, 2026-10-22); Refine stays open (needs a spec).
-**Status:** joinery and Repair half CLOSED (joinery-features chunk 3, 2026-10-22, on branch `joinery-bands`, not yet merged or
-deployed): joinery rules out only the joint kinds a band is in the way of, Repair accepts banded projects, and strips, tape and glue lines
+**Status:** joinery and Repair half CLOSED (joinery-features chunk 3, 2026-10-22, merge `1d39344`, deployed 2026-10-22
+as `index-bKxsxRuC.js`): joinery rules out only the joint kinds a band is in the way of, Repair accepts banded projects, and strips, tape and glue lines
 count only the visible run (inv 41, 54); §4.4 changes existing hand-notched banded documents (a full-thickness cut through the band
 at a run end now shortens its strip, tape and glue line), and no existing test's number moved. The Refine half stays open (feature; needs a spec).
 
