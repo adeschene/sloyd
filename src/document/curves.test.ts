@@ -391,11 +391,12 @@ describe('wasteOnSegment (the end line inside the closed waste; P6)', () => {
     const segs = localSegments(B, archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 0, span: 30, rise: 0.5 }));
     expect(wasteOnSegment(segs, ...end)).toBe(0);
   });
-  // ESCALATED (task 3 report): the brief says "a bow running corner to corner gives 0", but Sloyd's Bow (`bowCurve`) keeps
-  // the edge's middle and brings its ENDS in by `rise`: its waste is two horns whose straight side (0,0)→(0,rise) lies
-  // along the end line, exactly as a rounded corner's leg does. As defined, wasteOnSegment gives `rise` there (0.5 for
-  // the default bow), so a bowed rail would lose the growing kinds (P6). Which answer is wanted is the controller's call.
-  it.todo('a bow running corner to corner gives 0 (CONFLICT: bowCurve measures its rise, 0.5; see the task 3 report)');
+  it('a bow running corner to corner gives its rise: its end horns lie along the end line (P6)', () => {
+    // bowCurve keeps the edge's middle and brings its ENDS in by `rise`: the waste's side (0,0)→(0,rise) is on the end line.
+    const segs = localSegments(B, defaultBow(B));
+    expect(Math.abs(wasteOnSegment(segs, ...end) - 0.5)).toBeLessThanOrEqual(1e-12);
+    expect(Math.abs(wasteOnSegment(segs, [30, 0], [30, 5]) - 0.5)).toBeLessThanOrEqual(1e-12);
+  });
   it('an arch clear of the end gives 0', () => {
     expect(wasteOnSegment(localSegments(B, ARCH), ...end)).toBe(0);
   });

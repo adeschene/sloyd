@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { archCurve, cornerCurve, spanOf, type ViewCurve } from './curves';
+import { archCurve, cornerCurve, defaultBow, spanOf, type ViewCurve } from './curves';
 import { runoutReach } from './runout';
 import { keptSection } from './sweep';
 import { crossSectionOverlaps, featureMeetsBox, featureTouchesEnd, runsOutThrough, shapedFeatures } from './featureRegions';
@@ -133,9 +133,11 @@ describe('featureTouchesEnd (P6: the joined end with positive area)', () => {
     expect(featureTouchesEnd(view, features[0]!, 'length', 'max')).toBe(false);
     expect(featureTouchesEnd(view, features[0]!, 'width', 'min')).toBe(true);
   });
-  // ESCALATED (task 3 report): the brief asks featureTouchesEnd(bow) false. Sloyd's Bow brings the edge's ENDS in by its
-  // rise, so its waste lies along the end line for `rise` (wasteOnSegment 0.5 on the default bow): P6 makes it true.
-  it.todo('a bow does not touch the end (CONFLICT: bowCurve\'s waste meets the end for its rise; see the task 3 report)');
+  it('a bow touches both length ends: its end horns lie along each end line for its rise (P6)', () => {
+    const { view, features } = one({ curves: [{ id: 'k', ...defaultBow(B) }] });
+    expect(featureTouchesEnd(view, features[0]!, 'length', 'min')).toBe(true);
+    expect(featureTouchesEnd(view, features[0]!, 'length', 'max')).toBe(true);
+  });
   it('a stopped profile along `through` touches an end only when its widened extent reaches it', () => {
     const s = one({ profiles: [stopped('p1', side('width', 'min'), 5, 25)] });
     expect(featureTouchesEnd(s.view, s.features[0]!, 'length', 'min')).toBe(false);
