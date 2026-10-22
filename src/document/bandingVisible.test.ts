@@ -190,6 +190,15 @@ describe('the visible run (P12)', () => {
       const w0 = glueLines(b, types).filter((g) => g.side.across === 'width' && g.side.from === 'min');
       expect(w0.map((g) => [g.a.length, g.b.length])).toEqual([[0.25, 29.75], [0.25, 29.75], [0.25, 0], [0.25, 0]]);
     });
+    it('a tape WITH thickness (1/16) is shortened only by a cut through it', () => {
+      const tape16: BandType = { id: 'tape16', name: 'Tape 1/16', kind: 'tape', thickness: 1 / 16, lengthAllowance: 0.5, tapeWidth: 0.875, pricePerFoot: null };
+      // on the rail's length-max end; a full-thickness cut at its width-min corner, 1 along the end, `depth` into the length
+      const ended = (depth: number) => rail(20, [cut('length', 'max', 'thickness', 0, 1, depth)], [{ side: L1, type: 'tape16' }]);
+      expect(visibleRun(ended(1 / 32), L1, 1 / 16)).toEqual({ lo: 0, hi: 3.5, shortLo: false, shortHi: false });
+      expect(tapeRuns(ended(1 / 32), [...types, tape16])[0]!.length).toBe(3.5 + 0.5);
+      expect(visibleRun(ended(1 / 16), L1, 1 / 16)).toEqual({ lo: 1, hi: 3.5, shortLo: true, shortHi: false });
+      expect(tapeRuns(ended(1 / 16), [...types, tape16])[0]!.length).toBe(2.5 + 0.5);
+    });
     it('a stopped-dado-like notch, inset 1/4, on 3/8 front edging does not shorten it', () => {
       const thick: BandType = { ...maple, id: 'm38', thickness: 0.375 };
       const b = { ...shelf(30.75, [cut('length', 'max', 'thickness', 0, 0.25, 0.375)], [{ side: W0, type: 'm38' }]) };

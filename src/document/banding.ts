@@ -71,7 +71,7 @@ const runMemo = new WeakMap<Board, Map<string, RunCuts>>();
 /**
  * THE visible-run decision (P12): a stored rectangular cut QUALIFIES for side `s` (across `a`, run `r`) when its clipped
  * region covers the whole thickness, reaches THROUGH the band (from the side at least the band's thickness `t` into the part
- * along `a`; any depth for tape, t = 0), reaches an end of the run, and has positive extent along `r` and `a` — a tenon's
+ * along `a`; any depth for a band with no thickness, t = 0), reaches an end of the run, and has positive extent along `r` and `a` — a tenon's
  * shoulder or a stopped dado's notch (each ONE full-thickness cut), or a hand notch at a banded end. A cheek, a rabbet
  * along the edge, a mid-run notch or a cut shallower than the band never qualifies. A function of the part's cuts,
  * dimensions and `t` alone (never the band types), with no knowledge of joints.
@@ -110,7 +110,7 @@ function runCuts(part: Board, side: ProfileSide, t: number): RunCuts {
   return out;
 }
 
-/** A band's visible run on `side` (P12), `t` the band's thickness (0 for tape): `[lo, hi]` along the run dimension;
+/** A band's visible run on `side` (P12), `t` the band TYPE's thickness (tape too: 0 for most): `[lo, hi]` along the run dimension;
  *  `hi − lo ≤ EPS` means nothing is visible. Memoised per part object, side and t, deep-frozen. */
 export function visibleRun(part: Board, side: ProfileSide, t: number): VisibleRun {
   return runCuts(part, side, t).run;
@@ -221,7 +221,7 @@ const judge = memoised((part: Board, types: readonly BandType[]): Judged => {
     }
   }
   faults.sort((p, q) => sideIndex(p.side) - sideIndex(q.side));
-  const runs = type.map((bt, k) => (bt ? visibleRun(part, BAND_SIDES[k]!, bt.kind === 'tape' ? 0 : t[k]!) : null));
+  const runs = type.map((bt, k) => (bt ? visibleRun(part, BAND_SIDES[k]!, t[k]!) : null));
   return freeze({ faults, t, type, chords, runs, outline }, new Set(type));
 });
 
@@ -298,7 +298,7 @@ const tapeRunsOf = memoised((part: Board, types: readonly BandType[]): readonly 
   for (let i = 0; i < 4; i += 1) {
     const bt = j.type[i];
     if (!bt || bt.kind !== 'tape') continue;
-    const { run, rects } = runCuts(part, BAND_SIDES[i]!, 0);   // tape: t = 0, any depth qualifies
+    const { run, rects } = runCuts(part, BAND_SIDES[i]!, bt.thickness);   // a thick tape: only a cut through it qualifies
     if (nothingVisible(run)) continue;
     const adjacent = i < 2 ? [2, 3] : [0, 1];
     let length = 0;
