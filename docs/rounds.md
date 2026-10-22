@@ -113,14 +113,14 @@
   `docs/superpowers/plans/2026-10-22-sloyd-joinery-curves.md`. Branch tree: 7382 tests across 217 files. No schema change, so rolling back is free.
   Owed to the user: the curve and profile summary-line wording and `FEATURE_CHECK_FAILED` (P8), and the joinery-features spec's
   *Amended (planning, chunk 2)* and *Amended (execution, chunk 2)* blocks, in particular the bow correction. Record-only: fu 415 (a bowed rail
-  loses tenon, dado and stopped dado at its ends). Next: chunk 3 (bands).
+  loses tenon, dado and stopped dado at its ends; CLOSED later that day by the user's ruling, see notch drop + fu 415 above). Next: chunk 3 (bands).
 - **Joinery accepts holes (joinery features chunk 1; 2026-10-22; branch `joinery-holes`, MERGED `f3493a7`, DEPLOYED 2026-10-22 as `index-ChnyDt9R.js` / CSS
   `index-Cj7r9G0C.css` unchanged; schema 20 unchanged)**: spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P1–P3 and
   the execution amendments), plan `docs/superpowers/plans/2026-10-21-sloyd-joinery-holes.md`. Live check `docs/browser-verification-joinery-holes.md`
   (free checks + one approved paid run, ≈ $0.03). Merged tree: build green, 7139 tests. Deployed and verified by bundle hash (sha256 matching
   `dist/`) in-network and at the edge, CSP, the old bundle 404s in-network, a clean real-browser load; production storage read empty after.
   **Rollback:** no schema change, so rolling back to `98c7df4` (`index-BZhrLswD.js`) is free. Owed to the user: the summary-line and
-  `HOLE_CHECK_FAILED` wording. Record-only: fu 413, 414. Next: chunks 2 (curves and profiles) and 3 (bands), each its own plan.
+  `HOLE_CHECK_FAILED` wording (chunk 2 generalised it to `FEATURE_CHECK_FAILED`). Record-only: fu 413, 414. Next: chunks 2 (curves and profiles) and 3 (bands), each its own plan.
 - **Hardware bill of materials (production until joinery chunk 1; 2026-10-21; branch `hardware` 218816a..53e483f, MERGED `98c7df4`, DEPLOYED 2026-10-21 as `index-BZhrLswD.js` / CSS `index-Cj7r9G0C.css`; schema 20)**: spec
   `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md` (approved, P1/P2 approved). Ten tasks; the full suite passes (CLAUDE.md has the count),
   `npm run build` green. The live pass on the dev server (`docs/browser-verification-hardware.md`) found one crash, a SHAPED part's
@@ -336,8 +336,11 @@
 ## Owed to the user: spec amendments awaiting review (moved from CLAUDE.md, 2026-10-22)
 
 Spec amendments awaiting the user's review: the joinery-features spec's *Amended (planning, chunk 2)* and *Amended (execution,
-chunk 2)* blocks, in particular the bow correction (a bow at a tenoned end now loses the growing kinds, reversing the approved
-spec's example; fu 415); the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
+chunk 2)* blocks — the bow correction (a bow at a tenoned end lost the growing kinds) is SUPERSEDED by fu 415's ruling (2026-10-22:
+a curve that only meets a growing end keeps them when its end-face waste clears the tenon section; a default bow keeps its tenon),
+whose accepted costs are owed too (fu 417, open: a shifted Bow or Rounded corner loses its preset; a dadoed bowed end's step at
+the housing) — and its P8 words: the summary lines (`… ruled out — <part>'s roundover profile is in the way.`, `left as a butt —
+… in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).

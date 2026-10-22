@@ -1,6 +1,6 @@
 # Sloyd: Add joinery and Repair accept holes, curves, profiles and bands
 
-**Date:** 2026-10-21 · **Status:** draft, awaiting the user's approval. Builder-checked; the user's two rulings (§8) folded in.
+**Date:** 2026-10-21 · **Status:** approved 2026-10-21 (builder-checked; the user's two rulings, §8, folded in). Chunks 1 and 2 deployed 2026-10-22; chunk 3 not started (§2). Later rulings: the *Amended* blocks at the end.
 **Builds on:** the joinery, repair-joints and refine-joined specs; the AI-tapers and AI-angles specs
 (`2026-10-13-sloyd-ai-angles-design.md`, the pattern this spec follows: the checks, joinery and Repair accept a feature
 before Generate and Refine do); the holes (§6), curves (§7), edge profiles, profile runs (§6) and edge banding (§6) specs,
@@ -53,7 +53,7 @@ real-world blocker, and they set up the shared machinery.
 |---|---|---|
 | **1: holes** (merged `f3493a7`, deployed 2026-10-22 as `index-ChnyDt9R.js`) | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
 | **2: curves and profiles** (merged `133c669`, deployed 2026-10-22 as `index-CYPvNoJ0.js`) | parts with curves or profiles (`curvedParts` counts both) | §4.2 / §4.3 rebases, curve and profile conflict rows, gate extension, Repair |
-| **3: bands** | banded parts | §4.4, band conflict rows, gate extension, Repair |
+| **3: bands** (not started; needs its own plan) | banded parts | §4.4, band conflict rows, gate extension, Repair |
 
 A chunk removes its feature's `'joinery'` refusal and Repair withholding only in that chunk, together with the rebase, the
 inverse and the gate extension. Repair must never be enabled for a feature its gate cannot compare (anti-goal 4). Until its
@@ -395,7 +395,8 @@ Chunk 2's plan amendments (2026-10-22).
   - **A swept profile:** conservatively, its box form meets the end face, touching included.
 
   Correction (execution, see below): the plan's note that a bow's waste meets the end only at a corner point, so a bow keeps
-  the growing kinds, was wrong. A bow's waste lies along the end line for its rise.
+  the growing kinds, was wrong. A bow's waste lies along the end line for its rise. (Its consequence, a bowed rail losing the growing kinds,
+  is itself superseded by fu 415's ruling: see the execution block's first item.)
 - **P7: the run-through exception (§3.4), decided per growing face.** A feature takes it when all three hold:
   1. `d === 'length'`. `tenonSection` is defined over width × thickness, the recipe's own frame.
   2. It is a curve or straight profile with `through === d` that runs out through the GROWING face: a plain curve always

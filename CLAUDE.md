@@ -45,13 +45,12 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
 ## Status
 
 - **Production: `100c691`, bundle `index-COsxvOYF.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (the metric notch
-  drop, fu 416, and fu 415's end-face clearance, on joinery features chunk 2; deployed 2026-10-22). Owed to the user: the summary-line
-  and `FEATURE_CHECK_FAILED` words, the chunk-2 spec amendments (the bow correction), fu 410–412 and the hardware words.
+  drop, fu 416, and fu 415's end-face clearance, on joinery features chunk 2; deployed 2026-10-22). Owed to the user: see NEXT.
 - **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
 
   | Roll back to | Bundle | Schema | Cost |
   |---|---|---|---|
-  | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416) |
+  | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416); a bowed rail's ends join as butts again (fu 415) |
   | `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
   | `98c7df4` (hardware) | `index-BZhrLswD.js` | 20 | free (no schema change); joinery refuses holed projects again |
   | `4a6d6a1` (band wording) | `index-QDQAnB8n.js` | 19 | REFUSES every project saved at 20 — export first |
@@ -62,11 +61,14 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **NEXT (audited 2026-10-22):** nothing is pending deploy. Joinery features chunk 3 (bands) needs its own plan (spec `2026-10-21-sloyd-joinery-features-design.md`). Owed to the user: fu 402(1)–(2) (band
-  looks on real hardware, glue lines on a real print) and fu 410–412 plus the hardware spec's *Amended
-  (implementation)* words (wording, the user's eye). As the user directs: fu 396–403 (396, 397 open by
-  decision; 398–400 features; 401, 403 record-only) and the hardware residue 404–409 (404–407 features;
-  408 open by decision; 409 record-only). fu 267 is CLOSED (both halves shipped). No follow-up is open as code-sized work: what is left is a feature spec, the
+- **NEXT (audited 2026-10-22):** nothing is pending deploy. Joinery features chunk 3 (bands; fu 398's joinery and Repair
+  half) is next and has NO plan yet: write one from the spec (`2026-10-21-sloyd-joinery-features-design.md` §4.4, §5, §7;
+  the user's Q2 ruling, §8: count only the visible length). Owed to the user: the joinery summary-line words (`… ruled out —
+  <part>'s roundover profile is in the way.`) and `FEATURE_CHECK_FAILED`'s; that spec's chunk-2 amendments (the bow correction,
+  superseded by fu 415's ruling, and its costs: fu 417, a dadoed bowed end's step); fu 402(1)–(2) (band looks on real
+  hardware, glue lines on a real print); fu 410–412 plus the hardware spec's *Amended (implementation)* words. As the user
+  directs: fu 396–403 (396, 397 open by decision; 398–400 features; 401, 403 record-only), the hardware residue 404–409
+  (404–407 features; 408 open by decision; 409 record-only), 413/414 (record-only) and 417 (ask first). fu 267 is CLOSED (both halves shipped). No follow-up is open as code-sized work: what is left is a feature spec, the
   user's eye or hardware, or an open-by-decision item (ask first) — all under Open follow-ups below.
   Every follow-up 1–380 was triaged 2026-10-16; some entries close mid-line, so read an entry whole.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
@@ -488,7 +490,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `cutIntoEnd`. Angle cuts: one decider, `joineryRefusal` (`taperConflicts`,
     `angleConflicts`, `clearsTenon`), one sentence per part; `rebaseAngleCuts` re-anchors on
     resize and `readJoints`' `resizeAt` undoes it exactly. The unjoin gate compares cuts as a
-    MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved or profiled project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`). **A curve or profile is judged in the ORIGINAL frame (P5), never on a mid-trial board; the run-through exception is decided per growing face (P7).** `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves and profiles. A joined Refine is refused up front when an angle cut
+    MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved or profiled project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`). **A curve or profile is judged in the ORIGINAL frame (P5), never on a mid-trial board; the run-through exception is decided per growing face (P7)**; a curve or straight profile that only meets a growing end is exempt when its end-face waste clears the tenon section (fu 415). `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves and profiles. A joined Refine is refused up front when an angle cut
     already runs into a joint; a conflicting result comes back UNJOINED, never joined over it.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
@@ -599,7 +601,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     A `CurveCut` is a closed WASTE outline of lines and MINOR arcs (`rise` OR `radius`, the other
     derived, never written back); kinds are derived structurally. Authoring refuses an ADDED fault;
     one a resize causes is KEPT and noted. **Every edit is refused when an arc would pass a half
-    circle** (the loader would DROP it). **A curved part's edges are BUILT** (`curvedEdges`). An
+    circle** (the loader would DROP it; it alone holds one within 4 ulps of its coordinates to the bound, fu 416). **A curved part's edges are BUILT** (`curvedEdges`). An
     unknown segment `type` refuses the document. **Edge profiles are stored as `ProfileCut`s and
     every reader goes through `geometryBoard`** (a NEW reader takes the view too); `profileFaults` is
     the ONE profile fault decider; `profilePath.ts` the ONE path home. Faults and decisions read the
@@ -640,14 +642,14 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
 - **Feature-sized (need a spec):** 253 user-placed dimensions and 265 per-project prices (schema bumps); 257, 258; 404–407 (hardware residue), 268, 270,
-  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328 (closed for joinery and Repair by joinery-features chunk 1; Refine stays under 329), 329–331, 334; curves 363 (Generate/Refine and the design checks; joinery and Repair closed by joinery chunk 2), 364, 366, 365 (blind curved recesses); banding 398 (through joinery/Refine/Repair), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
+  271, 274; angle cuts 275, 276 (the joint kinds only), 280; holes 328 (closed for joinery and Repair by joinery-features chunk 1; Refine stays under 329), 329–331, 334; curves 363 (Generate/Refine and the design checks; joinery and Repair closed by joinery chunk 2), 364, 366, 365 (blind curved recesses); banding 398 (joinery/Repair: spec'd as joinery-features chunk 3, needs a plan; Refine), 399 (a band type library), 400 (corner rules per corner); (390 closed by profile runs b2; chunk c shipped as c1 + c2.)
 - **Owed to the user, not code:** real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
   by eye — 142, 319, 380(1), 384(2), 387(1), 392(2), 393, 394, 272 (`docs/rounds.md`); 350 (a hand check of section markers); 106
-  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the *Amended (implementation)* rulings of the curves, profile runs and section views specs (list: `docs/rounds.md`, Owed to the user); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print); the joinery-features spec's *Amended (planning, chunk 2)* and *Amended (execution, chunk 2)* blocks, in particular the bow correction.
+  (touch/pen); 153 (a browser at quota); 357 (the metric margin note on a real Brave print); paid runs 172, 177, 283; the *Amended (implementation)* rulings of the curves, profile runs and section views specs (list: `docs/rounds.md`, Owed to the user); edge banding (every spec amendment approved 2026-10-20; fu 395 closed): fu 402(1)–(2) (band looks on real hardware, glue lines on a real print); the joinery-features spec's chunk-2 amendments and words (NEXT above).
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it). Record-only: 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset), 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop). For the user's eye: 410–412 (hardware wording).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it), 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset: ask first). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop). For the user's eye: 410–412 (hardware wording).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

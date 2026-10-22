@@ -5962,7 +5962,7 @@ independent of row order); the Hinge cup runs along the longer in-face dimension
 Carrying holes through needs a rebase for rows measured from an end joinery grows or trims (as `rebaseAngleCuts`, fu 307),
 `readJoints`' exact undo of it, and a hole-in-pocket refusal (a hole meeting a mortise or tenon). **Status:** open (spec §11).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
-**Status:** closed for joinery and Repair (joinery-features chunk 1, branch `joinery-holes`: `featureAllowed` rules out joint kinds, `rebaseHoles`, the gate compares holes); Refine stays with fu 329.
+**Status:** closed for joinery and Repair (joinery-features chunk 1, merged `f3493a7`, deployed 2026-10-22: `featureAllowed` rules out joint kinds, `rebaseHoles`, the gate compares holes); Refine stays with fu 329.
 
 **329. Generate and Refine authoring holes.** Holes in world words in the design schema — a `DESIGN_SCHEMA` change, so one
 live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
@@ -6734,6 +6734,8 @@ edging and a profile routed into it all read as one piece of wood. The fix would
 **398. Bands through joinery, Refine and Repair** (spec §6). Today all three refuse a banded project at entry
 (`bandedRefusal`). Carrying bands through would need: joinery keeping a tenon out of edging, Refine reading and writing
 bands, and Repair proving them. **Status:** open (feature; needs a spec).
+**Status:** open (feature). Its joinery and Repair half is spec'd (joinery-features spec §4.4, §5, §8 Q2: count only the visible
+length) as that spec's chunk 3, not started (needs its own plan, 2026-10-22); Refine stays open (needs a spec).
 
 **399. A browser library of band types** (spec §1's non-goal). Band types are per project; a shop's usual edging has to be
 re-made in each project. This would follow the materials library precedent (`sloyd.materials.v1`). Prices raise a

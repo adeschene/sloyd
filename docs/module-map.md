@@ -21,7 +21,8 @@ src/
 │   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
 │   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`)
 │   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
-│   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes
+│   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes; the curve validator holds an arc within 4 ulps
+│   │                     of its coordinates past the half-circle bound TO the bound (fu 416), drops one further past
 │   ├── ids.ts            nextId, the one id minter
 │   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
 │   │                     the derived-PROJECT name ("— refined 2", fu 237)
@@ -68,8 +69,9 @@ src/
 │   ├── curves.ts         THE curve model (inv 53): CURVE_FIELDS (inv 40), CURVE_TOLERANCE 0.005 / SEGMENTS_MAX
 │   │                     24 / STORED_MAX 64, copyCurve, mirrorCurveCut (inv 44), localSegments/arcOf (LocalArc: centre, radius,
 │   │                     rise, crown), curveOutline (chords ON the arc), smoothLines, bowsInto, wasteContains/isAir (P3),
-│   │                     circleMeetsWaste/rectMeetsWaste, curveFaults (THE decider: runs-off, cuts-through), convexPieces (ear
-│   │                     clip), curvePlan (CLIP or SPLIT; the strengthened P6), splitPieces; writers/readers archCurve/archFields,
+│   │                     circleMeetsWaste/rectMeetsWaste, rectOverlapsWaste (joinery's open test, P4: a side counts only where
+│   │                     wasteOnSegment finds a stretch of it inside) / wasteOnSegment (P6's end-line length), curveFaults (THE decider: runs-off, cuts-through), convexPieces (ear
+│   │                     clip), curvePlan (CLIP or SPLIT; the strengthened P6), splitPieces; writers/readers archCurve (a notch's rise is half its STORED chord, fu 416)/archFields,
 │   │                     bowCurve/bowFields, cornerCurve/cornerFields, deriveCurveKind, curveKindWord, presets defaultArch/
 │   │                     Notch/Bow/Corner/Corners; CurveSpan / ViewCurve / spanOf (a stopped profile's VIEW-ONLY `span: {lo, hi, stopLo, stopHi}`,
 │   │                     never stored; `curveValues` appends it only when present, P18); runtime imports `geometry` only
@@ -110,11 +112,11 @@ src/
 │   ├── skeleton.ts       planChain, pathSkeleton (the path's truncated straight skeleton: a swallowed chord collapses, its neighbours
 │   │                     rejoin), station clips (b2: a `stop` clip — the plane across the stop's model chord, its ray N, `end` lo/hi); a leaf
 │   │                     below profiles/sweep so the fault decider can ask for it without a cycle
-│   ├── featureRegions.ts joinery's shaped-feature tests (inv 41, chunk 2): shapedFeatures, featureMeetsBox, featureTouchesEnd, runsOutThrough, crossSectionOverlaps; curves.ts `rectOverlapsWaste` (open) / `wasteOnSegment`, sweep.ts `sweptWasteMeetsBox` (conservative box form), profiles.ts `PROFILE_KEYS`
+│   ├── featureRegions.ts joinery's shaped-feature tests (inv 41, chunk 2): shapedFeatures, featureMeetsBox, featureTouchesEnd, runsOutThrough, crossSectionOverlaps; curves.ts `rectOverlapsWaste` (open) / `wasteOnSegment`, sweep.ts `sweptWasteMeetsBox` (conservative box form), profiles.ts `PROFILE_KEYS`; featureRegions.test.ts
 │   ├── sweep.ts          THE place a swept profile becomes geometry (b1, Q3, inv 48): sweptPlan/sweptPieces (skeleton faces × the kept
 │   │                     section's convex pieces, plus the rest of the outline), keptSection (WALL_MARGIN 1/64": a wall at the reach held
 │   │                     inside the band), builtSwept (the unfaulted swept profiles), sweptRunouts (a B1 station's a2 run-out),
-│   │                     sweptAirTester / sweptWasteMeets (probe, hole faults), sweptNormals (smooth shading), sweptInnerLine (diagrams);
+│   │                     sweptAirTester / sweptWasteMeets (probe, hole faults), sweptWasteMeetsBox (joinery's conservative box form, P4), sweptNormals (smooth shading), sweptInnerLine (diagrams);
 │   │                     the tag contract (`curve` on an outline chord's plane, `profileEdge` + `sweep` on a section face); memoised, frozen;
 │   │                     b2: sweptStops (each stop's `StopFrame`, read off the BUILT path; memoised per view, frozen), bandReach; a B1 station
 │   │                     clips only its own END of the band (`clipFaces`/`clipWave`: from that end to the first face wholly kept), a stop never
@@ -254,7 +256,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units, stopped dado whole); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5); `document/ruledOutText.ts` (the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units, stopped dado whole); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves), joinWatch); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -339,7 +341,8 @@ src/
 │                     in `PROFILE_REFUSAL` words, another's through `curveEditRefusal`)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
-                      (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
+                      (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal; `FEATURE_CHECK_FAILED` (the joinery
+                      dialog REFUSED when checking features against joints throws, fu 244, P8)
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
