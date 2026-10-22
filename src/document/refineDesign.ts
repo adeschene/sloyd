@@ -12,7 +12,7 @@ import { curvedRefusal } from './curvedRefusal';
 import { bandedRefusal } from './bandedRefusal';
 import { hardwareRefusal } from './hardwareRefusal';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
-import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
+import { flatDocument, worldParts } from './tree';
 
 /**
  * Refine's input (refine spec §2): the open design in Generate's own format —
@@ -173,28 +173,4 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     return placements.length === 0 ? [] : [{ name: placements[0]!.name, parts: boxes(d.boards, corner), placements }];
   });
   return { design: { name: doc.name, parts, assemblies } };
-}
-
-/**
- * The model never sees grain (refine spec §4): each returned part whose flat
- * display name matches an original part takes that part's grain; an assembly
- * part tries each of its placements in order. Every other part has none, so
- * the converter gives it 'length'. Runs BEFORE conversion, so role linking's
- * sameShared judges the real values.
- */
-export function carryGrain(design: GeneratedDesign, original: SloydDocument): GeneratedDesign {
-  const grain = new Map(flatDocument(original).boards.map((b) => [b.name, b.grain] as const));
-  const set = (p: GeneratedPart, names: string[]): GeneratedPart => {
-    const { grain: _old, ...rest } = p;
-    const hit = names.map((n) => grain.get(n)).find((g) => g !== undefined);
-    return hit ? { ...rest, grain: hit } : rest;
-  };
-  return {
-    ...design,
-    parts: design.parts.map((p) => set(p, [p.name])),
-    assemblies: (design.assemblies ?? []).map((a) => ({
-      ...a,
-      parts: a.parts.map((p) => set(p, a.placements.map((pl) => `${pl.name}${NAME_SEPARATOR}${p.name}`))),
-    })),
-  };
 }

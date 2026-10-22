@@ -12,7 +12,7 @@ import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
 import { builtInCatalog } from './materials';
 import type { MaterialCatalog } from './materials';
-import type { Board, CustomMaterial, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
+import type { Band, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareUse, HoleRow, Instance, Posture, ProfileCut, Rotation } from './types';
 
 /**
  * What the model sends back (spec §4.1). The model thinks in WORLD BOXES —
@@ -25,10 +25,18 @@ export interface Vec3 { x: number; y: number; z: number }
 export type MaterialKey = string;
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
+/** TS-only (never in the schema; parseDesign's fresh object drops it). Set by Refine's carryFromOriginal. */
+export interface PartCarry {
+  /** Present iff any hole, curve, profile or band is carried: the ORIGINAL part's encoding (spec §3.2). */
+  frame?: { posture: Posture; rotation: Rotation };
+  holes: HoleRow[]; curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
+}
 export interface GeneratedPart {
   name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3;
-  /** TS-only, never in the schema: set by Refine's carryGrain from the original part of the same name. parseDesign drops it. */
+  /** TS-only, never in the schema: set by Refine's carryFromOriginal from the original part of the same name. parseDesign drops it. */
   grain?: Grain;
+  /** TS-only, never in the schema: the original part's features (Refine's carryFromOriginal). parseDesign drops it. */
+  carry?: PartCarry;
   /** Required from the model (parseDesign checks it); optional here like `role`. */
   tapers?: WorldTaper[];
   /** Required from the model (parseDesign checks them); optional here like `tapers` (AI-angles spec §5.1). */
@@ -39,7 +47,7 @@ export interface GeneratedPart {
 /** Where an assembly's local origin goes in the world. No turn (spec §2). */
 export interface GeneratedPlacement { name: string; at: Vec3 }
 /** Parts in the assembly's OWN frame, placed by translation; one level, parts only. */
-export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[] }
+export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[]; /** TS-only: the original definition's hardware (Refine). */ carry?: { hardware: HardwareUse[] } }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
 /** `detail` is the whole message, set for `'taper'` and `'angle'`. */

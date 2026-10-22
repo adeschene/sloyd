@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carryGrain, designValues, documentToDesign } from './refineDesign';
+import { designValues, documentToDesign } from './refineDesign';
 import { diffDesigns } from './designDiff';
 import { groupItems } from './treeOps';
 import { designToDocument, orient, parseDesign } from './generated';
@@ -174,22 +174,7 @@ describe('documentToDesign — shapes and normalised assemblies', () => {
   });
 });
 
-describe('carryGrain', () => {
-  const original = designToDocument({ name: 'G', parts: [{ ...part('Shelf', [0, 0, 0], [30, 0.75, 11]), grain: 'width' }],
-    assemblies: [{ name: 'D', parts: [{ ...part('Front', [0, 0, 0], [10, 4, 0.75]), grain: 'width' }], placements: [{ name: 'Top drawer', at: v(0, 5, 0) }] }] }).doc;
-
-  it('gives a part of the same flat name the original grain, and leaves others without one', () => {
-    const out = carryGrain({ name: 'G', parts: [part('Shelf', [0, 0, 0], [30, 0.75, 11]), part('New', [0, 1, 0], [5, 1, 1])], assemblies: [] }, original);
-    expect(out.parts.map((p) => p.grain)).toEqual(['width', undefined]);
-    expect('grain' in out.parts[1]).toBe(false);
-  });
-
-  it('matches an assembly part through its placements', () => {
-    const out = carryGrain({ name: 'G', parts: [], assemblies: [{ name: 'Whatever', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
-      placements: [{ name: 'Top drawer', at: v(0, 5, 0) }] }] }, original);
-    expect(out.assemblies![0].parts[0].grain).toBe('width');
-  });
-
+describe('documentToDesign — mirrored', () => {
   it('refuses a design containing a mirrored assembly (mirrored-instances spec §6)', () => {
     const d = designToDocument({ name: 'P', parts: [], assemblies: [{ name: 'Side', parts: [{ name: 'A', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 4 } }], placements: [{ name: 'L', at: { x: 0, y: 0, z: 0 } }, { name: 'R', at: { x: 30, y: 0, z: 0 } }] }] } as GeneratedDesign).doc;
     const m = { ...d, instances: d.instances.map((i, k) => (k === 1 ? { ...i, mirrored: true } : i)) };

@@ -23,7 +23,8 @@ import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, u
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import type { RefineBase, RefineSettings } from './refine';
-import { carryGrain, designValues, documentToDesign } from '../document/refineDesign';
+import { designValues, documentToDesign } from '../document/refineDesign';
+import { carryFromOriginal } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
@@ -253,7 +254,7 @@ export async function runRefine(
     system: SYSTEM_PROMPT,
     schema: designSchema(catalog),
     first: refineMessage(from.design, settings, catalog),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, units: doc.units }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, units: doc.units }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result (hardware types and the project's own hardware too:
   // nothing in them names a part, hardware spec §6); custom materials the result no longer uses go.
