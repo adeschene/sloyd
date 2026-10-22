@@ -41,10 +41,10 @@ describe('a metric rail\'s strip stops at both shoulders (P12)', () => {
     // length would be wrong by both).
     expect([before.length, before.width, before.thickness]).toEqual([mm(457), mm(89), mm(19)]);
     expect(rail.length).toBeCloseTo(mm(457) + t0! + t1!, 9);
-    const run = visibleRun(rail, W0);
+    const run = visibleRun(rail, W0, maple.thickness);
     expect([run.shortLo, run.shortHi]).toEqual([true, true]);
     expect(run.hi - run.lo).toBeCloseTo(mm(457), 9);
-    expect(visibleRun(rail, W1)).toMatchObject({ shortLo: true, shortHi: true });
+    expect(visibleRun(rail, W1, 0)).toMatchObject({ shortLo: true, shortHi: true });
     expect(strips(rail, out.doc.bandTypes)[0]!.finished).toBeCloseTo(mm(457), 9);
     expect(strips(rail, out.doc.bandTypes)[0]!.finished).toBeCloseTo(strips(before, doc.bandTypes)[0]!.finished, 9);
     expect(tapeRuns(rail, out.doc.bandTypes)[0]!.length).toBeCloseTo(mm(457) + BUILT_IN_BAND.lengthAllowance, 9);

@@ -65,21 +65,22 @@ const stretchIndices = (from: number, to: number, n: number) => {
 export interface VisibleRun { lo: number; hi: number; shortLo: boolean; shortHi: boolean }
 /** A side's visible run and the clipped regions of its QUALIFYING cuts (tape clips its line chords against them, P13). */
 interface RunCuts { run: VisibleRun; rects: readonly Region[] }
-/** Per part object, one entry per side index; the array is filled lazily (never frozen), each entry is. */
-const runMemo = new WeakMap<Board, (RunCuts | undefined)[]>();
+/** Per part object, keyed by side index and band thickness; the map is filled lazily (never frozen), each entry is. */
+const runMemo = new WeakMap<Board, Map<string, RunCuts>>();
 
 /**
  * THE visible-run decision (P12): a stored rectangular cut QUALIFIES for side `s` (across `a`, run `r`) when its clipped
- * region covers the whole thickness, touches the side, reaches an end of the run, and has positive extent along `r` and
- * `a` — a tenon's shoulder or a stopped dado's notch (each ONE full-thickness cut), or a hand notch at a banded end. A
- * cheek, a rabbet along the edge or a mid-run notch never qualifies. A function of the part's cuts and dimensions alone
- * (never the band types), with no knowledge of joints.
+ * region covers the whole thickness, reaches THROUGH the band (from the side at least the band's thickness `t` into the part
+ * along `a`; any depth for tape, t = 0), reaches an end of the run, and has positive extent along `r` and `a` — a tenon's
+ * shoulder or a stopped dado's notch (each ONE full-thickness cut), or a hand notch at a banded end. A cheek, a rabbet
+ * along the edge, a mid-run notch or a cut shallower than the band never qualifies. A function of the part's cuts,
+ * dimensions and `t` alone (never the band types), with no knowledge of joints.
  */
-function runCuts(part: Board, side: ProfileSide): RunCuts {
-  const i = sideIndex(side);
+function runCuts(part: Board, side: ProfileSide, t: number): RunCuts {
+  const key = `${sideIndex(side)}|${t}`;
   let m = runMemo.get(part);
-  if (!m) { m = []; runMemo.set(part, m); }
-  const hit = m[i];
+  if (!m) { m = new Map(); runMemo.set(part, m); }
+  const hit = m.get(key);
   if (hit) return hit;
   const a = side.across;
   const r: 'length' | 'width' = a === 'width' ? 'length' : 'width';
@@ -91,25 +92,34 @@ function runCuts(part: Board, side: ProfileSide): RunCuts {
   for (const c of part.cuts) {
     const R = clippedRegion(part, c);
     const whole = R.thickness[0] <= EPS && R.thickness[1] >= part.thickness - EPS;
-    const touches = side.from === 'min' ? R[a][0] <= EPS : R[a][1] >= part[a] - EPS;
+    // It touches the side and reaches through the band: a cut shallower than the band leaves edging (and the core's
+    // reduction) beyond it, so it shortens nothing.
+    const through = side.from === 'min'
+      ? R[a][0] <= EPS && R[a][1] >= t - EPS
+      : R[a][1] >= part[a] - EPS && R[a][0] <= part[a] - t + EPS;
     const atLo = R[r][0] <= EPS;
     const atHi = R[r][1] >= part[r] - EPS;
     const extent = R[r][1] - R[r][0] > EPS && R[a][1] - R[a][0] > EPS;
-    if (!whole || !touches || !(atLo || atHi) || !extent) continue;
+    if (!whole || !through || !(atLo || atHi) || !extent) continue;
     rects.push(R);
     if (atLo) { shortLo = true; lo = Math.max(lo, R[r][1]); }
     if (atHi) { shortHi = true; hi = Math.min(hi, R[r][0]); }
   }
   const out = freeze({ run: { lo, hi, shortLo, shortHi }, rects });
-  m[i] = out;
+  m.set(key, out);
   return out;
 }
 
-/** A band's visible run on `side` (P12): `[lo, hi]` along the run dimension; `hi − lo ≤ EPS` means nothing is visible.
- *  Memoised per part object and side, deep-frozen. */
-export function visibleRun(part: Board, side: ProfileSide): VisibleRun {
-  return runCuts(part, side).run;
+/** A band's visible run on `side` (P12), `t` the band's thickness (0 for tape): `[lo, hi]` along the run dimension;
+ *  `hi − lo ≤ EPS` means nothing is visible. Memoised per part object, side and t, deep-frozen. */
+export function visibleRun(part: Board, side: ProfileSide, t: number): VisibleRun {
+  return runCuts(part, side, t).run;
 }
+
+/** A shortened end's start (P12 amended): where the band gives way at that end it still starts no nearer the corner than
+ *  the neighbour's thickness `tn`, so a corner cut shorter along the run than the neighbour leaves no overlap and no gap. */
+const startAt = (lo: number, givesWay: boolean, tn: number) => (givesWay ? Math.max(lo, tn) : lo);
+const endAt = (hi: number, givesWay: boolean, far: number) => (givesWay ? Math.min(hi, far) : hi);
 
 /** No part of a run is visible: no strip, no tape run, no glue line (P12). */
 const nothingVisible = (run: VisibleRun) => run.hi - run.lo <= EPS;
@@ -211,7 +221,7 @@ const judge = memoised((part: Board, types: readonly BandType[]): Judged => {
     }
   }
   faults.sort((p, q) => sideIndex(p.side) - sideIndex(q.side));
-  const runs = type.map((bt, k) => (bt ? visibleRun(part, BAND_SIDES[k]!) : null));
+  const runs = type.map((bt, k) => (bt ? visibleRun(part, BAND_SIDES[k]!, bt.kind === 'tape' ? 0 : t[k]!) : null));
   return freeze({ faults, t, type, chords, runs, outline }, new Set(type));
 });
 
@@ -255,11 +265,14 @@ const stripsOf = memoised((part: Board, types: readonly BandType[]): readonly St
     const nb = long ? [2, 3] : [0, 1];
     const givesWay = (part.cornerRule === 'long' && !long) || (part.cornerRule === 'ends' && long);
     const own = bt.thickness;
-    // P12: the visible run, less the give-way at each end NOT shortened (a shortened end's corner is gone). Unshortened,
-    // `hi − lo` is the side's dimension exactly and the sum is today's, bit for bit.
+    // P12 (amended): each end starts at `startAt` (a shortened end) or today's give-way. With neither end shortened the
+    // number is today's expression, bit for bit.
     const short = [run.shortLo, run.shortHi];
-    const give = (k: number) => (givesWay && !short[k] ? j.t[nb[k]!]! : 0);
-    const finished = (run.hi - run.lo) - (give(0) + give(1));
+    const t0 = j.t[nb[0]!]!, t1 = j.t[nb[1]!]!;
+    const len = sideLength(part, side);
+    const start = short[0] ? startAt(run.lo, givesWay, t0) : givesWay ? t0 : 0;
+    const stop = short[1] ? endAt(run.hi, givesWay, len - t1) : len - (givesWay ? t1 : 0);
+    const finished = !short[0] && !short[1] ? len - (givesWay ? t0 + t1 : 0) : stop - start;
     const end = (k: number): StripEnd => {
       const n = j.t[nb[k]!]!;
       return { mitre: part.cornerRule === 'mitre' && n > 0 && !short[k] ? Math.atan(n / own) : null };
@@ -285,7 +298,7 @@ const tapeRunsOf = memoised((part: Board, types: readonly BandType[]): readonly 
   for (let i = 0; i < 4; i += 1) {
     const bt = j.type[i];
     if (!bt || bt.kind !== 'tape') continue;
-    const { run, rects } = runCuts(part, BAND_SIDES[i]!);
+    const { run, rects } = runCuts(part, BAND_SIDES[i]!, 0);   // tape: t = 0, any depth qualifies
     if (nothingVisible(run)) continue;
     const adjacent = i < 2 ? [2, 3] : [0, 1];
     let length = 0;
@@ -358,9 +371,11 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
     const across = side.across;
     const o = side.from === 'min' ? j.t[i]! : part[across] - j.t[i]!;
     const through = rule === 'long' ? long : rule === 'ends' ? !long : false;
-    // P14 (inv 16): a shortened end's line stops at the visible end; an unshortened end keeps today's rule.
-    const lo = run.shortLo ? run.lo : through ? 0 : j.t[nb[0]!]!;
-    const hi = run.shortHi ? run.hi : part[r] - (through ? 0 : j.t[nb[1]!]!);
+    // P14 (inv 16): a shortened end's line stops at the visible end (no nearer the corner than a neighbour it gives way
+    // to); an unshortened end keeps today's rule.
+    // A glue line gives way wherever its strip does not run through (today's rule, Mitred included).
+    const lo = run.shortLo ? startAt(run.lo, !through, j.t[nb[0]!]!) : through ? 0 : j.t[nb[0]!]!;
+    const hi = run.shortHi ? endAt(run.hi, !through, part[r] - j.t[nb[1]!]!) : part[r] - (through ? 0 : j.t[nb[1]!]!);
     const point = (rc: number, ac: number, th: number): Point => ({ [r]: rc, [across]: ac, thickness: th } as Point);
     const push = (rc0: number, ac0: number, rc1: number, ac1: number) => {
       for (const th of [0, part.thickness]) out.push({ side, type: bt.id, a: point(rc0, ac0, th), b: point(rc1, ac1, th) });
