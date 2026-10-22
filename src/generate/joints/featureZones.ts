@@ -204,14 +204,17 @@ const firstHit = (flat: FlatDocument, sites: readonly Site[], trials: JointChoic
  * - mortise-tenon at `tenonLength[1]`, dado at `dadoDepth[1]`.
  * - half-lap once per UNIT (the entering part's half-lap sites on one axis and side, as `applyJoints` drops it into all
  *   its partners together); a conflict rules half-lap out at every member.
- * - stopped-dado once per stop end, at `dadoDepth[1]` and that end's smallest inset; any conflicting end rules the kind
- *   out (the stop end is Claude's to choose).
+ * - stopped-dado once per stop end, at `dadoDepth[1]` and that end's smallest inset. An end whose trial conflicts is
+ *   DROPPED from the site's `stopEnds` (the user's ruling, 2026-10-22: "Offer clear ends", reversing chunk 1's "any
+ *   conflicting end rules the kind out"); the kind is ruled out, naming the first end's hit, only when no end clears. With
+ *   some end clear the kind is kept and nothing is written to `ruledOut` (no summary line: the coordinator's call). The
+ *   site message, `parseChoices` and `validChoice` read the narrowed `stopEnds`, so a dropped end is never offered or kept.
  * - rabbet once per UNIT (the panel's rabbet sites on one face, `applyJoints`' `rabbetUnits`), all members rabbeted
  *   together at their smallest depths (the panel's trims are largest) and again at their largest (the pockets are). A
  *   conflict rules rabbet out at every member, a trimmed part's included: a unit is resolved as one.
  *
- * `sites` comes back in order with the same ids; a narrowed site is a new object, every other keeps its identity, and
- * with nothing ruled out the same array comes back (with no hole, curve, profile or band anywhere, byte for byte). `ruledOut` lists each
+ * `sites` comes back in order with the same ids; a narrowed site (fewer kinds or fewer stop ends) is a new object, every
+ * other keeps its identity, and with nothing narrowed the same array comes back (with no hole, curve, profile or band anywhere, byte for byte). `ruledOut` lists each
  * (site, kind) in site order then `allowed` order, which `allowedFor` builds in JOINTS order, naming the first part met.
  */
 export function featureAllowed(flat: FlatDocument, sites: readonly Site[]): { sites: Site[]; ruledOut: RuledOut[] } {
@@ -256,23 +259,40 @@ export function featureAllowed(flat: FlatDocument, sites: readonly Site[]): { si
     switch (kind) {
       case 'mortise-tenon': return firstHit(flat, sites, [[{ site: s.id, joint: kind, tenonLength: r.tenonLength[1] }]], kind, shapes, bands);
       case 'dado': return firstHit(flat, sites, [[{ site: s.id, joint: kind, depth: r.dadoDepth[1] }]], kind, shapes, bands);
-      case 'stopped-dado': return firstHit(flat, sites, s.stopEnds.map((e) => [{ site: s.id, joint: kind, depth: r.dadoDepth[1], stopAt: e, inset: r.inset(e)[0] }]), kind, shapes, bands);
+      case 'stopped-dado': throw new Error('stopped-dado is judged per end (`endHits`)');
       case 'half-lap': return lapUnit(s);
       case 'rabbet': return rabbetUnit(s);
     }
   };
 
+  /** Each stop end's trial alone (in `stopEnds` order): its first conflict, or null when that end clears. */
+  const endHits = (s: Site): (Hit | null)[] => {
+    const r = rangesOf(s, flat);
+    return s.stopEnds.map((e) => firstHit(flat, sites, [[{ site: s.id, joint: 'stopped-dado', depth: r.dadoDepth[1], stopAt: e, inset: r.inset(e)[0] }]], 'stopped-dado', shapes, bands));
+  };
+
   const ruledOut: RuledOut[] = [];
   const out = sites.map((s) => {
     const gone = new Set<JointKind>();
+    let stopEnds = s.stopEnds;
     for (const kind of s.allowed) {
       if (kind === 'butt') continue;
-      const hit = conflict(s, kind);
+      let hit: Hit | null;
+      if (kind === 'stopped-dado') {
+        const hits = endHits(s);
+        const clear = s.stopEnds.filter((_, i) => hits[i] === null);
+        // Some end clears: keep the kind at those ends only. None does: rule it out, naming the first end's hit.
+        if (clear.length > 0) { if (clear.length < s.stopEnds.length) stopEnds = clear; continue; }
+        hit = hits[0]!;
+      } else {
+        hit = conflict(s, kind);
+      }
       if (hit === null) continue;
       gone.add(kind);
       ruledOut.push({ site: s.id, kind, part: hit.part, feature: hit.word });
     }
-    return gone.size === 0 ? s : { ...s, allowed: s.allowed.filter((k) => !gone.has(k)) };
+    if (gone.size === 0 && stopEnds === s.stopEnds) return s;
+    return { ...s, allowed: s.allowed.filter((k) => !gone.has(k)), stopEnds };
   });
-  return ruledOut.length === 0 ? { sites: sites as Site[], ruledOut } : { sites: out, ruledOut };
+  return out.every((s, i) => s === sites[i]) ? { sites: sites as Site[], ruledOut } : { sites: out, ruledOut };
 }

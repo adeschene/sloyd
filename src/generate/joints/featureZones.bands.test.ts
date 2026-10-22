@@ -346,6 +346,79 @@ describe('the receiver\'s edging raises a stopped dado\'s smallest inset (final 
   });
 });
 
+describe('"Offer clear ends" (the user\'s ruling, 2026-10-22): an end whose trial conflicts is dropped from stopEnds', () => {
+  const FRONT = { axis: 2, end: 'min' } as const;
+  const BACK = { axis: 2, end: 'max' } as const;
+  /** SHELF (a shelf flush front AND back between two sides) with both sides edged 3/4 on the given edges. */
+  const bookcase = (...edges: ((b: Board) => ProfileSide)[]) => banded(SHELF(), [solid(0.75)], {
+    Left: { bands: (b) => edges.map((e) => [e(b), 'solid-0.75']) }, Right: { bands: (b) => edges.map((e) => [e(b), 'solid-0.75']) },
+  });
+  const backEdge = (b: Board) => sideAt(b, 'width', 1);
+  it('the bookcase: front-edged sides, the shelf flush front and back — stopped-dado KEPT at the front end only', () => {
+    const doc = bookcase(front);
+    const found = findSites(doc);
+    expect(found.map((s) => s.stopEnds)).toEqual([[FRONT, BACK], [FRONT, BACK]]);
+    const out = featureAllowed(doc, found);
+    for (const s of out.sites) {
+      expect(s.allowed).toEqual(['stopped-dado', 'butt']);
+      expect(s.stopEnds).toEqual([FRONT]);
+    }
+    // ruled out: the tenon and the dado only; the dropped end writes no summary entry
+    expect(out.ruledOut.map((r) => [r.site, r.kind])).toEqual([[1, 'mortise-tenon'], [1, 'dado'], [2, 'mortise-tenon'], [2, 'dado']]);
+    const m = siteMessage(doc, out.sites);
+    expect(m).toContain('stopped-dado (depth 0.125–0.375; stopAt -Z with inset 0.75–5.625), butt.');
+    expect(m).not.toContain('+Z with inset');
+    // joined at the front end, both grooves clear the edging
+    const choices = out.sites.map((s) => ({ site: s.id, joint: 'stopped-dado' as const, depth: 0.375, stopAt: FRONT, inset: 0.75 }));
+    const r = applyJoints(doc, out.sites, choices);
+    expect(r.skipped).toEqual([]);
+    for (const name of ['Left', 'Right']) {
+      const S = r.doc.boards[indexOf(doc, name)]!;
+      const strip = bandRegions(S, doc.bandTypes)[0]!.region!;
+      expect(S.cuts).toHaveLength(1);
+      const g = clippedRegion(S, S.cuts[0]!);
+      expect(Math.min(g.width[1], strip.width[1]) - Math.max(g.width[0], strip.width[0])).toBeLessThanOrEqual(0);
+    }
+  });
+  it('validChoice rejects the dropped back end (at any inset) and accepts the front', () => {
+    const doc = bookcase(front);
+    const s = featureAllowed(doc, findSites(doc)).sites[0]!;
+    const c = (stopAt: typeof FRONT | typeof BACK, inset: number) => ({ site: 1, joint: 'stopped-dado' as const, depth: 0.375, stopAt, inset });
+    expect(validChoice(c(BACK, 0.25), s, doc)).toBe(false);
+    expect(validChoice(c(BACK, 0.75), s, doc)).toBe(false);
+    expect(validChoice(c(FRONT, 0.75), s, doc)).toBe(true);
+  });
+  it('a hole case: a bore in the side\'s front strip clears the front stop\'s groove but not the back stop\'s — kept, narrowed', () => {
+    // drilled into the left side's inner (+X) face 1/4 deep at y 12.375, z 0.1 (1/8 bore: z [0.0375, 0.1625]); the front
+    // stop's groove starts at 1/4, the back stop's runs from 0.
+    const doc = banded(SHELF(), [], { Left: { bands: () => [], holes: (b) => [holeAt(b, 0, 1, [0.75, 12.375, 0.1], 0.125, 0.25)] } });
+    const found = findSites(doc);
+    const left = found.find((s) => s.receive === indexOf(doc, 'Left'))!;
+    expect(left.stopEnds).toEqual([FRONT, BACK]);
+    const out = featureAllowed(doc, found);
+    const s = out.sites.find((x) => x.id === left.id)!;
+    expect(s.allowed).toEqual(['mortise-tenon', 'stopped-dado', 'butt']);
+    expect(s.stopEnds).toEqual([FRONT]);
+    expect(out.ruledOut).toEqual([{ site: left.id, kind: 'dado', part: indexOf(doc, 'Left'), feature: 'holes' }]);
+    // the other site is untouched: the same object
+    const other = found.find((x) => x.id !== left.id)!;
+    expect(out.sites.find((x) => x.id === other.id)).toBe(other);
+  });
+  it('both ends conflicting: ruled out as before, naming the first end\'s hit; stopEnds left as found', () => {
+    const doc = bookcase(front, backEdge);
+    const found = findSites(doc);
+    const out = featureAllowed(doc, found);
+    for (const [i, s] of out.sites.entries()) {
+      expect(s.allowed).toEqual(['butt']);
+      expect(s.stopEnds).toEqual(found[i]!.stopEnds);
+    }
+    expect(out.ruledOut.filter((r) => r.kind === 'stopped-dado')).toEqual([
+      { site: 1, kind: 'stopped-dado', part: indexOf(doc, 'Left'), feature: 'edge band' },
+      { site: 2, kind: 'stopped-dado', part: indexOf(doc, 'Right'), feature: 'edge band' },
+    ]);
+  });
+});
+
 describe('trims (P11)', () => {
   // The shelf butts the back mid-panel and is trimmed 1/4 off its back edge (its width max end) when the back moves into
   // its rabbets.

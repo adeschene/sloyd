@@ -651,5 +651,21 @@ describe('the bands oracle: no joint takes wood from an edge band (joinery featu
       return stripsOf(R, r.input.bandTypes).some((x) => x.region && x.band.side.across === facing.across && x.band.side.from === facing.from);
     }).map((a) => `${r.label} / ${run.label} / site ${a.site}`)));
     expect(beside.length, 'a stopped dado beside the receiver\'s edging').toBeGreaterThan(0);
+    // "Offer clear ends" (the user's ruling): a shelf flush front AND back offers both stop ends; the end whose groove would
+    // run through the receiver's edging is dropped, and a stopped dado at the clear end, beside that edging, is joined.
+    const narrowedBeside = results.flatMap((r) => {
+      const found = findSites(r.input);
+      return r.runs.flatMap((run) => run.out.applied.filter((a) => {
+        if (a.joint !== 'stopped-dado') return false;
+        const s = r.sites.find((x) => x.id === a.site)!;
+        if (s.stopEnds.length >= found.find((x) => x.id === a.site)!.stopEnds.length) return false;
+        const at = run.choices.find((c) => c.site === a.site)!.stopAt!;
+        const R = r.input.boards[s.receive]!;
+        const facing = { across: axisDimensions(R)[at.axis], from: endFacing(R, at.axis, at.end === 'min' ? -1 : 1) };
+        return stripsOf(R, r.input.bandTypes).some((x) => x.region && x.band.side.across === facing.across && x.band.side.from === facing.from);
+      }).map((a) => `${r.label} / ${run.label} / site ${a.site}`));
+    });
+    expect(narrowedBeside.length, 'a stopped dado at a clear end of a narrowed site, beside the receiver\'s edging').toBeGreaterThanOrEqual(4);
+    expect(narrowedBeside.some((x) => x.startsWith('shelf between two sides [brief]')), 'the bookcase case: front-edged sides, a shelf flush front and back').toBe(true);
   });
 });
