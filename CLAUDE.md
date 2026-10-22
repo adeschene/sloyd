@@ -63,12 +63,12 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
 - **NEXT (2026-10-22):** joinery features chunk 3 (bands; fu 398's joinery and Repair half) is DEPLOYED (merge
-  `1d39344`); nothing is pending deploy. Next: no plan yet (fu 419 ask first). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
+  `1d39344`); nothing is pending deploy. Next: no plan yet (fu 419 fixed on master). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
   hand-notched banded documents, its spec amendments (`2026-10-21-sloyd-joinery-features-design.md`; Q3–Q5 in §8), the
   paid run; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
   by fu 415; costs fu 417 and a dadoed bowed end's step); fu 402(1)–(2) (band looks on real hardware, glue lines on a real
   print); fu 410–412 plus the hardware spec's *Amended (implementation)* words. As the user directs: fu 396–409, 413/414,
-  417–423 (417, 419 ask first): Open follow-ups below. No follow-up is open as code-sized work.
+  417, 418, 420–423 (417 ask first): Open follow-ups below. No follow-up is open as code-sized work.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -647,7 +647,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it), 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset: ask first), 419 (Mitred limits at a shortened band end: ask first). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop), 418, 420–423 (chunk 3's residue). For the user's eye: 410–412 (hardware wording).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it), 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset: ask first). Record-only: 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop), 418, 420–423 (chunk 3's residue). For the user's eye: 410–412 (hardware wording).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

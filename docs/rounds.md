@@ -116,8 +116,10 @@
   strip at the visible run, Add joinery opening and Repair offered on banded projects, the edged bookcase joined at its front stop);
   the paid run is not run (needs the user's approval). Owed to the user: the `edge band` summary words; P10 (faulted bands judged as
   stored), P12's "no visible run, no strip", P13 and P14; §4.4's change to existing hand-notched documents; the chunk-3 spec amendments
-  (Review Focus 4's test moved to 5/8 edging after F2 among them); the edged rail's look on real hardware (Review Focus 5); fu 419 (the
-  Mitred limits: ask first). Record-only: fu 418, 420–423. Next: merge to master and deploy (the user's call).
+  (Review Focus 4's test moved to 5/8 edging after F2 among them); the edged rail's look on real hardware (Review Focus 5). Record-only: fu 418, 420–423. Next: merge to master and deploy (the user's call).
+- **fu 419 (2026-10-22; on master `ac799bb`)**: under Mitred a corner is mitred only where a mitre can be cut — a shortened corner, or one
+  where a notch left a strip's mitred inner edge ≤ EPS, is joined as under Long there (`endModesOf`; follow-ups 419 closed). 7484 tests.
+  Live (dev): the F1 probe's leftover is a square 7/8" strip. Also the approved paid run of chunk 3 (`docs/browser-verification-joinery-bands.md`).
 - **Notch drop + fu 415 (2026-10-22; branch `notch-and-bow`, MERGED `100c691`, DEPLOYED as `index-COsxvOYF.js`, CSS unchanged; schema 20)**: fu 416
   closed (archCurve stores a notch at its stored chord's half circle; the loader holds an arc within 4 ulps of its coordinates past the bound
   to it — swept 25–3600 mm); fu 415 closed by the user's ruling (end-face clearance; costs: fu 417 and a dadoed bowed end's step at the

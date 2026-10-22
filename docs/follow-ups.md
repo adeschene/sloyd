@@ -6929,6 +6929,12 @@ the neighbour's mitre over the square-ended strip (a strip of 29.9 against a glu
 shorter than its mitre needs that still keeps its 45° mitre at its unshortened end (0.40 of run on 3/4" edging where the mitre needs 0.75: an
 impossible piece, its inner edge at −0.35), and that corner then draws no glue or mitre line. Candidate fix: square the end when the run
 is shorter than the mitre (and decide the neighbour's mitre at a shallow cut). **Status:** open (a candidate fix; ask the user first).
+**Status:** CLOSED 2026-10-22 (the user: "fix fu 419"; `ac799bb`). Under Mitred a corner is mitred only where a mitre can be cut:
+a corner where either band's visible run is shortened, or where a strip's mitred inner edge would be ≤ EPS, is joined as under Long
+at that corner — the long edge runs through, the end band gives way, both square (`endModesOf` in `banding.ts`; strips, glue lines and
+mitre lines read the one per-corner mode). (a) now: W0 runs 29.9 square to its cut end, L1 gives way (11.75); (b) now: a square 0.40
+strip with its glue line, the end band giving way. The part's band note still reads "mitred corners" (the part's rule); the strip rows
+show the square ends.
 
 **420. A dropped stop end gets no summary line (2026-10-22).** With "Offer clear ends" (joinery-features chunk 3, the user's ruling)
 `featureAllowed` drops a stop end whose trial meets a feature but keeps stopped-dado when another end clears; nothing is written to

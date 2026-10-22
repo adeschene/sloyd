@@ -592,7 +592,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     a removed stretch is not drawn (F1). Tape: a LINE chord is clipped against the qualifying rectangles, an ARC chord counts
     whole (an over-buy, fu 418). The core, faults and corner words are unchanged (a band with no visible run still reduces
     the core). So a tenoned edged rail buys its plain length, and a HAND notch at a banded end shortens its strip too (a
-    change for existing documents, §4.4; no existing test's number moved). Known Mitred limits: fu 419. A strip row
+    change for existing documents, §4.4; no existing test's number moved). Under Mitred a corner is mitred only where a mitre can be cut: a corner where either band is shortened, or where a
+    strip's mitred inner edge would be ≤ EPS, is joined as under Long there (`endModesOf`, fu 419). A strip row
     is numbered in the ONE series but carries no `boardIds` (its ids in `stripIds`): every reader of a row's parts must
     handle an empty list, and `planBalloons` SKIPS it (never a hidden part). A band-free document's cut list and Buying are
     byte for byte as before (`bandFreeIdentity.test.ts`, FIXED ids: `nesting.ts` breaks ties by id string).

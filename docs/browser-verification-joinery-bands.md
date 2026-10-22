@@ -39,6 +39,19 @@ readout, except item 1's viewport look. Screenshots are kept in the gitignored S
      the front = 20" visible, + 1/2").
    - Edging strips: 2 × 30-1/2" × 3/4" (30" + allowance; no cut reaches a run end).
 
-## Paid check
+## Paid check (approved by the user, "All paid runs are approved", 2026-10-22; run on `ac799bb`)
 
-Not run. One real Add joinery run on a banded project needs the user's approval at the time (spec §7).
+Add joinery on the plain **Live — edged bookcase** (`claude-opus-5-5`, estimate ≈ $0.01–$0.05, spent ≈ $0.01):
+- "Saved as 'Live — edged bookcase — joined' — 4 joints: 2 stopped dados, 2 rabbets"; "Overall depth now 11-1/4" (was 11-1/2")";
+  "Moved relative to the rest: Back. Trimmed: Shelf, Back."
+- Summary lines: "Shelf → Left: mortise and tenon and dado ruled out — Left's edge band is in the way." and the same for Right.
+- Cut list of the result: each side's 3/4" stopped dado, 1/4" deep, is "stopped 3/4" short of the max end" (clear of the 3/4" face
+  edging; the front stop end only, "Offer clear ends"); the back's 3/8" rabbets sit at the sides' back edges, clear of the edging; the
+  shelf (11" deep after the trim) carries its two 3/4" notches; the edging strips are unchanged (2 × 30-1/2" × 3/4").
+
+## fu 419 (2026-10-22, `ac799bb`, dev server)
+
+The F1 probe under Mitred (a 10 × 12 panel, 3/4" maple edging on width min and both ends, a hand cut along width min to 9.6) imported
+and its cut list read: **Panel edging (width min side) 1 × 7/8" × 3/4", "Trim flush"** — a square 0.40 leftover plus allowance, never
+the mitred piece the cut list printed before; the length-max end's strip 11-3/4" (gives way to the leftover: 11-1/4" + 1/2") and the
+length-min end's 11-1/2" (shortened by the cut to 11"), both square.

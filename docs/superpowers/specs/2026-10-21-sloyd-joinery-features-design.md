@@ -553,7 +553,11 @@ with its cost. Q4 and Q5 (§8) are the user's.
   neighbour band leaves the neighbour's mitre over the square-ended strip (a strip of 29.9 against a glue line ending at
   29.75). (b) After F1, a hand notch can leave a too-short strip that keeps its 45° mitre at its unshortened end (0.40 of run on
   3/4" edging, where the mitre needs 0.75: an impossible piece, its inner edge at −0.35), and that corner draws no glue or
-  mitre line. Accepted as known limits; candidate: square the end when the run is shorter than the mitre.
+  mitre line. Accepted as known limits; candidate: square the end when the run is shorter than the mitre. **Superseded
+  2026-10-22 (fu 419, the user's "fix fu 419"):** under Mitred a corner is mitred only where a mitre can be cut. A corner
+  where either band is shortened, or where a strip's mitred inner edge would be ≤ 1e-9, is joined as under Long at that corner
+  (the long edge runs through, the end band gives way, both square): (a) the strip runs 29.9 to its cut end and the end band
+  gives way to it (11.75); (b) the leftover is a square 0.40 strip, its glue line over it, and the end band gives way.
 - **P12 amended for depth (Task 1's review).** A qualifying cut must reach through the band (`≥ t − EPS`): a full-thickness
   end cut shallower than the band leaves edging standing, and shortening there under-bought (reachable through a stopped
   dado's 1/4 inset on 3/8 edging). Cost: the Mitred limit (a) above.
