@@ -6254,6 +6254,7 @@ callouts). **Status:** open (spec §12).
 as angle cuts do, inv 41), Generate and Refine reading and writing curves (a `DESIGN_SCHEMA` change: one live compile first,
 fu 322), and the design checks (overlap, held, tip, contact) reading curved bodies. Chunk 1 refuses curved projects at entry
 (`curvedRefusal`, after holes'); `turnCandidates` returns none for a curved part. **Status:** open (spec §12).
+**Status:** first piece CLOSED (joinery and Repair accept curved and profiled projects, joinery-features chunk 2, 2026-10-22; inv 41); Generate/Refine reading curves and the design checks reading curved bodies stay open (feature; needs a spec).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
 
 **364. Splines and free curves.** A new segment type; no schema bump, because every build from 17 on refuses a document
@@ -6882,3 +6883,9 @@ this reason (joinery-features plan P2); the angle-cut clause was left exact. **S
 (`featureAllowed`) joins the whole set; if the full set is not coplanar the trial skips and rules nothing out, yet the model may choose
 a coplanar subset that the real run laps through a hole. No fixture reaches it. **Status:** open (record-only; the oracle,
 `holesOracle.test.ts`, is the backstop).
+
+**415. A bowed rail loses mortise-tenon, dado and stopped-dado at its ends.** A Bow preset's waste lies along the end line for its
+rise, and the growing-end rule (any positive-area end contact rules the growing kinds out, P6 / the AI-angles ruling) applies to it,
+so the rail is joined as a butt where a tenon clearing the bow's waste would have been fine. Candidate: an end-face clearance
+exception like P7's, judged against the tenon section (a curve whose waste at the end face clears the section). Found at joinery-features
+chunk 2, Task 4; the spec's *Amended (execution, chunk 2)* records the ruling. **Status:** open (record-only; ask the user first).

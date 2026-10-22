@@ -98,9 +98,15 @@
 | band wording | 10-20 | — | Band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart (fu 395(2)–(3); deployed `index-QDQAnB8n.js`) |
 | hardware (BOM) | 10-21 | 20 | Hardware types (name, pack size, price) per project; counts on parts, assemblies and the project that multiply with copies (`hardware.ts`, inv 55); the cut list's Hardware section with where-used lines, Buying's Hardware block; Properties' Hardware section, Materials & prices' Hardware section; Refine refuses hardware on parts. **Built on merged `98c7df4`, deployed 2026-10-21 (`index-BZhrLswD.js`)** |
 | joinery accepts holes (chunk 1) | 10-21 | — | Add joinery rules out only the joint kinds whose zone a hole enters (`featureZones.ts`, watched trials; rabbet and lap units), says why per site (`ruledOutText.ts`); `rebaseHoles` + `resizeAt` inverse; the gate compares holes; Repair accepts holed projects; Refine still refuses (inv 41/50; fu 328 closed, 413, 414). **Merged `f3493a7`, deployed 2026-10-22 (`index-ChnyDt9R.js`)** |
+| joinery accepts curves and profiles (chunk 2) | 10-22 | — | Add joinery rules out only the joint kinds whose zone a curve or profile enters (`featureRegions.ts`; judged in the original frame, P5; per-face run-through exception, P7); `rebaseCurves` / `rebaseProfiles` + `resizeAt` inverse; the gate compares curves and profiles; Repair accepts curved and profiled projects; Refine still refuses (inv 41/53; fu 363 first piece closed, 415). **On branch `joinery-curves`, not yet merged** |
 
 ## Status log (to 2026-10-22)
 
+- **Joinery accepts curves and profiles (joinery features chunk 2; 2026-10-22; branch `joinery-curves`, NOT YET MERGED; merge hash and deploy in Task 8)**:
+  spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P4–P8 and *Amended (execution, chunk 2)*), plan
+  `docs/superpowers/plans/2026-10-22-sloyd-joinery-curves.md`. Branch tree: 7374 tests across 217 files. No schema change, so rolling back is free.
+  Owed to the user: the curve and profile summary-line wording and `FEATURE_CHECK_FAILED` (P8). Record-only: fu 415 (a bowed rail
+  loses tenon, dado and stopped dado at its ends). Next: chunk 3 (bands).
 - **Joinery accepts holes (joinery features chunk 1; 2026-10-22; branch `joinery-holes`, MERGED `f3493a7`, DEPLOYED 2026-10-22 as `index-ChnyDt9R.js` / CSS
   `index-Cj7r9G0C.css` unchanged; schema 20 unchanged)**: spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P1–P3 and
   the execution amendments), plan `docs/superpowers/plans/2026-10-21-sloyd-joinery-holes.md`. Live check `docs/browser-verification-joinery-holes.md`

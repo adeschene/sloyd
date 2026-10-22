@@ -52,7 +52,7 @@ real-world blocker, and they set up the shared machinery.
 | Chunk | Accepts | Builds |
 |---|---|---|
 | **1: holes** (merged `f3493a7`, deployed 2026-10-22 as `index-ChnyDt9R.js`) | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
-| **2: curves and profiles** | parts with curves or profiles (`curvedParts` counts both) | §4.2 / §4.3 rebases, curve and profile conflict rows, gate extension, Repair |
+| **2: curves and profiles** (implemented on branch `joinery-curves`; merge hash TBD, Task 8) | parts with curves or profiles (`curvedParts` counts both) | §4.2 / §4.3 rebases, curve and profile conflict rows, gate extension, Repair |
 | **3: bands** | banded parts | §4.4, band conflict rows, gate extension, Repair |
 
 A chunk removes its feature's `'joinery'` refusal and Repair withholding only in that chunk, together with the rebase, the
@@ -369,3 +369,65 @@ Rulings made while executing chunk 1.
   passing gate test.
 - **Known gap (fu 414):** a lap set of three or more partners whose full set is not coplanar but a model-chosen subset is:
   the unit trial skips and rules nothing out. No fixture reaches it.
+
+## Amended (planning, chunk 2)
+
+Chunk 2's plan amendments (2026-10-22).
+
+- **P4: open tests, conservative where the closed ones are.** §3.3 asks for touching to pass:
+  - **Curves and straight profiles:** `rectOverlapsWaste`, an open test, is used on the real outline.
+  - **A stopped profile's extent along `through`:** its span widened by `runoutReach` at each stopped end, as `intoCurve`
+    widens it. It is compared open.
+  - **Swept profiles:** these keep `sweptWasteMeets`' conservative footprint (`BEARING` + reach), through a box form,
+    `sweptWasteMeetsBox`.
+
+  Cost: a joint that only touches a swept profile, or a stopped profile's run-out allowance, is ruled out. It is never
+  wrongly allowed.
+- **P5: judge in the original frame.** The watch tests curves and profiles on `flat.boards[part]`, the part before the trial
+  (`applyJoints` clones it, so it is never mutated). It never builds a geometry view of a mid-trial board (`geometryBoard`
+  and `sweptWaste` are memoised per object, so a view of a mutated board is stale). A cut box or trim slab is moved into the
+  original frame by subtracting, per dimension, the sum of the part's min-end growths so far in the trial. Holes keep chunk
+  1's rule unchanged, judged on the board as it stands, so a holes-only project behaves byte for byte as in chunk 1.
+- **P6: "touches the joined end with positive area" (§3.4).**
+  - **A curve or straight profile across the grown dimension** (`d` is `u` or `v`): the length of the end line, in the
+    curve's (u, v) plane, that lies inside the waste exceeds 1e-9 (`wasteOnSegment`).
+  - **Along the grown dimension** (`d === through`): its extent along `through` reaches that end.
+  - **A swept profile:** conservatively, its box form meets the end face, touching included.
+
+  Correction (execution, see below): the plan's note that a bow's waste meets the end only at a corner point, so a bow keeps
+  the growing kinds, was wrong. A bow's waste lies along the end line for its rise.
+- **P7: the run-through exception (§3.4), decided per growing face.** A feature takes it when all three hold:
+  1. `d === 'length'`. `tenonSection` is defined over width × thickness, the recipe's own frame.
+  2. It is a curve or straight profile with `through === d` that runs out through the GROWING face: a plain curve always
+     does; a view curve with a `span` does unless that end is a stop.
+  3. Its waste in (width, thickness) does not overlap the tenon section `[shoulder, w − shoulder] × [cheek, t − cheek]` (open).
+
+  A run-through feature at a TRIMMED end never conflicts: it is shortened with the part. Swept profiles take no exception. A
+  profile `through` at the growing end and stopped at the far end takes it. Its far station is measured from either end; if
+  measured from the growing end, `rebaseProfiles` keeps it in place.
+- **P8: words.** §3.5 gives two forms: its example says "roundover", its word list `<kind> profile`. The word list wins.
+  - Feature words: `holes`, `curve`, `roundover profile`, `cove profile`, `Roman ogee profile`, `bead profile`,
+    `thumbnail profile`.
+  - The verb is `are` after `holes` and `is` otherwise.
+  - The dialog's failure refusal is generalised (`FEATURE_CHECK_FAILED`).
+
+  All of this is for the user's eye.
+
+## Amended (execution, chunk 2)
+
+Rulings made while executing chunk 2.
+
+- **P6's rule stands: any positive-length end contact rules the growing kinds out.** A bowed rail therefore loses
+  mortise-tenon, dado and stopped-dado at its ends (the bow tests assert the true values: `wasteOnSegment` = the rise,
+  `featureTouchesEnd` = true). The spec's growing-end rule (any positive-area end contact conflicts, the AI-angles ruling) is
+  the authority; the "corner point" note was a wrong aside. Cost: a bowed rail is joined as a butt at its ends where a tenon
+  clearing the bow's waste would have been fine. Candidate follow-up: an end-face clearance exception like P7's (fu 415; ask
+  first).
+- **P7 condition 1 (`d === 'length'`) is unreachable through `findSites` today** (end-into-face grows only along length). It
+  is kept as a defensive guard and tested with a hand-built dado site. Cost: a dead guard.
+- **The oracle checks a run-through feature's waste only INSIDE the tenon section, for dados too.** §3.4 accepts a dado
+  housing's gap where a run-through feature runs in; the plan's literal "every kept point of the new slab" would flag every
+  accepted dado. Cost: a dado housing with a feature running into it outside the tenon section goes unflagged, which the spec
+  accepts by name.
+- **P7 condition 3 is covered by hand tests (a 5/8" cove), not the oracle:** no roundover that fits the stock overlaps a
+  tenon section. Cost: the oracle cannot catch a condition-3 regression.
