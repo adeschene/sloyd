@@ -6,7 +6,7 @@ import { sameAngleCut } from '../../document/angleCuts';
 import { axisDimensions, axisFrame, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
 import type { Site } from './sites';
-import { applyJoints, rebaseAngleCuts, rebaseHoles } from './recipes';
+import { applyJoints, rebaseAngleCuts, rebaseCurves, rebaseHoles, rebaseProfiles } from './recipes';
 import type { JointChoice } from './recipes';
 import { boxOf } from './pocket';
 import type { V3, WorldBox } from './pocket';
@@ -98,6 +98,9 @@ export function readJoints(flat: FlatDocument):
     rebaseAngleCuts(boards[i], d, endFacing(boards[i], k, side), amount);
     // The same for hole rows (joinery-holes spec §4.5): the exact inverse of `resize`'s re-anchoring.
     rebaseHoles(boards[i], d, endFacing(boards[i], k, side), amount);
+    // And curves and profile stations (joinery-curves spec §4.5), the same way.
+    rebaseCurves(boards[i], d, endFacing(boards[i], k, side), amount);
+    rebaseProfiles(boards[i], d, endFacing(boards[i], k, side), amount);
   };
 
   // 1. Grow joints (mortise-tenon, dado, stopped dado), applied LAST forward, undone first.

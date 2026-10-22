@@ -2,6 +2,9 @@ import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldPar
 import type { Board, Cut, CutFrom, Dimension, FlatDocument, SloydDocument } from '../../document/document';
 import { pocketCells, cutRegion } from '../../document/cuts';
 import { acrossOf } from '../../document/holes';
+import { uvDims } from '../../document/curves';
+import { runDim } from '../../document/profiles';
+import type { ProfileEnd } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -67,6 +70,8 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number, tap?: Tap) {
   rebaseCuts(b, d, endFacing(b, k, side), amount, was);
   rebaseAngleCuts(b, d, endFacing(b, k, side), amount);
   rebaseHoles(b, d, endFacing(b, k, side), amount);
+  rebaseCurves(b, d, endFacing(b, k, side), amount);
+  rebaseProfiles(b, d, endFacing(b, k, side), amount);
 }
 
 /**
@@ -230,6 +235,44 @@ export function rebaseHoles(b: Board, d: Dimension, end: CutFrom, amount: number
     const q = acrossOf(r) === d && r.acrossFrom === end ? amount : 0;
     if (s === 0 && q === 0) return r;
     return { ...r, station: r.station + s, inset: r.inset + q };
+  });
+}
+
+/**
+ * Joinery-curves spec §4.2: `b` grew (or, negative, was trimmed) by `amount` at `end` of dimension `d`, so every curve
+ * coordinate MEASURED FROM that end (u when `uvDims(through)[0]` is `d` and `uFrom` is `end`; v likewise) shifts by
+ * `amount` and the curve's waste stays exactly where it was. One addition per number; `rise`, `radius`, `side` and
+ * `through` are untouched, and a curve measured from the other end (or through `d`) is the same object. Entries are
+ * REPLACED, never mutated: flat twins share them. `readJoints` calls it with the opposite amount, its exact inverse.
+ */
+export function rebaseCurves(b: Board, d: Dimension, end: CutFrom, amount: number): void {
+  b.curves = b.curves.map((c) => {
+    const [u, v] = uvDims(c.through);
+    const s = u === d && c.uFrom === end ? amount : 0;
+    const q = v === d && c.vFrom === end ? amount : 0;
+    if (s === 0 && q === 0) return c;
+    return {
+      ...c,
+      start: [c.start[0] + s, c.start[1] + q],
+      segments: c.segments.map((g) => ({ ...g, to: [g.to[0] + s, g.to[1] + q] }) as typeof g),
+    };
+  });
+}
+
+/**
+ * Joinery-curves spec §4.3: a profile station `{ side, from, at }` measured from the moved end of the dimension its
+ * side runs along shifts by `amount`. `through` ends, `loop` runs and every other field are untouched; changed entries
+ * are replaced, never mutated. `readJoints` calls it with the opposite amount, its exact inverse.
+ */
+export function rebaseProfiles(b: Board, d: Dimension, end: CutFrom, amount: number): void {
+  const shift = (e: ProfileEnd): ProfileEnd =>
+    'through' in e || runDim(e.side) !== d || e.from !== end ? e : { ...e, at: e.at + amount };
+  b.profiles = b.profiles.map((p) => {
+    if ('loop' in p.run) return p;
+    const start = shift(p.run.start);
+    const e2 = shift(p.run.end);
+    if (start === p.run.start && e2 === p.run.end) return p;
+    return { ...p, run: { start, end: e2 } };
   });
 }
 
