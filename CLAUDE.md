@@ -44,13 +44,14 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
 
 ## Status
 
-- **Production: `f3493a7`, bundle `index-ChnyDt9R.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (joinery
-  features chunk 1: joinery and Repair accept holes; deployed 2026-10-22). Owed to the user: its summary-line and
-  `HOLE_CHECK_FAILED` words, fu 410–412 and the hardware spec's *Amended (implementation)* words.
+- **Production: `133c669`, bundle `index-CYPvNoJ0.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (joinery
+  features chunk 2: joinery and Repair accept curves and profiles; deployed 2026-10-22). Owed to the user: the summary-line
+  and `FEATURE_CHECK_FAILED` words, the chunk-2 spec amendments (the bow correction), fu 410–412 and the hardware words.
 - **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
 
   | Roll back to | Bundle | Schema | Cost |
   |---|---|---|---|
+  | `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
   | `98c7df4` (hardware) | `index-BZhrLswD.js` | 20 | free (no schema change); joinery refuses holed projects again |
   | `4a6d6a1` (band wording) | `index-QDQAnB8n.js` | 19 | REFUSES every project saved at 20 — export first |
   | `dc8d5c3` / `834ce5a` / `37ced13` | `index-ymPlKpkL.js` / `index-Vul7x2lO.js` / `index-Df8FpxEW.js` | 19 | same |
@@ -60,8 +61,7 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **NEXT (audited 2026-10-22):** nothing is pending deploy. Joinery features chunks 2 (curves, profiles) and 3 (bands)
-  each need their own plan (spec `2026-10-21-sloyd-joinery-features-design.md`). Owed to the user: fu 402(1)–(2) (band
+- **NEXT (audited 2026-10-22):** nothing is pending deploy. Joinery features chunk 3 (bands) needs its own plan (spec `2026-10-21-sloyd-joinery-features-design.md`). Owed to the user: fu 402(1)–(2) (band
   looks on real hardware, glue lines on a real print) and fu 410–412 plus the hardware spec's *Amended
   (implementation)* words (wording, the user's eye). As the user directs: fu 396–403 (396, 397 open by
   decision; 398–400 features; 401, 403 record-only) and the hardware residue 404–409 (404–407 features;
