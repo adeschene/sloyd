@@ -16,6 +16,8 @@ export interface RuledOut { site: number; kind: Exclude<JointKind, 'butt'>; part
 const DIMS: readonly Dimension[] = ['length', 'width', 'thickness'];
 /** Touching is allowed: a conflict is an overlap above float noise on all three dimensions (spec §3.3, amended). */
 const overlaps = (a: Region, b: Region) => DIMS.every((d) => Math.min(a[d][1], b[d][1]) - Math.max(a[d][0], b[d][0]) > HOLE_EPS);
+/** fu 415: how deep into the old wood the growing end's face is probed (a feature only meeting the end). */
+const END_FACE = 1e-6;
 const holeRegions = (b: Board) => b.holes.flatMap((r) => holeInstances(b, r)).map(holeRegion);
 const hasShaped = (b: Board) => b.curves.length > 0 || b.profiles.length > 0;
 
@@ -106,7 +108,13 @@ function watchFeatures(shapes: ShapeCache): { watch: JoinWatch; hit: () => Hit |
     const lo: [number, number] = [shoulder - shift.width, cheek - shift.thickness];
     const hi: [number, number] = [board.width - shoulder - shift.width, board.thickness - cheek - shift.thickness];
     const exempt = (f: ShapedFeature) => d === 'length' && runsOutThrough(s.view, f, d, end) && !crossSectionOverlaps(s.view, f, lo, hi);
-    const f = s.features.find((g) => featureTouchesEnd(s.view, g, d, end) && !exempt(g));
+    // fu 415: a feature that only MEETS the growing end (a Bow narrows the end by its rise) leaves the new wood alone,
+    // since the stored part has none there; it conflicts only when its waste on the end face enters the tenon's section
+    // (open), as P7's condition 3. Judged on a slab END_FACE deep at that end, shifted into the original frame.
+    const face: Region = { length: [0, board.length], width: [shoulder, board.width - shoulder], thickness: [cheek, board.thickness - cheek] };
+    face[d] = end === 'min' ? [0, END_FACE] : [board[d] - END_FACE, board[d]];
+    const meetsOnly = (f: ShapedFeature) => d === 'length' && f.curve !== undefined && !featureMeetsBox(s.view, f, original(face, shift));
+    const f = s.features.find((g) => featureTouchesEnd(s.view, g, d, end) && !exempt(g) && !meetsOnly(g));
     return f ? { part, word: f.word } : null;
   };
   return { watch, hit: () => hit };

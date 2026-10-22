@@ -129,13 +129,22 @@ describe('the growing end (P6, P7)', () => {
     expect(out.ruledOut).toEqual(GROWING.map((kind) => ({ site: 1, kind, part: indexOf(doc, 'Rail'), feature: 'curve' })));
   });
 
-  it('a bow at a tenoned end rules out the growing kinds', () => {
-    // bowCurve narrows the part by its rise at each end: its waste lies along the end line for the rise (the controller's
-    // ruling; P6 itself unchanged).
-    const doc = shaped(FLUSH(), { Rail: (b) => ({ curves: [{ id: 'b', ...bowCurve({ through: 'thickness', along: 'length', side: bottom(b), span: 18, rise: 0.5 }) }] }) });
+  // fu 415: bowCurve narrows the part by its rise at each end, so its waste lies along the end line for the rise. The
+  // stored part has no feature in the new wood, so the bow conflicts only when its waste on the end face enters the
+  // tenon's section (shoulder 1/2 on this 3-1/2 rail; touching allowed).
+  const bowed = (rise: number) => shaped(FLUSH(), { Rail: (b) => ({ curves: [{ id: 'b', ...bowCurve({ through: 'thickness', along: 'length', side: bottom(b), span: 18, rise }) }] }) });
+  it('a default bow (rise 1/2, the shoulder) at a tenoned end keeps the growing kinds (fu 415)', () => {
+    const doc = bowed(0.5);
     const rail = named(doc, 'Rail');
     const { view, features } = shapedFeatures(rail);
     expect(featureTouchesEnd(view, features[0]!, 'length', localEnd(rail, 'length', -1))).toBe(true);
+    const sites = findSites(doc);
+    const out = featureAllowed(doc, sites);
+    expect(out.ruledOut).toEqual([]);
+    expect(out.sites).toBe(sites);
+  });
+  it('a bow deeper than the shoulder (rise 3/4) rules out the growing kinds (fu 415)', () => {
+    const doc = bowed(0.75);
     const out = featureAllowed(doc, findSites(doc));
     expect(out.sites[0]!.allowed).toEqual(['butt']);
     expect(out.ruledOut).toEqual(GROWING.map((kind) => ({ site: 1, kind, part: indexOf(doc, 'Rail'), feature: 'curve' })));
