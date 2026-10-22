@@ -26,6 +26,7 @@ import type { RefineBase, RefineSettings } from './refine';
 import { designValues, documentToDesign } from '../document/refineDesign';
 import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
+import { carriedSummary } from '../document/carryText';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
 import type { CallShape, CostRange } from './estimate';
@@ -227,7 +228,9 @@ export async function runGeneration(
 /** What re-joining a refined joined design did (refine-joined spec §4). `notJoined`: joinery refused the refined design
  *  (its taper runs into a joint the model never moved, AI-tapers spec §5.4) — the design is returned unjoined. */
 export interface JointsSummary { kept: number; chosen: number; dropped: number; skipped: string[]; notJoined?: string }
-export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null }
+export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null;
+  /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
+  carried: { notKept: string[]; check: string[] } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
 
 /**
@@ -266,6 +269,8 @@ export async function runRefine(
   // hardware too: nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result
   // no longer uses go.
   let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+  // Plain to plain: joinery grows tenon parts, which would list every joined part as resized.
+  const carried = carriedSummary(base.plain, refined);
   let violations = out.violations;
   let present = out.present;
   let usage = out.usage;
@@ -304,7 +309,7 @@ export async function runRefine(
     }
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
-  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints };
+  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */

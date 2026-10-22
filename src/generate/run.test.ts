@@ -730,6 +730,19 @@ describe('runRefine — joined designs', () => {
     expect(out.changes).toEqual([]);
   });
 
+  it('a joined holed project whose parts joinery grew or rebased lists nothing to check (refine-features spec §5)', async () => {
+    const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 3 } as const;
+    const holed = { ...bookFlat, boards: bookFlat.boards.map((b) => (b.name === 'Back' ? b : { ...b, holes: [HOLE] })) };
+    const hSites = findSites(holed);
+    const hJoined = migrateDocument(applyJoints(holed, hSites, hSites.map((s) => defaultChoice(s, holed, hSites))).doc);
+    expect(flatDocument(hJoined).boards.some((b) => b.holes.length > 0)).toBe(true);
+    const { client } = fakeClient([plainEcho(hJoined)]);
+    const out = await go(client, hJoined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.carried).toEqual({ notKept: [], check: [] });
+  });
+
   it('adds a shelf: two calls, and the joinery message lists only the new sites', async () => {
     const echo = plainEcho(joined);
     const withShelf = { ...echo, parts: [...echo.parts, { ...echo.parts.find((p) => p.name === 'Shelf 1')!, name: 'Shelf 3', at: { ...echo.parts.find((p) => p.name === 'Shelf 1')!.at, y: 60 } }] };

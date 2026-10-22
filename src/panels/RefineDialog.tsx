@@ -135,6 +135,8 @@ export function RefineDialog(p: Props) {
                 model-facing twin (decimal inches) is not listed again. It still counts as an issue. */}
             {out.violations.filter((v) => !(out.joints?.notJoined && v.kind === 'angle-joint'))
               .map((v, i) => <p key={`v${i}`} className="field-error">{shownText(v)}</p>)}
+            {out.carried.notKept.length > 0 && (<><p>Not kept:</p><ul>{out.carried.notKept.map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
+            {out.carried.check.length > 0 && (<><p>Check at the new size:</p><ul>{out.carried.check.map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
             {out.changes.length === 0 ? <p>No changes.</p> : (
               <ul className="generate-runs">
                 {out.changes.slice(0, CHANGES_SHOWN).map((c, i) => <li key={i}>{c.text}</li>)}
