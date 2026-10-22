@@ -134,7 +134,7 @@ describe('a migrated profile part still refuses joinery and Refine, and takes no
     expect(m.curves).toEqual([]);
     const flat = { ...createDocument('T'), boards: [m] };
     expect(curvedParts(flat)).toEqual(['Top']);
-    expect(curvedRefusal(flat, 'joinery')).toBe(curvedRefusal({ ...createDocument('T'), boards: [b] }, 'joinery'));
+    expect(curvedRefusal(flat, 'refine')).toBe(curvedRefusal({ ...createDocument('T'), boards: [b] }, 'refine'));
     expect(turnCandidates(m)).toEqual([]);
   });
 });

@@ -8,13 +8,12 @@ export function curvedParts(flat: FlatDocument): string[] {
 const list = (names: string[]) => `${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`;
 
 /**
- * The refusal for a document with curves (curves spec §7), or null. Decided at entry, before any mutation or paid call.
- * Joinery is box-based and would cut a pocket through a curve's waste; Refine cannot describe a curve.
+ * The refusal for a document with curves or profiles (curves spec §7), or null. Decided at entry, before any mutation or
+ * paid call. Refine cannot describe a curve. (Add joinery no longer refuses: it rules out only the joints a curve or
+ * profile is in the way of.)
  */
-export function curvedRefusal(flat: FlatDocument, action: 'joinery' | 'refine'): string | null {
+export function curvedRefusal(flat: FlatDocument, _action: 'refine'): string | null {
   const names = curvedParts(flat);
   if (names.length === 0) return null;
-  return action === 'joinery'
-    ? `Add joinery doesn't handle parts with curves yet (${list(names)}). Add joinery before cutting the curves, or remove them first.`
-    : `Refine doesn't handle parts with curves yet (${list(names)}). Refine before cutting the curves, or remove them first.`;
+  return `Refine doesn't handle parts with curves yet (${list(names)}). Refine before cutting the curves, or remove them first.`;
 }

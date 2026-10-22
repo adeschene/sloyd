@@ -135,6 +135,18 @@ describe('holes (holes spec §6)', () => {
   });
 });
 
+describe('curves (curves spec §7)', () => {
+  const arch = { id: 'c1', through: 'thickness' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [1, 0] as [number, number], segments: [{ type: 'arc' as const, to: [5, 0] as [number, number], side: 'left' as const, rise: 0.5 }, { type: 'line' as const, to: [1, 0] as [number, number] }] };
+  it('a joined Refine of a curved project refuses in Refine\'s words before joineryRefusal', async () => {
+    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
+    const curved = { ...joined, boards: joined.boards.map((b) => (b.name === 'Top' ? { ...b, curves: [arch] } : b)) };
+    const out = await runRefine(c, curved, S, new AbortController().signal, () => {});
+    if (!('refused' in out)) throw new Error('expected a refusal');
+    expect(out.refused.message.startsWith("Refine doesn't handle parts with curves yet")).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+  });
+});
+
 describe('estimate ranges (fu 236)', () => {
   it('a joined design: the low end is the refine call alone; the high end adds joinery over every meeting', () => {
     const base = plainForRefine(joined);

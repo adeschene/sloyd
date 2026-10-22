@@ -9,16 +9,16 @@ const doc = (n: number) => ({ ...createDocument('T'), boards: Array.from({ lengt
 
 describe('curvedRefusal (curves spec §7)', () => {
   it('null without curves', () => {
-    expect(curvedRefusal(flatDocument(doc(0)), 'joinery')).toBeNull();
+    expect(curvedRefusal(flatDocument(doc(0)), 'refine')).toBeNull();
   });
   it('names the curved parts, three and an ellipsis at most', () => {
     expect(curvedParts(flatDocument(doc(2)))).toEqual(['Apron 1', 'Apron 2']);
-    expect(curvedRefusal(flatDocument(doc(4)), 'joinery')).toContain('(Apron 1, Apron 2, Apron 3…)');
+    expect(curvedRefusal(flatDocument(doc(4)), 'refine')).toContain('(Apron 1, Apron 2, Apron 3…)');
     expect(curvedRefusal(flatDocument(doc(1)), 'refine')).toMatch(/^Refine /);
   });
-  it('a part with both holes and curves: the curves refusal is the joinery refusal (holes no longer refuse)', () => {
+  it('joinery no longer refuses curves or holes (joinery-features chunk 2)', () => {
     const d = { ...createDocument('T'), boards: [createBoard({ id: 'b0', name: 'Apron 1', curves: [ARCH], holes: [pin] })] };
-    expect(curvedRefusal(flatDocument(d), 'joinery')).not.toBeNull();
-    expect(joineryRefusal(d)).toContain('with curves');
+    expect(curvedRefusal(flatDocument(d), 'refine')).not.toBeNull();
+    expect(joineryRefusal(d)).toBeNull();
   });
 });
