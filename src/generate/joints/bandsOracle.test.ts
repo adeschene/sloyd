@@ -638,5 +638,16 @@ describe('the bands oracle: no joint takes wood from an edge band (joinery featu
     expect(seen.runsChecked, 'tenoned edged rails\' visible runs').toBeGreaterThan(0);
     expect(seen.shortLo, 'a run shortened at its min end').toBeGreaterThan(0);
     expect(seen.shortHi, 'a run shortened at its max end').toBeGreaterThan(0);
+    // F2: a stopped dado joined into a receiver whose band with a strip lies on the side facing the stop end (the groove
+    // clears it: the cut assertion above judges every such run).
+    const beside = results.flatMap((r) => r.runs.flatMap((run) => run.out.applied.filter((a) => {
+      if (a.joint !== 'stopped-dado') return false;
+      const s = r.sites.find((x) => x.id === a.site)!;
+      const at = run.choices.find((c) => c.site === a.site)!.stopAt!;
+      const R = r.input.boards[s.receive]!;
+      const facing: ProfileSide = { across: axisDimensions(R)[at.axis] as ProfileSide['across'], from: endFacing(R, at.axis, at.end === 'min' ? -1 : 1) };
+      return stripsOf(R, r.input.bandTypes).some((x) => x.region && x.band.side.across === facing.across && x.band.side.from === facing.from);
+    }).map((a) => `${r.label} / ${run.label} / site ${a.site}`)));
+    expect(beside.length, 'a stopped dado beside the receiver\'s edging').toBeGreaterThan(0);
   });
 });
