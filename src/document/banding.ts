@@ -3,13 +3,14 @@ export * from './bandModel';
 /**
  * THE edge banding arithmetic (edge banding spec §3): a banded part's core size, its solid strips, its tape runs and its
  * band faults. Numbers only — no `units` (inv 52: `cutlist.ts` and `purchase.ts` format). Every result is memoised per
- * (part object, band types array object) and deep-frozen: never mutate them. Higher layers import everything
- * band-related from here.
+ * (part object, band types array object) and deep-frozen: never mutate them (`visibleRun`, a function of the part alone,
+ * per part object and side). Strips, tape and glue lines count only a band's VISIBLE run (joinery features §4.4, P12–P14).
+ * Higher layers import everything band-related from here.
  */
 import { BAND_SIDES, bandValues, sideIndex } from './bandModel';
-import type { Point } from './cuts';
+import { clippedRegion, type Point } from './cuts';
 import { faceOutline, sideStretch, type OutlineChord } from './profilePath';
-import type { BandType, Board, FlatDocument, ProfileSide, SolidBand, TapeBand } from './types';
+import type { BandType, Board, FlatDocument, ProfileSide, Region, SolidBand, TapeBand } from './types';
 
 export type BandFaultKind = 'needs-straight' | 'no-side' | 'too-thick' | 'tape-narrow';
 export interface BandFault { side: ProfileSide; kind: BandFaultKind }
@@ -59,6 +60,98 @@ const stretchIndices = (from: number, to: number, n: number) => {
   return out;
 };
 
+/** A band's VISIBLE run along its side (joinery features §4.4, P12), in the run dimension's board-local coordinates
+ *  (`length` for a long edge, `width` for an end). `shortLo`/`shortHi`: a qualifying cut shortens that end. */
+export interface VisibleRun { lo: number; hi: number; shortLo: boolean; shortHi: boolean }
+/** A side's visible run and the clipped regions of its QUALIFYING cuts (tape clips its line chords against them, P13). */
+interface RunCuts { run: VisibleRun; rects: readonly Region[] }
+/** Per part object, one entry per side index; the array is filled lazily (never frozen), each entry is. */
+const runMemo = new WeakMap<Board, (RunCuts | undefined)[]>();
+
+/**
+ * THE visible-run decision (P12): a stored rectangular cut QUALIFIES for side `s` (across `a`, run `r`) when its clipped
+ * region covers the whole thickness, touches the side, reaches an end of the run, and has positive extent along `r` and
+ * `a` — a tenon's shoulder or a stopped dado's notch (each ONE full-thickness cut), or a hand notch at a banded end. A
+ * cheek, a rabbet along the edge or a mid-run notch never qualifies. A function of the part's cuts and dimensions alone
+ * (never the band types), with no knowledge of joints.
+ */
+function runCuts(part: Board, side: ProfileSide): RunCuts {
+  const i = sideIndex(side);
+  let m = runMemo.get(part);
+  if (!m) { m = []; runMemo.set(part, m); }
+  const hit = m[i];
+  if (hit) return hit;
+  const a = side.across;
+  const r: 'length' | 'width' = a === 'width' ? 'length' : 'width';
+  let lo = 0;
+  let hi = part[r];
+  let shortLo = false;
+  let shortHi = false;
+  const rects: Region[] = [];
+  for (const c of part.cuts) {
+    const R = clippedRegion(part, c);
+    const whole = R.thickness[0] <= EPS && R.thickness[1] >= part.thickness - EPS;
+    const touches = side.from === 'min' ? R[a][0] <= EPS : R[a][1] >= part[a] - EPS;
+    const atLo = R[r][0] <= EPS;
+    const atHi = R[r][1] >= part[r] - EPS;
+    const extent = R[r][1] - R[r][0] > EPS && R[a][1] - R[a][0] > EPS;
+    if (!whole || !touches || !(atLo || atHi) || !extent) continue;
+    rects.push(R);
+    if (atLo) { shortLo = true; lo = Math.max(lo, R[r][1]); }
+    if (atHi) { shortHi = true; hi = Math.min(hi, R[r][0]); }
+  }
+  const out = freeze({ run: { lo, hi, shortLo, shortHi }, rects });
+  m[i] = out;
+  return out;
+}
+
+/** A band's visible run on `side` (P12): `[lo, hi]` along the run dimension; `hi − lo ≤ EPS` means nothing is visible.
+ *  Memoised per part object and side, deep-frozen. */
+export function visibleRun(part: Board, side: ProfileSide): VisibleRun {
+  return runCuts(part, side).run;
+}
+
+/** No part of a run is visible: no strip, no tape run, no glue line (P12). */
+const nothingVisible = (run: VisibleRun) => run.hi - run.lo <= EPS;
+
+/** A LINE chord's length outside every rectangle (P13): each rectangle is closed, in the outline's (length, width) plan,
+ *  clipped Liang–Barsky style. EPS is a TOLERANCE, not growth: a chord within EPS of parallel to a bound is inside when
+ *  within EPS of the rectangle (the step a bow leaves on a shoulder's bound); a crossing's parameter comes from the TRUE
+ *  bound, and the crossing point takes that bound's coordinate exactly, so an axis-aligned chord's remainder is exact. */
+function lengthOutside(c: OutlineChord, rects: readonly Region[]): number {
+  type Hit = { t: number; p: readonly [number, number] };
+  const [ax, ay] = c.a;
+  const dx = c.b[0] - ax, dy = c.b[1] - ay;
+  const covered: [Hit, Hit][] = [];
+  for (const R of rects) {
+    let enter: Hit = { t: 0, p: c.a };
+    let exit: Hit = { t: 1, p: c.b };
+    let miss = false;
+    for (const [d, o, [lo, hi], axis] of [[dx, ax, R.length, 0], [dy, ay, R.width, 1]] as const) {
+      if (Math.abs(d) <= EPS) {
+        if (o < lo - EPS || o > hi + EPS) { miss = true; break; }
+        continue;
+      }
+      const [bIn, bOut] = d > 0 ? [lo, hi] : [hi, lo];
+      const tIn = (bIn - o) / d, tOut = (bOut - o) / d;
+      const at = (t: number, b: number): Hit['p'] => (axis === 0 ? [b, ay + t * dy] : [ax + t * dx, b]);
+      if (tIn > enter.t) enter = { t: tIn, p: at(tIn, bIn) };
+      if (tOut < exit.t) exit = { t: tOut, p: at(tOut, bOut) };
+    }
+    if (!miss && exit.t > enter.t) covered.push([enter, exit]);
+  }
+  covered.sort((p, q) => p[0].t - q[0].t);
+  const dist = (p: Hit['p'], q: Hit['p']) => Math.hypot(q[0] - p[0], q[1] - p[1]);
+  let at: Hit = { t: 0, p: c.a };
+  let out = 0;
+  for (const [enter, exit] of covered) {
+    if (enter.t > at.t) out += dist(at.p, enter.p);
+    if (exit.t > at.t) at = exit;
+  }
+  if (at.t < 1) out += dist(at.p, c.b);
+  return out;
+}
+
 /** The judged bands of a part, by canonical side index (0–3). `t`: an UNFAULTED band's thickness (0 otherwise);
  *  `type`: an unfaulted band's type (null otherwise); `chords`: a side's stretch chords (null without one). */
 interface Judged {
@@ -66,6 +159,9 @@ interface Judged {
   t: readonly number[];
   type: readonly (BandType | null)[];
   chords: readonly (readonly number[] | null)[];
+  /** An unfaulted band's visible run (null otherwise). It changes no fault, thickness or core (P12 names strips, tape
+   *  and glue lines only). */
+  runs: readonly (VisibleRun | null)[];
   outline: ReturnType<typeof faceOutline>;
 }
 
@@ -115,7 +211,8 @@ const judge = memoised((part: Board, types: readonly BandType[]): Judged => {
     }
   }
   faults.sort((p, q) => sideIndex(p.side) - sideIndex(q.side));
-  return freeze({ faults, t, type, chords, outline }, new Set(type));
+  const runs = type.map((bt, k) => (bt ? visibleRun(part, BAND_SIDES[k]!) : null));
+  return freeze({ faults, t, type, chords, runs, outline }, new Set(type));
 });
 
 export const bandFaults = (part: Board, types: readonly BandType[]): readonly BandFault[] => judge(part, types).faults;
@@ -152,14 +249,20 @@ const stripsOf = memoised((part: Board, types: readonly BandType[]): readonly St
     const bt = j.type[i];
     if (!bt || bt.kind !== 'solid') continue;
     const side = BAND_SIDES[i]!;
+    const run = j.runs[i]!;
+    if (nothingVisible(run)) continue;
     const long = i < 2;
     const nb = long ? [2, 3] : [0, 1];
     const givesWay = (part.cornerRule === 'long' && !long) || (part.cornerRule === 'ends' && long);
     const own = bt.thickness;
-    const finished = sideLength(part, side) - (givesWay ? j.t[nb[0]!]! + j.t[nb[1]!]! : 0);
+    // P12: the visible run, less the give-way at each end NOT shortened (a shortened end's corner is gone). Unshortened,
+    // `hi − lo` is the side's dimension exactly and the sum is today's, bit for bit.
+    const short = [run.shortLo, run.shortHi];
+    const give = (k: number) => (givesWay && !short[k] ? j.t[nb[k]!]! : 0);
+    const finished = (run.hi - run.lo) - (give(0) + give(1));
     const end = (k: number): StripEnd => {
       const n = j.t[nb[k]!]!;
-      return { mitre: part.cornerRule === 'mitre' && n > 0 ? Math.atan(n / own) : null };
+      return { mitre: part.cornerRule === 'mitre' && n > 0 && !short[k] ? Math.atan(n / own) : null };
     };
     out.push({
       part: part.id, partName: part.name, side, type: bt, finished, length: finished + bt.lengthAllowance,
@@ -182,12 +285,17 @@ const tapeRunsOf = memoised((part: Board, types: readonly BandType[]): readonly 
   for (let i = 0; i < 4; i += 1) {
     const bt = j.type[i];
     if (!bt || bt.kind !== 'tape') continue;
+    const { run, rects } = runCuts(part, BAND_SIDES[i]!);
+    if (nothingVisible(run)) continue;
     const adjacent = i < 2 ? [2, 3] : [0, 1];
     let length = 0;
     for (const c of j.chords[i]!) {
       // A chord in an adjacent TAPED side's stretch too (a shared corner arc) is bought once: half each.
       const shared = adjacent.some((k) => isTape(k) && j.chords[k]!.includes(c));
-      length += chordLength(ch[c]!) * (shared ? 0.5 : 1);
+      // P13: a LINE chord loses what lies inside a qualifying cut; an ARC chord counts whole (an over-buy, never under).
+      const chord = ch[c]!;
+      const visible = chord.arc || rects.length === 0 ? chordLength(chord) : lengthOutside(chord, rects);
+      length += visible * (shared ? 0.5 : 1);
     }
     out.push({ side: BAND_SIDES[i]!, type: bt, length: length + bt.lengthAllowance });
   }
@@ -242,14 +350,17 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
     const bt = j.type[i];
     if (!bt || bt.kind !== 'solid') continue;   // Q4: only a solid band draws a glue line; a faulted one is null here
     const side = BAND_SIDES[i]!;
+    const run = j.runs[i]!;
+    if (nothingVisible(run)) continue;                             // P12, P14: nothing visible, no line
     const long = i < 2;
     const nb = long ? [2, 3] : [0, 1];
     const r: 'length' | 'width' = long ? 'length' : 'width';
     const across = side.across;
     const o = side.from === 'min' ? j.t[i]! : part[across] - j.t[i]!;
     const through = rule === 'long' ? long : rule === 'ends' ? !long : false;
-    const lo = through ? 0 : j.t[nb[0]!]!;
-    const hi = part[r] - (through ? 0 : j.t[nb[1]!]!);
+    // P14 (inv 16): a shortened end's line stops at the visible end; an unshortened end keeps today's rule.
+    const lo = run.shortLo ? run.lo : through ? 0 : j.t[nb[0]!]!;
+    const hi = run.shortHi ? run.hi : part[r] - (through ? 0 : j.t[nb[1]!]!);
     const point = (rc: number, ac: number, th: number): Point => ({ [r]: rc, [across]: ac, thickness: th } as Point);
     const push = (rc0: number, ac0: number, rc1: number, ac1: number) => {
       for (const th of [0, part.thickness]) out.push({ side, type: bt.id, a: point(rc0, ac0, th), b: point(rc1, ac1, th) });
@@ -258,6 +369,7 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
     if (rule !== 'mitre') continue;
     for (const k of [0, 1] as const) {
       const n = nb[k]!;
+      if (k ? run.shortHi : run.shortLo) continue;                // a shortened end's corner is gone: no mitre (P12)
       if (j.t[n]! <= 0) continue;                                  // a zero-thickness neighbour makes no mitre
       if (!long && j.type[n]!.kind === 'solid') continue;          // the long strip beside it draws this mitre line, once
       push(k ? hi : lo, o, k ? part[r] : 0, side.from === 'min' ? 0 : part[across]);
@@ -268,7 +380,8 @@ const glueLinesOf = memoised((part: Board, types: readonly BandType[]): readonly
 
 /** The solid bands' glue lines on a part's finished outline (chunk 2, Q4/Q5): a strip that runs through draws its line over the
  *  full side, one that gives way (or any strip under Mitred) from core corner to core corner; a mitre between two bands with
- *  thickness adds its line, core corner to finished corner, once. Per side in canonical order: the run at thickness 0, then at
+ *  thickness adds its line, core corner to finished corner, once. A shortened end (P12) stops the line at the visible end and
+ *  draws no mitre; a run with nothing visible draws nothing (P14). Per side in canonical order: the run at thickness 0, then at
  *  the part's thickness, then each mitre (end 0, end 1) the same way. */
 export function glueLines(part: Board, types: readonly BandType[]): readonly GlueLine[] {
   return NO_BANDS(part) ? EMPTY : glueLinesOf(part, types);
