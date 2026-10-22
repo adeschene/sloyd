@@ -44,12 +44,13 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
 
 ## Status
 
-- **Production: `1d39344`, bundle `index-bKxsxRuC.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (joinery features chunk 3:
-  Add joinery and Repair accept banded parts; deployed 2026-10-22). Owed to the user: see NEXT.
+- **Production: `3162e68`, bundle `index-DoG-TXKm.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (fu 419: a Mitred corner
+  a mitre cannot be cut at is a butt, on joinery features chunk 3; deployed 2026-10-22). Owed to the user: see NEXT.
 - **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
 
   | Roll back to | Bundle | Schema | Cost |
   |---|---|---|---|
+  | `1d39344` (joinery chunk 3) | `index-bKxsxRuC.js` | 20 | free; a Mitred notched corner prints its old mitre again (fu 419) |
   | `100c691` (notch drop) | `index-COsxvOYF.js` | 20 | free; joinery refuses banded projects again; a strip counts its full side again |
   | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416); a bowed rail's ends join as butts again (fu 415) |
   | `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
@@ -63,7 +64,7 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
 - **NEXT (2026-10-22):** joinery features chunk 3 (bands; fu 398's joinery and Repair half) is DEPLOYED (merge
-  `1d39344`); nothing is pending deploy. Next: no plan yet (fu 419 fixed on master). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
+  `1d39344`); nothing is pending deploy. Next: no plan yet (fu 419 deployed). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
   hand-notched banded documents, its spec amendments (`2026-10-21-sloyd-joinery-features-design.md`; Q3–Q5 in §8), the
   paid run; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
   by fu 415; costs fu 417 and a dadoed bowed end's step); fu 402(1)–(2) (band looks on real hardware, glue lines on a real
