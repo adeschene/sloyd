@@ -41,3 +41,11 @@ describe('ruledOutLine: feature words (P8)', () => {
     expect(profileWord('thumbnail')).toBe('thumbnail profile');
   });
 });
+
+// Joinery features chunk 3: a band's word, `is` in both sentences (§3.5).
+describe('ruledOutLine: edge band (chunk 3)', () => {
+  it('edge band takes "is" in both sentences', () => {
+    expect(ruledOutLine({ ...base, part: 'Shelf', feature: 'edge band', kinds: ['mortise-tenon'] })).toBe("Shelf → Side: mortise and tenon ruled out — Shelf's edge band is in the way.");
+    expect(ruledOutLine({ ...base, part: 'Shelf', feature: 'edge band', butt: true, kinds: [] })).toBe("Shelf → Side: left as a butt — Shelf's edge band is in the way of every joint.");
+  });
+});
