@@ -6,7 +6,7 @@ import f4 from './fixtures/4-cases-every-kind.json?raw';
 import f5 from './fixtures/5-rail-enters-once.json?raw';
 import f6 from './fixtures/6-nested.json?raw';
 import { flatDocument, makeUniqueItem, migrateDocument, removeItems, writeBackFlat } from '../../document/document';
-import type { AngleCut, Board, Cut, FlatDocument, HoleRow, SloydDocument } from '../../document/document';
+import type { AngleCut, Board, Cut, FlatDocument, HoleRow, ProfileCut, SloydDocument } from '../../document/document';
 import { ARCH } from '../../document/curveFixtures';
 import { findSites, jointKey } from './sites';
 import { applyJoints } from './recipes';
@@ -141,13 +141,24 @@ describe('repairDocument repairs a holed document (joinery-holes spec §5)', () 
   });
 });
 
-describe('repairDocument withholds a curved document (curves spec §7)', () => {
-  it('a damaged fixture with a curve is not repaired', () => {
+describe('repairDocument repairs a curved document (joinery-curves spec §5)', () => {
+  const PROFILE: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+    run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } };
+  it('repairDocument repairs a curved bug fixture', () => {
     const fx = load(f1);
-    expect(repairDocument(fx.damaged)).not.toBeNull();
-    const doc = { ...fx.damaged, boards: fx.damaged.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)),
-      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)) })) };
-    expect(repairDocument(doc)).toBeNull();
+    const plainOut = repairDocument(fx.damaged);
+    if (plainOut === null || 'refused' in plainOut) throw new Error('expected a repair');
+    const put = <T extends object>(b: T, i: number) => (i === 0 ? { ...b, curves: [ARCH], profiles: [PROFILE] } : b);
+    const doc = { ...fx.damaged, boards: fx.damaged.boards.map(put),
+      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map(put) })) };
+    const out = repairDocument(doc);
+    if (out === null || 'refused' in out) throw new Error(`expected a repair, got ${JSON.stringify(out)}`);
+    expect(out.dropped).toBe(plainOut.dropped);
+    const rows = (d: SloydDocument, k: 'curves' | 'profiles') => flatDocument(d).boards.map((b) => b[k]);
+    expect(rows(out.doc, 'curves')).toEqual(rows(doc, 'curves'));
+    expect(rows(out.doc, 'profiles')).toEqual(rows(doc, 'profiles'));
+    expect(rows(out.doc, 'curves').flat()).not.toHaveLength(0);
+    expect(rows(out.doc, 'profiles').flat()).not.toHaveLength(0);
   });
 });
 

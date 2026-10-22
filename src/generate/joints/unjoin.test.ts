@@ -4,7 +4,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import type { FlatDocument, Cut } from '../../document/document';
 import { SNAP_INCHES } from '../../document/geometry';
-import { GATE_REFUSAL, cutBox, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameHoles, sameJoined, unjoin } from './unjoin';
+import { GATE_REFUSAL, cutBox, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameCurves, sameHoles, sameJoined, sameProfiles, unjoin } from './unjoin';
 import { applyJoints } from './recipes';
 import type { JointChoice } from './recipes';
 import { findSites, jointKey, rangesOf } from './sites';
@@ -15,7 +15,8 @@ import { plainForRefine } from '../refine';
 import { worldSolids } from '../../document/designCheck';
 import { taperCut } from '../../document/angleCuts';
 import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
-import type { HoleRow } from '../../document/document';
+import type { CurveCut, HoleRow, ProfileCut } from '../../document/document';
+import { archCurve } from '../../document/curves';
 
 // The harness and fixtures of the measured spike (126/126 exact round trips), made permanent.
 
@@ -561,5 +562,84 @@ describe('sameHoles', () => {
     expect(sameHoles([r, s], [s, r])).toBe(false);
     expect(sameHoles([r], [r, s])).toBe(false);
     expect(sameHoles([], [])).toBe(true);
+  });
+});
+
+// Joinery-curves spec §5: curves and profiles are part of what the gate proves (inv 40: walked off CURVE_KEYS / PROFILE_KEYS).
+describe('the gate compares curves and profiles (joinery-curves spec §5)', () => {
+  const roundover = (id: string, at?: number): ProfileCut => ({ id, face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+    run: at === undefined ? { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } }
+      : { start: { side: { across: 'width', from: 'min' }, from: 'min', at }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } });
+  const archOf = (id: string): CurveCut => ({ id, ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 6, rise: 0.5 }) });
+  const curvedTable = () => {
+    const flat = flatDocument(designToDocument(SHAKER_TABLE_JSON as never, { centre: false }).doc);
+    return { ...flat, boards: flat.boards.map((b) => (b.name.startsWith('Leg') ? { ...b, profiles: [roundover('r')] }
+      : b.name.startsWith('Apron') ? { ...b, curves: [archOf('a')] } : b)) };
+  };
+  const joinedTable = () => {
+    const P = curvedTable();
+    const sites = findSites(P);
+    return { P, J: applyJoints(P, sites, sites.map((s) => defaultChoice(s, P, sites))).doc };
+  };
+
+  it('gateUnjoin passes a joined project with curves and profiles', () => {
+    const { P, J } = joinedTable();
+    expect(J.boards.some((b) => b.cuts.length > 0)).toBe(true);
+    const u = gateUnjoin(J);
+    if ('refused' in u) throw new Error(u.refused);
+    u.plain.forEach((b, i) => {
+      expect(sameCurves(b.curves, P.boards[i]!.curves), b.name).toBe(true);
+      expect(sameProfiles(b.profiles, P.boards[i]!.profiles), b.name).toBe(true);
+    });
+    expect(u.plain.some((b) => b.curves.length > 0) && u.plain.some((b) => b.profiles.length > 0)).toBe(true);
+  });
+
+  it('sameJoined fails when a curve or profile moved after joining', () => {
+    const { J } = joinedTable();
+    const withCurve = (f: (c: CurveCut) => CurveCut): FlatDocument => ({ ...J, boards: J.boards.map((b) => (b.name === 'Apron F' ? { ...b, curves: b.curves.map(f) } : b)) });
+    const shifted = (d: number) => (c: CurveCut): CurveCut => ({ ...c, start: [c.start[0] + d, c.start[1]] });
+    expect(sameJoined(J, J)).toBe(true);
+    expect(sameJoined(J, withCurve(shifted(1e-3)))).toBe(false);
+    expect(sameJoined(J, withCurve(shifted(1e-10)))).toBe(true);
+    const segMoved = (c: CurveCut): CurveCut => ({ ...c, segments: c.segments.map((g, i) => (i === 0 ? { ...g, to: [g.to[0] + 1e-3, g.to[1]] as [number, number] } : g)) });
+    expect(sameJoined(J, withCurve(segMoved))).toBe(false);
+    expect(sameJoined(J, withCurve((c) => ({ ...c, id: 'other' })))).toBe(true);
+    // A station run: Leg FL gets a stopped profile, then its `at` moves.
+    const staged = (at: number): FlatDocument => ({ ...J, boards: J.boards.map((b) => (b.name === 'Leg FL' ? { ...b, profiles: [roundover('s', at)] } : b)) });
+    expect(sameJoined(staged(2), staged(2 + 1e-10))).toBe(true);
+    expect(sameJoined(staged(2), staged(2 + 1e-3))).toBe(false);
+    expect(sameJoined(J, staged(2))).toBe(false);
+  });
+
+  it('a metric curve coordinate stored from max round-trips through the gate', () => {
+    const base = flatDocument(designToDocument(SHAKER_TABLE_JSON as never, { centre: false }).doc);
+    const mm = 127 / 25.4;
+    const P = { ...base, boards: base.boards.map((b) => (b.name === 'Apron F'
+      ? { ...b, curves: (['min', 'max'] as const).map((from) => ({ id: from, ...archCurve({ through: 'thickness', along: 'length', side: 'min', from, start: mm, span: 6, rise: 0.5 }) })) } : b)) };
+    const sites = findSites(P);
+    const J = applyJoints(P, sites, sites.map((s) => (s.enter === P.boards.findIndex((b) => b.name === 'Apron F') && s.receive !== s.enter
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1.25 } : defaultChoice(s, P, sites)))).doc;
+    expect('refused' in gateUnjoin(J)).toBe(false);
+  });
+});
+
+describe('sameCurves / sameProfiles', () => {
+  const arch: CurveCut = { id: 'a', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [3, 0], segments: [{ type: 'arc', to: [9, 0], side: 'left', rise: 1 }, { type: 'line', to: [3, 0] }] };
+  it('curves: ids ignored, numbers within tolerance, structure exact', () => {
+    expect(sameCurves([arch], [{ ...arch, id: 'b' }])).toBe(true);
+    expect(sameCurves([arch], [{ ...arch, segments: [{ type: 'arc', to: [9 + 1e-10, 0], side: 'left', rise: 1 }, arch.segments[1]!] }])).toBe(true);
+    expect(sameCurves([arch], [{ ...arch, segments: [{ type: 'arc', to: [9.001, 0], side: 'left', rise: 1 }, arch.segments[1]!] }])).toBe(false);
+    expect(sameCurves([arch], [{ ...arch, segments: [{ type: 'arc', to: [9, 0], side: 'left', radius: 1 } as never, arch.segments[1]!] }])).toBe(false);
+    expect(sameCurves([arch], [{ ...arch, segments: [arch.segments[0]!] }])).toBe(false);
+    expect(sameCurves([arch], [])).toBe(false);
+  });
+  it('profiles: a through end differs from a station end', () => {
+    const p: ProfileCut = { id: 'p', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { loop: true } };
+    const e = { side: { across: 'width', from: 'min' } } as const;
+    const a = { ...p, run: { start: { ...e, through: 'min' }, end: { ...e, through: 'max' } } } as ProfileCut;
+    const b = { ...p, run: { start: { ...e, from: 'min', at: 1 }, end: { ...e, through: 'max' } } } as ProfileCut;
+    expect(sameProfiles([a], [{ ...a, id: 'z' }])).toBe(true);
+    expect(sameProfiles([a], [b])).toBe(false);
+    expect(sameProfiles([p], [a])).toBe(false);
   });
 });

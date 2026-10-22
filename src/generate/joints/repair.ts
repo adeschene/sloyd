@@ -1,7 +1,6 @@
 import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, parentPath, PATH_SEPARATOR, worldParts, writeBackFlat } from '../../document/document';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
-import { curvedParts } from '../../document/curvedRefusal';
 import { bandedParts } from '../../document/bandedRefusal';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
 
@@ -101,7 +100,6 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
   // keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
-    if (curvedParts(flat).length > 0) return null; // withheld (curves spec §7)
     if (bandedParts(flat).length > 0) return null; // withheld (edge banding §6)
     const r = repairJoints(flat, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
