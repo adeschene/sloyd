@@ -146,8 +146,8 @@ src/
 │   │                     BAND_KINDS, CORNER_RULES, BAND_SIDES (canonical: width-min, width-max, length-min, length-max), BAND_FIELDS
 │   │                     (inv 40), canonicalBands, mirrorBands (inv 44: a flag flip), copyBand/sameBands/bandValues, withBands,
 │   │                     withBandTypes, newBandType (`Tape 2`, `Solid edging`), sameBandType
-│   ├── banding.ts        THE band arithmetic (inv 54; re-exports bandModel; no `units`): coreSize, strips (per corner rule; a mitre at
-│   │                     `atan(n / t)`), tapeRuns (true arcs; a corner arc shared by two taped sides half each), bandFaults
+│   ├── banding.ts        THE band arithmetic (inv 54; re-exports bandModel; no `units`): coreSize, strips (per corner by
+│   │                     `endModesOf`: Mitred only where a mitre can be cut, fu 419; a mitre at `atan(n / t)`), tapeRuns (true arcs; a corner arc shared by two taped sides half each), bandFaults
 │   │                     (needs-straight, no-side, too-thick, tape-narrow) / bandFaultText, bandsMeetAtCorner (THE corner-words and
 │   │                     Corners-select rule), cutStock (core copies, `bands: []`), stripBoard, stripId, bandSignature; memoised per
 │   │                     (part, band types), deep-frozen; glueLines (chunk 2: THE glue-line geometry, board-local, per corner rule);

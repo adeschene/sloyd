@@ -63,10 +63,10 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **NEXT (2026-10-22):** joinery features chunk 3 (bands; fu 398's joinery and Repair half) is DEPLOYED (merge
-  `1d39344`); nothing is pending deploy. Next: no plan yet (fu 419 deployed). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
-  hand-notched banded documents, its spec amendments (`2026-10-21-sloyd-joinery-features-design.md`; Q3–Q5 in §8), the
-  paid run; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
+- **NEXT (audited 2026-10-22):** joinery features chunk 3 (bands) and fu 419 are DEPLOYED; nothing is pending deploy and
+  no plan exists. FIRST: CLAUDE.md is over its ~60KB cap — move detail out (rules stay). Owed to the user: chunk 3's `edge band`
+  summary words, P10/P12–P14, §4.4's change to hand-notched banded documents, its spec amendments (Q3–Q5 in §8; Review Focus
+  4's test moved to 5/8 edging), fu 419's part note still reading "mitred corners" at a butted corner; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
   by fu 415; costs fu 417 and a dadoed bowed end's step); fu 402(1)–(2) (band looks on real hardware, glue lines on a real
   print); fu 410–412 plus the hardware spec's *Amended (implementation)* words. As the user directs: fu 396–409, 413/414,
   417, 418, 420–423 (417 ask first): Open follow-ups below. No follow-up is open as code-sized work.
@@ -627,7 +627,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7483 tests across 221 files
+npm test           # Vitest, currently 7484 tests across 221 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

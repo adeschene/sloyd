@@ -522,8 +522,8 @@ and 79.
 
 **What joinery features chunk 3 (bands) did (2026-10-22)** (fu 398's joinery and Repair half; spec
 `2026-10-21-sloyd-joinery-features-design.md` §3.3, §3.4, §4.4, §5, §7; plan `2026-10-22-sloyd-joinery-bands.md`; branch `joinery-bands`
-from `ae6dc58`; **no schema change** (20); subagent-driven, six tasks plus a final review and one fix wave; NOT YET MERGED OR DEPLOYED at
-this record). Add joinery and Repair stop refusing banded projects; Refine still refuses.
+from `ae6dc58`; **no schema change** (20); subagent-driven, six tasks plus a final review and one fix wave; merged `1d39344` and deployed
+2026-10-22 as `index-bKxsxRuC.js`). Add joinery and Repair stop refusing banded projects; Refine still refuses.
 1. `aab9906`, `1623f60`, `b5bd62d` — the visible run (`banding.ts` `visibleRun`): strips, tape and glue lines count only the run a
    full-thickness cut through the band at a run end leaves, so a tenoned edged rail buys its plain length. The review found the first
    rule ignored the band's depth (a shallow end cut under-bought), so P12 was amended to "reaches through the band", with give-way kept
@@ -539,7 +539,12 @@ this record). Add joinery and Repair stop refusing banded projects; Refine still
    reverses chunk 1's execution ruling.
 6. `72a3524` — the live check on the dev server (free checks pass; the paid run is owed to the user's approval).
 
-Residue: fu 418–423 (the Mitred limits, 419, ask first; the rest record-only). 7483 tests across 221 files.
+Residue: fu 418–423 (the rest record-only). 7483 tests across 221 files.
+7. fu 419, the same day (the user: "fix fu 419"; `ac799bb`, deployed at `3162e68` as `index-DoG-TXKm.js`): under Mitred a corner is
+   mitred only where a mitre can be cut — a shortened corner, or one where a notch left a strip's mitred inner edge ≤ EPS, is joined as
+   under Long there (`endModesOf`), so neither the neighbour's mitre over a square end nor the impossible mitred leftover is printed. The
+   user then approved all paid runs: one Add joinery run on the edged bookcase (≈ $0.01) gave 2 stopped dados stopping 3/4" short of
+   the front edging and 2 rabbets, with "mortise and tenon and dado ruled out — Left's edge band is in the way." 7484 tests.
 
 **Band wording (2026-10-20, the user's choices on fu 395(2)–(3); branch `band-wording`)**: the band line lists three or more sides
 (`the width min side, the width max side and the length max end`) and reads `all four sides` when one type bands all four (`bandText.ts`
