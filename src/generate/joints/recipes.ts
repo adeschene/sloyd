@@ -2,6 +2,9 @@ import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldPar
 import type { Board, Cut, CutFrom, Dimension, FlatDocument, SloydDocument } from '../../document/document';
 import { pocketCells, cutRegion } from '../../document/cuts';
 import { acrossOf } from '../../document/holes';
+import { uvDims } from '../../document/curves';
+import { runDim } from '../../document/profiles';
+import type { ProfileEnd } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -67,6 +70,8 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number, tap?: Tap) {
   rebaseCuts(b, d, endFacing(b, k, side), amount, was);
   rebaseAngleCuts(b, d, endFacing(b, k, side), amount);
   rebaseHoles(b, d, endFacing(b, k, side), amount);
+  rebaseCurves(b, d, endFacing(b, k, side), amount);
+  rebaseProfiles(b, d, endFacing(b, k, side), amount);
 }
 
 /**
@@ -230,6 +235,65 @@ export function rebaseHoles(b: Board, d: Dimension, end: CutFrom, amount: number
     const q = acrossOf(r) === d && r.acrossFrom === end ? amount : 0;
     if (s === 0 && q === 0) return r;
     return { ...r, station: r.station + s, inset: r.inset + q };
+  });
+}
+
+/**
+ * Joinery-curves spec §4.2: `b` grew (or, negative, was trimmed) by `amount` at `end` of dimension `d`, so every curve
+ * coordinate MEASURED FROM that end (u when `uvDims(through)[0]` is `d` and `uFrom` is `end`; v likewise) shifts by
+ * `amount` and the curve's waste stays exactly where it was. One addition per number; `side` and `through` are untouched,
+ * and a curve measured from the other end (or through `d`) is the same object. Entries are REPLACED, never mutated: flat
+ * twins share them. `readJoints` calls it with the opposite amount, its inverse to the last bit.
+ *
+ * `rise` and `radius` are untouched too, with ONE exception (final review C1): two separate additions do not preserve a
+ * difference, so a shifted chord can come back an ulp short or long. An arc stored exactly AT the half-circle bound
+ * (`rise === chord / 2`, the Half-round notch; or `radius === chord / 2`), judged the loader's way (`validateCurveCuts`:
+ * `Math.hypot` of the stored endpoints), is re-stored at the bound of its NEW chord, so it stays a notch to
+ * `curveKindChoice`; any other shifted arc the loader would now drop (`rise > chord / 2`, `radius < chord / 2`) is
+ * clamped to that bound. Without this the closing `migrateDocument` drops the whole curve with no note. Either way the
+ * number moves by an ulp, well within GATE_TOLERANCE.
+ */
+export function rebaseCurves(b: Board, d: Dimension, end: CutFrom, amount: number): void {
+  const chord = (p: readonly [number, number], q: readonly [number, number]) => Math.hypot(q[0] - p[0], q[1] - p[1]);
+  b.curves = b.curves.map((c) => {
+    const [u, v] = uvDims(c.through);
+    const s = u === d && c.uFrom === end ? amount : 0;
+    const q = v === d && c.vFrom === end ? amount : 0;
+    if (s === 0 && q === 0) return c;
+    const start: [number, number] = [c.start[0] + s, c.start[1] + q];
+    let was: readonly [number, number] = c.start;
+    let at: readonly [number, number] = start;
+    const segments = c.segments.map((g) => {
+      const to: [number, number] = [g.to[0] + s, g.to[1] + q];
+      let out = { ...g, to } as typeof g;
+      if (g.type === 'arc') {
+        const old = chord(was, g.to) / 2;
+        const half = chord(at, to) / 2;
+        if (g.rise !== undefined && (g.rise === old || g.rise > half)) out = { ...g, to, rise: half };
+        else if (g.radius !== undefined && (g.radius === old || g.radius < half)) out = { ...g, to, radius: half };
+      }
+      was = g.to;
+      at = to;
+      return out;
+    });
+    return { ...c, start, segments };
+  });
+}
+
+/**
+ * Joinery-curves spec §4.3: a profile station `{ side, from, at }` measured from the moved end of the dimension its
+ * side runs along shifts by `amount`. `through` ends, `loop` runs and every other field are untouched; changed entries
+ * are replaced, never mutated. `readJoints` calls it with the opposite amount, its exact inverse.
+ */
+export function rebaseProfiles(b: Board, d: Dimension, end: CutFrom, amount: number): void {
+  const shift = (e: ProfileEnd): ProfileEnd =>
+    'through' in e || runDim(e.side) !== d || e.from !== end ? e : { ...e, at: e.at + amount };
+  b.profiles = b.profiles.map((p) => {
+    if ('loop' in p.run) return p;
+    const start = shift(p.run.start);
+    const e2 = shift(p.run.end);
+    if (start === p.run.start && e2 === p.run.end) return p;
+    return { ...p, run: { start, end: e2 } };
   });
 }
 

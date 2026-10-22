@@ -346,3 +346,66 @@ describe('curveAs: a kind change keeps placement, takes preset sizes (fu 367)', 
     expect(curveAs('bow', odd, apron)).toBeNull();
   });
 });
+
+// ── Joinery features chunk 2 (spec §3.3, P4, P6): the OPEN rectangle test and the waste's length on a segment.
+import { rectOverlapsWaste, wasteOnSegment } from './curves';
+
+describe('rectOverlapsWaste (OPEN: overlap above 1e-9; spec §3.3, P4)', () => {
+  const B = { length: 30, width: 5, thickness: 0.75 };
+  // A 1" rounded corner at (0, 0): its waste is [0, 1]² outside the circle about (1, 1).
+  const corner = localSegments(B, cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }));
+  // The 30 × 5 apron's arch: crown at (15, 1.5).
+  const arch = localSegments(B, ARCH);
+  it('a rect sharing an edge with a rounded corner\'s waste is not an overlap; pushed 1e-6 in, it is', () => {
+    expect(rectMeetsWaste(corner, [1, 0], [3, 2])).toBe(true);          // the closed test: touching meets
+    expect(rectOverlapsWaste(corner, [1, 0], [3, 2])).toBe(false);      // shares the leg u = 1 (only its end point)
+    expect(rectOverlapsWaste(corner, [-2, 0], [0, 1])).toBe(false);     // shares the leg u = 0 along its whole length
+    expect(rectOverlapsWaste(corner, [-2, 0], [1e-6, 1])).toBe(true);
+    expect(rectOverlapsWaste(corner, [0, -1], [1, 0])).toBe(false);     // under the leg v = 0
+    expect(rectOverlapsWaste(corner, [0, -1], [1, 1e-6])).toBe(true);
+  });
+  it('a rect tangent to an arch\'s crown is not an overlap; pushed 1e-6 in, it is', () => {
+    expect(rectMeetsWaste(arch, [10, 1.5], [20, 3])).toBe(true);
+    expect(rectOverlapsWaste(arch, [10, 1.5], [20, 3])).toBe(false);
+    expect(rectOverlapsWaste(arch, [10, 1.5 - 1e-6], [20, 3])).toBe(true);
+  });
+  it('a rect inside the waste overlaps; an empty one never does', () => {
+    expect(rectOverlapsWaste(arch, [14, 0.2], [16, 0.4])).toBe(true);
+    expect(rectOverlapsWaste(arch, [15, 0.2], [15 + 1e-9, 0.4])).toBe(false);   // narrower than 4e-9: empty once shrunk
+  });
+});
+
+describe('wasteOnSegment (the end line inside the closed waste; P6)', () => {
+  const B = { length: 30, width: 5, thickness: 0.75 };
+  const end: [P2, P2] = [[0, 0], [0, 5]];   // the length-min end, in (length, width)
+  it('a rounded corner of radius r at the end gives r', () => {
+    for (const r of [1, 0.375, 1.25]) {
+      const segs = localSegments(B, cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: r }));
+      expect(Math.abs(wasteOnSegment(segs, ...end) - r)).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(wasteOnSegment(segs, end[1], end[0]) - r)).toBeLessThanOrEqual(1e-12);   // either direction
+    }
+    // The corner at the other end of the length: nothing on this end.
+    expect(wasteOnSegment(localSegments(B, cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'min', radius: 1 })), ...end)).toBe(0);
+  });
+  it('an arch running corner to corner (chord along the edge) gives 0: its waste meets the end at a point', () => {
+    const segs = localSegments(B, archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 0, span: 30, rise: 0.5 }));
+    expect(wasteOnSegment(segs, ...end)).toBe(0);
+  });
+  it('a bow running corner to corner gives its rise: its end horns lie along the end line (P6)', () => {
+    // bowCurve keeps the edge's middle and brings its ENDS in by `rise`: the waste's side (0,0)→(0,rise) is on the end line.
+    const segs = localSegments(B, defaultBow(B));
+    expect(Math.abs(wasteOnSegment(segs, ...end) - 0.5)).toBeLessThanOrEqual(1e-12);
+    expect(Math.abs(wasteOnSegment(segs, [30, 0], [30, 5]) - 0.5)).toBeLessThanOrEqual(1e-12);
+  });
+  it('an arch clear of the end gives 0', () => {
+    expect(wasteOnSegment(localSegments(B, ARCH), ...end)).toBe(0);
+  });
+  it('a notch cut from the end edge gives its width', () => {
+    // A half-round notch on the length-min end, centred across the width: 2" wide (rise 1).
+    const segs = localSegments(B, archCurve({ through: 'thickness', along: 'width', side: 'min', from: 'min', start: 1.5, span: 2, rise: 1 }));
+    expect(Math.abs(wasteOnSegment(segs, ...end) - 2)).toBeLessThanOrEqual(1e-12);
+    // A segment wholly inside the waste is its own length; one wholly clear of it, 0.
+    expect(Math.abs(wasteOnSegment(segs, [0.5, 2], [0.5, 3]) - 1)).toBeLessThanOrEqual(1e-12);
+    expect(wasteOnSegment(segs, [5, 0], [5, 5])).toBe(0);
+  });
+});

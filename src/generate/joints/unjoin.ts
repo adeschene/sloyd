@@ -1,12 +1,14 @@
 import { clippedRegion, CUT_GEOMETRY_KEYS } from '../../document/document';
-import type { Board, Cut, FlatDocument, HoleRow } from '../../document/document';
+import type { Board, CurveCut, Cut, FlatDocument, HoleRow, ProfileCut } from '../../document/document';
 import { HOLE_KEYS } from '../../document/holes';
+import { CURVE_KEYS } from '../../document/curves';
+import { PROFILE_KEYS } from '../../document/profiles';
 import { TOUCH } from '../../document/designCheck';
 import { sameAngleCut } from '../../document/angleCuts';
 import { axisDimensions, axisFrame, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
 import type { Site } from './sites';
-import { applyJoints, rebaseAngleCuts, rebaseHoles } from './recipes';
+import { applyJoints, rebaseAngleCuts, rebaseCurves, rebaseHoles, rebaseProfiles } from './recipes';
 import type { JointChoice } from './recipes';
 import { boxOf } from './pocket';
 import type { V3, WorldBox } from './pocket';
@@ -98,6 +100,9 @@ export function readJoints(flat: FlatDocument):
     rebaseAngleCuts(boards[i], d, endFacing(boards[i], k, side), amount);
     // The same for hole rows (joinery-holes spec §4.5): the exact inverse of `resize`'s re-anchoring.
     rebaseHoles(boards[i], d, endFacing(boards[i], k, side), amount);
+    // And curves and profile stations (joinery-curves spec §4.5), the same way.
+    rebaseCurves(boards[i], d, endFacing(boards[i], k, side), amount);
+    rebaseProfiles(boards[i], d, endFacing(boards[i], k, side), amount);
   };
 
   // 1. Grow joints (mortise-tenon, dado, stopped dado), applied LAST forward, undone first.
@@ -291,6 +296,32 @@ export function sameHoles(a: readonly HoleRow[], b: readonly HoleRow[]): boolean
   return a.length === b.length && a.every((r, i) => HOLE_KEYS.every((k) => same(r[k], b[i]![k])));
 }
 
+/**
+ * Structural equality for the curve and profile gates: arrays element by element (equal lengths), objects by an equal key
+ * set (a `rise` vs a `radius`, a `through` end vs a station end, differ), numbers within GATE_TOLERANCE, all else `===`.
+ */
+function sameDeep(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => sameDeep(v, b[i]));
+  }
+  if (a !== null && b !== null && typeof a === 'object' && typeof b === 'object') {
+    const ka = Object.keys(a);
+    const kb = Object.keys(b);
+    return ka.length === kb.length && ka.every((k) => k in b && sameDeep((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  }
+  return same(a, b);
+}
+
+/** Curves in stored order, ids ignored, every CURVE_FIELDS field (inv 40) by sameDeep (`rebaseCurves` round-trips to the last bit only). */
+export function sameCurves(a: readonly CurveCut[], b: readonly CurveCut[]): boolean {
+  return a.length === b.length && a.every((c, i) => CURVE_KEYS.every((k) => sameDeep(c[k], b[i]![k])));
+}
+
+/** Profiles in stored order, ids ignored, every PROFILE_FIELDS field (inv 40) by sameDeep. */
+export function sameProfiles(a: readonly ProfileCut[], b: readonly ProfileCut[]): boolean {
+  return a.length === b.length && a.every((c, i) => PROFILE_KEYS.every((k) => sameDeep(c[k], b[i]![k])));
+}
+
 /** The same cuts in any order: equal length, each of a matched to a distinct cut of b by sameCut (order is not geometry). */
 function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
   if (a.length !== b.length) return false;
@@ -320,7 +351,7 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
       // Exact, by design: joinery re-anchors angle cuts only by `rebaseAngleCuts`, which `readJoints` undoes exactly, so
       // their round trip is identity (AI-tapers spec §5.4a; AI-angles spec §4).
       p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!)) &&
-      sameHoles(p.holes, q.holes);
+      sameHoles(p.holes, q.holes) && sameCurves(p.curves, q.curves) && sameProfiles(p.profiles, q.profiles);
   });
 }
 

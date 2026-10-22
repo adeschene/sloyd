@@ -127,14 +127,14 @@ describe('every reader sees a migrated profile exactly as chunk 1 did (profile r
   });
 });
 
-describe('a migrated profile part still refuses joinery and Refine, and takes no turn (profile runs a1)', () => {
+describe('a migrated profile part still refuses Refine, and takes no turn (profile runs a1)', () => {
   const b = createBoard({ id: 'b1', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: [{ id: 'p', ...profileCurve(fields({ kind: 'roundover', size: 0.25, fillet: 0 })) }] });
   it('curvedRefusal names it, turnCandidates gives none', () => {
     const m = migrate(b);
     expect(m.curves).toEqual([]);
     const flat = { ...createDocument('T'), boards: [m] };
     expect(curvedParts(flat)).toEqual(['Top']);
-    expect(curvedRefusal(flat, 'joinery')).toBe(curvedRefusal({ ...createDocument('T'), boards: [b] }, 'joinery'));
+    expect(curvedRefusal(flat, 'refine')).toBe(curvedRefusal({ ...createDocument('T'), boards: [b] }, 'refine'));
     expect(turnCandidates(m)).toEqual([]);
   });
 });

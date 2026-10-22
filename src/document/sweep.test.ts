@@ -588,3 +588,51 @@ describe('a fault-free swept profile always builds (one reach)', () => {
     }
   });
 });
+
+// ── Joinery features chunk 2 (spec §3.3, P4): sweptWasteMeets' footprint test for a box.
+import { sweptWasteMeets, sweptWasteMeetsBox } from './sweep';
+
+describe('sweptWasteMeetsBox (conservative, closed; P4)', () => {
+  it('agrees with sweptWasteMeets for a thin box at a side-entry hole\'s footprint', () => {
+    const view = geometryBoard(createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [loop('w1')] }));
+    const p = view.profiles[0]!;
+    let hits = 0;
+    let misses = 0;
+    for (const r of [1 / 16, 0.125]) {
+      for (const depth of [0.25, 0.5, 1]) {
+        for (const x of [0.2, 0.5, 0.75, 2, 15]) {
+          for (const z of [0.1, 0.3, 0.5, 0.6, 0.7]) {
+            // Into the width-min face (dir +1), and into the length-min end.
+            const holes = [
+              { axis: 'width' as const, centre: [x + 3, 0, z] as V3, radius: r, depth, dir: 1 as const },
+              { axis: 'length' as const, centre: [0, x + 3, z] as V3, radius: r, depth, dir: 1 as const },
+              { axis: 'width' as const, centre: [x + 3, 10, z] as V3, radius: r, depth, dir: -1 as const },
+            ];
+            for (const h of holes) {
+              const ax = ['length', 'width', 'thickness'].indexOf(h.axis);
+              const a0 = h.centre[ax]!, a1 = a0 + h.dir * h.depth;
+              const span = (k: number): [number, number] => (k === ax ? [Math.min(a0, a1), Math.max(a0, a1)] : [h.centre[k]! - r, h.centre[k]! + r]);
+              const want = sweptWasteMeets(view, p, h);
+              expect(sweptWasteMeetsBox(view, p, { length: span(0), width: span(1), thickness: span(2) })).toBe(want);
+              if (want) hits += 1; else misses += 1;
+            }
+          }
+        }
+      }
+    }
+    expect(hits).toBeGreaterThan(20);
+    expect(misses).toBeGreaterThan(20);
+  });
+  it('a box clear of an ogee loop by its reach plus 1/16" is not judged into it', () => {
+    const view = geometryBoard(createBoard({ length: 30, width: 10, thickness: 0.75, profiles: [loop('o1', 0.5, 'ogee')] }));
+    const p = view.profiles[0]!;
+    const { reach } = keptSection(view, p);
+    expect(reach).toBeGreaterThan(0.4);
+    const box = (w0: number) => ({ length: [10, 20] as [number, number], width: [w0, 5] as [number, number], thickness: [0, 0.75] as [number, number] });
+    expect(sweptWasteMeetsBox(view, p, box(reach + 1 / 16))).toBe(false);
+    expect(sweptWasteMeetsBox(view, p, box(reach))).toBe(true);              // closed: at the reach it meets
+    expect(sweptWasteMeetsBox(view, p, box(reach - 1 / 16))).toBe(true);
+    // Below the profile's depth (in from its max face), nothing.
+    expect(sweptWasteMeetsBox(view, p, { ...box(0), thickness: [0, 0.75 - keptSection(view, p).depth - 1 / 16] })).toBe(false);
+  });
+});

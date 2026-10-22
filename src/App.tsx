@@ -42,7 +42,7 @@ import { featureAllowed } from './generate/joints/featureZones';
 import { storage } from './storage';
 import { useStore } from './store/store';
 
-const HOLE_CHECK_FAILED = "Sloyd couldn't check this project's holes against its joints. Add joinery before drilling, or remove the holes first.";
+const FEATURE_CHECK_FAILED = "Sloyd couldn't check this project's holes, curves and profiles against its joints. Add joinery before drilling or shaping, or remove those first.";
 
 export default function App() {
   const undo = useStore((s) => s.undo);
@@ -88,7 +88,7 @@ export default function App() {
   const joineryFlat = useMemo(() => {
     if (dialog !== 'joinery') return null;
     const flat = flatDocument(doc);
-    // Features rule out joint kinds per site (joinery-holes spec §3.5). The trials live HERE, behind the dialog gate, so
+    // Features rule out joint kinds per site (joinery-features spec §3). The trials live HERE, behind the dialog gate, so
     // none runs while the dialog is closed and a drag frame never pays for them. `found` is what the refusal reads.
     const found = findSites(flat);
     // The refusal is decided FIRST, from the un-narrowed sites, in runJoinery's own order: a refused project never pays
@@ -99,9 +99,9 @@ export default function App() {
       return { flat, found, sites: featureAllowed(flat, found).sites, refusal: null };
     } catch (e) {
       // A latent recipe throw must not blank the app (fu 244). The dialog is REFUSED: it must never run with
-      // un-narrowed sites, which would cut holes.
-      console.error('Sloyd: checking holes against joints threw', e);
-      return { flat, found, sites: found, refusal: HOLE_CHECK_FAILED };
+      // un-narrowed sites, which would cut into a feature.
+      console.error('Sloyd: checking features against joints threw', e);
+      return { flat, found, sites: found, refusal: FEATURE_CHECK_FAILED };
     }
   }, [dialog, doc]);
   const joinerySites = useMemo(() => (joineryFlat ? joineryFlat.sites.map((s) => siteLabel(s, joineryFlat.flat)) : []), [joineryFlat]);

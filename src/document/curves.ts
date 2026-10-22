@@ -553,6 +553,51 @@ export function rectMeetsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boole
   return corners.some((p, i) => boundaryHits(segs, p, corners[(i + 1) % 4]!).length > 0);
 }
 
+/**
+ * An axis-aligned rectangle [lo, hi] OVERLAPS the waste by more than float noise (joinery features spec §3.3, P4: touching
+ * passes): the rectangle shrunk by 2·CURVE_EPS per side, then `rectMeetsWaste`'s closed test on it, so a rect that only
+ * touches (an edge on a leg, a side tangent to a crown) is CURVE_EPS clear. Empty once shrunk: false.
+ * One difference from calling `rectMeetsWaste`: a side's outline hits are kept only within CURVE_EPS of the rectangle.
+ * `segArcHits` admits a hit up to CURVE_EPS past a side's end in its PARAMETER, i.e. CURVE_EPS × the side's length past
+ * it (2e-9 on a 2" side), which would let a rect touching a tangent arc at its corner count as an overlap.
+ */
+export function rectOverlapsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boolean {
+  const e = 2 * CURVE_EPS;
+  const a: P2 = [lo[0] + e, lo[1] + e];
+  const b: P2 = [hi[0] - e, hi[1] - e];
+  if (b[0] < a[0] || b[1] < a[1]) return false;
+  const corners: P2[] = [[a[0], a[1]], [b[0], a[1]], [b[0], b[1]], [a[0], b[1]]];
+  if (corners.some((p) => wasteContains(segs, p, 'closed'))) return true;
+  const inRect = (p: P2) => p[0] >= a[0] - CURVE_EPS && p[0] <= b[0] + CURVE_EPS && p[1] >= a[1] - CURVE_EPS && p[1] <= b[1] + CURVE_EPS;
+  if (segs.some((s) => inRect(s.a) || (s.kind === 'arc' && inRect(s.crown)))) return true;
+  return corners.some((p, i) => boundaryHits(segs, p, corners[(i + 1) % 4]!).some(inRect));
+}
+
+/**
+ * The length of the segment a→b that lies inside the CLOSED waste (P6: "touches the joined end with positive area"). The
+ * segment is cut at a, b, every point where it meets the true outline (`boundaryHits`) and every outline vertex within
+ * CURVE_EPS of it (a boundary line running ALONG the segment need not cross it); each gap counts whole when its midpoint
+ * is in the waste ('closed'). A waste meeting the segment at a point only (a full-length arch at its end) gives 0.
+ */
+export function wasteOnSegment(segs: readonly LocalSeg[], a: P2, b: P2): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return 0;
+  const param = (q: P2) => ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (len * len);
+  const onLine = segs.map((s) => s.a).filter((q) => distToSegment(q, a, b) <= CURVE_EPS);
+  const ts = [0, 1, ...[...boundaryHits(segs, a, b), ...onLine].map((q) => Math.max(0, Math.min(1, param(q))))].sort((x, y) => x - y);
+  let inside = 0;
+  for (let k = 0; k + 1 < ts.length; k += 1) {
+    const t0 = ts[k]!;
+    const t1 = ts[k + 1]!;
+    if (t1 - t0 <= 0) continue;
+    const m = (t0 + t1) / 2;
+    if (wasteContains(segs, [a[0] + m * dx, a[1] + m * dy], 'closed')) inside += (t1 - t0) * len;
+  }
+  return inside;
+}
+
 export type CurveFaultKind = 'runs-off' | 'cuts-through';
 export interface CurveFault { kind: CurveFaultKind; edge?: { dim: Dimension; side: CutFrom } }
 

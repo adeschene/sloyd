@@ -9,6 +9,14 @@ import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { gateUnjoin } from './unjoin';
 import { REFINE_MAX, plainForRefine, refineRefusal } from '../refine';
+import { chiralCurved } from '../../document/turnFixtures';
+import { chiralTwoSide } from '../../document/sweepFixtures';
+import { localSegments, uvDims } from '../../document/curves';
+import type { P2 } from '../../document/curves';
+import { worldBox } from '../../document/designCheck';
+import { GATE_TOLERANCE } from './unjoin';
+import { endPos } from '../../document/profiles';
+import { axisDimensions } from '../../document/geometry';
 import { documentToDesign } from '../../document/refineDesign';
 
 const SHELF = { x: 40.25, y: 10, z: 0 };
@@ -61,5 +69,94 @@ describe('joinery on a mirrored pair (mirrored-instances spec §6)', () => {
     const r = documentToDesign(base.plain, REFINE_MAX);
     expect('refused' in r && r.refused.reason).toBe('mirrored');
     expect(refineRefusal(joined)).toBe("Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first.");
+  });
+});
+
+// Joinery-curves spec §7: a mirrored copy's curves and profile stations are lowered and re-anchored with the same
+// numbers, so the waste stays where it was in world space through joinery.
+const shape = (x: unknown) => JSON.stringify(x, (_k, v) => (typeof v === 'number' ? 0 : v));
+const numbers = (x: unknown, out: number[] = []): number[] => {
+  if (typeof x === 'number') out.push(x);
+  else if (x && typeof x === 'object') Object.values(x).forEach((v) => numbers(v, out));
+  return out;
+};
+
+describe.each([['curved', chiralCurved], ['two-side', chiralTwoSide]] as const)('a mirrored copy keeps its %s waste through joinery', (_name, fixture) => {
+  const rail = fixture('flat');
+  const tenonDoc = (): SloydDocument => {
+    // The Rail becomes the chiral fixture (20 x 6 x 1.5 flat: x 20, y 1.5, z 6) butting the Leg's inner face at its min end.
+    const sized = designToDocument({
+      name: 'Pair',
+      parts: [],
+      assemblies: [{
+        name: 'Side',
+        parts: [
+          { name: 'Leg', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 7 } },
+          { name: 'Rail', role: '', material: 'pine', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 20, y: 1.5, z: 6 } },
+        ],
+        placements: [{ name: 'Left', at: { x: 0, y: 0, z: 0 } }, { name: 'Right', at: { x: 60, y: 0, z: 0 } }],
+      }],
+    }, { centre: false }).doc;
+    const dress = (b: Board): Board => (b.name === 'Rail' ? { ...b, curves: rail.curves, profiles: rail.profiles } : b);
+    return {
+      ...sized,
+      definitions: sized.definitions.map((df) => ({ ...df, boards: (df.boards as Board[]).map(dress) })),
+      instances: sized.instances.map((i, k) => (k === 1 ? { ...i, mirrored: true } : i)),
+    };
+  };
+  const curvePoints = (b: Board): number[][] => b.curves.flatMap((c) => {
+    const [u, v] = uvDims(c.through);
+    const at = (p: P2) => worldBox(b, { length: [0, 0], width: [0, 0], thickness: [0, 0], [u]: [p[0], p[0]], [v]: [p[1], p[1]] }).min;
+    return localSegments(b, c).flatMap((s) => [at(s.a), at(s.b)]);
+  });
+  /** Each station's world coordinate along the world axis its run dimension shows, in station order. */
+  const stations = (b: Board): number[] => b.profiles.flatMap((p) => ('loop' in p.run ? [] : [p.run.start, p.run.end]).filter((e) => !('through' in e)).map((e) => {
+    const dim = e.side.across === 'width' ? 'length' as const : 'width' as const;
+    return worldBox(b, { length: [0, 0], width: [0, 0], thickness: [0, 0], [dim]: [endPos(b, e), endPos(b, e)] }).min[axisDimensions(b).indexOf(dim)];
+  })).sort((x, y) => x - y);
+  const rails = (doc: SloydDocument) => worldParts(doc).filter((b) => b.name.endsWith('Rail'));
+
+  it('both copies keep their waste in world space', () => {
+    const doc = tenonDoc();
+    const flat = flatDocument(doc);
+    const sites = findSites(flat);
+    const choices = sites.filter((s) => flat.boards[s.enter].name.endsWith('Rail')).map((s) => ({ site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1 }));
+    expect(choices).toHaveLength(2);
+    const joined = applyJoints(flat, sites, choices).doc;
+    const out = migrateDocument(writeBackFlat(doc, flat.boards, joined.boards));
+    const before = rails(doc); const after = rails(out);
+    expect(before).toHaveLength(2);
+    expect(after).toHaveLength(2);
+    before.forEach((b, i) => {
+      expect(after[i].length).toBe(b.length + 1);
+      expect(after[i].curves.map((c) => c.id)).toEqual(b.curves.map((c) => c.id));
+      expect(after[i].profiles.map((p) => p.id)).toEqual(b.profiles.map((p) => p.id));
+      expect(stations(b)).toHaveLength(fixture === chiralTwoSide ? 2 : 0);
+      stations(b).forEach((v, j) => expect(Math.abs(stations(after[i])[j] - v)).toBeLessThanOrEqual(GATE_TOLERANCE));
+      const p = curvePoints(b); const q = curvePoints(after[i]);
+      expect(q).toHaveLength(p.length);
+      p.forEach((pt, j) => pt.forEach((v, a) => expect(Math.abs(q[j][a] - v), `rail ${i} point ${j}`).toBeLessThanOrEqual(GATE_TOLERANCE)));
+    });
+    // The lowered stored forms: the arch measured from the moving end moved by the tenon, everything else is the input's.
+    const stored = out.definitions.flatMap((df) => df.boards as Board[]).filter((b) => b.name === 'Rail');
+    for (const b of stored) {
+      const arch = b.curves.find((c) => c.id === 'k1')!;
+      const want = rail.curves.find((c) => c.id === 'k1')!;
+      expect(Math.abs(arch.start[0] - (want.start[0] + 1))).toBeLessThanOrEqual(GATE_TOLERANCE);
+      expect(b.curves.find((c) => c.id === 'k2')).toEqual(rail.curves.find((c) => c.id === 'k2'));
+      // The profile's stored form too: only the station on the side that runs along the grown dimension (length) moved.
+      expect(b.profiles.map((p) => p.id)).toEqual(rail.profiles.map((p) => p.id));
+      rail.profiles.forEach((want, i) => {
+        const got = b.profiles[i];
+        const grown = (p: typeof want) => {
+          if ('loop' in p.run) return p;
+          const bump = (e: typeof p.run.start) => ('through' in e || e.side.across !== 'width' || e.from !== 'min' ? e : { ...e, at: e.at + 1 });
+          return { ...p, run: { start: bump(p.run.start), end: bump(p.run.end) } };
+        };
+        expect(shape(got)).toBe(shape(grown(want)));
+        const g = numbers(got); const w = numbers(grown(want));
+        w.forEach((n, j) => expect(Math.abs(g[j] - n), `profile ${want.id}[${j}]`).toBeLessThanOrEqual(GATE_TOLERANCE));
+      });
+    }
   });
 });

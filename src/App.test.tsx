@@ -10,7 +10,6 @@ import { storage } from './storage';
 import { assemblyDoc } from './document/treeFixtures';
 import { designToDocument } from './document/generated';
 import { groupItems } from './document/document';
-import { ARCH } from './document/curveFixtures';
 import * as featureZones from './generate/joints/featureZones';
 
 // Wrapped, not replaced: the real trials still run unless a test overrides the spy.
@@ -2090,21 +2089,21 @@ describe('Add joinery with holes (joinery-holes final review)', () => {
     return screen.findByRole('dialog', { name: 'Add joinery' });
   };
 
-  it('a refused project (holes and a curve) never runs the hole trials', async () => {
-    const dialog = await open(holedDoc({ curves: [ARCH] }));
-    expect(within(dialog).getByRole('status').textContent).toMatch(/curve/i);
+  it('a refused project (holes and a band) never runs the feature trials', async () => {
+    const dialog = await open(holedDoc({ bands: [{ side: { across: 'width', from: 'min' }, type: 'bt' }] }));
+    expect(within(dialog).getByRole('status').textContent).toMatch(/banded/i);
     expect(featureZones.featureAllowed).not.toHaveBeenCalled();
   });
 
-  it('a throwing hole check refuses the dialog with the stated message and the app survives', async () => {
+  it('a throwing feature check refuses the dialog with the stated message and the app survives', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.mocked(featureZones.featureAllowed).mockImplementation(() => { throw new Error('boom'); });
     try {
       const dialog = await open(holedDoc());
       expect(within(dialog).getByRole('status').textContent)
-        .toBe("Sloyd couldn't check this project's holes against its joints. Add joinery before drilling, or remove the holes first.");
+        .toBe("Sloyd couldn't check this project's holes, curves and profiles against its joints. Add joinery before drilling or shaping, or remove those first.");
       expect((within(dialog).getByRole('button', { name: 'Add joinery' }) as HTMLButtonElement).disabled).toBe(true);
-      expect(err).toHaveBeenCalledWith('Sloyd: checking holes against joints threw', expect.any(Error));
+      expect(err).toHaveBeenCalledWith('Sloyd: checking features against joints threw', expect.any(Error));
     } finally {
       err.mockRestore();
       const real = await vi.importActual<typeof import('./generate/joints/featureZones')>('./generate/joints/featureZones');

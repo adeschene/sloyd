@@ -144,7 +144,7 @@ export function defaultProfile(board: Pick<Board, Dimension>, kind: ProfileKind,
 export const PROFILE_FIELDS = {
   face: true, kind: true, size: true, depth: true, fillet: true, facing: true, run: true,
 } as const satisfies Record<Exclude<keyof ProfileCut, 'id'>, true>;
-const PROFILE_KEYS = Object.keys(PROFILE_FIELDS) as (keyof typeof PROFILE_FIELDS)[];
+export const PROFILE_KEYS = Object.keys(PROFILE_FIELDS) as (keyof typeof PROFILE_FIELDS)[];
 const pnum = (n: number) => (Object.is(n, -0) ? '-0' : String(n));
 const endText = (e: ProfileEnd) => `${e.side.across}:${e.side.from}:${'through' in e ? `t${e.through}` : `${e.from}${pnum(e.at)}`}`;
 
