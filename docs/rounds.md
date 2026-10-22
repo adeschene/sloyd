@@ -97,11 +97,18 @@
 | + Add banding | 10-20 | — | The Banding section on the additions' pattern (`+ Add banding ▾`, then the selects and `Band ▾`); `New solid edging…` opens Materials & prices with a new Solid row (deployed `index-ymPlKpkL.js`) |
 | band wording | 10-20 | — | Band lines list three or more sides and read `all four sides`; Buying's unpriced tail counts band types apart (fu 395(2)–(3); deployed `index-QDQAnB8n.js`) |
 | hardware (BOM) | 10-21 | 20 | Hardware types (name, pack size, price) per project; counts on parts, assemblies and the project that multiply with copies (`hardware.ts`, inv 55); the cut list's Hardware section with where-used lines, Buying's Hardware block; Properties' Hardware section, Materials & prices' Hardware section; Refine refuses hardware on parts. **Built on merged `98c7df4`, deployed 2026-10-21 (`index-BZhrLswD.js`)** |
-| joinery accepts holes (chunk 1) | 10-21 | — | Add joinery rules out only the joint kinds whose zone a hole enters (`featureZones.ts`, watched trials; rabbet and lap units), says why per site (`ruledOutText.ts`); `rebaseHoles` + `resizeAt` inverse; the gate compares holes; Repair accepts holed projects; Refine still refuses (branch `joinery-holes`, not yet merged or deployed; inv 41/50; fu 328 closed, 413, 414) |
+| joinery accepts holes (chunk 1) | 10-21 | — | Add joinery rules out only the joint kinds whose zone a hole enters (`featureZones.ts`, watched trials; rabbet and lap units), says why per site (`ruledOutText.ts`); `rebaseHoles` + `resizeAt` inverse; the gate compares holes; Repair accepts holed projects; Refine still refuses (inv 41/50; fu 328 closed, 413, 414). **Merged `f3493a7`, deployed 2026-10-22 (`index-ChnyDt9R.js`)** |
 
-## Status log (to 2026-10-21)
+## Status log (to 2026-10-22)
 
-- **Hardware bill of materials (2026-10-21; branch `hardware` 218816a..53e483f, MERGED `98c7df4`, DEPLOYED 2026-10-21 as `index-BZhrLswD.js` / CSS `index-Cj7r9G0C.css`; schema 20)**: spec
+- **Joinery accepts holes (joinery features chunk 1; 2026-10-22; branch `joinery-holes`, MERGED `f3493a7`, DEPLOYED 2026-10-22 as `index-ChnyDt9R.js` / CSS
+  `index-Cj7r9G0C.css` unchanged; schema 20 unchanged)**: spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P1–P3 and
+  the execution amendments), plan `docs/superpowers/plans/2026-10-21-sloyd-joinery-holes.md`. Live check `docs/browser-verification-joinery-holes.md`
+  (free checks + one approved paid run, ≈ $0.03). Merged tree: build green, 7139 tests. Deployed and verified by bundle hash (sha256 matching
+  `dist/`) in-network and at the edge, CSP, the old bundle 404s in-network, a clean real-browser load; production storage read empty after.
+  **Rollback:** no schema change, so rolling back to `98c7df4` (`index-BZhrLswD.js`) is free. Owed to the user: the summary-line and
+  `HOLE_CHECK_FAILED` wording. Record-only: fu 413, 414. Next: chunks 2 (curves and profiles) and 3 (bands), each its own plan.
+- **Hardware bill of materials** (production until joinery chunk 1)- **Hardware bill of materials (2026-10-21; branch `hardware` 218816a..53e483f, MERGED `98c7df4`, DEPLOYED 2026-10-21 as `index-BZhrLswD.js` / CSS `index-Cj7r9G0C.css`; schema 20)**: spec
   `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md` (approved, P1/P2 approved). Ten tasks; the full suite passes (CLAUDE.md has the count),
   `npm run build` green. The live pass on the dev server (`docs/browser-verification-hardware.md`) found one crash, a SHAPED part's
   Properties Hardware section (a fresh array per `getSnapshot`), fixed in `c9d5c08`. **Rollback once deployed:** a build below 20 REFUSES every

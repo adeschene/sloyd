@@ -51,7 +51,7 @@ real-world blocker, and they set up the shared machinery.
 
 | Chunk | Accepts | Builds |
 |---|---|---|
-| **1: holes** (implemented on branch `joinery-holes`; merge hash TBD, Task 8) | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
+| **1: holes** (merged `f3493a7`, deployed 2026-10-22 as `index-ChnyDt9R.js`) | parts with hole rows | the joint zones (§3), `rebaseHoles` + its inverse (§4.1), the gate extension for holes (§5), Repair on holed projects |
 | **2: curves and profiles** | parts with curves or profiles (`curvedParts` counts both) | §4.2 / §4.3 rebases, curve and profile conflict rows, gate extension, Repair |
 | **3: bands** | banded parts | §4.4, band conflict rows, gate extension, Repair |
 
