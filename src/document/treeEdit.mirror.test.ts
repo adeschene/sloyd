@@ -371,7 +371,7 @@ describe('profiles through a mirror (profile runs a1, Review Focus 2)', () => {
     expect(sameShared(a, { ...a, profiles: [q({ id: 'other' })] })).toBe(false);
     expect(sameShared(a, { ...a, profiles: [q({ size: 0.375 })] })).toBe(false);
   });
-  it('joinery and Refine refuse a part with profiles and no curves', () => {
+  it('Refine refuses a part with profiles and no curves (joinery accepts it)', () => {
     const d = doc(withProfile(chiralPart('flat')), {});
     expect(curvedRefusal(flatDocument(d), 'refine')).toMatch(/Refine doesn't handle parts with curves yet/);
   });

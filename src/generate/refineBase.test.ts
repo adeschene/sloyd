@@ -7,7 +7,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA } from './joints/choose';
 import { designToDocument } from '../document/generated';
 import { ARCH } from '../document/curveFixtures';
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
-import type { Board, SloydDocument } from '../document/document';
+import type { Board, ProfileCut, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
 import { findSites } from './joints/sites';
 import { defaultChoice } from './joints/choose';
@@ -136,13 +136,24 @@ describe('holes (holes spec §6)', () => {
 });
 
 describe('curves (curves spec §7)', () => {
+  const roundover: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { loop: true } };
   const arch = { id: 'c1', through: 'thickness' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [1, 0] as [number, number], segments: [{ type: 'arc' as const, to: [5, 0] as [number, number], side: 'left' as const, rise: 0.5 }, { type: 'line' as const, to: [1, 0] as [number, number] }] };
-  it('a joined Refine of a curved project refuses in Refine\'s words before joineryRefusal', async () => {
+  // joineryRefusal no longer refuses curves or profiles (joinery-features chunk 2), so these pin only that Refine refuses
+  // in its own words with no call; there is no ordering left to test.
+  it('a joined Refine of a curved project refuses in Refine\'s words without a call', async () => {
     const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
     const curved = { ...joined, boards: joined.boards.map((b) => (b.name === 'Top' ? { ...b, curves: [arch] } : b)) };
     const out = await runRefine(c, curved, S, new AbortController().signal, () => {});
     if (!('refused' in out)) throw new Error('expected a refusal');
     expect(out.refused.message.startsWith("Refine doesn't handle parts with curves yet")).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+  });
+  it('a joined Refine of a profiled-only project refuses in Refine\'s words without a call', async () => {
+    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
+    const profiled = { ...joined, boards: joined.boards.map((b) => (b.name === 'Top' ? { ...b, profiles: [roundover] } : b)) };
+    const out = await runRefine(c, profiled, S, new AbortController().signal, () => {});
+    if (!('refused' in out)) throw new Error('expected a refusal');
+    expect(out.refused.message.startsWith("Refine doesn't handle parts with curves yet (Top)")).toBe(true);
     expect(c.complete).not.toHaveBeenCalled();
   });
 });

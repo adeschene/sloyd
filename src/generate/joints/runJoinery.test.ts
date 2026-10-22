@@ -249,7 +249,7 @@ describe('runJoinery', () => {
       const arcTo = (b: Board) => b.position[0] + (b.curves[0]!.segments[0] as { to: [number, number] }).to[0];
       expect(start(a1)).toBeCloseTo(start(a0), 9);
       expect(arcTo(a1)).toBeCloseTo(arcTo(a0), 9);
-      expect(a1.curves[0]!.start[0]).toBeCloseTo(3.5, 9);
+      expect(a1.curves[0]).toEqual({ ...arch, start: [3.5, 0], segments: [{ type: 'arc', to: [15.5, 0], side: 'left', rise: 1.25 }, { type: 'line', to: [3.5, 0] }] });
       expect(b1.curves).toEqual(b0.curves);
       expect(b1.position).toEqual(b0.position);
       expect(out.shapes).toHaveLength(0); // the arch differs, so neither user keeps the shape (a one-user shape dissolves, inv 45)
@@ -620,7 +620,6 @@ describe('runJoinery with curves and profiles (joinery-features spec §3)', () =
       return { ...b, profiles: [p] };
     }) };
   };
-  /** The rail's end bored with dowel-like curves is awkward; a rounded corner at the tenoned end rules out every growing kind. */
   const sent = (c: LlmClient) => String((c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[0]);
 
   it('a curved project runs: the site lists mortise-tenon and not dado, and the note leads', async () => {
@@ -628,9 +627,10 @@ describe('runJoinery with curves and profiles (joinery-features spec §3)', () =
     const out = await run(c, ROUNDED());
     if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
     const msg = sent(c);
-    expect(msg).toContain('mortise-tenon');
-    expect(msg).not.toMatch(/(?<!-)\bdado \(depth/);
-    expect(msg).toContain("stopped-dado (depth");
+    // The one site's exact kind list, as sent: the roundover rules the plain dado out, nothing else.
+    const site = msg.split('\n').find((l) => l.startsWith('1. '))!;
+    const kinds = site.split('Allowed: ')[1]!.replace(/\s*\([^)]*\)/g, '').replace(/\.$/, '').split(', ');
+    expect(kinds).toEqual(['mortise-tenon', 'stopped-dado', 'butt']);
     expect(out.notes[0]).toBe("Rail → Leg: dado ruled out — Leg's roundover profile is in the way.");
     expect(out.result.applied.map((a) => a.joint)).toEqual(['mortise-tenon']);
   });

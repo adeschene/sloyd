@@ -625,7 +625,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7374 tests across 217 files
+npm test           # Vitest, currently 7382 tests across 217 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

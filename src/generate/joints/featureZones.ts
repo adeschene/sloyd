@@ -53,6 +53,12 @@ const original = (box: Region, shift: Record<Dimension, number>): Region => {
  *   (2), and its waste clears the tenon's section (3), `tenonSection` of the board as it stands, moved into the frame.
  * - A TRIM conflicts with a feature that meets the slab, unless it runs out through the trimmed end along `d`: it is
  *   shortened with the part (spec §3.4).
+ *
+ * Known limit (final review): `featureTouchesEnd` and `runsOutThrough` judge the ORIGINAL part's end, and the running
+ * shift tracks only min-end growth, so a SECOND resize at the same end within one trial would be judged at the original
+ * end, not where the first left it. Unreachable today: growth happens only in single-site mortise/dado trials (one
+ * resize per end), and trims only in rabbet units (a panel trimmed once per end). A new recipe that resizes one end twice
+ * in a trial must carry the end's running offset into these tests first.
  */
 function watchFeatures(shapes: ShapeCache): { watch: JoinWatch; hit: () => Hit | null } {
   let hit: Hit | null = null;

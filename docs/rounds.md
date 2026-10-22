@@ -104,7 +104,7 @@
 
 - **Joinery accepts curves and profiles (joinery features chunk 2; 2026-10-22; branch `joinery-curves`, NOT YET MERGED; merge hash and deploy in Task 8)**:
   spec `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (P4–P8 and *Amended (execution, chunk 2)*), plan
-  `docs/superpowers/plans/2026-10-22-sloyd-joinery-curves.md`. Branch tree: 7374 tests across 217 files. No schema change, so rolling back is free.
+  `docs/superpowers/plans/2026-10-22-sloyd-joinery-curves.md`. Branch tree: 7382 tests across 217 files. No schema change, so rolling back is free.
   Owed to the user: the curve and profile summary-line wording and `FEATURE_CHECK_FAILED` (P8), and the joinery-features spec's
   *Amended (planning, chunk 2)* and *Amended (execution, chunk 2)* blocks, in particular the bow correction. Record-only: fu 415 (a bowed rail
   loses tenon, dado and stopped dado at its ends). Next: chunk 3 (bands).

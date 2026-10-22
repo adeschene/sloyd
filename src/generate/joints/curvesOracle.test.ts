@@ -337,8 +337,10 @@ const decorated = (doc: FlatDocument, label: string, only: readonly number[]): F
 });
 /** The brief's set on every part; then the curves alone and the profiles alone, so that more joints are made beside
  *  features (the full set rules out every half-lap, whose notch crosses both long arrises, and with them gone the profiles
- *  alone let max-end tenons through, which the corner otherwise rules out). No variant lets a rabbet through: its pocket
- *  runs along a receiver's arris, and its panel is trimmed along its own long edges or corners, all of which carry features. */
+ *  alone let max-end tenons through, which the corner otherwise rules out). The first three let no rabbet through: its pocket
+ *  runs along a receiver's arris, and its panel is trimmed along its own long edges or corners, all of which carry features
+ *  there; the fourth, an end arch clear of both long edges (candidate 4), is the one that does, so rabbets and trims are joined
+ *  beside a feature. */
 const VARIANTS: { name: string; only: readonly number[] }[] = [
   { name: 'all four', only: [0, 1, 2, 3] },
   { name: 'curves only', only: [2, 3] },
