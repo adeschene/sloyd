@@ -35,7 +35,7 @@ import { BEARING, outlineRun, profileSection, sectionArcs, sectionFrame, type St
 import type { Hole } from './holes';
 import { profileEdgeOf, sectionEdgeNamer } from './sectionEdges';
 import { leftNormal, pathSkeleton, planChain, tidy, type PlanChain, type Skeleton, type StationClip } from './skeleton';
-import type { Board, Dimension, ProfileCut, ProfileSide } from './types';
+import type { Board, Dimension, ProfileCut, ProfileSide, Region } from './types';
 import { DIMENSION_ORDER } from './geometry';
 
 export { pathSkeleton } from './skeleton';
@@ -698,6 +698,26 @@ export function sweptWasteMeets(view: SweepBoard, p: ProfileCut, hole: Pick<Hole
   }
   const [u0, u1] = span(0), [v0, v1] = span(1);
   return segs.some(([a, b]) => segRectDist(a, b, [u0, v0], [u1, v1]) <= w.reach + EPS_M);
+}
+
+/**
+ * `sweptWasteMeets`' footprint test for an axis-aligned box, board-local (joinery features spec §3.3, P4: CONSERVATIVE and
+ * CLOSED, touching meets): the box's thickness extent, in from the profile's face, meets [0, depth], and its plan rectangle
+ * (length × width) comes within the reach of the path's chords, or of each station or stop end's band run on straight along
+ * its tangent by BEARING + reach. A box just clear of the true waste may be judged into it; never the reverse.
+ */
+export function sweptWasteMeetsBox(view: SweepBoard, p: ProfileCut, box: Region): boolean {
+  const w = sweptWaste(view, p, false);
+  if (!w) return false;
+  const EPS_M = 1e-9; // HOLE_EPS, as sweptWasteMeets
+  const [z0, z1] = box.thickness;
+  const t0 = Math.min(w.depthOf(z0), w.depthOf(z1)), t1 = Math.max(w.depthOf(z0), w.depthOf(z1));
+  if (t1 < -EPS_M || t0 > w.depth + EPS_M) return false;
+  const run = w.reach + BEARING;
+  const segs: [P2, P2][] = [...w.segs, ...w.stations.map((st) => [st.at, [st.at[0] + run * st.tangent[0], st.at[1] + run * st.tangent[1]]] as [P2, P2])];
+  const lo: P2 = [box.length[0], box.width[0]];
+  const hi: P2 = [box.length[1], box.width[1]];
+  return segs.some(([a, b]) => segRectDist(a, b, lo, hi) <= w.reach + EPS_M);
 }
 
 /*
