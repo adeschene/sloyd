@@ -29,6 +29,24 @@ export function kindsText(c: CarriedKinds): string {
   return out.join(', ');
 }
 
+/**
+ * The same kinds for a PERSON to read (no articles, so a possessive can precede them): `holes`, `curve` / `curves`,
+ * `edge profile` / `edge profiles`, `edging`, `hardware`, joined `X`, `X and Y`, `X, Y and Z`. `plural` is false only for
+ * exactly one singular noun, so a template picks its verb ("stays" / "stay") from it.
+ */
+export function nounsText(c: CarriedKinds): { text: string; plural: boolean } {
+  const n = (a: readonly unknown[] | undefined) => a?.length ?? 0;
+  const out: string[] = [];
+  if (n(c.holes) > 0) out.push('holes');
+  if (n(c.curves) > 0) out.push(n(c.curves) === 1 ? 'curve' : 'curves');
+  if (n(c.profiles) > 0) out.push(n(c.profiles) === 1 ? 'edge profile' : 'edge profiles');
+  if (n(c.bands) > 0) out.push('edging');
+  if (n(c.hardware) > 0) out.push('hardware');
+  const text = out.length <= 1 ? out.join('') : `${out.slice(0, -1).join(', ')} and ${out[out.length - 1]}`;
+  const plural = !(out.length === 1 && ['curve', 'edge profile', 'edging', 'hardware'].includes(out[0]!));
+  return { text, plural };
+}
+
 const NOTE = 'These parts carry holes, curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one\'s name, and keep it the same way round: ';
 
 /** The user-turn paragraph naming the parts whose features the design JSON does not show (spec §5), or null. */
@@ -69,26 +87,28 @@ export function carriedSummary(original: SloydDocument, refined: SloydDocument):
   for (const o of oFlat.boards) {
     const r = rByName.get(o.name);
     if (!r) {
-      if (featuredKinds(o).length > 0) notKept.push(`${o.name}'s ${kindsText(o)} — no part named ${o.name} in the result.`);
+      if (featuredKinds(o).length > 0) notKept.push(`${o.name}'s ${nounsText(o).text} — no part named ${o.name} in the result.`);
       continue;
     }
     if (!hasFrameFeatures(r)) continue;
     const eo = boardExtents(o);
     const er = boardExtents(r);
     if (eo.every((x, i) => x === er[i])) continue;
-    const kinds = kindsText({ ...r, hardware: [] });
+    const { text: kinds, plural } = nounsText({ ...r, hardware: [] });
     const before = faultKeys(o, original);
     const fresh = [...faultKeys(r, refined)].some((k) => !before.has(k));
     check.push(fresh
-      ? `${o.name} was resized — ${kinds} no longer fit; see Properties.`
-      : `${o.name} was resized — its ${kinds} stay measured from where they were placed; check them.`);
+      ? `${o.name} was resized — its ${kinds} no longer ${plural ? 'fit' : 'fits'}; see Properties.`
+      : plural
+        ? `${o.name} was resized — its ${kinds} stay measured from where they were placed; check them.`
+        : `${o.name} was resized — its ${kinds} stays measured from where it was placed; check it.`);
   }
   const placed = new Set(refined.instances.map((i) => i.name));
   for (const d of original.definitions) {
     if (d.hardware.length === 0) continue;
     const names = original.instances.filter((i) => i.definition === d.id).map((i) => i.name);
     if (names.length === 0 || names.some((n) => placed.has(n))) continue;
-    notKept.push(`${names[0]}'s ${kindsText({ hardware: d.hardware })} — no part named ${names[0]} in the result.`);
+    notKept.push(`${names[0]}'s ${nounsText({ hardware: d.hardware }).text} — no part named ${names[0]} in the result.`);
   }
   return { notKept, check };
 }

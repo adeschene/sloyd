@@ -131,6 +131,7 @@ export function RefineDialog(p: Props) {
               ? <p>{`Joints were not re-applied. ${out.joints.notJoined}`}</p>
               : out.joints && <p>{`${out.joints.kept} joints kept · ${out.joints.chosen} chosen · ${out.joints.dropped} dropped`}</p>}
             {out.joints?.skipped.map((s, i) => <p key={`s${i}`}>{s}</p>)}
+            {out.joints?.notes.map((n, i) => <p key={`n${i}`}>{n}</p>)}
             {/* Unjoined (fu 311): the note above already states the taper fault in the person's words, so its
                 model-facing twin (decimal inches) is not listed again. It still counts as an issue. */}
             {out.violations.filter((v) => !(out.joints?.notJoined && v.kind === 'angle-joint'))

@@ -7,7 +7,7 @@ import { copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import { NAME_SEPARATOR, flatDocument } from './tree';
 import { axisDimensions, boardExtents } from './geometry';
-import { kindsText } from './carryText';
+import { kindsText, nounsText } from './carryText';
 import type { Violation } from './designCheck';
 import type { FlatDocument } from './types';
 
@@ -88,14 +88,20 @@ export function featureTurned(refined: FlatDocument, original: FlatDocument): Vi
     if (!o || !hasFrameFeatures(o)) continue;
     const k = axisDimensions(o).indexOf('thickness');
     const e0 = boardExtents(o);
-    if (e0[k]! > Math.min(...e0)) continue;
+    const min0 = Math.min(...e0);
+    // T: every world axis tied for the original's smallest extent (exact); the thickness axis must be one of them.
+    const tied = [0, 1, 2].filter((a) => e0[a]! === min0);
+    if (!tied.includes(k)) continue;
     const e1 = boardExtents(r);
-    if (e1[k]! <= Math.min(...e1)) continue;
+    const min1 = Math.min(...e1);
+    // Turned only if NO tied axis is still a smallest axis of the result (a tie in the result passes too).
+    if (tied.some((a) => e1[a]! === min1)) continue;
     const kinds = kindsText(o);
+    const { text, plural } = nounsText(o);
     out.push({
       kind: 'feature-turned', parts: [r.name],
-      message: `${r.name} carries ${kinds} Sloyd keeps on the part; keep it the same way round, ${e0[k]}in along ${'xyz'[k]}.`,
-      shown: `${r.name} was turned onto another face; its ${kinds} are now on the wrong faces.`,
+      message: `${r.name} carries ${kinds} Sloyd keeps on the part; keep it the same way round, ${+e0[k]!.toFixed(3)}in along ${'xyz'[k]}.`,
+      shown: `${r.name} was turned onto another face; its ${text} ${plural ? 'are' : 'is'} now on the wrong faces.`,
     });
   }
   return out;

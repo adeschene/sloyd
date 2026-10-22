@@ -274,4 +274,14 @@ back to Claude as a fault (§4 as written); (3) carry, not authoring, for this r
 
 - **§5, when `carried` is computed.** §5 says the carried list is computed "after the joined path's re-join". It is computed
   plain-to-plain, BEFORE `runJoinery` (`carriedSummary`, `RefineOutcome.carried`): joinery grows tenons, so after the re-join every
-  joined part would read as resized. The re-join still rebases features (§3.5); only the done-view comparison moved earlier.
+  joined part would read as resized. The re-join still rebases features (§6); only the done-view comparison moved earlier.
+- **Hardware spec §6 refusal.** The hardware spec's refusal of hardware on parts in Refine is closed through inv 55's rewrite: a part's
+  hardware is carried by flat name from the RESOLVED flat part, and only an assembly's hardware reads the STORED definitions (P2).
+- **`JointsSummary.notes`.** `runRefine` no longer discards joinery's ruled-out lines (a joint kind left out because a feature sits in
+  its zone, so a meeting may be a butt): they are `JointsSummary.notes` (`[]` unless joined) and the dialog shows each under the joints
+  line. A feature check that throws after the paid call returns the refined design unjoined (`notJoined: FEATURE_CHECK_FAILED`).
+- **§4, the tie rule as ruled.** `featureTurned` takes T, the world axes where the original's extent equals its minimum (exact); a part
+  is skipped when its thickness axis is not in T, and is a fault only when NO axis in T is a smallest axis of the result.
+- **§5, person-facing nouns.** The done view's words use an article-free list (`holes`, `curve(s)`, `edge profile(s)`, `edging`,
+  `hardware`; `X`, `X and Y`, `X, Y and Z`) with verb agreement (`nounsText`); the model-facing note and `feature-turned` message keep
+  the article forms (`kindsText`), and the message's extent is rounded to three places.

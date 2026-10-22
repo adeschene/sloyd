@@ -6373,6 +6373,7 @@ say Rise (likely unreachable); the half-circle refusal always says Rise (a corne
 r√2); a select refusal's row alert survives later events; `refusalFor`'s `had` is keyed by fault kind only
 (plan-mandated); the Rounded-corner Corner select and Radius field and the Bow's Side select have no panel test; "No curve
 preset fits this part." and the `.curve-label` sentence-case rule are untested. **Status:** record-only.
+**Status:** (3) moot: the refusal modules were deleted (refine-features, 2026-10-22).
 
 **374. The edge-on fold (Q3).** A view looking along an arch's plane (an arch's Side view) keeps chunk 1's 24-chord arc
 unrefined, because 96 chords fold back over themselves on screen. The 24-chord fold remains as chunk 1 had it; it almost
@@ -6871,6 +6872,7 @@ needs it) (hardware spec §11).
 - The refusal name-list helper is duplicated (`bandedRefusal`, `hardwareRefusal`, `refineDesign`); `hardwareRefusal` names a part
   placed twice twice (the `bandedRefusal` precedent).
 **Status:** open (record-only).
+**Status:** (2)'s refusal name-list helper: moot: the refusal modules were deleted (refine-features, 2026-10-22).
 
 **410. Ungroup refused for overflow is silent.** Ungroup merges an assembly's hardware into its parent by adding counts; a sum above
 999 is refused (P1, *Amended (planning)*, approved), but the UI gives no reason: the button does nothing. Reachable only with
@@ -6975,3 +6977,7 @@ parts still take the old name-based carry. To record and measure, not fixed (ref
 original thickness axis is still the thinnest. A part whose length and width swap world axes with thickness unchanged reads as a resize:
 its features stay at their stored stations and the "Check at the new size" line names the part (refine-features spec §4, recorded not
 built). **Status:** open (record-only).
+
+**426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
+also receives the carry (the load gate renames it `X (1)`); `carriedSummary` does not mention it. Follows refine-features spec §2's name
+rule, as grain does. **Status:** open (record-only).

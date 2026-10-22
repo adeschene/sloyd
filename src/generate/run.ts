@@ -13,7 +13,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
-import { featureAllowed } from './joints/featureZones';
+import { FEATURE_CHECK_FAILED, featureAllowed } from './joints/featureZones';
 import type { RuledOut } from './joints/featureZones';
 import { ruledOutLine } from '../document/ruledOutText';
 import { joineryRefusal, jointFaults } from './joints/tapers';
@@ -227,7 +227,11 @@ export async function runGeneration(
 
 /** What re-joining a refined joined design did (refine-joined spec §4). `notJoined`: joinery refused the refined design
  *  (its taper runs into a joint the model never moved, AI-tapers spec §5.4) — the design is returned unjoined. */
-export interface JointsSummary { kept: number; chosen: number; dropped: number; skipped: string[]; notJoined?: string }
+export interface JointsSummary {
+  kept: number; chosen: number; dropped: number; skipped: string[]; notJoined?: string;
+  /** Joinery's ruled-out lines: a joint kind left out because a feature sits in its zone, so a meeting may be a butt. `[]` unless joined. */
+  notes: string[];
+}
 export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null;
   /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
   carried: { notKept: string[]; check: string[] } }
@@ -292,20 +296,29 @@ export async function runRefine(
     const joinedFlat = flatDocument(doc);
     const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
       .filter((v) => v.parts.length > 0).map(problemKey));
-    const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
+    let jo: Awaited<ReturnType<typeof runJoinery>>;
+    try {
+      jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
+    } catch (e) {
+      // The feature trials are the one unguarded step before joinery's call (fu 244; App guards the same call). A model
+      // failure or a cancel is not that: it surfaces as before. Anything else returns the refined design unjoined.
+      if (e instanceof RunFailed || e instanceof LlmError) throw e;
+      console.error('Sloyd: checking features against joints threw', e);
+      jo = { refused: FEATURE_CHECK_FAILED };
+    }
     // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with an angle-joint fault
     // left, and joinery refuses that before any call. The refined design is kept, unjoined; the fault is in `violations`.
     if ('refused' in jo) {
-      joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notJoined: jo.refused };
+      joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], notJoined: jo.refused };
     } else if ('noSites' in jo) {
-      joints = { kept: 0, chosen: 0, dropped, skipped: [] };
+      joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [] };
     } else {
       refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
       violations = [...violations, ...jo.violations];
       const shown = new Set(present.map(problemKey));
       present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
       usage = addUsage(usage, jo.usage);
-      joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason) };
+      joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason), notes: jo.notes };
     }
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).

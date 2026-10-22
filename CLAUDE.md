@@ -577,7 +577,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `worldParts` is pinned by the oracle test; an assembly per placement of its definition, the project once; hidden parts count). **Hardware never groups the cut list, never touches geometry, and every Definition copy
     carries it** (Ungroup merges it into the parent, REFUSED above 999 — P1). `hardware` is a SHARED field (inv 45). **`holderHardware`
     returns STORED arrays, never `resolveBoard`'s copy** (a selector returning a fresh array crashes React). Refine carries hardware
-    on parts by flat name from the STORED document (P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
+    on parts by flat name from the RESOLVED flat part (a shaped part's Shape included); only ASSEMBLY hardware reads the STORED definitions
+    (`flatDocument` empties them, P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
 
 56. **A part Refine carries holes, curves, profiles or bands onto keeps the original's posture and rotation (`frameFor`); never
     `orient` it.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
@@ -600,7 +601,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–425). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–426). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -615,7 +616,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–425.
+  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–426.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

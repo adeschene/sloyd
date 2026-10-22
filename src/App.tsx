@@ -38,11 +38,9 @@ import type { SloydDocument } from './document/document';
 import { MATERIALS, isSheetGood, type CustomMaterial, type MaterialKind } from './document/types';
 import { worldParts } from './document/tree';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
-import { featureAllowed } from './generate/joints/featureZones';
+import { FEATURE_CHECK_FAILED, featureAllowed } from './generate/joints/featureZones';
 import { storage } from './storage';
 import { useStore } from './store/store';
-
-const FEATURE_CHECK_FAILED = "Sloyd couldn't check this project's holes, curves and profiles against its joints. Add joinery before drilling or shaping, or remove those first.";
 
 export default function App() {
   const undo = useStore((s) => s.undo);

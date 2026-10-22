@@ -150,7 +150,25 @@ describe('featureTurned', () => {
     const out = featureTurned(flat([20, 1, 4]), orig);
     expect(out).toEqual([{ kind: 'feature-turned', parts: ['Side'],
       message: 'Side carries holes, an edge profile, edging Sloyd keeps on the part; keep it the same way round, 1in along z.',
-      shown: 'Side was turned onto another face; its holes, an edge profile, edging are now on the wrong faces.' }]);
+      shown: 'Side was turned onto another face; its holes, edge profile and edging are now on the wrong faces.' }]);
+  });
+  it('the person-facing words agree in number: one curve or one profile is singular, a count above one plural', () => {
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH] }))[0]!.shown).toBe('Side was turned onto another face; its curve is now on the wrong faces.');
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [PROFILE] }))[0]!.shown).toBe('Side was turned onto another face; its edge profile is now on the wrong faces.');
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH, { ...ARCH, id: 'c2' }] }))[0]!.shown).toBe('Side was turned onto another face; its curves are now on the wrong faces.');
+  });
+  it('a tied original: only a turn that leaves every smallest axis is a fault (spec §4)', () => {
+    const leg = flat([30, 1.5, 1.5], { holes: [HOLE] });
+    // thickened along the thickness axis only (z), then only along the width axis (y): a smallest axis remains
+    expect(featureTurned(flat([30, 1.5, 2]), leg)).toEqual([]);
+    expect(featureTurned(flat([30, 2, 1.5]), leg)).toEqual([]);
+    // both thickened: the feature faces are no longer on a thin axis at all
+    expect(featureTurned(flat([30, 2, 2]), leg)).toEqual([]);
+    // turned so its smallest extent moved to the length axis
+    expect(featureTurned(flat([1, 30, 30]), leg)).toHaveLength(1);
+  });
+  it('a flat 20 x 1 x 6 board returned on edge still faults', () => {
+    expect(featureTurned(flat([20, 1, 6]), flat([20, 6, 1], { holes: [HOLE] }))).toHaveLength(1);
   });
   it('counts curves and profiles by how many the part has', () => {
     const two = flat([20, 4, 1], { curves: [ARCH, { ...ARCH, id: 'c2' }], profiles: [PROFILE, { ...PROFILE, id: 'p2' }] });
@@ -181,3 +199,13 @@ describe('featureTurned', () => {
   });
 });
 
+
+describe('featureTurned message floats', () => {
+  it('rounds a computed extent to three places, as designCheck does', () => {
+    const base = designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 0.1 + 0.2])] }).doc;
+    const orig = flatDocument(withFeatures(base, base.boards[0]!.id, { holes: [HOLE], thickness: 0.1 + 0.2 }));
+    const back = flatDocument(designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 0.1 + 0.2, 4])] }).doc);
+    const out = featureTurned(back, orig);
+    expect(out[0]!.message).toContain('keep it the same way round, 0.3in along z.');
+  });
+});
