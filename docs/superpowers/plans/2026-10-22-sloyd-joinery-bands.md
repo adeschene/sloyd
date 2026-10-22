@@ -50,15 +50,20 @@ Copied into the spec in Task 6.
 - **P12: the visible run (§4.4).** For a band on side `s` (across `a`, run dimension `r`), a **qualifying cut** is a
   stored rectangular cut whose `clippedRegion` R meets all of the following, with `EPS` = 1e-9:
   - it covers the whole thickness: `R.thickness[0] ≤ EPS` and `R.thickness[1] ≥ thickness − EPS`;
-  - it touches the side: `R[a][0] ≤ EPS` for `from: 'min'`, or `R[a][1] ≥ part[a] − EPS` for `'max'`;
+  - it touches the side AND reaches through the band: for `from: 'min'`, `R[a][0] ≤ EPS` and `R[a][1] ≥ t − EPS`; for
+    `'max'`, `R[a][1] ≥ part[a] − EPS` and `R[a][0] ≤ part[a] − t + EPS` (`t` the band's thickness, 0 for tape: any
+    positive depth) — *amended in Task 1's review: a shallower cut leaves edging standing, and shortening there under-buys*;
   - it reaches an end of the run: `R[r][0] ≤ EPS` or `R[r][1] ≥ part[r] − EPS`;
   - it has positive extent (> EPS) along both `r` and `a`.
 
   The visible run is `[lo, hi]`:
   - `lo` is the largest `R[r][1]` over qualifying cuts reaching the min end (0 if none); `hi` is the smallest `R[r][0]`
     over those reaching the max end (`part[r]` if none).
-  - An end with a qualifying cut is **shortened**. A shortened end takes no corner give-way, no mitre and no mitre glue
-    line, because the corner is gone.
+  - An end with a qualifying cut is **shortened**. A strip's and its glue line's run starts (at each end) at
+    `givesWay ? max(lo, tn) : lo` (`tn` the neighbour band's thickness at that end), so an unshortened end is as today
+    and a cut shallower along the run than the neighbour still gives way to it. A shortened end has no mitre and no mitre
+    glue line. Known limit: under Mitred, a cut shallower along the run than the neighbour leaves the neighbour's mitre
+    over the square-ended strip (recorded as a follow-up).
   - A run with `hi − lo ≤ EPS` yields no strip, no tape run and no glue line (my call).
 
   A cheek (part-thickness), a rabbet along the edge, or a mid-run notch never shortens. A tenon's shoulder and a stopped
@@ -107,7 +112,8 @@ Copied into the spec in Task 6.
 - Test: `src/document/bandingVisible.test.ts` (new)
 
 **Interfaces:**
-- Produces: `export function visibleRun(part: Board, side: ProfileSide): { lo: number; hi: number; shortLo: boolean; shortHi: boolean }`
+- Produces: `export function visibleRun(part: Board, side: ProfileSide, t: number): { lo: number; hi: number; shortLo: boolean; shortHi: boolean }`
+  (`t`: the band's thickness, 0 for tape; amended in Task 1's review)
   (P12). A standalone pure function of the part alone (it reads only `cuts` and dimensions, never band types), memoised
   per part object (a `WeakMap` keyed on the part, one entry per side index) and deep-frozen. `judge`, `stripsOf`,
   `tapeRunsOf` and `glueLinesOf` call it; Task 4's oracle calls it too.
