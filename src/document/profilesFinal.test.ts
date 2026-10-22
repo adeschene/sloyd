@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { cornerCurve, createBoard, migrateDocument, partGeometry, DEFAULT_PROFILE_EDGE } from './document';
-import type { Board, HoleRow, ProfileCut, ProfileSide } from './types';
+import type { Board, CurveCut, HoleRow, ProfileCut, ProfileSide } from './types';
 import { archCurve, cornerFields, curveFaults, defaultCorners } from './curves';
 import { defaultProfile, fallbackCause, geometryBoard, profileAsCurve, profileFaults, profileOf, runsStraight, stopFallsBack, viewProfileFaults } from './profiles';
 import { builtSwept } from './sweep';
@@ -232,6 +232,11 @@ describe('M1: profile faults memoised with the geometry view', () => {
 
 /** Every reader's output on b1 (`git archive dc49b01`, the same `fingerprint`, in a scratch tree beside this one), where a
  *  station run was always a2's view curve. */
+// A near-half arc stored as it was written before 2026-10-22: rise 0.2 against a stored chord of (14 + 0.4) − 14, a hair
+// over 0.4, so it is an Arch just short of a half circle. archCurve now writes a rise of span / 2 as a Half-round notch at
+// its stored chord; these pins are about the profiles beside it, so the curve is kept literally.
+const nearHalf = (): Omit<CurveCut, 'id'> => ({ through: 'thickness', uFrom: 'min', vFrom: 'min', start: [14, 0],
+  segments: [{ type: 'arc', to: [14 + 0.4, 0], side: 'left', rise: 0.2 }, { type: 'line', to: [14, 0] }] });
 const B1_STOPS: Record<'tightStop' | 'i2Pair' | 'halfPair' | 'pairStops' | 'neighbour' | 'twoHalves', Record<string, string>> = {
   tightStop: { view: "1054ecf87297fb07", bodies: "dfb29cb158c78bbb", edges: "dbee615cebf7af6e", mesh: "b9d0078d006e6ef0", draw: "c122975151bda641", lines: "[\"Round all four corners to a 1/4\\\" radius\",\"Roundover 3/8\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1/8\\\" to 30\\\" (stopped)\"]", keys: "281b8bca8d673e23", snaps: "a6f79def32fe1688", probe: "cc4fe20f91aa6de0", holes: "483e5592e3019aca", diagrams: "55167618198983f8", cutlist: "756df6d46713b83d" },
   i2Pair: { view: "28b92e78f1a823bc", bodies: "04542209e67e4e21", edges: "fdef9d305c978416", mesh: "651f78ec1cf9f151", draw: "5b82f644ae8072f2", lines: "[\"Round all four corners to a 2\\\" radius\",\"Roundover 1/4\\\" on the edge between the width face (min side) and the thickness face (max side), along the length, from 1\\\" to 30\\\" (stopped)\",\"Roundover 1/4\\\" on the edge between the length min end and the thickness face (max side), along the width, round the corners\"]", keys: "3ba5b48e50e9c45a", snaps: "510287cd171e1619", probe: "6faca64595193e6c", holes: "50b347f9f2d15bbe", diagrams: "956f366ea7172127", cutlist: "e1af034ccf1c36d2" },
@@ -251,7 +256,7 @@ describe('Q10: saved a2 stops on a turned path (B10 for stops)', () => {
    *  length min end round the corner to 30" would run through the notch (too tight), so it falls back; an End to end on the
    *  length min end fits round the corner. */
   const halfPair = () => loaded(createBoard({ id: 'top', name: 'Top', length: 36, width: 20, thickness: 0.75,
-    curves: [...corners(2), { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) }],
+    curves: [...corners(2), { id: 'n', ...nearHalf() }],
     profiles: [halfStop('q', side('width', 'min'), 30, 0.25), e2e('p', side('length', 'min'))] }));
   const fits = () => loaded({ ...apronArch, profiles: [stop('a', side('width', 'min'), 10, 20)] });
   it('too tight: swept-shaped, too-tight as swept, held as its a2 view curve with its span; every reader equals b1', () => {
@@ -300,7 +305,7 @@ describe('Q10: saved a2 stops on a turned path (B10 for stops)', () => {
     // 2), A would follow: the hash below catches that.
     const b = loaded(createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, curves: [
       { id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 2 }) },
-      { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 0.4, rise: 0.2 }) }],
+      { id: 'n', ...nearHalf() }],
       profiles: [stop('A', side('length', 'min'), 4, 0.5), stop('B', side('width', 'min'), 0.5, 20)] }));
     expect(b.profiles.map((p) => isSwept(b, p))).toEqual([true, true]);
     expect(b.profiles.map((p) => stopFallsBack(b, p))).toEqual([true, true]);

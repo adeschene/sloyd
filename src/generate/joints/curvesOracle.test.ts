@@ -456,7 +456,7 @@ type Run = { label: string; choices: JointChoice[]; out: JoinResult };
 type Exemption = { label: string; part: string; end: 'min' | 'max'; tenon: boolean };
 
 /** Assertions 1–7 on one run: every breach, labelled with fixture, run and part, so a red run is already the report. */
-type Seen = { trims: number };
+type Seen = { trims: number; meetsOnly: number };
 function breaches(input: FlatDocument, sites: readonly Site[], { label, choices, out }: Run, exemptions: Exemption[], seen: Seen): string[] {
   const found: string[] = [];
   const names = out.doc.boards.map((b) => b.name);
@@ -508,16 +508,20 @@ function breaches(input: FlatDocument, sites: readonly Site[], { label, choices,
         const amount = g[d][end];
         if (amount > 1e-9) {
           // 3. No growing end was entered: on the old end plane (1e-6 inside the old wood), no waste of a feature that does
-          //    not run through it (P7 conditions 1 and 2).
+          //    not run through it (P7 conditions 1 and 2) — except, along the length (fu 415), waste outside the tenon's
+          //    section (open): the stored part has nothing in the new wood, so such a feature only meets the shoulder.
           const plane = whole(before);
           plane[d] = [0, 1];
           const k = DIMENSION_ORDER.indexOf(d);
           const onPlane = lattice(plane).filter((q) => q[k] === SHRINK).map((q): V3 => { const r = [...q] as V3; r[k] = end === 'min' ? SHRINK : before[d] - SHRINK; return r; });
+          const ts = tenonSection(before.thickness, before.width);
+          const inEndSection = (q: V3) => q[1] > ts.shoulder && q[1] < before.width - ts.shoulder && q[2] > ts.cheek && q[2] < before.thickness - ts.cheek;
           let exemptAtEnd = false;
           for (const f of feats) {
-            const wet = onPlane.some((q) => f.air(q));
-            if (!wet) continue;
+            const wet = onPlane.filter((q) => f.air(q));
+            if (wet.length === 0) continue;
             if (p7(f, d, end)) { exemptAtEnd = true; continue; }
+            if (d === 'length' && !wet.some(inEndSection)) { seen.meetsOnly += 1; continue; }
             found.push(`${at}: grew ${amount} at ${d} ${end} where ${f.word} ${f.id} reaches the end`);
           }
           // 2. No tenon is shaped: every kept point of the new slab (not inside any of the part's cuts) is outside every
@@ -621,7 +625,7 @@ function perKindRuns(doc: FlatDocument, sites: Site[]): { label: string; choices
 describe('the oracle: no joint takes wood from a curve or profile (joinery features spec §7, chunk 2)', () => {
   const results: { label: string; input: FlatDocument; sites: Site[]; ruledOut: RuledOut[]; defaults: JointChoice[]; runs: Run[] }[] = [];
   const exemptions: Exemption[] = [];
-  const seen: Seen = { trims: 0 };
+  const seen: Seen = { trims: 0, meetsOnly: 0 };
   const found: string[] = [];
   beforeAll(() => {
     for (const { label: fixture, make } of FIXTURES) for (const { name, only } of VARIANTS) {
@@ -684,6 +688,7 @@ describe('the oracle: no joint takes wood from a curve or profile (joinery featu
     })));
     expect(rabbetsBesideFeatures.length).toBeGreaterThan(0);
     expect(seen.trims, 'trim slabs sampled on parts with features').toBeGreaterThan(0);
+    expect(seen.meetsOnly, 'a growing end a feature meets outside the tenon section (fu 415)').toBeGreaterThan(0);
     const words = new Set(results.flatMap((r) => r.ruledOut.map((o) => o.feature)));
     expect(words.has('curve')).toBe(true);
     expect([...words].some((w) => w.endsWith('profile'))).toBe(true);

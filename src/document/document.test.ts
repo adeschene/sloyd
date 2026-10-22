@@ -9,6 +9,7 @@ import type { Cut } from './document';
 import { pocketCells, FLUSH_EPSILON, cutRegion } from './cuts';
 import { worldSolids } from './designCheck';
 import { chiralPart, sameSet } from './turnFixtures';
+import { curveKindChoice } from './curves';
 
 describe('axisDimensions', () => {
   const b = (posture: Posture, rotation: Rotation) =>
@@ -1630,6 +1631,41 @@ describe('schema 17: curves (curves spec §2.3, §2.4, §6.1)', () => {
       'nonsense',
     ];
     expect(curvesOf(migrateDocument(at17([...bad, arch]))).map((c) => c.id)).toEqual(['c1']);
+  });
+  it('holds a half circle stored a few ulps past its chord to the bound (a metric Half-round notch before 2026-10-22)', () => {
+    // 370 mm part: the old preset stored start L/2 − 1, to start + 2, rise 1, against a chord just under 2.
+    const start = 370 / 25.4 / 2 - 1;
+    const to = start + 2;
+    expect(to - start).toBeLessThan(2);
+    const notch = { id: 'n1', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [start, 0], segments: [{ type: 'arc', to: [to, 0], side: 'left', rise: 1 }, { type: 'line', to: [start, 0] }] };
+    const [kept] = curvesOf(migrateDocument(at17([notch])));
+    expect(kept!.segments[0]).toEqual({ type: 'arc', to: [to, 0], side: 'left', rise: (to - start) / 2 });
+    expect(curveKindChoice(kept!)).toBe('notch');
+    const radiusForm = { ...notch, id: 'n2', segments: [{ type: 'arc', to: [to, 0], side: 'left', radius: (to - start) / 2 - 1e-16 }, notch.segments[1]] };
+    expect(curvesOf(migrateDocument(at17([radiusForm])))[0]!.segments[0]).toMatchObject({ radius: (to - start) / 2 });
+  });
+  it('holds such a notch to the bound on a long metric part too (the rounding scales with the coordinate, not the chord)', () => {
+    // Every old preset notch (start L/2 − 1, span 2) and notches of span 1/2, 1 and 4 moved to the far end, 1–3600 mm.
+    const dropped: string[] = [];
+    for (let mm = 25; mm <= 3600; mm += 1) {
+      const L = mm / 25.4;
+      for (const [start, span] of [[L / 2 - 1, 2], [L - 1.5, 1], [L - 0.75, 0.5], [L - 4.5, 4]] as const) {
+        if (start < 0) continue;
+        const to = start + span;
+        const c = { id: 'n', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [start, 0], segments: [{ type: 'arc', to: [to, 0], side: 'left', rise: span / 2 }, { type: 'line', to: [start, 0] }] };
+        const board = { ...apron, length: Math.max(L, 30), curves: [c] };
+        const kept = (migrateDocument({ ...v16([board]), version: 17 }).boards[0] as Board).curves;
+        // Past the bound (the case the loader used to drop): kept, at the bound, a notch. A chord that rounded the other
+        // way was never dropped (a valid arch a hair short of a half circle) and loads as it always did.
+        if (kept.length !== 1) dropped.push(`${mm} mm span ${span}: dropped`);
+        else if (span / 2 > (to - start) / 2 && curveKindChoice(kept[0]!) !== 'notch') dropped.push(`${mm} mm span ${span}: not a notch`);
+      }
+    }
+    expect(dropped).toEqual([]);
+  });
+  it('still drops a rise past the bound by more than rounding', () => {
+    const c = { id: 'n', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [100, 0], segments: [{ type: 'arc', to: [102, 0], side: 'left', rise: 1 + 1e-9 }, { type: 'line', to: [100, 0] }] };
+    expect(curvesOf(migrateDocument(at17([c])))).toEqual([]);
   });
   it('keeps a Bow, whose arc touches the edge at its crown (touching is not crossing)', () => {
     const bow = { id: 'c3', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [{ type: 'line', to: [0, 0.5] }, { type: 'arc', to: [30, 0.5], side: 'right', rise: 0.5 }, { type: 'line', to: [30, 0] }, { type: 'line', to: [0, 0] }] };

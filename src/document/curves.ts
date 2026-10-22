@@ -557,9 +557,10 @@ export function rectMeetsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boole
  * An axis-aligned rectangle [lo, hi] OVERLAPS the waste by more than float noise (joinery features spec §3.3, P4: touching
  * passes): the rectangle shrunk by 2·CURVE_EPS per side, then `rectMeetsWaste`'s closed test on it, so a rect that only
  * touches (an edge on a leg, a side tangent to a crown) is CURVE_EPS clear. Empty once shrunk: false.
- * One difference from calling `rectMeetsWaste`: a side's outline hits are kept only within CURVE_EPS of the rectangle.
- * `segArcHits` admits a hit up to CURVE_EPS past a side's end in its PARAMETER, i.e. CURVE_EPS × the side's length past
- * it (2e-9 on a 2" side), which would let a rect touching a tangent arc at its corner count as an overlap.
+ * One difference from calling `rectMeetsWaste`: a side counts only where a stretch of it lies inside the waste
+ * (`wasteOnSegment`), never on a lone outline hit. `segArcHits` admits a hit up to CURVE_EPS past a side's end in its
+ * PARAMETER (CURVE_EPS × the side's length), and a circle crossing just past an arc's end (a side touching a Bow's end edge
+ * at the height its arc starts); either would count a touching rect as an overlap.
  */
 export function rectOverlapsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boolean {
   const e = 2 * CURVE_EPS;
@@ -570,7 +571,10 @@ export function rectOverlapsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): bo
   if (corners.some((p) => wasteContains(segs, p, 'closed'))) return true;
   const inRect = (p: P2) => p[0] >= a[0] - CURVE_EPS && p[0] <= b[0] + CURVE_EPS && p[1] >= a[1] - CURVE_EPS && p[1] <= b[1] + CURVE_EPS;
   if (segs.some((s) => inRect(s.a) || (s.kind === 'arc' && inRect(s.crown)))) return true;
-  return corners.some((p, i) => boundaryHits(segs, p, corners[(i + 1) % 4]!).some(inRect));
+  // A side enters the waste only where a stretch of it lies inside (wasteOnSegment): a lone hit is not enough, since
+  // segArcHits' tolerance can report a crossing just past an arc's end (a side touching a Bow's end edge at the height
+  // its arc starts).
+  return corners.some((p, i) => wasteOnSegment(segs, p, corners[(i + 1) % 4]!) > CURVE_EPS);
 }
 
 /**
@@ -661,15 +665,21 @@ export function curveFaults(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id
 export interface ArchFields { through: Dimension; along: Dimension; side: CutFrom; from: CutFrom; start: number; span: number; rise: number }
 
 /** An Arch (or Half-round notch: rise = span / 2) on the `side` edge of the in-face dimension that is not `along`,
- *  from `start` to `start + span` measured from `from`'s end of `along`, bowing `rise` into the wood. */
+ *  from `start` to `start + span` measured from `from`'s end of `along`, bowing `rise` into the wood.
+ *  The stored chord is `(start + span) − start`, which need not be `span` exactly (a metric start): a notch's rise is
+ *  stored as half the STORED chord, and a rise within rounding of it is held to it, so the loader (which drops
+ *  `rise > chord / 2`) keeps it and it reads back as a notch. Any other rise is stored as given. */
 export function archCurve(f: ArchFields): Omit<CurveCut, 'id'> {
   const [u] = uvDims(f.through);
+  const end = f.start + f.span;
+  const chord = end - f.start;
+  const rise = f.rise === f.span / 2 || (f.rise < f.span / 2 && f.rise > chord / 2) ? chord / 2 : f.rise;
   if (f.along === u) {
     return { through: f.through, uFrom: f.from, vFrom: f.side, start: [f.start, 0],
-      segments: [{ type: 'arc', to: [f.start + f.span, 0], side: 'left', rise: f.rise }, { type: 'line', to: [f.start, 0] }] };
+      segments: [{ type: 'arc', to: [end, 0], side: 'left', rise }, { type: 'line', to: [f.start, 0] }] };
   }
   return { through: f.through, uFrom: f.side, vFrom: f.from, start: [0, f.start],
-    segments: [{ type: 'arc', to: [0, f.start + f.span], side: 'right', rise: f.rise }, { type: 'line', to: [0, f.start] }] };
+    segments: [{ type: 'arc', to: [0, end], side: 'right', rise }, { type: 'line', to: [0, f.start] }] };
 }
 
 export function archFields(c: Omit<CurveCut, 'id'>): ArchFields | null {

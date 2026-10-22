@@ -505,12 +505,20 @@ function validateCurveCuts(raw: unknown, seen: Set<string> = new Set()): CurveCu
         const hasRadius = s.radius !== undefined;
         if (s.side !== 'left' && s.side !== 'right') { ok = false; break; }
         if (hasRise === hasRadius || chord <= CURVE_EPS) { ok = false; break; }
+        // A half circle stored a few ulps past its chord (a metric Half-round notch before 2026-10-22: its rise was
+        // span / 2 against a chord of (start + span) − start) is held to the bound, never dropped; anything further
+        // past it is malformed.
+        // The rounding is half an ulp of the coordinates (a chord of (start + span) − start), so it scales with them.
+        const scale = Math.max(chord, Math.abs(at[0]), Math.abs(at[1]), Math.abs(to[0]), Math.abs(to[1]));
+        const ulps = (x: number) => x <= 4 * Number.EPSILON * scale;
         if (hasRise) {
-          if (!finite(s.rise) || s.rise <= 0 || s.rise > chord / 2) { ok = false; break; }
-          segments.push({ type: 'arc', to, side: s.side, rise: s.rise });
+          if (!finite(s.rise) || s.rise <= 0) { ok = false; break; }
+          if (s.rise > chord / 2 && !ulps(s.rise - chord / 2)) { ok = false; break; }
+          segments.push({ type: 'arc', to, side: s.side, rise: s.rise > chord / 2 ? chord / 2 : s.rise });
         } else {
-          if (!finite(s.radius) || s.radius <= 0 || s.radius < chord / 2) { ok = false; break; }
-          segments.push({ type: 'arc', to, side: s.side, radius: s.radius });
+          if (!finite(s.radius) || s.radius <= 0) { ok = false; break; }
+          if (s.radius < chord / 2 && !ulps(chord / 2 - s.radius)) { ok = false; break; }
+          segments.push({ type: 'arc', to, side: s.side, radius: s.radius < chord / 2 ? chord / 2 : s.radius });
         }
       } else { ok = false; break; }
       at = to;

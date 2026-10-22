@@ -625,7 +625,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7382 tests across 217 files
+npm test           # Vitest, currently 7390 tests across 217 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -634,7 +634,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–415). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–417). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number.
 
@@ -646,7 +646,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (every board's end grain shares one drawn ring centre; the pith is a canvas
   constant and the texture cache is keyed `family:kind` — 37's seed attempt was reverted by the user's ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 207 (record-only by the user: rare, not simple), 163's residue (do not re-open
-  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it). Record-only: 415 (a bowed rail loses tenon, dado and stopped dado at its ends: an end-face clearance exception like P7's; ask first), 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop). For the user's eye: 410–412 (hardware wording).
+  unasked), 176 (the held rules' known limits), 225, 232, 241, 295, 315 (needs 232), 349 (ask first), 389 (miter lines at the paper tolerance: ask first), 393(2) (the ogee loop's 48 ms rebuild, left as is by the user 2026-10-19; it needs relaxing c2 spec §1), 396 (bands on a part with no outline), 397 (split a banded part's bodies: only when a real project needs it), 408 (hardware handedness and structured sizes: only when a real project needs it). Record-only: 417 (a Bow or Rounded corner shifted by a join no longer reads as its preset), 401 (banding chunk 1's review minors and test gaps), 403 (chunk 2's), 409 (hardware's), 413 (`sameAngleCut`'s exact gate comparison vs `(x' − L) + L` rounding: ask first), 414 (a 3+-partner lap set whose full set is not coplanar but a subset is: the unit trial rules nothing out; the oracle is the backstop). For the user's eye: 410–412 (hardware wording).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

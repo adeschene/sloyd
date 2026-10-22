@@ -422,7 +422,12 @@ Rulings made while executing chunk 2.
   `featureTouchesEnd` = true). The spec's growing-end rule (any positive-area end contact conflicts, the AI-angles ruling) is
   the authority; the "corner point" note was a wrong aside. Cost: a bowed rail is joined as a butt at its ends where a tenon
   clearing the bow's waste would have been fine. Candidate follow-up: an end-face clearance exception like P7's (fu 415; ask
-  first).
+  first). **Superseded 2026-10-22 (fu 415, the user's ruling "keep the fu 415 rule"):** a curve or straight profile that only
+  MEETS a growing end along the length conflicts only when its waste on the end face (a 1e-6 slab) enters the tenon's
+  section, open — P7's condition 3 for a feature that does not run through. A default bow (rise = the shoulder) keeps all
+  three growing kinds; swept profiles keep the conservative rule. Known costs, accepted: after a join at the end a Bow or
+  Rounded corner is measured from, it no longer reads as its preset (fu 417); a dadoed bowed end shows a step at the
+  housing's mouth, the bow's rise (no shoulder hides it).
 - **P7 condition 1 (`d === 'length'`) is unreachable through `findSites` today** (end-into-face grows only along length). It
   is kept as a defensive guard and tested with a hand-built dado site. Cost: a dead guard.
 - **The oracle checks a run-through feature's waste only INSIDE the tenon section, for dados too.** §3.4 accepts a dado
