@@ -333,6 +333,7 @@ describe('an arc at the half-circle bound survives a re-anchor (final review C1)
     const input = railAndLeg('flat', 0, [notch(L, end)], [], 1, L).doc;
     const before = railOf(input);
     expect(curveKindChoice(before.curves[0])).toBe('notch');
+    expect(arcOf(before.curves[0]).rise).toBe(1); // notchAt's own numbers at 305 mm: the reviewer's repro exactly
     const out = tenon(input, 1);
     const after = railOf(reload(out.doc));
     expect(after.curves).toHaveLength(1);

@@ -431,3 +431,8 @@ Rulings made while executing chunk 2.
   accepts by name.
 - **P7 condition 3 is covered by hand tests (a 5/8" cove), not the oracle:** no roundover that fits the stock overlaps a
   tenon section. Cost: the oracle cannot catch a condition-3 regression.
+- **§4.2's "`rise` and `radius`: untouched" has one exception (final review C1).** The chord does NOT move rigidly in floats:
+  two separate additions can bring a chord of 2 back as 1.9999999999999991, and the loader then drops a Half-round notch
+  (rise === chord / 2) in `applyJoints`' closing `migrateDocument`, with no note. So `rebaseCurves` stores an arc that was
+  exactly at the half-circle bound (judged the loader's way) at the bound of its NEW chord, and clamps any other shifted arc
+  the loader would now drop to that bound. Cost: an ulp of change in a stored rise or radius, within GATE_TOLERANCE.

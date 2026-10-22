@@ -121,7 +121,7 @@ describe('holes (holes spec §6)', () => {
     expect('refused' in base && base.refused.reason).toBe('holes');
     expect(gate).not.toHaveBeenCalled();
   });
-  it('a joined Refine of a holed project refuses in Refine\'s words before joineryRefusal', async () => {
+  it('a joined Refine of a holed project refuses in Refine\'s words without a call', async () => {
     const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
     const out = await runRefine(c, withHole(joined, 'Top'), S, new AbortController().signal, () => {});
     if (!('refused' in out)) throw new Error('expected a refusal');

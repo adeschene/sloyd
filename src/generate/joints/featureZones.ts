@@ -54,11 +54,11 @@ const original = (box: Region, shift: Record<Dimension, number>): Region => {
  * - A TRIM conflicts with a feature that meets the slab, unless it runs out through the trimmed end along `d`: it is
  *   shortened with the part (spec §3.4).
  *
- * Known limit (final review): `featureTouchesEnd` and `runsOutThrough` judge the ORIGINAL part's end, and the running
- * shift tracks only min-end growth, so a SECOND resize at the same end within one trial would be judged at the original
- * end, not where the first left it. Unreachable today: growth happens only in single-site mortise/dado trials (one
- * resize per end), and trims only in rabbet units (a panel trimmed once per end). A new recipe that resizes one end twice
- * in a trial must carry the end's running offset into these tests first.
+ * Known limit (final review): `featureTouchesEnd` and `runsOutThrough` judge the ORIGINAL part's end (the running shift
+ * moves boxes and slabs into that frame, not the end), so a SECOND resize at the same end within one trial would be judged
+ * at the original end, not where the first left it. Unreachable today: growth happens only in single-site mortise/dado
+ * trials, and trims only in rabbet units. A new recipe that resizes one end twice in a trial must carry the end's running
+ * offset into these tests first.
  */
 function watchFeatures(shapes: ShapeCache): { watch: JoinWatch; hit: () => Hit | null } {
   let hit: Hit | null = null;
