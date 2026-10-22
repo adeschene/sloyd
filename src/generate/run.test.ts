@@ -616,14 +616,6 @@ describe('runRefine — hardware (hardware spec §6)', () => {
     expect(box.hardware).toEqual(PROJECT);
   });
 
-  it('refuses hardware on a part with no call', async () => {
-    const doc = { ...box, boards: box.boards.map((b) => (b.name === 'Top' ? { ...b, hardware: [{ type: 'h1', count: 2 }] } : b)) };
-    const { client } = fakeClient([GOOD]);
-    const out = await go(client, doc);
-    expect(out).toEqual({ refused: { reason: 'hardware', message: "Refine doesn't handle hardware on parts yet (Top). Refine before adding hardware, or remove it first." } });
-    expect(client.complete).not.toHaveBeenCalled();
-  });
-
   it('a plain result carries the types and the project hardware', async () => {
     const { client } = fakeClient([echo(box)]);
     const out = await go(client, box);

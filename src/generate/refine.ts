@@ -12,10 +12,6 @@ import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
-import { holedRefusal } from '../document/holedRefusal';
-import { curvedRefusal } from '../document/curvedRefusal';
-import { bandedRefusal } from '../document/bandedRefusal';
-import { hardwareRefusal } from '../document/hardwareRefusal';
 import { joineryRefusal } from './joints/tapers';
 import { findSites } from './joints/sites';
 
@@ -61,18 +57,6 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
   // does and keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
-    // Holes (holes spec §6): refused before the joint gate, so a holed joined design never reaches unjoin.
-    const holed = holedRefusal(flat, 'refine');
-    if (holed) return { refused: { reason: 'holes', message: holed } };
-    // Curves (curves spec §7): the same, right after holes.
-    const curved = curvedRefusal(flat, 'refine');
-    if (curved) return { refused: { reason: 'curves', message: curved } };
-    // Edge bands (edge banding spec §6): the same, right after curves.
-    const banded = bandedRefusal(flat, 'refine');
-    if (banded) return { refused: { reason: 'bands', message: banded } };
-    // Hardware on parts or assemblies (hardware spec §6): the same, right after bands, from the STORED document (P2).
-    const hardware = hardwareRefusal(doc);
-    if (hardware) return { refused: { reason: 'hardware', message: hardware } };
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
     const g = gateUnjoin(flat);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
