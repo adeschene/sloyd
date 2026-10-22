@@ -420,6 +420,22 @@ describe('runRefine', () => {
     expect(client.complete).toHaveBeenCalledTimes(1);   // nothing new: no repair round
   });
 
+  it('sends a turned featured part back, and the fix clears the fault (refine-features spec §4)', async () => {
+    const base = orig([bp('Side', [0, 0, 0], [20, 4, 1])]);
+    const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
+    const doc = { ...base, boards: base.boards.map((b) => ({ ...b, holes: [HOLE] })) } as typeof base;
+    const kept = echo(doc);
+    const turned = { ...kept, parts: [{ ...kept.parts[0]!, size: v3(20, 1, 4) }] };
+    const { client, seen } = fakeClient([turned, kept]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const second = JSON.stringify(seen[1]);
+    expect(second).toContain('Side carries holes Sloyd keeps on the part; keep it the same way round, 1in along z.');
+    expect(out.violations.filter((x) => x.kind === 'feature-turned')).toEqual([]);
+    expect(flatDocument(out.doc).boards[0]!.holes).toHaveLength(1);
+  });
+
   it('keeps a typed off-grid position and size exactly, with no change reported (F2)', async () => {
     const base = orig([bp('A', [0, 0, 0], [10, 1, 8])]);
     const doc = { ...base, boards: base.boards.map((b) => ({ ...b, position: [0.03, 0, 0] as [number, number, number], length: 10.01 })) };

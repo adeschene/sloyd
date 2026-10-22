@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { carryFromOriginal, featuredKinds, hasFrameFeatures } from './featureCarry';
+import { carryFromOriginal, featureTurned, featuredKinds, hasFrameFeatures } from './featureCarry';
+import { flatDocument } from './tree';
 import { designToDocument, parseDesign } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { SHAKER_TABLE_JSON } from './shakerTableFixture';
@@ -137,3 +138,46 @@ describe('carryFromOriginal', () => {
     expect(out.assemblies!.every((a) => !('carry' in a) && a.parts.every((p) => !('carry' in p)))).toBe(true);
   });
 });
+
+describe('featureTurned', () => {
+  const flat = (size: [number, number, number], extra?: Partial<Board>) => {
+    const base = designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], size)] }).doc;
+    return flatDocument(extra ? withFeatures(base, base.boards[0]!.id, extra) : base);
+  };
+  const orig = flat([20, 4, 1], { holes: [HOLE], profiles: [PROFILE], bands: FEATURES.bands });
+
+  it('sends back a featured side returned lying flat, in the exact words', () => {
+    const out = featureTurned(flat([20, 1, 4]), orig);
+    expect(out).toEqual([{ kind: 'feature-turned', parts: ['Side'],
+      message: 'Side carries holes, an edge profile, edging Sloyd keeps on the part; keep it the same way round, 1in along z.',
+      shown: 'Side was turned onto another face; its holes, an edge profile, edging are now on the wrong faces.' }]);
+  });
+  it('counts curves and profiles by how many the part has', () => {
+    const two = flat([20, 4, 1], { curves: [ARCH, { ...ARCH, id: 'c2' }], profiles: [PROFILE, { ...PROFILE, id: 'p2' }] });
+    expect(featureTurned(flat([20, 1, 4]), two)[0]!.message).toContain('Side carries curves, edge profiles Sloyd');
+    const one = flat([20, 4, 1], { curves: [ARCH] });
+    expect(featureTurned(flat([20, 1, 4]), one)[0]!.message).toContain('Side carries a curve Sloyd');
+  });
+  it('is silent for the same box on an unfeatured part, a hardware-only part, and an unturned result', () => {
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1]))).toEqual([]);
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { hardware: [{ type: 'hw-1', count: 1 }] }))).toEqual([]);
+    expect(featureTurned(flat([22, 5, 1]), orig)).toEqual([]);
+    expect(featureTurned(flat([20, 4, 1]), orig)).toEqual([]);
+  });
+  it('a refined box tied on the thickness axis is not a turn (the tie rule)', () => {
+    expect(featureTurned(flat([20, 1, 1]), orig)).toEqual([]);
+    expect(featureTurned(flat([4, 4, 4]), orig)).toEqual([]);
+  });
+  it('an original whose thickness is not its smallest extent is not judged', () => {
+    const odd = flat([20, 1, 4], { holes: [HOLE] });
+    const k = ['length', 'width', 'thickness'].indexOf('thickness');
+    expect(k).toBe(2);
+    // thickness axis carries the larger extent here: build it by a turn the converter does not make
+    const turned = { ...odd, boards: odd.boards.map((b) => ({ ...b, length: 20, width: 1, thickness: 4 })) } as typeof odd;
+    expect(featureTurned(flat([20, 4, 1]), turned)).toEqual([]);
+  });
+  it('ignores a refined part with no original of that name', () => {
+    expect(featureTurned(flat([20, 1, 4]), { ...orig, boards: orig.boards.map((b) => ({ ...b, name: 'Other' })) })).toEqual([]);
+  });
+});
+

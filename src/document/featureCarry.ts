@@ -6,6 +6,10 @@ import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import { NAME_SEPARATOR, flatDocument } from './tree';
+import { axisDimensions, boardExtents } from './geometry';
+import { kindsText } from './carryText';
+import type { Violation } from './designCheck';
+import type { FlatDocument } from './types';
 
 export type FeatureKind = 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware';
 
@@ -68,4 +72,31 @@ export function carryFromOriginal(design: GeneratedDesign, original: SloydDocume
       };
     }),
   };
+}
+
+/**
+ * A featured part returned lying another way (refine-features spec §4): the original's holes, curves, profiles and bands
+ * are anchored to its faces, so a part whose thickness ran along world axis k and whose returned thickest-to-thinnest
+ * order no longer puts its smallest extent there has them on the wrong faces. Only a part whose thickness axis is
+ * (tied for) its smallest extent is judged, and a tie in the result passes: a turn cannot be told from no turn.
+ */
+export function featureTurned(refined: FlatDocument, original: FlatDocument): Violation[] {
+  const byName = new Map(original.boards.map((b) => [b.name, b] as const));
+  const out: Violation[] = [];
+  for (const r of refined.boards) {
+    const o = byName.get(r.name);
+    if (!o || !hasFrameFeatures(o)) continue;
+    const k = axisDimensions(o).indexOf('thickness');
+    const e0 = boardExtents(o);
+    if (e0[k]! > Math.min(...e0)) continue;
+    const e1 = boardExtents(r);
+    if (e1[k]! <= Math.min(...e1)) continue;
+    const kinds = kindsText(o);
+    out.push({
+      kind: 'feature-turned', parts: [r.name],
+      message: `${r.name} carries ${kinds} Sloyd keeps on the part; keep it the same way round, ${e0[k]}in along ${'xyz'[k]}.`,
+      shown: `${r.name} was turned onto another face; its ${kinds} are now on the wrong faces.`,
+    });
+  }
+  return out;
 }

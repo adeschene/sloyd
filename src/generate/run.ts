@@ -24,7 +24,7 @@ import type { Concept, GenerateSettings, LimitSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import type { RefineBase, RefineSettings } from './refine';
 import { designValues, documentToDesign } from '../document/refineDesign';
-import { carryFromOriginal } from '../document/featureCarry';
+import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
@@ -164,6 +164,8 @@ interface EvaluateOpts {
   /** Refine: the project's units, for the faults' displayed copy (fu 355) — the conversion itself is imperial. Generate:
    *  none (its projects are imperial). The model's feedback is inches either way. */
   units?: Units;
+  /** Refine: faults only the original can judge (a featured part turned onto another face; refine-features spec §4). */
+  extraFaults?: (flat: FlatDocument) => Violation[];
 }
 
 /**
@@ -186,7 +188,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
   const display = opts.units ?? flat.units;
-  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display)];
+  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display), ...(opts.extraFaults?.(flat) ?? [])];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -257,8 +259,8 @@ export async function runRefine(
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: designSchema(catalog),
-    first: refineMessage(from.design, settings, catalog),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units }),
+    first: refineMessage(from.design, settings, catalog, base.plain),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units, extraFaults: (f) => featureTurned(f, plainFlat0) }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result (band types, hardware types and the project's own
   // hardware too: nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result
@@ -321,7 +323,7 @@ export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, setting
   if ('refused' in from) return null;
   const refine = costRange(client, {
     prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc))).length,
-    messageChars: refineMessage(from.design, settings, catalogOf(doc)).length,
+    messageChars: refineMessage(from.design, settings, catalogOf(doc), base.plain).length,
     outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
   }, 1 + MAX_REPAIRS);
   const join = base.joints === null ? null : joineryShape(base.plain);

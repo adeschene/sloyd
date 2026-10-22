@@ -17,6 +17,8 @@ import { chamferCut, taperCut } from '../document/angleCuts';
 import { axisFrame, endFacing } from '../document/geometry';
 import type { AngleCut } from '../document/types';
 import { builtInCatalog, catalogOf } from '../document/materials';
+import { ARCH } from '../document/curveFixtures';
+import type { StoredBoard } from '../document/types';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const p = (name: string, i: number) => ({ name, role: '', material: 'pine', at: v(i * 2, 0, 0), size: v(1, 1, 1) });
@@ -45,6 +47,39 @@ describe('refine', () => {
     expect(refineMessage(D, S, catalogOf({ materials: [ash, elm] }))).toContain('Custom materials in this design: "m-s-ash1" is Ash; "m-p-elm2" is Elm ply.\n');
     expect(refineMessage(D, S, catalogOf({ materials: [] }))).toBe(refineMessage(D, S));
     expect(refineMessage(D, S, builtInCatalog())).toBe(refineMessage(D, S));
+  });
+
+  describe('the featured-parts note (refine-features spec §5)', () => {
+    const NOTE = "These parts carry holes, curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
+    const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
+    const PROFILE = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } } as const;
+    const CURVE = ARCH;
+    const feat = (doc: SloydDocument, name: string, extra: Record<string, unknown>): SloydDocument =>
+      ({ ...doc, boards: doc.boards.map((b) => (b.name === name ? ({ ...b, ...extra } as StoredBoard) : b)) });
+    const clean = designToDocument({ name: 'T', parts: ['Side', 'Apron', 'Top', 'Door'].map((n, i) => p(n, i)), assemblies: [] }, { centre: false }).doc;
+    const featured = feat(feat(feat(feat(clean, 'Side', { holes: [HOLE] }), 'Apron', { curves: [CURVE] }),
+      'Top', { profiles: [PROFILE], bands: [{ side: { across: 'width', from: 'min' }, type: 'band-1' }] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
+    const design = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
+
+    it('is byte-identical without features', () => {
+      const d = design(clean);
+      const today = ['Here is the current design, in the same format you return:', JSON.stringify(d), '',
+        'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S)].join('\n');
+      expect(refineMessage(d, S)).toBe(today);
+      expect(refineMessage(d, S, undefined, clean)).toBe(today);
+      expect(refineMessage(d, S, builtInCatalog(), clean)).toBe(refineMessage(d, S, builtInCatalog()));
+      expect(refineMessage(D, S, undefined, clean)).toBe(refineMessage(D, S));
+    });
+
+    it('names featured parts, right after the design JSON', () => {
+      const d = design(featured);
+      const note = `${NOTE}Side (holes), Apron (a curve), Top (an edge profile, edging), Door (hardware).`;
+      expect(refineMessage(d, S, undefined, featured)).toBe([
+        'Here is the current design, in the same format you return:', JSON.stringify(d), '', note, '',
+        'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
+      ].join('\n'));
+      expect(refineMessage(d, S)).not.toContain('Sloyd keeps them');
+    });
   });
 
   it('caps at Detailed', () => {
