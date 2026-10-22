@@ -36,9 +36,16 @@ Test projects were left in the dev profile, as ruled 2026-10-17. Every result be
    `claude-opus-5-5` and an estimate of ≈ $0.02–$0.14, with no refusal. On master it refuses, "doesn't handle parts
    with curves". The dialog was closed without running.
 
-## Paid check
+## Paid check (approved by the user at the time)
 
-Not run yet: it needs the user's approval at the time.
+On the unjoined curved table, **Add joinery** (12 sites, `claude-opus-5-5`, estimate ≈ $0.02–$0.14):
+- **Run:** "Done ≈ $0.03 — Saved as 'Live — curved shaker table — joined' — 8 joints: 8 mortise and tenon".
+- **Summary line:** "Apron F → Leg FL: dado and stopped dado ruled out — Leg FL's roundover profile is in the way." The model
+  chose the tenon there, the kind left open.
+- **Saved result:** every apron grew 7/8" at each tenoned end and its arch's `start` went from 3 to 3.875, so each arch
+  still begins at the same place on the wood (Apron F: 1.75 + 3 before, 0.875 + 3.875 after, world x **4.75** both; Apron
+  L likewise along z). Each leg keeps its roundovers (Leg FL both, `pOuter` 1/4" and `pFlush` 1/2") beside its two
+  mortises.
 
 ## Not checked live
 
