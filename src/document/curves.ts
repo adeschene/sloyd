@@ -570,7 +570,10 @@ export function rectOverlapsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): bo
   if (corners.some((p) => wasteContains(segs, p, 'closed'))) return true;
   const inRect = (p: P2) => p[0] >= a[0] - CURVE_EPS && p[0] <= b[0] + CURVE_EPS && p[1] >= a[1] - CURVE_EPS && p[1] <= b[1] + CURVE_EPS;
   if (segs.some((s) => inRect(s.a) || (s.kind === 'arc' && inRect(s.crown)))) return true;
-  return corners.some((p, i) => boundaryHits(segs, p, corners[(i + 1) % 4]!).some(inRect));
+  // A side enters the waste only where a stretch of it lies inside (wasteOnSegment): a lone hit is not enough, since
+  // segArcHits' tolerance can report a crossing just past an arc's end (a side touching a Bow's end edge at the height
+  // its arc starts).
+  return corners.some((p, i) => wasteOnSegment(segs, p, corners[(i + 1) % 4]!) > CURVE_EPS);
 }
 
 /**

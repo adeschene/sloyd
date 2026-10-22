@@ -351,6 +351,14 @@ describe('curveAs: a kind change keeps placement, takes preset sizes (fu 367)', 
 import { rectOverlapsWaste, wasteOnSegment } from './curves';
 
 describe('rectOverlapsWaste (OPEN: overlap above 1e-9; spec §3.3, P4)', () => {
+  it('a rect touching a Bow\'s end edge across the height its arc starts at is not an overlap (fu 415)', () => {
+    // segArcHits' tolerance reports the arc's circle crossing the rect's side just past the arc's end; only a stretch of
+    // the side inside the waste counts.
+    const b = createBoard({ length: 18, width: 3.5, thickness: 0.75 });
+    const bow = localSegments(b, defaultBow(b));
+    expect(rectOverlapsWaste(bow, [-1.5, 0], [0, 3.5])).toBe(false);
+    expect(rectOverlapsWaste(bow, [-1.5, 0], [1e-6, 3.5])).toBe(true);
+  });
   const B = { length: 30, width: 5, thickness: 0.75 };
   // A 1" rounded corner at (0, 0): its waste is [0, 1]² outside the circle about (1, 1).
   const corner = localSegments(B, cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }));
