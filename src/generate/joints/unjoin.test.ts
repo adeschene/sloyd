@@ -643,3 +643,51 @@ describe('sameCurves / sameProfiles', () => {
     expect(sameProfiles([p], [a])).toBe(false);
   });
 });
+
+// Joinery-features chunk 3 (§4.5): bands are part of what the gate proves. They store no number, so they compare exactly.
+describe('the gate compares bands (joinery-features chunk 3)', () => {
+  const edge = { across: 'width', from: 'min' } as const;
+  const bandedRail = () => {
+    const d = flatDocument(designToDocument({ name: 'T', parts: [
+      { name: 'Leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+      { name: 'Rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3.5, z: 0.75 } },
+    ] }, { centre: false }).doc);
+    return { ...d, boards: d.boards.map((b) => (b.name === 'Rail' ? { ...b, bands: [{ side: edge, type: 'band-iron-on' }], cornerRule: 'ends' as const } : b)) };
+  };
+  const joinedRail = () => {
+    const P = bandedRail();
+    const sites = findSites(P);
+    return { P, J: applyJoints(P, sites, sites.map((s) => defaultChoice(s, P, sites))).doc };
+  };
+  const onRail = (d: FlatDocument, f: (b: FlatDocument['boards'][number]) => Partial<FlatDocument['boards'][number]>): FlatDocument =>
+    ({ ...d, boards: d.boards.map((b) => (b.name === 'Rail' ? { ...b, ...f(b) } : b)) });
+
+  it('a joined banded project (the tenoned taped rail) passes the gate, its plain parts\' bands equal the input\'s', () => {
+    const { P, J } = joinedRail();
+    expect(J.boards.find((b) => b.name === 'Rail')!.cuts.length + J.boards.find((b) => b.name === 'Leg')!.cuts.length).toBeGreaterThan(0);
+    const u = gateUnjoin(J);
+    if ('refused' in u) throw new Error(u.refused);
+    u.plain.forEach((b, i) => {
+      expect(b.bands, b.name).toEqual(P.boards[i]!.bands);
+      expect(b.cornerRule, b.name).toBe(P.boards[i]!.cornerRule);
+    });
+    expect(u.plain.some((b) => b.bands.length > 0)).toBe(true);
+  });
+  it('sameJoined is false when a band\'s side flipped', () => {
+    const { J } = joinedRail();
+    expect(sameJoined(J, J)).toBe(true);
+    expect(sameJoined(J, onRail(J, (b) => ({ bands: b.bands.map((x) => ({ ...x, side: { ...x.side, from: 'max' as const } })) })))).toBe(false);
+  });
+  it('sameJoined is false when a band\'s type changed', () => {
+    const { J } = joinedRail();
+    expect(sameJoined(J, onRail(J, (b) => ({ bands: b.bands.map((x) => ({ ...x, type: 'other' })) })))).toBe(false);
+  });
+  it('sameJoined is false when cornerRule changed', () => {
+    const { J } = joinedRail();
+    expect(sameJoined(J, onRail(J, () => ({ cornerRule: 'mitre' as const })))).toBe(false);
+  });
+  it('sameJoined is false when a band was dropped', () => {
+    const { J } = joinedRail();
+    expect(sameJoined(J, onRail(J, () => ({ bands: [] })))).toBe(false);
+  });
+});

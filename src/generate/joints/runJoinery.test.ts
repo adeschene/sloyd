@@ -255,6 +255,32 @@ describe('runJoinery', () => {
       expect(out.shapes).toHaveLength(0); // the arch differs, so neither user keeps the shape (a one-user shape dissolves, inv 45)
     });
 
+    // Joinery-features chunk 3 (§4.5): the Shape carries the band (bands are a SHARED field, inv 45), so tenoning ONE rail
+    // splits it, and both stored results keep the band.
+    it('two rails on one shape with a band: only Rail A tenoned, both keep the band', async () => {
+      const band = { side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' };
+      const d = linked(['Rail A', 'Rail B'], TWIN);
+      const withBand: SloydDocument = { ...d, shapes: d.shapes.map((sh) => ({ ...sh, bands: [band], cornerRule: 'ends' as const })) };
+      const flat = flatDocument(withBand);
+      expect(flat.boards.filter((b) => b.name.startsWith('Rail')).map((b) => b.bands)).toEqual([[band], [band]]);
+      const railA = flat.boards.findIndex((b) => b.name === 'Rail A');
+      const answer = { joints: findSites(flat).map((s) => (s.enter === railA ? { site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 } : { site: s.id, joint: 'butt' })) };
+      const c = client(answer);
+      const res = await run(c, withBand);
+      if ('noSites' in res || 'refused' in res) throw new Error('expected sites');
+      expect(c.complete).toHaveBeenCalledTimes(1);
+      const rails = (x: SloydDocument) => worldParts(x).filter((b) => b.name.startsWith('Rail'));
+      const out = res.result.doc;
+      const [a1, b1] = rails(out) as [Board, Board];
+      expect(a1.length).toBeCloseTo(18.5, 9);
+      expect(b1.length).toBe(18);
+      expect(a1.bands).toEqual([band]);
+      expect(b1.bands).toEqual([band]);
+      expect(a1.cornerRule).toBe('ends');
+      expect(b1.cornerRule).toBe('ends');
+      expect(out.shapes).toHaveLength(0);
+    });
+
     it('a linked pair joinery does not cut keeps its link', async () => {
       const d = linked(['Spare', 'Spare 2']);
       const out = await run(client(railed), d);
@@ -746,5 +772,41 @@ describe('runJoinery with holes (joinery-holes spec §3.5)', () => {
   it('JOINERY_PROMPT and JOINT_SCHEMA are unchanged', () => {
     const hash = createHash('sha256').update(JOINERY_PROMPT).update('\0').update(JSON.stringify(JOINT_SCHEMA)).digest('hex');
     expect(hash).toBe('dbc570dee7e8e91791a460737c20a9d76f5d9907d9ad7755c58291386a653328');
+  });
+});
+
+// Joinery-features chunk 3: a banded project runs, and only the joints a band is in the way of are ruled out.
+describe('runJoinery with bands (joinery-features chunk 3)', () => {
+  const TAPE = 'band-iron-on';
+  /** Tape on a part's broad face, on the side named (board-local `across` and `from`, found by the posture-free default). */
+  const withBands = (d: FlatDocument, name: string, bands: (b: Board) => { side: { across: 'length' | 'width'; from: 'min' | 'max' }; type: string }[]): FlatDocument =>
+    ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, bands: bands(b) } : b)) });
+  const SHELF = design(
+    { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+  );
+  const SIDE = design({ name: 'Side', at: [0, 0, 0], size: [0.75, 30, 12] }, { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] });
+  const sideAt = (b: Board, across: 'length' | 'width', side: -1 | 1) => ({ across, from: endFacing(b, axisDimensions(b).indexOf(across), side) });
+
+  it('the taped Q2 shelf (tape on the front edge, dadoed both ends) runs: one model call, every kind sent', async () => {
+    const doc = withBands(SHELF, 'Shelf', (b) => [{ side: sideAt(b, 'width', -1), type: TAPE }]);
+    const c = client({ joints: findSites(doc).map((s) => ({ site: s.id, joint: 'dado', depth: 0.25 })) });
+    const out = await run(c, doc as unknown as SloydDocument);
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(c.complete).toHaveBeenCalledTimes(1);
+    expect(String((c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[0])).toContain('mortise-tenon');
+    expect(out.result.applied.map((a) => a.joint)).toEqual(['dado', 'dado']);
+  });
+
+  it('an end-banded shelf alone is left a butt: no call, the summary carries the butt line', async () => {
+    const doc = withBands(SIDE, 'Shelf', (b) => [{ side: sideAt(b, 'length', -1), type: TAPE }]);
+    const c = client({ joints: [] });
+    const out = await run(c, doc as unknown as SloydDocument);
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a run');
+    expect(c.complete).toHaveBeenCalledTimes(0);
+    expect(out.chosen).toBe(0);
+    expect(out.result.applied.map((a) => a.joint)).toEqual(['butt']);
+    expect(out.notes).toEqual(["Shelf → Side: left as a butt — Shelf's edge band is in the way of every joint."]);
   });
 });

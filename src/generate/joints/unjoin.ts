@@ -4,6 +4,7 @@ import { HOLE_KEYS } from '../../document/holes';
 import { CURVE_KEYS } from '../../document/curves';
 import { PROFILE_KEYS } from '../../document/profiles';
 import { TOUCH } from '../../document/designCheck';
+import { sameBands } from '../../document/bandModel';
 import { sameAngleCut } from '../../document/angleCuts';
 import { axisDimensions, axisFrame, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
@@ -337,7 +338,7 @@ function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
 /**
  * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
  * EXACTLY; cuts are matched as a MULTISET (order is not geometry, sameCutSet); every number (position, length/width/thickness, each numeric cut field) within
- * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut); hole rows by sameHoles. The gate is
+ * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut); hole rows by sameHoles; bands and cornerRule exactly. The gate is
  * only as good as this.
  */
 export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
@@ -351,7 +352,9 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
       // Exact, by design: joinery re-anchors angle cuts only by `rebaseAngleCuts`, which `readJoints` undoes exactly, so
       // their round trip is identity (AI-tapers spec §5.4a; AI-angles spec §4).
       p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!)) &&
-      sameHoles(p.holes, q.holes) && sameCurves(p.curves, q.curves) && sameProfiles(p.profiles, q.profiles);
+      sameHoles(p.holes, q.holes) && sameCurves(p.curves, q.curves) && sameProfiles(p.profiles, q.profiles) &&
+      // Bands store no number, so exact: joinery never touches them (joinery-features spec §4.5).
+      sameBands(p.bands, q.bands) && p.cornerRule === q.cornerRule;
   });
 }
 

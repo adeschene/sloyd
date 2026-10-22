@@ -70,6 +70,20 @@ describe('the Refine dialog reads a document once (F4)', () => {
   });
 });
 
+describe('bands (joinery-features chunk 3)', () => {
+  const withBand = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, bands: [{ side: { across: 'width' as const, from: 'min' as const }, type: 'band-iron-on' }] } : b)) });
+  // joineryRefusal no longer refuses bands, so a joined banded project is refused by Refine's own words, before the gate and any call.
+  it('a joined Refine of a banded project refuses in Refine\'s words without a call', async () => {
+    gate.mockClear();
+    const c: LlmClient = { userTurn: (t) => t, complete: vi.fn(), estimateCostUsd: () => 0.01 };
+    const out = await runRefine(c, withBand(joined, 'Top'), S, new AbortController().signal, () => {});
+    if (!('refused' in out)) throw new Error('expected a refusal');
+    expect(out.refused.message.startsWith("Refine doesn't handle banded parts yet")).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(gate).not.toHaveBeenCalled();
+  });
+});
+
 describe('curves (curves spec §7)', () => {
   const withCurve = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, curves: [ARCH] } : b)) });
   it('a curved plain document is refused as curves', () => {
