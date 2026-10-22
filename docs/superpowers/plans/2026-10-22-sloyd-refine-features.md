@@ -41,7 +41,7 @@ gets two never-truncated lists (`document/carryText.ts`).
 3. **Two linked holed copies whose stored rotations differ (0 and 180).** The expectation is that they still link into
    one Shape after Refine. Pinned in Task 2.
 4. **A project whose custom band type is used only by a solid band on a definition (assembly) part.** The expectation is
-   that the band, its type and the type's custom material all survive. Pinned in Task 2 and Task 6.
+   that the band, its type and the type's custom material all survive. Pinned in Task 2.
 5. **A part the original already had faulted (a hole that breaks out), untouched by Refine.** The expectation is that it
    is not reported as "no longer fits". Pinned in Task 6.
 
@@ -121,10 +121,12 @@ gets two never-truncated lists (`document/carryText.ts`).
     of the four rotations, use `chiralPart(posture)` given a hole row, `chiralCurved(posture)` (a curve) and
     `chiralTwoSide(posture)` (profiles), each with a band on one side, set to that rotation.
     Run `documentToDesign` → `carryFromOriginal` → `designToDocument(…, { centre: false, exact: designValues(design), bandTypes, hardwareTypes })`.
-    Assert the refined board's `posture`, `rotation`, `length`, `width` and `thickness` equal the original's, and that its
-    world geometry is unchanged. Compare `partGeometry` world bodies, or the world hole centres
-    (`holes.ts`' world helper) and world band sides. **Mutate:** encoding featured parts with `orient` must fail at 180
-    and 270.
+    Assert the world geometry is unchanged: world hole centres AND drill direction, world band sides, AND (curves and
+    profiles only) `partGeometry` world bodies. Bodies alone cannot see holes (inv 50) or bands (inv 54).
+  - `…and keeps its encoding` (a SEPARATE test): `posture`, `rotation`, `length`, `width` and `thickness` equal the
+    original's.
+  - **Mutate:** with featured parts encoded by `orient`, the world-feature test above must itself fail at 180, 270 and on
+    the square tie, not only the encoding test.
   - `a square-section leg does not swap sides`: a 1.5 × 1.5 × 30 leg with a hole row on its width face and a chamfer,
     untouched. Same assertion. **Mutate** as above.
   - `two linked holed copies at rotations 0 and 180 still link`: both come back with one `shape` id.
@@ -154,7 +156,7 @@ gets two never-truncated lists (`document/carryText.ts`).
 - [ ] **Step 1: Failing test** `turnCandidates gives none for a banded part`: a plain part with one band →
   `turnCandidates(b)` is `[]`.
 - [ ] **Step 2:** Run it. Expected: FAIL (a 180° candidate is returned).
-- [ ] **Step 3:** Add `|| b.bands.length > 0` to the guard and the word "bands" to the doc comment above it.
+- [ ] **Step 3:** (Its only caller is `linkByRole`, roleLinks.ts:82; hand-linking is unaffected.) Add `|| b.bands.length > 0` to the guard and the word "bands" to the doc comment above it.
 - [ ] **Step 4:** Run `roleLinks.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `fix(linking): turnCandidates never turns a banded part (spec §3.4)`
 
