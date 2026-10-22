@@ -65,8 +65,8 @@ the deploy is confirmed by **bundle hash** at the edge and in-network, plus the 
 **CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server does
 not send. On PRODUCTION, `localStorage` is confirmed cleared in the verifying browser afterward, checked
 rather than assumed. On the DEV server, test projects a check creates are LEFT in place (the user's ruling, 2026-10-17:
-removing them "is just a waste of time"); never clear the dev profile wholesale either (it holds the user's API key and projects). A paid Generate/joinery run needs the user's approval each time; the
-key never goes into chat or a committed file. (Generate was once exercised on production
+removing them "is just a waste of time"); never clear the dev profile wholesale either (it holds the user's API key and projects). Paid Generate/joinery runs for testing are approved up to 10 per feature
+without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
 **Rollback cost is a schema question.** A build understanding less than the file's version (20 since the hardware round, deployed 2026-10-21)
