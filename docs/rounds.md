@@ -108,7 +108,7 @@
   `dist/`) in-network and at the edge, CSP, the old bundle 404s in-network, a clean real-browser load; production storage read empty after.
   **Rollback:** no schema change, so rolling back to `98c7df4` (`index-BZhrLswD.js`) is free. Owed to the user: the summary-line and
   `HOLE_CHECK_FAILED` wording. Record-only: fu 413, 414. Next: chunks 2 (curves and profiles) and 3 (bands), each its own plan.
-- **Hardware bill of materials** (production until joinery chunk 1)- **Hardware bill of materials (2026-10-21; branch `hardware` 218816a..53e483f, MERGED `98c7df4`, DEPLOYED 2026-10-21 as `index-BZhrLswD.js` / CSS `index-Cj7r9G0C.css`; schema 20)**: spec
+- **Hardware bill of materials (production until joinery chunk 1; 2026-10-21; branch `hardware` 218816a..53e483f, MERGED `98c7df4`, DEPLOYED 2026-10-21 as `index-BZhrLswD.js` / CSS `index-Cj7r9G0C.css`; schema 20)**: spec
   `docs/superpowers/specs/2026-10-20-sloyd-hardware-design.md` (approved, P1/P2 approved). Ten tasks; the full suite passes (CLAUDE.md has the count),
   `npm run build` green. The live pass on the dev server (`docs/browser-verification-hardware.md`) found one crash, a SHAPED part's
   Properties Hardware section (a fresh array per `getSnapshot`), fixed in `c9d5c08`. **Rollback once deployed:** a build below 20 REFUSES every
