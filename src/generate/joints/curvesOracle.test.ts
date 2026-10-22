@@ -301,6 +301,9 @@ const CANDIDATES: ((b: Board) => { curve?: CurveCut; profile?: ProfileCut })[] =
   (b) => ({ profile: { id: 'o-stop', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: { side: side('max'), from: 'min', at: b.length / 4 }, end: { side: side('max'), from: 'min', at: (3 * b.length) / 4 } } } }),
   (b) => ({ curve: { id: 'o-arch', ...archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 0.08 * b.length, span: 0.12 * b.length, rise: Math.min(b.width / 4, 0.03 * b.length) }) } }),
   () => ({ curve: { id: 'o-corner', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 0.5 }) } }),
+  // (4) Not the brief's: an arch on the length-max END side, along the width, clear of both long edges, so a rabbet (its
+  // pocket along a receiver's long arris, its panel trimmed along its own long edges) can go through beside a feature.
+  (b) => ({ curve: { id: 'o-end-arch', ...archCurve({ through: 'thickness', along: 'width', side: 'max', from: 'min', start: 0.3 * b.width, span: 0.4 * b.width, rise: Math.min(0.1 * b.width, b.length / 8) }) } }),
 ];
 const OGEE_LOOP: ProfileCut = { id: 'o-loop', face: 'max', kind: 'ogee', size: 0.5, fillet: 0, facing: 'face', run: { loop: true } };
 
@@ -340,6 +343,7 @@ const VARIANTS: { name: string; only: readonly number[] }[] = [
   { name: 'all four', only: [0, 1, 2, 3] },
   { name: 'curves only', only: [2, 3] },
   { name: 'profiles only', only: [0, 1] },
+  { name: 'end arch', only: [4] },
 ];
 const SHAKER_TOP = 'Top';
 
@@ -395,9 +399,9 @@ const insideClosed = (box: Region, p: V3) => DIMENSION_ORDER.every((d, i) => p[i
 type Growth = Record<Dimension, { min: number; max: number }>;
 /**
  * Each end's growth (positive) or trim (negative), read off the part's WORLD box before and after (P5's shift is
- * `g[d].min`): the re-ground's drop added back, a world side mapped to its local end by `endFacing`. A moved part may only
- * have translated on a dimension it did not resize (a half-lap's drop, a rabbet panel's move); anything else is reported,
- * never guessed.
+ * `g[d].min`): the re-ground's drop added back, a world side mapped to its local end by `endFacing`. A moved part translates
+ * along one axis, on a dimension it did not resize (a half-lap's drop, a rabbet panel's move); a moved part resized at
+ * both ends of a dimension with no such translation seen is reported, never guessed.
  */
 function growthOf(before: Board, after: Board, lowered: number, moved: boolean): Growth | string {
   const wb = worldBox(before, whole(before));
@@ -406,6 +410,9 @@ function growthOf(before: Board, after: Board, lowered: number, moved: boolean):
   const dims = axisDimensions(before);
   if (JSON.stringify(dims) !== JSON.stringify(axisDimensions(after))) return 'posture changed';
   const g = { length: { min: 0, max: 0 }, width: { min: 0, max: 0 }, thickness: { min: 0, max: 0 } } as Growth;
+  // Joinery moves a part along ONE axis (a rabbet panel along its face normal, a half-lap's drop): when a dimension it did
+  // not resize carries the translation, the resized ones did not move.
+  const movedOnUnresized = [0, 1, 2].some((a) => Math.abs(after[dims[a]!] - before[dims[a]!]) <= 1e-9 && Math.abs(wb.min[a]! - wa.min[a]!) > 1e-9);
   for (let a = 0; a < 3; a += 1) {
     const d = dims[a]!;
     const lo = wb.min[a]! - wa.min[a]!;
@@ -415,7 +422,7 @@ function growthOf(before: Board, after: Board, lowered: number, moved: boolean):
       if (!moved && (Math.abs(lo) > 1e-9 || Math.abs(hi) > 1e-9)) return `unmoved part translated on axis ${a} (${lo}, ${hi})`;
       continue;
     }
-    if (moved && Math.abs(lo) > 1e-9 && Math.abs(hi) > 1e-9) return `moved part resized at both ends of ${d}: frame ambiguous`;
+    if (moved && !movedOnUnresized && Math.abs(lo) > 1e-9 && Math.abs(hi) > 1e-9) return `moved part resized at both ends of ${d}: frame ambiguous`;
     const [atMin, atMax] = endFacing(before, a, -1) === 'min' ? [lo, hi] : [hi, lo];
     g[d] = { min: Math.abs(atMin) > 1e-9 ? atMin : 0, max: Math.abs(atMax) > 1e-9 ? atMax : 0 };
     if (Math.abs(before[d] + g[d].min + g[d].max - after[d]) > 1e-9) return `growth of ${d} does not add up`;
@@ -447,7 +454,8 @@ type Run = { label: string; choices: JointChoice[]; out: JoinResult };
 type Exemption = { label: string; part: string; end: 'min' | 'max'; tenon: boolean };
 
 /** Assertions 1–7 on one run: every breach, labelled with fixture, run and part, so a red run is already the report. */
-function breaches(input: FlatDocument, sites: readonly Site[], { label, choices, out }: Run, exemptions: Exemption[]): string[] {
+type Seen = { trims: number };
+function breaches(input: FlatDocument, sites: readonly Site[], { label, choices, out }: Run, exemptions: Exemption[], seen: Seen): string[] {
   const found: string[] = [];
   const names = out.doc.boards.map((b) => b.name);
   if (JSON.stringify(names) !== JSON.stringify(input.boards.map((b) => b.name))) return [`${label}: parts renamed or reordered ${JSON.stringify(names)}`];
@@ -456,6 +464,8 @@ function breaches(input: FlatDocument, sites: readonly Site[], { label, choices,
   const tenons = choices.filter((c) => c.joint !== 'butt');
   const tenoned = tenons.length === 1 && tenons[0]!.joint === 'mortise-tenon' && out.applied.some((x) => x.site === tenons[0]!.site && x.joint === 'mortise-tenon')
     ? sites.find((s) => s.id === tenons[0]!.site)!.enter : -1;
+  let reloadedBoards: Board[] | null = null;
+  const loaded = () => (reloadedBoards ??= flatDocument(migrateDocument(out.doc)).boards);
   input.boards.forEach((before, i) => {
     const after = out.doc.boards[i]!;
     const at = `${label} / ${after.name}`;
@@ -463,6 +473,9 @@ function breaches(input: FlatDocument, sites: readonly Site[], { label, choices,
     // 6. Nothing is lost: curve and profile ids and counts survive.
     const ids = (b: Board) => JSON.stringify([b.curves.map((c) => c.id), b.profiles.map((p) => p.id)]);
     if (ids(after) !== ids(before)) { found.push(`${at}: features ${ids(before)} -> ${ids(after)}`); return; }
+    //    ... and through the loader: a rebased entry `migrateDocument` would DROP is lost all the same.
+    const reloaded = loaded()[i]!;
+    if (ids(reloaded) !== ids(before)) { found.push(`${at}: features after the loader ${ids(before)} -> ${ids(reloaded)}`); return; }
     // 7. No new fault.
     const was = new Set(faultKeys(before));
     for (const k of faultKeys(after)) if (!was.has(k)) found.push(`${at}: new fault ${k}`);
@@ -529,6 +542,7 @@ function breaches(input: FlatDocument, sites: readonly Site[], { label, choices,
           const slab = whole(before);
           slab[d] = end === 'min' ? [0, -amount] : [before[d] + amount, before[d]];
           const hits = new Set<string>();
+          seen.trims += 1;
           for (const q of lattice(slab)) {
             for (const f of feats) {
               if (hits.has(f.id) || runsThrough(f, d, end) || !f.air(q)) continue;
@@ -605,6 +619,7 @@ function perKindRuns(doc: FlatDocument, sites: Site[]): { label: string; choices
 describe('the oracle: no joint takes wood from a curve or profile (joinery features spec §7, chunk 2)', () => {
   const results: { label: string; input: FlatDocument; sites: Site[]; ruledOut: RuledOut[]; defaults: JointChoice[]; runs: Run[] }[] = [];
   const exemptions: Exemption[] = [];
+  const seen: Seen = { trims: 0 };
   const found: string[] = [];
   beforeAll(() => {
     for (const { label: fixture, make } of FIXTURES) for (const { name, only } of VARIANTS) {
@@ -619,7 +634,7 @@ describe('the oracle: no joint takes wood from a curve or profile (joinery featu
       const runs: Run[] = [{ label: `${label} / defaults`, choices: asRun, out: applyJoints(input, sites, asRun) }];
       for (const r of perKindRuns(input, sites)) runs.push({ label: `${label} / ${r.label}`, choices: r.choices, out: applyJoints(input, sites, r.choices) });
       results.push({ label, input, sites, ruledOut, defaults, runs });
-      for (const run of runs) found.push(...breaches(input, sites, run, exemptions));
+      for (const run of runs) found.push(...breaches(input, sites, run, exemptions, seen));
     }
   }, 120_000);
 
@@ -654,14 +669,19 @@ describe('the oracle: no joint takes wood from a curve or profile (joinery featu
     expect(found).toEqual([]);
   });
 
-
   it('is not vacuous: joints applied, kinds ruled out by a curve and by a profile, the P7 exemption exercised', () => {
     const applied = results.flatMap((r) => r.runs.flatMap((run) => run.out.applied.filter((a) => a.joint !== 'butt').map((a) => a.joint as JointKind)));
     expect(applied.length).toBeGreaterThan(0);
-    // Rabbet is never applied: every rabbet crosses a long arris or a corner of its panel or receiver, each of which carries
-    // a feature in every variant, so it is ruled out everywhere (and no trim is ever made: assertion 4 is guarded, not
-    // exercised, here; featureZones.curves.test pins the trim rule by hand).
-    expect(new Set(applied)).toEqual(new Set(['mortise-tenon', 'dado', 'stopped-dado', 'half-lap']));
+    expect(new Set(applied)).toEqual(new Set(['mortise-tenon', 'dado', 'stopped-dado', 'rabbet', 'half-lap']));
+    // A rabbet goes through beside a feature (its panel or a receiver carries one; the end-arch variant), so assertion 1
+    // judges a rabbet pocket and assertion 4 samples a trim slab of a part with features.
+    const featured = (b: Board) => b.curves.length + b.profiles.length > 0;
+    const rabbetsBesideFeatures = results.flatMap((r) => r.runs.flatMap((run) => run.out.applied.filter((a) => {
+      const site = r.sites.find((s) => s.id === a.site)!;
+      return a.joint === 'rabbet' && (featured(r.input.boards[site.enter]!) || featured(r.input.boards[site.receive]!));
+    })));
+    expect(rabbetsBesideFeatures.length).toBeGreaterThan(0);
+    expect(seen.trims, 'trim slabs sampled on parts with features').toBeGreaterThan(0);
     const words = new Set(results.flatMap((r) => r.ruledOut.map((o) => o.feature)));
     expect(words.has('curve')).toBe(true);
     expect([...words].some((w) => w.endsWith('profile'))).toBe(true);
