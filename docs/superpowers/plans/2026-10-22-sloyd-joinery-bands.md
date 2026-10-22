@@ -39,7 +39,12 @@ Copied into the spec in Task 6.
     the growing kinds out.
   - **Run-through exception:** a band that runs along `d` is exempt when `d === 'length'` and either it is tape, or its
     strip in width (`[0, t]` or `[w − t, w]`) does not overlap the tenon section's `[shoulder, w − shoulder]` (open, so
-    `t === shoulder` is kept). Otherwise it rules the growing kinds out.
+    `t === shoulder` is kept). Otherwise it rules mortise-tenon out.
+  - **Dados take their own rule (the user's ruling, 2026-10-22: "a separate rule for dados").** For dado and stopped-dado,
+    a band that runs along `d` (tape or solid, any thickness) is exempt: the edged shelf is housed whole, its edging running
+    into the housing as the shop does it. A stopped dado's notch then shortens the band's run (P12). A band ON the growing
+    end still rules the dado kinds out. The watch therefore knows the trial's kind: `featureAllowed` passes it to the
+    watch it builds for each trial, and only the band clause reads it.
   - **Trims:** a band on the trimmed end (tape included) conflicts. A band running along the trimmed dimension never
     does, because it is shortened with the part. Any other solid band conflicts if its region meets the slab.
 - **P12: the visible run (§4.4).** For a band on side `s` (across `a`, run dimension `r`), a **qualifying cut** is a
@@ -179,9 +184,10 @@ Copied into the spec in Task 6.
     dimension → kept.
   - Review Focus 4: a `needs-straight` solid band on a bowed edge is judged at its thickness (rules a pocket out); a band
     whose type id is unknown is ignored, with no throw.
-  - `a shelf with 3/4" solid edging on its front, entering a dado`: P11 gives the exemption by the tenon section (shoulder
-    1/2" < 3/4"), so dado, stopped-dado and mortise-tenon are ruled out and the site is left a butt. **The expected value
-    hangs on the user's ruling at handoff** (keep the spec's rule, or a dado-specific one); pin whichever is ruled.
+  - `a shelf with 3/4" solid edging on its front, entering a dado` (the user's dado ruling, P11): dado and stopped-dado
+    are KEPT and mortise-tenon is ruled out (3/4" > the 1/2" shoulder); the summary line reads `… mortise and tenon ruled
+    out — Shelf's edge band is in the way.` After joining it at a stop on the front, the notch shortens the edging's
+    visible run by the housed length. Mutate: apply the tenon-section rule to dados too → red.
   - Order: holes, then curves and profiles, then bands; one test where a hole and a band are met at one event → `holes`.
   - Byte for byte: a band-free fixture returns the SAME `sites` array (`toBe`).
   - `ruledOutText.test.ts`: the `edge band` line with `is`, both forms.
@@ -193,7 +199,7 @@ Copied into the spec in Task 6.
   stands, moved into the frame as `grows` does) or P11's trim rule. Update the watch's doc comment with the band clauses.
 - [ ] **Step 4: Run** the two files plus `npx vitest run src/generate/joints`. Expected: PASS, with every existing test
   unmodified.
-- [ ] **Step 5: Mutate**: drop the tape-on-end clause; `>` → `>=` in the exception's overlap; drop the frame shift; drop
+- [ ] **Step 5: Mutate**: drop the tape-on-end clause; drop the dado exemption; `>` → `>=` in the exception's overlap; drop the frame shift; drop
   the trim skip; remove `b.bands.length > 0` from the early return. Each must go red. Then `npm run build`.
 - [ ] **Step 6: Commit** `feat(joinery): bands rule out only the joint kinds they are in the way of (joinery features §3, chunk 3)`.
 
@@ -282,7 +288,7 @@ Copied into the spec in Task 6.
 `docs/invariants.md` + `CLAUDE.md` (inv 54: "Joinery, Refine and Repair refuse banded projects" → "Refine refuses banded
 projects; joinery rules out only the joint kinds a band is in the way of (inv 41); Repair accepts them; a strip, tape run
 and glue line count only the visible run (P12)"; inv 41's feature list gains bands; the home table's refusals row),
-`docs/follow-ups.md` (fu 398: joinery and Repair half closed; a new record-only follow-up for P13's arc chord counted
+the spec's §8 (Q3, the dado ruling, 2026-10-22), `docs/follow-ups.md` (fu 398: joinery and Repair half closed; a new record-only follow-up for P13's arc chord counted
 whole; the §4.4 change to existing hand-notched documents, naming every test whose number moved in Task 1),
 `docs/module-map.md`, `docs/rounds.md`, the Status block, and the test count.
 
