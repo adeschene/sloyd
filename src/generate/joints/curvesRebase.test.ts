@@ -3,7 +3,7 @@ import { designToDocument } from '../../document/generated';
 import { createBoard, flatDocument, migrateDocument } from '../../document/document';
 import type { Board, CurveCut, CutFrom, FlatDocument, Posture, ProfileCut, Rotation } from '../../document/document';
 import { worldBox } from '../../document/designCheck';
-import { archCurve, cornerCurve, localSegments, uvDims } from '../../document/curves';
+import { archCurve, cornerCurve, curveKindChoice, localSegments, uvDims } from '../../document/curves';
 import type { P2 } from '../../document/curves';
 import { endPos, profileSpan } from '../../document/profiles';
 import { axisDimensions, boardExtents, endFacing } from '../../document/geometry';
@@ -11,7 +11,7 @@ import { twoSide } from '../../document/sweepFixtures';
 import { findSites } from './sites';
 import { applyJoints, rebaseCurves, rebaseProfiles } from './recipes';
 import type { JointChoice } from './recipes';
-import { GATE_TOLERANCE, readJoints } from './unjoin';
+import { GATE_TOLERANCE, gateUnjoin, readJoints } from './unjoin';
 
 // Joinery-curves spec §4.2, §4.3, §4.5: a curve coordinate or profile station measured from a grown or trimmed end shifts
 // with it, and readJoints' resizeAt is the exact inverse. Joinery still refuses curved projects at runJoinery (until
@@ -74,8 +74,8 @@ const expectClose = (got: unknown, want: unknown, label: string) => {
  * A rail in the given pose whose `sign` end butts a big leg, so the rail is the entering part of a mortise and tenon at
  * that end. The leg is a flat, unturned block larger than the rail's cross-section.
  */
-function railAndLeg(posture: Posture, rotation: Rotation, curves: CurveCut[], profiles: ProfileCut[], sign: -1 | 1 = 1): { doc: FlatDocument; k: number; end: CutFrom } {
-  const rail = createBoard({ name: 'Rail', length: 18, width: 3.5, thickness: 0.75, posture, rotation, curves, profiles });
+function railAndLeg(posture: Posture, rotation: Rotation, curves: CurveCut[], profiles: ProfileCut[], sign: -1 | 1 = 1, length = 18): { doc: FlatDocument; k: number; end: CutFrom } {
+  const rail = createBoard({ name: 'Rail', length, width: 3.5, thickness: 0.75, posture, rotation, curves, profiles });
   const k = axisDimensions(rail).indexOf('length');
   const re = boardExtents(rail);
   const leg = createBoard({ name: 'Leg', length: 1, width: 1, thickness: 1, posture: k === 1 ? 'flat' : 'upright' });
@@ -284,5 +284,189 @@ describe('a trim (rabbet)', () => {
     const plain = back.plain.find((b) => b.name === 'Shelf')!;
     expectClose(plain.curves, shelf.curves, 'curves');
     expectClose(plain.profiles.map(ordered), shelf.profiles.map(ordered), 'profiles');
+  });
+});
+
+// Final review C1: an arc stored exactly AT the half-circle bound (the Half-round notch preset: rise === span / 2; or a
+// radius-form arc at radius === chord / 2) must survive a re-anchor. Two separate float additions do not preserve a
+// difference, so a shifted chord of 2 can come back 1.9999999999999991 and the loader (rise > chord / 2) would DROP the
+// curve in applyJoints' closing migrateDocument. rebaseCurves keeps the arc at the bound of its NEW chord.
+describe('an arc at the half-circle bound survives a re-anchor (final review C1)', () => {
+  const MM = 25.4;
+  /** A Half-round notch AT its bound: notchAt's placement (2 wide, centred along the length, measured from `from`) with
+   *  rise = the STORED chord / 2. (notchAt's own rise 1 is not at the bound on every metric length: (s + 2) − s is not
+   *  always 2, a preset matter outside joinery and noted in the final-fix report.) */
+  const half = (s: number) => ((s + 2) - s) / 2;
+  const notch = (L: number, from: CutFrom): CurveCut => {
+    const s = L / 2 - 1;
+    return { id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from, start: s, span: 2, rise: half(s) }) };
+  };
+  /** The same notch in radius form: radius === chord / 2. */
+  const radiusNotch = (L: number, from: CutFrom): CurveCut => {
+    const s = L / 2 - 1;
+    return { id: 'r', through: 'thickness', uFrom: from, vFrom: 'min', start: [s, 0],
+      segments: [{ type: 'arc', to: [s + 2, 0], side: 'left', radius: half(s) }, { type: 'line', to: [s, 0] }] };
+  };
+  const reload = (doc: FlatDocument) => flatDocument(migrateDocument(JSON.parse(JSON.stringify(doc))));
+  const arcOf = (c: CurveCut) => c.segments.find((g) => g.type === 'arc') as Extract<CurveCut['segments'][number], { type: 'arc' }>;
+  const chordOf = (c: CurveCut) => { const a = arcOf(c); const at = c.segments[c.segments.indexOf(a) - 1]?.to ?? c.start; return Math.hypot(a.to[0] - at[0], a.to[1] - at[1]); };
+
+  /** One rail: tenoned, reloaded, and read back; null where everything held, else what failed. */
+  const survives = (L: number, tenonLength: number, make: (L: number, from: CutFrom) => CurveCut): string | null => {
+    const { end } = railAndLeg('flat', 0, [], [], 1, L);
+    const input = railAndLeg('flat', 0, [make(L, end)], [], 1, L).doc;
+    const c = railOf(input).curves[0];
+    if (chordOf(c) / 2 !== (arcOf(c).rise ?? arcOf(c).radius)) return 'the input is not at the bound';
+    const out = tenon(input, tenonLength);
+    const joined = railOf(reload(out.doc));
+    if (joined.curves.length !== 1) return `joined: ${joined.curves.length} curves`;
+    const back = readJoints(out.doc);
+    if ('refused' in back) return `readJoints: ${back.refused}`;
+    const plain = reload({ ...out.doc, boards: back.plain });
+    if (railOf(plain).curves.length !== 1) return `plain: ${railOf(plain).curves.length} curves`;
+    return null;
+  };
+
+  it('(1) a mortise-and-tenon growth at a 305 mm rail keeps the Half-round notch, a notch, in place', () => {
+    const L = 305 / MM;
+    const { end } = railAndLeg('flat', 0, [], [], 1, L);
+    const input = railAndLeg('flat', 0, [notch(L, end)], [], 1, L).doc;
+    const before = railOf(input);
+    expect(curveKindChoice(before.curves[0])).toBe('notch');
+    const out = tenon(input, 1);
+    const after = railOf(reload(out.doc));
+    expect(after.curves).toHaveLength(1);
+    expect(curveKindChoice(after.curves[0])).toBe('notch');
+    expect(arcOf(after.curves[0]).rise).toBe(chordOf(after.curves[0]) / 2);
+    const want = curvePoints(before); const got = curvePoints(after);
+    expect([...got.keys()]).toEqual([...want.keys()]);
+    for (const [key, p] of want) p.forEach((v, i) => expect(Math.abs(got.get(key)![i] - v), key).toBeLessThanOrEqual(1e-9));
+    expect(Math.abs(arcOf(after.curves[0]).rise! - 1)).toBeLessThanOrEqual(GATE_TOLERANCE);
+    expect('refused' in gateUnjoin(out.doc)).toBe(false);
+  });
+
+  it('(3) resize then resizeAt brings the notch back a notch, within GATE_TOLERANCE, and the gate passes', () => {
+    const L = 305 / MM;
+    const { end } = railAndLeg('flat', 0, [], [], 1, L);
+    const input = railAndLeg('flat', 0, [notch(L, end)], [], 1, L).doc;
+    const out = tenon(input, 1);
+    const back = readJoints(out.doc);
+    if ('refused' in back) throw new Error(back.refused);
+    const plain = railOf(reload({ ...out.doc, boards: back.plain }));
+    expect(plain.curves).toHaveLength(1);
+    expect(curveKindChoice(plain.curves[0])).toBe('notch');
+    expectClose(plain.curves, railOf(input).curves, 'curves');
+    const gate = gateUnjoin(out.doc);
+    expect('refused' in gate).toBe(false);
+  });
+
+  it('a radius-form arc at radius === chord / 2 survives growth and the round trip', () => {
+    const L = 305 / MM;
+    const { end } = railAndLeg('flat', 0, [], [], 1, L);
+    const input = railAndLeg('flat', 0, [radiusNotch(L, end)], [], 1, L).doc;
+    const out = tenon(input, 1);
+    const after = railOf(reload(out.doc));
+    expect(after.curves).toHaveLength(1);
+    expect(arcOf(after.curves[0]).radius).toBe(chordOf(after.curves[0]) / 2);
+    expect(Math.abs(arcOf(after.curves[0]).radius! - 1)).toBeLessThanOrEqual(GATE_TOLERANCE);
+    expect(survives(L, 1, radiusNotch)).toBeNull();
+    expect('refused' in gateUnjoin(out.doc)).toBe(false);
+  });
+
+  it('an arc below the bound keeps its stored rise exactly; one shifted past nothing is the same object', () => {
+    const c: CurveCut = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'max', start: 305 / MM / 2 - 1, span: 2, rise: 0.5 }) };
+    const b = createBoard({ length: 305 / MM, width: 3.5, thickness: 0.75, curves: [c] });
+    rebaseCurves(b, 'length', 'max', 1);
+    expect(arcOf(b.curves[0]).rise).toBe(0.5);
+    const kept = b.curves[0];
+    rebaseCurves(b, 'length', 'min', 1);
+    expect(b.curves[0]).toBe(kept);
+  });
+
+  it('an arc an ulp inside the bound whose shifted chord would put it past the bound is clamped to it, and kept', () => {
+    // A rise one ulp under its stored chord / 2, or a radius one ulp over it (legal to the loader; not a notch): a shift can
+    // shorten the chord by an ulp, past which the loader would drop the curve. The number is clamped to the new bound.
+    const step = (x: number, by: bigint) => { const f = new Float64Array([x]); new BigInt64Array(f.buffer)[0] += by; return f[0]; };
+    const below = (x: number) => step(x, -1n);
+    const above = (x: number) => step(x, 1n);
+    let seen = 0;
+    for (let mm = 40; mm <= 200; mm += 1) {
+      for (let sp = 20; sp <= 120; sp += 7) {
+        for (const amount of [1, 6 / MM, 0.75]) {
+          const s0 = mm / MM;
+          const t0 = s0 + sp / MM;
+          const half0 = Math.hypot(t0 - s0, 0) / 2;
+          const half1 = Math.hypot((t0 + amount) - (s0 + amount), 0) / 2;
+          const rise = below(half0);
+          const radius = above(half0);
+          for (const arc of [rise > half1 && { rise }, radius < half1 && { radius }]) {
+            if (!arc) continue;
+            seen += 1;
+            const c = { id: 'a', through: 'thickness', uFrom: 'max', vFrom: 'min', start: [s0, 0],
+              segments: [{ type: 'arc', to: [t0, 0], side: 'left', ...arc }, { type: 'line', to: [s0, 0] }] } as CurveCut;
+            const b = createBoard({ length: 100, width: 3.5, thickness: 0.75, curves: [c] });
+            rebaseCurves(b, 'length', 'max', amount);
+            const got = arcOf(b.curves[0]);
+            const n = 'rise' in arc ? got.rise! : got.radius!;
+            expect(n).toBe(chordOf(b.curves[0]) / 2);
+            expect(Math.abs(n - ('rise' in arc ? rise : radius))).toBeLessThanOrEqual(GATE_TOLERANCE);
+            expect(flatDocument(migrateDocument(JSON.parse(JSON.stringify({ version: 20, name: 'T', boards: [b] })))).boards[0].curves).toHaveLength(1);
+          }
+        }
+      }
+    }
+    expect(seen).toBeGreaterThan(100);
+  });
+
+  it('a sweep of metric rails 300-1500 mm x tenon lengths drops no notch (growth and the round trip)', () => {
+    const failed: string[] = [];
+    for (let mm = 300; mm <= 1500; mm += 5) {
+      for (const t of [1, 0.75, 25 / MM]) {
+        for (const make of [notch, radiusNotch]) {
+          const why = survives(mm / MM, t, make);
+          if (why) failed.push(`${mm} mm, tenon ${t}, ${make === notch ? 'rise' : 'radius'}: ${why}`);
+        }
+      }
+    }
+    expect(failed).toEqual([]);
+  });
+
+  it('(2) a rabbet trim keeps a Half-round notch measured from the trimmed end, a notch, in place', () => {
+    const failed: string[] = [];
+    for (let mm = 40; mm <= 200; mm += 1) for (const thin of [0.25, 6 / MM, 9 / MM]) {
+      const doc = flatDocument(designToDocument({
+        name: 'T',
+        parts: [
+          { name: 'Left', at: { x: 0, y: 0, z: 0 }, size: { x: 0.75, y: 30, z: 11.25 } },
+          { name: 'Right', at: { x: 20.75, y: 0, z: 0 }, size: { x: 0.75, y: 30, z: 11.25 } },
+          { name: 'Shelf', at: { x: 0.75, y: 12, z: 0 }, size: { x: 20, y: 0.75, z: 11.25 } },
+          { name: 'Back', at: { x: 0, y: 0, z: 11.25 }, size: { x: 21.5, y: 30, z: 0.25 } },
+        ].map((p) => ({ ...p, material: 'oak' })),
+      }).doc);
+      // A metric back (designToDocument snaps sizes to 1/16, so it is set here): the shelf's trim is the back's
+      // thickness, and a dyadic trim (0.25) shifts every coordinate exactly, which cannot show the bug.
+      const backPart = doc.boards.find((b) => b.name === 'Back')!;
+      backPart[axisDimensions(backPart)[2]] = thin;
+      const shelf = doc.boards.find((b) => b.name === 'Shelf')!;
+      const d = axisDimensions(shelf)[2];
+      const e = endFacing(shelf, 2, 1);
+      const through = d === 'thickness' ? 'width' : 'thickness';
+      shelf.curves = [{ id: 'n', ...archCurve({ through, along: d, side: 'min', from: e, start: mm / MM, span: 2, rise: half(mm / MM) }) }];
+      if (curveKindChoice(shelf.curves[0]) !== 'notch') { failed.push(`${mm} mm, back ${thin}: the input is not a notch`); continue; }
+      const sites = findSites(doc);
+      const out = applyJoints(doc, sites, sites.filter((s) => s.kind === 'face-against-edge').map((s): JointChoice => ({ site: s.id, joint: 'rabbet', depth: 0.375 })));
+      if (!out.trimmed.includes('Shelf')) { failed.push(`${mm} mm, back ${thin}: not trimmed`); continue; }
+      const after = reload(out.doc).boards.find((b) => b.name === 'Shelf')!;
+      if (after.curves.length !== 1) { failed.push(`${mm} mm, back ${thin}: dropped`); continue; }
+      if (curveKindChoice(after.curves[0]) !== 'notch') failed.push(`${mm} mm, back ${thin}: ${curveKindChoice(after.curves[0])}`);
+      const want = curvePoints(shelf); const got = curvePoints(after);
+      for (const [key, p] of want) p.forEach((v, i) => { if (Math.abs(got.get(key)![i] - v) > 1e-9) failed.push(`${mm} mm, back ${thin}: ${key} moved`); });
+      if ('refused' in gateUnjoin(out.doc)) failed.push(`${mm} mm, back ${thin}: gate refused`);
+      const back = readJoints(out.doc);
+      if ('refused' in back) { failed.push(`${mm} mm, back ${thin}: ${back.refused}`); continue; }
+      const plain = reload({ ...out.doc, boards: back.plain }).boards.find((b) => b.name === 'Shelf')!;
+      if (plain.curves.length !== 1 || curveKindChoice(plain.curves[0]) !== 'notch') failed.push(`${mm} mm, back ${thin}: plain lost the notch`);
+    }
+    expect(failed).toEqual([]);
   });
 });
