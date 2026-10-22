@@ -44,12 +44,13 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
 
 ## Status
 
-- **Production: `100c691`, bundle `index-COsxvOYF.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (the metric notch
-  drop, fu 416, and fu 415's end-face clearance, on joinery features chunk 2; deployed 2026-10-22). Owed to the user: see NEXT.
+- **Production: `1d39344`, bundle `index-bKxsxRuC.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (joinery features chunk 3:
+  Add joinery and Repair accept banded parts; deployed 2026-10-22). Owed to the user: see NEXT.
 - **Rollback cost by schema boundary** (per-round chain: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`):
 
   | Roll back to | Bundle | Schema | Cost |
   |---|---|---|---|
+  | `100c691` (notch drop) | `index-COsxvOYF.js` | 20 | free; joinery refuses banded projects again; a strip counts its full side again |
   | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416); a bowed rail's ends join as butts again (fu 415) |
   | `f3493a7` (joinery chunk 1) | `index-ChnyDt9R.js` | 20 | free; joinery refuses curved/profiled projects again |
   | `98c7df4` (hardware) | `index-BZhrLswD.js` | 20 | free (no schema change); joinery refuses holed projects again |
@@ -61,9 +62,8 @@ hardware counted on parts, assemblies and the project; the cut list's Hardware s
   | `5a9ead8` (edge profiles 1 + fu 388) | `index-B_aEoJl0.js` | 17 | REFUSES every project saved at 18 |
   | `7f851f9` | `index-BZDp6iOz.js` | 16 | REFUSES every project saved at 17 |
 
-- **NEXT (2026-10-22):** joinery features chunk 3 (bands; fu 398's joinery and Repair half) is implemented on branch
-  `joinery-bands`, NOT merged or deployed: merge `--no-ff` to master, verify, then deploy per `DEPLOYMENT.local.md` — the
-  user's call (`docs/rounds.md`). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
+- **NEXT (2026-10-22):** joinery features chunk 3 (bands; fu 398's joinery and Repair half) is DEPLOYED (merge
+  `1d39344`); nothing is pending deploy. Next: no plan yet (fu 419 ask first). Owed to the user: chunk 3's `edge band` summary words, P10/P12–P14, §4.4's change to
   hand-notched banded documents, its spec amendments (`2026-10-21-sloyd-joinery-features-design.md`; Q3–Q5 in §8), the
   paid run; chunk 2's summary-line words and `FEATURE_CHECK_FAILED`'s, and its amendments (the bow correction, superseded
   by fu 415; costs fu 417 and a dadoed bowed end's step); fu 402(1)–(2) (band looks on real hardware, glue lines on a real
