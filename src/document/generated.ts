@@ -388,9 +388,10 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
 /**
  * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1), the ONE decision:
  * the original's (`carry.frame`) for a part with curves, profiles or bands, always (a turn of one is `featureTurned`'s
- * fault); for a part whose ONLY frame features are holes, only while EVERY world extent keeps its rank against the
+ * fault); for a part whose ONLY frame features are holes, only while (1) EVERY world extent keeps its rank against the
  * original's — no pair of world axes strictly ordered one way in the original and strictly the other way in the result
- * (a tie on either side may stay or swap). Otherwise the model turned it (onto another face, or about its thickness
+ * (a tie on either side may stay or swap) — and (2) the world axis carrying `thickness` is still a smallest extent of the
+ * result (ties ok), or the original's thickness was not a smallest extent of the original. Otherwise the model turned it (onto another face, or about its thickness
  * axis in plan), and its holes, written in world words, convert in the frame `orient` gives (the exact-row swap skipped,
  * its stored fields meaning nothing there). Undefined: `orient`.
  */
@@ -398,8 +399,13 @@ function keptFrame(carry: PartCarry | undefined, size: [number, number, number])
   const frame = carry?.frame;
   if (!frame || carry!.curves.length > 0 || carry!.profiles.length > 0 || carry!.bands.length > 0) return frame;
   const e = frame.extents;
-  const inverted = [0, 1, 2].some((i) => [0, 1, 2].some((j) => e[i]! < e[j]! && size[i]! > size[j]!));
-  return inverted ? undefined : frame;
+  // (1) The rank rule (residual R1): no pair of world axes strictly inverted; ties allowed both ways.
+  if ([0, 1, 2].some((i) => [0, 1, 2].some((j) => e[i]! < e[j]! && size[i]! > size[j]!))) return undefined;
+  // (2) The tie clause (re-review): an original TIED at its smallest extent passes (1) whatever comes back, so the
+  // thickness's world axis must still be a smallest extent of the result (ties ok) — unless the original's thickness was
+  // not a smallest extent of the original (an oddly encoded original stays as it was on an echo, fu 428 (9)).
+  const k = axisDimensions({ posture: frame.posture, rotation: frame.rotation } as Board).indexOf('thickness');
+  return size[k] === Math.min(...size) || e[k] !== Math.min(...e) ? frame : undefined;
 }
 
 /**

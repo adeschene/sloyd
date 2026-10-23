@@ -469,6 +469,28 @@ describe('a holes-only part the model turned (final review C1) and the stored ro
     }
   });
 
+  // Re-review (tie clause): an original TIED at its smallest extent lets the rank rule through, so the frame is also kept only
+  // when the thickness's world axis is still a smallest extent of the result (or the original's thickness was not a smallest).
+  it.each([
+    ['a 4 x 4 x 4 block (on-edge) returned 0.75 x 20 x 4', { length: 4, width: 4, thickness: 4, posture: 'on-edge' as const }, [0.75, 20, 4]],
+    ['a 4 x 4 x 4 block (on-edge) returned 0.75 x 4 x 4', { length: 4, width: 4, thickness: 4, posture: 'on-edge' as const }, [0.75, 4, 4]],
+    ['a 4 x 4 x 4 block (on-edge) returned 4 x 0.75 x 4', { length: 4, width: 4, thickness: 4, posture: 'on-edge' as const }, [4, 0.75, 4]],
+    ['a 1.5 x 30 x 1.5 leg returned 1.25 x 30 x 1.5', { length: 30, width: 1.5, thickness: 1.5, posture: 'upright' as const }, [1.25, 30, 1.5]],
+  ] as const)('tie clause: %s is encoded like its plain twin', (_name, dims, after) => {
+    const ROW: HoleRow = { id: 'b1', face: 'width', from: 'min', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'min', station: 0.5, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.5 };
+    const holed = createBoard({ name: 'Block', ...dims, holes: [ROW] });
+    const twin = createBoard({ name: 'Twin', ...dims, position: [0, 0, 40] });
+    const original = project([holed, twin]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: after[0], y: after[1], z: after[2] }, holes: [] })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Block')!;
+    const t = byName(out.doc).get('Twin')!;
+    const pick = (b: Board) => [b.posture, b.rotation, b.length, b.width, b.thickness];
+    expect(boardExtents(r)).toEqual([...after]);
+    expect(pick(r)).toEqual(pick(t));
+    expect(r.thickness).toBe(Math.min(...after));
+  });
+
   /** Residual (9): flat 20 x 1 x 3 — its stored thickness (3) is NOT its smallest extent. */
   const odd = () => createBoard({ name: 'Odd', length: 20, width: 1, thickness: 3, holes: [{ id: 'q1', face: 'width', from: 'max', diameter: 0.25, depth: 0.5, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 }] });
   it('(9): echoed, a holes-only part whose stored thickness is not its smallest extent keeps its encoding and its row exactly', () => {

@@ -267,13 +267,19 @@ Rulings made while building, on branch `ai-holes` (2026-10-23). Where one differ
   encoded by `orient`, the exact-row swap is skipped, and its holes convert from the model's world words in the new frame. Parts with curves,
   profiles or bands keep the frame always (`featureTurned` covers them). One decision, `keptFrame`, where `convertPart` picks the frame.
   Without it an upright 0.75 x 30 x 11.25 side returned lying flat was stored with thickness 11.25, silently.
-- **Superseded by the rank rule (§3.3; residual R1, the user's approval, 2026-10-23).** A holes-only part keeps the carried frame only when
+- **Superseded by the rank rule (§3.3; residual R1, 2026-10-23: the user approved fixing R1 ("Fix it, then merge"); the rank rule, the narrowed §3.2 taper guarantee and the tie clause are the controller's rulings).** A holes-only part keeps the carried frame only when
   EVERY world extent keeps its rank against the original's (the result's axes sorted by extent in the original's order; a tie on either
   side may stay or swap). C1's thickness-only test missed a turn ABOUT the thickness axis: a flat 30 x 12 shelf returned with 30 and 12
   swapped in plan kept flat/0 and was stored length 12, width 30, grain across, while its plain twin re-oriented to flat/90. Otherwise
   `orient`, no exact-row swap, as for C1. A holes-only part whose stored thickness is not its smallest extent, echoed, keeps its frame
   (rank unchanged). A holes-only tapered part widened past its length is now oriented like its plain twin and its taper's `along` fault is
   fed back (refine-features spec, Amended).
+- **The tie clause (§3.3; re-review, 2026-10-23, a controller ruling).** The rank rule alone lets an original TIED at its smallest extent
+  through whatever comes back (a 4 x 4 x 4 block returned 0.75 x 20 x 4 was kept as L 0.75, W 20, T 4; a 1.5 x 30 x 1.5 leg returned
+  1.25 x 30 x 1.5 kept width 1.25, thickness 1.5). So a holes-only part keeps the frame only when (1) no pair of world extents strictly
+  inverts (the rank rule, ties allowed) AND (2) the world extent carrying the frame's `thickness` is a smallest extent of the result (ties
+  ok), OR the original's thickness was not a smallest extent of the original (the fu 428 (9) carve-out: an oddly encoded original stays as
+  it was on an echo). Otherwise `orient`, no exact-row swap.
 - **The hole grid applies to the STORED distances, not the world offsets (§3.1; final review I1).** `holeRowsFor` computes the raw local
   positions from the model's numbers, chooses the canonical end and side (reversing in raw numbers), then snaps the station (from the
   measured end), the inset (from the measured side), depth, pitch and diameter with `holeSnap`. A value whose world-offset source is in the

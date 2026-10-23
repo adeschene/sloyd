@@ -285,9 +285,9 @@ back to Claude as a fault (§4 as written); (3) carry, not authoring, for this r
 - **§5, person-facing nouns.** The done view's words use an article-free list (`holes`, `curve(s)`, `edge profile(s)`, `edging`,
   `hardware`; `X`, `X and Y`, `X, Y and Z`) with verb agreement (`nounsText`); the model-facing note and `feature-turned` message keep
   the article forms (`kindsText`), and the message's extent is rounded to three places.
-- **§3.2's "taper kept with no fault" now covers only parts with curves, profiles or bands (AI-holes residual R1, ruling (a), 2026-10-23).**
+- **§3.2's "taper kept with no fault" now covers only parts with curves, profiles or bands (AI-holes residual R1, 2026-10-23).**
   Since AI-holes, holes are authored in world words, not carried, and a holes-only part keeps the original's frame only while every world
   extent keeps its rank (`keptFrame`). A resize that swaps two extents' rank (a tapered side widened past its length) cannot be told from
   a turn in plan, so a holes-only part is oriented like its plain twin and its taper's `along` fault goes back to the model — rather than
-  keeping a frame in which, for a real turn, the grain would silently run the other way. This guarantee was the controller's call, not a
-  user ruling.
+  keeping a frame in which, for a real turn, the grain would silently run the other way. The original guarantee was the controller's call,
+  not a user ruling; the user approved fixing R1 ("Fix it, then merge"); the rank rule, the narrowed §3.2 taper guarantee and the tie clause are the controller's rulings.

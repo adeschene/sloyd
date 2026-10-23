@@ -7022,13 +7022,15 @@ is the one frame decision and `restoreHoles` takes the originals it allows; the 
 sides link at D = 10 and D = 11.8125 (roleLinks.test). The same wave fixed the final review's C1 (a holes-only part the model turned is
 `orient`ed), I2 (stored numbers checked finite and within MAX_MAGNITUDE after the grid), M1/M2 (diff wording), M3 (a no-op Refine keeps the
 stored row order) and M4 (turnCandidates' positional ids documented). (1), (2), (5)–(10) remain open (record-only).
-**Status:** (9) CLOSED on branch `ai-holes` (2026-10-23) by the rank rule, residual R1 (the user's approval): an echoed holes-only part
-whose stored thickness is not its smallest extent keeps its rank order, so it keeps its frame, encoding and row exactly (flat 20 x 1 x 3,
+**Status:** (9) CLOSED on branch `ai-holes` (2026-10-23) by the rank rule, residual R1 (the user approved fixing R1 ("Fix it, then merge"); the rank rule, the narrowed §3.2 taper guarantee and the tie clause are the controller's rulings): an echoed holes-only part
+whose stored thickness is not its smallest extent keeps its rank order (and the tie clause's carve-out), so it keeps its frame, encoding and row exactly (flat 20 x 1 x 3,
 tested; really turned to 3 x 20 x 1 it is oriented). The bare `featureTurned` precondition was not used (the re-review showed it unsafe).
 (11) Residual R1 (re-review, 2026-10-23): C1's thickness-only test kept the frame for a holes-only part turned ABOUT its thickness axis
 (a flat 30 x 12 shelf, 30 and 12 swapped in plan, stored flat/0 length 12 width 30, grain across, cut list changed silently).
-**CLOSED** the same day: `keptFrame` keeps a holes-only part's frame only when every world extent keeps its rank (ties both ways), else
-`orient` like the plain twin, no exact-row swap; tested (the R1 probe, ties both ways, the (9) pair) and mutated. A holes-only tapered part
+**CLOSED** the same day: `keptFrame` keeps a holes-only part's frame only when every world extent keeps its rank (ties both ways) AND
+(the tie clause, re-review) its thickness's world axis is still a smallest extent unless the original's thickness was not its smallest,
+else `orient` like the plain twin, no exact-row swap; tested (the R1 probe, ties both ways, the (9) pair, a tied 4 x 4 x 4 block and a
+1.5 x 30 x 1.5 leg against their plain twins) and mutated. A holes-only tapered part
 widened past its length is now oriented and its taper fault fed back (refine-features spec, Amended). The plan-turn gap for parts WITH
 curves, profiles or bands (they keep the frame always; `featureTurned` does not see a plan turn) stays fu 425. (1), (2), (5)–(8) and (10)
 remain open (record-only).
