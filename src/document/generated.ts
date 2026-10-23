@@ -1,18 +1,18 @@
 import { linkByRole } from './roleLinks';
 import { createDocument, migrateDocument } from './document';
 import type { SloydDocument } from './document';
-import { DIMENSION_ORDER, SNAP_INCHES, axisDimensions } from './geometry';
+import { DIMENSION_ORDER, MAX_MAGNITUDE, SNAP_INCHES, axisDimensions } from './geometry';
 import { nextId } from './ids';
 import { cleanName as clean, uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
 import { DIRS, taperCutsFor } from './taperWorld';
-import type { WorldTaper } from './taperWorld';
+import type { Dir, WorldTaper } from './taperWorld';
 import { angleCutsFor, sortAngleCuts } from './angleWorld';
 import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
 import { builtInCatalog } from './materials';
 import type { MaterialCatalog } from './materials';
-import { copyHoleRow } from './holes';
+import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
@@ -30,9 +30,13 @@ export interface Vec3 { x: number; y: number; z: number }
 export type MaterialKey = string;
 /** TS-only (never in the schema; parseDesign's fresh object drops it). Set by Refine's carryFromOriginal. */
 export interface PartCarry {
-  /** Present iff any hole, curve, profile or band is carried: the ORIGINAL part's encoding (spec §3.2). */
-  frame?: { posture: Posture; rotation: Rotation };
-  holes: HoleRow[]; curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
+  /** Present iff the original has any hole, curve, profile or band: the ORIGINAL part's encoding (spec §3.2) and its world
+   *  extents (`boardExtents`), which `keptFrame` ranks a holes-only part's returned box against (residual R1). */
+  frame?: { posture: Posture; rotation: Rotation; extents: [number, number, number] };
+  /** The original's stored hole rows, for the exact-row map only (AI-holes spec §3.3): never written to the output as
+   *  such — the model authors holes; a returned row that IS one of these, on the new part, is restored as it was. */
+  originalHoles: HoleRow[];
+  curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
 }
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
@@ -48,7 +52,15 @@ export interface GeneratedPart {
   miters?: WorldMiter[];
   bevels?: WorldBevel[];
   chamfers?: WorldChamfer[];
+  /** Required from the model (parseDesign checks it); optional here like `tapers` (AI-holes spec §2.1). */
+  holes?: WorldHoleRow[];
 }
+/**
+ * One hole row in world words (AI-holes spec §2.1): drilled into `face`, the FIRST centre at `offset` from the part's
+ * `at` along the world axes (on the face plane), continuing `toward` for `count` holes `pitch` apart. `through` means
+ * `depth` is ignored. The converter (holeWorld.ts) derives the stored `HoleRow` and checks every number.
+ */
+export interface WorldHoleRow { face: Dir; diameter: number; depth: number; through: boolean; offset: Vec3; toward: Dir; count: number; pitch: number }
 /** Where an assembly's local origin goes in the world. No turn (spec §2). */
 export interface GeneratedPlacement { name: string; at: Vec3 }
 /** Parts in the assembly's OWN frame, placed by translation; one level, parts only. */
@@ -57,8 +69,8 @@ export interface AssemblyCarry { hardware: HardwareUse[] }
 export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[]; carry?: AssemblyCarry }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
-/** `detail` is the whole message, set for `'taper'` and `'angle'`. */
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle'; detail?: string }
+/** `detail` is the whole message, set for `'taper'`, `'angle'` and `'hole'`. */
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole'; detail?: string }
 
 const vec3Schema = {
   type: 'object',
@@ -97,6 +109,16 @@ const chamferSchema = {
   required: ['edge', 'legs'],
   additionalProperties: false,
 };
+/** One hole row in world words (AI-holes spec §2.1); the converter checks directions and numbers. */
+const holeSchema = {
+  type: 'object',
+  properties: {
+    face: dirSchema, diameter: { type: 'number' }, depth: { type: 'number' }, through: { type: 'boolean' },
+    offset: vec3Schema, toward: dirSchema, count: { type: 'number' }, pitch: { type: 'number' },
+  },
+  required: ['face', 'diameter', 'depth', 'through', 'offset', 'toward', 'count', 'pitch'],
+  additionalProperties: false,
+};
 
 /** The part, its material enum from a catalog's ids: the built-ins (from MATERIALS, so a new built-in reaches the model
  *  with no second edit), then a project's custom materials for Refine. Key order is pinned byte for byte (fu 322). */
@@ -112,8 +134,9 @@ const partSchemaFor = (materials: readonly string[]) => ({
     miters: { type: 'array', items: miterSchema },
     bevels: { type: 'array', items: bevelSchema },
     chamfers: { type: 'array', items: chamferSchema },
+    holes: { type: 'array', items: holeSchema },
   },
-  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers'],
+  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes'],
   additionalProperties: false,
 });
 
@@ -175,13 +198,15 @@ const isBevel = (m: unknown): boolean => isObj(m) && isDir(m.face) && isDir(m.lo
 // Arrays cannot be length-constrained in the schema: exactly two of each here.
 const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && m.edge.length === 2 && m.edge.every(isDir) &&
   Array.isArray(m.legs) && m.legs.length === 2 && m.legs.every((n) => typeof n === 'number');
+const isHole = (h: unknown): boolean => isObj(h) && isDir(h.face) && isDir(h.toward) && typeof h.through === 'boolean' &&
+  isVec3(h.offset) && (['diameter', 'depth', 'count', 'pitch'] as const).every((k) => typeof h[k] === 'number');
 
 const isPart = (p: unknown, catalog: MaterialCatalog): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
   catalog.get(p.material) !== undefined && isVec3(p.at) && isVec3(p.size) &&
   Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
   Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
-  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer);
+  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole);
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
 const isAssembly = (a: unknown, catalog: MaterialCatalog): boolean =>
   isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog)) &&
@@ -194,7 +219,9 @@ const partOf = (o: unknown): GeneratedPart => {
     tapers: (p.tapers ?? []).map((t) => ({ faces: [...t.faces], toward: t.toward, start: t.start, amount: t.amount })),
     miters: (p.miters ?? []).map((m) => ({ end: m.end, longPoint: m.longPoint, angle: m.angle })),
     bevels: (p.bevels ?? []).map((m) => ({ face: m.face, longPoint: m.longPoint, angle: m.angle })),
-    chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })) };
+    chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })),
+    holes: (p.holes ?? []).map((h) => ({ face: h.face, diameter: h.diameter, depth: h.depth, through: h.through, offset: vec(h.offset),
+      toward: h.toward, count: h.count, pitch: h.pitch })) };
 };
 
 /**
@@ -225,12 +252,8 @@ export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCat
 
 const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 
-/**
- * Largest |coordinate| or |size| (inches) a model number may have after
- * snapping. Finite but astronomical values overflow the centring shift below
- * (`min + max`), which would crash validation or silently drop an instance.
- */
-export const MAX_MAGNITUDE = 10_000;
+/** Re-exported: its home is geometry.ts, so holeWorld.ts can read it without an import cycle (final review I2). */
+export { MAX_MAGNITUDE };
 const usable = (v: number) => Number.isFinite(v) && Math.abs(v) <= MAX_MAGNITUDE;
 
 
@@ -310,9 +333,10 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
+  // A part carrying a board-local feature keeps the original's frame (spec §3.2); everything else is encoded by orient.
+  const frame = keptFrame(p.carry, [sx, sy, sz]);
   const fields = { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az] as Vec,
-    // A part carrying a board-local feature keeps the original's frame (spec §3.2); everything else is encoded by orient.
-    ...(p.carry?.frame ? frameFor([sx, sy, sz], p.carry.frame) : orient([sx, sy, sz])) };
+    ...(frame ? frameFor([sx, sy, sz], frame) : orient([sx, sy, sz])) };
   // Tapers (spec §2.1): numbers snapped as size is, unless exact; checked after the snap; mapped through taperWorld.
   const tapers = (p.tapers ?? []).map((t) => ({ ...t, start: exact?.has(t.start) ? t.start : snap(t.start), amount: exact?.has(t.amount) ? t.amount : snap(t.amount) }));
   if (!tapers.every((t) => usable(t.start) && usable(t.amount))) {
@@ -343,14 +367,66 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has angle cuts that together leave no wood.` });
     return null;
   }
+  // Hole rows (AI-holes spec §3.1): converted on the part as encoded (the carried frame, or orient's); a SHAPE fault
+  // rejects the part, a strict fault (holeFaults) does not — the row is stored and holeDesignFaults flags it.
+  const derived = holeRowsFor({ ...board, angleCuts }, p.holes ?? [], exact);
+  if ('fault' in derived) {
+    rejected.push({ name: label, reason: 'hole', detail: `${label} ${derived.fault}.` });
+    return null;
+  }
+  const holes = restoreHoles({ ...board, angleCuts }, derived.rows, frame ? p.carry!.originalHoles : []);
   // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
   // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
   const c = p.carry;
   return {
     ...fields, angleCuts,
-    holes: c ? c.holes.map(copyHoleRow) : [], curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
+    holes, curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
     bands: c ? c.bands.map(copyBand) : [], cornerRule: c ? c.cornerRule : 'long', hardware: c ? c.hardware.map(copyHardwareUse) : [],
   };
+}
+
+/**
+ * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1), the ONE decision:
+ * the original's (`carry.frame`) for a part with curves, profiles or bands, always (a turn of one is `featureTurned`'s
+ * fault); for a part whose ONLY frame features are holes, only while (1) EVERY world extent keeps its rank against the
+ * original's — no pair of world axes strictly ordered one way in the original and strictly the other way in the result
+ * (a tie on either side may stay or swap) — and (2) the world axis carrying `thickness` is still a smallest extent of the
+ * result (ties ok), or the original's thickness was not a smallest extent of the original. Otherwise the model turned it (onto another face, or about its thickness
+ * axis in plan), and its holes, written in world words, convert in the frame `orient` gives (the exact-row swap skipped,
+ * its stored fields meaning nothing there). Undefined: `orient`.
+ */
+function keptFrame(carry: PartCarry | undefined, size: [number, number, number]): PartCarry['frame'] {
+  const frame = carry?.frame;
+  if (!frame || carry!.curves.length > 0 || carry!.profiles.length > 0 || carry!.bands.length > 0) return frame;
+  const e = frame.extents;
+  // (1) The rank rule (residual R1): no pair of world axes strictly inverted; ties allowed both ways.
+  if ([0, 1, 2].some((i) => [0, 1, 2].some((j) => e[i]! < e[j]! && size[i]! > size[j]!))) return undefined;
+  // (2) The tie clause (re-review): an original TIED at its smallest extent passes (1) whatever comes back, so the
+  // thickness's world axis must still be a smallest extent of the result (ties ok) — unless the original's thickness was
+  // not a smallest extent of the original (an oddly encoded original stays as it was on an echo, fu 428 (9)).
+  const k = axisDimensions({ posture: frame.posture, rotation: frame.rotation } as Board).indexOf('thickness');
+  return size[k] === Math.min(...size) || e[k] !== Math.min(...e) ? frame : undefined;
+}
+
+/**
+ * The exact-row map (AI-holes spec §3.3): each re-derived row is swapped for the first UNUSED original row of the same
+ * part that drills the same holes on the NEW part (`sameHoles`), kept as it was — its id, `alongFrom`, `acrossFrom` and
+ * numbers — so an untouched row (or one on a part that only moved) comes back exactly, however a person measured it.
+ * `originals` is empty unless the part kept the original's frame (`keptFrame`): the stored fields mean nothing in
+ * another. Every other row gets a fresh id. When EVERY row is restored and none is added or dropped, the ORIGINAL stored
+ * order is kept (final review M3: Plans letters and the Holes panel follow `b.holes`' order); otherwise the rows are
+ * sorted canonically after the swap (a swapped row's fields can sort apart).
+ */
+function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], originals: readonly HoleRow[]): HoleRow[] {
+  const used = new Set<number>();
+  const out = rows.map((r): HoleRow => {
+    const i = originals.findIndex((o, k) => !used.has(k) && sameHoles(o, r, board));
+    if (i < 0) return { id: nextId(), ...r };
+    used.add(i);
+    return { ...originals[i]! };
+  });
+  if (originals.length > 0 && used.size === rows.length && rows.length === originals.length) return originals.map((o) => ({ ...o }));
+  return sortHoleRows(out);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carryFromOriginal, featureTurned, featuredKinds, hasFrameFeatures } from './featureCarry';
+import { carriedKinds, carryFromOriginal, featureTurned, featuredKinds, hasFrameFeatures } from './featureCarry';
 import { flatDocument } from './tree';
 import { designToDocument, parseDesign } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
@@ -43,9 +43,9 @@ describe('carryFromOriginal', () => {
     const doc = withFeatures(base, base.boards[0]!.id, { ...FEATURES, posture: 'on-edge', rotation: 180 });
     const out = carryFromOriginal({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1])], assemblies: [] }, doc);
     const c = out.parts[0]!.carry!;
-    expect(c.frame).toEqual({ posture: 'on-edge', rotation: 180 });
+    expect(c.frame).toEqual({ posture: 'on-edge', rotation: 180, extents: [20, 4, 1] });
     const o = doc.boards[0] as Board;
-    expect(c.holes).toEqual(o.holes); expect(c.holes).not.toBe(o.holes); expect(c.holes[0]).not.toBe(o.holes[0]);
+    expect(c.originalHoles).toEqual(o.holes); expect(c.originalHoles).not.toBe(o.holes); expect(c.originalHoles[0]).not.toBe(o.holes[0]);
     expect(c.curves).toEqual(o.curves); expect(c.curves[0]).not.toBe(o.curves[0]);
     expect(c.profiles).toEqual(o.profiles); expect(c.profiles[0]).not.toBe(o.profiles[0]);
     expect(c.bands).toEqual(o.bands); expect(c.bands[0]).not.toBe(o.bands[0]);
@@ -60,12 +60,12 @@ describe('carryFromOriginal', () => {
     expect(shaped.shapes).toHaveLength(1);
     const out = carryFromOriginal({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1])], assemblies: [] }, shaped);
     const c = out.parts[0]!.carry!;
-    expect(c.holes).toEqual(shaped.shapes[0]!.holes);
+    expect(c.originalHoles).toEqual(shaped.shapes[0]!.holes);
     expect(c.curves).toEqual(shaped.shapes[0]!.curves);
     expect(c.profiles).toEqual(shaped.shapes[0]!.profiles);
     expect(c.bands).toEqual(shaped.shapes[0]!.bands);
     expect(c.hardware).toEqual(shaped.shapes[0]!.hardware);
-    expect(c.holes).not.toBe(shaped.shapes[0]!.holes);
+    expect(c.originalHoles).not.toBe(shaped.shapes[0]!.holes);
   });
 
   // Two definitions (A placed as Left, B as Right) with different features and hardware, so first-match is observable.
@@ -85,9 +85,9 @@ describe('carryFromOriginal', () => {
 
   it('an assembly part tries each placement in order', () => {
     const doc = twoDefs();
-    expect(carryFromOriginal(model(['Right', 'Left']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hB');
-    expect(carryFromOriginal(model(['Left', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hA');
-    expect(carryFromOriginal(model(['Nope', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hB');
+    expect(carryFromOriginal(model(['Right', 'Left']), doc).assemblies![0]!.parts[0]!.carry!.originalHoles[0]!.id).toBe('hB');
+    expect(carryFromOriginal(model(['Left', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.originalHoles[0]!.id).toBe('hA');
+    expect(carryFromOriginal(model(['Nope', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.originalHoles[0]!.id).toBe('hB');
     expect(carryFromOriginal(model(['Right']), doc).assemblies![0]!.parts[0]!.carry!.frame).toBeDefined();
   });
 
@@ -123,6 +123,9 @@ describe('carryFromOriginal', () => {
     const f = { ...b, ...FEATURES } as Board;
     expect(featuredKinds(f)).toEqual(['holes', 'curves', 'profiles', 'bands', 'hardware']);
     expect(hasFrameFeatures(f)).toBe(true);
+    expect(carriedKinds(f)).toEqual(['curves', 'profiles', 'bands', 'hardware']);
+    expect(carriedKinds({ ...b, holes: [HOLE] })).toEqual([]);
+    expect(hasFrameFeatures({ ...b, holes: [HOLE] })).toBe(true);
     expect(featuredKinds({ ...b, hardware: [{ type: 'h', count: 1 }] })).toEqual(['hardware']);
     expect(hasFrameFeatures({ ...b, hardware: [{ type: 'h', count: 1 }] })).toBe(false);
   });
@@ -145,12 +148,13 @@ describe('featureTurned', () => {
     return flatDocument(extra ? withFeatures(base, base.boards[0]!.id, extra) : base);
   };
   const orig = flat([20, 4, 1], { holes: [HOLE], profiles: [PROFILE], bands: FEATURES.bands });
+  const holed = flat([20, 4, 1], { holes: [HOLE] });
 
   it('sends back a featured side returned lying flat, in the exact words', () => {
     const out = featureTurned(flat([20, 1, 4]), orig);
     expect(out).toEqual([{ kind: 'feature-turned', parts: ['Side'],
-      message: 'Side carries holes, an edge profile, edging Sloyd keeps on the part; keep it the same way round, 1in along z.',
-      shown: 'Side was turned onto another face; its holes, edge profile and edging are now on the wrong faces.' }]);
+      message: 'Side carries an edge profile, edging Sloyd keeps on the part; keep it the same way round, 1in along z.',
+      shown: 'Side was turned onto another face; its edge profile and edging are now on the wrong faces.' }]);
   });
   it('the person-facing words agree in number: one curve or one profile is singular, a count above one plural', () => {
     expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH] }))[0]!.shown).toBe('Side was turned onto another face; its curve is now on the wrong faces.');
@@ -158,7 +162,7 @@ describe('featureTurned', () => {
     expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH, { ...ARCH, id: 'c2' }] }))[0]!.shown).toBe('Side was turned onto another face; its curves are now on the wrong faces.');
   });
   it('a tied original: only a turn that leaves every smallest axis is a fault (spec §4)', () => {
-    const leg = flat([30, 1.5, 1.5], { holes: [HOLE] });
+    const leg = flat([30, 1.5, 1.5], { holes: [HOLE], curves: [ARCH] });
     // thickened along the thickness axis only (z), then only along the width axis (y): a smallest axis remains
     expect(featureTurned(flat([30, 1.5, 2]), leg)).toEqual([]);
     expect(featureTurned(flat([30, 2, 1.5]), leg)).toEqual([]);
@@ -168,7 +172,14 @@ describe('featureTurned', () => {
     expect(featureTurned(flat([1, 30, 30]), leg)).toHaveLength(1);
   });
   it('a flat 20 x 1 x 6 board returned on edge still faults', () => {
-    expect(featureTurned(flat([20, 1, 6]), flat([20, 6, 1], { holes: [HOLE] }))).toHaveLength(1);
+    expect(featureTurned(flat([20, 1, 6]), flat([20, 6, 1], { holes: [HOLE], curves: [ARCH] }))).toHaveLength(1);
+  });
+  it('a holes-only part is not judged; holes plus a curve still is, naming only the curve', () => {
+    expect(featureTurned(flat([20, 1, 4]), holed)).toEqual([]);
+    const out = featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { holes: [HOLE], curves: [ARCH] }));
+    expect(out).toHaveLength(1);
+    expect(out[0]!.message).toContain('Side carries a curve Sloyd');
+    expect(out[0]!.shown).toBe('Side was turned onto another face; its curve is now on the wrong faces.');
   });
   it('counts curves and profiles by how many the part has', () => {
     const two = flat([20, 4, 1], { curves: [ARCH, { ...ARCH, id: 'c2' }], profiles: [PROFILE, { ...PROFILE, id: 'p2' }] });
@@ -203,7 +214,7 @@ describe('featureTurned', () => {
 describe('featureTurned message floats', () => {
   it('rounds a computed extent to three places, as designCheck does', () => {
     const base = designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 0.1 + 0.2])] }).doc;
-    const orig = flatDocument(withFeatures(base, base.boards[0]!.id, { holes: [HOLE], thickness: 0.1 + 0.2 }));
+    const orig = flatDocument(withFeatures(base, base.boards[0]!.id, { holes: [HOLE], curves: [ARCH], thickness: 0.1 + 0.2 }));
     const back = flatDocument(designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 0.1 + 0.2, 4])] }).doc);
     const out = featureTurned(back, orig);
     expect(out[0]!.message).toContain('keep it the same way round, 0.3in along z.');

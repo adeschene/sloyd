@@ -1,6 +1,6 @@
 # Sloyd: Generate and Refine author hole rows
 
-**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions).
+**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions); implemented on branch `ai-holes` (not yet merged).
 **Builds on:** the holes spec (`2026-10-14-sloyd-holes-design.md`: the stored `HoleRow`, `holeFaults`), the AI-angles spec
 (`2026-10-13-sloyd-ai-angles-design.md`: the pattern this follows, world words in the design schema, one converter
 module, exact round trips for Refine), and the refine-features spec (`2026-10-22-sloyd-refine-features-design.md`: Refine
@@ -242,3 +242,50 @@ and stored exactly. The questions as asked:
    part as an angle fault does? Rejecting can lose a part if the model never fixes it.
 3. **Prompt defaults (§6):** imperial (1/4in pins, 1-1/4in apart), with the 32 mm system written as 1.26 and stored as
    exact millimetres. Or should cabinets default to the 32 mm system?
+
+## Amended (execution)
+
+Rulings made while building, on branch `ai-holes` (2026-10-23). Where one differs from the text above, this block wins.
+
+- **Canonical direction has a fallback (§3.1).** A row is stored `alongFrom: 'min'` EXCEPT when a loader-legal row cannot be expressed from min
+  (its min-most hole lies past the min end): then it is stored from `'max'`. The across side is the nearer one, falling back to the far side
+  when the centre lies past the nearer. Needed so every loader-kept (faulted) row round-trips.
+- **`sameHoles` compares centres as a SET**, not by index, so a max-stored original matches its canonical re-derivation in the exact-row map.
+- **`holeDesignFaults` lives in its own module** (`src/document/holeDesignFaults.ts`), because its `shown` copy goes through `holeText` (the
+  `-> units` edge) and `holeWorld.ts` stays model-facing and units-free.
+- **The hole-fault message includes the row's first centre** (§3.1: key = face + first centre + kind): "<Part>'s hole row on <face> starting at
+  x, y, z in <phrase>." `problemKey` includes the message for this kind, and `collapseViolations` groups hole-faults by message minus the
+  part-name prefix, so two different faults on one part are never merged.
+- **`turnCandidates` passes an exact set** (the part's own `worldHoles` numbers) to `holeRowsFor`, so a re-stored row never snaps: a turn must
+  not move a hole. Parts with curves, profiles or bands still never turn.
+- **The model-facing NOTE drops "holes,"** from its list of carried features: holes are in the format now. `PartCarry.holes` is gone;
+  `PartCarry.originalHoles` (in the carried frame) feeds the exact-row swap.
+- **The prompt's word is "drilled"** for hole rows.
+- **Compiled form (fu 322):** first probe, no fallback; the Refine form with the catalog is 2,952 chars; request `req_011CgJGkuYyCJ51nxdbdHDTn`.
+- **A holes-only part the model turned is oriented (§3.3, §4; final review C1).** A part whose ONLY frame features are holes keeps the carried
+  frame only while the returned box's extent on the ORIGINAL thickness world axis is still a smallest extent (ties allowed). Otherwise it is
+  encoded by `orient`, the exact-row swap is skipped, and its holes convert from the model's world words in the new frame. Parts with curves,
+  profiles or bands keep the frame always (`featureTurned` covers them). One decision, `keptFrame`, where `convertPart` picks the frame.
+  Without it an upright 0.75 x 30 x 11.25 side returned lying flat was stored with thickness 11.25, silently.
+- **Superseded by the rank rule (§3.3; residual R1, 2026-10-23: the user approved fixing R1 ("Fix it, then merge"); the rank rule, the narrowed §3.2 taper guarantee and the tie clause are the controller's rulings).** A holes-only part keeps the carried frame only when
+  EVERY world extent keeps its rank against the original's (the result's axes sorted by extent in the original's order; a tie on either
+  side may stay or swap). C1's thickness-only test missed a turn ABOUT the thickness axis: a flat 30 x 12 shelf returned with 30 and 12
+  swapped in plan kept flat/0 and was stored length 12, width 30, grain across, while its plain twin re-oriented to flat/90. Otherwise
+  `orient`, no exact-row swap, as for C1. A holes-only part whose stored thickness is not its smallest extent, echoed, keeps its frame
+  (rank unchanged). A holes-only tapered part widened past its length is now oriented like its plain twin and its taper's `along` fault is
+  fed back (refine-features spec, Amended).
+- **The tie clause (§3.3; re-review, 2026-10-23, a controller ruling).** The rank rule alone lets an original TIED at its smallest extent
+  through whatever comes back (a 4 x 4 x 4 block returned 0.75 x 20 x 4 was kept as L 0.75, W 20, T 4; a 1.5 x 30 x 1.5 leg returned
+  1.25 x 30 x 1.5 kept width 1.25, thickness 1.5). So a holes-only part keeps the frame only when (1) no pair of world extents strictly
+  inverts (the rank rule, ties allowed) AND (2) the world extent carrying the frame's `thickness` is a smallest extent of the result (ties
+  ok), OR the original's thickness was not a smallest extent of the original (the fu 428 (9) carve-out: an oddly encoded original stays as
+  it was on an echo). Otherwise `orient`, no exact-row swap.
+- **The hole grid applies to the STORED distances, not the world offsets (§3.1; final review I1).** `holeRowsFor` computes the raw local
+  positions from the model's numbers, chooses the canonical end and side (reversing in raw numbers), then snaps the station (from the
+  measured end), the inset (from the measured side), depth, pitch and diameter with `holeSnap`. A value whose world-offset source is in the
+  exact set is kept unsnapped, but any computed distance within 1e-9 of its grid value takes the grid value even on the exact path (inset
+  drift). Every stored number is then checked finite and within MAX_MAGNITUDE (I2), a failure rejecting the part with reason `'hole'`.
+- **A no-op Refine keeps the stored row order (§3.3; final review M3).** When EVERY returned row on a part is restored by the exact-row map
+  and the counts are equal, the ORIGINAL stored order is kept (Plans callout letters follow `b.holes`' order); otherwise canonical.
+- **Diff wording (§4; final review M1, M2).** A direction change reads `now running toward <dir>`, and only between two rows of more than
+  one hole (a single bore grown into a row is not "moved"); a row shrunk to one reads `now 1 hole`.

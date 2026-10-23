@@ -5,7 +5,7 @@ import type { Board, FlatDocument, SloydDocument } from '../../document/document
 import { flatDocument, groupItems, migrateDocument, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
-import { joineryEstimateUsd, runJoinery } from '../run';
+import { joineryEstimateUsd, problemKey, runJoinery } from '../run';
 import { JOINERY_PROMPT, JOINT_SCHEMA } from './choose';
 import { createHash } from 'node:crypto';
 import type { HoleRow } from '../../document/types';
@@ -399,7 +399,7 @@ describe('runJoinery — twins that get DIFFERENT joints', () => {
 
 describe('runJoinery — alsoPresent', () => {
   it('a problem in alsoPresent is preexisting: not new, no repair call', async () => {
-    const collide = JSON.stringify(['overlap', ['Rail X', 'Rail Z']]);
+    const collide = problemKey({ kind: 'overlap', message: '', parts: ['Rail X', 'Rail Z'] });
     const c = client(long, short);
     const out = await runJoinery(c, CORNER, new AbortController().signal, () => {}, { alsoPresent: new Set([collide]) });
     if ('noSites' in out || 'refused' in out) throw new Error('sites');
@@ -542,7 +542,7 @@ describe('runJoinery — kept joints that collide are re-opened (refine-joined s
   it('a problem the caller already had (alsoPresent) re-opens nothing: no call', async () => {
     const c = client(shortAnswer);
     const out = await runJoinery(c, THIN, new AbortController().signal, () => {}, {
-      fixed: recorded, alsoPresent: new Set([JSON.stringify(['overlap', ['Rail X', 'Rail Z']])]),
+      fixed: recorded, alsoPresent: new Set([problemKey({ kind: 'overlap', message: '', parts: ['Rail X', 'Rail Z'] })]),
     });
     if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).not.toHaveBeenCalled();

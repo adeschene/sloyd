@@ -84,10 +84,14 @@ export function holePitchText(r: HoleRow, units: Units): string {
   return `${holeLengthText(r.pitch, units, 'pitch')}${isMetric(units) ? '' : mm(r.pitch)}`;
 }
 
+/** The face a row is drilled into, as the bench names it ("the thickness face (max side)"): the bench line and the
+ *  design fault's person copy (AI-holes spec §3.1) read it here. */
+export const holeFaceText = (r: Pick<HoleRow, 'face' | 'from'>) => faceName(r.face, r.from);
+
 function holeLineBase(r: HoleRow, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   const size = holeSizeText(r, units);
-  const where = `in ${faceName(r.face, r.from)}`;
+  const where = `in ${holeFaceText(r)}`;
   const across = acrossOf(r);
   const inset = `${f(r.inset)} in from the ${across} ${r.acrossFrom} ${end(across)}`;
   if (r.count === 1) return `Hole ${size} ${where}, ${f(r.station)} from the ${r.along} ${r.alongFrom} ${end(r.along)}, ${inset}`;

@@ -8,6 +8,7 @@ import { taperCutsFor, worldTapers } from './taperWorld';
 import type { TaperFaultCode } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, noAngles, worldAngles } from './angleWorld';
 import type { AngleFaultCode } from './angleWorld';
+import { worldHoles } from './holeWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, worldParts } from './tree';
 
@@ -44,21 +45,22 @@ const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason,
 type V3 = [number, number, number];
 const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], ...(worldAngles(b) ?? noAngles()) };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], ...(worldAngles(b) ?? noAngles()), holes: worldHoles(b) };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
 export const definitionCorner = (boards: readonly StoredBoard[]): V3 =>
   [0, 1, 2].map((k) => Math.min(...boards.map((b) => b.position[k]!))) as V3;
 
-/** Every number the design carries: positions, sizes, placement origins, taper numbers and chamfer legs (refine spec §4,
- *  "exact values"). Angles are kept exactly by the exact-angle map instead (`angleRatiosOf`, AI-angles spec §6.2). */
+/** Every number the design carries: positions, sizes, placement origins, taper numbers, chamfer legs and hole numbers
+ *  (each row's offset components, depth, pitch and diameter; AI-holes spec §3.3) (refine spec §4, "exact values"). Angles are kept exactly by the exact-angle map instead (`angleRatiosOf`, AI-angles spec §6.2). */
 export function designValues(design: GeneratedDesign): Set<number> {
   const out = new Set<number>();
   const add = (v: { x: number; y: number; z: number }) => { out.add(v.x); out.add(v.y); out.add(v.z); };
   const addTapers = (p: GeneratedPart) => {
     for (const t of p.tapers ?? []) { out.add(t.start); out.add(t.amount); }
     for (const c of p.chamfers ?? []) { out.add(c.legs[0]); out.add(c.legs[1]); }
+    for (const h of p.holes ?? []) { add(h.offset); out.add(h.depth); out.add(h.pitch); out.add(h.diameter); }
   };
   for (const p of design.parts) { add(p.at); add(p.size); addTapers(p); }
   for (const a of design.assemblies ?? []) {

@@ -6,9 +6,12 @@ import { createBoard, migrateDocument } from './document';
 import { flatDocument, worldParts } from './tree';
 import { worldTapers } from './taperWorld';
 import { worldAngles } from './angleWorld';
-import { boardExtents } from './geometry';
+import { sortHoleRows, worldHoles } from './holeWorld';
+import { boardHoles } from './holes';
+import { axisDimensions, boardExtents, toWorldOffset } from './geometry';
 import { miterDegrees, taperCut } from './angleCuts';
 import { turnCandidates, alignedTo } from './roleLinks';
+import { sameShared } from './links';
 import type { Board } from './types';
 import { ARCH } from './curveFixtures';
 import { BUILT_IN_BAND_ID } from './bandModel';
@@ -22,6 +25,11 @@ const legs = (role = 'leg') => [
   part('Leg 1', role, [0, 0, 0], LEG), part('Leg 2', role, [20, 0, 0], LEG),
   part('Leg 3', role, [0, 0, 20], LEG), part('Leg 4', role, [20, 0, 20], LEG),
 ];
+/** Every hole centre in world coordinates, sorted: what the part drills, however it is stored. */
+const worldHoleCentres = (b: Board) => boardHoles(b).map((h) => {
+  const local = { length: h.centre[0], width: h.centre[1], thickness: h.centre[2] };
+  return axisDimensions(b).map((dim, i) => b.position[i]! + toWorldOffset(b, i, local[dim]));
+}).sort((p, q) => p[0]! - q[0]! || p[1]! - q[1]! || p[2]! - q[2]!);
 const shapedNames = (doc: ReturnType<typeof designToDocument>['doc']) =>
   [...doc.boards, ...doc.definitions.flatMap((x) => x.boards)].filter(isShaped).map((b) => b.name).sort();
 
@@ -242,11 +250,24 @@ describe('turned links with chamfers (AI-angles spec §7)', () => {
 });
 
 describe('turned candidates and holes', () => {
-  it('offers no turned candidates for a holed part (holes spec §5.2)', () => {
-    const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
-      holes: [{ id: 'h1', face: 'width', from: 'max', diameter: 0.375, depth: 1, along: 'length', alongFrom: 'max', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.875 }] };
-    expect(turnCandidates({ ...leg, holes: [] }).length).toBeGreaterThan(0);   // the guard is what refuses, not the box
-    expect(turnCandidates(leg)).toEqual([]);
+  it('re-stores a holed part per turn, every hole centre where it was (AI-holes spec §5)', () => {
+    const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [3, 0, 4] }),
+      holes: [{ id: 'h1', face: 'width', from: 'max', diameter: 0.375, depth: 1, along: 'length', alongFrom: 'max', station: 2, count: 3, pitch: 1.25, acrossFrom: 'min', inset: 0.5 },
+        { id: 'h0', face: 'thickness', from: 'min', diameter: 0.25, depth: 'through', along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'max', inset: 0.75 },
+        // Metric, 9 mm from a MAX side: its world offset (1.75in − 9 mm) is on neither hole grid, so it must not be snapped.
+        { id: 'hm', face: 'width', from: 'min', diameter: 5 / 25.4, depth: 12 / 25.4, along: 'length', alongFrom: 'min', station: 37 / 25.4, count: 4, pitch: 32 / 25.4, acrossFrom: 'max', inset: 9 / 25.4 }] };
+    const cs = turnCandidates(leg);
+    expect(cs.map((c) => c.rotation)).toEqual([90, 180, 270]);
+    // Ids by index from the ORIGINAL's rows sorted canonically: positional only (the turned frame's canonical order may pair
+    // an id with another row; alignedTo overwrites them), so this pins the id SET and order, not which row holds which.
+    const ids = sortHoleRows(leg.holes).map((r) => r.id);
+    for (const c of cs) {
+      expect(boardExtents(c)).toEqual(boardExtents(leg));
+      expect(worldHoleCentres(c)).toEqual(worldHoleCentres(leg));
+      expect(worldHoles(c)).toEqual(worldHoles(leg));
+      expect(c.holes.map((r) => r.id)).toEqual(ids);
+      expect(sortHoleRows(c.holes)).toEqual(c.holes);
+    }
   });
 
   it('offers no turned candidates for a curved part (curves spec §7)', () => {
@@ -260,5 +281,77 @@ describe('turned candidates and holes', () => {
       bands: [{ side: { across: 'width', from: 'min' }, type: BUILT_IN_BAND_ID }] };
     expect(turnCandidates({ ...leg, bands: [] }).length).toBeGreaterThan(0);   // the guard is what refuses, not the box
     expect(turnCandidates(leg)).toEqual([]);
+  });
+});
+
+describe('linking holed parts (AI-holes spec §5)', () => {
+  const row = (face: '+x' | '-x', z: number) =>
+    ({ face, diameter: 0.25, depth: 0.375, through: false, offset: v(face === '+x' ? 0.75 : 0, 10, z), toward: '+y' as const, count: 9, pitch: 1.25 });
+  const side = (name: string, x: number, inside: '+x' | '-x', role = 'side'): GeneratedPart =>
+    ({ ...part(name, role, [x, 0, 0], [0.75, 30, 12]), holes: [row(inside, 2), row(inside, 10)] });
+  // A case's two sides, shelf-pin rows on their INSIDE faces: mirror images, the same part turned 180°.
+  const sides = (role = 'side') => [side('Side L', 0, '+x', role), side('Side R', 20, '-x', role)];
+  const stored = (doc: ReturnType<typeof designToDocument>['doc']) => [...doc.boards, ...doc.definitions.flatMap((x) => x.boards)];
+  const world = (doc: ReturnType<typeof designToDocument>['doc']) => flatDocument(doc).boards
+    .map((b) => ({ name: b.name, box: boardExtents(b), at: b.position, holes: worldHoleCentres(b) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  it('alignedTo takes the representative\'s hole ids only when the rows match by geometry', () => {
+    const r = (id: string, station: number) => ({ id, face: 'width' as const, from: 'max' as const, diameter: 0.25, depth: 0.375 as number | 'through',
+      along: 'length' as const, alongFrom: 'min' as const, station, count: 4, pitch: 1.25, acrossFrom: 'min' as const, inset: 2 });
+    const rep: Board = { ...createBoard({ length: 30, width: 12, thickness: 0.75, posture: 'upright' }), holes: [r('r1', 2), r('r2', 8)] };
+    const same: Board = { ...rep, id: 'other', holes: [r('x1', 2), r('x2', 8)] };
+    expect(alignedTo(rep, same)?.holes.map((h) => h.id)).toEqual(['r1', 'r2']);
+    expect(alignedTo(rep, { ...same, holes: [r('x1', 2), r('x2', 9)] })).toBeNull();
+    expect(alignedTo(rep, { ...same, holes: [r('x1', 2)] })).toBeNull();
+    expect(alignedTo(rep, { ...same, holes: [r('x1', 2), r('x2', 8), r('x3', 14)] })).toBeNull();
+  });
+
+  it('two equal holed parts of one role link (the hole-id alignment)', () => {
+    const { doc } = designToDocument(d([side('Side A', 0, '+x'), side('Side B', 20, '+x')]));
+    expect(doc.shapes).toHaveLength(1);
+    expect(shapedNames(doc)).toEqual(['Side A', 'Side B']);
+  });
+
+  it('mirrored case sides (pins on their inside faces) link as ONE Shape, each world side unchanged', () => {
+    const unlinked = designToDocument(d(sides(''))).doc;   // no role: never linked
+    expect(unlinked.shapes).toHaveLength(0);
+    const plain = unlinked.boards.filter((b): b is Board => !isShaped(b));   // no shapes: every part is plain
+    expect(plain).toHaveLength(2);
+    expect(sameShared(plain[0]!, plain[1]!)).toBe(false);   // they differ as stored: only a turn can link them
+    const { doc } = designToDocument(d(sides()));
+    expect(doc.shapes).toHaveLength(1);
+    const users = stored(doc).filter(isShaped);
+    expect(users.map((b) => b.name).sort()).toEqual(['Side L', 'Side R']);
+    expect(new Set(users.map((b) => b.shape))).toEqual(new Set([doc.shapes[0]!.id]));
+    expect(world(doc)).toEqual(world(unlinked));
+    expect(world(doc).every((p) => p.holes.length === 18)).toBe(true);
+  });
+
+  for (const D of [10, 11.8125]) {
+    it(`metric mirrored case sides (D = ${D}, rows 37 mm from the front and the back) link as ONE Shape (final review I1)`, () => {
+      const MM = (n: number) => n / 25.4;
+      const metricRow = (face: '+x' | '-x', z: number) =>
+        ({ face, diameter: MM(5), depth: MM(12), through: false, offset: v(face === '+x' ? 0.75 : 0, MM(64), z), toward: '+y' as const, count: 9, pitch: MM(32) });
+      const metricSide = (name: string, x: number, inside: '+x' | '-x', role: string): GeneratedPart =>
+        ({ ...part(name, role, [x, 0, 0], [0.75, 30, D]), holes: [metricRow(inside, MM(37)), metricRow(inside, D - MM(37))] });
+      const both = (role: string) => [metricSide('Side L', 0, '+x', role), metricSide('Side R', 20, '-x', role)];
+      const unlinked = designToDocument(d(both(''))).doc;
+      const { doc } = designToDocument(d(both('side')));
+      expect(doc.shapes).toHaveLength(1);
+      expect(stored(doc).filter(isShaped).map((b) => b.name).sort()).toEqual(['Side L', 'Side R']);
+      // Each world side unchanged; a metric centre read through another stored form may differ by an ulp.
+      const near = (x: ReturnType<typeof world>) => x.map((p) => ({ ...p, holes: p.holes.map((h) => h.map((c) => Math.round(c * 1e9) / 1e9)) }));
+      expect(near(world(doc))).toEqual(near(world(unlinked)));
+      expect(world(doc).every((p) => p.holes.length === 18)).toBe(true);
+      // Every row stores 37 mm from its side, exactly.
+      for (const b of flatDocument(doc).boards) expect(b.holes.map((h) => h.inset)).toEqual([MM(37), MM(37)]);
+    });
+  }
+
+  it('sides whose rows differ do not link', () => {
+    const ps = sides();
+    ps[1] = { ...ps[1]!, holes: [row('-x', 2), row('-x', 9)] };
+    expect(designToDocument(d(ps)).doc.shapes).toHaveLength(0);
   });
 });

@@ -6,6 +6,8 @@ import { DIRS, worldTapers } from './taperWorld';
 import type { WorldTaper } from './taperWorld';
 import { noAngles, worldAngles } from './angleWorld';
 import type { WorldAngles } from './angleWorld';
+import { worldHoles } from './holeWorld';
+import type { WorldHoleRow } from './generated';
 import { definitionCorner } from './refineDesign';
 import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
 
@@ -14,7 +16,7 @@ import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
  * text is assembled HERE with formatLength (the `→ units` edge; invariant 19's
  * rule that a string a person reads is built in one module).
  */
-export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'linked' | 'unlinked';
+export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
@@ -101,6 +103,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     const lines = taperLines(worldTapers(o.b) ?? [], worldTapers(e.b) ?? [], len);
     for (const t of lines) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
     for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
+    for (const t of holeLines(worldHoles(o.b), worldHoles(e.b), len)) push('holes', 'part', n, `${n}: ${t}`, key('holes', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -175,5 +178,35 @@ function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) =>
     else if (old.detail !== x.detail) out.push(`${x.kind} changed (${x.where}; ${x.detail})`);
   }
   for (const [k, x] of was) if (!now.has(k)) out.push(`${x.kind} removed (${x.where})`);
+  return out;
+}
+
+/**
+ * One part's hole-row lines (AI-holes spec §4), on design forms (`worldHoles`: `offset` is part-relative, so a moved
+ * part changes nothing). A row is matched by its face plus its first centre, EXACTLY; one that matches nothing is a
+ * removal plus an addition. A matched row names what differs at display precision: depth, through, diameter, count,
+ * pitch, or `running toward <dir>` (its direction along the face, only when it was and is a row of more than one). A
+ * through row's depth is not a difference.
+ */
+function holeLines(before: readonly WorldHoleRow[], after: readonly WorldHoleRow[], len: (n: number) => string): string[] {
+  const at = (r: WorldHoleRow) => `${r.face}|${r.offset.x}|${r.offset.y}|${r.offset.z}`;
+  const left = new Map<string, WorldHoleRow[]>();
+  for (const r of before) left.set(at(r), [...(left.get(at(r)) ?? []), r]);
+  const out: string[] = [];
+  for (const r of after) {
+    const old = left.get(at(r))?.shift();
+    if (!old) { out.push(`${r.count} hole${r.count === 1 ? '' : 's'} added on ${r.face}, ${len(r.diameter)} Ø`); continue; }
+    const what: string[] = [];
+    if (r.through !== old.through ? !r.through : !r.through && len(r.depth) !== len(old.depth)) what.push(`${len(r.depth)} deep`);
+    if (r.through && !old.through) what.push('through');
+    if (len(r.diameter) !== len(old.diameter)) what.push(`${len(r.diameter)} Ø`);
+    if (r.count !== old.count) what.push(`${r.count} hole${r.count === 1 ? '' : 's'}`);
+    if (r.count > 1 && old.count > 1 && len(r.pitch) !== len(old.pitch)) what.push(`${len(r.pitch)} apart`);
+    else if (r.count > 1 && old.count === 1) what.push(`${len(r.pitch)} apart`);
+    // A single bore has no direction to change (final review M1): only a row that was and is a row can turn.
+    if (r.toward !== old.toward && r.count > 1 && old.count > 1) what.push(`running toward ${r.toward}`);
+    if (what.length > 0) out.push(`hole row on ${r.face} now ${what.join(', ')}`);
+  }
+  for (const rs of left.values()) for (const r of rs) out.push(`hole row on ${r.face} removed`);
   return out;
 }

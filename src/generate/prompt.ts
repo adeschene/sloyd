@@ -55,7 +55,7 @@ export const SYSTEM_PROMPT = `You design woodworking projects as a list of recta
 
 Coordinates and units:
 - All numbers are inches. Y is up. X is width, Z is depth.
-- Each part is an axis-aligned box, optionally tapered, mitered, beveled or chamfered. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
+- Each part is an axis-aligned box, optionally tapered, mitered, beveled, chamfered or drilled. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
 - A part's top is at.y + size.y. A part resting on another has at.y equal to the lower part's top.
 
 Tapers:
@@ -75,6 +75,16 @@ Angles:
 - A miter does not hold a part: miter only where the parts rest on something else, such as a frame lying flat or box sides standing on a bottom. Never use miters alone to hold a part up.
 - Never cut an angle where a part joins another: joinery refuses it. A small chamfer or bevel running along a rail's length may pass through its joined ends if it stays clear of the tenon: about a third of the thickness from a broad face, and the smaller of 1/2in and a quarter of the width from an edge.
 - Use "miters": [], "bevels": [] and "chamfers": [] for every part without them.
+
+Holes:
+- A part may carry rows of round holes, in "holes". "face" is the side drilled into (any of the six, like "+x"); the drill runs inward from it. "diameter" is in inches, "depth" is inches from the face, and "through": true drills right through (depth is then ignored; give the part's thickness).
+- "offset" is the FIRST hole's centre, measured from the part's own "at" (its minimum corner) along x, y and z, so it does not change when the part moves. On the face you drill, that coordinate is 0 for a "-" face or the part's size for a "+" face; the other two are distances along the face.
+- "toward" is the direction the row continues from the first hole (perpendicular to "face"; give one even when "count" is 1), "count" is how many holes, and "pitch" is centre to centre.
+- Shelf pins: drill the INSIDE faces of case sides, in two rows 2in in from the front and back edges, 1/4in diameter, 3/8in deep, 1-1/4in apart, starting and ending a few inches from the top and bottom. For the metric 32 mm system write 0.197 (5 mm) and 1.26 (32 mm); Sloyd stores them as exact millimetres.
+- Pulls and knobs: a through hole of 3/16in, centred on a drawer front or near a door's opening edge.
+- Example: the left side of a case (at x 0, 12in deep, 3/4in thick) with a row of 20 shelf pins on its inside face: { "face": "+x", "diameter": 0.25, "depth": 0.375, "through": false, "offset": { "x": 0.75, "y": 6, "z": 2 }, "toward": "+y", "count": 20, "pitch": 1.25 }.
+- Keep holes at least 1in away from where parts join, because joinery will not cut a joint through a hole.
+- Use "holes": [] for every part without them.
 
 Rules every design must follow:
 - Parts touch face to face. Parts must NOT pass into each other (except where two miters meet; see Angles) — there is no joinery in this tool yet, so a shelf sits between two sides, not inside them.

@@ -7,21 +7,20 @@ import { faultKey } from './holeText';
 import { curveFaults } from './curves';
 import { profileFaults } from './profiles';
 import { bandFaults } from './banding';
-import { featuredKinds, hasFrameFeatures } from './featureCarry';
+import { carriedKinds } from './featureCarry';
 
 /** What a part carries, by count: a `PartCarry`, an `AssemblyCarry` (hardware only) or a resolved `Board` all fit. */
 export interface CarriedKinds {
-  holes?: readonly unknown[]; curves?: readonly unknown[]; profiles?: readonly unknown[]; bands?: readonly unknown[]; hardware?: readonly unknown[];
+  curves?: readonly unknown[]; profiles?: readonly unknown[]; bands?: readonly unknown[]; hardware?: readonly unknown[];
 }
 
 /**
- * The feature kinds a part carries, in words, in the canonical order (refine-features spec §4, §5): `holes`,
+ * The feature kinds a part carries, in words, in the canonical order (refine-features spec §4, §5; never holes, AI-holes spec §4):
  * `a curve` / `curves`, `an edge profile` / `edge profiles` (one or more), `edging`, `hardware`.
  */
 export function kindsText(c: CarriedKinds): string {
   const n = (a: readonly unknown[] | undefined) => a?.length ?? 0;
   const out: string[] = [];
-  if (n(c.holes) > 0) out.push('holes');
   if (n(c.curves) > 0) out.push(n(c.curves) === 1 ? 'a curve' : 'curves');
   if (n(c.profiles) > 0) out.push(n(c.profiles) === 1 ? 'an edge profile' : 'edge profiles');
   if (n(c.bands) > 0) out.push('edging');
@@ -30,14 +29,13 @@ export function kindsText(c: CarriedKinds): string {
 }
 
 /**
- * The same kinds for a PERSON to read (no articles, so a possessive can precede them): `holes`, `curve` / `curves`,
+ * The same kinds for a PERSON to read (no articles, so a possessive can precede them): `curve` / `curves`,
  * `edge profile` / `edge profiles`, `edging`, `hardware`, joined `X`, `X and Y`, `X, Y and Z`. `plural` is false only for
  * exactly one singular noun, so a template picks its verb ("stays" / "stay") from it.
  */
 export function nounsText(c: CarriedKinds): { text: string; plural: boolean } {
   const n = (a: readonly unknown[] | undefined) => a?.length ?? 0;
   const out: string[] = [];
-  if (n(c.holes) > 0) out.push('holes');
   if (n(c.curves) > 0) out.push(n(c.curves) === 1 ? 'curve' : 'curves');
   if (n(c.profiles) > 0) out.push(n(c.profiles) === 1 ? 'edge profile' : 'edge profiles');
   if (n(c.bands) > 0) out.push('edging');
@@ -47,16 +45,19 @@ export function nounsText(c: CarriedKinds): { text: string; plural: boolean } {
   return { text, plural };
 }
 
-const NOTE = 'These parts carry holes, curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one\'s name, and keep it the same way round: ';
+const NOTE = 'These parts carry curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one\'s name, and keep it the same way round: ';
 
 /** The user-turn paragraph naming the parts whose features the design JSON does not show (spec §5), or null. */
 export function featuredNote(design: GeneratedDesign): string | null {
   const items: string[] = [];
-  for (const p of design.parts) if (p.carry) items.push(`${p.name} (${kindsText(p.carry)})`);
+  // A part whose carry holds only its original's hole rows (the exact-row map) carries nothing the JSON does not show:
+  // the design shows its holes (AI-holes spec §4).
+  const kinds = (p: GeneratedDesign['parts'][number]) => (p.carry ? kindsText(p.carry) : '');
+  for (const p of design.parts) if (kinds(p)) items.push(`${p.name} (${kinds(p)})`);
   for (const a of design.assemblies ?? []) {
     const first = a.placements[0]?.name;
     if (first === undefined) continue;
-    for (const p of a.parts) if (p.carry) items.push(`${first}${NAME_SEPARATOR}${p.name} (${kindsText(p.carry)})`);
+    for (const p of a.parts) if (kinds(p)) items.push(`${first}${NAME_SEPARATOR}${p.name} (${kinds(p)})`);
     if (a.carry && a.carry.hardware.length > 0) items.push(`${first} (hardware)`);
   }
   return items.length === 0 ? null : `${NOTE}${items.join(', ')}.`;
@@ -87,10 +88,10 @@ export function carriedSummary(original: SloydDocument, refined: SloydDocument):
   for (const o of oFlat.boards) {
     const r = rByName.get(o.name);
     if (!r) {
-      if (featuredKinds(o).length > 0) notKept.push(`${o.name}'s ${nounsText(o).text} — no part named ${o.name} in the result.`);
+      if (carriedKinds(o).length > 0) notKept.push(`${o.name}'s ${nounsText(o).text} — no part named ${o.name} in the result.`);
       continue;
     }
-    if (!hasFrameFeatures(r)) continue;
+    if (!carriedKinds(r).some((k) => k !== 'hardware')) continue;
     const eo = boardExtents(o);
     const er = boardExtents(r);
     if (eo.every((x, i) => x === er[i])) continue;

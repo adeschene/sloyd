@@ -5901,6 +5901,7 @@ part written twice, 4,297 chars, 16 enums) was refused; the same schema with the
 for at least two more angle-like arrays. A new part field or enum costs once (in `$defs`). Anything that changes
 `DESIGN_SCHEMA` needs one live compile before it ships — the unit suite cannot see this limit (a test pins the `$defs`
 form only). **Status:** record-only.
+**Status:** AI-holes compiled (2026-10-23, `ai-holes`): the `holes` array added one 8-field item (`face`, `diameter`, `depth`, `through`, `offset` (a vec3 from the part's `at`), `toward`, `count`, `pitch`) with no new `$def`. The Refine form with the catalog is 2,952 chars (Generate's built-in form 2,918, against 2,372 before holes). It compiled on the FIRST probe, no fallback (HTTP 200, request `req_011CgJGkuYyCJ51nxdbdHDTn`, `max_tokens` 16). The probe exercised the grammar only, not the model's hole output.
 
 **323. AI angles chunk 2 minors (record-only; final review M2–M6).** (M2) The `angle-joint` design fault's advice is generic
 ("move it off that end or face, or remove it") — the spec wanted the tenon-clearance rule's numbers carried back; it
@@ -5969,6 +5970,7 @@ Carrying holes through needs a rebase for rows measured from an end joinery grow
 live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
 open (spec §11).
 **Status:** open (feature; needs a spec) (a `DESIGN_SCHEMA` change: one live compile, fu 322). (triaged 2026-10-16)
+**Status:** CLOSED on branch `ai-holes` (2026-10-23, spec `2026-10-23-sloyd-ai-holes-design.md`; not yet merged or deployed): Generate and Refine author hole rows in world words through `holeWorld.ts` (inv 50); Refine keeps untouched rows exactly; holes leave the carry (inv 56). The deferred minors are fu 428.
 
 **330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
 refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
@@ -6977,6 +6979,8 @@ parts still take the old name-based carry. To record and measure, not fixed (ref
 original thickness axis is still the thinnest. A part whose length and width swap world axes with thickness unchanged reads as a resize:
 its features stay at their stored stations and the "Check at the new size" line names the part (refine-features spec §4, recorded not
 built). **Status:** open (record-only).
+**Status:** open (record-only), now for parts with curves, profiles or bands only: a holes-only part turned in plan is re-oriented (AI-holes
+residual R1, `keptFrame`'s rank rule, 2026-10-23).
 
 **426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
 also receives the carry (the load gate renames it `X (1)`); `carriedSummary` does not mention it. Follows refine-features spec §2's name
@@ -6989,3 +6993,44 @@ before (a raw failure, cost null). A narrower guard would sit on `featureAllowed
 feature-turned `shown` names hardware among "the wrong faces"; `JointsSummary.notes` also carries `parseChoices`' notes (its doc comment
 says ruled-out lines); FEATURE_CHECK_FAILED's advice ("Add joinery before drilling or shaping") reads oddly on an already-joined Refine and
 omits edging. **Status:** open (record-only; ask before changing).
+
+## From the AI-holes round — 2026-10-23
+
+**428. AI-holes deferred minors (2026-10-23, execution ledger; (3) and (4) fixed in the final-review wave).** (1) The `shown` copy of a `'hole-fault'` lacks the
+row's first centre, so two faulted rows on one face read as the same line (the model-facing message has it). (2) The `'off-flat'`
+phrase in `holeDesignFaults` has no test. (3) `restoreHoles`' `carry.frame` gate is redundant today (untestable). (4) METRIC mirrored
+sides did not link AT ALL (found by the final review, I1; the ledger had guessed "by an ulp, after a turn"): `holeSnap` was applied to world
+offsets from the min corner, so a far-side distance (D − 37 mm) landed off the grid, and `inset = ext − w` drifted in float
+(1.456692913385826 against 37/25.4). Failing safe meant the sides stayed unlinked. (5) The prompt's "front and back"
+is not tied to an axis (probe in the live check). (6) `alignedTo`'s row checks are partly redundant with `sameShared` (a comment is
+owed). (7) The property grid for `holeRowsFor` lacks station > along dimension and inset > across dimension; `sameHoles` has no test
+for a different count; a single bore stores the model's pitch rather than 0; toFixed(3) centres in a message could collide below
+0.0005 in (unreachable on the hole grid). (8) Task 6 kept `CHARS_PER_TOKEN` at 2 (2.03 measured on the prompt); a digit-dense prompt
+may tokenise below 2 chars/token — re-measure it from the live check's real usage (owed to the live check). (9) Found by the final-review fix
+wave: a holes-only part whose STORED thickness is not its smallest extent (e.g. flat 20 x 1 x 3, width 1 < thickness 3), echoed unchanged by
+the model, fails `keptFrame`'s test and is re-`orient`ed — the same world holes, but relabelled dimensions and a fresh, re-derived row (not
+the exact-row swap). `featureTurned` skips such an original (its precondition); applying the same precondition in `keptFrame` would keep its
+frame. Left as ruled (ask first). (10) Found by the same wave, a side effect of M3: role linking compares hole rows INDEX BY INDEX
+(`alignedTo`, `sameShared`), and a no-op Refine now keeps each part's STORED row order. Two identical, unlinked parts of one role at the same
+rotation whose rows were added in different orders (the Holes panel appends) linked before M3 (both re-sorted canonically) and no longer do
+(probe: two `chiralHoled('flat')` sides, one with its rows reversed, role `side` — 1 Shape without M3, 0 with it; mirrored 0/180 pairs still
+link). Fails safe (the parts stay unlinked). Candidate fix: `alignedTo` compares the rows in canonical order and hands ids out by matched
+row (ask first).
+**Status:** (3) and (4) CLOSED on branch `ai-holes` (final-review fix wave, 2026-10-23). (3): the gate is gone — `keptFrame` in `convertPart`
+is the one frame decision and `restoreHoles` takes the originals it allows; the skip is tested (the C1 probe fails when the swap ignores it).
+(4): `holeRowsFor` snaps the STORED distances, and a computed distance within 1e-9 of the grid takes it even on the exact path; metric mirrored
+sides link at D = 10 and D = 11.8125 (roleLinks.test). The same wave fixed the final review's C1 (a holes-only part the model turned is
+`orient`ed), I2 (stored numbers checked finite and within MAX_MAGNITUDE after the grid), M1/M2 (diff wording), M3 (a no-op Refine keeps the
+stored row order) and M4 (turnCandidates' positional ids documented). (1), (2), (5)–(10) remain open (record-only).
+**Status:** (9) CLOSED on branch `ai-holes` (2026-10-23) by the rank rule, residual R1 (the user approved fixing R1 ("Fix it, then merge"); the rank rule, the narrowed §3.2 taper guarantee and the tie clause are the controller's rulings): an echoed holes-only part
+whose stored thickness is not its smallest extent keeps its rank order (and the tie clause's carve-out), so it keeps its frame, encoding and row exactly (flat 20 x 1 x 3,
+tested; really turned to 3 x 20 x 1 it is oriented). The bare `featureTurned` precondition was not used (the re-review showed it unsafe).
+(11) Residual R1 (re-review, 2026-10-23): C1's thickness-only test kept the frame for a holes-only part turned ABOUT its thickness axis
+(a flat 30 x 12 shelf, 30 and 12 swapped in plan, stored flat/0 length 12 width 30, grain across, cut list changed silently).
+**CLOSED** the same day: `keptFrame` keeps a holes-only part's frame only when every world extent keeps its rank (ties both ways) AND
+(the tie clause, re-review) its thickness's world axis is still a smallest extent unless the original's thickness was not its smallest,
+else `orient` like the plain twin, no exact-row swap; tested (the R1 probe, ties both ways, the (9) pair, a tied 4 x 4 x 4 block and a
+1.5 x 30 x 1.5 leg against their plain twins) and mutated. A holes-only tapered part
+widened past its length is now oriented and its taper fault fed back (refine-features spec, Amended). The plan-turn gap for parts WITH
+curves, profiles or bands (they keep the frame always; `featureTurned` does not see a plan turn) stays fu 425. (1), (2), (5)–(8) and (10)
+remain open (record-only).

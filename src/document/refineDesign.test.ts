@@ -9,6 +9,7 @@ import { createBoard, createDocument } from './document';
 import { bevelCut, chamferCut, miterCut, miterRatio, taperCut } from './angleCuts';
 import { angleRatiosOf, worldAngles } from './angleWorld';
 import { worldTapers } from './taperWorld';
+import { worldHoles } from './holeWorld';
 import { boardExtents } from './geometry';
 import { ARCH } from './curveFixtures';
 import { flatDocument } from './tree';
@@ -333,5 +334,38 @@ describe('documentToDesign — miters, bevels and chamfers (AI-angles spec §6)'
     if ('refused' in r) throw new Error(r.refused.message);
     expect(designValues(r.design).has(0.125)).toBe(true);
     expect(designValues(r.design).has(0.25)).toBe(true);
+  });
+});
+
+describe('documentToDesign writes hole rows (AI-holes spec §3.2, §3.3)', () => {
+  const ROW = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 5 / 25.4, depth: 10 / 25.4, along: 'length' as const, alongFrom: 'max' as const, station: 3, count: 4, pitch: 32 / 25.4, acrossFrom: 'min' as const, inset: 37 / 25.4 };
+  const holed = (): SloydDocument => {
+    const base = table();
+    return { ...base, boards: base.boards.map((b) => ('shape' in b ? b : { ...b, holes: [ROW] })),
+      definitions: base.definitions.map((d) => ({ ...d, boards: d.boards.map((b) => ('shape' in b ? b : { ...b, holes: [ROW] })) })) };
+  };
+
+  it('every part, loose and in an assembly, carries holes: worldHoles of its resolved board', () => {
+    const doc = holed();
+    const r = documentToDesign(doc, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const all = [...r.design.parts, ...r.design.assemblies!.flatMap((a) => a.parts)];
+    expect(all.every((p) => Array.isArray(p.holes))).toBe(true);
+    const top = r.design.parts.find((p) => p.name === 'Top')!;
+    expect(top.holes).toEqual(worldHoles(flatDocument(doc).boards.find((b) => b.name === 'Top')!));
+    expect(top.holes).toHaveLength(1);
+    const front = r.design.assemblies![0]!.parts.find((p) => p.name === 'Front')!;
+    expect(front.holes).toHaveLength(1);
+    expect(r.design.parts.find((p) => p.name === 'Leg 1')!.holes).toEqual([]);
+  });
+
+  it('designValues carries every hole number: offset components, depth, pitch and diameter', () => {
+    const r = documentToDesign(holed(), MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const values = designValues(r.design);
+    const h = r.design.parts.find((p) => p.name === 'Top')!.holes![0]!;
+    for (const n of [h.offset.x, h.offset.y, h.offset.z, h.depth, h.pitch, h.diameter]) expect(values.has(n), String(n)).toBe(true);
+    expect(values.has(32 / 25.4)).toBe(true);
+    expect(values.has(5 / 25.4)).toBe(true);
   });
 });

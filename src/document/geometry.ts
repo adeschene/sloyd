@@ -12,6 +12,13 @@ export const DIMENSION_ORDER: readonly Dimension[] = ['length', 'width', 'thickn
  */
 export const SNAP_INCHES = 1 / 16;
 
+/**
+ * Largest |coordinate| or |size| (inches) a model number may have after
+ * snapping (generated.ts; a hole row's stored numbers too, holeWorld.ts). Finite but astronomical values overflow the
+ * centring shift (`min + max`), which would crash validation or silently drop an instance.
+ */
+export const MAX_MAGNITUDE = 10_000;
+
 /** The FREE-drag grid (metric-display spec R5): 1/16" or 1 mm. Exact moves are never rounded to it (inv 25); Generate and
  *  joinery keep SNAP_INCHES. Here, not in units/, because it produces no string (the → units edge rule). */
 export const snapStep = (units: Units): number => (units.display === 'metric-mm' ? 1 / 25.4 : SNAP_INCHES);

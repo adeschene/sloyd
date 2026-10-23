@@ -31,8 +31,8 @@ describe('refine', () => {
       'Here is the current design, in the same format you return:', JSON.stringify(D), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.');
-    expect(refineMessage(D, S)).toContain('tapers, miters, bevels and chamfers');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers and holes. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers and holes');
   });
 
   it('names the custom materials in the user turn, and only when there are some (custom materials spec §6)', () => {
@@ -50,7 +50,7 @@ describe('refine', () => {
   });
 
   describe('the featured-parts note (refine-features spec §5)', () => {
-    const NOTE = "These parts carry holes, curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
+    const NOTE = "These parts carry curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
     const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
     const PROFILE = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } } as const;
     const CURVE = ARCH;
@@ -73,7 +73,8 @@ describe('refine', () => {
 
     it('names featured parts, right after the design JSON', () => {
       const d = design(featured);
-      const note = `${NOTE}Side (holes), Apron (a curve), Top (an edge profile, edging), Door (hardware).`;
+      // Side carries only holes, which the design now shows (AI-holes spec §4): not named.
+      const note = `${NOTE}Apron (a curve), Top (an edge profile, edging), Door (hardware).`;
       expect(refineMessage(d, S, undefined, featured)).toBe([
         'Here is the current design, in the same format you return:', JSON.stringify(d), '', note, '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),

@@ -13,12 +13,13 @@ const docOf = (parts: GeneratedPart[], holed: string[] = []): SloydDocument => {
   const d = designToDocument({ name: 'G', parts }).doc;
   return { ...d, boards: d.boards.map((b) => (holed.includes(b.name) ? ({ ...b, holes: [HOLE] } as StoredBoard) : b)) };
 };
-const withHole = (d: SloydDocument): SloydDocument => ({ ...d, boards: d.boards.map((b) => ({ ...b, holes: [HOLE] }) as StoredBoard) });
-
 const PROFILE: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face',
   run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: 8 }, end: { side: { across: 'width', from: 'min' }, from: 'min', at: 15 } } };
 const MAPLE: BandType = { id: 'e1', name: 'Maple', kind: 'solid', thickness: 1.5, lengthAllowance: 0, material: 'oak', widthAllowance: 0 };
 const BANDS = [{ side: { across: 'width', from: 'min' }, type: 'e1' }, { side: { across: 'width', from: 'max' }, type: 'e1' }];
+const withHole = (d: SloydDocument): SloydDocument => ({ ...d, boards: d.boards.map((b) => ({ ...b, holes: [HOLE] }) as StoredBoard) });
+// A part's carried feature in the Side tests below: an edge profile (holes are no longer carried, AI-holes spec §4).
+const withProf = (d: SloydDocument): SloydDocument => ({ ...d, boards: d.boards.map((b) => ({ ...b, profiles: [PROFILE] }) as StoredBoard) });
 const withExtra = (d: SloydDocument, extra: Partial<Board>): SloydDocument =>
   ({ ...d, bandTypes: [MAPLE], boards: d.boards.map((b) => ({ ...b, ...extra }) as StoredBoard) });
 
@@ -54,45 +55,53 @@ describe('carriedSummary: person-facing nouns', () => {
   it('several curves, or two or three kinds, are plural with "and" before the last', () => {
     expect(resized(two)).toBe('Apron was resized — its curves stay measured from where they were placed; check them.');
     expect(resized({ curves: [ARCH], profiles: [PROFILE] })).toBe('Apron was resized — its curve and edge profile stay measured from where they were placed; check them.');
-    expect(resized({ holes: [HOLE], curves: [ARCH], profiles: [PROFILE] })).toBe('Apron was resized — its holes, curve and edge profile stay measured from where they were placed; check them.');
+    expect(resized({ holes: [HOLE], curves: [ARCH], profiles: [PROFILE] })).toBe('Apron was resized — its curve and edge profile stay measured from where they were placed; check them.');
     expect(gone({ curves: [ARCH], profiles: [PROFILE], bands: [BANDS[0]] as Board['bands'] })).toBe("Apron's curve, edge profile and edging — no part named Apron in the result.");
   });
 });
 
 describe('carriedSummary', () => {
-  const orig = withHole(docOf([part('Side', [0, 0, 0], [20, 4, 1])]));
+  const orig = withProf(docOf([part('Side', [0, 0, 0], [20, 4, 1])]));
 
   it('lists a renamed holed part as not kept, with the exact line', () => {
-    const refined = withHole(docOf([part('Panel', [0, 0, 0], [20, 4, 1])]));
-    expect(carriedSummary(orig, refined)).toEqual({ notKept: ["Side's holes — no part named Side in the result."], check: [] });
+    const refined = withProf(docOf([part('Panel', [0, 0, 0], [20, 4, 1])]));
+    expect(carriedSummary(orig, refined)).toEqual({ notKept: ["Side's edge profile — no part named Side in the result."], check: [] });
   });
 
   it('names every kind in the line, hardware included', () => {
     const o = { ...orig, boards: orig.boards.map((b) => ({ ...b, hardware: [{ type: 'hw-1', count: 1 }] }) as StoredBoard) };
     const out = carriedSummary(o, docOf([part('Panel', [0, 0, 0], [20, 4, 1])]));
-    expect(out.notKept).toEqual(["Side's holes and hardware — no part named Side in the result."]);
+    expect(out.notKept).toEqual(["Side's edge profile and hardware — no part named Side in the result."]);
   });
 
   it('lists a side made taller under check with the stay-measured line', () => {
-    const refined = withHole(docOf([part('Side', [0, 0, 0], [20, 6, 1])]));
-    expect(carriedSummary(orig, refined)).toEqual({ notKept: [], check: ["Side was resized — its holes stay measured from where they were placed; check them."] });
+    const refined = withProf(docOf([part('Side', [0, 0, 0], [20, 6, 1])]));
+    expect(carriedSummary(orig, refined)).toEqual({ notKept: [], check: ["Side was resized — its edge profile stays measured from where it was placed; check it."] });
   });
 
   it('says no longer fit when a resize makes a row break out', () => {
-    const refined = withHole(docOf([part('Side', [0, 0, 0], [5, 4, 1])]));
-    expect(carriedSummary(orig, refined).check).toEqual(['Side was resized — its holes no longer fit; see Properties.']);
+    const refined = withProf(docOf([part('Side', [0, 0, 0], [5, 4, 1])]));
+    expect(carriedSummary(orig, refined).check).toEqual(['Side was resized — its edge profile no longer fits; see Properties.']);
   });
 
   it('does not list an untouched part whose row already broke out', () => {
-    const broken = withHole(docOf([part('Side', [0, 0, 0], [5, 4, 1])]));
+    const broken = withProf(docOf([part('Side', [0, 0, 0], [5, 4, 1])]));
     expect(carriedSummary(broken, broken)).toEqual({ notKept: [], check: [] });
     // resized again, still broken the same way: "stay measured", not "no longer fit"
-    const again = withHole(docOf([part('Side', [0, 0, 0], [6, 4, 1])]));
-    expect(carriedSummary(broken, again).check[0]).toContain('stay measured');
+    const again = withProf(docOf([part('Side', [0, 0, 0], [6, 4, 1])]));
+    expect(carriedSummary(broken, again).check[0]).toContain('stays measured');
+  });
+
+  it('never names a holes-only part: not kept, resized or with other kinds', () => {
+    const holed = withHole(docOf([part('Side', [0, 0, 0], [20, 4, 1])]));
+    expect(carriedSummary(holed, docOf([part('Panel', [0, 0, 0], [20, 4, 1])]))).toEqual({ notKept: [], check: [] });
+    expect(carriedSummary(holed, withHole(docOf([part('Side', [0, 0, 0], [5, 6, 1])])))).toEqual({ notKept: [], check: [] });
+    const both = { ...holed, boards: holed.boards.map((b) => ({ ...b, profiles: [PROFILE] }) as StoredBoard) };
+    expect(carriedSummary(both, docOf([])).notKept).toEqual(["Side's edge profile — no part named Side in the result."]);
   });
 
   it('does not list a part that only moved', () => {
-    const refined = withHole(docOf([part('Side', [3, 2, 1], [20, 4, 1])]));
+    const refined = withProf(docOf([part('Side', [3, 2, 1], [20, 4, 1])]));
     expect(carriedSummary(orig, refined)).toEqual({ notKept: [], check: [] });
   });
 

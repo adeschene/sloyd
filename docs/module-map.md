@@ -56,6 +56,12 @@ src/
 │   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
 │   │                     the min end of the LONGER in-face dimension, 22.5 mm in; fu 343), holeInstances/boardHoles, holeRing/
 │   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
+│   ├── holeWorld.ts      THE world-words hole converter (inv 50; model-facing, no → units edge): holeSnap (nearer of 1/64 in and whole mm), worldHoles
+│   │                     (stored rows → WorldHoleRow), holeRowsFor (world rows → stored, the grid on the STORED distances; shape faults = loader drop rules + the 1/32 plane rule + MAX_MAGNITUDE; canonical
+│   │                     alongFrom 'min', 'max' when min cannot express a loader-legal row; across side nearer, else far), sameHoles (centres as a SET),
+│   │                     sortHoleRows
+│   ├── holeDesignFaults.ts holeDesignFaults: a strict fault in a model-authored row → 'hole-fault' violations (message names the row's first centre; `shown`
+│   │                     copy through holeText, so this module takes the → units edge, not holeWorld)
 │   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean);
 │   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
@@ -200,13 +206,14 @@ src/
 │   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
 │   ├── generated.ts      DESIGN_SCHEMA (part + direction in `$defs`: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
-│   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE)
+│   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE re-exported from geometry.ts); convertPart's keptFrame (THE frame decision,
+│   │                     inv 56) and restoreHoles (the exact-row swap; the original order when every row is restored)
 │   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45);
 │                     turnCandidates (other quarter turns keeping the world box and grain axis; every kind re-stored via taperWorld/angleWorld; none
-│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut ids)
+│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut and hole-row ids); a HOLED part is turned too (re-stored via worldHoles/holeRowsFor with an exact set, inv 56); none for curves, profiles or bands
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps)
-│   ├── featureCarry.ts   carryFromOriginal (Refine carries holes, curves, profiles, bands and hardware onto returned parts by flat name, in the
+│   ├── featureCarry.ts   carryFromOriginal (Refine carries curves, profiles, bands and hardware onto (holes are authored, inv 50) returned parts by flat name, in the
 │   │                     ORIGINAL frame; replaced carryGrain; inv 56), featuredKinds, hasFrameFeatures, featureTurned ('feature-turned', fed to the
 │   │                     repair loop via EvaluateOpts.extraFaults)
 │   ├── carryText.ts      kindsText, featuredNote (the USER-turn note in refineMessage), carriedSummary (RefineOutcome.carried {notKept, check}, computed
