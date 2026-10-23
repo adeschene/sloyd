@@ -59,6 +59,23 @@ describe('prompt', () => {
     ]) expect(SYSTEM_PROMPT).toContain(s);
   });
 
+  it('teaches edge profiles: what they are, when to add one and the empty array (AI-profiles spec §6)', () => {
+    for (const s of [
+      '"profiles": a shaped edge routed along a side of a part\'s broad face. "edge" names the broad face and the side, like a chamfer\'s edge; "start" and "end" are where it runs along that side, measured from the part\'s "at" (0 and the full length for the whole edge); "allRound": true runs it all round the broad face.',
+      'Add a profile only when asked, or a small roundover (1/8 to 1/4in) on the exposed top edges of a solid-wood tabletop where the style calls for it. Keep profiles off edges that meet other parts.',
+      '"profiles": [] for every part without them.',
+    ]) expect(SYSTEM_PROMPT).toContain(s);
+  });
+
+  it('an allRound profile still names the broad face and one side in "edge" (Ruling 7)', () => {
+    expect(SYSTEM_PROMPT).toContain('Even with "allRound": true, "edge" still names the broad face AND one side.');
+  });
+
+  it('explains size, fillet, depth and facing, and gives a consistent example', () => {
+    expect(SYSTEM_PROMPT).toContain('{ "edge": ["+y", "+z"], "kind": "roundover", "size": 0.25, "fillet": 0, "depth": 0, "facing": "face", "allRound": false, "start": 0, "end": 36 }');
+    expect(SYSTEM_PROMPT).toContain('a tabletop 36in long (x), 24in deep (z) and 3/4in thick');
+  });
+
   it('pins the corner table and the typical start (fu 313)', () => {
     for (const row of [
       'the leg with the smallest x and z tapers "+x" and "+z"',
