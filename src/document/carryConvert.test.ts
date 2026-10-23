@@ -439,7 +439,7 @@ describe('a holes-only part the model turned (final review C1) and the stored ro
     }
   });
 
-  it('…and a curved part turned the same way keeps the frame (curves, profiles and bands keep it always)', () => {
+  it('…while a curved part the model turned still keeps the frame (curves, profiles and bands keep it always)', () => {
     const curved = { ...chiralCurved('upright'), name: 'Side', cuts: [] };
     const original = project([curved]);
     const o = byName(original).get('Side')!;

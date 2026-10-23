@@ -7008,10 +7008,15 @@ may tokenise below 2 chars/token — re-measure it from the live check's real us
 wave: a holes-only part whose STORED thickness is not its smallest extent (e.g. flat 20 x 1 x 3, width 1 < thickness 3), echoed unchanged by
 the model, fails `keptFrame`'s test and is re-`orient`ed — the same world holes, but relabelled dimensions and a fresh, re-derived row (not
 the exact-row swap). `featureTurned` skips such an original (its precondition); applying the same precondition in `keptFrame` would keep its
-frame. Left as ruled (ask first). **Status:** open (record-only).
+frame. Left as ruled (ask first). (10) Found by the same wave, a side effect of M3: role linking compares hole rows INDEX BY INDEX
+(`alignedTo`, `sameShared`), and a no-op Refine now keeps each part's STORED row order. Two identical, unlinked parts of one role at the same
+rotation whose rows were added in different orders (the Holes panel appends) linked before M3 (both re-sorted canonically) and no longer do
+(probe: two `chiralHoled('flat')` sides, one with its rows reversed, role `side` — 1 Shape without M3, 0 with it; mirrored 0/180 pairs still
+link). Fails safe (the parts stay unlinked). Candidate fix: `alignedTo` compares the rows in canonical order and hands ids out by matched
+row (ask first).
 **Status:** (3) and (4) CLOSED on branch `ai-holes` (final-review fix wave, 2026-10-23). (3): the gate is gone — `keptFrame` in `convertPart`
 is the one frame decision and `restoreHoles` takes the originals it allows; the skip is tested (the C1 probe fails when the swap ignores it).
 (4): `holeRowsFor` snaps the STORED distances, and a computed distance within 1e-9 of the grid takes it even on the exact path; metric mirrored
 sides link at D = 10 and D = 11.8125 (roleLinks.test). The same wave fixed the final review's C1 (a holes-only part the model turned is
 `orient`ed), I2 (stored numbers checked finite and within MAX_MAGNITUDE after the grid), M1/M2 (diff wording), M3 (a no-op Refine keeps the
-stored row order) and M4 (turnCandidates' positional ids documented). (1), (2), (5)–(9) remain open (record-only).
+stored row order) and M4 (turnCandidates' positional ids documented). (1), (2), (5)–(10) remain open (record-only).
