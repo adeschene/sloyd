@@ -39,11 +39,11 @@ export interface PartCarry {
   originalHoles: HoleRow[];
   curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
 }
-/** `role` is REQUIRED from the model (parseDesign checks it); optional here so
- *  hand-built fixtures stay terse. Conversion input only — never stored. */
 /** One edge band in world words (AI-bands spec §2.2): the side face banded and an edging key (`edgingKeys`). */
 export interface WorldBand { edge: Dir; edging: string }
 
+/** `role` is REQUIRED from the model (parseDesign checks it); optional here so
+ *  hand-built fixtures stay terse. Conversion input only — never stored. */
 export interface GeneratedPart {
   name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3;
   /** TS-only, never in the schema: set by Refine's carryFromOriginal from the original part of the same name. parseDesign drops it. */

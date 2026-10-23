@@ -277,7 +277,7 @@ describe('turned candidates and holes', () => {
     expect(turnCandidates(leg)).toEqual([]);
   });
 
-  it('still offers none for a part with a curve, a profile or a rectangular cut beside its bands (AI-bands spec §5)', () => {
+  it('still offers none for a part with a rectangular cut beside its bands (AI-bands spec §5)', () => {
     const edged: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
       bands: [{ side: { across: 'width', from: 'min' }, type: BUILT_IN_BAND_ID }] };
     expect(turnCandidates(edged).length).toBeGreaterThan(0);

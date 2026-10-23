@@ -24,7 +24,8 @@ const PHRASE: Record<BandFaultKind, string> = {
 export function bandDesignFaults(flat: FlatDocument, _display: Units): Violation[] {
   const out: Violation[] = [];
   for (const b of flat.boards) {
-    if (b.bands.length === 0) continue;
+    // A curved part's bands are CARRIED (the model sees none): Refine's carriedSummary reports their faults, never the model.
+    if (b.bands.length === 0 || b.curves.length > 0) continue;
     const seen = new Set<string>();
     for (const f of bandFaults(b, flat.bandTypes)) {
       const key = `${f.side.across}:${f.side.from}:${f.kind}`;
