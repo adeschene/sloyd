@@ -43,7 +43,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   project saved at 21 — export first. Below it, every deploy back to `98c7df4` is schema 20 and free among themselves. Full
   table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-23):** Nothing is pending deploy. **Mirrored links (fu 432) is DEPLOYED** (`68dca2d`, schema 21; live-checked,
-  `docs/browser-verification-mirrored-links.md`). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
+  `docs/browser-verification-mirrored-links.md`). Owed to the user: the mirrored links spec's Amended block (Rulings 1–11);
+  fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles

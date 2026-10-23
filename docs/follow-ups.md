@@ -7074,8 +7074,8 @@ Claude authors holes; curves are fu 363's open authoring piece; profiles and ban
 changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
 compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).
 **Status:** spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's answers 2026-10-23). Chunk 1 (bands) MERGED `e7ce893` and DEPLOYED (`index-lH3mycr3.js`) 2026-10-23 (`bandWorld.ts`, `bandDesignFaults.ts`, inv 54/56 rewritten): Generate and Refine author edge bands in world words, except on a curved part (carried). Chunk 2 (profiles) open; see fu 322's note on its grammar budget.
-**Status:** CLOSED (both chunks). Chunk 2 (profiles) DONE on branch `ai-profiles`, MERGED `30f1299` (2026-10-23; not yet deployed — the
-controller records the deploy): the four angle arrays of the design form merged into one `angles` item to fit the grammar (spec R1–R2;
+**Status:** CLOSED (both chunks). Chunk 2 (profiles) DONE on branch `ai-profiles`, MERGED `30f1299` (2026-10-23; DEPLOYED at `e2729ee`,
+`index-D_ed_oQ3.js`): the four angle arrays of the design form merged into one `angles` item to fit the grammar (spec R1–R2;
 fu 322), and Generate and Refine author edge profiles in world words (`profileWorld.ts`, `profileDesignFaults.ts`; inv 48/53/56
 rewritten), except on a part with curves or a two-side run (carried, `carriesProfiles`). Deferred minors: fu 434.
 
@@ -7096,7 +7096,7 @@ left and right sides with shelf pins on their inside faces AND edging (or a prof
 turn maps one onto the other, so they stay two distinct parts, count twice against Generate's part cap, and an edit to one does
 not follow to the other. Candidate: a reflection candidate in linking, storing the second side as a mirrored use of the Shape
 (schema 13's mirror machinery). **Status:** open (feature; the user chose "two parts for now", 2026-10-23).
-**Status:** closed — mirrored links (2026-10-23, merged `a2ad5f6`; spec `2026-10-23-sloyd-mirrored-links-design.md`, the user's choice of a
+**Status:** closed — mirrored links (2026-10-23, merged `a2ad5f6`, DEPLOYED at `68dca2d`, `index-_J_yZLbU.js`; spec `2026-10-23-sloyd-mirrored-links-design.md`, the user's choice of a
 mirror flag on parts, §1.1; schema 21): a shaped part may be its Shape's mirror image (`mirrored`, inv 45); Generate and Refine link mirror
 twins after turns (`mirrorCandidates`); a Mirrored checkbox and ⇋ badge by hand; joinery keeps the link. The premise's part-cap cost is not
 fixed by linking (the cap counts stored parts): fu 435(1).

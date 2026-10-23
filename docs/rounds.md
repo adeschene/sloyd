@@ -460,7 +460,9 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
 … in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
-Since the bulk approval: none. (The AI profiles and bands spec's *Chunk 2 (execution)* block — Rulings 1–16, the final review's fixes,
+Since the bulk approval: the mirrored links spec's *Amended (execution)* (Rulings 1–11, chiefly Ruling 1 replacing §5.1's
+mirror-candidate mechanism, Ruling 5 the checkbox's world-X form, Ruling 6 Link's flag rule, Rulings 10–11 joinery's exact regroup).
+(The AI profiles and bands spec's *Chunk 2 (execution)* block — Rulings 1–16, the final review's fixes,
 R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-10-23; Rulings 10/16 individually the same day.)
 
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).
