@@ -341,8 +341,10 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
     if (k === 'position' || k === 'rotation') return moved;
     if (k === 'angleCuts') {
       // Written when edited, or when a mirror lowering produced a fresh array that is not the stored one
-      // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain leaves
-      // cur === after, so a shared world array is never written.
+      // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain and an unflagged part
+      // leave cur === after. A flagged user's cur is lowered through its own flag, so cur !== after even when nothing
+      // changed: what prevents a write then is `cur.X !== ref.X` — lowerOwnMirror maps an untouched feature back to the
+      // Shape's own array (`ref`), so a shared world array is never written.
       return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== ref.angleCuts);
     }
     if (k === 'holes') {
@@ -695,11 +697,28 @@ function regroupShapes(doc: SloydDocument, flagged: ReadonlySet<string>): SloydD
     let left = list;
     for (let gi = 0; left.length > 0; gi += 1) {
       const founder = left[0]!;
-      const sources = founder.flag
-        ? [...left.filter((u) => !u.flag).map((u) => u.b), lowerOwnMirror(sh ? withShapeFeatures(founder.b, sh) : founder.b, founder.b, true)]
-        : [founder.b];
-      const fields = sources.map((b) => sharedOf(b)).find((f) => resolvesTo(f, founder));
-      const group = fields ? left.filter((u) => resolvesTo(fields, u)) : [founder];
+      // The Shape's fields: an unflagged founder's own (they resolve to it by construction, see `member`); a flagged
+      // founder's from the first later unflagged user it resolves against, and only when none does, its own fields
+      // lowered through its flag (built lazily: the common case never needs it).
+      let fields: Pick<Board, SharedField> | undefined;
+      if (!founder.flag) fields = sharedOf(founder.b);
+      else {
+        for (const u of left) {
+          if (u.flag) continue;
+          const f = sharedOf(u.b);
+          if (resolvesTo(f, founder)) { fields = f; break; }
+        }
+        if (!fields) {
+          const f = sharedOf(lowerOwnMirror(sh ? withShapeFeatures(founder.b, sh) : founder.b, founder.b, true));
+          if (resolvesTo(f, founder)) fields = f;
+        }
+      }
+      // Exact short-circuit: with neither flagged and the founder's own fields, resolving reproduces them verbatim
+      // (resolveBoard copies SHARED_KEYS unchanged for an unflagged record, and groupSignature reads only SHARED_KEYS),
+      // so membership is signature equality. A shape with no flagged user therefore resolves nothing.
+      const member = (f: Pick<Board, SharedField>, u: User): boolean =>
+        (!founder.flag && !u.flag ? u.sig === founder.sig : resolvesTo(f, u));
+      const group = fields ? left.filter((u) => member(fields!, u)) : [founder];
       const alone = group.length === 1;
       const s: Shape = { id: gi === 0 ? sid : nextId(), ...(alone ? sharedOf(founder.b) : fields!) };
       if (gi === 0) kept.set(sid, s); else added.push(s);
@@ -740,7 +759,8 @@ function regroupShapes(doc: SloydDocument, flagged: ReadonlySet<string>): SloydD
  *    key applyWorldEdits has nothing to merge.
  * 3. shapes (`regroupShapes`): users grouped by shared fields with cuts
  *    compared by GEOMETRY, their ORDER ignored (groupSignature); the first user's group keeps the shape, others get
- *    new shapes; a group takes its first member's cut ids. migrateDocument
+ *    new shapes; a group takes its first member's cut ids, except that a flagged founder's group takes those of the
+ *    first later UNflagged user it resolves against (Ruling 11; else its own, lowered through its flag). migrateDocument
  *    dissolves one-user shapes. A mirrored user (fu 432) keeps its flag, read off
  *    the markers BEFORE the results are written (joinery's parts need not carry
  *    it), and groups with users its group's Shape resolves to exactly through

@@ -96,6 +96,8 @@ export function mirrorFeatures(b: Board): Board {
 /**
  * A part reflected about its own box's centre plane across X (spec §3, "mirror in place"): M_x R(r) = R(-r) M_d0, so the
  * features are mirrored along `mirrorDim` and the turn negated; the box, and so `position` (inv 2), is unchanged.
+ * NOT the Mirrored checkbox: that is `mirrorLinkedPart` (store.ts), which writes the world-X form
+ * `inverseTurn(2a + r)`. This has no production caller; it is kept for tests (frames.test.ts, roleLinks.test.ts).
  */
 export function mirrorInPlace(b: Board): Board {
   return { ...mirrorFeatures(b), rotation: inverseTurn(b.rotation) };

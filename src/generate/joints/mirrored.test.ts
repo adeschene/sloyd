@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument, writeBackFlat, worldParts } from '../../document/document';
+import { shapeUsers } from '../../document/shapes';
 import type { Board, SloydDocument } from '../../document/document';
 import { worldSolids } from '../../document/designCheck';
 import { sameSet } from '../../document/turnFixtures';
@@ -45,6 +46,15 @@ const join = (doc: SloydDocument) => {
   const sites = findSites(flat);
   const joined = applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc;
   return { flat, joined, out: writeBackFlat(doc, flat.boards, joined.boards) };
+};
+/** The flag rule on writeBackFlat's RAW output (before migrateDocument, whose loader drops a plain part's flag and so
+ *  would hide a leak): no stored plain part (a record with `length`) carries `mirrored`, and no flagged user's Shape has a
+ *  single user (a group of one keeps NO flag). */
+const rawFlagLeaks = (d: SloydDocument) => {
+  const users = shapeUsers(d);
+  return [...d.boards, ...d.definitions.flatMap((x) => x.boards)]
+    .filter((b) => b.mirrored === true && ('length' in b || !('shape' in b) || (users.get(b.shape) ?? 0) < 2))
+    .map((b) => b.id);
 };
 const solids = (bs: readonly Board[]) => bs.flatMap((b) => worldSolids(b).map((s) => [...s.min, ...s.max]));
 
@@ -204,6 +214,7 @@ describe('joinery on a mirrored LINK (mirrored links, fu 432, spec §6.2)', () =
   it('a shelf housed in ONE side splits the link: worlds are joinery\'s output, no plain part keeps the flag', () => {
     const { joined, out } = join(caseDoc('left'));
     expect(sides(joined.boards).map((b) => b.cuts.length)).toEqual([1, 0]);
+    expect(rawFlagLeaks(out)).toEqual([]);
     const after = migrateDocument(out);
     expect(after.shapes).toHaveLength(0);
     expect(stored(after).some((b) => 'mirrored' in b || 'shape' in b)).toBe(false);

@@ -9,6 +9,7 @@ import { mirrorCut } from './mirrorCut';
 import { ARCH } from './curveFixtures';
 import { archCurve, cornerCurve } from './curves';
 import { applyWorldEdits, storageKey } from './treeEdit';
+import { shapeUsers } from './shapes';
 
 const edit = (doc: ReturnType<typeof assemblyDoc>, id: string, f: (b: Board) => Board) =>
   mapWorld(doc, (w) => w.map((b) => (b.id === id ? f(b) : b)));
@@ -642,6 +643,15 @@ describe('writeBackFlat — mirrored links (fu 432, spec §6.2)', () => {
     return { ...b, cuts: [...b.cuts, mirrored ? mirrorCut(c, 'length', b.length) : c] };
   };
   const records = (d: SloydDocument) => d.boards.map((b) => [b.id, 'shape' in b ? b.shape : null, b.mirrored === true]);
+  /** The flag rule on writeBackFlat's RAW output (before migrateDocument, whose loader drops a plain part's flag and so
+   *  would hide a leak): no stored plain part (a record with `length`) carries `mirrored`, and no flagged user's Shape has
+   *  a single user (a group of one keeps NO flag; migrateDocument would make it that plain part). */
+  const rawFlagLeaks = (d: SloydDocument) => {
+    const users = shapeUsers(d);
+    return [...d.boards, ...d.definitions.flatMap((x) => x.boards)]
+      .filter((b) => b.mirrored === true && ('length' in b || !('shape' in b) || (users.get(b.shape) ?? 0) < 2))
+      .map((b) => b.id);
+  };
 
   it('joinery touching nothing keeps the link and the flag; the Shape keeps its own dado (no drift)', () => {
     const d = doc();
@@ -692,7 +702,9 @@ describe('writeBackFlat — mirrored links (fu 432, spec §6.2)', () => {
     const d = doc('both-mirrored');
     const before = flatDocument(d).boards;
     const after = before.map((b) => housed(b, true, true));
-    const out = migrateDocument(writeBackFlat(d, before, after));
+    const raw = writeBackFlat(d, before, after);
+    expect(rawFlagLeaks(raw)).toEqual([]);
+    const out = migrateDocument(raw);
     expect(out.boards.some((b) => 'mirrored' in b && !('shape' in b))).toBe(false);
     expect(world(worldParts(out))).toEqual(world(after));
     expect(out.shapes).toHaveLength(0);
@@ -722,7 +734,9 @@ describe('writeBackFlat — mirrored links (fu 432, spec §6.2)', () => {
     const d = doc();
     const before = flatDocument(d).boards;
     const after = before.map((b) => (b.id === 'a' ? housed(b, false) : b));
-    const out = migrateDocument(writeBackFlat(d, before, after));
+    const raw = writeBackFlat(d, before, after);
+    expect(rawFlagLeaks(raw)).toEqual([]);
+    const out = migrateDocument(raw);
     expect(out.shapes).toHaveLength(0);
     expect(out.boards.some((b) => 'mirrored' in b || 'shape' in b)).toBe(false);
     expect(world(worldParts(out))).toEqual(world(after));
