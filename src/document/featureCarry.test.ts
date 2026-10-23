@@ -45,7 +45,7 @@ describe('carryFromOriginal', () => {
     const c = out.parts[0]!.carry!;
     expect(c.frame).toEqual({ posture: 'on-edge', rotation: 180 });
     const o = doc.boards[0] as Board;
-    expect(c.holes).toEqual(o.holes); expect(c.holes).not.toBe(o.holes); expect(c.holes[0]).not.toBe(o.holes[0]);
+    expect(c.originalHoles).toEqual(o.holes); expect(c.originalHoles).not.toBe(o.holes); expect(c.originalHoles[0]).not.toBe(o.holes[0]);
     expect(c.curves).toEqual(o.curves); expect(c.curves[0]).not.toBe(o.curves[0]);
     expect(c.profiles).toEqual(o.profiles); expect(c.profiles[0]).not.toBe(o.profiles[0]);
     expect(c.bands).toEqual(o.bands); expect(c.bands[0]).not.toBe(o.bands[0]);
@@ -60,12 +60,12 @@ describe('carryFromOriginal', () => {
     expect(shaped.shapes).toHaveLength(1);
     const out = carryFromOriginal({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1])], assemblies: [] }, shaped);
     const c = out.parts[0]!.carry!;
-    expect(c.holes).toEqual(shaped.shapes[0]!.holes);
+    expect(c.originalHoles).toEqual(shaped.shapes[0]!.holes);
     expect(c.curves).toEqual(shaped.shapes[0]!.curves);
     expect(c.profiles).toEqual(shaped.shapes[0]!.profiles);
     expect(c.bands).toEqual(shaped.shapes[0]!.bands);
     expect(c.hardware).toEqual(shaped.shapes[0]!.hardware);
-    expect(c.holes).not.toBe(shaped.shapes[0]!.holes);
+    expect(c.originalHoles).not.toBe(shaped.shapes[0]!.holes);
   });
 
   // Two definitions (A placed as Left, B as Right) with different features and hardware, so first-match is observable.
@@ -85,9 +85,9 @@ describe('carryFromOriginal', () => {
 
   it('an assembly part tries each placement in order', () => {
     const doc = twoDefs();
-    expect(carryFromOriginal(model(['Right', 'Left']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hB');
-    expect(carryFromOriginal(model(['Left', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hA');
-    expect(carryFromOriginal(model(['Nope', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.holes[0]!.id).toBe('hB');
+    expect(carryFromOriginal(model(['Right', 'Left']), doc).assemblies![0]!.parts[0]!.carry!.originalHoles[0]!.id).toBe('hB');
+    expect(carryFromOriginal(model(['Left', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.originalHoles[0]!.id).toBe('hA');
+    expect(carryFromOriginal(model(['Nope', 'Right']), doc).assemblies![0]!.parts[0]!.carry!.originalHoles[0]!.id).toBe('hB');
     expect(carryFromOriginal(model(['Right']), doc).assemblies![0]!.parts[0]!.carry!.frame).toBeDefined();
   });
 

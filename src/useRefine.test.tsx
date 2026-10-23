@@ -14,10 +14,10 @@ const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteT
 const doc = designToDocument({ name: 'Box', parts: [
   { name: 'Base', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } },
 ], assemblies: [] }).doc;
-// The model's answer: the design echoed back, every part with the schema's required `holes` (AI-holes spec §2.1).
+// The model's answer: the design echoed back (documentToDesign writes every part's `holes`, AI-holes spec §3.2).
 const echo = (() => {
   const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused');
-  return { ...r.design, parts: r.design.parts.map((p) => ({ ...p, holes: [] })) };
+  return r.design;
 })();
 const S = { instruction: 'taller', width: null, depth: null, height: null, detail: 'simple' as const };
 const client = (complete: LlmClient['complete']): LlmClient => ({ complete: vi.fn(complete), userTurn: (t) => t, estimateCostUsd: () => 0.02 });

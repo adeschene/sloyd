@@ -6,11 +6,6 @@ import { SYSTEM_PROMPT } from './prompt';
 import type { GenerateSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
-import type { GeneratedDesign } from '../document/generated';
-/** The model's answer to a Refine echo: the schema requires `holes` on every part (AI-holes spec §2.1), which
- *  documentToDesign does not write yet. */
-const answered = (d: GeneratedDesign): GeneratedDesign => ({ ...d, parts: d.parts.map((p) => ({ ...p, holes: p.holes ?? [] })),
-  assemblies: d.assemblies?.map((a) => ({ ...a, parts: a.parts.map((p) => ({ ...p, holes: p.holes ?? [] })) })) });
 import { LlmError } from '../llm/types';
 import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
@@ -370,7 +365,7 @@ describe('runRefine', () => {
   const v3 = (x: number, y: number, z: number) => ({ x, y, z });
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
   const orig = (parts: ReturnType<typeof bp>[]) => designToDocument({ name: 'Box', parts, assemblies: [] }).doc;
-  const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return answered(r.design); };
+  const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
   const go = (client: LlmClient, doc: Parameters<typeof runRefine>[1]) => runRefine(client, doc, RS, new AbortController().signal, () => {});
 
   it('refuses with no call', async () => {
@@ -568,7 +563,7 @@ describe('runRefine — custom materials (custom materials spec §6)', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
     ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
-  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return answered(r.design); };
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
   const doc = paint(designToDocument({ name: 'Box', parts: [bp('Top', [0, 0, 0], [10, 1, 10])], assemblies: [] }).doc, 'm-s-ash1', [ASH]);
 
@@ -636,7 +631,7 @@ describe('runRefine — hardware (hardware spec §6)', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
     ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
-  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return answered(r.design); };
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
   const TYPES = [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: 4.5 }, { id: 'h2', name: 'Screw', packSize: 100, pricePerPack: null }];
   const PROJECT = [{ type: 'h1', count: 2 }, { type: 'h2', count: 40 }];
@@ -679,7 +674,7 @@ describe('runRefine — band types (refine-features spec §3.3)', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
     ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
-  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return answered(r.design); };
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
   /** A custom solid band type NO part uses, naming a custom material: only the document-level merge can keep it. */
   const EDGING = { id: 'e1', name: 'Ash edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
@@ -723,7 +718,7 @@ describe('runRefine — joined designs', () => {
   const plainEcho = (d: SloydDocument) => {
     const p = plainForRefine(d); if ('refused' in p) throw new Error(p.refused.message);
     const r = documentToDesign(p.plain, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message);
-    return answered(r.design);
+    return r.design;
   };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
     ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
@@ -1124,7 +1119,7 @@ describe('the angle-joint fault for tapers (AI-tapers spec 5.3)', () => {
     const doc = designToDocument(parseDesign(design(24))!).doc;
     const from = documentToDesign(doc, REFINE_MAX);
     if ('refused' in from) throw new Error('refused');
-    const { client, seen } = fakeClient([answered(from.design)]);
+    const { client, seen } = fakeClient([from.design]);
     const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
     if ('refused' in out) throw new Error('refused');
     expect(out.present.some((v) => v.kind === 'angle-joint')).toBe(true);
@@ -1208,4 +1203,39 @@ describe('runRefine — a standard-form taper the converter would reject (fu 309
       expect(JSON.stringify(doc)).toBe(before);
     });
   }
+});
+
+describe('hole rows from the model (AI-holes spec §3.1)', () => {
+  const RS = { instruction: 'add holes', width: null, depth: null, height: null, detail: 'simple' as const };
+  /** A 30 x 3/4 x 12 side on the floor: thickness on y, length on x. */
+  const SIDE = { ...bp('Side', [0, 0, 0], [30, 0.75, 12]) };
+  const row = (face: '+y' | '-y', x: number) => ({ face, diameter: 0.25, depth: 0.25, through: false, offset: v3(x, face === '+y' ? 0.75 : 0, 2), toward: '+x' as const, count: 3, pitch: 1.25 });
+
+  it('Generate: a breaking-out row is STORED and raises one hole-fault, fed back', async () => {
+    const bad = { name: 'S', parts: [{ ...SIDE, holes: [row('+y', 27.5)] }], assemblies: [] };
+    const { client, seen } = fakeClient([bad]);
+    const out = await run(client);
+    expect(flatDocument(out.doc).boards[0]!.holes).toHaveLength(1);
+    expect(out.violations.filter((v) => v.kind === 'hole-fault')).toEqual([{ kind: 'hole-fault', parts: ['Side'],
+      message: "Side's hole row on +y breaks out of its face.", shown: "Side's hole row on the thickness face (max side) breaks out of its face." }]);
+    expect(JSON.stringify(seen[1])).toContain("Side's hole row on +y breaks out of its face.");
+  });
+
+  it('Refine: an original faulted row does not hide a NEW faulted row on the same part (problemKey)', async () => {
+    const original = designToDocument({ name: 'S', parts: [{ ...SIDE, holes: [row('+y', 27.5)] }], assemblies: [] }).doc;
+    expect(flatDocument(original).boards[0]!.holes).toHaveLength(1);
+    const r = documentToDesign(original, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const withNew = { ...r.design, parts: r.design.parts.map((x) => ({ ...x, holes: [...(x.holes ?? []), row('-y', 28)] })) };
+    const { client, seen } = fakeClient([withNew, r.design]);
+    const out = await runRefine(client, original, RS, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const second = JSON.stringify(seen[1]!.slice(-1));
+    expect(second).toContain("Side's hole row on -y breaks out of its face.");
+    expect(second).not.toContain("Side's hole row on +y breaks out of its face.");
+    // The echo is the best: no new fault, the original's listed as present.
+    expect(out.violations).toEqual([]);
+    expect(out.present.map((v) => v.message)).toEqual(["Side's hole row on +y breaks out of its face."]);
+  });
 });

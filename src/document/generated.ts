@@ -12,7 +12,7 @@ import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
 import { builtInCatalog } from './materials';
 import type { MaterialCatalog } from './materials';
-import { copyHoleRow } from './holes';
+import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
@@ -30,9 +30,12 @@ export interface Vec3 { x: number; y: number; z: number }
 export type MaterialKey = string;
 /** TS-only (never in the schema; parseDesign's fresh object drops it). Set by Refine's carryFromOriginal. */
 export interface PartCarry {
-  /** Present iff any hole, curve, profile or band is carried: the ORIGINAL part's encoding (spec §3.2). */
+  /** Present iff the original has any hole, curve, profile or band: the ORIGINAL part's encoding (spec §3.2). */
   frame?: { posture: Posture; rotation: Rotation };
-  holes: HoleRow[]; curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
+  /** The original's stored hole rows, for the exact-row map only (AI-holes spec §3.3): never written to the output as
+   *  such — the model authors holes; a returned row that IS one of these, on the new part, is restored as it was. */
+  originalHoles: HoleRow[];
+  curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
 }
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
@@ -65,8 +68,8 @@ export interface AssemblyCarry { hardware: HardwareUse[] }
 export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[]; carry?: AssemblyCarry }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
-/** `detail` is the whole message, set for `'taper'` and `'angle'`. */
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle'; detail?: string }
+/** `detail` is the whole message, set for `'taper'`, `'angle'` and `'hole'`. */
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole'; detail?: string }
 
 const vec3Schema = {
   type: 'object',
@@ -366,14 +369,40 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has angle cuts that together leave no wood.` });
     return null;
   }
+  // Hole rows (AI-holes spec §3.1): converted on the part as encoded (the carried frame, or orient's); a SHAPE fault
+  // rejects the part, a strict fault (holeFaults) does not — the row is stored and holeDesignFaults flags it.
+  const derived = holeRowsFor({ ...board, angleCuts }, p.holes ?? [], exact);
+  if ('fault' in derived) {
+    rejected.push({ name: label, reason: 'hole', detail: `${label} ${derived.fault}.` });
+    return null;
+  }
+  const holes = restoreHoles({ ...board, angleCuts }, derived.rows, p.carry);
   // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
   // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
   const c = p.carry;
   return {
     ...fields, angleCuts,
-    holes: c ? c.holes.map(copyHoleRow) : [], curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
+    holes, curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
     bands: c ? c.bands.map(copyBand) : [], cornerRule: c ? c.cornerRule : 'long', hardware: c ? c.hardware.map(copyHardwareUse) : [],
   };
+}
+
+/**
+ * The exact-row map (AI-holes spec §3.3): each re-derived row is swapped for the first UNUSED original row of the same
+ * part that drills the same holes on the NEW part (`sameHoles`), kept as it was — its id, `alongFrom`, `acrossFrom` and
+ * numbers — so an untouched row (or one on a part that only moved) comes back exactly, however a person measured it.
+ * Only in the original's frame (`carry.frame`; a holed original always sets it): the stored fields mean nothing in
+ * another. Every other row gets a fresh id. Sorted canonically after the swap (a swapped row's fields can sort apart).
+ */
+function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], carry: PartCarry | undefined): HoleRow[] {
+  const originals = carry?.frame ? carry.originalHoles : [];
+  const used = new Set<number>();
+  return sortHoleRows(rows.map((r): HoleRow => {
+    const i = originals.findIndex((o, k) => !used.has(k) && sameHoles(o, r, board));
+    if (i < 0) return { id: nextId(), ...r };
+    used.add(i);
+    return { ...originals[i]! };
+  }));
 }
 
 /**

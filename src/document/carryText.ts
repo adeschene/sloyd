@@ -52,11 +52,14 @@ const NOTE = 'These parts carry holes, curves, edge profiles, edging or hardware
 /** The user-turn paragraph naming the parts whose features the design JSON does not show (spec §5), or null. */
 export function featuredNote(design: GeneratedDesign): string | null {
   const items: string[] = [];
-  for (const p of design.parts) if (p.carry) items.push(`${p.name} (${kindsText(p.carry)})`);
+  // A part whose carry holds only its original's hole rows (the exact-row map) carries nothing the JSON does not show:
+  // the design shows its holes (AI-holes spec §4).
+  const kinds = (p: GeneratedDesign['parts'][number]) => (p.carry ? kindsText(p.carry) : '');
+  for (const p of design.parts) if (kinds(p)) items.push(`${p.name} (${kinds(p)})`);
   for (const a of design.assemblies ?? []) {
     const first = a.placements[0]?.name;
     if (first === undefined) continue;
-    for (const p of a.parts) if (p.carry) items.push(`${first}${NAME_SEPARATOR}${p.name} (${kindsText(p.carry)})`);
+    for (const p of a.parts) if (kinds(p)) items.push(`${first}${NAME_SEPARATOR}${p.name} (${kinds(p)})`);
     if (a.carry && a.carry.hardware.length > 0) items.push(`${first} (hardware)`);
   }
   return items.length === 0 ? null : `${NOTE}${items.join(', ')}.`;

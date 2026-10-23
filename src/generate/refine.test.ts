@@ -73,7 +73,8 @@ describe('refine', () => {
 
     it('names featured parts, right after the design JSON', () => {
       const d = design(featured);
-      const note = `${NOTE}Side (holes), Apron (a curve), Top (an edge profile, edging), Door (hardware).`;
+      // Side carries only holes, which the design now shows (AI-holes spec §4): not named.
+      const note = `${NOTE}Apron (a curve), Top (an edge profile, edging), Door (hardware).`;
       expect(refineMessage(d, S, undefined, featured)).toBe([
         'Here is the current design, in the same format you return:', JSON.stringify(d), '', note, '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
