@@ -1,6 +1,6 @@
 # Sloyd: Generate and Refine author hole rows
 
-**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions).
+**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions); implemented on branch `ai-holes` (not yet merged).
 **Builds on:** the holes spec (`2026-10-14-sloyd-holes-design.md`: the stored `HoleRow`, `holeFaults`), the AI-angles spec
 (`2026-10-13-sloyd-ai-angles-design.md`: the pattern this follows, world words in the design schema, one converter
 module, exact round trips for Refine), and the refine-features spec (`2026-10-22-sloyd-refine-features-design.md`: Refine
@@ -242,3 +242,23 @@ and stored exactly. The questions as asked:
    part as an angle fault does? Rejecting can lose a part if the model never fixes it.
 3. **Prompt defaults (§6):** imperial (1/4in pins, 1-1/4in apart), with the 32 mm system written as 1.26 and stored as
    exact millimetres. Or should cabinets default to the 32 mm system?
+
+## Amended (execution)
+
+Rulings made while building, on branch `ai-holes` (2026-10-23). Where one differs from the text above, this block wins.
+
+- **Canonical direction has a fallback (§3.1).** A row is stored `alongFrom: 'min'` EXCEPT when a loader-legal row cannot be expressed from min
+  (its min-most hole lies past the min end): then it is stored from `'max'`. The across side is the nearer one, falling back to the far side
+  when the centre lies past the nearer. Needed so every loader-kept (faulted) row round-trips.
+- **`sameHoles` compares centres as a SET**, not by index, so a max-stored original matches its canonical re-derivation in the exact-row map.
+- **`holeDesignFaults` lives in its own module** (`src/document/holeDesignFaults.ts`), because its `shown` copy goes through `holeText` (the
+  `-> units` edge) and `holeWorld.ts` stays model-facing and units-free.
+- **The hole-fault message includes the row's first centre** (§3.1: key = face + first centre + kind): "<Part>'s hole row on <face> starting at
+  x, y, z in <phrase>." `problemKey` includes the message for this kind, and `collapseViolations` groups hole-faults by message minus the
+  part-name prefix, so two different faults on one part are never merged.
+- **`turnCandidates` passes an exact set** (the part's own `worldHoles` numbers) to `holeRowsFor`, so a re-stored row never snaps: a turn must
+  not move a hole. Parts with curves, profiles or bands still never turn.
+- **The model-facing NOTE drops "holes,"** from its list of carried features: holes are in the format now. `PartCarry.holes` is gone;
+  `PartCarry.originalHoles` (in the carried frame) feeds the exact-row swap.
+- **The prompt's word is "drilled"** for hole rows.
+- **Compiled form (fu 322):** first probe, no fallback; the Refine form with the catalog is 2,952 chars; request `req_011CgJGkuYyCJ51nxdbdHDTn`.

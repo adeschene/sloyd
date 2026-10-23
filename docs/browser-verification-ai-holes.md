@@ -24,3 +24,5 @@ before anything else was built on it.
 - **Probes used:** 1 of the 10 paid runs pre-approved for this feature.
 - **Pinned:** `src/document/fixtures/design-schema-builtin.json` was re-captured to the new bytes (verified equal to the
   old bytes plus `holes` and nothing else); its test names this probe.
+
+This probe exercised the grammar compile only, not the model's hole output; the output is checked by the live runs recorded after the merge.

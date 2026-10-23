@@ -208,7 +208,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Angle cuts have their own table, `ANGLE_CUT_FIELDS` (`angleCuts.ts`), every field but `id` — `kind` INCLUDED — exact.
     Hole rows have `HOLE_FIELDS` (`holes.ts`), every field but `id`, exact — except a count-1 row's ignored `pitch`,
     which `holeRowValues` reads as 0 (fu 338, the user's ruling 2026-10-15): the cut list groups by them as a multiset, ids ignored (`holeSignature`); `sameShared` compares rows in order,
-    ids included, as it does cuts and angle cuts.
+    ids included, as it does cuts and angle cuts. `linkByRole` aligns a member's hole-row ids to the representative's (`alignedTo`), only when `sameHoleRow` matches row for row; never loosen `sameShared`.
     Curves have `CURVE_FIELDS` (`curves.ts`, `satisfies`), every field but `id`, exact, the segment list
     compared field by field in order: the cut list groups by them as a multiset, ids ignored; `sameShared` in order, ids included.
     Profiles have `PROFILE_FIELDS` (`profiles.ts`, `satisfies`), every field but `id`, exact, `run` structurally; the cut list groups
@@ -370,7 +370,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `miterCut`/`bevelCut`/`chamferCut`) — recognised STRUCTURALLY (`isStandardTaper`, `worldAngles`); Refine refuses, before
     any call, a cut it cannot describe or the converter would reject on the re-encoded part (`'taper-form'`, `'angle-form'`),
     and keeps untouched angles exactly through the exact-angle map (`angleRatiosOf`). **The design schema defines the part
-    and the direction ONCE in `$defs`** — the API refuses a schema whose compiled grammar grows too large (measured
+    and the direction ONCE in `$defs`** (`vec3` stays inline; the hole item added no `$def`, AI-holes) — the API refuses a schema whose compiled grammar grows too large (measured
     2026-10-14: the inline form with the three angle arrays was refused). `contactSolids` is the second, narrower reader of
     angle cuts: box-valued, never over-claiming wood.
     `boardBodies` is the ONE place curves become bodies too, and bodies stay CONVEX: each curve's waste
@@ -426,8 +426,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `off-flat` — zero skin at a cut's floor counts —, `meets-hole`, `too-deep`; exact closed forms, tangent passes): an add
     is refused on any fault, an edit only when it ADDS a (hole, kind) fault the stored row lacks (so a row a resize faulted
     can be edited back), decided before any mutation; a fault a later edit causes is KEPT, noted, drawn approximately,
-    never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep once). Refine
-    carries holes onto the returned parts (inv 56; `carryFromOriginal`, a resize keeps each row at its stored station, a fault it causes is KEPT and noted); joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts holed projects; `turnCandidates` returns none for a holed part.
+    never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep once). **Generate
+    and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (AI-holes, spec 2026-10-23): the design carries a `holes` array in WORLD words (`WorldHoleRow`: face, centre along/across, diameter, depth or through, count, pitch, direction), and `holeRowsFor` turns them into stored `HoleRow`s. Its shape faults (the loader's own drop rules plus the 1/32 plane rule) reject the part with reason `'hole'`; a STRICT fault (`holeFaults`) from the model is KEPT and flagged (`holeDesignFaults`, in its own module, `'hole-fault'` violations; the message names the row's first centre, `problemKey` includes that message, and `collapseViolations` groups hole-faults by message minus the part-name prefix), never rejected and never clamped. Values snap to the nearer of 1/64 in and whole mm (`holeSnap`). A canonical row is stored `alongFrom: 'min'` (or `'max'` when a loader-legal row cannot be expressed from min) and the across side is the nearer one, falling back to the far side, so every loader-kept row round-trips. **Untouched rows come back EXACTLY**: Refine reads each part's rows with `worldHoles`, and `PartCarry.originalHoles` (in the carried frame) feeds the exact-row swap, which restores the original stored row when `sameHoles` (centres compared as a SET) says the model changed nothing. Refine no longer carries holes as an opaque feature (inv 56); joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts holed projects; `turnCandidates` re-stores a holed part per turn (inv 56).
     A part with no holes keeps its geometry byte-for-byte (the `BoxGeometry` path included; a part with no
     holes AND no curves (profiles count, through `geometryBoard`) — `drawsAsBox` is the ONE routing decision, `bodyMeshIdentity.test.ts` pins holed uncurved parts to
     master's bytes). `holeFaults`' `breaks-out` includes a hole meeting a curve's waste (`intoCurve`;
@@ -635,12 +635,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     never writes hardware (`DESIGN_SCHEMA` byte-identical, fu 322). Load order: materials, band types, hardware types, parts/shapes/
     definitions, the project's `hardware`, `pruneMaterials`.
 
-56. **A part Refine carries holes, curves, profiles or bands onto keeps the original's posture and rotation (`frameFor`); never `orient` it.**
+56. **A part Refine carries curves, profiles, bands or hardware onto, or whose holes it re-derives, keeps the original's posture and rotation (`frameFor`); never `orient` it.**
     The carry (`featureCarry.ts` `carryFromOriginal`, by FLAT NAME, onto the returned part in the ORIGINAL part's frame; refine-features spec
     §3) lands BEFORE `migrateDocument` (band types and hardware types through `designToDocument`'s `bandTypes` / `hardwareTypes` opts) and
     BEFORE `linkByRole`. `generated.ts` carries the facts as TS-only `PartCarry` / `AssemblyCarry` (never in `DESIGN_SCHEMA`, fu 322), and
-    `convertPart` takes the frame from `frameFor` for a part with holes, curves, profiles or bands. `turnCandidates` (`roleLinks.ts`) never
-    turns a part with holes, curves, profiles or bands (banded ones included). A resize keeps each feature at its STORED station, measured
+    `convertPart` takes the frame from `frameFor` for a part with holes, curves, profiles or bands (`hasFrameFeatures` still counts HOLES: a holed part keeps its frame so its rows keep their faces). Holes are no longer a carried feature (AI-holes): the model writes them as world rows (inv 50), so `carriedKinds` (curves, profiles, bands, hardware) alone drives `featuredNote`, `featureTurned` and `carriedSummary`, and the done view's diff lists hole changes (`diffDesigns` `'holes'` lines; `KEEP_LINE` names holes). `turnCandidates` (`roleLinks.ts`) never turns a part with curves, profiles or bands (banded ones included); a HOLED part is re-stored per turn through world forms (`worldHoles` then `holeRowsFor` with an EXACT set: the part's own numbers, never snapped, because a turn must not move a hole), and `alignedTo` aligns hole-row ids to the representative's. A resize keeps each feature at its STORED station, measured
     from the end or side it names; a fault the resize causes is KEPT, noted and never clamped, and only a fault the original did not already
     have is named. A featured part returned turned onto another face is a design fault fed to the repair loop (`'feature-turned'`, through
     `EvaluateOpts.extraFaults`, `featureTurned`; a quarter turn in plan is NOT caught, fu 425). The done view lists every featured part not

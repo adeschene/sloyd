@@ -5901,6 +5901,7 @@ part written twice, 4,297 chars, 16 enums) was refused; the same schema with the
 for at least two more angle-like arrays. A new part field or enum costs once (in `$defs`). Anything that changes
 `DESIGN_SCHEMA` needs one live compile before it ships — the unit suite cannot see this limit (a test pins the `$defs`
 form only). **Status:** record-only.
+**Status:** AI-holes compiled (2026-10-23, `ai-holes`): the `holes` array added one 8-field item (face, along, across, diameter, depth/through, count, pitch, direction) with no new `$def`. The Refine form with the catalog is 2,952 chars (Generate's built-in form 2,918, against 2,372 before holes). It compiled on the FIRST probe, no fallback (HTTP 200, request `req_011CgJGkuYyCJ51nxdbdHDTn`, `max_tokens` 16). The probe exercised the grammar only, not the model's hole output.
 
 **323. AI angles chunk 2 minors (record-only; final review M2–M6).** (M2) The `angle-joint` design fault's advice is generic
 ("move it off that end or face, or remove it") — the spec wanted the tenon-clearance rule's numbers carried back; it
@@ -5969,6 +5970,7 @@ Carrying holes through needs a rebase for rows measured from an end joinery grow
 live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
 open (spec §11).
 **Status:** open (feature; needs a spec) (a `DESIGN_SCHEMA` change: one live compile, fu 322). (triaged 2026-10-16)
+**Status:** CLOSED on branch `ai-holes` (2026-10-23, spec `2026-10-23-sloyd-ai-holes-design.md`; not yet merged or deployed): Generate and Refine author hole rows in world words through `holeWorld.ts` (inv 50); Refine keeps untouched rows exactly; holes leave the carry (inv 56). The deferred minors are fu 428.
 
 **330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
 refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
@@ -6989,3 +6991,14 @@ before (a raw failure, cost null). A narrower guard would sit on `featureAllowed
 feature-turned `shown` names hardware among "the wrong faces"; `JointsSummary.notes` also carries `parseChoices`' notes (its doc comment
 says ruled-out lines); FEATURE_CHECK_FAILED's advice ("Add joinery before drilling or shaping") reads oddly on an already-joined Refine and
 omits edging. **Status:** open (record-only; ask before changing).
+
+## From the AI-holes round — 2026-10-23
+
+**428. AI-holes deferred minors (2026-10-23, execution ledger; none fixed this round).** (1) The `shown` copy of a `'hole-fault'` lacks the
+row's first centre, so two faulted rows on one face read as the same line (the model-facing message has it). (2) The `'off-flat'`
+phrase in `holeDesignFaults` has no test. (3) `restoreHoles`' `carry.frame` gate is redundant today (untestable). (4) After a turn, a
+METRIC project's mirrored sides might miss a link by an ulp; it fails safe (the sides stay unlinked). (5) The prompt's "front and back"
+is not tied to an axis (probe in the live check). (6) `alignedTo`'s row checks are partly redundant with `sameShared` (a comment is
+owed). (7) The property grid for `holeRowsFor` lacks station > along dimension and inset > across dimension; `sameHoles` has no test
+for a different count; a single bore stores the model's pitch rather than 0; toFixed(3) centres in a message could collide below
+0.0005 in (unreachable on the hole grid). **Status:** open (record-only).
