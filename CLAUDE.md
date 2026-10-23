@@ -37,14 +37,14 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `424c184`, bundle `index-D3k3tvUe.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (Generate and Refine author hole
-  rows, fu 329: `holeWorld.ts`, inv 50/56; deployed 2026-10-23). Owed to the user: see NEXT.
-- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `424c184`
-  only stops Claude authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
+- **Production: `b569dca`, bundle `index-B3SxN3Yk.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (shop words: Refine's change list
+  in shop words, `shopWords.ts`; the prompt names +z the front; deployed 2026-10-23). Owed to the user: see NEXT.
+- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `b569dca`
+  only brings back "+x" in the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** the shop-words round (change list in shop words, the prompt names +z the front; spec
-  `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`) is MERGED and NOT deployed — ask before deploying. The AI-holes
+- **NEXT (2026-10-23):** nothing is pending deploy and no plan exists. The shop-words round is DEPLOYED (spec
+  `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`; fu 431 left as is). The AI-holes
   round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
   Owed to the user: the refine-features round's look and
   check-list words; joinery chunk 3's words and spec amendments and fu 419's part note; chunk 2's; fu 402(1)–(2); fu 410–412.
