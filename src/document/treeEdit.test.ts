@@ -698,6 +698,26 @@ describe('writeBackFlat — mirrored links (fu 432, spec §6.2)', () => {
     expect(out.shapes).toHaveLength(0);
   });
 
+  // Step 1 copies a definition whose placements' results differ (copyDefinition, ids kept, new definition id). The flags
+  // are read off the markers AFTER that split, so the copy's mirrored user keeps its flag and its (new) link.
+  it('a mirrored link in an assembly placed twice, housed in ONE placement: the copy keeps the flag and its own link', () => {
+    const base = doc();
+    const d: SloydDocument = {
+      ...base, boards: [],
+      definitions: [{ id: 'd1', boards: base.boards, instances: [], hardware: [] }],
+      instances: [0, 1].map((k) => ({ id: `i${k}`, name: `Case ${k}`, definition: 'd1', position: [k * 100, 0, 0] as [number, number, number], rotation: 0 as const })),
+    };
+    const before = flatDocument(d).boards;
+    const after = before.map((b) => (b.id.startsWith('i1/') ? housed(b, b.id === 'i1/b') : b));
+    const out = migrateDocument(writeBackFlat(d, before, after));
+    expect(out.definitions).toHaveLength(2);
+    expect(out.shapes).toHaveLength(2);
+    const copy = out.definitions.find((x) => x.id === out.instances[1]!.definition)!;
+    expect(copy.id).not.toBe('d1');
+    expect(copy.boards.map((b) => [b.id, 'shape' in b ? b.shape !== 's1' : null, b.mirrored === true])).toEqual([['a', true, false], ['b', true, true]]);
+    expect(world(worldParts(out))).toEqual(world(after));
+  });
+
   it('a dado in ONE side splits the link: worlds are joinery\'s output, no plain part keeps the flag', () => {
     const d = doc();
     const before = flatDocument(d).boards;
