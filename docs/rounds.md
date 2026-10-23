@@ -124,9 +124,16 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | joinery accepts bands (chunk 3) | 10-22 | — | Add joinery rules out only the joint kinds a band is in the way of (`bandRegions`, judged as stored in the original frame, P9–P11; an edged shelf housed whole in a dado, the user's ruling); a stopped dado narrowed to the stop ends that clear ("Offer clear ends") with its smallest inset clearing a receiver band ("Fix now"); strips, tape and glue lines count only the visible run (`visibleRun`, P12–P14); the gate compares bands; Repair accepts banded projects; Refine still refuses (inv 41/54; fu 398's joinery and Repair half closed, 418–423). Merge `1d39344`, deployed 2026-10-22 (`index-bKxsxRuC.js`) |
 | Refine carries features | 10-22/23 | — | Refine accepts holes, curves, profiles, bands and hardware: carried by flat name onto the returned part in the ORIGINAL frame (`featureCarry.ts`, `frameFor`; inv 56), before the load gate and linking; a featured part turned onto another face goes back to the model (`feature-turned`); the done view lists Not kept and Check at the new size (`carryText.ts`); joinery's ruled-out notes shown; the four refusal modules deleted (inv 41/50/53/54/55; fu 328/398 closed for Refine, 363 Refine reading, 424–427). **Merged `98f8296`, deployed 2026-10-23 (`index-BJwLoCPr.js`)** |
 | AI holes | 10-23 | — | Generate and Refine author hole rows in world words (`holeWorld.ts`, the ONE converter; `holeSnap` nearer of 1/64in or whole mm; canonical rows); untouched rows return exactly (exact-row map, original order kept); `hole-fault` kept and fed back (`holeDesignFaults.ts`); mirrored sides link through turns (`turnCandidates`, `alignedTo`); holes leave the carry; a holes-only part keeps its frame only without a turn (rank + thickness rule); schema compiled live first probe (fu 322) (inv 40/48/50/56; fu 329 closed, 428, 429). **Merged `424c184`, deployed 2026-10-23 (`index-D3k3tvUe.js`)** |
+| shop words | 10-23 | — | Refine's change list in shop words (`shopWords.ts`: top/bottom, inside/outside toward the frame's middle, else left/right/front/back; ends absolute); a same-looking add+remove hole pair is one "moved" line; the prompt names +z the front (spec `2026-10-23-sloyd-shop-words-design.md`; fu 431). **Merged, not deployed** |
 
 ## Status log (to 2026-10-23)
 
+- **Shop words (2026-10-23; branch `shop-words`; no schema change, rollback free)**: from the AI-holes review (the user: reword
+  "+x" to "45 holes added on the inside face"; design approved in chat, spec `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`).
+  `shopWords.ts` + `designDiff.ts` (matched on raw directions, worded per side's frame), `SYSTEM_PROMPT` names +z the front. 7724
+  tests; six mutations each caught. Live check `docs/browser-verification-shop-words.md` (3 paid runs ≈ $0.16): Generate puts the
+  back panel at the smallest z; Refine reads "hole row on the inside face moved 1\" toward the front"; an OLD project (back at +z)
+  still moves the right way but reads "toward the back" (fu 431, the user's call).
 - **AI holes (fu 329; 2026-10-23; branch `ai-holes`, MERGED `424c184`, DEPLOYED 2026-10-23 as `index-D3k3tvUe.js`, CSS unchanged; schema 20,
   rollback to `98f8296` / `index-BJwLoCPr.js` free)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-holes-design.md` (the user took
   all three §11 calls; Amended (execution) carries the controller's rulings), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-holes.md`.
@@ -134,8 +141,9 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   never linked) and one fix wave, then R1 (plan turn; the user: "Fix it, then merge") and the tie clause. 7711 tests. Live check
   `docs/browser-verification-ai-holes.md` (compile probe + 5 paid runs ≈ $0.23, all one call: bookcase, 32 mm bookcase, move pins, echo
   exact, knob hole; CHARS_PER_TOKEN 2 holds). Production verified by bundle hash in-network and at the edge, CSP, a real-browser load
-  (0 errors), storage cleared and read back empty. Owed to the user: the look on real hardware; whether "move the pins" moves both rows;
-  world-face words ("+x") in the change list; the controller's rulings (rank + thickness frame rule; §3.2 taper guarantee narrowed;
+  (0 errors), storage cleared and read back empty. **Reviewed by the user 2026-10-23** (in the watched dev browser): the look reads fine
+  (software GL — the real-hardware look stays owed); "move the pins" moving both rows is right; the "+x" words became the shop-words
+  round. Still owed: the look on real hardware; the controller's rulings (rank + thickness frame rule; §3.2 taper guarantee narrowed;
   distances snapped from the measured end/side; original order kept on a no-op). Record-only: fu 428, 429.
 - **Refine carries features (2026-10-22/23; branch `refine-features`, MERGED `98f8296`, DEPLOYED 2026-10-23 as `index-BJwLoCPr.js`, CSS unchanged;
   schema 20, rollback to `3162e68` / `index-DoG-TXKm.js` free)**: spec `docs/superpowers/specs/2026-10-22-sloyd-refine-features-design.md`

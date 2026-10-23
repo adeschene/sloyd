@@ -221,7 +221,11 @@ src/
 │   ├── refineDesign.ts   documentToDesign (Refine's input + refusals, incl. 'taper-form'/'angle-form'; definitions normalised; pre-checks judge a
 │   │                     featured part in its own frame, inOwnFrame), designValues (exact values kept; angles via the exact-angle map), definitionCorner
 │   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units); taperLines/angleLines (kind `angle`;
-│   │                     a bevel placed by face AND long point)
+│   │                     a bevel placed by face AND long point); holeLines (a same-looking add+remove pair is one "moved" line);
+│   │                     matched on raw directions, worded through shopWords in each side's own frame
+│   ├── shopWords.ts      directions in shop words for a PERSON (no → units): faceWord (top/bottom; inside/outside toward the
+│   │                     frame's centre — a placement's own parts, else the piece; centred → left/right/front/back, +z the
+│   │                     front), endWord (absolute), facesText, centreOf (shop-words spec)
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
 │   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
 │   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48)
