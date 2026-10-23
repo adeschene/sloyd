@@ -9,7 +9,7 @@ import type { WorldAngles } from './angleWorld';
 import { worldHoles } from './holeWorld';
 import type { WorldBand, WorldHoleRow, WorldProfile } from './generated';
 import { worldProfiles } from './profileWorld';
-import { PROFILE_KIND_LABEL } from './profiles';
+import { PROFILE_KIND_WORD } from './profiles';
 import { carriesProfiles } from './featureCarry';
 import { worldBands } from './bandWorld';
 import { BUILT_IN_BAND } from './bandModel';
@@ -184,11 +184,11 @@ function shownProfiles(b: Board): ShownProfile[] {
  * raw edge directions and kind (never the words), several on one edge and kind pairing in order: added
  * (`1/4" roundover added on the top/front edge`), removed, or changed (`now 3/8"`, else `now stopped` / `now full length` /
  * `now all round`). An all-round profile has no side: it matches a profile of its broad face and kind that found no
- * partner, and reads `on the top face`. Edges read in absolute words (`endWord`), kinds in the bench's lowercase words
- * (`PROFILE_KIND_LABEL`). `len` carries the document's units.
+ * partner, and reads `on the top face`. Edges read in absolute words (`endWord`), kinds in the bench's words
+ * (`PROFILE_KIND_WORD`). `len` carries the document's units.
  */
 function profileLines(before: readonly ShownProfile[], after: readonly ShownProfile[], len: (n: number) => string): string[] {
-  const kind = (w: WorldProfile) => PROFILE_KIND_LABEL[w.kind].toLowerCase();
+  const kind = (w: WorldProfile) => PROFILE_KIND_WORD[w.kind];
   const place = (w: ShownProfile) => (w.run === 'all round' ? `all round the ${endWord(w.edge[0] as Dir)} face`
     : `on the ${endWord(w.edge[0] as Dir)}/${endWord(w.edge[1] as Dir)} edge`);
   const exact = (x: ShownProfile, y: ShownProfile) => x.kind === y.kind && x.edge[0] === y.edge[0] && x.edge[1] === y.edge[1] && (x.run === 'all round') === (y.run === 'all round');
@@ -207,10 +207,20 @@ function profileLines(before: readonly ShownProfile[], after: readonly ShownProf
   const order = (w: ShownProfile) => DIRS.indexOf(w.edge[0] as Dir) * 6 + DIRS.indexOf(w.edge[1] as Dir);
   type Item = { at: number; text: string };
   const items: Item[] = [];
+  const edgePlace = (w: ShownProfile) => `on the ${endWord(w.edge[0] as Dir)}/${endWord(w.edge[1] as Dir)} edge`;
   for (const [b, a] of pairs) {
-    const change = len(a.size) !== len(b.size) ? len(a.size)
-      : a.run !== b.run || (a.run === 'stopped' && (a.start !== b.start || a.end !== b.end)) ? a.run : null;
-    if (change !== null) items.push({ at: order(a), text: `${kind(a)} ${place(a)} now ${change}` });
+    // Every displayed difference, in one line (Ruling 11): size, fillet (a bead's quirk), depth, facing, then the run.
+    const now: string[] = [];
+    if (len(a.size) !== len(b.size)) now.push(len(a.size));
+    if (len(a.fillet) !== len(b.fillet)) now.push(`${len(a.fillet)} ${a.kind === 'bead' ? 'quirk' : 'fillet'}`);
+    if (len(a.depth) !== len(b.depth)) now.push(`${len(a.depth)} deep`);
+    if (a.facing !== b.facing) now.push(`facing the ${a.facing}`);
+    if (a.run !== b.run || (a.run === 'stopped' && (a.start !== b.start || a.end !== b.end))) now.push(a.run);
+    if (now.length === 0) continue;
+    // Name the profile where it is on the AFTER side; a loop has no edge, so a run on either side names its edge, and
+    // only a profile that stays all round is named by its face (never "all round … now all round").
+    const where = a.run !== 'all round' ? edgePlace(a) : b.run !== 'all round' ? edgePlace(b) : place(a);
+    items.push({ at: order(a), text: `${kind(a)} ${where} now ${now.join(', ')}` });
   }
   for (const a of rest) items.push({ at: order(a), text: `${len(a.size)} ${kind(a)} added ${place(a)}` });
   for (const b of gone) items.push({ at: order(b), text: `${kind(b)} ${place(b)} removed` });

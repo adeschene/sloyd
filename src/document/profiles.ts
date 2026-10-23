@@ -15,8 +15,11 @@ import { bandReach, keptSection } from './sweep';
  */
 export type { ProfileKind } from './types';
 export const PROFILE_KINDS: readonly ProfileKind[] = ['roundover', 'cove', 'ogee', 'bead', 'thumbnail'];
-/** The bench name of each kind: the ONE home of the words (the Profiles panel capitalises them; Refine's change list lowercases them). */
-export const PROFILE_KIND_LABEL: Record<ProfileKind, string> = { roundover: 'Roundover', cove: 'Cove', ogee: 'Roman ogee', bead: 'Bead', thumbnail: 'Thumbnail' };
+/** The bench word of each kind, as it reads mid-sentence (Refine's change list): the ONE home of the words; a proper noun keeps its capital. */
+export const PROFILE_KIND_WORD: Record<ProfileKind, string> = { roundover: 'roundover', cove: 'cove', ogee: 'Roman ogee', bead: 'bead', thumbnail: 'thumbnail' };
+/** The same words as the Profiles panel's labels: the first letter capitalised. */
+export const PROFILE_KIND_LABEL: Record<ProfileKind, string> = Object.fromEntries(
+  PROFILE_KINDS.map((k) => [k, PROFILE_KIND_WORD[k].charAt(0).toUpperCase() + PROFILE_KIND_WORD[k].slice(1)])) as Record<ProfileKind, string>;
 export interface ProfileEdge { through: 'length' | 'width'; uFrom: CutFrom; vFrom: CutFrom }
 export const PROFILE_EDGES: readonly ProfileEdge[] = (['length', 'width'] as const).flatMap((through) =>
   (['min', 'max'] as const).flatMap((uFrom) => (['min', 'max'] as const).map((vFrom) => ({ through, uFrom, vFrom }))));

@@ -418,11 +418,30 @@ describe('diffDesigns — edge profiles (AI-profiles spec §4.1)', () => {
     expect(lines(mk([W()]), mk([W({ size: 0.375 })]))).toEqual(['Top: roundover on the top/front edge now 3/8"']);
     expect(lines(mk([W()]), mk([W()]))).toEqual([]);
   });
-  it('a changed run reads stopped, full length or all round; an ogee reads Roman ogee in lowercase', () => {
+  it('a changed run reads stopped, full length or all round; an ogee reads Roman ogee', () => {
     expect(lines(mk([W()]), mk([W({ start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now stopped']);
     expect(lines(mk([W({ start: 2, end: 10 })]), mk([W()]))).toEqual(['Top: roundover on the top/front edge now full length']);
-    expect(lines(mk([W()]), mk([W({ allRound: true, start: 0, end: 0 })]))).toEqual(['Top: roundover all round the top face now all round']);
-    expect(lines(mk([]), mk([W({ kind: 'ogee', size: 0.5 })]))).toEqual(['Top: 1/2" roman ogee added on the top/front edge']);
+    expect(lines(mk([W()]), mk([W({ allRound: true, start: 0, end: 0 })]))).toEqual(['Top: roundover on the top/front edge now all round']);
+    expect(lines(mk([]), mk([W({ kind: 'ogee', size: 0.5 })]))).toEqual(['Top: 1/2" Roman ogee added on the top/front edge']);
+  });
+  it('a profile that stays all round is named by its face, without repeating', () => {
+    const L = (over: Partial<WorldProfile> = {}) => W({ allRound: true, start: 0, end: 0, ...over });
+    expect(lines(mk([L()]), mk([L({ size: 0.375 })]))).toEqual(['Top: roundover all round the top face now 3/8"']);
+    expect(lines(mk([]), mk([L()]))).toEqual(['Top: 1/4" roundover added all round the top face']);
+    expect(lines(mk([L()]), mk([W({ start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now stopped']);
+  });
+  it('every displayed difference is listed: size, fillet, quirk, depth, facing and run together', () => {
+    const OG = (over: Partial<WorldProfile> = {}) => W({ kind: 'ogee', size: 0.5, facing: 'face', ...over });
+    expect(lines(mk([W()]), mk([W({ fillet: 1 / 16 })]))).toEqual(['Top: roundover on the top/front edge now 1/16" fillet']);
+    expect(lines(mk([W({ kind: 'bead', size: 0.125, fillet: 1 / 16 })]), mk([W({ kind: 'bead', size: 0.125, fillet: 1 / 8 })])))
+      .toEqual(['Top: bead on the top/front edge now 1/8" quirk']);
+    expect(lines(mk([W({ kind: 'thumbnail', size: 0.5, depth: 0.25 })]), mk([W({ kind: 'thumbnail', size: 0.5, depth: 0.375 })])))
+      .toEqual(['Top: thumbnail on the top/front edge now 3/8" deep']);
+    expect(lines(mk([OG()]), mk([OG({ facing: 'edge' })]))).toEqual(['Top: Roman ogee on the top/front edge now facing the edge']);
+    expect(lines(mk([OG({ facing: 'edge' })]), mk([OG()]))).toEqual(['Top: Roman ogee on the top/front edge now facing the face']);
+    expect(lines(mk([W()]), mk([W({ size: 0.375, start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now 3/8", stopped']);
+    expect(lines(mk([W()]), mk([W({ size: 0.375, fillet: 1 / 16, start: 2, end: 10 })])))
+      .toEqual(['Top: roundover on the top/front edge now 3/8", 1/16" fillet, stopped']);
   });
   it('matches by edge: an untouched profile beside a changed one gets no line', () => {
     expect(lines(mk([W(), W({ edge: ['+y', '-z'] })]), mk([W(), W({ edge: ['+y', '-z'], size: 0.5 })]))).toEqual(['Top: roundover on the top/back edge now 1/2"']);

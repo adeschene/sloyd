@@ -56,7 +56,9 @@ export function profilesFor(b: Board, entries: readonly WorldProfile[], exact?: 
   /** A stored distance computed from world value `src`; never -0. */
   const dist = (v: number, src: number) => {
     const g = holeSnap(v);
-    const out = Math.abs(g - v) <= GRID_NOISE || exact?.has(src) !== true ? g : v;
+    // An exact source keeps its value; the L − at chain's ulp of drift is rounded off (1e-12 of an inch), so a turn and its
+    // turn back return the same number.
+    const out = Math.abs(g - v) <= GRID_NOISE || exact?.has(src) !== true ? g : Math.round(v * 1e12) / 1e12;
     return out === 0 ? 0 : out;
   };
   const out: Profile[] = [];
