@@ -3,7 +3,7 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { BandType, HardwareType, ProfileSide, AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
@@ -1178,7 +1178,7 @@ export const useStore = create<StoreState>((set, get) => {
       // Each mate through an occurrence on its target's side of any mirror
       // (postureRefusal guarantees one exists for a d0-moving posture change),
       // so every lowering writes the same cuts to the Shape (spec §4, amended).
-      const sideOfShape = new Map(world.filter((b) => targets.has(b.id) && b.shape).map((b) => [b.shape!, mirroredAt(get().doc, b.id)]));
+      const sideOfShape = new Map(world.filter((b) => targets.has(b.id) && b.shape).map((b) => [b.shape!, sideAt(get().doc, b.id)]));
       const shapeOf = new Map(world.map((b) => [b.id, b.shape]));
       const mates = sameSideFirst(get().doc, others, (id) => { const sh = shapeOf.get(id); return sh === undefined ? undefined : sideOfShape.get(sh); });
       const o = new Set([...oneEditPerTarget(get().doc, [...t, ...mates])].filter((id) => !t.has(id)));
@@ -1835,6 +1835,8 @@ export const useStore = create<StoreState>((set, get) => {
       // placement of the source's own stored part is never patched; each
       // through an occurrence on the SOURCE's side of any mirror (linkPlan
       // guarantees one), the side whose pivot the user sees.
+      // Assembly parity, as linkPlan's guarantee is (fu 432: sameSideFirst now compares `sideAt`, which differs only
+      // for a member with its own mirror flag — Link with part-level flags is mirrored links Task 3's).
       const side = mirroredAt(doc0, plan.source.id);
       const patched = oneEditPerTarget(doc0, [plan.source.id, ...sameSideFirst(doc0, plan.members, () => side)]);
       patched.delete(plan.source.id);

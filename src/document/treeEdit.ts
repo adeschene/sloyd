@@ -14,7 +14,7 @@ import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, 
 import type { Frame } from './frames';
 import { mirrorCut } from './mirrorCut';
 import type { Container } from './tree';
-import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, mirroredAt, parentPath, partAt, worldParts } from './tree';
+import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, sideAt, worldParts } from './tree';
 
 /** Replace one container's contents: the root's, or a definition's. */
 export function updateContainer(doc: SloydDocument, path: string | null, fn: (c: Container) => Container): SloydDocument {
@@ -200,7 +200,9 @@ export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can
  * its mirrored copy) is allowed from either side. Also refused (defensive; a
  * selection is one level): two targets sharing a Shape on different sides. A
  * posture that keeps d0 (flat <-> on-edge) is never refused. The ONE decider:
- * the store's updateBoards and the Posture field.
+ * the store's updateBoards and the Posture field. A side is `sideAt`: the chain's
+ * parity XOR the part's own mirror flag (mirrored links, fu 432, spec §4), so a Shape
+ * with a mirrored and an unmirrored user is refused like one split by an assembly.
  */
 export function postureRefusal(doc: SloydDocument, ids: readonly string[], posture: Posture | undefined): string | null {
   if (posture === undefined) return null;
@@ -209,12 +211,12 @@ export function postureRefusal(doc: SloydDocument, ids: readonly string[], postu
   for (const id of ids) {
     const b = world.find((x) => x.id === id);
     if (!b?.shape || mirrorDim({ ...b, posture }) === mirrorDim(b)) continue;
-    const side = mirroredAt(doc, b.id);
+    const side = sideAt(doc, b.id);
     if (sideOf.has(b.shape) && sideOf.get(b.shape) !== side) return POSTURE_ACROSS_MIRROR;
     sideOf.set(b.shape, side);
     const users = world.filter((x) => x.shape === b.shape);
     const key = (x: Board) => storageKey(doc, x.id) ?? x.id;
-    const onSide = new Set(users.filter((x) => mirroredAt(doc, x.id) === side).map(key));
+    const onSide = new Set(users.filter((x) => sideAt(doc, x.id) === side).map(key));
     if (users.some((x) => !onSide.has(key(x)))) return POSTURE_ACROSS_MIRROR;
   }
   return null;
@@ -225,10 +227,11 @@ export function postureRefusal(doc: SloydDocument, ids: readonly string[], postu
  * any on the other side (stable otherwise). `oneEditPerTarget` keeps the FIRST
  * occurrence of each stored part, so this makes it lower every stored part
  * through the side the edit was made on: two lowerings through different
- * parities would write different cuts to one Shape (spec §4, amended).
+ * parities would write different cuts to one Shape (spec §4, amended). A side
+ * is `sideAt` (the part's own mirror flag counts; mirrored links, fu 432).
  */
 export function sameSideFirst(doc: SloydDocument, ids: Iterable<string>, sideOf: (id: string) => boolean | undefined): string[] {
-  const off = (id: string) => { const want = sideOf(id); return want !== undefined && mirroredAt(doc, id) !== want ? 1 : 0; };
+  const off = (id: string) => { const want = sideOf(id); return want !== undefined && sideAt(doc, id) !== want ? 1 : 0; };
   return [...ids].map((id, i) => ({ id, i, o: off(id) })).sort((a, b) => a.o - b.o || a.i - b.i).map((x) => x.id);
 }
 
@@ -321,6 +324,25 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   for (let j = chain.length - 1; j >= 0; j -= 1) reps[j] = placeBoard(chain[j]!, reps[j + 1]!);
   let cur = after;
   for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur, keepWorld);
+  // A mirrored user (mirrored links, fu 432, spec §4): `cur` is now in the part's own (mirrored) hand; lower its features
+  // once more through the part's own flag into the Shape's hand. No turn or position: the flag mirrors features only.
+  // `ref` is the Shape's OWN arrays at the before sizes, so an untouched feature maps back to the Shape's object (no
+  // drift, inv 44) and the change tests below compare against what is stored, never `resolved`'s mirrored copies.
+  const shape = isShaped(stored) && stored.mirrored === true ? shapes.get(stored.shape) : undefined;
+  const ref: Board = shape
+    ? { ...resolved, cuts: shape.cuts, angleCuts: shape.angleCuts, holes: shape.holes, curves: shape.curves, profiles: shape.profiles, bands: shape.bands }
+    : resolved;
+  if (shape) {
+    cur = {
+      ...cur,
+      cuts: lowerCuts(ref, cur, keepWorld),
+      angleCuts: lowerAngleCuts(ref, cur),
+      holes: lowerHoles(ref, cur),
+      curves: lowerCurves(ref, cur),
+      profiles: lowerProfiles(ref, cur),
+      bands: lowerBands(ref, cur),
+    };
+  }
 
   const resized = keepWorld
     && (before.posture !== after.posture || boardExtents(before).some((e, a) => e !== boardExtents(after)[a]));
@@ -332,29 +354,29 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
       // Written when edited, or when a mirror lowering produced a fresh array that is not the stored one
       // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain leaves
       // cur === after, so a shared world array is never written.
-      return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== resolved.angleCuts);
+      return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== ref.angleCuts);
     }
     if (k === 'holes') {
       // As angleCuts: written when edited, or when a mirror lowering produced a fresh array that is not the stored one.
-      return rec(before)[k] !== rec(after)[k] || (cur.holes !== after.holes && cur.holes !== resolved.holes);
+      return rec(before)[k] !== rec(after)[k] || (cur.holes !== after.holes && cur.holes !== ref.holes);
     }
     if (k === 'curves') {
       // As holes: written when edited, or when a mirror lowering produced a fresh array that is not the stored one.
-      return rec(before)[k] !== rec(after)[k] || (cur.curves !== after.curves && cur.curves !== resolved.curves);
+      return rec(before)[k] !== rec(after)[k] || (cur.curves !== after.curves && cur.curves !== ref.curves);
     }
     if (k === 'profiles') {
       // As curves.
-      return rec(before)[k] !== rec(after)[k] || (cur.profiles !== after.profiles && cur.profiles !== resolved.profiles);
+      return rec(before)[k] !== rec(after)[k] || (cur.profiles !== after.profiles && cur.profiles !== ref.profiles);
     }
     if (k === 'bands') {
       // As profiles.
-      return rec(before)[k] !== rec(after)[k] || (cur.bands !== after.bands && cur.bands !== resolved.bands);
+      return rec(before)[k] !== rec(after)[k] || (cur.bands !== after.bands && cur.bands !== ref.bands);
     }
     if (k === 'hardware') {
       // As bands.
-      return rec(before)[k] !== rec(after)[k] || (cur.hardware !== after.hardware && cur.hardware !== resolved.hardware);
+      return rec(before)[k] !== rec(after)[k] || (cur.hardware !== after.hardware && cur.hardware !== ref.hardware);
     }
-    return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
+    return k === 'cuts' ? cur.cuts !== ref.cuts : rec(before)[k] !== rec(after)[k];
   });
   const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : k === 'hardware' ? cur.hardware : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };

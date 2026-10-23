@@ -80,6 +80,16 @@ export function mirroredAt(doc: SloydDocument, occ: string): boolean {
 }
 
 /**
+ * The SIDE of a mirror an occurrence's shared fields are seen from (mirrored links, fu 432, spec §4): the container
+ * chain's parity XOR the stored part's own `mirrored` flag. A mirrored user inside a mirrored assembly is on the
+ * unmirrored side (its world hand is the Shape's). Decides how a shared edit is lowered: `postureRefusal`,
+ * `sameSideFirst`, the store's `sideOfShape`. NOT `linkPlan`'s refusal, which stays on assembly parity (`mirroredAt`).
+ */
+export function sideAt(doc: SloydDocument, occ: string): boolean {
+  return mirroredAt(doc, occ) !== (partAt(doc, occ)?.mirrored === true);
+}
+
+/**
  * Every part below `c`, in `c`'s frame, ids relative to `c`: c's parts in
  * order, then each instance depth first, placed innermost first, one
  * placeBoard per level (spec §2.1). A definition already on the current path is
