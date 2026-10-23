@@ -291,7 +291,7 @@ describe('profilesFor: shape faults (the loader\'s drop rules, R6.5 and the edge
   it('a size not above 0, after the grid', () => {
     expect(faultOf(b, [W({ size: 0 })])).toBe('has a profile on +y/+z whose size (0) is not above 0');
     expect(faultOf(b, [W({ size: -0.25 })])).toMatch(/whose size \(-0.25\) is not above 0$/);
-    expect(faultOf(b, [W({ size: 0.001 })])).toMatch(/whose size \(0.001\) is not above 0$/);
+    expect(faultOf(b, [W({ size: 0.001 })])).toMatch(/whose size \(0\) is not above 0$/); // the value judged: 0.001 snaps to 0
     expect(store(b, [W({ size: 0.001 })], new Set([0.001]))[0]!.size).toBe(0.001);
   });
   it('a number that is not finite, or snaps to one', () => {
@@ -307,15 +307,15 @@ describe('profilesFor: shape faults (the loader\'s drop rules, R6.5 and the edge
     expect(faultOf(b, [t(0.75)])).toMatch(/depth \(0.75\)/);
     expect(faultOf(b, [t(0)])).toMatch(/depth \(0\)/);
     expect(faultOf(b, [t(-0.25)])).toMatch(/depth \(-0.25\)/);
-    expect(faultOf(b, [t(0.001)])).toMatch(/depth \(0.001\)/);
+    expect(faultOf(b, [t(0.001)])).toMatch(/depth \(0\) is not above 0 and below its size \(0.5\)$/);
     // 0.4999 is below the size, but snaps to it: judged on the stored value.
-    expect(faultOf(b, [t(0.4999)])).toMatch(/depth \(0.4999\)/);
+    expect(faultOf(b, [t(0.4999)])).toBe('has a profile on +y/+z whose depth (0.5) is not above 0 and below its size (0.5)');
     expect(store(b, [t(0.4999)], new Set([0.4999]))[0]!.depth).toBe(0.4999);
   });
   it('a negative fillet; a bead with no quirk', () => {
     expect(faultOf(b, [W({ fillet: -0.0625 })])).toBe('has a profile on +y/+z whose fillet (-0.0625) is negative');
     expect(faultOf(b, [W({ kind: 'bead', fillet: 0 })])).toBe('has a profile on +y/+z whose fillet (0) is not above 0; a bead\'s quirk must be');
-    expect(faultOf(b, [W({ kind: 'bead', fillet: 0.001 })])).toMatch(/a bead's quirk must be$/);
+    expect(faultOf(b, [W({ kind: 'bead', fillet: 0.001 })])).toMatch(/whose fillet \(0\) is not above 0; a bead's quirk must be$/);
     expect(store(b, [W({ kind: 'bead', fillet: 1 / 64 })])[0]!.fillet).toBe(1 / 64);
   });
   it('both ends through the same end face', () => {
@@ -323,11 +323,35 @@ describe('profilesFor: shape faults (the loader\'s drop rules, R6.5 and the edge
     expect(faultOf(b, [W({ start: 0, end: 0.01 })])).toMatch(/both at the same end/);
     expect(faultOf(b, [W({ start: 24, end: 23.99 })])).toMatch(/both at the same end/);
   });
-  it('a station outside the part (the loader\'s at >= 0), at either end, on a reversed axis too', () => {
-    expect(faultOf(b, [W({ start: -2, end: 24 })])).toBe('has a profile on +y/+z whose start (-2) is outside the part; its edge runs from 0 to 24 along x');
-    expect(faultOf(b, [W({ start: 0, end: 25 })])).toBe('has a profile on +y/+z whose end (25) is outside the part; its edge runs from 0 to 24 along x');
-    expect(faultOf(flat({ rotation: 180 }), [W({ edge: ['+y', '-z'], start: 0, end: 25 })])).toMatch(/whose end \(25\) is outside the part/);
-    expect(faultOf(flat({ rotation: 180 }), [W({ edge: ['+y', '-z'], start: -1, end: 24 })])).toMatch(/whose start \(-1\) is outside the part/);
+  it('a station past either end is not a fault: it is measured from the OTHER end (the loader keeps it; strict faults judge it)', () => {
+    const S = (from: 'min' | 'max', at: number): ProfileEnd => ({ side: { across: 'width', from: 'max' }, from, at });
+    const T = (through: 'min' | 'max'): ProfileEnd => ({ side: { across: 'width', from: 'max' }, through });
+    const runOf = (w: Partial<WorldProfile>, bb = b) => store(bb, [W(w)])[0]!.run;
+    expect(runOf({ start: -2, end: 24 })).toEqual(canonicalRun(b, 'max', { start: S('max', 26), end: T('max') }));
+    expect(runOf({ start: 0, end: 25 })).toEqual(canonicalRun(b, 'max', { start: T('min'), end: S('min', 25) }));
+    // Turned 180 (length reversed): world 25 is past the part's MIN end, world -1 past its max end.
+    const turned = flat({ rotation: 180 });
+    const Z = (from: 'min' | 'max', at: number): ProfileEnd => ({ side: { across: 'width', from: 'max' }, from, at });
+    expect(runOf({ edge: ['+y', '-z'], start: 0, end: 25 }, turned)).toEqual(canonicalRun(turned, 'max', { start: { side: { across: 'width', from: 'max' }, through: 'max' }, end: Z('max', 25) }));
+    expect(runOf({ edge: ['+y', '-z'], start: -1, end: 24 }, turned)).toEqual(canonicalRun(turned, 'max', { start: Z('min', 25), end: { side: { across: 'width', from: 'max' }, through: 'min' } }));
+  });
+  it('a stored over-length station (a resize leaves one) loads unchanged and echoes exactly, past either end, every pose (B3)', () => {
+    // chiralPart's length is 20: one run ends 2in past the max end (from min at 22), one starts 1in past the min end
+    // (from max at 21). A 2in part's run from min 0.5 to min 3 is the review's case.
+    const over: Profile[] = [
+      { face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: run('max', st(W_MAX, 'min', 5), st(W_MAX, 'min', 22)) },
+      { face: 'min', kind: 'cove', size: 0.25, fillet: 0, facing: 'face', run: run('min', st(W_MIN, 'max', 21), thr(W_MIN, 'max')) },
+    ];
+    const short: Board = { ...flat({ length: 2 }), profiles: [{ id: 's', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+      run: canonicalRun({ length: 2, width: 5.5, thickness: 0.75 }, 'max', { start: st(W_MAX, 'min', 0.5), end: st(W_MAX, 'min', 3) }) }] };
+    for (const bb of [...POSTURES.flatMap((p) => TURNS.map((t) => profiled(p, t, over))), short]) {
+      const raw = JSON.parse(JSON.stringify({ ...createDocument('T'), boards: [bb] }));
+      const loaded = (migrateDocument(raw).boards[0] as Board).profiles;
+      expect(loaded.map(profileValues)).toEqual(bb.profiles.map(profileValues));
+      const ws = worldProfiles(bb)!;
+      expect(byValue(store(bb, ws, exactOf(ws))), `${bb.posture} ${bb.rotation}`).toEqual(byValue(bb.profiles));
+    }
+    expect(worldProfiles(short)![0]).toMatchObject({ start: 0.5, end: 3 });
   });
   it('the first fault wins, and a fault rejects the whole list', () => {
     expect(faultOf(b, [W(), W({ size: 0 }), W({ edge: ['+x', '+z'] })])).toMatch(/size \(0\)/);

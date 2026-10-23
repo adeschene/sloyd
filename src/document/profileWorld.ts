@@ -42,13 +42,13 @@ const broadFaces = (b: Board): [Dir, Dir] => {
  *
  * Ends (Global Constraints): EXACTLY 0 or EXACTLY the part's extent along the run is a THROUGH end; within 1/32in of either
  * is THROUGH only for a value not in `exact`; anything else is a station measured from the NEARER end of the run (ties
- * the part's `min`), its distance put on the hole grid (`holeSnap`) unless its source is in `exact` — but a COMPUTED
+ * the part's `min`; a station past one end is measured from the other, so no position is a shape fault), its distance put on the hole grid (`holeSnap`) unless its source is in `exact` — but a COMPUTED
  * distance within 1e-9 of its grid value takes it even then. `size`, `fillet` and `depth` take the hole grid unless in
  * `exact`. Fields a kind ignores (a thumbnail's `fillet`, any other kind's `depth`, a symmetric kind's `facing`) are not
  * judged and not stored, as the loader stores them.
  *
  * The shape faults are exactly the loader's drop rules (`validateProfiles`), judged on the STORED values, plus the
- * design-form edge rules above. A zero-length or reversed station run is not one: it stores (`canonicalRun` orders it;
+ * design-form edge rules above; a fault quotes the value judged (after the grid). A zero-length or reversed station run, or a station past an end, is not one: it stores (`canonicalRun` orders it;
  * a zero-length one is the strict `stop-off`). Strict faults (`profileFaults`) are not judged here.
  */
 export function profilesFor(b: Board, entries: readonly WorldProfile[], exact?: ReadonlySet<number>): { profiles: Profile[] } | { fault: string } {
@@ -79,10 +79,10 @@ export function profilesFor(b: Board, entries: readonly WorldProfile[], exact?: 
     const detail = snap(thumb ? e.depth : e.fillet);
     // After the grid (as holeRowsFor): a huge finite input snaps to Infinity, which the loader would drop without a word.
     if (!Number.isFinite(size) || !Number.isFinite(detail)) return { fault: `${on} with a number too large to store` };
-    if (!(size > 0)) return { fault: `${on} whose size (${e.size}) is not above 0` };
-    if (thumb && !(detail > 0 && detail < size)) return { fault: `${on} whose depth (${e.depth}) is not above 0 and below its size (${e.size})` };
-    if (!thumb && !(detail >= 0)) return { fault: `${on} whose fillet (${e.fillet}) is negative` };
-    if (e.kind === 'bead' && !(detail > 0)) return { fault: `${on} whose fillet (${e.fillet}) is not above 0; a bead's quirk must be` };
+    if (!(size > 0)) return { fault: `${on} whose size (${size}) is not above 0` };
+    if (thumb && !(detail > 0 && detail < size)) return { fault: `${on} whose depth (${detail}) is not above 0 and below its size (${size})` };
+    if (!thumb && !(detail >= 0)) return { fault: `${on} whose fillet (${detail}) is negative` };
+    if (e.kind === 'bead' && !(detail > 0)) return { fault: `${on} whose fillet (${detail}) is not above 0; a bead's quirk must be` };
     const fields = { kind: e.kind, size, ...(thumb ? { depth: detail } : { fillet: detail }) };
     const facing = profileAsymmetric(fields) ? e.facing : 'face';
     const sideDir = dirs.find((d) => d !== broad[0])!;
@@ -96,24 +96,24 @@ export function profilesFor(b: Board, entries: readonly WorldProfile[], exact?: 
     const rd = runDim(side);
     const axis = axisDimensions(b).indexOf(rd);
     const L = b[rd];
-    const along = `${AXES[axis]}`;
-    const endOf = (v: number, word: 'start' | 'end'): ProfileEnd | { fault: string } => {
+    const endOf = (v: number): ProfileEnd | { fault: string } => {
       const nearMin = Math.abs(v) <= Math.abs(v - L);
       const through = v === 0 || v === L || (exact?.has(v) !== true && Math.abs(nearMin ? v : v - L) <= THROUGH_TOLERANCE);
       if (through) return { side: { ...side }, through: endFacing(b, axis, nearMin ? -1 : 1) };
-      // Measured from the nearer end of the run, in the part's own frame; both distances on the grid before the choice,
-      // so a station past an end keeps its negative distance (the loader's `at >= 0` drop rule), never the far end's.
+      // Measured from the nearer end of the run, in the part's own frame; both distances on the grid before the choice. A
+      // station PAST one end (a resize can leave one: stations are kept, the fault noted) is measured from the other end, so
+      // its `at` is never negative and the loader keeps it (B3); the strict `stop-off`/`runs-off` checks judge it, never this.
       const u = fromWorldOffset(b, axis, v);
       const fromMin = dist(u, v);
       const fromMax = dist(L - u, v);
-      const [from, at]: [CutFrom, number] = fromMin <= fromMax ? ['min', fromMin] : ['max', fromMax];
+      const [from, at]: [CutFrom, number] = fromMin < 0 ? ['max', fromMax] : fromMax < 0 ? ['min', fromMin]
+        : fromMin <= fromMax ? ['min', fromMin] : ['max', fromMax];
       if (!Number.isFinite(at)) return { fault: `${on} with a number too large to store` };
-      if (at < 0) return { fault: `${on} whose ${word} (${v}) is outside the part; its edge runs from 0 to ${L} along ${along}` };
       return { side: { ...side }, from, at };
     };
-    const start = endOf(e.start, 'start');
+    const start = endOf(e.start);
     if ('fault' in start) return start;
-    const end = endOf(e.end, 'end');
+    const end = endOf(e.end);
     if ('fault' in end) return end;
     if ('through' in start && 'through' in end && start.through === end.through) {
       return { fault: `${on} whose start (${e.start}) and end (${e.end}) are both at the same end of the edge` };
