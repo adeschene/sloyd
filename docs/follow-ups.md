@@ -7053,7 +7053,7 @@ and the model growing the tied axis. Candidate fix: the thickness axis must stay
 Claude authors holes; curves are fu 363's open authoring piece; profiles and bands are carried by Refine (inv 56) but cannot be added,
 changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
 compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).
-**Status:** spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's answers 2026-10-23). Chunk 1 (bands) DONE on branch `ai-bands` (2026-10-23; `bandWorld.ts`, `bandDesignFaults.ts`, inv 54/56 rewritten): Generate and Refine author edge bands in world words, except on a curved part (carried). Not yet merged or deployed (the controller updates this on merge). Chunk 2 (profiles) open; see fu 322's note on its grammar budget.
+**Status:** spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's answers 2026-10-23). Chunk 1 (bands) MERGED `e7ce893` 2026-10-23 (`bandWorld.ts`, `bandDesignFaults.ts`, inv 54/56 rewritten): Generate and Refine author edge bands in world words, except on a curved part (carried). Not yet deployed. Chunk 2 (profiles) open; see fu 322's note on its grammar budget.
 
 ## From the shop-words round — 2026-10-23
 
