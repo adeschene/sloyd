@@ -15,6 +15,8 @@ describe('prompt', () => {
     expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
     expect(SYSTEM_PROMPT).toContain('Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.');
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    // Shop-words spec §7: Sloyd's Front view looks at +z, so the model must put the front there.
+    expect(SYSTEM_PROMPT).toContain('faces +z, so a back panel sits at the smallest z. +x is the right as seen from the front.');
   });  it('describes miters, bevels and chamfers and their two rules (AI-angles spec §8)', () => {
     for (const s of [
       'Angles:',

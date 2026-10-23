@@ -156,13 +156,13 @@ describe('diffDesigns — tapers (AI-tapers spec §5.5)', () => {
   const tdoc = (t: unknown[], exact?: number[]) => designToDocument(leg(t) as never, { centre: false, exact: exact && new Set(exact) }).doc;
   const T = { faces: ['+x', '+z'], toward: '-y', start: 22, amount: 0.375 };
   it('added', () => {
-    expect(diffDesigns(tdoc([]), tdoc([T])).map((c) => c.text)).toEqual([`Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off)`]);
+    expect(diffDesigns(tdoc([]), tdoc([T])).map((c) => c.text)).toEqual([`Leg: taper added (right and front faces; ${f(22)} from the bottom end, ${f(0.375)} off)`]);
   });
   it('changed', () => {
-    expect(diffDesigns(tdoc([T]), tdoc([{ ...T, start: 20 }])).map((c) => c.text)).toEqual([`Leg: taper changed (+x, +z; ${f(20)} from the -y end, ${f(0.375)} off)`]);
+    expect(diffDesigns(tdoc([T]), tdoc([{ ...T, start: 20 }])).map((c) => c.text)).toEqual([`Leg: taper changed (right and front faces; ${f(20)} from the bottom end, ${f(0.375)} off)`]);
   });
   it('removed', () => {
-    expect(diffDesigns(tdoc([T]), tdoc([])).map((c) => c.text)).toEqual(['Leg: taper removed (+x, +z)']);
+    expect(diffDesigns(tdoc([T]), tdoc([])).map((c) => c.text)).toEqual(['Leg: taper removed (right and front faces)']);
   });
   it('face order is not a change', () => {
     expect(diffDesigns(tdoc([T]), tdoc([{ ...T, faces: ['+z', '+x'] }]))).toEqual([]);
@@ -173,16 +173,16 @@ describe('diffDesigns — tapers (AI-tapers spec §5.5)', () => {
   const texts = (a: unknown[], b: unknown[], exact?: number[]) =>
     diffDesigns(tdoc(a, exact), tdoc(b, exact)).map((c) => c.text);
   it('an unchanged taper beside a changed one gets no line', () => {
-    expect(texts([T, U], [{ ...T, start: 20 }, U])).toEqual([`Leg: taper changed (+x, +z; ${f(20)} from the -y end, ${f(0.375)} off)`]);
+    expect(texts([T, U], [{ ...T, start: 20 }, U])).toEqual([`Leg: taper changed (right and front faces; ${f(20)} from the bottom end, ${f(0.375)} off)`]);
   });
   it('removing one of two tapers reads "removed", naming only its faces', () => {
-    expect(texts([T, U], [T])).toEqual(['Leg: taper removed (-x)']);
+    expect(texts([T, U], [T])).toEqual(['Leg: taper removed (left face)']);
   });
   it('a face added to an existing taper reads "added" for that face only', () => {
-    expect(texts([{ ...T, faces: ['+x'] }], [T])).toEqual([`Leg: taper added (+z; ${f(22)} from the -y end, ${f(0.375)} off)`]);
+    expect(texts([{ ...T, faces: ['+x'] }], [T])).toEqual([`Leg: taper added (front face; ${f(22)} from the bottom end, ${f(0.375)} off)`]);
   });
   it('one face of a shared taper changed: only that face', () => {
-    expect(texts([T], [{ ...T, faces: ['+x'] }, { ...T, faces: ['+z'], start: 20 }])).toEqual([`Leg: taper changed (+z; ${f(20)} from the -y end, ${f(0.375)} off)`]);
+    expect(texts([T], [{ ...T, faces: ['+x'] }, { ...T, faces: ['+z'], start: 20 }])).toEqual([`Leg: taper changed (front face; ${f(20)} from the bottom end, ${f(0.375)} off)`]);
   });
   it('a change below display precision is no change, like the other lines', () => {
     expect(texts([T], [{ ...T, start: 22.001 }], [22.001])).toEqual([]);
@@ -199,7 +199,7 @@ describe('diffDesigns — tapers across placements', () => {
   it('merges one assembly-part taper change across placements into one entry (×N)', () => {
     const out = diffDesigns(doc([], [asm([])]), doc([], [asm([T])]));
     expect(out.map((c) => [c.kind, c.copies, c.text])).toEqual([
-      ['angle', 3, `L1 › Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off) (×3)`],
+      ['angle', 3, `L1 › Leg: taper added (right and front faces; ${f(22)} from the bottom end, ${f(0.375)} off) (×3)`],
     ]);
   });
 });
@@ -209,16 +209,16 @@ describe('diffDesigns — miters, bevels and chamfers (AI-angles spec §6.4)', (
   const doc = (b: Board) => ({ ...createDocument('T'), boards: [b] });
   const miter = (b: Board, ratio: number) => ({ id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio }, b) });
   const ch = (b: Board, leg: number) => ({ id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: leg, legAlong: leg }, b) });
-  it('added, changed and removed, one line each, in world words at display precision', () => {
+  it('added, changed and removed, one line each, in shop words at display precision', () => {
     const b = rail();
     const lines = (before: Board, after: Board) => diffDesigns(doc(before), doc(after)).filter((c) => c.kind === 'angle').map((c) => c.text);
     const m45 = { ...b, angleCuts: [miter(b, 1)] };
     const m30 = { ...b, angleCuts: [miter(b, miterRatio(30))] };
     const c8 = { ...b, angleCuts: [ch(b, 0.125)] };
-    expect(lines(b, m45)).toEqual(['Rail: miter added (+x end; 45.0°, long point -z)']);
-    expect(lines(m45, m30)).toEqual(['Rail: miter changed (+x end; 30.0°, long point -z)']);
-    expect(lines(m45, b)).toEqual(['Rail: miter removed (+x end)']);
-    expect(lines(b, c8)).toEqual(['Rail: chamfer added (+y/+z edge; 1/8" × 1/8")']);
+    expect(lines(b, m45)).toEqual(['Rail: miter added (right end; 45.0°, long point on the back face)']);
+    expect(lines(m45, m30)).toEqual(['Rail: miter changed (right end; 30.0°, long point on the back face)']);
+    expect(lines(m45, b)).toEqual(['Rail: miter removed (right end)']);
+    expect(lines(b, c8)).toEqual(['Rail: chamfer added (top/front edge; 1/8" × 1/8")']);
     // Below display precision: no line.
     expect(lines(m45, { ...b, angleCuts: [miter(b, 1.0000000001)] })).toEqual([]);
   });
@@ -275,31 +275,83 @@ describe('diffDesigns — hole rows (AI-holes spec §4)', () => {
   const holed = (rows: HoleRow[], b: Board = side()): Board => ({ ...b, holes: rows });
   const dd = (a: Board, b: Board) => diffDesigns({ ...createDocument('T'), boards: [a] }, { ...createDocument('T'), boards: [b] });
   const lines = (a: Board, b: Board) => dd(a, b).filter((c) => c.kind === 'holes').map((c) => c.text);
-  it('added, removed and changed rows, one line each, in world words', () => {
-    expect(lines(side(), holed([row({ count: 3, pitch: 2 })]))).toEqual(['Side: 3 holes added on +y, 1/4" Ø']);
-    expect(lines(side(), holed([row()]))).toEqual(['Side: 1 hole added on +y, 1/4" Ø']);
-    expect(lines(holed([row()]), side())).toEqual(['Side: hole row on +y removed']);
-    expect(lines(holed([row()]), holed([row({ depth: 0.5 })]))).toEqual(['Side: hole row on +y now 1/2" deep']);
-    expect(lines(holed([row()]), holed([row({ depth: 'through' })]))).toEqual(['Side: hole row on +y now through']);
-    expect(lines(holed([row()]), holed([row({ diameter: 0.375 })]))).toEqual(['Side: hole row on +y now 3/8" Ø']);
-    expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row({ count: 4, pitch: 3 })]))).toEqual(['Side: hole row on +y now 4 holes, 3" apart']);
+  it('added, removed and changed rows, one line each, in shop words', () => {
+    expect(lines(side(), holed([row({ count: 3, pitch: 2 })]))).toEqual(['Side: 3 holes added on the top face, 1/4" Ø']);
+    expect(lines(side(), holed([row()]))).toEqual(['Side: 1 hole added on the top face, 1/4" Ø']);
+    expect(lines(holed([row()]), side())).toEqual(['Side: hole row on the top face removed']);
+    expect(lines(holed([row()]), holed([row({ depth: 0.5 })]))).toEqual(['Side: hole row on the top face now 1/2" deep']);
+    expect(lines(holed([row()]), holed([row({ depth: 'through' })]))).toEqual(['Side: hole row on the top face now through']);
+    expect(lines(holed([row()]), holed([row({ diameter: 0.375 })]))).toEqual(['Side: hole row on the top face now 3/8" Ø']);
+    expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row({ count: 4, pitch: 3 })]))).toEqual(['Side: hole row on the top face now 4 holes, 3" apart']);
     expect(lines(holed([row()]), holed([row()]))).toEqual([]);
   });
   it('a row shrunk to one hole reads "1 hole", singular (final review M2)', () => {
-    expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row()]))).toEqual(['Side: hole row on +y now 1 hole']);
+    expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row()]))).toEqual(['Side: hole row on the top face now 1 hole']);
   });
   it('a single bore grown into a row is not "moved"; a direction change alone reads "running toward" (final review M1)', () => {
     // The same first centre (length 2, width 1.5), the row now running along the width.
     const across = { along: 'width' as const, station: 1.5, inset: 2 };
-    expect(lines(holed([row()]), holed([row({ ...across, count: 3, pitch: 0.5 })]))).toEqual(['Side: hole row on +y now 3 holes, 1/2" apart']);
-    expect(lines(holed([row({ count: 3, pitch: 1 })]), holed([row({ ...across, count: 3, pitch: 1 })]))).toEqual(['Side: hole row on +y now running toward +z']);
+    expect(lines(holed([row()]), holed([row({ ...across, count: 3, pitch: 0.5 })]))).toEqual(['Side: hole row on the top face now 3 holes, 1/2" apart']);
+    expect(lines(holed([row({ count: 3, pitch: 1 })]), holed([row({ ...across, count: 3, pitch: 1 })]))).toEqual(['Side: hole row on the top face now running toward the front']);
   });
-  it('a row whose first centre moved is a removal plus an addition', () => {
-    expect(lines(holed([row()]), holed([row({ station: 5 })]))).toEqual(['Side: 1 hole added on +y, 1/4" Ø', 'Side: hole row on +y removed']);
+  it('a row whose first centre moved, otherwise the same, reads as one "moved" line (shop-words spec §5)', () => {
+    expect(lines(holed([row()]), holed([row({ station: 5 })]))).toEqual(['Side: hole row on the top face moved 3" toward the right']);
+    expect(lines(holed([row()]), holed([row({ station: 1, inset: 2 })]))).toEqual(['Side: hole row on the top face moved 1" toward the left, 1/2" toward the front']);
+  });
+  it('a moved row that also changed is still a removal plus an addition', () => {
+    expect(lines(holed([row()]), holed([row({ station: 5, diameter: 0.375 })]))).toEqual(['Side: 1 hole added on the top face, 3/8" Ø', 'Side: hole row on the top face removed']);
+    expect(lines(holed([row({ count: 3, pitch: 1 })]), holed([row({ station: 5, count: 3, pitch: 2 })]))).toEqual(['Side: 3 holes added on the top face, 1/4" Ø', 'Side: hole row on the top face removed']);
+    // Another face is never a move.
+    expect(lines(holed([row()]), holed([row({ from: 'min' })]))).toEqual(['Side: 1 hole added on the bottom face, 1/4" Ø', 'Side: hole row on the top face removed']);
+  });
+  it('a move below display precision prints nothing, like the other lines', () => {
+    expect(lines(holed([row()]), holed([row({ station: 2.001 })]))).toEqual([]);
+  });
+  it('two moved rows pair nearest-first: the bookcase\'s "move the pins 1 inch" (the live check\'s rows)', () => {
+    const two = (a: number, b: number) => [row({ id: 'a', count: 3, pitch: 1, inset: a }), row({ id: 'b', count: 3, pitch: 1, inset: b })];
+    expect(lines(holed(two(1.5, 3.5)), holed(two(1, 3)))).toEqual([
+      'Side: hole row on the top face moved 1/2" toward the back', 'Side: hole row on the top face moved 1/2" toward the back',
+    ]);
   });
   it('a moved part changes no offset, so yields no hole line', () => {
     const c = dd(holed([row()]), holed([row()], side('Side', [5, 3, 1])));
     expect(c.filter((x) => x.kind === 'holes')).toEqual([]);
     expect(c.map((x) => x.kind)).toEqual(['moved']);
+  });
+});
+
+describe('diffDesigns — inside and outside (shop-words spec §1, §3)', () => {
+  const pins = { face: '+x', diameter: 0.25, depth: 0.375, through: false, offset: v(0.75, 8, 2), toward: '+y', count: 45, pitch: 1.25 };
+  const mirror = { ...pins, face: '-x', offset: v(0, 8, 2) };
+  const sides = (l: unknown[], r: unknown[]) => doc([
+    { ...part('Left side', [0, 0, 0], [0.75, 72, 12]), holes: l as never },
+    { ...part('Right side', [35.25, 0, 0], [0.75, 72, 12]), holes: r as never },
+  ]);
+  const holeTexts = (a: ReturnType<typeof doc>, b: ReturnType<typeof doc>) => diffDesigns(a, b).filter((c) => c.kind === 'holes').map((c) => c.text);
+  it('a case side\'s pins read "the inside face" on both sides', () => {
+    expect(holeTexts(sides([], []), sides([pins], [mirror]))).toEqual([
+      'Left side: 45 holes added on the inside face, 1/4" Ø', 'Right side: 45 holes added on the inside face, 1/4" Ø',
+    ]);
+    const out = { ...pins, face: '-x', offset: v(0, 8, 2) };
+    expect(holeTexts(sides([], []), sides([out], []))).toEqual(['Left side: 45 holes added on the outside face, 1/4" Ø']);
+  });
+  it('a removal is worded in the BEFORE frame; an unchanged cut is not "changed" because the frame moved', () => {
+    // The right side goes: alone, the left side is centred, so its +x face would read "right" in the after frame.
+    const alone = (l: unknown[]) => doc([{ ...part('Left side', [0, 0, 0], [0.75, 72, 12]), holes: l as never }]);
+    expect(holeTexts(sides([pins], []), alone([]))).toEqual(['Left side: hole row on the inside face removed']);
+    expect(holeTexts(sides([pins], []), alone([pins]))).toEqual([]);
+    const { angleCuts } = doc([{ ...part('Left side', [0, 0, 0], [0.75, 72, 12]), chamfers: [{ edge: ['+x', '+z'], legs: [0.125, 0.125] }] as never }]).boards[0] as Board;
+    const chamfered = (d: ReturnType<typeof doc>) => ({ ...d, boards: d.boards.map((b) => (b.name === 'Left side' ? { ...(b as Board), angleCuts } : b)) });
+    const before = chamfered(sides([], [])), after = chamfered(alone([]));
+    expect((before.boards[0] as Board).angleCuts).toHaveLength(1);
+    expect(diffDesigns(before, after).filter((c) => c.kind === 'angle')).toEqual([]);
+  });
+  it('a part in a placement takes its placement as the frame, so copies still merge (×N)', () => {
+    // A drawer front whose knob hole is drilled on its -z face (the face away from the drawer's sides: outside).
+    const knob = { face: '-z', diameter: 0.1875, depth: 0.75, through: true, offset: v(5, 2, 0), toward: '+x', count: 1, pitch: 0 };
+    const asm = (holes: unknown[]): GeneratedAssembly => ({ ...drawer('Drawer', [['D1', 0], ['D2', 12], ['D3', 24]]),
+      parts: [{ ...part('Front', [0, 0, 0], [10, 4, 0.75]), holes: holes as never }, part('Side', [0, 0, 0.75], [0.75, 4, 10])] });
+    const out = diffDesigns(doc([], [asm([])]), doc([], [asm([knob])]));
+    expect(out.map((c) => [c.copies, c.text])).toEqual([[3, 'D1 › Front: 1 hole added on the outside face, 3/16" Ø (×3)']]);
   });
 });

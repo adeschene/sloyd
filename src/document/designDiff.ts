@@ -3,24 +3,30 @@ import { catalogOf } from './materials';
 import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
 import { DIRS, worldTapers } from './taperWorld';
-import type { WorldTaper } from './taperWorld';
+import type { Dir, WorldTaper } from './taperWorld';
 import { noAngles, worldAngles } from './angleWorld';
 import type { WorldAngles } from './angleWorld';
 import { worldHoles } from './holeWorld';
 import type { WorldHoleRow } from './generated';
 import { definitionCorner } from './refineDesign';
+import { centreOf, endWord, faceWord, facesText } from './shopWords';
+import type { Box } from './shopWords';
 import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
 
 /**
  * What a refine changed (refine spec §4), by FLAT DISPLAY NAME. The display
  * text is assembled HERE with formatLength (the `→ units` edge; invariant 19's
- * rule that a string a person reads is built in one module).
+ * rule that a string a person reads is built in one module). Directions read in
+ * shop words (`shopWords.ts`; shop-words spec): cuts and rows are MATCHED on raw
+ * directions, never on the words, since two faces can both read "inside".
  */
 export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
-interface Side { parts: Map<string, Entry>; insts: Map<string, Instance>; corner: (i: Instance) => number[] }
+interface Side { parts: Map<string, Entry>; insts: Map<string, Instance>; corner: (i: Instance) => number[]; words: (e: Entry) => Words }
+/** One part's shop words: a face of THIS part relative to its frame's middle. */
+type Words = (d: Dir) => string;
 
 function sideOf(doc: SloydDocument): Side {
   const byId = new Map(doc.instances.map((i) => [i.id, i]));
@@ -36,7 +42,17 @@ function sideOf(doc: SloydDocument): Side {
     const c = d && d.boards.length > 0 ? definitionCorner(d.boards) : [0, 0, 0];
     return i.position.map((v, k) => v + c[k]!);
   };
-  return { parts, insts: new Map(doc.instances.map((i) => [i.name, i])), corner };
+  // A part's frame (shop-words spec §3): its placement's own parts, or the whole piece for a top-level part.
+  const boxOf = (b: Board): Box => { const e = boardExtents(b); return { min: b.position, max: b.position.map((v, k) => v + e[k]!) }; };
+  const all = [...parts.values()];
+  const centres = new Map<string | null, number[]>();
+  const centreFor = (inst: Instance | null) => {
+    const k = inst?.id ?? null;
+    if (!centres.has(k)) centres.set(k, centreOf(all.filter((e) => !inst || e.inst === inst).map((e) => boxOf(e.b))));
+    return centres.get(k)!;
+  };
+  const words = (e: Entry): Words => { const box = boxOf(e.b); const c = centreFor(e.inst); return (d) => faceWord(d, box, c); };
+  return { parts, insts: new Map(doc.instances.map((i) => [i.name, i])), corner, words };
 }
 
 const sizeOf = (b: Board) => [b.length, b.width, b.thickness].sort((x, y) => y - x);
@@ -100,10 +116,12 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     // Tapers compared FACE BY FACE (fu 310): a sloped face toward one end is the unit, so a reordering or a regrouping is
     // not a change, and an untouched taper beside a changed one gets no line. Values compare at display precision, like
     // every other line. worldTapers is never null here: Refine refuses a non-standard taper before any call.
-    const lines = taperLines(worldTapers(o.b) ?? [], worldTapers(e.b) ?? [], len);
+    const wa = A.words(o);
+    const wb = B.words(e);
+    const lines = taperLines(worldTapers(o.b) ?? [], worldTapers(e.b) ?? [], len, wa, wb);
     for (const t of lines) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
-    for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
-    for (const t of holeLines(worldHoles(o.b), worldHoles(e.b), len)) push('holes', 'part', n, `${n}: ${t}`, key('holes', `: ${t}`));
+    for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len, wa, wb)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
+    for (const t of holeLines(worldHoles(o.b), worldHoles(e.b), len, wa, wb)) push('holes', 'part', n, `${n}: ${t}`, key('holes', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -119,12 +137,13 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
 /**
  * One part's taper lines (fu 310). Each taper is split into its faces; a face is matched across the two sides by face and
  * thin end. A face only after is added, only before is removed, on both with a different displayed start or amount is
- * changed. Faces sharing a kind and displayed values are named on one line, in DIRS order.
+ * changed. Faces sharing a kind and displayed values are named on one line, in DIRS order, in shop words (a removed face
+ * by the before side's frame).
  */
-function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[], len: (n: number) => string): string[] {
+function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[], len: (n: number) => string, wa: Words, wb: Words): string[] {
   type Face = { face: string; toward: string; start: number; amount: number };
   const split = (ts: readonly WorldTaper[]): Face[] => ts.flatMap((t) => t.faces.map((face) => ({ face, toward: t.toward, start: t.start, amount: t.amount })));
-  const shown = (f: Face) => `${len(f.start)} from the ${f.toward} end, ${len(f.amount)} off`;
+  const shown = (f: Face) => `${len(f.start)} from the ${endWord(f.toward as Dir)} end, ${len(f.amount)} off`;
   // Two tapers on one face toward one end are possible (overlapping cuts): the face's entries compare as one list.
   const byFace = (fs: Face[]) => {
     const m = new Map<string, Face[]>();
@@ -152,7 +171,7 @@ function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[],
   return [...groups.values()]
     .map((g) => ({ ...g, faces: [...g.faces].sort((x, y) => rank(x) - rank(y)) }))
     .sort((x, y) => order[x.kind] - order[y.kind] || rank(x.faces[0]!) - rank(y.faces[0]!))
-    .map((g) => `taper ${g.kind} (${g.faces.join(', ')}${g.detail ? `; ${g.detail}` : ''})`);
+    .map((g) => `taper ${g.kind} (${facesText(g.faces.map((d) => (g.kind === 'removed' ? wa : wb)(d as Dir)))}${g.detail ? `; ${g.detail}` : ''})`);
 }
 
 /**
@@ -160,42 +179,49 @@ function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[],
  * bevel by its face and long point, a chamfer by its edge — then added, changed (its displayed detail differs) or removed, in kind
  * order. `worldAngles` is never null here: Refine refuses a cut it cannot describe before any call.
  */
-function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) => string): string[] {
-  type Entry = { kind: 'miter' | 'bevel' | 'chamfer'; where: string; detail: string };
+function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) => string, wa: Words, wb: Words): string[] {
+  // `where`/`detail` are the raw keys (matching never reads words); `text` words them in a side's frame.
+  type Entry = { kind: 'miter' | 'bevel' | 'chamfer'; where: string; detail: string; text: (w: Words) => [string, string] };
   const deg = (a: number) => `${a.toFixed(1)}°`;
   const entries = (a: WorldAngles): Entry[] => [
-    ...a.miters.map((m) => ({ kind: 'miter' as const, where: `${m.end} end`, detail: `${deg(m.angle)}, long point ${m.longPoint}` })),
+    ...a.miters.map((m) => ({ kind: 'miter' as const, where: `${m.end} end`, detail: `${deg(m.angle)}, long point ${m.longPoint}`,
+      text: (w: Words): [string, string] => [`${endWord(m.end)} end`, `${deg(m.angle)}, long point on the ${w(m.longPoint)} face`] })),
     // Two bevels may share a face (a knife edge, long points opposite): a bevel is placed by its face AND long point.
-    ...a.bevels.map((v) => ({ kind: 'bevel' as const, where: `${v.face} face, long point ${v.longPoint}`, detail: deg(v.angle) })),
-    ...a.chamfers.map((c) => ({ kind: 'chamfer' as const, where: `${c.edge[0]}/${c.edge[1]} edge`, detail: `${len(c.legs[0])} × ${len(c.legs[1])}` })),
+    ...a.bevels.map((v) => ({ kind: 'bevel' as const, where: `${v.face} face, long point ${v.longPoint}`, detail: deg(v.angle),
+      text: (w: Words): [string, string] => [`${w(v.face)} face, long point on the ${w(v.longPoint)} face`, deg(v.angle)] })),
+    ...a.chamfers.map((c) => ({ kind: 'chamfer' as const, where: `${c.edge[0]}/${c.edge[1]} edge`, detail: `${len(c.legs[0])} × ${len(c.legs[1])}`,
+      text: (w: Words): [string, string] => [`${w(c.edge[0])}/${w(c.edge[1])} edge`, `${len(c.legs[0])} × ${len(c.legs[1])}`] })),
   ];
   const was = new Map(entries(before).map((x) => [`${x.kind}|${x.where}`, x]));
   const now = new Map(entries(after).map((x) => [`${x.kind}|${x.where}`, x]));
   const out: string[] = [];
   for (const [k, x] of now) {
     const old = was.get(k);
-    if (!old) out.push(`${x.kind} added (${x.where}; ${x.detail})`);
-    else if (old.detail !== x.detail) out.push(`${x.kind} changed (${x.where}; ${x.detail})`);
+    const [where, detail] = x.text(wb);
+    if (!old) out.push(`${x.kind} added (${where}; ${detail})`);
+    else if (old.detail !== x.detail) out.push(`${x.kind} changed (${where}; ${detail})`);
   }
-  for (const [k, x] of was) if (!now.has(k)) out.push(`${x.kind} removed (${x.where})`);
+  for (const [k, x] of was) if (!now.has(k)) out.push(`${x.kind} removed (${x.text(wa)[0]})`);
   return out;
 }
 
 /**
- * One part's hole-row lines (AI-holes spec §4), on design forms (`worldHoles`: `offset` is part-relative, so a moved
- * part changes nothing). A row is matched by its face plus its first centre, EXACTLY; one that matches nothing is a
- * removal plus an addition. A matched row names what differs at display precision: depth, through, diameter, count,
- * pitch, or `running toward <dir>` (its direction along the face, only when it was and is a row of more than one). A
- * through row's depth is not a difference.
+ * One part's hole-row lines (AI-holes spec §4; shop words, shop-words spec), on design forms (`worldHoles`: `offset` is
+ * part-relative, so a moved part changes nothing). A row is matched by its face plus its first centre, EXACTLY. A matched
+ * row names what differs at display precision: depth, through, diameter, count, pitch, or `running toward <dir>` (its
+ * direction along the face, only when it was and is a row of more than one). A through row's depth is not a difference.
+ * Of the rows left over, an added and a removed row on the same face that display the same (`look`) are a MOVE, paired
+ * nearest-first by first centre; a move below display precision prints nothing. Anything else is an addition or a removal.
  */
-function holeLines(before: readonly WorldHoleRow[], after: readonly WorldHoleRow[], len: (n: number) => string): string[] {
+function holeLines(before: readonly WorldHoleRow[], after: readonly WorldHoleRow[], len: (n: number) => string, wa: Words, wb: Words): string[] {
   const at = (r: WorldHoleRow) => `${r.face}|${r.offset.x}|${r.offset.y}|${r.offset.z}`;
   const left = new Map<string, WorldHoleRow[]>();
   for (const r of before) left.set(at(r), [...(left.get(at(r)) ?? []), r]);
   const out: string[] = [];
+  const added: { r: WorldHoleRow; slot: number }[] = [];
   for (const r of after) {
     const old = left.get(at(r))?.shift();
-    if (!old) { out.push(`${r.count} hole${r.count === 1 ? '' : 's'} added on ${r.face}, ${len(r.diameter)} Ø`); continue; }
+    if (!old) { added.push({ r, slot: out.length }); out.push(''); continue; }
     const what: string[] = [];
     if (r.through !== old.through ? !r.through : !r.through && len(r.depth) !== len(old.depth)) what.push(`${len(r.depth)} deep`);
     if (r.through && !old.through) what.push('through');
@@ -204,9 +230,26 @@ function holeLines(before: readonly WorldHoleRow[], after: readonly WorldHoleRow
     if (r.count > 1 && old.count > 1 && len(r.pitch) !== len(old.pitch)) what.push(`${len(r.pitch)} apart`);
     else if (r.count > 1 && old.count === 1) what.push(`${len(r.pitch)} apart`);
     // A single bore has no direction to change (final review M1): only a row that was and is a row can turn.
-    if (r.toward !== old.toward && r.count > 1 && old.count > 1) what.push(`running toward ${r.toward}`);
-    if (what.length > 0) out.push(`hole row on ${r.face} now ${what.join(', ')}`);
+    if (r.toward !== old.toward && r.count > 1 && old.count > 1) what.push(`running toward the ${endWord(r.toward)}`);
+    if (what.length > 0) out.push(`hole row on the ${wb(r.face)} face now ${what.join(', ')}`);
   }
-  for (const rs of left.values()) for (const r of rs) out.push(`hole row on ${r.face} removed`);
-  return out;
+  // Same face, same displayed size, count and (for a row) pitch and run: only the first centre differs.
+  const look = (r: WorldHoleRow) => [r.face, len(r.diameter), r.through ? 'through' : len(r.depth), r.count,
+    r.count > 1 ? `${len(r.pitch)}|${r.toward}` : ''].join('|');
+  const removed = [...left.values()].flat();
+  const dist = (a: WorldHoleRow, b: WorldHoleRow) => Math.hypot(a.offset.x - b.offset.x, a.offset.y - b.offset.y, a.offset.z - b.offset.z);
+  const AXES = ['x', 'y', 'z'] as const;
+  for (const { r, slot } of added) {
+    const k = removed.filter((o) => look(o) === look(r)).sort((a, b) => dist(a, r) - dist(b, r))[0];
+    if (!k) { out[slot] = `${r.count} hole${r.count === 1 ? '' : 's'} added on the ${wb(r.face)} face, ${len(r.diameter)} Ø`; continue; }
+    removed.splice(removed.indexOf(k), 1);
+    // Each axis whose displayed delta is not zero, as a distance toward an absolute side.
+    const moves = AXES.flatMap((a) => {
+      const d = r.offset[a] - k.offset[a];
+      return len(Math.abs(d)) === len(0) ? [] : [`${len(Math.abs(d))} toward the ${endWord(`${d > 0 ? '+' : '-'}${a}` as Dir)}`];
+    });
+    if (moves.length > 0) out[slot] = `hole row on the ${wb(r.face)} face moved ${moves.join(', ')}`;
+  }
+  for (const r of removed) out.push(`hole row on the ${wa(r.face)} face removed`);
+  return out.filter((t) => t !== '');
 }
