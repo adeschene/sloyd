@@ -8,6 +8,7 @@ final review also amended §3 (a miter at a thin panel's rabbet passes, the user
 while executing chunk 2:* the design schema defines the part and the direction once in `$defs` (§5.1's arrays unchanged in
 shape) — the API refused the inline form's compiled grammar (fu 322); and `CHARS_PER_TOKEN` was not re-measured (§8; the
 estimate counts the real prompt and schema).
+**Since AI-profiles (2026-10-23):** the design form's angle arrays are merged into ONE `angles` item — see `2026-10-23-sloyd-ai-profiles-bands-design.md` R2. The world words here are unchanged; only the JSON envelope is (`parseDesign` splits `angles` back into the internal arrays this spec names).
 **Builds on:** the angle-cuts spec (`2026-10-12-sloyd-angle-cuts-design.md`: the `AngleCut` model, §6 refusals) and the
 AI-tapers spec (`2026-10-13-sloyd-ai-tapers-design.md`: flat-wood contact, the taper-at-joint rule, world-direction design
 tapers), plus the generate, joinery, refine and refine-joined specs. Every rule there still holds unless this document
