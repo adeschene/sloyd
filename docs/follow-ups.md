@@ -7057,3 +7057,4 @@ project's Plans "Front" elevation shows its back, and Refine's change list words
 Claude still moves the right way (the live check's third run: pins moved toward the open face, as before the change; only the
 words are world-true and shop-wrong). Nothing migrates. Candidate remedies (each a hypothesis): a line in Refine's user turn naming
 the open face as the front when the back panel sits at +z, or a one-off "turn the piece around" in Sloyd. **Status:** open (ask first).
+**Status:** closed by decision 2026-10-23 — the user: "leave old projects as they are". Do not re-open unasked.

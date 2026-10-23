@@ -133,7 +133,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   `shopWords.ts` + `designDiff.ts` (matched on raw directions, worded per side's frame), `SYSTEM_PROMPT` names +z the front. 7724
   tests; six mutations each caught. Live check `docs/browser-verification-shop-words.md` (3 paid runs ≈ $0.16): Generate puts the
   back panel at the smallest z; Refine reads "hole row on the inside face moved 1\" toward the front"; an OLD project (back at +z)
-  still moves the right way but reads "toward the back" (fu 431, the user's call).
+  still moves the right way but reads "toward the back" (fu 431; the user: leave old projects as they are).
 - **AI holes (fu 329; 2026-10-23; branch `ai-holes`, MERGED `424c184`, DEPLOYED 2026-10-23 as `index-D3k3tvUe.js`, CSS unchanged; schema 20,
   rollback to `98f8296` / `index-BJwLoCPr.js` free)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-holes-design.md` (the user took
   all three §11 calls; Amended (execution) carries the controller's rulings), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-holes.md`.
