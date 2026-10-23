@@ -3,6 +3,9 @@
 Date: 2026-10-11. Status: approved in conversation (the approach and all five sections); this file is its
 written form. Schema 12 → 13.
 
+**Since mirrored links (2026-10-23, schema 21):** §1's "Assemblies only" ruling is reversed for LINKED parts — a shaped part may be its
+Shape's mirror image (a part-level `mirrored` flag) — see `2026-10-23-sloyd-mirrored-links-design.md` §1.1.
+
 ## 1. What and why
 
 Left and right cabinet halves, a pair of mirror-image legs, the two sides of a bench: one design, built twice,

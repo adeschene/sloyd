@@ -132,9 +132,19 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | wording | 10-23 | — | `FEATURE_CHECK_FAILED` names edging; the link note says what is not shared (fu 411); per-copy hardware totals per type (fu 412); fu 410 left silent. **Deployed at `0b5e5ca` (`index-CuLt9iDe.js`)** |
 | AI bands | 10-23 | — | Generate and Refine author edge bands in world words (`bandWorld.ts`; `edging` = veneer, a project type, or `solid <material>` minted once as `<Label> edging` at 1/4in); band types threaded through every path; band faults fed back (not for curved parts, whose bands stay carried); banded parts link through turns; Generate edges exposed plywood front edges by default; `vec3` into `$defs` (fu 322) (inv 48/54/56; fu 430 chunk 1, 432, 433). **Merged `e7ce893`, deployed 2026-10-23 at `ef88e09` (`index-lH3mycr3.js`)** |
 | AI profiles | 10-23 | — | The design form's four angle arrays merged into ONE `angles` item to fit the grammar (`toWireDesign` / `parseDesign` split; the internal form unchanged); Generate and Refine author edge profiles in world words (`profileWorld.ts`; untouched entries exact through the exact-entry map); `profile-fault` kept and fed back (`profileDesignFaults.ts`); profiled parts link through turns and follow the rank + thickness frame rule; a part with curves or a two-side run keeps its profiles carried (`carriesProfiles`); profile lines in the change list (inv 40/41/48/53/56; fu 430 closed, 434). **Merged `30f1299`, deployed 2026-10-23 at `e2729ee` (`index-D_ed_oQ3.js`)** |
+| mirrored links | 10-23 | 21 | A linked part may be its Shape's MIRROR image (`mirrored`, an own field of a shaped part; `resolveBoard` applies it by flag flips, `mirrorFeatures`): edits lower through it exactly (`lowerOwnMirror`), a side is chain parity XOR the flag (`sideAt`); Generate and Refine link mirror twins (`mirrorCandidates`, after turns); the Mirrored checkbox (world X, in place) and ⇋ badge; joinery keeps a mirrored link (exact regroup); Unlink leaves two plain parts as they looked (inv 44/45/46; fu 432 closed, 435). **Merged `<merge>`, NOT deployed** |
 
 ## Status log (to 2026-10-23)
 
+- **Mirrored links (fu 432; 2026-10-23; branch `mirrored-links`, MERGED `<merge>`, NOT deployed; SCHEMA 21 — rolling back past it
+  REFUSES every project saved at 21, export first; the rollback table gets its row at deploy)**: spec
+  `docs/superpowers/specs/2026-10-23-sloyd-mirrored-links-design.md` (the user chose a mirror flag on parts, §1.1; Amended (execution) holds
+  Rulings 1–11 with their costs), plan `docs/superpowers/plans/2026-10-23-sloyd-mirrored-links.md`. Subagent-driven, 5 build tasks, each
+  task-reviewed (Task 3: one fix round — the checkbox reflects across WORLD X inside a turned assembly, Ruling 5). 7981 tests across 229
+  files, all passing in one full run; `npm run build` clean. Tell the user (Ruling 9): a non-square, inside-tapered leg set now links as ONE
+  Shape with two mirrored users (was two Shapes), so the parts list shows one 4-leg link with two ⇋ badges. Record-only: fu 435 (spec §8's
+  out-of-scope items, the all-mirrored metric regroup residue, Ruling 6's cost, deferred minors). Live check and the deploy ASK pending
+  (plan Task 6 Steps 4–5).
 - **AI profiles (fu 430 chunk 2; 2026-10-23; branch `ai-profiles`, MERGED `30f1299`, DEPLOYED at `e2729ee` as `index-D_ed_oQ3.js`, CSS unchanged; schema 20 — no schema change, so a
   rollback past it is free: it only stops Claude authoring profiles and returns the design form's four angle arrays)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` ("Chunk 2, revised" R1–R6;
   Amended (execution) holds chunk 2's Rulings 1–16 and the final review's fixes), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-profiles.md`.

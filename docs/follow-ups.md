@@ -7096,6 +7096,10 @@ left and right sides with shelf pins on their inside faces AND edging (or a prof
 turn maps one onto the other, so they stay two distinct parts, count twice against Generate's part cap, and an edit to one does
 not follow to the other. Candidate: a reflection candidate in linking, storing the second side as a mirrored use of the Shape
 (schema 13's mirror machinery). **Status:** open (feature; the user chose "two parts for now", 2026-10-23).
+**Status:** closed — mirrored links (2026-10-23, merged `<merge>`; spec `2026-10-23-sloyd-mirrored-links-design.md`, the user's choice of a
+mirror flag on parts, §1.1; schema 21): a shaped part may be its Shape's mirror image (`mirrored`, inv 45); Generate and Refine link mirror
+twins after turns (`mirrorCandidates`); a Mirrored checkbox and ⇋ badge by hand; joinery keeps the link. The premise's part-cap cost is not
+fixed by linking (the cap counts stored parts): fu 435(1).
 
 ## From the AI bands round (chunk 1) — 2026-10-23
 
@@ -7122,4 +7126,28 @@ so a stop it meant to keep at the same world place moves with its end, and the c
 the user, 2026-10-23: keep, and keep it silent). Smaller residue in
 the ledger: `seen` in `profileDesignFaults` merges two same-kind profiles on one edge with the same span and fault (one message); a loop's nominal side picked by axis letter, not
 `dirToLocal`; a stop that falls back to straight is judged by its swept faults only; `estimate.ts`' chars-per-token not re-measured.
+**Status:** open (record-only).
+
+## From the mirrored links round — 2026-10-23
+
+**435. Mirrored links: out of scope, residue and deferred minors (2026-10-23, spec §8, execution ledger and task reviews).**
+(1) Spec §8, out of scope: the part cap counts STORED parts (`distinctParts`), so a linked pair — mirrored or turned — still counts twice
+against Generate's cap (a separate decision for Generate); a one-handed pair is TWO cut-list rows, never one "Side ×2 (1 L, 1 R)" row
+(the mirrored-instances precedent; pinned in `cutlist.test.ts`); no mirrored link between parts whose posture differs (a link shares
+posture). (2) Residue (Task 5, pinned by a test): a joinery regroup whose users are ALL mirrored splits when joinery adds a new metric
+cut — the founder's fields are lowered through `mirrorCut`, which is not bit-exact twice on a non-dyadic size (the fu 216/382 class);
+geometry exact, the link lost. (3) Pre-existing (Task 4): `alignedTo` does not align CURVE ids, so hand-made curved twins whose curve ids
+differ do not link (Refine round trips keep ids). (4) Ruling 6's cost: Link gives every member not on the source's own Shape the SOURCE's
+flag, so a mirrored pair under another Shape joining by Link loses its mirror relation (re-tick Mirrored). (5) `mirrorLinkedPart`
+reflects across world X for the SELECTED occurrence only: a stored part shared by placements at different chain turns reflects its other
+copies across another world axis (a consequence of sharing). (6) Deferred minors worth keeping: `mirrorInPlace` (frames.ts) has no
+production caller (the store writes the world-X form itself) and its world check compares boxes and hole centres only; `Board.mirrored?:
+true` allows a flag on a plain part in the TYPE (runtime-enforced only); the v20 load test's title over-claims a dropped stray flag;
+`writeBackFlat`'s "no plain part keeps the flag" assertions run after `migrateDocument`, so cannot fail (assert on raw output); the
+regroup's exact-membership check resolves every user even on an unmirrored project (a cheap short-circuit: equal signatures when
+neither is flagged, skip shapes with no flagged user); `writeBackFlat`'s step-3 comment predates Ruling 11; `treeEdit.ts`' comment near
+`lowerEdit` ("an unmirrored chain leaves cur === after") is stale; no test of a mirrored user in an unmirrored TURNED assembly, nor of a
+two-level nested chain for the checkbox; the checkbox is not refused while gesturing (nor is `mirrorAssembly`); Unlink/Duplicate
+characterisation tests not mutation-shown; turn/mirror candidates recomputed per representative; `linkByRole`'s restore pairs records
+by index with `linksToShapes` unasserted; turned mirror candidates tested upright only.
 **Status:** open (record-only).

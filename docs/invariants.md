@@ -273,6 +273,16 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     mirror too, each end's flags flipped by its own side (Q20; pinned with `chiralTwoSide`, and 3600 runs × 3 mirrors in review).
     A band reflects by a flag flip too (`mirrorBands`: `side.from` when `side.across` is the mirrored dimension; `cornerRule`
     never flips); `lowerBands` is its exact inverse, reusing an untouched stored array.
+    **A part-level mirror (mirrored links, schema 21, fu 432) reflects by the SAME flag flips along `mirrorDim`:**
+    `mirrorFeatures` (frames.ts; `mirrorPart`'s feature half — cuts, angle cuts, hole rows, curves, profiles, bands; sizes,
+    posture, turn, position, material, grain, `cornerRule` and hardware untouched) is what `resolveBoard` applies to a mirrored
+    user, and `lowerOwnMirror` (treeEdit.ts: `lowerCuts`, `lowerAngleCuts`, `lowerHoles`, `lowerCurves`, `lowerProfiles`,
+    `lowerBands` against the Shape's OWN arrays, `withShapeFeatures`) is its exact inverse, so an untouched feature comes back
+    as the Shape's own object. Rectangular cuts are the one exception to bit-exactness: they reflect through `mirrorCut`, which
+    is size-based and not bit-exact twice on a non-dyadic size — which is why `mirrorCandidates` offers no mirror unless the
+    part's cuts survive two mirrors exactly, and why joinery's regroup judges membership by exact resolution (inv 46).
+    `mirrorInPlace` (`mirrorFeatures` + the turn negated: M_x R(r) = R(−r) M_d0, box unchanged) is the checkbox's operation
+    for a part at chain turn 0, kept for tests; the store's `mirrorLinkedPart` writes the general world-X form itself (inv 46).
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -284,6 +294,22 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
     must not come back.** `curves` and `profiles` are SHARED in `LINK_FIELDS` (arrays, so excluded from `_sharedPrimitives`' primitive check as cuts, angle cuts and holes are), and so are `bands` (an array)
     and `cornerRule` (a REQUIRED primitive — an optional shared field fails `_sharedPrimitives`' tsc check, so `'long'` is stored, P1).
+    **A link may be used MIRRORED (schema 21, fu 432).** `mirrored` is an OWN field (`LINK_FIELDS.mirrored = 'own'`) of a SHAPED
+    stored part only, stored only as `true`: the loader drops it from a plain part and any other value; `plainOf` and Ungroup's
+    plain path strip it; `withoutFlag` gives a shaped record without it. `resolveBoard` applies it (`mirrorFeatures`, inv 44) and
+    keeps `mirrored: true` on the resolved part so a writer lowers through it; everything downstream reads an ordinary Board.
+    Unlink and every dissolve store the RESOLVED board, so a mirrored user becomes a plain part in its own hand, nothing moved.
+    `linkByRole` tries, per representative, the part itself, then its turn candidates, then its MIRROR candidates
+    (`mirrorCandidates`: the part and each turn candidate with `mirrorFeatures` applied, turn KEPT, flagged — so the candidate
+    resolves to the part's own world; none when its rectangular cuts do not survive two mirrors exactly), each put in the
+    representative's list order first (`inOrderOf`, only on an exact one-to-one match) and judged by `alignedTo`. Unmirrored
+    always first, so a symmetric part is never stored mirrored. `linksToShapes` keeps the flag on the shaped record it writes;
+    a mirror candidate left in no SHARED Shape is restored to the ORIGINAL part, so no plain part carries reflected features or
+    the flag. `sameShared` is unchanged — the candidate is already in the representative's hand. `linkPlan` treats a user of
+    the source's own Shape with the OTHER flag as unchanged (`mirrorMate`: its mirror image by design). Link writes the Shape
+    from the source's EXISTING Shape fields when the source is shaped (exact, never re-lowered), else its plain fields; a member
+    already on the source's Shape keeps its flag, every other member (plain, or another Shape's user) takes the SOURCE's flag
+    (a mirrored pair joining another Shape by Link loses its mirror relation; fu 435).
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -292,7 +318,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - Group moves nothing (identity frame); Ungroup is exact for direct child parts only.
     - Joinery runs on `flatDocument`, maps back by index; anything reading sites/joints uses
       the flat document.
-    - `regroupShapes` groups a shape's users by geometry (`groupSignature`): cut ORDER is ignored (joinery appends mortises in site order, a turned user's list differs); the Shape keeps its first member's order and ids. `splitAssemblies` compares placements the same way (fu 316); the definition keeps the first placement's record.
+    - `regroupShapes` groups a shape's users by geometry (`groupSignature`): cut ORDER is ignored (joinery appends mortises in site order, a turned user's list differs). A user joins a group only when the group's Shape, resolved through the user's OWN mirror flag, reproduces its shared fields EXACTLY (mirrored links, fu 432) — never a hash of lowered fields, which `mirrorCut`'s ulp would split; among unflagged users this is the old exact comparison. A group's Shape is its founder's fields (first in document order) when the founder is unflagged; a flagged founder takes the fields (and so the cut ids) of the first later UNflagged user it resolves against, else its own fields lowered through its flag (`lowerOwnMirror` against the ORIGINAL Shape). A user keeps its flag (read by storage key off the markers BEFORE joinery's results are written, `flaggedKeys`); a group of one is stored with its own fields and no flag. Residue (fu 435): a group whose users are ALL mirrored splits when joinery adds a new metric cut. `splitAssemblies` compares placements the same way (fu 316); the definition keeps the first placement's record.
     - A selection is one level (`isCovered` is the ancestor test).
     - Write-back keys on the STORAGE target (`storageKey`); disagreeing edits throw, so the
       store sends one edit per target (`oneEditPerTarget`). An edit in a definition moves
@@ -319,6 +345,17 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       writes members' OWN fields only (each lowered alone); a shared posture write goes
       through `sameSideFirst` before `oneEditPerTarget`, so a Shape is never lowered through
       two parities in one edit.
+    - **The side of a mirror is the container chain's parity XOR the part's own `mirrored` flag** (`sideAt`, tree.ts; mirrored
+      links, fu 432). It decides how a shared edit is lowered: `postureRefusal`, `sameSideFirst` and the store's `sideOfShape`
+      (and Link's `sameSideFirst` side: the source's `sideAt`). A mirrored user inside a mirrored assembly is on the unmirrored
+      side (two mirrors cancel). `linkPlan`'s `LINK_ACROSS_MIRROR` refusal stays on ASSEMBLY parity (`mirroredAt`): a part's
+      own flag never refuses a Link. `lowerEdit` lowers a mirrored user's features once more through its own flag
+      (`lowerOwnMirror`, inv 44), comparing against the Shape's own arrays, never the resolved (mirrored) ones.
+    - **The Mirrored checkbox** (Properties, a SHAPED part only; `mirrorLinkedPart`) reflects the part left to right across
+      WORLD X in place: the flag flipped and the stored turn set to `inverseTurn(2a + r)`, `a` the container chain's turn
+      (M_x R(2a + r) = R(−(2a + r)) M_d0; the same for a mirrored chain); position kept, so the box is unchanged. Written to the
+      stored record, never through `updateBoard` (the flag is own). One undo entry; refused while exploded (inv 47). A stored
+      part shared by placements at different chain turns reflects across world X for the SELECTED occurrence only.
 47. **Exploded is read-only.** `explode > 0` means the model cannot change: `edit()`, `undo` and `redo` are the
     gate; any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
     Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the

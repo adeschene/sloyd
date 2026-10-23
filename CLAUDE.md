@@ -43,8 +43,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   only stops Claude authoring profiles; past `ef88e09`, edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** Nothing is pending deploy. **AI profiles (fu 430 chunk 2) is DEPLOYED** (`e2729ee`, `index-D_ed_oQ3.js`;
-  live-checked on dev, `docs/browser-verification-ai-profiles.md`, 7 of 10 paid calls). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
+- **NEXT (2026-10-23):** **Mirrored links (fu 432, SCHEMA 21) MERGED `<merge>`, NOT deployed**: live check, then ASK
+  before deploying (a rollback past it REFUSES projects saved at 21; export first). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -121,7 +121,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **20**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **21**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -472,7 +472,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `mirrorCurveCut` (`side` never flips), `mirrorProfile` (a station run's ends swap on every
     mirror), `mirrorBands` (`cornerRule` never flips) — each with an exact `lower…` inverse that
     reuses an untouched stored array. Equivariance tests use `chiralPart` (`chiralCurved`,
-    `chiralTwoSide`), never a symmetric fixture; mutate any new one.
+    `chiralTwoSide`), never a symmetric fixture; mutate any new one. A part's own mirror (schema 21) is the same flips
+    along `mirrorDim` (`mirrorFeatures`; inverse `lowerOwnMirror`); rect cuts (`mirrorCut`) are not bit-exact twice.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231; an optional
     SHARED field fails `_sharedPrimitives`' check, so `cornerRule` is stored). `resolveBoard` is
@@ -481,7 +482,9 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     only — never loosen it. Shared-field edits are written to the Shape (`applyWorldEdits`); the
     only propagation left is `shapeMates` re-pivoting posture. `linkPlan` is the ONE Link decider.
     A one-user shape dissolves (users counted as STORED parts). **`Board.link`, `repairLinks`,
-    `dissolveSingletons` and `mates` propagation must not come back.**
+    `dissolveSingletons` and `mates` propagation must not come back.** A shaped part may be its Shape's MIRROR (`mirrored`:
+    OWN, shaped parts only, applied by `resolveBoard`); `linkByRole` tries the part, its turns, then mirror candidates
+    (features mirrored, turn kept); `linksToShapes` keeps the flag; `sameShared` unchanged.
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -497,6 +500,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
       exact inverse (`lower`). Across a mirror, `linkPlan` and `postureRefusal` refuse before any
       mutation (one decider shared by store and panel); a Shape is never lowered through two
       parities in one edit (`sameSideFirst`). Full rules: `docs/invariants.md`.
+    - **A side is chain parity XOR the part's own flag (`sideAt`)**; `LINK_ACROSS_MIRROR` stays on assembly parity
+      (`mirroredAt`). Joinery's regroup joins a user only when the Shape resolves EXACTLY to it through its own flag.
 47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; actions
     with side effects outside `edit()` refuse at entry (`readOnly()`); `setTool` refuses all but
     Select; `setExplode` is the one writer. The UI lock is `EditLock`'s
@@ -592,7 +597,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7888 tests across 226 files
+npm test           # Vitest, currently 7981 tests across 229 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -601,12 +606,12 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–434). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–435). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
-  275, 276 (joint kinds only), 280; holes 330, 331, 334; mirrored linking 432; curves 363 (authoring; design checks reading curved bodies),
+  275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
@@ -614,7 +619,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434.
+  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434, 435.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
