@@ -14,6 +14,7 @@ import { buildCutList } from './cutlist';
 import { bodyMesh, boardUVSignature, drawsAsBox } from '../viewport/grainTiling';
 import { boardHoles } from './holes';
 import { curvedEdges } from './bodies';
+import { worldProfiles } from './profileWorld';
 import { turnCandidates } from './roleLinks';
 import type { Board, CurveCut, HoleRow } from './types';
 import type { ProfileFields } from './profiles';
@@ -126,11 +127,13 @@ describe('every reader sees a migrated profile exactly as chunk 1 did (profile r
   });
 });
 
-describe('a migrated profile part takes no turn (profile runs a1)', () => {
+describe('a migrated profile part may turn, its profile kept on the same world edge (profile runs a1; AI-profiles spec §5)', () => {
   const b = createBoard({ id: 'b1', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: [{ id: 'p', ...profileCurve(fields({ kind: 'roundover', size: 0.25, fillet: 0 })) }] });
-  it('turnCandidates gives none', () => {
+  it('turnCandidates re-stores the profile on the same world edge', () => {
     const m = migrate(b);
     expect(m.curves).toEqual([]);
-    expect(turnCandidates(m)).toEqual([]);
+    const cs = turnCandidates(m);
+    expect(cs.length).toBeGreaterThan(0);
+    for (const c of cs) expect(worldProfiles(c)).toEqual(worldProfiles(m));
   });
 });

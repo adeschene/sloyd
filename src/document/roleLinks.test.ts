@@ -16,6 +16,7 @@ import { sameShared } from './links';
 import type { Board } from './types';
 import { ARCH } from './curveFixtures';
 import { BUILT_IN_BAND_ID } from './bandModel';
+import { worldProfiles } from './profileWorld';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, role: string, at: [number, number, number], size: [number, number, number]): GeneratedPart =>
@@ -406,5 +407,52 @@ describe('linking holed parts (AI-holes spec §5)', () => {
     const ps = sides();
     ps[1] = { ...ps[1]!, holes: [row('-x', 2), row('-x', 9)] };
     expect(designToDocument(d(ps)).doc.shapes).toHaveLength(0);
+  });
+});
+
+describe('linking profiled parts (AI-profiles spec §5)', () => {
+  const top = (name: string, x: number, role = 'top'): GeneratedPart =>
+    ({ ...part(name, role, [x, 0, 0], [20, 0.75, 10]),
+      profiles: [{ edge: ['+y', '+z'], kind: 'roundover', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 20 }] });
+
+  it('two equal profiled tops link as ONE Shape and keep their profile', () => {
+    const { doc } = designToDocument(d([top('Top A', 0), top('Top B', 30)]));
+    expect(doc.shapes).toHaveLength(1);
+    expect(flatDocument(doc).boards.every((b) => b.profiles.length === 1)).toBe(true);
+  });
+
+  it('tops whose profiles differ do not link', () => {
+    const b = top('Top B', 30);
+    const { doc } = designToDocument(d([top('Top A', 0), { ...b, profiles: [{ ...b.profiles![0]!, size: 0.375 }] }]));
+    expect(doc.shapes).toHaveLength(0);
+  });
+
+  it('a quarter-turned square profiled part is re-stored per turn on the same world edge, ids by index, and links to its twin', () => {
+    const base = createBoard({ length: 12, width: 12, thickness: 0.75, posture: 'flat', rotation: 0, grain: 'length', position: [3, 0, 4] });
+    const leg: Board = { ...base, profiles: [{ id: 'pa', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+      run: { start: { side: { across: 'width', from: 'max' }, from: 'max', at: 2 }, end: { side: { across: 'width', from: 'max' }, from: 'min', at: 2 } } } as never] };
+    const w = worldProfiles(leg);
+    expect(w).not.toBeNull();
+    const cs = turnCandidates(leg);
+    expect(cs.length).toBeGreaterThan(0);   // the guard no longer refuses a profiled part
+    for (const c of cs) {
+      expect(c.profiles).toHaveLength(1);
+      expect(worldProfiles(c)).toEqual(w);
+    }
+    const twin = { ...cs[0]!, id: 'twin', profiles: cs[0]!.profiles.map((p) => ({ ...p, id: 'zz' })) };
+    expect(alignedTo(leg, twin)).toBeNull();   // stored at another turn: not the same stored part
+    const back = turnCandidates(twin).map((c) => alignedTo(leg, c)).find((x) => x !== null);
+    expect(back).toBeDefined();
+    expect(back!.profiles.map((p) => p.id)).toEqual(['pa']);   // the representative's id is adopted
+  });
+
+  it('a part with a two-side run never turns', () => {
+    const base = createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' });
+    const mkEnd = (from: 'min' | 'max', across: 'width' | 'length', at: number) =>
+      ({ side: { across, from }, from: 'min', at }) as never;
+    const two: Board = { ...base, profiles: [{ id: 'q', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+      run: { start: mkEnd('min', 'width', 1), end: mkEnd('min', 'length', 1) } } as never] };
+    expect(turnCandidates({ ...two, profiles: [] }).length).toBeGreaterThan(0);
+    expect(turnCandidates(two)).toEqual([]);
   });
 });

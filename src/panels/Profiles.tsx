@@ -5,7 +5,7 @@ import {
   profileOf, profileToFields, uvDims, DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS,
 } from '../document/document';
 import type { Board, CutFrom, Dimension, ProfileCut, ProfileEdge, ProfileEnd, ProfileFields, ProfileKind, ProfileSide } from '../document/document';
-import { canonicalRun, endPos, endToEnd, fallbackCause, oneSide, profileFaults, runDim, runsStraight, travelSign, viewProfileFaults } from '../document/profiles';
+import { PROFILE_KIND_LABEL, canonicalRun, endPos, endToEnd, fallbackCause, oneSide, profileFaults, runDim, runsStraight, travelSign, viewProfileFaults } from '../document/profiles';
 import { isSwept, throughConsistent } from '../document/profilePath';
 import { curveFaultText, curveLine, profileFaultNote, runsStraightNote, sweptLine } from '../document/curveText';
 import { endWord } from '../document/holeText';
@@ -17,7 +17,7 @@ import type { Control, Draft } from './curveRefusal';
 
 const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 const sideText = (d: Dimension, side: CutFrom) => `${d} ${side} ${endWord(d)}`;
-const KIND_LABEL: Record<ProfileKind, string> = { roundover: 'Roundover', cove: 'Cove', ogee: 'Roman ogee', bead: 'Bead', thumbnail: 'Thumbnail' };
+const KIND_LABEL = PROFILE_KIND_LABEL;
 const SIZE_LABEL: Record<ProfileKind, Control> = { roundover: 'Radius', cove: 'Radius', ogee: 'Size', bead: 'Radius', thumbnail: 'Reach' };
 /** The four sides a profile can run along, in the Chamfer row's words (`Width min side`, `Length max end`). */
 const SIDES: readonly ProfileSide[] = [

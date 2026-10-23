@@ -9,6 +9,8 @@ import type { BandType, Board, HoleRow, SloydDocument } from './types';
 import { bandsFor } from './bandWorld';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from './bandModel';
 import type { Dir } from './taperWorld';
+import { profilesFor } from './profileWorld';
+import type { WorldProfile } from './generated';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
@@ -395,5 +397,38 @@ describe('diffDesigns — edging (AI-bands spec §4.1)', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.copies).toBe(3);
     expect(out[0]!.text).toMatch(/^D0 › Front: edging added on the \w+ edge \(Oak edging\) \(×3\)$/);
+  });
+});
+
+describe('diffDesigns — edge profiles (AI-profiles spec §4.1)', () => {
+  const W = (over: Partial<WorldProfile> = {}): WorldProfile =>
+    ({ edge: ['+y', '+z'], kind: 'roundover', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 20, ...over });
+  const mk = (ws: WorldProfile[], name = 'Top'): Board => {
+    const b = createBoard({ name, length: 20, width: 4, thickness: 1 });
+    const made = profilesFor(b, ws);
+    if ('fault' in made) throw new Error(made.fault);
+    return { ...b, profiles: made.profiles.map((p, i) => ({ id: `p${i}`, ...p })) };
+  };
+  const lines = (a: Board, b: Board) =>
+    diffDesigns({ ...createDocument('T'), boards: [a] }, { ...createDocument('T'), boards: [b] }).filter((c) => c.kind === 'profiles').map((c) => c.text);
+
+  it('added, removed and resized lines, the edge in absolute words', () => {
+    expect(lines(mk([]), mk([W()]))).toEqual(['Top: 1/4" roundover added on the top/front edge']);
+    expect(lines(mk([W()]), mk([]))).toEqual(['Top: roundover on the top/front edge removed']);
+    expect(lines(mk([W()]), mk([W({ size: 0.375 })]))).toEqual(['Top: roundover on the top/front edge now 3/8"']);
+    expect(lines(mk([W()]), mk([W()]))).toEqual([]);
+  });
+  it('a changed run reads stopped, full length or all round; an ogee reads Roman ogee in lowercase', () => {
+    expect(lines(mk([W()]), mk([W({ start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now stopped']);
+    expect(lines(mk([W({ start: 2, end: 10 })]), mk([W()]))).toEqual(['Top: roundover on the top/front edge now full length']);
+    expect(lines(mk([W()]), mk([W({ allRound: true, start: 0, end: 0 })]))).toEqual(['Top: roundover all round the top face now all round']);
+    expect(lines(mk([]), mk([W({ kind: 'ogee', size: 0.5 })]))).toEqual(['Top: 1/2" roman ogee added on the top/front edge']);
+  });
+  it('matches by edge: an untouched profile beside a changed one gets no line', () => {
+    expect(lines(mk([W(), W({ edge: ['+y', '-z'] })]), mk([W(), W({ edge: ['+y', '-z'], size: 0.5 })]))).toEqual(['Top: roundover on the top/back edge now 1/2"']);
+  });
+  it('a part with curves has its profiles carried: no lines', () => {
+    const c = { ...mk([]), curves: [{ id: 'c', face: 'thickness' as const, from: 'min' as const, start: [3, 0] as [number, number], segments: [] }] } as unknown as Board;
+    expect(lines(c, { ...c, profiles: mk([W()]).profiles })).toEqual([]);
   });
 });

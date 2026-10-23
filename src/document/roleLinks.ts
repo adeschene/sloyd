@@ -11,6 +11,9 @@ import { holeRowsFor, sortHoleRows, worldHoles } from './holeWorld';
 import { sameHoleRow } from './holes';
 import { BUILT_IN_BAND_ID } from './bandModel';
 import { bandsFor, worldBands } from './bandWorld';
+import { profilesFor, sortProfiles, worldProfiles } from './profileWorld';
+import { carriesProfiles } from './featureCarry';
+import { sameProfile } from './profiles';
 
 const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 
@@ -22,12 +25,17 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
  * the hole grid), each row taking an id by index from the part's own rows sorted canonically — POSITIONAL only: the turned
  * frame's canonical order can differ from the original's, so an id may land on another row; harmless, because `alignedTo`
  * overwrites every hole id with the representative's before the candidate is used (final review M4). None for a part with
- * rectangular cuts, curves or profiles. Bands (AI-bands spec §5) are re-stored on the same world edges through worldBands
+ * rectangular cuts, curves or carried profiles (AI-profiles spec §5: a one-side run or a loop turns, re-stored through
+ * worldProfiles and profilesFor with an exact set, ids by index; a two-side run never). Bands (AI-bands spec §5) are re-stored on the same world edges through worldBands
  * and bandsFor (inv 44; bands carry no ids, so alignedTo needs no alignment for them). No candidate at a turn where a
  * cut, hole row or band has no stored form.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || b.curves.length > 0 || b.profiles.length > 0) return [];
+  if (b.cuts.length > 0 || carriesProfiles(b)) return [];
+  const shown = worldProfiles(b);
+  if (shown === null) return [];
+  const profileExact = new Set(shown.flatMap((p) => [p.size, p.fillet, p.depth, p.start, p.end]));
+  const profileIds = sortProfiles(b.profiles).map((p) => p.id);
   const world = worldTapers(b);
   const angles = worldAngles(b);
   if (world === null || angles === null) return [];
@@ -51,7 +59,9 @@ export function turnCandidates(b: Board): Board[] {
     if ('fault' in rows) return [];
     const edged = bandsFor(t, bandEntries, bandId);
     if ('fault' in edged) return [];
-    return [{ ...t, bands: edged.bands, angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })),
+    const made2 = profilesFor(t, shown, profileExact);
+    if ('fault' in made2) return [];
+    return [{ ...t, bands: edged.bands, profiles: made2.profiles.map((p, i) => ({ id: profileIds[i] ?? nextId(), ...p })), angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })),
       holes: rows.rows.map((r, i) => ({ id: holeIds[i] ?? nextId(), ...r })) }];
   });
 }
@@ -63,10 +73,11 @@ export function turnCandidates(b: Board): Board[] {
  * as it is: the same object, so plain linking is unchanged.
  */
 export function alignedTo(rep: Board, b: Board): Board | null {
-  if (b.angleCuts.length === 0 && b.holes.length === 0) return sameShared(rep, b) ? b : null;
+  if (b.angleCuts.length === 0 && b.holes.length === 0 && b.profiles.length === 0) return sameShared(rep, b) ? b : null;
   if (b.angleCuts.length !== rep.angleCuts.length || !b.angleCuts.every((c, i) => sameAngleCut(c, rep.angleCuts[i]!))) return null;
   if (b.holes.length !== rep.holes.length || !b.holes.every((r, i) => sameHoleRow(r, rep.holes[i]!))) return null;
-  const a: Board = { ...b, angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
+  if (b.profiles.length !== rep.profiles.length || !b.profiles.every((p, i) => sameProfile(p, rep.profiles[i]!))) return null;
+  const a: Board = { ...b, profiles: b.profiles.map((p, i) => ({ ...p, id: rep.profiles[i]!.id })), angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
     holes: b.holes.map((r, i) => ({ ...r, id: rep.holes[i]!.id })) };
   return sameShared(rep, a) ? a : null;
 }

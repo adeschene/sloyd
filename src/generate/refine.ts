@@ -26,7 +26,7 @@ export interface RefineSettings { instruction: string; width: number | null; dep
 /** Refine handles what Detailed allows; beyond it the model would be forced to drop parts. */
 export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: placedCeiling('detailed') };
 
-export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.';
+export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes, edging and edge profiles. Keep assembly and placement names. Return the whole design.';
 
 /** `original`: the plain design the model's came from; the parts of it that carry features the JSON does not show are named (refine-features spec §5).
  *  `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum

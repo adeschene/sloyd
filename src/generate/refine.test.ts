@@ -32,8 +32,8 @@ describe('refine', () => {
       'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(D)), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.');
-    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers, holes and edging');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes, edging and edge profiles. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers, holes, edging and edge profiles');
   });
 
   it('shows the design in the wire form: merged "angles", no "tapers"/"miters"/"bevels"/"chamfers" keys, no TS-only fields (spec R6.4)', () => {

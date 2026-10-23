@@ -7,7 +7,10 @@ import type { Dir, WorldTaper } from './taperWorld';
 import { noAngles, worldAngles } from './angleWorld';
 import type { WorldAngles } from './angleWorld';
 import { worldHoles } from './holeWorld';
-import type { WorldBand, WorldHoleRow } from './generated';
+import type { WorldBand, WorldHoleRow, WorldProfile } from './generated';
+import { worldProfiles } from './profileWorld';
+import { PROFILE_KIND_LABEL } from './profiles';
+import { carriesProfiles } from './featureCarry';
 import { worldBands } from './bandWorld';
 import { BUILT_IN_BAND } from './bandModel';
 import { definitionCorner } from './refineDesign';
@@ -22,7 +25,7 @@ import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
  * shop words (`shopWords.ts`; shop-words spec): cuts and rows are MATCHED on raw
  * directions, never on the words, since two faces can both read "inside".
  */
-export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'bands' | 'linked' | 'unlinked';
+export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'bands' | 'profiles' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
@@ -125,6 +128,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len, wa, wb)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
     for (const t of holeLines(worldHoles(o.b), worldHoles(e.b), len, wa, wb)) push('holes', 'part', n, `${n}: ${t}`, key('holes', `: ${t}`));
     for (const t of bandLines(worldBands(o.b), worldBands(e.b), typeName(after))) push('bands', 'part', n, `${n}: ${t}`, key('bands', `: ${t}`));
+    for (const t of profileLines(shownProfiles(o.b), shownProfiles(e.b), len)) push('profiles', 'part', n, `${n}: ${t}`, key('profiles', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -159,6 +163,58 @@ function bandLines(before: readonly WorldBand[], after: readonly WorldBand[], na
     else if (b === undefined && a !== undefined) out.push(`edging on the ${endWord(d)} edge removed`);
   }
   return out;
+}
+
+/** A profile in design form with how it runs: all round, full length (both ends through), or stopped. */
+interface ShownProfile extends WorldProfile { run: 'all round' | 'full length' | 'stopped' }
+
+/** A part's authored profiles in design form; none for a part whose profiles are carried (curves, a two-side run: never shown). */
+function shownProfiles(b: Board): ShownProfile[] {
+  if (carriesProfiles(b)) return [];
+  const extents = boardExtents(b);
+  return (worldProfiles(b) ?? []).map((w) => {
+    // The run's axis is the one neither the broad face nor the side is on.
+    const along = [0, 1, 2].find((k) => 'xyz'[k] !== w.edge[0]![1] && 'xyz'[k] !== w.edge[1]![1])!;
+    return { ...w, run: w.allRound ? 'all round' : w.start === 0 && w.end === extents[along]! ? 'full length' : 'stopped' };
+  });
+}
+
+/**
+ * One part's edge-profile lines (AI-profiles spec §4.1), on design forms (`worldProfiles`). A profile is matched by its
+ * raw edge directions and kind (never the words), several on one edge and kind pairing in order: added
+ * (`1/4" roundover added on the top/front edge`), removed, or changed (`now 3/8"`, else `now stopped` / `now full length` /
+ * `now all round`). An all-round profile has no side: it matches a profile of its broad face and kind that found no
+ * partner, and reads `on the top face`. Edges read in absolute words (`endWord`), kinds in the bench's lowercase words
+ * (`PROFILE_KIND_LABEL`). `len` carries the document's units.
+ */
+function profileLines(before: readonly ShownProfile[], after: readonly ShownProfile[], len: (n: number) => string): string[] {
+  const kind = (w: WorldProfile) => PROFILE_KIND_LABEL[w.kind].toLowerCase();
+  const place = (w: ShownProfile) => (w.run === 'all round' ? `all round the ${endWord(w.edge[0] as Dir)} face`
+    : `on the ${endWord(w.edge[0] as Dir)}/${endWord(w.edge[1] as Dir)} edge`);
+  const exact = (x: ShownProfile, y: ShownProfile) => x.kind === y.kind && x.edge[0] === y.edge[0] && x.edge[1] === y.edge[1] && (x.run === 'all round') === (y.run === 'all round');
+  const rest = [...after];
+  const gone: ShownProfile[] = [];
+  const pairs: [ShownProfile, ShownProfile][] = [];
+  for (const b of before) {
+    const i = rest.findIndex((a) => exact(b, a));
+    if (i >= 0) pairs.push([b, rest.splice(i, 1)[0]!]); else gone.push(b);
+  }
+  // An all-round profile and a run on the same broad face and kind are one profile whose run changed.
+  for (const b of [...gone]) {
+    const i = rest.findIndex((a) => a.kind === b.kind && a.edge[0] === b.edge[0] && (a.run === 'all round' || b.run === 'all round'));
+    if (i >= 0) { pairs.push([b, rest.splice(i, 1)[0]!]); gone.splice(gone.indexOf(b), 1); }
+  }
+  const order = (w: ShownProfile) => DIRS.indexOf(w.edge[0] as Dir) * 6 + DIRS.indexOf(w.edge[1] as Dir);
+  type Item = { at: number; text: string };
+  const items: Item[] = [];
+  for (const [b, a] of pairs) {
+    const change = len(a.size) !== len(b.size) ? len(a.size)
+      : a.run !== b.run || (a.run === 'stopped' && (a.start !== b.start || a.end !== b.end)) ? a.run : null;
+    if (change !== null) items.push({ at: order(a), text: `${kind(a)} ${place(a)} now ${change}` });
+  }
+  for (const a of rest) items.push({ at: order(a), text: `${len(a.size)} ${kind(a)} added ${place(a)}` });
+  for (const b of gone) items.push({ at: order(b), text: `${kind(b)} ${place(b)} removed` });
+  return items.sort((x, y) => x.at - y.at).map((i) => i.text);
 }
 
 /**
