@@ -248,10 +248,14 @@ describe('a carried part converts in the original frame (refine-features spec §
     expect([r.posture, r.rotation, r.width, r.thickness]).toEqual([o.posture, o.rotation, o.width, o.thickness]);
   });
 
-  it('taper on a featured part resized past its width converts with no rejection, the taper on the stored length', () => {
+  // Residual R1 (ruling (a), 2026-10-23): widening past the length swaps two extents' rank — indistinguishable from a turn in
+  // plan — so a HOLES-ONLY part is oriented like its plain twin and the taper's `along` fault goes back to the model. (The
+  // refine-features §3.2 "taper kept" guarantee now covers only parts with curves, profiles or bands.)
+  it('a holes-only tapered part resized past its width is oriented like its plain twin: the taper fault is fed back', () => {
     const taper = { id: 'a1', ...taperCut({ face: 'width', from: 'min', end: 'min', amount: 1.25, start: 14 }) };
     const holed = { ...chiralHoled('flat'), name: 'Side', cuts: [], angleCuts: [taper] };
-    const original = project([holed]);
+    const twin = { ...chiralHoled('flat'), id: 'twin', name: 'Twin', cuts: [], holes: [], angleCuts: [{ ...taper, id: 'a2' }], position: [0, 0, 40] as [number, number, number] };
+    const original = project([holed, twin]);
     const o = byName(original).get('Side')!;
     const kw = axisDimensions(o).indexOf('width');
     const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p): GeneratedPart => {
@@ -259,15 +263,12 @@ describe('a carried part converts in the original frame (refine-features spec §
       size[kw] = 25; // wider than the 20" length
       return { ...p, size: { x: size[0]!, y: size[1]!, z: size[2]! } };
     }) }));
-    expect(out.rejected).toEqual([]);
-    const r = byName(out.doc).get('Side')!;
-    expect([r.length, r.width]).toEqual([20, 25]);
-    expect(r.angleCuts).toHaveLength(1);
-    const { id: _a, ...was } = o.angleCuts[0]!;
-    const { id: _b, ...now } = r.angleCuts[0]!;
-    expect(now).toEqual(was);
-    // Neither row is measured from the width side that grew: both restored exactly, in the original order (M3).
-    expect(r.holes).toEqual(o.holes);
+    const fault = (name: string) => `${name} has a taper toward -x, which is not along its length (Z); a taper runs along a part's longest side.`;
+    expect(out.rejected).toEqual([
+      { name: 'Side', reason: 'taper', detail: fault('Side') },
+      { name: 'Twin', reason: 'taper', detail: fault('Twin') },
+    ]);
+    expect(byName(out.doc).get('Side')).toBeUndefined();
   });
 });
 
@@ -425,6 +426,68 @@ describe('a holes-only part the model turned (final review C1) and the stored ro
     // The exact-row swap is skipped: a fresh row, not the original's.
     expect(r.holes.map((h) => h.id)).not.toContain('p1');
     expect(model!.holes).toEqual([pins]);
+  });
+
+  // Residual R1 (re-review): the frame is kept only when EVERY world extent keeps its rank, not just the thickness axis.
+  it('R1: a holes-only shelf the model turned in plan (30 and 12 swapped) is encoded like its plain twin, holes at the model\'s centres', () => {
+    const SHELF_ROW: HoleRow = { id: 's1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 4, count: 5, pitch: 2, acrossFrom: 'min', inset: 3 };
+    const shelf = createBoard({ name: 'Shelf', ...orient([30, 0.75, 12]), holes: [SHELF_ROW] });
+    const twin = createBoard({ name: 'Twin', ...orient([30, 0.75, 12]), position: [0, 0, 40] });
+    const original = project([shelf, twin]);
+    expect(boardExtents(byName(original).get('Shelf')!)).toEqual([30, 0.75, 12]);
+    const row = { face: '+y' as const, diameter: 0.25, depth: 0.375, through: false, offset: { x: 3, y: 0.75, z: 4 }, toward: '+z' as const, count: 5, pitch: 2 };
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: 12, y: 0.75, z: 30 }, holes: p.name === 'Shelf' ? [row] : [] })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Shelf')!;
+    const t = byName(out.doc).get('Twin')!;
+    const pick = (b: Board) => [b.posture, b.rotation, b.length, b.width, b.thickness];
+    expect(pick(t)).toEqual(['flat', 90, 30, 12, 0.75]);
+    expect(pick(r)).toEqual(pick(t));
+    const want = Array.from({ length: 5 }, (_, k) => [0, 1, 2].map((i) => r.position[i]! + [3, 0.75, 4][i]! + k * 2 * UNIT['+z']![i]!));
+    expect(sameSet(boardHoles(r).map((h) => toWorld(r, local(h.centre))), want)).toBe(true);
+    expect(r.holes.map((h) => h.id)).not.toContain('s1');
+  });
+
+  // Ties are allowed BOTH ways (residual R1 ruling): a tie in the original may come back ordered either way, and a strict
+  // order may come back tied; only a strict inversion re-orients.
+  it('R1 ties: a tie in the original or in the result is not a turn — the part keeps its frame and its row exactly', () => {
+    const ROW: HoleRow = { id: 't1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 2, pitch: 2, acrossFrom: 'min', inset: 2 };
+    const cases: [[number, number, number], [number, number, number]][] = [
+      [[12, 0.75, 12], [14, 0.75, 12]],   // tied in the original, x now longer
+      [[12, 0.75, 12], [12, 0.75, 14]],   // tied in the original, z now longer
+      [[20, 0.75, 12], [12, 0.75, 12]],   // strictly ordered in the original, tied in the result
+    ];
+    for (const [before, after] of cases) {
+      const original = project([createBoard({ name: 'Panel', ...orient(before), holes: [ROW] })]);
+      const o = byName(original).get('Panel')!;
+      const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: after[0], y: after[1], z: after[2] } })) }));
+      expect(out.rejected).toEqual([]);
+      const r = byName(out.doc).get('Panel')!;
+      expect([r.posture, r.rotation], `${before} → ${after}`).toEqual([o.posture, o.rotation]);
+      expect(boardExtents(r)).toEqual(after);
+      expect(r.holes, `${before} → ${after}`).toEqual(o.holes);
+    }
+  });
+
+  /** Residual (9): flat 20 x 1 x 3 — its stored thickness (3) is NOT its smallest extent. */
+  const odd = () => createBoard({ name: 'Odd', length: 20, width: 1, thickness: 3, holes: [{ id: 'q1', face: 'width', from: 'max', diameter: 0.25, depth: 0.5, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 }] });
+  it('(9): echoed, a holes-only part whose stored thickness is not its smallest extent keeps its encoding and its row exactly', () => {
+    const original = project([odd()]);
+    const o = byName(original).get('Odd')!;
+    expect([o.thickness, boardExtents(o)]).toEqual([3, [20, 3, 1]]);
+    const r = byName(refineThrough(original).doc).get('Odd')!;
+    expect([r.posture, r.rotation, r.length, r.width, r.thickness]).toEqual([o.posture, o.rotation, 20, 1, 3]);
+    expect(r.holes).toEqual(o.holes);
+  });
+  it('(9): the same part really turned (3 x 20 x 1) is not kept in the frame', () => {
+    const original = project([odd()]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: 3, y: 20, z: 1 },
+      holes: [{ face: '+x' as const, diameter: 0.25, depth: 0.5, through: false, offset: { x: 3, y: 2, z: 0.5 }, toward: '+y' as const, count: 1, pitch: 0 }] })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Odd')!;
+    expect(boardExtents(r)).toEqual([3, 20, 1]);
+    expect([r.length, r.width, r.thickness]).toEqual([20, 3, 1]);
+    expect(r.holes.map((h) => h.id)).not.toContain('q1');
   });
 
   it('…a holes-only part the model left the same way round keeps the frame, and its rows come back exactly', () => {

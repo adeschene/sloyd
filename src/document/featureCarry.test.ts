@@ -43,7 +43,7 @@ describe('carryFromOriginal', () => {
     const doc = withFeatures(base, base.boards[0]!.id, { ...FEATURES, posture: 'on-edge', rotation: 180 });
     const out = carryFromOriginal({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1])], assemblies: [] }, doc);
     const c = out.parts[0]!.carry!;
-    expect(c.frame).toEqual({ posture: 'on-edge', rotation: 180 });
+    expect(c.frame).toEqual({ posture: 'on-edge', rotation: 180, extents: [20, 4, 1] });
     const o = doc.boards[0] as Board;
     expect(c.originalHoles).toEqual(o.holes); expect(c.originalHoles).not.toBe(o.holes); expect(c.originalHoles[0]).not.toBe(o.holes[0]);
     expect(c.curves).toEqual(o.curves); expect(c.curves[0]).not.toBe(o.curves[0]);

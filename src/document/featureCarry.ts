@@ -39,7 +39,7 @@ export function hasFrameFeatures(b: Board): boolean {
 }
 
 const carryOf = (b: Board): PartCarry => ({
-  ...(hasFrameFeatures(b) ? { frame: { posture: b.posture, rotation: b.rotation } } : {}),
+  ...(hasFrameFeatures(b) ? { frame: { posture: b.posture, rotation: b.rotation, extents: boardExtents(b) } } : {}),
   originalHoles: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile),
   bands: b.bands.map(copyBand), cornerRule: b.cornerRule, hardware: b.hardware.map(copyHardwareUse),
 });

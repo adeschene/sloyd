@@ -30,8 +30,9 @@ export interface Vec3 { x: number; y: number; z: number }
 export type MaterialKey = string;
 /** TS-only (never in the schema; parseDesign's fresh object drops it). Set by Refine's carryFromOriginal. */
 export interface PartCarry {
-  /** Present iff the original has any hole, curve, profile or band: the ORIGINAL part's encoding (spec §3.2). */
-  frame?: { posture: Posture; rotation: Rotation };
+  /** Present iff the original has any hole, curve, profile or band: the ORIGINAL part's encoding (spec §3.2) and its world
+   *  extents (`boardExtents`), which `keptFrame` ranks a holes-only part's returned box against (residual R1). */
+  frame?: { posture: Posture; rotation: Rotation; extents: [number, number, number] };
   /** The original's stored hole rows, for the exact-row map only (AI-holes spec §3.3): never written to the output as
    *  such — the model authors holes; a returned row that IS one of these, on the new part, is restored as it was. */
   originalHoles: HoleRow[];
@@ -385,17 +386,20 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
 }
 
 /**
- * The frame a returned part is encoded in (refine-features spec §3.2; final review C1), the ONE decision: the original's
- * (`carry.frame`) for a part with curves, profiles or bands, always (a turn of one is `featureTurned`'s fault); for a part
- * whose ONLY frame features are holes, only while the returned box's extent on the original's thickness world axis is
- * still a smallest extent (ties allowed) — otherwise the model turned it, and its holes, written in world words, convert
- * in the frame `orient` gives (the exact-row swap skipped, its stored fields meaning nothing there). Undefined: `orient`.
+ * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1), the ONE decision:
+ * the original's (`carry.frame`) for a part with curves, profiles or bands, always (a turn of one is `featureTurned`'s
+ * fault); for a part whose ONLY frame features are holes, only while EVERY world extent keeps its rank against the
+ * original's — no pair of world axes strictly ordered one way in the original and strictly the other way in the result
+ * (a tie on either side may stay or swap). Otherwise the model turned it (onto another face, or about its thickness
+ * axis in plan), and its holes, written in world words, convert in the frame `orient` gives (the exact-row swap skipped,
+ * its stored fields meaning nothing there). Undefined: `orient`.
  */
 function keptFrame(carry: PartCarry | undefined, size: [number, number, number]): PartCarry['frame'] {
   const frame = carry?.frame;
   if (!frame || carry!.curves.length > 0 || carry!.profiles.length > 0 || carry!.bands.length > 0) return frame;
-  const k = axisDimensions({ posture: frame.posture, rotation: frame.rotation } as Board).indexOf('thickness');
-  return size[k] === Math.min(...size) ? frame : undefined;
+  const e = frame.extents;
+  const inverted = [0, 1, 2].some((i) => [0, 1, 2].some((j) => e[i]! < e[j]! && size[i]! > size[j]!));
+  return inverted ? undefined : frame;
 }
 
 /**

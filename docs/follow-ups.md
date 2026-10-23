@@ -6979,6 +6979,8 @@ parts still take the old name-based carry. To record and measure, not fixed (ref
 original thickness axis is still the thinnest. A part whose length and width swap world axes with thickness unchanged reads as a resize:
 its features stay at their stored stations and the "Check at the new size" line names the part (refine-features spec §4, recorded not
 built). **Status:** open (record-only).
+**Status:** open (record-only), now for parts with curves, profiles or bands only: a holes-only part turned in plan is re-oriented (AI-holes
+residual R1, `keptFrame`'s rank rule, 2026-10-23).
 
 **426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
 also receives the carry (the load gate renames it `X (1)`); `carriedSummary` does not mention it. Follows refine-features spec §2's name
@@ -7020,3 +7022,13 @@ is the one frame decision and `restoreHoles` takes the originals it allows; the 
 sides link at D = 10 and D = 11.8125 (roleLinks.test). The same wave fixed the final review's C1 (a holes-only part the model turned is
 `orient`ed), I2 (stored numbers checked finite and within MAX_MAGNITUDE after the grid), M1/M2 (diff wording), M3 (a no-op Refine keeps the
 stored row order) and M4 (turnCandidates' positional ids documented). (1), (2), (5)–(10) remain open (record-only).
+**Status:** (9) CLOSED on branch `ai-holes` (2026-10-23) by the rank rule, residual R1 (the user's approval): an echoed holes-only part
+whose stored thickness is not its smallest extent keeps its rank order, so it keeps its frame, encoding and row exactly (flat 20 x 1 x 3,
+tested; really turned to 3 x 20 x 1 it is oriented). The bare `featureTurned` precondition was not used (the re-review showed it unsafe).
+(11) Residual R1 (re-review, 2026-10-23): C1's thickness-only test kept the frame for a holes-only part turned ABOUT its thickness axis
+(a flat 30 x 12 shelf, 30 and 12 swapped in plan, stored flat/0 length 12 width 30, grain across, cut list changed silently).
+**CLOSED** the same day: `keptFrame` keeps a holes-only part's frame only when every world extent keeps its rank (ties both ways), else
+`orient` like the plain twin, no exact-row swap; tested (the R1 probe, ties both ways, the (9) pair) and mutated. A holes-only tapered part
+widened past its length is now oriented and its taper fault fed back (refine-features spec, Amended). The plan-turn gap for parts WITH
+curves, profiles or bands (they keep the frame always; `featureTurned` does not see a plan turn) stays fu 425. (1), (2), (5)–(8) and (10)
+remain open (record-only).
