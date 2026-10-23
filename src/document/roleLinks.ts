@@ -13,7 +13,7 @@ import { BUILT_IN_BAND_ID } from './bandModel';
 import { bandsFor, worldBands } from './bandWorld';
 import { profilesFor, sortProfiles, worldProfiles } from './profileWorld';
 import { carriesProfiles } from './featureCarry';
-import { sameProfile } from './profiles';
+import { runDim, sameProfile } from './profiles';
 
 const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 
@@ -35,6 +35,9 @@ export function turnCandidates(b: Board): Board[] {
   const shown = worldProfiles(b);
   if (shown === null) return [];
   const profileExact = new Set(shown.flatMap((p) => [p.size, p.fillet, p.depth, p.start, p.end]));
+  // The part's own stored station distances and their L − at counterparts: a turn re-stores an exact one as itself.
+  const known = b.profiles.flatMap((p) => ('loop' in p.run ? [] : [p.run.start, p.run.end].flatMap((e) =>
+    ('at' in e ? [e.at, b[runDim(e.side)] - e.at] : []))));
   const profileIds = sortProfiles(b.profiles).map((p) => p.id);
   const world = worldTapers(b);
   const angles = worldAngles(b);
@@ -59,7 +62,7 @@ export function turnCandidates(b: Board): Board[] {
     if ('fault' in rows) return [];
     const edged = bandsFor(t, bandEntries, bandId);
     if ('fault' in edged) return [];
-    const made2 = profilesFor(t, shown, profileExact);
+    const made2 = profilesFor(t, shown, profileExact, known);
     if ('fault' in made2) return [];
     return [{ ...t, bands: edged.bands, profiles: made2.profiles.map((p, i) => ({ id: profileIds[i] ?? nextId(), ...p })), angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })),
       holes: rows.rows.map((r, i) => ({ id: holeIds[i] ?? nextId(), ...r })) }];

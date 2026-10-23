@@ -446,19 +446,18 @@ describe('linking profiled parts (AI-profiles spec §5)', () => {
     expect(back!.profiles.map((p) => p.id)).toEqual(['pa']);   // the representative's id is adopted
   });
 
-  it('a turn never moves an off-grid stop (the exact set)', () => {
+  it.each([2.0123456, 1 / 3, 2 + 1 / 3])('a turn never moves an off-grid stop (the exact set), at %s', (AT) => {
     const base = createBoard({ length: 12, width: 12, thickness: 0.75, posture: 'flat', rotation: 0, grain: 'length', position: [3, 0, 4] });
-    const AT = 2.0123456;   // on neither the 1/64in nor the whole-mm grid
     const leg: Board = { ...base, profiles: [{ id: 'pa', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
       run: { start: { side: { across: 'width', from: 'max' }, from: 'max', at: AT }, end: { side: { across: 'width', from: 'max' }, from: 'min', at: 2 } } } as never] };
     const w = worldProfiles(leg)!;
     const cs = turnCandidates(leg);
     expect(cs.length).toBeGreaterThan(0);
-    for (const c of cs) {
-      expect(worldProfiles(c)).toEqual(w);
-    }
+    for (const c of cs) expect(worldProfiles(c)).toEqual(w);
+    // The turn and back returns the original station exactly, and the turned twin links.
     const back = turnCandidates({ ...cs[0]!, id: 'twin' }).map((c) => alignedTo(leg, c)).find((x) => x !== null);
     expect(back).toBeDefined();
+    expect((back!.profiles[0]!.run as never as { start: { at: number } }).start.at).toBe(AT);
   });
 
   it('a part with a two-side run never turns', () => {

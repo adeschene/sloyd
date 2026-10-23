@@ -44,21 +44,22 @@ const broadFaces = (b: Board): [Dir, Dir] => {
  * is THROUGH only for a value not in `exact`; anything else is a station measured from the NEARER end of the run (ties
  * the part's `min`; a station past one end is measured from the other, so no position is a shape fault), its distance put on the hole grid (`holeSnap`) unless its source is in `exact` — but a COMPUTED
  * distance within 1e-9 of its grid value takes it even then. `size`, `fillet` and `depth` take the hole grid unless in
- * `exact`. Fields a kind ignores (a thumbnail's `fillet`, any other kind's `depth`, a symmetric kind's `facing`) are not
+ * `exact`. `known` (optional) lists stored distances (a part's own `at` values and their L − at counterparts): an exact
+ * station computed within 1e-9 of one takes it exactly, so a turn and its turn back cannot drift. Fields a kind ignores (a thumbnail's `fillet`, any other kind's `depth`, a symmetric kind's `facing`) are not
  * judged and not stored, as the loader stores them.
  *
  * The shape faults are exactly the loader's drop rules (`validateProfiles`), judged on the STORED values, plus the
  * design-form edge rules above; a fault quotes the value judged (after the grid). A zero-length or reversed station run, or a station past an end, is not one: it stores (`canonicalRun` orders it;
  * a zero-length one is the strict `stop-off`). Strict faults (`profileFaults`) are not judged here.
  */
-export function profilesFor(b: Board, entries: readonly WorldProfile[], exact?: ReadonlySet<number>): { profiles: Profile[] } | { fault: string } {
+export function profilesFor(b: Board, entries: readonly WorldProfile[], exact?: ReadonlySet<number>, known?: readonly number[]): { profiles: Profile[] } | { fault: string } {
   const snap = (v: number) => (exact?.has(v) === true ? v : holeSnap(v));
   /** A stored distance computed from world value `src`; never -0. */
   const dist = (v: number, src: number) => {
     const g = holeSnap(v);
-    // An exact source keeps its value; the L − at chain's ulp of drift is rounded off (1e-12 of an inch), so a turn and its
-    // turn back return the same number.
-    const out = Math.abs(g - v) <= GRID_NOISE || exact?.has(src) !== true ? g : Math.round(v * 1e12) / 1e12;
+    // An exact source keeps its value, never rounded to a decimal grid (1/3 stays 1/3). The L − at chain drifts by an ulp or
+    // so, so a value within GRID_NOISE of a distance the part already stores (`known`) takes that distance exactly.
+    const out = Math.abs(g - v) <= GRID_NOISE || exact?.has(src) !== true ? g : known?.find((x) => Math.abs(x - v) <= GRID_NOISE) ?? v;
     return out === 0 ? 0 : out;
   };
   const out: Profile[] = [];

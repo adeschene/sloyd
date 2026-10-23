@@ -363,3 +363,15 @@ describe('DIRS sanity', () => {
     for (const d of DIRS.filter((x) => x[1] !== 'y')) expect(store(flat(), [W({ edge: ['+y', d], start: 1, end: 2 })])).toHaveLength(1);
   });
 });
+
+describe('profilesFor: known stored distances keep exact stations (re-review)', () => {
+  it.each([1 / 3, 2 + 1 / 3, 2.0123456])('an identity re-store returns the original station %s', (AT) => {
+    const b = { ...flat({ length: 12, width: 12 }), profiles: [{ id: 'p', face: 'max' as const, kind: 'roundover' as const, size: 0.25, fillet: 0, facing: 'face' as const,
+      run: canonicalRun({ length: 12, width: 12, thickness: 0.75 }, 'max', { start: { side: { across: 'width' as const, from: 'max' as const }, from: 'min' as const, at: AT }, end: { side: { across: 'width' as const, from: 'max' as const }, from: 'max' as const, at: 2 } }) }] };
+    const ws = worldProfiles(b)!;
+    const known = [AT, 12 - AT, 2, 10];
+    const r = profilesFor(b, ws, exactOf(ws), known);
+    if ('fault' in r) throw new Error(r.fault);
+    expect(JSON.stringify(r.profiles[0]!.run)).toContain(String(AT));
+  });
+});
