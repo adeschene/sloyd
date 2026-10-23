@@ -65,7 +65,7 @@ Tapers:
 - Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For a 29in table whose aprons are 5in deep at the top of the legs, a start of 22 to 23in is typical.
 - Leave wood: a taper removes at most about a third of the leg's width per face.
 - Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.
-- 
+
 Angles:
 - Besides tapers, a part may carry three more kinds of angle cut. All four are entries in the part's "angles" array, each with a "kind", "dirs", "toward" and "values", in world directions.
 - "chamfer": a small slope on one edge, for comfort and looks. "dirs" names the two faces that meet there (["+y", "+z"] is the top edge on a part's +z side), "values" is how far it cuts into each face, in the same order (usually equal, 1/8 to 1/4in), and "toward" is ignored (repeat the first direction). Chamfer the exposed top edges of tops and the outer corners of legs. Example: { "kind": "chamfer", "dirs": ["+y", "+z"], "toward": "+y", "values": [0.125, 0.125] }.

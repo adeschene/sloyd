@@ -32,6 +32,7 @@ describe('prompt', () => {
       'Never cut an angle where a part joins another',
       'Use "angles": [] for every part without tapers, miters, bevels or chamfers.',
     ]) expect(SYSTEM_PROMPT).toContain(s);
+    expect(SYSTEM_PROMPT).not.toMatch(/^- *$/m);
     for (const old of ['"tapers"', '"miters"', '"bevels"', '"chamfers"']) expect(SYSTEM_PROMPT).not.toContain(old);
   });
 
