@@ -55,7 +55,7 @@ export function sameBandType(a: BandType, b: BandType): boolean {
 }
 
 /** `base`, else `base 2`, `base 3`, … — the first not taken (uniqueName's "(n)" suffix is for part names; the spec reads "Solid edging 2"). */
-function freeName(base: string, taken: readonly BandType[]): string {
+export function freeName(base: string, taken: readonly BandType[]): string {
   const names = new Set(taken.map((t) => t.name));
   let n = 1;
   let name = base;
