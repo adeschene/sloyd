@@ -15,6 +15,9 @@ const part = (name: string, at: [number, number, number], size: [number, number,
 
 const HOLE: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 };
 const PROFILE: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } };
+/** A run on two sides (the width-min side round the length-max corner): its profiles are CARRIED (AI-profiles spec §4.2, R6.3). */
+const TWO_SIDE: ProfileCut = { id: 'p2s', face: 'max', kind: 'roundover', size: 0.25, facing: 'face',
+  run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: 12 }, end: { side: { across: 'length', from: 'max' }, from: 'min', at: 1 } } };
 const FEATURES: Partial<Board> = {
   holes: [HOLE], curves: [ARCH], profiles: [PROFILE], bands: [{ side: { across: 'width', from: 'min' }, type: 'band-1' }],
   cornerRule: 'ends', hardware: [{ type: 'hw-1', count: 4 }],
@@ -67,6 +70,21 @@ describe('carryFromOriginal', () => {
     expect(carriedKinds(plainB!)).toEqual([]);
     expect(featuredKinds(plainB!)).toEqual(['bands']);
     expect(carriedKinds(curvedB!)).toEqual(['curves', 'bands']);
+  });
+
+  it('profiles are carried only for a part with curves or a run on two sides; every part keeps its originals for the exact-entry map (AI-profiles spec §3.4, R6.3)', () => {
+    const base = designToDocument({ name: 'G', parts: [part('One', [0, 0, 0], [20, 4, 1]), part('Two', [0, 6, 0], [20, 4, 1]), part('Arch', [0, 12, 0], [20, 4, 1])] }).doc;
+    const doc = withFeatures(withFeatures(withFeatures(base, base.boards[0]!.id, { profiles: [PROFILE] }),
+      base.boards[1]!.id, { profiles: [PROFILE, TWO_SIDE] }), base.boards[2]!.id, { profiles: [PROFILE], curves: [ARCH] });
+    const out = carryFromOriginal({ name: 'G', parts: ['One', 'Two', 'Arch'].map((n, i) => part(n, [0, 6 * i, 0], [20, 4, 1])), assemblies: [] }, doc);
+    const [one, two, arch] = out.parts.map((p) => p.carry!);
+    expect(one!.profiles).toEqual([]);
+    expect(one!.originalProfiles).toEqual([PROFILE]);
+    expect(one!.originalProfiles[0]).not.toBe(PROFILE);
+    expect(one!.frame).toBeDefined();
+    expect(two!.profiles).toEqual([PROFILE, TWO_SIDE]);
+    expect(two!.originalProfiles).toEqual([PROFILE, TWO_SIDE]);
+    expect(arch!.profiles).toEqual([PROFILE]);
   });
 
   it("a shaped part carries its Shape's features", () => {
@@ -141,6 +159,10 @@ describe('carryFromOriginal', () => {
     expect(hasFrameFeatures(f)).toBe(true);
     expect(carriedKinds(f)).toEqual(['curves', 'profiles', 'bands', 'hardware']);
     expect(carriedKinds({ ...b, holes: [HOLE] })).toEqual([]);
+    // Profiles are carried only with curves or a run on two sides (AI-profiles spec R6.3); a one-side run or a loop is authored.
+    expect(carriedKinds({ ...b, profiles: [PROFILE, { ...PROFILE, id: 'pl', run: { loop: true } }] })).toEqual([]);
+    expect(carriedKinds({ ...b, profiles: [PROFILE, TWO_SIDE] })).toEqual(['profiles']);
+    expect(carriedKinds({ ...b, curves: [ARCH], profiles: [PROFILE] })).toEqual(['curves', 'profiles']);
     expect(hasFrameFeatures({ ...b, holes: [HOLE] })).toBe(true);
     expect(featuredKinds({ ...b, hardware: [{ type: 'h', count: 1 }] })).toEqual(['hardware']);
     expect(hasFrameFeatures({ ...b, hardware: [{ type: 'h', count: 1 }] })).toBe(false);
@@ -163,7 +185,7 @@ describe('featureTurned', () => {
     const base = designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], size)] }).doc;
     return flatDocument(extra ? withFeatures(base, base.boards[0]!.id, extra) : base);
   };
-  const orig = flat([20, 4, 1], { holes: [HOLE], profiles: [PROFILE], bands: FEATURES.bands });
+  const orig = flat([20, 4, 1], { holes: [HOLE], profiles: [TWO_SIDE], bands: FEATURES.bands });
   const holed = flat([20, 4, 1], { holes: [HOLE] });
 
   it('sends back a featured side returned lying flat, in the exact words', () => {
@@ -178,13 +200,19 @@ describe('featureTurned', () => {
     // …but the same part with a curve is, and its words do not name the plain edging; a curved banded part names both.
     expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH], bands: FEATURES.bands }))[0]!.shown)
       .toBe('Side was turned onto another face; its curve and edging are now on the wrong faces.');
-    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [PROFILE], bands: FEATURES.bands }))[0]!.shown)
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [TWO_SIDE], bands: FEATURES.bands }))[0]!.shown)
       .toBe('Side was turned onto another face; its edge profile is now on the wrong faces.');
   });
   it('the person-facing words agree in number: one curve or one profile is singular, a count above one plural', () => {
     expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH] }))[0]!.shown).toBe('Side was turned onto another face; its curve is now on the wrong faces.');
-    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [PROFILE] }))[0]!.shown).toBe('Side was turned onto another face; its edge profile is now on the wrong faces.');
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [TWO_SIDE] }))[0]!.shown).toBe('Side was turned onto another face; its edge profile is now on the wrong faces.');
     expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH, { ...ARCH, id: 'c2' }] }))[0]!.shown).toBe('Side was turned onto another face; its curves are now on the wrong faces.');
+  });
+  it('a part whose profiles are all one-side runs or loops is not judged (authored, AI-profiles spec R6.3: keptFrame re-orients it); a two-side run still is', () => {
+    const LOOP: ProfileCut = { ...PROFILE, id: 'pl', run: { loop: true } };
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [PROFILE, LOOP], bands: FEATURES.bands }))).toEqual([]);
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [PROFILE, TWO_SIDE] }))[0]!.shown)
+      .toBe('Side was turned onto another face; its edge profiles are now on the wrong faces.');
   });
   it('a tied original: only a turn that leaves every smallest axis is a fault (spec §4)', () => {
     const leg = flat([30, 1.5, 1.5], { holes: [HOLE], curves: [ARCH] });

@@ -2,7 +2,7 @@ import type { GeneratedAssembly, GeneratedDesign, GeneratedPart, PartCarry } fro
 import type { Board, SloydDocument } from './types';
 import { copyHoleRow } from './holes';
 import { copyCurve } from './curves';
-import { copyProfile } from './profiles';
+import { copyProfile, oneSide } from './profiles';
 import { copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import { NAME_SEPARATOR, flatDocument } from './tree';
@@ -25,14 +25,24 @@ export function featuredKinds(b: Board): FeatureKind[] {
 }
 
 /**
- * The kinds the model never sees and Sloyd carries over by name (AI-holes spec §4; AI-bands spec §4.1): curves, profiles,
- * bands of a CURVED part, hardware. Holes are excluded (the design shows them and the converter returns them), and so are
- * the bands of a plain part (the design shows them too; a change to them is in the change list). The ONE source for the
- * note, `featureTurned` and `carriedSummary`; `featuredKinds` (holes and every band included) stays for the carry gate,
- * so a banded part still carries its `cornerRule`.
+ * A part whose profiles are CARRIED, never authored (AI-profiles spec §4.2, R6.3): one with curves, or with any run on two
+ * sides (a loop and a one-side run are authored in world words). The ONE predicate: `carryOf`, `carriedKinds`,
+ * `carryText`'s `faultKeys`, `profileDesignFaults` and `convertPart` all read it.
+ */
+export function carriesProfiles(b: Pick<Board, 'curves' | 'profiles'>): boolean {
+  return b.curves.length > 0 || b.profiles.some((p) => !('loop' in p.run) && !oneSide(p.run));
+}
+
+/**
+ * The kinds the model never sees and Sloyd carries over by name (AI-holes spec §4; AI-bands spec §4.1; AI-profiles spec
+ * R6.3): curves, the profiles of a part with curves or a run on two sides (`carriesProfiles`), the bands of a CURVED part,
+ * hardware. Holes are excluded (the design shows them and the converter returns them), and so are a plain part's bands and
+ * its authored profiles (the design shows them too; a change to them is in the change list). The ONE source for the
+ * note, `featureTurned` and `carriedSummary`; `featuredKinds` (holes and every band and profile included) stays for the
+ * carry gate, so a banded part still carries its `cornerRule`, and a profiled one its originals for the exact-entry map.
  */
 export function carriedKinds(b: Board): FeatureKind[] {
-  return featuredKinds(b).filter((k) => k !== 'holes' && (k !== 'bands' || b.curves.length > 0));
+  return featuredKinds(b).filter((k) => k !== 'holes' && (k !== 'bands' || b.curves.length > 0) && (k !== 'profiles' || carriesProfiles(b)));
 }
 
 /** Board-local features, which need the original's frame (refine-features spec §3.2). Hardware has none. */
@@ -42,7 +52,9 @@ export function hasFrameFeatures(b: Board): boolean {
 
 const carryOf = (b: Board): PartCarry => ({
   ...(hasFrameFeatures(b) ? { frame: { posture: b.posture, rotation: b.rotation, extents: boardExtents(b) } } : {}),
-  originalHoles: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile),
+  originalHoles: b.holes.map(copyHoleRow), originalProfiles: b.profiles.map(copyProfile), curves: b.curves.map(copyCurve),
+  // Only carried profiles (curves or a run on two sides; AI-profiles spec R6.3); an authored part's are in the design.
+  profiles: carriesProfiles(b) ? b.profiles.map(copyProfile) : [],
   // Only a curved part's bands are carried (AI-bands spec §4.1); a plain part's are in the design. `cornerRule` always.
   bands: b.curves.length > 0 ? b.bands.map(copyBand) : [], cornerRule: b.cornerRule, hardware: b.hardware.map(copyHardwareUse),
 });

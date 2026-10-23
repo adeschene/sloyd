@@ -1,6 +1,7 @@
 # Sloyd — the AI integration meets tapers
 
 **Date:** 2026-10-13. **Status:** approved; both chunks shipped 2026-10-13 (chunk 1 `71510e5`, chunk 2 `f7a6202`). Amendments made while planning chunk 2 are marked *amended*. §9's follow-ups: fu 301–303 closed (turned links; real-body checks), the rest open.
+**Since AI-profiles (2026-10-23):** the design form's angle arrays are merged into ONE `angles` item — see `2026-10-23-sloyd-ai-profiles-bands-design.md` R2. The world words here are unchanged; only the JSON envelope is (`parseDesign` splits `angles` back into the internal arrays this spec names).
 **Builds on:** the angle-cuts spec (`2026-10-12-sloyd-angle-cuts-design.md`, §6 refusals, §11 follow-ups),
 the generate, generate-assemblies, joinery, refine and refine-joined specs. **No document schema change** (tapers are
 already schema 14); only the *design* schema the model writes changes, so rollback is free.

@@ -43,10 +43,9 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   only stops Claude authoring edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** Nothing is pending deploy. **AI bands (fu 430 chunk 1) is DEPLOYED** (`ef88e09`, `index-lH3mycr3.js`).
-  Live-checked on dev (`docs/browser-verification-ai-bands.md`, 7 of 10 paid calls; the grammar's upper bound compiles at
-  3,114 chars). Then fu 430 chunk 2 (profiles): revisit spec §2.3 first — the grammar has little room left (fu 322).
-  Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items (AI-holes and refine-features looks among them).
+- **NEXT (2026-10-23):** **AI profiles (fu 430 chunk 2; the merged `angles` design array) is MERGED `<merge>`, NOT deployed**:
+  pending its live profile check (plan Task 8 Step 3; `docs/browser-verification-ai-profiles.md`, 4 of 10 paid calls so far),
+  then ASK before deploying (schema 20, rollback free). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -162,7 +161,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | angle cuts | `angleCuts.ts`, `angleText.ts`, `angleWorld.ts` / `taperWorld.ts` (inv 48) |
 | holes | `holes.ts`, `holeFaults.ts`, `holeText.ts`, `holeDrawing.ts`; AI authoring `holeWorld.ts`, `holeDesignFaults.ts` (inv 50) |
 | curves | `curves.ts`, `curveDrawing.ts`, `curveText.ts` (inv 53) |
-| edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `skeleton.ts`, `sweep.ts`, `runout.ts`, `sweptEdges.ts`, `sectionEdges.ts` (inv 48, 53) |
+| edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `skeleton.ts`, `sweep.ts`, `runout.ts`, `sweptEdges.ts`, `sectionEdges.ts`; AI authoring `profileWorld.ts`, `profileDesignFaults.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
 | edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts`; AI authoring `bandWorld.ts`, `bandDesignFaults.ts` (inv 54) |
 | bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
@@ -439,7 +438,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     `pitch` read as 0, fu 338), `CURVE_FIELDS`, `PROFILE_FIELDS`, `BAND_FIELDS` — every field but
     `id`, exact. Do not replace a table with a list in a function body or add an exclusion without
     a written reason. The cut list groups by them as a multiset, ids ignored; `sameShared` compares
-    in order, ids included (`alignedTo` adopts the representative's angle-cut and hole-row ids, only on a match). `cutsThatRemoveStock` decides which cuts are compared; the resulting
+    in order, ids included (`alignedTo` adopts the representative's angle-cut, hole-row and profile ids, only on a match). `cutsThatRemoveStock` decides which cuts are compared; the resulting
     row split on exact dimensions is correct — do not round.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
@@ -522,8 +521,10 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     subtracted** (`sweep.ts`: skeleton bands × the kept section, plus the rest of the outline). A
     b2 stop's run-out is built in its station's MODEL-chord frame (`stopRunoutPieces`); a stop never
     clips the band, a B1 station clips only its own END of it. Generate/Refine speak every angle
-    kind in WORLD words, recognised STRUCTURALLY; **the design schema defines part and direction
-    ONCE in `$defs`** (and `vec3`, since AI-bands; the API's grammar cap; fu 322 before any change).
+    kind in WORLD words, recognised STRUCTURALLY; **the design schema defines part, direction and `vec3`
+    ONCE in `$defs`; the four angle kinds share ONE item shape (`angles`). A new design-form feature joins an existing item
+    shape where it can — each new SHAPE costs grammar (fu 322).** The model sees `angles` (`toWireDesign`); `parseDesign` splits
+    it back into the internal arrays, and `angleFaults` rejects a wrong count per part (reason `'taper'` or `'angle'`).
 49. **A custom material's KIND is in its id** (`m-s-…`, `m-v-…`, `m-p-…`); a stored `kind` that
     disagrees drops the entry, and nothing may change a stored material's kind. Label, colour and
     sheet size come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global registry. **A
@@ -565,7 +566,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     the ONE profile fault decider; `profilePath.ts` the ONE path home. Faults and decisions read the
     tangent point (`profilePath`); B1's ε and Q13's zone are construction only. **The straight
     fallback** is ONE decision in `geometryBoard` (stops first, `stopFallsBack`; a two-side run never
-    falls back). Curves and Profiles refuse an edit that ADDS a fault to ANY profile, naming it. Refine carries them (inv 56); joinery rules out only the joint kinds whose zone one enters; Repair accepts them.
+    falls back). Curves and Profiles refuse an edit that ADDS a fault to ANY profile, naming it. Refine carries curves (inv 56). **Generate and Refine AUTHOR profiles in world words through `profileWorld.ts`, the ONE converter** (untouched entries return exactly through the exact-entry map, in a kept frame; an echo onto a resized part is restored as stored, Ruling 10; a shape fault rejects the part, reason `'profile'`; a strict fault is KEPT and flagged, `profileDesignFaults`, `'profile-fault'`), except on a part with curves or any two-side run (`carriesProfiles`, the ONE predicate), whose profiles stay carried and are never fed to the model. Joinery rules out only the joint kinds whose zone one enters; Repair accepts them.
 54. **`banding.ts` is the ONE place band numbers are computed** (core, strips, tape runs, faults),
     numbers-only, memoised and deep-frozen. **The model is the FINISHED size; the cut list prints the
     CORE**; bodies are untouched. **A faulted band adds nothing** and prints `— check: <words>`.
@@ -582,17 +583,17 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     on parts by flat name from the RESOLVED flat part (a shaped part's Shape included); only ASSEMBLY hardware reads the STORED definitions
     (`flatDocument` empties them, P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
 
-56. **A part Refine carries curves or profiles onto keeps the original's posture and rotation (`frameFor`); a part whose only frame features are holes and/or bands keeps it only while every world extent keeps its rank against the original's (ties allowed both ways) and its thickness's world axis is still a smallest extent (unless the original's thickness was not its smallest). Never `orient` either otherwise.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
-    types through `designToDocument`'s opts) and before `linkByRole`. Holes and a plain part's bands are no longer carried (invs 50, 54: authored in world words) but `hasFrameFeatures` still counts them (hardware never); a part whose only frame features are holes and/or bands the model turned (any strict rank inversion of its world extents: onto another face, C1, or in plan, R1; or, from an original tied at its smallest extent, a thickness axis no longer smallest — the tie clause) is `orient`ed like its plain twin, the exact-row swap skipped, its holes and bands converted from the model's world words; `turnCandidates` never turns a part with curves or
-    profiles, and re-stores a holed or banded part through world forms (holes with an exact set). A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
-    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part that carries curves or profiles, nor a part whose only frame features are holes and/or bands whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
+56. **A part Refine carries curves or carried profiles (a run on two sides, `carriesProfiles`) onto keeps the original's posture and rotation (`frameFor`); a part whose only frame features are holes, bands and/or authored profiles keeps it only while every world extent keeps its rank against the original's (ties allowed both ways) and its thickness's world axis is still a smallest extent (unless the original's thickness was not its smallest). Never `orient` either otherwise.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
+    types through `designToDocument`'s opts) and before `linkByRole`. Holes, a plain part's bands and authored profiles are no longer carried (invs 50, 54, 53: authored in world words) but `hasFrameFeatures` still counts them (hardware never); a part whose only frame features are holes, bands and/or authored profiles the model turned (any strict rank inversion of its world extents: onto another face, C1, or in plan, R1; or, from an original tied at its smallest extent, a thickness axis no longer smallest — the tie clause) is `orient`ed like its plain twin, the exact-row and exact-entry swaps skipped, its holes, bands and profiles converted from the model's world words; `turnCandidates` never turns a part with curves or
+    carried profiles, and re-stores a holed, banded or profiled part through world forms (holes and profiles with an exact set). A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
+    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7726 tests across 222 files
+npm test           # Vitest, currently 7888 tests across 226 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -601,20 +602,20 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–433). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–434). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; mirrored linking 432; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400; profiles authored by Claude 430 (chunk 2; bands, chunk 1, merged `e7ce893`).
+  364–366; banding 399, 400.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first).
+  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

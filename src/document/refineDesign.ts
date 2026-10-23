@@ -10,6 +10,7 @@ import { angleCutsFor, angleRatiosOf, noAngles, worldAngles } from './angleWorld
 import type { AngleFaultCode } from './angleWorld';
 import { worldHoles } from './holeWorld';
 import { worldBands } from './bandWorld';
+import { worldProfiles } from './profileWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, worldParts } from './tree';
 
@@ -48,15 +49,18 @@ const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): Gener
   const [x, y, z] = boardExtents(b);
   return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], ...(worldAngles(b) ?? noAngles()), holes: worldHoles(b),
     // A curved part's bands stay carried (AI-bands spec §3.2): the design shows none, and any the model returns are ignored.
-    bands: b.curves.length > 0 ? [] : worldBands(b) };
+    bands: b.curves.length > 0 ? [] : worldBands(b),
+    // Likewise its profiles, and a part with a run on two sides shows none (worldProfiles: null; AI-profiles spec §4.2, R6.3).
+    profiles: b.curves.length > 0 ? [] : worldProfiles(b) ?? [] };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
 export const definitionCorner = (boards: readonly StoredBoard[]): V3 =>
   [0, 1, 2].map((k) => Math.min(...boards.map((b) => b.position[k]!))) as V3;
 
-/** Every number the design carries: positions, sizes, placement origins, taper numbers, chamfer legs and hole numbers
- *  (each row's offset components, depth, pitch and diameter; AI-holes spec §3.3) (refine spec §4, "exact values"). Angles are kept exactly by the exact-angle map instead (`angleRatiosOf`, AI-angles spec §6.2). */
+/** Every number the design carries: positions, sizes, placement origins, taper numbers, chamfer legs, hole numbers
+ *  (each row's offset components, depth, pitch and diameter; AI-holes spec §3.3) and profile numbers (size, fillet, depth,
+ *  start, end; AI-profiles spec §3.4) (refine spec §4, "exact values"). Angles are kept exactly by the exact-angle map instead (`angleRatiosOf`, AI-angles spec §6.2). */
 export function designValues(design: GeneratedDesign): Set<number> {
   const out = new Set<number>();
   const add = (v: { x: number; y: number; z: number }) => { out.add(v.x); out.add(v.y); out.add(v.z); };
@@ -64,6 +68,7 @@ export function designValues(design: GeneratedDesign): Set<number> {
     for (const t of p.tapers ?? []) { out.add(t.start); out.add(t.amount); }
     for (const c of p.chamfers ?? []) { out.add(c.legs[0]); out.add(c.legs[1]); }
     for (const h of p.holes ?? []) { add(h.offset); out.add(h.depth); out.add(h.pitch); out.add(h.diameter); }
+    for (const f of p.profiles ?? []) { out.add(f.size); out.add(f.fillet); out.add(f.depth); out.add(f.start); out.add(f.end); }
   };
   for (const p of design.parts) { add(p.at); add(p.size); addTapers(p); }
   for (const a of design.assemblies ?? []) {

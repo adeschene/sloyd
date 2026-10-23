@@ -3,7 +3,7 @@ import { createDocument, flatDocument, migrateDocument } from './document';
 import { worldBands } from './bandWorld';
 import { dirToLocal } from './taperWorld';
 import { describe, expect, it } from 'vitest';
-import { designToDocument, designSchema, edgingKeys, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
+import { designToDocument, designSchema, edgingKeys, orient, parseDesign, toWireDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
 import { builtInCatalog, catalogOf } from './materials';
 import { BUILT_IN_BAND } from './bandModel';
 import builtinSchemaRaw from './fixtures/design-schema-builtin.json?raw';
@@ -34,7 +34,7 @@ const SCHEMA = deref(DESIGN_SCHEMA);
 const localToSide = (b: Board, d: Parameters<typeof dirToLocal>[1]) => { const l = dirToLocal(b, d); return { across: l.dim, from: l.from }; };
 
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine', role = ''): GeneratedPart => ({
-  name, role, material, miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [],
+  name, role, material, miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], profiles: [],
   at: { x: at[0], y: at[1], z: at[2] },
   size: { x: size[0], y: size[1], z: size[2] },
 });
@@ -294,17 +294,17 @@ describe('parseDesign', () => {
   });
   it('accepts a well-formed design', () => {
     const d = design(part('A', [0, 0, 0], [1, 2, 3]));
-    expect(parseDesign(JSON.parse(JSON.stringify(d)))).toEqual(d);
+    expect(parseDesign(JSON.parse(JSON.stringify(toWireDesign(d))))).toEqual(d);
   });
   it('accepts a design with assemblies', () => {
     const d = { ...design(part('A', [0, 0, 0], [1, 2, 3])), assemblies: [asm()] };
-    expect(parseDesign(JSON.parse(JSON.stringify(d)))).toEqual(d);
+    expect(parseDesign(JSON.parse(JSON.stringify(toWireDesign(d))))).toEqual(d);
   });
   it('accepts a design whose only parts are in assemblies', () => {
     const d = { name: 'x', parts: [], assemblies: [asm()] };
-    expect(parseDesign(d)).toEqual(d);
+    expect(parseDesign(toWireDesign(d))).toEqual(d);
   });
-  const okPart = { name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
+  const okPart = { name: 'A', role: '', angles: [], holes: [], bands: [], profiles: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
   it.each([
     null, 42, {}, { name: 'x' },
     { name: 'x', parts: [], assemblies: [] },                                   // no parts at all
@@ -347,7 +347,7 @@ describe('DESIGN_SCHEMA', () => {
   it('requires role, assemblies and placements', () => {
     const s = SCHEMA as any;
     expect(s.required).toEqual(['name', 'parts', 'assemblies']);
-    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes', 'bands']);
+    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'angles', 'holes', 'bands', 'profiles']);
     const a = s.properties.assemblies.items;
     expect(a.required).toEqual(['name', 'parts', 'placements']);
     expect(a.properties.parts.items).toEqual(s.properties.parts.items);
@@ -359,15 +359,15 @@ describe('parseDesign — normalised copy', () => {
   it('drops keys the schema does not have, at every level', () => {
     const raw = {
       name: 'x', extra: 1,
-      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
-      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
+      parts: [{ name: 'A', role: '', angles: [], holes: [], bands: [], profiles: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true, tapers: [], angleFaults: ['x'] }],
+      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', angles: [], holes: [], bands: [], profiles: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
         placements: [{ name: 'P', at: { x: 0, y: 0, z: 0, w: 9 }, extra: 2 }] }],
     };
     const d = parseDesign(raw)!;
     expect(d).toEqual({
       name: 'x',
-      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
-      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
+      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], profiles: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
+      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], profiles: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
     });
     expect(d).not.toBe(raw);
   });
@@ -405,20 +405,28 @@ describe('designToDocument — options', () => {
 });
 
 describe('tapers in the design (AI-tapers spec §2)', () => {
+  // The internal part (designToDocument's input) and its wire form (parseDesign's input: merged `angles`, AI-profiles R2).
   const legPart = (tapers: unknown) => ({ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers, miters: [], bevels: [], chamfers: [], holes: [], bands: [] });
-  const json = (tapers: unknown) => ({ name: 'T', parts: [legPart(tapers)], assemblies: [] });
+  const taperAngle = (t: { faces: unknown; toward: unknown; start: unknown; amount: unknown; [k: string]: unknown }) => {
+    const { faces, toward, start, amount, ...rest } = t;
+    return { kind: 'taper', dirs: faces, toward, values: [start, amount], ...rest };
+  };
+  const json = (tapers: { faces: unknown; toward: unknown; start: unknown; amount: unknown }[]) => ({ name: 'T', parts: [{ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 },
+    angles: tapers.map(taperAngle), holes: [], bands: [], profiles: [] }], assemblies: [] });
 
-  it('the schema requires tapers on every part, with Dir enums', () => {
+  it('the schema requires angles on every part, with Dir enums', () => {
     const part = ((SCHEMA as any).properties).parts.items;
-    expect(part.required).toContain('tapers');
-    expect(part.properties.tapers.items.properties.toward.enum).toEqual(['+x', '-x', '+y', '-y', '+z', '-z']);
-    expect(part.properties.tapers.items.required).toEqual(['faces', 'toward', 'start', 'amount']);
+    expect(part.required).toContain('angles');
+    expect(part.properties.angles.items.properties.toward.enum).toEqual(['+x', '-x', '+y', '-y', '+z', '-z']);
+    expect(part.properties.angles.items.properties.dirs.items.enum).toEqual(['+x', '-x', '+y', '-y', '+z', '-z']);
+    expect(part.properties.angles.items.required).toEqual(['kind', 'dirs', 'toward', 'values']);
   });
-  it('parseDesign refuses a part without tapers or with a malformed one, and copies only schema fields', () => {
-    expect(parseDesign({ name: 'T', parts: [{ ...legPart([]), tapers: undefined }], assemblies: [] })).toBeNull();
+  it('parseDesign refuses a part without angles or with a malformed taper, and copies only schema fields', () => {
+    const { angles: _a, ...noAngles } = json([]).parts[0]!;
+    expect(parseDesign({ name: 'T', parts: [noAngles], assemblies: [] })).toBeNull();
     expect(parseDesign(json([{ faces: ['up'], toward: '-y', start: 1, amount: 1 }]))).toBeNull();
     expect(parseDesign(json([{ faces: ['+x'], toward: '-y', start: '1', amount: 1 }]))).toBeNull();
-    const ok = parseDesign(json([{ faces: ['+x'], toward: '-y', start: 22, amount: 0.5, extra: 1 }]))!;
+    const ok = parseDesign(json([{ faces: ['+x'], toward: '-y', start: 22, amount: 0.5, extra: 1 } as never]))!;
     expect(ok.parts[0]!.tapers).toEqual([{ faces: ['+x'], toward: '-y', start: 22, amount: 0.5 }]);
   });
   it('converts a tapered leg to stored tapers that read back in world words', () => {
@@ -454,18 +462,17 @@ describe('tapers in the design (AI-tapers spec §2)', () => {
 describe('miters, bevels and chamfers in the design (AI-angles spec §5)', () => {
   const v = (x: number, y: number, z: number) => ({ x, y, z });
   const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [] };
-  it('the schema: each array is required and strict', () => {
+  it('the schema: one strict angles array carries every kind (AI-profiles spec R2)', () => {
     const part = (SCHEMA as any).properties.parts.items;
-    expect(part.properties.miters.items.required).toEqual(['end', 'longPoint', 'angle']);
-    expect(part.properties.bevels.items.required).toEqual(['face', 'longPoint', 'angle']);
-    expect(part.properties.chamfers.items.required).toEqual(['edge', 'legs']);
-    for (const k of ['miters', 'bevels', 'chamfers']) expect(part.properties[k].items.additionalProperties).toBe(false);
+    expect(part.properties.angles.items.properties.kind.enum).toEqual(['taper', 'miter', 'bevel', 'chamfer']);
+    expect(part.properties.angles.items.additionalProperties).toBe(false);
+    for (const k of ['miters', 'bevels', 'chamfers']) expect(part.properties).not.toHaveProperty(k);
   });
-  it('parseDesign refuses a part without the arrays, and copies only schema fields', () => {
-    const p = { name: 'Top', ...base, at: v(0, 0, 0), size: v(18, 0.75, 12) };
-    const { miters: _m, ...noMiters } = p;
-    expect(parseDesign({ name: 'T', parts: [noMiters], assemblies: [] })).toBeNull();
-    const ok = parseDesign({ name: 'T', parts: [{ ...p, chamfers: [{ edge: ['+y', '+z'], legs: [0.125, 0.125], extra: 1 }] }], assemblies: [] });
+  it('parseDesign refuses a part without angles, and copies only schema fields', () => {
+    const p = { name: 'Top', role: '', material: 'oak', angles: [], holes: [], bands: [], profiles: [], at: v(0, 0, 0), size: v(18, 0.75, 12) };
+    const { angles: _a, ...noAngles } = p;
+    expect(parseDesign({ name: 'T', parts: [{ ...noAngles, miters: [], bevels: [], chamfers: [], tapers: [] }], assemblies: [] })).toBeNull();
+    const ok = parseDesign({ name: 'T', parts: [{ ...p, angles: [{ kind: 'chamfer', dirs: ['+y', '+z'], toward: '+y', values: [0.125, 0.125], extra: 1 }] }], assemblies: [] });
     expect(ok!.parts[0]!.chamfers).toEqual([{ edge: ['+y', '+z'], legs: [0.125, 0.125] }]);
   });
   it('a chamfered top converts: the chamfer is stored on the faces it names, legs snapped', () => {
@@ -523,13 +530,16 @@ describe('miters, bevels and chamfers in the design (AI-angles spec §5)', () =>
 
 describe('the design schema per catalog (custom materials spec §6)', () => {
   const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
-  const ashPart = { name: 'A', role: 'top', material: 'm-s-ash1', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 }, tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [] };
+  const ashPart = { name: 'A', role: 'top', material: 'm-s-ash1', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 }, tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [], profiles: [] };
+  const ashWire = toWireDesign({ name: 'X', parts: [ashPart] }) as { parts: unknown[] };
   it("Generate's schema is byte-identical to the last live-compiled schema", () => {
     // The API's compiled-grammar cap (fu 322) is checked live on these bytes. Re-captured 2026-10-23 with the holes array
     // (AI-holes spec §2.2): the old bytes plus `holes` exactly; Refine's form of it (two custom materials, 2,952 chars)
     // compiled, req_011CgJGkuYyCJ51nxdbdHDTn. Re-captured 2026-10-23 with `bands` (AI-bands spec §2.2) and `vec3` moved into
     // `$defs`: the first form (vec3 inline) was refused, req_011CgJpd3fNoqKzSmffAtj5M; Refine's form of this one (a custom
-    // solid, a custom sheet, a custom solid band type; 2,911 chars) compiled, req_011CgJpkiPjQyZQA8DGccLtW.
+    // solid, a custom sheet, a custom solid band type; 2,911 chars) compiled, req_011CgJpkiPjQyZQA8DGccLtW. Re-captured
+    // 2026-10-23 with the four angle arrays merged into `angles` and `profiles` added (AI-profiles spec R1, R2): Refine's
+    // form (the same customs; 2,800 chars) compiled, req_011CgK3FpwL6Fshe5BsSWfuC.
     // Change it only after a new live compile.
     expect(JSON.stringify(DESIGN_SCHEMA)).toBe(builtinSchemaRaw.trim());
     expect(JSON.stringify(designSchema(builtInCatalog()))).toBe(builtinSchemaRaw.trim());
@@ -541,11 +551,11 @@ describe('the design schema per catalog (custom materials spec §6)', () => {
     expect(JSON.stringify(s).match(/"enum":\["pine"/g)).toHaveLength(1);
   });
   it('parseDesign accepts a custom id only with a catalog that knows it', () => {
-    const design = { name: 'X', assemblies: [], parts: [ashPart] };
+    const design = { name: 'X', assemblies: [], parts: ashWire.parts };
     expect(parseDesign(design)).toBeNull();
     expect(parseDesign(design, catalogOf({ materials: [] }))).toBeNull();
     expect(parseDesign(design, catalogOf({ materials: [ash] }))?.parts[0]!.material).toBe('m-s-ash1');
-    const inAssembly = { name: 'X', parts: [], assemblies: [{ name: 'S', parts: [ashPart], placements: [{ name: 'S1', at: { x: 0, y: 0, z: 0 } }] }] };
+    const inAssembly = { name: 'X', parts: [], assemblies: [{ name: 'S', parts: ashWire.parts, placements: [{ name: 'S1', at: { x: 0, y: 0, z: 0 } }] }] };
     expect(parseDesign(inAssembly)).toBeNull();
     expect(parseDesign(inAssembly, catalogOf({ materials: [ash] }))?.assemblies![0]!.parts[0]!.material).toBe('m-s-ash1');
   });
@@ -562,12 +572,13 @@ describe('the design schema per catalog (custom materials spec §6)', () => {
 
 describe('holes in the design (AI-holes spec §2.1)', () => {
   const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [] };
+  const wireBase = { role: '', material: 'oak', angles: [], holes: [], bands: [], profiles: [] };
   const row = { face: '+x', diameter: 0.25, depth: 0.375, through: false, offset: { x: 0.75, y: 6, z: 2 }, toward: '+y', count: 20, pitch: 1.25 };
-  it('the schema: holes is required, last, and each row is strict with exactly the eight fields', () => {
+  it('the schema: holes is required, before bands and profiles, and each row is strict with exactly the eight fields', () => {
     const raw = DESIGN_SCHEMA as any;
     const part = raw.$defs.part;
-    expect(Object.keys(part.properties).at(-2)).toBe('holes');
-    expect(part.required.at(-2)).toBe('holes');   // `bands` follows it (AI-bands spec §2.2)
+    expect(Object.keys(part.properties).at(-3)).toBe('holes');
+    expect(part.required.at(-3)).toBe('holes');   // `bands` (AI-bands spec §2.2) and `profiles` (AI-profiles spec §2.1) follow it
     const item = part.properties.holes.items;
     expect(Object.keys(item.properties)).toEqual(['face', 'diameter', 'depth', 'through', 'offset', 'toward', 'count', 'pitch']);
     expect(item.required).toEqual(['face', 'diameter', 'depth', 'through', 'offset', 'toward', 'count', 'pitch']);
@@ -579,7 +590,7 @@ describe('holes in the design (AI-holes spec §2.1)', () => {
     expect((SCHEMA as any).properties.parts.items.properties.holes.items.properties.offset.required).toEqual(['x', 'y', 'z']);
   });
   it('parseDesign refuses a part without holes, keeps a valid row and drops an unknown key on a row', () => {
-    const p = { name: 'Side', ...base, at: v(0, 0, 0), size: v(0.75, 30, 12) };
+    const p = { name: 'Side', ...wireBase, at: v(0, 0, 0), size: v(0.75, 30, 12) };
     const { holes: _h, ...noHoles } = p;
     expect(parseDesign({ name: 'T', parts: [noHoles], assemblies: [] })).toBeNull();
     expect(parseDesign({ name: 'T', parts: [], assemblies: [{ name: 'D', parts: [noHoles], placements: [] }] })).toBeNull();
@@ -591,7 +602,7 @@ describe('holes in the design (AI-holes spec §2.1)', () => {
     ['face', 'up'], ['toward', undefined], ['through', 'no'], ['diameter', '1/4'], ['depth', null], ['count', '2'], ['pitch', undefined],
     ['offset', { x: 0, y: 0 }],
   ])('parseDesign refuses a row whose %s is %j', (k, bad) => {
-    const p = { name: 'Side', ...base, at: v(0, 0, 0), size: v(0.75, 30, 12), holes: [{ ...row, [k]: bad }] };
+    const p = { name: 'Side', ...wireBase, at: v(0, 0, 0), size: v(0.75, 30, 12), holes: [{ ...row, [k]: bad }] };
     expect(parseDesign({ name: 'T', parts: [p], assemblies: [] })).toBeNull();
   });
   // Final review I2: a huge FINITE number passes the raw check but snaps to Infinity (or past MAX_MAGNITUDE); the stored
@@ -617,12 +628,12 @@ describe('bands in the design (AI-bands spec §2.2, §3.1)', () => {
   const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
   const birch = { id: 'm-v-birch', label: 'Birch', color: '#e0d0b0', kind: 'sheet-veneered' as const, sheet: { length: 96, width: 48 } };
   const maple: BandType = { id: 'id_maple', name: 'Maple edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
-  const base = { name: 'Top', role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [], at: v(0, 0, 0), size: v(20, 0.75, 10) };
+  const base = { name: 'Top', role: '', material: 'oak', angles: [], holes: [], profiles: [], at: v(0, 0, 0), size: v(20, 0.75, 10) };
 
-  it('the schema: bands is required, last, and each item is strict with exactly edge and edging', () => {
+  it('the schema: bands is required, before profiles, and each item is strict with exactly edge and edging', () => {
     const part = (DESIGN_SCHEMA as any).$defs.part;
-    expect(Object.keys(part.properties).at(-1)).toBe('bands');
-    expect(part.required.at(-1)).toBe('bands');
+    expect(Object.keys(part.properties).at(-2)).toBe('bands');
+    expect(part.required.at(-2)).toBe('bands');   // `profiles` follows it (AI-profiles spec §2.1)
     const item = part.properties.bands.items;
     expect(Object.keys(item.properties)).toEqual(['edge', 'edging']);
     expect(item.required).toEqual(['edge', 'edging']);
@@ -731,5 +742,136 @@ describe('bands converted (AI-bands spec §3.1–3.2)', () => {
     const { doc, rejected } = designToDocument(design({ ...part('Slab', [0, 0, 0], [20, 1, 10]), bands: [{ edge: '+x', edging: 'veneer' }] }));
     expect(rejected).toEqual([]);
     expect(flatDocument(doc).boards[0]!.bands).toHaveLength(1);
+  });
+});
+
+describe('the merged angles form and profiles (AI-profiles spec R2, R6.4)', () => {
+  const part0 = (over: Record<string, unknown> = {}) => ({ name: 'Leg', role: 'leg', material: 'oak', at: v(0, 0, 0), size: v(1.75, 28, 1.75),
+    angles: [], holes: [], bands: [], profiles: [], ...over });
+  const wire = (...parts: Record<string, unknown>[]) => ({ name: 'T', parts, assemblies: [] });
+  const TAPER = { kind: 'taper', dirs: ['+x', '+z'], toward: '-y', values: [22, 0.375] };
+  const MITER = { kind: 'miter', dirs: ['+y'], toward: '+x', values: [45] };
+  const BEVEL = { kind: 'bevel', dirs: ['+x'], toward: '+y', values: [15] };
+  const CHAMFER = { kind: 'chamfer', dirs: ['-x', '-z'], toward: '-x', values: [0.125, 0.25] };
+  const PROFILE = { edge: ['+y', '+z'], kind: 'roundover', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 20 };
+
+  it('the schema: angles and profiles are required, the four old arrays are gone, each item strict', () => {
+    const raw = (DESIGN_SCHEMA as any).$defs.part;
+    expect(Object.keys(raw.properties)).toEqual(['name', 'role', 'material', 'at', 'size', 'angles', 'holes', 'bands', 'profiles']);
+    expect(raw.required).toEqual(['name', 'role', 'material', 'at', 'size', 'angles', 'holes', 'bands', 'profiles']);
+    for (const k of ['tapers', 'miters', 'bevels', 'chamfers']) expect(raw.properties).not.toHaveProperty(k);
+    const a = raw.properties.angles.items;
+    expect(a).toEqual({
+      type: 'object',
+      properties: { kind: { type: 'string', enum: ['taper', 'miter', 'bevel', 'chamfer'] }, dirs: { type: 'array', items: { $ref: '#/$defs/dir' } },
+        toward: { $ref: '#/$defs/dir' }, values: { type: 'array', items: { type: 'number' } } },
+      required: ['kind', 'dirs', 'toward', 'values'],
+      additionalProperties: false,
+    });
+    const p = raw.properties.profiles.items;
+    expect(p).toEqual({
+      type: 'object',
+      properties: { edge: { type: 'array', items: { $ref: '#/$defs/dir' } }, kind: { type: 'string', enum: ['roundover', 'cove', 'ogee', 'bead', 'thumbnail'] },
+        size: { type: 'number' }, fillet: { type: 'number' }, depth: { type: 'number' }, facing: { type: 'string', enum: ['face', 'edge'] },
+        allRound: { type: 'boolean' }, start: { type: 'number' }, end: { type: 'number' } },
+      required: ['edge', 'kind', 'size', 'fillet', 'depth', 'facing', 'allRound', 'start', 'end'],
+      additionalProperties: false,
+    });
+  });
+
+  it('parseDesign splits angles by kind into the internal arrays, in array order (R2 table)', () => {
+    const TAPER2 = { kind: 'taper', dirs: ['-x'], toward: '-y', values: [20, 0.25] };
+    const d = parseDesign(wire(part0({ angles: [CHAMFER, TAPER, MITER, BEVEL, TAPER2], profiles: [PROFILE] })))!;
+    const p = d.parts[0]!;
+    expect(p.tapers).toEqual([{ faces: ['+x', '+z'], toward: '-y', start: 22, amount: 0.375 }, { faces: ['-x'], toward: '-y', start: 20, amount: 0.25 }]);
+    expect(p.miters).toEqual([{ end: '+y', longPoint: '+x', angle: 45 }]);
+    expect(p.bevels).toEqual([{ face: '+x', longPoint: '+y', angle: 15 }]);
+    expect(p.chamfers).toEqual([{ edge: ['-x', '-z'], legs: [0.125, 0.25] }]);
+    expect(p.profiles).toEqual([PROFILE]);
+    expect(p).not.toHaveProperty('angleFaults');
+    // A chamfer's toward is ignored (R2): any direction parses to the same chamfer.
+    expect(parseDesign(wire(part0({ angles: [{ ...CHAMFER, toward: '+y' }] })))!.parts[0]!.chamfers).toEqual(p.chamfers);
+  });
+
+  it('parseDesign refuses a part with the old arrays, a malformed angle or a malformed profile', () => {
+    expect(parseDesign(wire({ ...part0(), angles: undefined, tapers: [], miters: [], bevels: [], chamfers: [] }))).toBeNull();
+    expect(parseDesign(wire({ ...part0(), profiles: undefined }))).toBeNull();
+    expect(parseDesign({ name: 'T', parts: [], assemblies: [{ name: 'D', parts: [{ ...part0(), profiles: undefined }], placements: [] }] })).toBeNull();
+    for (const bad of [{ ...MITER, kind: 'dado' }, { ...MITER, dirs: ['up'] }, { ...MITER, toward: undefined }, { ...MITER, values: ['45'] }, { ...MITER, dirs: '+y' }]) {
+      expect(parseDesign(wire(part0({ angles: [bad] })))).toBeNull();
+    }
+    for (const bad of [{ ...PROFILE, kind: 'chamfer' }, { ...PROFILE, facing: 'side' }, { ...PROFILE, allRound: 'no' }, { ...PROFILE, edge: ['+y', 'up'] },
+      { ...PROFILE, size: '1/4' }, { ...PROFILE, end: undefined }]) {
+      expect(parseDesign(wire(part0({ profiles: [bad] })))).toBeNull();
+    }
+  });
+
+  it('toWireDesign(parseDesign(x)) is x, for every kind, loose and in an assembly', () => {
+    const x = { name: 'T', parts: [part0({ angles: [TAPER, MITER, BEVEL, CHAMFER], profiles: [PROFILE, { ...PROFILE, kind: 'thumbnail', depth: 0.125, allRound: true }] })],
+      assemblies: [{ name: 'D', parts: [part0({ name: 'F', angles: [{ ...TAPER, dirs: ['+x'] }, CHAMFER, { ...CHAMFER, dirs: ['+x', '+z'], toward: '+x' }] })], placements: [{ name: 'D1', at: v(1, 2, 3) }] }] };
+    expect(toWireDesign(parseDesign(x)!)).toEqual(x);
+    // Merged in the order tapers, miters, bevels, chamfers (R2: Refine's writer), each kind's own order kept.
+    const mixed = toWireDesign(parseDesign(wire(part0({ angles: [CHAMFER, BEVEL, { ...MITER, values: [30] }, TAPER, MITER] })))!) as any;
+    expect(mixed.parts[0].angles).toEqual([TAPER, { ...MITER, values: [30] }, MITER, BEVEL, CHAMFER]);
+  });
+
+  it('toWireDesign drops the TS-only fields, writes a chamfer toward as its first face, and defaults absent arrays', () => {
+    const p: GeneratedPart = { ...part('Top', [0, 0, 0], [20, 0.75, 10]), grain: 'width', angleFaults: ['has a miter with 2 directions; a miter takes 1'],
+      chamfers: [{ edge: ['+y', '+z'], legs: [0.125, 0.125] }],
+      carry: { originalHoles: [], originalProfiles: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] } };
+    const { tapers: _t, miters: _m, bevels: _b, chamfers: _c, holes: _h, bands: _bd, profiles: _p, ...bare } = p;
+    const out = toWireDesign({ name: 'T', parts: [p, { ...bare, name: 'Bare' }], assemblies: [{ name: 'A', parts: [], placements: [], carry: { hardware: [] } }] }) as any;
+    expect(out.parts[0]).toEqual({ name: 'Top', role: '', material: 'pine', at: v(0, 0, 0), size: v(20, 0.75, 10),
+      angles: [{ kind: 'chamfer', dirs: ['+y', '+z'], toward: '+y', values: [0.125, 0.125] }], holes: [], bands: [], profiles: [] });
+    expect(Object.keys(out.parts[0])).toEqual(['name', 'role', 'material', 'at', 'size', 'angles', 'holes', 'bands', 'profiles']);
+    expect(out.parts[1]).toMatchObject({ angles: [], holes: [], bands: [], profiles: [] });
+    expect(out.assemblies[0]).toEqual({ name: 'A', parts: [], placements: [] });
+    expect(toWireDesign({ name: 'T', parts: [] })).toEqual({ name: 'T', parts: [], assemblies: [] });
+  });
+
+  // R2: a wrong count for its kind is a shape fault — the part is rejected with its kind's reason, fed back; other parts
+  // are unaffected. A count the old form accepted is never refused (taper 1–4 faces, a chamfer's two faces and legs).
+  it.each([
+    ['taper', [], [22, 0.5], 'has a taper with 0 directions; a taper takes 1 to 4', 'taper'],
+    ['taper', ['+x', '-x', '+z', '-z', '+y'], [22, 0.5], 'has a taper with 5 directions; a taper takes 1 to 4', 'taper'],
+    ['taper', ['+x'], [22], 'has a taper with 1 value; a taper takes 2', 'taper'],
+    ['taper', ['+x'], [22, 0.5, 1], 'has a taper with 3 values; a taper takes 2', 'taper'],
+    ['miter', ['+y', '-y'], [45], 'has a miter with 2 directions; a miter takes 1', 'angle'],
+    ['miter', [], [45], 'has a miter with 0 directions; a miter takes 1', 'angle'],
+    ['miter', ['+y'], [45, 45], 'has a miter with 2 values; a miter takes 1', 'angle'],
+    ['bevel', ['+x', '+z'], [15], 'has a bevel with 2 directions; a bevel takes 1', 'angle'],
+    ['bevel', ['+x'], [], 'has a bevel with 0 values; a bevel takes 1', 'angle'],
+    ['chamfer', ['+x'], [0.125, 0.125], 'has a chamfer with 1 direction; a chamfer takes 2', 'angle'],
+    ['chamfer', ['+x', '+z', '-x'], [0.125, 0.125], 'has a chamfer with 3 directions; a chamfer takes 2', 'angle'],
+    ['chamfer', ['+x', '+z'], [0.125], 'has a chamfer with 1 value; a chamfer takes 2', 'angle'],
+  ])('a %s with dirs %j and values %j is a shape fault: "%s", reason %s', (kind, dirs, values, fault, reason) => {
+    const bad = { kind, dirs, toward: kind === 'miter' ? '+x' : '-y', values };
+    const d = parseDesign(wire(part0({ angles: [bad] }), { ...part0(), name: 'Other' }))!;
+    expect(d).not.toBeNull();
+    expect(d.parts[0]!.angleFaults).toEqual([fault]);
+    // The faulted entry never reaches the internal arrays (designDiff and turnCandidates read them before convertPart).
+    expect([...d.parts[0]!.tapers!, ...d.parts[0]!.miters!, ...d.parts[0]!.bevels!, ...d.parts[0]!.chamfers!]).toEqual([]);
+    const { doc, rejected } = designToDocument(d);
+    expect(rejected).toEqual([{ name: 'Leg', reason, detail: `Leg ${fault}.` }]);
+    expect(doc.boards.map((b) => (b as Board).name)).toEqual(['Other']);
+    expect(rejectedViolations(rejected)[0]!.message).toBe(`Leg ${fault}.`);
+  });
+
+  it('counts the old form accepted still parse clean: a taper on 1 and on 4 faces, a miter, a bevel, a chamfer', () => {
+    for (const a of [{ ...TAPER, dirs: ['+x'] }, { ...TAPER, dirs: ['+x', '-x', '+z', '-z'] }, MITER, BEVEL, CHAMFER]) {
+      expect(parseDesign(wire(part0({ angles: [a] })))!.parts[0]).not.toHaveProperty('angleFaults');
+    }
+  });
+
+  it('a taper fault decides the reason over an angle fault on the same part; every fault is kept at parse', () => {
+    const d = parseDesign(wire(part0({ angles: [{ ...MITER, dirs: [] }, { ...TAPER, values: [1] }] })))!;
+    expect(d.parts[0]!.angleFaults).toEqual(['has a miter with 0 directions; a miter takes 1', 'has a taper with 1 value; a taper takes 2']);
+    expect(designToDocument(d).rejected).toEqual([{ name: 'Leg', reason: 'taper', detail: 'Leg has a taper with 1 value; a taper takes 2.' }]);
+  });
+
+  it('an assembly part with a wrong count is rejected under its assembly name', () => {
+    const d = parseDesign({ name: 'T', parts: [], assemblies: [{ name: 'Bay', parts: [part0({ name: 'Slat', angles: [{ ...CHAMFER, values: [0.125] }] }), part0({ name: 'Side' })],
+      placements: [{ name: 'Bay 1', at: v(0, 0, 0) }] }] })!;
+    expect(designToDocument(d).rejected).toEqual([{ name: 'Slat (in assembly Bay)', reason: 'angle', detail: 'Slat (in assembly Bay) has a chamfer with 1 value; a chamfer takes 2.' }]);
   });
 });

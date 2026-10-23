@@ -17,7 +17,10 @@ import { sortHoleRows, worldHoles as designHoles } from './holeWorld';
 import { holeDesignFaults } from './holeDesignFaults';
 import { worldBands as designBands } from './bandWorld';
 import { localToDir } from './taperWorld';
-import type { Band, BandType, Board, Definition, HoleRow, Posture, Rotation, SloydDocument } from './types';
+import { profilesFor, sortProfiles, worldProfiles as designProfiles } from './profileWorld';
+import { apronArch, twoSide } from './sweepFixtures';
+import type { WorldProfile } from './generated';
+import type { Band, BandType, Board, Definition, HoleRow, Posture, ProfileCut, ProfileEnd, ProfileSide, Rotation, SloydDocument } from './types';
 
 const POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
 const TURNS: Rotation[] = [0, 90, 180, 270];
@@ -639,5 +642,217 @@ describe('bands through Refine conversion (AI-bands spec §3)', () => {
     const r = byName(out.doc).get('Side')!;
     expect([r.posture, r.rotation]).toEqual([o.posture, o.rotation]);
     expect(r.bands).toEqual(o.bands);
+  });
+});
+
+// --- edge profiles authored by the model (AI-profiles spec §3.4, §4, R6.3; fu 430 chunk 2) ---
+describe('profiles through Refine conversion (AI-profiles spec §3.4, §4)', () => {
+  const W_MIN: ProfileSide = { across: 'width', from: 'min' };
+  const W_MAX: ProfileSide = { across: 'width', from: 'max' };
+  const L_MAX: ProfileSide = { across: 'length', from: 'max' };
+  const st = (side: ProfileSide, from: 'min' | 'max', at: number): ProfileEnd => ({ side: { ...side }, from, at });
+  const thr = (side: ProfileSide, through: 'min' | 'max'): ProfileEnd => ({ side: { ...side }, through });
+  /** Flat, turn 0: length 30 on +x, thickness 0.75 on +y, width 12 on +z. */
+  const TOP_DIMS = { length: 30, width: 12, thickness: 0.75 };
+  /** Stored NOT in canonical order (the loop, face min, sorts last), with a stop measured from its FARTHER (max) end — the
+   *  converter would re-derive it from min — and stations at exactly 0 and exactly L, which read back as THROUGH ends. */
+  const TOP_PROFILES: ProfileCut[] = [
+    { id: 'pl', face: 'min', kind: 'bead', size: 0.125, fillet: 1 / 32, facing: 'face', run: { loop: true } },
+    { id: 'pm', face: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'face', run: { start: st(W_MIN, 'max', 20), end: st(W_MIN, 'max', 3) } },
+    { id: 'p0', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: st(W_MAX, 'min', 0), end: st(W_MAX, 'min', 8) } },
+    { id: 'pL', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: st(L_MAX, 'min', 4), end: st(L_MAX, 'min', 12) } },
+  ];
+  const top = () => createBoard({ name: 'Top', ...TOP_DIMS, profiles: TOP_PROFILES });
+  /** A rail with a run on two sides (the width-min side round the length-max corner): carried, never shown (spec §4.2). */
+  const rail = () => createBoard({ name: 'Rail', length: 30, width: 10, thickness: 0.75, position: [0, 0, 20],
+    profiles: [twoSide('r1', W_MIN, 20, L_MAX, 5)] });
+  const pick = (b: Board) => [b.posture, b.rotation, b.length, b.width, b.thickness];
+  const ids = (b: Board) => b.profiles.map((p) => p.id);
+  const design = (doc: SloydDocument) => { const r = documentToDesign(doc, MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+
+  it('the fixtures are what they claim: every profile survives the load, stored as written, not in canonical order', () => {
+    const o = byName(project([top(), rail()]));
+    const t = o.get('Top')!;
+    expect(ids(t)).toEqual(['pl', 'pm', 'p0', 'pL']);
+    expect(ids({ ...t, profiles: sortProfiles(t.profiles) })).not.toEqual(ids(t));
+    const run = (id: string) => t.profiles.find((p) => p.id === id)!.run as { start: ProfileEnd; end: ProfileEnd };
+    // The stop from the max end stays measured from max (position 10 is nearer min: the converter alone would pick min).
+    expect([run('pm').start, run('pm').end].every((e) => 'from' in e && e.from === 'max')).toBe(true);
+    // Stations at exactly 0 and exactly L are stations, not through ends.
+    expect([run('p0').start, run('p0').end].some((e) => 'at' in e && e.at === 0)).toBe(true);
+    expect([run('pL').start, run('pL').end].some((e) => 'at' in e && e.at === 12)).toBe(true);
+    expect(o.get('Rail')!.profiles).toHaveLength(1);
+  });
+
+  it('Review Focus 1: an echo brings every profile back identical, ids and stored ends included; the two-side part untouched', () => {
+    const original = project([top(), rail()]);
+    const o = byName(original);
+    const d = design(original);
+    expect(d.parts.find((p) => p.name === 'Top')!.profiles).toEqual(designProfiles(o.get('Top')!));
+    expect(d.parts.find((p) => p.name === 'Rail')!.profiles).toEqual([]);
+    const out = refineThrough(original);
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc);
+    expect(r.get('Top')!.profiles).toEqual(o.get('Top')!.profiles);
+    expect(r.get('Rail')!.profiles).toEqual(o.get('Rail')!.profiles);
+    expect(pick(r.get('Top')!)).toEqual(pick(o.get('Top')!));
+  });
+
+  it('…the swap is what restores them: the converter alone reads the 0 and L stations as THROUGH ends and the max stop from min', () => {
+    const original = project([top()]);
+    const t = byName(original).get('Top')!;
+    const ws = designProfiles(t)!;
+    const made = profilesFor(t, ws, designValues(design(original)));
+    if ('fault' in made) throw new Error(made.fault);
+    const runs = made.profiles.filter((p) => !('loop' in p.run)).map((p) => p.run as { start: ProfileEnd; end: ProfileEnd });
+    expect(runs.filter((r) => 'through' in r.start || 'through' in r.end)).toHaveLength(2);
+    expect(runs.some((r) => 'from' in r.start && r.start.from === 'max' && r.start.at === 20)).toBe(false);
+  });
+
+  it('…and so they come back on a part that only moved', () => {
+    const original = project([top()]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, at: { x: p.at.x + 5, y: p.at.y, z: p.at.z + 3 } })) }));
+    expect(byName(out.doc).get('Top')!.profiles).toEqual(byName(original).get('Top')!.profiles);
+  });
+
+  it('a changed profile gets a fresh id and the list sorts canonically; the untouched ones keep theirs', () => {
+    const original = project([top()]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p,
+      profiles: p.profiles!.map((w) => (w.kind === 'cove' ? { ...w, size: 0.5 } : w)) })) }));
+    const r = byName(out.doc).get('Top')!;
+    expect(r.profiles).toEqual(sortProfiles(r.profiles));
+    expect(ids(r).filter((id) => ['pl', 'p0', 'pL'].includes(id)).sort()).toEqual(['p0', 'pL', 'pl']);
+    expect(ids(r)).not.toContain('pm');
+    expect(r.profiles.find((p) => p.kind === 'cove')!.size).toBe(0.5);
+  });
+
+  it('Generate: a design profile converts to a stored one; a shape fault rejects the part with reason profile', () => {
+    const W: WorldProfile = { edge: ['+y', '+z'], kind: 'roundover', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 30 };
+    const base = { name: 'Top', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 30, y: 0.75, z: 12 } };
+    const ok = designToDocument({ name: 'G', parts: [{ ...base, profiles: [W] }] });
+    expect(ok.rejected).toEqual([]);
+    const b = flatDocument(ok.doc).boards[0]!;
+    expect(b.profiles.map(({ id: _id, ...rest }) => rest)).toEqual([{ face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+      run: { start: thr(W_MAX, 'min'), end: thr(W_MAX, 'max') } }]);
+    const bad = designToDocument({ name: 'G', parts: [{ ...base, profiles: [{ ...W, edge: ['+x', '+z'] }] }] });
+    expect(flatDocument(bad.doc).boards).toEqual([]);
+    expect(bad.rejected).toEqual([{ name: 'Top', reason: 'profile', detail: 'Top has a profile on +x/+z, but its broad faces are +y and -y.' }]);
+  });
+
+  it('Review Focus 4: an arched apron\'s profiles are carried exactly; the model\'s (even malformed) are ignored, nothing rejected', () => {
+    const apron = { ...apronArch, name: 'Apron' };
+    const original = project([apron, { ...rail(), name: 'Rail' }]);
+    const o = byName(original);
+    expect(o.get('Apron')!.profiles).toHaveLength(1);
+    expect(o.get('Apron')!.curves).toHaveLength(1);
+    const d = design(original);
+    expect(d.parts.find((p) => p.name === 'Apron')!.profiles).toEqual([]);
+    const junk: WorldProfile[] = [
+      { edge: ['+y', '-y'], kind: 'cove', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 30 },
+      { edge: ['+y', '+z'], kind: 'roundover', size: 2, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 30 },
+    ];
+    const out = refineThrough(original, (x) => ({ ...x, parts: x.parts.map((p) => ({ ...p, profiles: junk })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc);
+    expect(r.get('Apron')!.profiles).toEqual(o.get('Apron')!.profiles);
+    expect(r.get('Rail')!.profiles).toEqual(o.get('Rail')!.profiles);
+  });
+
+  // The frame rule (inv 56, spec §4.1): profiles alone no longer hold the frame; curves or a two-side run still do.
+  it('a profiled-only shelf the model turned in plan is encoded like its plain twin, its profile from the model\'s world words', () => {
+    const shelf = createBoard({ name: 'Shelf', ...orient([30, 0.75, 12]), profiles: [{ id: 'q1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face',
+      run: { start: thr(W_MAX, 'min'), end: thr(W_MAX, 'max') } }] });
+    const twin = createBoard({ name: 'Twin', ...orient([30, 0.75, 12]), position: [0, 0, 40] });
+    const original = project([shelf, twin]);
+    const W: WorldProfile = { edge: ['+y', '+x'], kind: 'roundover', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 30 };
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: 12, y: 0.75, z: 30 },
+      profiles: p.name === 'Shelf' ? [W] : [] })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Shelf')!;
+    const t = byName(out.doc).get('Twin')!;
+    expect(pick(t)).toEqual(['flat', 90, 30, 12, 0.75]);
+    expect(pick(r)).toEqual(pick(t));
+    expect(designProfiles(r)).toEqual([W]);
+    expect(ids(r)).not.toContain('q1');
+  });
+
+  it('a curved profiled part the model turned in plan keeps its frame and its profiles', () => {
+    const original = project([{ ...apronArch, name: 'Apron' }]);
+    const o = byName(original).get('Apron')!;
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: p.size.z, y: p.size.y, z: p.size.x } })) }));
+    const r = byName(out.doc).get('Apron')!;
+    expect([r.posture, r.rotation]).toEqual([o.posture, o.rotation]);
+    expect(r.profiles).toEqual(o.profiles);
+  });
+
+  it('a two-side-run part (no curves) the model turned in plan keeps its frame and its profiles (keptFrame\'s carried-profiles clause)', () => {
+    const original = project([rail()]);
+    const o = byName(original).get('Rail')!;
+    expect(o.curves).toEqual([]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: p.size.z, y: p.size.y, z: p.size.x } })) }));
+    const r = byName(out.doc).get('Rail')!;
+    expect([r.posture, r.rotation]).toEqual([o.posture, o.rotation]);
+    expect(r.profiles).toEqual(o.profiles);
+  });
+
+  it('resized: a full-length run the model writes to the new extent stays full-length, restored with its id', () => {
+    const full: ProfileCut = { id: 'f1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: thr(W_MAX, 'min'), end: thr(W_MAX, 'max') } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [full] })]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { ...p.size, x: 36 },
+      profiles: p.profiles!.map((w) => ({ ...w, end: 36 })) })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Top')!;
+    expect(r.length).toBe(36);
+    expect(r.profiles).toEqual([full]);
+  });
+
+  // Controller Ruling 10 (spec §3.4, "a full-length run stays full-length"): an entry the model echoed with the OLD numbers
+  // onto a resized part matches the original's world form on the ORIGINAL part, and is restored as stored.
+  it('…and so does one the model echoed with the OLD extent (end 30 on a part now 36 long): restored as stored, id kept', () => {
+    const full: ProfileCut = { id: 'f1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: thr(W_MAX, 'min'), end: thr(W_MAX, 'max') } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [full] })]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => {
+      // The echo really is the old numbers: the end the model left is the old extent.
+      expect(p.profiles!.map((w) => [w.start, w.end])).toEqual([[0, 30]]);
+      return { ...p, size: { ...p.size, x: 36 } };
+    }) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Top')!;
+    expect(r.length).toBe(36);
+    expect(r.profiles).toEqual([full]);
+    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[0, 36]]);
+  });
+
+  it('…and an echoed stop measured from the max end stays measured from max (3in from the grown end, not at its old world place)', () => {
+    const stop: ProfileCut = { id: 's1', face: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'face', run: { start: st(W_MAX, 'max', 20), end: st(W_MAX, 'max', 3) } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [stop] })]);
+    const o = byName(original).get('Top')!;
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { ...p.size, x: 36 } })) }));
+    const r = byName(out.doc).get('Top')!;
+    expect(r.length).toBe(36);
+    expect(r.profiles).toEqual(o.profiles);
+    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[16, 33]]);
+  });
+
+  it('…but a profile the model MOVED on the resized part is the model\'s (its new numbers win): a fresh id', () => {
+    const stop: ProfileCut = { id: 's1', face: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'face', run: { start: st(W_MAX, 'max', 20), end: st(W_MAX, 'max', 3) } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [stop] })]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { ...p.size, x: 36 },
+      profiles: p.profiles!.map((w) => ({ ...w, start: 12, end: 30 })) })) }));
+    const r = byName(out.doc).get('Top')!;
+    expect(ids(r)).not.toContain('s1');
+    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[12, 30]]);
+  });
+
+  it('designValues holds every profile number, so an echo keeps them unsnapped', () => {
+    const odd: ProfileCut = { id: 'o1', face: 'max', kind: 'thumbnail', size: 0.6, depth: 0.31, facing: 'edge', run: { start: st(W_MAX, 'min', 3.3), end: st(W_MAX, 'max', 4.1) } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [odd] })]);
+    const d = design(original);
+    const w = d.parts[0]!.profiles![0]!;
+    const vals = designValues(d);
+    for (const n of [w.size, w.fillet, w.depth, w.start, w.end]) expect(vals.has(n), String(n)).toBe(true);
+    const o = byName(original).get('Top')!;
+    expect(o.profiles).toHaveLength(1);
+    expect(byName(refineThrough(original).doc).get('Top')!.profiles).toEqual(o.profiles);
   });
 });

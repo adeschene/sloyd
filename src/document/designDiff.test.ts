@@ -9,6 +9,8 @@ import type { BandType, Board, HoleRow, SloydDocument } from './types';
 import { bandsFor } from './bandWorld';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from './bandModel';
 import type { Dir } from './taperWorld';
+import { profilesFor } from './profileWorld';
+import type { WorldProfile } from './generated';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
@@ -395,5 +397,93 @@ describe('diffDesigns — edging (AI-bands spec §4.1)', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.copies).toBe(3);
     expect(out[0]!.text).toMatch(/^D0 › Front: edging added on the \w+ edge \(Oak edging\) \(×3\)$/);
+  });
+});
+
+describe('diffDesigns — edge profiles (AI-profiles spec §4.1)', () => {
+  const W = (over: Partial<WorldProfile> = {}): WorldProfile =>
+    ({ edge: ['+y', '+z'], kind: 'roundover', size: 0.25, fillet: 0, depth: 0, facing: 'face', allRound: false, start: 0, end: 20, ...over });
+  const mk = (ws: WorldProfile[], name = 'Top'): Board => {
+    const b = createBoard({ name, length: 20, width: 4, thickness: 1 });
+    const made = profilesFor(b, ws);
+    if ('fault' in made) throw new Error(made.fault);
+    return { ...b, profiles: made.profiles.map((p, i) => ({ id: `p${i}`, ...p })) };
+  };
+  const lines = (a: Board, b: Board) =>
+    diffDesigns({ ...createDocument('T'), boards: [a] }, { ...createDocument('T'), boards: [b] }).filter((c) => c.kind === 'profiles').map((c) => c.text);
+
+  it('added, removed and resized lines, the edge in absolute words', () => {
+    expect(lines(mk([]), mk([W()]))).toEqual(['Top: 1/4" roundover added on the top/front edge']);
+    expect(lines(mk([W()]), mk([]))).toEqual(['Top: roundover on the top/front edge removed']);
+    expect(lines(mk([W()]), mk([W({ size: 0.375 })]))).toEqual(['Top: roundover on the top/front edge now 3/8"']);
+    expect(lines(mk([W()]), mk([W()]))).toEqual([]);
+  });
+  it('a changed run reads stopped, full length or all round; an ogee reads Roman ogee', () => {
+    expect(lines(mk([W()]), mk([W({ start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now stopped']);
+    expect(lines(mk([W({ start: 2, end: 10 })]), mk([W()]))).toEqual(['Top: roundover on the top/front edge now full length']);
+    expect(lines(mk([W()]), mk([W({ allRound: true, start: 0, end: 0 })]))).toEqual(['Top: roundover on the top/front edge now all round']);
+    expect(lines(mk([]), mk([W({ kind: 'ogee', size: 0.5 })]))).toEqual(['Top: 1/2" Roman ogee added on the top/front edge']);
+  });
+  it('a profile that stays all round is named by its face, without repeating', () => {
+    const L = (over: Partial<WorldProfile> = {}) => W({ allRound: true, start: 0, end: 0, ...over });
+    expect(lines(mk([L()]), mk([L({ size: 0.375 })]))).toEqual(['Top: roundover all round the top face now 3/8"']);
+    expect(lines(mk([]), mk([L()]))).toEqual(['Top: 1/4" roundover added all round the top face']);
+    expect(lines(mk([L()]), mk([W({ start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now stopped']);
+  });
+  it('every displayed difference is listed: size, fillet, quirk, depth, facing and run together', () => {
+    const OG = (over: Partial<WorldProfile> = {}) => W({ kind: 'ogee', size: 0.5, facing: 'face', ...over });
+    expect(lines(mk([W()]), mk([W({ fillet: 1 / 16 })]))).toEqual(['Top: roundover on the top/front edge now 1/16" fillet']);
+    expect(lines(mk([W({ kind: 'bead', size: 0.125, fillet: 1 / 16 })]), mk([W({ kind: 'bead', size: 0.125, fillet: 1 / 8 })])))
+      .toEqual(['Top: bead on the top/front edge now 1/8" quirk']);
+    expect(lines(mk([W({ kind: 'thumbnail', size: 0.5, depth: 0.25 })]), mk([W({ kind: 'thumbnail', size: 0.5, depth: 0.375 })])))
+      .toEqual(['Top: thumbnail on the top/front edge now 3/8" deep']);
+    expect(lines(mk([OG()]), mk([OG({ facing: 'edge' })]))).toEqual(['Top: Roman ogee on the top/front edge now facing the edge']);
+    expect(lines(mk([OG({ facing: 'edge' })]), mk([OG()]))).toEqual(['Top: Roman ogee on the top/front edge now facing the face']);
+    expect(lines(mk([W()]), mk([W({ size: 0.375, start: 2, end: 10 })]))).toEqual(['Top: roundover on the top/front edge now 3/8", stopped']);
+    expect(lines(mk([W()]), mk([W({ size: 0.375, fillet: 1 / 16, start: 2, end: 10 })])))
+      .toEqual(['Top: roundover on the top/front edge now 3/8", 1/16" fillet, stopped']);
+  });
+  it('a stopped run that stays stopped is compared by its stored ends (Ruling 14)', () => {
+    // (a) the stop moves 2-10 -> 4-12 on the same part
+    expect(lines(mk([W({ start: 2, end: 10 })]), mk([W({ start: 4, end: 12 })])))
+      .toEqual(['Top: roundover on the top/front edge now stopped from 4" to 12"']);
+    // (b) a resize with an unchanged stored stop (measured from the max end, at 3): only the size line
+    const stopMax = (len: number) => {
+      const b = createBoard({ name: 'Top', length: len, width: 4, thickness: 1 });
+      const side = { across: 'width' as const, from: 'max' as const };
+      return { ...b, profiles: [{ id: 'p0', face: 'max' as const, kind: 'roundover' as const, size: 0.25, fillet: 0, facing: 'face' as const,
+        run: { start: { side, from: 'max' as const, at: 3 }, end: { side, through: 'min' as const } } }] } as Board;
+    };
+    const all = (a: Board, b: Board) => diffDesigns({ ...createDocument('T'), boards: [a] }, { ...createDocument('T'), boards: [b] }).map((c) => c.text);
+    const out = all(stopMax(20), stopMax(26));
+    expect(out.filter((t) => /roundover/.test(t))).toEqual([]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatch(/^Top: /);
+    // (c) a changed span together with a size change: both in one line
+    expect(lines(mk([W({ start: 2, end: 10 })]), mk([W({ size: 0.375, start: 4, end: 12 })])))
+      .toEqual(['Top: roundover on the top/front edge now 3/8", stopped from 4" to 12"']);
+  });
+  it('a stop kept at the same world place on a resized part has moved relative to its end (final re-review)', () => {
+    const stopMax = (len: number, at: number, size: number) => {
+      const b = createBoard({ name: 'Top', length: len, width: 4, thickness: 1 });
+      const side = { across: 'width' as const, from: 'max' as const };
+      return { ...b, profiles: [{ id: 'p0', face: 'max' as const, kind: 'roundover' as const, size, fillet: 0, facing: 'face' as const,
+        run: { start: { side, from: 'max' as const, at }, end: { side, from: 'max' as const, at: at + 15 } } }] } as Board;
+    };
+    const texts = (a: Board, b: Board) => lines(a, b);
+    // 20 -> 26 with the span 2-17 kept: stored 3 -> 9 from the max end, so the stop moved relative to its end
+    expect(texts(stopMax(20, 3, 0.25), stopMax(26, 9, 0.375)))
+      .toEqual(['Top: roundover on the top/front edge now 3/8", stopped from 2" to 17"']);
+    // unresized, the same place re-stored from the other end: silent
+    const fromMin = { ...stopMax(20, 3, 0.25), profiles: [{ ...stopMax(20, 3, 0.25).profiles[0]!,
+      run: { start: { side: { across: 'width' as const, from: 'max' as const }, from: 'min' as const, at: 2 }, end: { side: { across: 'width' as const, from: 'max' as const }, from: 'min' as const, at: 17 } } }] } as Board;
+    expect(texts(stopMax(20, 3, 0.25), fromMin)).toEqual([]);
+  });
+  it('matches by edge: an untouched profile beside a changed one gets no line', () => {
+    expect(lines(mk([W(), W({ edge: ['+y', '-z'] })]), mk([W(), W({ edge: ['+y', '-z'], size: 0.5 })]))).toEqual(['Top: roundover on the top/back edge now 1/2"']);
+  });
+  it('a part with curves has its profiles carried: no lines', () => {
+    const c = { ...mk([]), curves: [{ id: 'c', face: 'thickness' as const, from: 'min' as const, start: [3, 0] as [number, number], segments: [] }] } as unknown as Board;
+    expect(lines(c, { ...c, profiles: mk([W()]).profiles })).toEqual([]);
   });
 });

@@ -386,3 +386,70 @@ Rulings made while building chunk 1 (bands), on branch `ai-bands` (2026-10-23). 
   model sees `bands: []`, so their faults go only to `carriedSummary`'s check line (`faultKeys` counts band faults only on a curved part),
   never to the repair loop. Without it a resize of an arched, edged apron spent unfixable paid repair rounds and could keep an attempt
   that ignored the instruction. Cost: none (one skip, pinned by a mutated test).
+
+### Chunk 2 (execution)
+
+Rulings made while building chunk 2 (profiles and the merged `angles` array), on branch `ai-profiles` (2026-10-23; ledger
+`.superpowers/sdd/2026-10-23-sloyd-ai-profiles/progress.md`). Where one differs from the text above (R1–R6 included), this block wins;
+the records (invs 40, 41, 48, 53, 56; fu 322, 425, 430, 434) describe the code as merged.
+
+- **Ruling 1 — `carriedView` follows R6.3.** Task 5 owned `carryText.ts` too: a part's profiles stay in the note, `featureTurned` and
+  `carriedSummary` only when it has curves or a two-side run, and `faultKeys`' profile keys likewise. Cost if wrong: the done view lists
+  authored profiles as carried.
+- **Ruling 2 — "a straight run" (R6.1) is `oneSide(p.run)` and not `isSwept`**; `profileAsCurve` is called only for those (it throws on a
+  loop or a two-side run). Cost: none. Residue: a stop that falls back to straight is judged by its swept faults only (fu 434).
+- **Ruling 3 — no paid run before the prompt landed** (`SYSTEM_PROMPT` and `KEEP_LINE` named the old arrays until Tasks 2 and 6). Cost: none.
+- **Ruling 4 — `run.test.ts`' fakes send internal-form fixtures through `toWireDesign`** at the boundary, still exercising the parse.
+  Cost: the fixtures do not show the wire form literally.
+- **Ruling 5 — `taperCutsFor`'s face-count messages are unreachable from model output** (the parse's count rule catches them first); they
+  stay for direct callers. Cost: a dead branch on the model path.
+- **Ruling 6 — no "side not perpendicular to the broad face" fault (§3.2, plan).** Once `edge` must hold exactly one face on the thickness
+  axis, every other face is a side and perpendicular; two faces that do not meet are the "two broad faces" fault. The code has no such
+  branch. Cost: none.
+- **Ruling 7 — `allRound` keeps the two-face `edge` rule** (strict; the prompt says a loop names the broad face AND a side). Cost: a
+  fed-back fault when the model writes one face.
+- **Ruling 8 — `profileDesignFaults` also skips a part with any two-side run** (its profiles are carried, R6.3); a loop's message reads
+  `<broad> all round`; identical messages per part are deduped. Cost: none.
+- **Ruling 9 — `faultKeys`' profile gate is unreachable through `carriedSummary`** (only carried parts reach it); kept, with no claiming
+  test. Cost: none.
+- **Ruling 10 — an echo onto a resized part is restored AS STORED (§3.4 governs).** A returned profile equal to an original's world form
+  on the ORIGINAL part (the model wrote the old numbers back) is restored as it was: its THROUGH ends follow the new extent, a stop keeps
+  the end it is measured from (`restoreProfiles`, `sameWorldProfile`'s `aBoard`). This narrows §3.4's last bullet ("re-derived from the
+  model's numbers"): only a profile matching neither world form is re-derived. Cost if wrong: a model that meant to stop at the old length
+  gets a full run.
+- **Ruling 11 — every displayed profile difference gets a change-list line**: fillet (a bead's quirk), depth and facing as well as size and
+  run (§4.1's examples showed only size; the anti-goal "lost without saying so" governs). Cost: one more line kind.
+- **Ruling 12 — "Roman ogee" keeps its capital R** mid-sentence (a proper noun). Cost: none.
+- **Ruling 13 — the kind words have ONE home in `profiles.ts`** (`PROFILE_KIND_WORD`; `PROFILE_KIND_LABEL` derived for the panel); and
+  `profilesView.test`'s "a migrated profile part takes no turn" was rewritten to the intended behaviour (it now turns). Cost: none.
+- **Ruling 14 — a stopped run that stays stopped is compared by its STORED ends** (side and `at`/`through`): an unchanged stop on a resized
+  part prints no profile line; a changed span prints `now stopped from <a> to <b>` (world offsets from the part's min, in the document's
+  units). Cost: one more line form.
+- **Ruling 15 — the prompt's "like a chamfer's edge" became "like a chamfer's dirs"** (the plan's pinned text was stale after the angles
+  merge; evidence over authored text). Cost: none.
+- **Ruling 16 — Ruling 10's accepted cost, stated:** a model that keeps a stop at the same world place on a resized part, with no other
+  change, gets it restored as stored (the stop moves with its end), and the change list shows only the size line (fu 434 (6)).
+
+**Where the code differs from the text above, beyond the rulings:**
+- **`profilesFor` takes a fourth argument, `known`** (Task 6, fix round 2): the part's own stored distances (each `at` and its `L − at`).
+  An EXACT station is never rounded to a decimal grid (1/3 stays 1/3); one whose computed distance lands within 1e-9 of a known distance
+  takes it exactly, so a turn and its turn back cannot drift (`turnCandidates`). A computed distance within 1e-9 of its hole-grid value
+  takes the grid value even when exact.
+- **A station past one end is measured from the other end** (Task 3, fix round 1): a resize can leave a station beyond the part, and the
+  loader keeps it, so it is never a shape fault (B3); `stop-off`/`runs-off` judge it.
+- **§4.1's note wording is unchanged** (R6.3): an authored part simply drops out of it, because `carry.profiles` is `[]`; a carried
+  part's returned profiles are ignored silently (no done-view line, R6.3 over §4.2).
+- **§6's estimate re-measure was not done**: `CHARS_PER_TOKEN` stays 2 (conservative; a re-measure needs a paid run). `refineMessage` and
+  the estimate count the wire form (`toWireDesign`).
+- **R6.4 as built:** the wrong-count fault's reason is `'taper'` when any taper entry faulted (recognised by its text prefix, fu 434 (3)),
+  else `'angle'`.
+
+**Final review (b501592..b4f096f) and its two fix waves:**
+- **Important — every moved stop printed "now stopped"**, an unchanged stored stop on a resized part included: fixed by Ruling 14
+  (`7f1ec20`); the re-review found the stopped→stopped test still missed a changed stored stop when the world span was echoed alongside
+  another field change, fixed in round 2 (`f1b979b`, Ruling 16 recorded).
+- **Minors fixed:** the prompt's stale "chamfer's edge" (Ruling 15); `profileDesignFaults`' `shown` lowercased Roman ogee and read
+  "on all round" (now `all round <face>`); a new faulted profile hid behind an original's on the same edge (the message lacked the span;
+  a stopped run's span now rides in `message`, decimal inches, and `shown`, display units, so the two key and dedupe apart).
+- **Deferred:** fu 434 (two homes for the profile name text; the metric `shown` span and metric turn unpinned; the taper fault's text
+  prefix; the duplicated copy in `partOf`/`wirePart`; `alignedTo`'s stored-order comparison; Rulings 10/16's cost).

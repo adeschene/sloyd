@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { designValues, documentToDesign } from './refineDesign';
 import { diffDesigns } from './designDiff';
 import { groupItems } from './treeOps';
-import { designToDocument, orient, parseDesign } from './generated';
+import { designToDocument, orient, parseDesign, toWireDesign } from './generated';
 import { SHAKER_TABLE_JSON } from './shakerTableFixture';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { createBoard, createDocument } from './document';
@@ -284,6 +284,34 @@ describe('documentToDesign — miters, bevels and chamfers (AI-angles spec §6)'
       }
     });
   }
+  it('Review Focus 5 (AI-profiles R2): a tapered, mitered, beveled, chamfered project through the WIRE form gives identical angleCuts', () => {
+    const legs = flatDocument(designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false }).doc).boards.filter((b) => b.angleCuts.length > 0);
+    const leg = { ...legs[0]!, name: 'Chamfered leg', angleCuts: [...legs[0]!.angleCuts,
+      { id: 'lc', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, legs[0]!) }] };
+    const boards = [...legs, leg, ...parts];
+    expect(legs).toHaveLength(4);
+    const doc = { ...createDocument('T'), boards };
+    const r = documentToDesign(doc, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const wire = JSON.parse(JSON.stringify(toWireDesign(r.design)));
+    const kinds = new Set(wire.parts.flatMap((p: { angles: { kind: string }[] }) => p.angles.map((a) => a.kind)));
+    expect([...kinds].sort()).toEqual(['bevel', 'chamfer', 'miter', 'taper']);
+    const parsed = parseDesign(wire)!;
+    expect(parsed.parts).toEqual(r.design.parts);
+    const opts = (d: typeof r.design) => ({ centre: false, exact: designValues(d), exactAngles: angleRatiosOf(boards) });
+    const viaWire = designToDocument(parsed, opts(parsed)).doc.boards as Board[];
+    const direct = designToDocument(r.design, opts(r.design)).doc.boards as Board[];
+    expect(viaWire).toHaveLength(boards.length);
+    const cutsOf = (bs: Board[]) => bs.map((b) => [b.name, b.angleCuts.map(({ id: _i, ...c }) => c)]);
+    expect(cutsOf(viaWire)).toEqual(cutsOf(direct));
+    for (const b of boards) {
+      const back = viaWire.find((x) => x.name === b.name)!;
+      expect(worldAngles(back)).toEqual(worldAngles(b));
+      expect(worldTapers(back)).toEqual(worldTapers(b));
+      const o = orient(boardExtents(b));
+      if (o.posture === b.posture && o.rotation === b.rotation) expect(back.angleCuts.map(({ id: _i, ...c }) => c)).toEqual(b.angleCuts.map(({ id: _i, ...c }) => c));
+    }
+  });
   it('without the exact-angle map a non-45° slope can drift (the map is what keeps it)', () => {
     const b = { ...createBoard({ name: 'R', length: 20, width: 3, thickness: 0.75 }), angleCuts: [
       { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 0.7 }, createBoard({ length: 20, width: 3, thickness: 0.75 })) },

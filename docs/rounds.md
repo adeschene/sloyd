@@ -127,9 +127,21 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | shop words | 10-23 | — | Refine's change list in shop words (`shopWords.ts`: top/bottom, inside/outside toward the frame's middle, else left/right/front/back; ends absolute); a same-looking add+remove hole pair is one "moved" line; the prompt names +z the front (spec `2026-10-23-sloyd-shop-words-design.md`; fu 431, left as is). **Merged `a4b51fd`, deployed 2026-10-23 at `b569dca` (`index-B3SxN3Yk.js`)** |
 | wording | 10-23 | — | `FEATURE_CHECK_FAILED` names edging; the link note says what is not shared (fu 411); per-copy hardware totals per type (fu 412); fu 410 left silent. **Deployed at `0b5e5ca` (`index-CuLt9iDe.js`)** |
 | AI bands | 10-23 | — | Generate and Refine author edge bands in world words (`bandWorld.ts`; `edging` = veneer, a project type, or `solid <material>` minted once as `<Label> edging` at 1/4in); band types threaded through every path; band faults fed back (not for curved parts, whose bands stay carried); banded parts link through turns; Generate edges exposed plywood front edges by default; `vec3` into `$defs` (fu 322) (inv 48/54/56; fu 430 chunk 1, 432, 433). **Merged `e7ce893`, deployed 2026-10-23 at `ef88e09` (`index-lH3mycr3.js`)** |
+| AI profiles | 10-23 | — | The design form's four angle arrays merged into ONE `angles` item to fit the grammar (`toWireDesign` / `parseDesign` split; the internal form unchanged); Generate and Refine author edge profiles in world words (`profileWorld.ts`; untouched entries exact through the exact-entry map); `profile-fault` kept and fed back (`profileDesignFaults.ts`); profiled parts link through turns and follow the rank + thickness frame rule; a part with curves or a two-side run keeps its profiles carried (`carriesProfiles`); profile lines in the change list (inv 40/41/48/53/56; fu 430 closed, 434). **Merged `<merge>`, NOT deployed** |
 
 ## Status log (to 2026-10-23)
 
+- **AI profiles (fu 430 chunk 2; 2026-10-23; branch `ai-profiles`, MERGED `<merge>`, NOT deployed; schema 20 — no schema change, so a later
+  rollback past it is free: it only stops Claude authoring profiles and returns the design form's four angle arrays; the rollback table
+  gets its row at deploy)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` ("Chunk 2, revised" R1–R6;
+  Amended (execution) holds chunk 2's Rulings 1–16 and the final review's fixes), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-profiles.md`.
+  Subagent-driven, 7 build tasks, each task-reviewed; the final schema compiled on the first probe (2,800 chars, fu 322); the angle re-check
+  after the merge passed live (Generate a Shaker side table and a picture frame, a Refine echo with every angle cut identical bar fresh ids, as before the round). Final
+  review: one Important (a moved stop's line; Rulings 14, 16) and three minors, two fix waves. 7888 tests across 226 files, all passing in one full run;
+  `npm run build` clean. Live check `docs/browser-verification-ai-profiles.md`
+  (4 of 10 paid calls so far); the profile runs (plan Task 8 Step 3) and the deploy are pending. Record-only: fu 434. Owed to the user:
+  the spec's *Chunk 2 (execution)* block — chiefly Ruling 10/16 against §3.4 (an echoed stop on a resized part is restored as stored,
+  moving with its end, where §3.4 said the model's numbers win) and R6.3 dropping §4.2's done-view line for ignored carried profiles.
 - **AI bands (fu 430 chunk 1; 2026-10-23; branch `ai-bands`, MERGED `e7ce893`, DEPLOYED at `ef88e09` as `index-lH3mycr3.js`, CSS unchanged;
   schema 20, rollback to `0b5e5ca` / `index-CuLt9iDe.js` free; verified in-network and at the edge: 200 on / and a deep route, sha256 = dist,
   old bundle 404, CSP, new strings in the edge bundle, a real-browser load with 0 errors, storage read empty before and after)**: spec
@@ -433,5 +445,8 @@ whose accepted costs are owed too (fu 417, open: a shifted Bow or Rounded corner
 the housing) — and its P8 words: the summary lines (`… ruled out — <part>'s roundover profile is in the way.`, `left as a butt —
 … in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
+
+Since the bulk approval: the AI profiles and bands spec's *Amended (execution) — Chunk 2 (execution)* (Rulings 1–16 and the final
+review's fixes; chiefly Ruling 10/16 narrowing §3.4, and R6.3 dropping §4.2's done-view line).
 
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).

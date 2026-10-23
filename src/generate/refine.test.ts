@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { KEEP_LINE, REFINE_MAX, detailFor, plainForRefine, refineDialogInfo, refineMessage, refineRefusal } from './refine';
 import type { RefineSettings } from './refine';
 import { limitLines } from './prompt';
-import { designToDocument, parseDesign } from '../document/generated';
+import { designToDocument, parseDesign, toWireDesign } from '../document/generated';
 import { SHAKER_TABLE_JSON } from '../document/shakerTableFixture';
 import { worldParts, writeBackFlat } from '../document/document';
 import type { GeneratedDesign } from '../document/generated';
@@ -29,11 +29,23 @@ const D: GeneratedDesign = { name: 'T', parts: [p('A', 0)], assemblies: [] };
 describe('refine', () => {
   it('builds the user turn: design JSON, instruction, keep line, limits', () => {
     expect(refineMessage(D, S)).toBe([
-      'Here is the current design, in the same format you return:', JSON.stringify(D), '',
+      'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(D)), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.');
-    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers, holes and edging');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes, edging and edge profiles. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers, holes, edging and edge profiles');
+  });
+
+  it('shows the design in the wire form: merged "angles", no "tapers"/"miters"/"bevels"/"chamfers" keys, no TS-only fields (spec R6.4)', () => {
+    const doc = designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false }).doc;
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const withChamfer: GeneratedDesign = { ...r.design, parts: r.design.parts.map((q, i) => (i === 0 ? { ...q, chamfers: [{ edge: ['+y', '+z'], legs: [0.125, 0.125] }], grain: 'width' } : q)) };
+    const m = refineMessage(withChamfer, S);
+    expect(m).toContain('"angles":[{"kind":"taper"');
+    expect(m).toContain('{"kind":"chamfer","dirs":["+y","+z"],"toward":"+y","values":[0.125,0.125]}');
+    expect(m).toContain('"profiles":[]');
+    for (const k of ['"tapers"', '"miters"', '"bevels"', '"chamfers"', '"grain"', '"carry"', '"angleFaults"']) expect(m).not.toContain(k);
   });
 
   it('names the custom materials in the user turn, and only when there are some (custom materials spec §6)', () => {
@@ -41,7 +53,7 @@ describe('refine', () => {
     const elm = { id: 'm-p-elm2', label: 'Elm ply', color: '#c8b898', kind: 'sheet-plain' as const, sheet: { length: 96, width: 48 } };
     const withAsh = refineMessage(D, S, catalogOf({ materials: [ash] }));
     expect(withAsh).toBe([
-      'Here is the current design, in the same format you return:', JSON.stringify(D), '',
+      'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(D)), '',
       'Custom materials in this design: "m-s-ash1" is Ash.', '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
@@ -69,17 +81,19 @@ describe('refine', () => {
     const NOTE = "These parts carry curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
     const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
     const PROFILE = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } } as const;
+    /** A run on two sides: carried, so named (AI-profiles spec §4.2, R6.3); the one-side PROFILE is authored, so not. */
+    const TWO_SIDE = { id: 'p2', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: 5 }, end: { side: { across: 'length', from: 'max' }, from: 'min', at: 1 } } } as const;
     const CURVE = ARCH;
     const feat = (doc: SloydDocument, name: string, extra: Record<string, unknown>): SloydDocument =>
       ({ ...doc, boards: doc.boards.map((b) => (b.name === name ? ({ ...b, ...extra } as StoredBoard) : b)) });
     const clean = designToDocument({ name: 'T', parts: ['Side', 'Apron', 'Top', 'Door'].map((n, i) => p(n, i)), assemblies: [] }, { centre: false }).doc;
     const featured = feat(feat(feat(feat(clean, 'Side', { holes: [HOLE] }), 'Apron', { curves: [CURVE] }),
-      'Top', { profiles: [PROFILE], bands: [{ side: { across: 'width', from: 'min' }, type: 'band-1' }] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
+      'Top', { profiles: [TWO_SIDE], bands: [{ side: { across: 'width', from: 'min' }, type: 'band-1' }] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
     const design = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
 
     it('is byte-identical without features', () => {
       const d = design(clean);
-      const today = ['Here is the current design, in the same format you return:', JSON.stringify(d), '',
+      const today = ['Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(d)), '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S)].join('\n');
       expect(refineMessage(d, S)).toBe(today);
       expect(refineMessage(d, S, undefined, clean)).toBe(today);
@@ -92,10 +106,17 @@ describe('refine', () => {
       // Side carries only holes, which the design now shows (AI-holes spec §4): not named.
       const note = `${NOTE}Apron (a curve), Top (an edge profile), Door (hardware).`;
       expect(refineMessage(d, S, undefined, featured)).toBe([
-        'Here is the current design, in the same format you return:', JSON.stringify(d), '', note, '',
+        'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(d)), '', note, '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
       ].join('\n'));
       expect(refineMessage(d, S)).not.toContain('Sloyd keeps them');
+    });
+
+    it('does not name a part whose profiles are authored (one side, no curves): the design shows them (AI-profiles spec R6.3)', () => {
+      const oneSide = feat(feat(clean, 'Top', { profiles: [PROFILE] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
+      const d = design(oneSide);
+      expect(d.parts.find((q) => q.name === 'Top')!.profiles).toHaveLength(1);
+      expect(refineMessage(d, S, undefined, oneSide)).toContain(`${NOTE}Door (hardware).`);
     });
   });
 

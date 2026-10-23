@@ -84,7 +84,8 @@ src/
 │   │                     curveDrawEdges (each model chord + a fine path of nodes ON the true arc; ends stay on the chord, Q4;
 │   │                     deep-frozen, memoised), curveSilhouettes / silhouetteLines (Q1; the probe offset); EDGE_ON 1e-9 / facing (THE one
 │   │                     facing test, fu 386), outlineFaces, curveEdgeLifts (every model edge's along-view probe lift); imports geometry, bodies, snapPoints, curves
-│   ├── profiles.ts       edge profiles (inv 53): ProfileKind/PROFILE_KINDS, ProfileEdge/PROFILE_EDGES (8: long edges and ends, never through
+│   ├── profiles.ts       edge profiles (inv 53): ProfileKind/PROFILE_KINDS, PROFILE_KIND_WORD (THE kind words, Roman ogee capitalised; PROFILE_KIND_LABEL
+│   │                     derived for the panel), ProfileEdge/PROFILE_EDGES (8: long edges and ends, never through
 │   │                     the thickness), profileCurve (THE writer), profileFields (THE reader: rewrite + exact sameCurve; a thumbnail with
 │   │                     depth = size reads as a Roundover), profileAsymmetric (symmetric kinds stored at facing 'v'), defaultProfile
 │   │                     (scaled per axis), DEFAULT_PROFILE_EDGE; the stored form (schema 18): PROFILE_FIELDS, profileValues/sameProfile/
@@ -167,6 +168,16 @@ src/
 │   ├── bandDesignFaults.ts bandDesignFaults: a band fault on a model-authored band → 'band-fault' violations, one per (part, side, kind)
 │   │                     (`message` the edge in world words, `shown` in bench words via holeText's edgeName); SKIPS a curved part (its
 │   │                     bands are carried: carriedSummary reports them, never the model; final review I1)
+│   ├── profileWorld.ts   THE world-words profile converter (inv 53; AI-profiles, fu 430 chunk 2; model-facing, no → units edge): profilesFor
+│   │                     (WorldProfile[] → stored, canonical: edge = one broad face + one side, allRound → loop; an end exactly 0 or the extent
+│   │                     is THROUGH, within 1/32in only when not exact, else a station from the NEARER end on the hole grid (holeSnap) unless
+│   │                     exact; `known` stored distances keep a turn exact; shape faults = the loader's drop rules + the edge rules, the text
+│   │                     naming the broad faces), sortProfiles (PROFILE_FIELDS order), worldProfiles (stored → design form; null for a run on two
+│   │                     sides), sameWorldProfile (THE exact-entry match: world forms, stations within 1e-9; `aBoard` reads an original on the
+│   │                     ORIGINAL part, Ruling 10)
+│   ├── profileDesignFaults.ts profileFaultKinds (THE design-path fault kinds: profileFaults + a straight run's curveFaults runs-off/cuts-through,
+│   │                     R6.1; also read by carryText.faultKeys), profileDesignFaults ('profile-fault' violations, one per part, edge, kind and
+│   │                     fault; a stopped run's span in `message` (decimal inches) and `shown` (display units); SKIPS a part carriesProfiles names)
 │   ├── hardwareModel.ts  hardware's stored model (inv 55; imports only `./types`): HARDWARE_FIELDS (inv 40), HARDWARE_COUNT_MAX (999),
 │   │                     PACK_SIZE_MAX, canonicalHardware, copyHardwareUse/sameHardware/sameHardwareType, withHardwareUse, mergeHardware
 │   │                     (Ungroup); `hardware` is a SHARED field in LINK_FIELDS (inv 45)
@@ -212,27 +223,34 @@ src/
 │   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception); b2: each swept stop offers its
 │   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
-│   ├── generated.ts      DESIGN_SCHEMA (part + direction in `$defs`: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
+│   ├── generated.ts      DESIGN_SCHEMA (part + direction + vec3 in `$defs`; the four angle kinds in ONE `angles` item: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
 │   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE re-exported from geometry.ts); convertPart's keptFrame (THE frame decision,
-│   │                     inv 56: curves/profiles always keep; holes and/or bands by the rank + thickness rule) and restoreHoles (the exact-row swap; the original order when every row is restored);
+│   │                     inv 56: curves/carried profiles always keep; holes, bands and/or authored profiles by the rank + thickness rule) and restoreHoles (the exact-row swap; the original order when every row is restored);
 │   │                     AI-bands: `vec3` now in `$defs` too (fu 322), WorldBand, edgingKeys (THE `edging` enum: veneer, type ids, `solid <id>`),
 │   │                     parseDesign checks edging, designToDocument mints band types once (bandWorld) and always sets `bandTypes`;
-│   │                     a curved part's bands are carried, its model bands ignored (carriesCurves); RejectedPart reason `'band'`
+│   │                     a curved part's bands are carried, its model bands ignored (carriesCurves); RejectedPart reason `'band'`;
+│   │                     AI-profiles: WorldAngle (the wire `angles` item), parseDesign splits it into the internal tapers/miters/bevels/chamfers
+│   │                     (a wrong count → TS-only angleFaults, the part rejected 'taper' or 'angle'), toWireDesign (THE serialiser for
+│   │                     refineMessage and the estimate: angles merged, TS-only fields dropped); WorldProfile, profiles converted via profileWorld
+│   │                     (RejectedPart reason `'profile'`) unless carried (profilesCarried → carriesProfiles); restoreProfiles (the exact-entry
+│   │                     swap, only in a kept frame; also matches an echo on the ORIGINAL part, Ruling 10; original order when all restored);
+│   │                     keptFrame keeps unconditionally only for carried curves or carried profiles
 │   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45);
 │                     turnCandidates (other quarter turns keeping the world box and grain axis; every kind re-stored via taperWorld/angleWorld; none
-│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut and hole-row ids); a HOLED part is turned too (re-stored via worldHoles/holeRowsFor with an exact set, inv 56), and a BANDED part (re-stored on the same world edges via worldBands/bandsFor, AI-bands); none for curves or profiles
+│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut, hole-row and profile ids; profiles matched by sameProfile in stored order); a HOLED part is turned too (re-stored via worldHoles/holeRowsFor with an exact set, inv 56), a BANDED part (re-stored on the same world edges via worldBands/bandsFor, AI-bands), and a PROFILED part (re-stored via worldProfiles/profilesFor with an exact set and `known`, AI-profiles); none for curves or carried profiles (carriesProfiles)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
-│   │                     per authored fault; "fix the assembly" only for overlaps; hole- and band-faults keyed by message)
-│   ├── featureCarry.ts   carryFromOriginal (Refine carries curves, profiles, a CURVED part's bands, every banded part's cornerRule and hardware onto (holes and a plain part's bands are authored, invs 50, 54) returned parts by flat name, in the
-│   │                     ORIGINAL frame; replaced carryGrain; inv 56), featuredKinds (the carry gate), carriedKinds (what the model never sees: bands only on a curved part), hasFrameFeatures, featureTurned ('feature-turned', fed to the
+│   │                     per authored fault; "fix the assembly" only for overlaps; hole-, band- and profile-faults keyed by message)
+│   ├── featureCarry.ts   carryFromOriginal (Refine carries curves, the profiles of a part with curves or a two-side run, a CURVED part's bands, every banded part's cornerRule and hardware onto (holes, a plain part's bands and other profiles are authored, invs 50, 54, 53; originalProfiles feeds the exact-entry map) returned parts by flat name, in the
+│   │                     ORIGINAL frame; replaced carryGrain; inv 56), carriesProfiles (THE carried-profiles predicate: curves or a run on two sides), featuredKinds (the carry gate), carriedKinds (what the model never sees: bands only on a curved part, profiles only when carriesProfiles), hasFrameFeatures, featureTurned ('feature-turned', fed to the
 │   │                     repair loop via EvaluateOpts.extraFaults)
 │   ├── carryText.ts      kindsText, carriedView (a part's counts as carriedKinds sees them), featuredNote (the USER-turn note in refineMessage), carriedSummary (RefineOutcome.carried {notKept, check}, computed
-│   │                     plain-to-plain BEFORE runJoinery; shown in full by RefineDialog; faultKeys counts band faults only on a curved part)
+│   │                     plain-to-plain BEFORE runJoinery; shown in full by RefineDialog; faultKeys counts band faults only on a curved part, profile faults (profileFaultKinds) only when carriesProfiles)
 │   ├── refineDesign.ts   documentToDesign (Refine's input + refusals, incl. 'taper-form'/'angle-form'; definitions normalised; pre-checks judge a
-│   │                     featured part in its own frame, inOwnFrame; bands via worldBands, a curved part's shown as []), designValues (exact values kept; angles via the exact-angle map), definitionCorner
+│   │                     featured part in its own frame, inOwnFrame; bands via worldBands, a curved part's shown as []; profiles via worldProfiles, a curved or two-side part's shown as []), designValues (exact values kept, profile numbers included; angles via the exact-angle map), definitionCorner
 │   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units); taperLines/angleLines (kind `angle`;
 │   │                     a bevel placed by face AND long point); holeLines (a same-looking add+remove pair is one "moved" line); bandLines (kind `bands`: edging added/removed/now <type> per world edge,
-│   │                     type names from the AFTER document);
+│   │                     type names from the AFTER document); profileLines (kind `profiles`: added/removed/`now …` for size, fillet, depth, facing
+│   │                     and run, matched on raw edge directions and kind; a stop that stays stopped judged by its STORED ends, Ruling 14);
 │   │                     matched on raw directions, worded through shopWords in each side's own frame
 │   ├── shopWords.ts      directions in shop words for a PERSON (no → units): faceWord (top/bottom; inside/outside toward the
 │   │                     frame's centre — a placement's own parts, else the piece; centred → left/right/front/back, +z the
@@ -279,10 +297,10 @@ src/
 │                     unusable or newer value reads empty with `readFailed`, and the dialog never saves over it);
 │                     exportProject/exportImage share ONE anchor download helper
 ├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
-├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), estimate.ts (cost ranges: measured
+├── generate/         prompt.ts (limitLines; SYSTEM_PROMPT teaches the wire `angles` item and the `profiles` array, AI-profiles), concepts.ts (batch planning), estimate.ts (cost ranges: measured
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage — names the project's band types
-│                     (`Edging types in this design`), KEEP_LINE names edging —, detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
-│                     shared by Generate and Refine, hole and band design faults included, runRefine — the result's own band types, plain and joined —, runJoinery),
+│                     (`Edging types in this design`), KEEP_LINE names edging and edge profiles, the design sent through toWireDesign —, detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
+│                     shared by Generate and Refine, hole, band and profile design faults included, runRefine — the result's own band types, plain and joined —, runJoinery),
 │                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`

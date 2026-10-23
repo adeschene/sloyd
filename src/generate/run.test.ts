@@ -1,4 +1,5 @@
 import { ARCH } from '../document/curveFixtures';
+import { apronArch } from '../document/sweepFixtures';
 import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runJoinery, runRefine, runRepairLoop } from './run';
@@ -14,7 +15,8 @@ import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
-import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
+import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign, toWireDesign } from '../document/generated';
+import type { GeneratedDesign } from '../document/generated';
 import { catalogOf } from '../document/materials';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
@@ -50,6 +52,13 @@ const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10,
 
 type Step = unknown | 'truncated' | 'unparseable' | LlmError;
 
+/** A design step is scripted in the INTERNAL form (the four angle arrays) and answered as the model writes it: the wire
+ *  form (`toWireDesign`, merged `angles`; AI-profiles spec R2, R6.4). Anything else (a joinery answer) goes as it is. */
+const asAnswer = (step: unknown): unknown => {
+  const d = step as Partial<GeneratedDesign> | null;
+  return d && typeof d === 'object' && typeof d.name === 'string' && Array.isArray(d.parts) && Array.isArray(d.assemblies) ? toWireDesign(d as GeneratedDesign) : step;
+};
+
 /**
  * A scripted client that records a COPY of every request's history, and
  * keeps the (frozen) turn objects it returns so tests can check identity.
@@ -68,7 +77,7 @@ function fakeClient(steps: Step[]) {
       turns.push(turn);
       if (step instanceof LlmError) throw step;
       if (step === 'truncated' || step === 'unparseable') return { json: null, unusable: step, assistantTurn: turn, usage };
-      return { json: step, assistantTurn: turn, usage };
+      return { json: asAnswer(step), assistantTurn: turn, usage };
     }),
   };
   return { client, seen, turns };
@@ -1118,7 +1127,7 @@ describe('the angle-joint fault for tapers (AI-tapers spec 5.3)', () => {
   });
   it('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
     const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
-    const doc = designToDocument(parseDesign(design(24))!).doc;
+    const doc = designToDocument(parseDesign(toWireDesign(design(24) as GeneratedDesign))!).doc;
     const from = documentToDesign(doc, REFINE_MAX);
     if ('refused' in from) throw new Error('refused');
     const { client, seen } = fakeClient([from.design]);
@@ -1153,10 +1162,10 @@ describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () =
     const leg = flatDocument(joined).boards.find((b) => b.name === 'Leg')!;
     expect([endFacing(leg, 0, 1), endFacing(leg, 2, 1)]).toEqual(leg.angleCuts.map((c) => c.from));
     expect(leg.cuts.length).toBeGreaterThan(0);
-    expect(parseDesign(conflicting)).not.toBeNull();
+    expect(parseDesign(toWireDesign(conflicting as GeneratedDesign))).not.toBeNull();
     // The conflicting design stores the same taper as the fixture's, moved to start 24.
     const noId = ({ id: _id, ...c }: AngleCut) => c;
-    const moved = flatDocument(designToDocument(parseDesign(conflicting)!).doc).boards.find((b) => b.name === 'Leg')!;
+    const moved = flatDocument(designToDocument(parseDesign(toWireDesign(conflicting as GeneratedDesign))!).doc).boards.find((b) => b.name === 'Leg')!;
     expect(moved.angleCuts.map(noId)).toEqual([legTaper(moved, 0, 24), legTaper(moved, 2, 24)].map(noId));
   });
 
@@ -1340,5 +1349,66 @@ describe('edge bands from the model (AI-bands spec §3–4)', () => {
     const cherry = out.doc.bandTypes.find((t) => t.kind === 'solid' && t.material === 'cherry');
     expect(cherry).toMatchObject({ name: 'Cherry edging', thickness: 0.25 });
     expect(flatDocument(out.doc).boards.find((b) => b.name === 'Leg')!.bands.map((b) => b.type)).toEqual([cherry!.id]);
+  });
+});
+
+describe('edge profiles from the model (AI-profiles spec §3.2, §4, R6.1, R6.3)', () => {
+  const RS = { instruction: 'add profiles', width: null, depth: null, height: null, detail: 'simple' as const };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+  /** A 30 x 3/4 x 12 top on the floor: broad faces ±y, its front edge +y/+z runs along x. */
+  const prof = (size: number, edge: ['+y' | '-y', '+z' | '-z' | '+x' | '-x'] = ['+y', '+z']) =>
+    ({ edge, kind: 'roundover' as const, size, fillet: 0, depth: 0, facing: 'face' as const, allRound: false, start: 0, end: 30 });
+  /** A 1in roundover on a 3/4in top: too big for the edge (the straight run's prism fault, R6.1): stored, fed back. */
+  const TOP = { ...bp('Top', [0, 0, 0], [30, 0.75, 12]), profiles: [prof(1)] };
+  const oversized = "Top's roundover on +y/+z is bigger than the edge.";
+
+  it('Generate: a faulted profile is STORED and raises a profile-fault, fed back', async () => {
+    const { client, seen } = fakeClient([{ name: 'S', parts: [TOP], assemblies: [] }]);
+    const out = await run(client);
+    expect(flatDocument(out.doc).boards[0]!.profiles).toHaveLength(1);
+    expect(out.violations.filter((v) => v.kind === 'profile-fault').map((v) => v.message)).toContain(oversized);
+    expect(JSON.stringify(seen[1])).toContain(oversized);
+  });
+
+  it('Generate: a profile on two broad faces rejects the part (reason profile) and the feedback names it', async () => {
+    const bad = { name: 'S', parts: [bp('Base', [0, 0, 0], [20, 1, 10]), { ...bp('Top', [0, 1, 0], [20, 1, 10]), profiles: [{ ...prof(0.25), edge: ['+y', '-y'] }] }], assemblies: [] };
+    const { client, seen } = fakeClient([bad]);
+    const out = await run(client);
+    expect(flatDocument(out.doc).boards.map((b) => b.name)).toEqual(['Base']);
+    expect(JSON.stringify(seen[1])).toContain('Top has a profile on +y/-y, two broad faces that meet at no edge');
+  });
+
+  it('Refine: the original\'s faulted profile is present, never fed back; a NEW faulted profile on the same part is', async () => {
+    const original = designToDocument({ name: 'S', parts: [TOP], assemblies: [] }).doc;
+    expect(flatDocument(original).boards[0]!.profiles).toHaveLength(1);
+    const e = echo(original);
+    const added = "Top's roundover on +y/-z is bigger than the edge.";
+    const withNew = { ...e, parts: e.parts.map((x) => ({ ...x, profiles: [...(x.profiles ?? []), prof(1, ['+y', '-z'])] })) };
+    const { client, seen } = fakeClient([withNew, e]);
+    const out = await go(client, original);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const second = JSON.stringify(seen[1]!.slice(-1));
+    expect(second).toContain(added);
+    expect(second).not.toContain(oversized);
+    expect(out.violations).toEqual([]);
+    expect(out.present.map((v) => v.message)).toContain(oversized);
+  });
+
+  it('Review Focus 4: an arched apron\'s returned profiles are ignored silently — nothing rejected, nothing fed back, its own kept', async () => {
+    const original = migrateDocument(JSON.parse(JSON.stringify({ ...createDocument('A'), boards: [{ ...apronArch, name: 'Apron' }] })));
+    const o = flatDocument(original).boards[0]!;
+    expect([o.curves.length, o.profiles.length]).toEqual([1, 1]);
+    const e = echo(original);
+    expect(e.parts[0]!.profiles).toEqual([]);
+    // Malformed (two broad faces) and oversized: either would be a fault fed back were the apron's profiles authored.
+    const junk = { ...e, parts: e.parts.map((x) => ({ ...x, profiles: [{ ...prof(0.25), edge: ['+y', '-y'] }, prof(2)] })) };
+    const { client } = fakeClient([junk]);
+    const out = await go(client, original);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.violations).toEqual([]);
+    expect(flatDocument(out.doc).boards[0]!.profiles).toEqual(o.profiles);
   });
 });

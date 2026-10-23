@@ -1,13 +1,16 @@
 import { formatLength, formatSize } from '../units/length';
 import { catalogOf } from './materials';
 import { boardExtents } from './geometry';
-import type { Board, Instance, SloydDocument } from './types';
+import type { Board, Instance, ProfileCut, ProfileEnd, SloydDocument } from './types';
 import { DIRS, worldTapers } from './taperWorld';
 import type { Dir, WorldTaper } from './taperWorld';
 import { noAngles, worldAngles } from './angleWorld';
 import type { WorldAngles } from './angleWorld';
 import { worldHoles } from './holeWorld';
-import type { WorldBand, WorldHoleRow } from './generated';
+import type { WorldBand, WorldHoleRow, WorldProfile } from './generated';
+import { worldProfiles } from './profileWorld';
+import { PROFILE_KIND_WORD } from './profiles';
+import { carriesProfiles } from './featureCarry';
 import { worldBands } from './bandWorld';
 import { BUILT_IN_BAND } from './bandModel';
 import { definitionCorner } from './refineDesign';
@@ -22,7 +25,7 @@ import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
  * shop words (`shopWords.ts`; shop-words spec): cuts and rows are MATCHED on raw
  * directions, never on the words, since two faces can both read "inside".
  */
-export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'bands' | 'linked' | 'unlinked';
+export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'bands' | 'profiles' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
@@ -125,6 +128,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len, wa, wb)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
     for (const t of holeLines(worldHoles(o.b), worldHoles(e.b), len, wa, wb)) push('holes', 'part', n, `${n}: ${t}`, key('holes', `: ${t}`));
     for (const t of bandLines(worldBands(o.b), worldBands(e.b), typeName(after))) push('bands', 'part', n, `${n}: ${t}`, key('bands', `: ${t}`));
+    for (const t of profileLines(shownProfiles(o.b), shownProfiles(e.b), len)) push('profiles', 'part', n, `${n}: ${t}`, key('profiles', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -159,6 +163,90 @@ function bandLines(before: readonly WorldBand[], after: readonly WorldBand[], na
     else if (b === undefined && a !== undefined) out.push(`edging on the ${endWord(d)} edge removed`);
   }
   return out;
+}
+
+/** A profile in design form with how it runs: all round, full length (both ends through), or stopped. */
+interface ShownProfile extends WorldProfile {
+  run: 'all round' | 'full length' | 'stopped';
+  /** The STORED ends (each end's side and `at`/`through`), so an unchanged stop on a resized part reads unchanged (Ruling 14). */
+  stored: string;
+  /** The part's extent along the run axis: a resize moves where a stored end sits even when the world span is kept. */
+  extent: number;
+}
+
+/** A stored run's ends as one string: a loop has none. */
+function storedEnds(p: ProfileCut): string {
+  if ('loop' in p.run) return 'loop';
+  const end = (e: ProfileEnd) => `${e.side.across}/${e.side.from}/${'through' in e ? `through ${e.through}` : `${e.from} ${e.at}`}`;
+  return `${end(p.run.start)}|${end(p.run.end)}`;
+}
+
+/** A part's authored profiles in design form; none for a part whose profiles are carried (curves, a two-side run: never shown). */
+function shownProfiles(b: Board): ShownProfile[] {
+  if (carriesProfiles(b)) return [];
+  const extents = boardExtents(b);
+  const sorted = worldProfiles(b) ?? [];
+  // Each stored profile's own design form, to hand its stored ends to the sorted list (equal forms are interchangeable).
+  const pool = b.profiles.map((p) => ({ key: JSON.stringify(worldProfiles({ ...b, profiles: [p] })![0]), stored: storedEnds(p) }));
+  return sorted.map((w) => {
+    const at = pool.findIndex((x) => x.key === JSON.stringify(w));
+    const stored = at >= 0 ? pool.splice(at, 1)[0]!.stored : '';
+    // The run's axis is the one neither the broad face nor the side is on.
+    const along = [0, 1, 2].find((k) => 'xyz'[k] !== w.edge[0]![1] && 'xyz'[k] !== w.edge[1]![1])!;
+    return { ...w, run: w.allRound ? 'all round' : w.start === 0 && w.end === extents[along]! ? 'full length' : 'stopped', stored, extent: extents[along]! };
+  });
+}
+
+/**
+ * One part's edge-profile lines (AI-profiles spec §4.1), on design forms (`worldProfiles`). A profile is matched by its
+ * raw edge directions and kind (never the words), several on one edge and kind pairing in order: added
+ * (`1/4" roundover added on the top/front edge`), removed, or changed (`now 3/8"`, else `now stopped` / `now full length` /
+ * `now all round`). An all-round profile has no side: it matches a profile of its broad face and kind that found no
+ * partner, and reads `on the top face`. Edges read in absolute words (`endWord`), kinds in the bench's words
+ * (`PROFILE_KIND_WORD`). `len` carries the document's units.
+ */
+function profileLines(before: readonly ShownProfile[], after: readonly ShownProfile[], len: (n: number) => string): string[] {
+  const kind = (w: WorldProfile) => PROFILE_KIND_WORD[w.kind];
+  const place = (w: ShownProfile) => (w.run === 'all round' ? `all round the ${endWord(w.edge[0] as Dir)} face`
+    : `on the ${endWord(w.edge[0] as Dir)}/${endWord(w.edge[1] as Dir)} edge`);
+  const exact = (x: ShownProfile, y: ShownProfile) => x.kind === y.kind && x.edge[0] === y.edge[0] && x.edge[1] === y.edge[1] && (x.run === 'all round') === (y.run === 'all round');
+  const rest = [...after];
+  const gone: ShownProfile[] = [];
+  const pairs: [ShownProfile, ShownProfile][] = [];
+  for (const b of before) {
+    const i = rest.findIndex((a) => exact(b, a));
+    if (i >= 0) pairs.push([b, rest.splice(i, 1)[0]!]); else gone.push(b);
+  }
+  // An all-round profile and a run on the same broad face and kind are one profile whose run changed.
+  for (const b of [...gone]) {
+    const i = rest.findIndex((a) => a.kind === b.kind && a.edge[0] === b.edge[0] && (a.run === 'all round' || b.run === 'all round'));
+    if (i >= 0) { pairs.push([b, rest.splice(i, 1)[0]!]); gone.splice(gone.indexOf(b), 1); }
+  }
+  const order = (w: ShownProfile) => DIRS.indexOf(w.edge[0] as Dir) * 6 + DIRS.indexOf(w.edge[1] as Dir);
+  type Item = { at: number; text: string };
+  const items: Item[] = [];
+  const edgePlace = (w: ShownProfile) => `on the ${endWord(w.edge[0] as Dir)}/${endWord(w.edge[1] as Dir)} edge`;
+  for (const [b, a] of pairs) {
+    // Every displayed difference, in one line (Ruling 11): size, fillet (a bead's quirk), depth, facing, then the run.
+    const now: string[] = [];
+    if (len(a.size) !== len(b.size)) now.push(len(a.size));
+    if (len(a.fillet) !== len(b.fillet)) now.push(`${len(a.fillet)} ${a.kind === 'bead' ? 'quirk' : 'fillet'}`);
+    if (len(a.depth) !== len(b.depth)) now.push(`${len(a.depth)} deep`);
+    if (a.facing !== b.facing) now.push(`facing the ${a.facing}`);
+    // A run that stays stopped is judged by its STORED ends (Ruling 14): a resize alone shifts the world offsets of an
+    // unchanged stop. A changed stop reads its world span; any other change of run keeps its plain words.
+    if (a.run === 'stopped' && b.run === 'stopped') {
+      if (a.stored !== b.stored && (Math.abs(a.start - b.start) > 1e-9 || Math.abs(a.end - b.end) > 1e-9 || Math.abs(a.extent - b.extent) > 1e-9)) now.push(`stopped from ${len(a.start)} to ${len(a.end)}`);
+    } else if (a.run !== b.run) now.push(a.run);
+    if (now.length === 0) continue;
+    // Name the profile where it is on the AFTER side; a loop has no edge, so a run on either side names its edge, and
+    // only a profile that stays all round is named by its face (never "all round … now all round").
+    const where = a.run !== 'all round' ? edgePlace(a) : b.run !== 'all round' ? edgePlace(b) : place(a);
+    items.push({ at: order(a), text: `${kind(a)} ${where} now ${now.join(', ')}` });
+  }
+  for (const a of rest) items.push({ at: order(a), text: `${len(a.size)} ${kind(a)} added ${place(a)}` });
+  for (const b of gone) items.push({ at: order(b), text: `${kind(b)} ${place(b)} removed` });
+  return items.sort((x, y) => x.at - y.at).map((i) => i.text);
 }
 
 /**

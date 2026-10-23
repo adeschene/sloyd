@@ -1,6 +1,7 @@
 import { distinctParts } from '../document/assemblyChecks';
 import { repairDocument } from './joints/repair';
 import type { RepairCheck } from './joints/repair';
+import { toWireDesign } from '../document/generated';
 import type { GeneratedDesign } from '../document/generated';
 import { documentToDesign } from '../document/refineDesign';
 import type { RefineMax, RefineRefusal } from '../document/refineDesign';
@@ -25,7 +26,7 @@ export interface RefineSettings { instruction: string; width: number | null; dep
 /** Refine handles what Detailed allows; beyond it the model would be forced to drop parts. */
 export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: placedCeiling('detailed') };
 
-export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.';
+export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes, edging and edge profiles. Keep assembly and placement names. Return the whole design.';
 
 /** `original`: the plain design the model's came from; the parts of it that carry features the JSON does not show are named (refine-features spec §5).
  *  `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum
@@ -38,7 +39,7 @@ export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalo
   const edgings = (original?.bandTypes ?? []).filter((t) => t.id !== BUILT_IN_BAND_ID).map((t) =>
     `"${t.id}" is ${t.name} (${t.kind === 'solid' ? `solid ${labels?.label(t.material) ?? t.material}, ${t.thickness}in` : 'tape'})`);
   return [
-    'Here is the current design, in the same format you return:', JSON.stringify(design), '',
+    'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(design)), '',
     ...(note ? [note, ''] : []),
     ...(customs.length > 0 ? [`Custom materials in this design: ${customs.map((id) => `"${id}" is ${catalog!.label(id)}`).join('; ')}.`, ''] : []),
     ...(edgings.length > 0 ? [`Edging types in this design: ${edgings.join('; ')}.`, ''] : []),

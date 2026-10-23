@@ -5911,6 +5911,15 @@ values: [number] }` — plus `profiles`: COMPILED, 2,805 chars (smaller than tod
 (6 custom materials, 4 custom band types) COMPILED, 3,003 chars, `req_011CgK1HAcoVCSHiF2fewT5E`. (3) Option B — bands and profiles folded
 into one `edges` array, angles untouched: REFUSED, 3,248 chars, `req_011CgK1GN4r8AQ7VqiSxKuXd`. So the cost is distinct object shapes, not
 characters: merging shapes frees room; folding fields into an existing shape does not.
+**Status:** AI-profiles compiled (2026-10-23, branch `ai-profiles`, fu 430 chunk 2; spec R1, R5): the FINAL design form — the four angle
+arrays replaced by ONE `angles` item (`kind` enum taper/miter/bevel/chamfer, `dirs` [dir], `toward` dir, `values` [number]) plus a
+`profiles` item (`edge` [dir], `kind` enum, `size`, `fillet`, `depth`, `facing` enum face/edge, `allRound`, `start`, `end`), every
+field required, `additionalProperties: false`, `dir` and `vec3` by `$ref`, no other new `$def` — COMPILED on the first probe (HTTP 200,
+`req_011CgK3FpwL6Fshe5BsSWfuC`, `max_tokens` 16): the Refine form with 2 custom materials and 1 custom band type (8 edging keys) is 2,800
+chars (the shipped AI-bands form: 2,911); Generate's built-in form is 2,727. The upper bound (6 custom materials, 4 custom band types,
+3,003 chars) was measured on R1's 2,805-char probe form, not re-probed on the final schema. `src/document/fixtures/design-schema-builtin.json`
+re-captured (`docs/browser-verification-ai-profiles.md`). The rule this leaves (inv 48): a new design-form feature joins an existing item
+shape where it can; each new SHAPE costs grammar.
 
 **323. AI angles chunk 2 minors (record-only; final review M2–M6).** (M2) The `angle-joint` design fault's advice is generic
 ("move it off that end or face, or remove it") — the spec wanted the tenon-clearance rule's numbers carried back; it
@@ -6995,6 +7004,9 @@ its features stay at their stored stations and the "Check at the new size" line 
 built). **Status:** open (record-only).
 **Status:** open (record-only), now for parts with curves or profiles only (since AI bands, a bands-only part follows the rank rule too): a holes-only part turned in plan is re-oriented (AI-holes
 residual R1, `keptFrame`'s rank rule, 2026-10-23).
+**Status:** open (record-only), now for parts with curves or carried profiles (a run on two sides, `carriesProfiles`) only: since AI
+profiles (fu 430 chunk 2) a part whose profiles are authored follows `keptFrame`'s rank rule with holes and bands, and is re-oriented
+when turned in plan.
 
 **426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
 also receives the carry (the load gate renames it `X (1)`); `carriedSummary` does not mention it. Follows refine-features spec §2's name
@@ -7062,6 +7074,10 @@ Claude authors holes; curves are fu 363's open authoring piece; profiles and ban
 changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
 compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).
 **Status:** spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's answers 2026-10-23). Chunk 1 (bands) MERGED `e7ce893` and DEPLOYED (`index-lH3mycr3.js`) 2026-10-23 (`bandWorld.ts`, `bandDesignFaults.ts`, inv 54/56 rewritten): Generate and Refine author edge bands in world words, except on a curved part (carried). Chunk 2 (profiles) open; see fu 322's note on its grammar budget.
+**Status:** CLOSED (both chunks). Chunk 2 (profiles) DONE on branch `ai-profiles`, MERGED `<merge>` (2026-10-23; not yet deployed — the
+controller records the deploy): the four angle arrays of the design form merged into one `angles` item to fit the grammar (spec R1–R2;
+fu 322), and Generate and Refine author edge profiles in world words (`profileWorld.ts`, `profileDesignFaults.ts`; inv 48/53/56
+rewritten), except on a part with curves or a two-side run (carried, `carriesProfiles`). Deferred minors: fu 434.
 
 ## From the shop-words round — 2026-10-23
 
@@ -7090,3 +7106,19 @@ has its band remapped on a Refine echo — to the built-in, or to a reused or mi
 different. Reachable only from a hand-edited file (ids are minted by `ids.ts`; `takeId` keeps an imported file's opaque ids).
 Candidate remedies (each a hypothesis): re-mint such ids on load, or have `edgingKeys` skip such a type and carry its bands.
 **Status:** open (record-only; ask first).
+
+## From the AI profiles round (chunk 2) — 2026-10-23
+
+**434. AI-profiles deferred minors (2026-10-23, execution ledger and final review).** (1) A profile's name text has two homes:
+`profileDesignFaults.ts` builds `<kind> <size>` / `with a <q> quirk` / `<size> × <depth>` itself, beside `curveText.ts`' `profileName`,
+which calls itself THE one home: a wording change to one misses the other. (2) The metric `shown` span of a stopped run's
+`'profile-fault'`, and a metric (32/25.4-style) station through a turn and back (`profilesFor`'s `known`), are unpinned — argued by
+reasoning only. (3) `convertPart` recognises a taper's count fault by its text prefix (`isTaperFault`: `has a taper `) — a kind field on
+the fault would not depend on wording. (4) `partOf` and `wirePart` (generated.ts) duplicate the holes/bands/profiles copy. (5) `alignedTo`
+compares profiles in STORED order (`sameProfile` index by index): a turned twin whose canonical re-sort puts equal profiles in another
+order may fail to link, though the same profiles. (6) The accepted cost of Rulings 10 and 16: a model that echoes a profile's old world
+numbers onto a resized part gets the stored entry back (a through end follows the new extent, a stop keeps the end it is measured from),
+so a stop it meant to keep at the same world place moves with its end, and the change list shows only the size line. Smaller residue in
+the ledger: `seen` in `profileDesignFaults` merges two same-kind profiles on one edge with the same span and fault (one message); a loop's nominal side picked by axis letter, not
+`dirToLocal`; a stop that falls back to straight is judged by its swept faults only; `estimate.ts`' chars-per-token not re-measured.
+**Status:** open (record-only).

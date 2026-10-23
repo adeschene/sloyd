@@ -11,7 +11,7 @@ const base: GenerateSettings = {
 describe('prompt', () => {
   it('teaches tapers in the fixed prefix (AI-tapers spec §6)', () => {
     expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered, mitered, beveled, chamfered or drilled.');
-    expect(SYSTEM_PROMPT).toContain('"tapers": [] for every part that is not tapered');
+    expect(SYSTEM_PROMPT).toContain('Use "angles": [] for every part without tapers, miters, bevels or chamfers.');
     expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
     expect(SYSTEM_PROMPT).toContain('Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.');
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
@@ -20,14 +20,20 @@ describe('prompt', () => {
   });  it('describes miters, bevels and chamfers and their two rules (AI-angles spec §8)', () => {
     for (const s of [
       'Angles:',
-      '"chamfers"',
-      '"bevels"',
-      '"miters"',
+      '"kind": "chamfer"',
+      '"kind": "bevel"',
+      '"kind": "miter"',
+      '{ "kind": "taper", "dirs": ["+x", "+z"], "toward": "-y", "values": [22, 0.375] }',
+      '{ "kind": "chamfer", "dirs": ["+y", "+z"], "toward": "+y", "values": [0.125, 0.125] }',
+      '{ "kind": "bevel", "dirs": ["+z"], "toward": "+y", "values": [15] }',
+      '{ "kind": "miter", "dirs": ["+x"], "toward": "+z", "values": [45] }',
       'Two mitered parts meeting at a corner overlap as boxes there',
       'A miter does not hold a part',
       'Never cut an angle where a part joins another',
-      'Use "miters": [], "bevels": [] and "chamfers": [] for every part without them.',
+      'Use "angles": [] for every part without tapers, miters, bevels or chamfers.',
     ]) expect(SYSTEM_PROMPT).toContain(s);
+    expect(SYSTEM_PROMPT).not.toMatch(/^- *$/m);
+    for (const old of ['"tapers"', '"miters"', '"bevels"', '"chamfers"']) expect(SYSTEM_PROMPT).not.toContain(old);
   });
 
 
@@ -51,6 +57,25 @@ describe('prompt', () => {
       'Band the EXPOSED front edges of plywood parts (shelves, case sides, tops, dividers): "solid <the piece\'s solid wood>" when it has solid wood parts, else "veneer". Never band an edge that meets another part, and never band solid-wood parts.',
       '"bands": [] for every part without edging.',
     ]) expect(SYSTEM_PROMPT).toContain(s);
+  });
+
+  it('teaches edge profiles: what they are, when to add one and the empty array (AI-profiles spec §6)', () => {
+    for (const s of [
+      '"profiles": a shaped edge routed along a side of a part\'s broad face. "edge" names the broad face and the side, like a chamfer\'s dirs; "start" and "end" are where it runs along that side, measured from the part\'s "at" (0 and the full length for the whole edge); "allRound": true runs it all round the broad face.',
+      'Add a profile only when asked, or a small roundover (1/8 to 1/4in) on the exposed top edges of a solid-wood tabletop where the style calls for it. Keep profiles off edges that meet other parts.',
+      '"profiles": [] for every part without them.',
+    ]) expect(SYSTEM_PROMPT).toContain(s);
+  });
+
+  it('an allRound profile still names the broad face and one side in "edge" (Ruling 7)', () => {
+    expect(SYSTEM_PROMPT).toContain('Even with "allRound": true, "edge" still names the broad face AND one side.');
+  });
+
+  it('explains size, fillet, depth and facing, and gives a consistent example', () => {
+    expect(SYSTEM_PROMPT).toContain('the small flat beside a roundover, cove or ogee (0 for none), or a bead\'s quirk (always above 0)');
+    expect(SYSTEM_PROMPT).toContain('to turn an ogee, bead, thumbnail or filleted profile so its long reach runs down the side');
+    expect(SYSTEM_PROMPT).toContain('{ "edge": ["+y", "+z"], "kind": "roundover", "size": 0.25, "fillet": 0, "depth": 0, "facing": "face", "allRound": false, "start": 0, "end": 36 }');
+    expect(SYSTEM_PROMPT).toContain('a tabletop 36in long (x), 24in deep (z) and 3/4in thick');
   });
 
   it('pins the corner table and the typical start (fu 313)', () => {
