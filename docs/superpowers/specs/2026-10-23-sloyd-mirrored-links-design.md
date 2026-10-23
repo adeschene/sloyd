@@ -65,8 +65,8 @@ a loose part may now be mirrored, as a use of a Shape. The mirrored-instances sp
   Shape, with the existing exact inverses (`lowerCuts`, `lowerAngleCuts`, `lowerHoles`, `lowerCurves`, `lowerProfiles`,
   `lowerBands` in `treeEdit.ts`; each reuses an untouched stored array so repeated edits never drift, inv 44).
 - **The side of a mirror** becomes the parity of the container chain XOR the part's own flag (one helper replacing
-  `mirroredAt` at every call that decides a side: `linkPlan`'s `mirroredOf`, `postureRefusal`, `sameSideFirst`, the store's
-  `sideOfShape`). A mirrored user inside a mirrored assembly is therefore on the unmirrored side, which is correct: its
+  `mirroredAt` where a side decides how a shared edit is lowered: `postureRefusal`, `sameSideFirst`, the store's
+  `sideOfShape`). `linkPlan`'s `LINK_ACROSS_MIRROR` refusal is the exception: it stays on ASSEMBLY parity alone (§5.2). A mirrored user inside a mirrored assembly is therefore on the unmirrored side, which is correct: its
   world hand is the Shape's.
 - **Posture:** a posture change moves `mirrorDim`, so it is refused for a Shape with users on both sides
   (`POSTURE_ACROSS_MIRROR`, the existing rule and words, now reached by part-level mirrors too).
