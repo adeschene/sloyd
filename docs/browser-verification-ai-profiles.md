@@ -28,3 +28,19 @@ every field required, `additionalProperties: false`, `dir` and `vec3` referenced
 
 This probe exercised the grammar compile only, not the model's output; the angle re-check (Task 2) and the profile runs
 follow.
+
+## Angle re-check after the merge into `angles` (Task 2 Step 6; spec R4 gate)
+
+Dev server `:5199`, the user's profile, Playwright MCP; key presence only; no `localStorage.clear()`; test projects left.
+Readouts through `migrateDocument` → `flatDocument` → `worldTapers` / `worldAngles` and the stored `angleCuts`.
+
+1. **Generate "a Shaker side table". PASS** (≈ $0.07; `id_mvkvb6mo_o`). Four legs tapered on their two INSIDE faces toward
+   `-y`, start 20, amount 0.375, by corner exactly as the prompt's rule: back-left `+x,+z`, back-right `-x,+z`, front-left
+   `+x,-z`, front-right `-x,-z`. Top: 1/8in chamfers on its four top edges.
+2. **Generate "a picture frame". PASS** (≈ $0.03; `id_mvkvc30q_17`). Every rail and stile mitered 45° at both ends, long point
+   OUTSIDE (top rail `-z`, bottom `+z`, left stile `-x`, right `+x`); an inner top-edge chamfer on each.
+3. **Refine run 1 "make it 2 inches taller". PASS** (≈ $0.03). Change list: the four legs 25-1/4 → 27-1/4, aprons and top
+   moved Y +2". Every angle cut's stored fields (kind, face, from, along, alongFrom, points) identical before and after; the
+   world readings identical; only ids are fresh, as before this round (angle cuts have no id-restoring map; holes do).
+
+No regression in the model's angle output; the round continues to profiles. Paid calls so far: 1 probe + 3 runs = 4 of 10.
