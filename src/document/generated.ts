@@ -6,7 +6,7 @@ import { nextId } from './ids';
 import { cleanName as clean, uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
 import { DIRS, taperCutsFor } from './taperWorld';
-import type { WorldTaper } from './taperWorld';
+import type { Dir, WorldTaper } from './taperWorld';
 import { angleCutsFor, sortAngleCuts } from './angleWorld';
 import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
@@ -48,7 +48,15 @@ export interface GeneratedPart {
   miters?: WorldMiter[];
   bevels?: WorldBevel[];
   chamfers?: WorldChamfer[];
+  /** Required from the model (parseDesign checks it); optional here like `tapers` (AI-holes spec §2.1). */
+  holes?: WorldHoleRow[];
 }
+/**
+ * One hole row in world words (AI-holes spec §2.1): drilled into `face`, the FIRST centre at `offset` from the part's
+ * `at` along the world axes (on the face plane), continuing `toward` for `count` holes `pitch` apart. `through` means
+ * `depth` is ignored. The converter (holeWorld.ts) derives the stored `HoleRow` and checks every number.
+ */
+export interface WorldHoleRow { face: Dir; diameter: number; depth: number; through: boolean; offset: Vec3; toward: Dir; count: number; pitch: number }
 /** Where an assembly's local origin goes in the world. No turn (spec §2). */
 export interface GeneratedPlacement { name: string; at: Vec3 }
 /** Parts in the assembly's OWN frame, placed by translation; one level, parts only. */
@@ -97,6 +105,16 @@ const chamferSchema = {
   required: ['edge', 'legs'],
   additionalProperties: false,
 };
+/** One hole row in world words (AI-holes spec §2.1); the converter checks directions and numbers. */
+const holeSchema = {
+  type: 'object',
+  properties: {
+    face: dirSchema, diameter: { type: 'number' }, depth: { type: 'number' }, through: { type: 'boolean' },
+    offset: vec3Schema, toward: dirSchema, count: { type: 'number' }, pitch: { type: 'number' },
+  },
+  required: ['face', 'diameter', 'depth', 'through', 'offset', 'toward', 'count', 'pitch'],
+  additionalProperties: false,
+};
 
 /** The part, its material enum from a catalog's ids: the built-ins (from MATERIALS, so a new built-in reaches the model
  *  with no second edit), then a project's custom materials for Refine. Key order is pinned byte for byte (fu 322). */
@@ -112,8 +130,9 @@ const partSchemaFor = (materials: readonly string[]) => ({
     miters: { type: 'array', items: miterSchema },
     bevels: { type: 'array', items: bevelSchema },
     chamfers: { type: 'array', items: chamferSchema },
+    holes: { type: 'array', items: holeSchema },
   },
-  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers'],
+  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes'],
   additionalProperties: false,
 });
 
@@ -175,13 +194,15 @@ const isBevel = (m: unknown): boolean => isObj(m) && isDir(m.face) && isDir(m.lo
 // Arrays cannot be length-constrained in the schema: exactly two of each here.
 const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && m.edge.length === 2 && m.edge.every(isDir) &&
   Array.isArray(m.legs) && m.legs.length === 2 && m.legs.every((n) => typeof n === 'number');
+const isHole = (h: unknown): boolean => isObj(h) && isDir(h.face) && isDir(h.toward) && typeof h.through === 'boolean' &&
+  isVec3(h.offset) && (['diameter', 'depth', 'count', 'pitch'] as const).every((k) => typeof h[k] === 'number');
 
 const isPart = (p: unknown, catalog: MaterialCatalog): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
   catalog.get(p.material) !== undefined && isVec3(p.at) && isVec3(p.size) &&
   Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
   Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
-  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer);
+  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole);
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
 const isAssembly = (a: unknown, catalog: MaterialCatalog): boolean =>
   isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog)) &&
@@ -194,7 +215,9 @@ const partOf = (o: unknown): GeneratedPart => {
     tapers: (p.tapers ?? []).map((t) => ({ faces: [...t.faces], toward: t.toward, start: t.start, amount: t.amount })),
     miters: (p.miters ?? []).map((m) => ({ end: m.end, longPoint: m.longPoint, angle: m.angle })),
     bevels: (p.bevels ?? []).map((m) => ({ face: m.face, longPoint: m.longPoint, angle: m.angle })),
-    chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })) };
+    chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })),
+    holes: (p.holes ?? []).map((h) => ({ face: h.face, diameter: h.diameter, depth: h.depth, through: h.through, offset: vec(h.offset),
+      toward: h.toward, count: h.count, pitch: h.pitch })) };
 };
 
 /**

@@ -6,6 +6,11 @@ import { SYSTEM_PROMPT } from './prompt';
 import type { GenerateSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
+import type { GeneratedDesign } from '../document/generated';
+/** The model's answer to a Refine echo: the schema requires `holes` on every part (AI-holes spec §2.1), which
+ *  documentToDesign does not write yet. */
+const answered = (d: GeneratedDesign): GeneratedDesign => ({ ...d, parts: d.parts.map((p) => ({ ...p, holes: p.holes ?? [] })),
+  assemblies: d.assemblies?.map((a) => ({ ...a, parts: a.parts.map((p) => ({ ...p, holes: p.holes ?? [] })) })) });
 import { LlmError } from '../llm/types';
 import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
@@ -39,7 +44,7 @@ const settings: GenerateSettings = {
 };
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const p = (name: string, y: number) => ({
-  name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
+  name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
 });
 const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)], assemblies: [] };
 const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)], assemblies: [] };                 // B floats
@@ -271,7 +276,7 @@ describe('problemKey (fu 186)', () => {
 
 const v3 = (x: number, y: number, z: number) => ({ x, y, z });
 const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-  ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
+  ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
 /** A drawer whose Front and Side overlap, placed three times on the floor: one fault, three raw reports. */
 const BAD_DRAWERS = {
   name: 'Drawers', parts: [],
@@ -363,9 +368,9 @@ const createDocumentForTest = () => createDocument('Empty');
 describe('runRefine', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const v3 = (x: number, y: number, z: number) => ({ x, y, z });
-  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
   const orig = (parts: ReturnType<typeof bp>[]) => designToDocument({ name: 'Box', parts, assemblies: [] }).doc;
-  const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
+  const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return answered(r.design); };
   const go = (client: LlmClient, doc: Parameters<typeof runRefine>[1]) => runRefine(client, doc, RS, new AbortController().signal, () => {});
 
   it('refuses with no call', async () => {
@@ -380,7 +385,8 @@ describe('runRefine', () => {
     const { client, seen } = fakeClient([echo(doc)]);
     await go(client, doc);
     expect((client.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
-    expect(seen[0]).toEqual([client.userTurn(refineMessage(echo(doc), RS))]);
+    const sent = documentToDesign(doc, REFINE_MAX); if ('refused' in sent) throw new Error('refused');
+    expect(seen[0]).toEqual([client.userTurn(refineMessage(sent.design, RS))]);
   });
 
   it('keeps untouched parts exactly where they were, and carries settings over', async () => {
@@ -561,8 +567,8 @@ describe('runRefine', () => {
 describe('runRefine — custom materials (custom materials spec §6)', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
-  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return answered(r.design); };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
   const doc = paint(designToDocument({ name: 'Box', parts: [bp('Top', [0, 0, 0], [10, 1, 10])], assemblies: [] }).doc, 'm-s-ash1', [ASH]);
 
@@ -629,8 +635,8 @@ describe('runRefine — custom materials (custom materials spec §6)', () => {
 describe('runRefine — hardware (hardware spec §6)', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
-  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return answered(r.design); };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
   const TYPES = [{ id: 'h1', name: 'Hinge', packSize: 1, pricePerPack: 4.5 }, { id: 'h2', name: 'Screw', packSize: 100, pricePerPack: null }];
   const PROJECT = [{ type: 'h1', count: 2 }, { type: 'h2', count: 40 }];
@@ -672,8 +678,8 @@ describe('runRefine — hardware (hardware spec §6)', () => {
 describe('runRefine — band types (refine-features spec §3.3)', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
-  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return answered(r.design); };
   const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
   /** A custom solid band type NO part uses, naming a custom material: only the document-level merge can keep it. */
   const EDGING = { id: 'e1', name: 'Ash edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
@@ -717,10 +723,10 @@ describe('runRefine — joined designs', () => {
   const plainEcho = (d: SloydDocument) => {
     const p = plainForRefine(d); if ('refused' in p) throw new Error(p.refused.message);
     const r = documentToDesign(p.plain, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message);
-    return r.design;
+    return answered(r.design);
   };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
   const bookFlat = flatDocument(designToDocument({ name: 'Bookcase', assemblies: [], parts: [
     bp('Back', [0, 0, -0.25], [31.5, 72, 0.25]), bp('Left side', [0, 0, 0], [0.75, 72, 11.25]), bp('Right side', [30.75, 0, 0], [0.75, 72, 11.25]),
     bp('Bottom', [0.75, 0, 0], [30, 0.75, 11.25]), bp('Top', [0.75, 71.25, 0], [30, 0.75, 11.25]),
@@ -939,9 +945,9 @@ describe('runRefine — joined designs', () => {
     const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{ name: 'Frame',
       // Two legs per frame so the piece does not tip: a tipping fixture makes the REFINE stage repair
       // (part-less problems are always new, refine spec §3.2), which is not what this test is about.
-      parts: [{ name: 'Leg', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
-        { name: 'Leg 2', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
-        { name: 'Rail', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
+      parts: [{ name: 'Leg', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Leg 2', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Rail', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
       placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
     const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
     if ('noSites' in jo || 'refused' in jo) throw new Error('sites');
@@ -1100,9 +1106,9 @@ describe('runJoinery — a miter running into a joint (AI-angles spec §3)', () 
 
 describe('the angle-joint fault for tapers (AI-tapers spec 5.3)', () => {
   const leg = (start: number) => ({ name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 },
-    miters: [], bevels: [], chamfers: [], tapers: [{ faces: ['+x', '+z'], toward: '-y', start, amount: 0.375 }] });
-  const rail = { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], tapers: [] };
-  const post = { name: 'Post', role: '', material: 'oak', at: { x: 19.75, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, miters: [], bevels: [], chamfers: [], tapers: [] };
+    miters: [], bevels: [], chamfers: [], holes: [], tapers: [{ faces: ['+x', '+z'], toward: '-y', start, amount: 0.375 }] });
+  const rail = { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [] };
+  const post = { name: 'Post', role: '', material: 'oak', at: { x: 19.75, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [] };
   const design = (start: number) => ({ name: 'T', parts: [leg(start), rail, post], assemblies: [] });
   const text = (turns: unknown[]) => JSON.stringify(turns);
 
@@ -1118,7 +1124,7 @@ describe('the angle-joint fault for tapers (AI-tapers spec 5.3)', () => {
     const doc = designToDocument(parseDesign(design(24))!).doc;
     const from = documentToDesign(doc, REFINE_MAX);
     if ('refused' in from) throw new Error('refused');
-    const { client, seen } = fakeClient([from.design]);
+    const { client, seen } = fakeClient([answered(from.design)]);
     const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
     if ('refused' in out) throw new Error('refused');
     expect(out.present.some((v) => v.kind === 'angle-joint')).toBe(true);
@@ -1134,7 +1140,7 @@ describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () =
     id: `t${axis}`, ...taperCut({ face: axisFrame(b)[axis]!.dim as 'width' | 'thickness', from: endFacing(b, axis, 1), end: endFacing(b, 1, -1), start, amount: 0.375 }),
   });
   const part = (name: string, at: [number, number, number], size: [number, number, number], tapers: WorldTaper[] = []) =>
-    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers, material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers, material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
   const cornerDesign = (legTapers: WorldTaper[]) => ({ name: 'Corner', assemblies: [], parts: [
     part('Leg', [0, 0, 0], [1.75, 28, 1.75], legTapers), part('Rail X', [1.75, 23.5, 0.5], [18, 3, 0.75]), part('Rail Z', [0.5, 23.5, 1.75], [0.75, 3, 18]),
   ] });

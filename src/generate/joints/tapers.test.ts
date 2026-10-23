@@ -195,7 +195,7 @@ describe('taperJointRefusal / joineryRefusal', () => {
 
 describe('jointFaults \u2014 the fault on designs (spec 5.3)', () => {
   const part = (name: string, at: number[], size: number[], tapers: unknown[] = []) =>
-    ({ name, role: '', material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, tapers, miters: [], bevels: [], chamfers: [] });
+    ({ name, role: '', material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, tapers, miters: [], bevels: [], chamfers: [], holes: [] });
   const build = (parts: unknown[], opts?: { exact: Set<number> }) =>
     flatDocument(designToDocument(parseDesign({ name: 'T', assemblies: [], parts })!, opts).doc);
   const corner = (start: number, railY = 23.5) => build([
@@ -466,9 +466,9 @@ describe('joinery keeps angle cuts where they are on the wood (AI-angles spec §
   });
   it('two linked rails rebased by joinery are still one component, chamfer in place (Review Focus 5)', () => {
     const made = designToDocument({ name: 'F', parts: [
-      { name: 'Leg A', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, miters: [], bevels: [], chamfers: [], tapers: [] },
-      { name: 'Rail 1', role: 'rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], tapers: [] },
-      { name: 'Rail 2', role: 'rail', material: 'oak', at: { x: 1.75, y: 10, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], tapers: [] },
+      { name: 'Leg A', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [] },
+      { name: 'Rail 1', role: 'rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [] },
+      { name: 'Rail 2', role: 'rail', material: 'oak', at: { x: 1.75, y: 10, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [] },
     ], assemblies: [] } as never, { centre: false }).doc;
     const railShape = (d: SloydDocument) => new Set(d.boards.filter((b) => b.name.startsWith('Rail')).map((b) => ('shape' in b ? b.shape : undefined)));
     expect(railShape(made).size).toBe(1);
