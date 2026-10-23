@@ -72,6 +72,8 @@ describe('prompt', () => {
   });
 
   it('explains size, fillet, depth and facing, and gives a consistent example', () => {
+    expect(SYSTEM_PROMPT).toContain('the small flat beside a roundover, cove or ogee (0 for none), or a bead\'s quirk (always above 0)');
+    expect(SYSTEM_PROMPT).toContain('to turn an ogee, bead, thumbnail or filleted profile so its long reach runs down the side');
     expect(SYSTEM_PROMPT).toContain('{ "edge": ["+y", "+z"], "kind": "roundover", "size": 0.25, "fillet": 0, "depth": 0, "facing": "face", "allRound": false, "start": 0, "end": 36 }');
     expect(SYSTEM_PROMPT).toContain('a tabletop 36in long (x), 24in deep (z) and 3/4in thick');
   });

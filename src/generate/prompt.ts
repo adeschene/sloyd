@@ -93,7 +93,7 @@ Edge bands:
 
 Edge profiles:
 - "profiles": a shaped edge routed along a side of a part's broad face. "edge" names the broad face and the side, like a chamfer's edge; "start" and "end" are where it runs along that side, measured from the part's "at" (0 and the full length for the whole edge); "allRound": true runs it all round the broad face. Even with "allRound": true, "edge" still names the broad face AND one side.
-- "size" is how far the profile reaches across the broad face; "fillet" is the small flat beside a roundover, cove or ogee, or a bead's quirk (0 for none); "depth" matters only for "thumbnail" (less than "size"); "facing" is "face" for the reach along the broad face, or "edge" to turn an ogee, bead or thumbnail so its long reach runs down the side. Write 0 for a field the kind ignores.
+- "size" is how far the profile reaches across the broad face; "fillet" is the small flat beside a roundover, cove or ogee (0 for none), or a bead's quirk (always above 0); "depth" matters only for "thumbnail" (less than "size"); "facing" is "face" for the reach along the broad face, or "edge" to turn an ogee, bead, thumbnail or filleted profile so its long reach runs down the side. Write 0 for a field the kind ignores.
 - Add a profile only when asked, or a small roundover (1/8 to 1/4in) on the exposed top edges of a solid-wood tabletop where the style calls for it. Keep profiles off edges that meet other parts.
 - Example: a tabletop 36in long (x), 24in deep (z) and 3/4in thick, with a 1/4in roundover along its front top edge: { "edge": ["+y", "+z"], "kind": "roundover", "size": 0.25, "fillet": 0, "depth": 0, "facing": "face", "allRound": false, "start": 0, "end": 36 }.
 - "profiles": [] for every part without them.
