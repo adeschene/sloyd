@@ -7034,3 +7034,10 @@ else `orient` like the plain twin, no exact-row swap; tested (the R1 probe, ties
 widened past its length is now oriented and its taper fault fed back (refine-features spec, Amended). The plan-turn gap for parts WITH
 curves, profiles or bands (they keep the frame always; `featureTurned` does not see a plan turn) stays fu 425. (1), (2), (5)–(8) and (10)
 remain open (record-only).
+
+**429. An oddly encoded holes-only part tied at its thickness keeps a wrong thickness when grown (2026-10-23, final re-review).**
+`keptFrame`'s waiver ("the original's thickness extent was not a smallest extent") also applies when that thickness is TIED with
+another extent: a part stored flat/0 L3 W1 T3 (world [3,3,1]) returned as [3,20,1] is kept as L3 W1 T20 (20" stock); its plain twin
+becomes upright L20 W3 T1. Not new (the rank rule alone did the same); needs an original already stored with thickness > width, tied,
+and the model growing the tied axis. Candidate fix: the thickness axis must stay smallest within its tie group in the original
+(`size[k] <= size[j]` for every `j` with `e[j] === e[k]`). **Status:** open (record-only; ask first).

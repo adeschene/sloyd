@@ -12,6 +12,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
+| `98f8296` (Refine carries features) | `index-BJwLoCPr.js` | 20 | free; Claude stops authoring holes (Refine carries them again) |
 | `3162e68` (fu 419) | `index-DoG-TXKm.js` | 20 | free; Refine refuses holed, curved, profiled, banded and hardware projects again |
 | `1d39344` (joinery chunk 3) | `index-bKxsxRuC.js` | 20 | free; a Mitred notched corner prints its old mitre again (fu 419) |
 | `100c691` (notch drop) | `index-COsxvOYF.js` | 20 | free; joinery refuses banded projects again; a strip counts its full side again |
@@ -122,9 +123,20 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | notch drop + fu 415 | 10-22 | — | A metric Half-round notch stored at its stored chord's half circle; the loader holds one a few ulps past it (fu 416, closed); a curve that only meets a tenoned end keeps the growing kinds when it clears the tenon (fu 415, the user's ruling; fu 417 the cost); `rectOverlapsWaste` counts a side only where it enters the waste. **Merged `100c691`, deployed 2026-10-22 (`index-COsxvOYF.js`)** |
 | joinery accepts bands (chunk 3) | 10-22 | — | Add joinery rules out only the joint kinds a band is in the way of (`bandRegions`, judged as stored in the original frame, P9–P11; an edged shelf housed whole in a dado, the user's ruling); a stopped dado narrowed to the stop ends that clear ("Offer clear ends") with its smallest inset clearing a receiver band ("Fix now"); strips, tape and glue lines count only the visible run (`visibleRun`, P12–P14); the gate compares bands; Repair accepts banded projects; Refine still refuses (inv 41/54; fu 398's joinery and Repair half closed, 418–423). Merge `1d39344`, deployed 2026-10-22 (`index-bKxsxRuC.js`) |
 | Refine carries features | 10-22/23 | — | Refine accepts holes, curves, profiles, bands and hardware: carried by flat name onto the returned part in the ORIGINAL frame (`featureCarry.ts`, `frameFor`; inv 56), before the load gate and linking; a featured part turned onto another face goes back to the model (`feature-turned`); the done view lists Not kept and Check at the new size (`carryText.ts`); joinery's ruled-out notes shown; the four refusal modules deleted (inv 41/50/53/54/55; fu 328/398 closed for Refine, 363 Refine reading, 424–427). **Merged `98f8296`, deployed 2026-10-23 (`index-BJwLoCPr.js`)** |
+| AI holes | 10-23 | — | Generate and Refine author hole rows in world words (`holeWorld.ts`, the ONE converter; `holeSnap` nearer of 1/64in or whole mm; canonical rows); untouched rows return exactly (exact-row map, original order kept); `hole-fault` kept and fed back (`holeDesignFaults.ts`); mirrored sides link through turns (`turnCandidates`, `alignedTo`); holes leave the carry; a holes-only part keeps its frame only without a turn (rank + thickness rule); schema compiled live first probe (fu 322) (inv 40/48/50/56; fu 329 closed, 428, 429). **Merged `424c184`, deployed 2026-10-23 (`index-D3k3tvUe.js`)** |
 
 ## Status log (to 2026-10-23)
 
+- **AI holes (fu 329; 2026-10-23; branch `ai-holes`, MERGED `424c184`, DEPLOYED 2026-10-23 as `index-D3k3tvUe.js`, CSS unchanged; schema 20,
+  rollback to `98f8296` / `index-BJwLoCPr.js` free)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-holes-design.md` (the user took
+  all three §11 calls; Amended (execution) carries the controller's rulings), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-holes.md`.
+  Subagent-driven, 7 tasks; the final review (Not ready: C1 a turned holes-only part stored the wrong way round, I1 metric mirrored sides
+  never linked) and one fix wave, then R1 (plan turn; the user: "Fix it, then merge") and the tie clause. 7711 tests. Live check
+  `docs/browser-verification-ai-holes.md` (compile probe + 5 paid runs ≈ $0.23, all one call: bookcase, 32 mm bookcase, move pins, echo
+  exact, knob hole; CHARS_PER_TOKEN 2 holds). Production verified by bundle hash in-network and at the edge, CSP, a real-browser load
+  (0 errors), storage cleared and read back empty. Owed to the user: the look on real hardware; whether "move the pins" moves both rows;
+  world-face words ("+x") in the change list; the controller's rulings (rank + thickness frame rule; §3.2 taper guarantee narrowed;
+  distances snapped from the measured end/side; original order kept on a no-op). Record-only: fu 428, 429.
 - **Refine carries features (2026-10-22/23; branch `refine-features`, MERGED `98f8296`, DEPLOYED 2026-10-23 as `index-BJwLoCPr.js`, CSS unchanged;
   schema 20, rollback to `3162e68` / `index-DoG-TXKm.js` free)**: spec `docs/superpowers/specs/2026-10-22-sloyd-refine-features-design.md`
   (the user's three rulings §12: carry not authoring; features stay measured from the ends they name; a turned part goes back to Claude),

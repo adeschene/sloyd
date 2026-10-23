@@ -1,6 +1,6 @@
 # Sloyd: Generate and Refine author hole rows
 
-**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions); implemented on branch `ai-holes` (not yet merged).
+**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions); merged `424c184` and deployed 2026-10-23 as `index-D3k3tvUe.js`.
 **Builds on:** the holes spec (`2026-10-14-sloyd-holes-design.md`: the stored `HoleRow`, `holeFaults`), the AI-angles spec
 (`2026-10-13-sloyd-ai-angles-design.md`: the pattern this follows, world words in the design schema, one converter
 module, exact round trips for Refine), and the refine-features spec (`2026-10-22-sloyd-refine-features-design.md`: Refine
