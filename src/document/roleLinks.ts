@@ -9,6 +9,8 @@ import { taperCutsFor, worldTapers } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, worldAngles } from './angleWorld';
 import { holeRowsFor, sortHoleRows, worldHoles } from './holeWorld';
 import { sameHoleRow } from './holes';
+import { BUILT_IN_BAND_ID } from './bandModel';
+import { bandsFor, worldBands } from './bandWorld';
 
 const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 
@@ -20,11 +22,12 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
  * the hole grid), each row taking an id by index from the part's own rows sorted canonically — POSITIONAL only: the turned
  * frame's canonical order can differ from the original's, so an id may land on another row; harmless, because `alignedTo`
  * overwrites every hole id with the representative's before the candidate is used (final review M4). None for a part with
- * rectangular cuts, curves, profiles or bands (a band is board-local, so a turn would land it on another world face); no
- * candidate at a turn where a cut or hole row has no stored form.
+ * rectangular cuts, curves or profiles. Bands (AI-bands spec §5) are re-stored on the same world edges through worldBands
+ * and bandsFor (inv 44; bands carry no ids, so alignedTo needs no alignment for them). No candidate at a turn where a
+ * cut, hole row or band has no stored form.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || b.curves.length > 0 || b.profiles.length > 0 || b.bands.length > 0) return [];
+  if (b.cuts.length > 0 || b.curves.length > 0 || b.profiles.length > 0) return [];
   const world = worldTapers(b);
   const angles = worldAngles(b);
   if (world === null || angles === null) return [];
@@ -32,6 +35,8 @@ export function turnCandidates(b: Board): Board[] {
   const exact = angleRatiosOf([b]);
   const holes = worldHoles(b);
   const holeExact = new Set(holes.flatMap((r) => [r.diameter, r.depth, r.pitch, r.offset.x, r.offset.y, r.offset.z]));
+  const bandEntries = worldBands(b);
+  const bandId = (key: string) => (key === 'veneer' ? BUILT_IN_BAND_ID : key);
   const holeIds = sortHoleRows(b.holes).map((r) => r.id);
   const box = boardExtents(b);
   const grainAxis = axisDimensions(b).indexOf(b.grain);
@@ -44,7 +49,9 @@ export function turnCandidates(b: Board): Board[] {
     if ('fault' in more) return [];
     const rows = holeRowsFor(t, holes, holeExact);
     if ('fault' in rows) return [];
-    return [{ ...t, angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })),
+    const edged = bandsFor(t, bandEntries, bandId);
+    if ('fault' in edged) return [];
+    return [{ ...t, bands: edged.bands, angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })),
       holes: rows.rows.map((r, i) => ({ id: holeIds[i] ?? nextId(), ...r })) }];
   });
 }

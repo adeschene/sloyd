@@ -45,6 +45,14 @@ describe('prompt', () => {
     ]) expect(SYSTEM_PROMPT).toContain(s);
   });
 
+  it('teaches edge bands: what they are, the default and the empty array (AI-bands spec §6)', () => {
+    for (const s of [
+      '"bands": edging glued to a side of a part\'s broad face. "edge" is that side; "edging" is "veneer" (iron-on), an edging type the project already has, or "solid <material>" (1/4in solid edging of that wood).',
+      'Band the EXPOSED front edges of plywood parts (shelves, case sides, tops, dividers): "solid <the piece\'s solid wood>" when it has solid wood parts, else "veneer". Never band an edge that meets another part, and never band solid-wood parts.',
+      '"bands": [] for every part without edging.',
+    ]) expect(SYSTEM_PROMPT).toContain(s);
+  });
+
   it('pins the corner table and the typical start (fu 313)', () => {
     for (const row of [
       'the leg with the smallest x and z tapers "+x" and "+z"',

@@ -6,6 +6,7 @@ import { createBoard, migrateDocument } from './document';
 import { flatDocument, worldParts } from './tree';
 import { worldTapers } from './taperWorld';
 import { worldAngles } from './angleWorld';
+import { worldBands } from './bandWorld';
 import { sortHoleRows, worldHoles } from './holeWorld';
 import { boardHoles } from './holes';
 import { axisDimensions, boardExtents, toWorldOffset } from './geometry';
@@ -276,11 +277,63 @@ describe('turned candidates and holes', () => {
     expect(turnCandidates(leg)).toEqual([]);
   });
 
-  it('offers no turned candidates for a banded part (edge banding spec §3.4)', () => {
-    const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
+  it('still offers none for a part with a rectangular cut beside its bands (AI-bands spec §5)', () => {
+    const edged: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
       bands: [{ side: { across: 'width', from: 'min' }, type: BUILT_IN_BAND_ID }] };
-    expect(turnCandidates({ ...leg, bands: [] }).length).toBeGreaterThan(0);   // the guard is what refuses, not the box
-    expect(turnCandidates(leg)).toEqual([]);
+    expect(turnCandidates(edged).length).toBeGreaterThan(0);
+    expect(turnCandidates({ ...edged, cuts: [{ id: 'k', face: 'width', from: 'min', across: 'length', offset: 2, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 }] })).toEqual([]);
+  });
+});
+
+describe('linking banded parts (AI-bands spec §5)', () => {
+  const stored = (doc: ReturnType<typeof designToDocument>['doc']) => [...doc.boards, ...doc.definitions.flatMap((x) => x.boards)];
+  const shelf = (name: string, x: number, role = 'shelf'): GeneratedPart =>
+    ({ ...part(name, role, [x, 0, 0], [20, 0.75, 10]), bands: [{ edge: '-z', edging: 'veneer' }] });
+
+  it('two equal edged shelves link as ONE Shape', () => {
+    const { doc } = designToDocument(d([shelf('Shelf A', 0), shelf('Shelf B', 30)]));
+    expect(doc.shapes).toHaveLength(1);
+    expect(shapedNames(doc)).toEqual(['Shelf A', 'Shelf B']);
+    expect(flatDocument(doc).boards.every((b) => b.bands.length === 1)).toBe(true);
+  });
+
+  it('a turned banded part is re-stored per turn on the same world edge, and links to its twin', () => {
+    // A square flat panel turns only by 180° (its figure would run crosswise at 90°), and the band follows its world edge.
+    const leg: Board = { ...createBoard({ length: 12, width: 12, thickness: 0.75, posture: 'flat', rotation: 0, grain: 'length', position: [3, 0, 4] }),
+      bands: [{ side: { across: 'width', from: 'max' }, type: BUILT_IN_BAND_ID }] };
+    const cs = turnCandidates(leg);
+    expect(cs.map((c) => c.rotation)).toEqual([180]);
+    expect(cs[0]!.bands).not.toEqual(leg.bands);   // stored on the opposite side: the world edge is what is kept
+    for (const c of cs) {
+      expect(c.bands).toHaveLength(1);
+      expect(worldBands(c)).toEqual(worldBands(leg));
+    }
+    // A twin stored at another turn (its band re-stored there) is not the same stored part, yet links through a turn.
+    const twin = { ...cs[0]!, id: 'twin' };
+    expect(sameShared(leg, twin)).toBe(false);
+    expect(alignedTo(leg, twin)).toBeNull();
+    const back = turnCandidates(twin).map((c) => alignedTo(leg, c)).find((x) => x !== null);
+    expect(back).toBeDefined();
+    expect(worldBands(back!)).toEqual(worldBands(leg));
+  });
+
+  it('a part whose bands differ in type or edge does not link', () => {
+    const { doc } = designToDocument(d([shelf('Shelf A', 0), { ...shelf('Shelf B', 30), bands: [{ edge: '+x', edging: 'veneer' }] }]));
+    expect(doc.shapes).toHaveLength(0);
+  });
+
+  // KNOWN LIMIT (follow-up 432, the user's choice "two parts for now"): mirrored case sides with shelf-pin rows on their
+  // inside faces AND edging on their front edges do not link. This pins today's behaviour so a future fix must change it
+  // on purpose, not by accident. Why: both sides store the band on the same face; the 180° turn that mirrors the pin rows
+  // moves the band to the other stored face (world edge kept), so no single stored form matches both.
+  it('mirrored sides with pins inside AND edging on the front edge do not link (fu 432, recorded limit)', () => {
+    const pins = (face: '+x' | '-x', z: number) =>
+      ({ face, diameter: 0.25, depth: 0.375, through: false, offset: v(face === '+x' ? 0.75 : 0, 10, z), toward: '+y' as const, count: 9, pitch: 1.25 });
+    const side = (name: string, x: number, inside: '+x' | '-x'): GeneratedPart =>
+      ({ ...part(name, 'side', [x, 0, 0], [0.75, 30, 12]), holes: [pins(inside, 2), pins(inside, 10)], bands: [{ edge: '-z', edging: 'veneer' }] });
+    const { doc } = designToDocument(d([side('Side L', 0, '+x'), side('Side R', 20, '-x')]));
+    expect(doc.shapes).toHaveLength(0);
+    expect(stored(doc).filter(isShaped)).toHaveLength(0);
   });
 });
 

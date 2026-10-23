@@ -5,9 +5,9 @@
 // legs' outside faces at the top of the legs; a top overhanging 1in all round. 30 x 20 x 29 overall. The four legs share
 // the role 'leg' (they are the same leg turned); every other part has none.
 const leg = (name: string, x: number, z: number, faces: string[]) => ({ name, role: 'leg', material: 'oak',
-  at: { x, y: 0, z }, size: { x: 1.75, y: 28.25, z: 1.75 }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [{ faces, toward: '-y', start: 22.5, amount: 0.5 }] });
+  at: { x, y: 0, z }, size: { x: 1.75, y: 28.25, z: 1.75 }, miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [{ faces, toward: '-y', start: 22.5, amount: 0.5 }] });
 const plain = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'oak',
-  at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, miters: [], bevels: [], chamfers: [], holes: [], tapers: [] });
+  at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [] });
 
 export const SHAKER_TABLE_JSON = { name: 'Shaker table', assemblies: [], parts: [
   leg('Leg FL', 0, 0, ['+x', '+z']), leg('Leg FR', 28.25, 0, ['-x', '+z']),

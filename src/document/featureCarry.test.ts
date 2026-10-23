@@ -53,6 +53,22 @@ describe('carryFromOriginal', () => {
     expect(c.hardware).toEqual(o.hardware); expect(c.hardware[0]).not.toBe(o.hardware[0]);
   });
 
+  it('bands are carried only for a curved part; cornerRule always, so a plain banded part still gets a carry (AI-bands spec §4.1)', () => {
+    const base = designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1]), part('Arch', [0, 6, 0], [20, 4, 1])] }).doc;
+    const banded = withFeatures(withFeatures(base, base.boards[0]!.id, { bands: FEATURES.bands, cornerRule: 'ends' }),
+      base.boards[1]!.id, { bands: FEATURES.bands, curves: [ARCH], cornerRule: 'mitre' });
+    const out = carryFromOriginal({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1]), part('Arch', [0, 6, 0], [20, 4, 1])], assemblies: [] }, banded);
+    expect(out.parts[0]!.carry!.bands).toEqual([]);
+    expect(out.parts[0]!.carry!.cornerRule).toBe('ends');
+    expect(out.parts[0]!.carry!.frame).toBeDefined();
+    expect(out.parts[1]!.carry!.bands).toEqual(FEATURES.bands);
+    expect(out.parts[1]!.carry!.cornerRule).toBe('mitre');
+    const [plainB, curvedB] = flatDocument(banded).boards;
+    expect(carriedKinds(plainB!)).toEqual([]);
+    expect(featuredKinds(plainB!)).toEqual(['bands']);
+    expect(carriedKinds(curvedB!)).toEqual(['curves', 'bands']);
+  });
+
   it("a shaped part carries its Shape's features", () => {
     const base = designToDocument({ name: 'G', parts: [part('Side', [0, 0, 0], [20, 4, 1])] }).doc;
     const plain = withFeatures(base, base.boards[0]!.id, FEATURES);
@@ -153,8 +169,17 @@ describe('featureTurned', () => {
   it('sends back a featured side returned lying flat, in the exact words', () => {
     const out = featureTurned(flat([20, 1, 4]), orig);
     expect(out).toEqual([{ kind: 'feature-turned', parts: ['Side'],
-      message: 'Side carries an edge profile, edging Sloyd keeps on the part; keep it the same way round, 1in along z.',
-      shown: 'Side was turned onto another face; its edge profile and edging are now on the wrong faces.' }]);
+      message: 'Side carries an edge profile Sloyd keeps on the part; keep it the same way round, 1in along z.',
+      shown: 'Side was turned onto another face; its edge profile is now on the wrong faces.' }]);
+  });
+  it('a bands-only part turned onto another face is not a feature-turned fault: its bands are authored, not carried (AI-bands spec §4.1)', () => {
+    const bandsOnly = flat([20, 4, 1], { bands: FEATURES.bands });
+    expect(featureTurned(flat([20, 1, 4]), bandsOnly)).toEqual([]);
+    // …but the same part with a curve is, and its words do not name the plain edging; a curved banded part names both.
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH], bands: FEATURES.bands }))[0]!.shown)
+      .toBe('Side was turned onto another face; its curve and edging are now on the wrong faces.');
+    expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { profiles: [PROFILE], bands: FEATURES.bands }))[0]!.shown)
+      .toBe('Side was turned onto another face; its edge profile is now on the wrong faces.');
   });
   it('the person-facing words agree in number: one curve or one profile is singular, a count above one plural', () => {
     expect(featureTurned(flat([20, 1, 4]), flat([20, 4, 1], { curves: [ARCH] }))[0]!.shown).toBe('Side was turned onto another face; its curve is now on the wrong faces.');

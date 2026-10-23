@@ -10,12 +10,13 @@ import type { Dir, WorldTaper } from './taperWorld';
 import { angleCutsFor, sortAngleCuts } from './angleWorld';
 import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
-import { builtInCatalog } from './materials';
+import { builtInCatalog, catalogOf } from './materials';
 import type { MaterialCatalog } from './materials';
 import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
-import { copyBand } from './bandModel';
+import { BUILT_IN_BAND, BUILT_IN_BAND_ID, copyBand } from './bandModel';
+import { bandsFor, mintBandTypes } from './bandWorld';
 import { copyHardwareUse } from './hardwareModel';
 import type { Band, BandType, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareType, HardwareUse, HoleRow, Instance, Posture, ProfileCut, Rotation } from './types';
 
@@ -38,6 +39,9 @@ export interface PartCarry {
   originalHoles: HoleRow[];
   curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
 }
+/** One edge band in world words (AI-bands spec §2.2): the side face banded and an edging key (`edgingKeys`). */
+export interface WorldBand { edge: Dir; edging: string }
+
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
 export interface GeneratedPart {
@@ -52,6 +56,9 @@ export interface GeneratedPart {
   miters?: WorldMiter[];
   bevels?: WorldBevel[];
   chamfers?: WorldChamfer[];
+  /** Required from the model (parseDesign checks it); optional here like `holes` (AI-bands spec §2.2). Ignored for a part
+   *  with carried curves (its carried bands stand). */
+  bands?: WorldBand[];
   /** Required from the model (parseDesign checks it); optional here like `tapers` (AI-holes spec §2.1). */
   holes?: WorldHoleRow[];
 }
@@ -69,10 +76,11 @@ export interface AssemblyCarry { hardware: HardwareUse[] }
 export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[]; carry?: AssemblyCarry }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
-/** `detail` is the whole message, set for `'taper'`, `'angle'` and `'hole'`. */
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole'; detail?: string }
+/** `detail` is the whole message, set for `'taper'`, `'angle'`, `'hole'` and `'band'`. */
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole' | 'band'; detail?: string }
 
-const vec3Schema = {
+/** A world point/extent: defined ONCE in `$defs.vec3` and referenced (fu 322: the compiled-grammar cap, AI-bands probe 2). */
+const vec3Def = {
   type: 'object',
   properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
   required: ['x', 'y', 'z'],
@@ -81,6 +89,7 @@ const vec3Schema = {
 
 /** A world direction: defined ONCE in `$defs` and referenced (see DESIGN_SCHEMA). */
 const dirSchema = { $ref: '#/$defs/dir' };
+const vec3Schema = { $ref: '#/$defs/vec3' };
 /** One taper in world words (AI-tapers spec §2): the faces that slope, the end that gets thinner, where it starts
  *  (from that end) and how much it removes there. Counts and duplicates are the converter's to check. */
 const taperSchema = {
@@ -120,9 +129,29 @@ const holeSchema = {
   additionalProperties: false,
 };
 
+/** One band in world words (AI-bands spec §2.2): the side face, and an edging from a closed enum (§3.1). */
+const bandSchemaFor = (edgings: readonly string[]) => ({
+  type: 'object',
+  properties: { edge: dirSchema, edging: { type: 'string', enum: [...edgings] } },
+  required: ['edge', 'edging'],
+  additionalProperties: false,
+});
+
+/**
+ * The edging choices (AI-bands spec §3.1), built per call as the material enum is: `veneer` (the built-in Iron-on),
+ * the project's other band types by id (stored order), then `solid <id>` for every solid material in the catalog.
+ */
+export function edgingKeys(catalog: MaterialCatalog, bandTypes: readonly BandType[]): string[] {
+  return [
+    'veneer',
+    ...bandTypes.filter((t) => t.id !== BUILT_IN_BAND_ID).map((t) => t.id),
+    ...catalog.ids.filter((id) => catalog.get(id)?.kind === 'solid').map((id) => `solid ${id}`),
+  ];
+}
+
 /** The part, its material enum from a catalog's ids: the built-ins (from MATERIALS, so a new built-in reaches the model
  *  with no second edit), then a project's custom materials for Refine. Key order is pinned byte for byte (fu 322). */
-const partSchemaFor = (materials: readonly string[]) => ({
+const partSchemaFor = (materials: readonly string[], edgings: readonly string[]) => ({
   type: 'object',
   properties: {
     name: { type: 'string' },
@@ -135,8 +164,9 @@ const partSchemaFor = (materials: readonly string[]) => ({
     bevels: { type: 'array', items: bevelSchema },
     chamfers: { type: 'array', items: chamferSchema },
     holes: { type: 'array', items: holeSchema },
+    bands: { type: 'array', items: bandSchemaFor(edgings) },
   },
-  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes'],
+  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes', 'bands'],
   additionalProperties: false,
 });
 
@@ -147,11 +177,11 @@ const partSchemaFor = (materials: readonly string[]) => ({
  * it compiled. A new part field or enum costs once here, not twice.
  *
  * `catalog`: Generate passes the built-ins (the schema it always had, byte for byte); Refine passes the project's
- * catalog so its custom materials are choosable (custom materials spec §6). Only the material enum differs.
+ * catalog so its custom materials are choosable (custom materials spec §6), and its band types (`edging` enum).
  */
-export function designSchema(catalog: MaterialCatalog = builtInCatalog()): Record<string, unknown> {
+export function designSchema(catalog: MaterialCatalog = builtInCatalog(), bandTypes: readonly BandType[] = [BUILT_IN_BAND]): Record<string, unknown> {
   return {
-    $defs: { dir: { type: 'string', enum: [...DIRS] }, part: partSchemaFor(catalog.ids) },
+    $defs: { dir: { type: 'string', enum: [...DIRS] }, vec3: vec3Def, part: partSchemaFor(catalog.ids, edgingKeys(catalog, bandTypes)) },
     type: 'object',
     properties: {
       name: { type: 'string' },
@@ -201,15 +231,18 @@ const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && 
 const isHole = (h: unknown): boolean => isObj(h) && isDir(h.face) && isDir(h.toward) && typeof h.through === 'boolean' &&
   isVec3(h.offset) && (['diameter', 'depth', 'count', 'pitch'] as const).every((k) => typeof h[k] === 'number');
 
-const isPart = (p: unknown, catalog: MaterialCatalog): boolean =>
+const isBand = (b: unknown, edgings: ReadonlySet<string>): boolean => isObj(b) && isDir(b.edge) && typeof b.edging === 'string' && edgings.has(b.edging);
+
+const isPart = (p: unknown, catalog: MaterialCatalog, edgings: ReadonlySet<string>): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
   catalog.get(p.material) !== undefined && isVec3(p.at) && isVec3(p.size) &&
   Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
   Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
-  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole);
+  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole) &&
+  Array.isArray(p.bands) && p.bands.every((b) => isBand(b, edgings));
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
-const isAssembly = (a: unknown, catalog: MaterialCatalog): boolean =>
-  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog)) &&
+const isAssembly = (a: unknown, catalog: MaterialCatalog, edgings: ReadonlySet<string>): boolean =>
+  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog, edgings)) &&
   Array.isArray(a.placements) && a.placements.every(isPlacement);
 
 const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
@@ -221,7 +254,8 @@ const partOf = (o: unknown): GeneratedPart => {
     bevels: (p.bevels ?? []).map((m) => ({ face: m.face, longPoint: m.longPoint, angle: m.angle })),
     chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })),
     holes: (p.holes ?? []).map((h) => ({ face: h.face, diameter: h.diameter, depth: h.depth, through: h.through, offset: vec(h.offset),
-      toward: h.toward, count: h.count, pitch: h.pitch })) };
+      toward: h.toward, count: h.count, pitch: h.pitch })),
+    bands: (p.bands ?? []).map((b) => ({ edge: b.edge, edging: b.edging })) };
 };
 
 /**
@@ -230,11 +264,13 @@ const partOf = (o: unknown): GeneratedPart => {
  * truncated stream, must not reach the converter. Numbers are only checked
  * for TYPE here; non-finite values are the converter's to reject per part.
  * A design with no parts anywhere (loose or in an assembly) is unusable.
- * A material must be in `catalog` (Refine: the project's, custom materials spec §6; otherwise the built-ins).
+ * A material must be in `catalog` (Refine: the project's, custom materials spec §6; otherwise the built-ins), and a band's
+ * `edging` one of `edgingKeys(catalog, bandTypes)`.
  */
-export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCatalog()): GeneratedDesign | null {
+export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCatalog(), bandTypes: readonly BandType[] = [BUILT_IN_BAND]): GeneratedDesign | null {
+  const edgings = new Set(edgingKeys(catalog, bandTypes));
   if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts) || !Array.isArray(json.assemblies)) return null;
-  if (!json.parts.every((p) => isPart(p, catalog)) || !json.assemblies.every((a) => isAssembly(a, catalog))) return null;
+  if (!json.parts.every((p) => isPart(p, catalog, edgings)) || !json.assemblies.every((a) => isAssembly(a, catalog, edgings))) return null;
   const total = json.parts.length + (json.assemblies as { parts: unknown[] }[]).reduce((n, a) => n + a.parts.length, 0);
   if (total === 0) return null;
   // A fresh object with ONLY the schema's fields, so nothing the model adds
@@ -319,7 +355,7 @@ const isGrain = (g: unknown): g is Grain => (DIMENSION_ORDER as readonly unknown
  * Snap, check, encode one part; null (and a rejection) when unusable. A value in
  * `exact` (Refine: the original's own numbers) is kept as it is (refine spec §4).
  */
-function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], exact?: ReadonlySet<number>, exactAngles?: ReadonlyMap<number, number>): Omit<Board, 'id'> | null {
+function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], idOf: (key: string) => string, exact?: ReadonlySet<number>, exactAngles?: ReadonlyMap<number, number>): Omit<Board, 'id'> | null {
   // Checked AFTER the snap: a finite value near Number.MAX_VALUE overflows
   // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too,
   // and anything beyond MAX_MAGNITUDE.
@@ -375,29 +411,46 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     return null;
   }
   const holes = restoreHoles({ ...board, angleCuts }, derived.rows, frame ? p.carry!.originalHoles : []);
+  // Bands (AI-bands spec §3.2): from the model's world words on the part as encoded, unless the part carries curves — then
+  // its carried bands stand and the model's are ignored (its design showed none). A SHAPE fault rejects the part; a
+  // band fault (bandFaults) does not — the band is stored and bandDesignFaults flags it. No exact-band map: the canonical
+  // bands of the same sides and types ARE the stored ones (controller ruling 2).
+  const c = p.carry;
+  let bands: Band[];
+  if (carriesCurves(p)) bands = c!.bands.map(copyBand);
+  else {
+    const made = bandsFor({ ...board, angleCuts }, p.bands ?? [], idOf);
+    if ('fault' in made) {
+      rejected.push({ name: label, reason: 'band', detail: `${label} ${made.fault}.` });
+      return null;
+    }
+    bands = made.bands;
+  }
   // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
   // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
-  const c = p.carry;
   return {
     ...fields, angleCuts,
     holes, curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
-    bands: c ? c.bands.map(copyBand) : [], cornerRule: c ? c.cornerRule : 'long', hardware: c ? c.hardware.map(copyHardwareUse) : [],
+    bands, cornerRule: c?.cornerRule ?? 'long', hardware: c ? c.hardware.map(copyHardwareUse) : [],
   };
 }
 
+/** A part whose bands are CARRIED, not authored (AI-bands spec §3.2): one with carried curves. */
+const carriesCurves = (p: GeneratedPart) => (p.carry?.curves.length ?? 0) > 0;
+
 /**
- * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1), the ONE decision:
- * the original's (`carry.frame`) for a part with curves, profiles or bands, always (a turn of one is `featureTurned`'s
- * fault); for a part whose ONLY frame features are holes, only while (1) EVERY world extent keeps its rank against the
+ * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1; AI-bands spec §4.1),
+ * the ONE decision: the original's (`carry.frame`) for a part with carried curves or profiles, always (a turn of one is
+ * `featureTurned`'s fault); for a part whose ONLY frame features are holes and/or bands (both authored in world words), only while (1) EVERY world extent keeps its rank against the
  * original's — no pair of world axes strictly ordered one way in the original and strictly the other way in the result
  * (a tie on either side may stay or swap) — and (2) the world axis carrying `thickness` is still a smallest extent of the
  * result (ties ok), or the original's thickness was not a smallest extent of the original. Otherwise the model turned it (onto another face, or about its thickness
- * axis in plan), and its holes, written in world words, convert in the frame `orient` gives (the exact-row swap skipped,
- * its stored fields meaning nothing there). Undefined: `orient`.
+ * axis in plan), and its holes and bands, written in world words, convert in the frame `orient` gives (the exact-row swap
+ * skipped, its stored fields meaning nothing there). Undefined: `orient`.
  */
 function keptFrame(carry: PartCarry | undefined, size: [number, number, number]): PartCarry['frame'] {
   const frame = carry?.frame;
-  if (!frame || carry!.curves.length > 0 || carry!.profiles.length > 0 || carry!.bands.length > 0) return frame;
+  if (!frame || carry!.curves.length > 0 || carry!.profiles.length > 0) return frame;
   const e = frame.extents;
   // (1) The rank rule (residual R1): no pair of world axes strictly inverted; ties allowed both ways.
   if ([0, 1, 2].some((i) => [0, 1, 2].some((j) => e[i]! < e[j]! && size[i]! > size[j]!))) return undefined;
@@ -439,7 +492,8 @@ function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], origin
  * horizontal centring and keeps only the floor rule; `opts.exact` lists values to keep unsnapped; `opts.exactAngles` maps a
  * degree value Refine wrote to the stored slope, AI-angles spec §6.2; `opts.materials`, Refine: the project's custom
  * materials, so the load gate keeps a part naming one instead of falling it back to pine, custom materials spec §6;
- * `opts.bandTypes` / `opts.hardwareTypes`, Refine: the project's, so carried bands and hardware survive the gate) —
+ * `opts.bandTypes` / `opts.hardwareTypes`, Refine: the project's, so carried bands and hardware survive the gate; the
+ * band types are first widened by `mintBandTypes` over every `edging` the design names, AI-bands spec §3.1) —
  * then migrateDocument, the same gate an imported file passes, which dedupes names (inv 8), checks ids (inv 33) and
  * prunes a custom material no part uses.
  *
@@ -450,6 +504,12 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
+  // Every edging key the design names, minted once design-wide BEFORE any part converts (AI-bands spec §3.1, builder check
+  // B4), against the catalog parseDesign judged the keys by (controller ruling 1). A part with carried curves is skipped:
+  // its bands are ignored, and an edging it names must not leave an orphan type in the project's list.
+  const keys = [...design.parts, ...(design.assemblies ?? []).flatMap((a) => a.parts)]
+    .filter((p) => !carriesCurves(p)).flatMap((p) => (p.bands ?? []).map((b) => b.edging));
+  const minted = mintBandTypes(keys, opts.bandTypes ?? [BUILT_IN_BAND], catalogOf({ materials: opts.materials ?? [] }));
   const roles = new Map<string, string>();
   const mint = (p: GeneratedPart, board: Omit<Board, 'id'>): Board => {
     const b: Board = { id: nextId(), ...board };
@@ -459,7 +519,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   };
 
   const loose: Board[] = design.parts.flatMap((p) => {
-    const b = convertPart(p, clean(p.name), rejected, opts.exact, opts.exactAngles);
+    const b = convertPart(p, clean(p.name), rejected, minted.idOf, opts.exact, opts.exactAngles);
     return b ? [mint(p, b)] : [];
   });
 
@@ -473,7 +533,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     const label = uniqueName(clean(a.name).trim() || 'Assembly', taken);
     taken.push({ id: label, name: label });
     const parts = a.parts.flatMap((p) => {
-      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected, opts.exact, opts.exactAngles);
+      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected, minted.idOf, opts.exact, opts.exactAngles);
       return b ? [mint(p, b)] : [];
     });
     const origins = a.placements.flatMap((pl) => {
@@ -514,10 +574,11 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
 
   const name = design.name.trim() || 'Generated design';
   // Band and hardware types go in BEFORE the load gate, which drops a band or hardware use naming an unknown type
-  // (spec §3.3); absent (Generate), createDocument's defaults stand.
+  // (spec §3.3). Band types: always the minted list (the project's, or the built-in, plus any minted); hardware types,
+  // absent (Generate), createDocument's default stands.
   const doc = linkByRole(migrateDocument({
     ...createDocument(name), boards: loose, instances, definitions, materials: [...(opts.materials ?? [])],
-    ...(opts.bandTypes ? { bandTypes: opts.bandTypes.map((t) => ({ ...t })) } : {}),
+    bandTypes: minted.types.map((t) => ({ ...t })),
     ...(opts.hardwareTypes ? { hardwareTypes: opts.hardwareTypes.map((t) => ({ ...t })) } : {}),
   }), roles);
   return { doc, rejected, authored: authoredIndex(doc, labelOf) };

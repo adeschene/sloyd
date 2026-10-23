@@ -7,6 +7,7 @@ import type { GeneratedDesign } from '../document/generated';
 import { collapseViolations, distinctParts, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
 import { holeDesignFaults } from '../document/holeDesignFaults';
+import { bandDesignFaults } from '../document/bandDesignFaults';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
 import type { LlmClient, LlmMessage, LlmResult, LlmUsage } from '../llm/types';
@@ -141,9 +142,10 @@ export async function runRepairLoop<T extends { doc: SloydDocument; violations: 
   return { ...best, usage };
 }
 
-/** A problem's identity across attempts (fu 186): its kind and parts — and, for a hole fault, its message (face and
- *  fault), so an original row's fault never hides a NEW faulted row on the same part (AI-holes spec §3.1). */
-export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort(), v.kind === 'hole-fault' ? v.message : null]);
+/** A problem's identity across attempts (fu 186): its kind and parts — and, for a hole or band fault, its message (face
+ *  or edge, and fault), so an original's fault never hides a NEW one on the same part (AI-holes spec §3.1; AI-bands spec
+ *  §4.1). */
+export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort(), v.kind === 'hole-fault' || v.kind === 'band-fault' ? v.message : null]);
 
 /** What one usable attempt is worth: the tree kept, its NEW problems, and (Refine) the old ones. */
 export interface DesignValue { doc: SloydDocument; violations: Violation[]; present: Violation[] }
@@ -162,7 +164,8 @@ interface EvaluateOpts {
    *  gate keeps it instead of falling it back to pine (custom materials spec §6). Generate: none, built-ins only. */
   materials?: readonly CustomMaterial[];
   /** Refine: the project's band and hardware types, so the converter's load gate keeps carried bands and hardware
-   *  (refine-features spec §3.3). Generate: none, createDocument's defaults. */
+   *  (refine-features spec §3.3), and the `edging` keys a part may name (AI-bands spec §3.1; the converter mints from
+   *  them). Generate: none, createDocument's defaults. */
   bandTypes?: readonly BandType[];
   hardwareTypes?: readonly HardwareType[];
   /** Refine: the project's units, for the faults' displayed copy (fu 355) — the conversion itself is imperial. Generate:
@@ -175,13 +178,13 @@ interface EvaluateOpts {
 /**
  * THE design evaluation, shared by Generate and Refine so they cannot drift
  * (refine spec §3.1): parse → tree → flatten → zero-board guard → distinct cap
- * → checkDesign + the angle-joint fault + the hole faults → collapse. With `preexisting`, a raw violation whose
+ * → checkDesign + the angle-joint fault + the hole and band faults → collapse. With `preexisting`, a raw violation whose
  * problemKey the original already had (and which names parts) is set aside as `present` and neither
  * counts toward "fewest" nor goes back as feedback.
  */
 function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {}): { value: DesignValue | null; feedback: string } {
   const catalog = opts.materials ? catalogOf({ materials: opts.materials }) : builtInCatalog();
-  const parsed = res.json === null ? null : parseDesign(res.json, catalog);
+  const parsed = res.json === null ? null : parseDesign(res.json, catalog, opts.bandTypes);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
   const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials, bandTypes: opts.bandTypes, hardwareTypes: opts.hardwareTypes });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
@@ -192,7 +195,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
   const display = opts.units ?? flat.units;
-  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display), ...holeDesignFaults(flat, display), ...(opts.extraFaults?.(flat) ?? [])];
+  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display), ...holeDesignFaults(flat, display), ...bandDesignFaults(flat, display), ...(opts.extraFaults?.(flat) ?? [])];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -261,21 +264,23 @@ export async function runRefine(
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return { refused: from.refused };
   // The original's own taper conflicts are preexisting too (spec 5.3, amended): a taper the person drew is not
-  // pushed back at the model as new; nor are its own faulted hole rows (AI-holes spec §4).
+  // pushed back at the model as new; nor are its own faulted hole rows (AI-holes spec §4) or bands (AI-bands spec §4.1).
   const plainFlat0 = flatDocument(base.plain);
-  const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...jointFaults(plainFlat0), ...holeDesignFaults(plainFlat0, plainFlat0.units)].map(problemKey));
+  const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...jointFaults(plainFlat0), ...holeDesignFaults(plainFlat0, plainFlat0.units),
+    ...bandDesignFaults(plainFlat0, plainFlat0.units)].map(problemKey));
   // The project's custom materials are choosable and named (custom materials spec §6); Generate's schema is untouched.
   const catalog = catalogOf(doc);
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
-    schema: designSchema(catalog),
+    schema: designSchema(catalog, doc.bandTypes),
     first: refineMessage(from.design, settings, catalog, base.plain),
     evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units, extraFaults: (f) => featureTurned(f, plainFlat0) }),
   }, signal, onProgress);
-  // Document-level facts the model never sees travel with the result (band types, hardware types and the project's own
-  // hardware too: nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result
-  // no longer uses go.
-  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+  // Document-level facts the model never sees travel with the result (hardware types and the project's own hardware too:
+  // nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result no longer uses
+  // go. Band types are the RESULT's: the project's plus any the converter minted (AI-bands spec §3.1) — the original's
+  // would drop a minted type, and joinery's load gate below would then drop every band naming it.
+  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: out.doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
   // Plain to plain: joinery grows tenon parts, which would list every joined part as resized.
   const carried = carriedSummary(base.plain, refined);
   let violations = out.violations;
@@ -316,7 +321,8 @@ export async function runRefine(
     } else if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [] };
     } else {
-      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
+      // The joined result's own band types (the refined design's, through joinery), never the original's (AI-bands spec §3.1).
+      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: jo.result.doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
       violations = [...violations, ...jo.violations];
       const shown = new Set(present.map(problemKey));
       present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
@@ -343,7 +349,7 @@ export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, setting
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return null;
   const refine = costRange(client, {
-    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc))).length,
+    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc), doc.bandTypes)).length,
     messageChars: refineMessage(from.design, settings, catalogOf(doc), base.plain).length,
     outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
   }, 1 + MAX_REPAIRS);

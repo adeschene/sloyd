@@ -267,3 +267,30 @@ default; (4) bands first, shipped alone, then profiles.
 **My calls from the builder check, for your eye:** profiles and bands on a CURVED part stay carried (§1); two-side runs
 stay carried (§4.2); a station is measured from its nearer end, and untouched profiles are matched in world form (§3.2,
 §3.4); band types are minted in one design-wide pass threaded through every path (§3.1).
+
+## Amended (execution)
+
+Rulings made while building chunk 1 (bands), on branch `ai-bands` (2026-10-23). Where one differs from the text above, this block wins.
+
+- **Ruling 1 — the minting catalog (§3.1).** `designToDocument` mints against `catalogOf({ materials: opts.materials ?? [] })` (built-ins plus the
+  project's customs), the same catalog `parseDesign` judged the keys by. Cost if wrong: a custom solid's minted type takes a wrong name.
+- **Ruling 2 — no exact-band map (§3.4).** Bands carry no numbers: the canonical bands of the same sides and types ARE the stored ones. Cost:
+  nothing unless band order mattered elsewhere (it is canonical already).
+- **Ruling 3 — the grammar fallback (§2.3; fu 322).** Probe 1 (`vec3` inline, 3,267 chars, 8 edging keys) was refused
+  (`req_011CgJpd3fNoqKzSmffAtj5M`); fallback (a) moved `vec3` into `$defs` and referenced it, no change of meaning, and compiled at 2,911 chars
+  (`req_011CgJpkiPjQyZQA8DGccLtW`). Fallback (b) (a plain-string `edging` checked at conversion) was not needed. Cost: none semantically;
+  headroom is thin, and profiles (chunk 2) will not fit without a much smaller form — revisit §2.3 before planning it.
+- **Ruling 4 — `idOf` throws on an unknown key (§3.2).** Callers pass keys from the same design and the enum stops unknowns at parse. Cost if
+  wrong: a crash instead of a fault on an unparsed path.
+- **Ruling 5 — minting skips curved parts (§3.2).** A curved part's model bands are ignored, so its edging keys mint nothing (no orphan type,
+  the "band type flood" anti-goal). Cost if wrong: none visible.
+- **Ruling 6 — `collapseViolations` keys `'band-fault'` by message**, as `'hole-fault'`, so two faulted edges of one assembly part do not
+  merge. Cost: one extra file in the diff (`assemblyChecks.ts`).
+- **Ruling 7 — the band-fault `shown` copy** follows the holes pattern (the same phrase, bench edge words via `edgeName`); no verbatim text was
+  given. Cost: wording the user may adjust.
+- **Ruling 8 — change-list type names read from the AFTER document only (§4.1).** A removal names no type, so only the new name is ever
+  printed. Cost: none unless a removal line should name its type.
+- **Final review I1 — no band faults fed back for curved parts.** `bandDesignFaults` skips a part with curves: its bands are carried and the
+  model sees `bands: []`, so their faults go only to `carriedSummary`'s check line (`faultKeys` counts band faults only on a curved part),
+  never to the repair loop. Without it a resize of an arched, edged apron spent unfixable paid repair rounds and could keep an attempt
+  that ignored the instruction. Cost: none (one skip, pinned by a mutated test).

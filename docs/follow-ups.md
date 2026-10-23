@@ -5902,6 +5902,7 @@ for at least two more angle-like arrays. A new part field or enum costs once (in
 `DESIGN_SCHEMA` needs one live compile before it ships — the unit suite cannot see this limit (a test pins the `$defs`
 form only). **Status:** record-only.
 **Status:** AI-holes compiled (2026-10-23, `ai-holes`): the `holes` array added one 8-field item (`face`, `diameter`, `depth`, `through`, `offset` (a vec3 from the part's `at`), `toward`, `count`, `pitch`) with no new `$def`. The Refine form with the catalog is 2,952 chars (Generate's built-in form 2,918, against 2,372 before holes). It compiled on the FIRST probe, no fallback (HTTP 200, request `req_011CgJGkuYyCJ51nxdbdHDTn`, `max_tokens` 16). The probe exercised the grammar only, not the model's hole output.
+**Status:** AI-bands (2026-10-23, branch `ai-bands`, chunk 1 of fu 430): the `bands` array adds one 2-field item (`edge`, a direction; `edging`, a closed enum: `veneer`, the project's band type ids, `solid <id>` per solid material). Probe 1, with `vec3` still inline (Refine form, a custom solid, a sheet and a custom band type), was REFUSED as too large (request `req_011CgJpd3fNoqKzSmffAtj5M`, 3,267 chars, 8 edging keys). Probe 2, the same with `vec3` moved into `$defs` and referenced (fallback (a), no change of meaning), COMPILED (request `req_011CgJpkiPjQyZQA8DGccLtW`, 2,911 chars); Generate's built-in form is that minus the custom enum entries, strictly smaller. Headroom is thin: every custom SOLID material now appears in two enums (`material` and `solid <id>`) and every band type adds one; a large real project's Refine schema (final review I2) is to be probed before the round deploys (the controller records it here). Note for chunk 2: edge profiles will not fit without a much smaller form — revisit the spec's §2.3 before planning it.
 
 **323. AI angles chunk 2 minors (record-only; final review M2–M6).** (M2) The `angle-joint` design fault's advice is generic
 ("move it off that end or face, or remove it") — the spec wanted the tenon-clearance rule's numbers carried back; it
@@ -6984,7 +6985,7 @@ parts still take the old name-based carry. To record and measure, not fixed (ref
 original thickness axis is still the thinnest. A part whose length and width swap world axes with thickness unchanged reads as a resize:
 its features stay at their stored stations and the "Check at the new size" line names the part (refine-features spec §4, recorded not
 built). **Status:** open (record-only).
-**Status:** open (record-only), now for parts with curves, profiles or bands only: a holes-only part turned in plan is re-oriented (AI-holes
+**Status:** open (record-only), now for parts with curves or profiles only (since AI bands, a bands-only part follows the rank rule too): a holes-only part turned in plan is re-oriented (AI-holes
 residual R1, `keptFrame`'s rank rule, 2026-10-23).
 
 **426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
@@ -7052,6 +7053,7 @@ and the model growing the tied axis. Candidate fix: the thickness axis must stay
 Claude authors holes; curves are fu 363's open authoring piece; profiles and bands are carried by Refine (inv 56) but cannot be added,
 changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
 compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).
+**Status:** spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's answers 2026-10-23). Chunk 1 (bands) DONE on branch `ai-bands` (2026-10-23; `bandWorld.ts`, `bandDesignFaults.ts`, inv 54/56 rewritten): Generate and Refine author edge bands in world words, except on a curved part (carried). Not yet merged or deployed (the controller updates this on merge). Chunk 2 (profiles) open; see fu 322's note on its grammar budget.
 
 ## From the shop-words round — 2026-10-23
 
@@ -7070,3 +7072,13 @@ left and right sides with shelf pins on their inside faces AND edging (or a prof
 turn maps one onto the other, so they stay two distinct parts, count twice against Generate's part cap, and an edit to one does
 not follow to the other. Candidate: a reflection candidate in linking, storing the second side as a mirrored use of the Shape
 (schema 13's mirror machinery). **Status:** open (feature; the user chose "two parts for now", 2026-10-23).
+
+## From the AI bands round (chunk 1) — 2026-10-23
+
+**433. A band type id equal to `veneer` or starting `solid ` collides with the edging keys (2026-10-23, final review M1).**
+`bandWorld.ts` reads an `edging` of `veneer` as the built-in type and one starting `solid ` as a solid-material key (`mintBandTypes`;
+`worldBands` writes the built-in as `veneer`). A custom band type whose id is literally `veneer`, or starts with `solid `, therefore
+has its band remapped on a Refine echo — to the built-in, or to a reused or minted solid type: an untouched band comes back
+different. Reachable only from a hand-edited file (ids are minted by `ids.ts`; `takeId` keeps an imported file's opaque ids).
+Candidate remedies (each a hypothesis): re-mint such ids on load, or have `edgingKeys` skip such a type and carry its bands.
+**Status:** open (record-only; ask first).

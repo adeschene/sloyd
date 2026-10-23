@@ -15,6 +15,8 @@ import { chiralCurved, chiralHoled, sameSet } from './turnFixtures';
 import { chiralTwoSide } from './sweepFixtures';
 import { sortHoleRows, worldHoles as designHoles } from './holeWorld';
 import { holeDesignFaults } from './holeDesignFaults';
+import { worldBands as designBands } from './bandWorld';
+import { localToDir } from './taperWorld';
 import type { Band, BandType, Board, Definition, HoleRow, Posture, Rotation, SloydDocument } from './types';
 
 const POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
@@ -563,5 +565,79 @@ describe('a holes-only part the model turned (final review C1) and the stored ro
     const original = project([holed]);
     const r = byName(refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, holes: p.holes!.map((h, i) => (i === 0 ? { ...h, diameter: 0.3125 } : h)) })) })).doc).get('Side')!;
     expect(r.holes).toEqual(sortHoleRows(r.holes));
+  });
+});
+
+// --- bands authored by the model (AI-bands spec §3, §4; fu 430 chunk 1) ---
+describe('bands through Refine conversion (AI-bands spec §3)', () => {
+  const MAPLE: BandType = { id: 'e-maple', name: 'Maple edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'maple', widthAllowance: 0.0625 };
+  const shelf = () => createBoard({ name: 'Shelf', ...orient([30, 0.75, 12]), cornerRule: 'ends', bands: [
+    { side: { across: 'width', from: 'max' }, type: 'e-maple' }, { side: { across: 'length', from: 'min' }, type: BUILT_IN_BAND.id },
+  ] });
+  const pick = (b: Board) => [b.posture, b.rotation, b.length, b.width, b.thickness];
+
+  it('Review Focus 1: an echo of a project with a custom 1/4in Maple solid type mints nothing; types and bands identical', () => {
+    const original = project([shelf()], { bandTypes: [BUILT_IN_BAND, MAPLE] });
+    const o = byName(original).get('Shelf')!;
+    expect(o.bands).toHaveLength(2);
+    const r0 = documentToDesign(original, MAX);
+    if ('refused' in r0) throw new Error(r0.refused.message);
+    expect(r0.design.parts[0]!.bands).toEqual(designBands(o));
+    const out = refineThrough(original);
+    expect(out.rejected).toEqual([]);
+    expect(out.doc.bandTypes).toEqual(original.bandTypes);
+    const r = byName(out.doc).get('Shelf')!;
+    expect(r.bands).toEqual(o.bands);
+    expect(r.cornerRule).toBe('ends');
+  });
+
+  it('…and the model naming it "solid maple" reuses the Maple type (1/4in): nothing minted, the band the same', () => {
+    const original = project([shelf()], { bandTypes: [BUILT_IN_BAND, MAPLE] });
+    const o = byName(original).get('Shelf')!;
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p,
+      bands: (p.bands ?? []).map((x) => (x.edging === 'e-maple' ? { ...x, edging: 'solid maple' } : x)) })) }));
+    expect(out.doc.bandTypes).toEqual(original.bandTypes);
+    expect(byName(out.doc).get('Shelf')!.bands).toEqual(o.bands);
+  });
+
+  it('a part without curves takes the MODEL\'s bands (a removed band is gone); a curved part keeps its carried bands and the model\'s are ignored', () => {
+    const plain = { ...shelf(), bands: [END_BAND], cornerRule: 'long' as const };
+    const curved = { ...chiralCurved('flat'), name: 'Curved', cuts: [], bands: [END_BAND], position: [0, 0, 40] as [number, number, number] };
+    const original = project([plain, curved]);
+    const c = byName(original).get('Curved')!;
+    const r0 = documentToDesign(original, MAX);
+    if ('refused' in r0) throw new Error(r0.refused.message);
+    expect(r0.design.parts.find((p) => p.name === 'Curved')!.bands).toEqual([]);
+    const edge = localToDir(c, 'width', 'max');
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, bands: p.name === 'Curved' ? [{ edge, edging: 'solid oak' }] : [] })) }));
+    expect(out.rejected).toEqual([]);
+    expect(byName(out.doc).get('Shelf')!.bands).toEqual([]);
+    expect(byName(out.doc).get('Curved')!.bands).toEqual(c.bands);
+    // An ignored edging mints nothing: no orphan type in the project's list.
+    expect(out.doc.bandTypes).toEqual([BUILT_IN_BAND]);
+  });
+
+  it('a bands-only shelf the model turned in plan is encoded like its plain twin, its bands from the model\'s world words', () => {
+    const banded = createBoard({ name: 'Shelf', ...orient([30, 0.75, 12]), bands: [{ side: { across: 'width', from: 'max' }, type: BUILT_IN_BAND.id }] });
+    const twin = createBoard({ name: 'Twin', ...orient([30, 0.75, 12]), position: [0, 0, 40] });
+    const original = project([banded, twin]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: 12, y: 0.75, z: 30 },
+      bands: p.name === 'Shelf' ? [{ edge: '+x' as const, edging: 'veneer' }] : [] })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Shelf')!;
+    const t = byName(out.doc).get('Twin')!;
+    expect(pick(t)).toEqual(['flat', 90, 30, 12, 0.75]);
+    expect(pick(r)).toEqual(pick(t));
+    expect(designBands(r)).toEqual([{ edge: '+x', edging: 'veneer' }]);
+  });
+
+  it('a curved banded part the model turned in plan keeps its frame and its bands', () => {
+    const curved = { ...chiralCurved('flat'), name: 'Side', cuts: [], bands: [END_BAND] };
+    const original = project([curved]);
+    const o = byName(original).get('Side')!;
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { x: p.size.z, y: p.size.y, z: p.size.x } })) }));
+    const r = byName(out.doc).get('Side')!;
+    expect([r.posture, r.rotation]).toEqual([o.posture, o.rotation]);
+    expect(r.bands).toEqual(o.bands);
   });
 });

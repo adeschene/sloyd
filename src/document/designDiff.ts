@@ -7,7 +7,9 @@ import type { Dir, WorldTaper } from './taperWorld';
 import { noAngles, worldAngles } from './angleWorld';
 import type { WorldAngles } from './angleWorld';
 import { worldHoles } from './holeWorld';
-import type { WorldHoleRow } from './generated';
+import type { WorldBand, WorldHoleRow } from './generated';
+import { worldBands } from './bandWorld';
+import { BUILT_IN_BAND } from './bandModel';
 import { definitionCorner } from './refineDesign';
 import { centreOf, endWord, faceWord, facesText } from './shopWords';
 import type { Box } from './shopWords';
@@ -20,7 +22,7 @@ import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
  * shop words (`shopWords.ts`; shop-words spec): cuts and rows are MATCHED on raw
  * directions, never on the words, since two faces can both read "inside".
  */
-export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'linked' | 'unlinked';
+export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'holes' | 'bands' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
@@ -122,6 +124,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     for (const t of lines) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
     for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len, wa, wb)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
     for (const t of holeLines(worldHoles(o.b), worldHoles(e.b), len, wa, wb)) push('holes', 'part', n, `${n}: ${t}`, key('holes', `: ${t}`));
+    for (const t of bandLines(worldBands(o.b), worldBands(e.b), typeName(after))) push('bands', 'part', n, `${n}: ${t}`, key('bands', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -132,6 +135,30 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     push('removed', 'part', n, `Removed ${n}`, keyOf(n, e)('removed', ''));
   }
   return out.map((c) => (c.copies > 1 ? { ...c, text: `${c.text} (×${c.copies})` } : c));
+}
+
+/** A band type's name from a document's `bandTypes`; the built-in key `veneer` is the built-in type; an unknown id reads as itself. */
+const typeName = (doc: SloydDocument) => (key: string): string =>
+  (key === 'veneer' ? BUILT_IN_BAND : doc.bandTypes.find((t) => t.id === key))?.name ?? key;
+
+/**
+ * One part's edging lines (AI-bands spec §4.1), on design forms (`worldBands`). A band is matched by its edge on raw
+ * directions, never on the words: added (`edging added on the front edge (Oak edging)`), removed, or changed (the type
+ * differs, by id: `edging on the front edge now Iron-on veneer`). Edges read in absolute words (`endWord`), in DIRS order.
+ * Type names come from the AFTER document's `bandTypes` (Refine may mint a type; a removal names none).
+ */
+function bandLines(before: readonly WorldBand[], after: readonly WorldBand[], name: (k: string) => string): string[] {
+  const was = new Map(before.map((x) => [x.edge, x.edging] as const));
+  const now = new Map(after.map((x) => [x.edge, x.edging] as const));
+  const out: string[] = [];
+  for (const d of DIRS) {
+    const a = was.get(d);
+    const b = now.get(d);
+    if (b !== undefined && a === undefined) out.push(`edging added on the ${endWord(d)} edge (${name(b)})`);
+    else if (b !== undefined && a !== b) out.push(`edging on the ${endWord(d)} edge now ${name(b)}`);
+    else if (b === undefined && a !== undefined) out.push(`edging on the ${endWord(d)} edge removed`);
+  }
+  return out;
 }
 
 /**
