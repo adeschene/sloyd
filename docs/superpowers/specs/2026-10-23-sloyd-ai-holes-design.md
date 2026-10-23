@@ -1,6 +1,6 @@
 # Sloyd: Generate and Refine author hole rows
 
-**Date:** 2026-10-23 · **Status:** draft, builder-checked 2026-10-23 (its five findings folded in), awaiting the user's approval and §11's rulings.
+**Date:** 2026-10-23 · **Status:** approved 2026-10-23 (builder-checked; the user took my calls on all three §11 questions).
 **Builds on:** the holes spec (`2026-10-14-sloyd-holes-design.md`: the stored `HoleRow`, `holeFaults`), the AI-angles spec
 (`2026-10-13-sloyd-ai-angles-design.md`: the pattern this follows, world words in the design schema, one converter
 module, exact round trips for Refine), and the refine-features spec (`2026-10-22-sloyd-refine-features-design.md`: Refine
@@ -229,7 +229,11 @@ which already accept holes.
 One chunk **(my call)**. The compile probe is its first task and gates the rest. If no form compiles, the round stops and
 comes back to the user before anything else is built.
 
-## 11. For the user to rule on
+## 11. The user's rulings (2026-10-23)
+
+"Go with your calls on all three": (1) the model's hole positions win on a resize, and the row is re-encoded from the
+nearer side; (2) a strict fault keeps the row, flags it and feeds it back; (3) imperial defaults, with 32 mm written as 1.26
+and stored exactly. The questions as asked:
 
 1. **Resized parts (§3.3):** the model now SEES the holes and writes them. When it resizes a part, its hole positions win.
    The row is re-encoded from the nearer side, rather than kept "measured from the end it names" (your ruling for carried
