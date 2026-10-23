@@ -170,6 +170,8 @@ interface ShownProfile extends WorldProfile {
   run: 'all round' | 'full length' | 'stopped';
   /** The STORED ends (each end's side and `at`/`through`), so an unchanged stop on a resized part reads unchanged (Ruling 14). */
   stored: string;
+  /** The part's extent along the run axis: a resize moves where a stored end sits even when the world span is kept. */
+  extent: number;
 }
 
 /** A stored run's ends as one string: a loop has none. */
@@ -191,7 +193,7 @@ function shownProfiles(b: Board): ShownProfile[] {
     const stored = at >= 0 ? pool.splice(at, 1)[0]!.stored : '';
     // The run's axis is the one neither the broad face nor the side is on.
     const along = [0, 1, 2].find((k) => 'xyz'[k] !== w.edge[0]![1] && 'xyz'[k] !== w.edge[1]![1])!;
-    return { ...w, run: w.allRound ? 'all round' : w.start === 0 && w.end === extents[along]! ? 'full length' : 'stopped', stored };
+    return { ...w, run: w.allRound ? 'all round' : w.start === 0 && w.end === extents[along]! ? 'full length' : 'stopped', stored, extent: extents[along]! };
   });
 }
 
@@ -234,7 +236,7 @@ function profileLines(before: readonly ShownProfile[], after: readonly ShownProf
     // A run that stays stopped is judged by its STORED ends (Ruling 14): a resize alone shifts the world offsets of an
     // unchanged stop. A changed stop reads its world span; any other change of run keeps its plain words.
     if (a.run === 'stopped' && b.run === 'stopped') {
-      if (a.stored !== b.stored && (Math.abs(a.start - b.start) > 1e-9 || Math.abs(a.end - b.end) > 1e-9)) now.push(`stopped from ${len(a.start)} to ${len(a.end)}`);
+      if (a.stored !== b.stored && (Math.abs(a.start - b.start) > 1e-9 || Math.abs(a.end - b.end) > 1e-9 || Math.abs(a.extent - b.extent) > 1e-9)) now.push(`stopped from ${len(a.start)} to ${len(a.end)}`);
     } else if (a.run !== b.run) now.push(a.run);
     if (now.length === 0) continue;
     // Name the profile where it is on the AFTER side; a loop has no edge, so a run on either side names its edge, and

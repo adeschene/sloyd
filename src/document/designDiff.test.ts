@@ -463,6 +463,22 @@ describe('diffDesigns — edge profiles (AI-profiles spec §4.1)', () => {
     expect(lines(mk([W({ start: 2, end: 10 })]), mk([W({ size: 0.375, start: 4, end: 12 })])))
       .toEqual(['Top: roundover on the top/front edge now 3/8", stopped from 4" to 12"']);
   });
+  it('a stop kept at the same world place on a resized part has moved relative to its end (final re-review)', () => {
+    const stopMax = (len: number, at: number, size: number) => {
+      const b = createBoard({ name: 'Top', length: len, width: 4, thickness: 1 });
+      const side = { across: 'width' as const, from: 'max' as const };
+      return { ...b, profiles: [{ id: 'p0', face: 'max' as const, kind: 'roundover' as const, size, fillet: 0, facing: 'face' as const,
+        run: { start: { side, from: 'max' as const, at }, end: { side, from: 'max' as const, at: at + 15 } } }] } as Board;
+    };
+    const texts = (a: Board, b: Board) => lines(a, b);
+    // 20 -> 26 with the span 2-17 kept: stored 3 -> 9 from the max end, so the stop moved relative to its end
+    expect(texts(stopMax(20, 3, 0.25), stopMax(26, 9, 0.375)))
+      .toEqual(['Top: roundover on the top/front edge now 3/8", stopped from 2" to 17"']);
+    // unresized, the same place re-stored from the other end: silent
+    const fromMin = { ...stopMax(20, 3, 0.25), profiles: [{ ...stopMax(20, 3, 0.25).profiles[0]!,
+      run: { start: { side: { across: 'width' as const, from: 'max' as const }, from: 'min' as const, at: 2 }, end: { side: { across: 'width' as const, from: 'max' as const }, from: 'min' as const, at: 17 } } }] } as Board;
+    expect(texts(stopMax(20, 3, 0.25), fromMin)).toEqual([]);
+  });
   it('matches by edge: an untouched profile beside a changed one gets no line', () => {
     expect(lines(mk([W(), W({ edge: ['+y', '-z'] })]), mk([W(), W({ edge: ['+y', '-z'], size: 0.5 })]))).toEqual(['Top: roundover on the top/back edge now 1/2"']);
   });

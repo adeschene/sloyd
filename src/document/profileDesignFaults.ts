@@ -3,8 +3,8 @@ import type { Units } from '../units/length';
 import type { Violation } from './designCheck';
 import { curveFaults } from './curves';
 import { faceName } from './angleText';
-import { profileName } from './curveText';
-import { PROFILE_KIND_LABEL, PROFILE_KIND_WORD, oneSide, profileAsCurve, profileFaults } from './profiles';
+import { formatLength } from '../units/length';
+import { PROFILE_KIND_WORD, oneSide, profileAsCurve, profileFaults } from './profiles';
 import { worldProfiles } from './profileWorld';
 import { boardExtents } from './geometry';
 import { isSwept } from './profilePath';
@@ -54,15 +54,18 @@ export function profileDesignFaults(flat: FlatDocument, display: Units): Violati
       const bench = side
         ? `the edge between ${faceName('thickness', p.face)} and ${faceName(side.across, side.from)}`
         : `all round ${faceName('thickness', p.face)}`;
-      // The kind in the bench's words (Roman ogee keeps its capital R, Ruling 12), the rest of the name as profileName has it.
-      const full = profileName(p, display);
-      const name = `${PROFILE_KIND_WORD[p.kind]}${full.slice(PROFILE_KIND_LABEL[p.kind].length)}`;
+      // The kind in the bench's words (Roman ogee keeps its capital R, Ruling 12) and the size in the display's units.
+      const f = (n: number) => formatLength(n, display);
+      const word = PROFILE_KIND_WORD[p.kind];
+      const name = p.kind === 'bead' ? `${word} ${f(p.size)} with a ${f(p.fillet ?? 0)} quirk`
+        : p.kind === 'thumbnail' ? `${word} ${f(p.size)} × ${f(p.depth ?? 0)}` : `${word} ${f(p.size)}`;
       // A stopped run's span rides in the model-facing message (the holes precedent: with the edge, the profile's identity),
       // so two faulted runs on one edge read, key and dedupe apart. A full-length run and a loop add nothing.
       const w = worldProfiles({ ...b, profiles: [p] })![0]!;
       const extents = boardExtents(b);
       const along = side ? [0, 1, 2].find((k) => 'xyz'[k] !== w.edge[0]![1] && 'xyz'[k] !== w.edge[1]![1])! : -1;
       const span = side && !(w.start === 0 && w.end === extents[along]!) ? ` from ${+w.start.toFixed(3)}in to ${+w.end.toFixed(3)}in` : '';
+      const shownSpan = span ? ` from ${f(w.start)} to ${f(w.end)}` : '';
       const on = side ? 'on ' : '';
       for (const kind of profileFaultKinds(b, p) as Kind[]) {
         const message = `${b.name}'s ${p.kind} on ${edge}${span} ${PHRASE[kind]}.`;
@@ -70,7 +73,7 @@ export function profileDesignFaults(flat: FlatDocument, display: Units): Violati
         seen.add(message);
         out.push({
           kind: 'profile-fault', parts: [b.name], message,
-          shown: `${b.name}'s ${name} ${on}${bench} ${PHRASE[kind]}.`,
+          shown: `${b.name}'s ${name} ${on}${bench}${shownSpan} ${PHRASE[kind]}.`,
         });
       }
     }

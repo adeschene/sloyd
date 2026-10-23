@@ -92,13 +92,12 @@ describe('profileDesignFaults (AI-profiles spec R6.1)', () => {
     const f1 = flatDocument(project([top([ogee])]));
     const v1 = profileDesignFaults(f1, f1.units);
     expect(v1.length).toBeGreaterThan(0);
-    expect(v1[0]!.shown?.startsWith("Top's Roman ogee 1\" on the edge between")).toBe(true);
+    expect(v1[0]!.shown).toBe('Top\'s Roman ogee 1" on the edge between the thickness face (max side) and the width face (max side) is bigger than the edge.');
     const loop = roundover(1, 'p2', { run: { loop: true } });
     const f2 = flatDocument(project([top([loop])]));
     const v2 = profileDesignFaults(f2, f2.units);
     expect(v2.length).toBeGreaterThan(0);
-    expect(v2[0]!.shown).toMatch(/^Top's roundover 1" all round the thickness face \(max side\) /);
-    expect(v2[0]!.shown).not.toMatch(/on all round/);
+    expect(v2[0]!.shown).toBe('Top\'s roundover 1" all round the thickness face (max side) is bigger than the edge.');
   });
 
   it('a new faulted run at another span on an edge the original already faulted on is a distinct fault (final review)', () => {
@@ -112,5 +111,9 @@ describe('profileDesignFaults (AI-profiles spec R6.1)', () => {
       "Top's roundover on +y/+z from 14in to 20in is bigger than the edge.",
     ]);
     expect(new Set(v.map((x) => problemKey(x))).size).toBe(2);
+    expect(v.map((x) => x.shown)).toEqual([
+      "Top's roundover 1\" on the edge between the thickness face (max side) and the width face (max side) from 2\" to 10\" is bigger than the edge.",
+      "Top's roundover 1\" on the edge between the thickness face (max side) and the width face (max side) from 14\" to 20\" is bigger than the edge.",
+    ]);
   });
 });
