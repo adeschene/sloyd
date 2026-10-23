@@ -450,6 +450,7 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
   draws nothing).
 
 Since the bulk approval: the AI profiles and bands spec's *Amended (execution) — Chunk 2 (execution)* (Rulings 1–16 and the final
-review's fixes; chiefly Ruling 10/16 narrowing §3.4, and R6.3 dropping §4.2's done-view line).
+review's fixes; chiefly R6.3 dropping §4.2's done-view line). Rulings 10/16 (narrowing §3.4) were APPROVED by the user 2026-10-23:
+keep, and keep the change list silent.
 
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).

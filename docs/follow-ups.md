@@ -7118,7 +7118,8 @@ the fault would not depend on wording. (4) `partOf` and `wirePart` (generated.ts
 compares profiles in STORED order (`sameProfile` index by index): a turned twin whose canonical re-sort puts equal profiles in another
 order may fail to link, though the same profiles. (6) The accepted cost of Rulings 10 and 16: a model that echoes a profile's old world
 numbers onto a resized part gets the stored entry back (a through end follows the new extent, a stop keeps the end it is measured from),
-so a stop it meant to keep at the same world place moves with its end, and the change list shows only the size line. Smaller residue in
+so a stop it meant to keep at the same world place moves with its end, and the change list shows only the size line (approved as is by
+the user, 2026-10-23: keep, and keep it silent). Smaller residue in
 the ledger: `seen` in `profileDesignFaults` merges two same-kind profiles on one edge with the same span and fault (one message); a loop's nominal side picked by axis letter, not
 `dirToLocal`; a stop that falls back to straight is judged by its swept faults only; `estimate.ts`' chars-per-token not re-measured.
 **Status:** open (record-only).

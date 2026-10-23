@@ -429,6 +429,8 @@ the records (invs 40, 41, 48, 53, 56; fu 322, 425, 430, 434) describe the code a
   merge; evidence over authored text). Cost: none.
 - **Ruling 16 — Ruling 10's accepted cost, stated:** a model that keeps a stop at the same world place on a resized part, with no other
   change, gets it restored as stored (the stop moves with its end), and the change list shows only the size line (fu 434 (6)).
+  **Approved by the user 2026-10-23 (with Ruling 10):** keep the stop measured from its end (a 20" top's 2"–17" cove becomes
+  2"–23" at 26"), and leave the change list silent about it, as for holes and bands.
 
 **Where the code differs from the text above, beyond the rulings:**
 - **`profilesFor` takes a fourth argument, `known`** (Task 6, fix round 2): the part's own stored distances (each `at` and its `L − at`).
