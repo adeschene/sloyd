@@ -16,6 +16,7 @@ import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
 import { PROFILE_KINDS, copyProfile } from './profiles';
 import { profilesFor, sameWorldProfile, sortProfiles } from './profileWorld';
+import { carriesProfiles } from './featureCarry';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID, copyBand } from './bandModel';
 import { bandsFor, mintBandTypes } from './bandWorld';
 import { copyHardwareUse } from './hardwareModel';
@@ -508,14 +509,15 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
   // silently (its design showed none). A SHAPE fault rejects the part; a strict fault does not (profileDesignFaults flags
   // it). Untouched entries come back exactly through the exact-entry map, only in a kept frame.
   let profiles: ProfileCut[];
-  if (carriesProfiles(p)) profiles = c!.profiles.map(copyProfile);
+  if (profilesCarried(p)) profiles = c!.profiles.map(copyProfile);
   else {
     const made = profilesFor({ ...board, angleCuts }, p.profiles ?? [], exact);
     if ('fault' in made) {
       rejected.push({ name: label, reason: 'profile', detail: `${label} ${made.fault}.` });
       return null;
     }
-    profiles = restoreProfiles({ ...board, angleCuts }, made.profiles, frame ? c!.originalProfiles : []);
+    profiles = restoreProfiles({ ...board, angleCuts }, made.profiles, frame ? c!.originalProfiles : [],
+      frame ? { ...board, angleCuts, ...frameFor(frame.extents, frame) } : undefined);
   }
   // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
   // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
@@ -528,9 +530,9 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
 
 /** A part whose bands are CARRIED, not authored (AI-bands spec §3.2): one with carried curves. */
 const carriesCurves = (p: GeneratedPart) => (p.carry?.curves.length ?? 0) > 0;
-/** A part whose profiles are CARRIED, not authored (AI-profiles spec R6.3): one with carried curves or carried profiles
- *  (`carryOf` fills `carry.profiles` only for a part with curves or a run on two sides). */
-const carriesProfiles = (p: GeneratedPart) => carriesCurves(p) || (p.carry?.profiles.length ?? 0) > 0;
+/** A part whose profiles are CARRIED, not authored (AI-profiles spec R6.3): the ONE predicate (`carriesProfiles`) read on the
+ *  original's curves and profiles as carried. */
+const profilesCarried = (p: GeneratedPart) => p.carry !== undefined && carriesProfiles({ curves: p.carry.curves, profiles: p.carry.originalProfiles });
 
 /**
  * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1; AI-bands spec §4.1),
@@ -585,11 +587,14 @@ function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], origin
  * on a part that only moved or was resized along a through run, comes back exactly. `originals` is empty unless the part
  * kept the original's frame (`keptFrame`). Every other entry gets a fresh id. When EVERY entry is restored and none is added
  * or dropped, the ORIGINAL stored order is kept (the holes M3 rule); otherwise the list is sorted canonically.
+ * An entry also matches an original's world form on the ORIGINAL part (`original`, the kept frame's box; controller
+ * Ruling 10, spec §3.4 "a full-length run stays full-length"): the model echoed the old numbers onto a resized part, so
+ * the stored entry is restored as it was — its through ends follow the new extent, a stop keeps the end it is measured from.
  */
-function restoreProfiles(board: Board, made: readonly Omit<ProfileCut, 'id'>[], originals: readonly ProfileCut[]): ProfileCut[] {
+function restoreProfiles(board: Board, made: readonly Omit<ProfileCut, 'id'>[], originals: readonly ProfileCut[], original?: Board): ProfileCut[] {
   const used = new Set<number>();
   const out = made.map((r): ProfileCut => {
-    const i = originals.findIndex((o, k) => !used.has(k) && sameWorldProfile(o, r, board));
+    const i = originals.findIndex((o, k) => !used.has(k) && (sameWorldProfile(o, r, board) || (original !== undefined && sameWorldProfile(o, r, board, original))));
     if (i < 0) return { id: nextId(), ...r };
     used.add(i);
     return copyProfile(originals[i]!);

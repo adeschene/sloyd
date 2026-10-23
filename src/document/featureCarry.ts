@@ -26,10 +26,10 @@ export function featuredKinds(b: Board): FeatureKind[] {
 
 /**
  * A part whose profiles are CARRIED, never authored (AI-profiles spec §4.2, R6.3): one with curves, or with any run on two
- * sides (a loop and a one-side run are authored in world words). The ONE predicate: `carryOf`, `carriedKinds` and
- * `carryText`'s `faultKeys` all read it.
+ * sides (a loop and a one-side run are authored in world words). The ONE predicate: `carryOf`, `carriedKinds`,
+ * `carryText`'s `faultKeys`, `profileDesignFaults` and `convertPart` all read it.
  */
-export function carriesProfiles(b: Board): boolean {
+export function carriesProfiles(b: Pick<Board, 'curves' | 'profiles'>): boolean {
   return b.curves.length > 0 || b.profiles.some((p) => !('loop' in p.run) && !oneSide(p.run));
 }
 

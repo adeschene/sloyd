@@ -806,16 +806,42 @@ describe('profiles through Refine conversion (AI-profiles spec §3.4, §4)', () 
     expect(r.profiles).toEqual([full]);
   });
 
-  it('…while one the model left at the OLD extent is the model\'s stop (its numbers win, the AI-holes ruling): a station 6in from the max end', () => {
+  // Controller Ruling 10 (spec §3.4, "a full-length run stays full-length"): an entry the model echoed with the OLD numbers
+  // onto a resized part matches the original's world form on the ORIGINAL part, and is restored as stored.
+  it('…and so does one the model echoed with the OLD extent (end 30 on a part now 36 long): restored as stored, id kept', () => {
     const full: ProfileCut = { id: 'f1', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { start: thr(W_MAX, 'min'), end: thr(W_MAX, 'max') } };
     const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [full] })]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => {
+      // The echo really is the old numbers: the end the model left is the old extent.
+      expect(p.profiles!.map((w) => [w.start, w.end])).toEqual([[0, 30]]);
+      return { ...p, size: { ...p.size, x: 36 } };
+    }) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Top')!;
+    expect(r.length).toBe(36);
+    expect(r.profiles).toEqual([full]);
+    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[0, 36]]);
+  });
+
+  it('…and an echoed stop measured from the max end stays measured from max (3in from the grown end, not at its old world place)', () => {
+    const stop: ProfileCut = { id: 's1', face: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'face', run: { start: st(W_MAX, 'max', 20), end: st(W_MAX, 'max', 3) } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [stop] })]);
+    const o = byName(original).get('Top')!;
     const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { ...p.size, x: 36 } })) }));
     const r = byName(out.doc).get('Top')!;
-    expect(r.profiles).toHaveLength(1);
-    const run = r.profiles[0]!.run as { start: ProfileEnd; end: ProfileEnd };
-    expect([run.start, run.end]).toEqual(expect.arrayContaining([thr(W_MAX, 'min'), st(W_MAX, 'max', 6)]));
-    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[0, 30]]);
-    expect(ids(r)).not.toContain('f1');
+    expect(r.length).toBe(36);
+    expect(r.profiles).toEqual(o.profiles);
+    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[16, 33]]);
+  });
+
+  it('…but a profile the model MOVED on the resized part is the model\'s (its new numbers win): a fresh id', () => {
+    const stop: ProfileCut = { id: 's1', face: 'max', kind: 'cove', size: 0.375, fillet: 0, facing: 'face', run: { start: st(W_MAX, 'max', 20), end: st(W_MAX, 'max', 3) } };
+    const original = project([createBoard({ name: 'Top', ...TOP_DIMS, profiles: [stop] })]);
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, size: { ...p.size, x: 36 },
+      profiles: p.profiles!.map((w) => ({ ...w, start: 12, end: 30 })) })) }));
+    const r = byName(out.doc).get('Top')!;
+    expect(ids(r)).not.toContain('s1');
+    expect(designProfiles(r)!.map((w) => [w.start, w.end])).toEqual([[12, 30]]);
   });
 
   it('designValues holds every profile number, so an echo keeps them unsnapped', () => {

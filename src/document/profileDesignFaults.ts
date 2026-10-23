@@ -7,6 +7,7 @@ import { profileName } from './curveText';
 import { oneSide, profileAsCurve, profileFaults } from './profiles';
 import { isSwept } from './profilePath';
 import { localToDir } from './taperWorld';
+import { carriesProfiles } from './featureCarry';
 
 /** The kinds a design profile can fault with: `profileFaults`' and a straight run's prism faults (`curveFaults`). */
 type Kind = 'overlap' | 'runs-off' | 'stop-off' | 'too-tight' | 'cuts-through';
@@ -42,8 +43,7 @@ export function profileFaultKinds(b: Board, p: ProfileCut): string[] {
 export function profileDesignFaults(flat: FlatDocument, display: Units): Violation[] {
   const out: Violation[] = [];
   for (const b of flat.boards) {
-    if (b.profiles.length === 0 || b.curves.length > 0) continue;
-    if (b.profiles.some((p) => !('loop' in p.run) && !oneSide(p.run))) continue;
+    if (b.profiles.length === 0 || carriesProfiles(b)) continue;
     const seen = new Set<string>();
     for (const p of b.profiles) {
       const broad = localToDir(b, 'thickness', p.face);

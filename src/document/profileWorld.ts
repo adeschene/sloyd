@@ -191,10 +191,11 @@ export function worldProfiles(b: Board): WorldProfile[] | null {
  * The same profile in WORLD words on `board` (spec §3.4, B1): equal design forms, stations within 1e-9. Never
  * `sameProfile` on the stored fields — a station's `from` is not in the design form, so one station measured from either
  * end is the same profile here. A loop's side and ends are not compared (the design form ignores them). False when
- * either run has ends on two sides (those are carried, never matched).
+ * either run has ends on two sides (those are carried, never matched). `aBoard` (default `board`) is the part `a` is read
+ * on: Refine passes the ORIGINAL part to match an entry the model echoed with the old numbers (Ruling 10).
  */
-export function sameWorldProfile(a: Profile, c: Profile, board: Board): boolean {
-  const x = worldOf(board, a);
+export function sameWorldProfile(a: Profile, c: Profile, board: Board, aBoard: Board = board): boolean {
+  const x = worldOf(aBoard, a);
   const y = worldOf(board, c);
   if (!x || !y) return false;
   if (x.edge[0] !== y.edge[0] || x.kind !== y.kind || x.size !== y.size || x.fillet !== y.fillet || x.depth !== y.depth
