@@ -5971,6 +5971,7 @@ live compile before it ships (fu 322); Refine keeping untouched rows exactly. De
 open (spec §11).
 **Status:** open (feature; needs a spec) (a `DESIGN_SCHEMA` change: one live compile, fu 322). (triaged 2026-10-16)
 **Status:** CLOSED on branch `ai-holes` (2026-10-23, spec `2026-10-23-sloyd-ai-holes-design.md`; not yet merged or deployed): Generate and Refine author hole rows in world words through `holeWorld.ts` (inv 50); Refine keeps untouched rows exactly; holes leave the carry (inv 56). The deferred minors are fu 428.
+**Status:** CLOSED — merged `424c184` and deployed 2026-10-23 as `index-D3k3tvUe.js` (live check `docs/browser-verification-ai-holes.md`).
 
 **330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
 refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
@@ -7034,6 +7035,7 @@ else `orient` like the plain twin, no exact-row swap; tested (the R1 probe, ties
 widened past its length is now oriented and its taper fault fed back (refine-features spec, Amended). The plan-turn gap for parts WITH
 curves, profiles or bands (they keep the frame always; `featureTurned` does not see a plan turn) stays fu 425. (1), (2), (5)–(8) and (10)
 remain open (record-only).
+**Status:** open (record-only) for the items not closed above ((1), (2), (5)–(8), (10)); (3), (4), (9) and (11) closed; the round merged `424c184` and deployed 2026-10-23 (`index-D3k3tvUe.js`).
 
 **429. An oddly encoded holes-only part tied at its thickness keeps a wrong thickness when grown (2026-10-23, final re-review).**
 `keptFrame`'s waiver ("the original's thickness extent was not a smallest extent") also applies when that thickness is TIED with
@@ -7041,3 +7043,8 @@ another extent: a part stored flat/0 L3 W1 T3 (world [3,3,1]) returned as [3,20,
 becomes upright L20 W3 T1. Not new (the rank rule alone did the same); needs an original already stored with thickness > width, tied,
 and the model growing the tied axis. Candidate fix: the thickness axis must stay smallest within its tie group in the original
 (`size[k] <= size[j]` for every `j` with `e[j] === e[k]`). **Status:** open (record-only; ask first).
+
+**430. Generate and Refine authoring edge profiles and edge bands (2026-10-23, close-out audit).** After the AI-holes round (fu 329)
+Claude authors holes; curves are fu 363's open authoring piece; profiles and bands are carried by Refine (inv 56) but cannot be added,
+changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
+compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).

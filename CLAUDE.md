@@ -160,7 +160,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | shapes / links | `shapes.ts` `resolveBoard`, `links.ts` `LINK_FIELDS`, `linksToShapes.ts` (inv 45) |
 | rectangular cuts | `cuts.ts` (`CUT_GEOMETRY_FIELDS`, `cutShape`, `clippedRegion`; inv 40) |
 | angle cuts | `angleCuts.ts`, `angleText.ts`, `angleWorld.ts` / `taperWorld.ts` (inv 48) |
-| holes | `holes.ts`, `holeFaults.ts`, `holeText.ts`, `holeDrawing.ts` (inv 50) |
+| holes | `holes.ts`, `holeFaults.ts`, `holeText.ts`, `holeDrawing.ts`; AI authoring `holeWorld.ts`, `holeDesignFaults.ts` (inv 50) |
 | curves | `curves.ts`, `curveDrawing.ts`, `curveText.ts` (inv 53) |
 | edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `skeleton.ts`, `sweep.ts`, `runout.ts`, `sweptEdges.ts`, `sectionEdges.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
@@ -601,13 +601,13 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–429). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–430). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400.
+  364–366; banding 399, 400; profiles and bands authored by Claude 430.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283; 410–412 (hardware
