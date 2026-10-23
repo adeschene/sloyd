@@ -242,6 +242,10 @@ export interface Board {
    * stored shaped part is a `ShapedBoard`.
    */
   shape?: string;
+  /** a shaped part only: its Shape reflected along mirrorDim; spec §3. Stored only when true; a plain part never carries
+   *  it (the loader drops it, `plainOf` strips it). `resolveBoard` applies it and keeps it on the resolved part, so a
+   *  writer knows to lower through it. */
+  mirrored?: true;
 }
 
 /**

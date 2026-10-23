@@ -5,7 +5,8 @@
  */
 import { createBoard } from './document';
 import { archCurve, bowCurve, cornerCurve } from './curves';
-import { chiralCurved } from './turnFixtures';
+import { chiralAngled, chiralCurved, chiralHoled } from './turnFixtures';
+import { BUILT_IN_BAND_ID, canonicalBands } from './bandModel';
 import { faceOutline } from './profilePath';
 import { mirrorPart } from './frames';
 import type { Board, Posture, ProfileCut, ProfileSide } from './types';
@@ -116,3 +117,12 @@ export const overlapCases = (): { name: string; board: Board; cornerX: number; a
   { name: 'ogee 3/8 facing the edge, mirrored along its length (mirrorPart)', board: mirrorPart(cornerGapAs('ogee', 0.375, { facing: 'edge' }, 0.2, 0.05)), cornerX: 0, a: 0.2, gap: 0.05 },
   { name: 'bead 1/4 + 1/16 quirk on face min', board: cornerGapAs('bead', 0.25, { fillet: 1 / 16 }, 0.1, 0.1, 'min'), cornerX: 30, a: 0.1, gap: 0.1 },
 ];
+/** Mirrored links (fu 432): chiralTwoSide carrying ALL SIX feature kinds with a hand — chiralPart's cuts, chiralAngled's
+ *  angle cuts, chiralHoled's hole rows, chiralCurved's curves, the two-side profile — and two bands, one across length
+ *  and one across width, so a mirror along either `mirrorDim` (length flat/on-edge, width upright) flips one of them. */
+export const chiralAll = (posture: Posture): Board => ({
+  ...chiralTwoSide(posture),
+  angleCuts: chiralAngled(posture).angleCuts,
+  holes: chiralHoled(posture).holes,
+  bands: canonicalBands([{ side: side('length', 'min'), type: BUILT_IN_BAND_ID }, { side: side('width', 'max'), type: BUILT_IN_BAND_ID }]),
+});

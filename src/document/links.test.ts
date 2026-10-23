@@ -222,6 +222,8 @@ describe('the link note\'s claim (fu 411)', () => {
   it('only name, position and turn (and the ids) are a part\'s own — Properties says "every edit but name, position and turn"', () => {
     // If this fails, a field became own or shared: reword the note in Properties.tsx to match.
     const own = (Object.keys(LINK_FIELDS) as (keyof typeof LINK_FIELDS)[]).filter((k) => LINK_FIELDS[k] === 'own').sort();
-    expect(own).toEqual(['id', 'name', 'position', 'rotation', 'shape']);
+    // `mirrored` (fu 432) is own too. OPEN for the mirrored-links UI task (plan Task 3): once the Mirrored checkbox
+    // exists, ticking it changes this part alone — decide there whether the note above needs rewording.
+    expect(own).toEqual(['id', 'mirrored', 'name', 'position', 'rotation', 'shape']);
   });
 });

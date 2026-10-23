@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LINK_FIELDS, SHARED_KEYS, createBoard, createDocument, isShaped, resolveBoard, shapeMap, worldParts } from './document';
+import { LINK_FIELDS, SHARED_KEYS, createBoard, createDocument, isShaped, mirrorFeatures, plainOf, resolveBoard, shapeMap, sharedOf, worldParts } from './document';
+import { chiralAll } from './sweepFixtures';
 import { ARCH } from './curveFixtures';
 import type { Shape, ShapedBoard, SloydDocument } from './document';
 
@@ -24,7 +25,8 @@ describe('shapes', () => {
   it('resolveBoard reads EVERY shared field of the table from the shape, and only own fields from the part', () => {
     const b = resolveBoard(new Map([['s1', leg]]), user('a', 5, 90))!;
     for (const k of SHARED_KEYS) expect(b[k]).toEqual(leg[k]);
-    const own = Object.entries(LINK_FIELDS).filter(([, v]) => v === 'own').map(([k]) => k);
+    // `mirrored` is an OPTIONAL own field (fu 432): absent on an unmirrored user, never `undefined`.
+    const own = Object.entries(LINK_FIELDS).filter(([k, v]) => v === 'own' && k !== 'mirrored').map(([k]) => k);
     expect(Object.keys(b).sort()).toEqual([...own, ...SHARED_KEYS].sort());
   });
 
@@ -83,5 +85,37 @@ describe('resolveBoard copies curves', () => {
     expect(one.curves).toEqual([ARCH]);
     expect(one.curves).not.toBe(shape.curves);
     expect(one.curves[0]).not.toBe(two.curves[0]);
+  });
+});
+
+describe('a mirrored user (mirrored links, fu 432, spec §3)', () => {
+  const POSTURES = ['flat', 'on-edge', 'upright'] as const;
+  const TURNS = [0, 90, 180, 270] as const;
+  const shapeOf = (posture: (typeof POSTURES)[number]): Shape => ({ id: 'sh', ...sharedOf(chiralAll(posture)) });
+  const userOf = (rotation: (typeof TURNS)[number], mirrored: boolean): ShapedBoard =>
+    ({ id: 'u', name: 'Side', position: [1, 2, 3], rotation, shape: 'sh', ...(mirrored ? { mirrored: true as const } : {}) });
+
+  it('resolves to exactly mirrorFeatures of the unmirrored user, carrying mirrored: true', () => {
+    for (const posture of POSTURES) for (const r of TURNS) {
+      const shapes = new Map([['sh', shapeOf(posture)]]);
+      const plain = resolveBoard(shapes, userOf(r, false))!;
+      const got = resolveBoard(shapes, userOf(r, true))!;
+      expect(got).toEqual({ ...mirrorFeatures(plain), mirrored: true });
+      expect(got.mirrored).toBe(true);
+      // A chiral fixture: the mirror is a different part on every feature kind (inv 44), so the test can fail.
+      for (const k of ['cuts', 'angleCuts', 'holes', 'curves', 'profiles', 'bands'] as const) {
+        expect(got[k], `${posture} ${r} ${k}`).not.toEqual(plain[k]);
+      }
+      expect('mirrored' in plain).toBe(false);
+    }
+  });
+
+  it('plainOf drops the flag and the shape, keeping the mirrored features', () => {
+    const shapes = new Map([['sh', shapeOf('flat')]]);
+    const got = resolveBoard(shapes, userOf(90, true))!;
+    const p = plainOf(got);
+    expect('mirrored' in p).toBe(false);
+    expect('shape' in p).toBe(false);
+    expect(p.holes).toEqual(got.holes);
   });
 });

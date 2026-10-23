@@ -67,12 +67,23 @@ export function mirrorDim(b: Board): Dimension {
  * `0 - v` keeps a zero +0.
  */
 export function mirrorPart(b: Board): Board {
-  const d = mirrorDim(b);
   const ex = boardExtents(b)[0];
   return {
-    ...b,
+    ...mirrorFeatures(b),
     rotation: inverseTurn(b.rotation),
     position: [0 - (b.position[0] + ex), b.position[1], b.position[2]],
+  };
+}
+
+/**
+ * `mirrorPart`'s feature half alone (mirrored links, fu 432, spec §3): the cuts, angle cuts, hole rows, curves, profiles
+ * and bands mirrored along `mirrorDim(b)` by their flag flips (inv 44); nothing else changed — sizes, posture, turn,
+ * position, material, grain, cornerRule and hardware are the part's. `resolveBoard` reads a mirrored user through it.
+ */
+export function mirrorFeatures(b: Board): Board {
+  const d = mirrorDim(b);
+  return {
+    ...b,
     cuts: b.cuts.map((c) => mirrorCut(c, d, b[d])),
     angleCuts: b.angleCuts.map((c) => mirrorAngleCut(c, d)),
     holes: b.holes.map((r) => mirrorHoleRow(r, d)),
@@ -80,6 +91,14 @@ export function mirrorPart(b: Board): Board {
     profiles: b.profiles.map((p) => mirrorProfile(p, d)),
     bands: mirrorBands(b.bands, d),
   };
+}
+
+/**
+ * A part reflected about its own box's centre plane across X (spec §3, "mirror in place"): M_x R(r) = R(-r) M_d0, so the
+ * features are mirrored along `mirrorDim` and the turn negated; the box, and so `position` (inv 2), is unchanged.
+ */
+export function mirrorInPlace(b: Board): Board {
+  return { ...mirrorFeatures(b), rotation: inverseTurn(b.rotation) };
 }
 
 /** A nested instance reflected across x = 0 of its container (spec §3):

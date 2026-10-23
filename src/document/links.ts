@@ -14,7 +14,7 @@ import { copyHardwareUse, sameHardware } from './hardwareModel';
  * Board field fail tsc until it is classified (invariant 40's argument).
  */
 export const LINK_FIELDS = {
-  id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own',
+  id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own', mirrored: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
   bands: 'shared', cornerRule: 'shared', hardware: 'shared',
