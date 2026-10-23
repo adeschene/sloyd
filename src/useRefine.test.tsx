@@ -17,7 +17,7 @@ const doc = designToDocument({ name: 'Box', parts: [
 // The model's answer: the design echoed back (documentToDesign writes every part's `holes`, AI-holes spec §3.2).
 const echo = (() => {
   const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused');
-  return { ...r.design, parts: r.design.parts.map((p) => ({ bands: [], ...p })) };   // `bands` is required from the model (AI-bands spec §2.2)
+  return r.design;
 })();
 const S = { instruction: 'taller', width: null, depth: null, height: null, detail: 'simple' as const };
 const client = (complete: LlmClient['complete']): LlmClient => ({ complete: vi.fn(complete), userTurn: (t) => t, estimateCostUsd: () => 0.02 });

@@ -1,5 +1,7 @@
 import { NAME_SEPARATOR, worldParts } from './tree';
-import { flatDocument, migrateDocument } from './document';
+import { createDocument, flatDocument, migrateDocument } from './document';
+import { worldBands } from './bandWorld';
+import { dirToLocal } from './taperWorld';
 import { describe, expect, it } from 'vitest';
 import { designToDocument, designSchema, edgingKeys, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
 import { builtInCatalog, catalogOf } from './materials';
@@ -28,6 +30,8 @@ const deref = (root: any) => {
   return go(root);
 };
 const SCHEMA = deref(DESIGN_SCHEMA);
+/** A world direction as a band's stored side on `b` (the oracle reads the turn table through dirToLocal, inv 44). */
+const localToSide = (b: Board, d: Parameters<typeof dirToLocal>[1]) => { const l = dirToLocal(b, d); return { across: l.dim, from: l.from }; };
 
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine', role = ''): GeneratedPart => ({
   name, role, material, miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [],
@@ -662,5 +666,70 @@ describe('bands in the design (AI-bands spec §2.2, §3.1)', () => {
     const p = { ...base, bands: [{ edge: '-x', edging: 'id_maple' }] };
     expect(parseDesign({ name: 'T', parts: [p], assemblies: [] })).toBeNull();
     expect(parseDesign({ name: 'T', parts: [p], assemblies: [] }, builtInCatalog(), [BUILT_IN_BAND, maple])?.parts[0]!.bands).toEqual([{ edge: '-x', edging: 'id_maple' }]);
+  });
+});
+
+describe('bands converted (AI-bands spec §3.1–3.2)', () => {
+  const banded = (name: string, at: [number, number, number], bands: GeneratedPart['bands']): GeneratedPart => ({ ...part(name, at, [20, 0.75, 10], 'oak'), bands });
+  const OAK = { kind: 'solid', thickness: 0.25, material: 'oak', name: 'Oak edging' };
+
+  it('Generate: "solid oak" on +z becomes a stored band on that side and ONE minted Oak edging type; the load gate keeps it', () => {
+    const { doc, rejected } = designToDocument(design(
+      banded('Top', [0, 0, 0], [{ edge: '+z', edging: 'solid oak' }, { edge: '-x', edging: 'veneer' }]),
+      banded('Shelf', [0, 10, 0], [{ edge: '+z', edging: 'solid oak' }]),
+    ));
+    expect(rejected).toEqual([]);
+    expect(doc.bandTypes).toHaveLength(2);
+    expect(doc.bandTypes[0]).toEqual(BUILT_IN_BAND);
+    const oak = doc.bandTypes[1]!;
+    expect(oak).toMatchObject(OAK);
+    const top = flatDocument(doc).boards.find((b) => b.name === 'Top')!;
+    expect(worldBands(top)).toEqual(expect.arrayContaining([{ edge: '+z', edging: oak.id }, { edge: '-x', edging: 'veneer' }]));
+    expect(top.bands).toHaveLength(2);
+    expect(top.cornerRule).toBe('long');
+    expect(flatDocument(doc).boards.find((b) => b.name === 'Shelf')!.bands).toEqual([{ side: localToSide(top, '+z'), type: oak.id }]);
+    // The round trip a saved file makes: bands and the minted type survive.
+    const again = migrateDocument(JSON.parse(JSON.stringify(doc)));
+    expect(again.bandTypes).toEqual(doc.bandTypes);
+    expect(flatDocument(again).boards.find((b) => b.name === 'Top')!.bands).toEqual(top.bands);
+  });
+
+  it('a band-free Generate keeps createDocument\'s band types exactly', () => {
+    const { doc } = designToDocument(design(part('Top', [0, 0, 0], [20, 0.75, 10])));
+    expect(doc.bandTypes).toEqual(createDocument('x').bandTypes);
+  });
+
+  it('Review Focus 4: an assembly placed three times with a banded part mints ONE type; the band is on the definition part', () => {
+    const a: GeneratedAssembly = { name: 'Bay', parts: [banded('Shelf', [0, 0, 0], [{ edge: '+z', edging: 'solid walnut' }])],
+      placements: [{ name: 'Bay 1', at: v(0, 0, 0) }, { name: 'Bay 2', at: v(0, 0, 20) }, { name: 'Bay 3', at: v(0, 0, 40) }] };
+    const { doc, rejected } = designToDocument({ name: 'T', parts: [], assemblies: [a] });
+    expect(rejected).toEqual([]);
+    expect(doc.bandTypes.filter((t) => t.kind === 'solid')).toHaveLength(1);
+    const walnut = doc.bandTypes.find((t) => t.kind === 'solid')!;
+    expect(walnut).toMatchObject({ material: 'walnut', name: 'Walnut edging', thickness: 0.25 });
+    expect(doc.instances).toHaveLength(3);
+    expect(doc.definitions).toHaveLength(1);
+    expect((doc.definitions[0]!.boards[0] as Board).bands).toEqual([{ side: expect.anything(), type: walnut.id }]);
+    expect(flatDocument(doc).boards.map((b) => b.bands.map((x) => x.type))).toEqual([[walnut.id], [walnut.id], [walnut.id]]);
+  });
+
+  it('a band on a broad face rejects the part with reason band, and the feedback names it', () => {
+    const { doc, rejected } = designToDocument(design(banded('Top', [0, 0, 0], [{ edge: '+y', edging: 'veneer' }])));
+    expect(rejected).toEqual([{ name: 'Top', reason: 'band', detail: 'Top has edging on a broad face (+y).' }]);
+    expect(doc.boards).toEqual([]);
+    expect(rejectedViolations(rejected).map((x) => x.message)).toEqual(['Top has edging on a broad face (+y).']);
+  });
+
+  it('two edgings on one edge reject the part (an assembly part is named in its assembly)', () => {
+    const a: GeneratedAssembly = { name: 'Bay', parts: [banded('Shelf', [0, 0, 0], [{ edge: '+z', edging: 'veneer' }, { edge: '+z', edging: 'solid oak' }]), part('Side', [0, 1, 0], [20, 0.75, 10])],
+      placements: [{ name: 'Bay 1', at: v(0, 0, 0) }] };
+    const { rejected } = designToDocument({ name: 'T', parts: [], assemblies: [a] });
+    expect(rejected).toEqual([{ name: 'Shelf (in assembly Bay)', reason: 'band', detail: 'Shelf (in assembly Bay) has two edgings on +z.' }]);
+  });
+
+  it('a faulted band (veneer on a 1in-thick part) is STORED, not rejected', () => {
+    const { doc, rejected } = designToDocument(design({ ...part('Slab', [0, 0, 0], [20, 1, 10]), bands: [{ edge: '+x', edging: 'veneer' }] }));
+    expect(rejected).toEqual([]);
+    expect(flatDocument(doc).boards[0]!.bands).toHaveLength(1);
   });
 });

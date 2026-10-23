@@ -54,14 +54,6 @@ type Step = unknown | 'truncated' | 'unparseable' | LlmError;
  * A scripted client that records a COPY of every request's history, and
  * keeps the (frozen) turn objects it returns so tests can check identity.
  */
-/** The model's answer carries the schema's required `bands` on every part (AI-bands spec §2.2); documentToDesign does not
- *  write it until Task 2, so a fake answer gets `[]` where it has none. */
-const withBands = <T extends object>(d: T): T => {
-  const part = (x: object) => ({ bands: [], ...x });
-  const o = d as { parts?: object[]; assemblies?: { parts: object[] }[] };
-  if (!Array.isArray(o.parts)) return d;
-  return { ...d, parts: o.parts.map(part), assemblies: o.assemblies?.map((a) => ({ ...a, parts: a.parts.map(part) })) };
-};
 function fakeClient(steps: Step[]) {
   const seen: unknown[][] = [];
   const turns: object[] = [];
@@ -76,7 +68,7 @@ function fakeClient(steps: Step[]) {
       turns.push(turn);
       if (step instanceof LlmError) throw step;
       if (step === 'truncated' || step === 'unparseable') return { json: null, unusable: step, assistantTurn: turn, usage };
-      return { json: withBands(step as object), assistantTurn: turn, usage };
+      return { json: step, assistantTurn: turn, usage };
     }),
   };
   return { client, seen, turns };
@@ -1265,5 +1257,88 @@ describe('hole rows from the model (AI-holes spec §3.1)', () => {
     // The echo is the best: no new fault, the original's listed as present.
     expect(out.violations).toEqual([]);
     expect(out.present.map((v) => v.message)).toEqual(["Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face."]);
+  });
+});
+
+describe('edge bands from the model (AI-bands spec §3–4)', () => {
+  const RS = { instruction: 'add edging', width: null, depth: null, height: null, detail: 'simple' as const };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message); return r.design; };
+  /** A 20 x 1 x 10 slab on the floor: veneer (7/8in wide) on its +x end is tape-narrow (a band-fault, the band kept). */
+  const SLAB = { ...bp('Slab', [0, 0, 0], [20, 1, 10]), bands: [{ edge: '+x' as const, edging: 'veneer' }] };
+
+  it('Generate: a faulted band is STORED and raises one band-fault, fed back', async () => {
+    const { client, seen } = fakeClient([{ name: 'S', parts: [SLAB], assemblies: [] }]);
+    const out = await run(client);
+    expect(flatDocument(out.doc).boards[0]!.bands).toHaveLength(1);
+    expect(out.violations.filter((v) => v.kind === 'band-fault')).toEqual([{ kind: 'band-fault', parts: ['Slab'],
+      message: "Slab's edging on +x is narrower than the part is thick.", shown: "Slab's edging on the length max end is narrower than the part is thick." }]);
+    expect(JSON.stringify(seen[1])).toContain("Slab's edging on +x is narrower than the part is thick.");
+  });
+
+  it('Generate: two faulted edges of one assembly part placed twice are TWO problems, each merged over its placements', async () => {
+    const two = { ...SLAB, bands: [{ edge: '+x' as const, edging: 'veneer' }, { edge: '-x' as const, edging: 'veneer' }] };
+    const d = { name: 'S', parts: [], assemblies: [{ name: 'Unit', parts: [two], placements: [{ name: 'U1', at: v3(0, 0, 0) }, { name: 'U2', at: v3(0, 0, 20) }] }] };
+    const { client } = fakeClient([d]);
+    const out = await run(client);
+    expect(out.violations.filter((v) => v.kind === 'band-fault').map((v) => v.message)).toEqual([
+      "U1 › Slab's edging on -x is narrower than the part is thick. (in U1, U2)",
+      "U1 › Slab's edging on +x is narrower than the part is thick. (in U1, U2)",
+    ]);
+  });
+
+  it('Generate: a broad-face band rejects the part (reason band) and the feedback names it', async () => {
+    const bad = { name: 'S', parts: [bp('Base', [0, 0, 0], [20, 1, 10]), { ...bp('Top', [0, 1, 0], [20, 1, 10]), bands: [{ edge: '+y', edging: 'veneer' }] }], assemblies: [] };
+    const { client, seen } = fakeClient([bad]);
+    const out = await run(client);
+    expect(flatDocument(out.doc).boards.map((b) => b.name)).toEqual(['Base']);
+    expect(JSON.stringify(seen[1])).toContain('Top has edging on a broad face (+y).');
+  });
+
+  it('Refine: the original\'s faulted band is present, never fed back; a NEW faulted band on the same part is', async () => {
+    const original = designToDocument({ name: 'S', parts: [SLAB], assemblies: [] }).doc;
+    expect(flatDocument(original).boards[0]!.bands).toHaveLength(1);
+    const e = echo(original);
+    const withNew = { ...e, parts: e.parts.map((x) => ({ ...x, bands: [...(x.bands ?? []), { edge: '-x', edging: 'veneer' }] })) };
+    const { client, seen } = fakeClient([withNew, e]);
+    const out = await go(client, original);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const second = JSON.stringify(seen[1]!.slice(-1));
+    expect(second).toContain("Slab's edging on -x is narrower than the part is thick.");
+    expect(second).not.toContain("Slab's edging on +x");
+    expect(out.violations).toEqual([]);
+    expect(out.present.map((v) => v.message)).toEqual(["Slab's edging on +x is narrower than the part is thick."]);
+  });
+
+  it('Refine (plain): a minted type is in the saved document, the band naming it kept', async () => {
+    const original = designToDocument({ name: 'S', parts: [bp('Shelf', [0, 0, 0], [30, 0.75, 12])], assemblies: [] }).doc;
+    const e = echo(original);
+    const { client } = fakeClient([{ ...e, parts: e.parts.map((x) => ({ ...x, bands: [{ edge: '+z', edging: 'solid cherry' }] })) }]);
+    const out = await go(client, original);
+    if ('refused' in out) throw new Error(out.refused.message);
+    const cherry = out.doc.bandTypes.find((t) => t.kind === 'solid' && t.material === 'cherry');
+    expect(cherry).toMatchObject({ name: 'Cherry edging', thickness: 0.25 });
+    expect(flatDocument(out.doc).boards[0]!.bands.map((b) => b.type)).toEqual([cherry!.id]);
+  });
+
+  it('Review Focus 5: the JOINED Refine path keeps a minted type in the saved document', async () => {
+    const flat = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const joined = migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc);
+    const p = plainForRefine(joined); if ('refused' in p) throw new Error(p.refused.message);
+    const e = echo(p.plain);
+    // The Leg's -x face looks away from the Rail: the band is in no joint's way.
+    const banded = { ...e, parts: e.parts.map((x) => (x.name === 'Leg' ? { ...x, bands: [{ edge: '-x', edging: 'solid cherry' }] } : x)) };
+    const { client } = fakeClient([banded]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.joints!.notJoined).toBeUndefined();
+    const cherry = out.doc.bandTypes.find((t) => t.kind === 'solid' && t.material === 'cherry');
+    expect(cherry).toMatchObject({ name: 'Cherry edging', thickness: 0.25 });
+    expect(flatDocument(out.doc).boards.find((b) => b.name === 'Leg')!.bands.map((b) => b.type)).toEqual([cherry!.id]);
   });
 });

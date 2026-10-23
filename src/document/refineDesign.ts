@@ -9,6 +9,7 @@ import type { TaperFaultCode } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, noAngles, worldAngles } from './angleWorld';
 import type { AngleFaultCode } from './angleWorld';
 import { worldHoles } from './holeWorld';
+import { worldBands } from './bandWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, worldParts } from './tree';
 
@@ -45,7 +46,9 @@ const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason,
 type V3 = [number, number, number];
 const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], ...(worldAngles(b) ?? noAngles()), holes: worldHoles(b) };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], ...(worldAngles(b) ?? noAngles()), holes: worldHoles(b),
+    // A curved part's bands stay carried (AI-bands spec §3.2): the design shows none, and any the model returns are ignored.
+    bands: b.curves.length > 0 ? [] : worldBands(b) };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
