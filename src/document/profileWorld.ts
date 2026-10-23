@@ -145,7 +145,7 @@ const storedKey = (p: Profile): Key => [
   p.face, p.kind, p.size, p.depth ?? -1, p.fillet ?? -1, p.facing,
   ...('loop' in p.run ? [0] : [1, ...endKey(p.run.start), ...endKey(p.run.end)]),
 ];
-function sortProfiles<T extends Profile>(ps: T[]): T[] {
+export function sortProfiles<T extends Profile>(ps: readonly T[]): T[] {
   return [...ps].sort((x, y) => compareKeys(storedKey(x), storedKey(y)));
 }
 

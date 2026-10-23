@@ -17,7 +17,12 @@ const docOf = (parts: GeneratedPart[], holed: string[] = []): SloydDocument => {
   const d = designToDocument({ name: 'G', parts }).doc;
   return { ...d, boards: d.boards.map((b) => (holed.includes(b.name) ? ({ ...b, holes: [HOLE] } as StoredBoard) : b)) };
 };
+/** The carried profile in these tests: a run on two sides (the front from 15 round the length-max corner), so it is CARRIED
+ *  without a curve (AI-profiles spec §4.2, R6.3). Clean at 20 long; at 10 or 11 its start is past the end (`stop-off`). */
 const PROFILE: ProfileCut = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face',
+  run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: 15 }, end: { side: { across: 'length', from: 'max' }, from: 'min', at: 1 } } };
+/** A one-side stop: authored in the design, never carried (R6.3). */
+const ONE_SIDE: ProfileCut = { id: 'p9', face: 'max', kind: 'roundover', size: 0.25, facing: 'face',
   run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: 8 }, end: { side: { across: 'width', from: 'min' }, from: 'min', at: 15 } } };
 const MAPLE: BandType = { id: 'e1', name: 'Maple', kind: 'solid', thickness: 1.5, lengthAllowance: 0, material: 'oak', widthAllowance: 0 };
 const BANDS = [{ side: { across: 'width', from: 'min' }, type: 'e1' }, { side: { across: 'width', from: 'max' }, type: 'e1' }];
@@ -163,5 +168,21 @@ describe('a curved part\'s carried bands (AI-bands final review)', () => {
     expect(bandFaults(b, [BUILT_IN_BAND]).length).toBeGreaterThan(0);
     expect(carriedSummary(plainVeneer(0.75), plainVeneer(1)).check)
       .toEqual(['Apron was resized — its edge profile stays measured from where it was placed; check it.']);
+  });
+});
+
+describe('carriedSummary: a part\'s authored profiles are not carried (AI-profiles spec R6.3; Ruling 1)', () => {
+  const side = (size: [number, number, number], extra: Partial<Board>) => withExtra(docOf([part('Side', [0, 0, 0], size)]), extra);
+  it('a one-side-profiled part resized into a fault, or not kept, is neither "check" nor "not kept"', () => {
+    expect(carriedSummary(side([20, 4, 1], { profiles: [ONE_SIDE] }), side([10, 4, 1], { profiles: [ONE_SIDE] }))).toEqual({ notKept: [], check: [] });
+    expect(carriedSummary(side([20, 4, 1], { profiles: [ONE_SIDE] }), docOf([]))).toEqual({ notKept: [], check: [] });
+  });
+  it('with hardware the not-kept line names only the hardware (carriedView\'s profile gate)', () => {
+    expect(carriedSummary(side([20, 4, 1], { profiles: [ONE_SIDE], hardware: [{ type: 'hw-1', count: 1 }] }), docOf([])).notKept)
+      .toEqual(["Side's hardware — no part named Side in the result."]);
+  });
+  it('beside a two-side run every profile is carried and named', () => {
+    expect(carriedSummary(side([20, 4, 1], { profiles: [ONE_SIDE, PROFILE] }), docOf([])).notKept)
+      .toEqual(["Side's edge profiles — no part named Side in the result."]);
   });
 });

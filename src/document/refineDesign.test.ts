@@ -297,7 +297,7 @@ describe('documentToDesign — miters, bevels and chamfers (AI-angles spec §6)'
     const kinds = new Set(wire.parts.flatMap((p: { angles: { kind: string }[] }) => p.angles.map((a) => a.kind)));
     expect([...kinds].sort()).toEqual(['bevel', 'chamfer', 'miter', 'taper']);
     const parsed = parseDesign(wire)!;
-    expect(parsed.parts.map(({ profiles: _p, ...q }) => q)).toEqual(r.design.parts);
+    expect(parsed.parts).toEqual(r.design.parts);
     const opts = (d: typeof r.design) => ({ centre: false, exact: designValues(d), exactAngles: angleRatiosOf(boards) });
     const viaWire = designToDocument(parsed, opts(parsed)).doc.boards as Board[];
     const direct = designToDocument(r.design, opts(r.design)).doc.boards as Board[];

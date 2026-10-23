@@ -543,6 +543,7 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
     angle: (n) => `${n} has a miter, bevel or chamfer that cannot be built.`,
     hole: (n) => `${n} has a hole row that cannot be built.`,
     band: (n) => `${n} has edging that cannot be built.`,
+    profile: (n) => `${n} has an edge profile that cannot be built.`,
   };
   return rejected.map((r) => ({ kind: 'too-small' as const, message: r.detail ?? say[r.reason](r.name), parts: [r.name] }));
 }

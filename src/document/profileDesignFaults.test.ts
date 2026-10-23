@@ -74,9 +74,15 @@ describe('profileDesignFaults (AI-profiles spec R6.1)', () => {
   });
 
   it('carriedSummary\'s fault keys read the same helper (a resize that oversizes a straight profile is "no longer fits")', () => {
-    const mk = (w: number) => project([createBoard({ name: 'Top', length: 24, width: w, thickness: 0.75, profiles: [roundover(0.5)] })]);
-    // Only the straight-run branch sees the bit run off a 0.4in-wide part (profileFaults is empty).
-    expect(carriedSummary(mk(12), mk(0.4)).check).toEqual(["Top was resized — its edge profile no longer fits; see Properties."]);
-    expect(carriedSummary(mk(12), mk(12.5)).check[0]).toMatch(/stays measured/);
+    // A CURVED part, so its profile is carried (AI-profiles spec R6.3; an uncurved one-side profile is authored, never a
+    // carried-summary line). The straight top edge (width max) is opposite the arch.
+    const mk = (t: number) => project([createBoard({ name: 'Apron', length: 30, width: 5, thickness: t, curves: [ARCH], profiles: [roundover(0.5)] })]);
+    const thin = flatDocument(mk(0.4)).boards[0]!;
+    expect(thin.profiles).toHaveLength(1);
+    // Only the straight-run branch sees the bit run off a 0.4in-thick part (profileFaults is empty).
+    expect(profileFaults(thin, thin.profiles[0]!)).toEqual([]);
+    expect(profileFaultKinds(thin, thin.profiles[0]!)).toEqual(['runs-off']);
+    expect(carriedSummary(mk(0.75), mk(0.4)).check).toEqual(['Apron was resized — its curve and edge profile no longer fit; see Properties.']);
+    expect(carriedSummary(mk(0.75), mk(1)).check[0]).toMatch(/stay measured/);
   });
 });

@@ -8,6 +8,7 @@ import { collapseViolations, distinctParts, distinctPartsViolation } from '../do
 import { checkDesign, rejectedViolations } from '../document/designCheck';
 import { holeDesignFaults } from '../document/holeDesignFaults';
 import { bandDesignFaults } from '../document/bandDesignFaults';
+import { profileDesignFaults } from '../document/profileDesignFaults';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
 import type { LlmClient, LlmMessage, LlmResult, LlmUsage } from '../llm/types';
@@ -178,7 +179,7 @@ interface EvaluateOpts {
 /**
  * THE design evaluation, shared by Generate and Refine so they cannot drift
  * (refine spec §3.1): parse → tree → flatten → zero-board guard → distinct cap
- * → checkDesign + the angle-joint fault + the hole and band faults → collapse. With `preexisting`, a raw violation whose
+ * → checkDesign + the angle-joint fault + the hole, band and profile faults → collapse. With `preexisting`, a raw violation whose
  * problemKey the original already had (and which names parts) is set aside as `present` and neither
  * counts toward "fewest" nor goes back as feedback.
  */
@@ -195,7 +196,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
   const display = opts.units ?? flat.units;
-  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display), ...holeDesignFaults(flat, display), ...bandDesignFaults(flat, display), ...(opts.extraFaults?.(flat) ?? [])];
+  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display), ...holeDesignFaults(flat, display), ...bandDesignFaults(flat, display), ...profileDesignFaults(flat, display), ...(opts.extraFaults?.(flat) ?? [])];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -264,10 +265,10 @@ export async function runRefine(
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return { refused: from.refused };
   // The original's own taper conflicts are preexisting too (spec 5.3, amended): a taper the person drew is not
-  // pushed back at the model as new; nor are its own faulted hole rows (AI-holes spec §4) or bands (AI-bands spec §4.1).
+  // pushed back at the model as new; nor are its own faulted hole rows (AI-holes spec §4), bands (AI-bands spec §4.1) or profiles (AI-profiles spec §4.1).
   const plainFlat0 = flatDocument(base.plain);
   const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...jointFaults(plainFlat0), ...holeDesignFaults(plainFlat0, plainFlat0.units),
-    ...bandDesignFaults(plainFlat0, plainFlat0.units)].map(problemKey));
+    ...bandDesignFaults(plainFlat0, plainFlat0.units), ...profileDesignFaults(plainFlat0, plainFlat0.units)].map(problemKey));
   // The project's custom materials are choosable and named (custom materials spec §6); Generate's schema is untouched.
   const catalog = catalogOf(doc);
   const out = await runRepairLoop(client, {

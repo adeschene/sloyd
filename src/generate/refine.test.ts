@@ -81,12 +81,14 @@ describe('refine', () => {
     const NOTE = "These parts carry curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
     const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
     const PROFILE = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } } as const;
+    /** A run on two sides: carried, so named (AI-profiles spec §4.2, R6.3); the one-side PROFILE is authored, so not. */
+    const TWO_SIDE = { id: 'p2', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, from: 'min', at: 5 }, end: { side: { across: 'length', from: 'max' }, from: 'min', at: 1 } } } as const;
     const CURVE = ARCH;
     const feat = (doc: SloydDocument, name: string, extra: Record<string, unknown>): SloydDocument =>
       ({ ...doc, boards: doc.boards.map((b) => (b.name === name ? ({ ...b, ...extra } as StoredBoard) : b)) });
     const clean = designToDocument({ name: 'T', parts: ['Side', 'Apron', 'Top', 'Door'].map((n, i) => p(n, i)), assemblies: [] }, { centre: false }).doc;
     const featured = feat(feat(feat(feat(clean, 'Side', { holes: [HOLE] }), 'Apron', { curves: [CURVE] }),
-      'Top', { profiles: [PROFILE], bands: [{ side: { across: 'width', from: 'min' }, type: 'band-1' }] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
+      'Top', { profiles: [TWO_SIDE], bands: [{ side: { across: 'width', from: 'min' }, type: 'band-1' }] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
     const design = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
 
     it('is byte-identical without features', () => {
@@ -108,6 +110,13 @@ describe('refine', () => {
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
       ].join('\n'));
       expect(refineMessage(d, S)).not.toContain('Sloyd keeps them');
+    });
+
+    it('does not name a part whose profiles are authored (one side, no curves): the design shows them (AI-profiles spec R6.3)', () => {
+      const oneSide = feat(feat(clean, 'Top', { profiles: [PROFILE] }), 'Door', { hardware: [{ type: 'hw-1', count: 2 }] });
+      const d = design(oneSide);
+      expect(d.parts.find((q) => q.name === 'Top')!.profiles).toHaveLength(1);
+      expect(refineMessage(d, S, undefined, oneSide)).toContain(`${NOTE}Door (hardware).`);
     });
   });
 

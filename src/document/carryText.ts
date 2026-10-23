@@ -7,16 +7,18 @@ import { faultKey } from './holeText';
 import { curveFaults } from './curves';
 import { profileFaultKinds } from './profileDesignFaults';
 import { bandFaults } from './banding';
-import { carriedKinds } from './featureCarry';
+import { carriedKinds, carriesProfiles } from './featureCarry';
 
 /** What a part carries, by count: a `PartCarry`, an `AssemblyCarry` (hardware only) or a resolved `Board` all fit. */
 export interface CarriedKinds {
   curves?: readonly unknown[]; profiles?: readonly unknown[]; bands?: readonly unknown[]; hardware?: readonly unknown[];
 }
 
-/** A part's counts as `carriedKinds` sees them: the bands of a plain part are not carried, so they are not named (AI-bands spec §4.1). */
+/** A part's counts as `carriedKinds` sees them: the bands of a plain part are not carried, so they are not named (AI-bands spec
+ *  §4.1); nor are the profiles of a part with no curves and no run on two sides (authored, AI-profiles spec R6.3). */
 export function carriedView(b: Board): CarriedKinds {
-  return { curves: b.curves, profiles: b.profiles, bands: carriedKinds(b).includes('bands') ? b.bands : [], hardware: b.hardware };
+  const kinds = carriedKinds(b);
+  return { curves: b.curves, profiles: kinds.includes('profiles') ? b.profiles : [], bands: kinds.includes('bands') ? b.bands : [], hardware: b.hardware };
 }
 
 /**
@@ -55,8 +57,8 @@ const NOTE = 'These parts carry curves, edge profiles, edging or hardware that t
 /** The user-turn paragraph naming the parts whose features the design JSON does not show (spec §5), or null. */
 export function featuredNote(design: GeneratedDesign): string | null {
   const items: string[] = [];
-  // A part whose carry holds only its original's hole rows (the exact-row map) carries nothing the JSON does not show:
-  // the design shows its holes (AI-holes spec §4).
+  // A part whose carry holds only its original's hole rows and authored profiles (the exact-row and exact-entry maps) carries nothing the JSON does not show:
+  // the design shows its holes (AI-holes spec §4) and those profiles (AI-profiles spec R6.3).
   const kinds = (p: GeneratedDesign['parts'][number]) => (p.carry ? kindsText(p.carry) : '');
   for (const p of design.parts) if (kinds(p)) items.push(`${p.name} (${kinds(p)})`);
   for (const a of design.assemblies ?? []) {
@@ -73,7 +75,8 @@ function faultKeys(b: Board, doc: Pick<SloydDocument, 'bandTypes'>): Set<string>
   const out = new Set<string>();
   for (const r of b.holes) for (const f of holeFaults(b, r)) out.add(`h:${r.id}:${faultKey(f)}`);
   for (const c of b.curves) for (const f of curveFaults(b, c)) out.add(`c:${c.id}:${f.kind}:${f.edge?.dim}${f.edge?.side}`);
-  for (const p of b.profiles) for (const k of profileFaultKinds(b, p)) out.add(`p:${p.id}:${k}`);
+  // An authored part's profiles are in the design, not carried; their faults go back to the model as 'profile-fault' (AI-profiles spec R6.3).
+  if (carriesProfiles(b)) for (const p of b.profiles) for (const k of profileFaultKinds(b, p)) out.add(`p:${p.id}:${k}`);
   // A plain part's bands are authored in the design, not carried; their faults are Properties' to show (AI-bands spec §4.1).
   if (b.curves.length > 0) for (const f of bandFaults(b, doc.bandTypes)) out.add(`b:${f.side.across}${f.side.from}:${f.kind}`);
   return out;

@@ -15,6 +15,7 @@ import type { MaterialCatalog } from './materials';
 import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
 import { PROFILE_KINDS, copyProfile } from './profiles';
+import { profilesFor, sameWorldProfile, sortProfiles } from './profileWorld';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID, copyBand } from './bandModel';
 import { bandsFor, mintBandTypes } from './bandWorld';
 import { copyHardwareUse } from './hardwareModel';
@@ -37,6 +38,11 @@ export interface PartCarry {
   /** The original's stored hole rows, for the exact-row map only (AI-holes spec §3.3): never written to the output as
    *  such — the model authors holes; a returned row that IS one of these, on the new part, is restored as it was. */
   originalHoles: HoleRow[];
+  /** The original's stored profiles, for the exact-entry map only (AI-profiles spec §3.4), as `originalHoles`: a returned
+   *  profile whose world form on the new part IS one of these is restored as it was (id and stored ends). */
+  originalProfiles: ProfileCut[];
+  /** `profiles` holds the original's profiles only when they are CARRIED (curves or any run on two sides; AI-profiles spec
+   *  R6.3), else []; `bands` only for a part with curves (AI-bands spec §4.1). */
   curves: CurveCut[]; profiles: ProfileCut[]; bands: Band[]; cornerRule: CornerRule; hardware: HardwareUse[];
 }
 /** One edge band in world words (AI-bands spec §2.2): the side face banded and an edging key (`edgingKeys`). */
@@ -73,7 +79,8 @@ export interface GeneratedPart {
   /** TS-only, never in the schema: an `angles` entry with the wrong count of `dirs` or `values` for its kind (spec R2,
    *  R6.4), worded for the model; set by parseDesign only when there is one. convertPart rejects the part. */
   angleFaults?: string[];
-  /** Required from the model (parseDesign checks it); optional here like `holes` (AI-profiles spec §2.1). */
+  /** Required from the model (parseDesign checks it); optional here like `holes` (AI-profiles spec §2.1). Ignored for a part
+   *  with carried curves or carried profiles (its carried profiles stand, spec R6.3). */
   profiles?: WorldProfile[];
   /** Required from the model (parseDesign checks it); optional here like `holes` (AI-bands spec §2.2). Ignored for a part
    *  with carried curves (its carried bands stand). */
@@ -95,8 +102,8 @@ export interface AssemblyCarry { hardware: HardwareUse[] }
 export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[]; carry?: AssemblyCarry }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
-/** `detail` is the whole message, set for `'taper'`, `'angle'`, `'hole'` and `'band'`. */
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole' | 'band'; detail?: string }
+/** `detail` is the whole message, set for `'taper'`, `'angle'`, `'hole'`, `'band'` and `'profile'`. */
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole' | 'band' | 'profile'; detail?: string }
 
 /** A world point/extent: defined ONCE in `$defs.vec3` and referenced (fu 322: the compiled-grammar cap, AI-bands probe 2). */
 const vec3Def = {
@@ -496,27 +503,45 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     }
     bands = made.bands;
   }
+  // Profiles (AI-profiles spec §3.2, §3.4, R6.3): from the model's world words on the part as encoded, unless the part's
+  // profiles are CARRIED (it has curves, or a run on two sides) — then the carried ones stand and the model's are ignored,
+  // silently (its design showed none). A SHAPE fault rejects the part; a strict fault does not (profileDesignFaults flags
+  // it). Untouched entries come back exactly through the exact-entry map, only in a kept frame.
+  let profiles: ProfileCut[];
+  if (carriesProfiles(p)) profiles = c!.profiles.map(copyProfile);
+  else {
+    const made = profilesFor({ ...board, angleCuts }, p.profiles ?? [], exact);
+    if ('fault' in made) {
+      rejected.push({ name: label, reason: 'profile', detail: `${label} ${made.fault}.` });
+      return null;
+    }
+    profiles = restoreProfiles({ ...board, angleCuts }, made.profiles, frame ? c!.originalProfiles : []);
+  }
   // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
   // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
   return {
     ...fields, angleCuts,
-    holes, curves: c ? c.curves.map(copyCurve) : [], profiles: c ? c.profiles.map(copyProfile) : [],
+    holes, curves: c ? c.curves.map(copyCurve) : [], profiles,
     bands, cornerRule: c?.cornerRule ?? 'long', hardware: c ? c.hardware.map(copyHardwareUse) : [],
   };
 }
 
 /** A part whose bands are CARRIED, not authored (AI-bands spec §3.2): one with carried curves. */
 const carriesCurves = (p: GeneratedPart) => (p.carry?.curves.length ?? 0) > 0;
+/** A part whose profiles are CARRIED, not authored (AI-profiles spec R6.3): one with carried curves or carried profiles
+ *  (`carryOf` fills `carry.profiles` only for a part with curves or a run on two sides). */
+const carriesProfiles = (p: GeneratedPart) => carriesCurves(p) || (p.carry?.profiles.length ?? 0) > 0;
 
 /**
  * The frame a returned part is encoded in (refine-features spec §3.2; final review C1, residual R1; AI-bands spec §4.1),
- * the ONE decision: the original's (`carry.frame`) for a part with carried curves or profiles, always (a turn of one is
- * `featureTurned`'s fault); for a part whose ONLY frame features are holes and/or bands (both authored in world words), only while (1) EVERY world extent keeps its rank against the
+ * the ONE decision: the original's (`carry.frame`) for a part with carried curves or CARRIED profiles (a run on two sides;
+ * AI-profiles spec R6.3), always (a turn of one is `featureTurned`'s fault); for a part whose ONLY frame features are holes,
+ * bands and/or authored profiles (all three authored in world words), only while (1) EVERY world extent keeps its rank against the
  * original's — no pair of world axes strictly ordered one way in the original and strictly the other way in the result
  * (a tie on either side may stay or swap) — and (2) the world axis carrying `thickness` is still a smallest extent of the
  * result (ties ok), or the original's thickness was not a smallest extent of the original. Otherwise the model turned it (onto another face, or about its thickness
- * axis in plan), and its holes and bands, written in world words, convert in the frame `orient` gives (the exact-row swap
- * skipped, its stored fields meaning nothing there). Undefined: `orient`.
+ * axis in plan), and its holes, bands and profiles, written in world words, convert in the frame `orient` gives (the
+ * exact-row and exact-entry swaps skipped, their stored fields meaning nothing there). Undefined: `orient`.
  */
 function keptFrame(carry: PartCarry | undefined, size: [number, number, number]): PartCarry['frame'] {
   const frame = carry?.frame;
@@ -550,6 +575,27 @@ function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], origin
   });
   if (originals.length > 0 && used.size === rows.length && rows.length === originals.length) return originals.map((o) => ({ ...o }));
   return sortHoleRows(out);
+}
+
+/**
+ * The exact-entry map (AI-profiles spec §3.4), as `restoreHoles`: each converted profile is swapped for the first UNUSED
+ * original of the same part whose WORLD form on the NEW part is the same (`sameWorldProfile`; never `sameProfile` on the
+ * stored fields — a station's `from` is not in the design form, B1), kept as it was — its id and its stored ends (a stop
+ * measured from its far end, a station at exactly 0 or L that reads back as a through end) — so an untouched profile, or one
+ * on a part that only moved or was resized along a through run, comes back exactly. `originals` is empty unless the part
+ * kept the original's frame (`keptFrame`). Every other entry gets a fresh id. When EVERY entry is restored and none is added
+ * or dropped, the ORIGINAL stored order is kept (the holes M3 rule); otherwise the list is sorted canonically.
+ */
+function restoreProfiles(board: Board, made: readonly Omit<ProfileCut, 'id'>[], originals: readonly ProfileCut[]): ProfileCut[] {
+  const used = new Set<number>();
+  const out = made.map((r): ProfileCut => {
+    const i = originals.findIndex((o, k) => !used.has(k) && sameWorldProfile(o, r, board));
+    if (i < 0) return { id: nextId(), ...r };
+    used.add(i);
+    return copyProfile(originals[i]!);
+  });
+  if (originals.length > 0 && used.size === made.length && made.length === originals.length) return originals.map(copyProfile);
+  return sortProfiles(out);
 }
 
 /**

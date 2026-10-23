@@ -818,7 +818,7 @@ describe('the merged angles form and profiles (AI-profiles spec R2, R6.4)', () =
   it('toWireDesign drops the TS-only fields, writes a chamfer toward as its first face, and defaults absent arrays', () => {
     const p: GeneratedPart = { ...part('Top', [0, 0, 0], [20, 0.75, 10]), grain: 'width', angleFaults: ['has a miter with 2 directions; a miter takes 1'],
       chamfers: [{ edge: ['+y', '+z'], legs: [0.125, 0.125] }],
-      carry: { originalHoles: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] } };
+      carry: { originalHoles: [], originalProfiles: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [] } };
     const { tapers: _t, miters: _m, bevels: _b, chamfers: _c, holes: _h, bands: _bd, profiles: _p, ...bare } = p;
     const out = toWireDesign({ name: 'T', parts: [p, { ...bare, name: 'Bare' }], assemblies: [{ name: 'A', parts: [], placements: [], carry: { hardware: [] } }] }) as any;
     expect(out.parts[0]).toEqual({ name: 'Top', role: '', material: 'pine', at: v(0, 0, 0), size: v(20, 0.75, 10),
