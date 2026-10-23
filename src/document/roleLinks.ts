@@ -7,23 +7,30 @@ import { axisDimensions, boardExtents } from './geometry';
 import { nextId } from './ids';
 import { taperCutsFor, worldTapers } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, worldAngles } from './angleWorld';
+import { holeRowsFor, sortHoleRows, worldHoles } from './holeWorld';
+import { sameHoleRow } from './holes';
 
 const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 
 /**
  * The part re-stored at each OTHER quarter turn that leaves the world part unchanged (turned-links spec §2.2): the same
  * world box (so the same min corner, inv 2), the grain on the same world axis, and its tapers, miters, bevels and chamfers
- * re-stored on the same world faces through taperWorld and angleWorld (inv 44). None for a part with rectangular cuts, holes, curves,
- * profiles or bands (a band is board-local, so a turn would land it on another world face), or
- * a cut either cannot describe.
+ * re-stored on the same world faces through taperWorld and angleWorld (inv 44), and its hole rows through worldHoles and
+ * holeRowsFor (AI-holes spec §5): canonical, every number kept exactly as the part's world reading gives it (never put on
+ * the hole grid), each row taking its id by index from the part's own rows sorted canonically. None for a part with
+ * rectangular cuts, curves, profiles or bands (a band is board-local, so a turn would land it on another world face); no
+ * candidate at a turn where a cut or hole row has no stored form.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || b.holes.length > 0 || b.curves.length > 0 || b.profiles.length > 0 || b.bands.length > 0) return [];
+  if (b.cuts.length > 0 || b.curves.length > 0 || b.profiles.length > 0 || b.bands.length > 0) return [];
   const world = worldTapers(b);
   const angles = worldAngles(b);
   if (world === null || angles === null) return [];
   // Re-stored with the part's OWN slopes (exact-angle map), so a turned candidate can equal its representative exactly.
   const exact = angleRatiosOf([b]);
+  const holes = worldHoles(b);
+  const holeExact = new Set(holes.flatMap((r) => [r.diameter, r.depth, r.pitch, r.offset.x, r.offset.y, r.offset.z]));
+  const holeIds = sortHoleRows(b.holes).map((r) => r.id);
   const box = boardExtents(b);
   const grainAxis = axisDimensions(b).indexOf(b.grain);
   return TURNS.filter((r) => r !== b.rotation).flatMap((rotation): Board[] => {
@@ -33,19 +40,25 @@ export function turnCandidates(b: Board): Board[] {
     if ('fault' in made) return [];
     const more = angleCutsFor(t, angles, exact);
     if ('fault' in more) return [];
-    return [{ ...t, angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })) }];
+    const rows = holeRowsFor(t, holes, holeExact);
+    if ('fault' in rows) return [];
+    return [{ ...t, angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })),
+      holes: rows.rows.map((r, i) => ({ id: holeIds[i] ?? nextId(), ...r })) }];
   });
 }
 
 /**
- * `b` judged against a class representative (spec §2.3, amended): ids are not geometry, so a part whose angle cuts equal
- * the representative's (sameAngleCut, index by index) takes its ids first. Null when `sameShared` still says no. A part
- * with no angle cuts is judged as it is: the same object, so untapered linking is unchanged.
+ * `b` judged against a class representative (spec §2.3, amended; AI-holes spec §5): ids are not geometry, so a part whose
+ * angle cuts (sameAngleCut) and hole rows (sameHoleRow, HOLE_FIELDS without `id`) equal the representative's, index by
+ * index, takes its ids first. Null when `sameShared` still says no. A part with no angle cuts and no hole rows is judged
+ * as it is: the same object, so plain linking is unchanged.
  */
 export function alignedTo(rep: Board, b: Board): Board | null {
-  if (b.angleCuts.length === 0) return sameShared(rep, b) ? b : null;
+  if (b.angleCuts.length === 0 && b.holes.length === 0) return sameShared(rep, b) ? b : null;
   if (b.angleCuts.length !== rep.angleCuts.length || !b.angleCuts.every((c, i) => sameAngleCut(c, rep.angleCuts[i]!))) return null;
-  const a: Board = { ...b, angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })) };
+  if (b.holes.length !== rep.holes.length || !b.holes.every((r, i) => sameHoleRow(r, rep.holes[i]!))) return null;
+  const a: Board = { ...b, angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
+    holes: b.holes.map((r, i) => ({ ...r, id: rep.holes[i]!.id })) };
   return sameShared(rep, a) ? a : null;
 }
 
@@ -58,7 +71,7 @@ export function alignedTo(rep: Board, b: Board): Board | null {
  * `sameShared`. Users are STORED parts: a part inside a definition counts once
  * however often it is placed, and a one-user shape dissolves.
  *
- * Each part is judged with its angle-cut ids aligned to the class representative's (ids are not geometry) and, when it
+ * Each part is judged with its angle-cut and hole-row ids aligned to the class representative's (ids are not geometry) and, when it
  * does not match as it stands, at each quarter turn that leaves the world part unchanged (turned-links spec, fu 301).
  *
  * `roles` maps a stored part id to its normalised role. Runs on a migrated
