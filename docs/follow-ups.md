@@ -7074,7 +7074,7 @@ Claude authors holes; curves are fu 363's open authoring piece; profiles and ban
 changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
 compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).
 **Status:** spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's answers 2026-10-23). Chunk 1 (bands) MERGED `e7ce893` and DEPLOYED (`index-lH3mycr3.js`) 2026-10-23 (`bandWorld.ts`, `bandDesignFaults.ts`, inv 54/56 rewritten): Generate and Refine author edge bands in world words, except on a curved part (carried). Chunk 2 (profiles) open; see fu 322's note on its grammar budget.
-**Status:** CLOSED (both chunks). Chunk 2 (profiles) DONE on branch `ai-profiles`, MERGED `<merge>` (2026-10-23; not yet deployed — the
+**Status:** CLOSED (both chunks). Chunk 2 (profiles) DONE on branch `ai-profiles`, MERGED `30f1299` (2026-10-23; not yet deployed — the
 controller records the deploy): the four angle arrays of the design form merged into one `angles` item to fit the grammar (spec R1–R2;
 fu 322), and Generate and Refine author edge profiles in world words (`profileWorld.ts`, `profileDesignFaults.ts`; inv 48/53/56
 rewritten), except on a part with curves or a two-side run (carried, `carriesProfiles`). Deferred minors: fu 434.

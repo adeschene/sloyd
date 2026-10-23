@@ -43,7 +43,7 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   only stops Claude authoring edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** **AI profiles (fu 430 chunk 2; the merged `angles` design array) is MERGED `<merge>`, NOT deployed**:
+- **NEXT (2026-10-23):** **AI profiles (fu 430 chunk 2; the merged `angles` design array) is MERGED `30f1299`, NOT deployed**:
   pending its live profile check (plan Task 8 Step 3; `docs/browser-verification-ai-profiles.md`, 4 of 10 paid calls so far),
   then ASK before deploying (schema 20, rollback free). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
