@@ -7,7 +7,7 @@ import { copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import { NAME_SEPARATOR, flatDocument } from './tree';
 import { axisDimensions, boardExtents } from './geometry';
-import { kindsText, nounsText } from './carryText';
+import { carriedView, kindsText, nounsText } from './carryText';
 import type { Violation } from './designCheck';
 import type { FlatDocument } from './types';
 
@@ -25,12 +25,14 @@ export function featuredKinds(b: Board): FeatureKind[] {
 }
 
 /**
- * The kinds the model never sees and Sloyd carries over by name (AI-holes spec §4): curves, profiles, bands, hardware.
- * Holes are excluded: the design shows them and the converter returns them. The ONE source for the note, `featureTurned`
- * and `carriedSummary`; `featuredKinds` (holes included) stays for the carry itself, which keeps the original rows.
+ * The kinds the model never sees and Sloyd carries over by name (AI-holes spec §4; AI-bands spec §4.1): curves, profiles,
+ * bands of a CURVED part, hardware. Holes are excluded (the design shows them and the converter returns them), and so are
+ * the bands of a plain part (the design shows them too; a change to them is in the change list). The ONE source for the
+ * note, `featureTurned` and `carriedSummary`; `featuredKinds` (holes and every band included) stays for the carry gate,
+ * so a banded part still carries its `cornerRule`.
  */
 export function carriedKinds(b: Board): FeatureKind[] {
-  return featuredKinds(b).filter((k) => k !== 'holes');
+  return featuredKinds(b).filter((k) => k !== 'holes' && (k !== 'bands' || b.curves.length > 0));
 }
 
 /** Board-local features, which need the original's frame (refine-features spec §3.2). Hardware has none. */
@@ -41,7 +43,8 @@ export function hasFrameFeatures(b: Board): boolean {
 const carryOf = (b: Board): PartCarry => ({
   ...(hasFrameFeatures(b) ? { frame: { posture: b.posture, rotation: b.rotation, extents: boardExtents(b) } } : {}),
   originalHoles: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile),
-  bands: b.bands.map(copyBand), cornerRule: b.cornerRule, hardware: b.hardware.map(copyHardwareUse),
+  // Only a curved part's bands are carried (AI-bands spec §4.1); a plain part's are in the design. `cornerRule` always.
+  bands: b.curves.length > 0 ? b.bands.map(copyBand) : [], cornerRule: b.cornerRule, hardware: b.hardware.map(copyHardwareUse),
 });
 
 /**
@@ -106,8 +109,8 @@ export function featureTurned(refined: FlatDocument, original: FlatDocument): Vi
     const min1 = Math.min(...e1);
     // Turned only if NO tied axis is still a smallest axis of the result (a tie in the result passes too).
     if (tied.some((a) => e1[a]! === min1)) continue;
-    const kinds = kindsText(o);
-    const { text, plural } = nounsText(o);
+    const kinds = kindsText(carriedView(o));
+    const { text, plural } = nounsText(carriedView(o));
     out.push({
       kind: 'feature-turned', parts: [r.name],
       message: `${r.name} carries ${kinds} Sloyd keeps on the part; keep it the same way round, ${+e0[k]!.toFixed(3)}in along ${'xyz'[k]}.`,

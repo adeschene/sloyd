@@ -15,7 +15,8 @@ import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL } from './joints/unjoin';
 import { chamferCut, taperCut } from '../document/angleCuts';
 import { axisFrame, endFacing } from '../document/geometry';
-import type { AngleCut } from '../document/types';
+import type { AngleCut, BandType } from '../document/types';
+import { BUILT_IN_BAND } from '../document/bandModel';
 import { builtInCatalog, catalogOf } from '../document/materials';
 import { ARCH } from '../document/curveFixtures';
 import type { StoredBoard } from '../document/types';
@@ -31,8 +32,8 @@ describe('refine', () => {
       'Here is the current design, in the same format you return:', JSON.stringify(D), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers and holes. Keep assembly and placement names. Return the whole design.');
-    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers and holes');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers, holes and edging');
   });
 
   it('names the custom materials in the user turn, and only when there are some (custom materials spec §6)', () => {
@@ -47,6 +48,21 @@ describe('refine', () => {
     expect(refineMessage(D, S, catalogOf({ materials: [ash, elm] }))).toContain('Custom materials in this design: "m-s-ash1" is Ash; "m-p-elm2" is Elm ply.\n');
     expect(refineMessage(D, S, catalogOf({ materials: [] }))).toBe(refineMessage(D, S));
     expect(refineMessage(D, S, builtInCatalog())).toBe(refineMessage(D, S));
+  });
+
+  it('names the project\'s own edging types after the custom materials, and only when there are some (AI-bands spec §4.1)', () => {
+    const oak = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const solid: BandType = { id: 'e-ash', name: 'Ash edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
+    const tape: BandType = { ...BUILT_IN_BAND, id: 'e-tape', name: 'Walnut tape' };
+    const base = designToDocument(D).doc;
+    const withTypes = { ...base, materials: [oak], bandTypes: [BUILT_IN_BAND, solid, tape] };
+    const m = refineMessage(D, S, catalogOf(withTypes), withTypes);
+    expect(m).toContain('Custom materials in this design: "m-s-ash1" is Ash.\n\nEdging types in this design: "e-ash" is Ash edging (solid Ash, 0.25in); "e-tape" is Walnut tape (tape).\n\nChange it');
+    // The catalog is optional: the label comes from the original.
+    expect(refineMessage(D, S, undefined, withTypes)).toContain('Edging types in this design: "e-ash" is Ash edging (solid Ash, 0.25in); "e-tape"');
+    // Only the built-in type: nothing is said, and the message is the plain one.
+    expect(refineMessage(D, S, undefined, base)).toBe(refineMessage(D, S));
+    expect(refineMessage(D, S, undefined, base)).not.toContain('Edging types');
   });
 
   describe('the featured-parts note (refine-features spec §5)', () => {
@@ -74,7 +90,7 @@ describe('refine', () => {
     it('names featured parts, right after the design JSON', () => {
       const d = design(featured);
       // Side carries only holes, which the design now shows (AI-holes spec §4): not named.
-      const note = `${NOTE}Apron (a curve), Top (an edge profile, edging), Door (hardware).`;
+      const note = `${NOTE}Apron (a curve), Top (an edge profile), Door (hardware).`;
       expect(refineMessage(d, S, undefined, featured)).toBe([
         'Here is the current design, in the same format you return:', JSON.stringify(d), '', note, '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),

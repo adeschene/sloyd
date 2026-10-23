@@ -14,6 +14,11 @@ export interface CarriedKinds {
   curves?: readonly unknown[]; profiles?: readonly unknown[]; bands?: readonly unknown[]; hardware?: readonly unknown[];
 }
 
+/** A part's counts as `carriedKinds` sees them: the bands of a plain part are not carried, so they are not named (AI-bands spec §4.1). */
+export function carriedView(b: Board): CarriedKinds {
+  return { curves: b.curves, profiles: b.profiles, bands: carriedKinds(b).includes('bands') ? b.bands : [], hardware: b.hardware };
+}
+
 /**
  * The feature kinds a part carries, in words, in the canonical order (refine-features spec §4, §5; never holes, AI-holes spec §4):
  * `a curve` / `curves`, `an edge profile` / `edge profiles` (one or more), `edging`, `hardware`.
@@ -69,7 +74,8 @@ function faultKeys(b: Board, doc: Pick<SloydDocument, 'bandTypes'>): Set<string>
   for (const r of b.holes) for (const f of holeFaults(b, r)) out.add(`h:${r.id}:${faultKey(f)}`);
   for (const c of b.curves) for (const f of curveFaults(b, c)) out.add(`c:${c.id}:${f.kind}:${f.edge?.dim}${f.edge?.side}`);
   for (const p of b.profiles) for (const f of profileFaults(b, p)) out.add(`p:${p.id}:${f.kind}`);
-  for (const f of bandFaults(b, doc.bandTypes)) out.add(`b:${f.side.across}${f.side.from}:${f.kind}`);
+  // A plain part's bands are authored in the design, not carried; their faults are Properties' to show (AI-bands spec §4.1).
+  if (b.curves.length > 0) for (const f of bandFaults(b, doc.bandTypes)) out.add(`b:${f.side.across}${f.side.from}:${f.kind}`);
   return out;
 }
 
@@ -88,14 +94,14 @@ export function carriedSummary(original: SloydDocument, refined: SloydDocument):
   for (const o of oFlat.boards) {
     const r = rByName.get(o.name);
     if (!r) {
-      if (carriedKinds(o).length > 0) notKept.push(`${o.name}'s ${nounsText(o).text} — no part named ${o.name} in the result.`);
+      if (carriedKinds(o).length > 0) notKept.push(`${o.name}'s ${nounsText(carriedView(o)).text} — no part named ${o.name} in the result.`);
       continue;
     }
     if (!carriedKinds(r).some((k) => k !== 'hardware')) continue;
     const eo = boardExtents(o);
     const er = boardExtents(r);
     if (eo.every((x, i) => x === er[i])) continue;
-    const { text: kinds, plural } = nounsText({ ...r, hardware: [] });
+    const { text: kinds, plural } = nounsText({ ...carriedView(r), hardware: [] });
     const before = faultKeys(o, original);
     const fresh = [...faultKeys(r, refined)].some((k) => !before.has(k));
     check.push(fresh

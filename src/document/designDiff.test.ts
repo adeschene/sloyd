@@ -5,7 +5,10 @@ import type { GeneratedAssembly, GeneratedPart } from './generated';
 import { formatLength, IMPERIAL } from '../units/length';
 import { createBoard, createDocument } from './document';
 import { bevelCut, chamferCut, miterCut, miterRatio } from './angleCuts';
-import type { Board, HoleRow } from './types';
+import type { BandType, Board, HoleRow, SloydDocument } from './types';
+import { bandsFor } from './bandWorld';
+import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from './bandModel';
+import type { Dir } from './taperWorld';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
@@ -353,5 +356,44 @@ describe('diffDesigns — inside and outside (shop-words spec §1, §3)', () => 
       parts: [{ ...part('Front', [0, 0, 0], [10, 4, 0.75]), holes: holes as never }, part('Side', [0, 0, 0.75], [0.75, 4, 10])] });
     const out = diffDesigns(doc([], [asm([])]), doc([], [asm([knob])]));
     expect(out.map((c) => [c.copies, c.text])).toEqual([[3, 'D1 › Front: 1 hole added on the outside face, 3/16" Ø (×3)']]);
+  });
+});
+
+describe('diffDesigns — edging (AI-bands spec §4.1)', () => {
+  const OAK: BandType = { id: 'e-oak', name: 'Oak edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'oak', widthAllowance: 0.0625 };
+  const mk = (name: string, edges: [Dir, string][], position: [number, number, number] = [0, 0, 0]): Board => {
+    const b = createBoard({ name, length: 20, width: 4, thickness: 1, position });
+    const made = bandsFor(b, edges.map(([edge, edging]) => ({ edge, edging })), (k) => (k === 'veneer' ? BUILT_IN_BAND_ID : k));
+    if ('fault' in made) throw new Error(made.fault);
+    return { ...b, bands: made.bands };
+  };
+  const D = (boards: Board[], bandTypes = [BUILT_IN_BAND, OAK]): SloydDocument => ({ ...createDocument('T'), boards, bandTypes });
+  const lines = (a: Board, b: Board, ta?: BandType[], tb?: BandType[]) =>
+    diffDesigns(D([a], ta), D([b], tb)).filter((c) => c.kind === 'bands').map((c) => c.text);
+
+  it('added, removed and changed-type lines, the edge in absolute words, the type by its own name', () => {
+    expect(lines(mk('Shelf', []), mk('Shelf', [['+z', 'e-oak']]))).toEqual(['Shelf: edging added on the front edge (Oak edging)']);
+    expect(lines(mk('Shelf', [['+z', 'e-oak']]), mk('Shelf', []))).toEqual(['Shelf: edging on the front edge removed']);
+    expect(lines(mk('Shelf', [['+z', 'e-oak']]), mk('Shelf', [['+z', 'veneer']]))).toEqual(['Shelf: edging on the front edge now Iron-on veneer']);
+    expect(lines(mk('Shelf', [['-z', 'veneer']]), mk('Shelf', [['-z', 'veneer']]))).toEqual([]);
+  });
+  it('matches by side: an untouched band beside a changed one gets no line; the order is the directions\'', () => {
+    expect(lines(mk('Shelf', [['+z', 'veneer'], ['-z', 'e-oak']]), mk('Shelf', [['+z', 'veneer'], ['-z', 'veneer'], ['+x', 'e-oak']])))
+      .toEqual(['Shelf: edging added on the right edge (Oak edging)', 'Shelf: edging on the back edge now Iron-on veneer']);
+  });
+  it('a type renamed in place (same id) is not a change; names come from each document\'s own types', () => {
+    expect(lines(mk('Shelf', [['+z', 'e-oak']]), mk('Shelf', [['+z', 'e-oak']]), [BUILT_IN_BAND, OAK], [BUILT_IN_BAND, { ...OAK, name: 'Red oak edging' }])).toEqual([]);
+    expect(lines(mk('Shelf', []), mk('Shelf', [['+z', 'e-oak']]), [BUILT_IN_BAND], [BUILT_IN_BAND, { ...OAK, name: 'Red oak edging' }])).toEqual(['Shelf: edging added on the front edge (Red oak edging)']);
+  });
+  it('an assembly part\'s line merges across placements', () => {
+    const def = () => designToDocument({ name: 'T', parts: [], assemblies: [{ name: 'Drawer', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])],
+      placements: [0, 1, 2].map((i) => ({ name: `D${i}`, at: v(i * 12, 0, 0) })) }] }, { centre: false }).doc;
+    const base = def();
+    const banded: SloydDocument = { ...base, bandTypes: [BUILT_IN_BAND, OAK], definitions: base.definitions.map((d) => ({ ...d,
+      boards: d.boards.map((b) => ({ ...b, bands: [{ side: { across: 'width' as const, from: 'min' as const }, type: 'e-oak' }] })) })) };
+    const out = diffDesigns(base, banded).filter((c) => c.kind === 'bands');
+    expect(out).toHaveLength(1);
+    expect(out[0]!.copies).toBe(3);
+    expect(out[0]!.text).toMatch(/^D0 › Front: edging added on the \w+ edge \(Oak edging\) \(×3\)$/);
   });
 });

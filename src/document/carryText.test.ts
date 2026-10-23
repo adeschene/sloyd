@@ -28,7 +28,6 @@ describe('carriedSummary: a resize that causes a new fault, per kind', () => {
   const cases: [string, Partial<Board>, [number, number, number], [number, number, number], [number, number, number], string][] = [
     ['curve', { curves: [ARCH] }, [30, 5, 1], [20, 5, 1], [21, 5, 1], 'curve'],
     ['edge profile', { profiles: [PROFILE] }, [20, 4, 1], [10, 4, 1], [11, 4, 1], 'edge profile'],
-    ['edging', { bands: BANDS as Board['bands'] }, [20, 4, 1], [20, 3, 1], [20, 2.5, 1], 'edging'],
   ];
   for (const [kind, extra, a, b, c, noun] of cases) {
     it(`${kind}: a resize that breaks it reads "no longer fits"; resized again, still broken, reads "stays measured"`, () => {
@@ -49,7 +48,7 @@ describe('carriedSummary: person-facing nouns', () => {
   it('a single curve, a single edge profile and edging alone are singular', () => {
     expect(resized({ curves: [ARCH] })).toBe('Apron was resized — its curve stays measured from where it was placed; check it.');
     expect(resized({ profiles: [PROFILE] })).toBe('Apron was resized — its edge profile stays measured from where it was placed; check it.');
-    expect(resized({ bands: [BANDS[0]] as Board['bands'] })).toBe('Apron was resized — its edging stays measured from where it was placed; check it.');
+    expect(resized({ curves: [ARCH], bands: [BANDS[0]] as Board['bands'] })).toBe('Apron was resized — its curve and edging stay measured from where they were placed; check them.');
     expect(gone({ curves: [ARCH] })).toBe("Apron's curve — no part named Apron in the result.");
   });
   it('several curves, or two or three kinds, are plural with "and" before the last', () => {
@@ -118,5 +117,19 @@ describe('carriedSummary', () => {
     const hw = { ...o, definitions: o.definitions.map((d) => ({ ...d, hardware: [{ type: 'hw-1', count: 2 }] })) } as SloydDocument;
     expect(carriedSummary(hw, docOf([])).notKept).toEqual(["Top drawer's hardware — no part named Top drawer in the result."]);
     expect(carriedSummary(hw, o).notKept).toEqual([]);
+  });
+});
+
+describe('carriedSummary: a plain part\'s edging is not carried (AI-bands spec §4.1)', () => {
+  const plain = (extra: Partial<Board>) => withExtra(docOf([part('Apron', [0, 0, 0], [30, 5, 1])]), extra);
+  const bigger = (extra: Partial<Board>) => withExtra(docOf([part('Apron', [0, 0, 0], [30, 6, 1])]), extra);
+  it('a banded plain part that is resized, or that the model removed, is neither "check" nor "not kept"', () => {
+    const banded = { bands: BANDS as Board['bands'] };
+    expect(carriedSummary(plain(banded), bigger(banded))).toEqual({ notKept: [], check: [] });
+    expect(carriedSummary(plain(banded), docOf([]))).toEqual({ notKept: [], check: [] });
+    // …and its edging never joins a carried kind's words.
+    expect(carriedSummary(plain({ ...banded, profiles: [PROFILE] }), bigger({ ...banded, profiles: [PROFILE] })).check).toEqual(
+      ['Apron was resized — its edge profile stays measured from where it was placed; check it.']);
+    expect(carriedSummary(plain({ ...banded, profiles: [PROFILE] }), docOf([])).notKept).toEqual(["Apron's edge profile — no part named Apron in the result."]);
   });
 });

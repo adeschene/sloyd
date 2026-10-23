@@ -7,6 +7,8 @@ import type { RefineMax, RefineRefusal } from '../document/refineDesign';
 import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
+import { BUILT_IN_BAND_ID } from '../document/bandModel';
+import { catalogOf } from '../document/materials';
 import type { MaterialCatalog } from '../document/materials';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
@@ -23,7 +25,7 @@ export interface RefineSettings { instruction: string; width: number | null; dep
 /** Refine handles what Detailed allows; beyond it the model would be forced to drop parts. */
 export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: placedCeiling('detailed') };
 
-export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers and holes. Keep assembly and placement names. Return the whole design.';
+export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.';
 
 /** `original`: the plain design the model's came from; the parts of it that carry features the JSON does not show are named (refine-features spec §5).
  *  `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum
@@ -31,10 +33,15 @@ export const KEEP_LINE = 'Keep every part you are not asked to change exactly as
 export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalog?: MaterialCatalog, original?: SloydDocument): string {
   const note = original ? featuredNote(carryFromOriginal(design, original)) : null;
   const customs = catalog ? catalog.ids.filter((id) => !catalog.get(id)!.builtIn) : [];
+  // Band types the schema's `edging` enum names by id (AI-bands spec §3.1); the built-in is the key `veneer`, not listed.
+  const labels = catalog ?? (original ? catalogOf(original) : undefined);
+  const edgings = (original?.bandTypes ?? []).filter((t) => t.id !== BUILT_IN_BAND_ID).map((t) =>
+    `"${t.id}" is ${t.name} (${t.kind === 'solid' ? `solid ${labels?.label(t.material) ?? t.material}, ${t.thickness}in` : 'tape'})`);
   return [
     'Here is the current design, in the same format you return:', JSON.stringify(design), '',
     ...(note ? [note, ''] : []),
     ...(customs.length > 0 ? [`Custom materials in this design: ${customs.map((id) => `"${id}" is ${catalog!.label(id)}`).join('; ')}.`, ''] : []),
+    ...(edgings.length > 0 ? [`Edging types in this design: ${edgings.join('; ')}.`, ''] : []),
     `Change it as follows: ${s.instruction.trim()}`, '', KEEP_LINE, '', 'Hard limits:', ...limitLines(s),
   ].join('\n');
 }
