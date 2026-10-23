@@ -1,6 +1,6 @@
 # Sloyd: Refine accepts holes, curves, profiles, bands and hardware
 
-**Date:** 2026-10-22 · **Status:** approved 2026-10-22 (builder-checked; the user's three rulings, §12, folded in); implemented on branch `refine-features` (not yet merged).
+**Date:** 2026-10-22 · **Status:** approved 2026-10-22 (builder-checked; the user's three rulings, §12, folded in); merged `98f8296` and deployed 2026-10-23 as `index-BJwLoCPr.js`. Later rulings: the *Amended* blocks at the end.
 **Builds on:** the refine, refine-joined, AI-tapers and AI-angles specs (`2026-10-13-sloyd-ai-angles-design.md`: how
 Refine learned a feature last time) and the joinery-features spec (`2026-10-21-sloyd-joinery-features-design.md`, whose
 §1 non-goal named this spec). Every rule there still holds unless this document says otherwise.
