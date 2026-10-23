@@ -37,15 +37,15 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `3162e68`, bundle `index-DoG-TXKm.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (fu 419: a Mitred corner
-  a mitre cannot be cut at is a butt, on joinery features chunk 3; deployed 2026-10-22). Owed to the user: see NEXT.
-- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free. The nearest
-  refusing boundary is `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 —
-  export first. Full table by schema boundary: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (audited 2026-10-22):** nothing is pending deploy and no plan exists; no follow-up is open as code-sized work.
-  Owed to the user: joinery chunk 3's words and spec amendments (its `docs/rounds.md` Status-log entry) and fu 419's part
-  note ("mitred corners" at a butted corner); chunk 2's (`docs/rounds.md`, Owed to the user); fu 402(1)–(2); fu 410–412.
-  As the user directs: the rest of Open follow-ups below (417 ask first).
+- **Production: `98f8296`, bundle `index-BJwLoCPr.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (Refine carries holes, curves,
+  profiles, bands and hardware by flat name in the original part's frame, inv 56; deployed 2026-10-23). Owed to the user: see NEXT.
+- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `98f8296`
+  only makes Refine refuse featured projects again). The nearest refusing boundary is `4a6d6a1` (band wording, `index-QDQAnB8n.js`,
+  schema 19): it REFUSES every project saved at 20 — export first. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (audited 2026-10-23):** nothing is pending deploy and no plan exists; no follow-up is open as code-sized work.
+  Owed to the user: the refine-features round's look on real hardware and its check-list words (`docs/rounds.md` Status log);
+  joinery chunk 3's words and spec amendments and fu 419's part note; chunk 2's (`docs/rounds.md`, Owed to the user); fu 402(1)–(2);
+  fu 410–412. As the user directs: the rest of Open follow-ups below (417 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -592,7 +592,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7549 tests across 220 files
+npm test           # Vitest, currently 7563 tests across 220 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -601,7 +601,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–426). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–427). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -616,7 +616,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–426.
+  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–427.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

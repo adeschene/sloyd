@@ -6981,3 +6981,11 @@ built). **Status:** open (record-only).
 **426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
 also receives the carry (the load gate renames it `X (1)`); `carriedSummary` does not mention it. Follows refine-features spec §2's name
 rule, as grain does. **Status:** open (record-only).
+
+**427. Refine's guard around the re-join is broader than the feature check (2026-10-23, final review).** `runRefine` catches any
+non-LLM throw from `runJoinery` (meant for `featureAllowed`, fu 244) and saves the design unjoined with FEATURE_CHECK_FAILED's words; a
+joinery bug after joinery's own paid call would read as the feature-check message, and that call's cost goes unreported. No worse than
+before (a raw failure, cost null). A narrower guard would sit on `featureAllowed` inside `runJoinery`. Same review, wording only: the
+feature-turned `shown` names hardware among "the wrong faces"; `JointsSummary.notes` also carries `parseChoices`' notes (its doc comment
+says ruled-out lines); FEATURE_CHECK_FAILED's advice ("Add joinery before drilling or shaping") reads oddly on an already-joined Refine and
+omits edging. **Status:** open (record-only; ask before changing).

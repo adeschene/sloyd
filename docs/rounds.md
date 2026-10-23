@@ -12,6 +12,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
+| `3162e68` (fu 419) | `index-DoG-TXKm.js` | 20 | free; Refine refuses holed, curved, profiled, banded and hardware projects again |
 | `1d39344` (joinery chunk 3) | `index-bKxsxRuC.js` | 20 | free; a Mitred notched corner prints its old mitre again (fu 419) |
 | `100c691` (notch drop) | `index-COsxvOYF.js` | 20 | free; joinery refuses banded projects again; a strip counts its full side again |
 | `133c669` (joinery chunk 2) | `index-CYPvNoJ0.js` | 20 | free; a metric notch may drop on load again (fu 416); a bowed rail's ends join as butts again (fu 415) |
@@ -120,9 +121,19 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | joinery accepts curves and profiles (chunk 2) | 10-22 | — | Add joinery rules out only the joint kinds whose zone a curve or profile enters (`featureRegions.ts`; judged in the original frame, P5; per-face run-through exception, P7); `rebaseCurves` / `rebaseProfiles` + `resizeAt` inverse; the gate compares curves and profiles; Repair accepts curved and profiled projects; Refine still refuses (inv 41/53; fu 363 first piece closed, 415). **Merged `133c669`, deployed 2026-10-22 (`index-CYPvNoJ0.js`)** |
 | notch drop + fu 415 | 10-22 | — | A metric Half-round notch stored at its stored chord's half circle; the loader holds one a few ulps past it (fu 416, closed); a curve that only meets a tenoned end keeps the growing kinds when it clears the tenon (fu 415, the user's ruling; fu 417 the cost); `rectOverlapsWaste` counts a side only where it enters the waste. **Merged `100c691`, deployed 2026-10-22 (`index-COsxvOYF.js`)** |
 | joinery accepts bands (chunk 3) | 10-22 | — | Add joinery rules out only the joint kinds a band is in the way of (`bandRegions`, judged as stored in the original frame, P9–P11; an edged shelf housed whole in a dado, the user's ruling); a stopped dado narrowed to the stop ends that clear ("Offer clear ends") with its smallest inset clearing a receiver band ("Fix now"); strips, tape and glue lines count only the visible run (`visibleRun`, P12–P14); the gate compares bands; Repair accepts banded projects; Refine still refuses (inv 41/54; fu 398's joinery and Repair half closed, 418–423). Merge `1d39344`, deployed 2026-10-22 (`index-bKxsxRuC.js`) |
+| Refine carries features | 10-22/23 | — | Refine accepts holes, curves, profiles, bands and hardware: carried by flat name onto the returned part in the ORIGINAL frame (`featureCarry.ts`, `frameFor`; inv 56), before the load gate and linking; a featured part turned onto another face goes back to the model (`feature-turned`); the done view lists Not kept and Check at the new size (`carryText.ts`); joinery's ruled-out notes shown; the four refusal modules deleted (inv 41/50/53/54/55; fu 328/398 closed for Refine, 363 Refine reading, 424–427). **Merged `98f8296`, deployed 2026-10-23 (`index-BJwLoCPr.js`)** |
 
-## Status log (to 2026-10-22)
+## Status log (to 2026-10-23)
 
+- **Refine carries features (2026-10-22/23; branch `refine-features`, MERGED `98f8296`, DEPLOYED 2026-10-23 as `index-BJwLoCPr.js`, CSS unchanged;
+  schema 20, rollback to `3162e68` / `index-DoG-TXKm.js` free)**: spec `docs/superpowers/specs/2026-10-22-sloyd-refine-features-design.md`
+  (the user's three rulings §12: carry not authoring; features stay measured from the ends they name; a turned part goes back to Claude),
+  plan `docs/superpowers/plans/2026-10-22-sloyd-refine-features.md`. Subagent-driven, 7 tasks, one final review + one fix wave (person-facing
+  noun forms; a feature-check throw after the paid call saves the design unjoined; `JointsSummary.notes`; the tie rule). 7563 tests. Live check
+  `docs/browser-verification-refine-features.md` (dev, 3 paid runs ≈ $0.08: taller, second shelf, joined wider — all features identical).
+  Production verified by bundle hash in-network and at the edge, CSP, a real-browser load (0 errors), storage cleared and read back empty.
+  Owed to the user: the refined cabinets on real hardware; the check-list words; the controller's rulings (hardware never on the check list;
+  plan turns not caught, fu 425; duplicate names, fu 426; the broad error guard, fu 427; unused custom band types now kept).
 - **Joinery accepts bands (joinery features chunk 3; 2026-10-22; merge `1d39344`, DEPLOYED 2026-10-22 as `index-bKxsxRuC.js`, CSS unchanged; schema 20, rollback to `100c691` / `index-COsxvOYF.js` free; verified in-network and at the edge: 200 on / and a deep route, sha256 = dist, old bundle 404, CSP, `edge band` in the edge bundle, a real-browser load with 0 errors and storage read empty before and after)**: spec
   `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (§8 Q3–Q5, *Amended (planning, chunk 3)* P9–P14 and *Amended
   (execution, chunk 3)*), plan `docs/superpowers/plans/2026-10-22-sloyd-joinery-bands.md`. Branch tree: 7483 tests across 221 files. No
