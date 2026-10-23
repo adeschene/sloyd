@@ -37,14 +37,13 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `e2729ee`, bundle `index-D_ed_oQ3.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (AI profiles, fu 430 chunk 2:
-  Generate and Refine author edge profiles, `profileWorld.ts`, one `angles` design array, inv 48/53/56; deployed 2026-10-23). Owed to the user: see NEXT.
-- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `e2729ee`
-  only stops Claude authoring profiles; past `ef88e09`, edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
-  `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
-  `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** **Mirrored links (fu 432, SCHEMA 21) MERGED `a2ad5f6`, NOT deployed**: live check, then ASK
-  before deploying (a rollback past it REFUSES projects saved at 21; export first). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
+- **Production: `68dca2d`, bundle `index-_J_yZLbU.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 21** (mirrored links, fu 432: a linked
+  part may be its Shape's mirror image, inv 44–46; deployed 2026-10-23). Owed to the user: see NEXT.
+- **Rollback:** the nearest refusing boundary is `e2729ee` (AI profiles, `index-D_ed_oQ3.js`, schema 20): it REFUSES every
+  project saved at 21 — export first. Below it, every deploy back to `98c7df4` is schema 20 and free among themselves. Full
+  table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (2026-10-23):** Nothing is pending deploy. **Mirrored links (fu 432) is DEPLOYED** (`68dca2d`, schema 21; live-checked,
+  `docs/browser-verification-mirrored-links.md`). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -69,7 +68,7 @@ removing them "is just a waste of time"); never clear the dev profile wholesale 
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (20 since the hardware round, deployed 2026-10-21)
+**Rollback cost is a schema question.** A build understanding less than the file's version (21 since mirrored links, deployed 2026-10-23)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
