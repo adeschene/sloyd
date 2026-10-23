@@ -10,6 +10,7 @@ import { bevelCut, chamferCut, miterCut, miterRatio, taperCut } from './angleCut
 import { angleRatiosOf, worldAngles } from './angleWorld';
 import { worldTapers } from './taperWorld';
 import { worldHoles } from './holeWorld';
+import { worldBands } from './bandWorld';
 import { boardExtents } from './geometry';
 import { ARCH } from './curveFixtures';
 import { flatDocument } from './tree';
@@ -395,5 +396,27 @@ describe('documentToDesign writes hole rows (AI-holes spec §3.2, §3.3)', () =>
     for (const n of [h.offset.x, h.offset.y, h.offset.z, h.depth, h.pitch, h.diameter]) expect(values.has(n), String(n)).toBe(true);
     expect(values.has(32 / 25.4)).toBe(true);
     expect(values.has(5 / 25.4)).toBe(true);
+  });
+});
+
+describe('Refine and mirrored links (fu 432, mirrored-links spec §5.1)', () => {
+  const pins = (face: '+x' | '-x', z: number) =>
+    ({ face, diameter: 0.25, depth: 0.375, through: false, offset: v(face === '+x' ? 0.75 : 0, 10, z), toward: '+y' as const, count: 9, pitch: 1.25 });
+  const side = (name: string, x: number, inside: '+x' | '-x'): GeneratedPart =>
+    ({ ...part(name, [x, 0, 0], [0.75, 30, 12], 'side'), holes: [pins(inside, 2), pins(inside, 10)], bands: [{ edge: '-z', edging: 'veneer' }] });
+
+  it('a mirrored-link project round-trips with its link and flag, every world part unchanged', () => {
+    const doc = designToDocument({ name: 'Case', parts: [side('Side L', 0, '+x'), side('Side R', 20, '-x')], assemblies: [] }, { centre: false }).doc;
+    const flags = (x: SloydDocument) => x.boards.map((b) => [b.name, 'shape' in b, b.mirrored === true]);
+    expect(flags(doc)).toEqual([['Side L', true, false], ['Side R', true, true]]);
+    const r = documentToDesign(doc, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.parts.map((p) => p.role)).toEqual(['linked-1', 'linked-1']);
+    const back = designToDocument(r.design, { centre: false, exact: designValues(r.design), bandTypes: doc.bandTypes }).doc;
+    expect(back.shapes).toHaveLength(1);
+    expect(flags(back)).toEqual(flags(doc));
+    const worldOf = (x: SloydDocument) => flatDocument(x).boards.map((b) => [b.name, boardExtents(b), b.position, worldHoles(b), worldBands(b)]);
+    expect(worldOf(back)).toEqual(worldOf(doc));
+    expect(diffDesigns(doc, back)).toEqual([]);
   });
 });

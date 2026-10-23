@@ -44,7 +44,9 @@ export function linksToShapes(doc: SloydDocument, legacy: Map<StoredBoard, strin
   }
   const fix = (bs: StoredBoard[]) => bs.map((b): StoredBoard => {
     const id = convert.get(b);
-    return id === undefined ? b : { id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: id };
+    if (id === undefined) return b;
+    // A mirror candidate (linkByRole, mirrored-links spec §5.1) is the Shape's mirrored user: its flag rides on the record.
+    return { id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: id, ...((b as Board).mirrored === true ? { mirrored: true } : {}) };
   });
   return {
     ...doc,
