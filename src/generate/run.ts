@@ -145,7 +145,7 @@ export async function runRepairLoop<T extends { doc: SloydDocument; violations: 
 /** A problem's identity across attempts (fu 186): its kind and parts — and, for a hole or band fault, its message (face
  *  or edge, and fault), so an original's fault never hides a NEW one on the same part (AI-holes spec §3.1; AI-bands spec
  *  §4.1). */
-export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort(), v.kind === 'hole-fault' || v.kind === 'band-fault' ? v.message : null]);
+export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort(), v.kind === 'hole-fault' || v.kind === 'band-fault' || v.kind === 'profile-fault' ? v.message : null]);
 
 /** What one usable attempt is worth: the tree kept, its NEW problems, and (Refine) the old ones. */
 export interface DesignValue { doc: SloydDocument; violations: Violation[]; present: Violation[] }

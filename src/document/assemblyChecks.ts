@@ -63,10 +63,10 @@ export function collapseViolations(violations: readonly Violation[], authored: A
     const labels = v.parts.map((n, i) => who[i]?.label ?? n);
     const pls = new Set(who.map((a) => a?.placement ?? null));
     const internal = pls.size === 1 && !pls.has(null);
-    // Two DIFFERENT hole (or band) faults on one part are two problems (AI-holes spec §3.1; AI-bands spec §3.2): the
+    // Two DIFFERENT hole (band or profile) faults on one part are two problems (AI-holes spec §3.1; AI-bands spec §3.2): the
     // message joins the key, less the flat name it starts with, which differs per placement (the same row in every
     // placement still merges).
-    const own = (v.kind === 'hole-fault' || v.kind === 'band-fault') && v.parts.length === 1 && v.message.startsWith(v.parts[0]!) ? v.message.slice(v.parts[0]!.length) : null;
+    const own = (v.kind === 'hole-fault' || v.kind === 'band-fault' || v.kind === 'profile-fault') && v.parts.length === 1 && v.message.startsWith(v.parts[0]!) ? v.message.slice(v.parts[0]!.length) : null;
     const key = JSON.stringify([v.kind, internal, [...labels].sort(), own]);
     let g = groups.get(key);
     if (!g) {

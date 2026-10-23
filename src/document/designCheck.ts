@@ -33,7 +33,7 @@ import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../un
  * is never a contact); overlap stays on `worldSolids` except for a pair with an angled part, measured on real bodies (fu 302);
  * the tip check weighs an angled part by its real bodies (`partMass`, fu 303).
  */
-export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'angle-joint' | 'feature-turned' | 'hole-fault' | 'band-fault';
+export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'angle-joint' | 'feature-turned' | 'hole-fault' | 'band-fault' | 'profile-fault';
 export interface Violation {
   kind: ViolationKind;
   message: string;

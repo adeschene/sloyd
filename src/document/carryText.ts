@@ -5,7 +5,7 @@ import { boardExtents } from './geometry';
 import { holeFaults } from './holeFaults';
 import { faultKey } from './holeText';
 import { curveFaults } from './curves';
-import { profileFaults } from './profiles';
+import { profileFaultKinds } from './profileDesignFaults';
 import { bandFaults } from './banding';
 import { carriedKinds } from './featureCarry';
 
@@ -73,7 +73,7 @@ function faultKeys(b: Board, doc: Pick<SloydDocument, 'bandTypes'>): Set<string>
   const out = new Set<string>();
   for (const r of b.holes) for (const f of holeFaults(b, r)) out.add(`h:${r.id}:${faultKey(f)}`);
   for (const c of b.curves) for (const f of curveFaults(b, c)) out.add(`c:${c.id}:${f.kind}:${f.edge?.dim}${f.edge?.side}`);
-  for (const p of b.profiles) for (const f of profileFaults(b, p)) out.add(`p:${p.id}:${f.kind}`);
+  for (const p of b.profiles) for (const k of profileFaultKinds(b, p)) out.add(`p:${p.id}:${k}`);
   // A plain part's bands are authored in the design, not carried; their faults are Properties' to show (AI-bands spec §4.1).
   if (b.curves.length > 0) for (const f of bandFaults(b, doc.bandTypes)) out.add(`b:${f.side.across}${f.side.from}:${f.kind}`);
   return out;
