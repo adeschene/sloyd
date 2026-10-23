@@ -154,8 +154,10 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   noun forms; a feature-check throw after the paid call saves the design unjoined; `JointsSummary.notes`; the tie rule). 7563 tests. Live check
   `docs/browser-verification-refine-features.md` (dev, 3 paid runs ≈ $0.08: taller, second shelf, joined wider — all features identical).
   Production verified by bundle hash in-network and at the edge, CSP, a real-browser load (0 errors), storage cleared and read back empty.
-  Owed to the user: the refined cabinets on real hardware; the check-list words; the controller's rulings (hardware never on the check list;
+  **Reviewed by the user 2026-10-23** (watched dev browser, software GL): the look reads fine; the check-list words kept as they are; a
+  hardware-only resized part stays off the check list; the controller's rulings approved as they stand (hardware never on the check list;
   plan turns not caught, fu 425; duplicate names, fu 426; the broad error guard, fu 427; unused custom band types now kept).
+  Still owed: the refined cabinets on real hardware.
 - **Joinery accepts bands (joinery features chunk 3; 2026-10-22; merge `1d39344`, DEPLOYED 2026-10-22 as `index-bKxsxRuC.js`, CSS unchanged; schema 20, rollback to `100c691` / `index-COsxvOYF.js` free; verified in-network and at the edge: 200 on / and a deep route, sha256 = dist, old bundle 404, CSP, `edge band` in the edge bundle, a real-browser load with 0 errors and storage read empty before and after)**: spec
   `docs/superpowers/specs/2026-10-21-sloyd-joinery-features-design.md` (§8 Q3–Q5, *Amended (planning, chunk 3)* P9–P14 and *Amended
   (execution, chunk 3)*), plan `docs/superpowers/plans/2026-10-22-sloyd-joinery-bands.md`. Branch tree: 7483 tests across 221 files. No

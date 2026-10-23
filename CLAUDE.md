@@ -46,8 +46,7 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 - **NEXT (2026-10-23):** nothing is pending deploy and no plan exists. The shop-words round is DEPLOYED (spec
   `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`; fu 431 left as is). The AI-holes
   round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
-  Owed to the user: the refine-features round's look and
-  check-list words; joinery chunk 3's words and spec amendments and fu 419's part note; chunk 2's; fu 402(1)–(2); fu 410–412.
+  The refine-features review was taken 2026-10-23 (all approved; its real-hardware look stays owed). Owed to the user: joinery chunk 3's words and spec amendments and fu 419's part note; chunk 2's; fu 402(1)–(2); fu 410–412.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles

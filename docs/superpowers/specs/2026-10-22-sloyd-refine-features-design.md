@@ -272,6 +272,8 @@ back to Claude as a fault (§4 as written); (3) carry, not authoring, for this r
 
 ## Amended (execution)
 
+*Approved by the user 2026-10-23 as they stand (the review of this round; the check-list words kept).*
+
 - **§5, when `carried` is computed.** §5 says the carried list is computed "after the joined path's re-join". It is computed
   plain-to-plain, BEFORE `runJoinery` (`carriedSummary`, `RefineOutcome.carried`): joinery grows tenons, so after the re-join every
   joined part would read as resized. The re-join still rebases features (§6); only the done-view comparison moved earlier.
