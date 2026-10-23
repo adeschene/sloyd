@@ -12,6 +12,10 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
+| `ef88e09` (AI bands) | `index-lH3mycr3.js` | 20 | free; Claude stops authoring profiles, and the design form returns to four angle arrays |
+| `0b5e5ca` (wording, fu 410–412) | `index-CuLt9iDe.js` | 20 | free; also Claude stops authoring edging |
+| `b569dca` (shop words) | `index-B3SxN3Yk.js` | 20 | free; also the old wording (fu 411/412) |
+| `424c184` (AI holes) | `index-D3k3tvUe.js` | 20 | free; also "+x" returns to the change list |
 | `98f8296` (Refine carries features) | `index-BJwLoCPr.js` | 20 | free; Claude stops authoring holes (Refine carries them again) |
 | `3162e68` (fu 419) | `index-DoG-TXKm.js` | 20 | free; Refine refuses holed, curved, profiled, banded and hardware projects again |
 | `1d39344` (joinery chunk 3) | `index-bKxsxRuC.js` | 20 | free; a Mitred notched corner prints its old mitre again (fu 419) |
@@ -127,13 +131,12 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | shop words | 10-23 | — | Refine's change list in shop words (`shopWords.ts`: top/bottom, inside/outside toward the frame's middle, else left/right/front/back; ends absolute); a same-looking add+remove hole pair is one "moved" line; the prompt names +z the front (spec `2026-10-23-sloyd-shop-words-design.md`; fu 431, left as is). **Merged `a4b51fd`, deployed 2026-10-23 at `b569dca` (`index-B3SxN3Yk.js`)** |
 | wording | 10-23 | — | `FEATURE_CHECK_FAILED` names edging; the link note says what is not shared (fu 411); per-copy hardware totals per type (fu 412); fu 410 left silent. **Deployed at `0b5e5ca` (`index-CuLt9iDe.js`)** |
 | AI bands | 10-23 | — | Generate and Refine author edge bands in world words (`bandWorld.ts`; `edging` = veneer, a project type, or `solid <material>` minted once as `<Label> edging` at 1/4in); band types threaded through every path; band faults fed back (not for curved parts, whose bands stay carried); banded parts link through turns; Generate edges exposed plywood front edges by default; `vec3` into `$defs` (fu 322) (inv 48/54/56; fu 430 chunk 1, 432, 433). **Merged `e7ce893`, deployed 2026-10-23 at `ef88e09` (`index-lH3mycr3.js`)** |
-| AI profiles | 10-23 | — | The design form's four angle arrays merged into ONE `angles` item to fit the grammar (`toWireDesign` / `parseDesign` split; the internal form unchanged); Generate and Refine author edge profiles in world words (`profileWorld.ts`; untouched entries exact through the exact-entry map); `profile-fault` kept and fed back (`profileDesignFaults.ts`); profiled parts link through turns and follow the rank + thickness frame rule; a part with curves or a two-side run keeps its profiles carried (`carriesProfiles`); profile lines in the change list (inv 40/41/48/53/56; fu 430 closed, 434). **Merged `30f1299`, NOT deployed** |
+| AI profiles | 10-23 | — | The design form's four angle arrays merged into ONE `angles` item to fit the grammar (`toWireDesign` / `parseDesign` split; the internal form unchanged); Generate and Refine author edge profiles in world words (`profileWorld.ts`; untouched entries exact through the exact-entry map); `profile-fault` kept and fed back (`profileDesignFaults.ts`); profiled parts link through turns and follow the rank + thickness frame rule; a part with curves or a two-side run keeps its profiles carried (`carriesProfiles`); profile lines in the change list (inv 40/41/48/53/56; fu 430 closed, 434). **Merged `30f1299`, deployed 2026-10-23 at `e2729ee` (`index-D_ed_oQ3.js`)** |
 
 ## Status log (to 2026-10-23)
 
-- **AI profiles (fu 430 chunk 2; 2026-10-23; branch `ai-profiles`, MERGED `30f1299`, NOT deployed; schema 20 — no schema change, so a later
-  rollback past it is free: it only stops Claude authoring profiles and returns the design form's four angle arrays; the rollback table
-  gets its row at deploy)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` ("Chunk 2, revised" R1–R6;
+- **AI profiles (fu 430 chunk 2; 2026-10-23; branch `ai-profiles`, MERGED `30f1299`, DEPLOYED at `e2729ee` as `index-D_ed_oQ3.js`, CSS unchanged; schema 20 — no schema change, so a
+  rollback past it is free: it only stops Claude authoring profiles and returns the design form's four angle arrays)**: spec `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` ("Chunk 2, revised" R1–R6;
   Amended (execution) holds chunk 2's Rulings 1–16 and the final review's fixes), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-profiles.md`.
   Subagent-driven, 7 build tasks, each task-reviewed; the final schema compiled on the first probe (2,800 chars, fu 322); the angle re-check
   after the merge passed live (Generate a Shaker side table and a picture frame, a Refine echo with every angle cut identical bar fresh ids, as before the round). Final

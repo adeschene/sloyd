@@ -37,15 +37,14 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `ef88e09`, bundle `index-lH3mycr3.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (AI bands, fu 430 chunk 1:
-  Generate and Refine author edge bands, `bandWorld.ts`, inv 54/56; deployed 2026-10-23). Owed to the user: see NEXT.
-- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `ef88e09`
-  only stops Claude authoring edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
+- **Production: `e2729ee`, bundle `index-D_ed_oQ3.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (AI profiles, fu 430 chunk 2:
+  Generate and Refine author edge profiles, `profileWorld.ts`, one `angles` design array, inv 48/53/56; deployed 2026-10-23). Owed to the user: see NEXT.
+- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `e2729ee`
+  only stops Claude authoring profiles; past `ef88e09`, edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** **AI profiles (fu 430 chunk 2; the merged `angles` design array) is MERGED `30f1299`, NOT deployed**:
-  pending its live profile check (plan Task 8 Step 3; `docs/browser-verification-ai-profiles.md`, 4 of 10 paid calls so far),
-  then ASK before deploying (schema 20, rollback free). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
+- **NEXT (2026-10-23):** Nothing is pending deploy. **AI profiles (fu 430 chunk 2) is DEPLOYED** (`e2729ee`, `index-D_ed_oQ3.js`;
+  live-checked on dev, `docs/browser-verification-ai-profiles.md`, 7 of 10 paid calls). Owed to the user: chunk 2 Rulings 10/16 (spec Amended); fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
