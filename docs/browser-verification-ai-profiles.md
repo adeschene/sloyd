@@ -44,3 +44,24 @@ Readouts through `migrateDocument` → `flatDocument` → `worldTapers` / `world
    world readings identical; only ids are fresh, as before this round (angle cuts have no id-restoring map; holes do).
 
 No regression in the model's angle output; the round continues to profiles. Paid calls so far: 1 probe + 3 runs = 4 of 10.
+
+## Live profile checks after the merge (2026-10-23, master `30f1299`)
+
+Dev server `:5199`, the user's profile, Playwright MCP; key presence only; no `localStorage.clear()`; test projects left.
+Readouts through `migrateDocument` → `flatDocument` → `worldProfiles` and the stored `profiles`.
+
+1. **Generate "a cherry side table with a rounded-over top". PASS** (≈ $0.06; `Cherry Side Table`, `id_mvldj1mk_l`). Top
+   20 × 20 × 3/4: one 1/4in roundover, face `max` (the top), run `{ loop: true }` (world `edge` `+y/+x`, `allRound`). No
+   other part profiled; legs tapered as before (2 angle cuts each).
+2. **Refine "add a cove to the top's front edge". PASS** (≈ $0.04; `id_mvldlujd_16`). Change list: `Top: 3/8" cove added
+   on the bottom/front edge` (the model put it under the front edge, where the top face already has the loop). Stored: face
+   `min`, side width/max, BOTH ends THROUGH (Review Focus 2: no `stop-off`); the loop returned with its id and every field
+   identical; every part's angle cuts, size, pose and frame identical.
+3. **Refine echo "make it 2 inches taller" on a project with a stopped and a two-side profile. PASS** (≈ $0.04;
+   `id_mvldq974_1q`). Fixture (the run-1 project, edited through the store): Top + a 3/8in cove on its underside front edge
+   stopped 2 from min to 3 from MAX (world 2–17), beside the loop; the four aprons' shared Shape + a two-side run (width min
+   at 8 round to length max at 2; carried, `worldProfiles` null). Change list: the four leg resizes and five moves only, no
+   profile line. Every part's stored `profiles` byte-identical (ids included), the Shape's two-side run identical, angle
+   cuts and frames identical (Review Focus 1).
+
+Paid calls: 1 probe + 3 angle runs + 3 profile runs = 7 of 10 (≈ $0.14 for the profile runs).
