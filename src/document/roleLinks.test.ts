@@ -258,7 +258,8 @@ describe('turned candidates and holes', () => {
         { id: 'hm', face: 'width', from: 'min', diameter: 5 / 25.4, depth: 12 / 25.4, along: 'length', alongFrom: 'min', station: 37 / 25.4, count: 4, pitch: 32 / 25.4, acrossFrom: 'max', inset: 9 / 25.4 }] };
     const cs = turnCandidates(leg);
     expect(cs.map((c) => c.rotation)).toEqual([90, 180, 270]);
-    // Ids by index from the ORIGINAL's rows sorted canonically (the re-stored rows are canonical).
+    // Ids by index from the ORIGINAL's rows sorted canonically: positional only (the turned frame's canonical order may pair
+    // an id with another row; alignedTo overwrites them), so this pins the id SET and order, not which row holds which.
     const ids = sortHoleRows(leg.holes).map((r) => r.id);
     for (const c of cs) {
       expect(boardExtents(c)).toEqual(boardExtents(leg));

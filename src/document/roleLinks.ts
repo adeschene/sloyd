@@ -17,7 +17,9 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
  * world box (so the same min corner, inv 2), the grain on the same world axis, and its tapers, miters, bevels and chamfers
  * re-stored on the same world faces through taperWorld and angleWorld (inv 44), and its hole rows through worldHoles and
  * holeRowsFor (AI-holes spec §5): canonical, every number kept exactly as the part's world reading gives it (never put on
- * the hole grid), each row taking its id by index from the part's own rows sorted canonically. None for a part with
+ * the hole grid), each row taking an id by index from the part's own rows sorted canonically — POSITIONAL only: the turned
+ * frame's canonical order can differ from the original's, so an id may land on another row; harmless, because `alignedTo`
+ * overwrites every hole id with the representative's before the candidate is used (final review M4). None for a part with
  * rectangular cuts, curves, profiles or bands (a band is board-local, so a turn would land it on another world face); no
  * candidate at a turn where a cut or hole row has no stored form.
  */

@@ -285,6 +285,15 @@ describe('diffDesigns — hole rows (AI-holes spec §4)', () => {
     expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row({ count: 4, pitch: 3 })]))).toEqual(['Side: hole row on +y now 4 holes, 3" apart']);
     expect(lines(holed([row()]), holed([row()]))).toEqual([]);
   });
+  it('a row shrunk to one hole reads "1 hole", singular (final review M2)', () => {
+    expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row()]))).toEqual(['Side: hole row on +y now 1 hole']);
+  });
+  it('a single bore grown into a row is not "moved"; a direction change alone reads "running toward" (final review M1)', () => {
+    // The same first centre (length 2, width 1.5), the row now running along the width.
+    const across = { along: 'width' as const, station: 1.5, inset: 2 };
+    expect(lines(holed([row()]), holed([row({ ...across, count: 3, pitch: 0.5 })]))).toEqual(['Side: hole row on +y now 3 holes, 1/2" apart']);
+    expect(lines(holed([row({ count: 3, pitch: 1 })]), holed([row({ ...across, count: 3, pitch: 1 })]))).toEqual(['Side: hole row on +y now running toward +z']);
+  });
   it('a row whose first centre moved is a removal plus an addition', () => {
     expect(lines(holed([row()]), holed([row({ station: 5 })]))).toEqual(['Side: 1 hole added on +y, 1/4" Ø', 'Side: hole row on +y removed']);
   });

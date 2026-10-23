@@ -185,7 +185,8 @@ function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) =>
  * One part's hole-row lines (AI-holes spec §4), on design forms (`worldHoles`: `offset` is part-relative, so a moved
  * part changes nothing). A row is matched by its face plus its first centre, EXACTLY; one that matches nothing is a
  * removal plus an addition. A matched row names what differs at display precision: depth, through, diameter, count,
- * pitch, or `moved` (its direction along the face). A through row's depth is not a difference.
+ * pitch, or `running toward <dir>` (its direction along the face, only when it was and is a row of more than one). A
+ * through row's depth is not a difference.
  */
 function holeLines(before: readonly WorldHoleRow[], after: readonly WorldHoleRow[], len: (n: number) => string): string[] {
   const at = (r: WorldHoleRow) => `${r.face}|${r.offset.x}|${r.offset.y}|${r.offset.z}`;
@@ -199,10 +200,11 @@ function holeLines(before: readonly WorldHoleRow[], after: readonly WorldHoleRow
     if (r.through !== old.through ? !r.through : !r.through && len(r.depth) !== len(old.depth)) what.push(`${len(r.depth)} deep`);
     if (r.through && !old.through) what.push('through');
     if (len(r.diameter) !== len(old.diameter)) what.push(`${len(r.diameter)} Ø`);
-    if (r.count !== old.count) what.push(`${r.count} holes`);
+    if (r.count !== old.count) what.push(`${r.count} hole${r.count === 1 ? '' : 's'}`);
     if (r.count > 1 && old.count > 1 && len(r.pitch) !== len(old.pitch)) what.push(`${len(r.pitch)} apart`);
     else if (r.count > 1 && old.count === 1) what.push(`${len(r.pitch)} apart`);
-    if (r.toward !== old.toward && r.count > 1) what.push('moved');
+    // A single bore has no direction to change (final review M1): only a row that was and is a row can turn.
+    if (r.toward !== old.toward && r.count > 1 && old.count > 1) what.push(`running toward ${r.toward}`);
     if (what.length > 0) out.push(`hole row on ${r.face} now ${what.join(', ')}`);
   }
   for (const rs of left.values()) for (const r of rs) out.push(`hole row on ${r.face} removed`);
