@@ -25,9 +25,10 @@ describe('profileDesignFaults (AI-profiles spec R6.1)', () => {
     const kinds = profileFaultKinds(b, b.profiles[0]!);
     expect(kinds).toEqual(['runs-off']);
     const v = profileDesignFaults(flat, flat.units);
-    expect(v.length).toBeGreaterThan(0);
-    expect(v.every((x) => x.kind === 'profile-fault' && x.parts[0] === 'Top')).toBe(true);
-    expect(v[0]!.message).toMatch(/^Top's roundover on [+-][xyz]\/[+-][xyz] /);
+    expect(v).toHaveLength(1);
+    expect(v[0]!.kind).toBe('profile-fault');
+    expect(v[0]!.parts).toEqual(['Top']);
+    expect(v[0]!.message).toBe("Top's roundover on +y/+z is bigger than the edge.");
     expect(v[0]!.shown).toMatch(/^Top's roundover 1" on the edge between the thickness face \(max side\) and the width face \(max side\) /);
   });
 
@@ -47,6 +48,18 @@ describe('profileDesignFaults (AI-profiles spec R6.1)', () => {
   it('a curved part\'s profile fault is not reported (carried, never authored)', () => {
     const flat = flatDocument(project([top([roundover(1)], { curves: [ARCH] })]));
     expect(flat.boards[0]!.curves.length).toBeGreaterThan(0);
+    expect(profileDesignFaults(flat, flat.units)).toEqual([]);
+  });
+
+  it('a part with a two-side run (carried, never authored) raises no profile-fault though its profile is faulted', () => {
+    const two = roundover(5, 'p9', { run: {
+      start: { side: { across: 'width', from: 'max' }, from: 'min', at: 20 },
+      end: { side: { across: 'length', from: 'max' }, from: 'min', at: 6 },
+    } });
+    const flat = flatDocument(project([top([two])]));
+    const b = flat.boards[0]!;
+    expect(b.profiles).toHaveLength(1);
+    expect(profileFaults(b, b.profiles[0]!).length).toBeGreaterThan(0);
     expect(profileDesignFaults(flat, flat.units)).toEqual([]);
   });
 
