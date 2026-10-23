@@ -7062,3 +7062,11 @@ Claude still moves the right way (the live check's third run: pins moved toward 
 words are world-true and shop-wrong). Nothing migrates. Candidate remedies (each a hypothesis): a line in Refine's user turn naming
 the open face as the front when the back panel sits at +z, or a one-off "turn the piece around" in Sloyd. **Status:** open (ask first).
 **Status:** closed by decision 2026-10-23 — the user: "leave old projects as they are". Do not re-open unasked.
+
+## From the AI profiles and bands spec — 2026-10-23
+
+**432. Mirror-image parts cannot link (2026-10-23).** Linking tries only quarter turns about vertical (`turnCandidates`). A case's
+left and right sides with shelf pins on their inside faces AND edging (or a profile) on their front edges are mirror images: no
+turn maps one onto the other, so they stay two distinct parts, count twice against Generate's part cap, and an edit to one does
+not follow to the other. Candidate: a reflection candidate in linking, storing the second side as a mirrored use of the Shape
+(schema 13's mirror machinery). **Status:** open (feature; the user chose "two parts for now", 2026-10-23).
