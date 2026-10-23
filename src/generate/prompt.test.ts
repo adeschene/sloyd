@@ -10,7 +10,7 @@ const base: GenerateSettings = {
 
 describe('prompt', () => {
   it('teaches tapers in the fixed prefix (AI-tapers spec §6)', () => {
-    expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered, mitered, beveled or chamfered.');
+    expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered, mitered, beveled, chamfered or drilled.');
     expect(SYSTEM_PROMPT).toContain('"tapers": [] for every part that is not tapered');
     expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
     expect(SYSTEM_PROMPT).toContain('Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.');
@@ -28,6 +28,20 @@ describe('prompt', () => {
     ]) expect(SYSTEM_PROMPT).toContain(s);
   });
 
+
+  it('teaches hole rows: the offset rule, the defaults and the empty array (AI-holes spec §6)', () => {
+    for (const s of [
+      'Holes:',
+      '"offset" is the FIRST hole\'s centre, measured from the part\'s own "at" (its minimum corner)',
+      'that coordinate is 0 for a "-" face or the part\'s size for a "+" face',
+      '"toward" is the direction the row continues',
+      'write 0.197 (5 mm) and 1.26 (32 mm)',
+      '"face": "+x", "diameter": 0.25, "depth": 0.375, "through": false, "offset": { "x": 0.75, "y": 6, "z": 2 }, "toward": "+y", "count": 20, "pitch": 1.25',
+      'a through hole of 3/16in',
+      'Keep holes at least 1in away from where parts join',
+      'Use "holes": [] for every part without them.',
+    ]) expect(SYSTEM_PROMPT).toContain(s);
+  });
 
   it('pins the corner table and the typical start (fu 313)', () => {
     for (const row of [
