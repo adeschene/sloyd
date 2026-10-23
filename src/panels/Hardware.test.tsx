@@ -119,10 +119,16 @@ describe('the Hardware section (hardware spec §5.1)', () => {
     expect(onNew).toHaveBeenCalledTimes(1);
   });
 
-  it('an assembly placed twice with [{h1, 3}] reads Counted once per copy: 6 in all.', () => {
+  it('an assembly placed twice with [{h1, 3}] reads Counted once per copy (2): 6 Hinge in all.', () => {
     open({ instances: [inst('i1', 'Cab'), { ...inst('i2', 'Cab 2') }], definitions: [def([{ type: 'h1', count: 3 }])] }, 'i1');
     expect(screen.getByRole('heading', { name: 'Hardware' })).toBeInTheDocument();
-    expect(screen.getByText('Counted once per copy: 6 in all.')).toBeInTheDocument();
+    expect(screen.getByText('Counted once per copy (2): 6 Hinge in all.')).toBeInTheDocument();
+  });
+
+  it('two types are totalled per type, never summed together (fu 412, the user\'s ruling)', () => {
+    const three = [inst('i1', 'Drawer'), inst('i2', 'Drawer 2'), inst('i3', 'Drawer 3')];
+    open({ instances: three, definitions: [def([{ type: 'h2', count: 1 }, { type: 'h1', count: 2 }])] }, 'i1');
+    expect(screen.getByText('Counted once per copy (3): 3 Pull, 6 Hinge in all.')).toBeInTheDocument();
   });
 
   it('a part placed once shows no per-copy note', () => {

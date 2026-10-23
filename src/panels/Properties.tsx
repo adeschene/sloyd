@@ -657,7 +657,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
       />
       {linkedCount > 0 && (
         <div className="link-block">
-          <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
+          <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: every edit but name, position and turn changes all {linkedCount + 1}.</p>
           <div className="row">
             {linkedHere && <button onClick={() => selectLinked(board.id)}>Select linked</button>}
             <EditLock><button onClick={() => unlinkBoards([board.id])}>Unlink</button></EditLock>

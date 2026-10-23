@@ -6880,14 +6880,18 @@ needs it) (hardware spec §11).
 **410. Ungroup refused for overflow is silent.** Ungroup merges an assembly's hardware into its parent by adding counts; a sum above
 999 is refused (P1, *Amended (planning)*, approved), but the UI gives no reason: the button does nothing. Reachable only with
 counts in the hundreds. **Status:** open (a wording decision for the user: a message, or leave it).
+**Status:** closed by decision 2026-10-23 — the user: leave it silent (too rare to be worth UI).
 
 **411. The link note does not mention hardware.** `Linked with 1 other part: edits to size, material, grain, posture or cuts change
 all 2.` is unchanged, yet hardware is now a shared field too (and two parts differing only in hardware do not link). For the user's
 eye. **Status:** open (wording; the user's eye).
+**Status:** CLOSED 2026-10-23 (the user: say what is NOT shared). The note reads `Linked with 1 other part: every edit but name,
+position and turn changes all 2.`; `links.test.ts` pins LINK_FIELDS' own set to that sentence.
 
 **412. `Counted once per copy: <n> in all.` sums different types.** On a Drawer placed 3 times carrying a Pull and Drawer slides, it
 reads `6 in all` (1 + 1, times 3). The words are the spec's own (§5.1); the sum across types may not be what a reader wants. For the
 user's eye. **Status:** open (wording; the user's eye).
+**Status:** CLOSED 2026-10-23 (the user: per type). The note reads `Counted once per copy (3): 3 Pull, 6 Hinge in all.` (stored order).
 
 **413. `sameAngleCut`'s exact gate comparison can be refused by rounding.** A number goes out as `x' = x + L` and back as `(x' - L) + L`;
 when `x' > 2L` that subtraction rounds, so a re-join need not reproduce an angle cut bitwise. Holes compare within `GATE_TOLERANCE` for

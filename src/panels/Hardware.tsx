@@ -42,7 +42,8 @@ export function Hardware({ target, heading, onNewHardwareType }: { target: Hardw
     }),
     { label: 'New hardware type…', run: onNewHardwareType },
   ];
-  const total = entries.reduce((s, u) => s + u.count, 0) * places;
+  // Per type, never summed across types (fu 412, the user's ruling): `Counted once per copy (3): 3 Pull, 6 Hinge in all.`
+  const totals = entries.map((u) => `${u.count * places} ${types.find((t) => t.id === u.type)?.name ?? u.type}`).join(', ');
   return (
     <EditLock>
       <h3>{heading}</h3>
@@ -56,7 +57,7 @@ export function Hardware({ target, heading, onNewHardwareType }: { target: Hardw
           </div>
         );
       })}
-      {entries.length > 0 && places >= 2 && <p className="field-note">Counted once per copy: {total} in all.</p>}
+      {entries.length > 0 && places >= 2 && <p className="field-note">Counted once per copy ({places}): {totals} in all.</p>}
       <Popover className="add-hardware" label={<>+ Add hardware<span aria-hidden="true"> ▾</span></>} title="Add hardware" items={menu} />
     </EditLock>
   );

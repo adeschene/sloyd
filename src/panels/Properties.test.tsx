@@ -1262,7 +1262,7 @@ describe('linking controls', () => {
     unmount();
     act(() => { st().selectBoard(worldParts(st().doc)[0]!.id); });
     render(<Properties />);
-    expect(screen.getByText(/Linked with 2 other parts: edits .* change all 3\./)).toBeInTheDocument();
+    expect(screen.getByText('Linked with 2 other parts: every edit but name, position and turn changes all 3.')).toBeInTheDocument();
   });
 
   it('single panel Unlink makes the part independent', async () => {

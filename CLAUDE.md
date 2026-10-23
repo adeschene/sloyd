@@ -47,7 +47,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`; fu 431 left as is). The AI-holes
   round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
   The refine-features review was taken 2026-10-23 (all approved; its real-hardware look stays owed). Joinery chunks 2–3 and every older spec amendment were approved 2026-10-23 (`FEATURE_CHECK_FAILED` now names
-  edging — not yet deployed). Owed to the user: fu 402(1)–(2); fu 410–412; the by-eye and real-hardware items.
+  edging — not yet deployed). fu 410–412 closed 2026-10-23 (411/412 reworded, 410 left silent) — with the FEATURE_CHECK_FAILED fix, NOT yet deployed.
+  Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -593,7 +594,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7724 tests across 222 files
+npm test           # Vitest, currently 7726 tests across 222 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -611,8 +612,7 @@ This list is the triage's open set — when an entry's status changes, change it
   364–366; banding 399, 400; profiles and bands authored by Claude 430.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283; 410–412 (hardware
-  wording). 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
