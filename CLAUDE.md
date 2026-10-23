@@ -44,7 +44,7 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-23):** Nothing is pending deploy. **AI profiles (fu 430 chunk 2) is DEPLOYED** (`e2729ee`, `index-D_ed_oQ3.js`;
-  live-checked on dev, `docs/browser-verification-ai-profiles.md`, 7 of 10 paid calls). Owed to the user: the rest of chunk 2's spec Amended block (Rulings 10/16 approved 2026-10-23); fu 402(1)–(2); the by-eye and real-hardware items.
+  live-checked on dev, `docs/browser-verification-ai-profiles.md`, 7 of 10 paid calls). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles

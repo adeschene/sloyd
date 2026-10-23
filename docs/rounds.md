@@ -142,8 +142,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   after the merge passed live (Generate a Shaker side table and a picture frame, a Refine echo with every angle cut identical bar fresh ids, as before the round). Final
   review: one Important (a moved stop's line; Rulings 14, 16) and three minors, two fix waves. 7888 tests across 226 files, all passing in one full run;
   `npm run build` clean. Live check `docs/browser-verification-ai-profiles.md`
-  (4 of 10 paid calls so far); the profile runs (plan Task 8 Step 3) and the deploy are pending. Record-only: fu 434. Owed to the user:
-  the spec's *Chunk 2 (execution)* block — chiefly Ruling 10/16 against §3.4 (an echoed stop on a resized part is restored as stored,
+  (4 of 10 paid calls so far); the profile runs (plan Task 8 Step 3) and the deploy are pending. Record-only: fu 434. Approved by the user in bulk
+  2026-10-23: the spec's *Chunk 2 (execution)* block — chiefly Ruling 10/16 against §3.4 (an echoed stop on a resized part is restored as stored,
   moving with its end, where §3.4 said the model's numbers win) and R6.3 dropping §4.2's done-view line for ignored carried profiles.
 - **AI bands (fu 430 chunk 1; 2026-10-23; branch `ai-bands`, MERGED `e7ce893`, DEPLOYED at `ef88e09` as `index-lH3mycr3.js`, CSS unchanged;
   schema 20, rollback to `0b5e5ca` / `index-CuLt9iDe.js` free; verified in-network and at the edge: 200 on / and a deep route, sha256 = dist,
@@ -449,8 +449,7 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
 … in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
-Since the bulk approval: the AI profiles and bands spec's *Amended (execution) — Chunk 2 (execution)* (Rulings 1–16 and the final
-review's fixes; chiefly R6.3 dropping §4.2's done-view line). Rulings 10/16 (narrowing §3.4) were APPROVED by the user 2026-10-23:
-keep, and keep the change list silent.
+Since the bulk approval: none. (The AI profiles and bands spec's *Chunk 2 (execution)* block — Rulings 1–16, the final review's fixes,
+R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-10-23; Rulings 10/16 individually the same day.)
 
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).
