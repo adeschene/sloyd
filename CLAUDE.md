@@ -43,9 +43,10 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   only stops Claude authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (audited 2026-10-23):** nothing is pending deploy and no plan exists; no follow-up is open as code-sized work.
-  Owed to the user: the AI-holes round's look (pin rows and knob holes in the viewport and on the Plans sheet), whether "move the pins"
-  should move both rows, and the change list's world-face words (`docs/rounds.md` Status log); the refine-features round's look and
+- **NEXT (2026-10-23):** the shop-words round (change list in shop words, the prompt names +z the front; spec
+  `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`) is MERGED and NOT deployed — ask before deploying. The AI-holes
+  round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
+  Owed to the user: fu 431 (projects generated before shop-words are back to front); the refine-features round's look and
   check-list words; joinery chunk 3's words and spec amendments and fu 419's part note; chunk 2's; fu 402(1)–(2); fu 410–412.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
@@ -592,7 +593,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7711 tests across 221 files
+npm test           # Vitest, currently 7724 tests across 222 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -616,7 +617,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429.
+  when a real project needs it), 417 (ask first), 431 (ask first). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

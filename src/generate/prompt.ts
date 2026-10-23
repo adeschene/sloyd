@@ -55,6 +55,7 @@ export const SYSTEM_PROMPT = `You design woodworking projects as a list of recta
 
 Coordinates and units:
 - All numbers are inches. Y is up. X is width, Z is depth.
+- The FRONT of the piece (the side you stand at to use it: drawer fronts, doors, the open face of a case) faces +z, so a back panel sits at the smallest z. +x is the right as seen from the front.
 - Each part is an axis-aligned box, optionally tapered, mitered, beveled, chamfered or drilled. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
 - A part's top is at.y + size.y. A part resting on another has at.y equal to the lower part's top.
 

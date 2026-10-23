@@ -7048,3 +7048,12 @@ and the model growing the tied axis. Candidate fix: the thickness axis must stay
 Claude authors holes; curves are fu 363's open authoring piece; profiles and bands are carried by Refine (inv 56) but cannot be added,
 changed or removed by Generate or Refine. Each is a `DESIGN_SCHEMA` change needing a spec and one live compile (fu 322; the holes item
 compiled at 2,952 chars). Bands also name per-document band types. **Status:** open (feature; needs a spec).
+
+## From the shop-words round — 2026-10-23
+
+**431. Projects generated before shop-words are back to front (2026-10-23).** Until the shop-words round `SYSTEM_PROMPT` never said
+which way is front; Sloyd's Front view looks at +z, and the live-check bookcase (`id_mvkg0l4t_g`) put its back panel at +z. Such a
+project's Plans "Front" elevation shows its back, and Refine's change list words a move toward its open face "toward the back" —
+Claude still moves the right way (the live check's third run: pins moved toward the open face, as before the change; only the
+words are world-true and shop-wrong). Nothing migrates. Candidate remedies (each a hypothesis): a line in Refine's user turn naming
+the open face as the front when the back panel sits at +z, or a one-off "turn the piece around" in Sloyd. **Status:** open (ask first).
