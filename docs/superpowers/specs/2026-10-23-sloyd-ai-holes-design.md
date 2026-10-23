@@ -262,3 +262,17 @@ Rulings made while building, on branch `ai-holes` (2026-10-23). Where one differ
   `PartCarry.originalHoles` (in the carried frame) feeds the exact-row swap.
 - **The prompt's word is "drilled"** for hole rows.
 - **Compiled form (fu 322):** first probe, no fallback; the Refine form with the catalog is 2,952 chars; request `req_011CgJGkuYyCJ51nxdbdHDTn`.
+- **A holes-only part the model turned is oriented (§3.3, §4; final review C1).** A part whose ONLY frame features are holes keeps the carried
+  frame only while the returned box's extent on the ORIGINAL thickness world axis is still a smallest extent (ties allowed). Otherwise it is
+  encoded by `orient`, the exact-row swap is skipped, and its holes convert from the model's world words in the new frame. Parts with curves,
+  profiles or bands keep the frame always (`featureTurned` covers them). One decision, `keptFrame`, where `convertPart` picks the frame.
+  Without it an upright 0.75 x 30 x 11.25 side returned lying flat was stored with thickness 11.25, silently.
+- **The hole grid applies to the STORED distances, not the world offsets (§3.1; final review I1).** `holeRowsFor` computes the raw local
+  positions from the model's numbers, chooses the canonical end and side (reversing in raw numbers), then snaps the station (from the
+  measured end), the inset (from the measured side), depth, pitch and diameter with `holeSnap`. A value whose world-offset source is in the
+  exact set is kept unsnapped, but any computed distance within 1e-9 of its grid value takes the grid value even on the exact path (inset
+  drift). Every stored number is then checked finite and within MAX_MAGNITUDE (I2), a failure rejecting the part with reason `'hole'`.
+- **A no-op Refine keeps the stored row order (§3.3; final review M3).** When EVERY returned row on a part is restored by the exact-row map
+  and the counts are equal, the ORIGINAL stored order is kept (Plans callout letters follow `b.holes`' order); otherwise canonical.
+- **Diff wording (§4; final review M1, M2).** A direction change reads `now running toward <dir>`, and only between two rows of more than
+  one hole (a single bore grown into a row is not "moved"); a row shrunk to one reads `now 1 hole`.

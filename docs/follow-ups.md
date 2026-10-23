@@ -5901,7 +5901,7 @@ part written twice, 4,297 chars, 16 enums) was refused; the same schema with the
 for at least two more angle-like arrays. A new part field or enum costs once (in `$defs`). Anything that changes
 `DESIGN_SCHEMA` needs one live compile before it ships — the unit suite cannot see this limit (a test pins the `$defs`
 form only). **Status:** record-only.
-**Status:** AI-holes compiled (2026-10-23, `ai-holes`): the `holes` array added one 8-field item (face, along, across, diameter, depth/through, count, pitch, direction) with no new `$def`. The Refine form with the catalog is 2,952 chars (Generate's built-in form 2,918, against 2,372 before holes). It compiled on the FIRST probe, no fallback (HTTP 200, request `req_011CgJGkuYyCJ51nxdbdHDTn`, `max_tokens` 16). The probe exercised the grammar only, not the model's hole output.
+**Status:** AI-holes compiled (2026-10-23, `ai-holes`): the `holes` array added one 8-field item (`face`, `diameter`, `depth`, `through`, `offset` (a vec3 from the part's `at`), `toward`, `count`, `pitch`) with no new `$def`. The Refine form with the catalog is 2,952 chars (Generate's built-in form 2,918, against 2,372 before holes). It compiled on the FIRST probe, no fallback (HTTP 200, request `req_011CgJGkuYyCJ51nxdbdHDTn`, `max_tokens` 16). The probe exercised the grammar only, not the model's hole output.
 
 **323. AI angles chunk 2 minors (record-only; final review M2–M6).** (M2) The `angle-joint` design fault's advice is generic
 ("move it off that end or face, or remove it") — the spec wanted the tenon-clearance rule's numbers carried back; it
@@ -6994,11 +6994,24 @@ omits edging. **Status:** open (record-only; ask before changing).
 
 ## From the AI-holes round — 2026-10-23
 
-**428. AI-holes deferred minors (2026-10-23, execution ledger; none fixed this round).** (1) The `shown` copy of a `'hole-fault'` lacks the
+**428. AI-holes deferred minors (2026-10-23, execution ledger; (3) and (4) fixed in the final-review wave).** (1) The `shown` copy of a `'hole-fault'` lacks the
 row's first centre, so two faulted rows on one face read as the same line (the model-facing message has it). (2) The `'off-flat'`
-phrase in `holeDesignFaults` has no test. (3) `restoreHoles`' `carry.frame` gate is redundant today (untestable). (4) After a turn, a
-METRIC project's mirrored sides might miss a link by an ulp; it fails safe (the sides stay unlinked). (5) The prompt's "front and back"
+phrase in `holeDesignFaults` has no test. (3) `restoreHoles`' `carry.frame` gate is redundant today (untestable). (4) METRIC mirrored
+sides did not link AT ALL (found by the final review, I1; the ledger had guessed "by an ulp, after a turn"): `holeSnap` was applied to world
+offsets from the min corner, so a far-side distance (D − 37 mm) landed off the grid, and `inset = ext − w` drifted in float
+(1.456692913385826 against 37/25.4). Failing safe meant the sides stayed unlinked. (5) The prompt's "front and back"
 is not tied to an axis (probe in the live check). (6) `alignedTo`'s row checks are partly redundant with `sameShared` (a comment is
 owed). (7) The property grid for `holeRowsFor` lacks station > along dimension and inset > across dimension; `sameHoles` has no test
 for a different count; a single bore stores the model's pitch rather than 0; toFixed(3) centres in a message could collide below
-0.0005 in (unreachable on the hole grid). **Status:** open (record-only).
+0.0005 in (unreachable on the hole grid). (8) Task 6 kept `CHARS_PER_TOKEN` at 2 (2.03 measured on the prompt); a digit-dense prompt
+may tokenise below 2 chars/token — re-measure it from the live check's real usage (owed to the live check). (9) Found by the final-review fix
+wave: a holes-only part whose STORED thickness is not its smallest extent (e.g. flat 20 x 1 x 3, width 1 < thickness 3), echoed unchanged by
+the model, fails `keptFrame`'s test and is re-`orient`ed — the same world holes, but relabelled dimensions and a fresh, re-derived row (not
+the exact-row swap). `featureTurned` skips such an original (its precondition); applying the same precondition in `keptFrame` would keep its
+frame. Left as ruled (ask first). **Status:** open (record-only).
+**Status:** (3) and (4) CLOSED on branch `ai-holes` (final-review fix wave, 2026-10-23). (3): the gate is gone — `keptFrame` in `convertPart`
+is the one frame decision and `restoreHoles` takes the originals it allows; the skip is tested (the C1 probe fails when the swap ignores it).
+(4): `holeRowsFor` snaps the STORED distances, and a computed distance within 1e-9 of the grid takes it even on the exact path; metric mirrored
+sides link at D = 10 and D = 11.8125 (roleLinks.test). The same wave fixed the final review's C1 (a holes-only part the model turned is
+`orient`ed), I2 (stored numbers checked finite and within MAX_MAGNITUDE after the grid), M1/M2 (diff wording), M3 (a no-op Refine keeps the
+stored row order) and M4 (turnCandidates' positional ids documented). (1), (2), (5)–(9) remain open (record-only).

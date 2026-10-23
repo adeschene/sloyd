@@ -534,7 +534,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     convex. `holeFaults` is the ONE strict-rule decider** (`breaks-out` — a curve's waste
     included, keyed apart by `faultKey` —, `off-flat`, `meets-hole`, `too-deep`). An add is
     refused on any fault, an edit only when it ADDS one; a fault a later edit causes is KEPT,
-    noted, never clamped. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (`holeRowsFor`; shape faults reject the part, reason `'hole'`); untouched rows return EXACTLY through the exact-row map (`originalHoles`, `sameHoles` as a set); a strict fault from the model is KEPT and flagged (`holeDesignFaults`, `'hole-fault'`), never rejected or clamped. Joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
+    noted, never clamped. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (`holeRowsFor`; the hole grid snaps the STORED distances, never world offsets; shape faults, a stored number past MAX_MAGNITUDE included, reject the part, reason `'hole'`); untouched rows return EXACTLY through the exact-row map (`originalHoles`, `sameHoles` as a set; only in a kept frame, inv 56), in the original order when every row is restored; a strict fault from the model is KEPT and flagged (`holeDesignFaults`, `'hole-fault'`), never rejected or clamped. Joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
     BoxGeometry routing; a part with no holes and no curves keeps its bytes. **A curved part's mesh
     is WATERTIGHT** (welded, conformed, centroid-fanned; `curvesWatertight.test.ts`); a shaped part
     is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (the list of what is memoised and where: `docs/invariants.md`). Perf guards are the MINIMUM of
@@ -580,19 +580,17 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     on parts by flat name from the RESOLVED flat part (a shaped part's Shape included); only ASSEMBLY hardware reads the STORED definitions
     (`flatDocument` empties them, P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
 
-56. **A part Refine carries curves, profiles, bands or hardware onto, or whose holes it re-derives, keeps the original's posture and rotation (`frameFor`); never
-    `orient` it.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
-    types through `designToDocument`'s opts) and before `linkByRole`. Holes are no longer carried (inv 50: authored in world words) but `hasFrameFeatures` still counts them; `turnCandidates` never turns a part with curves, profiles or
+56. **A part Refine carries curves, profiles or bands onto keeps the original's posture and rotation (`frameFor`); a part whose only frame features are holes keeps it only while its returned box's extent on the original's thickness axis is still a smallest extent (ties allowed). Never `orient` either otherwise.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
+    types through `designToDocument`'s opts) and before `linkByRole`. Holes are no longer carried (inv 50: authored in world words) but `hasFrameFeatures` still counts them (hardware never); a holes-only part the model turned is `orient`ed, the exact-row swap skipped, its holes converted from the model's world words (final review C1); `turnCandidates` never turns a part with curves, profiles or
     bands, and re-stores a holed part through world forms with an exact set. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
-    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a
-    part that carries holes, curves, profiles or bands, and do not move the carry after `migrateDocument` or `linkByRole`.**
+    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part that carries curves, profiles or bands, nor a holes-only part whose returned box still has a smallest extent on the original's thickness axis (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 7563 tests across 220 files
+npm test           # Vitest, currently 7703 tests across 221 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
