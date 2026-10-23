@@ -24,6 +24,15 @@ export function featuredKinds(b: Board): FeatureKind[] {
   return out;
 }
 
+/**
+ * The kinds the model never sees and Sloyd carries over by name (AI-holes spec §4): curves, profiles, bands, hardware.
+ * Holes are excluded: the design shows them and the converter returns them. The ONE source for the note, `featureTurned`
+ * and `carriedSummary`; `featuredKinds` (holes included) stays for the carry itself, which keeps the original rows.
+ */
+export function carriedKinds(b: Board): FeatureKind[] {
+  return featuredKinds(b).filter((k) => k !== 'holes');
+}
+
 /** Board-local features, which need the original's frame (refine-features spec §3.2). Hardware has none. */
 export function hasFrameFeatures(b: Board): boolean {
   return b.holes.length > 0 || b.curves.length > 0 || b.profiles.length > 0 || b.bands.length > 0;
@@ -85,7 +94,8 @@ export function featureTurned(refined: FlatDocument, original: FlatDocument): Vi
   const out: Violation[] = [];
   for (const r of refined.boards) {
     const o = byName.get(r.name);
-    if (!o || !hasFrameFeatures(o)) continue;
+    // A part whose only frame feature is holes is not judged (its holes come back through the design).
+    if (!o || !carriedKinds(o).some((k) => k !== 'hardware')) continue;
     const k = axisDimensions(o).indexOf('thickness');
     const e0 = boardExtents(o);
     const min0 = Math.min(...e0);

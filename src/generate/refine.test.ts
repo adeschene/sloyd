@@ -31,8 +31,8 @@ describe('refine', () => {
       'Here is the current design, in the same format you return:', JSON.stringify(D), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.');
-    expect(refineMessage(D, S)).toContain('tapers, miters, bevels and chamfers');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers and holes. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers and holes');
   });
 
   it('names the custom materials in the user turn, and only when there are some (custom materials spec §6)', () => {

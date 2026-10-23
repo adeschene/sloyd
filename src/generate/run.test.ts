@@ -1,3 +1,4 @@
+import { ARCH } from '../document/curveFixtures';
 import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runJoinery, runRefine, runRepairLoop } from './run';
@@ -435,7 +436,8 @@ describe('runRefine', () => {
   it('sends a turned featured part back, and the fix clears the fault (refine-features spec §4)', async () => {
     const base = orig([bp('Side', [0, 0, 0], [20, 4, 1])]);
     const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
-    const doc = { ...base, boards: base.boards.map((b) => ({ ...b, holes: [HOLE] })) } as typeof base;
+    // Holes are no longer carried (AI-holes spec §4); a curve is the carried feature that makes the turn a fault.
+    const doc = { ...base, boards: base.boards.map((b) => ({ ...b, holes: [HOLE], curves: [ARCH] })) } as typeof base;
     const kept = echo(doc);
     const turned = { ...kept, parts: [{ ...kept.parts[0]!, size: v3(20, 1, 4) }] };
     const { client, seen } = fakeClient([turned, kept]);
@@ -443,9 +445,9 @@ describe('runRefine', () => {
     if ('refused' in out) throw new Error('refused');
     expect(client.complete).toHaveBeenCalledTimes(2);
     const second = JSON.stringify(seen[1]);
-    expect(second).toContain('Side carries holes Sloyd keeps on the part; keep it the same way round, 1in along z.');
+    expect(second).toContain('Side carries a curve Sloyd keeps on the part; keep it the same way round, 1in along z.');
     expect(out.violations.filter((x) => x.kind === 'feature-turned')).toEqual([]);
-    expect(flatDocument(out.doc).boards[0]!.holes).toHaveLength(1);
+    expect(flatDocument(out.doc).boards[0]!.curves).toHaveLength(1);
   });
 
   it('keeps a typed off-grid position and size exactly, with no change reported (F2)', async () => {

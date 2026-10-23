@@ -5,7 +5,7 @@ import type { GeneratedAssembly, GeneratedPart } from './generated';
 import { formatLength, IMPERIAL } from '../units/length';
 import { createBoard, createDocument } from './document';
 import { bevelCut, chamferCut, miterCut, miterRatio } from './angleCuts';
-import type { Board } from './types';
+import type { Board, HoleRow } from './types';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
@@ -266,5 +266,31 @@ describe('diffDesigns in metric', () => {
     const mm = (d: ReturnType<typeof doc>) => ({ ...d, units: { display: 'metric-mm' as const, precision: 16 } });
     const out = diffDesigns(mm(doc(BASE)), mm(doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 14])])));
     expect(out[0]!.text).toBe('Shelf: 1016 × 305 × 25 mm → 1016 × 356 × 25 mm');
+  });
+});
+
+describe('diffDesigns — hole rows (AI-holes spec §4)', () => {
+  const side = (name = 'Side', position: [number, number, number] = [0, 0, 0]) => createBoard({ name, length: 20, width: 4, thickness: 1, position });
+  const row = (over: Partial<HoleRow> = {}): HoleRow => ({ id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5, ...over });
+  const holed = (rows: HoleRow[], b: Board = side()): Board => ({ ...b, holes: rows });
+  const dd = (a: Board, b: Board) => diffDesigns({ ...createDocument('T'), boards: [a] }, { ...createDocument('T'), boards: [b] });
+  const lines = (a: Board, b: Board) => dd(a, b).filter((c) => c.kind === 'holes').map((c) => c.text);
+  it('added, removed and changed rows, one line each, in world words', () => {
+    expect(lines(side(), holed([row({ count: 3, pitch: 2 })]))).toEqual(['Side: 3 holes added on +y, 1/4" Ø']);
+    expect(lines(side(), holed([row()]))).toEqual(['Side: 1 hole added on +y, 1/4" Ø']);
+    expect(lines(holed([row()]), side())).toEqual(['Side: hole row on +y removed']);
+    expect(lines(holed([row()]), holed([row({ depth: 0.5 })]))).toEqual(['Side: hole row on +y now 1/2" deep']);
+    expect(lines(holed([row()]), holed([row({ depth: 'through' })]))).toEqual(['Side: hole row on +y now through']);
+    expect(lines(holed([row()]), holed([row({ diameter: 0.375 })]))).toEqual(['Side: hole row on +y now 3/8" Ø']);
+    expect(lines(holed([row({ count: 3, pitch: 2 })]), holed([row({ count: 4, pitch: 3 })]))).toEqual(['Side: hole row on +y now 4 holes, 3" apart']);
+    expect(lines(holed([row()]), holed([row()]))).toEqual([]);
+  });
+  it('a row whose first centre moved is a removal plus an addition', () => {
+    expect(lines(holed([row()]), holed([row({ station: 5 })]))).toEqual(['Side: 1 hole added on +y, 1/4" Ø', 'Side: hole row on +y removed']);
+  });
+  it('a moved part changes no offset, so yields no hole line', () => {
+    const c = dd(holed([row()]), holed([row()], side('Side', [5, 3, 1])));
+    expect(c.filter((x) => x.kind === 'holes')).toEqual([]);
+    expect(c.map((x) => x.kind)).toEqual(['moved']);
   });
 });
