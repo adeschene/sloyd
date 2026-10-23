@@ -82,6 +82,9 @@ Why this shape: the chamfer's two-face `edge` is already learnt; world part-rela
 
 ### 2.3 The grammar budget (fu 322)
 
+**Superseded for chunk 2 by "Chunk 2, revised" below** (the profile form as specced was probed and refused; the angle
+arrays merge to make room). The text that follows is kept as written for chunk 1.
+
 Two chunks, two compiles (§10). Each chunk's first task is one paid probe (max_tokens 16) with the full Refine schema, a
 custom material and a custom band type included. Fallbacks if refused, one probe each, in order:
 1. `fillet`/`depth` merge into one `detail` number (its meaning per kind).
@@ -247,6 +250,7 @@ both (joinery chunks 2–3). Minted solid band types appear in Materials & price
 
 1. **Bands** (smaller: two fields, the `edging` enum, band type minting). Its compile gates it.
 2. **Profiles** (the larger form, the frame-rule narrowing for profiled parts, two-side carry). Its compile gates it.
+   **Revised 2026-10-23:** chunk 2 first merges the four angle arrays into one, then adds profiles — see "Chunk 2, revised".
 
 Each chunk ships on its own (merge, deploy). If a chunk's form never compiles, that chunk stops and comes back to the user.
 
@@ -267,6 +271,94 @@ default; (4) bands first, shipped alone, then profiles.
 **My calls from the builder check, for your eye:** profiles and bands on a CURVED part stay carried (§1); two-side runs
 stay carried (§4.2); a station is measured from its nearer end, and untouched profiles are matched in world form (§3.2,
 §3.4); band types are minted in one design-wide pass threaded through every path (§3.1).
+
+## Chunk 2, revised (2026-10-23)
+
+The user asked whether the schema could be trimmed, then: "Go ahead, revise the chunk 2 spec". Everything in §2.1 and
+§3–§9 about profiles still holds; this section changes the design form AROUND them and wins where it differs.
+
+### R1. Why (the probes, fu 322)
+
+Base: the shipped Refine form with 1 custom solid, 1 custom sheet, 1 custom band type.
+- Base + §2.1's `profiles` (9 fields): **refused**, 3,452 chars (`req_011CgK1EepMgmGMwUVjD4ARb`).
+- Base with the four angle arrays merged into ONE `angles` array (R2) + §2.1's `profiles`: **compiled**, 2,805 chars
+  (`req_011CgK1FhrhkS9XP5obZb297`) — smaller than today's form; at the upper bound (6 custom materials, 4 custom band types)
+  **compiled**, 3,003 chars (`req_011CgK1HAcoVCSHiF2fewT5E`).
+- Base with bands and profiles folded into one `edges` array, angles untouched: **refused**, 3,248 chars
+  (`req_011CgK1GN4r8AQ7VqiSxKuXd`).
+
+So the grammar's cost is the number of distinct object SHAPES, not characters: merging shapes frees room; adding fields to
+an existing shape does not. §2.3's fallbacks are dropped (none is needed).
+
+### R2. One `angles` array (replaces `tapers`, `miters`, `bevels`, `chamfers` in the DESIGN form)
+
+```json
+"angles": [{ "kind": "taper", "dirs": ["+x", "+z"], "toward": "-y", "values": [22, 0.375] }]
+```
+
+| `kind` | `dirs` (count) | `toward` | `values` (count) | today's form |
+|---|---|---|---|---|
+| `taper` | the sloping faces (1–4) | the thin end | `[start, amount]` (2) | `WorldTaper { faces, toward, start, amount }` |
+| `miter` | `[end]` (1) | the long point | `[angle]` (1) | `WorldMiter { end, longPoint, angle }` |
+| `bevel` | `[face]` (1) | the long point | `[angle]` (1) | `WorldBevel { face, longPoint, angle }` |
+| `chamfer` | the two faces of the edge, in order (2) | ignored; written as `dirs[0]` **(my call: an echo is stable)** | `[leg, leg]` in `dirs` order (2) | `WorldChamfer { edge, legs }` |
+
+- **The internal form does not change (my call).** `parseDesign` splits `angles` by `kind` into the TS-only
+  `GeneratedPart.tapers / miters / bevels / chamfers` it has today, in array order, so every converter (`taperCutsFor`,
+  `angleWorld.ts`), the exact-angle map, `diffDesigns`, `turnCandidates` and their tests are untouched. Only `designSchema`,
+  `parseDesign`, `documentToDesign` (Refine's writer) and the prompt change.
+- **A wrong count for its kind is a shape fault** (rejects the part, fed back) with the existing reason for its kind
+  (`'taper'` or `'angle'`), e.g. `has a miter with 2 directions; a miter takes 1`. A count the old form would have accepted is
+  never refused.
+- **Refine's writer** emits tapers, then miters, bevels and chamfers, each in its existing canonical order, so an echo
+  round-trips exactly as today.
+- **Holes, bands and §2.1's `profiles` keep their own shapes** (they compiled as they are).
+
+### R3. Records
+
+Inv 48's design-schema clause becomes: "part, direction and `vec3` ONCE in `$defs`; the four angle kinds share ONE item
+shape (`angles`). A new design-form feature joins an existing item shape where it can — each new SHAPE costs grammar (fu
+322)." The AI-angles and AI-tapers specs get a pointer to R2 (their world words are unchanged; only the JSON envelope is).
+
+### R4. Testing (added to §9)
+
+- Parse: every kind round-trips `angles` → split → `documentToDesign` → `angles` exactly; mutate each count rule.
+- Every existing angle and taper test keeps passing unedited below `parseDesign` (the internal form is unchanged); the
+  schema fixture is re-captured (verified: the four arrays replaced by `angles` plus `profiles`, nothing else).
+- **Live re-check of the angle features (paid; the risk is the model writing a generic record less precisely):** Generate
+  "a Shaker side table" (inside-face tapers toward the floor, chamfered top edges); Generate "a picture frame" (miters, long
+  point outside); Refine an existing tapered/mitered project with an unrelated change ("make it 2 inches taller") and
+  confirm every angle cut comes back exactly. If the angle output regresses, stop and come back before profiles.
+- Then §9's profile checks. Budget: one compile probe of the final schema + ~3 angle runs + ~3 profile runs, within 10.
+
+### R5. Order (my call)
+
+One round, one deploy. The plan's first task builds the FINAL schema (merged `angles` + `profiles`) and probes it once; the
+angle merge is then finished and live-checked BEFORE any profile conversion is built, so a regression stops the round early.
+
+### R6. Builder check of chunk 2 (2026-10-23) — Claude's calls, these win over §2–§9 and R2
+
+1. **An oversized straight profile is a strict fault too.** `profileFaults` judges only `stop-off`/`overlap` for a straight
+   (one-side, unswept) run; the panel catches an oversized one through `curveFaults` on its view curve (`curveRefusal.ts`).
+   The design fault module (`profileDesignFaults.ts`, like `bandDesignFaults.ts`) therefore reports `profileFaults` AND, for
+   a straight run, `curveFaults(profileAsCurve(p))` (`runs-off` / `cuts-through`), each as `'profile-fault'` (kept, fed back);
+   `carryText.faultKeys` reads the same helper so the done view agrees. Skipped on a part with curves (carried, as bands).
+2. **B3 read precisely:** an end EXACTLY 0 or EXACTLY the part's extent along the run is always a THROUGH end; only the
+   1/32in tolerance is withheld from exact-set values (so a stored stop 1/64in from an end stays a stop). `designValues`
+   holds every part's size, so the literal reading would have stopped every full-length Refine edge at L.
+3. **Which profiles are carried:** `carriedKinds` = curves and hardware, plus `profiles` when the part has curves or ANY
+   two-side run, plus `bands` when it has curves. `featureTurned` still faults a turned part with carried profiles (its only
+   guard once `keptFrame` keeps the frame). The note's wording is unchanged (it already lists edge profiles per part). A
+   carried part's returned profiles (and bands) are IGNORED SILENTLY, as chunk 1 does for bands: the note tells the model,
+   and nothing the user has is lost — §4.2's "line in the done view" is dropped.
+4. **Where `angles` lives:** `documentToDesign` keeps writing the internal `GeneratedDesign` (`designValues` reads its
+   `tapers`/`chamfers`); ONE serialiser, `toWireDesign(design)` (generated.ts), turns it into the model's JSON (`angles`
+   merged, TS-only fields dropped) for `refineMessage` and the estimate's character count. **A wrong count for its kind**
+   (R2) is recorded at parse in a TS-only `GeneratedPart.angleFaults?: string[]` (the one new internal field) and rejected per
+   part in `convertPart` with the kind's reason; an unknown `kind` is impossible (enum). Today's whole-response refusal for a
+   two-face-less chamfer becomes this per-part rejection (a strict improvement).
+5. **Square stock:** a profile `edge` with no face on the thickness axis is a shape fault whose text NAMES the broad faces
+   (`has a profile on +x/+z, but <Part>'s broad faces are +y and -y`), so the model can correct it; no re-encoding.
 
 ## Amended (execution)
 
