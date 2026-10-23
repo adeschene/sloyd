@@ -87,6 +87,11 @@ Holes:
 - Keep holes at least 1in away from where parts join, because joinery will not cut a joint through a hole.
 - Use "holes": [] for every part without them.
 
+Edge bands:
+- "bands": edging glued to a side of a part's broad face. "edge" is that side; "edging" is "veneer" (iron-on), an edging type the project already has, or "solid <material>" (1/4in solid edging of that wood).
+- Band the EXPOSED front edges of plywood parts (shelves, case sides, tops, dividers): "solid <the piece's solid wood>" when it has solid wood parts, else "veneer". Never band an edge that meets another part, and never band solid-wood parts.
+- "bands": [] for every part without edging.
+
 Rules every design must follow:
 - Parts touch face to face. Parts must NOT pass into each other (except where two miters meet; see Angles) — there is no joinery in this tool yet, so a shelf sits between two sides, not inside them.
 - Every part must connect to the floor (y = 0) through a chain of parts touching face to face. Nothing floats.
