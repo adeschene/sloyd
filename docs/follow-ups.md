@@ -6985,7 +6985,7 @@ parts still take the old name-based carry. To record and measure, not fixed (ref
 original thickness axis is still the thinnest. A part whose length and width swap world axes with thickness unchanged reads as a resize:
 its features stay at their stored stations and the "Check at the new size" line names the part (refine-features spec §4, recorded not
 built). **Status:** open (record-only).
-**Status:** open (record-only), now for parts with curves, profiles or bands only: a holes-only part turned in plan is re-oriented (AI-holes
+**Status:** open (record-only), now for parts with curves or profiles only (since AI bands, a bands-only part follows the rank rule too): a holes-only part turned in plan is re-oriented (AI-holes
 residual R1, `keptFrame`'s rank rule, 2026-10-23).
 
 **426. A duplicate-named returned part also receives the carry (2026-10-22).** A returned part with a DUPLICATE name of a featured part
