@@ -5904,6 +5904,14 @@ form only). **Status:** record-only.
 **Status:** AI-holes compiled (2026-10-23, `ai-holes`): the `holes` array added one 8-field item (`face`, `diameter`, `depth`, `through`, `offset` (a vec3 from the part's `at`), `toward`, `count`, `pitch`) with no new `$def`. The Refine form with the catalog is 2,952 chars (Generate's built-in form 2,918, against 2,372 before holes). It compiled on the FIRST probe, no fallback (HTTP 200, request `req_011CgJGkuYyCJ51nxdbdHDTn`, `max_tokens` 16). The probe exercised the grammar only, not the model's hole output.
 **Status:** AI-bands (2026-10-23, branch `ai-bands`, chunk 1 of fu 430): the `bands` array adds one 2-field item (`edge`, a direction; `edging`, a closed enum: `veneer`, the project's band type ids, `solid <id>` per solid material). Probe 1, with `vec3` still inline (Refine form, a custom solid, a sheet and a custom band type), was REFUSED as too large (request `req_011CgJpd3fNoqKzSmffAtj5M`, 3,267 chars, 8 edging keys). Probe 2, the same with `vec3` moved into `$defs` and referenced (fallback (a), no change of meaning), COMPILED (request `req_011CgJpkiPjQyZQA8DGccLtW`, 2,911 chars); Generate's built-in form is that minus the custom enum entries, strictly smaller. Headroom is thin: every custom SOLID material now appears in two enums (`material` and `solid <id>`) and every band type adds one; a large real project's Refine schema (final review I2) is to be probed before the round deploys (the controller records it here). Note for chunk 2: edge profiles will not fit without a much smaller form — revisit the spec's §2.3 before planning it.
 
+**Status:** profiles probes (2026-10-23, for fu 430 chunk 2; no code changed; schemas built in the dev page). Base = the shipped Refine form
+with 1 custom solid, 1 custom sheet, 1 custom band type. (1) Base + spec §2.1's `profiles` array (9 fields): REFUSED, 3,452 chars,
+`req_011CgK1EepMgmGMwUVjD4ARb`. (2) Option A — the four angle arrays merged into ONE `angles` array `{ kind, dirs: [dir], toward: dir,
+values: [number] }` — plus `profiles`: COMPILED, 2,805 chars (smaller than today's), `req_011CgK1FhrhkS9XP5obZb297`; at the upper bound
+(6 custom materials, 4 custom band types) COMPILED, 3,003 chars, `req_011CgK1HAcoVCSHiF2fewT5E`. (3) Option B — bands and profiles folded
+into one `edges` array, angles untouched: REFUSED, 3,248 chars, `req_011CgK1GN4r8AQ7VqiSxKuXd`. So the cost is distinct object shapes, not
+characters: merging shapes frees room; folding fields into an existing shape does not.
+
 **323. AI angles chunk 2 minors (record-only; final review M2–M6).** (M2) The `angle-joint` design fault's advice is generic
 ("move it off that end or face, or remove it") — the spec wanted the tenon-clearance rule's numbers carried back; it
 invites removal. (M3) `refineDesign.ts`' unbuildable refusal finds the cut's kind by searching the fault text — return it in
