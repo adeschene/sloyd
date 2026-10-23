@@ -332,9 +332,10 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
+  // A part carrying a board-local feature keeps the original's frame (spec §3.2); everything else is encoded by orient.
+  const frame = keptFrame(p.carry, [sx, sy, sz]);
   const fields = { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az] as Vec,
-    // A part carrying a board-local feature keeps the original's frame (spec §3.2); everything else is encoded by orient.
-    ...(p.carry?.frame ? frameFor([sx, sy, sz], p.carry.frame) : orient([sx, sy, sz])) };
+    ...(frame ? frameFor([sx, sy, sz], frame) : orient([sx, sy, sz])) };
   // Tapers (spec §2.1): numbers snapped as size is, unless exact; checked after the snap; mapped through taperWorld.
   const tapers = (p.tapers ?? []).map((t) => ({ ...t, start: exact?.has(t.start) ? t.start : snap(t.start), amount: exact?.has(t.amount) ? t.amount : snap(t.amount) }));
   if (!tapers.every((t) => usable(t.start) && usable(t.amount))) {
@@ -372,7 +373,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'hole', detail: `${label} ${derived.fault}.` });
     return null;
   }
-  const holes = restoreHoles({ ...board, angleCuts }, derived.rows, p.carry);
+  const holes = restoreHoles({ ...board, angleCuts }, derived.rows, frame ? p.carry!.originalHoles : []);
   // The carried features, copied again (ids kept, numbers never snapped): on the part BEFORE migrateDocument and
   // linkByRole, so the load gate and sameShared judge the real values (spec §3.3).
   const c = p.carry;
@@ -384,21 +385,38 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
 }
 
 /**
+ * The frame a returned part is encoded in (refine-features spec §3.2; final review C1), the ONE decision: the original's
+ * (`carry.frame`) for a part with curves, profiles or bands, always (a turn of one is `featureTurned`'s fault); for a part
+ * whose ONLY frame features are holes, only while the returned box's extent on the original's thickness world axis is
+ * still a smallest extent (ties allowed) — otherwise the model turned it, and its holes, written in world words, convert
+ * in the frame `orient` gives (the exact-row swap skipped, its stored fields meaning nothing there). Undefined: `orient`.
+ */
+function keptFrame(carry: PartCarry | undefined, size: [number, number, number]): PartCarry['frame'] {
+  const frame = carry?.frame;
+  if (!frame || carry!.curves.length > 0 || carry!.profiles.length > 0 || carry!.bands.length > 0) return frame;
+  const k = axisDimensions({ posture: frame.posture, rotation: frame.rotation } as Board).indexOf('thickness');
+  return size[k] === Math.min(...size) ? frame : undefined;
+}
+
+/**
  * The exact-row map (AI-holes spec §3.3): each re-derived row is swapped for the first UNUSED original row of the same
  * part that drills the same holes on the NEW part (`sameHoles`), kept as it was — its id, `alongFrom`, `acrossFrom` and
  * numbers — so an untouched row (or one on a part that only moved) comes back exactly, however a person measured it.
- * Only in the original's frame (`carry.frame`; a holed original always sets it): the stored fields mean nothing in
- * another. Every other row gets a fresh id. Sorted canonically after the swap (a swapped row's fields can sort apart).
+ * `originals` is empty unless the part kept the original's frame (`keptFrame`): the stored fields mean nothing in
+ * another. Every other row gets a fresh id. When EVERY row is restored and none is added or dropped, the ORIGINAL stored
+ * order is kept (final review M3: Plans letters and the Holes panel follow `b.holes`' order); otherwise the rows are
+ * sorted canonically after the swap (a swapped row's fields can sort apart).
  */
-function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], carry: PartCarry | undefined): HoleRow[] {
-  const originals = carry?.frame ? carry.originalHoles : [];
+function restoreHoles(board: Board, rows: readonly Omit<HoleRow, 'id'>[], originals: readonly HoleRow[]): HoleRow[] {
   const used = new Set<number>();
-  return sortHoleRows(rows.map((r): HoleRow => {
+  const out = rows.map((r): HoleRow => {
     const i = originals.findIndex((o, k) => !used.has(k) && sameHoles(o, r, board));
     if (i < 0) return { id: nextId(), ...r };
     used.add(i);
     return { ...originals[i]! };
-  }));
+  });
+  if (originals.length > 0 && used.size === rows.length && rows.length === originals.length) return originals.map((o) => ({ ...o }));
+  return sortHoleRows(out);
 }
 
 /**

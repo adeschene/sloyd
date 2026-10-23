@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, flatDocument, migrateDocument } from './document';
-import { designToDocument, frameFor } from './generated';
+import { designToDocument, frameFor, orient } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { carryFromOriginal } from './featureCarry';
 import { designValues, documentToDesign } from './refineDesign';
@@ -119,8 +119,8 @@ describe('a carried part converts in the original frame (refine-features spec §
       const r = after.get(name)!;
       const pick = (b: Board) => ({ posture: b.posture, rotation: b.rotation, length: b.length, width: b.width, thickness: b.thickness });
       expect(pick(r), name).toEqual(pick(o));
-      // Untouched rows come back exactly, ids included (the exact-row map), in the canonical order (AI-holes spec §3.1).
-      expect(r.holes, name).toEqual(sortHoleRows(o.holes));
+      // Untouched rows come back exactly, ids included (the exact-row map), in the ORIGINAL stored order (final review M3).
+      expect(r.holes, name).toEqual(o.holes);
       expect(r.curves, name).toEqual(o.curves);
       expect(r.profiles, name).toEqual(o.profiles);
       expect(r.bands, name).toEqual(o.bands);
@@ -238,7 +238,7 @@ describe('a carried part converts in the original frame (refine-features spec §
     expect(r.holes).toHaveLength(2);
     // The grown end is the length MAX end iff it faces world max: then no row is measured from it (h1 from min, h2 in
     // that end face, measured across it) and both come back as stored; else h1's stations moved and it is re-derived.
-    if (endFacing(o, k, 1) === 'max') expect(r.holes).toEqual(sortHoleRows(o.holes));
+    if (endFacing(o, k, 1) === 'max') expect(r.holes).toEqual(o.holes);   // every row restored: the original order (M3)
     else {
       expect(r.holes.map((h) => h.id)).toContain('h2');
       expect(r.holes.map((h) => h.id)).not.toContain('h1');
@@ -266,8 +266,8 @@ describe('a carried part converts in the original frame (refine-features spec §
     const { id: _a, ...was } = o.angleCuts[0]!;
     const { id: _b, ...now } = r.angleCuts[0]!;
     expect(now).toEqual(was);
-    // Neither row is measured from the width side that grew: both restored exactly, in the canonical order.
-    expect(r.holes).toEqual(sortHoleRows(o.holes));
+    // Neither row is measured from the width side that grew: both restored exactly, in the original order (M3).
+    expect(r.holes).toEqual(o.holes);
   });
 });
 
@@ -397,5 +397,86 @@ describe('hole rows through conversion (AI-holes spec §3)', () => {
       "Side's hole row on +y starting at 5, 0.75, 2in is deeper than the part.",
       "Side's hole row on -y starting at 29, 0, 2in breaks out of its face.",
     ]);
+  });
+});
+
+describe('a holes-only part the model turned (final review C1) and the stored row order (M3)', () => {
+  const cases = POSTURES.flatMap((posture) => TURNS.map((rotation) => [posture, rotation] as const));
+  const PIN: HoleRow = { id: 'p1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 6, count: 9, pitch: 1.25, acrossFrom: 'min', inset: 2 };
+  /** The probe: an upright Side 0.75 (x) x 30 (y) x 11.25 (z), one pin row. */
+  const upright = () => createBoard({ name: 'Side', ...orient([0.75, 30, 11.25]), holes: [PIN] });
+  const UNIT: Record<string, [number, number, number]> = { '+x': [1, 0, 0], '-x': [-1, 0, 0], '+y': [0, 1, 0], '-y': [0, -1, 0], '+z': [0, 0, 1], '-z': [0, 0, -1] };
+
+  it('the probe: returned lying 11.25 x 30 x 0.75 with its pins on +z, it is stored by orient (thickness 0.75), the holes at the model\'s world centres', () => {
+    const original = project([upright()]);
+    const o = byName(original).get('Side')!;
+    expect([o.thickness, boardExtents(o)]).toEqual([0.75, [0.75, 30, 11.25]]);
+    let model: GeneratedPart | undefined;
+    const pins = { face: '+z' as const, diameter: 0.25, depth: 0.375, through: false, offset: { x: 2, y: 6, z: 0.75 }, toward: '+y' as const, count: 9, pitch: 1.25 };
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => (model = { ...p, size: { x: 11.25, y: 30, z: 0.75 }, holes: [pins] })) }));
+    expect(out.rejected).toEqual([]);
+    const r = byName(out.doc).get('Side')!;
+    expect(boardExtents(r)).toEqual([11.25, 30, 0.75]);
+    expect([r.length, r.width, r.thickness]).toEqual([30, 11.25, 0.75]);
+    // The model's world centres (position + offset + k·pitch·toward), against the independent oracle (toWorld).
+    const want = Array.from({ length: 9 }, (_, k) => [0, 1, 2].map((i) => r.position[i]! + [2, 6, 0.75][i]! + k * 1.25 * UNIT['+y']![i]!));
+    const got = boardHoles(r).map((h) => toWorld(r, local(h.centre)));
+    expect(sameSet(got, want)).toBe(true);
+    // The exact-row swap is skipped: a fresh row, not the original's.
+    expect(r.holes.map((h) => h.id)).not.toContain('p1');
+    expect(model!.holes).toEqual([pins]);
+  });
+
+  it('…a holes-only part the model left the same way round keeps the frame, and its rows come back exactly', () => {
+    for (const [posture, rotation] of cases) {
+      const holed = { ...chiralHoled(posture), name: 'Side', cuts: [], rotation };
+      const original = project([holed]);
+      const o = byName(original).get('Side')!;
+      const r = byName(refineThrough(original).doc).get('Side')!;
+      const pick = (b: Board) => [b.posture, b.rotation, b.length, b.width, b.thickness];
+      expect(pick(r), `${posture} ${rotation}`).toEqual(pick(o));
+      expect(r.holes, `${posture} ${rotation}`).toEqual(o.holes);
+    }
+  });
+
+  it('…and a curved part turned the same way keeps the frame (curves, profiles and bands keep it always)', () => {
+    const curved = { ...chiralCurved('upright'), name: 'Side', cuts: [] };
+    const original = project([curved]);
+    const o = byName(original).get('Side')!;
+    const k = axisDimensions(o).indexOf('thickness');
+    const out = refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => {
+      const e = [p.size.x, p.size.y, p.size.z];
+      const j = (k + 1) % 3;
+      [e[k], e[j]] = [e[j]!, e[k]!];
+      return { ...p, size: { x: e[0]!, y: e[1]!, z: e[2]! } };
+    }) }));
+    const r = byName(out.doc).get('Side')!;
+    expect([r.posture, r.rotation]).toEqual([o.posture, o.rotation]);
+    expect(r.curves).toEqual(o.curves);
+  });
+
+  it('M3: a no-op Refine keeps the ORIGINAL stored row order (Plans letters stay put)', () => {
+    const holed = { ...chiralHoled('flat'), name: 'Side', cuts: [] };
+    const original = project([holed]);
+    const o = byName(original).get('Side')!;
+    // The fixture is NOT in canonical order, or this test could not fail.
+    expect(o.holes.map((h) => h.id)).toEqual(['h1', 'h2']);
+    expect(sortHoleRows(o.holes).map((h) => h.id)).toEqual(['h2', 'h1']);
+    const r = byName(refineThrough(original).doc).get('Side')!;
+    expect(r.holes).toEqual(o.holes);
+  });
+
+  it('M3: a Refine that DROPS a row keeps only the rest (the counts must agree before the original order is kept)', () => {
+    const holed = { ...chiralHoled('flat'), name: 'Side', cuts: [] };
+    const original = project([holed]);
+    const r = byName(refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, holes: p.holes!.filter((h) => h.count > 1) })) })).doc).get('Side')!;
+    expect(r.holes.map((h) => h.id)).toEqual(['h1']);
+  });
+
+  it('M3: a Refine that changes one row sorts canonically', () => {
+    const holed = { ...chiralHoled('flat'), name: 'Side', cuts: [] };
+    const original = project([holed]);
+    const r = byName(refineThrough(original, (d) => ({ ...d, parts: d.parts.map((p) => ({ ...p, holes: p.holes!.map((h, i) => (i === 0 ? { ...h, diameter: 0.3125 } : h)) })) })).doc).get('Side')!;
+    expect(r.holes).toEqual(sortHoleRows(r.holes));
   });
 });
