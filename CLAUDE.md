@@ -37,13 +37,13 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `0b5e5ca`, bundle `index-CuLt9iDe.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (wording: the feature-check
-  failure names edging; the link note and per-copy hardware totals, fu 411/412; deployed 2026-10-23). Owed to the user: see NEXT.
-- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `0b5e5ca`
-  only restores the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
+- **Production: `ef88e09`, bundle `index-lH3mycr3.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (AI bands, fu 430 chunk 1:
+  Generate and Refine author edge bands, `bandWorld.ts`, inv 54/56; deployed 2026-10-23). Owed to the user: see NEXT.
+- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `ef88e09`
+  only stops Claude authoring edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** **AI bands (fu 430 chunk 1) is MERGED (`e7ce893`) and NOT deployed — ask before deploying.**
+- **NEXT (2026-10-23):** Nothing is pending deploy. **AI bands (fu 430 chunk 1) is DEPLOYED** (`ef88e09`, `index-lH3mycr3.js`).
   Live-checked on dev (`docs/browser-verification-ai-bands.md`, 7 of 10 paid calls; the grammar's upper bound compiles at
   3,114 chars). Then fu 430 chunk 2 (profiles): revisit spec §2.3 first — the grammar has little room left (fu 322).
   Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items (AI-holes and refine-features looks among them).
