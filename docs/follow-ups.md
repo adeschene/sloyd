@@ -7096,7 +7096,7 @@ left and right sides with shelf pins on their inside faces AND edging (or a prof
 turn maps one onto the other, so they stay two distinct parts, count twice against Generate's part cap, and an edit to one does
 not follow to the other. Candidate: a reflection candidate in linking, storing the second side as a mirrored use of the Shape
 (schema 13's mirror machinery). **Status:** open (feature; the user chose "two parts for now", 2026-10-23).
-**Status:** closed — mirrored links (2026-10-23, merged `<merge>`; spec `2026-10-23-sloyd-mirrored-links-design.md`, the user's choice of a
+**Status:** closed — mirrored links (2026-10-23, merged `a2ad5f6`; spec `2026-10-23-sloyd-mirrored-links-design.md`, the user's choice of a
 mirror flag on parts, §1.1; schema 21): a shaped part may be its Shape's mirror image (`mirrored`, inv 45); Generate and Refine link mirror
 twins after turns (`mirrorCandidates`); a Mirrored checkbox and ⇋ badge by hand; joinery keeps the link. The premise's part-cap cost is not
 fixed by linking (the cap counts stored parts): fu 435(1).

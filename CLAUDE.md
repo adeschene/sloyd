@@ -43,7 +43,7 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   only stops Claude authoring profiles; past `ef88e09`, edging; past `0b5e5ca`, the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** **Mirrored links (fu 432, SCHEMA 21) MERGED `<merge>`, NOT deployed**: live check, then ASK
+- **NEXT (2026-10-23):** **Mirrored links (fu 432, SCHEMA 21) MERGED `a2ad5f6`, NOT deployed**: live check, then ASK
   before deploying (a rollback past it REFUSES projects saved at 21; export first). Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
