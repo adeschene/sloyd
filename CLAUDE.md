@@ -166,7 +166,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | curves | `curves.ts`, `curveDrawing.ts`, `curveText.ts` (inv 53) |
 | edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `skeleton.ts`, `sweep.ts`, `runout.ts`, `sweptEdges.ts`, `sectionEdges.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
-| edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts` (inv 54) |
+| edge banding | `bandModel.ts`, `banding.ts`, `bandText.ts`, `viewport/bandFaces.ts`; AI authoring `bandWorld.ts`, `bandDesignFaults.ts` (inv 54) |
 | bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Repair; Refine's carry | `document/featureCarry.ts` + `carryText.ts` (Refine carries features, inv 56), `generate/joints/featureZones.ts` (per-site ruling-out), `document/featureRegions.ts`, `sites.ts` `rangesOf` (stop insets), `ruledOutText.ts`, `angledRefusal.ts`, `generate/joints/tapers.ts` `joineryRefusal` |
 | cut list, nesting, Buying | `cutlist.ts` (inv 18), `nesting.ts` (inv 19, 22, 23), `purchase.ts`, `materials.ts` (inv 49) |
@@ -525,7 +525,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     b2 stop's run-out is built in its station's MODEL-chord frame (`stopRunoutPieces`); a stop never
     clips the band, a B1 station clips only its own END of it. Generate/Refine speak every angle
     kind in WORLD words, recognised STRUCTURALLY; **the design schema defines part and direction
-    ONCE in `$defs`** (`vec3` stays inline; the API's grammar cap; fu 322 before any change).
+    ONCE in `$defs`** (and `vec3`, since AI-bands; the API's grammar cap; fu 322 before any change).
 49. **A custom material's KIND is in its id** (`m-s-…`, `m-v-…`, `m-p-…`); a stored `kind` that
     disagrees drops the entry, and nothing may change a stored material's kind. Label, colour and
     sheet size come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global registry. **A
@@ -571,7 +571,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 54. **`banding.ts` is the ONE place band numbers are computed** (core, strips, tape runs, faults),
     numbers-only, memoised and deep-frozen. **The model is the FINISHED size; the cut list prints the
     CORE**; bodies are untouched. **A faulted band adds nothing** and prints `— check: <words>`.
-    Authoring refuses an ADDED fault; a later one is KEPT. Refine carries them (inv 56); joinery rules out only the joint kinds a band is in the way of (inv 41);
+    Authoring refuses an ADDED fault; a later one is KEPT. **Generate and Refine AUTHOR bands in world words through `bandWorld.ts`, the ONE converter** (`mintBandTypes`: ONE design-wide pass, `solid <m>` reusing or minting one 1/4in type; the type list threaded through every path; a shape fault rejects the part, reason `'band'`; a band fault is KEPT and flagged, `bandDesignFaults`, `'band-fault'`), except on a part with curves, whose bands stay carried (inv 56) and are judged only by `carriedSummary`, never fed to the model; `cornerRule` is always carried; joinery rules out only the joint kinds a band is in the way of (inv 41);
     Repair accepts them; a strip, tape run and glue line count only the VISIBLE run (`visibleRun`, P12). A strip row has no `boardIds`: every reader of a row's parts handles an empty list. A
     band-free document is byte for byte as before (`bandFreeIdentity.test.ts`). The viewport paints a
     band by MOVING triangles into material groups 6+ (`bandedMesh`), never by recolouring a slot;
@@ -584,10 +584,10 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     on parts by flat name from the RESOLVED flat part (a shaped part's Shape included); only ASSEMBLY hardware reads the STORED definitions
     (`flatDocument` empties them, P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
 
-56. **A part Refine carries curves, profiles or bands onto keeps the original's posture and rotation (`frameFor`); a part whose only frame features are holes keeps it only while every world extent keeps its rank against the original's (ties allowed both ways) and its thickness's world axis is still a smallest extent (unless the original's thickness was not its smallest). Never `orient` either otherwise.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
-    types through `designToDocument`'s opts) and before `linkByRole`. Holes are no longer carried (inv 50: authored in world words) but `hasFrameFeatures` still counts them (hardware never); a holes-only part the model turned (any strict rank inversion of its world extents: onto another face, C1, or in plan, R1; or, from an original tied at its smallest extent, a thickness axis no longer smallest — the tie clause) is `orient`ed like its plain twin, the exact-row swap skipped, its holes converted from the model's world words; `turnCandidates` never turns a part with curves, profiles or
-    bands, and re-stores a holed part through world forms with an exact set. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
-    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part that carries curves, profiles or bands, nor a holes-only part whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
+56. **A part Refine carries curves or profiles onto keeps the original's posture and rotation (`frameFor`); a part whose only frame features are holes and/or bands keeps it only while every world extent keeps its rank against the original's (ties allowed both ways) and its thickness's world axis is still a smallest extent (unless the original's thickness was not its smallest). Never `orient` either otherwise.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
+    types through `designToDocument`'s opts) and before `linkByRole`. Holes and a plain part's bands are no longer carried (invs 50, 54: authored in world words) but `hasFrameFeatures` still counts them (hardware never); a part whose only frame features are holes and/or bands the model turned (any strict rank inversion of its world extents: onto another face, C1, or in plan, R1; or, from an original tied at its smallest extent, a thickness axis no longer smallest — the tie clause) is `orient`ed like its plain twin, the exact-row swap skipped, its holes and bands converted from the model's world words; `turnCandidates` never turns a part with curves or
+    profiles, and re-stores a holed or banded part through world forms (holes with an exact set). A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
+    (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part that carries curves or profiles, nor a part whose only frame features are holes and/or bands whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
 
 ## Commands
 
@@ -603,20 +603,20 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–432). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–433). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; mirrored linking 432; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400; profiles and bands authored by Claude 430.
+  364–366; banding 399, 400; profiles authored by Claude 430 (chunk 2; bands, chunk 1, on branch `ai-bands`).
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429.
+  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
