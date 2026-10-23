@@ -1,6 +1,6 @@
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { FlatDocument, SloydDocument } from '../document/document';
-import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
+import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign, toWireDesign } from '../document/generated';
 import { builtInCatalog, catalogOf, pruneMaterials } from '../document/materials';
 import type { BandType, CustomMaterial, HardwareType } from '../document/types';
 import type { GeneratedDesign } from '../document/generated';
@@ -351,7 +351,7 @@ export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, setting
   const refine = costRange(client, {
     prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc), doc.bandTypes)).length,
     messageChars: refineMessage(from.design, settings, catalogOf(doc), base.plain).length,
-    outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
+    outputTokens: Math.ceil(JSON.stringify(toWireDesign(from.design)).length * REFINE_OUTPUT_PER_CHAR),
   }, 1 + MAX_REPAIRS);
   const join = base.joints === null ? null : joineryShape(base.plain);
   return join ? withOptional(refine, costRange(client, join, 1 + MAX_REPAIRS)) : refine;

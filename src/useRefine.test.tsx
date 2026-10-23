@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { progressPatch, useRefine } from './useRefine';
-import { designToDocument } from './document/generated';
+import { designToDocument, toWireDesign } from './document/generated';
 import { documentToDesign } from './document/refineDesign';
 import { REFINE_MAX } from './generate/refine';
 import { LlmError } from './llm/types';
@@ -14,14 +14,15 @@ const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteT
 const doc = designToDocument({ name: 'Box', parts: [
   { name: 'Base', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } },
 ], assemblies: [] }).doc;
-// The model's answer: the design echoed back (documentToDesign writes every part's `holes`, AI-holes spec §3.2).
+// The model's answer: the design echoed back (documentToDesign writes every part's `holes`, AI-holes spec §3.2), sent in the
+// wire form (`toWireDesign`, AI-profiles spec R6.4).
 const echo = (() => {
   const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused');
   return r.design;
 })();
 const S = { instruction: 'taller', width: null, depth: null, height: null, detail: 'simple' as const };
 const client = (complete: LlmClient['complete']): LlmClient => ({ complete: vi.fn(complete), userTurn: (t) => t, estimateCostUsd: () => 0.02 });
-const ok = async (): Promise<LlmResult> => ({ json: echo, assistantTurn: {}, usage });
+const ok = async (): Promise<LlmResult> => ({ json: toWireDesign(echo), assistantTurn: {}, usage });
 const setup = () => {
   const onCreated = vi.fn();
   const onStorageVerdict = vi.fn();
@@ -62,7 +63,7 @@ describe('useRefine', () => {
     const { result } = setup();
     let release!: () => void;
     const gate = new Promise<void>((r) => { release = r; });
-    act(() => result.current.start(client(async () => { await gate; return { json: echo, assistantTurn: {}, usage }; }), doc, S));
+    act(() => result.current.start(client(async () => { await gate; return { json: toWireDesign(echo), assistantTurn: {}, usage }; }), doc, S));
     act(() => result.current.cancel());
     release();
     await waitFor(() => expect(result.current.live).toBe(false));

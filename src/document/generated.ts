@@ -14,11 +14,11 @@ import { builtInCatalog, catalogOf } from './materials';
 import type { MaterialCatalog } from './materials';
 import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
-import { copyProfile } from './profiles';
+import { PROFILE_KINDS, copyProfile } from './profiles';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID, copyBand } from './bandModel';
 import { bandsFor, mintBandTypes } from './bandWorld';
 import { copyHardwareUse } from './hardwareModel';
-import type { Band, BandType, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareType, HardwareUse, HoleRow, Instance, Posture, ProfileCut, Rotation } from './types';
+import type { Band, BandType, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareType, HardwareUse, HoleRow, Instance, Posture, ProfileCut, ProfileKind, Rotation } from './types';
 
 /**
  * What the model sends back (spec §4.1). The model thinks in WORLD BOXES —
@@ -41,6 +41,20 @@ export interface PartCarry {
 }
 /** One edge band in world words (AI-bands spec §2.2): the side face banded and an edging key (`edgingKeys`). */
 export interface WorldBand { edge: Dir; edging: string }
+/**
+ * One angle cut as the model writes it (AI-profiles spec R2): the four angle kinds share ONE item shape, because the API's
+ * compiled grammar pays per distinct object shape (fu 322). `parseDesign` splits it into the internal `tapers`, `miters`,
+ * `bevels` and `chamfers`; `toWireDesign` merges them back. Per kind: a taper's `dirs` are its sloping faces (1–4),
+ * `toward` the thin end, `values` [start, amount]; a miter's `dirs` [end], a bevel's [face], `toward` the long point,
+ * `values` [angle]; a chamfer's `dirs` the edge's two faces, `values` its legs in that order, `toward` ignored (written
+ * as `dirs[0]`).
+ */
+export interface WorldAngle { kind: 'taper' | 'miter' | 'bevel' | 'chamfer'; dirs: Dir[]; toward: Dir; values: number[] }
+/**
+ * One edge profile in world words (AI-profiles spec §2.1): `edge` the two faces meeting at the routed edge (one broad face,
+ * one side), `start`/`end` along the edge from the part's `at`. Parsed here; converted by profileWorld.ts.
+ */
+export interface WorldProfile { edge: Dir[]; kind: ProfileKind; size: number; fillet: number; depth: number; facing: 'face' | 'edge'; allRound: boolean; start: number; end: number }
 
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
@@ -50,12 +64,17 @@ export interface GeneratedPart {
   grain?: Grain;
   /** TS-only, never in the schema: the original part's features (Refine's carryFromOriginal). parseDesign drops it. */
   carry?: PartCarry;
-  /** Required from the model (parseDesign checks it); optional here like `role`. */
+  /** Split by parseDesign from the model's required `angles` (AI-profiles spec R2); optional here like `role`. */
   tapers?: WorldTaper[];
-  /** Required from the model (parseDesign checks them); optional here like `tapers` (AI-angles spec §5.1). */
+  /** Split from `angles` likewise (AI-angles spec §5.1; AI-profiles spec R2); optional here like `tapers`. */
   miters?: WorldMiter[];
   bevels?: WorldBevel[];
   chamfers?: WorldChamfer[];
+  /** TS-only, never in the schema: an `angles` entry with the wrong count of `dirs` or `values` for its kind (spec R2,
+   *  R6.4), worded for the model; set by parseDesign only when there is one. convertPart rejects the part. */
+  angleFaults?: string[];
+  /** Required from the model (parseDesign checks it); optional here like `holes` (AI-profiles spec §2.1). */
+  profiles?: WorldProfile[];
   /** Required from the model (parseDesign checks it); optional here like `holes` (AI-bands spec §2.2). Ignored for a part
    *  with carried curves (its carried bands stand). */
   bands?: WorldBand[];
@@ -90,32 +109,25 @@ const vec3Def = {
 /** A world direction: defined ONCE in `$defs` and referenced (see DESIGN_SCHEMA). */
 const dirSchema = { $ref: '#/$defs/dir' };
 const vec3Schema = { $ref: '#/$defs/vec3' };
-/** One taper in world words (AI-tapers spec §2): the faces that slope, the end that gets thinner, where it starts
- *  (from that end) and how much it removes there. Counts and duplicates are the converter's to check. */
-const taperSchema = {
+const ANGLE_KINDS = ['taper', 'miter', 'bevel', 'chamfer'] as const;
+/** One taper, miter, bevel or chamfer in world words, all four in ONE item shape (`WorldAngle`; AI-profiles spec R2).
+ *  Counts are parseDesign's to check (a wrong count rejects the part, `angleFaults`); the rest is the converters'. */
+const angleSchema = {
   type: 'object',
-  properties: { faces: { type: 'array', items: dirSchema }, toward: dirSchema, start: { type: 'number' }, amount: { type: 'number' } },
-  required: ['faces', 'toward', 'start', 'amount'],
+  properties: { kind: { type: 'string', enum: [...ANGLE_KINDS] }, dirs: { type: 'array', items: dirSchema }, toward: dirSchema, values: { type: 'array', items: { type: 'number' } } },
+  required: ['kind', 'dirs', 'toward', 'values'],
   additionalProperties: false,
 };
 
-/** One miter, bevel or chamfer in world words (AI-angles spec §5.1); the converter checks directions and numbers. */
-const miterSchema = {
+/** One profile in world words (AI-profiles spec §2.1); the converter checks directions and numbers. */
+const profileSchema = {
   type: 'object',
-  properties: { end: dirSchema, longPoint: dirSchema, angle: { type: 'number' } },
-  required: ['end', 'longPoint', 'angle'],
-  additionalProperties: false,
-};
-const bevelSchema = {
-  type: 'object',
-  properties: { face: dirSchema, longPoint: dirSchema, angle: { type: 'number' } },
-  required: ['face', 'longPoint', 'angle'],
-  additionalProperties: false,
-};
-const chamferSchema = {
-  type: 'object',
-  properties: { edge: { type: 'array', items: dirSchema }, legs: { type: 'array', items: { type: 'number' } } },
-  required: ['edge', 'legs'],
+  properties: {
+    edge: { type: 'array', items: dirSchema }, kind: { type: 'string', enum: [...PROFILE_KINDS] }, size: { type: 'number' },
+    fillet: { type: 'number' }, depth: { type: 'number' }, facing: { type: 'string', enum: ['face', 'edge'] },
+    allRound: { type: 'boolean' }, start: { type: 'number' }, end: { type: 'number' },
+  },
+  required: ['edge', 'kind', 'size', 'fillet', 'depth', 'facing', 'allRound', 'start', 'end'],
   additionalProperties: false,
 };
 /** One hole row in world words (AI-holes spec §2.1); the converter checks directions and numbers. */
@@ -159,14 +171,12 @@ const partSchemaFor = (materials: readonly string[], edgings: readonly string[])
     material: { type: 'string', enum: [...materials] },
     at: vec3Schema,
     size: vec3Schema,
-    tapers: { type: 'array', items: taperSchema },
-    miters: { type: 'array', items: miterSchema },
-    bevels: { type: 'array', items: bevelSchema },
-    chamfers: { type: 'array', items: chamferSchema },
+    angles: { type: 'array', items: angleSchema },
     holes: { type: 'array', items: holeSchema },
     bands: { type: 'array', items: bandSchemaFor(edgings) },
+    profiles: { type: 'array', items: profileSchema },
   },
-  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes', 'bands'],
+  required: ['name', 'role', 'material', 'at', 'size', 'angles', 'holes', 'bands', 'profiles'],
   additionalProperties: false,
 });
 
@@ -220,14 +230,27 @@ const isVec3 = (v: unknown): v is Vec3 =>
   isObj(v) && (['x', 'y', 'z'] as const).every((k) => typeof v[k] === 'number');
 
 const isDir = (v: unknown) => (DIRS as readonly unknown[]).includes(v);
-const isTaper = (t: unknown): boolean =>
-  isObj(t) && Array.isArray(t.faces) && t.faces.every(isDir) && isDir(t.toward) && typeof t.start === 'number' && typeof t.amount === 'number';
+// Types only: a wrong COUNT for the kind is a per-part shape fault (`angleFaultOf`), never a whole-response refusal.
+const isAngle = (a: unknown): boolean => isObj(a) && (ANGLE_KINDS as readonly unknown[]).includes(a.kind) &&
+  Array.isArray(a.dirs) && a.dirs.every(isDir) && isDir(a.toward) && Array.isArray(a.values) && a.values.every((n) => typeof n === 'number');
+const isProfile = (p: unknown): boolean => isObj(p) && Array.isArray(p.edge) && p.edge.every(isDir) &&
+  (PROFILE_KINDS as readonly unknown[]).includes(p.kind) && (p.facing === 'face' || p.facing === 'edge') && typeof p.allRound === 'boolean' &&
+  (['size', 'fillet', 'depth', 'start', 'end'] as const).every((k) => typeof p[k] === 'number');
 
-const isMiter = (m: unknown): boolean => isObj(m) && isDir(m.end) && isDir(m.longPoint) && typeof m.angle === 'number';
-const isBevel = (m: unknown): boolean => isObj(m) && isDir(m.face) && isDir(m.longPoint) && typeof m.angle === 'number';
-// Arrays cannot be length-constrained in the schema: exactly two of each here.
-const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && m.edge.length === 2 && m.edge.every(isDir) &&
-  Array.isArray(m.legs) && m.legs.length === 2 && m.legs.every((n) => typeof n === 'number');
+/** How many `dirs` and `values` each kind takes (spec R2's table): the counts the old four-array form accepted. */
+const ANGLE_COUNTS: Record<WorldAngle['kind'], { dirs: [number, number]; values: number }> = {
+  taper: { dirs: [1, 4], values: 2 }, miter: { dirs: [1, 1], values: 1 }, bevel: { dirs: [1, 1], values: 1 }, chamfer: { dirs: [2, 2], values: 2 },
+};
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** The shape fault of a wrong count for its kind, worded for the model (`has a miter with 2 directions; a miter takes 1`), or null. */
+function angleFaultOf(a: WorldAngle): string | null {
+  const { dirs: [lo, hi], values } = ANGLE_COUNTS[a.kind];
+  if (a.dirs.length < lo || a.dirs.length > hi) return `has a ${a.kind} with ${plural(a.dirs.length, 'direction')}; a ${a.kind} takes ${lo === hi ? lo : `${lo} to ${hi}`}`;
+  if (a.values.length !== values) return `has a ${a.kind} with ${plural(a.values.length, 'value')}; a ${a.kind} takes ${values}`;
+  return null;
+}
+/** A fault `angleFaultOf` wrote for a taper entry: its reason is `'taper'`, every other kind's `'angle'`. */
+const isTaperFault = (f: string) => f.startsWith('has a taper ');
 const isHole = (h: unknown): boolean => isObj(h) && isDir(h.face) && isDir(h.toward) && typeof h.through === 'boolean' &&
   isVec3(h.offset) && (['diameter', 'depth', 'count', 'pitch'] as const).every((k) => typeof h[k] === 'number');
 
@@ -236,27 +259,67 @@ const isBand = (b: unknown, edgings: ReadonlySet<string>): boolean => isObj(b) &
 const isPart = (p: unknown, catalog: MaterialCatalog, edgings: ReadonlySet<string>): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
   catalog.get(p.material) !== undefined && isVec3(p.at) && isVec3(p.size) &&
-  Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
-  Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
-  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole) &&
-  Array.isArray(p.bands) && p.bands.every((b) => isBand(b, edgings));
+  Array.isArray(p.angles) && p.angles.every(isAngle) && Array.isArray(p.holes) && p.holes.every(isHole) &&
+  Array.isArray(p.bands) && p.bands.every((b) => isBand(b, edgings)) && Array.isArray(p.profiles) && p.profiles.every(isProfile);
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
 const isAssembly = (a: unknown, catalog: MaterialCatalog, edgings: ReadonlySet<string>): boolean =>
   isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog, edgings)) &&
   Array.isArray(a.placements) && a.placements.every(isPlacement);
 
 const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
+/** A part as the model writes it: `angles` merged (spec R2); `profiles` required. */
+type WirePart = Omit<GeneratedPart, 'tapers' | 'miters' | 'bevels' | 'chamfers' | 'angleFaults' | 'grain' | 'carry'> & { angles: WorldAngle[] };
 const partOf = (o: unknown): GeneratedPart => {
-  const p = o as GeneratedPart;
+  const p = o as WirePart;
+  // Split `angles` by kind, in array order (spec R2); an entry with the wrong count for its kind goes to angleFaults only.
+  const tapers: WorldTaper[] = [], miters: WorldMiter[] = [], bevels: WorldBevel[] = [], chamfers: WorldChamfer[] = [], angleFaults: string[] = [];
+  for (const a of p.angles) {
+    const fault = angleFaultOf(a);
+    if (fault) { angleFaults.push(fault); continue; }
+    const [d0, d1] = a.dirs as [Dir, Dir];
+    if (a.kind === 'taper') tapers.push({ faces: [...a.dirs], toward: a.toward, start: a.values[0]!, amount: a.values[1]! });
+    else if (a.kind === 'miter') miters.push({ end: d0, longPoint: a.toward, angle: a.values[0]! });
+    else if (a.kind === 'bevel') bevels.push({ face: d0, longPoint: a.toward, angle: a.values[0]! });
+    else chamfers.push({ edge: [d0, d1], legs: [a.values[0]!, a.values[1]!] });
+  }
   return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size),
-    tapers: (p.tapers ?? []).map((t) => ({ faces: [...t.faces], toward: t.toward, start: t.start, amount: t.amount })),
-    miters: (p.miters ?? []).map((m) => ({ end: m.end, longPoint: m.longPoint, angle: m.angle })),
-    bevels: (p.bevels ?? []).map((m) => ({ face: m.face, longPoint: m.longPoint, angle: m.angle })),
-    chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })),
+    tapers, miters, bevels, chamfers, ...(angleFaults.length > 0 ? { angleFaults } : {}),
     holes: (p.holes ?? []).map((h) => ({ face: h.face, diameter: h.diameter, depth: h.depth, through: h.through, offset: vec(h.offset),
       toward: h.toward, count: h.count, pitch: h.pitch })),
-    bands: (p.bands ?? []).map((b) => ({ edge: b.edge, edging: b.edging })) };
+    bands: (p.bands ?? []).map((b) => ({ edge: b.edge, edging: b.edging })),
+    profiles: (p.profiles ?? []).map((f) => ({ edge: [...f.edge], kind: f.kind, size: f.size, fillet: f.fillet, depth: f.depth, facing: f.facing,
+      allRound: f.allRound, start: f.start, end: f.end })) };
 };
+
+/** The wire form of one internal part (spec R6.4): schema key order; `angles` merged tapers, miters, bevels, chamfers. */
+const wirePart = (p: GeneratedPart): WirePart => ({
+  name: p.name, role: p.role ?? '', material: p.material, at: vec(p.at), size: vec(p.size),
+  angles: [
+    ...(p.tapers ?? []).map((t): WorldAngle => ({ kind: 'taper', dirs: [...t.faces], toward: t.toward, values: [t.start, t.amount] })),
+    ...(p.miters ?? []).map((m): WorldAngle => ({ kind: 'miter', dirs: [m.end], toward: m.longPoint, values: [m.angle] })),
+    ...(p.bevels ?? []).map((m): WorldAngle => ({ kind: 'bevel', dirs: [m.face], toward: m.longPoint, values: [m.angle] })),
+    ...(p.chamfers ?? []).map((c): WorldAngle => ({ kind: 'chamfer', dirs: [c.edge[0], c.edge[1]], toward: c.edge[0], values: [c.legs[0], c.legs[1]] })),
+  ],
+  holes: (p.holes ?? []).map((h) => ({ face: h.face, diameter: h.diameter, depth: h.depth, through: h.through, offset: vec(h.offset),
+    toward: h.toward, count: h.count, pitch: h.pitch })),
+  bands: (p.bands ?? []).map((b) => ({ edge: b.edge, edging: b.edging })),
+  profiles: (p.profiles ?? []).map((f) => ({ edge: [...f.edge], kind: f.kind, size: f.size, fillet: f.fillet, depth: f.depth, facing: f.facing,
+    allRound: f.allRound, start: f.start, end: f.end })),
+});
+
+/**
+ * The design as the model reads and writes it (AI-profiles spec R6.4), the ONE serialiser for `refineMessage` and the
+ * estimate: the four angle arrays merged into `angles` (in the order tapers, miters, bevels, chamfers — each array's own
+ * order kept, so an echo round-trips), every required array present, and the TS-only fields (`grain`, `carry`,
+ * `angleFaults`, an assembly's `carry`) dropped. `parseDesign(toWireDesign(d))` gives `d`'s parts back.
+ */
+export function toWireDesign(d: GeneratedDesign): unknown {
+  return {
+    name: d.name,
+    parts: d.parts.map(wirePart),
+    assemblies: (d.assemblies ?? []).map((a) => ({ name: a.name, parts: a.parts.map(wirePart), placements: a.placements.map((pl) => ({ name: pl.name, at: vec(pl.at) })) })),
+  };
+}
 
 /**
  * Shape check on the parsed output. The API enforces the schema, but this is
@@ -367,6 +430,13 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
   const [ax, ay, az, sx, sy, sz] = snapped;
   if (sx <= 0 || sy <= 0 || sz <= 0) {
     rejected.push({ name: label, reason: 'too-small' });
+    return null;
+  }
+  // A wrong count for its kind in `angles` (AI-profiles spec R2, R6.4): a shape fault, the part rejected and fed back. A taper
+  // fault decides the reason first, as tapers are converted first below.
+  if (p.angleFaults && p.angleFaults.length > 0) {
+    const fault = p.angleFaults.find(isTaperFault) ?? p.angleFaults[0]!;
+    rejected.push({ name: label, reason: isTaperFault(fault) ? 'taper' : 'angle', detail: `${label} ${fault}.` });
     return null;
   }
   // A part carrying a board-local feature keeps the original's frame (spec §3.2); everything else is encoded by orient.

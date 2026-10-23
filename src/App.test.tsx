@@ -1730,7 +1730,7 @@ describe('project library: new, duplicate, delete, import', () => {
 describe('Generate', () => {
   const GOOD = {
     name: 'Bench',
-    parts: [{ name: 'Top', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } }],
+    parts: [{ name: 'Top', role: '', angles: [], holes: [], bands: [], profiles: [], material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } }],
     assemblies: [],
   };
   const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };

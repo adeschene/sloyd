@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { designToDocument, parseDesign } from '../../document/generated';
+import { designToDocument, parseDesign, toWireDesign } from '../../document/generated';
+import type { GeneratedDesign } from '../../document/generated';
 import { chamferCut, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
 import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
 import type { AngleCut, Board, FlatDocument, SloydDocument } from '../../document/document';
@@ -196,8 +197,9 @@ describe('taperJointRefusal / joineryRefusal', () => {
 describe('jointFaults \u2014 the fault on designs (spec 5.3)', () => {
   const part = (name: string, at: number[], size: number[], tapers: unknown[] = []) =>
     ({ name, role: '', material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, tapers, miters: [], bevels: [], chamfers: [], holes: [], bands: [] });
+  // Sent as the model writes it (the wire form, AI-profiles spec R2).
   const build = (parts: unknown[], opts?: { exact: Set<number> }) =>
-    flatDocument(designToDocument(parseDesign({ name: 'T', assemblies: [], parts })!, opts).doc);
+    flatDocument(designToDocument(parseDesign(toWireDesign({ name: 'T', assemblies: [], parts } as GeneratedDesign))!, opts).doc);
   const corner = (start: number, railY = 23.5) => build([
     part('Leg', [0, 0, 0], [1.75, 28, 1.75], [{ faces: ['+x', '+z'], toward: '-y', start, amount: 0.375 }]),
     part('Rail X', [1.75, railY, 0.5], [18, 3, 0.75]),

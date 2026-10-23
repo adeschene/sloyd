@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { KEEP_LINE, REFINE_MAX, detailFor, plainForRefine, refineDialogInfo, refineMessage, refineRefusal } from './refine';
 import type { RefineSettings } from './refine';
 import { limitLines } from './prompt';
-import { designToDocument, parseDesign } from '../document/generated';
+import { designToDocument, parseDesign, toWireDesign } from '../document/generated';
 import { SHAKER_TABLE_JSON } from '../document/shakerTableFixture';
 import { worldParts, writeBackFlat } from '../document/document';
 import type { GeneratedDesign } from '../document/generated';
@@ -29,11 +29,23 @@ const D: GeneratedDesign = { name: 'T', parts: [p('A', 0)], assemblies: [] };
 describe('refine', () => {
   it('builds the user turn: design JSON, instruction, keep line, limits', () => {
     expect(refineMessage(D, S)).toBe([
-      'Here is the current design, in the same format you return:', JSON.stringify(D), '',
+      'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(D)), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
     expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes and edging. Keep assembly and placement names. Return the whole design.');
     expect(refineMessage(D, S)).toContain('tapers, miters, bevels, chamfers, holes and edging');
+  });
+
+  it('shows the design in the wire form: merged "angles", no "tapers"/"miters"/"bevels"/"chamfers" keys, no TS-only fields (spec R6.4)', () => {
+    const doc = designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false }).doc;
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const withChamfer: GeneratedDesign = { ...r.design, parts: r.design.parts.map((q, i) => (i === 0 ? { ...q, chamfers: [{ edge: ['+y', '+z'], legs: [0.125, 0.125] }], grain: 'width' } : q)) };
+    const m = refineMessage(withChamfer, S);
+    expect(m).toContain('"angles":[{"kind":"taper"');
+    expect(m).toContain('{"kind":"chamfer","dirs":["+y","+z"],"toward":"+y","values":[0.125,0.125]}');
+    expect(m).toContain('"profiles":[]');
+    for (const k of ['"tapers"', '"miters"', '"bevels"', '"chamfers"', '"grain"', '"carry"', '"angleFaults"']) expect(m).not.toContain(k);
   });
 
   it('names the custom materials in the user turn, and only when there are some (custom materials spec §6)', () => {
@@ -41,7 +53,7 @@ describe('refine', () => {
     const elm = { id: 'm-p-elm2', label: 'Elm ply', color: '#c8b898', kind: 'sheet-plain' as const, sheet: { length: 96, width: 48 } };
     const withAsh = refineMessage(D, S, catalogOf({ materials: [ash] }));
     expect(withAsh).toBe([
-      'Here is the current design, in the same format you return:', JSON.stringify(D), '',
+      'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(D)), '',
       'Custom materials in this design: "m-s-ash1" is Ash.', '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
@@ -79,7 +91,7 @@ describe('refine', () => {
 
     it('is byte-identical without features', () => {
       const d = design(clean);
-      const today = ['Here is the current design, in the same format you return:', JSON.stringify(d), '',
+      const today = ['Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(d)), '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S)].join('\n');
       expect(refineMessage(d, S)).toBe(today);
       expect(refineMessage(d, S, undefined, clean)).toBe(today);
@@ -92,7 +104,7 @@ describe('refine', () => {
       // Side carries only holes, which the design now shows (AI-holes spec §4): not named.
       const note = `${NOTE}Apron (a curve), Top (an edge profile), Door (hardware).`;
       expect(refineMessage(d, S, undefined, featured)).toBe([
-        'Here is the current design, in the same format you return:', JSON.stringify(d), '', note, '',
+        'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(d)), '', note, '',
         'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
       ].join('\n'));
       expect(refineMessage(d, S)).not.toContain('Sloyd keeps them');

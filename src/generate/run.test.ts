@@ -14,7 +14,8 @@ import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
-import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
+import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign, toWireDesign } from '../document/generated';
+import type { GeneratedDesign } from '../document/generated';
 import { catalogOf } from '../document/materials';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
@@ -50,6 +51,13 @@ const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10,
 
 type Step = unknown | 'truncated' | 'unparseable' | LlmError;
 
+/** A design step is scripted in the INTERNAL form (the four angle arrays) and answered as the model writes it: the wire
+ *  form (`toWireDesign`, merged `angles`; AI-profiles spec R2, R6.4). Anything else (a joinery answer) goes as it is. */
+const asAnswer = (step: unknown): unknown => {
+  const d = step as Partial<GeneratedDesign> | null;
+  return d && typeof d === 'object' && typeof d.name === 'string' && Array.isArray(d.parts) && Array.isArray(d.assemblies) ? toWireDesign(d as GeneratedDesign) : step;
+};
+
 /**
  * A scripted client that records a COPY of every request's history, and
  * keeps the (frozen) turn objects it returns so tests can check identity.
@@ -68,7 +76,7 @@ function fakeClient(steps: Step[]) {
       turns.push(turn);
       if (step instanceof LlmError) throw step;
       if (step === 'truncated' || step === 'unparseable') return { json: null, unusable: step, assistantTurn: turn, usage };
-      return { json: step, assistantTurn: turn, usage };
+      return { json: asAnswer(step), assistantTurn: turn, usage };
     }),
   };
   return { client, seen, turns };
@@ -1118,7 +1126,7 @@ describe('the angle-joint fault for tapers (AI-tapers spec 5.3)', () => {
   });
   it('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
     const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
-    const doc = designToDocument(parseDesign(design(24))!).doc;
+    const doc = designToDocument(parseDesign(toWireDesign(design(24) as GeneratedDesign))!).doc;
     const from = documentToDesign(doc, REFINE_MAX);
     if ('refused' in from) throw new Error('refused');
     const { client, seen } = fakeClient([from.design]);
@@ -1153,10 +1161,10 @@ describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () =
     const leg = flatDocument(joined).boards.find((b) => b.name === 'Leg')!;
     expect([endFacing(leg, 0, 1), endFacing(leg, 2, 1)]).toEqual(leg.angleCuts.map((c) => c.from));
     expect(leg.cuts.length).toBeGreaterThan(0);
-    expect(parseDesign(conflicting)).not.toBeNull();
+    expect(parseDesign(toWireDesign(conflicting as GeneratedDesign))).not.toBeNull();
     // The conflicting design stores the same taper as the fixture's, moved to start 24.
     const noId = ({ id: _id, ...c }: AngleCut) => c;
-    const moved = flatDocument(designToDocument(parseDesign(conflicting)!).doc).boards.find((b) => b.name === 'Leg')!;
+    const moved = flatDocument(designToDocument(parseDesign(toWireDesign(conflicting as GeneratedDesign))!).doc).boards.find((b) => b.name === 'Leg')!;
     expect(moved.angleCuts.map(noId)).toEqual([legTaper(moved, 0, 24), legTaper(moved, 2, 24)].map(noId));
   });
 
