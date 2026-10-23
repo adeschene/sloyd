@@ -203,7 +203,7 @@ export function treeRows(doc: SloydDocument): TreeRow[] {
   const defs = defsOf(doc);
   const placed = placementsOf(doc);
   const walk = (c: Container, path: string | null, depth: number, onPath: Set<string>) => {
-    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(isShaped(b) ? { shape: b.shape } : {}) });
+    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(isShaped(b) ? { shape: b.shape, ...(b.mirrored ? { mirrored: true as const } : {}) } : {}) });
     for (const inst of c.instances) {
       const p = joinPath(path, inst.id);
       const n = placed.get(inst.definition) ?? 0;

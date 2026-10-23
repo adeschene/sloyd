@@ -1,5 +1,5 @@
 import type { Definition, Instance, Rotation, SloydDocument, StoredBoard } from './types';
-import { dissolveShapes, isShaped, pruneShapes, resolveBoard, shapeMap } from './shapes';
+import { dissolveShapes, isShaped, plainOf, pruneShapes, resolveBoard, shapeMap } from './shapes';
 import { nextId } from './ids';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
@@ -210,7 +210,8 @@ export function ungroupItem(doc: SloydDocument, path: string):
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
-      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand), hardware: placed.hardware.map(copyHardwareUse) };
+      // plainOf: no `shape` key, and no `mirrored` (a mirrored user's flag, fu 432: a plain part's features are its own).
+      : { ...plainOf(placed), name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand), hardware: placed.hardware.map(copyHardwareUse) };
     taken.push(named);
     return [named];
   });
