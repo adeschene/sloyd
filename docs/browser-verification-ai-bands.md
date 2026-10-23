@@ -27,3 +27,31 @@ Maple edging band types), `max_tokens: 16`.
 - **Probes used:** 2 of the 10 (one refused, one passed). Fallback (b) was not needed.
 - **Pinned:** `src/document/fixtures/design-schema-builtin.json` re-captured, verified equal to the old bytes with `vec3`
   moved to `$defs` (and referenced) plus `bands` (enum: veneer and the five built-in solid species) and nothing else.
+
+## Headroom probe (final review I2, after the merge `e7ce893`)
+
+The largest Refine schema among the dev projects was 2,854 chars (below the probed 2,911), so a deliberate upper bound was
+probed instead: 4 custom solid materials, 2 custom sheet materials, the built-in band and 4 custom solid band types (13
+catalog materials, 15 `edging` keys). **Compiled:** HTTP 200, `req_011CgJwrsfp1mB62kYTJvpiK`, stop `max_tokens`, 3,114
+chars; 14 in + 5,502 cache write, 16 out. Probes used: 3 of 10.
+
+## Live checks after the merge (2026-10-23, master `e7ce893`)
+
+Dev server `:5199`, the user's profile, Playwright MCP (the user able to watch); key checked for presence only; no
+`localStorage.clear()`; test projects left in place. Readouts: the active project through `migrateDocument` →
+`flatDocument` → `boardExtents` / `worldBands`, band type names from the document. No screenshots kept.
+
+1. **Generate "a plywood bookcase with oak edging". PASS** (≈ $0.07; `Plywood Bookcase with Oak Edging`, `id_mvks4gwj_e`).
+   One type minted, `Oak edging` (solid oak, 0.25). Banded `+z` (the front): Left/Right side, Bottom, Shelf 1–4, Top (also
+   its exposed `-x`/`+x` ends, which overhang the sides). Back panel at z −6..−5.5 (the smallest z), unbanded; toe kick
+   unbanded; no band on an edge that meets a part.
+2. **Generate "a painted plywood wall cabinet". PASS** (≈ $0.06; `id_mvks65ej_s`). Veneer only, nothing minted: front
+   edges of the sides, top, bottom and shelf; all four edges of each door; back unbanded.
+3. **Refine `Live — edged bookcase` "make it 6 inches taller". PASS** (≈ $0.04; `id_mvks8wam_x`). `bandTypes` identical
+   (`Iron-on veneer`, `Maple edging 0.75` solid maple 0.75); every band identical (sides `-z` Maple, shelf `-z` veneer);
+   nothing minted. Change list: the three resize lines only, no edging line. (The project predates the front-is-+z
+   prompt, so its front is −z; the bands stay where they were.)
+4. **Refine run 1's result "remove the edging from the shelves". PASS** (≈ $0.06; `id_mvksag6g_1a`). Change list:
+   `Shelf 1: edging on the front edge removed` … `Shelf 4: …`; every other band unchanged; `bandTypes` unchanged.
+
+Paid calls: 3 probes + 4 runs = 7 of 10 (≈ $0.23 for the runs).

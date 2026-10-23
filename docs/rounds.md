@@ -126,9 +126,17 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | AI holes | 10-23 | — | Generate and Refine author hole rows in world words (`holeWorld.ts`, the ONE converter; `holeSnap` nearer of 1/64in or whole mm; canonical rows); untouched rows return exactly (exact-row map, original order kept); `hole-fault` kept and fed back (`holeDesignFaults.ts`); mirrored sides link through turns (`turnCandidates`, `alignedTo`); holes leave the carry; a holes-only part keeps its frame only without a turn (rank + thickness rule); schema compiled live first probe (fu 322) (inv 40/48/50/56; fu 329 closed, 428, 429). **Merged `424c184`, deployed 2026-10-23 (`index-D3k3tvUe.js`)** |
 | shop words | 10-23 | — | Refine's change list in shop words (`shopWords.ts`: top/bottom, inside/outside toward the frame's middle, else left/right/front/back; ends absolute); a same-looking add+remove hole pair is one "moved" line; the prompt names +z the front (spec `2026-10-23-sloyd-shop-words-design.md`; fu 431, left as is). **Merged `a4b51fd`, deployed 2026-10-23 at `b569dca` (`index-B3SxN3Yk.js`)** |
 | wording | 10-23 | — | `FEATURE_CHECK_FAILED` names edging; the link note says what is not shared (fu 411); per-copy hardware totals per type (fu 412); fu 410 left silent. **Deployed at `0b5e5ca` (`index-CuLt9iDe.js`)** |
+| AI bands | 10-23 | — | Generate and Refine author edge bands in world words (`bandWorld.ts`; `edging` = veneer, a project type, or `solid <material>` minted once as `<Label> edging` at 1/4in); band types threaded through every path; band faults fed back (not for curved parts, whose bands stay carried); banded parts link through turns; Generate edges exposed plywood front edges by default; `vec3` into `$defs` (fu 322) (inv 48/54/56; fu 430 chunk 1, 432, 433). **Merged `e7ce893`, not deployed** |
 
 ## Status log (to 2026-10-23)
 
+- **AI bands (fu 430 chunk 1; 2026-10-23; branch `ai-bands`, MERGED `e7ce893`, NOT deployed; schema 20, rollback free)**: spec
+  `docs/superpowers/specs/2026-10-23-sloyd-ai-profiles-bands-design.md` (the user's four §11 answers; Amended (execution) holds Rulings
+  1–9), plan `docs/superpowers/plans/2026-10-23-sloyd-ai-bands.md`. Subagent-driven, 7 tasks, each task-reviewed; the first compile was
+  refused (grammar too large) and `vec3` moved into `$defs` (Ruling 3); the final review (I1: no band faults fed back for carried curved
+  parts; I2: a headroom probe) and one fix wave. 7777 tests (curvesPerf's wall-clock guards flake under full-suite load, pass alone). Live
+  check `docs/browser-verification-ai-bands.md` (7 of 10 paid calls). Record-only: fu 433. Owed to the user: whether the edging defaults
+  read right (Generate banded a top's overhanging ends and both doors all round).
 - **Wording (2026-10-23; `14a0e54` + `0b5e5ca`, DEPLOYED at `0b5e5ca` as `index-CuLt9iDe.js`, CSS unchanged; schema 20, rollback to `b569dca` /
   `index-B3SxN3Yk.js` free; verified in-network and at the edge: 200 on / and a deep route, sha256 = dist, old bundle 404, CSP, the three new
   strings in the edge bundle, a real-browser load with 0 errors, storage read empty before and after)**: from the owed-reviews pass. 7726

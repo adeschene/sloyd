@@ -43,12 +43,10 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   only restores the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-23):** nothing is pending deploy and no plan exists. The shop-words round is DEPLOYED (spec
-  `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`; fu 431 left as is). The AI-holes
-  round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
-  The refine-features review was taken 2026-10-23 (all approved; its real-hardware look stays owed). Joinery chunks 2–3 and every older spec amendment were approved 2026-10-23 (`FEATURE_CHECK_FAILED` now names
-  edging — deployed). fu 410–412 closed 2026-10-23 (411/412 reworded, 410 left silent) — deployed with the FEATURE_CHECK_FAILED fix.
-  Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
+- **NEXT (2026-10-23):** **AI bands (fu 430 chunk 1) is MERGED (`e7ce893`) and NOT deployed — ask before deploying.**
+  Live-checked on dev (`docs/browser-verification-ai-bands.md`, 7 of 10 paid calls; the grammar's upper bound compiles at
+  3,114 chars). Then fu 430 chunk 2 (profiles): revisit spec §2.3 first — the grammar has little room left (fu 322).
+  Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items (AI-holes and refine-features looks among them).
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -609,7 +607,7 @@ This list is the triage's open set — when an entry's status changes, change it
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; mirrored linking 432; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400; profiles authored by Claude 430 (chunk 2; bands, chunk 1, on branch `ai-bands`).
+  364–366; banding 399, 400; profiles authored by Claude 430 (chunk 2; bands, chunk 1, merged `e7ce893`).
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
