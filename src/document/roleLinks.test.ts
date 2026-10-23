@@ -327,6 +327,27 @@ describe('linking holed parts (AI-holes spec §5)', () => {
     expect(world(doc).every((p) => p.holes.length === 18)).toBe(true);
   });
 
+  for (const D of [10, 11.8125]) {
+    it(`metric mirrored case sides (D = ${D}, rows 37 mm from the front and the back) link as ONE Shape (final review I1)`, () => {
+      const MM = (n: number) => n / 25.4;
+      const metricRow = (face: '+x' | '-x', z: number) =>
+        ({ face, diameter: MM(5), depth: MM(12), through: false, offset: v(face === '+x' ? 0.75 : 0, MM(64), z), toward: '+y' as const, count: 9, pitch: MM(32) });
+      const metricSide = (name: string, x: number, inside: '+x' | '-x', role: string): GeneratedPart =>
+        ({ ...part(name, role, [x, 0, 0], [0.75, 30, D]), holes: [metricRow(inside, MM(37)), metricRow(inside, D - MM(37))] });
+      const both = (role: string) => [metricSide('Side L', 0, '+x', role), metricSide('Side R', 20, '-x', role)];
+      const unlinked = designToDocument(d(both(''))).doc;
+      const { doc } = designToDocument(d(both('side')));
+      expect(doc.shapes).toHaveLength(1);
+      expect(stored(doc).filter(isShaped).map((b) => b.name).sort()).toEqual(['Side L', 'Side R']);
+      // Each world side unchanged; a metric centre read through another stored form may differ by an ulp.
+      const near = (x: ReturnType<typeof world>) => x.map((p) => ({ ...p, holes: p.holes.map((h) => h.map((c) => Math.round(c * 1e9) / 1e9)) }));
+      expect(near(world(doc))).toEqual(near(world(unlinked)));
+      expect(world(doc).every((p) => p.holes.length === 18)).toBe(true);
+      // Every row stores 37 mm from its side, exactly.
+      for (const b of flatDocument(doc).boards) expect(b.holes.map((h) => h.inset)).toEqual([MM(37), MM(37)]);
+    });
+  }
+
   it('sides whose rows differ do not link', () => {
     const ps = sides();
     ps[1] = { ...ps[1]!, holes: [row('-x', 2), row('-x', 9)] };

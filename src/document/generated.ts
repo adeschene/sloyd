@@ -1,7 +1,7 @@
 import { linkByRole } from './roleLinks';
 import { createDocument, migrateDocument } from './document';
 import type { SloydDocument } from './document';
-import { DIMENSION_ORDER, SNAP_INCHES, axisDimensions } from './geometry';
+import { DIMENSION_ORDER, MAX_MAGNITUDE, SNAP_INCHES, axisDimensions } from './geometry';
 import { nextId } from './ids';
 import { cleanName as clean, uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
@@ -251,12 +251,8 @@ export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCat
 
 const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 
-/**
- * Largest |coordinate| or |size| (inches) a model number may have after
- * snapping. Finite but astronomical values overflow the centring shift below
- * (`min + max`), which would crash validation or silently drop an instance.
- */
-export const MAX_MAGNITUDE = 10_000;
+/** Re-exported: its home is geometry.ts, so holeWorld.ts can read it without an import cycle (final review I2). */
+export { MAX_MAGNITUDE };
 const usable = (v: number) => Number.isFinite(v) && Math.abs(v) <= MAX_MAGNITUDE;
 
 

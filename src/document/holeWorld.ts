@@ -1,5 +1,5 @@
 import type { Board, CutFrom, Dimension, HoleRow } from './types';
-import { axisDimensions, boardExtents, endFacing, fromWorldOffset, toWorldOffset } from './geometry';
+import { MAX_MAGNITUDE, axisDimensions, boardExtents, endFacing, fromWorldOffset, toWorldOffset } from './geometry';
 import { HOLE_COUNT_MAX, HOLE_EPS, HOLE_KEYS, acrossOf, holeInstances } from './holes';
 import { DIRS, dirToLocal, localToDir } from './taperWorld';
 import type { Vec3, WorldHoleRow } from './generated';
@@ -48,15 +48,31 @@ export function sortHoleRows<T extends Row>(rows: T[]): T[] {
 /** The world axis (0..2) that carries `dim` on `b`. */
 const axisOfDim = (b: Board, dim: Dimension) => axisDimensions(b).indexOf(dim);
 
+/** How near a hole-grid value a COMPUTED stored distance must be to be float noise (final review I1): it takes the grid value. */
+const GRID_NOISE = 1e-9;
+
 /**
  * Design rows → stored rows on `b` (oriented), canonical (`alongFrom: 'min'` unless only the max end gives a legal
  * station; `acrossFrom` the nearer side, ties min, unless the centre is past it) and sorted by HOLE_FIELDS; or the first SHAPE fault, as a phrase the caller prefixes with the part's name: "has a hole
  * row on +x …". The shape faults are exactly the loader's drop rules (`validateHoleRows`), judged on the STORED values
- * (after the hole grid), plus the design rule that the first centre lies on its face plane (within 1/32in). Strict
- * faults (`holeFaults`) are not judged here. A value in `exact` is kept as it is; any other is put on the hole grid.
+ * (after the hole grid), plus the design rule that the first centre lies on its face plane (within 1/32in), plus every
+ * stored number finite and within MAX_MAGNITUDE (final review I2). Strict faults (`holeFaults`) are not judged here.
+ *
+ * The hole grid is applied to the STORED numbers (final review I1), never to the world offsets: the row's ends and
+ * sides are worked out from the model's raw numbers (a reversal in raw numbers too), and then the station (from the
+ * measured end), the inset (from the measured side), depth, pitch and diameter are put on the grid — so a row 37 mm
+ * from a part's far side stores 37 mm, whatever the part's extent. A value in `exact` is kept as it is, and so is a
+ * distance whose world-offset source is in `exact`; but a COMPUTED distance within 1e-9 of its grid value takes the
+ * grid value even then (float drift, e.g. `D − (D − 37 mm)`).
  */
 export function holeRowsFor(b: Board, rows: readonly WorldHoleRow[], exact?: ReadonlySet<number>): { rows: Row[] } | { fault: string } {
   const snap = (v: number) => (exact?.has(v) === true ? v : holeSnap(v));
+  /** A stored distance computed from world offset `src`; never -0. */
+  const dist = (v: number, src: number) => {
+    const g = holeSnap(v);
+    const out = Math.abs(g - v) <= GRID_NOISE || exact?.has(src) !== true ? g : v;
+    return out === 0 ? 0 : out;
+  };
   const ext = boardExtents(b);
   const out: Row[] = [];
   for (const r of rows) {
@@ -82,18 +98,18 @@ export function holeRowsFor(b: Board, rows: readonly WorldHoleRow[], exact?: Rea
     const along = dirToLocal(b, r.toward);
     const across = acrossOf({ face: face.dim, along: along.dim });
     const aa = axisOfDim(b, across);
-    // Along: the part coordinates of the row's two end holes. Stored from the part's `along` MIN end (spec §3.1: a row
-    // written toward the min end is reversed, its last hole first, so the same holes store one way) — unless that
-    // would need a negative station (a row starting past the min end, which the loader drops), when it is stored from
-    // the max end. A row past BOTH ends has no stored form. `L - uLast` is the stored encoding (as holeInstances reads
-    // a max-end station), within the part's own frame.
-    const u = fromWorldOffset(b, ta, snap(vec(r.offset)[ta]!));
-    const run = (r.count - 1) * pitch;
+    // Along: the part coordinates of the row's two end holes, in RAW numbers (the model's offset and pitch). Stored from
+    // the part's `along` MIN end (spec §3.1: a row written toward the min end is reversed, its last hole first, so the
+    // same holes store one way) — unless that would need a negative station (a row starting past the min end, which the
+    // loader drops), when it is stored from the max end. A row past BOTH ends has no stored form. `L - uLast` is the
+    // stored encoding (as holeInstances reads a max-end station), within the part's own frame. Each candidate station is
+    // put on the grid before the choice, so a reversed whole-mm row a few ulps below 0 is stored at 0.
+    const src = vec(r.offset)[ta]!;
+    const u = fromWorldOffset(b, ta, src);
+    const run = (r.count - 1) * r.pitch;
     const [uFirst, uLast] = along.from === 'max' ? [u, u + run] : [u - run, u];
-    // A reversal of a whole-mm row can land a few ulps below 0 where the model meant 0: float noise, not a hole off
-    // the part.
-    const fromMin = uFirst < 0 && uFirst > -HOLE_EPS ? 0 : uFirst;
-    const fromMax = b[along.dim] - uLast;
+    const fromMin = dist(uFirst, src);
+    const fromMax = dist(b[along.dim] - uLast, src);
     let alongFrom: CutFrom = 'min';
     let station = fromMin;
     if (fromMin < 0) {
@@ -104,13 +120,20 @@ export function holeRowsFor(b: Board, rows: readonly WorldHoleRow[], exact?: Rea
       station = fromMax;
     }
     // Across: the nearer world side (ties: the part's min), named through endFacing; a centre PAST one side is
-    // measured from the other (an inset is never negative; breaking out is holeFaults' to judge).
-    const w = snap(vec(r.offset)[aa]!);
-    const fromWorldMax = ext[aa]! - w;
-    const [acrossFrom, inset]: [CutFrom, number] = w < 0 ? [endFacing(b, aa, 1), fromWorldMax]
-      : fromWorldMax < 0 ? [endFacing(b, aa, -1), w]
-        : w === fromWorldMax ? ['min', w]
-          : w < fromWorldMax ? [endFacing(b, aa, -1), w] : [endFacing(b, aa, 1), fromWorldMax];
+    // measured from the other (an inset is never negative; breaking out is holeFaults' to judge). Both distances on
+    // the grid before the choice, so a mirrored pair ties exactly.
+    const w = vec(r.offset)[aa]!;
+    const fromWorldMin = dist(w, w);
+    const fromWorldMax = dist(ext[aa]! - w, w);
+    const [acrossFrom, inset]: [CutFrom, number] = fromWorldMin < 0 ? [endFacing(b, aa, 1), fromWorldMax]
+      : fromWorldMax < 0 ? [endFacing(b, aa, -1), fromWorldMin]
+        : fromWorldMin === fromWorldMax ? ['min', fromWorldMin]
+          : fromWorldMin < fromWorldMax ? [endFacing(b, aa, -1), fromWorldMin] : [endFacing(b, aa, 1), fromWorldMax];
+    // Every stored number checked AFTER the grid (final review I2): a huge finite input snaps to Infinity, which the
+    // loader would drop without a word.
+    if (![diameter, pitch, station, inset, ...(depth === 'through' ? [] : [depth])].every((v) => Number.isFinite(v) && Math.abs(v) <= MAX_MAGNITUDE)) {
+      return { fault: `${on} with a number that is not finite or is beyond 10,000in` };
+    }
     out.push({ face: face.dim, from: face.from, diameter, depth, along: along.dim, alongFrom, station, count: r.count, pitch, acrossFrom, inset });
   }
   return { rows: sortHoleRows(out) };

@@ -585,4 +585,21 @@ describe('holes in the design (AI-holes spec §2.1)', () => {
     const p = { name: 'Side', ...base, at: v(0, 0, 0), size: v(0.75, 30, 12), holes: [{ ...row, [k]: bad }] };
     expect(parseDesign({ name: 'T', parts: [p], assemblies: [] })).toBeNull();
   });
+  // Final review I2: a huge FINITE number passes the raw check but snaps to Infinity (or past MAX_MAGNITUDE); the stored
+  // numbers are checked after the grid, so the part is rejected with reason 'hole' instead of losing the row in the loader.
+  // A part lying along x, so offset.x is the ALONG coordinate (on the face axis the plane rule would reject first).
+  const flat = { ...row, face: '+z', offset: { x: 2, y: 6, z: 0.75 }, toward: '+x', count: 3 };
+  it.each([
+    ['diameter 1e308', { ...flat, diameter: 1e308 }],
+    ['offset.x 1e307', { ...flat, offset: { ...flat.offset, x: 1e307 } }],
+    ['offset.y 1e307 (across)', { ...flat, offset: { ...flat.offset, y: 1e307 } }],
+    ['pitch 20000', { ...flat, pitch: 20_000 }],
+  ])('a row with %s is rejected with reason hole', (_name, bad) => {
+    const ok = designToDocument({ name: 'T', parts: [{ name: 'Shelf', ...base, at: v(0, 0, 0), size: v(30, 12, 0.75), holes: [flat] } as GeneratedPart] });
+    expect(ok.rejected).toEqual([]);
+    expect(flatDocument(ok.doc).boards[0]!.holes).toHaveLength(1);
+    const { doc, rejected } = designToDocument({ name: 'T', parts: [{ name: 'Shelf', ...base, at: v(0, 0, 0), size: v(30, 12, 0.75), holes: [bad] } as GeneratedPart] });
+    expect(rejected).toEqual([{ name: 'Shelf', reason: 'hole', detail: 'Shelf has a hole row on +z with a number that is not finite or is beyond 10,000in.' }]);
+    expect(doc.boards).toEqual([]);
+  });
 });

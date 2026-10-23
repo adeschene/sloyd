@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Board, HoleRow, Posture, Rotation } from './document';
+import { createBoard } from './document';
+import { orient } from './generated';
 import { axisDimensions, axisFrame, boardExtents } from './geometry';
 import { HOLE_COUNT_MAX, holeInstances } from './holes';
 import { holeFaults } from './holeFaults';
@@ -154,6 +156,40 @@ describe('worldHoles / holeRowsFor (AI-holes spec §3.1, §3.2)', () => {
     const back = store(b, [off]);
     matchAll(b, back, [ROWS[0]!]);
   });
+});
+
+describe('metric distances are snapped as STORED, not as world offsets (final review I1)', () => {
+  const MM = (n: number) => n / 25.4;
+  /** An upright side 0.75 x 30 x D, its pin face +x; `orient`'s encoding: length on y, width on z, thickness on x. */
+  const side = (D: number): Board => createBoard(orient([0.75, 30, D]));
+  const pins = (z: number, over: Partial<WorldHoleRow> = {}): WorldHoleRow =>
+    ({ face: '+x', diameter: MM(5), depth: MM(12), through: false, offset: { x: 0.75, y: MM(64), z }, toward: '+y', count: 9, pitch: MM(32), ...over });
+  for (const D of [10, 11.8125]) {
+    it(`D = ${D}: a row 37 mm from the BACK stores inset 37 mm exactly, from that side`, () => {
+      const b = side(D);
+      expect(boardExtents(b)[2]).toBe(D);
+      const [front] = store(b, [pins(MM(37))]);
+      const [back] = store(b, [pins(D - MM(37))]);
+      expect(front!.inset).toBe(MM(37));
+      expect(back!.inset).toBe(MM(37));
+      expect(back!.acrossFrom).not.toBe(front!.acrossFrom);
+      expect(back!.station).toBe(MM(64));
+    });
+    it(`D = ${D}: a metric row written top-down (toward -y) stores identically to the same row bottom-up`, () => {
+      const b = side(D);
+      for (const z of [MM(37), D - MM(37)]) {
+        const up = pins(z);
+        const down = pins(z, { offset: { x: 0.75, y: MM(64) + 8 * MM(32), z }, toward: '-y' });
+        expect(store(b, [down])).toEqual(store(b, [up]));
+      }
+    });
+    it(`D = ${D}: the exact path still takes the grid value for a distance within 1e-9 of it (the inset drift)`, () => {
+      const b = side(D);
+      const z = D - MM(37);
+      const [back] = store(b, [pins(z)], new Set([z, 0.75, MM(64)]));
+      expect(back!.inset).toBe(MM(37));
+    });
+  }
 });
 
 describe('holeRowsFor shape faults (the loader rules, spec §3.1)', () => {
