@@ -4,7 +4,8 @@ import { assemblyDoc } from './treeFixtures';
 import { boardCenter, reorientedPosition } from './geometry';
 import type { Board, Cut } from './types';
 import type { Shape, SloydDocument } from './types';
-import { createDocument } from './document';
+import { createDocument, migrateDocument } from './document';
+import { mirrorCut } from './mirrorCut';
 import { ARCH } from './curveFixtures';
 import { archCurve, cornerCurve } from './curves';
 import { applyWorldEdits, storageKey } from './treeEdit';
@@ -617,5 +618,93 @@ describe('writeBackFlat — shape grouping ignores cut order (fu 301)', () => {
     const before = flatDocument(d).boards;
     const out = writeBackFlat(d, before, [{ ...before[0]!, cuts: cuts(m1, m2) }, { ...before[1]!, cuts: cuts(m2, { ...m1, depth: 0.5 }) }]);
     expect(usersOf(out).size).toBe(2);
+  });
+});
+
+describe('writeBackFlat — mirrored links (fu 432, spec §6.2)', () => {
+  // Metric on purpose: mirrorCut twice is NOT bit-exact on these sizes (MM(300) and a cut MM(10) from an end come back an
+  // ulp off), so a regroup that lowered a mirrored user's untouched cuts and compared would split a pair joinery never
+  // touched. The Shape's dado sits 10 mm from ONE end along the mirror dimension (length, flat): chiral (inv 44).
+  const MM = (n: number) => Math.round(n * 10) / 10 / 25.4;
+  const part = { length: MM(300), width: MM(100), thickness: MM(19), posture: 'flat' as const, grain: 'length' as const, material: 'oak', angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
+  const dado: Cut = { id: 'k1', face: 'thickness', from: 'max', across: 'width', offset: MM(10), width: MM(19), depth: MM(6), stopMin: 0, stopMax: MM(20) };
+  const doc = (order: 'plain-first' | 'mirrored-first' | 'both-mirrored' = 'plain-first'): SloydDocument => {
+    const a = { id: 'a', name: 'A', position: [0, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1', ...(order === 'both-mirrored' ? { mirrored: true as const } : {}) };
+    const b = { id: 'b', name: 'B', position: [40, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1', mirrored: true as const };
+    return { ...createDocument(), shapes: [{ id: 's1', ...part, cuts: [dado] }], boards: order === 'mirrored-first' ? [b, a] : [a, b] };
+  };
+  /** A world part's features as joinery's output is compared: cuts as a set of geometry (ids and order are the founder's). */
+  const world = (bs: readonly Board[]) => bs.map((b) => [b.id, b.position, b.rotation, boardExtentsOf(b), b.cuts.map(({ id: _id, ...c }) => JSON.stringify(c)).sort()]);
+  const boardExtentsOf = (b: Board) => [b.length, b.width, b.thickness, b.posture];
+  /** A new dado at 2" (or 20 mm, 12 mm wide) from the min end in `b`'s OWN hand: on a mirrored user, the reflection joinery would cut. */
+  const housed = (b: Board, mirrored: boolean, metric = false): Board => {
+    const c: Cut = { id: `n-${b.id}`, face: 'thickness', from: 'max', across: 'width', offset: metric ? MM(20) : 2, width: metric ? MM(12) : 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    return { ...b, cuts: [...b.cuts, mirrored ? mirrorCut(c, 'length', b.length) : c] };
+  };
+  const records = (d: SloydDocument) => d.boards.map((b) => [b.id, 'shape' in b ? b.shape : null, b.mirrored === true]);
+
+  it('joinery touching nothing keeps the link and the flag; the Shape keeps its own dado (no drift)', () => {
+    const d = doc();
+    const before = flatDocument(d).boards;
+    const out = writeBackFlat(d, before, before);
+    expect(records(out)).toEqual([['a', 's1', false], ['b', 's1', true]]);
+    expect(out.shapes).toHaveLength(1);
+    expect(out.shapes[0]!.cuts).toEqual([dado]);
+    expect(world(worldParts(out))).toEqual(world(before));
+  });
+
+  it('a dado in BOTH sides (mirror images) keeps ONE Shape, the flag kept; worlds are joinery\'s output', () => {
+    const d = doc();
+    const before = flatDocument(d).boards;
+    const after = before.map((b) => housed(b, b.id === 'b'));
+    const out = migrateDocument(writeBackFlat(d, before, after));
+    expect(records(out)).toEqual([['a', 's1', false], ['b', 's1', true]]);
+    expect(out.shapes).toHaveLength(1);
+    expect(world(worldParts(out))).toEqual(world(after));
+  });
+
+  // A metric new dado: lowered through b's flag and reflected back it would land an ulp off, so the Shape is a's (the
+  // first UNflagged user b resolves against), and b's world is exactly joinery's.
+  it('the mirrored user FIRST in document order: still one Shape, each user its own flag; worlds are joinery\'s output', () => {
+    const d = doc('mirrored-first');
+    const before = flatDocument(d).boards;
+    const after = before.map((b) => housed(b, b.id === 'b', true));
+    const out = migrateDocument(writeBackFlat(d, before, after));
+    expect(records(out)).toEqual([['b', 's1', true], ['a', 's1', false]]);
+    expect(out.shapes).toHaveLength(1);
+    expect(world(worldParts(out))).toEqual(world(after));
+  });
+
+  it('two mirrored users housed alike stay one Shape, both flagged; the untouched metric dado is the Shape\'s own', () => {
+    const d = doc('both-mirrored');
+    const before = flatDocument(d).boards;
+    const after = before.map((b) => housed(b, true));
+    const out = migrateDocument(writeBackFlat(d, before, after));
+    expect(records(out)).toEqual([['a', 's1', true], ['b', 's1', true]]);
+    expect(out.shapes[0]!.cuts.find((c) => c.id === 'k1')).toEqual(dado);
+    expect(world(worldParts(out))).toEqual(world(after));
+  });
+
+  // The recorded residue: with no unflagged user, a new metric dado lowered through the flag and reflected back lands an
+  // ulp off (mirrorCut is not bit-exact twice), so the users do not resolve from one Shape and split. A lost link, never
+  // wrong geometry: every world is joinery's output and no plain part keeps the flag.
+  it('two mirrored users with a new METRIC dado split (residue), worlds exact, no plain part flagged', () => {
+    const d = doc('both-mirrored');
+    const before = flatDocument(d).boards;
+    const after = before.map((b) => housed(b, true, true));
+    const out = migrateDocument(writeBackFlat(d, before, after));
+    expect(out.boards.some((b) => 'mirrored' in b && !('shape' in b))).toBe(false);
+    expect(world(worldParts(out))).toEqual(world(after));
+    expect(out.shapes).toHaveLength(0);
+  });
+
+  it('a dado in ONE side splits the link: worlds are joinery\'s output, no plain part keeps the flag', () => {
+    const d = doc();
+    const before = flatDocument(d).boards;
+    const after = before.map((b) => (b.id === 'a' ? housed(b, false) : b));
+    const out = migrateDocument(writeBackFlat(d, before, after));
+    expect(out.shapes).toHaveLength(0);
+    expect(out.boards.some((b) => 'mirrored' in b || 'shape' in b)).toBe(false);
+    expect(world(worldParts(out))).toEqual(world(after));
   });
 });
