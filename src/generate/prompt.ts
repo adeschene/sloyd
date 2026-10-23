@@ -60,22 +60,21 @@ Coordinates and units:
 - A part's top is at.y + size.y. A part resting on another has at.y equal to the lower part's top.
 
 Tapers:
-- A part may taper along its length (its longest side), like a table leg narrowing toward the floor. Describe it in "tapers": "faces" are the sides that slope ("+x", "-x", "+z", "-z" for an upright leg), "toward" is the end that gets thinner ("-y" for the floor end), "start" is how far from that end the taper begins, and "amount" is how much it removes from each named face at that end.
+- A part may taper along its length (its longest side), like a table leg narrowing toward the floor. Describe it in "angles" with "kind": "taper": "dirs" are the sides that slope ("+x", "-x", "+z", "-z" for an upright leg), "toward" is the end that gets thinner ("-y" for the floor end), and "values" is [start, amount]: "start" is how far from that end the taper begins, and "amount" is how much it removes from each named face at that end. Example: { "kind": "taper", "dirs": ["+x", "+z"], "toward": "-y", "values": [22, 0.375] }.
 - The usual Shaker leg tapers its two INSIDE faces (the faces toward the middle of the piece) toward the floor. By corner: the leg with the smallest x and z tapers "+x" and "+z"; the leg with the largest x and smallest z tapers "-x" and "+z"; the leg with the smallest x and largest z tapers "+x" and "-z"; the leg with the largest x and z tapers "-x" and "-z".
 - Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For a 29in table whose aprons are 5in deep at the top of the legs, a start of 22 to 23in is typical.
 - Leave wood: a taper removes at most about a third of the leg's width per face.
 - Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.
-- Use "tapers": [] for every part that is not tapered.
-
+- 
 Angles:
-- Besides tapers, a part may carry three kinds of angle cut, each in world directions like tapers.
-- "chamfers": a small slope on one edge, for comfort and looks. "edge" names the two faces that meet there (["+y", "+z"] is the top edge on a part's +z side), "legs" how far it cuts into each face, in the same order (usually equal, 1/8 to 1/4in). Chamfer the exposed top edges of tops and the outer corners of legs.
-- "bevels": a whole side cut at an angle, like a raised panel's edge. "face" is the side cut, "longPoint" is the side across that face that keeps its full size, "angle" is degrees from square (10 to 20 is usual).
-- "miters": an end cut at an angle so two parts meet at a corner, like a picture frame. "end" is the end cut (an end of the part's longest side), "longPoint" is the side whose edge stays full length (the outside of the frame), "angle" is degrees (45 for a square corner).
+- Besides tapers, a part may carry three more kinds of angle cut. All four are entries in the part's "angles" array, each with a "kind", "dirs", "toward" and "values", in world directions.
+- "chamfer": a small slope on one edge, for comfort and looks. "dirs" names the two faces that meet there (["+y", "+z"] is the top edge on a part's +z side), "values" is how far it cuts into each face, in the same order (usually equal, 1/8 to 1/4in), and "toward" is ignored (repeat the first direction). Chamfer the exposed top edges of tops and the outer corners of legs. Example: { "kind": "chamfer", "dirs": ["+y", "+z"], "toward": "+y", "values": [0.125, 0.125] }.
+- "bevel": a whole side cut at an angle, like a raised panel's edge. "dirs" is [the side cut], "toward" is the side across that face that keeps its full size (the long point), and "values" is [angle] in degrees from square (10 to 20 is usual). Example: { "kind": "bevel", "dirs": ["+z"], "toward": "+y", "values": [15] }.
+- "miter": an end cut at an angle so two parts meet at a corner, like a picture frame. "dirs" is [the end cut] (an end of the part's longest side), "toward" is the side whose edge stays full length (the outside of the frame, the long point), and "values" is [angle] in degrees (45 for a square corner). Example: { "kind": "miter", "dirs": ["+x"], "toward": "+z", "values": [45] }.
 - Two mitered parts meeting at a corner overlap as boxes there: give each part its full outside length; the miters remove the overlap.
 - A miter does not hold a part: miter only where the parts rest on something else, such as a frame lying flat or box sides standing on a bottom. Never use miters alone to hold a part up.
 - Never cut an angle where a part joins another: joinery refuses it. A small chamfer or bevel running along a rail's length may pass through its joined ends if it stays clear of the tenon: about a third of the thickness from a broad face, and the smaller of 1/2in and a quarter of the width from an edge.
-- Use "miters": [], "bevels": [] and "chamfers": [] for every part without them.
+- Use "angles": [] for every part without tapers, miters, bevels or chamfers.
 
 Holes:
 - A part may carry rows of round holes, in "holes". "face" is the side drilled into (any of the six, like "+x"); the drill runs inward from it. "diameter" is in inches, "depth" is inches from the face, and "through": true drills right through (depth is then ignored; give the part's thickness).

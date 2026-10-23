@@ -11,7 +11,7 @@ const base: GenerateSettings = {
 describe('prompt', () => {
   it('teaches tapers in the fixed prefix (AI-tapers spec §6)', () => {
     expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered, mitered, beveled, chamfered or drilled.');
-    expect(SYSTEM_PROMPT).toContain('"tapers": [] for every part that is not tapered');
+    expect(SYSTEM_PROMPT).toContain('Use "angles": [] for every part without tapers, miters, bevels or chamfers.');
     expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
     expect(SYSTEM_PROMPT).toContain('Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.');
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
@@ -20,14 +20,19 @@ describe('prompt', () => {
   });  it('describes miters, bevels and chamfers and their two rules (AI-angles spec §8)', () => {
     for (const s of [
       'Angles:',
-      '"chamfers"',
-      '"bevels"',
-      '"miters"',
+      '"kind": "chamfer"',
+      '"kind": "bevel"',
+      '"kind": "miter"',
+      '{ "kind": "taper", "dirs": ["+x", "+z"], "toward": "-y", "values": [22, 0.375] }',
+      '{ "kind": "chamfer", "dirs": ["+y", "+z"], "toward": "+y", "values": [0.125, 0.125] }',
+      '{ "kind": "bevel", "dirs": ["+z"], "toward": "+y", "values": [15] }',
+      '{ "kind": "miter", "dirs": ["+x"], "toward": "+z", "values": [45] }',
       'Two mitered parts meeting at a corner overlap as boxes there',
       'A miter does not hold a part',
       'Never cut an angle where a part joins another',
-      'Use "miters": [], "bevels": [] and "chamfers": [] for every part without them.',
+      'Use "angles": [] for every part without tapers, miters, bevels or chamfers.',
     ]) expect(SYSTEM_PROMPT).toContain(s);
+    for (const old of ['"tapers"', '"miters"', '"bevels"', '"chamfers"']) expect(SYSTEM_PROMPT).not.toContain(old);
   });
 
 
