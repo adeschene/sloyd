@@ -3,6 +3,7 @@ import { createBoard, createDocument, flatDocument, migrateDocument } from './do
 import { profileDesignFaults, profileFaultKinds } from './profileDesignFaults';
 import { collapseViolations } from './assemblyChecks';
 import { profileFaults } from './profiles';
+import { problemKey } from '../generate/run';
 import { carriedSummary } from './carryText';
 import { ARCH } from './curveFixtures';
 import type { Board, ProfileCut, SloydDocument } from './types';
@@ -84,5 +85,32 @@ describe('profileDesignFaults (AI-profiles spec R6.1)', () => {
     expect(profileFaultKinds(thin, thin.profiles[0]!)).toEqual(['runs-off']);
     expect(carriedSummary(mk(0.75), mk(0.4)).check).toEqual(['Apron was resized — its curve and edge profile no longer fit; see Properties.']);
     expect(carriedSummary(mk(0.75), mk(1)).check[0]).toMatch(/stay measured/);
+  });
+
+  it('shown text: a Roman ogee keeps its capital R and a loop reads "all round" without "on" (Ruling 12)', () => {
+    const ogee = roundover(1, 'p1', { kind: 'ogee' });
+    const f1 = flatDocument(project([top([ogee])]));
+    const v1 = profileDesignFaults(f1, f1.units);
+    expect(v1.length).toBeGreaterThan(0);
+    expect(v1[0]!.shown?.startsWith("Top's Roman ogee 1\" on the edge between")).toBe(true);
+    const loop = roundover(1, 'p2', { run: { loop: true } });
+    const f2 = flatDocument(project([top([loop])]));
+    const v2 = profileDesignFaults(f2, f2.units);
+    expect(v2.length).toBeGreaterThan(0);
+    expect(v2[0]!.shown).toMatch(/^Top's roundover 1" all round the thickness face \(max side\) /);
+    expect(v2[0]!.shown).not.toMatch(/on all round/);
+  });
+
+  it('a new faulted run at another span on an edge the original already faulted on is a distinct fault (final review)', () => {
+    const stop = (a: number, z: number, id: string) => roundover(1, id, { run: {
+      start: { side, from: 'min', at: a }, end: { side: { ...side }, from: 'min', at: z } } });
+    const flat = flatDocument(project([top([stop(2, 10, 'p1'), stop(14, 20, 'p2')])]));
+    const v = profileDesignFaults(flat, flat.units);
+    expect(v).toHaveLength(2);
+    expect(v.map((x) => x.message)).toEqual([
+      "Top's roundover on +y/+z from 2in to 10in is bigger than the edge.",
+      "Top's roundover on +y/+z from 14in to 20in is bigger than the edge.",
+    ]);
+    expect(new Set(v.map((x) => problemKey(x))).size).toBe(2);
   });
 });

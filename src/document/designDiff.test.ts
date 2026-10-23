@@ -443,6 +443,26 @@ describe('diffDesigns — edge profiles (AI-profiles spec §4.1)', () => {
     expect(lines(mk([W()]), mk([W({ size: 0.375, fillet: 1 / 16, start: 2, end: 10 })])))
       .toEqual(['Top: roundover on the top/front edge now 3/8", 1/16" fillet, stopped']);
   });
+  it('a stopped run that stays stopped is compared by its stored ends (Ruling 14)', () => {
+    // (a) the stop moves 2-10 -> 4-12 on the same part
+    expect(lines(mk([W({ start: 2, end: 10 })]), mk([W({ start: 4, end: 12 })])))
+      .toEqual(['Top: roundover on the top/front edge now stopped from 4" to 12"']);
+    // (b) a resize with an unchanged stored stop (measured from the max end, at 3): only the size line
+    const stopMax = (len: number) => {
+      const b = createBoard({ name: 'Top', length: len, width: 4, thickness: 1 });
+      const side = { across: 'width' as const, from: 'max' as const };
+      return { ...b, profiles: [{ id: 'p0', face: 'max' as const, kind: 'roundover' as const, size: 0.25, fillet: 0, facing: 'face' as const,
+        run: { start: { side, from: 'max' as const, at: 3 }, end: { side, through: 'min' as const } } }] } as Board;
+    };
+    const all = (a: Board, b: Board) => diffDesigns({ ...createDocument('T'), boards: [a] }, { ...createDocument('T'), boards: [b] }).map((c) => c.text);
+    const out = all(stopMax(20), stopMax(26));
+    expect(out.filter((t) => /roundover/.test(t))).toEqual([]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatch(/^Top: /);
+    // (c) a changed span together with a size change: both in one line
+    expect(lines(mk([W({ start: 2, end: 10 })]), mk([W({ size: 0.375, start: 4, end: 12 })])))
+      .toEqual(['Top: roundover on the top/front edge now 3/8", stopped from 4" to 12"']);
+  });
   it('matches by edge: an untouched profile beside a changed one gets no line', () => {
     expect(lines(mk([W(), W({ edge: ['+y', '-z'] })]), mk([W(), W({ edge: ['+y', '-z'], size: 0.5 })]))).toEqual(['Top: roundover on the top/back edge now 1/2"']);
   });

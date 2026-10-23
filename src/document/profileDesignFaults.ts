@@ -4,7 +4,9 @@ import type { Violation } from './designCheck';
 import { curveFaults } from './curves';
 import { faceName } from './angleText';
 import { profileName } from './curveText';
-import { oneSide, profileAsCurve, profileFaults } from './profiles';
+import { PROFILE_KIND_LABEL, PROFILE_KIND_WORD, oneSide, profileAsCurve, profileFaults } from './profiles';
+import { worldProfiles } from './profileWorld';
+import { boardExtents } from './geometry';
 import { isSwept } from './profilePath';
 import { localToDir } from './taperWorld';
 import { carriesProfiles } from './featureCarry';
@@ -38,7 +40,7 @@ export function profileFaultKinds(b: Board, p: ProfileCut): string[] {
  * kind, fault kind), the edge in world words (`message`: the broad face and the side, as the design writes `edge`) and in
  * the bench's words (`shown`). A faulted profile is stored, never rejected (inv 53: KEPT and noted). A part with curves or a
  * run on two sides is skipped: its profiles are CARRIED, never authored (R6.3), so the model sees none. Not part of
- * checkDesign: evaluateDesign adds it (Task 5). No length reaches `message`; `shown` prints the size in `display`'s units.
+ * checkDesign: evaluateDesign adds it (Task 5). A stopped run's span reaches `message` in decimal inches (model-facing); `shown` prints the size in `display`'s units.
  */
 export function profileDesignFaults(flat: FlatDocument, display: Units): Violation[] {
   const out: Violation[] = [];
@@ -52,14 +54,23 @@ export function profileDesignFaults(flat: FlatDocument, display: Units): Violati
       const bench = side
         ? `the edge between ${faceName('thickness', p.face)} and ${faceName(side.across, side.from)}`
         : `all round ${faceName('thickness', p.face)}`;
-      const name = profileName(p, display);
+      // The kind in the bench's words (Roman ogee keeps its capital R, Ruling 12), the rest of the name as profileName has it.
+      const full = profileName(p, display);
+      const name = `${PROFILE_KIND_WORD[p.kind]}${full.slice(PROFILE_KIND_LABEL[p.kind].length)}`;
+      // A stopped run's span rides in the model-facing message (the holes precedent: with the edge, the profile's identity),
+      // so two faulted runs on one edge read, key and dedupe apart. A full-length run and a loop add nothing.
+      const w = worldProfiles({ ...b, profiles: [p] })![0]!;
+      const extents = boardExtents(b);
+      const along = side ? [0, 1, 2].find((k) => 'xyz'[k] !== w.edge[0]![1] && 'xyz'[k] !== w.edge[1]![1])! : -1;
+      const span = side && !(w.start === 0 && w.end === extents[along]!) ? ` from ${+w.start.toFixed(3)}in to ${+w.end.toFixed(3)}in` : '';
+      const on = side ? 'on ' : '';
       for (const kind of profileFaultKinds(b, p) as Kind[]) {
-        const message = `${b.name}'s ${p.kind} on ${edge} ${PHRASE[kind]}.`;
+        const message = `${b.name}'s ${p.kind} on ${edge}${span} ${PHRASE[kind]}.`;
         if (seen.has(message)) continue;
         seen.add(message);
         out.push({
           kind: 'profile-fault', parts: [b.name], message,
-          shown: `${b.name}'s ${name[0]!.toLowerCase()}${name.slice(1)} on ${bench} ${PHRASE[kind]}.`,
+          shown: `${b.name}'s ${name} ${on}${bench} ${PHRASE[kind]}.`,
         });
       }
     }

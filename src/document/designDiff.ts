@@ -1,7 +1,7 @@
 import { formatLength, formatSize } from '../units/length';
 import { catalogOf } from './materials';
 import { boardExtents } from './geometry';
-import type { Board, Instance, SloydDocument } from './types';
+import type { Board, Instance, ProfileCut, ProfileEnd, SloydDocument } from './types';
 import { DIRS, worldTapers } from './taperWorld';
 import type { Dir, WorldTaper } from './taperWorld';
 import { noAngles, worldAngles } from './angleWorld';
@@ -166,16 +166,32 @@ function bandLines(before: readonly WorldBand[], after: readonly WorldBand[], na
 }
 
 /** A profile in design form with how it runs: all round, full length (both ends through), or stopped. */
-interface ShownProfile extends WorldProfile { run: 'all round' | 'full length' | 'stopped' }
+interface ShownProfile extends WorldProfile {
+  run: 'all round' | 'full length' | 'stopped';
+  /** The STORED ends (each end's side and `at`/`through`), so an unchanged stop on a resized part reads unchanged (Ruling 14). */
+  stored: string;
+}
+
+/** A stored run's ends as one string: a loop has none. */
+function storedEnds(p: ProfileCut): string {
+  if ('loop' in p.run) return 'loop';
+  const end = (e: ProfileEnd) => `${e.side.across}/${e.side.from}/${'through' in e ? `through ${e.through}` : `${e.from} ${e.at}`}`;
+  return `${end(p.run.start)}|${end(p.run.end)}`;
+}
 
 /** A part's authored profiles in design form; none for a part whose profiles are carried (curves, a two-side run: never shown). */
 function shownProfiles(b: Board): ShownProfile[] {
   if (carriesProfiles(b)) return [];
   const extents = boardExtents(b);
-  return (worldProfiles(b) ?? []).map((w) => {
+  const sorted = worldProfiles(b) ?? [];
+  // Each stored profile's own design form, to hand its stored ends to the sorted list (equal forms are interchangeable).
+  const pool = b.profiles.map((p) => ({ key: JSON.stringify(worldProfiles({ ...b, profiles: [p] })![0]), stored: storedEnds(p) }));
+  return sorted.map((w) => {
+    const at = pool.findIndex((x) => x.key === JSON.stringify(w));
+    const stored = at >= 0 ? pool.splice(at, 1)[0]!.stored : '';
     // The run's axis is the one neither the broad face nor the side is on.
     const along = [0, 1, 2].find((k) => 'xyz'[k] !== w.edge[0]![1] && 'xyz'[k] !== w.edge[1]![1])!;
-    return { ...w, run: w.allRound ? 'all round' : w.start === 0 && w.end === extents[along]! ? 'full length' : 'stopped' };
+    return { ...w, run: w.allRound ? 'all round' : w.start === 0 && w.end === extents[along]! ? 'full length' : 'stopped', stored };
   });
 }
 
@@ -215,7 +231,11 @@ function profileLines(before: readonly ShownProfile[], after: readonly ShownProf
     if (len(a.fillet) !== len(b.fillet)) now.push(`${len(a.fillet)} ${a.kind === 'bead' ? 'quirk' : 'fillet'}`);
     if (len(a.depth) !== len(b.depth)) now.push(`${len(a.depth)} deep`);
     if (a.facing !== b.facing) now.push(`facing the ${a.facing}`);
-    if (a.run !== b.run || (a.run === 'stopped' && (a.start !== b.start || a.end !== b.end))) now.push(a.run);
+    // A run that stays stopped is judged by its STORED ends (Ruling 14): a resize alone shifts the world offsets of an
+    // unchanged stop. A changed stop reads its world span; any other change of run keeps its plain words.
+    if (a.run === 'stopped' && b.run === 'stopped') {
+      if (a.stored !== b.stored && (Math.abs(a.start - b.start) > 1e-9 || Math.abs(a.end - b.end) > 1e-9)) now.push(`stopped from ${len(a.start)} to ${len(a.end)}`);
+    } else if (a.run !== b.run) now.push(a.run);
     if (now.length === 0) continue;
     // Name the profile where it is on the AFTER side; a loop has no edge, so a run on either side names its edge, and
     // only a profile that stays all round is named by its face (never "all round … now all round").

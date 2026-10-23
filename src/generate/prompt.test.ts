@@ -61,7 +61,7 @@ describe('prompt', () => {
 
   it('teaches edge profiles: what they are, when to add one and the empty array (AI-profiles spec §6)', () => {
     for (const s of [
-      '"profiles": a shaped edge routed along a side of a part\'s broad face. "edge" names the broad face and the side, like a chamfer\'s edge; "start" and "end" are where it runs along that side, measured from the part\'s "at" (0 and the full length for the whole edge); "allRound": true runs it all round the broad face.',
+      '"profiles": a shaped edge routed along a side of a part\'s broad face. "edge" names the broad face and the side, like a chamfer\'s dirs; "start" and "end" are where it runs along that side, measured from the part\'s "at" (0 and the full length for the whole edge); "allRound": true runs it all round the broad face.',
       'Add a profile only when asked, or a small roundover (1/8 to 1/4in) on the exposed top edges of a solid-wood tabletop where the style calls for it. Keep profiles off edges that meet other parts.',
       '"profiles": [] for every part without them.',
     ]) expect(SYSTEM_PROMPT).toContain(s);
