@@ -1,12 +1,14 @@
 import { NAME_SEPARATOR, worldParts } from './tree';
 import { flatDocument, migrateDocument } from './document';
 import { describe, expect, it } from 'vitest';
-import { designToDocument, designSchema, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
+import { designToDocument, designSchema, edgingKeys, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
 import { builtInCatalog, catalogOf } from './materials';
+import { BUILT_IN_BAND } from './bandModel';
 import builtinSchemaRaw from './fixtures/design-schema-builtin.json?raw';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
+import type { BandType } from './types';
 import { worldTapers } from './taperWorld';
 import { checkDesign, rejectedViolations } from './designCheck';
 import { worldAngles } from './angleWorld';
@@ -28,7 +30,7 @@ const deref = (root: any) => {
 const SCHEMA = deref(DESIGN_SCHEMA);
 
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine', role = ''): GeneratedPart => ({
-  name, role, material, miters: [], bevels: [], chamfers: [], holes: [], tapers: [],
+  name, role, material, miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [],
   at: { x: at[0], y: at[1], z: at[2] },
   size: { x: size[0], y: size[1], z: size[2] },
 });
@@ -298,7 +300,7 @@ describe('parseDesign', () => {
     const d = { name: 'x', parts: [], assemblies: [asm()] };
     expect(parseDesign(d)).toEqual(d);
   });
-  const okPart = { name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
+  const okPart = { name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
   it.each([
     null, 42, {}, { name: 'x' },
     { name: 'x', parts: [], assemblies: [] },                                   // no parts at all
@@ -341,7 +343,7 @@ describe('DESIGN_SCHEMA', () => {
   it('requires role, assemblies and placements', () => {
     const s = SCHEMA as any;
     expect(s.required).toEqual(['name', 'parts', 'assemblies']);
-    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes']);
+    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes', 'bands']);
     const a = s.properties.assemblies.items;
     expect(a.required).toEqual(['name', 'parts', 'placements']);
     expect(a.properties.parts.items).toEqual(s.properties.parts.items);
@@ -353,15 +355,15 @@ describe('parseDesign — normalised copy', () => {
   it('drops keys the schema does not have, at every level', () => {
     const raw = {
       name: 'x', extra: 1,
-      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
-      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
+      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
+      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
         placements: [{ name: 'P', at: { x: 0, y: 0, z: 0, w: 9 }, extra: 2 }] }],
     };
     const d = parseDesign(raw)!;
     expect(d).toEqual({
       name: 'x',
-      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
-      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
+      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
+      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
     });
     expect(d).not.toBe(raw);
   });
@@ -399,7 +401,7 @@ describe('designToDocument — options', () => {
 });
 
 describe('tapers in the design (AI-tapers spec §2)', () => {
-  const legPart = (tapers: unknown) => ({ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers, miters: [], bevels: [], chamfers: [], holes: [] });
+  const legPart = (tapers: unknown) => ({ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers, miters: [], bevels: [], chamfers: [], holes: [], bands: [] });
   const json = (tapers: unknown) => ({ name: 'T', parts: [legPart(tapers)], assemblies: [] });
 
   it('the schema requires tapers on every part, with Dir enums', () => {
@@ -447,7 +449,7 @@ describe('tapers in the design (AI-tapers spec §2)', () => {
 
 describe('miters, bevels and chamfers in the design (AI-angles spec §5)', () => {
   const v = (x: number, y: number, z: number) => ({ x, y, z });
-  const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [] };
+  const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [] };
   it('the schema: each array is required and strict', () => {
     const part = (SCHEMA as any).properties.parts.items;
     expect(part.properties.miters.items.required).toEqual(['end', 'longPoint', 'angle']);
@@ -517,11 +519,14 @@ describe('miters, bevels and chamfers in the design (AI-angles spec §5)', () =>
 
 describe('the design schema per catalog (custom materials spec §6)', () => {
   const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
-  const ashPart = { name: 'A', role: 'top', material: 'm-s-ash1', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 }, tapers: [], miters: [], bevels: [], chamfers: [], holes: [] };
+  const ashPart = { name: 'A', role: 'top', material: 'm-s-ash1', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 }, tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [] };
   it("Generate's schema is byte-identical to the last live-compiled schema", () => {
     // The API's compiled-grammar cap (fu 322) is checked live on these bytes. Re-captured 2026-10-23 with the holes array
     // (AI-holes spec §2.2): the old bytes plus `holes` exactly; Refine's form of it (two custom materials, 2,952 chars)
-    // compiled, req_011CgJGkuYyCJ51nxdbdHDTn. Change it only after a new live compile.
+    // compiled, req_011CgJGkuYyCJ51nxdbdHDTn. Re-captured 2026-10-23 with `bands` (AI-bands spec §2.2) and `vec3` moved into
+    // `$defs`: the first form (vec3 inline) was refused, req_011CgJpd3fNoqKzSmffAtj5M; Refine's form of this one (a custom
+    // solid, a custom sheet, a custom solid band type; 2,911 chars) compiled, req_011CgJpkiPjQyZQA8DGccLtW.
+    // Change it only after a new live compile.
     expect(JSON.stringify(DESIGN_SCHEMA)).toBe(builtinSchemaRaw.trim());
     expect(JSON.stringify(designSchema(builtInCatalog()))).toBe(builtinSchemaRaw.trim());
     expect(JSON.stringify(designSchema())).toBe(builtinSchemaRaw.trim());
@@ -552,13 +557,13 @@ describe('the design schema per catalog (custom materials spec §6)', () => {
 });
 
 describe('holes in the design (AI-holes spec §2.1)', () => {
-  const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [] };
+  const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [], bands: [] };
   const row = { face: '+x', diameter: 0.25, depth: 0.375, through: false, offset: { x: 0.75, y: 6, z: 2 }, toward: '+y', count: 20, pitch: 1.25 };
   it('the schema: holes is required, last, and each row is strict with exactly the eight fields', () => {
     const raw = DESIGN_SCHEMA as any;
     const part = raw.$defs.part;
-    expect(Object.keys(part.properties).at(-1)).toBe('holes');
-    expect(part.required.at(-1)).toBe('holes');
+    expect(Object.keys(part.properties).at(-2)).toBe('holes');
+    expect(part.required.at(-2)).toBe('holes');   // `bands` follows it (AI-bands spec §2.2)
     const item = part.properties.holes.items;
     expect(Object.keys(item.properties)).toEqual(['face', 'diameter', 'depth', 'through', 'offset', 'toward', 'count', 'pitch']);
     expect(item.required).toEqual(['face', 'diameter', 'depth', 'through', 'offset', 'toward', 'count', 'pitch']);
@@ -601,5 +606,61 @@ describe('holes in the design (AI-holes spec §2.1)', () => {
     const { doc, rejected } = designToDocument({ name: 'T', parts: [{ name: 'Shelf', ...base, at: v(0, 0, 0), size: v(30, 12, 0.75), holes: [bad] } as GeneratedPart] });
     expect(rejected).toEqual([{ name: 'Shelf', reason: 'hole', detail: 'Shelf has a hole row on +z with a number that is not finite or is beyond 10,000in.' }]);
     expect(doc.boards).toEqual([]);
+  });
+});
+
+describe('bands in the design (AI-bands spec §2.2, §3.1)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  const birch = { id: 'm-v-birch', label: 'Birch', color: '#e0d0b0', kind: 'sheet-veneered' as const, sheet: { length: 96, width: 48 } };
+  const maple: BandType = { id: 'id_maple', name: 'Maple edging', kind: 'solid', thickness: 0.25, lengthAllowance: 0.5, material: 'm-s-ash1', widthAllowance: 0.0625 };
+  const base = { name: 'Top', role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [], holes: [], at: v(0, 0, 0), size: v(20, 0.75, 10) };
+
+  it('the schema: bands is required, last, and each item is strict with exactly edge and edging', () => {
+    const part = (DESIGN_SCHEMA as any).$defs.part;
+    expect(Object.keys(part.properties).at(-1)).toBe('bands');
+    expect(part.required.at(-1)).toBe('bands');
+    const item = part.properties.bands.items;
+    expect(Object.keys(item.properties)).toEqual(['edge', 'edging']);
+    expect(item.required).toEqual(['edge', 'edging']);
+    expect(item.additionalProperties).toBe(false);
+    expect(item.properties.edge).toEqual({ $ref: '#/$defs/dir' });
+    expect(item.properties.edging.type).toBe('string');
+  });
+  it('vec3 is defined once in $defs and referenced (the compile probe, fu 322)', () => {
+    const raw = DESIGN_SCHEMA as any;
+    expect(raw.$defs.vec3.required).toEqual(['x', 'y', 'z']);
+    expect(JSON.stringify(raw).match(/"x":\{/g)).toHaveLength(1);
+    expect(raw.$defs.part.properties.at).toEqual({ $ref: '#/$defs/vec3' });
+    expect(raw.$defs.part.properties.holes.items.properties.offset).toEqual({ $ref: '#/$defs/vec3' });
+  });
+  it('edgingKeys: veneer first, a solid built-in species yes, a sheet no', () => {
+    const keys = edgingKeys(builtInCatalog(), [BUILT_IN_BAND]);
+    expect(keys[0]).toBe('veneer');
+    expect(keys).toContain('solid oak');
+    expect(keys).not.toContain('solid plywood');
+    expect(keys).not.toContain(BUILT_IN_BAND.id);
+  });
+  it('edgingKeys: a custom band type and a custom solid material appear; a custom sheet does not', () => {
+    const keys = edgingKeys(catalogOf({ materials: [ash, birch] }), [BUILT_IN_BAND, maple]);
+    expect(keys.slice(0, 2)).toEqual(['veneer', 'id_maple']);
+    expect(keys).toContain('solid m-s-ash1');
+    expect(keys).not.toContain('solid m-v-birch');
+    const s = designSchema(catalogOf({ materials: [ash, birch] }), [BUILT_IN_BAND, maple]) as any;
+    expect(s.$defs.part.properties.bands.items.properties.edging.enum).toEqual(keys);
+  });
+  it('parseDesign refuses a part without bands, or an edging outside the keys; keeps a valid band', () => {
+    const p = { ...base, bands: [{ edge: '+z', edging: 'veneer' }] };
+    const { bands: _b, ...noBands } = p;
+    expect(parseDesign({ name: 'T', parts: [noBands], assemblies: [] })).toBeNull();
+    expect(parseDesign({ name: 'T', parts: [], assemblies: [{ name: 'D', parts: [noBands], placements: [] }] })).toBeNull();
+    expect(parseDesign({ name: 'T', parts: [{ ...p, bands: [{ edge: '+z', edging: 'solid plywood' }] }], assemblies: [] })).toBeNull();
+    expect(parseDesign({ name: 'T', parts: [{ ...p, bands: [{ edge: 'up', edging: 'veneer' }] }], assemblies: [] })).toBeNull();
+    const ok = parseDesign({ name: 'T', parts: [{ ...p, bands: [{ edge: '+z', edging: 'solid oak', extra: 1 }] }], assemblies: [] });
+    expect(ok!.parts[0]!.bands).toEqual([{ edge: '+z', edging: 'solid oak' }]);
+  });
+  it('parseDesign takes the project band types: a custom type id is valid only when given', () => {
+    const p = { ...base, bands: [{ edge: '-x', edging: 'id_maple' }] };
+    expect(parseDesign({ name: 'T', parts: [p], assemblies: [] })).toBeNull();
+    expect(parseDesign({ name: 'T', parts: [p], assemblies: [] }, builtInCatalog(), [BUILT_IN_BAND, maple])?.parts[0]!.bands).toEqual([{ edge: '-x', edging: 'id_maple' }]);
   });
 });

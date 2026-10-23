@@ -181,7 +181,7 @@ interface EvaluateOpts {
  */
 function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {}): { value: DesignValue | null; feedback: string } {
   const catalog = opts.materials ? catalogOf({ materials: opts.materials }) : builtInCatalog();
-  const parsed = res.json === null ? null : parseDesign(res.json, catalog);
+  const parsed = res.json === null ? null : parseDesign(res.json, catalog, opts.bandTypes);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
   const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials, bandTypes: opts.bandTypes, hardwareTypes: opts.hardwareTypes });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
@@ -268,7 +268,7 @@ export async function runRefine(
   const catalog = catalogOf(doc);
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
-    schema: designSchema(catalog),
+    schema: designSchema(catalog, doc.bandTypes),
     first: refineMessage(from.design, settings, catalog, base.plain),
     evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units, extraFaults: (f) => featureTurned(f, plainFlat0) }),
   }, signal, onProgress);
@@ -343,7 +343,7 @@ export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, setting
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return null;
   const refine = costRange(client, {
-    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc))).length,
+    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc), doc.bandTypes)).length,
     messageChars: refineMessage(from.design, settings, catalogOf(doc), base.plain).length,
     outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
   }, 1 + MAX_REPAIRS);

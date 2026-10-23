@@ -15,7 +15,7 @@ import type { MaterialCatalog } from './materials';
 import { holeRowsFor, sameHoles, sortHoleRows } from './holeWorld';
 import { copyCurve } from './curves';
 import { copyProfile } from './profiles';
-import { copyBand } from './bandModel';
+import { BUILT_IN_BAND, BUILT_IN_BAND_ID, copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import type { Band, BandType, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareType, HardwareUse, HoleRow, Instance, Posture, ProfileCut, Rotation } from './types';
 
@@ -40,6 +40,9 @@ export interface PartCarry {
 }
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
+/** One edge band in world words (AI-bands spec §2.2): the side face banded and an edging key (`edgingKeys`). */
+export interface WorldBand { edge: Dir; edging: string }
+
 export interface GeneratedPart {
   name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3;
   /** TS-only, never in the schema: set by Refine's carryFromOriginal from the original part of the same name. parseDesign drops it. */
@@ -52,6 +55,8 @@ export interface GeneratedPart {
   miters?: WorldMiter[];
   bevels?: WorldBevel[];
   chamfers?: WorldChamfer[];
+  /** Required from the model (parseDesign checks it); optional here like `holes` (AI-bands spec §2.2). Task 3 converts it. */
+  bands?: WorldBand[];
   /** Required from the model (parseDesign checks it); optional here like `tapers` (AI-holes spec §2.1). */
   holes?: WorldHoleRow[];
 }
@@ -72,7 +77,8 @@ export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assembl
 /** `detail` is the whole message, set for `'taper'`, `'angle'` and `'hole'`. */
 export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle' | 'hole'; detail?: string }
 
-const vec3Schema = {
+/** A world point/extent: defined ONCE in `$defs.vec3` and referenced (fu 322: the compiled-grammar cap, AI-bands probe 2). */
+const vec3Def = {
   type: 'object',
   properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
   required: ['x', 'y', 'z'],
@@ -81,6 +87,7 @@ const vec3Schema = {
 
 /** A world direction: defined ONCE in `$defs` and referenced (see DESIGN_SCHEMA). */
 const dirSchema = { $ref: '#/$defs/dir' };
+const vec3Schema = { $ref: '#/$defs/vec3' };
 /** One taper in world words (AI-tapers spec §2): the faces that slope, the end that gets thinner, where it starts
  *  (from that end) and how much it removes there. Counts and duplicates are the converter's to check. */
 const taperSchema = {
@@ -120,9 +127,29 @@ const holeSchema = {
   additionalProperties: false,
 };
 
+/** One band in world words (AI-bands spec §2.2): the side face, and an edging from a closed enum (§3.1). */
+const bandSchemaFor = (edgings: readonly string[]) => ({
+  type: 'object',
+  properties: { edge: dirSchema, edging: { type: 'string', enum: [...edgings] } },
+  required: ['edge', 'edging'],
+  additionalProperties: false,
+});
+
+/**
+ * The edging choices (AI-bands spec §3.1), built per call as the material enum is: `veneer` (the built-in Iron-on),
+ * the project's other band types by id (stored order), then `solid <id>` for every solid material in the catalog.
+ */
+export function edgingKeys(catalog: MaterialCatalog, bandTypes: readonly BandType[]): string[] {
+  return [
+    'veneer',
+    ...bandTypes.filter((t) => t.id !== BUILT_IN_BAND_ID).map((t) => t.id),
+    ...catalog.ids.filter((id) => catalog.get(id)?.kind === 'solid').map((id) => `solid ${id}`),
+  ];
+}
+
 /** The part, its material enum from a catalog's ids: the built-ins (from MATERIALS, so a new built-in reaches the model
  *  with no second edit), then a project's custom materials for Refine. Key order is pinned byte for byte (fu 322). */
-const partSchemaFor = (materials: readonly string[]) => ({
+const partSchemaFor = (materials: readonly string[], edgings: readonly string[]) => ({
   type: 'object',
   properties: {
     name: { type: 'string' },
@@ -135,8 +162,9 @@ const partSchemaFor = (materials: readonly string[]) => ({
     bevels: { type: 'array', items: bevelSchema },
     chamfers: { type: 'array', items: chamferSchema },
     holes: { type: 'array', items: holeSchema },
+    bands: { type: 'array', items: bandSchemaFor(edgings) },
   },
-  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes'],
+  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers', 'holes', 'bands'],
   additionalProperties: false,
 });
 
@@ -147,11 +175,11 @@ const partSchemaFor = (materials: readonly string[]) => ({
  * it compiled. A new part field or enum costs once here, not twice.
  *
  * `catalog`: Generate passes the built-ins (the schema it always had, byte for byte); Refine passes the project's
- * catalog so its custom materials are choosable (custom materials spec §6). Only the material enum differs.
+ * catalog so its custom materials are choosable (custom materials spec §6), and its band types (`edging` enum).
  */
-export function designSchema(catalog: MaterialCatalog = builtInCatalog()): Record<string, unknown> {
+export function designSchema(catalog: MaterialCatalog = builtInCatalog(), bandTypes: readonly BandType[] = [BUILT_IN_BAND]): Record<string, unknown> {
   return {
-    $defs: { dir: { type: 'string', enum: [...DIRS] }, part: partSchemaFor(catalog.ids) },
+    $defs: { dir: { type: 'string', enum: [...DIRS] }, vec3: vec3Def, part: partSchemaFor(catalog.ids, edgingKeys(catalog, bandTypes)) },
     type: 'object',
     properties: {
       name: { type: 'string' },
@@ -201,15 +229,18 @@ const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && 
 const isHole = (h: unknown): boolean => isObj(h) && isDir(h.face) && isDir(h.toward) && typeof h.through === 'boolean' &&
   isVec3(h.offset) && (['diameter', 'depth', 'count', 'pitch'] as const).every((k) => typeof h[k] === 'number');
 
-const isPart = (p: unknown, catalog: MaterialCatalog): boolean =>
+const isBand = (b: unknown, edgings: ReadonlySet<string>): boolean => isObj(b) && isDir(b.edge) && typeof b.edging === 'string' && edgings.has(b.edging);
+
+const isPart = (p: unknown, catalog: MaterialCatalog, edgings: ReadonlySet<string>): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
   catalog.get(p.material) !== undefined && isVec3(p.at) && isVec3(p.size) &&
   Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
   Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
-  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole);
+  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer) && Array.isArray(p.holes) && p.holes.every(isHole) &&
+  Array.isArray(p.bands) && p.bands.every((b) => isBand(b, edgings));
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
-const isAssembly = (a: unknown, catalog: MaterialCatalog): boolean =>
-  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog)) &&
+const isAssembly = (a: unknown, catalog: MaterialCatalog, edgings: ReadonlySet<string>): boolean =>
+  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog, edgings)) &&
   Array.isArray(a.placements) && a.placements.every(isPlacement);
 
 const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
@@ -221,7 +252,8 @@ const partOf = (o: unknown): GeneratedPart => {
     bevels: (p.bevels ?? []).map((m) => ({ face: m.face, longPoint: m.longPoint, angle: m.angle })),
     chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })),
     holes: (p.holes ?? []).map((h) => ({ face: h.face, diameter: h.diameter, depth: h.depth, through: h.through, offset: vec(h.offset),
-      toward: h.toward, count: h.count, pitch: h.pitch })) };
+      toward: h.toward, count: h.count, pitch: h.pitch })),
+    bands: (p.bands ?? []).map((b) => ({ edge: b.edge, edging: b.edging })) };
 };
 
 /**
@@ -230,11 +262,13 @@ const partOf = (o: unknown): GeneratedPart => {
  * truncated stream, must not reach the converter. Numbers are only checked
  * for TYPE here; non-finite values are the converter's to reject per part.
  * A design with no parts anywhere (loose or in an assembly) is unusable.
- * A material must be in `catalog` (Refine: the project's, custom materials spec §6; otherwise the built-ins).
+ * A material must be in `catalog` (Refine: the project's, custom materials spec §6; otherwise the built-ins), and a band's
+ * `edging` one of `edgingKeys(catalog, bandTypes)`.
  */
-export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCatalog()): GeneratedDesign | null {
+export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCatalog(), bandTypes: readonly BandType[] = [BUILT_IN_BAND]): GeneratedDesign | null {
+  const edgings = new Set(edgingKeys(catalog, bandTypes));
   if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts) || !Array.isArray(json.assemblies)) return null;
-  if (!json.parts.every((p) => isPart(p, catalog)) || !json.assemblies.every((a) => isAssembly(a, catalog))) return null;
+  if (!json.parts.every((p) => isPart(p, catalog, edgings)) || !json.assemblies.every((a) => isAssembly(a, catalog, edgings))) return null;
   const total = json.parts.length + (json.assemblies as { parts: unknown[] }[]).reduce((n, a) => n + a.parts.length, 0);
   if (total === 0) return null;
   // A fresh object with ONLY the schema's fields, so nothing the model adds
