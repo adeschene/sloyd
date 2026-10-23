@@ -134,6 +134,33 @@ describe('mirrorLinkedPart: the Mirrored checkbox (spec §5.2, Review Focus 1)',
     });
   }
 
+  // Ruling 5 (spec §5.2): WORLD X, inside a turned (or mirrored) assembly too. `r` sits in d1, placed by i1.
+  const nestedSide = (inst: { rotation: Rotation; mirrored?: true }): SloydDocument => ({
+    ...sideDoc(0),
+    boards: [sideDoc(0).boards[0]!],
+    instances: [{ id: 'i1', name: 'Case', definition: 'd1', position: [40, 0, 0], ...inst }],
+    definitions: [{ id: 'd1', boards: [sideDoc(0).boards[1]!], instances: [], hardware: [] }],
+  });
+  for (const inst of [{ rotation: 90 }, { rotation: 270 }, { rotation: 90, mirrored: true }] as { rotation: Rotation; mirrored?: true }[]) {
+    it(`inside an assembly turned ${inst.rotation}°${inst.mirrored ? ', mirrored' : ''}: the pin face moves to the opposite WORLD X face, the edging stays on its world Z edge`, () => {
+      s().replaceDocument(nestedSide(inst));
+      const before = s().doc;
+      const r0 = occ('i1/r');
+      expect(worldHoles(r0)[0]!.face[1]).toBe('x');                                     // the case: pins on X, edging on Z
+      expect(worldBands(r0)[0]!.edge[1]).toBe('z');
+      const [lo, hi] = [boardsBounds([r0])!.min[0], boardsBounds([r0])!.max[0]];
+      s().mirrorLinkedPart('i1/r', true);
+      const r1 = occ('i1/r');
+      expect(partAt(s().doc, 'i1/r')).toMatchObject({ position: [30, 0, 0], rotation: 180, mirrored: true });   // -(2·90 + 0)
+      expect(boardsBounds([r1])).toEqual(boardsBounds([r0]));
+      expect(worldHoles(r1).map((h) => h.face)).toEqual(worldHoles(r0).map((h) => flipX(h.face)));
+      expect(worldBands(r1).map((x) => x.edge)).toEqual(worldBands(r0).map((x) => x.edge));
+      expect(sortPts(holeCentres(r1))).toEqual(sortPts(holeCentres(r0).map(([x, y, z]) => [lo + hi - x!, y!, z!])));
+      s().undo();
+      expect(s().doc).toBe(before);
+    });
+  }
+
   it('is one undo entry, a no-op when unchanged, refused while exploded and for a part with no Shape', () => {
     s().replaceDocument(sideDoc(90));
     const d0 = s().doc;

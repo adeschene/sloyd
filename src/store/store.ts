@@ -4,7 +4,7 @@ import {
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
-  toLocal, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
+  toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { BandType, HardwareType, ProfileSide, AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
@@ -331,8 +331,12 @@ interface StoreState {
   mirrorAssembly: (path: string, mirrored: boolean) => void;
   /**
    * The Mirrored checkbox of a LINKED part (mirrored links, fu 432, spec §5.2): the part becomes its mirror image in
-   * place — the own `mirrored` flag flipped AND its turn inverted (M_x R(r) = R(-r) M_d0), position kept, so its box is
-   * unchanged. Refused while exploded (inv 47) and for a part that uses no Shape; a no-op when unchanged (inv 4).
+   * place, left to right across WORLD X — the own `mirrored` flag flipped AND its stored turn r set to -(2a + r), where a
+   * is the rotation of the occurrence's container chain (in the container, world X is M_x R(2a); M_x R(2a + r) =
+   * R(-(2a + r)) M_d0; the same for a mirrored chain, 2a ≡ -2a mod 360). Position kept, so its box is unchanged.
+   * A stored part shared by placements at different chain turns gets world X for the SELECTED occurrence only; its other
+   * copies reflect across another world axis — a consequence of sharing, not a bug.
+   * Refused while exploded (inv 47) and for a part that uses no Shape; a no-op when unchanged (inv 4).
    */
   mirrorLinkedPart: (path: string, mirrored: boolean) => void;
   /** Place a shared, opposite-flag copy beside the assembly and select it (spec §5). */
@@ -1424,8 +1428,8 @@ export const useStore = create<StoreState>((set, get) => {
       if (!p || !isShaped(p) || (p.mirrored === true) === mirrored) return; // invariant 4
       // Written to the STORED part's own fields, never through updateBoard: the flag is an own field, and a world edit
       // would lower through it as a shared change. Stored only as true (spec §3): unticking removes the key.
-      const { mirrored: _was, ...rest } = p;
-      const next = { ...rest, rotation: inverseTurn(p.rotation), ...(mirrored ? { mirrored: true as const } : {}) };
+      const a = containerLinear(get().doc, parentPath(path)).rotation;
+      const next = { ...withoutFlag(p), rotation: inverseTurn(addTurns(addTurns(a, a), p.rotation)), ...(mirrored ? { mirrored: true as const } : {}) };
       edit((doc) => setStored(doc, path, next));
       // Its features moved (reflected), in every copy if the part sits in a shared definition.
       judgeHeld();
@@ -1893,7 +1897,7 @@ export const useStore = create<StoreState>((set, get) => {
         // A shaped source's fields are its Shape's own, exactly — never its
         // resolved part, which its own mirror flag reflects (fu 432, spec §5.2).
         // (The source read in doc0, and nothing above touches it.)
-        const unflagged = sourceStored && isShaped(sourceStored) ? (({ mirrored: _m, ...rest }) => rest)(sourceStored) : null;
+        const unflagged = sourceStored && isShaped(sourceStored) ? withoutFlag(sourceStored) : null;
         const fields = unflagged ? resolveBoard(shapeMap(doc0), unflagged) : resolvedPartAt(out, plan.source.id);
         const shape = { id: shapeId, ...sharedOf(fields!) };
         out = { ...out, shapes: out.shapes.some((x) => x.id === shapeId)

@@ -65,6 +65,12 @@ export function plainOf(b: Board): Board {
   return rest;
 }
 
+/** A shaped part's stored record without its own `mirrored` flag (fu 432): the part as its Shape's unmirrored user. */
+export function withoutFlag(b: ShapedBoard): ShapedBoard {
+  const { mirrored: _mirrored, ...rest } = b;
+  return rest;
+}
+
 /** A shape with ONE stored user is not shared: the user becomes plain (cut ids kept). */
 export function dissolveShapes(doc: SloydDocument): SloydDocument {
   const used = shapeUsers(doc);
