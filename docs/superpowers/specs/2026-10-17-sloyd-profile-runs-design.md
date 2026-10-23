@@ -1,5 +1,7 @@
 # Sloyd — profile runs: profiles that follow the outline, and stopped profiles (design)
 
+> **2026-10-23: every amendment in this spec still marked "for the user's review" (or awaiting it) was APPROVED by the user in bulk** (the owed-reviews pass; `docs/rounds.md`).
+
 Date: 2026-10-17. Follow-ups 390 (a profile does not follow a curved edge) and 365's remainder (stopped profiles). Status: design
 approved in chat by the user 2026-10-17, section by section ("Yes, that looks right" ×4, then "Yes, write the spec"); written spec
 approved by the user ("Approved, write the plan"); chunk a1 implemented (plan `docs/superpowers/plans/2026-10-17-sloyd-profile-runs-a1.md`,

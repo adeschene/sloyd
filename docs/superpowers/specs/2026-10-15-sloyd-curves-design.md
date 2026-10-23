@@ -1,5 +1,7 @@
 # Sloyd — curves: arcs cut through a part
 
+> **2026-10-23: every amendment in this spec still marked "for the user's review" (or awaiting it) was APPROVED by the user in bulk** (the owed-reviews pass; `docs/rounds.md`).
+
 **Date:** 2026-10-15 · **Status:** approved by the user 2026-10-15, with its two *Corrected (writing)* notes (§2.1's arc
 side, §4.1's wording). Chunk 1 plan: `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`; its planning rulings P1–P7
 were approved by the user with the plan (2026-10-15) and are marked *Amended (planning chunk 1, approved by the user

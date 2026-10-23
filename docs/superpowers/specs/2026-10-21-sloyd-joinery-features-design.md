@@ -1,5 +1,7 @@
 # Sloyd: Add joinery and Repair accept holes, curves, profiles and bands
 
+> **2026-10-23: every amendment in this spec still marked "for the user's review" (or awaiting it) was APPROVED by the user in bulk** (the owed-reviews pass; `docs/rounds.md`).
+
 **Date:** 2026-10-21 · **Status:** approved 2026-10-21 (builder-checked; the user's two rulings, §8, folded in). All three chunks deployed 2026-10-22 (chunk 3: merge `1d39344`, `index-bKxsxRuC.js`; §2). Later rulings: the *Amended* blocks at the end.
 **Builds on:** the joinery, repair-joints and refine-joined specs; the AI-tapers and AI-angles specs
 (`2026-10-13-sloyd-ai-angles-design.md`, the pattern this spec follows: the checks, joinery and Repair accept a feature

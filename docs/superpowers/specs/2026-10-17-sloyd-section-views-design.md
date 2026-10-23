@@ -1,5 +1,7 @@
 # Sloyd — section views on the Plans sheet (design)
 
+> **2026-10-23: every amendment in this spec still marked "for the user's review" (or awaiting it) was APPROVED by the user in bulk** (the owed-reviews pass; `docs/rounds.md`).
+
 Date: 2026-10-17. Follow-up 256 (the sheet half of section views; the viewport half shipped as the section cut,
 `2026-10-14-sloyd-section-cut-design.md`, inv 51). Status: approved by the user 2026-10-17 ("go with what you'd recommend"); plan
 `docs/superpowers/plans/2026-10-17-sloyd-section-views.md`.

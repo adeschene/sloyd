@@ -298,4 +298,4 @@ export function featureAllowed(flat: FlatDocument, sites: readonly Site[]): { si
 }
 
 /** Shown when checking features against joints throws (fu 244): the dialog refuses, Refine returns its design unjoined. */
-export const FEATURE_CHECK_FAILED = "Sloyd couldn't check this project's holes, curves and profiles against its joints. Add joinery before drilling or shaping, or remove those first.";
+export const FEATURE_CHECK_FAILED = "Sloyd couldn't check this project's holes, curves, profiles and edging against its joints. Add joinery before drilling, shaping or edging, or remove those first.";

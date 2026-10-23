@@ -168,7 +168,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   test flips: `bandedRefusal.test.ts`'s `'joinery'` assertions, and `App.test.tsx`'s "a refused project (holes and a band)", whose
   refusal example is now a taper into the joint. Live check `docs/browser-verification-joinery-bands.md` (dev server: the edged rail's
   strip at the visible run, Add joinery opening and Repair offered on banded projects, the edged bookcase joined at its front stop);
-  the paid run was made later that day with the user's approval (see fu 419 below). Owed to the user: the `edge band` summary words; P10 (faulted bands judged as
+  the paid run was made later that day with the user's approval (see fu 419 below). **Reviewed 2026-10-23: all approved** (the words
+  kept; the failure message now names edging). Was owed: the `edge band` summary words; P10 (faulted bands judged as
   stored), P12's "no visible run, no strip", P13 and P14; §4.4's change to existing hand-notched documents; the chunk-3 spec amendments
   (Review Focus 4's test moved to 5/8 edging after F2 among them); the edged rail's look on real hardware (Review Focus 5). Record-only: fu 418, 420–423. Merged and deployed the same day (row above).
 - **fu 419 (2026-10-22; `ac799bb`, DEPLOYED at `3162e68` as `index-DoG-TXKm.js`, CSS unchanged; schema 20, rollback to `1d39344` free)**: under Mitred a corner is mitred only where a mitre can be cut — a shortened corner, or one
@@ -405,6 +406,10 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   run-collapsing (`Leg 1..4`).
 
 ## Owed to the user: spec amendments awaiting review (moved from CLAUDE.md, 2026-10-22)
+
+**APPROVED 2026-10-23, all of the list below, in bulk** (the user, in the owed-reviews pass; joinery chunks 2–3's calls walked
+through in plain terms first: their words kept, `FEATURE_CHECK_FAILED` now names edging, fu 419's part note fine as is). The
+by-eye items further down stay owed.
 
 Spec amendments awaiting the user's review: the joinery-features spec's *Amended (planning, chunk 2)* and *Amended (execution,
 chunk 2)* blocks — the bow correction (a bow at a tenoned end lost the growing kinds) is SUPERSEDED by fu 415's ruling (2026-10-22:

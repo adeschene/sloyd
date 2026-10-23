@@ -46,7 +46,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 - **NEXT (2026-10-23):** nothing is pending deploy and no plan exists. The shop-words round is DEPLOYED (spec
   `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`; fu 431 left as is). The AI-holes
   round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
-  The refine-features review was taken 2026-10-23 (all approved; its real-hardware look stays owed). Owed to the user: joinery chunk 3's words and spec amendments and fu 419's part note; chunk 2's; fu 402(1)–(2); fu 410–412.
+  The refine-features review was taken 2026-10-23 (all approved; its real-hardware look stays owed). Joinery chunks 2–3 and every older spec amendment were approved 2026-10-23 (`FEATURE_CHECK_FAILED` now names
+  edging — not yet deployed). Owed to the user: fu 402(1)–(2); fu 410–412; the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -611,8 +612,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283; 410–412 (hardware
-  wording); the specs' *Amended* rulings and words (curves, profile runs, section views: `docs/rounds.md`, Owed to the user;
-  joinery features chunks 2–3: NEXT). 336's grain seam waits for a texture/shader session.
+  wording). 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only

@@ -2102,7 +2102,7 @@ describe('Add joinery with holes (joinery-holes final review)', () => {
     try {
       const dialog = await open(holedDoc());
       expect(within(dialog).getByRole('status').textContent)
-        .toBe("Sloyd couldn't check this project's holes, curves and profiles against its joints. Add joinery before drilling or shaping, or remove those first.");
+        .toBe("Sloyd couldn't check this project's holes, curves, profiles and edging against its joints. Add joinery before drilling, shaping or edging, or remove those first.");
       expect((within(dialog).getByRole('button', { name: 'Add joinery' }) as HTMLButtonElement).disabled).toBe(true);
       expect(err).toHaveBeenCalledWith('Sloyd: checking features against joints threw', expect.any(Error));
     } finally {
