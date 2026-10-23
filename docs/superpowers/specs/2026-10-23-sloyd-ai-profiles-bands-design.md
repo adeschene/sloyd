@@ -393,7 +393,9 @@ Rulings made while building chunk 2 (profiles and the merged `angles` array), on
 `.superpowers/sdd/2026-10-23-sloyd-ai-profiles/progress.md`). Where one differs from the text above (R1–R6 included), this block wins;
 the records (invs 40, 41, 48, 53, 56; fu 322, 425, 430, 434) describe the code as merged.
 
-- ****Approved by the user in bulk, 2026-10-23.** Ruling 1 — `carriedView` follows R6.3.** Task 5 owned `carryText.ts` too: a part's profiles stay in the note, `featureTurned` and
+**Approved by the user in bulk, 2026-10-23.**
+
+- **Ruling 1 — `carriedView` follows R6.3.** Task 5 owned `carryText.ts` too: a part's profiles stay in the note, `featureTurned` and
   `carriedSummary` only when it has curves or a two-side run, and `faultKeys`' profile keys likewise. Cost if wrong: the done view lists
   authored profiles as carried.
 - **Ruling 2 — "a straight run" (R6.1) is `oneSide(p.run)` and not `isSwept`**; `profileAsCurve` is called only for those (it throws on a
