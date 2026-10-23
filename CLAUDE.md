@@ -37,17 +37,17 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `b569dca`, bundle `index-B3SxN3Yk.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (shop words: Refine's change list
-  in shop words, `shopWords.ts`; the prompt names +z the front; deployed 2026-10-23). Owed to the user: see NEXT.
-- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `b569dca`
-  only brings back "+x" in the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
+- **Production: `0b5e5ca`, bundle `index-CuLt9iDe.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 20** (wording: the feature-check
+  failure names edging; the link note and per-copy hardware totals, fu 411/412; deployed 2026-10-23). Owed to the user: see NEXT.
+- **Rollback:** every deploy back to `98c7df4` (hardware, `index-BZhrLswD.js`) is schema 20 and free (rolling back past `0b5e5ca`
+  only restores the old wording; past `b569dca`, "+x" returns to the change list; past `424c184`, Claude stops authoring holes; past `98f8296`, Refine refuses featured projects again). The nearest refusing boundary is
   `4a6d6a1` (band wording, `index-QDQAnB8n.js`, schema 19): it REFUSES every project saved at 20 — export first. Full table:
   `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-23):** nothing is pending deploy and no plan exists. The shop-words round is DEPLOYED (spec
   `docs/superpowers/specs/2026-10-23-sloyd-shop-words-design.md`; fu 431 left as is). The AI-holes
   round's review was taken 2026-10-23 (look fine; both rows move; the words became shop-words); its real-hardware look stays owed.
   The refine-features review was taken 2026-10-23 (all approved; its real-hardware look stays owed). Joinery chunks 2–3 and every older spec amendment were approved 2026-10-23 (`FEATURE_CHECK_FAILED` now names
-  edging — not yet deployed). fu 410–412 closed 2026-10-23 (411/412 reworded, 410 left silent) — with the FEATURE_CHECK_FAILED fix, NOT yet deployed.
+  edging — deployed). fu 410–412 closed 2026-10-23 (411/412 reworded, 410 left silent) — deployed with the FEATURE_CHECK_FAILED fix.
   Owed to the user: fu 402(1)–(2); the by-eye and real-hardware items.
   As the user directs: the rest of Open follow-ups below (417 ask first; 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
