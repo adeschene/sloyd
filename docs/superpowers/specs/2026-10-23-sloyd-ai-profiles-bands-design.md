@@ -1,6 +1,6 @@
 # Sloyd: Generate and Refine author edge profiles and edge bands
 
-**Date:** 2026-10-23 · **Status:** draft, builder-checked; the user answered all four §11 questions (2026-10-23); awaiting approval of the document.
+**Date:** 2026-10-23 · **Status:** APPROVED 2026-10-23 (builder-checked; the user answered all four §11 questions). Chunk 1 (bands) plan: `docs/superpowers/plans/2026-10-23-sloyd-ai-bands.md`.
 **Builds on:** the AI-holes spec (`2026-10-23-sloyd-ai-holes-design.md`: the pattern this copies — world words in the
 design schema, one converter module per feature, an exact-entry map for Refine, faults kept and fed back), the profile runs
 spec (`2026-10-17-sloyd-profile-runs-design.md`: the stored `ProfileCut`, its runs and `profileFaults`), the edge banding
