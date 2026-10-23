@@ -45,7 +45,7 @@ export function nounsText(c: CarriedKinds): { text: string; plural: boolean } {
   return { text, plural };
 }
 
-const NOTE = 'These parts carry holes, curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one\'s name, and keep it the same way round: ';
+const NOTE = 'These parts carry curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one\'s name, and keep it the same way round: ';
 
 /** The user-turn paragraph naming the parts whose features the design JSON does not show (spec §5), or null. */
 export function featuredNote(design: GeneratedDesign): string | null {

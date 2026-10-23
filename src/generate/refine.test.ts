@@ -50,7 +50,7 @@ describe('refine', () => {
   });
 
   describe('the featured-parts note (refine-features spec §5)', () => {
-    const NOTE = "These parts carry holes, curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
+    const NOTE = "These parts carry curves, edge profiles, edging or hardware that this format does not show; Sloyd keeps them on the part with the same name. Keep each one's name, and keep it the same way round: ";
     const HOLE = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 1.5 } as const;
     const PROFILE = { id: 'p1', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side: { across: 'width', from: 'min' }, through: 'min' }, end: { side: { across: 'width', from: 'min' }, through: 'max' } } } as const;
     const CURVE = ARCH;
