@@ -3,8 +3,8 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
-  toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { BandType, HardwareType, ProfileSide, AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
@@ -329,6 +329,16 @@ interface StoreState {
   turnAssembly: (path: string, rotation: Rotation) => void;
   /** Flip an assembly's mirror in place, keeping its world box (mirrored-instances spec §5). */
   mirrorAssembly: (path: string, mirrored: boolean) => void;
+  /**
+   * The Mirrored checkbox of a LINKED part (mirrored links, fu 432, spec §5.2): the part becomes its mirror image in
+   * place, left to right across WORLD X — the own `mirrored` flag flipped AND its stored turn r set to -(2a + r), where a
+   * is the rotation of the occurrence's container chain (in the container, world X is M_x R(2a); M_x R(2a + r) =
+   * R(-(2a + r)) M_d0; the same for a mirrored chain, 2a ≡ -2a mod 360). Position kept, so its box is unchanged.
+   * A stored part shared by placements at different chain turns gets world X for the SELECTED occurrence only; its other
+   * copies reflect across another world axis — a consequence of sharing, not a bug.
+   * Refused while exploded (inv 47) and for a part that uses no Shape; a no-op when unchanged (inv 4).
+   */
+  mirrorLinkedPart: (path: string, mirrored: boolean) => void;
   /** Place a shared, opposite-flag copy beside the assembly and select it (spec §5). */
   copyMirrored: (path: string) => void;
   /** Give the instance its own copy of its definition (components spec §3.1). */
@@ -1178,7 +1188,7 @@ export const useStore = create<StoreState>((set, get) => {
       // Each mate through an occurrence on its target's side of any mirror
       // (postureRefusal guarantees one exists for a d0-moving posture change),
       // so every lowering writes the same cuts to the Shape (spec §4, amended).
-      const sideOfShape = new Map(world.filter((b) => targets.has(b.id) && b.shape).map((b) => [b.shape!, mirroredAt(get().doc, b.id)]));
+      const sideOfShape = new Map(world.filter((b) => targets.has(b.id) && b.shape).map((b) => [b.shape!, sideAt(get().doc, b.id)]));
       const shapeOf = new Map(world.map((b) => [b.id, b.shape]));
       const mates = sameSideFirst(get().doc, others, (id) => { const sh = shapeOf.get(id); return sh === undefined ? undefined : sideOfShape.get(sh); });
       const o = new Set([...oneEditPerTarget(get().doc, [...t, ...mates])].filter((id) => !t.has(id)));
@@ -1409,6 +1419,19 @@ export const useStore = create<StoreState>((set, get) => {
       if (next === get().doc) return; // invariant 4
       edit(() => next);
       // The assembly's parts moved (reflected), in every copy if it is nested in a shared definition.
+      judgeHeld();
+    },
+
+    mirrorLinkedPart: (path, mirrored) => {
+      if (readOnly()) return; // exploded: refuse at entry (invariant 47)
+      const p = partAt(get().doc, path);
+      if (!p || !isShaped(p) || (p.mirrored === true) === mirrored) return; // invariant 4
+      // Written to the STORED part's own fields, never through updateBoard: the flag is an own field, and a world edit
+      // would lower through it as a shared change. Stored only as true (spec §3): unticking removes the key.
+      const a = containerLinear(get().doc, parentPath(path)).rotation;
+      const next = { ...withoutFlag(p), rotation: inverseTurn(addTurns(addTurns(a, a), p.rotation)), ...(mirrored ? { mirrored: true as const } : {}) };
+      edit((doc) => setStored(doc, path, next));
+      // Its features moved (reflected), in every copy if the part sits in a shared definition.
       judgeHeld();
     },
 
@@ -1835,7 +1858,19 @@ export const useStore = create<StoreState>((set, get) => {
       // placement of the source's own stored part is never patched; each
       // through an occurrence on the SOURCE's side of any mirror (linkPlan
       // guarantees one), the side whose pivot the user sees.
-      const side = mirroredAt(doc0, plan.source.id);
+      // The source's SIDE (fu 432, spec §5.2): its assembly parity XOR its own mirror flag, as sameSideFirst compares.
+      const side = sideAt(doc0, plan.source.id);
+      // Part-level mirror flags (spec §5.2), all read from doc0: a user of the SOURCE's own Shape keeps its flag (that
+      // Shape is written unchanged, so it looks as it did); every other member — a plain part, or a user of another
+      // Shape — takes the SOURCE's flag, so it becomes a copy of what the person sees on the source.
+      const sourceStored = partAt(doc0, plan.source.id);
+      const sourceShape = sourceStored && isShaped(sourceStored) ? sourceStored.shape : undefined;
+      const sourceFlag = sourceStored?.mirrored === true && sourceShape !== undefined;
+      const flagOf = new Map(plan.members.map((occ) => {
+        const p = partAt(doc0, occ);
+        const keeps = p !== null && isShaped(p) && p.shape === sourceShape;
+        return [occ, keeps ? p.mirrored === true : sourceFlag] as const;
+      }));
       const patched = oneEditPerTarget(doc0, [plan.source.id, ...sameSideFirst(doc0, plan.members, () => side)]);
       patched.delete(plan.source.id);
       const shapeId = plan.shape ?? nextId();
@@ -1859,8 +1894,12 @@ export const useStore = create<StoreState>((set, get) => {
         // Its STORED fields, never the world part's: under a mirror the world
         // cuts are the stored ones reflected, and storing those would flip the
         // source (and every member, all on its side of the mirror) when placed.
-        // (The source resolved in doc0, and nothing above touches it.)
-        const shape = { id: shapeId, ...sharedOf(resolvedPartAt(out, plan.source.id)!) };
+        // A shaped source's fields are its Shape's own, exactly — never its
+        // resolved part, which its own mirror flag reflects (fu 432, spec §5.2).
+        // (The source read in doc0, and nothing above touches it.)
+        const unflagged = sourceStored && isShaped(sourceStored) ? withoutFlag(sourceStored) : null;
+        const fields = unflagged ? resolveBoard(shapeMap(doc0), unflagged) : resolvedPartAt(out, plan.source.id);
+        const shape = { id: shapeId, ...sharedOf(fields!) };
         out = { ...out, shapes: out.shapes.some((x) => x.id === shapeId)
           ? out.shapes.map((x) => (x.id === shapeId ? shape : x))
           : [...out.shapes, shape] };
@@ -1869,7 +1908,7 @@ export const useStore = create<StoreState>((set, get) => {
         // after the pivot above.
         for (const occ of plan.members) {
           const p = partAt(out, occ);
-          if (p) out = setStored(out, occ, { id: p.id, name: p.name, position: p.position, rotation: p.rotation, shape: shapeId });
+          if (p) out = setStored(out, occ, { id: p.id, name: p.name, position: p.position, rotation: p.rotation, shape: shapeId, ...(flagOf.get(occ) ? { mirrored: true as const } : {}) });
         }
         // A member's old shape, all of whose users are members, is now unused.
         return pruneShapes(out);

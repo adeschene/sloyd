@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, catalogOf, pickerLibrary, materialKind, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
+import { isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, catalogOf, pickerLibrary, materialKind, instanceAt, parentPath, placementsOf, instanceRefs, containerAt, partAt, isShaped } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
@@ -596,6 +596,11 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
     const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
     return !!sel?.shape && worldParts(s.doc).some((b) => b.shape === sel.shape && b.id !== sel.id && parentPath(b.id) === s.openPath && !s.hiddenIds.includes(b.id));
   });
+  // The selected part's OWN mirror flag (fu 432), read off its STORED part: null when it uses no Shape (no checkbox).
+  const ownMirrored = useStore((s) => {
+    const p = s.selectedIds.length === 1 ? partAt(s.doc, s.selectedIds[0]!) : null;
+    return p !== null && isShaped(p) ? p.mirrored === true : null;
+  });
   const lengthRef = useRef<HTMLInputElement>(null);
 
   // This component remounts (`key={board.id}` below) on every selection
@@ -657,7 +662,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
       />
       {linkedCount > 0 && (
         <div className="link-block">
-          <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: every edit but name, position and turn changes all {linkedCount + 1}.</p>
+          <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: every edit but name, position, turn and Mirrored changes all {linkedCount + 1}.</p>
           <div className="row">
             {linkedHere && <button onClick={() => selectLinked(board.id)}>Select linked</button>}
             <EditLock><button onClick={() => unlinkBoards([board.id])}>Unlink</button></EditLock>
@@ -702,6 +707,14 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
           <option value={270}>270°</option>
         </select>
       </div>
+      {/* A LINKED part only (fu 432, spec §5.2): its mirror image left to right, in place — this part alone. */}
+      {ownMirrored !== null && (
+        <label className="checkbox field-grid-checkbox">
+          <input type="checkbox" checked={ownMirrored}
+            onChange={(e) => useStore.getState().mirrorLinkedPart(board.id, e.target.checked)} />
+          Mirrored
+        </label>
+      )}
 
       {/* Grain is a property of the part, not of the world: it names which of
           the board's own dimensions the fibres follow, so it turns with the

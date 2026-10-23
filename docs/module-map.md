@@ -22,25 +22,35 @@ src/
 │   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`)
 │   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
 │   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes; the curve validator holds an arc within 4 ulps
-│   │                     of its coordinates past the half-circle bound TO the bound (fu 416), drops one further past
+│   │                     of its coordinates past the half-circle bound TO the bound (fu 416), drops one further past;
+│   │                     schema 21 keeps `mirrored` on a SHAPED part only when literally true (mirrorFreeIdentity.test.ts pins a
+│   │                     flag-free document byte for byte)
 │   ├── ids.ts            nextId, the one id minter
 │   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
 │   │                     the derived-PROJECT name ("— refined 2", fu 237)
 │   ├── geometry.ts       axisFrame, the ONE turn table, and its crossings (inv 44);
 │   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds
-│   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46); mirrorPart/withMirror/toLocal (mirrored frames)
+│   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46); mirrorPart/withMirror/toLocal (mirrored frames);
+│   │                     mirrorFeatures (mirrorPart's feature half: what a mirrored user resolves through, inv 44); mirrorInPlace
+│   │                     (features mirrored + turn negated, box kept; the checkbox's operation at chain turn 0, used by tests)
 │   ├── mirrorCut.ts      mirrorCutAlong (moved verbatim), mirrorCut, clamp (inv 44)
-│   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument
+│   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument; mirroredAt (assembly parity),
+│   │                     sideAt (assembly parity XOR the part's own `mirrored` flag, inv 46); treeRows carries a part's flag
 │   ├── treeEdit.ts       every write-back: applyWorldEdits (storageKey), lowerEdit,
 │   │                     translateItems, writeBackFlat (inv 46); lower/lowerCuts are the exact inverse
-│   │                     of a mirrored placement; postureRefusal (flat<->upright across a mirror), sameSideFirst
+│   │                     of a mirrored placement; postureRefusal (flat<->upright across a mirror), sameSideFirst (both by sideAt);
+│   │                     lowerOwnMirror (a mirrored user's features into its Shape's hand against withShapeFeatures, inv 44);
+│   │                     regroupShapes: exact membership through each user's own flag, flaggedKeys (inv 46, fu 432)
 │   ├── treeOps.ts        group/ungroup, shareInstance, makeUniqueItem, removeItems, turnInstance;
-│   │                     setMirrored / mirroredCopy over placedBox / replaceKeepingBox (mirrored instances)
+│   │                     setMirrored / mirroredCopy over placedBox / replaceKeepingBox (mirrored instances); Ungroup's plain
+│   │                     path strips a part's own `mirrored` (plainOf)
 │   ├── treeRepair.ts     repairTree, dropUnresolved (load repair)
-│   ├── shapes.ts         resolveBoard (THE shape reader), shapeUsers, prune/dissolveShapes (inv 45)
+│   ├── shapes.ts         resolveBoard (THE shape reader; applies a user's own `mirrored` via mirrorFeatures), shapeUsers,
+│   │                     prune/dissolveShapes (inv 45); plainOf (strips `shape` and `mirrored`), withoutFlag (a shaped record unflagged)
 │   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45; refuses
-│   │                     a member with no occurrence on the source's side of a mirror)
-│   ├── linksToShapes.ts  the v10→v11 step
+│   │                     a member with no occurrence on the source's side of a mirror; `mirrored` is OWN; `mirrorMate`: a user
+│   │                     of the source's Shape with the other flag is not "changing")
+│   ├── linksToShapes.ts  the v10→v11 step (and linkByRole's builder; keeps a mirror candidate's `mirrored` flag)
 │   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
 │   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
@@ -235,7 +245,10 @@ src/
 │   │                     (RejectedPart reason `'profile'`) unless carried (profilesCarried → carriesProfiles); restoreProfiles (the exact-entry
 │   │                     swap, only in a kept frame; also matches an echo on the ORIGINAL part, Ruling 10; original order when all restored);
 │   │                     keptFrame keeps unconditionally only for carried curves or carried profiles
-│   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45);
+│   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45); tries the part, its turns, then
+│   │                     mirrorCandidates (the part and each turn candidate through mirrorFeatures, turn kept, flagged; none when
+│   │                     rect cuts do not survive two mirrors exactly), each put in the representative's order (inOrderOf); a mirror
+│   │                     candidate left in no shared Shape is restored to the original part;
 │                     turnCandidates (other quarter turns keeping the world box and grain axis; every kind re-stored via taperWorld/angleWorld; none
 │                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut, hole-row and profile ids; profiles matched by sameProfile in stored order); a HOLED part is turned too (re-stored via worldHoles/holeRowsFor with an exact set, inv 56), a BANDED part (re-stored on the same world edges via worldBands/bandsFor, AI-bands), and a PROFILED part (re-stored via worldProfiles/profilesFor with an exact set and `known`, AI-profiles); none for curves or carried profiles (carriesProfiles)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
@@ -280,12 +293,15 @@ src/
 │                         sweepFixtures.ts (TEST-ONLY b1: apronArch, topCorners, notchEdge, frontOnly, plainLoop; b2: twoSide,
 │                         stopOnCorner, stopOnArch, stopOnNotch, bowFront, frontAndEnds, twoSideSharp, chiralTwoSide, zoneStop,
 │                         wrapThree, wrapFour, the station runs stationRightToBack/FrontToBack/FrontToRight, shortEnds, cornerGap,
-│                         cornerGapAs, overlapKinds/overlapCases; loader-free);
+│                         cornerGapAs, overlapKinds/overlapCases; chiralAll, all six feature kinds with a hand, for mirrored links;
+│                         loader-free);
 │                         meshCases.ts (TEST-ONLY c2: sweptIdentity's swept fixtures, moved verbatim, shared by the mesh and edge tests);
 │                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
-│   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46);
+│   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46); mirrorLinkedPart (the
+│   │                     Mirrored checkbox: flag + turn inverseTurn(2a + r), world X, inv 46); linkBoards' part-level flags
+│   │                     (source's Shape users keep theirs, others take the source's); store.mirrorLinks.test.ts
 │   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
 │   │                     addCurves/updateCurve/removeCurve, the same shape
 │   ├── assemblyPick.ts   clickTarget (inv 46)
@@ -330,7 +346,8 @@ src/
 │                     tangent point); `runoutFor` falls back to `runoutOf` for every view-curve id; b2: a `stop` face takes its cutter from the
 │                     stop frames only (`stopRunoutNormals`), any other run-out face from `sweptRunouts` only; a vertex ON a stop plane takes the
 │                     band's normal (`stopJunctions`); stopNormals.test.ts
-├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
+├── panels/           DimensionField/NameField (invs 5, 9), Properties (the Mirrored checkbox on a linked part), CopyInRow,
+│                     PartsList (a mirrored part's ⇋ badge, `role="img"` "Mirrored"),
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
 │                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map), diagramScale, diagramLabels (inv 19); planBalloons

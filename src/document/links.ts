@@ -14,7 +14,7 @@ import { copyHardwareUse, sameHardware } from './hardwareModel';
  * Board field fail tsc until it is classified (invariant 40's argument).
  */
 export const LINK_FIELDS = {
-  id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own',
+  id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own', mirrored: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
   bands: 'shared', cornerRule: 'shared', hardware: 'shared',
@@ -173,7 +173,11 @@ export function linkPlan(
   if (keyOf && new Set(members.map((b) => keyOf(b.id) ?? b.id)).size < 2) return null;
   const side = mirroredOf?.(source.id);
   const onSide = (b: Board) => mirroredOf === undefined || mirroredOf(b.id) === side;
-  const changing = members.filter((b) => b.id !== source.id && onSide(b) && !sameShared(source, b)).map((b) => b.id);
+  // A user of the source's own Shape with the OTHER own mirror flag (fu 432, spec §5.2) is its mirror image by design: the
+  // Shape is written as it is and the user keeps its flag, so it does not change — compared by world fields it would
+  // read as changing. Resolved world parts carry their stored part's flag. Nothing changes for a flag-free document.
+  const mirrorMate = (b: Board) => source.shape !== undefined && b.shape === source.shape && (b.mirrored === true) !== (source.mirrored === true);
+  const changing = members.filter((b) => b.id !== source.id && onSide(b) && !mirrorMate(b) && !sameShared(source, b)).map((b) => b.id);
   const shape = source.shape ?? [...shapes][0] ?? null;
   const oneShape = members.every((b) => b.shape !== undefined && b.shape === members[0]!.shape);
   if (oneShape && changing.length === 0) return null;

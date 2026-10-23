@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createDocument } from '../document/document';
+import { createBoard, createDocument, sharedOf } from '../document/document';
 import { PartsList } from './PartsList';
 import { assemblyDoc, cabinetsDoc } from '../document/treeFixtures';
 
@@ -195,5 +195,23 @@ describe('PartsList mirrored badge', () => {
     useStore.getState().replaceDocument({ ...d, instances: d.instances.map((i) => ({ ...i, mirrored: true })) });
     render(<PartsList />);
     expect(screen.getAllByRole('img', { name: 'Mirrored' })).toHaveLength(1);
+  });
+
+  it('a mirrored linked PART row shows the Mirrored badge beside its link badge (fu 432); its unmirrored mate none', () => {
+    const shape = { id: 's1', ...sharedOf(createBoard()) };
+    useStore.getState().replaceDocument({
+      ...createDocument('Pair'), shapes: [shape],
+      boards: [
+        { id: 'l', name: 'Left', position: [0, 0, 0], rotation: 0, shape: 's1' },
+        { id: 'r', name: 'Right', position: [40, 0, 0], rotation: 0, shape: 's1', mirrored: true },
+      ],
+    });
+    render(<PartsList />);
+    const badges = screen.getAllByRole('img', { name: 'Mirrored' });
+    expect(badges).toHaveLength(1);
+    const row = screen.getByRole('button', { name: 'Right' }).closest('li')!;
+    expect(row).toContainElement(badges[0]!);
+    expect(row.querySelector('[aria-label="Linked, 2 parts"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Left' }).closest('li')!.querySelector('[aria-label="Mirrored"]')).toBeNull();
   });
 });

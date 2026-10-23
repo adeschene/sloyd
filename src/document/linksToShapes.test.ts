@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { migrateDocument, worldParts } from './document';
+import { createBoard, createDocument, migrateDocument, worldParts } from './document';
+import { linksToShapes } from './linksToShapes';
+import type { Board, StoredBoard } from './types';
 
 const leg = (id: string, x: number, extra: Record<string, unknown> = {}) => ({
   id, name: `Leg ${id}`, length: 28, width: 1.75, thickness: 1.75, position: [x, 0.1, 0.3], rotation: 90, posture: 'upright',
@@ -11,7 +13,7 @@ describe('v10 -> v11: links become shapes', () => {
   it('equal members become users of one shape; nothing moves', () => {
     const v10 = { version: 10, name: 'x', boards: [leg('a', 0), leg('b', 10.1)], instances: [], definitions: [] };
     const doc = migrateDocument(v10);
-    expect(doc.version).toBe(20);
+    expect(doc.version).toBe(21);
     expect(doc.shapes).toHaveLength(1);
     expect(doc.boards.map((b) => 'shape' in b)).toEqual([true, true]);
     expect(worldParts(doc).map((b) => [b.position, b.rotation, b.cuts[0]!.id]))
@@ -191,5 +193,19 @@ describe('load: a one-user shape dissolves, counted world-wide over stored parts
     expect(doc.shapes).toHaveLength(1);
     expect(doc.definitions).toHaveLength(2);
     expect(doc.definitions.map((d) => (d.boards[0] as { shape: string }).shape)).toEqual([doc.shapes[0]!.id, doc.shapes[0]!.id]);
+  });
+});
+
+describe('linksToShapes keeps a mirror candidate\'s flag (fu 432, mirrored-links spec §5.1)', () => {
+  it('writes mirrored: true on the shaped record of a flagged member only', () => {
+    const a: Board = { ...createBoard({ length: 20, width: 6, thickness: 0.75 }), id: 'a', name: 'A' };
+    const b: Board = { ...a, id: 'b', name: 'B', position: [30, 0, 0], mirrored: true };
+    const doc = linksToShapes({ ...createDocument('T'), boards: [a, b] }, new Map<StoredBoard, string>([[a, 'x'], [b, 'x']]));
+    expect(doc.shapes).toHaveLength(1);
+    expect(doc.boards).toEqual([
+      { id: 'a', name: 'A', position: a.position, rotation: a.rotation, shape: doc.shapes[0]!.id },
+      { id: 'b', name: 'B', position: [30, 0, 0], rotation: a.rotation, shape: doc.shapes[0]!.id, mirrored: true },
+    ]);
+    expect('mirrored' in doc.boards[0]!).toBe(false);
   });
 });

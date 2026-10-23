@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { designToDocument } from './generated';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { isShaped } from './shapes';
-import { createBoard, migrateDocument } from './document';
+import { createBoard, createDocument, migrateDocument } from './document';
 import { flatDocument, worldParts } from './tree';
 import { worldTapers } from './taperWorld';
 import { worldAngles } from './angleWorld';
@@ -11,7 +11,10 @@ import { sortHoleRows, worldHoles } from './holeWorld';
 import { boardHoles } from './holes';
 import { axisDimensions, boardExtents, toWorldOffset } from './geometry';
 import { miterDegrees, taperCut } from './angleCuts';
-import { turnCandidates, alignedTo } from './roleLinks';
+import { turnCandidates, alignedTo, linkByRole, mirrorCandidates } from './roleLinks';
+import { mirrorFeatures, mirrorInPlace } from './frames';
+import { chiralCurved } from './turnFixtures';
+import type { SloydDocument } from './types';
 import { sameShared } from './links';
 import type { Board } from './types';
 import { ARCH } from './curveFixtures';
@@ -170,10 +173,20 @@ describe('turned links (fu 301)', () => {
     expect(shapedNames(doc)).toEqual(['Leg BL', 'Leg FL', 'Leg FR']);
   });
 
-  it('a non-square leg set pairs only by 180°: two components', () => {
+  it('a non-square leg set pairs by 180° and the other pair by mirror: one component (fu 432)', () => {
+    // A non-square leg turns only by 180°, which pairs FL with BR and FR with BL; FR is FL's mirror image, so FR and BL
+    // join FL's Shape as mirrored users (before fu 432: two components).
+    const unlinked = designToDocument(d(inside([1.5, 28, 2.5], ''))).doc;
     const { doc } = designToDocument(d(inside([1.5, 28, 2.5])));
-    expect(shapeIds(doc).size).toBe(2);
-    expect(shapedNames(doc)).toEqual(['Leg BL', 'Leg BR', 'Leg FL', 'Leg FR']);
+    expect(shapeIds(doc).size).toBe(1);
+    expect(stored(doc).filter(isShaped).map((b) => [b.name, b.mirrored === true]))
+      .toEqual([['Leg FL', false], ['Leg FR', true], ['Leg BL', true], ['Leg BR', false]]);
+    expect(world(doc)).toEqual(world(unlinked));
+  });
+
+  it('four inside-tapered square legs link by turns, never mirrored (unmirrored candidates come first)', () => {
+    const { doc } = designToDocument(d(inside()));
+    expect(stored(doc).some((b) => 'mirrored' in b)).toBe(false);
   });
 
   it('a square flat panel is never turned 90° (its figure would run crosswise)', () => {
@@ -323,18 +336,27 @@ describe('linking banded parts (AI-bands spec §5)', () => {
     expect(doc.shapes).toHaveLength(0);
   });
 
-  // KNOWN LIMIT (follow-up 432, the user's choice "two parts for now"): mirrored case sides with shelf-pin rows on their
-  // inside faces AND edging on their front edges do not link. This pins today's behaviour so a future fix must change it
-  // on purpose, not by accident. Why: both sides store the band on the same face; the 180° turn that mirrors the pin rows
-  // moves the band to the other stored face (world edge kept), so no single stored form matches both.
-  it('mirrored sides with pins inside AND edging on the front edge do not link (fu 432, recorded limit)', () => {
+  // Follow-up 432 (was a recorded limit): mirrored case sides with shelf-pin rows on their inside faces AND edging on
+  // their front edges. No turn links them (the 180° turn that mirrors the pin rows moves the band to the other stored
+  // face), so the right side becomes the left's Shape's MIRRORED user, every world feature where it was.
+  it('mirrored sides with pins inside AND edging on the front edge link as ONE Shape, one user mirrored (fu 432)', () => {
     const pins = (face: '+x' | '-x', z: number) =>
       ({ face, diameter: 0.25, depth: 0.375, through: false, offset: v(face === '+x' ? 0.75 : 0, 10, z), toward: '+y' as const, count: 9, pitch: 1.25 });
-    const side = (name: string, x: number, inside: '+x' | '-x'): GeneratedPart =>
-      ({ ...part(name, 'side', [x, 0, 0], [0.75, 30, 12]), holes: [pins(inside, 2), pins(inside, 10)], bands: [{ edge: '-z', edging: 'veneer' }] });
+    const side = (name: string, x: number, inside: '+x' | '-x', role = 'side'): GeneratedPart =>
+      ({ ...part(name, role, [x, 0, 0], [0.75, 30, 12]), holes: [pins(inside, 2), pins(inside, 10)], bands: [{ edge: '-z', edging: 'veneer' }] });
+    const world = (doc: ReturnType<typeof designToDocument>['doc']) => flatDocument(doc).boards
+      .map((b) => ({ name: b.name, box: boardExtents(b), at: b.position, holes: worldHoleCentres(b), bands: worldBands(b) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const unlinked = designToDocument(d([side('Side L', 0, '+x', ''), side('Side R', 20, '-x', '')])).doc;
     const { doc } = designToDocument(d([side('Side L', 0, '+x'), side('Side R', 20, '-x')]));
-    expect(doc.shapes).toHaveLength(0);
-    expect(stored(doc).filter(isShaped)).toHaveLength(0);
+    expect(doc.shapes).toHaveLength(1);
+    const users = stored(doc).filter(isShaped);
+    expect(users.map((b) => [b.name, b.mirrored === true])).toEqual([['Side L', false], ['Side R', true]]);
+    expect('mirrored' in users[0]!).toBe(false);   // stored only when true
+    expect(world(doc)).toEqual(world(unlinked));
+    expect(world(doc).every((p) => p.holes.length === 18 && p.bands.length === 1)).toBe(true);
+    // The link survives the loader (schema 21: the flag is an own field of a shaped part).
+    expect(migrateDocument(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
   });
 });
 
@@ -468,5 +490,96 @@ describe('linking profiled parts (AI-profiles spec §5)', () => {
       run: { start: mkEnd('min', 'width', 1), end: mkEnd('min', 'length', 1) } } as never] };
     expect(turnCandidates({ ...two, profiles: [] }).length).toBeGreaterThan(0);
     expect(turnCandidates(two)).toEqual([]);
+  });
+});
+
+describe('mirror twins (fu 432, mirrored-links spec §5.1)', () => {
+  const stored = (doc: SloydDocument) => [...doc.boards, ...doc.definitions.flatMap((x) => x.boards)];
+  const features = (b: Board) => ({ name: b.name, box: boardExtents(b), at: b.position, holes: worldHoleCentres(b), bands: worldBands(b),
+    angles: worldAngles(b), tapers: worldTapers(b), profiles: worldProfiles(b) });
+  const pins = (face: '+x' | '-x', z: number) =>
+    ({ face, diameter: 0.25, depth: 0.375, through: false, offset: v(face === '+x' ? 0.75 : 0, 10, z), toward: '+y' as const, count: 9, pitch: 1.25 });
+  // Case sides, pins on their inside faces, edging on the front: only a TURNED mirror candidate links them.
+  const edged = (name: string, x: number, inside: '+x' | '-x', role = 'side'): GeneratedPart =>
+    ({ ...part(name, role, [x, 0, 0], [0.75, 30, 12]), holes: [pins(inside, 2), pins(inside, 10)], bands: [{ edge: '-z', edging: 'veneer' }] });
+  const caseSides = () => {
+    const doc = designToDocument(d([edged('Side L', 0, '+x', ''), edged('Side R', 20, '-x', '')])).doc;
+    return doc.boards as Board[];
+  };
+  const docOf = (boards: Board[], definitions: SloydDocument['definitions'] = []): SloydDocument =>
+    ({ ...createDocument('T'), boards, definitions });
+
+  it('mirrorCandidates: the part and each turn, features mirrored, flagged; each resolves to the part\'s own world', () => {
+    const [, right] = caseSides();
+    const cs = mirrorCandidates(right!);
+    expect(cs.map((c) => [c.rotation, c.mirrored])).toEqual([[90, true], [270, true]]);
+    // A flagged candidate as a stored user draws mirrorFeatures of its stored features: the part itself, exactly.
+    for (const c of cs) expect(features(mirrorFeatures(c))).toEqual(features(right!));
+  });
+
+  it('pins-only case sides still link by the 180° turn, unmirrored (unmirrored candidates come first)', () => {
+    // Mutation check: trying mirror candidates before turns stores Side R mirrored at 270 — this fails then.
+    const row = (face: '+x' | '-x', z: number) => pins(face, z);
+    const side = (name: string, x: number, inside: '+x' | '-x'): GeneratedPart =>
+      ({ ...part(name, 'side', [x, 0, 0], [0.75, 30, 12]), holes: [row(inside, 2), row(inside, 10)] });
+    const { doc } = designToDocument(d([side('Side L', 0, '+x'), side('Side R', 20, '-x')]));
+    expect(doc.shapes).toHaveLength(1);
+    expect(stored(doc).filter(isShaped).map((b) => [b.name, 'mirrored' in b])).toEqual([['Side L', false], ['Side R', false]]);
+  });
+
+  for (const [posture, rotation] of [['upright', 0], ['flat', 90], ['on-edge', 270]] as const) {
+    it(`a curved mirror pair (chiralCurved, ${posture} at ${rotation}°) links by the UNTURNED mirror candidate`, () => {
+      const left: Board = { ...chiralCurved(posture), id: 'L', name: 'Left', rotation, position: [0, 0, 0] };
+      const right: Board = { ...mirrorInPlace(left), id: 'R', name: 'Right', position: [30, 0, 0] };
+      expect(turnCandidates(right)).toEqual([]);
+      expect(mirrorCandidates(right)).toHaveLength(1);
+      const before = docOf([left, right]);
+      const doc = linkByRole(before, new Map([['L', 'side'], ['R', 'side']]));
+      expect(doc.shapes).toHaveLength(1);
+      expect(doc.boards.map((b) => [b.id, isShaped(b), b.mirrored === true])).toEqual([['L', true, false], ['R', true, true]]);
+      // The world parts are the input's, field for field (curves and rectangular cuts included).
+      const strip = (b: Board) => { const { shape: _s, mirrored: _m, ...rest } = b; return rest; };
+      expect(worldParts(doc).map(strip)).toEqual(worldParts(before).map(strip));
+    });
+  }
+
+  it('a part with no twin (a near-miss of a mirror image) is stored exactly as input, no flag', () => {
+    // Side R with its rows a little off (9 not 10 from the front): no candidate, mirrored or not, matches Side L.
+    const [left] = caseSides();
+    const near = designToDocument(d([{ ...edged('Side R', 20, '-x', ''), holes: [pins('-x', 2), pins('-x', 9)] }])).doc.boards[0] as Board;
+    expect(mirrorCandidates(near).length).toBeGreaterThan(0);
+    const doc = linkByRole(docOf([left!, near]), new Map([[left!.id, 'side'], [near.id, 'side']]));
+    expect(doc.shapes).toHaveLength(0);
+    expect(doc.boards).toEqual([left, near]);   // a one-user Shape dissolves to an equal copy, as for any part
+    expect(stored(doc).some((b) => 'mirrored' in b)).toBe(false);
+  });
+
+  // In `stored` order (loose parts, then each definition's) the first is the representative and the second the mirror
+  // candidate. A definition nothing places is never seen by linksToShapes, which judges worldParts.
+  it('a mirror candidate linksToShapes leaves plain is replaced by the ORIGINAL part (never stored)', () => {
+    // Loose Side R is the representative (it builds a Shape alone and dissolves); Side L, its mirror twin, sits in a
+    // definition nothing places, so its candidate is never converted. Mutation check: without the restore, Side L is
+    // stored as the plain candidate with reflected features and the flag.
+    const [left, right] = caseSides();
+    const def = { id: 'D', boards: [left!], instances: [], hardware: [] };
+    const doc = linkByRole(docOf([right!], [def]), new Map([[left!.id, 'side'], [right!.id, 'side']]));
+    expect(doc.shapes).toHaveLength(0);
+    expect(doc.definitions[0]!.boards[0]).toBe(left);
+    expect(doc.boards[0]).toEqual(right);   // a one-user Shape dissolves to an equal copy, as for any part
+    expect(stored(doc).some((b) => 'mirrored' in b)).toBe(false);
+  });
+
+  it('a mirror candidate left the ONLY user of its Shape is replaced by the ORIGINAL part (never stored)', () => {
+    // Side R, the representative, sits in an UNPLACED definition; Side L, in a placed one, is its mirror candidate and
+    // alone builds the Shape. Mutation check: without the restore, dissolveShapes stores it at the candidate's turn.
+    const [left, right] = caseSides();
+    const unplaced = { id: 'D1', boards: [right!], instances: [], hardware: [] };
+    const placed = { id: 'D2', boards: [left!], instances: [], hardware: [] };
+    const doc0: SloydDocument = { ...docOf([], [unplaced, placed]),
+      instances: [{ id: 'I', name: 'Case', definition: 'D2', position: [0, 0, 0], rotation: 0 }] };
+    const doc = linkByRole(doc0, new Map([[left!.id, 'side'], [right!.id, 'side']]));
+    expect(doc.shapes).toHaveLength(0);
+    expect(doc.definitions[1]!.boards[0]).toBe(left);
+    expect(doc.definitions[0]!.boards[0]).toBe(right);
   });
 });

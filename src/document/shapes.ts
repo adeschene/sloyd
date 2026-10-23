@@ -6,6 +6,7 @@ import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import { copyHoleRow } from './holes';
+import { mirrorFeatures } from './frames';
 import type { SharedField } from './links';
 
 /** A stored part that uses a Shape. A plain part always has `length`; a shaped one never does. */
@@ -36,8 +37,10 @@ export function resolveBoard(shapes: ReadonlyMap<string, Shape>, b: StoredBoard)
     if (!(k in s)) continue;
     shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : k === 'profiles' ? s.profiles.map(copyProfile) : k === 'bands' ? s.bands.map(copyBand) : k === 'hardware' ? s.hardware.map(copyHardwareUse) : s[k];
   }
-  const { shape, ...own } = b;
-  return { ...own, ...(shared as Pick<Board, SharedField>), shape };
+  const { shape, mirrored, ...own } = b;
+  const base: Board = { ...own, ...(shared as Pick<Board, SharedField>), shape };
+  // A mirrored user (fu 432, spec §3) is the Shape reflected along mirrorDim, then its own turn and position.
+  return mirrored ? { ...mirrorFeatures(base), mirrored: true } : base;
 }
 
 /** Stored users per shape id (a part placed by several copies counts once). */
@@ -55,9 +58,16 @@ export function pruneShapes(doc: SloydDocument): SloydDocument {
   return kept.length === doc.shapes.length ? doc : { ...doc, shapes: kept };
 }
 
-/** A resolved part as a stored plain part: no `shape` key. */
+/** A resolved part as a stored plain part: no `shape` key, and no `mirrored` (a plain part's features are already in its
+ *  own hand; spec §3). */
 export function plainOf(b: Board): Board {
-  const { shape: _shape, ...rest } = b;
+  const { shape: _shape, mirrored: _mirrored, ...rest } = b;
+  return rest;
+}
+
+/** A shaped part's stored record without its own `mirrored` flag (fu 432): the part as its Shape's unmirrored user. */
+export function withoutFlag(b: ShapedBoard): ShapedBoard {
+  const { mirrored: _mirrored, ...rest } = b;
   return rest;
 }
 

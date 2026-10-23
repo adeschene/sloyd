@@ -1262,7 +1262,28 @@ describe('linking controls', () => {
     unmount();
     act(() => { st().selectBoard(worldParts(st().doc)[0]!.id); });
     render(<Properties />);
-    expect(screen.getByText('Linked with 2 other parts: every edit but name, position and turn changes all 3.')).toBeInTheDocument();
+    expect(screen.getByText('Linked with 2 other parts: every edit but name, position, turn and Mirrored changes all 3.')).toBeInTheDocument();
+  });
+
+  it('a linked part shows a Mirrored checkbox under Turn that flips its own flag; an unlinked part shows none (fu 432)', async () => {
+    const [a, b] = two();
+    act(() => { st().selectBoard(a!); });
+    const first = render(<Properties />);
+    expect(screen.queryByRole('checkbox', { name: 'Mirrored' })).toBeNull();
+    first.unmount();
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(b!); st().updateBoard(b!, { rotation: 90 }); });
+    render(<Properties />);
+    const box = screen.getByRole('checkbox', { name: 'Mirrored' });
+    expect(box).not.toBeChecked();
+    // Under Turn: the checkbox follows the Turn select in the document order.
+    expect(screen.getByLabelText('Turn').compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(box);
+    expect(partAt(st().doc, b!)).toMatchObject({ mirrored: true, rotation: 270 });
+    expect(screen.getByRole('checkbox', { name: 'Mirrored' })).toBeChecked();
+    expect(partAt(st().doc, a!)).not.toHaveProperty('mirrored');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mirrored' }));
+    expect(partAt(st().doc, b!)).not.toHaveProperty('mirrored');
+    expect(partAt(st().doc, b!)).toMatchObject({ rotation: 90 });
   });
 
   it('single panel Unlink makes the part independent', async () => {

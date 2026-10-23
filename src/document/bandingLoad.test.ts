@@ -11,7 +11,7 @@ const W0 = { across: 'width', from: 'min' } as const;
 const L1 = { across: 'length', from: 'max' } as const;
 
 describe('loading schema 19 (edge banding spec §2.3)', () => {
-  it('this build writes 20', () => expect(CURRENT_VERSION).toBe(20));
+  it('this build writes 21', () => expect(CURRENT_VERSION).toBe(21));
   it('a v18 file loads with the built-in band type and no bands', () => {
     const d = migrateDocument({ ...raw({ boards: [part()] }), version: 18, bandTypes: undefined });
     expect(d.bandTypes).toEqual([BUILT_IN_BAND]);
@@ -83,7 +83,7 @@ describe('loading schema 19 (edge banding spec §2.3)', () => {
     expect(d.materials.map((m) => m.id)).toEqual(['m-s-wenge']);
     expect(d.bandTypes[1]).toMatchObject({ material: 'm-s-wenge' });
   });
-  it('a v21 file is refused by the version gate', () => {
-    expect(() => migrateDocument({ ...raw({}), version: 21 })).toThrow(/newer version/);
+  it('a v22 file is refused by the version gate', () => {
+    expect(() => migrateDocument({ ...raw({}), version: 22 })).toThrow(/newer version/);
   });
 });

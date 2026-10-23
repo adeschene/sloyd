@@ -1,6 +1,7 @@
 import { buildCutList, createBoard, createDocument, cornerCurve } from './document';
 import type { Board, FlatDocument, SloydDocument } from './document';
 import { flatDocument } from './tree';
+import { sharedOf } from './links';
 import { chiralPart } from './turnFixtures';
 import type { Cut } from './types';
 import { cutRegion } from './cuts';
@@ -678,6 +679,32 @@ describe('mirrored copies on the cut list (mirrored-instances spec §6)', () => 
     const rows = rowsOf(pair(plain));
     expect(rows).toHaveLength(1);
     expect(rows[0]!.qty).toBe(2);
+  });
+});
+
+describe('mirrored links on the cut list (mirrored-links spec §6.1, fu 432)', () => {
+  // One Shape, two users, the second its mirror image (schema 21): the cut list reads the RESOLVED flat parts, so the
+  // mirrored user's features are in its own hand and the row split is the same as two plain parts'.
+  const linkedPair = (b: Board): SloydDocument => ({
+    ...createDocument('Linked pair'),
+    shapes: [{ id: 'sh', ...sharedOf(b) }],
+    boards: [
+      { id: 'l', name: 'Left', position: [0, 0, 0], rotation: b.rotation, shape: 'sh' },
+      { id: 'r', name: 'Right', position: [40, 0, 0], rotation: b.rotation, shape: 'sh', mirrored: true },
+    ],
+  });
+  const rowsOf = (d: SloydDocument) => buildCutList(flatDocument(d)).groups.flatMap((g) => g.rows);
+  it('a one-handed mirrored pair is two rows, one part each', () => {
+    const rows = rowsOf(linkedPair(chiralPart('flat')));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.qty)).toEqual([1, 1]);
+    expect(rows.flatMap((r) => r.boardIds).sort()).toEqual(['l', 'r']);
+  });
+  it('a symmetric mirrored pair is one row of 2', () => {
+    const rows = rowsOf(linkedPair(createBoard({ name: 'Plain', length: 20, width: 6, thickness: 0.75 })));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.qty).toBe(2);
+    expect([...rows[0]!.boardIds].sort()).toEqual(['l', 'r']);
   });
 });
 

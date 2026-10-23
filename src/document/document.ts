@@ -175,8 +175,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * v20 (hardware spec §2.3): `hardwareTypes` (document) and `hardware` (document, part, shape, definition), document-level, no
  * step — absent fields default to []. Harm a v19 build would do: silent loss — it drops every hardware type and entry and
  * autosaves. Hardware types validate BEFORE the parts, so an entry naming a type this file carries keeps it.
+ *
+ * v21 (mirrored links spec §3): `mirrored` on a SHAPED stored part, kept only when literally `true` (any other value
+ * dropped; dropped from a plain part). No step: an absent flag is an unmirrored user. Harm a v20 build would do: it
+ * ignores the flag and draws the mirrored side with its Shape's own hand — pins on the outside, edging on the back —
+ * silently, and autosaves it. So a v21 file must be refused by a v20 build.
  */
-export const CURRENT_VERSION = 20;
+export const CURRENT_VERSION = 21;
 
 export class DocumentError extends Error {
   /**
@@ -842,7 +847,9 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>, known: Re
 
   const name = typeof b.name === 'string' ? b.name.trim() : '';
   const own = { id: takeId(b.id, seen), name: name || 'Board', position, rotation: validRotation(b.rotation) };
-  if (!shared) return { ...own, shape: b.shape as string };
+  // Schema 21 (mirrored links spec §3): a SHAPED part may be its Shape's mirror image, kept only when literally `true`.
+  // A plain part's stray flag is never read (its features are already in its own hand).
+  if (!shared) return { ...own, shape: b.shape as string, ...(b.mirrored === true ? { mirrored: true as const } : {}) };
 
   const board: Board = { ...own, ...shared.fields };
   if (legacy && typeof b.link === 'string' && b.link.trim() !== '') legacy.set(board, b.link);

@@ -9,12 +9,13 @@ import { copyHardwareUse } from './hardwareModel';
 import { copyHoleRow, holeRowValues, mirrorHoleRow, sameHoleRow } from './holes';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
+import type { SharedField } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, rotateVec, toLocal } from './frames';
 import type { Frame } from './frames';
 import { mirrorCut } from './mirrorCut';
 import type { Container } from './tree';
-import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, mirroredAt, parentPath, partAt, worldParts } from './tree';
+import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, sideAt, worldParts } from './tree';
 
 /** Replace one container's contents: the root's, or a definition's. */
 export function updateContainer(doc: SloydDocument, path: string | null, fn: (c: Container) => Container): SloydDocument {
@@ -200,7 +201,9 @@ export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can
  * its mirrored copy) is allowed from either side. Also refused (defensive; a
  * selection is one level): two targets sharing a Shape on different sides. A
  * posture that keeps d0 (flat <-> on-edge) is never refused. The ONE decider:
- * the store's updateBoards and the Posture field.
+ * the store's updateBoards and the Posture field. A side is `sideAt`: the chain's
+ * parity XOR the part's own mirror flag (mirrored links, fu 432, spec §4), so a Shape
+ * with a mirrored and an unmirrored user is refused like one split by an assembly.
  */
 export function postureRefusal(doc: SloydDocument, ids: readonly string[], posture: Posture | undefined): string | null {
   if (posture === undefined) return null;
@@ -209,12 +212,12 @@ export function postureRefusal(doc: SloydDocument, ids: readonly string[], postu
   for (const id of ids) {
     const b = world.find((x) => x.id === id);
     if (!b?.shape || mirrorDim({ ...b, posture }) === mirrorDim(b)) continue;
-    const side = mirroredAt(doc, b.id);
+    const side = sideAt(doc, b.id);
     if (sideOf.has(b.shape) && sideOf.get(b.shape) !== side) return POSTURE_ACROSS_MIRROR;
     sideOf.set(b.shape, side);
     const users = world.filter((x) => x.shape === b.shape);
     const key = (x: Board) => storageKey(doc, x.id) ?? x.id;
-    const onSide = new Set(users.filter((x) => mirroredAt(doc, x.id) === side).map(key));
+    const onSide = new Set(users.filter((x) => sideAt(doc, x.id) === side).map(key));
     if (users.some((x) => !onSide.has(key(x)))) return POSTURE_ACROSS_MIRROR;
   }
   return null;
@@ -225,10 +228,11 @@ export function postureRefusal(doc: SloydDocument, ids: readonly string[], postu
  * any on the other side (stable otherwise). `oneEditPerTarget` keeps the FIRST
  * occurrence of each stored part, so this makes it lower every stored part
  * through the side the edit was made on: two lowerings through different
- * parities would write different cuts to one Shape (spec §4, amended).
+ * parities would write different cuts to one Shape (spec §4, amended). A side
+ * is `sideAt` (the part's own mirror flag counts; mirrored links, fu 432).
  */
 export function sameSideFirst(doc: SloydDocument, ids: Iterable<string>, sideOf: (id: string) => boolean | undefined): string[] {
-  const off = (id: string) => { const want = sideOf(id); return want !== undefined && mirroredAt(doc, id) !== want ? 1 : 0; };
+  const off = (id: string) => { const want = sideOf(id); return want !== undefined && sideAt(doc, id) !== want ? 1 : 0; };
   return [...ids].map((id, i) => ({ id, i, o: off(id) })).sort((a, b) => a.o - b.o || a.i - b.i).map((x) => x.id);
 }
 
@@ -321,6 +325,13 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   for (let j = chain.length - 1; j >= 0; j -= 1) reps[j] = placeBoard(chain[j]!, reps[j + 1]!);
   let cur = after;
   for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur, keepWorld);
+  // A mirrored user (mirrored links, fu 432, spec §4): `cur` is now in the part's own (mirrored) hand; lower its features
+  // once more through the part's own flag into the Shape's hand. No turn or position: the flag mirrors features only.
+  // `ref` is the Shape's OWN arrays at the before sizes, so an untouched feature maps back to the Shape's object (no
+  // drift, inv 44) and the change tests below compare against what is stored, never `resolved`'s mirrored copies.
+  const shape = isShaped(stored) && stored.mirrored === true ? shapes.get(stored.shape) : undefined;
+  const ref: Board = shape ? withShapeFeatures(resolved, shape) : resolved;
+  if (shape) cur = lowerOwnMirror(ref, cur, keepWorld);
 
   const resized = keepWorld
     && (before.posture !== after.posture || boardExtents(before).some((e, a) => e !== boardExtents(after)[a]));
@@ -330,34 +341,60 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
     if (k === 'position' || k === 'rotation') return moved;
     if (k === 'angleCuts') {
       // Written when edited, or when a mirror lowering produced a fresh array that is not the stored one
-      // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain leaves
-      // cur === after, so a shared world array is never written.
-      return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== resolved.angleCuts);
+      // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain and an unflagged part
+      // leave cur === after. A flagged user's cur is lowered through its own flag, so cur !== after even when nothing
+      // changed: what prevents a write then is `cur.X !== ref.X` — lowerOwnMirror maps an untouched feature back to the
+      // Shape's own array (`ref`), so a shared world array is never written.
+      return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== ref.angleCuts);
     }
     if (k === 'holes') {
       // As angleCuts: written when edited, or when a mirror lowering produced a fresh array that is not the stored one.
-      return rec(before)[k] !== rec(after)[k] || (cur.holes !== after.holes && cur.holes !== resolved.holes);
+      return rec(before)[k] !== rec(after)[k] || (cur.holes !== after.holes && cur.holes !== ref.holes);
     }
     if (k === 'curves') {
       // As holes: written when edited, or when a mirror lowering produced a fresh array that is not the stored one.
-      return rec(before)[k] !== rec(after)[k] || (cur.curves !== after.curves && cur.curves !== resolved.curves);
+      return rec(before)[k] !== rec(after)[k] || (cur.curves !== after.curves && cur.curves !== ref.curves);
     }
     if (k === 'profiles') {
       // As curves.
-      return rec(before)[k] !== rec(after)[k] || (cur.profiles !== after.profiles && cur.profiles !== resolved.profiles);
+      return rec(before)[k] !== rec(after)[k] || (cur.profiles !== after.profiles && cur.profiles !== ref.profiles);
     }
     if (k === 'bands') {
       // As profiles.
-      return rec(before)[k] !== rec(after)[k] || (cur.bands !== after.bands && cur.bands !== resolved.bands);
+      return rec(before)[k] !== rec(after)[k] || (cur.bands !== after.bands && cur.bands !== ref.bands);
     }
     if (k === 'hardware') {
       // As bands.
-      return rec(before)[k] !== rec(after)[k] || (cur.hardware !== after.hardware && cur.hardware !== resolved.hardware);
+      return rec(before)[k] !== rec(after)[k] || (cur.hardware !== after.hardware && cur.hardware !== ref.hardware);
     }
-    return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
+    return k === 'cuts' ? cur.cuts !== ref.cuts : rec(before)[k] !== rec(after)[k];
   });
   const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : k === 'hardware' ? cur.hardware : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
+}
+
+/** `b` carrying the Shape's OWN feature arrays (the Shape's hand): the reference a mirrored user's features are lowered
+ *  against, so an untouched feature maps back to the Shape's object (no drift, inv 44). */
+function withShapeFeatures(b: Board, shape: Shape): Board {
+  return { ...b, cuts: shape.cuts, angleCuts: shape.angleCuts, holes: shape.holes, curves: shape.curves, profiles: shape.profiles, bands: shape.bands };
+}
+
+/**
+ * A mirrored user's features lowered through its OWN flag (mirrored links, fu 432, spec §4): from the part's hand into
+ * its Shape's, against `ref` (`withShapeFeatures`). The one copy shared by lowerEdit and joinery's regroup. Exact where
+ * it matters: an untouched feature comes back as the Shape's own object; a new rectangular cut is reflected by
+ * `mirrorCut` (not bit-exact twice on a non-dyadic size), every other feature by its flag flips.
+ */
+function lowerOwnMirror(ref: Board, cur: Board, keepWorld: boolean): Board {
+  return {
+    ...cur,
+    cuts: lowerCuts(ref, cur, keepWorld),
+    angleCuts: lowerAngleCuts(ref, cur),
+    holes: lowerHoles(ref, cur),
+    curves: lowerCurves(ref, cur),
+    profiles: lowerProfiles(ref, cur),
+    bands: lowerBands(ref, cur),
+  };
 }
 
 /** A lowered field's written value; ABSENT marks a key to delete. */
@@ -489,10 +526,6 @@ export function translateItems(doc: SloydDocument, ids: readonly string[], world
   return out;
 }
 
-/** Every stored part, in document order (the root's, then each definition's):
- *  the order `shapeUsers` counts in, so "a shape's first user" means one thing. */
-const storedInOrder = (doc: SloydDocument): StoredBoard[] => [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
-
 /** Every stored part made plain, a shaped one keeping its `shape` key as a
  *  MARKER of the shape it came from (it has `length`, so isShaped is false).
  *  writeBackFlat writes shared fields onto each part, then regroups by marker. */
@@ -609,44 +642,97 @@ function splitAssemblies(doc: SloydDocument, results: ReadonlyMap<string, Board>
   }
 }
 
+/** Every stored part with its storage key (`<definition id or ROOT>:<part id>`, storageKey's form), in document order
+ *  (the root's, then each definition's): the order `shapeUsers` counts in, so "a shape's first user" means one thing. */
+const keyedInOrder = (doc: SloydDocument): [string, StoredBoard][] => [
+  ...doc.boards.map((b): [string, StoredBoard] => [`${ROOT}:${b.id}`, b]),
+  ...doc.definitions.flatMap((d) => d.boards.map((b): [string, StoredBoard] => [`${d.id}:${b.id}`, b])),
+];
+
+/** The storage keys of the stored parts carrying `mirrored` (writeBackFlat reads them off its markers BEFORE joinery's
+ *  results are written, so a recipe that rebuilds a part without the key cannot drop a flag). */
+const flaggedKeys = (doc: SloydDocument): Set<string> =>
+  new Set(keyedInOrder(doc).filter(([, b]) => b.mirrored === true).map(([k]) => k));
+
 /**
- * Step 3 of writeBackFlat: regroup each shape's users (marked plain parts) by
- * their new shared fields, cuts by geometry (ORDER ignored: groupSignature sorts them). The group holding the shape's
- * first user (document order) keeps the shape; every other group gets a new
- * one. A shape takes its group's FIRST member's shared fields, cut ids
- * included, so every user carries those ids. A group of one stays a shape here;
- * migrateDocument dissolves it.
+ * Step 3 of writeBackFlat: regroup each shape's users (marked plain parts) by their new shared fields, cuts by geometry
+ * (ORDER ignored: groupSignature sorts them). The group holding the shape's first user (document order) keeps the shape;
+ * every other group gets a new one. A shape takes its group's founding member's shared fields, cut ids included, so
+ * every user carries those ids. A group of one stays a shape here, its own fields and NO flag; migrateDocument dissolves
+ * it into exactly that part.
+ *
+ * Mirrored links (fu 432, spec §6.2): a user keeps its own flag (`flagged`, by storage key), and a user joins a group
+ * only when its group's Shape, resolved through the user's OWN flag, gives exactly the user's shared fields
+ * (groupSignature) — so two users whose features are mirror images stay one Shape, and every world is joinery's output by
+ * construction. The membership test is that resolution, never a hash of lowered fields: `mirrorCut` is not bit-exact
+ * twice on a non-dyadic size, so lowering a mirrored user's untouched cuts and reflecting them back could split a pair
+ * joinery never touched. A group's Shape is its founder's fields when the founder is unflagged; a flagged founder takes
+ * the fields of the first later UNflagged user it resolves against, else its own fields lowered through its flag
+ * (`lowerOwnMirror` against the ORIGINAL Shape, so untouched features are the Shape's own objects). A flagged founder that
+ * resolves against neither is alone. Among unflagged users this is today's exact comparison, unchanged.
  */
-function regroupShapes(doc: SloydDocument): SloydDocument {
+function regroupShapes(doc: SloydDocument, flagged: ReadonlySet<string>): SloydDocument {
   const marked = (b: StoredBoard): b is Board & { shape: string } => !isShaped(b) && typeof b.shape === 'string';
-  const groups = new Map<string, Map<string, Board[]>>();     // shape id -> signature -> members
-  for (const b of storedInOrder(doc)) {
+  interface User { key: string; b: Board & { shape: string }; flag: boolean; sig: string }
+  const users = new Map<string, User[]>();     // shape id -> users, in document order
+  for (const [key, b] of keyedInOrder(doc)) {
     if (!marked(b)) continue;
-    if (!groups.has(b.shape)) groups.set(b.shape, new Map());
-    const g = groups.get(b.shape)!;
-    const sig = JSON.stringify(groupSignature(b));
-    if (!g.has(sig)) g.set(sig, []);
-    g.get(sig)!.push(b);
+    if (!users.has(b.shape)) users.set(b.shape, []);
+    users.get(b.shape)!.push({ key, b, flag: flagged.has(key), sig: JSON.stringify(groupSignature(b)) });
   }
-  if (groups.size === 0) return doc;
+  if (users.size === 0) return doc;
+  const original = shapeMap(doc);
+  const PROBE = 'regroup-probe';
+  /** Whether `fields` as a Shape, read through `u`'s own flag, is exactly `u`'s shared fields. */
+  const resolvesTo = (fields: Pick<Board, SharedField>, u: User): boolean => {
+    const record: StoredBoard = { id: u.b.id, name: u.b.name, position: u.b.position, rotation: u.b.rotation, shape: PROBE, ...(u.flag ? { mirrored: true as const } : {}) };
+    const r = resolveBoard(new Map([[PROBE, { id: PROBE, ...fields }]]), record);
+    return r !== null && JSON.stringify(groupSignature(r)) === u.sig;
+  };
   const kept = new Map<string, Shape>();
   const added: Shape[] = [];
-  const shapeOf = new Map<Board, string>();
-  for (const [sid, bySig] of groups) {
-    [...bySig.values()].forEach((members, gi) => {
-      const s: Shape = { id: gi === 0 ? sid : nextId(), ...sharedOf(members[0]!) };
+  const recordOf = new Map<string, StoredBoard>();   // storage key -> rewritten record
+  for (const [sid, list] of users) {
+    const sh = original.get(sid);
+    let left = list;
+    for (let gi = 0; left.length > 0; gi += 1) {
+      const founder = left[0]!;
+      // The Shape's fields: an unflagged founder's own (they resolve to it by construction, see `member`); a flagged
+      // founder's from the first later unflagged user it resolves against, and only when none does, its own fields
+      // lowered through its flag (built lazily: the common case never needs it).
+      let fields: Pick<Board, SharedField> | undefined;
+      if (!founder.flag) fields = sharedOf(founder.b);
+      else {
+        for (const u of left) {
+          if (u.flag) continue;
+          const f = sharedOf(u.b);
+          if (resolvesTo(f, founder)) { fields = f; break; }
+        }
+        if (!fields) {
+          const f = sharedOf(lowerOwnMirror(sh ? withShapeFeatures(founder.b, sh) : founder.b, founder.b, true));
+          if (resolvesTo(f, founder)) fields = f;
+        }
+      }
+      // Exact short-circuit: with neither flagged and the founder's own fields, resolving reproduces them verbatim
+      // (resolveBoard copies SHARED_KEYS unchanged for an unflagged record, and groupSignature reads only SHARED_KEYS),
+      // so membership is signature equality. A shape with no flagged user therefore resolves nothing.
+      const member = (f: Pick<Board, SharedField>, u: User): boolean =>
+        (!founder.flag && !u.flag ? u.sig === founder.sig : resolvesTo(f, u));
+      const group = fields ? left.filter((u) => member(fields!, u)) : [founder];
+      const alone = group.length === 1;
+      const s: Shape = { id: gi === 0 ? sid : nextId(), ...(alone ? sharedOf(founder.b) : fields!) };
       if (gi === 0) kept.set(sid, s); else added.push(s);
-      for (const m of members) shapeOf.set(m, s.id);
-    });
+      for (const u of group) {
+        recordOf.set(u.key, { id: u.b.id, name: u.b.name, position: u.b.position, rotation: u.b.rotation, shape: s.id, ...(u.flag && !alone ? { mirrored: true as const } : {}) });
+      }
+      left = left.filter((u) => !group.includes(u));
+    }
   }
-  const fix = (bs: StoredBoard[]) => bs.map((b): StoredBoard => {
-    const sid = shapeOf.get(b as Board);
-    return sid === undefined ? b : { id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: sid };
-  });
+  const fix = (defId: string, bs: StoredBoard[]) => bs.map((b): StoredBoard => recordOf.get(`${defId}:${b.id}`) ?? b);
   return {
     ...doc,
-    boards: fix(doc.boards),
-    definitions: doc.definitions.map((d) => ({ ...d, boards: fix(d.boards) })),
+    boards: fix(ROOT, doc.boards),
+    definitions: doc.definitions.map((d) => ({ ...d, boards: fix(d.id, d.boards) })),
     shapes: [...doc.shapes.map((s) => kept.get(s.id) ?? s), ...added],
   };
 }
@@ -673,8 +759,12 @@ function regroupShapes(doc: SloydDocument): SloydDocument {
  *    key applyWorldEdits has nothing to merge.
  * 3. shapes (`regroupShapes`): users grouped by shared fields with cuts
  *    compared by GEOMETRY, their ORDER ignored (groupSignature); the first user's group keeps the shape, others get
- *    new shapes; a group takes its first member's cut ids. migrateDocument
- *    dissolves one-user shapes.
+ *    new shapes; a group takes its first member's cut ids, except that a flagged founder's group takes those of the
+ *    first later UNflagged user it resolves against (Ruling 11; else its own, lowered through its flag). migrateDocument
+ *    dissolves one-user shapes. A mirrored user (fu 432) keeps its flag, read off
+ *    the markers BEFORE the results are written (joinery's parts need not carry
+ *    it), and groups with users its group's Shape resolves to exactly through
+ *    that flag (spec §6.2).
  * Comparisons are exact (stored values, invariant 18).
  */
 export function writeBackFlat(doc: SloydDocument, flatBefore: readonly Board[], flatAfter: readonly Board[]): SloydDocument {
@@ -704,5 +794,5 @@ export function writeBackFlat(doc: SloydDocument, flatBefore: readonly Board[], 
     seen.add(key);
     return true;
   });
-  return regroupShapes(applyWorldEdits(split, once, { keepWorld: true }));
+  return regroupShapes(applyWorldEdits(split, once, { keepWorld: true }), flaggedKeys(split));
 }

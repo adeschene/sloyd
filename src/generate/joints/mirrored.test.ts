@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument, writeBackFlat, worldParts } from '../../document/document';
+import { shapeUsers } from '../../document/shapes';
 import type { Board, SloydDocument } from '../../document/document';
 import { worldSolids } from '../../document/designCheck';
 import { sameSet } from '../../document/turnFixtures';
@@ -16,7 +17,7 @@ import type { P2 } from '../../document/curves';
 import { worldBox } from '../../document/designCheck';
 import { GATE_TOLERANCE } from './unjoin';
 import { endPos } from '../../document/profiles';
-import { axisDimensions } from '../../document/geometry';
+import { axisDimensions, boardExtents } from '../../document/geometry';
 import { documentToDesign } from '../../document/refineDesign';
 
 const SHELF = { x: 40.25, y: 10, z: 0 };
@@ -45,6 +46,15 @@ const join = (doc: SloydDocument) => {
   const sites = findSites(flat);
   const joined = applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc;
   return { flat, joined, out: writeBackFlat(doc, flat.boards, joined.boards) };
+};
+/** The flag rule on writeBackFlat's RAW output (before migrateDocument, whose loader drops a plain part's flag and so
+ *  would hide a leak): no stored plain part (a record with `length`) carries `mirrored`, and no flagged user's Shape has a
+ *  single user (a group of one keeps NO flag). */
+const rawFlagLeaks = (d: SloydDocument) => {
+  const users = shapeUsers(d);
+  return [...d.boards, ...d.definitions.flatMap((x) => x.boards)]
+    .filter((b) => b.mirrored === true && ('length' in b || !('shape' in b) || (users.get(b.shape) ?? 0) < 2))
+    .map((b) => b.id);
 };
 const solids = (bs: readonly Board[]) => bs.flatMap((b) => worldSolids(b).map((s) => [...s.min, ...s.max]));
 
@@ -158,5 +168,56 @@ describe.each([['curved', chiralCurved], ['two-side', chiralTwoSide]] as const)(
         w.forEach((n, j) => expect(Math.abs(g[j] - n), `profile ${want.id}[${j}]`).toBeLessThanOrEqual(GATE_TOLERANCE));
       });
     }
+  });
+});
+
+// Mirrored links (fu 432, spec §6.2): Generate links mirrored case sides as ONE Shape with the right side its MIRRORED
+// user (pins on the inside faces, edging on the front edges: chiral, no turn links them). Joinery's write-back makes
+// every shaped part plain and regroups; the regroup must keep the mirrored link when joinery cuts both sides alike, and
+// split it (no plain part left flagged) when it cuts only one.
+describe('joinery on a mirrored LINK (mirrored links, fu 432, spec §6.2)', () => {
+  const pins = (face: '+x' | '-x', z: number) =>
+    ({ face, diameter: 0.25, depth: 0.375, through: false, offset: { x: face === '+x' ? 0.75 : 0, y: 10, z }, toward: '+y' as const, count: 9, pitch: 1.25 });
+  const side = (name: string, x: number, inside: '+x' | '-x') =>
+    ({ name, role: 'side', material: 'oak', at: { x, y: 0, z: 0 }, size: { x: 0.75, y: 30, z: 12 },
+      holes: [pins(inside, 2), pins(inside, 10)], bands: [{ edge: '-z' as const, edging: 'veneer' as const }] });
+  /** Sides at x 0 and 20; a shelf between them (full width: both sides housed) or reaching only the left side. */
+  const caseDoc = (shelf: 'both' | 'left'): SloydDocument => designToDocument({
+    name: 'Case',
+    parts: [
+      side('Side L', 0, '+x'), side('Side R', 20, '-x'),
+      { name: 'Shelf', role: '', material: 'oak', at: { x: 0.75, y: 5, z: 1 }, size: { x: shelf === 'both' ? 19.25 : 12, y: 0.75, z: 9 } },
+    ],
+    assemblies: [],
+  }, { centre: false }).doc;
+  const stored = (doc: SloydDocument) => [...doc.boards, ...doc.definitions.flatMap((x) => x.boards)];
+  const sides = (bs: readonly Board[]) => bs.filter((b) => b.name.startsWith('Side'));
+  /** A part's features as compared: everything but ids (joinery mints cut ids; the regroup takes its founder's). */
+  const features = (b: Board) => JSON.stringify({
+    box: boardExtents(b), at: b.position, rotation: b.rotation,
+    cuts: b.cuts.map(({ id: _id, ...c }) => c), angleCuts: b.angleCuts, holes: b.holes.map(({ id: _id, ...r }) => r), bands: b.bands,
+  });
+
+  it('a shelf housed in BOTH sides keeps ONE Shape, the right side still its mirrored user; worlds are joinery\'s output', () => {
+    const doc = caseDoc('both');
+    expect(stored(doc).filter((b) => 'shape' in b).map((b) => [b.name, b.mirrored === true])).toEqual([['Side L', false], ['Side R', true]]);
+    const { joined, out } = join(doc);
+    expect(sides(joined.boards).every((b) => b.cuts.length === 1)).toBe(true);   // joinery cut both sides
+    const after = migrateDocument(out);
+    expect(after.shapes).toHaveLength(1);
+    expect(stored(after).filter((b) => 'shape' in b).map((b) => [b.name, b.mirrored === true])).toEqual([['Side L', false], ['Side R', true]]);
+    expect(sides(worldParts(after)).map(features)).toEqual(sides(joined.boards).map(features));
+    expect(sameSet(solids(worldParts(after)), solids(joined.boards))).toBe(true);
+    expect('refused' in gateUnjoin(flatDocument(after))).toBe(false);
+  });
+
+  it('a shelf housed in ONE side splits the link: worlds are joinery\'s output, no plain part keeps the flag', () => {
+    const { joined, out } = join(caseDoc('left'));
+    expect(sides(joined.boards).map((b) => b.cuts.length)).toEqual([1, 0]);
+    expect(rawFlagLeaks(out)).toEqual([]);
+    const after = migrateDocument(out);
+    expect(after.shapes).toHaveLength(0);
+    expect(stored(after).some((b) => 'mirrored' in b || 'shape' in b)).toBe(false);
+    expect(sides(worldParts(after)).map(features)).toEqual(sides(joined.boards).map(features));
   });
 });

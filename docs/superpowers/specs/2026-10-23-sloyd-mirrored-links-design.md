@@ -178,3 +178,49 @@ parts).
 - **Live (dev, Playwright):** a hand-made mirrored link (Link + tick Mirrored) on a case with pins and edging; edit the pin
   row on the right side and see the left follow, mirrored; Unlink; undo. One paid Generate of "a plywood bookcase with
   adjustable shelves and oak edging" to see the sides link as a mirror (≤ 10 paid runs, as ruled).
+
+## Amended (execution)
+
+Rulings made while building, on branch `mirrored-links` (2026-10-23; the SDD ledger). The code plus these rulings govern; where one
+differs from the text above, this block wins.
+
+- **Ruling 1 — a mirror candidate keeps its turn (§5.1, "rotation inverted", superseded).** A candidate must resolve, with the flag, to the
+  part's OWN world: `[b, ...turnCandidates(b)].map(t => ({ ...mirrorFeatures(t), mirrored: true }))` — features mirrored along `mirrorDim`,
+  rotation KEPT. (A flagged part at turn r' draws R(r')·M·S; with S = M·t's features that is t's world, which is b's.) `mirrorInPlace`
+  (§5.2's operation) would link b's mirror image, not b. Cost if wrong: none (pinned by "world parts identical to the input").
+- **Ruling 2 — Link's Shape (§5.2, "the source's resolved fields lowered through its own flag", superseded).** The Shape is the source's
+  EXISTING Shape fields when the source is shaped (exact, no re-lowering), else its plain fields. Cost if wrong: none; a re-lowered Shape
+  could drift by an ulp on rectangular cuts.
+- **Ruling 3 — the link note.** "Linked with N other part(s): every edit but name, position, turn and Mirrored changes all N+1." —
+  Mirrored is an own field (fu 411's "say what is not shared"). Cost if wrong: one wording change.
+- **Ruling 4 — Link's `sameSideFirst` side is the source's `sideAt`**, matching `sameSideFirst`'s own comparison; `linkPlan`'s refusal stays
+  on `mirroredAt`. Cost if wrong: a member's position/rotation read from its other occurrence under mirrored copies (pivot only).
+- **Ruling 5 — the checkbox reflects across WORLD X (§5.2, "rotation := inverseTurn(rotation)", generalised).** "Left to right as seen
+  from the front" governs: rotation := `inverseTurn(2a + r)`, `a` the container chain's turn (2a ≡ −2a mod 360, so a mirrored chain
+  too); position unchanged. At a = 0 it is §5.2's form. Cost if wrong: a nested side's edging lands on the back inside a 90°/270°
+  assembly. Found by Task 3's review; one fix round.
+- **Ruling 6 — Link's member flags (§5.2, "a part already using one of the shapes involved keeps its own flag", narrowed).** Only a user
+  of the SOURCE's own Shape keeps its flag; every other member — a plain part, or a user of another Shape — takes the source's flag (it
+  becomes a copy of what the person sees on the source). Cost: a mirrored pair under another Shape loses its mirror relation on joining
+  (a re-tick of Mirrored; fu 435(4)).
+- **Ruling 7 — Ruling 4 applied literally.** A plain member may pivot through its opposite-side occurrence; the stored result is equal up
+  to float bits; unpinned. Cost: a last-bit position difference.
+- **Ruling 8 — candidate order and the two-mirror gate (no spec text).** `inOrderOf` puts a mirror candidate's angle cuts, hole rows,
+  curves and profiles in the representative's order only on an exact one-to-one match, before `alignedTo` (`sameShared` and
+  `linksToShapes` untouched); and a part whose rectangular cuts do not come back exactly through two mirrors (`mirrorCut` is size-based)
+  gets no mirror candidates. Cost if wrong: a mirror pair with reordered lists links with the stored order differing from the input (ids
+  and values identical).
+- **Ruling 9 — tapered legs.** A non-square, inside-tapered leg set now links as ONE Shape with two mirrored users (was two Shapes) —
+  within the spec (one-handed parts, world unchanged; the anti-goal concerns symmetric parts). Cost if wrong: the parts list shows a
+  4-leg link with two Mirrored badges instead of two 2-leg links. To be told to the user at the finish.
+- **Ruling 10 — joinery's regroup membership is EXACT (§6.2, "equal once one is reflected", superseded).** A user joins a group only when
+  the group's Shape, resolved through the user's own flag, reproduces joinery's output exactly — not the plan's lowered-signature hash,
+  which a `mirrorCut` ulp splits on metric sizes. Cost if wrong: none semantically; every world equals joinery's output.
+- **Ruling 11 — a flagged founder (§6.2, "stored in the hand of the first user in document order", superseded).** A group whose first
+  member is mirrored takes its Shape (and cut ids) from the first later UNmirrored user it matches, else the founder's fields lowered
+  through its flag. Cost if wrong: cut ids come from a different user (ids only). Residue: a group whose users are ALL mirrored splits
+  when joinery adds a new metric cut (geometry exact, link lost; pinned; fu 435(2)).
+
+Unchanged from the text: §3 (the model; `mirrorFeatures` is the feature half `resolveBoard` applies), §4 (`sideAt`, the exact inverses
+via `lowerOwnMirror`), §6.1 (two rows for a one-handed pair, pinned in `cutlist.test.ts`). `sameJoined` and the unjoin gate compare flat
+(resolved) documents, as §6.2 says.
