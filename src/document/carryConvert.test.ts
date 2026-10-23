@@ -382,7 +382,7 @@ describe('hole rows through conversion (AI-holes spec §3)', () => {
     expect((out.doc.boards[0] as Board).holes).toHaveLength(1);
     const flat = flatDocument(out.doc);
     expect(holeDesignFaults(flat, flat.units)).toEqual([{ kind: 'hole-fault', parts: ['Side'],
-      message: "Side's hole row on +y breaks out of its face.", shown: "Side's hole row on the thickness face (max side) breaks out of its face." }]);
+      message: "Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face.", shown: "Side's hole row on the thickness face (max side) breaks out of its face." }]);
   });
 
   it('holeDesignFaults: one violation per (row, fault kind), each kind in its own words', () => {
@@ -393,9 +393,9 @@ describe('hole rows through conversion (AI-holes spec §3)', () => {
     ];
     const flat = flatDocument(project([side('flat', 0, rows)]));
     expect(holeDesignFaults(flat, flat.units).map((v) => v.message)).toEqual([
-      "Side's hole row on +y meets another hole.",
-      "Side's hole row on +y is deeper than the part.",
-      "Side's hole row on -y breaks out of its face.",
+      "Side's hole row on +y starting at 5, 0.75, 2in meets another hole.",
+      "Side's hole row on +y starting at 5, 0.75, 2in is deeper than the part.",
+      "Side's hole row on -y starting at 29, 0, 2in breaks out of its face.",
     ]);
   });
 });

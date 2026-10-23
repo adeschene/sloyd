@@ -1217,8 +1217,26 @@ describe('hole rows from the model (AI-holes spec §3.1)', () => {
     const out = await run(client);
     expect(flatDocument(out.doc).boards[0]!.holes).toHaveLength(1);
     expect(out.violations.filter((v) => v.kind === 'hole-fault')).toEqual([{ kind: 'hole-fault', parts: ['Side'],
-      message: "Side's hole row on +y breaks out of its face.", shown: "Side's hole row on the thickness face (max side) breaks out of its face." }]);
-    expect(JSON.stringify(seen[1])).toContain("Side's hole row on +y breaks out of its face.");
+      message: "Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face.", shown: "Side's hole row on the thickness face (max side) breaks out of its face." }]);
+    expect(JSON.stringify(seen[1])).toContain("Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face.");
+  });
+
+  it('Refine: a NEW faulted row on the SAME face as an original faulted row is fed back (face + first centre, spec §3.1)', async () => {
+    // Two shelf-pin rows on one inside face: the original's front row runs off the end; the model adds a back row that does too.
+    const front = { ...row('+y', 27.5), offset: v3(27.5, 0.75, 2) };
+    const back = { ...row('+y', 28), offset: v3(28, 0.75, 10) };
+    const original = designToDocument({ name: 'S', parts: [{ ...SIDE, holes: [front] }], assemblies: [] }).doc;
+    const r = documentToDesign(original, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const withNew = { ...r.design, parts: r.design.parts.map((x) => ({ ...x, holes: [...(x.holes ?? []), back] })) };
+    const { client, seen } = fakeClient([withNew, r.design]);
+    const out = await runRefine(client, original, RS, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const second = JSON.stringify(seen[1]!.slice(-1));
+    expect(second).toContain("Side's hole row on +y starting at 28, 0.75, 10in breaks out of its face.");
+    expect(second).not.toContain("Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face.");
+    expect(out.present.map((v) => v.message)).toEqual(["Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face."]);
   });
 
   it('Refine: an original faulted row does not hide a NEW faulted row on the same part (problemKey)', async () => {
@@ -1232,10 +1250,10 @@ describe('hole rows from the model (AI-holes spec §3.1)', () => {
     if ('refused' in out) throw new Error(out.refused.message);
     expect(client.complete).toHaveBeenCalledTimes(2);
     const second = JSON.stringify(seen[1]!.slice(-1));
-    expect(second).toContain("Side's hole row on -y breaks out of its face.");
-    expect(second).not.toContain("Side's hole row on +y breaks out of its face.");
+    expect(second).toContain("Side's hole row on -y starting at 28, 0, 2in breaks out of its face.");
+    expect(second).not.toContain("Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face.");
     // The echo is the best: no new fault, the original's listed as present.
     expect(out.violations).toEqual([]);
-    expect(out.present.map((v) => v.message)).toEqual(["Side's hole row on +y breaks out of its face."]);
+    expect(out.present.map((v) => v.message)).toEqual(["Side's hole row on +y starting at 27.5, 0.75, 2in breaks out of its face."]);
   });
 });

@@ -180,3 +180,21 @@ describe('collapseViolations', () => {
     expect(out[0].parts).toEqual([`Drawer${S}Front`, `Door${S}Front`]);
   });
 });
+
+describe('collapseViolations — hole faults (AI-holes spec §3.1)', () => {
+  it('two DIFFERENT hole faults on one assembly part both survive; the same row in every placement merges', async () => {
+    const { flatDocument } = await import('./tree');
+    const { holeDesignFaults } = await import('./holeDesignFaults');
+    const hole = (face: '+y' | '-y', x: number) => ({ face, diameter: 0.25, depth: 0.25, through: false, offset: v3(x, face === '+y' ? 0.75 : 0, 2), toward: '+x' as const, count: 1, pitch: 0 });
+    const out = designToDocument({ name: 'A', parts: [], assemblies: [{ name: 'U', parts: [{ ...P('Side'), size: v3(30, 0.75, 12), holes: [hole('+y', 29.9375), hole('-y', 29.9375)] }],
+      placements: [{ name: 'U1', at: v3(0, 0, 0) }, { name: 'U2', at: v3(40, 0, 0) }] }] });
+    expect(out.rejected).toEqual([]);
+    const flat = flatDocument(out.doc);
+    const raw = holeDesignFaults(flat, flat.units);
+    expect(raw).toHaveLength(4);
+    expect(collapseViolations(raw, out.authored).map((v) => v.message)).toEqual([
+      `U1${S}Side's hole row on +y starting at 29.938, 0.75, 2in breaks out of its face. (in U1, U2)`,
+      `U1${S}Side's hole row on -y starting at 29.938, 0, 2in breaks out of its face. (in U1, U2)`,
+    ]);
+  });
+});
