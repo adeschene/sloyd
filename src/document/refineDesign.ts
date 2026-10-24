@@ -12,7 +12,8 @@ import { worldHoles } from './holeWorld';
 import { worldBands } from './bandWorld';
 import { worldProfiles } from './profileWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
-import { flatDocument, worldParts } from './tree';
+import { flatDocument, parentPath, worldParts } from './tree';
+import { keptParts, leaningInAssembly } from './leanKeep';
 
 /**
  * Refine's input (refine spec §2): the open design in Generate's own format —
@@ -21,7 +22,7 @@ import { flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint' | 'lean-joint' | 'lean-assembly';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -91,14 +92,22 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
   }
+  // A leaning part is KEPT, never described (splayed legs spec §8): it is left out of the design and of every pre-check
+  // below (its angle cuts are in its own leaned frame, which no world-word converter reads). Only at the root: an
+  // assembly's definition is rebuilt from the model's, so a leaning part inside one is refused.
+  const inAssembly = leaningInAssembly(doc);
+  if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part inside an assembly yet — Ungroup it first: ${inAssembly}.`);
+  const kept = keptParts(doc);
+  const keptIds = new Set(kept.boards.map((b) => b.id));
+  const described = flatDocument(doc).boards.filter((b) => !(parentPath(b.id) === null && keptIds.has(b.id)));
   // A taper Refine cannot describe exactly is refused, never rewritten (spec §5.2). Flat names, as the person sees them.
-  const odd = flatDocument(doc).boards.filter((b) => worldTapers(b) === null).map((b) => b.name);
+  const odd = described.filter((b) => worldTapers(b) === null).map((b) => b.name);
   if (odd.length === 1) return refuse('taper-form', `${odd[0]}'s taper can't be described to Refine — edit it in Properties first.`);
   if (odd.length > 1) return refuse('taper-form', `The tapers on ${odd.slice(0, 3).join(', ')}${odd.length > 3 ? '…' : ''} can't be described to Refine — edit them in Properties first.`);
   // A standard-form taper the CONVERTER would reject is refused here too, by the converter's own rule (taperCutsFor) on
   // the board as the design will encode it (orient: longest side = length) — sent, it would be a new fault every round
   // the model cannot fix without changing the person's taper (fu 309). The reason is worded for the person.
-  const unencodable = flatDocument(doc).boards.flatMap((b) => {
+  const unencodable = described.flatMap((b) => {
     const tapers = worldTapers(b);
     if (!tapers || tapers.length === 0) return [];
     const made = taperCutsFor(inOwnFrame(b), tapers);
@@ -115,7 +124,7 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     return refuse('taper-form', `The tapers on ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} can't be described to Refine${why} — edit them in Properties first.`);
   }
   // A miter, bevel or chamfer Refine cannot describe exactly is refused, never rewritten (AI-angles spec §6.1).
-  const flatBoards = flatDocument(doc).boards;
+  const flatBoards = described;
   const oddKind = (b: Board) => b.angleCuts.find((c) => c.kind !== 'taper' && worldAngles({ ...b, angleCuts: [c] }) === null)?.kind;
   const oddAngles = flatBoards.flatMap((b) => { const k = oddKind(b); return k ? [{ name: b.name, kind: k }] : []; });
   if (oddAngles.length === 1) return refuse('angle-form', `${oddAngles[0]!.name}'s ${oddAngles[0]!.kind} can't be described to Refine — edit it in Properties first.`);
@@ -162,7 +171,7 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     const r = resolveBoard(shapes, b);
     return r ? [box(r, b.name, roleOf(b), shift)] : [];
   });
-  const parts = boxes(doc.boards);
+  const parts = boxes(doc.boards.filter((b) => !keptIds.has(b.id)));
   const assemblies: GeneratedAssembly[] = doc.definitions.flatMap((d) => {
     // Normalised: the assembly's parts start at 0 and each placement is the
     // world position of that corner (origin + corner), so what the model sees

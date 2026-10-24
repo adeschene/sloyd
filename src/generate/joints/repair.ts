@@ -2,6 +2,7 @@ import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrate
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
+import { leaningRefusal } from './tapers';
 
 /**
  * Repairing what joinery did before a899b51 (repair-joints spec §2, follow-up 240): twin
@@ -99,6 +100,11 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
   // keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
+    // A leaning part (splayed legs spec §8): the read-back and re-join are box-based, so a project with joints to read and
+    // a leaning part is refused in Repair's own words before either runs, by joinery's ONE decider (inv 41). One with no
+    // cuts has nothing to repair (null), so a leaning prototype never shows a second refusal beside joinery's.
+    const leaning = flat.boards.some((b) => b.cuts.length > 0) ? leaningRefusal('repair', flat) : null;
+    if (leaning) return { refused: leaning };
     const r = repairJoints(flat, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
     const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));

@@ -102,6 +102,21 @@ describe('RefineDialog', () => {
     expect(screen.queryByText('Check at the new size:')).toBeNull();
   });
 
+  it('lists the parts kept as is because they lean, and the model\'s parts they replaced (splayed legs spec §8)', () => {
+    const run = (leaning?: { kept: string[]; replaced: string[] }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Stool — refined', costUsd: 0.07, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, ...(leaning ? { leaning } : {}) } });
+    const { unmount } = render(<RefineDialog {...base} run={run({ kept: ['Front right', 'Back left'], replaced: ['Front right'] })} />);
+    screen.getByText('Kept as is (leans): Front right, Back left');
+    screen.getByText('Replaced by the kept part of the same name: Front right');
+    unmount();
+    const { unmount: u2 } = render(<RefineDialog {...base} run={run({ kept: ['Leg'], replaced: [] })} />);
+    screen.getByText('Kept as is (leans): Leg');
+    expect(screen.queryByText(/^Replaced by the kept part/)).toBeNull();
+    u2();
+    render(<RefineDialog {...base} run={run()} />);
+    expect(screen.queryByText(/^Kept as is/)).toBeNull();
+  });
+
   it('shows a new issue\'s displayed copy (a metric project), not the model\'s inches (fu 355)', () => {
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
       doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], joints: null, present: [],

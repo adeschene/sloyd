@@ -20,6 +20,7 @@ import { carriesProfiles } from './featureCarry';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID, copyBand } from './bandModel';
 import { bandsFor, mintBandTypes } from './bandWorld';
 import { copyHardwareUse } from './hardwareModel';
+import type { KeptParts } from './leanKeep';
 import type { Band, BandType, Board, CornerRule, CurveCut, CustomMaterial, Definition, Dimension, Grain, HardwareType, HardwareUse, HoleRow, Instance, Posture, ProfileCut, ProfileKind, Rotation } from './types';
 
 /**
@@ -614,21 +615,29 @@ function restoreProfiles(board: Board, made: readonly Omit<ProfileCut, 'id'>[], 
  * degree value Refine wrote to the stored slope, AI-angles spec §6.2; `opts.materials`, Refine: the project's custom
  * materials, so the load gate keeps a part naming one instead of falling it back to pine, custom materials spec §6;
  * `opts.bandTypes` / `opts.hardwareTypes`, Refine: the project's, so carried bands and hardware survive the gate; the
- * band types are first widened by `mintBandTypes` over every `edging` the design names, AI-bands spec §3.1) —
+ * band types are first widened by `mintBandTypes` over every `edging` the design names, AI-bands spec §3.1; `opts.kept`,
+ * Refine: the original's leaning parts and their Shapes, put in as stored, with no floor shift, and a model part reusing
+ * one's flat name dropped and listed in `replaced`, splayed legs spec §8) —
  * then migrateDocument, the same gate an imported file passes, which dedupes names (inv 8), checks ids (inv 33) and
  * prunes a custom material no part uses.
  *
  * Every id is minted here with nextId so `roles` (stored part id → role) and
  * the definition → assembly label map survive the load gate.
  */
-export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number>; materials?: readonly CustomMaterial[]; bandTypes?: readonly BandType[]; hardwareTypes?: readonly HardwareType[] } = {}): {
-  doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
+export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number>; materials?: readonly CustomMaterial[]; bandTypes?: readonly BandType[]; hardwareTypes?: readonly HardwareType[]; kept?: KeptParts } = {}): {
+  doc: SloydDocument; rejected: RejectedPart[]; authored: Authored; replaced: string[];
 } {
   const rejected: RejectedPart[] = [];
+  // Refine's kept parts (splayed legs spec §8, constraint (e)): a model part reusing a kept part's flat name is DROPPED
+  // before anything converts, so the load gate's name dedupe never renames it past the drop. A kept part is a root part,
+  // so only a loose part can share its flat name (an assembly part's is `Placement › Part`).
+  const keptNames = new Set(opts.kept?.names ?? []);
+  const replaced = [...new Set(design.parts.map((p) => clean(p.name)).filter((n) => keptNames.has(n)))];
+  const looseParts = design.parts.filter((p) => !keptNames.has(clean(p.name)));
   // Every edging key the design names, minted once design-wide BEFORE any part converts (AI-bands spec §3.1, builder check
   // B4), against the catalog parseDesign judged the keys by (controller ruling 1). A part with carried curves is skipped:
   // its bands are ignored, and an edging it names must not leave an orphan type in the project's list.
-  const keys = [...design.parts, ...(design.assemblies ?? []).flatMap((a) => a.parts)]
+  const keys = [...looseParts, ...(design.assemblies ?? []).flatMap((a) => a.parts)]
     .filter((p) => !carriesCurves(p)).flatMap((p) => (p.bands ?? []).map((b) => b.edging));
   const minted = mintBandTypes(keys, opts.bandTypes ?? [BUILT_IN_BAND], catalogOf({ materials: opts.materials ?? [] }));
   const roles = new Map<string, string>();
@@ -639,7 +648,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     return b;
   };
 
-  const loose: Board[] = design.parts.flatMap((p) => {
+  const loose: Board[] = looseParts.flatMap((p) => {
     const b = convertPart(p, clean(p.name), rejected, minted.idOf, opts.exact, opts.exactAngles);
     return b ? [mint(p, b)] : [];
   });
@@ -684,10 +693,14 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     const min = [0, 1, 2].map((k) => Math.min(...placed.map(([p]) => p[k])));
     const max = [0, 1, 2].map((k) => Math.max(...placed.map(([p, e]) => p[k] + e[k])));
     // Refine passes centre: false, so untouched parts keep the original's
-    // coordinates (refine spec §4); the floor rule holds either way.
-    const shift = opts.centre === false
-      ? [0, -min[1], 0]
-      : [snap(-(min[0] + max[0]) / 2), -min[1], snap(-(min[2] + max[2]) / 2)];
+    // coordinates (refine spec §4); the floor rule holds either way — except around KEPT parts (splayed legs spec §8,
+    // constraint (b)): they hold their world pose exactly, where the original stood them, so nothing is shifted at all.
+    // The model's parts never move away from them, nor they from the model's (a part the model put below the floor
+    // stays there, for the checks to report).
+    const shift = (opts.kept?.boards.length ?? 0) > 0 ? [0, 0, 0]
+      : opts.centre === false
+        ? [0, -min[1], 0]
+        : [snap(-(min[0] + max[0]) / 2), -min[1], snap(-(min[2] + max[2]) / 2)];
     const move = (p: Vec): Vec => [p[0] + shift[0], p[1] + shift[1], p[2] + shift[2]];
     for (const b of loose) b.position = move(b.position);
     for (const i of instances) i.position = move(i.position);
@@ -697,12 +710,17 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   // Band and hardware types go in BEFORE the load gate, which drops a band or hardware use naming an unknown type
   // (spec §3.3). Band types: always the minted list (the project's, or the built-in, plus any minted); hardware types,
   // absent (Generate), createDocument's default stands.
+  // Kept parts go in as stored, with their Shapes, BEFORE the load gate and linkByRole (splayed legs spec §8, constraints
+  // (c), (d); inv 56's ordering): FIRST, so the gate's first-wins id and name repairs (invs 33, 8) keep theirs, and with
+  // no role, so linkByRole never judges them (their Shapes survive with their ids).
+  const kept = opts.kept;
   const doc = linkByRole(migrateDocument({
-    ...createDocument(name), boards: loose, instances, definitions, materials: [...(opts.materials ?? [])],
+    ...createDocument(name), boards: [...(kept?.boards ?? []), ...loose], instances, definitions, materials: [...(opts.materials ?? [])],
+    ...(kept && kept.shapes.length > 0 ? { shapes: kept.shapes } : {}),
     bandTypes: minted.types.map((t) => ({ ...t })),
     ...(opts.hardwareTypes ? { hardwareTypes: opts.hardwareTypes.map((t) => ({ ...t })) } : {}),
   }), roles);
-  return { doc, rejected, authored: authoredIndex(doc, labelOf) };
+  return { doc, rejected, authored: authoredIndex(doc, labelOf), replaced };
 }
 
 /**
