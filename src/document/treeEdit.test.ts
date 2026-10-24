@@ -578,6 +578,18 @@ describe('writeBackFlat shares where identical', () => {
     expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
     expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
   });
+  it('users whose leans are equal by value stay one Shape; a differing lean splits (groupSignature)', () => {
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const before = flat(doc);
+    const leans = [{ x: 0.1, z: 0.2, face: 'width' as const }, { x: 0.1, z: 0.2, face: 'width' as const }, { x: 0.1, z: 0.25, face: 'width' as const }];
+    const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, lean: leans[k]! })));
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
+    expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
+    expect(worldParts(out).map((b) => b.lean)).toEqual(leans);
+  });
   it('users whose curves differ only in order and ids stay one Shape; a differing curve splits (groupSignature)', () => {
     const shape = { id: 's1', length: 30, width: 5, thickness: 0.75, material: 'oak', grain: 'length' as const, posture: 'flat' as const, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
     const doc: SloydDocument = { ...createDocument(), shapes: [shape],
@@ -741,4 +753,52 @@ describe('writeBackFlat — mirrored links (fu 432, spec §6.2)', () => {
     expect(out.boards.some((b) => 'mirrored' in b || 'shape' in b)).toBe(false);
     expect(world(worldParts(out))).toEqual(world(after));
   });
+});
+
+describe('a lean through write-back (splayed legs spec §3.4)', () => {
+  const LEAN = { x: 0.1, z: 0.25, face: 'thickness' as const };
+  /** A leaning leg in definition `d`, placed by `outer` at the root; `inner` nests `d` in `e` when given. */
+  const leanDoc = (outer: { rotation: 0 | 90 | 180 | 270; mirrored?: true }, inner?: { rotation: 0 | 90 | 180 | 270; mirrored?: true }): SloydDocument => {
+    const leg = { id: 'leg', name: 'Leg', position: [0.4, 0, -1.1] as [number, number, number], rotation: 90 as const,
+      length: 28, width: 1.75, thickness: 1.25, material: 'oak', grain: 'length' as const, posture: 'upright' as const,
+      cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [], lean: LEAN };
+    const d = { id: 'd', boards: [leg], instances: [], hardware: [] };
+    if (!inner) return { ...createDocument(), definitions: [d], instances: [{ id: 'i1', name: 'A', definition: 'd', position: [5.1, 0, 2.3], ...outer }] };
+    const e = { id: 'e', boards: [], instances: [{ id: 'j', name: 'B', definition: 'd', position: [1.5, 0, 0.5] as [number, number, number], ...inner }], hardware: [] };
+    return { ...createDocument(), definitions: [d, e], instances: [{ id: 'i1', name: 'A', definition: 'e', position: [5.1, 0, 2.3], ...outer }] };
+  };
+  const CASES: [string, SloydDocument, string, number][] = [
+    ['a turned, mirrored assembly', leanDoc({ rotation: 90, mirrored: true }), 'i1/leg', 1],
+    ['a turned, unmirrored assembly', leanDoc({ rotation: 270 }), 'i1/leg', 0],
+    ['two nested mirrors', leanDoc({ rotation: 90, mirrored: true }, { rotation: 180, mirrored: true }), 'i1/j/leg', 2],
+    ['one mirror of two', leanDoc({ rotation: 90 }, { rotation: 180, mirrored: true }), 'i1/j/leg', 1],
+  ];
+
+  for (const [what, doc, id, mirrors] of CASES) {
+    it(`${what}: the world part carries the lean flipped once per mirror, and an edit lowers exactly`, () => {
+      const w = worldParts(doc).find((b) => b.id === id)!;
+      expect(w.lean).toEqual({ ...LEAN, x: mirrors % 2 ? -LEAN.x : LEAN.x });
+      const out = edit(doc, id, (b) => ({ ...b, lean: { ...b.lean!, z: b.lean!.z + 0.05 } }));
+      const stored = (partAt(out, id) as Board).lean!;
+      expect(Object.is(stored.x, LEAN.x), 'x bit for bit').toBe(true);
+      expect(stored.z).toBe(LEAN.z + 0.05);
+      expect(stored.face).toBe(LEAN.face);
+      // Still seam-free after the lowering: the flip keeps a zero slope zero, so neither slope became 0 here.
+      expect(stored.x !== 0 && stored.z !== 0).toBe(true);
+      // Only the lean was written: the position and turn are the stored ones.
+      expect(partAt(out, id)!.position).toBe(partAt(doc, id)!.position);
+    });
+
+    it(`${what}: an untouched lean is the same object after a rename`, () => {
+      const out = edit(doc, id, (b) => ({ ...b, name: 'Leg 2' }));
+      expect(partAt(out, id)!.name).toBe('Leg 2');
+      expect((partAt(out, id) as Board).lean).toBe((partAt(doc, id) as Board).lean);
+    });
+
+    it(`${what}: a lean set to undefined is REMOVED, the key deleted (controller ruling 1)`, () => {
+      const out = edit(doc, id, (b) => ({ ...b, lean: undefined }));
+      expect('lean' in partAt(out, id)!).toBe(false);
+      expect(worldParts(out).some((b) => 'lean' in b)).toBe(false);
+    });
+  }
 });

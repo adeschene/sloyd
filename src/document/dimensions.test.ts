@@ -2,9 +2,22 @@ import { IMPERIAL } from '../units/length';
 import { createBoard } from './document';
 import { FRONT, TOP } from './drawing';
 import { dimensionView } from './dimensions';
+import { chooseFace, slopeOf } from './lean';
+import { partBounds } from './worldBounds';
 
 // Flat, turn 0: length X, thickness Y, width Z.
 const slab = (y: number, thickness = 1) => createBoard({ length: 30, width: 12, thickness, position: [0, y, 0] });
+
+describe('dimensionView of a leaning part (splayed legs spec §6.1 R2)', () => {
+  it('dimensions its real bounds, never the pre-lean box', () => {
+    const base = createBoard({ length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [1, 0, 2] });
+    const leg = { ...base, lean: { x: slopeOf(12), z: slopeOf(8), face: chooseFace(base, slopeOf(12), slopeOf(8)) } };
+    const r = partBounds(leg);
+    const d = dimensionView([leg], FRONT, IMPERIAL);
+    expect([d.horizontal.overall!.from, d.horizontal.overall!.to]).toEqual([r.min[0], r.max[0]]);
+    expect([d.vertical.overall!.from, d.vertical.overall!.to]).toEqual([r.min[1], r.max[1]]);
+  });
+});
 
 describe('dimensionView', () => {
   it('chains the part boundaries and sums to the overall', () => {

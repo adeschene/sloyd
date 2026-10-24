@@ -31,6 +31,8 @@ import { toWorld } from '../document/snapPoints';
 import { worldBodies } from '../document/drawing';
 import { sameSet } from '../document/turnFixtures';
 import { axisDimensions } from '../document/geometry';
+import { stoolDocument, stoolSeat } from '../document/stoolFixture';
+import { leanMap } from '../document/lean';
 
 vi.mock('./joints/featureZones', async (orig) => {
   const a = await orig<typeof import('./joints/featureZones')>();
@@ -1410,5 +1412,97 @@ describe('edge profiles from the model (AI-profiles spec §3.2, §4, R6.1, R6.3)
     expect(client.complete).toHaveBeenCalledTimes(1);
     expect(out.violations).toEqual([]);
     expect(flatDocument(out.doc).boards[0]!.profiles).toEqual(o.profiles);
+  });
+});
+
+describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
+  const RS = { instruction: 'make the seat rounder', width: null, depth: null, height: null, detail: 'simple' as const };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const bx = (name: string, at: [number, number, number], size: [number, number, number], role = '') => ({ name, role, miters: [], bevels: [], chamfers: [],
+    holes: [], bands: [], profiles: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const seat = (name: string, y = 16) => bx(name, [-7, y, -7], [14, 1.5, 14]);
+  const LEGS = ['Front right', 'Front left', 'Back left', 'Back right'];
+  const NO_LIMITS = { width: null, depth: null, height: null, maxParts: 99 };
+  const ok = async (client: LlmClient, doc: SloydDocument) => {
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    return out;
+  };
+  /** The eight corners of a part's pre-lean box, mapped through its lean: its world pose. */
+  const pose = (b: Board) => {
+    const m = leanMap(b)!;
+    const e = [0, 1, 2].map((k) => axisDimensions(b).map((d) => b[d])[k]!);
+    return Array.from({ length: 8 }, (_, i) => m.apply([0, 1, 2].map((k) => b.position[k]! + (i & (1 << k) ? e[k]! : 0)) as [number, number, number]));
+  };
+
+  it('Refine keeps a leaning leg: the model moves and resizes it and renames the seat; the leg comes back as stored', async () => {
+    const doc = stoolDocument();
+    const { client } = fakeClient([{ name: 'Stool', parts: [bx('Front right', [0, 0, 0], [2, 20, 2]), seat('Stool seat')], assemblies: [] }]);
+    const out = await ok(client, doc);
+    for (const n of LEGS) {
+      // The stored record (id, Shape reference, position, turn) byte for byte, and its Shape with its id.
+      expect(out.doc.boards.filter((b) => b.name === n)).toEqual(doc.boards.filter((b) => b.name === n));
+      const w0 = worldParts(doc).find((b) => b.name === n)!;
+      const w1 = worldParts(out.doc).find((b) => b.name === n)!;
+      expect(w1.lean).toEqual(w0.lean);
+      expect(w1.angleCuts).toEqual(w0.angleCuts);
+      expect(w1.cuts).toEqual(w0.cuts);
+      const [p0, p1] = [pose(w0), pose(w1)];
+      p0.forEach((c, i) => c.forEach((v, k) => expect(Math.abs(p1[i]![k]! - v)).toBeLessThanOrEqual(1e-12)));
+    }
+    for (const s of doc.shapes) expect(out.doc.shapes.find((t) => t.id === s.id)).toEqual(s);
+    // The seat is still on the leg tops: the levelled legs ground it.
+    const v = checkDesign(flatDocument(out.doc), NO_LIMITS);
+    expect(v.filter((x) => /^(unsupported|hangs|tips)/.test(x.kind))).toEqual([]);
+    expect(flatDocument(out.doc).boards.map((b) => b.name).sort()).toEqual([...LEGS, 'Stool seat'].sort());
+    expect(out.leaning).toEqual({ kept: LEGS, replaced: ['Front right'] });
+  });
+
+  it('Refine floor rule with a kept leg: no part moves relative to the kept legs', async () => {
+    // Today's floor rule over the model's parts alone would drop everything by the shelf's 6in, off the leg tops.
+    const doc = stoolDocument();
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat'), bx('Shelf', [-3, 6, -3], [6, 0.75, 6])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    const at = (n: string) => flatDocument(out.doc).boards.find((b) => b.name === n)!.position;
+    // The kept legs never move (constraint (a)), and nothing moves away from them (b).
+    for (const n of LEGS) expect(out.doc.boards.find((b) => b.name === n)).toEqual(doc.boards.find((b) => b.name === n));
+    expect(at('Seat')).toEqual([-7, 16, -7]);
+    expect(at('Shelf')).toEqual([-3, 6, -3]);
+  });
+
+  it('a model part reusing the kept name is dropped, and the done view reports it', async () => {
+    const doc = stoolDocument();
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat'), bx('Back left', [-6, 0, -6], [1.5, 16, 1.5]), bx('Back right', [4, 0, -6], [1.5, 16, 1.5])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(flatDocument(out.doc).boards.map((b) => b.name).sort()).toEqual([...LEGS, 'Seat'].sort());
+    for (const n of LEGS) expect(out.doc.boards.find((b) => b.name === n)).toEqual(doc.boards.find((b) => b.name === n));
+    expect(out.leaning).toEqual({ kept: LEGS, replaced: ['Back left', 'Back right'] });
+  });
+
+  it('kept parts skip linkByRole: their Shapes keep their ids while the model\'s own parts still link', async () => {
+    const doc = stoolDocument();
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat'), bx('Cleat 1', [-5, 14.5, -1], [10, 1.5, 0.75], 'cleat'), bx('Cleat 2', [-5, 14.5, 1], [10, 1.5, 0.75], 'cleat')], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(out.doc.shapes.filter((s) => doc.shapes.some((o) => o.id === s.id))).toEqual(doc.shapes);
+    expect(out.doc.shapes).toHaveLength(doc.shapes.length + 1);
+    for (const n of LEGS) expect(out.doc.boards.find((b) => b.name === n)).toEqual(doc.boards.find((b) => b.name === n));
+  });
+
+  it('keeps a kept part\'s mirror flag (spec §8 (a)): a mirrored user of its Shape comes back mirrored', async () => {
+    const base = stoolDocument();
+    const doc = migrateDocument({ ...base, boards: base.boards.map((b) => (b.name === 'Front left' ? { ...b, mirrored: true } : b)) });
+    const before = doc.boards.find((b) => b.name === 'Front left')!;
+    expect((before as { mirrored?: boolean }).mirrored).toBe(true);
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat')], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(out.doc.boards.find((b) => b.name === 'Front left')).toEqual(before);
+    expect(worldParts(out.doc).find((b) => b.name === 'Front left')!.lean).toEqual(worldParts(doc).find((b) => b.name === 'Front left')!.lean);
+  });
+
+  it('a lean-free Refine reports nothing kept', async () => {
+    const doc = migrateDocument({ ...createDocument('T'), boards: [stoolSeat(0)] });
+    const { client } = fakeClient([{ name: 'T', parts: [bx('Seat', [-7, 0, -7], [14, 1.5, 14])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(out.leaning).toBeUndefined();
   });
 });

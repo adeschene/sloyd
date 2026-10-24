@@ -30,6 +30,8 @@ import { designValues, documentToDesign } from '../document/refineDesign';
 import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
 import { carriedSummary } from '../document/carryText';
+import { keptParts } from '../document/leanKeep';
+import type { KeptParts } from '../document/leanKeep';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
 import type { CallShape, CostRange } from './estimate';
@@ -149,7 +151,9 @@ export async function runRepairLoop<T extends { doc: SloydDocument; violations: 
 export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort(), v.kind === 'hole-fault' || v.kind === 'band-fault' || v.kind === 'profile-fault' ? v.message : null]);
 
 /** What one usable attempt is worth: the tree kept, its NEW problems, and (Refine) the old ones. */
-export interface DesignValue { doc: SloydDocument; violations: Violation[]; present: Violation[] }
+export interface DesignValue { doc: SloydDocument; violations: Violation[]; present: Violation[];
+  /** Refine: the model's parts dropped because a kept (leaning) part has their flat name (splayed legs spec §8 (e)). */
+  replaced: string[] }
 interface EvaluateOpts {
   /** Refine's grain carry-over, applied to the parsed design before conversion. */
   prepare?: (d: GeneratedDesign) => GeneratedDesign;
@@ -174,6 +178,8 @@ interface EvaluateOpts {
   units?: Units;
   /** Refine: faults only the original can judge (a featured part turned onto another face; refine-features spec §4). */
   extraFaults?: (flat: FlatDocument) => Violation[];
+  /** Refine: the original's leaning parts, kept as stored (splayed legs spec §8), put in by the converter. */
+  kept?: KeptParts;
 }
 
 /**
@@ -187,7 +193,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   const catalog = opts.materials ? catalogOf({ materials: opts.materials }) : builtInCatalog();
   const parsed = res.json === null ? null : parseDesign(res.json, catalog, opts.bandTypes);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
-  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials, bandTypes: opts.bandTypes, hardwareTypes: opts.hardwareTypes });
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials, bandTypes: opts.bandTypes, hardwareTypes: opts.hardwareTypes, kept: opts.kept });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
   // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
   const flat = flatDocument(converted.doc);
@@ -212,7 +218,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
     ...collapseViolations(fresh, converted.authored),
   ];
   const present = old ? collapseViolations(raw.filter(already), converted.authored) : [];
-  return { value: { doc: converted.doc, violations, present }, feedback: repairMessage(violations) };
+  return { value: { doc: converted.doc, violations, present, replaced: converted.replaced }, feedback: repairMessage(violations) };
 }
 
 /** One generation: design → tree → check the placed world → feedback, via the shared loop (spec §4.5; generate-assemblies spec §5). */
@@ -241,7 +247,10 @@ export interface JointsSummary {
 }
 export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null;
   /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
-  carried: { notKept: string[]; check: string[] } }
+  carried: { notKept: string[]; check: string[] };
+  /** Present only when the original has leaning parts (splayed legs spec §8): their flat names, kept as stored, and the
+   *  model's parts dropped because they reused one of those names. */
+  leaning?: { kept: string[]; replaced: string[] } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
 
 /**
@@ -271,11 +280,14 @@ export async function runRefine(
     ...bandDesignFaults(plainFlat0, plainFlat0.units), ...profileDesignFaults(plainFlat0, plainFlat0.units)].map(problemKey));
   // The project's custom materials are choosable and named (custom materials spec §6); Generate's schema is untouched.
   const catalog = catalogOf(doc);
+  // The leaning parts, kept exactly as stored (splayed legs spec §8): documentToDesign left them out of the design, the
+  // message names them with their real bounds, and the converter puts them back (with their Shapes) before its load gate.
+  const kept = keptParts(base.plain);
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: designSchema(catalog, doc.bandTypes),
     first: refineMessage(from.design, settings, catalog, base.plain),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units, extraFaults: (f) => featureTurned(f, plainFlat0) }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryFromOriginal(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, bandTypes: doc.bandTypes, hardwareTypes: doc.hardwareTypes, units: doc.units, extraFaults: (f) => featureTurned(f, plainFlat0), kept }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result (hardware types and the project's own hardware too:
   // nothing in them names a part, hardware spec §6, refine-features spec §3.3); custom materials the result no longer uses
@@ -332,7 +344,8 @@ export async function runRefine(
     }
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
-  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried };
+  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried,
+    ...(kept.names.length > 0 ? { leaning: { kept: kept.names, replaced: out.replaced } } : {}) };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */
@@ -397,7 +410,7 @@ export async function runJoinery(
   // spec §6.1): placed parts named by their display paths, written back by index.
   const flat = flatDocument(doc);
   const found = findSites(flat);
-  const refusal = joineryRefusal(doc, flat, found);
+  const refusal = joineryRefusal('joinery', doc, flat, found);
   if (refusal) return { refused: refusal };
   if (found.length === 0) return { noSites: true };
   // Features rule out only the joint kinds they would be cut by (joinery-holes spec §3.5), decided before any call or

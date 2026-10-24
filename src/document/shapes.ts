@@ -35,7 +35,7 @@ export function resolveBoard(shapes: ReadonlyMap<string, Shape>, b: StoredBoard)
   const shared: Record<string, unknown> = {};
   for (const k of SHARED_KEYS) {
     if (!(k in s)) continue;
-    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : k === 'profiles' ? s.profiles.map(copyProfile) : k === 'bands' ? s.bands.map(copyBand) : k === 'hardware' ? s.hardware.map(copyHardwareUse) : s[k];
+    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : k === 'profiles' ? s.profiles.map(copyProfile) : k === 'bands' ? s.bands.map(copyBand) : k === 'hardware' ? s.hardware.map(copyHardwareUse) : k === 'lean' ? { ...s.lean! } : s[k];
   }
   const { shape, mirrored, ...own } = b;
   const base: Board = { ...own, ...(shared as Pick<Board, SharedField>), shape };

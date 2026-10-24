@@ -12,6 +12,7 @@ import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } fr
 import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './profiles';
 import { BAND_SIDES, bandFaults, sameSide } from './banding';
 import { faceOutline, sideStretch } from './profilePath';
+import { degreesOf, leanMap, resultantDeg, sightlineDeg, worldSlopes } from './lean';
 
 /**
  * The Plans sheet's feature keys (feature callouts spec §2.2, §3): ONE home for a feature's identity, the segment tags it
@@ -180,4 +181,33 @@ export function partFeatures(b: Board, units: Units, bandTypes: readonly BandTyp
   }
   out.push(...bands);
   return out;
+}
+
+/** One lean component in words: `<word> <deg>°` and its direction, or no direction words when it reads 0.0° (Global
+ *  Constraints: a 0 component prints `rake 0.0°`; one that only ROUNDS to 0.0° has no direction worth naming either). */
+function leanPart(word: string, slope: number, plus: string, minus: string): string {
+  const deg = degreesOf(Math.abs(slope)).toFixed(1);
+  return deg === '0.0' ? `${word} 0.0°` : `${word} ${deg}° ${slope > 0 ? plus : minus}`;
+}
+
+/**
+ * A leaning part's Plans note (splayed legs spec §6.2; copy verbatim from the Global Constraints):
+ * `<name>: rake 8.0° toward the front, splay 12.0° toward the right — resultant 14.3° on a 33.5° sightline`, or null for
+ * a part that does not lean. Read off the part as the trio DRAWS it (its world slopes: rake on world Z, + toward the
+ * front; splay on world X, + toward the right), at `angleText.ts`' 0.1°. An HTML note under the figure, never a measured
+ * SVG label (inv 19), so the whole string is built here and the panel only lists it.
+ */
+export function leanNote(b: Board): string | null {
+  if (!leanMap(b)) return null;
+  const [wx, wz] = worldSlopes(b);
+  const rake = leanPart('rake', wz, 'toward the front', 'toward the back');
+  const splay = leanPart('splay', wx, 'toward the right', 'toward the left');
+  return `${b.name}: ${rake}, ${splay} — resultant ${resultantDeg({ x: wx, z: wz }).toFixed(1)}° on a ${sightlineDeg(wx, wz).toFixed(1)}° sightline`;
+}
+
+/** The lean notes of one trio: each KEYED leaning part's once (feature callouts spec §2.1's keying, `plans.ts`), so a part
+ *  is noted once per sheet, in the trio that keys its features. */
+export function leanNotes(parts: readonly Board[], keyed: ReadonlySet<string> | undefined): string[] {
+  if (!keyed) return [];
+  return parts.flatMap((b) => (keyed.has(b.id) ? leanNote(b) ?? [] : []));
 }

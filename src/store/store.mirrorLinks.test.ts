@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from './store';
-import { LINK_ACROSS_MIRROR, boardsBounds, createBoard, createDocument, isShaped, linkPlan, mirroredAt, partAt, plainOf, storageKey, worldParts } from '../document/document';
+import { LINK_ACROSS_MIRROR, createBoard, partsBounds, createDocument, isShaped, linkPlan, mirroredAt, partAt, plainOf, storageKey, worldParts } from '../document/document';
 import { inverseTurn, mirrorDim, mirrorFeatures } from '../document/frames';
 import { holeInstances, mirrorHoleRow } from '../document/holes';
 import { sharedOf } from '../document/links';
@@ -109,12 +109,12 @@ describe('mirrorLinkedPart: the Mirrored checkbox (spec §5.2, Review Focus 1)',
       s().replaceDocument(sideDoc(rotation));
       const before = s().doc;
       const r0 = occ('r');
-      const [lo, hi] = [boardsBounds([r0])!.min[0], boardsBounds([r0])!.max[0]];
+      const [lo, hi] = [partsBounds([r0])!.min[0], partsBounds([r0])!.max[0]];
       s().mirrorLinkedPart('r', true);
       const r1 = occ('r');
       expect(partAt(s().doc, 'r')).toEqual({ id: 'r', name: 'Right', position: [30, 0, 0], rotation: inverseTurn(rotation), shape: 's1', mirrored: true });
       expect(s().doc.shapes).toBe(before.shapes);                                       // the Shape is untouched
-      expect(boardsBounds([r1])).toEqual(boardsBounds([r0]));                           // the box is unchanged
+      expect(partsBounds([r1])).toEqual(partsBounds([r0]));                           // the box is unchanged
       // Every world direction reflects in X: the pin face (on X at 90°/270°) moves to the opposite X face; the edging
       // (on Z at 90°/270°) stays on its world face.
       expect(worldHoles(r1).map((h) => h.face)).toEqual(worldHoles(r0).map((h) => flipX(h.face)));
@@ -148,11 +148,11 @@ describe('mirrorLinkedPart: the Mirrored checkbox (spec §5.2, Review Focus 1)',
       const r0 = occ('i1/r');
       expect(worldHoles(r0)[0]!.face[1]).toBe('x');                                     // the case: pins on X, edging on Z
       expect(worldBands(r0)[0]!.edge[1]).toBe('z');
-      const [lo, hi] = [boardsBounds([r0])!.min[0], boardsBounds([r0])!.max[0]];
+      const [lo, hi] = [partsBounds([r0])!.min[0], partsBounds([r0])!.max[0]];
       s().mirrorLinkedPart('i1/r', true);
       const r1 = occ('i1/r');
       expect(partAt(s().doc, 'i1/r')).toMatchObject({ position: [30, 0, 0], rotation: 180, mirrored: true });   // -(2·90 + 0)
-      expect(boardsBounds([r1])).toEqual(boardsBounds([r0]));
+      expect(partsBounds([r1])).toEqual(partsBounds([r0]));
       expect(worldHoles(r1).map((h) => h.face)).toEqual(worldHoles(r0).map((h) => flipX(h.face)));
       expect(worldBands(r1).map((x) => x.edge)).toEqual(worldBands(r0).map((x) => x.edge));
       expect(sortPts(holeCentres(r1))).toEqual(sortPts(holeCentres(r0).map(([x, y, z]) => [lo + hi - x!, y!, z!])));

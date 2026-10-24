@@ -12,7 +12,7 @@ const board0 = (doc: ReturnType<typeof migrateDocument>) => doc.boards[0] as Boa
 const p1 = (over: Partial<ProfileCut> = {}): ProfileCut => ({ id: 'p1', ...profileFromFields(ro), ...over });
 
 describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
-  it('this build writes 21', () => expect(CURRENT_VERSION).toBe(21));
+  it('this build writes 22', () => expect(CURRENT_VERSION).toBe(22));
   it('a v17 profile curve moves into profiles, keeping its id; other curves stay', () => {
     const arch = { id: 'c2', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }) };
     const b = board0(load(v17([part({ curves: [{ id: 'c1', ...profileCurve(ro) }, arch] })])));
@@ -179,8 +179,8 @@ describe('loading schema 18 (profile runs spec §3.2, chunk a1)', () => {
     const raw = { ...v17([part({ profiles: [{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }] })]), version: 18 };
     expect(board0(load(raw)).profiles).toEqual([{ ...p1({ id: 'a' }), run: { loop: true } }, { ...p1({ id: 'b' }), run: two }]);
   });
-  it('a v22 file is refused by the version gate', () => {
-    expect(() => load({ ...v17([part({})]), version: 22 })).toThrow(/newer version/);
+  it('a v23 file is refused by the version gate', () => {
+    expect(() => load({ ...v17([part({})]), version: 23 })).toThrow(/newer version/);
   });
 });
 

@@ -1,6 +1,8 @@
 import type { Board } from './types';
 import type { V3 } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffset } from './geometry';
+import { leanMap, leans, type LeanMap } from './lean';
+import { partBounds } from './worldBounds';
 import { clipConvex, geometryKey, partGeometry, BODY_EPS, type BodyFace } from './bodies';
 import { HOLE_EPS, holePrism, holeRing, minusPrism, ringInside } from './holes';
 import { SECTION_EPS, unionOutline } from './outline';
@@ -47,6 +49,14 @@ export function sectionSpan(
   let lo = Infinity;
   let hi = -Infinity;
   for (const b of boards) {
+    // A leaning part's drawn extent is its real bounds (splayed legs spec §6.1 R2); an unleaned part takes today's sum.
+    if (leanMap(b)) {
+      const r = partBounds(b);
+      const o = offsets?.get(b.id)?.[k] ?? 0;
+      lo = Math.min(lo, r.min[k]! + o);
+      hi = Math.max(hi, r.max[k]! + o);
+      continue;
+    }
     const min = b.position[k]! + (offsets?.get(b.id)?.[k] ?? 0);
     lo = Math.min(lo, min);
     hi = Math.max(hi, min + boardExtents(b)[k]!);
@@ -65,6 +75,8 @@ export interface SectionCap { pieces: V3[][]; outline: [V3, V3][] }
 export function localCapPieces(
   board: Board, s: Section, offset?: readonly number[],
 ): { pieces: V3[][]; li: number; u: number } | null {
+  // A leaning part's cut is not one of its own axis planes (splayed legs spec §6.2): it has no such local cap.
+  if (leaningMap(board)) return null;
   const local = localCap(board, s, offset);
   // A COPY: the cached pieces never leave this module (see LOCAL_CAPS).
   return local && { pieces: local.pieces.map((poly) => poly.map((p) => [p[0], p[1], p[2]] as V3)), li: local.li, u: local.u };
@@ -219,9 +231,118 @@ function newellAlong(poly: readonly V3[], li: number): number {
   return a;
 }
 
+/** The lean `sectionCaps` draws, under BoardMesh's own gate (`leans` and a map): a part the renderer does not lean
+ *  is capped unleaned, so a cap never disagrees with the mesh it closes. */
+function leaningMap(board: Board): LeanMap | null {
+  return leans(board) ? leanMap(board) : null;
+}
+
+/**
+ * A leaning part's cap (splayed legs spec §6.2), in the PIVOT frame: q = m · (the pre-lean world point − pivot), so the
+ * drawn world point is q + pivot + offset — the map `leanMap(board).apply` makes, then the explode offset, as BoardMesh's
+ * leaned group draws it. The frame does not depend on the part's position (the pivot is position + fixed extents), so the
+ * world plane x[k] = at is the pivot-frame plane q[k] = u = at − offset[k] − pivot[k], axis-aligned again. Each convex
+ * body (invariant 48) is clipped, in board-local terms, by that plane taken through the lean's inverse (`inverseDir`) and
+ * the part's own frame (inv 44); the cut faces are carried into the pivot frame, wound counter-clockwise about the cap's
+ * normal and outlined there by `unionOutline` along k, as an unleaned cap is along its local axis.
+ *
+ * No bores (spec §8): a leaning part never has holes in this chunk, so a hand-loaded one is capped without them — the
+ * bodies are hole-free (invariant 50) and its hole list is simply not read. Nothing is logged and nothing throws.
+ */
+function buildLeaningPieces(board: Board, map: LeanMap, k: number, u: number, flip: boolean): LocalCap | null {
+  const frame = axisFrame(board);
+  const ext = boardExtents(board);
+  const half = [ext[0] / 2, ext[1], ext[2] / 2];   // pivot − position (leanMap's pivot: the top face's centre)
+  // Board-local → pre-lean world − pivot, per world axis j: b0[j] + scale[j] · p[li[j]] (affine per axis, as sectionCaps).
+  const li: number[] = [], b0: number[] = [], scale: number[] = [];
+  for (let j = 0; j < 3; j += 1) {
+    li[j] = DIMENSION_ORDER.indexOf(frame[j]!.dim);
+    const at0 = toWorldOffset(board, j, 0, frame);
+    b0[j] = at0 - half[j]!;
+    scale[j] = toWorldOffset(board, j, 1, frame) - at0;
+  }
+  // The kept side in the pivot frame: N·q − N[k]·u ≥ 0, N the world plane's kept normal (sectionPlaneOf's).
+  const N: V3 = [0, 0, 0];
+  N[k] = flip ? 1 : -1;
+  const nW = map.inverseDir(N);                    // the same normal before the lean
+  const n: V3 = [0, 0, 0];
+  let d = -N[k]! * u;
+  for (let j = 0; j < 3; j += 1) { n[li[j]!] = nW[j]! * scale[j]!; d += nW[j]! * b0[j]!; }
+  const h = { n, d };                              // kept where n·p + d ≥ 0, p board-local
+  const g = (p: readonly number[]) => n[0] * p[0]! + n[1] * p[1]! + n[2] * p[2]! + d;
+  const toPivot = (p: readonly number[]): V3 => {
+    const w = [b0[0]! + scale[0]! * p[li[0]!]!, b0[1]! + scale[1]! * p[li[1]!]!, b0[2]! + scale[2]! * p[li[2]!]!];
+    const m = map.m;
+    return [
+      m[0][0] * w[0]! + m[0][1] * w[1]! + m[0][2] * w[2]!,
+      m[1][0] * w[0]! + m[1][1] * w[1]! + m[1][2] * w[2]!,
+      m[2][0] * w[0]! + m[2][1] * w[1]! + m[2][2] * w[2]!,
+    ];
+  };
+  let pieces: V3[][] = [];
+  for (const body of partGeometry(board).bodies) {
+    const faces = body.faces as BodyFace[];
+    const clipped = clipConvex(faces, h);
+    if (clipped.length === 0) continue;
+    if (clipped === faces) {
+      // Nothing removed: a face lying ON the plane and facing the removed side is the cut (a levelled foot under a Top
+      // plane at the floor), capped so the part never reads hollow, as the unleaned path does. A turned face's normal
+      // is not exact, so the facing test takes a tolerance.
+      const f = faces.find((q) => q.n[0] * n[0] + q.n[1] * n[1] + q.n[2] * n[2] < -1 + BODY_EPS
+        && q.verts.every((p) => Math.abs(g(p)) <= BODY_EPS));
+      if (f) pieces.push(f.verts.map(toPivot));
+      continue;
+    }
+    const cap = clipped.find((q) => q.cut === '');
+    if (cap) pieces.push(cap.verts.map(toPivot));
+  }
+  if (!pieces.length) return null;
+  // ONE winding, counter-clockwise about the cap's normal −N (it faces the removed side), for unionOutline's cancellation.
+  pieces = pieces.map((poly) => (newellAlong(poly, k) * -N[k]! < 0 ? [...poly].reverse() : poly));
+  return freezeContainers({ pieces, outline: unionOutline(pieces, k), li: k, u });
+}
+
+/** `v` exactly, `-0` apart from 0, for a cache key. */
+const exact = (v: number) => (Object.is(v, -0) ? '-0' : String(v));
+
+/**
+ * A leaning part's cap through the local-cap cache (invariant 51), in the pivot frame. ONE slot per (part id, axis, side),
+ * as `localCap`'s, under its own prefix; a hit needs the same geometry key, the same lean (x, z, face, exact), the same
+ * turn and posture (the frame and the twist read them), and the same pivot-frame plane `u` (Object.is). A move that keeps
+ * `u` (across the plane's direction) only translates the cap, as a placed part's does.
+ */
+function leaningCap(board: Board, map: LeanMap, s: Section, offset?: readonly number[]): LocalCap | null {
+  const k = AXIS_INDEX[s.axis];
+  const u = s.at - (offset?.[k] ?? 0) - map.pivot[k]!;
+  const lean = board.lean!;
+  const key = `lean|${k}|${s.flip ? 'near' : 'far'}|${board.id}`;
+  const geo = `${geometryKey(board)}|${exact(lean.x)},${exact(lean.z)},${lean.face}|${board.rotation}|${board.posture}`;
+  const hit = LOCAL_CAPS.get(key);
+  if (hit) LOCAL_CAPS.delete(key);
+  if (hit && hit.geo === geo && Object.is(hit.u, u)) { LOCAL_CAPS.set(key, hit); return hit.cap; }
+  const cap = buildLeaningPieces(board, map, k, u, s.flip);
+  LOCAL_CAPS.set(key, { geo, u, cap });
+  if (LOCAL_CAPS.size > LOCAL_CAPS_MAX) LOCAL_CAPS.delete(LOCAL_CAPS.keys().next().value!);
+  return cap;
+}
+
 /** THE caps (section-cut spec §3.1): a part's cut faces in world inches where the part is DRAWN (explode offset
- *  added), or null. */
+ *  added), or null. A leaning part's are where its lean draws it (splayed legs spec §6.2): BoardMesh renders that cap
+ *  OUTSIDE the leaned group, so it is never leaned twice. */
 export function sectionCaps(board: Board, s: Section, offset?: readonly number[]): SectionCap | null {
+  const map = leaningMap(board);
+  if (map) {
+    const cap = leaningCap(board, map, s, offset);
+    if (!cap) return null;
+    const o = offset ?? [0, 0, 0];
+    const t = [map.pivot[0] + o[0]!, map.pivot[1] + o[1]!, map.pivot[2] + o[2]!];
+    // New arrays every call: no cached point leaves this module.
+    const w = (p: readonly number[]): V3 => [p[0]! + t[0]!, p[1]! + t[1]!, p[2]! + t[2]!];
+    return {
+      pieces: cap.pieces.map((poly) => poly.map(w)),
+      outline: cap.outline.map(([a, b]) => [w(a), w(b)] as [V3, V3]),
+    };
+  }
   const local = localCap(board, s, offset);
   if (!local) return null;
   const o = offset ?? [0, 0, 0];

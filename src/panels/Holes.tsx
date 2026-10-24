@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { isMetric } from '../units/length';
 import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine } from '../document/holeText';
+import { leans } from '../document/lean';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
@@ -129,6 +130,12 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
 /** The Holes section (holes spec §7, as amended): one row per stored HoleRow, and + Add hole ▾. */
 export function Holes({ board }: { board: Board }) {
   const addHoleRows = useStore((s) => s.addHoleRows);
+  // The store refuses a hole on a leaning part (splayed legs spec §8); its text shows here, as the panel's other refusals do.
+  const [error, setError] = useState<string | null>(null);
+  // A refusal belongs to the part and lean it was made for: Clear lean (or another part) retires it.
+  const isLeaning = leans(board);
+  useEffect(() => setError(null), [board.id, isLeaning]);
+  const add = (rows: Omit<HoleRow, 'id'>[]) => setError(addHoleRows(board.id, rows));
   const units = useStore((s) => s.doc.units);
   // A preset whose default would fault on this part is withheld, not added and refused (AngleCuts' precedent).
   const fits = (r: Omit<HoleRow, 'id'> | null): r is Omit<HoleRow, 'id'> => {
@@ -144,9 +151,9 @@ export function Holes({ board }: { board: Board }) {
   const pinText = metric && pins ? holeLengthText(pins.diameter, units, 'diameter') : '¼"';
   const cupDeep = metric && cup && cup.depth !== 'through' ? holeLengthText(cup.depth, units, 'diameter') : '½"';
   const items = [
-    ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => addHoleRows(board.id, [hole]) }] : []),
-    ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `${pinText} pins every 32 mm along the ${pins.along}`, run: () => addHoleRows(board.id, [pins]) }] : []),
-    ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => addHoleRows(board.id, [cup]) }] : []),
+    ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => add([hole]) }] : []),
+    ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `${pinText} pins every 32 mm along the ${pins.along}`, run: () => add([pins]) }] : []),
+    ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => add([cup]) }] : []),
   ];
   return (
     <>
@@ -155,6 +162,7 @@ export function Holes({ board }: { board: Board }) {
       {items.length > 0
         ? <Popover className="add-hole" label={<>+ Add hole<span aria-hidden="true"> ▾</span></>} title="Add a hole" items={items} />
         : <p className="field-note">No hole preset fits this part.</p>}
+      {error && <p className="field-error" role="alert">{error}</p>}
     </>
   );
 }

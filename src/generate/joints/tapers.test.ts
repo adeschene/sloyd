@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { stoolDocument, stoolWithCut } from '../../document/stoolFixture';
+import { runJoinery } from '../run';
+import { repairDocument } from './repair';
+import type { LlmClient } from '../../llm/types';
 import { designToDocument, parseDesign, toWireDesign } from '../../document/generated';
 import type { GeneratedDesign } from '../../document/generated';
-import { chamferCut, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
+import { chamferCut, createBoard, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
 import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
 import type { AngleCut, Board, FlatDocument, SloydDocument } from '../../document/document';
-import { axisDimensions, axisFrame, boardCenter, endFacing, toWorldOffset } from '../../document/geometry';
+import { axisDimensions, axisFrame, boardCenter, boardExtents, endFacing, toWorldOffset } from '../../document/geometry';
 import { worldTapers } from '../../document/taperWorld';
 import { formatLength, imperialAt } from '../../units/length';
 import { findSites } from './sites';
@@ -156,7 +160,7 @@ describe('taperJointRefusal / joineryRefusal', () => {
     expect(taperJointRefusal(doc, conflicts(doc))).toContain('start it at 23-7/16" or less from the length');
     // Following the advice: a start of exactly 23-7/16 refuses nothing.
     expect(conflicts(withLeg(off, inside(23 + 7 / 16)))).toEqual([]);
-    expect(joineryRefusal(withLeg(off, inside(23 + 7 / 16)))).toBeNull();
+    expect(joineryRefusal('joinery', withLeg(off, inside(23 + 7 / 16)))).toBeNull();
   });
   it('a patch within one tick of the thin end reads as joining at that end, never "start it at 0"', () => {
     const near = atY(CORNER, (b) => (b.name === 'Leg' ? 0 : 0.05));
@@ -167,17 +171,17 @@ describe('taperJointRefusal / joineryRefusal', () => {
     expect(taperJointRefusal(doc, out)).toBe("Leg's taper runs to the length min end, where it joins Rail X — taper the other end, or remove it.");
   });
   it('the decider: one sentence per part, a taper conflict wins on its part, else null (AI-angles spec §3)', () => {
-    expect(joineryRefusal(CORNER)).toBeNull();
-    expect(joineryRefusal(withLeg(CORNER, inside(22)))).toBeNull();
-    expect(joineryRefusal(withLeg(CORNER, inside(24)))).toContain('taper runs into its joint');
+    expect(joineryRefusal('joinery', CORNER)).toBeNull();
+    expect(joineryRefusal('joinery', withLeg(CORNER, inside(22)))).toBeNull();
+    expect(joineryRefusal('joinery', withLeg(CORNER, inside(24)))).toContain('taper runs into its joint');
     const mitered: FlatDocument = { ...CORNER, boards: CORNER.boards.map((b) => (b.name === 'Rail X'
       ? { ...b, angleCuts: [{ id: 'm', ...miterCut({ end: endFacing(b, 0, -1), across: 'thickness', longSide: endFacing(b, 2, -1), ratio: 1 }, b) }] } : b)) };
-    expect(joineryRefusal(mitered)).toBe("Rail X's miter runs into its joint with Leg — add joinery before cutting it, or remove it.");
+    expect(joineryRefusal('joinery', mitered)).toBe("Rail X's miter runs into its joint with Leg — add joinery before cutting it, or remove it.");
     // A miter-kind cut that removes nothing is fine.
-    expect(joineryRefusal(withLeg(CORNER, (b) => [{ ...face(b, 2, -1, 24), kind: 'miter', points: [[0, -1], [1, -2]] }]))).toBeNull();
+    expect(joineryRefusal('joinery', withLeg(CORNER, (b) => [{ ...face(b, 2, -1, 24), kind: 'miter', points: [[0, -1], [1, -2]] }]))).toBeNull();
     // A taper (on the leg) and a miter (on the rail): two sentences, in part order.
     const both: FlatDocument = { ...mitered, boards: mitered.boards.map((b) => (b.name === 'Leg' ? { ...b, angleCuts: inside(24)(b) } : b)) };
-    const text = joineryRefusal(both)!;
+    const text = joineryRefusal('joinery', both)!;
     expect(text.indexOf("Leg's taper")).toBeGreaterThanOrEqual(0);
     expect(text.indexOf("Rail X's miter")).toBeGreaterThan(text.indexOf("Leg's taper"));
     // A taper conflict and a chamfer conflict on the SAME part: the taper's sentence only.
@@ -190,7 +194,7 @@ describe('taperJointRefusal / joineryRefusal', () => {
     };
     const legBoth = withLeg(CORNER, (b) => [...inside(24)(b), legChamfer(b)]);
     expect(angleConflicts(legBoth, findSites(legBoth))).toHaveLength(1);
-    expect(joineryRefusal(legBoth)).toBe(joineryRefusal(withLeg(CORNER, inside(24))));
+    expect(joineryRefusal('joinery', legBoth)).toBe(joineryRefusal('joinery', withLeg(CORNER, inside(24))));
   });
 });
 
@@ -276,7 +280,7 @@ describe('the headline flow: a Shaker table with tapered legs, generated and joi
     }
     expect(checkDesign(flat, limits)).toEqual([]);
     expect(jointFaults(flat)).toEqual([]);
-    expect(joineryRefusal(made.doc, flat)).toBeNull();
+    expect(joineryRefusal('joinery', made.doc, flat)).toBeNull();
 
     const sites = findSites(flat);
     // Every apron end meets a leg: eight sites, each joined by an explicit mortise-and-tenon (3/4in: the two tenons in a
@@ -507,3 +511,57 @@ describe('taperJointRefusal in metric', () => {
     expect(taperJointRefusal(mm, c)).toContain('start it at 596 mm or less');
   });
 });
+
+describe('leaning parts (splayed legs spec §8): joinery, Repair and a joined Refine refuse, one decider', () => {
+  it('joinery refuses a leaning part: the verbatim text, decided before any call or mutation', async () => {
+    const doc = stoolDocument();
+    const before = JSON.stringify(doc);
+    expect(joineryRefusal('joinery', doc)).toBe("Add joinery can't join a leaning part yet: Front right.");
+    const complete = vi.fn();
+    const client = { userTurn: (text: string) => ({ role: 'user', text }), estimateCostUsd: () => 0, complete } as unknown as LlmClient;
+    const out = await runJoinery(client, doc, new AbortController().signal, () => {});
+    expect(out).toEqual({ refused: "Add joinery can't join a leaning part yet: Front right." });
+    expect(complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(doc)).toBe(before);
+  });
+
+  it('names the caller: the Repair and joined Refine texts, verbatim; a lean-free document is unchanged', () => {
+    const doc = stoolDocument();
+    expect(joineryRefusal('repair', doc)).toBe("Repair can't join a leaning part yet: Front right.");
+    expect(joineryRefusal('refine', doc)).toBe("Refine can't keep joints with a leaning part yet: Front right.");
+    // The FIRST leaning part in flat order is named.
+    const later = { ...doc, boards: [doc.boards.find((b) => b.name === 'Seat')!, ...doc.boards.filter((b) => b.name !== 'Seat').reverse()] };
+    expect(joineryRefusal('joinery', later)).toBe("Add joinery can't join a leaning part yet: Back right.");
+    expect(joineryRefusal('joinery', { ...doc, boards: doc.boards.filter((b) => b.name === 'Seat'), shapes: [] })).toBeNull();
+  });
+
+  it('Repair refuses a joined project with a leaning part in its own words; one with no cuts has nothing to repair', () => {
+    expect(repairDocument(stoolWithCut())).toEqual({ refused: "Repair can't join a leaning part yet: Front right." });
+    expect(repairDocument(stoolDocument())).toBeNull();
+  });
+
+  // Final review I2: a kept leaning leg's PRE-LEAN box is not where its wood is, so a contact with it is no joint site and
+  // no `angle-joint` fault (Refine fed the model faults naming a kept part it can never change). Joinery and Repair
+  // refuse a leaning document outright (above), so skipping the pair loses nothing. The apron at the top reproduces the
+  // phantom fault ("Front right's miter runs into where it meets Apron …"); the rail at the foot a phantom site.
+  describe('no site and no angle-joint fault for a part meeting a leaning part (final review I2)', () => {
+    /** The stool with a world-square part butting Front right's pre-lean side (+X, or -X when `side` is -1) at height `y`,
+     *  its end into the side. */
+    const butting = (name: string, y: number, side: 1 | -1): FlatDocument => {
+      const flat = flatDocument(stoolDocument());
+      const fr = flat.boards.find((b) => b.name === 'Front right')!;
+      const [ex, , ez] = boardExtents(fr);
+      const part = createBoard({ name, length: 6, width: 1, thickness: 0.75, posture: 'flat',
+        position: [side === 1 ? fr.position[0] + ex : fr.position[0] - 6, y, fr.position[2] + (ez - 1) / 2] });
+      return { ...flat, boards: [...flat.boards, part] };
+    };
+    for (const [name, y, side] of [['Apron', 15.25, 1], ['Rail', 0, -1]] as const) {
+      it(`${name} on the ${side === 1 ? '+' : '-'}X side: no site, no fault`, () => {
+        const flat = butting(name, y, side);
+        expect(jointFaults(flat).map((v) => v.message)).toEqual([]);
+        expect(findSites(flat)).toEqual([]);
+      });
+    }
+  });
+});
+

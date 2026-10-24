@@ -7,11 +7,13 @@ import { toWorld } from './snapPoints';
 import { holeDrawingTagged } from './holeDrawing';
 import { angleCutRemovesNothing, keptHalfSpace } from './angleCuts';
 import { featureTag } from './featureKeys';
-import { curveDrawEdges, curveEdgeLifts, profileSilhouettes, silhouetteLines } from './curveDrawing';
+import { curveDrawEdges, curveEdgeLifts, ownWoodLift, profileSilhouettes, silhouetteLines } from './curveDrawing';
 import { sectionAxisIndex, sectionCaps, SECTION_EPS, type Section } from './section';
 import { geometryBoard, shapedPart } from './profiles';
 import { BAND_SIDES, bandFaults, glueLines, sameSide } from './banding';
 import { faceOutline, sideStretch } from './profilePath';
+import { leanMap, leans } from './lean';
+import { partBounds } from './worldBounds';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -106,17 +108,24 @@ const DIM_INDEX = { length: 0, width: 1, thickness: 2 } as const;
  *  m is the negated world outward normal, c = n·v0). */
 export interface WorldBody { box: { min: Vec3; max: Vec3 } | null; verts: Vec3[]; planes: { m: Vec3; c: number }[] }
 
+/** A board-local direction in the part's pre-lean placement: the turn table's axis and sign (inv 44). */
+const placedDir = (frame: ReturnType<typeof axisFrame>, n: readonly number[]): Vec3 =>
+  [0, 1, 2].map((i) => n[DIM_INDEX[frame[i]!.dim]]! * (frame[i]!.reversed ? -1 : 1)) as Vec3;
+
 export function worldBodies(b: Board): WorldBody[] {
   const frame = axisFrame(b);
+  // Splayed legs §6.1: a leaning part's body is never its axis-aligned box (R3), and its normals turn with the lean as its
+  // vertices do (R1: `toWorld` composes the lean, `applyDir` the same rotation). An unleaned part takes today's path.
+  const lean = leanMap(b);
   return partGeometry(b).bodies.map((body) => {
-    if (body.box) {
+    if (body.box && !lean) {
       const w = worldBox(b, body.box);
       return { box: { min: w.min as unknown as Vec3, max: w.max as unknown as Vec3 }, verts: [], planes: [] };
     }
     const toW = ([l, w, t]: readonly number[]) => toWorld(b, { length: l!, width: w!, thickness: t! });
     const verts = body.faces.flatMap((f) => f.verts.map(toW));
     const planes = body.faces.map((f) => {
-      const n = [0, 1, 2].map((i) => f.n[DIM_INDEX[frame[i]!.dim]]! * (frame[i]!.reversed ? -1 : 1)) as Vec3;
+      const n = lean ? lean.applyDir(placedDir(frame, f.n)) : placedDir(frame, f.n);
       const v0 = toW(f.verts[0]!);
       return { m: [-n[0], -n[1], -n[2]] as Vec3, c: dot(n, v0) };
     });
@@ -146,8 +155,13 @@ export function hiddenSpanPlanes(
   return hi > lo ? [lo, hi] : null;
 }
 
-/** A part's BOARD box in world space, offset. Bounds read this, not the solids (Review Focus 1). */
+/** A part's BOARD box in world space, offset. Bounds read this, not the solids (Review Focus 1). A leaning part's is its
+ *  real bounds (`partBounds`, splayed legs §6.1 R2), never the pre-lean box; an unleaned part's is today's sum. */
 function boardBox(b: Board, off: readonly number[] | undefined): { min: Vec3; max: Vec3 } {
+  if (leans(b)) {
+    const r = partBounds(b);
+    return { min: plus(r.min, off), max: plus(r.max, off) };
+  }
   const ext = boardExtents(b);
   const min = plus(b.position, off);
   return { min, max: [min[0] + ext[0], min[1] + ext[1], min[2] + ext[2]] };
@@ -209,14 +223,38 @@ function bandTag(planes: readonly BandPlane[], p: readonly number[], q: readonly
   return undefined;
 }
 
+/**
+ * Splayed legs §6.2: each edge of a LEANING part, board-local (p, q), with its own-wood probe lift (`ownWoodLift`): the
+ * faces holding it are those of its bodies whose plane holds both ends (judged board-local, free of the lean's round-trip
+ * noise), their normals then turned to the world (`placedDir`, then the lean). Null for a part that does not lean, whose
+ * edges keep today's bytes (`drawingIdentity`).
+ */
+function leanLifts(b: Board, toward: readonly number[]): ((p: readonly number[], q: readonly number[]) => Vec3 | undefined) | null {
+  const lean = leanMap(b);
+  if (!lean) return null;
+  const frame = axisFrame(b);
+  const faces = partGeometry(b).bodies.flatMap((body) => body.faces).map((f) => {
+    const l = Math.hypot(f.n[0], f.n[1], f.n[2]);
+    const n = [f.n[0] / l, f.n[1] / l, f.n[2] / l];
+    return { n, d: -dot(n, f.verts[0]!), world: lean.applyDir(placedDir(frame, f.n)) };
+  });
+  return (p, q) => {
+    const on = (x: readonly number[], f: { n: readonly number[]; d: number }) => Math.abs(dot(f.n, x) + f.d) <= 1e-9;
+    return ownWoodLift(faces.filter((f) => on(p, f) && on(q, f)).map((f) => f.world), toward);
+  };
+}
+
 function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly BandType[]): Seg3[] {
   const planes = bandPlanes(b, bandTypes);
   b = geometryBoard(b);
+  const leanLift = leanLifts(b, toward);
   if (!shapedPart(b)) {
     return partGeometry(b).edges.map(([p, q]) => {
       const lp = local(p);
       const lq = local(q);
-      return withTag({ A: toWorld(b, p), E: toWorld(b, q) }, angleTag(b, lp, lq) ?? (planes.length ? bandTag(planes, lp, lq) : undefined));
+      const lift = leanLift?.(lp, lq);
+      return withTag(lift ? { A: toWorld(b, p), E: toWorld(b, q), lift } : { A: toWorld(b, p), E: toWorld(b, q) },
+        angleTag(b, lp, lq) ?? (planes.length ? bandTag(planes, lp, lq) : undefined));
     });
   }
   const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
@@ -227,7 +265,8 @@ function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly 
     const A = W(e.p);
     const E = W(e.q);
     const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q) ?? (planes.length ? bandTag(planes, e.p, e.q) : undefined);
-    const lift = lifts[i];
+    // A leaning part's edge no outline face lifts (a level cut's face) takes its own-wood lift (splayed legs §6.2).
+    const lift = lifts[i] ?? leanLift?.(e.p, e.q);
     if (!e.path) return withTag(lift ? { A, E, lift } : { A, E }, tag);
     const step = [e.p[0], e.p[1], e.p[2]];
     step[e.path.k] = step[e.path.k]! + 1;

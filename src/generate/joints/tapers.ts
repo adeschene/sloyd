@@ -8,6 +8,7 @@ import type { Units } from '../../units/length';
 import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import { findSites } from './sites';
+import { leans } from '../../document/lean';
 import type { Site } from './sites';
 
 /**
@@ -119,13 +120,37 @@ export function angleConflicts(flat: FlatDocument, sites: readonly Site[]): Angl
   return [...found.values()].sort((x, y) => x.part - y.part);
 }
 
+/** Who is asking (splayed legs spec §8): the leaning refusal names its caller, so each entry point speaks its own verbatim
+ *  sentence from the ONE decider. */
+export type JoineryEntry = 'joinery' | 'repair' | 'refine';
+
+const LEANING_TEXT: Record<JoineryEntry, (name: string) => string> = {
+  joinery: (n) => `Add joinery can't join a leaning part yet: ${n}.`,
+  repair: (n) => `Repair can't join a leaning part yet: ${n}.`,
+  refine: (n) => `Refine can't keep joints with a leaning part yet: ${n}.`,
+};
+
 /**
- * THE joinery refusal (AI-tapers spec §4.2; AI-angles spec §3): every taper or other angle cut running into a joint, one
- * sentence per part, else null. `runJoinery`, the dialog and a joined Refine all call it, so they refuse in the same
- * words. Holes, curves, profiles and bands no longer refuse (joinery-features spec §3): `featureAllowed` narrows the sites. Decided before any call or mutation. `doc` is kept for the callers; only `flat` is read.
+ * The leaning refusal (splayed legs spec §8), `joineryRefusal`'s FIRST step: a document with a leaning part is refused
+ * whole, naming its first leaning part in flat order. Pocket cuts, sites and the joint read-back are box-based
+ * (`pocketFor`, `boxOf`; inv 41) and an angled socket is not a rectangular cut. Exported for the two callers that must
+ * decide it BEFORE a box-based step of their own and without the angle-at-joint rules: Repair (`repairDocument`, which
+ * accepts tapers) and a joined Refine (`plainForRefine`, before its joint gate). Pure.
  */
-export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
-  return jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
+export function leaningRefusal(entry: JoineryEntry, flat: FlatDocument): string | null {
+  const b = flat.boards.find(leans);
+  return b ? LEANING_TEXT[entry](b.name) : null;
+}
+
+/**
+ * THE joinery refusal (AI-tapers spec §4.2; AI-angles spec §3; splayed legs spec §8): a leaning part first
+ * (`leaningRefusal`, in `entry`'s words), then every taper or other angle cut running into a joint, one sentence per part,
+ * else null. `runJoinery`, the dialog and a joined Refine all call it, so they refuse in the same words. Holes, curves,
+ * profiles and bands no longer refuse (joinery-features spec §3): `featureAllowed` narrows the sites. Decided before any
+ * call or mutation. `doc` is kept for the callers; only `flat` is read.
+ */
+export function joineryRefusal(entry: JoineryEntry, doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
+  return leaningRefusal(entry, flat) ?? jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 
 /** The angle-at-joint rule on a DESIGN (AI-tapers spec 5.3; AI-angles spec §5.4): every conflict as an `angle-joint` fault, for evaluateDesign and Refine's preexisting set. */

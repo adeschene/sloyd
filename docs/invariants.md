@@ -20,6 +20,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
    must carry its own `position` in the same patch.
     `angleCuts` and `holes` are absent from the reorient predicate too (a slope or a bore moves nothing), and so are
     `curves` and `profiles`, and `bands` and `cornerRule` (a band moves nothing).
+    `lean` is absent too: a lean moves no min corner (`position` is the PRE-lean box's, inv 57), and it has its own store actions
+    (`setLean`, `levelEnds`). On a LEANING part a resize or turn keeps the PIVOT instead of the corner (`pivotKeptPosition`, inv 57).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -123,9 +125,15 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       point-precise. Deleting the former or adding one for the latter breaks behaviour that
       only the "keeps" tests catch.
     - The enumeration lives only at `tapeHover`'s declaration in `store.ts`; never restate it.
+    - **A lean edit moves the world under a held point** (splayed legs, inv 57): `setLean` and `levelEnds` end in `judgeHeld()`, the
+      same point-precise path a resize takes (`updateBoards`), because a leaning part's snap points are its lean-mapped lattice. No
+      board-precise tape clause was added for it.
 25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide,
     ray-typed guide, axis-placed guide and copy in a row (copy k = original + k·step·sign,
     never from the previous copy). Round what a free drag produced, nothing else.
+    **A free drag of a LEANING part rounds the drag DELTA, never a corner** (`dragTarget`, Gizmo.tsx; splayed legs §6.2, inv 57): its
+    pre-lean corner is off-grid after Level the ends, and its real-bounds corner would move the seat joint. A snap onto a leaning
+    part's point moves the moving part by an exact world delta, unrounded, as before.
 26. **`grabbed` is a `BoardSnapPoint`**, so a guide-owned grab cannot be constructed. Do
     not add a runtime owner-type guard to `commitSnapMove`; the self-snap guard's
     `target.owner.type === 'board'` check is real and stays. `tapeAnchor`/`tapeHover` are
@@ -196,11 +204,33 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     into a joint (`joineryRefusal`); Refine accepts every kind in standard form (`worldTapers`, `worldAngles`) and refuses the rest (`'taper-form'`, `'angle-form'`). Do not raise `TOUCH` to make joints
     pass; do not drop the check. **Holes are ignored** by overlap, held/hangs, tip, contact and grounding: a hole never
     decides support.
+    **A LEANING part (splayed legs §7, inv 57) is measured on its real, leaned bodies:** a pair with a leaning part always takes the
+    real-bodies overlap path (`worldBodyFaces`, now in `leanContacts.ts` with the lean composed; gated on the leaning part's REAL
+    bounds, never its pre-lean solids, and never falling back to boxes), even with no angle cut; `partMass` weighs leaned bodies (the
+    box path only for `!isAngled && !leans`). Its boxes for too-small, too-large and the nearest-part distance are `partBounds`;
+    `faceContacts` (joinery's sites) keeps the pre-lean boxes, since joinery refuses a leaning document. Its contacts are only its
+    LEVEL faces (`levelFaces`: leaned body faces whose world normal is ±Y within `LEVEL_EPS` = 1e-9, which admits float error only —
+    a 0.5° slope is not a contact, mutation-tested), matched against another part's level face within `TOUCH` in y with real plan
+    overlap (`overlapArea` > `REST_AREA` = 1e-9 sq in, against the ~1e-15 slivers of an edge-only meeting); its pre-lean boxes make no
+    contact (`touching` is `[]`). Every walk is gated on `leaning`, computed once: a lean-free document takes today's expressions,
+    and its check results are pinned byte for byte (`leanFreeChecks.test.ts`, a sha of every violation over eight fixtures).
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
     the coverage threshold, or either half of the top-face clause.** One fault, one report.
     `groundedSet` is the ONE grounding walk. Known limits: follow-up 176.
+    **A leaning part takes part in support only by RESTING (splayed legs §7.2, inv 57):** through its level faces it touches the floor
+    (`floor[i]`: a level down face at |y| ≤ TOUCH; the hangs skip and the tip floor read it), rests on a part below and holds a part
+    resting on it (`rests`, added as axis-1 contacts flagged `rest`); `groundedSet` stays the ONE walk (for a pair with a leaning part
+    it joins on `rests` either way; a leaning part seeds it only from `floor`). In `isHeld` a leaning part passes by (a) only, and an
+    unleaned part's (b) and (c) skip `rest` contacts, so **nothing is held "between" leaning parts or lapped onto a leaning part's
+    side** in chunk 1 (aprons and stretchers between splayed legs report unsupported or hangs until chunk 3; fu 438). A leaning part
+    resting on another leaning part follows the same level-face-on-level-face rule. A grounded leaning part off the floor reports the
+    existing `hangs` sentence (fu 439). An unlevelled leg touches the floor at an edge or corner, so it is not grounded; its fault (and
+    `shown`) adds `; it leans, and its foot is not level: Level the ends`. The tip footprint of a leaning part is its floor polygons
+    THEMSELVES (`feet(i)`: one zero-size box per polygon vertex, so the hull is exactly the feet's; never their bounding boxes, which
+    passed a three-leg stance that tips — final review I1, fu 444). For every UNLEANED pair clause (c), the coverage
+    threshold and both halves of the top-face clause run untouched, so the PROHIBITION above stands as written.
 40. **Anything deciding "same cut" derives from `CUT_GEOMETRY_FIELDS` (`cuts.ts`), checked
     against `Cut` by `satisfies`.** Do not replace the table with a list in a function body
     or add an exclusion without a written reason. `cutsThatRemoveStock` decides which cuts
@@ -230,11 +260,23 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     round trip). Sites stay on box contacts on purpose. **Joinery on a holed project rules joint kinds out per site before the call** (`featureAllowed`, `joints/featureZones.ts`, spec §3): one trial `applyJoints` per (site, kind), watched through `JoinWatch`, narrows a site's `allowed` where the kind's zone (the mortise or tenon, a dado or its stop, a lap notch, a rabbet pocket or its trim) meets a hole (`holeRegion`); a rabbet unit and a part's half-lap set are trialled TOGETHER and ruled out at every member (their recipes only run as a set); a stopped dado is trialled once per stop end, an end whose trial conflicts is DROPPED from the site's `stopEnds`, and the kind is ruled out only when no end clears (the user's ruling 2026-10-22, "Offer clear ends", chunk 3, reversing chunk 1's "ruled out whole"; for every feature, one decider; the site message, `parseChoices` and `validChoice` read the narrowed `stopEnds`; a narrowed end writes no summary line); a skipped trial rules nothing out; a hole takes no run-through exception at a trimmed end. The sites a feature narrowed to butt only are withheld from the call (a site `allowedFor` already makes butt-only is sent as before), and the dialog says why (`ruledOutText`, one line per site). `defaultJoint` respects `allowed`. `resize` re-anchors holes measured from the moving end (`rebaseHoles`), and `readJoints`' `resizeAt` undoes it exactly; `sameJoined` compares a part's holes in stored order within `GATE_TOLERANCE` (a hole number goes out as `x + L` and back as `(x + L) - L`, which need not be bitwise `x`; fu 413 for `sameAngleCut`'s exact comparison). The gate's moved-hole check is pinned through `sameJoined`, because a hole moved after joining round-trips through `gateUnjoin` unchanged. The unjoin gate (`sameJoined`) compares a part's cuts as a MULTISET (`sameCutSet`; order is not geometry, still exact at 1e-9; angle cuts stay in order). **Refine carries the features onto its plain parts BEFORE `runJoinery`, and `runJoinery` re-joins with these same feature zones and rebases** (refine-features spec §6; inv 56; the done view's `carried` list is computed plain-to-plain BEFORE joining, because joinery grows tenons and every joined part would read as resized). A joined Refine is refused up front (`plainForRefine`, `'angle-joint'`) when the original's angle cut already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over an angle cut.
     **Joinery on a curved or profiled project (joinery-features chunk 2) rules kinds out the same way**, through the same `featureAllowed` trials, with the zone tests in `document/featureRegions.ts` (`shapedFeatures`, `featureMeetsBox`, `featureTouchesEnd`, `runsOutThrough`, `crossSectionOverlaps`) over `rectOverlapsWaste` / `wasteOnSegment` (curves.ts) and `sweptWasteMeetsBox` (sweep.ts). **The watch judges a curve or profile in the ORIGINAL frame** (P5): on `flat.boards[part]`, the part before the trial, never on a mid-trial board (`geometryBoard` and `sweptWaste` are memoised per object, so a view of a mutated board is stale); a cut box or trim slab is moved into that frame by subtracting the sum of the part's min-end growths so far. Holes keep judging the board as it stands. Tests are open (touching passes) for curves, straight profiles and a stopped profile's span widened by `runoutReach`; a swept profile keeps the conservative footprint (touching included). A growing kind (mortise-tenon, dado, stopped-dado) is ruled out when a feature touches the joined end with positive area (`wasteOnSegment` > 1e-9 across the grown dimension, its `through` extent reaching that end, or a swept box form meeting the face): a curve or straight profile that only MEETS the growing end (not running through it) is exempt along the length when its waste on the end face (a 1e-6 slab, in the original frame) stays out of the tenon's section, open (fu 415, the user's ruling 2026-10-22: a default bow keeps its tenon; a deeper bow or a rounded corner past the shoulder does not; swept profiles keep the rule). **The run-through exception is decided per growing face** (P7): a curve or straight profile with `through === 'length'` that runs out through the GROWING face (a plain curve always; a view curve with a `span` unless that end is a stop) is not a conflict when its waste in (width, thickness) does not overlap the tenon section (open); swept profiles take none; a run-through feature at a TRIMMED end never conflicts (it is shortened with the part). `resize` re-anchors curves and profiles measured from the moving end (`rebaseCurves`, `rebaseProfiles`), `readJoints`' `resizeAt` undoes them within `GATE_TOLERANCE` (as for holes: `(x + L) - L` need not be bitwise `x`); **an arc stored exactly at the half-circle bound (`rise === chord / 2`, the Half-round notch, or `radius === chord / 2`, judged the loader's way) is re-stored at the bound of its NEW chord, and any other shifted arc the loader would now drop is clamped to that bound** (final review C1: a shifted chord can come back an ulp short, and the closing `migrateDocument` would drop the whole curve with no note); and `sameJoined` compares them structurally in stored order (`sameCurves`, `sameProfiles`, driven by `CURVE_FIELDS` / `PROFILE_KEYS`). `joineryRefusal` never refused a curve (`curvedRefusal` is deleted: Refine now carries curves, inv 56); Repair accepts curved and profiled projects, and Generate and Refine author profiles (inv 53; only those of a part with curves or a two-side run stay carried, inv 56). Words (`ruledOutText`): `curve` and `<kind> profile`, the verb `are` after `holes` and `is` otherwise; the failure dialog is `FEATURE_CHECK_FAILED`.
     **Joinery on a banded project (joinery-features chunk 3) rules kinds out the same way**, through the same `featureAllowed` trials; Repair accepts banded projects, and Generate and Refine author bands (inv 54; only a curved part's bands stay carried, inv 56). A band's region is its strip (`document/featureRegions.ts` `bandRegions`): the band TYPE's thickness in from its side × the side's full ORIGINAL run × the part's thickness, tape included — only a thickness-0 tape has no region — judged AS STORED (P10: `bandFaults` not read; a band whose type is missing is skipped), in the ORIGINAL frame like curves (P9: each watched box or slab moved by the running min-end shift, so a tenon's cheek and shoulder waste in new wood never meets a long-edge band). A pocket conflicts when its box meets a strip (open). **A growth** conflicts with a band ON the growing end (tape included); a band running along the length is exempt when the trial is a dado or stopped dado (the user's ruling: an edged shelf is housed whole), or it has no region, or its strip clears the tenon section's `[shoulder, w − shoulder]` in width (open); a growth through the thickness meets every band (defensive). **A trim** conflicts with a band on the trimmed end (tape included); a band running along the trimmed dimension is shortened with the part and never does; any other strip conflicts when it meets the slab. The feature word is `edge band`, verb `is`. **A stopped dado's smallest inset clears a receiver band** (the user's ruling 2026-10-22, "Fix now"; `sites.ts` `bandClearance` inside `rangesOf().inset`): at a stop end beside a strip on R's side facing it, the minimum is raised to the strip's far edge less E's stop-end face (the band's thickness when flush, `t − g` set back by `g`), snapped up to 1/16 with today's 1/4 as the floor; when that passes the maximum the range is today's and the trial rules the kind out. The trial, `validChoice` and the site message all read `rangesOf`, so they agree; a band-free receiver's range is byte for byte as before. Bands store no number, so there is no rebase and `resizeAt` is untouched; `sameJoined` compares `bands` (`sameBands`) and `cornerRule` exactly.
+    **A leaning part is refused, never joined (splayed legs §8, inv 57):** `joineryRefusal(entry, doc, flat?, sites?)` takes the caller
+    (`JoineryEntry`: `'joinery' | 'repair' | 'refine'`) as its FIRST, required argument and runs `leaningRefusal` first — the first
+    leaning part in flat order, one verbatim sentence per caller (`Add joinery can't join a leaning part yet: <name>.`, `Repair can't
+    join a leaning part yet: <name>.`, `Refine can't keep joints with a leaning part yet: <name>.`) — then the taper and angle rules.
+    Repair and a joined Refine call `leaningRefusal` directly (still the one decider: `joineryRefusal`'s first step), each BEFORE a
+    box-based step of its own: Repair refuses only when the document leans AND some part has cuts (a leaning document with no cuts
+    is "nothing to repair", Ruling R1; the Joinery dialog always runs Repair), and `plainForRefine` decides it right after the
+    "no cuts → plain" return and BEFORE `gateUnjoin` (reason `'lean-joint'`, counted as joined; the gate's box read-back would
+    otherwise answer first).
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
     the ONE writer of a user's selection change. A selection change mid-drag ends the
     gizmo's gesture and commits nothing.
+    **A group with any LEANING part rounds the DELTA instead** (`delta = snap(minCorner − bounds.min)` over `partsBounds`; splayed
+    legs §6.2, inv 57): its real min corner is not a grid point, and rounding it would lift a levelled foot off the floor. Still one
+    delta through `translateBoards`, never rounded inside it; a lean-free group is unchanged byte for byte.
 43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The four user
     actions go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
     reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
@@ -283,6 +325,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     part's cuts survive two mirrors exactly, and why joinery's regroup judges membership by exact resolution (inv 46).
     `mirrorInPlace` (`mirrorFeatures` + the turn negated: M_x R(r) = R(−r) M_d0, box unchanged) is the checkbox's operation
     for a part at chain turn 0, kept for tests; the store's `mirrorLinkedPart` writes the general world-X form itself (inv 46).
+    **A lean reflects by `leanFlip` too** (splayed legs §3.4, inv 57: the turn-0 X slope negated, the facing dimension kept — the
+    same flip whatever the part's turn, because `mirrorPart` reflects along `mirrorDim` and negates the turn): `mirrorFeatures`
+    applies it, `lowerLean` is its exact inverse (a value-equal result maps back to the stored object). It conjugates the whole leaned
+    rotation (`S · m · S`); never re-derive a twist from flipped slopes. A quarter turn needs nothing: the lean is stored at turn 0 and
+    `worldSlopes` turns it (`rotateVec(b.rotation, …)`, `setLean` back through `inverseTurn`). Pinned with an asymmetric lean (both
+    slopes non-zero and unequal), rake = splay and the seam leans.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -310,6 +358,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     from the source's EXISTING Shape fields when the source is shaped (exact, never re-lowered), else its plain fields; a member
     already on the source's Shape keeps its flag, every other member (plain, or another Shape's user) takes the SOURCE's flag
     (a mirrored pair joining another Shape by Link loses its mirror relation; fu 435).
+    **`lean` is SHARED** (splayed legs §3.1, inv 57; an optional object, so excluded from `_sharedPrimitives`' primitive check): four
+    linked legs share one lean, which each user's own turn and mirror flag turn outward. `sameShared` compares it by value (`x`, `z`,
+    `face` exact; absent equals only absent); `sharedOf` and `sharedPatch` copy it (a removal stays `{ lean: undefined }`, key
+    present — inv 46's removal convention); `resolveBoard` gives each user a FRESH `{ ...lean }`, flipped for a mirrored user;
+    `groupSignature` carries its value form. A shape-mate's patch never carries `lean` (mates exist only to re-pivot posture; each
+    would lower the target's world lean through its own flip and the edits would disagree). `setLean` and `levelEnds` write a Shape's
+    lean, length and angle cuts ONCE, through the first selected (or the clicked) user.
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -356,6 +411,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       (M_x R(2a + r) = R(−(2a + r)) M_d0; the same for a mirrored chain); position kept, so the box is unchanged. Written to the
       stored record, never through `updateBoard` (the flag is own). One undo entry; refused while exploded (inv 47). A stored
       part shared by placements at different chain turns reflects across world X for the SELECTED occurrence only.
+    - **A lean is lowered exactly through every turn and mirror on the path** (splayed legs §3.4, inv 57): `lowerLean` applies
+      `leanFlip` once per mirror (each mirrored instance, plus the part's own flag in `lowerOwnMirror`); `withShapeFeatures` carries
+      `shape.lean`. **Removing a lean:** a patch whose `lean` key is present with value `undefined` deletes the stored key everywhere
+      (`storedValue` reads it ABSENT, the Shape path included); scoped to `lean` — any other key set to `undefined` is still a write.
+      A leaning part's resize lowers a position delta alongside the size (`pivotKeptPosition`, inv 57): a third case beside the two
+      write-back rules, per user for a shared size. Level the ends writes the shared length and cuts once and each storage target's
+      own position (`oneEditPerTarget`).
 47. **Exploded is read-only.** `explode > 0` means the model cannot change: `edit()`, `undo` and `redo` are the
     gate; any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
     Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
@@ -383,7 +445,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     lift alike (fu 386: an odd-chord arc's 45° chord read facing by one and edge-on by the other). **Every model edge of a curved part
     carries a probe lift** (`curveEdgeLifts`): ALONG the view by `min(1e-3, PROBE / n·toward)` of its most viewer-facing face, so an
     edge on a shallow face (n·toward ≲ 0.25) is not hidden by its own DRAW_EPS-grown body, while grazing OTHER wood still hides; the
-    drawn line never moves. A lift along the face normals (silhouettes' rule) stepped an end line off its grazing plane — not here.
+    drawn line never moves. A lift along the face normals (silhouettes' rule) stepped an end line off its grazing plane — not here. **So does every edge of a LEANING part** (`ownWoodLift`, the same
+    along-view rule, from the faces whose plane holds the edge, normals turned by the lean; splayed legs §6.2): a lean makes every face
+    oblique to every view. (Without it a 14.3° leg drew 5.6" of 15" in Plan; OTHER wood still hides it, pinned.) `leanLifts`
+    (drawing.ts) finds the faces by board-local plane membership; on a curved leaning part it is only the fallback where
+    `curveEdgeLifts` returns none. `silhouetteLines` and `curveEdgeLifts` take the WORLD `view.toward`: since `toWorld` composes the
+    lean, every direction they compare against it is already leaned (the spec's `inverseDir` mapping would lean twice; it is the
+    pinned mutation).
     **A stopped profile** (profile runs a2): its band's silhouettes are clipped to its span; its run-outs' contours come from
     `runoutSilhouettes` (facet chains, the same fu 386 facing rule — skipped only when the product is > 0, edge-on counts), and
     `curveEdgeLifts` covers run-out edges too. Run-out lines are the MODEL's chords (P19; fine paths are fu 392(1)).
@@ -397,6 +465,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     **A b2 stop** on paper: its run-out lines are MODEL chords and its contours facet chains, as a2's; every run-out model edge
     carries its profile's `curve` tag (the feature key); the part diagram's inner offset line ends on each stop's plane, with no
     run-out arc and no end-view hatch (Q24).
+    **A leaning part on paper** (splayed legs §6.2, inv 57): `worldBodies` never takes the box path for it (R3) and turns its plane
+    normals by the lean; `boardBox` reads `partBounds` (the drawing bounds, `sMax`, the section skip); dimension chains read real
+    extents. A keyed leaning part gets ONE HTML note under the figure per sheet (inv 19; `leanNote` / `leanNotes`, featureKeys.ts,
+    following `keyed`), from WORLD slopes at 0.1°: `<name>: rake 8.0° toward the front, splay 12.0° toward the right — resultant
+    14.3° on a 33.5° sightline`; a component that READS `0.0°` after rounding prints `rake 0.0°` with no direction words (a turned
+    stored 0 comes back −0). Lean-free drawings are byte for byte unchanged (`drawingIdentity`). The Lean section sits inside
+    `EditLock`; `setLean` and `levelEnds` return null and change nothing while exploded or gesturing (no copy).
 
 48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
@@ -534,6 +609,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     intersected with the kept half-space (a box stays a box, a planes body gains the plane), a part with no kept wood drawing
     nothing (even a face ON the plane) — and its caps only from `sectionCaps`, always of the ASSEMBLED piece (no explode
     offsets). A sheet with no section is byte-for-byte unchanged (`drawingIdentity.test`; no `caps` key).
+    **A leaning part's caps** (splayed legs §6.2, inv 57) take `sectionCaps`' leaning path under BoardMesh's own gate (`leans` and a
+    map): the world plane is carried into board-local terms through `inverseDir` and the part's axis frame, each body clipped by
+    `clipConvex`, the cut faces outlined in the PIVOT frame (q = m·(pre-lean world − pivot), where the plane is axis-aligned again),
+    and the result returned in leaned WORLD coordinates, explode offset included, always in new arrays — so BoardMesh draws a leaning
+    part's cap as a SIBLING of its leaned group, at identity, never inside it. A face ON the plane facing the removed side is capped
+    (a levelled foot under Top at 0). The cache slot adds the lean's `x`, `z`, `face` (exact), rotation, posture and the plane
+    coordinate; BoardMesh's cap memo depends on `board.lean`. A leaning part never reads holes here (a hand-loaded leaning part with
+    holes gets caps without bores and no note, fu 437); `localCapPieces` is null for it; points carry ~1e-15 off the plane.
 
 52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the DOCUMENT's own `Units`**
     (`formatLength`/`parseLength` take `Units`; there is no module- or browser-level unit setting, so a background run or a
@@ -727,3 +810,107 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `original` param), never in `SYSTEM_PROMPT`. `refineDesign.ts`' pre-checks judge a featured part in its own frame (`inOwnFrame`).
     **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.** The four Refine-only refusal modules and the `'holes' | 'curves' | 'bands' | 'hardware'` `RefusalReason`s are deleted;
     nothing may bring them back.
+    **A LEANING part is KEPT exactly as stored** (splayed legs §8, inv 57): `keptParts(doc)` (`leanKeep.ts`) is the ONE decision —
+    every ROOT stored part whose resolved form leans, the Shapes those records reference, and their flat names. Kept parts are left
+    out of `boxes()` and every taper/angle pre-check in `documentToDesign`; the model is told about them in the USER turn
+    (`keptNote`: each one's real bounds through `partBounds`, and not to return those names), never in `SYSTEM_PROMPT` or
+    `DESIGN_SCHEMA`. `designToDocument`'s `kept` opt drops a loose model part whose `clean(name)` is a kept flat name BEFORE
+    conversion (returned as `replaced`, shown `Replaced by the kept part of the same name: <names>`), and puts the kept stored records
+    in FIRST, verbatim, with their Shapes, BEFORE `migrateDocument` and `linkByRole` (the carry's slot, so the PROHIBITION above
+    stands): first-wins (invs 8, 33) keeps their ids and names, and with no role `linkByRole` never judges them. **No floor shift is
+    applied while any part is kept** (spec §8(b)'s second option): the result moves to the kept parts, never the reverse; a model
+    part left below the floor stays there and the design checks report it. A leaning part inside an assembly refuses Refine up
+    front (`'lean-assembly'`: `Refine can't keep a leaning part inside an assembly yet — Ungroup it first: <name>.`; Refine rebuilds
+    every definition, fu 441), and a joined Refine refuses (`'lean-joint'`, inv 41). The done view says `Kept as is (leans):
+    <names>`. Kept parts count toward the result's part caps (fu 442).
+
+57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
+    `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face }`, a SHARED
+    field, `LINK_FIELDS.lean = 'shared'`, so a Shape carries it too) stores two SLOPES — the foot's travel per inch of drop along X
+    and Z, in the part's frame at rotation 0, before any mirror — and the facing dimension (`width` | `thickness`), chosen when a
+    lean is first set (`chooseFace`: the smaller twist, width on a tie within 1e-9) and kept by later edits. Degrees exist only in
+    display and typed input (`slopeOf` / `degreesOf`; the `angleCuts.ts` field-conversion rule: a typed rake replaces only its own
+    slope, so editing one never drifts the other). The resultant is `atan(hypot(x, z))` and the sightline `atan2(|wz|, |wx|)` on WORLD
+    slopes (`worldSlopes`; rake 8°, splay 12° gives 14.2957° and 33.4724°, NOT `atan(8/12)`). Nothing else computes a lean: `leanMap`
+    (the rotation `m = T · Ry(τ)` about the PIVOT, the centre of the pre-lean box's top face; `apply` / `applyDir` / `inverse` /
+    `inverseDir` on WORLD points of the pre-lean placement; null for no lean), `leans` (the cheap predicate), `withinBound`,
+    `chooseFace`, `seamFree`, `leanFlip` and `pivotKeptPosition` all live there.
+    - **Stored only when non-zero, only on an UPRIGHT part, always seam-free.** The loader drops a lean on any other posture, a
+      non-finite slope, a bound past `|x|, |z| ≤ 1` and `hypot ≤ 1` (1e-9), a bad `face` and a zero lean, and stores `seamFree(lean)`;
+      it refuses nothing on content. **A zero lean is no lean**: `leanMap` returns null at `x === 0 && z === 0` (σ = atan2(0, 0)
+      would spin the part 90°), so it takes the lean-free path. **A lean-free document is byte for byte as before** — every lean
+      branch is gated on `leans` / `leanMap`, and every identity and perf test passes untouched.
+    - **The seam is removed, not tolerated** (`seamFree`): a lean whose stored face would twist by exactly ±90° — `face 'width'` with
+      `x === 0`, or `face 'thickness'` with `z === 0`, in the stored turn-0 frame — faces the OTHER dimension (twist 0), because a
+      mirror maps a ±90° twist to itself while S · Ry(90°) · S = Ry(−90°). An exact equality on stored slopes, no tolerance; the
+      stored face is re-chosen there, so a rake- or splay-only lean's features turn 90° about the leg's axis (the same box) when an
+      edit lands exactly on it. `leanMap`, `setLean`, the loader and Level the ends all read the seam-free face. A sightline that
+      crosses the seam through a sign change still spins the leg 180° about its own axis (spec §3.3: its ends are stale by then; fu 440).
+    - **`position` keeps its meaning (inv 2): the min corner of the PRE-lean box.** The lean is applied after the placement, about the
+      pivot; the composition (`placeBoard`, `placeInstance`, `cornerShift`) is unchanged, and a part from `worldParts` carries its lean
+      in its own turn-0 frame, already mirror-flipped, so `leanMap(worldPart)` is its world map. Properties shows `Position is the part
+      before its lean; it leans about the centre of its top.`
+    - **Mirrors reflect a lean by `leanFlip` only** (the turn-0 X slope negated, the face kept; `0 - x` keeps +0; its own inverse):
+      `mirrorFeatures` (a part's own mirror and a mirrored instance's step) applies it, `lowerLean` (treeEdit.ts) lowers through each
+      mirror on the path, and a value-equal result maps back to the stored object. The whole map is CONJUGATED by the reflection
+      (`leanMap(mirrored) = S · m · S`), never re-derived from flipped slopes (that is off by 180° whenever the face is on X).
+      Equivariance tests use a lean with both slopes non-zero and unequal, plus rake = splay and the seam leans.
+    - **R1 — every part→world crossing composes the lean:** `toWorld` (snapPoints.ts; `fromWorld` is its inverse — exact for an
+      unleaned part, ~1e-15 of noise through a lean, so never feed it to an exact closed-span test where the pre-lean point is to
+      hand), `worldBodyFaces` (leanContacts.ts), `worldBodies` (drawing.ts: vertices through `toWorld`, plane normals through
+      `applyDir(placedDir(…))`), `sectionCaps`, and BoardMesh's `<group>` (one derived `leaned` memo, `T(t) · R(q)`; inv 1 — never
+      written back). `cuts.ts` `solidWorldBox` / `pointToLocalXYZ` stay LEAN-FREE: they are group-relative, and the group carries the
+      lean (composing there would lean twice). A leaning part's snap lattice is built and `stockProbe`-filtered in the pre-lean
+      placement, where the closed spans are exact, then mapped.
+    - **R2 — `partBounds` / `partsBounds` (worldBounds.ts) are the ONE real-bounds helper**: a leaning part's world box is the bound of
+      its LEANED body vertices (a ghost part leans the box it draws, inv 21); lean-free they return `boardsBounds` itself. Every reader of
+      world extent uses them: group move, Copy in a row, the section span and title, the Gizmo handle, framing, explode's centres and
+      floor lift, dimension chains (`extentAlong`), the drawing's `boardBox`, the design checks' boxes, Refine's kept note. `boardsBounds`
+      is the PRE-lean box. **A leaning part's pre-lean box (`position + boardExtents`, `boardsBounds`) is never presented as its
+      extent.**
+    - **R3 — the axis-aligned box fast paths are skipped for a leaning part:** drawing's `worldBodies` box path, the design checks'
+      overlap path (always real bodies) and `partMass`'s box path.
+    - **Edits.** `setLean(ids, world | null, opts?)` is one `edit()`, one undo entry; targets collapse to ONE per Shape (the first
+      selected user: a Shape cannot hold one world lean on both sides of a mirror, and the others follow through it). A typed rake or
+      splay replaces only its own WORLD slope, turned back by `inverseTurn` and lowered through each mirror; `keepSign` reads the
+      numbers as magnitudes with each part's own world sign (a zero part takes +), and `rakeSign` / `splaySign` set a direction and
+      keep each part's magnitude (the magnitude field and the direction select are SEPARATE controls). A zero result REMOVES the lean:
+      a patch whose `lean` key is present with value `undefined` deletes the stored key everywhere (`sharedPatch`, the Shape,
+      lowering). The refusals, decided for every target before `edit()`, in order: `Only an upright part can lean.`, `A part with holes
+      can't lean yet — that comes with angled holes.`, `The lean can't pass 45° in all — reduce the rake or splay.`; Clear (`null`) is
+      never refused (a loaded file may hold holes and a lean). `setLean` and `levelEnds` return null and do nothing while `gesturing`
+      or exploded (inv 47; no copy). A shape-mate's patch never carries `lean` (each mate would lower the target's world lean through
+      its own flip and the write would disagree). `addHoleRows` refuses a leaning part (`A leaning part can't take holes yet — that
+      comes with angled holes.`), and a posture change on a leaning part is refused in `postureRefusal` (`Clear the lean first — only
+      an upright part can lean.`), the one decider the store and the Posture field share.
+    - **A resize keeps the pivot** (`pivotKeptPosition` in `patchBoard`, when the part leans and a dimension or the turn changes; an
+      explicit `position` wins): a length change moves the foot end, a width or thickness change is symmetric about the pivot, and
+      a turn lands where `reorientedPosition` would. Shape mates each keep their own pivot. It is a third case beside inv 46's two
+      write-back rules (the position is lowered as a delta as usual).
+    - **A drag of a leaning part rounds the DELTA, never a corner** (inv 25, 42): `dragTarget(start, raw, units, leaning)` (Gizmo.tsx)
+      gives `start + snap(raw − start)`, and `moveGroupTo` with any moving part leaning gives `delta = snap(minCorner − bounds.min)`
+      over `partsBounds`. The pre-lean corner is off-grid after Level the ends, so rounding it would lift a levelled foot off the floor.
+      A lean-free drag is unchanged.
+    - **Level the ends is ordinary angle cuts** (`levelEnds.ts`: `levelPlan`, `isLevelled`, `levelCutOf`; the store's `levelEnds(id)`).
+      Both cuts are end miters (`kind 'miter'`, `face 'length'`) along `seamFree(lean).face`; each end's length change is rounded UP to
+      the drag grid, so the cut list prints a buyable blank and the stored lines are offset (`miterFields` null: the rows show the
+      bench line and Remove only). The foot reaches the world floor (`y = 0`, whatever assembly the part is in). The TOP reference R is
+      where an existing recognised top cut's plane meets the leaned axis (its centre station), else the pivot: a first levelling
+      extends the top and moves the pivot up the axis; a re-level keeps the seat-joint height, so `levelPlan` is idempotent and a
+      second press pushes no undo entry. ANY end miter, along width or thickness, is a recognised level cut and is replaced in place
+      (ids kept; a seam-free face flip must never strand levelled ends); any other kind on an end refuses (`Remove the angle cut on the
+      foot first.` / `… on the top first.`); a taper is not on an end and is kept. `R.y ≤ 1e-9` refuses (`The top of this part is at
+      or below the floor.`). A shared leg (a Shape's users, or a definition's placements) is levelled in ONE edit: length and angle
+      cuts written once through the clicked part, each storage target's own position from its own plan; users whose pivots differ
+      in world Y by more than 1e-9 refuse (`These linked parts' tops are at different heights, so one length can't level them all:
+      <names>.`). Re-levelling is never automatic: a lean edit or resize leaves the ends stale, and the Lean section notes `Ends were
+      levelled for a different lean — Level the ends again`.
+    - **The design checks are extended, never weakened** (invs 38, 39; leanContacts.ts): a leaning part's contact faces are its leaned
+      bodies' faces whose world normal is ±Y within `LEVEL_EPS` (1e-9: float error only — a 0.5° slope never counts); it touches the
+      floor, rests on a part or holds a part only through them (`overlapArea` > `REST_AREA`, 1e-9 sq in). An unlevelled leg is not
+      grounded and its fault adds `; it leans, and its foot is not level: Level the ends`.
+    - **Joinery, Repair and Refine never mangle a leaning part:** joinery and a joined Refine refuse it, Repair refuses it when any
+      part has cuts (inv 41), and a plain Refine keeps it exactly (inv 56).
+    - **Cut list, nesting and Buying are unchanged:** a lean is placement, like position, so two legs with the same stock and cuts
+      share a row whatever their leans; the level cuts print as their usual bench lines.
+    - Drawings, section caps and the Plans note: invs 47 and 51. Follow-ups: 436–446.

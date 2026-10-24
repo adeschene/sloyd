@@ -2,7 +2,9 @@ import { cabinetsDoc } from './treeFixtures';
 import { createBoard, createDocument } from './document';
 import { pieceKeyed, planAssemblies } from './plans';
 import { worldParts } from './tree';
-import type { SloydDocument } from './types';
+import type { Board, SloydDocument } from './types';
+import { chooseFace, slopeOf, worldSlopes } from './lean';
+import { leanNote, leanNotes } from './featureKeys';
 
 describe('planAssemblies', () => {
   it('lists each definition once, in first-placement order, with nested placements counted', () => {
@@ -121,5 +123,56 @@ describe('keyed parts (feature callouts spec §2.1)', () => {
     const as = planAssemblies(doc);
     expect(as).toEqual([]);
     expect([...pieceKeyed(doc, as)]).toEqual(['w/b']);
+  });
+});
+
+describe('the plans lean note (splayed legs spec §6.2)', () => {
+  const T8 = slopeOf(8);
+  const T12 = slopeOf(12);
+  const leg = (id: string, name: string, x: number, z: number, over: Partial<Board> = {}) => {
+    const b = createBoard({ id, name, length: 16, width: 1.5, thickness: 1.25, posture: 'upright', ...over });
+    return { ...b, lean: { x, z, face: chooseFace(b, x, z) } };
+  };
+
+  it('reads verbatim: rake 8 toward the front, splay 12 toward the right', () => {
+    expect(leanNote(leg('L', 'Leg', T12, T8))).toBe('Leg: rake 8.0° toward the front, splay 12.0° toward the right — resultant 14.3° on a 33.5° sightline');
+  });
+
+  it('names the back and the left, and a 0 component carries no direction words', () => {
+    expect(leanNote(leg('L', 'Leg', -T12, -T8))).toBe('Leg: rake 8.0° toward the back, splay 12.0° toward the left — resultant 14.3° on a 33.5° sightline');
+    expect(leanNote(leg('L', 'Leg', T12, 0))).toBe('Leg: rake 0.0°, splay 12.0° toward the right — resultant 12.0° on a 0.0° sightline');
+    expect(leanNote(leg('L', 'Leg', 0, -T8))).toBe('Leg: rake 8.0° toward the back, splay 0.0° — resultant 8.0° on a 90.0° sightline');
+  });
+
+  it('reads the slopes as drawn: a part turned a quarter reports its WORLD rake and splay', () => {
+    // Stored turn-0 slopes (x 12°, z 8°) turned 90° as `worldSlopes` turns them (inv 44): (x, z) → (z, −x).
+    const b = leg('L', 'Leg', T12, T8, { rotation: 90 });
+    expect(worldSlopes(b)).toEqual([T8, -T12]);
+    expect(leanNote(b)).toBe('Leg: rake 12.0° toward the back, splay 8.0° toward the right — resultant 14.3° on a 56.5° sightline');
+  });
+
+  it('a part that does not lean has no note', () => {
+    expect(leanNote(createBoard({ id: 'S', name: 'Seat' }))).toBeNull();
+  });
+
+  it('appears once per part per sheet, keyed like the feature callouts (an assembly placed 3 times notes its leg once)', () => {
+    const def = { id: 'ds', boards: [leg('leg', 'Leg', T12, T8), createBoard({ id: 'seat', name: 'Seat', position: [0, 16, 0] })], instances: [], hardware: [] };
+    const doc: SloydDocument = {
+      ...createDocument('Stools'),
+      boards: [leg('L0', 'Prop', -T12, T8, { position: [40, 0, 0] })],
+      instances: [0, 1, 2].map((k) => ({ id: `s${k}`, name: `Stool${k ? ` (${k})` : ''}`, definition: 'ds', position: [k * 20, 0, 0] as [number, number, number], rotation: 0 as const })),
+      definitions: [def],
+    };
+    const assemblies = planAssemblies(doc);
+    const sheet = [
+      ...leanNotes(worldParts(doc), pieceKeyed(doc, assemblies)),
+      ...assemblies.flatMap((a) => leanNotes(a.parts, a.keyed)),
+    ];
+    expect(sheet).toEqual([
+      'Prop: rake 8.0° toward the front, splay 12.0° toward the left — resultant 14.3° on a 33.5° sightline',
+      'Leg: rake 8.0° toward the front, splay 12.0° toward the right — resultant 14.3° on a 33.5° sightline',
+    ]);
+    // Unkeyed, every placement would be noted: the piece trio draws all three stools' legs.
+    expect(leanNotes(worldParts(doc), new Set(worldParts(doc).map((b) => b.id)))).toHaveLength(4);
   });
 });

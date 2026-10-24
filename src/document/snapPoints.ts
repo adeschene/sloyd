@@ -9,6 +9,7 @@ import type { Board, Cut, GuidePoint } from './types';
 import { geometryBoard, shapedPart } from './profiles';
 import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
 import { sectionFrame } from './runout';
+import { leanMap } from './lean';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
@@ -125,6 +126,16 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * remainder was measured, not assumed, to be small.
  */
 export function boardSnapPoints(board: Board): BoardSnapPoint[] {
+  const points = preLeanSnapPoints(board);
+  // Splayed legs §6.2: built and filtered in the pre-lean placement, where `stockProbe`'s closed spans are exact, then
+  // mapped through the lean. Not filtered after `fromWorld`: the inverse's round-trip noise (~1e-15) would drop a point
+  // on a face out of a closed span. An unleaned part returns today's array itself.
+  const lean = leanMap(board);
+  return lean ? points.map((p) => ({ ...p, at: lean.apply(p.at) })) : points;
+}
+
+/** `boardSnapPoints` before the lean: today's lattice and feature points, in world inches of the pre-lean placement. */
+function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
   board = geometryBoard(board);
   const [ex, ey, ez] = boardExtents(board);
   const [px, py, pz] = board.position;
@@ -174,7 +185,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
     for (const t of ends) {
       const c = [...h.centre];
       c[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * t;
-      const at = toWorld(board, { length: c[0]!, width: c[1]!, thickness: c[2]! });
+      const at = placed(board, { length: c[0]!, width: c[1]!, thickness: c[2]! });
       if (!lattice.some((q) => close(q.at, at))) lattice.push({ kind: 'face-center', at, owner });
     }
   }
@@ -201,7 +212,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
         for (const t of ts) {
           const local = { [u]: q[0], [v]: q[1], [c.through]: t } as Point;
           if (swept && kind !== 'face-center' && !touchesStock(local)) continue;
-          const at = toWorld(board, local);
+          const at = placed(board, local);
           if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind, at, owner });
         }
       }
@@ -221,7 +232,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
         for (const [s, t] of [[reach, 0], [0, depth]] as const) {
           const local: Point = { length: fr.at[0] + s * fr.N[0], width: fr.at[1] + s * fr.N[1], thickness: f.vFace + f.vIn * t };
           if (!touchesStock(local)) continue;
-          const at = toWorld(board, local);
+          const at = placed(board, local);
           if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind: 'corner', at, owner });
         }
       }
@@ -239,7 +250,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   for (const [a, b] of geometry.edges) {
     for (const p of [a, b]) {
       if (!onSlope(p)) continue;
-      const at = toWorld(board, p);
+      const at = placed(board, p);
       if (lattice.some((q) => near(q.at, at))) continue;
       lattice.push({ kind: 'corner', at, owner });
     }
@@ -268,10 +279,34 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
  * Exported as the ONE home of the part→world point mapping; `drawing.ts` reads edges through it (plans-sheet spec §2.1).
  */
 export function toWorld(board: Board, p: Point): [number, number, number] {
+  const at = placed(board, p);
+  // Splayed legs §6.1 R1: then the lean, for a leaning part; an unleaned part takes today's mapping alone.
+  const lean = leanMap(board);
+  return lean ? lean.apply(at) : at;
+}
+
+/** The pre-lean placement: the min corner plus `toWorldOffset` on each world axis (invariants 2, 44). */
+function placed(board: Board, p: Point): [number, number, number] {
   const frame = axisFrame(board);
   return [0, 1, 2].map(
     (i) => board.position[i]! + toWorldOffset(board, i, p[frame[i]!.dim]),
   ) as [number, number, number];
+}
+
+/**
+ * A world point in the board's own space: `toWorld`'s inverse, exact for an unleaned part (splayed legs §6.2). The
+ * lean's `inverse` first, for a leaning part, then `fromWorldOffset` on each world axis (a turn may reverse any horizontal
+ * axis, inv 44). On a leaning part the round trip carries float noise (~1e-15): never feed it to an exact closed-span test where the
+ * pre-lean point is to hand (`boardSnapPoints` filters before it maps).
+ */
+export function fromWorld(board: Board, at: readonly number[]): Point {
+  const lean = leanMap(board);
+  const q = lean ? lean.inverse([at[0]!, at[1]!, at[2]!]) : at;
+  const frame = axisFrame(board);
+  // Complete only because `axisFrame` is a full permutation of the three dimensions — the cast cannot check it (fu 128).
+  const local = {} as Point;
+  for (let i = 0; i < 3; i += 1) local[frame[i]!.dim] = fromWorldOffset(board, i, q[i]! - board.position[i]!);
+  return local;
 }
 
 /**
@@ -360,6 +395,9 @@ export function cutSnapPoints(board: Board): BoardSnapPoint[] {
   if (board.cuts.length === 0) return [];
   const touchesStock = stockProbe(board);
   const owner: BoardSnapPoint['owner'] = { type: 'board', id: board.id };
+  // `toWorld`'s two steps, the lean's map built once per part rather than once per point.
+  const lean = leanMap(board);
+  const world = (p: Point) => (lean ? lean.apply(placed(board, p)) : placed(board, p));
 
   const out: BoardSnapPoint[] = [];
   for (const cut of board.cuts) {
@@ -370,7 +408,7 @@ export function cutSnapPoints(board: Board): BoardSnapPoint[] {
     if (cutRemovesNothing(board, cut)) continue;
     for (const { at, kind } of pointsOfCut(board, cut)) {
       if (!touchesStock(at)) continue;
-      out.push({ kind, at: toWorld(board, at), owner });
+      out.push({ kind, at: world(at), owner });
     }
   }
   return out;

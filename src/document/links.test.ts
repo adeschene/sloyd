@@ -16,8 +16,8 @@ const leg = (over: Partial<Board> = {}): Board =>
 const cut = { id: 'c1', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.75, depth: 1, stopMin: 22, stopMax: 2 } as const;
 
 describe('LINK_FIELDS', () => {
-  it('shares exactly the spec\'s ten fields plus profiles, bands, cornerRule and hardware', () => {
-    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'bands', 'cornerRule', 'curves', 'cuts', 'grain', 'hardware', 'holes', 'length', 'material', 'posture', 'profiles', 'thickness', 'width']);
+  it('shares exactly the spec\'s ten fields plus profiles, bands, cornerRule, hardware and lean', () => {
+    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'bands', 'cornerRule', 'curves', 'cuts', 'grain', 'hardware', 'holes', 'lean', 'length', 'material', 'posture', 'profiles', 'thickness', 'width']);
     expect(LINK_FIELDS.rotation).toBe('own');
     expect(LINK_FIELDS.position).toBe('own');
     expect(LINK_FIELDS.shape).toBe('own');
@@ -224,5 +224,42 @@ describe('the link note\'s claim (fu 411)', () => {
     const own = (Object.keys(LINK_FIELDS) as (keyof typeof LINK_FIELDS)[]).filter((k) => LINK_FIELDS[k] === 'own').sort();
     // `mirrored` (fu 432) is the Mirrored checkbox's, which changes this part alone (mirrored links Task 3).
     expect(own).toEqual(['id', 'mirrored', 'name', 'position', 'rotation', 'shape']);
+  });
+});
+
+describe('lean in links (splayed legs spec §3.1)', () => {
+  const leaning = (z: number, over: Partial<Board> = {}): Board => leg({ lean: { x: 0.1, z, face: 'width' }, ...over });
+
+  it('sameShared compares lean by value: equal leans are same, a differing z is not, absent equals absent only', () => {
+    expect(sameShared(leaning(0.2), leaning(0.2))).toBe(true);
+    expect(sameShared(leaning(0.2), leaning(0.25))).toBe(false);
+    expect(sameShared(leaning(0.2), leg())).toBe(false);
+    expect(sameShared(leg(), leaning(0.2))).toBe(false);
+    expect(sameShared(leg(), leg())).toBe(true);
+    expect(sameShared(leaning(0.2), leaning(0.2, { lean: { x: 0.1, z: 0.2, face: 'thickness' } }))).toBe(false);
+    expect(sameShared(leaning(0.2), leaning(0.2, { lean: { x: 0.3, z: 0.2, face: 'width' } }))).toBe(false);
+  });
+
+  it('sharedOf copies the lean (a fresh object) and omits the key when absent', () => {
+    const b = leaning(0.2);
+    const s = sharedOf(b);
+    expect(s.lean).toEqual(b.lean);
+    expect(s.lean).not.toBe(b.lean);
+    expect('lean' in sharedOf(leg())).toBe(false);
+  });
+
+  it('sharedPatch copies a lean it propagates', () => {
+    const lean = { x: 0.1, z: 0.2, face: 'width' as const };
+    const p = sharedPatch({ lean });
+    expect(p.lean).toEqual(lean);
+    expect(p.lean).not.toBe(lean);
+  });
+
+  it('a patch whose `lean` key is present and undefined is a REMOVAL; absent means untouched (controller ruling 1)', () => {
+    const p = sharedPatch({ lean: undefined });
+    expect('lean' in p).toBe(true);
+    expect(p.lean).toBeUndefined();
+    expect('lean' in sharedPatch({ name: 'Leg' })).toBe(false);
+    expect('lean' in sharedPatch({ length: 20 })).toBe(false);
   });
 });

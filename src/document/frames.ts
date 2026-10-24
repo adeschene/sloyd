@@ -6,6 +6,8 @@ import { mirrorHoleRow } from './holes';
 import { mirrorCurveCut } from './curves';
 import { mirrorProfile } from './profiles';
 import { mirrorBands } from './bandModel';
+// A cycle (lean.ts imports rotateVec from here): safe, as `leanFlip` is only called, never used at module init.
+import { leanFlip } from './lean';
 
 export type Vec3 = [number, number, number];
 
@@ -77,8 +79,10 @@ export function mirrorPart(b: Board): Board {
 
 /**
  * `mirrorPart`'s feature half alone (mirrored links, fu 432, spec §3): the cuts, angle cuts, hole rows, curves, profiles
- * and bands mirrored along `mirrorDim(b)` by their flag flips (inv 44); nothing else changed — sizes, posture, turn,
- * position, material, grain, cornerRule and hardware are the part's. `resolveBoard` reads a mirrored user through it.
+ * and bands mirrored along `mirrorDim(b)` by their flag flips (inv 44), and a lean by `leanFlip` (splayed legs spec §3.4:
+ * the turn-0 X slope negated, which conjugates the whole leaned rotation by the reflection; its own inverse); nothing
+ * else changed — sizes, posture, turn, position, material, grain, cornerRule and hardware are the part's. A part with no
+ * lean gets no `lean` key. `resolveBoard` reads a mirrored user through it.
  */
 export function mirrorFeatures(b: Board): Board {
   const d = mirrorDim(b);
@@ -90,6 +94,7 @@ export function mirrorFeatures(b: Board): Board {
     curves: b.curves.map((c) => mirrorCurveCut(c, d)),
     profiles: b.profiles.map((p) => mirrorProfile(p, d)),
     bands: mirrorBands(b.bands, d),
+    ...(b.lean ? { lean: leanFlip(b.lean) } : {}),
   };
 }
 

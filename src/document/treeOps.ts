@@ -9,7 +9,7 @@ import { copyHoleRow } from './holes';
 import { copyAngleCut } from './angleCuts';
 import { uniqueName } from './names';
 import type { Named } from './names';
-import { boardsBounds } from './geometry';
+import { partsBounds } from './worldBounds';
 import { placeBoard, placeInstance, rotateVec, withMirror } from './frames';
 import type { Container } from './tree';
 import { containerAt, definitionAt, instanceAt, itemPaths, joinPath, lastSegment, parentPath, partsBelow } from './tree';
@@ -240,7 +240,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
 /** The world box (in the parent's frame) of an assembly's parts placed through `f`. */
 function placedBox(doc: SloydDocument, def: Definition, f: Instance) {
   const inner = partsBelow(doc, def);
-  return boardsBounds(inner.map((b) => placeBoard(f, b)));
+  return partsBounds(inner.map((b) => placeBoard(f, b)));
 }
 
 /**

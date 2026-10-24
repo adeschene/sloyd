@@ -200,6 +200,16 @@ export interface ProfileCut {
   run: ProfileRun;
 }
 
+/**
+ * A part's lean (splayed legs spec §3.1): the foot's horizontal travel per inch of drop along world X (`x`) and world Z
+ * (`z`), measured in the part's own frame at turn 0, before any mirror, so the lean turns and mirrors with the part.
+ * `face` is which of the leg's two horizontal dimensions faces the sightline (§3.3): stored, never derived, chosen when
+ * a lean is first set (the smaller twist, width on a tie) and kept by later edits. Stored ONLY when `x` or `z` is
+ * non-zero, and only on an upright part (§3.2). Degrees exist only in display and typed input; every number derived
+ * from a lean comes from `lean.ts`.
+ */
+export interface Lean { x: number; z: number; face: 'width' | 'thickness' }
+
 export interface Board {
   id: string;
   name: string;
@@ -236,6 +246,8 @@ export interface Board {
   cornerRule: CornerRule;
   /** Hardware this part carries (hardware spec §2): per-type counts, canonical (sorted by type, one entry per type). Empty for most parts. */
   hardware: HardwareUse[];
+  /** The part's lean (splayed legs spec §3.1); absent on a part that does not lean. A shared field (inv 45). */
+  lean?: Lean;
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a

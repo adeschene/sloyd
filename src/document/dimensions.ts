@@ -1,6 +1,8 @@
 import type { Board } from './types';
 import type { View } from './drawing';
 import { boardExtents } from './geometry';
+import { leanMap } from './lean';
+import { partBounds } from './worldBounds';
 import { formatLengthBare, type Units } from '../units/length';
 
 /** One dimension, in screen inches along its axis; `label` is THE string drawn and measured (invariant 19). */
@@ -10,8 +12,15 @@ export interface DimensionSet { horizontal: DimAxis; vertical: DimAxis }
 
 const dot = (p: readonly number[], v: readonly number[]) => p[0]! * v[0]! + p[1]! * v[1]! + p[2]! * v[2]!;
 
-/** A part's BOARD box (not its solids) along an axis direction: exact for ± a world axis. */
+/** A part's BOARD box (not its solids) along an axis direction: exact for ± a world axis. A leaning part's is its real
+ *  bounds (`partBounds`, splayed legs spec §6.1 R2): its leaned bodies, never the pre-lean box. */
 function extentAlong(b: Board, dir: readonly number[]): [number, number] {
+  if (leanMap(b)) {
+    const r = partBounds(b);
+    const a = dot(r.min, dir);
+    const c = dot(r.max, dir);
+    return a <= c ? [a, c] : [c, a];
+  }
   const ext = boardExtents(b);
   const a = dot(b.position, dir);
   const c = dot([b.position[0] + ext[0], b.position[1] + ext[1], b.position[2] + ext[2]], dir);

@@ -91,7 +91,7 @@ export default function App() {
     const found = findSites(flat);
     // The refusal is decided FIRST, from the un-narrowed sites, in runJoinery's own order: a refused project never pays
     // for (or risks) the trials.
-    const refusal = decideJoineryRefusal(doc, flat, found);
+    const refusal = decideJoineryRefusal('joinery', doc, flat, found);
     if (refusal) return { flat, found, sites: found, refusal };
     try {
       return { flat, found, sites: featureAllowed(flat, found).sites, refusal: null };

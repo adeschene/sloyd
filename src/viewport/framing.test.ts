@@ -3,6 +3,9 @@ import type { SloydDocument } from '../document/document';
 import type { Vec3 } from '../document/frames';
 import { FRONT, ISO, SIDE, TOP } from '../document/drawing';
 import { explodeOffsets } from '../document/explode';
+import { chooseFace, slopeOf } from '../document/lean';
+import { partBounds } from '../document/worldBounds';
+import type { Board } from '../document/types';
 import {
   STANDARD_VIEWS, TOP_TILT, orthoDistance, orthoZoom, perspectiveDistance, subsetBounds, viewDirection,
 } from './framing';
@@ -88,6 +91,24 @@ describe('subsetBounds', () => {
     expectVec(b.center, [0, 1, 2].map((k) => (lo[k]! + hi[k]!) / 2) as Vec3);
     expect(b.radius).toBeCloseTo(Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) / 2, 12);
     expect(b).not.toEqual(subsetBounds(parts));
+  });
+});
+
+describe('subsetBounds of a leaning part (splayed legs spec §6.1 R2, §6.2: standard views use real bounds)', () => {
+  it('frames the leaned part, offsets added, from partBounds', () => {
+    const base = createBoard({ id: 'L', name: 'Leg', length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [1, 0.5, -2] });
+    const leg: Board = { ...base, lean: { x: slopeOf(12), z: slopeOf(8), face: chooseFace(base, slopeOf(12), slopeOf(8)) } };
+    const other = cube('c', [10, 0, 0]);
+    const offsets = new Map<string, Vec3>([['L', [0.5, 2, -1]]]);
+    const r = partBounds(leg);
+    const lo: Vec3 = [Math.min(r.min[0] + 0.5, 10), Math.min(r.min[1] + 2, 0), Math.min(r.min[2] - 1, 0)];
+    const hi: Vec3 = [Math.max(r.max[0] + 0.5, 12), Math.max(r.max[1] + 2, 2), Math.max(r.max[2] - 1, 2)];
+    const b = subsetBounds([leg, other], offsets)!;
+    expectVec(b.center, [0, 1, 2].map((k) => (lo[k]! + hi[k]!) / 2) as Vec3);
+    expect(b.radius).toBeCloseTo(Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) / 2, 12);
+    // Not the pre-lean box.
+    const { lean: _lean, ...flat } = leg;
+    expect(subsetBounds([leg, other], offsets)).not.toEqual(subsetBounds([flat, other], offsets));
   });
 });
 

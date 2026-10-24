@@ -10,6 +10,7 @@ import type { Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
+import { Lean } from './Lean';
 import { Curves } from './Curves';
 import { Profiles } from './Profiles';
 import { Banding } from './Banding';
@@ -487,6 +488,7 @@ function GroupProperties({ library, onNewMaterial, onNewBandType }: { library: C
         <MaterialSelect ids={selectedIds} value={material} library={library} onNewMaterial={onNewMaterial} />
       </div>
       </div>
+      <Lean boards={boards} />
       <Banding boards={boards} onNewBandType={onNewBandType} />
       </>}
       </EditLock>
@@ -736,6 +738,8 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
         <MaterialSelect ids={[board.id]} value={board.material} library={library} onNewMaterial={onNewMaterial} />
       </div>
       </div>
+
+      <Lean boards={[board]} />
 
       {/* Joinery. One primitive — a rectangular through-cut — so a dado and a
           rabbet are the same control with different numbers, and the label

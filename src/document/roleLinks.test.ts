@@ -194,6 +194,12 @@ describe('turned links (fu 301)', () => {
     expect(turnCandidates(b).map((c) => c.rotation)).toEqual([180]);
   });
 
+  it('a leaning part is never turned (final review M1): its stored turn-0 lean would re-aim under a new rotation', () => {
+    const square = createBoard({ length: 16, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0 });
+    expect(turnCandidates(square).map((c) => c.rotation)).toEqual([90, 180, 270]);
+    expect(turnCandidates({ ...square, lean: { x: 0.2, z: 0.1, face: 'width' } })).toEqual([]);
+  });
+
   it('a part with rectangular cuts is never turned', () => {
     const b = createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright',
       cuts: [{ id: 'c', face: 'width', from: 'max', across: 'length', offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 }] });

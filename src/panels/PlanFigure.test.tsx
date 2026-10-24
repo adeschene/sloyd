@@ -2,6 +2,7 @@ import { IMPERIAL } from '../units/length';
 import { render, screen } from '@testing-library/react';
 import { createBoard, createDocument, defaultShelfPinRow } from '../document/document';
 import type { HoleRow } from '../document/types';
+import { chooseFace, slopeOf } from '../document/lean';
 import { PlanTrio, ExplodedFigure, pathOf, SectionBlock, trioScale } from './PlanFigure';
 
 // 2in shelves: the trio's scale is 752 / (30 + 12) ≈ 17.9 per inch (Task 7), so a 2in spacing is
@@ -141,6 +142,22 @@ describe('PlanTrio: feature keys (feature callouts spec §4.5)', () => {
     const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Sides" keyed={new Set(['L'])} />);
     expect(container.querySelectorAll('.plans-key-mark')).toHaveLength(1);
     expect(container.querySelector('.plans-key li')!.textContent).not.toMatch(/×\)$/);
+  });
+});
+
+describe('PlanTrio: the lean note (splayed legs spec §6.2)', () => {
+  const base = createBoard({ id: 'L', name: 'Leg', length: 16, width: 1.5, thickness: 1.25, posture: 'upright' });
+  const leg = { ...base, lean: { x: slopeOf(12), z: slopeOf(8), face: chooseFace(base, slopeOf(12), slopeOf(8)) } };
+  const NOTE = 'Leg: rake 8.0° toward the front, splay 12.0° toward the right — resultant 14.3° on a 33.5° sightline';
+  const notes = (c: HTMLElement) => [...c.querySelectorAll('.plans-notes li')].map((li) => li.textContent);
+  it('a keyed leaning part: its note, as HTML under the figure, never an SVG label (inv 19)', () => {
+    const { container } = render(<PlanTrio parts={[leg]} units={IMPERIAL} label="Stool" keyed={new Set(['L'])} />);
+    expect(notes(container)).toContain(NOTE);
+    expect([...container.querySelectorAll('svg text')].some((t) => t.textContent?.includes('rake'))).toBe(false);
+  });
+  it('not keyed here: no note (the trio that keys the part notes it)', () => {
+    const { container } = render(<PlanTrio parts={[leg]} units={IMPERIAL} label="Stool" keyed={new Set()} />);
+    expect(notes(container)).not.toContain(NOTE);
   });
 });
 

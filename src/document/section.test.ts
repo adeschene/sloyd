@@ -3,6 +3,10 @@ import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
 import { unionLoops } from './outline';
+import { chooseFace, leanMap, slopeOf, worldSlopes } from './lean';
+import { levelPlan } from './levelEnds';
+import { IMPERIAL } from '../units/length';
+import { partBounds } from './worldBounds';
 import { chiralPart } from './turnFixtures';
 import type { V3 } from './angleCuts';
 
@@ -65,6 +69,14 @@ describe('sectionSpan', () => {
   });
   it('is null with no parts', () => {
     expect(sectionSpan([], null, 'front')).toBeNull();
+  });
+  it('a leaning part spans its real bounds, offsets added (splayed legs spec §6.1 R2)', () => {
+    const base = createBoard({ id: 'L', length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [1, 0, 2] });
+    const leg: Board = { ...base, lean: { x: slopeOf(12), z: slopeOf(8), face: chooseFace(base, slopeOf(12), slopeOf(8)) } };
+    const r = partBounds(leg);
+    expect(sectionSpan([leg], null, 'side')).toEqual([r.min[0], r.max[0]]);
+    expect(sectionSpan([leg], new Map([['L', [0, 0, 3]]]), 'front')).toEqual([r.min[2] + 3, r.max[2] + 3]);
+    expect(sectionSpan([leg], null, 'side')).not.toEqual([1, 2.5]);
   });
 });
 
@@ -496,5 +508,163 @@ describe('sectionCaps: the local cap cache (final review I3)', () => {
     world.pieces[0]![0]![0] = 999;
     world.outline.length = 0;
     expect(sectionCaps(part, s)).toEqual(expected);
+  });
+});
+
+describe('sectionCaps: a leaning part (splayed legs spec §6.2)', () => {
+  const T8 = slopeOf(8);
+  const T12 = slopeOf(12);
+  const leanOf = (b: Board, x: number, z: number) => ({ x, z, face: chooseFace(b, x, z) });
+  /** A 1.5-square leg, 28 long, upright: splay 12° on X, rake 8° on Z (both non-zero and unequal). */
+  const legAt = (rotation: Rotation = 0, over: Partial<Board> = {}): Board => {
+    const base = createBoard({ id: `lean-${rotation}`, length: 28, width: 1.5, thickness: 1.5, posture: 'upright', rotation,
+      position: [1.25, 0.5, -2.75], ...over });
+    return { ...base, lean: leanOf(base, T12, T8) };
+  };
+  /** Expected values off the slopes and the pivot alone (never `leanMap(b).m`, which is what is under test). */
+  const axisOf = (b: Board) => {
+    const [wx, wz] = worldSlopes(b);
+    const len = Math.hypot(wx, 1, wz);
+    const pivot = [b.position[0] + 0.75, b.position[1] + b.length, b.position[2] + 0.75];
+    const mid = (k: number) => pivot[k]! + (b.length / 2) * [wx, -1, wz][k]! / len;
+    return { wx, wz, len, mid };
+  };
+
+  it.each([0, 90] as Rotation[])('cap of a leaning leg, turned %s: a Top section is one 4-gon of 1.5 × 1.5 / cos(axis, normal)', (rotation) => {
+    const leg = legAt(rotation);
+    const { len, mid } = axisOf(leg);
+    const at = mid(1);
+    const cap = sectionCaps(leg, { axis: 'top', at, flip: false })!;
+    expect(cap.pieces).toHaveLength(1);
+    expect(cap.pieces[0]).toHaveLength(4);
+    // cos between the leg's axis (wx, −1, wz)/len and the plane normal (0, 1, 0) is 1/len.
+    expect(Math.abs(area(cap.pieces[0] as P3[]) - 2.25 * len)).toBeLessThan(1e-9);
+    for (const p of cap.pieces.flat()) expect(Math.abs(p[1] - at)).toBeLessThan(1e-9);
+    for (const [a, b] of cap.outline) { expect(Math.abs(a[1] - at)).toBeLessThan(1e-9); expect(Math.abs(b[1] - at)).toBeLessThan(1e-9); }
+    expect(cap.outline).toHaveLength(4);
+  });
+
+  it.each([0, 90] as Rotation[])('cap of a leaning leg, turned %s: a Front section through the axis midpoint is one 4-gon of 1.5 × 1.5 / cos', (rotation) => {
+    const leg = legAt(rotation);
+    const { wz, len, mid } = axisOf(leg);
+    expect(Math.abs(wz)).toBeGreaterThan(0.1);           // the plane is not parallel to the axis
+    const at = mid(2);
+    for (const flip of [false, true]) {
+      const cap = sectionCaps(leg, { axis: 'front', at, flip })!;
+      expect(cap.pieces).toHaveLength(1);
+      expect(cap.pieces[0]).toHaveLength(4);             // the four long faces only: no end face is met
+      expect(Math.abs(area(cap.pieces[0] as P3[]) - 2.25 * len / Math.abs(wz))).toBeLessThan(1e-9);
+      for (const p of cap.pieces.flat()) expect(Math.abs(p[2] - at)).toBeLessThan(1e-9);
+      expect(cap.outline).toHaveLength(4);
+    }
+  });
+
+  /** Independent of the caps: the drawn point mapped back through the lean, then the unleaned part's inside-test. */
+  function sweepLeaning(b: Board) {
+    const map = leanMap(b)!;
+    for (const axis of ['side', 'top', 'front'] as const) {
+      const k = sectionAxisIndex(axis);
+      const [i, j] = [0, 1, 2].filter((d) => d !== k) as [number, number];
+      const AX = ['side', 'top', 'front'] as const;
+      const span = sectionSpan([b], null, axis)!;
+      const si = sectionSpan([b], null, AX[i]!)!;
+      const sj = sectionSpan([b], null, AX[j]!)!;
+      for (const frac of [0.2371, 0.5113, 0.8737]) {
+        const at = span[0] + frac * (span[1] - span[0]);
+        for (const flip of [false, true]) {
+          const cap = sectionCaps(b, { axis, at, flip });
+          for (let a = si[0] + 0.0731; a < si[1]; a += 0.2137) for (let c = sj[0] + 0.0519; c < sj[1]; c += 0.3311) {
+            const p: P3 = [0, 0, 0]; p[k] = at; p[i] = a; p[j] = c;
+            const inCap = !!cap && cap.pieces.some((poly) => inConvex(poly as P3[], p, k));
+            expect(inCap, `${axis} at ${at} flip ${flip} sample ${p}`).toBe(solidAt(b, map.inverse(p)));
+          }
+        }
+      }
+    }
+  }
+  const tapered = (rotation: Rotation) => legAt(rotation,
+    { angleCuts: [{ id: 't1', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 15, amount: 0.5 }) }] });
+  it.each([0, 90, 180, 270] as Rotation[])('every plane agrees with an independent inside-test: a tapered leaning leg turned %s, and its mirror', (rotation) => {
+    sweepLeaning(tapered(rotation));
+    sweepLeaning(mirrorPart(tapered(rotation)));
+  });
+
+  it('an explode offset caps the part where it is drawn (the same part moved by the offset)', () => {
+    const leg = legAt(0);
+    const o: P3 = [0.5, 2, 3];
+    const moved = { ...leg, id: 'lean-moved', position: [leg.position[0] + o[0], leg.position[1] + o[1], leg.position[2] + o[2]] as P3 };
+    for (const s of [{ axis: 'top', at: 16, flip: false }, { axis: 'front', at: axisOf(moved).mid(2), flip: true }] as Section[]) {
+      const a = sectionCaps(leg, s, o)!;
+      const b = sectionCaps(moved, s)!;
+      expect(a.pieces.length).toBe(b.pieces.length);
+      a.pieces.forEach((poly, n) => poly.forEach((p, m) => p.forEach((v, k) => expect(Math.abs(v - b.pieces[n]![m]![k]!)).toBeLessThan(1e-9))));
+    }
+  });
+
+  it('a levelled foot lying ON a Top plane, on the kept side, is capped (the leg never reads hollow)', () => {
+    const leg = legAt(0);
+    const p = levelPlan(leg, IMPERIAL);
+    if (typeof p === 'string') throw new Error(p);
+    const levelled: Board = { ...leg, id: 'lean-levelled', length: p.length, position: p.position, angleCuts: p.angleCuts };
+    const cap = sectionCaps(levelled, { axis: 'top', at: 0, flip: true })!;
+    expect(cap).not.toBeNull();
+    // A horizontal section of the 1.5-square prism: 1.5 × 1.5 · len, as above.
+    expect(Math.abs(totalArea(cap.pieces as P3[][]) - 2.25 * axisOf(levelled).len)).toBeLessThan(1e-9);
+    // Flipped the other way the whole leg is removed: nothing to cap.
+    expect(sectionCaps(levelled, { axis: 'top', at: 0, flip: false })).toBeNull();
+  });
+
+  it('a hand-loaded leaning part WITH holes draws its caps without bores, logs nothing and never throws', () => {
+    const pin = { id: 'r1', face: 'width' as const, from: 'max' as const, diameter: 0.5, depth: 0.75, along: 'length' as const,
+      alongFrom: 'min' as const, station: 14, count: 2, pitch: 2, acrossFrom: 'min' as const, inset: 0.75 };
+    const plain = legAt(0, { id: 'lean-holed' });
+    const holed: Board = { ...plain, holes: [pin] };
+    const spies = (['log', 'warn', 'error'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    try {
+      for (const s of [{ axis: 'top', at: 14, flip: false }, { axis: 'front', at: axisOf(plain).mid(2), flip: false }] as Section[]) {
+        const got = sectionCaps(holed, s);
+        expect(got).toEqual(sectionCaps({ ...plain, id: 'lean-unholed' }, s));
+      }
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally { for (const spy of spies) spy.mockRestore(); }
+  });
+
+  it('localCapPieces is null for a leaning part (its cut is not one of the part\'s axis planes)', () => {
+    expect(localCapPieces(legAt(0), { axis: 'top', at: 14, flip: false })).toBeNull();
+  });
+
+  describe('the local cap cache', () => {
+    const s: Section = { axis: 'top', at: 14.3, flip: false };
+    let cold = 0;
+    const uncached = (b: Board, sec: Section, offset?: number[]) => { cold += 1; return sectionCaps({ ...b, id: `lean-cold-${cold}` }, sec, offset); };
+    it('a lean edited with the part in place is rebuilt, never a stale cap', () => {
+      const leg = legAt(0, { id: 'lean-cached' });
+      sectionCaps(leg, s);
+      const edited: Board = { ...leg, lean: { ...leg.lean!, x: slopeOf(10) } };
+      expect(sectionCaps(edited, s)).toEqual(uncached(edited, s));
+      expect(sectionCaps(edited, s)).not.toEqual(sectionCaps({ ...leg, id: 'lean-cold-orig' }, s));
+      const turned: Board = { ...leg, lean: { ...leg.lean!, face: leg.lean!.face === 'width' ? 'thickness' : 'width' } };
+      expect(sectionCaps(turned, s)).toEqual(uncached(turned, s));
+    });
+    it('a move across the plane\'s direction gives the cap translated', () => {
+      const leg = legAt(0, { id: 'lean-cached-move' });
+      const first = sectionCaps(leg, s)!;
+      const moved = { ...leg, position: [leg.position[0] + 2.5, leg.position[1], leg.position[2] + 6] as P3 };
+      const again = sectionCaps(moved, s)!;
+      first.pieces.forEach((poly, n) => poly.forEach((p, m) => {
+        const q = again.pieces[n]![m]!;
+        expect(Math.abs(q[0] - p[0] - 2.5) + Math.abs(q[1] - p[1]) + Math.abs(q[2] - p[2] - 6)).toBeLessThan(1e-9);
+      }));
+      expect(again).toEqual(uncached(moved, s));
+    });
+    it('mutating what sectionCaps returned never reaches the next call', () => {
+      const leg = legAt(0, { id: 'lean-cached-mut' });
+      const expected = uncached(leg, s);
+      const world = sectionCaps(leg, s)!;
+      world.pieces[0]![0]![0] = 999;
+      world.pieces.length = 0;
+      world.outline.length = 0;
+      expect(sectionCaps(leg, s)).toEqual(expected);
+    });
   });
 });

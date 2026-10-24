@@ -15,10 +15,11 @@ import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
-import { joineryRefusal } from './joints/tapers';
+import { joineryRefusal, leaningRefusal } from './joints/tapers';
 import { findSites } from './joints/sites';
 import { carryFromOriginal } from '../document/featureCarry';
 import { featuredNote } from '../document/carryText';
+import { keptNote } from '../document/leanKeep';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -28,11 +29,14 @@ export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: p
 
 export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels, chamfers, holes, edging and edge profiles. Keep assembly and placement names. Return the whole design.';
 
-/** `original`: the plain design the model's came from; the parts of it that carry features the JSON does not show are named (refine-features spec §5).
+/** `original`: the plain design the model's came from; the parts of it that carry features the JSON does not show are named (refine-features spec §5),
+ *  and so are the parts it keeps as is because they lean, with their real world bounds (splayed legs spec §8).
  *  `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum
  *  carries only ids, and SYSTEM_PROMPT stays a fixed prefix (custom materials spec §6). None: the message is unchanged. */
 export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalog?: MaterialCatalog, original?: SloydDocument): string {
   const note = original ? featuredNote(carryFromOriginal(design, original)) : null;
+  // The parts kept as is because they lean (splayed legs spec §8): context only, absent from the design JSON.
+  const kept = original ? keptNote(original) : null;
   const customs = catalog ? catalog.ids.filter((id) => !catalog.get(id)!.builtIn) : [];
   // Band types the schema's `edging` enum names by id (AI-bands spec §3.1); the built-in is the key `veneer`, not listed.
   const labels = catalog ?? (original ? catalogOf(original) : undefined);
@@ -41,6 +45,7 @@ export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalo
   return [
     'Here is the current design, in the same format you return:', JSON.stringify(toWireDesign(design)), '',
     ...(note ? [note, ''] : []),
+    ...(kept ? [kept, ''] : []),
     ...(customs.length > 0 ? [`Custom materials in this design: ${customs.map((id) => `"${id}" is ${catalog!.label(id)}`).join('; ')}.`, ''] : []),
     ...(edgings.length > 0 ? [`Edging types in this design: ${edgings.join('; ')}.`, ''] : []),
     `Change it as follows: ${s.instruction.trim()}`, '', KEEP_LINE, '', 'Hard limits:', ...limitLines(s),
@@ -71,13 +76,17 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
   try {
     const flat = flatDocument(doc);
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
+    // A joined design with a leaning part (splayed legs spec §8): refused up front, the same as joinery and by its ONE
+    // decider (invariant 41), BEFORE the gate — whose read-back is box-based and would refuse in the wrong words.
+    const leaning = leaningRefusal('refine', flat);
+    if (leaning) return { refused: { reason: 'lean-joint', message: leaning } };
     const g = gateUnjoin(flat);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
     const plain = migrateDocument(writeBackFlat(doc, flat.boards, g.plain));
     // A joined original whose taper already runs into a joint could only come back unjoined (its re-join refuses):
     // refused before any call (AI-tapers spec §5.4, amended), by joinery's ONE refusal decider (invariant 41).
     const pf = flatDocument(plain);
-    const taper = joineryRefusal(plain, pf, findSites(pf));
+    const taper = joineryRefusal('refine', plain, pf, findSites(pf));
     if (taper) return { refused: { reason: 'angle-joint', message: taper } };
     return { plain, joints: g.joints };
   } catch (e) {
@@ -100,8 +109,9 @@ export function refineRefusal(doc: SloydDocument, base: RefineBase = plainForRef
 export function refineDialogInfo(doc: SloydDocument): { base: RefineBase; refusal: string | null; detail: Detail; joined: boolean; repair: RepairCheck } {
   const base = plainForRefine(doc);
   // Joined = some placed part is cut: the gate either explained it (joints) or refused it. An 'angle-joint' refusal is
-  // produced only after the gate read the joints, so it is joined too (AI-tapers spec §5.4).
-  const joined = 'refused' in base ? base.refused.reason === 'joints' || base.refused.reason === 'angle-joint' : base.joints !== null;
+  // produced only after the gate read the joints, so it is joined too (AI-tapers spec §5.4); a 'lean-joint' one only once
+  // some part is cut (splayed legs spec §8).
+  const joined = 'refused' in base ? ['joints', 'angle-joint', 'lean-joint'].includes(base.refused.reason) : base.joints !== null;
   return { base, refusal: refineRefusal(doc, base), detail: detailFor(doc), joined,
     // Only when the gate refused for joints: the repair is the way out of that refusal (repair-joints spec §3).
     repair: 'refused' in base && base.refused.reason === 'joints' ? repairDocument(doc) : null };

@@ -15,6 +15,7 @@ import { BUILT_IN_BAND_ID } from './bandModel';
 import { bandsFor, worldBands } from './bandWorld';
 import { profilesFor, sortProfiles, worldProfiles } from './profileWorld';
 import { carriesProfiles } from './featureCarry';
+import { leans } from './lean';
 import { sameCurve } from './curves';
 import { runDim, sameProfile } from './profiles';
 
@@ -28,13 +29,15 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
  * the hole grid), each row taking an id by index from the part's own rows sorted canonically — POSITIONAL only: the turned
  * frame's canonical order can differ from the original's, so an id may land on another row; harmless, because `alignedTo`
  * overwrites every hole id with the representative's before the candidate is used (final review M4). None for a part with
- * rectangular cuts, curves or carried profiles (AI-profiles spec §5: a one-side run or a loop turns, re-stored through
+ * rectangular cuts, curves, carried profiles or a lean (final review M1) (AI-profiles spec §5: a one-side run or a loop turns, re-stored through
  * worldProfiles and profilesFor with an exact set, ids by index; a two-side run never). Bands (AI-bands spec §5) are re-stored on the same world edges through worldBands
  * and bandsFor (inv 44; bands carry no ids, so alignedTo needs no alignment for them). No candidate at a turn where a
  * cut, hole row or band has no stored form.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || carriesProfiles(b)) return [];
+  // A leaning part has none (final review M1): its lean is stored in the turn-0 frame, so `{ ...b, rotation }` would
+  // re-aim the leg; it links by its own form and its mirror only (splayed legs §3.4).
+  if (b.cuts.length > 0 || carriesProfiles(b) || leans(b)) return [];
   const shown = worldProfiles(b);
   if (shown === null) return [];
   const profileExact = new Set(shown.flatMap((p) => [p.size, p.fillet, p.depth, p.start, p.end]));

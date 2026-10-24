@@ -20,6 +20,9 @@ import { BUILT_IN_BAND } from '../document/bandModel';
 import { builtInCatalog, catalogOf } from '../document/materials';
 import { ARCH } from '../document/curveFixtures';
 import type { StoredBoard } from '../document/types';
+import { stoolDocument, stoolLegs, stoolSeat, stoolWithCut } from '../document/stoolFixture';
+import { keptParts } from '../document/leanKeep';
+import { partBounds } from '../document/worldBounds';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const p = (name: string, i: number) => ({ name, role: '', material: 'pine', at: v(i * 2, 0, 0), size: v(1, 1, 1) });
@@ -264,5 +267,50 @@ describe('plainForRefine — the joined Shaker table with linked turned legs (fu
     const legShapes = new Set(r.plain.boards.filter((b) => b.name.startsWith('Leg')).map((b) => ('shape' in b ? b.shape : undefined)));
     expect(legShapes.size).toBe(1);
     expect([...legShapes][0]).toBeDefined();
+  });
+});
+
+describe('Refine and leaning parts (splayed legs spec §8)', () => {
+  it('a joined Refine is refused up front, before the joint gate reads a leaning part, in its own words', () => {
+    const base = plainForRefine(stoolWithCut());
+    expect(base).toEqual({ refused: { reason: 'lean-joint', message: "Refine can't keep joints with a leaning part yet: Front right." } });
+    const info = refineDialogInfo(stoolWithCut());
+    expect(info.joined).toBe(true);
+    expect(info.refusal).toBe("Refine can't keep joints with a leaning part yet: Front right.");
+    expect(info.repair).toBeNull();
+  });
+
+  it('a plain Refine is not refused: the leaning legs are left out of the design (kept, never described as boxes)', () => {
+    const doc = stoolDocument();
+    expect(refineRefusal(doc)).toBeNull();
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.parts.map((q) => q.name)).toEqual(['Seat']);
+    expect(keptParts(doc).names).toEqual(['Front right', 'Front left', 'Back left', 'Back right']);
+  });
+
+  it('tells the model, in the USER turn, that each kept part leans and is kept as is, with its REAL world bounds', () => {
+    const doc = stoolDocument();
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const m = refineMessage(r.design, S, undefined, doc);
+    const n = (x: number) => +x.toFixed(3);
+    for (const w of flatDocument(doc).boards.filter((b) => b.name !== 'Seat')) {
+      const { min, max } = partBounds(w);
+      expect(m).toContain(`"${w.name}" leans and is kept as is: x ${n(min[0])} to ${n(max[0])}, y ${n(min[1])} to ${n(max[1])}, z ${n(min[2])} to ${n(max[2])}.`);
+    }
+    // The real bounds, not the pre-lean box: a levelled foot stands on the floor and its top meets the seat.
+    expect(m).toMatch(/"Front right" leans and is kept as is: x [\d.]+ to [\d.]+, y 0 to 16, z [\d.]+ to [\d.]+\./);
+    expect(m.indexOf('leans and is kept as is')).toBeLessThan(m.indexOf('Change it as follows'));
+    // A lean-free original adds nothing.
+    expect(refineMessage(r.design, S, undefined, { ...doc, boards: doc.boards.filter((b) => b.name === 'Seat'), shapes: [] })).not.toContain('kept as is');
+  });
+
+  it('refuses a leaning part inside an assembly (its definition would be rebuilt from the model\'s)', () => {
+    const [leg] = stoolLegs();
+    const doc = migrateDocument({ ...createDocument('Base'), boards: [stoolSeat()],
+      definitions: [{ id: 'd1', boards: [leg!], instances: [], hardware: [] }],
+      instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part inside an assembly yet — Ungroup it first: Frame › Front right.");
   });
 });

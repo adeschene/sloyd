@@ -1,6 +1,10 @@
 # Splayed legs, chunk 1: a part that leans — design
 
-Status: draft, 2026-10-24; builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
+Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
+**Built 2026-10-24 on branch `splayed-legs`** (plan Tasks 1–13; schema 22); NOT merged or deployed. Browser verification (plan
+Task 14) is done: 15 checks PASS (`docs/browser-verification-splayed-legs.md`); three are still owed (a gizmo drag of a levelled leg,
+a lean edit with a section on, a pointer snap onto a foot). The merge and the deploy are pending. Later rulings: the *Amended (build)* block at the end, which wins where it
+differs from the text.
 The user chose this gap and said: "a stool, typing rake and splay angles". On scope they said: "I just want to implement
 features that a woodworker would expect, so do whatever makes sense with that goal in mind". They approved the chunked
 outline in chat ("Looks right, write the design"). Every decision below that is not quoted from the user is **my call**
@@ -466,3 +470,99 @@ Every refusal is decided before any mutation (inv 41's rule) and reads as a sent
 - The contact tolerance and its justification (§7).
 - How the chunk is split into merges. **One deploy carries all of §3–§8 together:** joinery and Refine must never see a
   leaning part without the refusals and the keep.
+
+## Amended (build)
+
+Rulings made while building, on branch `splayed-legs` (2026-10-24; the SDD ledger and the task reports). The code plus these rulings
+govern; where one differs from the text above, this block wins. Records: invariant 57 (and its clauses on invs 2, 24, 25, 38, 39, 41,
+42, 44–47, 51 and 56) in `docs/invariants.md`; follow-ups 436–446.
+
+- **Ruling 1 — the seam is removed, not tolerated (`seamFree`; §3.1 "kept by later edits" and §3.3's seam note, superseded at the
+  seam).** A lean whose stored face would twist by exactly ±90° — `face 'width'` with `x === 0`, or `face 'thickness'` with `z === 0`, in
+  the stored turn-0 frame — faces the OTHER dimension (twist 0). At the closed end of the reduction a mirror maps the twist to itself
+  while S · Ry(90°) · S = Ry(−90°), so mirror conjugation (§3.4) failed. An exact equality on stored slopes, no tolerance; the loader,
+  `setLean` and `leanMap` all use the seam-free face, so the stored face is re-chosen there. Cost: a rake-only or splay-only leg's
+  features turn 90° about its axis (the same box) when an edit lands exactly on the seam; its ends are stale then anyway. What is left
+  of §3.3's seam — a 180° spin when the sightline crosses it through a sign change — is unchanged (fu 440).
+- **Ruling 2 — a zero lean is no lean.** `leanMap` returns null at `x === 0 && z === 0` and `seamFree` leaves it alone: σ = atan2(0, 0)
+  would otherwise twist a seam-free face by 90°. Never stored (the loader drops it; `setLean` removes the key). Cost: none.
+- **Ruling 3 — removing a lean.** A patch whose `lean` key is present with value `undefined` deletes the stored key everywhere
+  (`sharedPatch`, the Shape, every lowering); scoped to `lean`. "Clear lean" (§4) is this. Cost: none.
+- **Ruling 4 — `setLean` writes one lean per Shape, and magnitude and direction are separate controls (§4's "an edit writes the same
+  world lean to each selected part", superseded).** Selected users of one Shape collapse to the FIRST selected; the rest follow through
+  the Shape, each in its own hand (a Shape cannot hold one world lean on both sides of a mirror; linked legs splaying symmetrically is the
+  point of linking). Each field shows a shared MAGNITUDE and is empty-mixed only when magnitudes differ; typing keeps EACH part's own world
+  sign (`keepSign`; a zero part takes +); the direction select writes its direction to all and keeps each magnitude (`rakeSign` /
+  `splaySign`). One edit, one undo entry. Cost: to force one direction on a mixed pair, use the select.
+- **Ruling 5 — `cuts.ts`' `solidWorldBox` / `pointToLocalXYZ` stay lean-free (§6.1 R1's list, narrowed).** They are group-relative;
+  BoardMesh's group carries the lean, so composing there would lean twice. Their only production caller is BoardMesh. Cost: a future
+  non-viewport caller would read pre-lean coordinates (their doc comments say so).
+- **Ruling 6 — snap points are built pre-lean, then mapped (§6.2).** `boardSnapPoints` builds and `stockProbe`-filters the lattice in the
+  pre-lean placement, where the closed spans are exact, then maps the survivors; `fromWorld` (the inverse, then `fromWorldOffset`) is
+  exported. It is exact only for an unleaned part: through a lean it carries ~1e-15, so it is never fed to an exact closed-span test.
+- **Ruling 7 — Level's top reference R (§5's "the top is always extended" and "always moves the pivot", narrowed to an uncut top).** The
+  top plane passes through R: where an existing recognised top cut's plane meets the leaned axis (its centre station), else the pivot. A
+  first levelling extends the top and moves the pivot up the axis, as §5 says; a re-level keeps the seat-joint height, so after a lean
+  edit the top change can be negative, `levelPlan` is idempotent and a second press pushes no undo entry. The floor refusal reads R
+  (`R.y ≤ 1e-9`), which is the pivot on a first levelling. (The brief's algorithm grew the leg on every press and `isLevelled` could never
+  be true.) Cost: after a lean edit the top re-levels at the old joint height (intended).
+- **Ruling 8 — which end cuts Level replaces or refuses (§5's "if an existing angle cut is on an end: refused", narrowed).** On a leaning
+  part ANY end miter (`kind 'miter'`, `face 'length'`), along width OR thickness, is a recognised level cut and is replaced in place (ids
+  kept): a lean edit can flip the seam-free face (Ruling 1), and cuts levelled along the old face must never be stranded. Any other kind on
+  an end (bevel, chamfer) refuses with §5's wording; a taper is not on an end and is kept (refusing every tapered leg would block the
+  commonest splayed-leg shape). A further recognised cut on one end (only a hand-edited file) is removed. New cuts slope along
+  `seamFree(lean).face`. Cost: a deliberate decorative end miter on a leaning leg is replaced by Level (undo restores it).
+- **Ruling 9 — a shared leg (§5).** Length and angle cuts are written ONCE through the clicked user; each storage target writes its own
+  planned position; users whose pivots differ in world Y by more than 1e-9 refuse with §5's sentence naming every user (deduplicated); a
+  mate whose own plan's length differs by more than 1e-9 throws (an internal guard, not copy). Cost: the refusal names the users that
+  agree too (fu 446).
+- **Ruling 10 — the silhouettes take the WORLD view direction (§6.2's "the view direction mapped into the part's frame", superseded).**
+  `silhouetteLines` and `curveEdgeLifts` receive the plain `view.toward`: since `toWorld` composes the lean, every direction they compare
+  against it is already leaned, so `inverseDir` would lean twice (it is the pinned mutation). Cost if wrong: a curved leaning part's
+  silhouettes misplaced (a test pins them against world normals).
+- **Ruling 11 — the own-wood probe lift on a leaning part (§6.2, added).** Every edge of a leaning part carries inv 47's along-view probe
+  lift (`ownWoodLift`, from the faces whose plane holds the edge, normals turned by the lean): a lean makes every face oblique to every
+  view, and without it a 14.3° leg drew 5.6" of 15" in Plan. Other wood still hides it (pinned). Cost if wrong: a leaning part's own
+  hidden edges could show as visible.
+- **Ruling 12 — the Plans note (§6.2's example, reworded).** `<name>: rake 8.0° toward the front, splay 12.0° toward the right — resultant
+  14.3° on a 33.5° sightline`, from WORLD slopes; a component that READS `0.0°` after rounding prints `rake 0.0°` with no direction words
+  (a turned stored 0 comes back −0, which an exact-zero rule would print "toward the back"). The name is the trio's stored name. Cost: a
+  0.04° component prints without its direction word.
+- **Ruling 13 — the design checks (§7.2, made definite).** The contact tolerance is `LEVEL_EPS` = 1e-9 on the face normal's horizontal
+  part (float error only; 0.5° is not a contact). A resting contact needs plan overlap > `REST_AREA` = 1e-9 sq in (float slivers where
+  faces share only an edge). A leaning part resting on a leaning part uses the same level-face-on-level-face rule (§7.2's under-defined
+  case; conservative). Nothing is held "between" leaning parts or lapped onto a leaning leg's side in this chunk: aprons and stretchers on
+  splayed legs report unsupported or hangs until chunk 3 (fu 438). A grounded leaning part off the floor keeps the existing `hangs`
+  sentence (no new copy, fu 439). The tip footprint is the feet's floor polygons themselves: `feet(i)` gives one zero-size box per
+  polygon VERTEX, so the hull is exactly the feet's (fu 444, closed by the final review I1: the bounding boxes passed a three-leg
+  stance whose real hull edge is under 1in from its centre of mass). The hint is the clause
+  `; it leans, and its foot is not level: Level the ends`, appended to the unsupported message (and `shown`) only for a leaning part
+  with no level down face.
+- **Ruling 14 — Repair refuses only with cuts present (§8's "refused up front when the document has a leaning part", narrowed).** The
+  Joinery dialog always runs Repair; refusing every leaning document would stack a second refusal under joinery's. A leaning document
+  with no cuts is "nothing to repair"; one with cuts shows both sentences (both true; rare). Cost: cosmetic.
+- **Ruling 15 — Refine refuses a leaning part inside an assembly (§8, added; new copy).** `Refine can't keep a leaning part inside an
+  assembly yet — Ungroup it first: <name>.` (reason `'lean-assembly'`): Refine rebuilds every definition from the model's assembly, so a
+  kept part there has no stable container. The §3.4 idiom builds legs at the root. Cost: a grouped staked piece must be ungrouped before
+  Refine (fu 441).
+- **Ruling 16 — no floor shift while any part is kept (§8 constraint (b): its second option).** With the first option a model part below
+  the floor would move the kept legs; shifting the model's parts only would separate the seat from the legs. A model part left below the
+  floor stays there, and the design checks report it.
+- **Ruling 17 — Refine's keep, as built (§8, made definite).** `keptParts` keeps every ROOT stored part whose resolved form leans, its
+  Shapes and flat names; the model is told in the USER turn with real bounds (`keptNote`); a loose model part reusing a kept flat name is
+  dropped before conversion and reported as `Replaced by the kept part of the same name: <names>` (my wording; the kept line is the
+  verbatim `Kept as is (leans): <names>`); a stray `angle-joint` fault on a kept leg DID appear (final review I2: an apron butting a
+  kept leg's PRE-LEAN side near its top drew "Front right's miter runs into where it meets Apron …", a rail at its foot a phantom site),
+  so `findSites` skips every pair with a leaning part (one place; `jointFaults`, joinery, unjoin and Refine's keys all read it; joinery
+  and Repair refuse a leaning document anyway); `KEEP_LINE` is unchanged; kept parts count toward
+  the result's part caps (fu 442); a model ASSEMBLY placement named like a kept part is renamed by the load gate, not reported (fu 443).
+- **Ruling 18 — a hand-loaded leaning part with holes (§8's "section caps then omit its bores, with a note", narrowed).** It is kept and
+  drawn, and its section caps omit the bores, but no note is shown (fu 437).
+- **Ruling 19 — where the posture refusal lives (§3.2).** `postureRefusal` (treeEdit.ts), the one decider the store and the Posture field
+  share; `updateBoards` / `updateBoard` return its sentence. `setLean` and `levelEnds` return null silently while gesturing or exploded
+  (the copy table has no sentence for those).
+
+Unchanged from the text: §3.2's pivot and `position` meaning; §3.4's conjugation (`leanFlip` in `mirrorFeatures`, `lowerLean` in
+write-back); §6.1 R2 and R3; §6.2's delta-rounded drags (`dragTarget`; a group with a leaning part rounds `snap(minCorner − bounds.min)`);
+the section caps through `clipConvex` (built in the pivot frame, returned in leaned world coordinates, drawn outside the leaned group); the
+cut list, nesting and Buying.

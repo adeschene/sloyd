@@ -2,9 +2,10 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardExtents, holeRims, keptBySection, partGeometry, pointToLocalXYZ, sectionCaps,
+  boardCenter, boardExtents, holeRims, keptBySection, leanMap, partGeometry, pointToLocalXYZ, sectionCaps,
   sectionPlaneOf, stockChecks, solidWorldBox, wholeBoard,
 } from '../document/document';
+import { leans } from '../document/lean';
 import type { Board, Section, V3 } from '../document/document';
 import { glueLines } from '../document/banding';
 import type { BandType } from '../document/types';
@@ -305,7 +306,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // the part sits — unlike the meshes, a cap depends on the part's place relative to the plane. Rebuilt on a slider
   // move only for parts the plane crosses; the part meshes never rebuild (invariant 50). A move that keeps the plane's
   // place in the part (a drag across its direction) reruns this memo, but sectionCaps then only re-maps a cached local
-  // cap (section.ts' LOCAL_CAPS).
+  // cap (section.ts' LOCAL_CAPS). A leaning part's cap is in leaned world inches (drawn outside the group, below).
   const cap = useMemo(() => {
     if (!section) return null;
     const c = sectionCaps(board, section, offset);
@@ -329,7 +330,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(c.outline.flatMap(([a, b]) => [...a, ...b]), 3));
     return { fillGeo, lineGeo };
   }, [section, offset?.[0], offset?.[1], offset?.[2], board.position[0], board.position[1], board.position[2],
-    board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board)]);
+    board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board),
+    // The lean: not in boardUVSignature (UVs are part-local, splayed legs spec §6.2), but a leaning cap is cut by it.
+    board.lean?.x, board.lean?.z, board.lean?.face]);
   useEffect(() => () => { cap?.fillGeo.dispose(); cap?.lineGeo.dispose(); }, [cap]);
   const capColor = useMemo(
     () => (faded ? fadedColor : new THREE.Color(color)).clone().multiplyScalar(CAP_DARKEN),
@@ -342,8 +345,70 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   const kinds = faceGrainKinds(board);
   const family = grainFamily(board.material);
 
+  // A leaning part's group (splayed legs spec §6.2): the lean as a DERIVED rotation about its pivot, composed on top of
+  // today's placement — world = T(pivot) · M · T(−pivot) · (today's group at `center`), then the explode offset. Its
+  // local point q lands on `leanMap(board).apply(center + q) + offset`, the same map `toWorld` composes (R1), so the
+  // drawn part, its edges and its picking agree with the document's world crossings. Written as ONE translation and
+  // ONE rotation, `T(t) · M` with t = pivot + M · (center − pivot) + offset, because a group's matrix is position ·
+  // quaternion (matrixAutoUpdate stays on, so the raycast's matrixWorld follows). Derived, never written back (inv 1);
+  // the meshes, UVs and band groups stay in the pre-lean frame (inv 12, 15, 35: the lean is not in boardUVSignature),
+  // so the figure rides with the wood and no geometry rebuilds (inv 50). Null for an unleaned part, whose group keeps
+  // today's props exactly. Keyed on everything leanMap reads: the lean, the turn and posture, the corner and extents.
+  const leaned = useMemo(() => {
+    if (!leans(board)) return null;
+    const map = leanMap(board);
+    if (!map) return null;
+    const { m, pivot } = map;
+    const d = [center[0] - pivot[0], center[1] - pivot[1], center[2] - pivot[2]];
+    const o = offset ?? [0, 0, 0];
+    const t: [number, number, number] = [0, 1, 2].map((i) =>
+      pivot[i]! + m[i]![0] * d[0]! + m[i]![1] * d[1]! + m[i]![2] * d[2]! + o[i]!) as [number, number, number];
+    // Matrix4.set is row-major, as `Mat3` is.
+    const rot = new THREE.Matrix4().set(
+      m[0][0], m[0][1], m[0][2], 0,
+      m[1][0], m[1][1], m[1][2], 0,
+      m[2][0], m[2][1], m[2][2], 0,
+      0, 0, 0, 1,
+    );
+    return { position: t, quaternion: new THREE.Quaternion().setFromRotationMatrix(rot) };
+  }, [board.lean?.x, board.lean?.z, board.lean?.face, board.rotation, board.posture,
+    board.position[0], board.position[1], board.position[2], extents[0], extents[1], extents[2],
+    offset?.[0], offset?.[1], offset?.[2]]);
+
+  // The cap: already in world inches where drawn (offset included), so undo the group's own translation. Its
+  // materials take NO clippingPlanes (it lies ON the plane) and its mesh keeps three's default raycast (a hit on
+  // the plane, in float32, would fail a 1e-7 side test). castShadow closes the kept half's shadow where the cut
+  // opened it; receiveShadow, as the part's faces do. The fill is wound counter-clockwise about the cap normal
+  // (front-facing to the viewer, see the memo); DoubleSide stays as a fallback for a camera on the removed side.
+  // A leaning part's cap is drawn OUTSIDE its leaned group, at the world origin: `sectionCaps` hands back world
+  // points (the leaning cap is mapped by the lean itself, Task 10), so it must not be leaned a second time.
+  const capNode = cap && (
+    <>
+      <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick}
+        renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded} receiveShadow>
+        {/* Keyed on `faded`, as the grain materials are: three bakes `transparent` into the program (the OPAQUE
+            define) and a prop change alone does not recompile it, so a cap drawn opaque would stay opaque. */}
+        <meshStandardMaterial key={`cap-${faded}`} color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
+          emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
+          transparent={faded} opacity={faded ? FADED_OPACITY : 1}
+          polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+      </mesh>
+      <lineSegments geometry={cap.lineGeo}>
+        <lineBasicMaterial color={selected ? SELECTED : faded ? fadedEdgeColor : edgeColor}
+          transparent opacity={faded ? FADED_EDGE_OPACITY : selected ? 1 : 0.8} />
+      </lineSegments>
+    </>
+  );
+
+  // Today's group props, byte for byte, for an unleaned part. A leaning part's adds `quaternion`; the key is OMITTED
+  // (never `undefined`) otherwise, so clearing a lean makes R3F reset the rotation to its default.
+  const groupProps = leaned
+    ? { position: leaned.position, quaternion: leaned.quaternion }
+    : { position: offset ? [center[0] + offset[0], center[1] + offset[1], center[2] + offset[2]] as [number, number, number] : center };
+
   return (
-    <group position={offset ? [center[0] + offset[0], center[1] + offset[1], center[2] + offset[2]] : center}>
+    <>
+    <group {...groupProps}>
       {geometries.items.map(({ geo, center: offset }, index) => (
         <mesh
           key={index}
@@ -432,30 +497,15 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
         />
       </lineSegments>
 
-      {/* The cap: already in world inches where drawn (offset included), so undo the group's own translation. Its
-          materials take NO clippingPlanes (it lies ON the plane) and its mesh keeps three's default raycast (a hit on
-          the plane, in float32, would fail a 1e-7 side test). castShadow closes the kept half's shadow where the cut
-          opened it; receiveShadow, as the part's faces do. The fill is wound counter-clockwise about the cap normal
-          (front-facing to the viewer, see the memo); DoubleSide stays as a fallback for a camera on the removed side. */}
-      {cap && (
+      {capNode && !leaned && (
         <group position={offset
           ? [-center[0] - offset[0], -center[1] - offset[1], -center[2] - offset[2]]
           : [-center[0], -center[1], -center[2]]}>
-          <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick}
-            renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded} receiveShadow>
-            {/* Keyed on `faded`, as the grain materials are: three bakes `transparent` into the program (the OPAQUE
-                define) and a prop change alone does not recompile it, so a cap drawn opaque would stay opaque. */}
-            <meshStandardMaterial key={`cap-${faded}`} color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
-              emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
-              transparent={faded} opacity={faded ? FADED_OPACITY : 1}
-              polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
-          </mesh>
-          <lineSegments geometry={cap.lineGeo}>
-            <lineBasicMaterial color={selected ? SELECTED : faded ? fadedEdgeColor : edgeColor}
-              transparent opacity={faded ? FADED_EDGE_OPACITY : selected ? 1 : 0.8} />
-          </lineSegments>
+          {capNode}
         </group>
       )}
     </group>
+    {leaned && capNode}
+    </>
   );
 }
