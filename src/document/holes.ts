@@ -1,6 +1,9 @@
 import type { Board, CutFrom, Dimension, HoleRow, Region } from './types';
 import type { V3 } from './angleCuts';
 import { DIMENSION_ORDER } from './geometry';
+import { acrossOf, bitVector, isTilted } from './holeTilt';
+
+export { acrossOf };
 
 /**
  * Every field of `HoleRow` that decides "same hole row": all but `id` (holes spec §4.2). A TABLE CHECKED AGAINST THE
@@ -107,19 +110,19 @@ export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
   };
 }
 
-/** The third dimension: neither the drill axis nor the row's direction. */
-export function acrossOf(r: Pick<HoleRow, 'face' | 'along'>): Dimension {
-  return DIMENSION_ORDER.find((d) => d !== r.face && d !== r.along)!;
-}
-
 /** Board-local half-space; the kept side is n·x + d ≥ 0. */
 export interface Plane { n: V3; d: number }
 
-/** One flat-bottomed cylinder, board-local `[length, width, thickness]` inches. `centre` lies on the entry plane;
- *  `dir` is +1 when the hole runs toward +axis (entered from the min face). */
+/** One flat-bottomed cylinder, board-local `[length, width, thickness]` inches. `axis` and `dir` name the ENTRY face:
+ *  `centre` (the mouth centre) lies on its plane; `dir` is +1 when the hole runs toward +axis (entered from the min face).
+ *  `bit` is the drill's direction (holeTilt's `bitVector`: its `axis` component exactly `dir`, so a square hole's is the
+ *  face axis). `depth` is the face dimension for a through hole and ALONG THE BIT for a blind one; `reach` is the AXIAL
+ *  distance from the entry plane to the far ring's plane (through) or the bottom disc's centre (blind) — `depth` itself
+ *  on a square hole (angled holes spec §3.2, §6.1). */
 export interface Hole {
   row: string; index: number; axis: Dimension; dir: 1 | -1;
   centre: V3; radius: number; depth: number; through: boolean;
+  bit: V3; reach: number;
 }
 
 /** The polygon a hole is rendered as, vertices on the true circle (spec §3.2). */
@@ -140,10 +143,59 @@ function frameOf(h: Pick<Hole, 'axis'>): { a: number; u: number; v: number } {
   return { a, u, v };
 }
 
+/** The bit leaves the face axis. Every square hole takes the code paths it always did (Global Constraints). */
+const tilted = (h: Pick<Hole, 'axis' | 'bit'>): boolean => {
+  const { u, v } = frameOf(h);
+  return h.bit[u] !== 0 || h.bit[v] !== 0;
+};
+
+/**
+ * A tilted bore's frame: `b` the unit bit, `w1`/`w2` the orthonormal pair square to it — Gram–Schmidt from the face's +u
+ * then +v, so θ = 0 leans toward +u and a ring winds from +u toward +v seen down the face axis, as a square ring does.
+ */
+function boreFrame(h: Hole): { b: V3; w1: V3; w2: V3 } {
+  const { u, v } = frameOf(h);
+  const l = Math.hypot(h.bit[0], h.bit[1], h.bit[2]);
+  const b: V3 = [h.bit[0] / l, h.bit[1] / l, h.bit[2] / l];
+  const unit = (p: V3): V3 => { const m = Math.hypot(p[0], p[1], p[2]); return [p[0] / m, p[1] / m, p[2] / m]; };
+  const eu: V3 = [0, 0, 0]; eu[u] = 1;
+  const w1 = unit([eu[0] - b[u] * b[0], eu[1] - b[u] * b[1], eu[2] - b[u] * b[2]]);
+  const ev: V3 = [0, 0, 0]; ev[v] = 1;
+  const p = b[v]; const q = w1[v];
+  const w2 = unit([ev[0] - p * b[0] - q * w1[0], ev[1] - p * b[1] - q * w1[1], ev[2] - p * b[2] - q * w1[2]]);
+  return { b, w1, w2 };
+}
+
+/** The far end of a bore's axis: the exit ring's centre (through) or the bottom disc's (blind), `reach` along the bit. */
+const farCentre = (h: Hole): V3 => [h.centre[0] + h.reach * h.bit[0], h.centre[1] + h.reach * h.bit[1], h.centre[2] + h.reach * h.bit[2]];
+
+/**
+ * A tilted bore's axis-aligned box, exact for the true cylinder: a cylinder cut by two planes is the convex hull of its two
+ * end curves, so the box is the union of theirs. A face-parallel ring (the mouth; a through exit) is the circle slid to
+ * the plane, `r·M·w` with `M = I − dir·bit·e_aᵀ` — on axis i a sinusoid of half-extent `r·hypot(M_i·w1, M_i·w2)`, 0 on the
+ * face axis; a blind bottom (the disc square to the bit) has `r·hypot(w1_i, w2_i)`.
+ */
+function tiltedBox(h: Hole): { lo: V3; hi: V3 } {
+  const { a } = frameOf(h);
+  const { w1, w2 } = boreFrame(h);
+  const end = farCentre(h);
+  const lo: V3 = [0, 0, 0]; const hi: V3 = [0, 0, 0];
+  for (let i = 0; i < 3; i += 1) {
+    const slid = i === a ? 0 : h.radius * Math.hypot(w1[i]! - h.dir * h.bit[i]! * w1[a]!, w2[i]! - h.dir * h.bit[i]! * w2[a]!);
+    const far = h.through ? slid : h.radius * Math.hypot(w1[i]!, w2[i]!);
+    lo[i] = Math.min(h.centre[i]! - slid, end[i]! - far);
+    hi[i] = Math.max(h.centre[i]! + slid, end[i]! + far);
+  }
+  return { lo, hi };
+}
+
 export function holeInstances(board: Pick<Board, Dimension>, row: HoleRow): Hole[] {
   const across = acrossOf(row);
   const through = row.depth === 'through';
   const depth = row.depth === 'through' ? board[row.face] : row.depth;
+  const bit = bitVector(row);
+  // Axial: the face dimension through; a blind depth runs along the bit. A square row's reach IS its depth.
+  const reach = through || !isTilted(row) ? depth : depth / Math.hypot(bit[0], bit[1], bit[2]);
   const out: Hole[] = [];
   for (let k = 0; k < row.count; k += 1) {
     const s = row.station + k * row.pitch;
@@ -151,7 +203,7 @@ export function holeInstances(board: Pick<Board, Dimension>, row: HoleRow): Hole
     c[idx(row.face)] = row.from === 'min' ? 0 : board[row.face];
     c[idx(row.along)] = row.alongFrom === 'min' ? s : board[row.along] - s;
     c[idx(across)] = row.acrossFrom === 'min' ? row.inset : board[across] - row.inset;
-    out.push({ row: row.id, index: k, axis: row.face, dir: row.from === 'min' ? 1 : -1, centre: c, radius: row.diameter / 2, depth, through });
+    out.push({ row: row.id, index: k, axis: row.face, dir: row.from === 'min' ? 1 : -1, centre: c, radius: row.diameter / 2, depth, through, bit: [bit[0], bit[1], bit[2]], reach });
   }
   return out;
 }
@@ -163,12 +215,12 @@ export function boardHoles(board: Pick<Board, Dimension | 'holes'>): Hole[] {
 
 /**
  * Per-hole derived geometry at the default HOLE_SEGMENTS, memoised by Hole OBJECT identity (Task 11b: a rebuild asks for
- * the same prism once per face and the same ring once per wall and face). Only a FROZEN hole is memoised — the hole and
- * its `centre`, its one nested field, as partGeometry's deep freeze leaves them — so a hole that could still change
+ * the same prism once per face and the same ring once per wall and face). Only a FROZEN hole is memoised — the hole, its
+ * `centre` and its `bit`, its nested fields, as partGeometry's deep freeze leaves them — so a hole that could still change
  * never answers from a stale entry; any other hole, or another `n`, computes
  * fresh. A memoised result is shared, so it is returned frozen (array, planes, normals and points alike).
  */
-interface HoleMemo { prism?: Plane[]; rings: Map<number, V3[]> }
+interface HoleMemo { prism?: Plane[]; bottom?: V3[]; rings: Map<number, V3[]> }
 const holeMemo = new WeakMap<Hole, HoleMemo>();
 /**
  * What touchesPrism knows of a prism built here, beside its planes: the hole's in-plane axes and centre (to try the
@@ -182,21 +234,28 @@ function memoOf(h: Hole): HoleMemo {
   if (!m) { m = { rings: new Map() }; holeMemo.set(h, m); }
   return m;
 }
+const frozen = (h: Hole) => Object.isFrozen(h) && Object.isFrozen(h.centre) && Object.isFrozen(h.bit);
 const freezeRing = (r: V3[]): V3[] => { r.forEach((p) => Object.freeze(p)); return Object.freeze(r) as V3[]; };
 const freezePrism = (ps: Plane[]): Plane[] => {
   ps.forEach((q) => { Object.freeze(q.n); Object.freeze(q); });
   return Object.freeze(ps) as Plane[];
 };
 
-/** The ring at axial distance `t` from the entry plane: `n` points on the true circle, θ_k = 2πk/n from +u toward +v. */
+/**
+ * The ring at axial distance `t` from the entry plane: `n` points on the true circle, θ_k = 2πk/n from +u toward +v. A
+ * tilted bore's ring is where its cylinder meets that face-parallel plane, an ellipse: the circle square to the bit,
+ * `c + t·bit + r·w_k`, each vertex slid along the bit back onto the plane, `+ λ_k·bit` with `λ_k = −dir·(r·w_k)[a]` (the
+ * bit's axial component is exactly `dir`), so the vertex stays `r` from the bit's line and the face, wall and rim share it.
+ */
 export function holeRing(h: Hole, t: number, n = HOLE_SEGMENTS): V3[] {
-  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h) || !Object.isFrozen(h.centre)) return ringOf(h, t, n);
+  if (n !== HOLE_SEGMENTS || !frozen(h)) return ringOf(h, t, n);
   const memo = memoOf(h);
   let r = memo.rings.get(t);
   if (!r) { r = freezeRing(ringOf(h, t, n)); memo.rings.set(t, r); }
   return r;
 }
 function ringOf(h: Hole, t: number, n: number): V3[] {
+  if (tilted(h)) return tiltedRingOf(h, t, n, true);
   const { a, u, v } = frameOf(h);
   return Array.from({ length: n }, (_, k) => {
     const th = (2 * Math.PI * k) / n;
@@ -208,18 +267,46 @@ function ringOf(h: Hole, t: number, n: number): V3[] {
   });
 }
 
+/** A tilted bore's ring: slid to the face-parallel plane at axial `t` (`slide`), or the circle square to the bit at `t`. */
+function tiltedRingOf(h: Hole, t: number, n: number, slide: boolean): V3[] {
+  const { a } = frameOf(h);
+  const { w1, w2 } = boreFrame(h);
+  const c = h.centre; const m = h.bit;
+  return Array.from({ length: n }, (_, k) => {
+    const th = (2 * Math.PI * k) / n;
+    const co = h.radius * Math.cos(th); const si = h.radius * Math.sin(th);
+    const w: V3 = [co * w1[0] + si * w2[0], co * w1[1] + si * w2[1], co * w1[2] + si * w2[2]];
+    const s = t + (slide ? -h.dir * w[a]! : 0);
+    return [c[0] + s * m[0] + w[0], c[1] + s * m[1] + w[1], c[2] + s * m[2] + w[2]];
+  });
+}
+
+/**
+ * A blind bore's bottom ring, the circle square to the bit at the bottom disc's centre (`reach` along the bit, `depth`
+ * from the mouth centre). A square hole's IS `holeRing(h, h.depth)`, the same array. Memoised in its own slot.
+ */
+export function holeBottom(h: Hole, n = HOLE_SEGMENTS): V3[] {
+  if (!tilted(h)) return holeRing(h, h.depth, n);
+  if (n !== HOLE_SEGMENTS || !frozen(h)) return tiltedRingOf(h, h.reach, n, false);
+  const memo = memoOf(h);
+  if (!memo.bottom) memo.bottom = freezeRing(tiltedRingOf(h, h.reach, n, false));
+  return memo.bottom;
+}
+
 /**
  * The rendered cylinder as half-spaces whose kept sides are its inside: one per side facet (facet k between ring vertices
  * k and k+1, at distance r·cos(π/n) from the axis), then the entry cap, then the bottom cap — each cap pushed OUT by
- * PRISM_EPS (see there).
+ * PRISM_EPS (see there). A tilted bore's facets are parallel to its bit (facet k still between ring vertices k and k+1);
+ * its entry cap is the face plane, its far cap the exit face (through) or the bottom disc's plane, square to the bit.
  */
 export function holePrism(h: Hole, n = HOLE_SEGMENTS): Plane[] {
-  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h) || !Object.isFrozen(h.centre)) return prismOf(h, n);
+  if (n !== HOLE_SEGMENTS || !frozen(h)) return prismOf(h, n);
   const memo = memoOf(h);
   if (!memo.prism) memo.prism = freezePrism(prismOf(h, n));
   return memo.prism;
 }
 function prismOf(h: Hole, n: number): Plane[] {
+  if (tilted(h)) return tiltedPrismOf(h, n);
   const { a, u, v } = frameOf(h);
   const out: Plane[] = [];
   const inner = h.radius * Math.cos(Math.PI / n);
@@ -239,6 +326,28 @@ function prismOf(h: Hole, n: number): Plane[] {
   const end = h.centre[a] + h.dir * h.depth;
   lo[a] = Math.min(h.centre[a], end) - PRISM_EPS;
   hi[a] = Math.max(h.centre[a], end) + PRISM_EPS;
+  prismInfo.set(out, { u, v, cu: h.centre[u], cv: h.centre[v], lo, hi });
+  return out;
+}
+function tiltedPrismOf(h: Hole, n: number): Plane[] {
+  const { a, u, v } = frameOf(h);
+  const { b, w1, w2 } = boreFrame(h);
+  const out: Plane[] = [];
+  const inner = h.radius * Math.cos(Math.PI / n);
+  for (let k = 0; k < n; k += 1) {
+    const phi = (2 * Math.PI * (k + 0.5)) / n;
+    const co = Math.cos(phi); const si = Math.sin(phi);
+    const radial: V3 = [co * w1[0] + si * w2[0], co * w1[1] + si * w2[1], co * w1[2] + si * w2[2]];
+    out.push({ n: [-radial[0], -radial[1], -radial[2]], d: inner + dot(radial, h.centre) });
+  }
+  const ax: V3 = [0, 0, 0];
+  ax[a] = h.dir;
+  out.push({ n: ax, d: -h.dir * h.centre[a] + PRISM_EPS });                                         // t ≥ -ε
+  if (h.through) out.push({ n: [-ax[0], -ax[1], -ax[2]], d: h.dir * h.centre[a] + h.reach + PRISM_EPS });
+  else out.push({ n: [-b[0], -b[1], -b[2]], d: dot(b, h.centre) + h.depth + PRISM_EPS });           // along the bit ≤ depth + ε
+  // The true cylinder's box holds every facet vertex (they lie on it); a cap pushed ε out moves a vertex ε·|bit_i| ≤ ε.
+  const { lo, hi } = tiltedBox(h);
+  for (let i = 0; i < 3; i += 1) { lo[i] -= PRISM_EPS; hi[i] += PRISM_EPS; }
   prismInfo.set(out, { u, v, cu: h.centre[u], cv: h.centre[v], lo, hi });
   return out;
 }
@@ -426,7 +535,8 @@ export function minusCover(poly: V3[], n: V3, cover: readonly V3[]): V3[][] {
   return out;
 }
 
-/** The face's axial distance from the hole's entry plane when the face is perpendicular to the axis, else null. */
+/** The face's axial distance from the hole's entry plane when the face is perpendicular to the axis, else null. Faces
+ *  square to the FACE axis: a tilted bore's rings lie on face-parallel planes too (holeRing), so it holds for them. */
 export function axialOffset(h: Hole, face: { n: V3; verts: V3[] }): number | null {
   const { a } = frameOf(h);
   if (Math.abs(Math.abs(face.n[a]) - 1) > HOLE_EPS) return null;
@@ -463,16 +573,22 @@ function planesOf(faces: readonly { n: V3; verts: V3[] }[]): Plane[] {
 }
 
 /** Rim segments (spec §3.3, amended): the entry ring, and the ring at the far end — the exit rim of a through hole, the
- *  bottom crease of a blind one. Closed loops. */
+ *  bottom crease of a blind one (a tilted bore's bottom disc, square to the bit). Closed loops. */
 export function holeRims(h: Hole): [V3, V3][] {
-  return [holeRing(h, 0), holeRing(h, h.depth)].flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
+  const far = !tilted(h) ? holeRing(h, h.depth) : h.through ? holeRing(h, h.reach) : holeBottom(h);
+  return [holeRing(h, 0), far].flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
 }
 
 /** The bore's board-local box (joinery-holes spec §3.3): mouth to bottom along `axis`, centre ± radius across. Not clipped
- *  to the board; a through hole spans its whole dimension. */
+ *  to the board; a through hole spans its whole dimension. A tilted bore's is its true cylinder's box (tiltedBox). */
 export function holeRegion(h: Hole): Region {
-  const { a } = frameOf(h);
   const out = {} as Region;
+  if (tilted(h)) {
+    const { lo, hi } = tiltedBox(h);
+    DIMENSION_ORDER.forEach((d, i) => { out[d] = [lo[i]!, hi[i]!]; });
+    return out;
+  }
+  const { a } = frameOf(h);
   DIMENSION_ORDER.forEach((d, i) => {
     out[d] = i === a
       ? [Math.min(h.centre[a], h.centre[a] + h.dir * h.depth), Math.max(h.centre[a], h.centre[a] + h.dir * h.depth)]
@@ -483,6 +599,10 @@ export function holeRegion(h: Hole): Region {
 
 /** The hole's bounding box overlaps the region (closed). Conservative: it decides only whether a body leaves the box path. */
 export function holeTouchesBox(h: Hole, r: Region): boolean {
+  if (tilted(h)) {
+    const { lo, hi } = tiltedBox(h);
+    return DIMENSION_ORDER.every((d, i) => lo[i]! <= r[d][1] + HOLE_EPS && hi[i]! >= r[d][0] - HOLE_EPS);
+  }
   const { a } = frameOf(h);
   return DIMENSION_ORDER.every((d, i) => {
     const [lo, hi] = i === a
@@ -494,7 +614,22 @@ export function holeTouchesBox(h: Hole, r: Region): boolean {
 
 /** The mouth is air (spec §3.5, amended): within the radius (open: the rim is stock) and between the caps (closed). */
 export function insideHole(h: Hole, p: V3): boolean {
+  if (tilted(h)) return insideTilted(h, p);
   const { a, u, v } = frameOf(h);
   const t = h.dir * (p[a] - h.centre[a]);
   return t >= -HOLE_EPS && t <= h.depth + HOLE_EPS && Math.hypot(p[u] - h.centre[u], p[v] - h.centre[v]) < h.radius - HOLE_EPS;
+}
+
+/** A tilted bore: past the entry plane, short of the far cap (the exit plane, or the bottom disc along the bit), and less
+ *  than the radius from the bit's line — perpendicular distance, the line through the mouth centre. */
+function insideTilted(h: Hole, p: V3): boolean {
+  const { a } = frameOf(h);
+  const q: V3 = [p[0] - h.centre[0], p[1] - h.centre[1], p[2] - h.centre[2]];
+  const t = h.dir * q[a]!;
+  if (t < -HOLE_EPS) return false;
+  const mm2 = dot(h.bit, h.bit);
+  const along = dot(q, h.bit);
+  if (h.through ? t > h.reach + HOLE_EPS : along / Math.sqrt(mm2) > h.depth + HOLE_EPS) return false;
+  const s = along / mm2;
+  return Math.hypot(q[0] - s * h.bit[0], q[1] - s * h.bit[1], q[2] - s * h.bit[2]) < h.radius - HOLE_EPS;
 }

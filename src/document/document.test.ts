@@ -1829,6 +1829,14 @@ describe('schema 23: the stored tilt (angled holes spec §3)', () => {
       expect(holesOf(doc)).toEqual([]);
     }
   });
+  it('the bound\'s edge is kept: 45° on one slope, or 45° in all (withinTiltBound, the ONE bound)', () => {
+    for (const edge of [{ tiltAlong: 1 }, { tiltAcross: -1 }, { tiltAlong: 1, tiltAcross: 0 }, { tiltAlong: 0.6, tiltAcross: 0.8 }]) {
+      const r = holesOf(at(23, [{ ...row, ...edge }]))[0];
+      expect(r, JSON.stringify(edge)).toBeDefined();
+      for (const [k, v] of Object.entries(edge)) if (v !== 0) expect(r![k as 'tiltAlong']).toBe(v);
+    }
+    for (const past of [{ tiltAlong: 1 + 2 ** -52 }, { tiltAlong: 0.6, tiltAcross: 0.81 }]) expect(holesOf(at(23, [{ ...row, ...past }]))).toEqual([]);
+  });
   it('a zero tilt is stored as absent', () => {
     const r = holesOf(at(23, [{ ...row, tiltAlong: 0, tiltAcross: 0.2 }]))[0]!;
     expect('tiltAlong' in r).toBe(false);
