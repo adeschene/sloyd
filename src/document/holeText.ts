@@ -96,7 +96,7 @@ const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
 /**
  * A tilted bore's bench words (angled holes spec §8): a bit leaning in ONE plane names the end or side it leans toward
  * (a positive slope leans to the far end from `alongFrom`, the far side from `acrossFrom`); a bit leaning in both gives
- * the angle off square and its sightline from the `along` dimension. A blind bore's depth is along the bit. Empty for a
+ * the angle off square and its sightline from the `along` dimension. A blind bore's depth is measured along the bit. Empty for a
  * square row, so a square row's line is byte for byte as before.
  */
 function tiltText(r: HoleRow): string {
@@ -109,7 +109,7 @@ function tiltText(r: HoleRow): string {
   if (along + acr === 2) words = `bored ${deg(tiltResultantDeg(r))} off square on a ${deg(tiltSightlineDeg(r))} sightline from the ${r.along}`;
   else if (along) words = `bored ${deg(tiltResultantDeg(r))} off square toward the ${r.along} ${t.along > 0 ? flip(r.alongFrom) : r.alongFrom} ${end(r.along)}`;
   else words = `bored ${deg(tiltResultantDeg(r))} off square toward the ${acrossOf(r)} ${t.across > 0 ? flip(r.acrossFrom) : r.acrossFrom} ${end(acrossOf(r))}`;
-  return `, ${words}${r.depth === 'through' ? '' : ', deep along the bit'}`;
+  return `, ${words}${r.depth === 'through' ? '' : ', depth measured along the bit'}`;
 }
 
 function holeLineBase(r: HoleRow, units: Units): string {
