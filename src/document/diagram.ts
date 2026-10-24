@@ -102,6 +102,8 @@ function tiltedBand(h: Hole, a: number, d: number): [number, number][] {
     const mouth: [number, number] = [s0, c + k * h.radius * n[1]! + t * bd];
     const far: [number, number] = h.through
       ? [s0 + h.dir * h.reach, mouth[1] + h.reach * bd]
+      // A blind bottom is the straight chord between the disc's two silhouette points: exact when the bit lies in the
+      // view plane; otherwise the disc's shallow projected bulge is omitted, as a square hole's bottom is a straight line.
       : [s0 + h.dir * h.reach + k * h.radius * n[0]!, c + h.reach * bd + k * h.radius * n[1]!];
     return [mouth, far];
   };

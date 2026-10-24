@@ -29,6 +29,8 @@ const COL_GAP = 6;
 export const LEFT_PAD = 12;
 /** Half-length, in px, of a hole's centre cross. */
 const HOLE_MARK = 3;
+/** Points on a tilted bore's drawn ellipse (a multiple of 4, so both axes' tips are vertices). */
+export const TILT_ELLIPSE_POINTS = 64;
 /**
  * One leader column's width, DERIVED rather than hard-coded.
  *
@@ -420,16 +422,23 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           const x = left + fit.offsetX + c.h * fit.sx;
           const y = top + (view.vUp ? view.v - c.v : c.v) * fit.sy;
           const k = HOLE_MARK;
-          // A tilted bore's ellipse (angled holes spec §8) is drawn in board inches through the view's own map — scale
-          // (v flipped on a vUp view) after rotate, so it stays exact under the sliver clamp (sx ≠ sy); its stroke is
-          // the screen's, like every other line here.
-          const rad = ((c.rot ?? 0) * Math.PI) / 180;
-          const f = view.vUp ? -fit.sy : fit.sy;
+          // A tilted bore's ellipse (angled holes spec §8): TILT_ELLIPSE_POINTS points ON it, mapped through the view
+          // like the outline (v flipped on a vUp view), so it stays exact under the sliver clamp (sx ≠ sy) and its
+          // stroke scales with the viewBox like every other hole line — no transform, no vector-effect.
+          const ellipse = () => {
+            const phi = ((c.rot ?? 0) * Math.PI) / 180;
+            const f = view.vUp ? -fit.sy : fit.sy;
+            const pts = Array.from({ length: TILT_ELLIPSE_POINTS }, (_, i) => {
+              const t = (2 * Math.PI * i) / TILT_ELLIPSE_POINTS;
+              const [a, b] = [c.rx! * Math.cos(t), c.ry! * Math.sin(t)];
+              return `${x + fit.sx * (a * Math.cos(phi) - b * Math.sin(phi))} ${y + f * (a * Math.sin(phi) + b * Math.cos(phi))}`;
+            });
+            return `M${pts.join('L')}Z`;
+          };
           return (
             <g key={`${c.row}:${c.index}`}>
               {c.rx !== undefined
-                ? <ellipse className="cutlist-diagram-hole" vectorEffect="non-scaling-stroke" cx={0} cy={0} rx={c.rx} ry={c.ry}
-                    transform={`matrix(${fit.sx * Math.cos(rad)} ${f * Math.sin(rad)} ${-fit.sx * Math.sin(rad)} ${f * Math.cos(rad)} ${x} ${y})`} />
+                ? <path className="cutlist-diagram-hole" d={ellipse()} />
                 : <ellipse className="cutlist-diagram-hole" cx={x} cy={y} rx={c.r * fit.sx} ry={c.r * fit.sy} />}
               <path className="cutlist-diagram-hole-centre" d={`M${x - k} ${y}H${x + k}M${x} ${y - k}V${y + k}`} />
             </g>
