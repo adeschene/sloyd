@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  partsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -1087,7 +1087,7 @@ export const useStore = create<StoreState>((set, get) => {
       // Bounds over the WORLD parts under the named items (assemblies spec §4.2).
       const paths = itemPaths(get().doc);
       const moving = worldParts(get().doc).filter((b) => isCovered(b.id, wanted));
-      const bounds = boardsBounds(moving);
+      const bounds = partsBounds(moving);
       if (!bounds) return;
       // Round the GROUP's min corner, once. Rounding each part's corner
       // instead would pull an off-grid part onto the grid and break the

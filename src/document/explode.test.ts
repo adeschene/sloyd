@@ -1,6 +1,9 @@
 import { createBoard, createDocument } from './document';
 import type { SloydDocument } from './types';
 import { explodeOffsets, EXPLODE_INNER } from './explode';
+import { chooseFace, leanMap, slopeOf } from './lean';
+import { boardsBounds } from './geometry';
+import type { Board } from './types';
 
 type V = [number, number, number];
 const cube = (id: string, position: V) => createBoard({ id, name: id, length: 2, width: 2, thickness: 2, position });
@@ -86,5 +89,33 @@ describe('explodeOffsets', () => {
   it('returns the same map for the same document and amount', () => {
     const d = doc();
     expect(explodeOffsets(d, 0.4)).toBe(explodeOffsets(d, 0.4));
+  });
+
+  it('explode floor lift uses real bounds: no exploded part goes below the floor (splayed legs spec §6.2, R2)', () => {
+    // A 28in leg leaning rake 8°, splay 12° whose REAL foot is on the floor: its pre-lean box bottom is below y = 0.
+    // The real minimum is taken here from the leaned box corners (a plain leg's one body is its box), independently of
+    // partBounds. A small cube on the floor explodes far lower than the leg (its centre is well below the root's).
+    const base = createBoard({ id: 'L', name: 'Leg', length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [0, 0, 0] });
+    const atOrigin: Board = { ...base, lean: { x: slopeOf(12), z: slopeOf(8), face: chooseFace(base, slopeOf(12), slopeOf(8)) } };
+    const realMinY = (b: Board): number => {
+      const m = leanMap(b);
+      const box = boardsBounds([b])!;
+      if (!m) return box.min[1];
+      const ys = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => m.apply([
+        i & 1 ? box.max[0] : box.min[0], i & 2 ? box.max[1] : box.min[1], i & 4 ? box.max[2] : box.min[2],
+      ])[1]);
+      return Math.min(...ys);
+    };
+    const leg: Board = { ...atOrigin, position: [0, -realMinY(atOrigin), 0] };
+    expect(leg.position[1]).toBeLessThan(0);
+    expect(Math.abs(realMinY(leg))).toBeLessThan(1e-12);
+    const parts: Board[] = [leg, cube('C', [6, 0, 0])];
+    const d: SloydDocument = { ...createDocument('Splayed'), boards: parts };
+    for (const amount of [0.3, 1]) {
+      const o = explodeOffsets(d, amount);
+      for (const b of parts) expect(realMinY(b) + o.get(b.id)![1]).toBeGreaterThanOrEqual(-1e-9);
+      // The lowest exploded part sits on the floor: lifted to the assembled piece's real minimum, 0.
+      expect(Math.min(...parts.map((b) => realMinY(b) + o.get(b.id)![1]))).toBeCloseTo(0, 9);
+    }
   });
 });

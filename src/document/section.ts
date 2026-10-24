@@ -1,6 +1,8 @@
 import type { Board } from './types';
 import type { V3 } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffset } from './geometry';
+import { leanMap } from './lean';
+import { partBounds } from './worldBounds';
 import { clipConvex, geometryKey, partGeometry, BODY_EPS, type BodyFace } from './bodies';
 import { HOLE_EPS, holePrism, holeRing, minusPrism, ringInside } from './holes';
 import { SECTION_EPS, unionOutline } from './outline';
@@ -47,6 +49,14 @@ export function sectionSpan(
   let lo = Infinity;
   let hi = -Infinity;
   for (const b of boards) {
+    // A leaning part's drawn extent is its real bounds (splayed legs spec §6.1 R2); an unleaned part takes today's sum.
+    if (leanMap(b)) {
+      const r = partBounds(b);
+      const o = offsets?.get(b.id)?.[k] ?? 0;
+      lo = Math.min(lo, r.min[k]! + o);
+      hi = Math.max(hi, r.max[k]! + o);
+      continue;
+    }
     const min = b.position[k]! + (offsets?.get(b.id)?.[k] ?? 0);
     lo = Math.min(lo, min);
     hi = Math.max(hi, min + boardExtents(b)[k]!);

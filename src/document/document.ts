@@ -30,7 +30,7 @@ export * from './tree';
 export * from './treeEdit';
 export * from './treeOps';
 export {
-  boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
+  boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
   horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
@@ -73,6 +73,8 @@ export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
 export { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from './snapPoints';
+export { partBounds, partsBounds } from './worldBounds';
+export { leanMap } from './lean';
 export { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, sectionCaps, unionOutline, SECTION_EPS } from './section';
 export { unionLoops } from './outline';
 export type { Section, SectionAxis, SectionCap } from './section';

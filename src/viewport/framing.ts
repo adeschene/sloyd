@@ -1,4 +1,4 @@
-import { boardExtents } from '../document/document';
+import { boardExtents, leanMap, partBounds } from '../document/document';
 import type { Board } from '../document/document';
 import type { Vec3 } from '../document/frames';
 import { FRONT, ISO, SIDE, TOP } from '../document/drawing';
@@ -39,8 +39,17 @@ export function subsetBounds(subset: readonly Board[], offsets?: ReadonlyMap<str
   const lo: Vec3 = [Infinity, Infinity, Infinity];
   const hi: Vec3 = [-Infinity, -Infinity, -Infinity];
   for (const b of subset) {
-    const e = boardExtents(b);
     const o = offsets?.get(b.id);
+    // A leaning part is framed by its real bounds (splayed legs spec §6.1 R2); an unleaned part takes today's arithmetic.
+    if (leanMap(b)) {
+      const r = partBounds(b);
+      for (let k = 0; k < 3; k++) {
+        lo[k] = Math.min(lo[k]!, r.min[k]! + (o ? o[k]! : 0));
+        hi[k] = Math.max(hi[k]!, r.max[k]! + (o ? o[k]! : 0));
+      }
+      continue;
+    }
+    const e = boardExtents(b);
     for (let k = 0; k < 3; k++) {
       const min = b.position[k]! + (o ? o[k]! : 0);
       lo[k] = Math.min(lo[k]!, min);

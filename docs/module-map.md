@@ -29,7 +29,14 @@ src/
 │   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
 │   │                     the derived-PROJECT name ("— refined 2", fu 237)
 │   ├── geometry.ts       axisFrame, the ONE turn table, and its crossings (inv 44);
-│   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds
+│   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds (the PRE-lean box: read through
+│   │                     worldBounds.ts)
+│   ├── lean.ts           the ONE home of the lean math (splayed legs §3.3): slopes ↔ degrees, resultant, sightline;
+│   │                     leanMap (rotation about the top-face centre; apply/applyDir/inverse/inverseDir on WORLD points of the
+│   │                     pre-lean placement; null for no or zero lean), worldSlopes, chooseFace, seamFree, leanFlip (mirrors)
+│   ├── worldBounds.ts    partBounds / partsBounds, the ONE real-bounds helper (splayed legs §6.1 R2): a leaning part's
+│   │                     world box from its LEANED body vertices; lean-free = boardsBounds exactly. Every world-box reader
+│   │                     (group move, Copy in a row, section heading/span, Gizmo, framing, explode, Plans dimensions) uses it
 │   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46); mirrorPart/withMirror/toLocal (mirrored frames);
 │   │                     mirrorFeatures (mirrorPart's feature half: what a mirrored user resolves through, inv 44); mirrorInPlace
 │   │                     (features mirrored + turn negated, box kept; the checkbox's operation at chain turn 0, used by tests)
@@ -229,7 +236,9 @@ src/
 │   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
 │                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
 │                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
-│   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26); hole centres ('face-center', entry
+│   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26); toWorld (then the lean) and its exact
+│   │                     inverse fromWorld; a leaning part's lattice is built and stockProbe-filtered pre-lean, then mapped;
+│   │                     hole centres ('face-center', entry
 │   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception); b2: each swept stop offers its
 │   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)

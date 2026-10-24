@@ -428,6 +428,11 @@ export function pocketEdges(board: Board): Segment[] {
  * the world max side, so a span is reflected (spanToWorldOffset) before it is
  * placed. `position` is the min-corner, so relative to the centre a world
  * offset is just "minus half the extent".
+ *
+ * Group-relative and lean-free on purpose (splayed legs spec §6.1 R1): its
+ * only caller is BoardMesh, whose part `<group>` carries a leaning part's lean
+ * as its matrix (plan Task 7). Composing the lean here would apply it twice,
+ * and a box around rotated corners would draw the wrong solid.
  */
 export function solidWorldBox(
   board: Board,
@@ -444,7 +449,8 @@ export function solidWorldBox(
 }
 
 /** A point in the board's space, in the same board-centred frame, reflected
- *  on any axis the turn reverses (toWorldOffset). */
+ *  on any axis the turn reverses (toWorldOffset). Group-relative and lean-free,
+ *  as `solidWorldBox`: the lean is the BoardMesh group's (spec §6.1 R1). */
 export function pointToLocalXYZ(board: Board, point: Point): [number, number, number] {
   const extents = boardExtents(board);
   return axisFrame(board).map(

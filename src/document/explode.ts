@@ -1,7 +1,7 @@
 import type { SloydDocument } from './types';
 import type { Vec3 } from './frames';
 import { containerAt, parentPath, worldParts } from './tree';
-import { boardExtents } from './geometry';
+import { partBounds } from './worldBounds';
 
 /** Slider 0..1 → amount (spec §3). Callers apply it; tuned by eye with the user. */
 export const EXPLODE_SPREAD = 1;
@@ -42,10 +42,13 @@ export function explodeOffsets(doc: SloydDocument, amount: number): ReadonlyMap<
   const parts = worldParts(doc);
   const lo = new Map<string, Vec3>();
   const hi = new Map<string, Vec3>();
+  // Real bounds (splayed legs spec §6.1 R2): a leaning part's centre is its leaned bodies'; an unleaned part's box is
+  // `position` to `position + boardExtents`, today's numbers.
+  const real = new Map(parts.map((b) => [b.id, partBounds(b)] as const));
   for (const b of parts) {
-    const ext = boardExtents(b);
-    const min: Vec3 = [b.position[0], b.position[1], b.position[2]];
-    const max: Vec3 = [min[0] + ext[0], min[1] + ext[1], min[2] + ext[2]];
+    const r = real.get(b.id)!;
+    const min: Vec3 = [r.min[0], r.min[1], r.min[2]];
+    const max: Vec3 = [r.max[0], r.max[1], r.max[2]];
     for (const key of chainOf(b.id)) {
       const l = lo.get(key);
       const h = hi.get(key);
@@ -86,9 +89,11 @@ export function explodeOffsets(doc: SloydDocument, amount: number): ReadonlyMap<
   }
   let assembledMinY = Infinity;
   let explodedMinY = Infinity;
+  // The floor lift on the REAL minimum Y (R2): a leaning part's pre-lean box bottom is not where its foot is.
   for (const b of parts) {
-    assembledMinY = Math.min(assembledMinY, b.position[1]);
-    explodedMinY = Math.min(explodedMinY, b.position[1] + out.get(b.id)![1]);
+    const minY = real.get(b.id)!.min[1];
+    assembledMinY = Math.min(assembledMinY, minY);
+    explodedMinY = Math.min(explodedMinY, minY + out.get(b.id)![1]);
   }
   const dy = parts.length > 0 ? Math.max(0, assembledMinY - explodedMinY) : 0;
   if (dy > 0) for (const off of out.values()) off[1] += dy;

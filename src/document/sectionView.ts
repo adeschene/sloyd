@@ -1,6 +1,6 @@
 import type { Board } from './types';
 import type { Vec3 } from './frames';
-import { boardsBounds } from './geometry';
+import { partsBounds } from './worldBounds';
 import { DRAW_EPS, FRONT, SIDE, TOP, type CapDrawing, type Drawing, type P2, type Seg2, type View } from './drawing';
 import { sectionAxisIndex, type Section, type SectionAxis } from './section';
 import { formatLength, type Units } from '../units/length';
@@ -35,7 +35,7 @@ const LOOKING: Readonly<Record<SectionAxis, readonly [string, string]>> = {
 /** The section's heading (spec §2.3): measured from the assembled piece's own min along the axis — paper has no origin. */
 export function sectionTitle(s: Section, parts: readonly Board[], units: Units): string {
   const k = sectionAxisIndex(s.axis);
-  const lo = boardsBounds(parts)?.min[k] ?? 0;
+  const lo = partsBounds(parts)?.min[k] ?? 0;
   return `Section A–A — ${AXIS_WORD[s.axis]} cut ${formatLength(s.at - lo, units)} from the ${REFERENCE[s.axis]}, looking ${LOOKING[s.axis][s.flip ? 1 : 0]}`;
 }
 

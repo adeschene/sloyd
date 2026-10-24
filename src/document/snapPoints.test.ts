@@ -3,10 +3,12 @@
 // other test file in the repo omits the import.
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
-import { pocketCells } from './cuts';
-import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
+import { pocketCells, stockProbe } from './cuts';
+import type { Point } from './cuts';
+import { chooseFace, leanMap, slopeOf } from './lean';
+import { boardSnapPoints, cutSnapPoints, fromWorld, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, toWorld, towardFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
-import type { Board, Cut, Posture, Rotation } from './types';
+import type { AngleCut, Board, Cut, Posture, Rotation } from './types';
 import type { BoardSnapPoint } from './snapPoints';
 import { ARCH, CORNER } from './curveFixtures';
 
@@ -965,5 +967,72 @@ describe('stopped profile snap points (profile runs a2, P17)', () => {
       profiles: [{ id: 'p', face: 'max', kind: 'roundover', size: 0.375, fillet: 0, facing: 'face', run: { start: { side: { across: 'width', from: 'max' }, from: 'min', at: 3 }, end: { side: { across: 'width', from: 'max' }, from: 'max', at: 3 } } } as never],
     });
     expect(has(boardSnapPoints(b), [15, 0.375, 10])).toBe(true);
+  });
+});
+
+describe('snap points of a leaning part (splayed legs spec §6.1 R1, §6.2)', () => {
+  const T12 = slopeOf(12);
+  const T8 = slopeOf(8);
+  /** A foot miter (`face 'length'`, from 'min': the floor end of an upright part): kept wood is length ≥ width. */
+  const FOOT: AngleCut = { id: 'f', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0], [1.5, 1.5]] };
+  const leg = (extra: Partial<Board> = {}): Board => {
+    const b = createBoard({ length: 28, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 90, position: [3, 1, -2], ...extra });
+    return { ...b, lean: { x: T12, z: T8, face: chooseFace(b, T12, T8) } };
+  };
+  const unleaned = (b: Board): Board => { const { lean: _lean, ...flat } = b; return flat; };
+  const expectNear = (a: readonly number[], b: readonly number[]) => a.forEach((v, i) => expect(Math.abs(v - b[i]!)).toBeLessThan(1e-12));
+
+  it('the 26 lattice points are the leanMap images of the unleaned lattice', () => {
+    const b = leg();
+    const m = leanMap(b)!;
+    const got = boardSnapPoints(b);
+    const want = boardSnapPoints(unleaned(b));
+    expect(got).toHaveLength(26);
+    got.forEach((p, i) => { expect(p.kind).toBe(want[i]!.kind); expectNear(p.at, m.apply(want[i]!.at)); });
+  });
+
+  it('a foot corner snap point is apply(corner), and toWorld composes the lean', () => {
+    const b = leg();
+    const m = leanMap(b)!;
+    const corner = m.apply(toWorld(unleaned(b), { length: 0, width: 0, thickness: 0 }));
+    expectNear(toWorld(b, { length: 0, width: 0, thickness: 0 }), corner);
+    expect(boardSnapPoints(b).some((p) => p.kind === 'corner' && p.at.every((v, i) => Math.abs(v - corner[i]!) < 1e-12))).toBe(true);
+  });
+
+  it('a mitered foot: every point (lattice and sloped corners) is the image of the unleaned set', () => {
+    const b = leg({ angleCuts: [FOOT] });
+    const m = leanMap(b)!;
+    const got = boardSnapPoints(b);
+    const want = boardSnapPoints(unleaned(b));
+    expect(got.length).toBe(want.length);
+    expect(got.length).toBeLessThan(26 + 8); // the miter withheld lattice points
+    got.forEach((p, i) => { expect(p.kind).toBe(want[i]!.kind); expectNear(p.at, m.apply(want[i]!.at)); });
+  });
+
+  it('cut points compose the lean too', () => {
+    const cut: Cut = { id: 'c', face: 'thickness', from: 'min', across: 'width', offset: 10, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
+    const b = leg({ cuts: [cut] });
+    const m = leanMap(b)!;
+    const got = cutSnapPoints(b);
+    const want = cutSnapPoints(unleaned(b));
+    expect(got.length).toBeGreaterThan(0);
+    got.forEach((p, i) => expectNear(p.at, m.apply(want[i]!.at)));
+  });
+
+  it('stockProbe round trip: a world point on a leaning part\'s face probes as stock (fromWorld)', () => {
+    const b = leg({ angleCuts: [FOOT] });
+    const probe = stockProbe(b);
+    // On the foot's sloped face (length = width), interior through the thickness.
+    const onFace: Point = { length: 0.75, width: 0.75, thickness: 0.75 };
+    const w = toWorld(b, onFace);
+    const back = fromWorld(b, w);
+    expectNear([back.length, back.width, back.thickness], [0.75, 0.75, 0.75]);
+    expect(probe(back)).toBe(true);
+    // In the miter's waste, it is air.
+    expect(probe(fromWorld(b, toWorld(b, { length: 0.5, width: 1, thickness: 0.75 })))).toBe(false);
+    // On a plain part fromWorld is today's fromWorldOffset arithmetic, exactly.
+    const plain = unleaned(b);
+    const p = toWorld(plain, { length: 7, width: 0.25, thickness: 1.5 });
+    expect(fromWorld(plain, p)).toEqual({ length: 7, width: 0.25, thickness: 1.5 });
   });
 });

@@ -3528,10 +3528,24 @@ describe('a lean through the store\'s world edit (splayed legs spec §3.4)', () 
     expect(JSON.stringify(s().doc)).not.toContain('"lean"');
   });
 
-  // Blocked on Task 4: `snapPointsFor` still builds the PRE-lean lattice, so a lean edit moves no snap point and the
-  // point-precise survival test (inv 24) cannot drop the anchor yet. `updateBoards` already re-judges every held point
-  // (judgeHeld) after the edit; a board-precise clear for the tape fields is forbidden by inv 24.
-  it.todo('lean edit re-judges held points: a tapeAnchor on the leaning part\'s foot corner is dropped (needs Task 4\'s lean-aware snap points)');
+  // Inv 24: a lean edit moves the leaning part's snap points (Task 4: they compose the lean), so `judgeHeld`'s
+  // point-precise survival test drops a tape anchor on its foot corner; one on a part the edit did not move is kept.
+  it('lean edit re-judges held points: a tapeAnchor on the leaning part\'s foot corner is dropped', () => {
+    s().replaceDocument({
+      ...createDocument('Lean'),
+      boards: [{ ...leg(), id: 'L', position: [0, 0, 0] }, createBoard({ id: 'o', name: 'Other', position: [10, 0, 0] })],
+    });
+    const foot = (id: string) => boardSnapPoints(occ(id)).find((p) => p.kind === 'corner')!;
+    s().setTapeAnchor(foot('L'));
+    s().updateBoard('L', { lean: { ...LEAN, z: LEAN.z + 0.05 } });
+    expect(occ('L').position).toEqual([0, 0, 0]);                // the edit moved no pre-lean position
+    expect(s().tapeAnchor).toBeNull();
+    // A point on the part the edit did not touch survives the same edit.
+    const kept = foot('o');
+    s().setTapeAnchor(kept);
+    s().updateBoard('L', { lean: LEAN });
+    expect(s().tapeAnchor).toEqual(kept);
+  });
 
   for (const mirrored of [false, true]) {
     it(`Ungroup keeps a leaning part's world pose (assembly turned 90${mirrored ? ', mirrored' : ''})`, () => {

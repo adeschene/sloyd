@@ -3,7 +3,7 @@ import { assemblyDoc, cabinetsDoc } from '../document/treeFixtures';
 import { childrenOf, instanceAt, isCovered, parentPath, resolvedPartAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, LinkPlan, SloydDocument } from '../document/document';
-import { boardsBounds, createBoard, createDocument, linkPlan, mirroredAt, postureRefusal, removeItems, snapPointsFor, storageKey } from '../document/document';
+import { partsBounds, createBoard, createDocument, linkPlan, mirroredAt, postureRefusal, removeItems, snapPointsFor, storageKey } from '../document/document';
 import { chiralPart } from '../document/turnFixtures';
 import { worldSolids } from '../document/designCheck';
 
@@ -599,7 +599,7 @@ describe('moveGroupTo, exact (fu 228, inv 42)', () => {
   // and lands at (19.7, 0.0625, 25.1).
   it('an assembly: the group min corner is rounded once, and the origin gains that one delta', () => {
     s().selectBoard('i1');
-    const min0 = boardsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
+    const min0 = partsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
     expect(min0[0]).toBeCloseTo(10.4, 12);
     expect(min0[1]).toBeCloseTo(0.3, 12);
     expect(min0[2]).toBeCloseTo(-16.8, 12);
@@ -608,7 +608,7 @@ describe('moveGroupTo, exact (fu 228, inv 42)', () => {
     expect(p[0]).toBeCloseTo(19.7, 12);
     expect(p[1]).toBeCloseTo(0.0625, 12);
     expect(p[2]).toBeCloseTo(25.1, 12);
-    const min1 = boardsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
+    const min1 = partsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
     expect(min1[0]).toBeCloseTo(20, 12);
     expect(min1[1]).toBeCloseTo(0.0625, 12);
     expect(min1[2]).toBeCloseTo(5, 12);
@@ -634,7 +634,7 @@ describe('moveGroupTo, exact (fu 228, inv 42)', () => {
   // goes to (166/16, 5/16, -269/16) = (10.375, 0.3125, -16.8125). A second call at
   // that on-grid min has a zero delta and writes nothing (inv 4).
   it('rounds a target that equals the current off-grid min; a zero delta then pushes no entry', () => {
-    const minOf = () => boardsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
+    const minOf = () => partsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
     const m = minOf();
     s().moveGroupTo(['i1'], [m[0], m[1], m[2]]);
     const after = minOf();

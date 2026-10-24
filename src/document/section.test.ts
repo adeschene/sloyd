@@ -3,6 +3,8 @@ import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
 import { unionLoops } from './outline';
+import { chooseFace, slopeOf } from './lean';
+import { partBounds } from './worldBounds';
 import { chiralPart } from './turnFixtures';
 import type { V3 } from './angleCuts';
 
@@ -65,6 +67,14 @@ describe('sectionSpan', () => {
   });
   it('is null with no parts', () => {
     expect(sectionSpan([], null, 'front')).toBeNull();
+  });
+  it('a leaning part spans its real bounds, offsets added (splayed legs spec §6.1 R2)', () => {
+    const base = createBoard({ id: 'L', length: 28, width: 1.5, thickness: 1.5, posture: 'upright', position: [1, 0, 2] });
+    const leg: Board = { ...base, lean: { x: slopeOf(12), z: slopeOf(8), face: chooseFace(base, slopeOf(12), slopeOf(8)) } };
+    const r = partBounds(leg);
+    expect(sectionSpan([leg], null, 'side')).toEqual([r.min[0], r.max[0]]);
+    expect(sectionSpan([leg], new Map([['L', [0, 0, 3]]]), 'front')).toEqual([r.min[2] + 3, r.max[2] + 3]);
+    expect(sectionSpan([leg], null, 'side')).not.toEqual([1, 2.5]);
   });
 });
 

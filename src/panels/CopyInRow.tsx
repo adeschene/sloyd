@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store/store';
-import { boardsBounds, worldParts, isCovered } from '../document/document';
+import { partsBounds, worldParts, isCovered } from '../document/document';
 import { MAX_ROW, rowLayout } from '../document/row';
 import type { RowMode, RowRefusal } from '../document/row';
 import { formatLength } from '../units/length';
@@ -52,7 +52,7 @@ export function CopyInRow({ open, onOpenChange }: { open: boolean; onOpenChange:
   if (selected.length === 0) return null;
 
   const { axis, sign } = DIRECTIONS[dir]!;
-  const bounds = boardsBounds(selected)!;
+  const bounds = partsBounds(selected)!;
   const s = bounds.max[axis] - bounds.min[axis];
   const value = typed[mode] ?? (mode === 'pitch' ? s : 2 * s);
   const count = Number(countText);

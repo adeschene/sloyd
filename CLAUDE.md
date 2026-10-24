@@ -179,7 +179,7 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 ### Per-file rules not covered by an invariant
 
 - **`snapPoints.ts`**: local→world is `position[axis] + toWorldOffset(board, axis,
-  local[axisFrame(board)[axis].dim])`. `pointToLocalXYZ` and `solidWorldBox` are
+  local[axisFrame(board)[axis].dim])`, then `leanMap(board).apply` for a leaning part (`fromWorld` is the exact inverse). `pointToLocalXYZ` and `solidWorldBox` are
   CENTRE-relative and both look like they do this — using either puts every point off by
   half the board, plausibly. Pin with a rotated, non-flat pose. `towardFor` is the tape's
   ONE direction source (preview and commit); a locked axis wins over a hover, never falls

@@ -4,7 +4,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
-import { boardCenter, boardExtents, boardsBounds, isCovered, partAt, worldParts } from '../document/document';
+import { boardCenter, boardExtents, partsBounds, isCovered, partAt, worldParts } from '../document/document';
 import { snapStep, snapToGrid } from '../document/geometry';
 import { stabilizeTranslateGizmo, type ControlsInternals } from './gizmoPatch';
 
@@ -31,7 +31,7 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   // through moveGroupTo, never the part.
   const singlePart = selectedIds.length === 1 && partAt(doc, selectedIds[0]!) !== null;
   const board = singlePart ? selected[0] : undefined;
-  const bounds = !singlePart && selected.length >= 1 ? boardsBounds(selected) : null;
+  const bounds = !singlePart && selected.length >= 1 ? partsBounds(selected) : null;
   const size: [number, number, number] | null = board
     ? boardExtents(board)
     : bounds
