@@ -4,7 +4,7 @@ import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffse
 import { leanMap, leans, type LeanMap } from './lean';
 import { partBounds } from './worldBounds';
 import { clipConvex, geometryKey, partGeometry, BODY_EPS, type BodyFace } from './bodies';
-import { HOLE_EPS, holePrism, holeRing, minusPrism, ringInside } from './holes';
+import { HOLE_EPS, holePrism, holeRegion, holeRing, minusPrism, ringInside, tiltedHole } from './holes';
 import { SECTION_EPS, unionOutline } from './outline';
 
 /**
@@ -182,6 +182,13 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
   const base = pieces;
   for (const hole of holes) {
     if (!rings) break;
+    if (tiltedHole(hole)) {
+      // A tilted bore's slice is an ellipse, or meets a slanted wall, a tilted bottom or a mouth off the plane: the
+      // pieces' own union decides its outline (angled holes spec §6.2). The plane passes beside it only outside its box.
+      const [lo, hi] = holeRegion(hole)[DIMENSION_ORDER[li]!];
+      if (u < lo - 1e-6 || u > hi + 1e-6) continue;
+      rings = null; break;
+    }
     const a = DIMENSION_ORDER.indexOf(hole.axis);
     if (a !== li) {
       if (Math.abs(u - hole.centre[li]!) > hole.radius + 1e-6) continue;   // the plane passes beside this bore
@@ -202,13 +209,22 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
   }
   let boxed = pieces.map(boxOf);
   for (const hole of holes) {
-    const reach = hole.radius + hole.depth + 1e-4;
-    if (Math.abs(hole.centre[li]! - u) > reach) continue;       // the plane is farther from the bore than it can reach
+    // A square bore's reach is its centre ± (radius + depth); a tilted one's is its box (`holeRegion`, exact for the true
+    // cylinder), which a steep bore's far mouth or a tilted mouth's ellipse can carry past that (angled holes spec §6.2).
+    const lo: number[] = [], hi: number[] = [];
+    if (tiltedHole(hole)) {
+      const r = holeRegion(hole);
+      DIMENSION_ORDER.forEach((d, k) => { lo[k] = r[d][0] - 1e-4; hi[k] = r[d][1] + 1e-4; });
+    } else {
+      const reach = hole.radius + hole.depth + 1e-4;
+      for (let k = 0; k < 3; k += 1) { lo[k] = hole.centre[k]! - reach; hi[k] = hole.centre[k]! + reach; }
+    }
+    if (u < lo[li]! || u > hi[li]!) continue;                   // the plane is farther from the bore than it can reach
     const prism = holePrism(hole);
     const next: typeof boxed = [];
     for (const b of boxed) {
       let near = true;
-      for (let k = 0; k < 3; k += 1) if (b.hi[k]! < hole.centre[k]! - reach || b.lo[k]! > hole.centre[k]! + reach) { near = false; break; }
+      for (let k = 0; k < 3; k += 1) if (b.hi[k]! < lo[k]! || b.lo[k]! > hi[k]!) { near = false; break; }
       if (!near) next.push(b);
       else for (const q of minusPrism(b.poly, prism)) next.push(q === b.poly ? b : boxOf(q));
     }
@@ -246,8 +262,9 @@ function leaningMap(board: Board): LeanMap | null {
  * the part's own frame (inv 44); the cut faces are carried into the pivot frame, wound counter-clockwise about the cap's
  * normal and outlined there by `unionOutline` along k, as an unleaned cap is along its local axis.
  *
- * No bores (spec §8): a leaning part never has holes in this chunk, so a hand-loaded one is capped without them — the
- * bodies are hole-free (invariant 50) and its hole list is simply not read. Nothing is logged and nothing throws.
+ * Its bores are subtracted (angled holes spec §6.2): each cut face, still board-local, loses every bore's prism
+ * (`minusPrism`, the part's own frame) BEFORE it is carried into the pivot frame, so a leaned bore is capped exactly as an
+ * unleaned one, through the same lean as the wood around it.
  */
 function buildLeaningPieces(board: Board, map: LeanMap, k: number, u: number, flip: boolean): LocalCap | null {
   const frame = axisFrame(board);
@@ -279,8 +296,9 @@ function buildLeaningPieces(board: Board, map: LeanMap, k: number, u: number, fl
       m[2][0] * w[0]! + m[2][1] * w[1]! + m[2][2] * w[2]!,
     ];
   };
-  let pieces: V3[][] = [];
-  for (const body of partGeometry(board).bodies) {
+  const { bodies, holes } = partGeometry(board);
+  let local: V3[][] = [];
+  for (const body of bodies) {
     const faces = body.faces as BodyFace[];
     const clipped = clipConvex(faces, h);
     if (clipped.length === 0) continue;
@@ -290,12 +308,18 @@ function buildLeaningPieces(board: Board, map: LeanMap, k: number, u: number, fl
       // is not exact, so the facing test takes a tolerance.
       const f = faces.find((q) => q.n[0] * n[0] + q.n[1] * n[1] + q.n[2] * n[2] < -1 + BODY_EPS
         && q.verts.every((p) => Math.abs(g(p)) <= BODY_EPS));
-      if (f) pieces.push(f.verts.map(toPivot));
+      if (f) local.push(f.verts);
       continue;
     }
     const cap = clipped.find((q) => q.cut === '');
-    if (cap) pieces.push(cap.verts.map(toPivot));
+    if (cap) local.push(cap.verts);
   }
+  // The bores, board-local (minusPrism's own box test passes a piece the bore misses through whole).
+  for (const hole of holes) {
+    const prism = holePrism(hole);
+    local = local.flatMap((poly) => minusPrism(poly, prism));
+  }
+  let pieces = local.map((poly) => poly.map(toPivot));
   if (!pieces.length) return null;
   // ONE winding, counter-clockwise about the cap's normal −N (it faces the removed side), for unionOutline's cancellation.
   pieces = pieces.map((poly) => (newellAlong(poly, k) * -N[k]! < 0 ? [...poly].reverse() : poly));
