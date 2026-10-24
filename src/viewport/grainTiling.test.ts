@@ -849,6 +849,51 @@ describe('holes in the mesh (holes spec §3.2)', () => {
   });
 });
 
+// Angled holes Task 4 (spec §6.1): a tilted bore's wall is ruled along the BIT, its normals square to it and toward its
+// axis; a blind bottom is the disc square to the bit, `depth` along it from the mouth centre, facing back up the bit (−b̂);
+// a through bore's far ring lies on the exit face. Watertightness alone cannot catch these: a wall to the wrong ring,
+// with a bottom cut from that same ring, still closes.
+describe('a tilted bore in the mesh (angled holes Task 4)', () => {
+  const seat = { id: 's', length: 20, width: 10, thickness: 1.5 };
+  const row = { id: 't', face: 'thickness' as const, from: 'max' as const, diameter: 0.75, depth: 1 as number | 'through', along: 'length' as const,
+    alongFrom: 'min' as const, station: 5, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 3, tiltAlong: -0.3, tiltAcross: 0.2 };
+  /** The mesh's vertices and normals (world, board-centred), the world unit bit and the world face axis. */
+  const read = (depth: number | 'through') => {
+    const b = createBoard({ ...seat, holes: [{ ...row, depth }] });
+    const [h] = boardHoles(b);
+    expect(holeInStock(b, h!, stockChecks(b))).toBe(true);
+    const m = holeMesh(b, h!, boardBodies(b));
+    const frame = axisFrame(b);
+    const toWorld = (l: readonly number[]) => frame.map((f) => l[DIMENSION_ORDER.indexOf(f.dim)]! * (f.reversed ? -1 : 1));
+    const l = Math.hypot(...h!.bit);
+    const bit = toWorld(h!.bit.map((x) => x / l));
+    const ax = toWorld(DIMENSION_ORDER.map((d) => (d === h!.axis ? 1 : 0))).findIndex((x) => x !== 0);
+    const pts = Array.from({ length: m.positions.length / 3 }, (_, i) => ({
+      p: [0, 1, 2].map((k) => m.positions[3 * i + k]!), n: [0, 1, 2].map((k) => m.normals[3 * i + k]!) }));
+    const dot = (x: number[], y: number[]) => x[0]! * y[0]! + x[1]! * y[1]! + x[2]! * y[2]!;
+    return { b, h: h!, pts, bit, ax, dot };
+  };
+  it('blind: the wall normals are square to the bit; the bottom faces −b̂, square to the bit, depth along it from the mouth', () => {
+    const { b, h, pts, bit, ax, dot } = read(1);
+    const bottom = pts.filter(({ n }) => dot(n, bit) < -0.5);
+    const wall = pts.filter(({ n }) => dot(n, bit) >= -0.5);
+    for (const { n } of bottom) for (let k = 0; k < 3; k += 1) expect(n[k]!).toBeCloseTo(-bit[k]!, 6);
+    for (const { n } of wall) expect(dot(n, bit)).toBeCloseTo(0, 6);
+    expect(bottom.length / 3).toBeGreaterThanOrEqual(HOLE_SEGMENTS - 2);
+    // The mouth: wall vertices on the entry face (world `ax` at ±thickness/2); its ring's mean is the mouth centre.
+    const face = b.thickness / 2;
+    const mouth = wall.filter(({ p }) => Math.abs(Math.abs(p[ax]!) - face) < 1e-6);
+    expect(mouth.length).toBeGreaterThan(0);
+    const c = [0, 1, 2].map((k) => mouth.reduce((s, { p }) => s + p[k]!, 0) / mouth.length);
+    for (const { p } of bottom) expect(dot(p, bit) - dot(c, bit)).toBeCloseTo(h.depth, 5);
+  });
+  it('through: the wall normals are square to the bit and its far ring lies on the exit face; no bottom', () => {
+    const { b, pts, bit, ax, dot } = read('through');
+    for (const { n } of pts) expect(dot(n, bit)).toBeCloseTo(0, 6);
+    for (const { p } of pts) expect(Math.abs(p[ax]!)).toBeCloseTo(b.thickness / 2, 5);
+  });
+});
+
 describe('seams inside a holed part are not drawn (ruling R11)', () => {
   // cabinetSide: three pins (to 4.65in) and a dado 10..10.75in, 1/4 deep. Bodies: the slab under the dado's floor
   // (thickness 0..0.5, full length) and the stock either side of the dado above it — so the plane thickness = 0.5 is a
