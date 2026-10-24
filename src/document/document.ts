@@ -46,6 +46,7 @@ export {
 export type { Hole, Plane } from './holes';
 export { bitVector, isTilted, retilt, tiltDegrees, tiltResultantDeg, tiltSightlineDeg, withinTiltBound } from './holeTilt';
 export { levelEndHoles, rebaseHoles } from './holeRebase';
+export { isSocketOf, legsUnder, socketPlan, socketRow, staleSocketOf, socketStale, socketsDisagree, socketFaulted, socketTooWide } from './legSockets';
 export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords, boundaryDistance, wasteContains, isAir, circleMeetsWaste, rectMeetsWaste, curveFaults, archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, deriveCurveKind, curveKindWord, curveAs, curveKindChoice, curvePlacement, defaultArch, defaultNotch, defaultBow, defaultCorner, defaultCorners, mirrorCurveCut, convexPieces, curvePlan, splitPieces, smoothLines } from './curves';
 export type { P2, LocalArc, LocalLine, LocalSeg, Outline, CurveFaultKind, CurveFault, ArchFields, BowFields, CornerFields, CurveKind, CurveKindChoice, CurvePlacement } from './curves';
 export { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields, profileAsCurve, profileOf, profileFromFields, profileToFields, mirrorProfile, sameProfile, copyProfile, geometryBoard, endToEnd, PROFILE_FIELDS, profileValues } from './profiles';

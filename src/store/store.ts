@@ -12,6 +12,7 @@ import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
 import { chooseFace, leanMap, leans, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
 import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../document/levelEnds';
+import { socketPlan } from '../document/legSockets';
 import { displayNames } from '../document/tree';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
@@ -31,7 +32,9 @@ const HISTORY_LIMIT = 50;
 const tiltWithin = (r: Pick<HoleRow, 'tiltAlong' | 'tiltAcross'>): boolean => withinTiltBound(r.tiltAlong ?? 0, r.tiltAcross ?? 0);
 /** The stored form of a row's tilt (Global Constraints): a slope is stored only when non-zero, so a zero (or −0) key goes. */
 function storedTilt(r: HoleRow): HoleRow {
-  if (r.tiltAlong !== 0 && r.tiltAcross !== 0) return r;
+  // An explicit `undefined` key is a key too (`in` reads it): a row with no tilt has no tilt KEYS (Task 9 review).
+  const keeps = (k: 'tiltAlong' | 'tiltAcross') => !(k in r) || (r[k] !== undefined && r[k] !== 0);
+  if (keeps('tiltAlong') && keeps('tiltAcross')) return r;
   const { tiltAlong, tiltAcross, ...rest } = r;
   return { ...rest, ...(tiltAlong ? { tiltAlong } : {}), ...(tiltAcross ? { tiltAcross } : {}) };
 }
@@ -458,6 +461,14 @@ interface StoreState {
    * and when every user is already levelled (inv 4: a second press pushes no entry).
    */
   levelEnds: (id: string) => string | null;
+  /**
+   * Bore leg sockets (angled holes spec §5) on the world part `seatId`: `socketPlan` decides every refusal for every copy
+   * of the seat before `edit()`, then ONE write of the seat's rows through `mapWorld` (lowered through its turn, posture
+   * and mirrors, and into its Shape once), one undo entry. Returns the plan's refusal, or its note when a faulted socket
+   * was left out and the others bored, or null. Null and nothing done while gesturing or exploded (inv 47), for a part
+   * that leans, and when every leg already has its socket (inv 4: no entry).
+   */
+  boreLegSockets: (seatId: string, diameter: number) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -2005,6 +2016,23 @@ export const useStore = create<StoreState>((set, get) => {
       // Inv 24: the ends and length moved every user's snap points.
       judgeHeld();
       return null;
+    },
+
+    boreLegSockets: (seatId, diameter) => {
+      if (readOnly() || get().gesturing) return null;
+      if (!(Number.isFinite(diameter) && diameter > 0)) return null;
+      const doc0 = get().doc;
+      const plan = socketPlan(doc0, seatId, diameter);
+      if (typeof plan === 'string') return plan;
+      const seat = worldParts(doc0).find((b) => b.id === seatId);
+      if (!seat || plan.holes === seat.holes) return null; // inv 4: every leg already has its socket
+      // ONE write through this copy (levelEnds' ruling 1): the rows are shared by every copy, and socketPlan has judged
+      // that every copy would store the same ones.
+      const holes = plan.holes;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === seatId ? { ...b, holes } : b))));
+      // Inv 24: a bore swallows the lattice points in its mouth.
+      judgeHeld();
+      return plan.note ?? null;
     },
 
     setHardware: (target, type, count) => {

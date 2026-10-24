@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { act, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createBoard, createDocument, defaultProfile } from '../document/document';
+import { createBoard, createDocument, defaultProfile, migrateDocument, worldParts } from '../document/document';
+import { stoolDocument } from '../document/stoolFixture';
 import type { Board } from '../document/document';
 import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
@@ -428,6 +429,127 @@ describe('tilting a row', () => {
     const user = userEvent.setup();
     open(side({ length: 16, width: 1.5, thickness: 1.25, posture: 'upright', lean: { x: T(12), z: T(8), face: 'width' },
       holes: [{ ...H, face: 'width', from: 'min', station: 4, inset: 0.625 }] }));
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '10{Enter}');
+    expect(rows()[0]!.tiltAlong).toBe(slopeOf(10));
+  });
+});
+
+describe('Bore leg sockets (angled holes §5)', () => {
+  const openPart = (doc: ReturnType<typeof stoolDocument>, name: string) => {
+    useStore.getState().replaceDocument(doc);
+    const id = worldParts(useStore.getState().doc).find((b) => b.name === name)!.id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    return id;
+  };
+  const seat = () => worldParts(useStore.getState().doc).find((b) => b.name === 'Seat')!;
+
+  it('the button shows on a part with leaning legs under it, and bores a socket per leg', async () => {
+    const user = userEvent.setup();
+    openPart(stoolDocument(), 'Seat');
+    expect(screen.getByLabelText('Socket diameter')).toHaveValue('1"');
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(seat().holes).toHaveLength(4);
+    expect(seat().holes.every((r) => r.diameter === 1 && r.depth === 'through')).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('the typed diameter is used, and a refusal shows', async () => {
+    const user = userEvent.setup();
+    openPart(stoolDocument(), 'Seat');
+    const d = screen.getByLabelText('Socket diameter');
+    await user.clear(d); await user.type(d, '1-1/2{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('The socket must be narrower than Front right.');
+    expect(seat().holes).toHaveLength(0);
+    await user.clear(d); await user.type(d, '3/4{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(seat().holes.map((r) => r.diameter)).toEqual([0.75, 0.75, 0.75, 0.75]);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('not shown on a leg, nor on a part with nothing leaning under it', () => {
+    openPart(stoolDocument(), 'Front right');
+    expect(screen.queryByRole('button', { name: 'Bore leg sockets' })).toBeNull();
+    cleanup();
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [side()] });
+    useStore.getState().selectBoard('side');
+    render(<Properties />);
+    expect(screen.queryByRole('button', { name: 'Bore leg sockets' })).toBeNull();
+    expect(screen.queryByLabelText('Socket diameter')).toBeNull();
+  });
+
+  it("a stale socket is noted per leg: \"Front right's socket no longer follows its leg — Bore leg sockets again.\"", async () => {
+    const user = userEvent.setup();
+    // Bored, then Front right moved a quarter inch along X (still standing under the seat).
+    const doc0 = stoolDocument();
+    useStore.getState().replaceDocument(doc0);
+    useStore.getState().boreLegSockets(seat().id, 1);
+    const fr = worldParts(useStore.getState().doc).find((b) => b.name === 'Front right')!;
+    const bored = useStore.getState().doc;
+    const moved = migrateDocument({ ...bored, shapes: [], boards: worldParts(bored).map((b) => (b.id === fr.id
+      ? { ...b, position: [b.position[0] - 0.25, b.position[1], b.position[2]] as [number, number, number], shape: undefined }
+      : { ...b, shape: undefined })) });
+    openPart(moved, 'Seat');
+    expect(screen.getAllByText(/socket no longer follows its leg/)).toHaveLength(1);
+    expect(screen.getByText("Front right's socket no longer follows its leg — Bore leg sockets again.")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(screen.queryByText(/socket no longer follows its leg/)).toBeNull();
+    expect(seat().holes).toHaveLength(4);
+  });
+});
+
+describe('the tilt end / side picks (Task 9 review)', () => {
+  const H = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
+    station: 6, count: 1, pitch: 0, acrossFrom: 'min', inset: 4 } as const;
+  const T = (deg: number) => Math.tan((deg * Math.PI) / 180);
+
+  it('a past-bound tilt that would also break out reads as the bound, not the fault', async () => {
+    const user = userEvent.setup();
+    // 0.2" in from the width min side; 40° toward that side at 3/8" deep runs 0.31" sideways: past the edge too.
+    open(side({ holes: [{ ...H, inset: 0.2, tiltAlong: T(40) }] }));
+    await user.selectOptions(screen.getByLabelText('Tilt side'), 'min');
+    const f = screen.getByLabelText('Tilt toward side');
+    await user.clear(f); await user.type(f, '40{Enter}');
+    expect(screen.getByRole('alert')).toHaveTextContent("The bore can't tilt past 45° in all — reduce an angle.");
+    expect('tiltAcross' in rows()[0]!).toBe(false);
+  });
+
+  it('a refused flip is not remembered: the select stays on the stored direction, and a later square row reads the default', async () => {
+    const user = userEvent.setup();
+    // Leaning 40° toward the far (max) side is fine; toward the near side, 0.2" in, it would run past the edge.
+    open(side({ holes: [{ ...H, inset: 0.2, tiltAcross: T(40) }] }));
+    const sel = screen.getByLabelText('Tilt side');
+    await user.selectOptions(sel, 'min');
+    expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 past the width min side');
+    expect(rows()[0]!.tiltAcross).toBe(T(40));
+    expect(sel).toHaveValue('max');
+    // The other entry side is a new bore: square, and the select reads its default (the far side), not the refused pick.
+    await user.selectOptions(screen.getByLabelText('Face'), 'thickness|min');
+    expect('tiltAcross' in rows()[0]!).toBe(false);
+    expect(screen.getByLabelText('Tilt side')).toHaveValue('max');
+  });
+
+  it('a slope typed back to 0 keeps showing its direction; the next typed angle leans that way', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [{ ...H, tiltAlong: -T(10) }] }));   // toward the length min end (the near one)
+    expect(screen.getByLabelText('Tilt end')).toHaveValue('min');
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '0{Enter}');
+    expect('tiltAlong' in rows()[0]!).toBe(false);
+    expect(screen.getByLabelText('Tilt end')).toHaveValue('min');
+    await user.clear(f); await user.type(f, '12{Enter}');
+    expect(rows()[0]!.tiltAlong).toBe(-slopeOf(12));
+  });
+
+  it('a pick is reset when Along changes', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [H] }));
+    await user.selectOptions(screen.getByLabelText('Tilt end'), 'min');
+    await user.selectOptions(screen.getByLabelText('Along'), 'width');
+    expect(rows()[0]!.along).toBe('width');
+    expect(screen.getByLabelText('Tilt end')).toHaveValue('max');   // the far end from alongFrom min: the default
     const f = screen.getByLabelText('Tilt toward end');
     await user.clear(f); await user.type(f, '10{Enter}');
     expect(rows()[0]!.tiltAlong).toBe(slopeOf(10));

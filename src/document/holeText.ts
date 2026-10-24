@@ -31,6 +31,18 @@ export function holeFaultText(f: HoleFault, r: HoleRow): string {
   }
 }
 
+/** A fault as what a SOCKET would do (Bore leg sockets, angled holes spec §5): the verb form of `holeFaultText`'s words,
+ *  for "<Leg>'s socket would <words> — …". A socket is one bore, so no hole number. Lower-case, no full stop. */
+export function socketFaultWords(f: HoleFault): string {
+  switch (f.kind) {
+    case 'breaks-out': return f.curve ? `run into ${curveWord(f.curve)}` : `run past ${edgeName(f.edge!)}`;
+    case 'off-flat': return 'sit where a cut has removed the wood';
+    case 'meets-hole': return 'meet another hole';
+    case 'too-deep': return 'run deeper than the part';
+    case 'too-shallow': return 'be too shallow for its angle';
+  }
+}
+
 /** A fault's identity: per hole, except too-deep and too-shallow, properties of the ROW (every hole shares its depth,
  *  diameter and tilt; ruling T2d). A
  *  breaks-out names WHAT it breaks into — an edge, or a curve by id (curves spec §6.3: whole-branch review, finding 2) —

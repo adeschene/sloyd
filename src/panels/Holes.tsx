@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore, HOLE_TILT_PAST_BOUND } from '../store/store';
 import { isMetric } from '../units/length';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults, retilt, tiltDegrees, withinTiltBound } from '../document/document';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, displayNames, holeFaults, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout } from '../document/holeText';
 import { leans, slopeOf } from '../document/lean';
@@ -61,6 +61,8 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   // the row's flag until the select names another. A stored slope's own direction always wins.
   const [endPick, setEndPick] = useState<CutFrom | null>(null);
   const [sidePick, setSidePick] = useState<CutFrom | null>(null);
+  // A pick names an end of `along` and a side of the third dimension: a new `along` (or face) makes both meaningless.
+  useEffect(() => { setEndPick(null); setSidePick(null); }, [row.along, row.face]);
   const tiltEnd = toward(row.tiltAlong, row.alongFrom) ?? endPick ?? flipEnd(row.alongFrom);
   const tiltSide = toward(row.tiltAcross, row.acrossFrom) ?? sidePick ?? flipEnd(row.acrossFrom);
   const deg = tiltDegrees(row);
@@ -96,14 +98,22 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   const set = (patch: Partial<Omit<HoleRow, 'id'>>) => { const r = attempt(patch); if (r) setError(r); };
   /** A typed magnitude (degrees) in its ONE slope, toward the end or side the select names; the other slope is kept
    *  exactly (degrees only in typed input: `slopeOf`). 0 removes the key. */
-  const typedTilt = (k: 'tiltAlong' | 'tiltAcross', from: CutFrom, to: CutFrom) => (d: number): string | undefined =>
-    field({ [k]: (to === from ? -1 : 1) * slopeOf(d) });
-  /** The select: a stored slope leans the other way by an exact negation; a square one remembers the choice. */
+  const typedTilt = (k: 'tiltAlong' | 'tiltAcross', from: CutFrom, to: CutFrom, remember: (f: CutFrom) => void) => (d: number): string | undefined => {
+    const refused = field({ [k]: (to === from ? -1 : 1) * slopeOf(d) });
+    // A slope typed back to 0 keeps showing the direction it had (Task 9 review), until another is chosen.
+    if (!refused) remember(to);
+    return refused;
+  };
+  /** The select: a stored slope leans the other way by an exact negation; a square one remembers the choice. A refused
+   *  flip is not remembered (the select stays on the stored direction). */
   const pickTilt = (k: 'tiltAlong' | 'tiltAcross', from: CutFrom, remember: (f: CutFrom) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
     const to = e.target.value as CutFrom;
-    remember(to);
     const slope = row[k];
-    if (slope && toward(slope, from) !== to) set({ [k]: 0 - slope });
+    if (slope && toward(slope, from) !== to) {
+      const r = attempt({ [k]: 0 - slope });
+      if (r) { setError(r); return; }
+    }
+    remember(to);
   };
   return (
     <div className="cut">
@@ -160,7 +170,7 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
             <option value="max">{`${cap(across)} max ${end(across)}`}</option>
           </select>
         </div>
-        <AngleField label="Tilt toward end" value={Math.abs(deg.along)} max={45} min0 onCommit={typedTilt('tiltAlong', row.alongFrom, tiltEnd)} />
+        <AngleField label="Tilt toward end" value={Math.abs(deg.along)} max={45} min0 onCommit={typedTilt('tiltAlong', row.alongFrom, tiltEnd, setEndPick)} />
         <div className="field">
           <label htmlFor={`hole-tilt-end-${row.id}`}>Tilt end</label>
           <select id={`hole-tilt-end-${row.id}`} className="input" value={tiltEnd} onChange={pickTilt('tiltAlong', row.alongFrom, setEndPick)}>
@@ -168,7 +178,7 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
             <option value="max">{`${cap(row.along)} max ${end(row.along)}`}</option>
           </select>
         </div>
-        <AngleField label="Tilt toward side" value={Math.abs(deg.across)} max={45} min0 onCommit={typedTilt('tiltAcross', row.acrossFrom, tiltSide)} />
+        <AngleField label="Tilt toward side" value={Math.abs(deg.across)} max={45} min0 onCommit={typedTilt('tiltAcross', row.acrossFrom, tiltSide, setSidePick)} />
         <div className="field">
           <label htmlFor={`hole-tilt-side-${row.id}`}>Tilt side</label>
           <select id={`hole-tilt-side-${row.id}`} className="input" value={tiltSide} onChange={pickTilt('tiltAcross', row.acrossFrom, setSidePick)}>
@@ -194,6 +204,17 @@ export function Holes({ board }: { board: Board }) {
   useEffect(() => setError(null), [board.id, isLeaning]);
   const add = (rows: Omit<HoleRow, 'id'>[]) => setError(addHoleRows(board.id, rows));
   const units = useStore((s) => s.doc.units);
+  // Bore leg sockets (angled holes spec §5): on an unleaned part with a leaning part standing under it. Derived in memos
+  // over the document, never a selector returning an array (inv 43's lesson).
+  const doc = useStore((s) => s.doc);
+  const boreLegSockets = useStore((s) => s.boreLegSockets);
+  const [socketDiameter, setSocketDiameter] = useState(1);
+  const legs = useMemo(() => (isLeaning ? [] : legsUnder(worldParts(doc), board)), [doc, board, isLeaning]);
+  const stale = useMemo(() => {
+    if (legs.length === 0) return [];
+    const names = displayNames(doc);
+    return legs.filter((l) => staleSocketOf(board, l) !== null).map((l) => ({ id: l.id, text: socketStale(names.get(l.id) ?? l.name) }));
+  }, [doc, board, legs]);
   // A preset whose default would fault on this part is withheld, not added and refused (AngleCuts' precedent).
   const fits = (r: Omit<HoleRow, 'id'> | null): r is Omit<HoleRow, 'id'> => {
     if (!r) return false;
@@ -219,6 +240,14 @@ export function Holes({ board }: { board: Board }) {
       {items.length > 0
         ? <Popover className="add-hole" label={<>+ Add hole<span aria-hidden="true"> ▾</span></>} title="Add a hole" items={items} />
         : <p className="field-note">No hole preset fits this part.</p>}
+      {stale.map((n) => <p key={n.id} className="field-note" role="status">{n.text}</p>)}
+      {legs.length > 0 && (
+        <div className="field-grid field-grid-2">
+          <DimensionField label="Socket diameter" value={socketDiameter} units={units} format={(v) => holeLengthText(v, units, 'diameter')}
+            onCommit={(d) => { setSocketDiameter(d); }} />
+          <button className="add-cut" onClick={() => setError(boreLegSockets(board.id, socketDiameter))}>Bore leg sockets</button>
+        </div>
+      )}
       {error && <p className="field-error" role="alert">{error}</p>}
     </>
   );

@@ -16,6 +16,8 @@ import { holeInstances } from '../document/holes';
 import { partBounds, partsBounds, postureRefusal } from '../document/document';
 import { snapToGrid } from '../document/geometry';
 import { dragTarget } from '../viewport/Gizmo';
+import { stoolDocument, stoolLegs, stoolSeat } from '../document/stoolFixture';
+import { migrateDocument } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -4079,6 +4081,16 @@ describe('tilted rows and holes on leaning parts (angled holes §4, §7)', () =>
     expect(Object.keys(occ('P').holes[0]!).some((k) => k.startsWith('tilt'))).toBe(false);
   });
 
+  it('an explicit undefined tilt key is not stored either (Task 9 review): add and update', () => {
+    s().replaceDocument({ ...createDocument('Tilt'), boards: [side()] });
+    expect(s().addHoleRows('P', [{ ...bare(ROW), tiltAlong: undefined, tiltAcross: slopeOf(5) }])).toBeNull();
+    const r = occ('P').holes[0]!;
+    expect('tiltAlong' in r).toBe(false);
+    expect(r.tiltAcross).toBe(slopeOf(5));
+    expect(s().updateHoleRow('P', r.id, { ...bare(ROW), tiltAlong: undefined, tiltAcross: undefined })).toBeNull();
+    expect(Object.keys(occ('P').holes[0]!).some((k) => k.startsWith('tilt'))).toBe(false);
+  });
+
   // Review Focus 3: Level the ends on a holed leaning leg, world readouts before and after within 1e-9.
   const LEAN: Lean = { x: slopeOf(12), z: slopeOf(8), face: 'width' };
   const leg = (over: Partial<Board> = {}) =>
@@ -4152,5 +4164,68 @@ describe('tilted rows and holes on leaning parts (angled holes §4, §7)', () =>
     const doc = s().doc;
     expect(s().levelEnds('L')).toBe('Levelling the ends would cut away a hole — move it or remove it first.');
     expect(s().doc).toBe(doc);
+  });
+});
+
+describe('Bore leg sockets through the store (angled holes §5)', () => {
+  const s = () => useStore.getState();
+  const seat = () => worldParts(s().doc).find((b) => b.name === 'Seat')!;
+
+  it('boreLegSockets is one undo entry; a second press changes nothing and pushes none', () => {
+    s().replaceDocument(stoolDocument());
+    const n = s().past.length;
+    expect(s().boreLegSockets(seat().id, 1)).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+    expect(seat().holes).toHaveLength(4);
+    const doc = s().doc;
+    expect(s().boreLegSockets(seat().id, 1)).toBeNull();
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n + 1);
+    s().undo();
+    expect(seat().holes).toHaveLength(0);
+  });
+
+  it('a refusal writes nothing: the diameter at the leg\'s section', () => {
+    s().replaceDocument(stoolDocument());
+    const doc = s().doc;
+    expect(s().boreLegSockets(seat().id, 1.5)).toBe('The socket must be narrower than Front right.');
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(0);
+  });
+
+  it('a faulted socket among others: the others bored in one entry, the note returned', () => {
+    s().replaceDocument(migrateDocument({ ...createDocument('Edge'), boards: [...stoolLegs(),
+      createBoard({ name: 'Seat', length: 12.2, width: 14, thickness: 1.5, posture: 'flat', position: [-7, 16, -7] })] }));
+    expect(s().boreLegSockets(seat().id, 1)).toBe("Front right's socket would run past the length max end — move the leg, or choose a smaller diameter.");
+    expect(s().past.length).toBe(1);
+    expect(seat().holes).toHaveLength(2);
+  });
+
+  it('refused while exploded (inv 47) and mid-gesture', () => {
+    s().replaceDocument(stoolDocument());
+    const doc = s().doc;
+    s().setExplode(0.5);
+    expect(s().boreLegSockets(seat().id, 1)).toBeNull();
+    expect(s().doc).toBe(doc);
+    s().setExplode(0);
+    s().beginGesture();
+    expect(s().boreLegSockets(seat().id, 1)).toBeNull();
+    s().endGesture();
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(0);
+  });
+
+  it('a seat placed twice over the same legs is written once, in the definition', () => {
+    const parts = [...stoolLegs(), stoolSeat()];
+    s().replaceDocument(migrateDocument({ ...createDocument('Two'),
+      definitions: [{ id: 'd', boards: parts, instances: [], hardware: [] }],
+      instances: [
+        { id: 'i1', name: 'Stool 1', definition: 'd', position: [0, 0, 0], rotation: 0 },
+        { id: 'i2', name: 'Stool 2', definition: 'd', position: [30.3, 0, 3.3], rotation: 90 },
+      ] }));
+    const second = worldParts(s().doc).filter((b) => b.name === 'Seat')[1]!;
+    expect(s().boreLegSockets(second.id, 1)).toBeNull();
+    expect(s().past.length).toBe(1);
+    expect((s().doc.definitions[0]!.boards.find((b) => b.name === 'Seat') as Board).holes).toHaveLength(4);
   });
 });

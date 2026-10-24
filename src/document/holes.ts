@@ -66,8 +66,9 @@ export const mm = (n: number) => n / 25.4;
 function broadFace(b: Pick<Board, Dimension>): Dimension {
   return DIMENSION_ORDER.reduce((best, d) => (b[d] <= b[best] ? d : best), 'length' as Dimension);
 }
-/** The two others, the longer first (a row runs along the longer). */
-function othersOf(b: Pick<Board, Dimension>, face: Dimension): [Dimension, Dimension] {
+/** The two others, the longer first (a row runs along the longer; length on a tie). Bore leg sockets lays its rows out
+ *  the same way (legSockets.ts), so every copy of a seat stores one layout. */
+export function othersOf(b: Pick<Board, Dimension>, face: Dimension): [Dimension, Dimension] {
   const [x, y] = DIMENSION_ORDER.filter((d) => d !== face) as [Dimension, Dimension];
   return b[y] > b[x] ? [y, x] : [x, y];
 }
