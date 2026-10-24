@@ -4,7 +4,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
-import { boardCenter, boardExtents, partsBounds, isCovered, partAt, worldParts } from '../document/document';
+import { boardCenter, boardExtents, partBounds, partsBounds, isCovered, partAt, worldParts } from '../document/document';
 import { snapStep, snapToGrid } from '../document/geometry';
 import { leans } from '../document/lean';
 import type { Units } from '../units/length';
@@ -46,13 +46,18 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   // through moveGroupTo, never the part.
   const singlePart = selectedIds.length === 1 && partAt(doc, selectedIds[0]!) !== null;
   const board = singlePart ? selected[0] : undefined;
-  const bounds = !singlePart && selected.length >= 1 ? partsBounds(selected) : null;
-  const size: [number, number, number] | null = board
+  // A single LEANING part's handle sits at its real bounds' centre (splayed legs spec §6.2, R2), never its pre-lean box's;
+  // an unleaned part keeps boardCenter / boardExtents byte for byte. Its drag is a delta (dragTarget), so where the
+  // handle sits never decides where the part lands.
+  const bounds = !singlePart && selected.length >= 1
+    ? partsBounds(selected)
+    : board && leans(board) ? partBounds(board) : null;
+  const size: [number, number, number] | null = board && !bounds
     ? boardExtents(board)
     : bounds
       ? [bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1], bounds.max[2] - bounds.min[2]]
       : null;
-  const center: [number, number, number] | null = board
+  const center: [number, number, number] | null = board && !bounds
     ? boardCenter(board)
     : bounds
       ? [(bounds.min[0] + bounds.max[0]) / 2, (bounds.min[1] + bounds.max[1]) / 2, (bounds.min[2] + bounds.max[2]) / 2]
@@ -225,10 +230,11 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
             // The gesture already ended at the selection change. Commit nothing,
             // and put back the proxy the controls kept moving after that.
             abandoned.current = false;
+            dragStart.current = null;
             proxy.current.position.set(...center);
             return;
           }
-          dragging.current = false; commit(); useStore.getState().endGesture();
+          dragging.current = false; commit(); dragStart.current = null; useStore.getState().endGesture();
         }}
       />
     </>
