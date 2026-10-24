@@ -36,16 +36,20 @@ function faceOf(lean: Lean): 'width' | 'thickness' {
 }
 
 /**
- * Which end a cut levels, or null (spec §5's structural recognition): an end miter — `kind 'miter'`, `face 'length'` —
- * sloping along the lean's facing dimension, whatever its line (offset lines included: the round-up makes them so, and a
- * stale cut levelled for another lean must still be replaced). `from 'min'` is the foot, `'max'` the top.
+ * Which end a cut levels, or null (spec §5's structural recognition): ANY end miter — `kind 'miter'`, `face 'length'` —
+ * whatever its line (offset lines included: the round-up makes them so, and a stale cut levelled for another lean must
+ * still be replaced) and whichever cross dimension it slopes along. Width OR thickness, because a later lean edit can
+ * flip the seam-free facing dimension (`seamFree`: a lean made rake- or splay-only), and the cuts levelled along the old
+ * one must still be replaced, never refused as foreign (Task 6 review ruling). Level writes its new cut along
+ * `seamFree(lean).face`. `from 'min'` is the foot, `'max'` the top. An end bevel or chamfer (`face 'length'`, another
+ * kind) is not a level cut: it refuses.
  *
  * Only a `face 'length'` cut is ON an end. A taper (or any cut along the length, `face` width or thickness) may reach
  * the end's stock but never stands on its face: it slopes a side, its stations ride with the end when the length
  * changes, and a level cut through it still leaves a flat foot. So it neither blocks levelling nor is replaced.
  */
-export function levelCutOf(c: AngleCut, lean: Lean): 'foot' | 'top' | null {
-  if (c.kind !== 'miter' || c.face !== 'length' || c.along !== faceOf(lean)) return null;
+export function levelCutOf(c: AngleCut): 'foot' | 'top' | null {
+  if (c.kind !== 'miter' || c.face !== 'length') return null;
   return c.from === 'min' ? 'foot' : 'top';
 }
 
@@ -86,8 +90,8 @@ export function levelPlan(world: Board, units: Units): LevelPlan | string {
 
   // A face 'length' cut on an end that is not a level cut: never stack a second cut on an end (§5).
   const onEnd = (from: 'min' | 'max') => world.angleCuts.filter((c) => c.face === 'length' && c.from === from);
-  if (onEnd('min').some((c) => levelCutOf(c, lean) === null)) return LEVEL_FOOT_CUT;
-  if (onEnd('max').some((c) => levelCutOf(c, lean) === null)) return LEVEL_TOP_CUT;
+  if (onEnd('min').some((c) => levelCutOf(c) === null)) return LEVEL_FOOT_CUT;
+  if (onEnd('max').some((c) => levelCutOf(c) === null)) return LEVEL_TOP_CUT;
 
   // §3.3's guarantee: the floor normal has no component on the through dimension, so a line in length × face holds the
   // plane. Its leaned direction must be horizontal; anything else is a bug in lean.ts, not a part to cut.
@@ -105,9 +109,10 @@ export function levelPlan(world: Board, units: Units): LevelPlan | string {
   const corners = (b: Board, l: number) =>
     [[0, 0], [A, 0], [0, T], [A, T]].map(([f, t]) => heightAt(b, face, through, l, f!, t!));
 
-  const topCut = world.angleCuts.find((c) => levelCutOf(c, lean) === 'top');
-  // A depth at the centre station is the same from either side, so `alongFrom` does not matter here.
-  const ry = lm.pivot[1] - (topCut ? depthAt(topCut, A / 2) : 0) * uy;
+  const topCut = world.angleCuts.find((c) => levelCutOf(c) === 'top');
+  // The cut's own centre station (its `along` may be the other cross dimension, after a seam-free flip): a depth there
+  // is the same from either side, so `alongFrom` does not matter, and the axis runs through every cross centre.
+  const ry = lm.pivot[1] - (topCut ? depthAt(topCut, world[topCut.along] / 2) : 0) * uy;
   if (ry <= EPS) return LEVEL_BELOW_FLOOR;
 
   const step = snapStep(units);
@@ -126,15 +131,16 @@ export function levelPlan(world: Board, units: Units): LevelPlan | string {
     id: id ?? nextId(), kind: 'miter', face: 'length', from, along: face, alongFrom: 'min', points: [[0, d(0)], [A, d(A)]],
   });
 
-  const foot = world.angleCuts.find((c) => levelCutOf(c, lean) === 'foot');
+  const foot = world.angleCuts.find((c) => levelCutOf(c) === 'foot');
   const footNew = cut('min', foot?.id, footDepth);
   const topNew = cut('max', topCut?.id, topDepth);
-  // Recognised cuts are replaced in place (the first per end; any further one on that end goes); new ones append.
+  // Recognised cuts are replaced in place, the first per end; any FURTHER recognised cut on that end (only a hand-edited
+  // file has one) is removed, deliberately: an end holds one level cut, never a stack. New ones append.
   const out: AngleCut[] = [];
   let footDone = false;
   let topDone = false;
   for (const c of world.angleCuts) {
-    const which = levelCutOf(c, lean);
+    const which = levelCutOf(c);
     if (which === 'foot') { if (!footDone) out.push(footNew); footDone = true; }
     else if (which === 'top') { if (!topDone) out.push(topNew); topDone = true; }
     else out.push(c);
@@ -167,9 +173,8 @@ export function isLevelled(world: Board, units: Units): boolean {
   if (Math.abs(plan.length - world.length) > EPS) return false;
   if (plan.position.some((v, i) => Math.abs(v - world.position[i]!) > EPS)) return false;
   if (plan.angleCuts.length !== world.angleCuts.length) return false;
-  const A = world[faceOf(world.lean)];
   return plan.angleCuts.every((c, i) => {
     const cur = world.angleCuts[i]!;
-    return c === cur || sameLevelLine(c, cur, A);
+    return c === cur || sameLevelLine(c, cur, world[cur.along]);
   });
 }

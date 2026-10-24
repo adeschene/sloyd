@@ -1954,6 +1954,9 @@ export const useStore = create<StoreState>((set, get) => {
         if (w === b) continue;
         const p = levelPlan(w, doc0.units);
         if (typeof p === 'string') return p; // shared cuts and one pivot height: unreachable, but never half-written
+        // The single shared write (ruling 1) relies on every user's own plan agreeing on the length; one that did not
+        // would silently leave its foot off the floor. An internal invariant, not user copy: throw.
+        if (Math.abs(p.length - own.length) > 1e-9) throw new Error(`levelEnds: user ${w.id} plans length ${p.length}, ${b.id} ${own.length}`);
         plans.set(w.id, p);
       }
       if (users.every((w) => isLevelled(w, doc0.units))) return null; // inv 4: nothing would change

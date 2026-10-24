@@ -25,7 +25,7 @@ const ok = (p: LevelPlan | string): LevelPlan => {
 };
 const apply = (b: Board, p: LevelPlan): Board => ({ ...b, length: p.length, position: p.position, angleCuts: p.angleCuts });
 const levelled = (b: Board, units = IN) => apply(b, ok(levelPlan(b, units)));
-const cutOn = (b: Board, end: 'foot' | 'top') => b.angleCuts.find((c) => levelCutOf(c, b.lean!) === end)!;
+const cutOn = (b: Board, end: 'foot' | 'top') => b.angleCuts.find((c) => levelCutOf(c) === end)!;
 
 const P = (v: readonly number[]) => ({ length: v[0]!, width: v[1]!, thickness: v[2]! });
 /** World vertices and outward world normals of the faces the cut made, off the real leaned bodies. */
@@ -116,7 +116,7 @@ describe('levelPlan (splayed legs spec §5)', () => {
     expect(leanMap(b)!.pivot[1]).toBe(16);
     const p = ok(levelPlan(b, IN));
     expect(p.length).toBeLessThan(30);
-    const foot = apply(b, p).angleCuts.find((c) => levelCutOf(c, b.lean!) === 'foot')!;
+    const foot = apply(b, p).angleCuts.find((c) => levelCutOf(c) === 'foot')!;
     const R = Math.atan(Math.hypot(T12, T8));
     const W = b.width;
     for (const [, d] of foot.points) expect(d).toBeLessThanOrEqual(W * Math.tan(R) + 1 / 16 + 1e-9);
@@ -149,9 +149,9 @@ describe('levelPlan (splayed legs spec §5)', () => {
   });
 
   describe('the refusals, verbatim', () => {
-    it('an unrecognised end cut on the foot (a miter along the through dimension) or the top', () => {
+    it('an unrecognised end cut on the foot or the top (an end chamfer: face length, not a miter)', () => {
       const across = (from: 'min' | 'max'): AngleCut =>
-        ({ id: 'x', kind: 'miter', face: 'length', from, along: 'thickness', alongFrom: 'min', points: [[0, 0], [1.25, 0.5]] });
+        ({ id: 'x', kind: 'chamfer', face: 'length', from, along: 'thickness', alongFrom: 'min', points: [[0, 0.25], [0.25, 0]] });
       expect(levelPlan(leg({ angleCuts: [across('min')] }), IN)).toBe(LEVEL_FOOT_CUT);
       expect(LEVEL_FOOT_CUT).toBe('Remove the angle cut on the foot first.');
       expect(levelPlan(leg({ angleCuts: [across('max')] }), IN)).toBe(LEVEL_TOP_CUT);
@@ -201,6 +201,29 @@ describe('levelPlan (splayed legs spec §5)', () => {
       for (const f of cutFaces(again, cutOn(again, 'foot'))) for (const v of f.verts) expect(Math.abs(v[1])).toBeLessThanOrEqual(1e-9);
       expect(isLevelled(again, IN)).toBe(true);
     });
+
+    // Task 6 review: a lean edit that flips the seam-free facing dimension leaves level cuts along the OLD one. They are
+    // still level cuts: Level replaces them along the new face, the top through the old joint height.
+    for (const [label, start, edit] of [
+      ['width → thickness (splay to 0)', LEAN, (l: Lean): Lean => ({ x: 0, z: l.z, face: 'thickness' })],
+      ['thickness → width (rake to 0)', { ...LEAN, face: 'thickness' as const }, (l: Lean): Lean => ({ x: l.x, z: 0, face: 'width' })],
+    ] as const) {
+      it(`a seam-free face flip (${label}) re-levels, never refuses`, () => {
+        const once = levelled(leg({ lean: start }));
+        const before = start.face;
+        expect(once.angleCuts.every((c) => c.along === before)).toBe(true);
+        const edited: Board = { ...once, lean: edit(start) };
+        const top = cutOn(edited, 'top');
+        const seat = leanMap(edited)!.pivot[1] - (top.points[0][1] + top.points[1][1]) / 2 * axisUp(edited)[1];
+        const again = levelled(edited);
+        expect(again.angleCuts).toHaveLength(2);
+        expect(again.angleCuts.every((c) => c.along === edited.lean!.face && c.along !== before)).toBe(true);
+        expect(again.angleCuts.map((c) => c.id)).toEqual(once.angleCuts.map((c) => c.id));
+        for (const f of cutFaces(again, cutOn(again, 'foot'))) for (const v of f.verts) expect(Math.abs(v[1])).toBeLessThanOrEqual(1e-9);
+        for (const f of cutFaces(again, cutOn(again, 'top'))) for (const v of f.verts) expect(Math.abs(v[1] - seat)).toBeLessThanOrEqual(1e-9);
+        expect(isLevelled(again, IN)).toBe(true);
+      });
+    }
 
     it('isLevelled is false on a part that does not lean', () => {
       const { lean: _l, ...plain } = leg();

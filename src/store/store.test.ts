@@ -3837,7 +3837,7 @@ describe('levelEnds (splayed legs spec §5): every user and placement in one edi
     };
   };
   const cutFaceYs = (b: Board, end: 'foot' | 'top') => {
-    const c = b.angleCuts.find((x) => levelCutOf(x, b.lean!) === end)!;
+    const c = b.angleCuts.find((x) => levelCutOf(x) === end)!;
     const ys = partGeometry(b).bodies.flatMap((body) => body.faces).filter((f) => f.cut === c.id)
       .flatMap((f) => f.verts.map((v) => toWorld(b, { length: v[0], width: v[1], thickness: v[2] })[1]));
     expect(ys.length).toBeGreaterThan(0);
@@ -3913,7 +3913,7 @@ describe('levelEnds (splayed legs spec §5): every user and placement in one edi
   });
 
   it('returns the plan\'s refusal (an end already cut) and does nothing', () => {
-    const across: AngleCut = { id: 'x', kind: 'miter', face: 'length', from: 'min', along: 'thickness', alongFrom: 'min', points: [[0, 0], [1.25, 0.5]] };
+    const across: AngleCut = { id: 'x', kind: 'chamfer', face: 'length', from: 'min', along: 'thickness', alongFrom: 'min', points: [[0, 0.25], [0.25, 0]] };
     s().replaceDocument({ ...createDocument('Level'), boards: [leg({ angleCuts: [across] })] });
     const doc = s().doc;
     expect(s().levelEnds('L')).toBe('Remove the angle cut on the foot first.');
@@ -3938,6 +3938,23 @@ describe('levelEnds (splayed legs spec §5): every user and placement in one edi
     expect(s().levelEnds('L')).toBeNull();
     expect(s().doc).not.toBe(doc);
     expectLevelled(['L']);
+  });
+
+  it('the reviewer\'s sequence: level, splay to 0 (the seam-free face flips to thickness), level again succeeds', () => {
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg()] });
+    expect(s().levelEnds('L')).toBeNull();
+    expect(occ('L').angleCuts.every((c) => c.along === 'width')).toBe(true);
+    s().setLean(['L'], { splay: 0 });
+    expect(occ('L').lean).toEqual({ x: 0, z: slopeOf(8), face: 'thickness' });
+    const b0 = occ('L');
+    const top = b0.angleCuts.find((c) => levelCutOf(c) === 'top')!;
+    const seat = leanMap(b0)!.pivot[1] - (top.points[0][1] + top.points[1][1]) / 2 * leanMap(b0)!.applyDir([0, 1, 0])[1];
+    expect(s().levelEnds('L')).toBeNull();
+    const b = occ('L');
+    expect(isLevelled(b, s().doc.units)).toBe(true);
+    expect(b.angleCuts.every((c) => c.along === 'thickness')).toBe(true);
+    for (const y of cutFaceYs(b, 'foot')) expect(Math.abs(y)).toBeLessThanOrEqual(1e-9);
+    for (const y of cutFaceYs(b, 'top')) expect(Math.abs(y - seat)).toBeLessThanOrEqual(1e-9);
   });
 
   it('isLevelled goes false after a lean edit or a resize through the store', () => {
