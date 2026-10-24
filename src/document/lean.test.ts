@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import { cornerShift, mirrorPart, rotateVec, type Vec3 } from './frames';
 import {
-  chooseFace, degreesOf, leanFlip, leanMap, resultantDeg, sightlineDeg, slopeOf, withinBound, worldSlopes,
+  chooseFace, degreesOf, leanFlip, leanMap, resultantDeg, seamFree, sightlineDeg, slopeOf, withinBound, worldSlopes,
   type LeanMap, type Mat3,
 } from './lean';
+import { axisFrame } from './geometry';
 import type { Board, Lean } from './types';
 
 const T12 = slopeOf(12);
@@ -87,10 +88,25 @@ describe('lean.ts (splayed legs spec §3.1–§3.4)', () => {
     }
   });
 
-  it('the seam: a rake-only lean kept on width twists +90°, the closed end of (−90°, 90°]', () => {
-    // σ = 90° and the facing line at 0 give τ = 90° exactly: X turns toward +Z, never −Z (spec §3.3).
-    const m = mapOf(leg(0, T8, 'width'));
-    expect(m.applyDir([1, 0, 0])[2]).toBeGreaterThan(0.99);
+  it('no seam: a rake-only lean kept on width, or splay-only kept on thickness, twists 0 via the other face', () => {
+    for (const [x, z, face] of [[0, T8, 'width'], [0, -T8, 'width'], [T12, 0, 'thickness'], [-T12, 0, 'thickness']] as const) {
+      const m = mapOf(leg(x, z, face));
+      expect(Math.abs(m.applyDir([1, 0, 0])[2])).toBeLessThan(1e-12);
+      expect(Math.abs(m.applyDir([0, 0, 1])[0])).toBeLessThan(1e-12);
+    }
+  });
+
+  it('seamFree flips exactly the two seam cases, in the stored turn-0 frame, and returns any other lean itself', () => {
+    // The turn-0 frame seamFree assumes: an upright part's width on X, thickness on Z.
+    const frame = axisFrame({ ...leg(0, 0, 'width'), rotation: 0 });
+    expect([frame[0].dim, frame[2].dim]).toEqual(['width', 'thickness']);
+    expect(seamFree({ x: 0, z: T8, face: 'width' })).toEqual({ x: 0, z: T8, face: 'thickness' });
+    expect(seamFree({ x: -0, z: -T8, face: 'width' }).face).toBe('thickness');
+    expect(seamFree({ x: T12, z: 0, face: 'thickness' })).toEqual({ x: T12, z: 0, face: 'width' });
+    for (const l of [
+      { x: 0, z: T8, face: 'thickness' }, { x: T12, z: 0, face: 'width' }, { x: T12, z: T8, face: 'width' },
+      { x: T12, z: T8, face: 'thickness' }, { x: T10, z: T10, face: 'width' },
+    ] as Lean[]) expect(seamFree(l)).toBe(l);
   });
 
   it('round trip', () => {
@@ -112,32 +128,36 @@ describe('lean.ts (splayed legs spec §3.1–§3.4)', () => {
 
   it('mirror conjugation: the flipped lean on the reflected part is S · m · S', () => {
     const S: Mat3 = [[-1, 0, 0], [0, 1, 0], [0, 0, 1]];
-    for (const [x, z] of [[T12, T8], [T10, T10]] as const) {
-      for (const face of ['width', 'thickness'] as const) {
-        const b = leg(x, z, face);
-        const mirrored: Board = { ...mirrorPart(b), lean: leanFlip(b.lean!) };
-        const m = mapOf(b);
-        const mm = mapOf(mirrored);
-        expectMatClose(mm.m, mul(S, mul(m.m, S)));
-        expectVecClose(mm.pivot, [-m.pivot[0], m.pivot[1], m.pivot[2]]);
-      }
+    const leans: [number, number, Lean['face']][] = [];
+    for (const [x, z] of [[T12, T8], [T10, T10]] as const) for (const face of ['width', 'thickness'] as const) leans.push([x, z, face]);
+    // The seam leans (a sightline perpendicular to the stored facing dimension, spec §3.4).
+    leans.push([0, T8, 'width'], [0, -T8, 'width'], [T12, 0, 'thickness']);
+    for (const [x, z, face] of leans) {
+      const b = leg(x, z, face);
+      const mirrored: Board = { ...mirrorPart(b), lean: leanFlip(b.lean!) };
+      const m = mapOf(b);
+      const mm = mapOf(mirrored);
+      expectMatClose(mm.m, mul(S, mul(m.m, S)));
+      expectVecClose(mm.pivot, [-m.pivot[0], m.pivot[1], m.pivot[2]]);
     }
   });
 
-  it('turn equivariance: the part at turn 90 gives Ry · m · Ryᵀ, pivot turned', () => {
-    // Ry is rotateVec(90)'s own matrix (rows are where each output axis reads from), so the test's turn is the turn the
+  it('turn equivariance: the part at turn r gives Ry · m · Ryᵀ, pivot turned, for r = 90, 180, 270', () => {
+    // Ry is rotateVec(r)'s own matrix (rows are where each output axis reads from), so the test's turn is the turn the
     // composition makes (inv 44).
-    const cols = [rotateVec(90, [1, 0, 0]), rotateVec(90, [0, 1, 0]), rotateVec(90, [0, 0, 1])];
-    const Ry: Mat3 = [0, 1, 2].map((i) => [cols[0]![i]!, cols[1]![i]!, cols[2]![i]!]) as unknown as Mat3;
-    for (const face of ['width', 'thickness'] as const) {
-      const b0 = leg(T12, T8, face);
-      const p90 = rotateVec(90, b0.position);
-      const shift = cornerShift(90, b0);
-      const b90: Board = { ...b0, rotation: 90, position: [p90[0] + shift[0], p90[1] + shift[1], p90[2] + shift[2]] };
-      const m0 = mapOf(b0);
-      const m90 = mapOf(b90);
-      expectMatClose(m90.m, mul(Ry, mul(m0.m, transpose(Ry))));
-      expectVecClose(m90.pivot, rotateVec(90, m0.pivot));
+    for (const r of [90, 180, 270] as const) {
+      const cols = [rotateVec(r, [1, 0, 0]), rotateVec(r, [0, 1, 0]), rotateVec(r, [0, 0, 1])];
+      const Ry: Mat3 = [0, 1, 2].map((i) => [cols[0]![i]!, cols[1]![i]!, cols[2]![i]!]) as unknown as Mat3;
+      for (const [x, z, face] of [[T12, T8, 'width'], [T12, T8, 'thickness'], [0, T8, 'width'], [T12, 0, 'thickness']] as const) {
+        const b0 = leg(x, z, face);
+        const pr = rotateVec(r, b0.position);
+        const shift = cornerShift(r, b0);
+        const br: Board = { ...b0, rotation: r, position: [pr[0] + shift[0], pr[1] + shift[1], pr[2] + shift[2]] };
+        const m0 = mapOf(b0);
+        const mr = mapOf(br);
+        expectMatClose(mr.m, mul(Ry, mul(m0.m, transpose(Ry))));
+        expectVecClose(mr.pivot, rotateVec(r, m0.pivot));
+      }
     }
   });
 
@@ -160,6 +180,10 @@ describe('lean.ts (splayed legs spec §3.1–§3.4)', () => {
   it('leanFlip negates the turn-0 X slope only, keeping a zero +0', () => {
     expect(leanFlip({ x: T12, z: T8, face: 'thickness' })).toEqual({ x: -T12, z: T8, face: 'thickness' });
     expect(Object.is(leanFlip({ x: -0, z: T8, face: 'width' }).x, 0)).toBe(true);
+  });
+
+  it('chooseFace throws on a part that is not upright', () => {
+    expect(() => chooseFace(createBoard({ posture: 'flat' }), T12, T8)).toThrow();
   });
 
   it('no lean, no map', () => {

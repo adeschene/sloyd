@@ -53,9 +53,24 @@ function slopesAt(b: Board, x: number, z: number): [number, number] {
 }
 
 /** `a` reduced into (−π/2, π/2]: the facing dimension is an axis LINE, so the twist is taken modulo a half turn. The
- *  closed end is the seam (§3.3): rake-only kept on width twists +90°. */
+ *  closed end is never reached by `leanMap`: `seamFree` removes the one case that would land on it. */
 function reduceHalfTurn(a: number): number {
   return a - Math.PI * Math.ceil((a - Math.PI / 2) / Math.PI);
+}
+
+/**
+ * `l` with the seam removed: a lean whose sightline is exactly perpendicular to its facing dimension — a rake-only lean
+ * (`x === 0`) kept on width, or a splay-only lean (`z === 0`) kept on thickness, in the stored turn-0 frame where an
+ * upright part's width is on X and thickness on Z — faces the OTHER dimension instead; any other lean is returned as
+ * the same object. Why: such a lean twists by exactly ±90°, the closed end of the reduction, and a mirror maps it to
+ * itself while S · Ry(90°) · S = Ry(−90°), so the mirrored twin would come out spun 180° and mirror conjugation
+ * (§3.4) would fail. Facing the other dimension twists 0, which conjugates exactly, and the leg's box is the same
+ * either way. So `leanMap` is total: τ is never ±π/2. The stored `face` is untouched (§3.1: stored, kept by edits).
+ */
+export function seamFree(l: Lean): Lean {
+  if (l.face === 'width' && l.x === 0) return { ...l, face: 'thickness' };
+  if (l.face === 'thickness' && l.z === 0) return { ...l, face: 'width' };
+  return l;
 }
 
 /**
@@ -73,13 +88,15 @@ function twistOf(b: Board, face: Lean['face'], wx: number, wz: number): number |
 
 /**
  * Which horizontal dimension faces the sightline when a lean (x, z) is first set (§3.1): the one needing the smaller
- * twist; width on a tie (|twist| = 45° within 1e-9), so rake equal to splay faces width.
+ * twist; width on a tie (|twist| = 45° within 1e-9), so rake equal to splay faces width. It never chooses a seam
+ * face (`seamFree`): a rake-only lean needs no twist on thickness, a splay-only one none on width.
  */
 export function chooseFace(b: Board, x: number, z: number): 'width' | 'thickness' {
   const [wx, wz] = slopesAt(b, x, z);
   const tw = twistOf(b, 'width', wx, wz);
   const tt = twistOf(b, 'thickness', wx, wz);
-  if (tw === null || tt === null) return 'width';
+  // Unreachable once the loader keeps leans on upright parts only (§3.2); a plausible wrong face is worse than a throw.
+  if (tw === null || tt === null) throw new Error('chooseFace: the part is not upright, so it cannot lean');
   return Math.abs(tw) <= Math.abs(tt) + TIE_EPS ? 'width' : 'thickness';
 }
 
@@ -112,6 +129,7 @@ function timesT(m: Mat3, v: readonly number[]): Vec3 {
 /**
  * `b`'s lean as a map (§3.3), or null when `b` has no lean (or its facing dimension is not horizontal, which the
  * loader never lets through, §3.2). `m = T · Ry(τ)`:
+ * - the facing dimension is `seamFree`'s, so τ is never ±π/2;
  * - `Ry(τ)` twists by τ about the vertical, `(x, z) → (x cos τ − z sin τ, x sin τ + z cos τ)`, turning the facing
  *   dimension's axis line onto the sightline σ = atan2(wz, wx);
  * - `T` is the Rodrigues rotation taking straight down to `normalize(wx, −1, wz)`, so the foot travels along the
@@ -122,7 +140,7 @@ function timesT(m: Mat3, v: readonly number[]): Vec3 {
 export function leanMap(b: Board): LeanMap | null {
   if (!b.lean) return null;
   const [wx, wz] = worldSlopes(b);
-  const tau = twistOf(b, b.lean.face, wx, wz);
+  const tau = twistOf(b, seamFree(b.lean).face, wx, wz);
   if (tau === null) return null;
   const c = Math.cos(tau);
   const s = Math.sin(tau);

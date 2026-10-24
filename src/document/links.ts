@@ -34,10 +34,12 @@ const _shapeMatchesTable: [Exclude<keyof Shape, 'id'>] extends [SharedField] ? (
 void _shapeMatchesTable;
 
 /**
- * `sameShared` compares every shared field except `cuts`, `angleCuts`, `holes`, `curves`, `profiles`, `bands`, `hardware` and `lean` with `!==`, which is
+ * `sameShared` compares every shared field except `cuts`, `angleCuts`, `holes`, `curves`, `profiles`, `bands` and `hardware` with `!==`, which is
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
+ * `lean` (an object) is excluded here but NOT YET HANDLED: `sameShared` still compares it with `!==`, by reference,
+ * until the splayed-legs loader task adds its by-value comparison.
  */
 const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
