@@ -193,6 +193,9 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
       // center-to-corner conversion. A leaning part rounds the delta from its
       // mouse-down corner instead (dragTarget).
       const start = dragStart.current;
+      // A leaning part's proxy sits at its REAL bounds' centre, not its pre-lean box's, so without the mouse-down corner
+      // there is no right corner to derive: commit nothing rather than land it off by the lean (final review M3).
+      if (leans(board) && start === null) return;
       const leaning = leans(board) && start !== null;
       const raw = leaning
         ? [start.corner[0] + (p.x - start.proxy[0]), start.corner[1] + (p.y - start.proxy[1]), start.corner[2] + (p.z - start.proxy[2])]
