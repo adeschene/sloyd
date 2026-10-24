@@ -68,6 +68,8 @@ function reduceHalfTurn(a: number): number {
  * either way. So `leanMap` is total: τ is never ±π/2. The stored `face` is untouched (§3.1: stored, kept by edits).
  */
 export function seamFree(l: Lean): Lean {
+  // A zero lean has no sightline and no twist; it is no lean (`leanMap` returns null), so it is never flipped.
+  if (l.x === 0 && l.z === 0) return l;
   if (l.face === 'width' && l.x === 0) return { ...l, face: 'thickness' };
   if (l.face === 'thickness' && l.z === 0) return { ...l, face: 'width' };
   return l;
@@ -127,18 +129,20 @@ function timesT(m: Mat3, v: readonly number[]): Vec3 {
 }
 
 /**
- * `b`'s lean as a map (§3.3), or null when `b` has no lean (or its facing dimension is not horizontal, which the
- * loader never lets through, §3.2). `m = T · Ry(τ)`:
+ * `b`'s lean as a map (§3.3), or null when `b` has no lean, a zero one (x = z = 0 is no lean), or a facing dimension
+ * that is not horizontal (which the loader never lets through, §3.2). `m = T · Ry(τ)`:
  * - the facing dimension is `seamFree`'s, so τ is never ±π/2;
  * - `Ry(τ)` twists by τ about the vertical, `(x, z) → (x cos τ − z sin τ, x sin τ + z cos τ)`, turning the facing
  *   dimension's axis line onto the sightline σ = atan2(wz, wx);
  * - `T` is the Rodrigues rotation taking straight down to `normalize(wx, −1, wz)`, so the foot travels along the
  *   slopes; its axis, `(0, −1, 0) × n ∝ (−wz, 0, wx)`, is the horizontal perpendicular to the sightline, so the
- *   facing dimension stays in the sightline's vertical plane. The identity when the resultant is 0.
+ *   facing dimension stays in the sightline's vertical plane.
  * A mirror conjugates the whole map (§3.4): the flipped lean (`leanFlip`) on the reflected part gives `S · m · S`.
  */
 export function leanMap(b: Board): LeanMap | null {
-  if (!b.lean) return null;
+  // A zero lean is no lean (the loader never stores one, Global Constraints): σ = atan2(0, 0) would twist a seamFree
+  // face by 90°, so it takes the no-lean path and lean.ts stays total.
+  if (!b.lean || (b.lean.x === 0 && b.lean.z === 0)) return null;
   const [wx, wz] = worldSlopes(b);
   const tau = twistOf(b, seamFree(b.lean).face, wx, wz);
   if (tau === null) return null;

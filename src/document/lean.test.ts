@@ -186,6 +186,14 @@ describe('lean.ts (splayed legs spec §3.1–§3.4)', () => {
     expect(() => chooseFace(createBoard({ posture: 'flat' }), T12, T8)).toThrow();
   });
 
+  it('zero lean is no lean', () => {
+    expect(leanMap(leg(0, 0, 'width'))).toBeNull();
+    expect(leanMap(leg(0, 0, 'thickness'))).toBeNull();
+    expect(leanMap(leg(-0, 0, 'width'))).toBeNull();
+    const zero: Lean = { x: 0, z: 0, face: 'width' };
+    expect(seamFree(zero)).toBe(zero);
+  });
+
   it('no lean, no map', () => {
     const b = createBoard({ posture: 'upright' });
     expect(leanMap(b)).toBeNull();
