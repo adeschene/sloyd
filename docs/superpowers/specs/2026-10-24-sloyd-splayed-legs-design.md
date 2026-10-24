@@ -1,6 +1,6 @@
 # Splayed legs, chunk 1: a part that leans — design
 
-Status: draft, 2026-10-24; builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
+Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
 **Built 2026-10-24 on branch `splayed-legs`** (plan Tasks 1–13; schema 22); NOT merged or deployed — the browser verification
 (plan Task 14), the merge and the deploy are pending. Later rulings: the *Amended (build)* block at the end, which wins where it
 differs from the text.
