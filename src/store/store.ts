@@ -1180,7 +1180,11 @@ export const useStore = create<StoreState>((set, get) => {
       // them. Name, position and rotation never reach them. The board-precise
       // `grabbed` clause above is for the TARGETS only; the other users' held
       // points go through the point-precise test below.
-      const shared = sharedPatch(patch);
+      // A lean never reaches them (splayed legs spec §3.4): it is in each part's OWN hand, so a mate across a mirror
+      // would lower the target's world lean through its flip and write a different one to the same Shape (a
+      // disagreeing edit); and a lean moves no min corner, so a mate has nothing to re-pivot. The target's own write
+      // into the Shape reaches every user, a removal (`lean: undefined`, sharedPatch) included.
+      const { lean: _lean, ...shared } = sharedPatch(patch);
       const others = Object.keys(shared).length === 0 ? new Set<string>() : shapeMates(world, targets);
       // Through mapWorld (assemblies spec §5.1): patchBoard runs on WORLD parts,
       // and only what it changed is written back, position as a delta.

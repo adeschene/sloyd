@@ -6,7 +6,11 @@ import { toWorld } from './snapPoints';
 import { chiralPart, rotateQuarter, sameSet } from './turnFixtures';
 import { worldSolids } from './designCheck';
 import { createBoard } from './document';
-import type { Board, Instance, Posture, Rotation } from './types';
+import type { Board, Instance, Lean, Posture, Rotation, ShapedBoard } from './types';
+import { bodyVerts, boardBodies } from './bodies';
+import { chooseFace, leanFlip, leanMap, slopeOf } from './lean';
+import { sharedOf } from './links';
+import { resolveBoard } from './shapes';
 
 const TURNS: Rotation[] = [0, 90, 180, 270];
 const POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
@@ -102,5 +106,70 @@ describe('mirrorInPlace (mirrored links, fu 432, spec §3)', () => {
     const { cuts: _c2, angleCuts: _a2, holes: _h2, curves: _k2, profiles: _p2, bands: _b2, ...restB } = b;
     expect(rest).toEqual(restB);
     expect(f).toEqual({ ...mirrorPart(b), rotation: b.rotation, position: b.position });
+  });
+});
+
+describe('a lean through mirrors and assemblies (splayed legs spec §3.4)', () => {
+  type V = [number, number, number];
+  /** Every vertex of `b`'s bodies in the world, put through its lean map. */
+  const leanedVerts = (b: Board): number[][] => {
+    const m = leanMap(b)!;
+    return boardBodies(b).flatMap(bodyVerts).map(([l, w, t]) => m.apply(toWorld(b, { length: l!, width: w!, thickness: t! })));
+  };
+  const upright = chiralPart('upright');
+  /** Rake = splay (the tie, faces width) and a chiral pair: both slopes non-zero and unequal (the `chiralPart` rule). */
+  const LEANS: Lean[] = [
+    { x: slopeOf(10), z: slopeOf(10), face: 'width' },
+    { x: 0.1, z: 0.25, face: chooseFace(upright, 0.1, 0.25) },
+    { x: -0.3, z: 0.05, face: chooseFace(upright, -0.3, 0.05) },
+  ];
+
+  it('mirrored user of a diagonal lean is the reflection: every leaned body vertex, every turn', () => {
+    for (const lean of LEANS) for (const r of TURNS) {
+      const shapes = new Map([['s1', { id: 's1', ...sharedOf({ ...upright, lean }) }]]);
+      const at: V = [0.4, 0.6, -1.2];
+      const user = (id: string, rotation: Rotation, mirrored: boolean): Board =>
+        resolveBoard(shapes, { id, name: id, position: at, rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) } satisfies ShapedBoard)!;
+      const plain = user('a', r, false);
+      // The X-reflection about the box's centre plane of a part at turn r is its mirror at turn -r (mirrorInPlace).
+      const mirrored = user('b', inverseTurn(r), true);
+      const c = at[0] + boardExtents(plain)[0] / 2;
+      const reflected = leanedVerts(plain).map(([x, y, z]) => [2 * c - x!, y!, z!]);
+      expect(sameSet(leanedVerts(mirrored), reflected), `${JSON.stringify(lean)} r=${r}`).toBe(true);
+      // Chiral: the reflection is not the part itself.
+      expect(sameSet(leanedVerts(mirrored), leanedVerts(plain)), `${JSON.stringify(lean)} r=${r} chiral`).toBe(false);
+    }
+  });
+
+  it('a part in a turned, mirrored assembly: the world map is the instance frame composed with the part map (8 corners)', () => {
+    for (const lean of LEANS) for (const mirrored of [true, false]) for (const ri of TURNS) for (const rb of TURNS) {
+      const inst: Instance = { id: 'i', name: 'I', definition: 'd', position: [5.1, 0.3, 2.3], rotation: ri, ...(mirrored ? { mirrored: true } : {}) };
+      const part: Board = { ...upright, lean, rotation: rb, position: [0.4, 0.2, -1.1] };
+      const world = placeBoard(inst, part);
+      /** The instance frame on a point: reflect local X when mirrored, then turn, then translate (placeBoard's order). */
+      const frame = (p: readonly number[]): V => {
+        const q = rotateVec(ri, mirrored ? [0 - p[0]!, p[1]!, p[2]!] : p);
+        return [inst.position[0] + q[0], inst.position[1] + q[1], inst.position[2] + q[2]];
+      };
+      const e = boardExtents(part);
+      const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((k): V => [0, 1, 2].map((i) => part.position[i]! + ((k >> i) & 1) * e[i]!) as V);
+      const local = leanMap(part)!, mapped = leanMap(world)!;
+      const tag = `${JSON.stringify(lean)} m=${mirrored} ri=${ri} rb=${rb}`;
+      for (const p of corners) {
+        const want = frame(local.apply(p));
+        const got = mapped.apply(frame(p));
+        for (let i = 0; i < 3; i += 1) expect(Math.abs(got[i]! - want[i]!), tag).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it('mirrorFeatures flips a lean by leanFlip (its own inverse, bit for bit) and adds no key to a lean-free part', () => {
+    const lean = LEANS[1]!;
+    const f = mirrorFeatures({ ...upright, lean });
+    expect(f.lean).toEqual(leanFlip(lean));
+    expect(Object.is(mirrorFeatures(f).lean!.x, lean.x)).toBe(true);
+    expect(mirrorFeatures(f).lean).toEqual(lean);
+    expect('lean' in mirrorFeatures(upright)).toBe(false);
+    expect('lean' in mirrorPart(upright)).toBe(false);
   });
 });

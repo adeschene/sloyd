@@ -254,4 +254,12 @@ describe('lean in links (splayed legs spec §3.1)', () => {
     expect(p.lean).toEqual(lean);
     expect(p.lean).not.toBe(lean);
   });
+
+  it('a patch whose `lean` key is present and undefined is a REMOVAL; absent means untouched (controller ruling 1)', () => {
+    const p = sharedPatch({ lean: undefined });
+    expect('lean' in p).toBe(true);
+    expect(p.lean).toBeUndefined();
+    expect('lean' in sharedPatch({ name: 'Leg' })).toBe(false);
+    expect('lean' in sharedPatch({ length: 20 })).toBe(false);
+  });
 });

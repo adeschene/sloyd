@@ -8,6 +8,7 @@ import { profileFromFields } from '../document/profiles';
 import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
 import type { ProfileSide } from '../document/types';
 import { taperCut } from '../document/document';
+import { leanMap } from '../document/lean';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -3465,4 +3466,93 @@ describe('band actions (edge banding 1)', () => {
     s().applyMaterials([], undefined, [BUILT_IN_BAND, { ...maple }]);
     expect(s().past.length).toBe(1);
   });
+});
+
+describe('a lean through the store\'s world edit (splayed legs spec §3.4)', () => {
+  const LEAN = { x: 0.1, z: 0.25, face: 'thickness' as const };
+  const leg = () => createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.25, posture: 'upright', lean: LEAN });
+  const linked = (): SloydDocument => {
+    const { id: _id, name: _name, position: _p, rotation: _r, ...shared } = leg();
+    return {
+      ...createDocument('Lean'),
+      shapes: [{ id: 's1', ...shared } as Shape],
+      boards: [
+        { id: 'a', name: 'Front left', position: [0, 0, 0], rotation: 0, shape: 's1' },
+        { id: 'b', name: 'Front right', position: [10, 0, 0], rotation: 0, shape: 's1', mirrored: true },
+        { id: 'c', name: 'Back left', position: [0, 0, 10], rotation: 180, shape: 's1' },
+      ],
+    };
+  };
+  const s = () => useStore.getState();
+  const shape = () => s().doc.shapes.find((x) => x.id === 's1')!;
+  const occ = (id: string) => worldParts(s().doc).find((b) => b.id === id)!;
+
+  it('lean edit lowers exactly through a mirror: from the mirrored user, the Shape gets the lowered slopes, x bit for bit', () => {
+    s().replaceDocument(linked());
+    const w = occ('b').lean!;
+    expect(w).toEqual({ ...LEAN, x: -LEAN.x });                                  // the world part shows it flipped
+    expect(() => s().updateBoard('b', { lean: { ...w, z: w.z + 0.05 } })).not.toThrow();
+    const stored = shape().lean!;
+    expect(Object.is(stored.x, LEAN.x)).toBe(true);
+    expect(stored.z).toBe(LEAN.z + 0.05);
+    expect(stored.face).toBe(LEAN.face);
+    expect(stored.x !== 0 && stored.z !== 0).toBe(true);                          // still seam-free (no slope became 0)
+    // One Shape write reaches every user: the unmirrored ones as stored, the mirrored one flipped.
+    expect(occ('a').lean).toEqual(stored);
+    expect(occ('c').lean).toEqual(stored);
+    expect(occ('b').lean).toEqual({ ...stored, x: -stored.x });
+  });
+
+  it('lean edit from an unmirrored user reaches the mirrored mate flipped, without throwing', () => {
+    s().replaceDocument(linked());
+    expect(() => s().updateBoard('c', { lean: { ...LEAN, x: 0.2 } })).not.toThrow();
+    expect(shape().lean).toEqual({ ...LEAN, x: 0.2 });
+    expect(occ('b').lean).toEqual({ ...LEAN, x: -0.2 });
+  });
+
+  it('untouched lean is the same object: a rename on the mirrored user writes nothing to the Shape', () => {
+    s().replaceDocument(linked());
+    const before = shape();
+    s().updateBoard('b', { name: 'Right' });
+    expect(occ('b').name).toBe('Right');
+    expect(shape()).toBe(before);
+    expect(shape().lean).toBe(before.lean);
+  });
+
+  it('clearing the lean on a shaped mirrored user removes it from the Shape and every user; the export has no `lean` key', () => {
+    s().replaceDocument(linked());
+    s().updateBoard('b', { lean: undefined });
+    expect('lean' in shape()).toBe(false);
+    for (const b of s().doc.boards) expect('lean' in b, b.id).toBe(false);
+    for (const b of worldParts(s().doc)) expect('lean' in b, b.id).toBe(false);
+    expect(JSON.stringify(s().doc)).not.toContain('"lean"');
+  });
+
+  // Blocked on Task 4: `snapPointsFor` still builds the PRE-lean lattice, so a lean edit moves no snap point and the
+  // point-precise survival test (inv 24) cannot drop the anchor yet. `updateBoards` already re-judges every held point
+  // (judgeHeld) after the edit; a board-precise clear for the tape fields is forbidden by inv 24.
+  it.todo('lean edit re-judges held points: a tapeAnchor on the leaning part\'s foot corner is dropped (needs Task 4\'s lean-aware snap points)');
+
+  for (const mirrored of [false, true]) {
+    it(`Ungroup keeps a leaning part's world pose (assembly turned 90${mirrored ? ', mirrored' : ''})`, () => {
+      const part = { ...leg(), id: 'leg', position: [0.4, 0, -1.1] as [number, number, number], rotation: 90 as const };
+      s().replaceDocument({
+        ...createDocument('Lean'),
+        definitions: [{ id: 'd', boards: [part], instances: [], hardware: [] }],
+        instances: [{ id: 'i1', name: 'Stool', definition: 'd', position: [5.1, 0, 2.3], rotation: 90, ...(mirrored ? { mirrored: true } : {}) }],
+      });
+      const mapped = (b: Board) => {
+        const m = leanMap(b)!;
+        const e = boardExtents(b);
+        return [0, 1, 2, 3, 4, 5, 6, 7].map((k) => m.apply([0, 1, 2].map((i) => b.position[i]! + ((k >> i) & 1) * e[i]!) as [number, number, number]));
+      };
+      const before = mapped(occ('i1/leg'));
+      s().selectBoard('i1');
+      s().ungroupSelected();
+      const id = s().selectedIds[0]!;
+      expect(id).not.toContain('/');
+      const after = mapped(occ(id));
+      before.forEach((p, k) => p.forEach((v, i) => expect(Math.abs(after[k]![i]! - v)).toBeLessThan(1e-12)));
+    });
+  }
 });

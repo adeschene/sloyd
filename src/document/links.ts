@@ -62,7 +62,9 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
   };
 }
 
-/** The shared part of a patch: what propagates to the other members. */
+/** The shared part of a patch: what propagates to the other members. A `lean` key present with the value `undefined`
+ *  is a REMOVAL and is kept as such (splayed legs spec §3.1, controller ruling 1); an absent key means untouched, as
+ *  for every other field. The write-back stores a removal as a deleted key, never `lean: undefined`. */
 export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedField>> {
   const out: Partial<Pick<Board, SharedField>> = {};
   for (const k of SHARED_KEYS) if (patch[k] !== undefined) (out as Record<string, unknown>)[k] = patch[k];
@@ -75,6 +77,7 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.bands) out.bands = patch.bands.map(copyBand);
   if (patch.hardware) out.hardware = patch.hardware.map(copyHardwareUse);
   if (patch.lean) out.lean = { ...patch.lean };
+  else if ('lean' in patch && patch.lean === undefined) out.lean = undefined;
   return out;
 }
 

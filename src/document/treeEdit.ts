@@ -1,5 +1,5 @@
 import { boardExtents } from './geometry';
-import type { AngleCut, Band, Board, Cut, CurveCut, ProfileCut, Definition, HoleRow, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
+import type { AngleCut, Band, Board, Lean, Cut, CurveCut, ProfileCut, Definition, HoleRow, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { angleCutValues, copyAngleCut, mirrorAngleCut, sameAngleCut } from './angleCuts';
 import { copyCurve, curveValues, mirrorCurveCut, sameCurve } from './curves';
@@ -14,6 +14,7 @@ import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, rotateVec, toLocal } from './frames';
 import type { Frame } from './frames';
 import { mirrorCut } from './mirrorCut';
+import { leanFlip } from './lean';
 import type { Container } from './tree';
 import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, sideAt, worldParts } from './tree';
 
@@ -140,6 +141,19 @@ function lowerBands(storedBefore: Board, draft: Board): Band[] {
 }
 
 /**
+ * A part's lean lowered back through ONE mirror (splayed legs spec §3.4): `leanFlip`, exact and its own inverse, so one
+ * flip per mirror on the path; equal by value to the stored lean: the stored object (an untouched lean is never
+ * rewritten). The flip keeps a zero slope zero, so a seam-free lean (`seamFree`) stays seam-free. A draft with no lean
+ * (none, or one being removed) adds nothing: its own key, present or absent, is the after-state's.
+ */
+function lowerLean(storedBefore: Board, draft: Board): { lean?: Lean } {
+  if (!draft.lean) return {};
+  const back = leanFlip(draft.lean);
+  const s = storedBefore.lean;
+  return { lean: s && s.x === back.x && s.z === back.z && s.face === back.face ? s : back };
+}
+
+/**
  * A part's curves lowered back through ONE mirror (curves spec §6.2): like lowerHoles, a flag flip, exact and size-free;
  * a curve equal to the stored one with the same id maps back to THAT object; all reused: the stored array.
  */
@@ -182,6 +196,7 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     curves: lowerCurves(lowerBefore, draft),
     profiles: lowerProfiles(lowerBefore, draft),
     bands: lowerBands(lowerBefore, draft),
+    ...lowerLean(lowerBefore, draft),
   };
 }
 
@@ -367,16 +382,21 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
       // As bands.
       return rec(before)[k] !== rec(after)[k] || (cur.hardware !== after.hardware && cur.hardware !== ref.hardware);
     }
+    if (k === 'lean') {
+      // As angleCuts (splayed legs spec §3.4): written when edited, or when a mirror lowering produced a fresh object
+      // that is not the stored one. `lowerLean` maps an untouched lean back to the stored (or Shape's) object.
+      return rec(before)[k] !== rec(after)[k] || (cur.lean !== after.lean && cur.lean !== ref.lean);
+    }
     return k === 'cuts' ? cur.cuts !== ref.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : k === 'hardware' ? cur.hardware : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : k === 'hardware' ? cur.hardware : k === 'lean' ? cur.lean : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
 /** `b` carrying the Shape's OWN feature arrays (the Shape's hand): the reference a mirrored user's features are lowered
  *  against, so an untouched feature maps back to the Shape's object (no drift, inv 44). */
 function withShapeFeatures(b: Board, shape: Shape): Board {
-  return { ...b, cuts: shape.cuts, angleCuts: shape.angleCuts, holes: shape.holes, curves: shape.curves, profiles: shape.profiles, bands: shape.bands };
+  return { ...b, cuts: shape.cuts, angleCuts: shape.angleCuts, holes: shape.holes, curves: shape.curves, profiles: shape.profiles, bands: shape.bands, ...(shape.lean ? { lean: shape.lean } : {}) };
 }
 
 /**
@@ -394,19 +414,23 @@ function lowerOwnMirror(ref: Board, cur: Board, keepWorld: boolean): Board {
     curves: lowerCurves(ref, cur),
     profiles: lowerProfiles(ref, cur),
     bands: lowerBands(ref, cur),
+    ...lowerLean(ref, cur),
   };
 }
 
 /** A lowered field's written value; ABSENT marks a key to delete. */
 const ABSENT = Symbol('absent');
 
-/** One lowered field's value for a stored record: its value, or ABSENT for a
- *  key the after-state no longer has. Every Board key but `shape` (excluded
- *  from changedKeys) is required since Board.link retired, so a typed caller
- *  never reaches ABSENT today; it stays so a future OPTIONAL field can be
- *  cleared rather than left stale. */
+/** One lowered field's value for a stored record or a Shape: its value, or ABSENT for a key the after-state no longer
+ *  has. `lean` (splayed legs spec §3.1) is optional and is removed by an edit whose key is present and `undefined`
+ *  (controller ruling 1; `sharedPatch` carries that removal), so an undefined lean is ABSENT too: no `lean: undefined`
+ *  is ever stored (an absent key and an undefined one read differently through `in`, as `resolveBoard` does). Any other
+ *  key set to undefined stays a write, not a delete (the merge test pins that a delete and an undefined disagree). */
 function storedValue(l: Lowered, k: string): unknown {
-  return k in l.after || k === 'position' || k === 'rotation' ? l.valueOf(k) : ABSENT;
+  if (k === 'position' || k === 'rotation') return l.valueOf(k);
+  if (!(k in l.after)) return ABSENT;
+  const v = l.valueOf(k);
+  return k === 'lean' && v === undefined ? ABSENT : v;
 }
 
 /** Field-by-field merge of every edit into one record: a field written twice
@@ -460,7 +484,7 @@ export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[],
       if (isShaped(stored) && shared) {
         let sh = shapeWrites.get(stored.shape);
         if (!sh) shapeWrites.set(stored.shape, sh = { next: { ...shapes.get(stored.shape)! }, wrote: new Map() });
-        mergeField(sh.next, sh.wrote, k, l.valueOf(k), `shape ${stored.shape}`);
+        mergeField(sh.next, sh.wrote, k, storedValue(l, k), `shape ${stored.shape}`);
       } else {
         mergeField(part.next, part.wrote, k, storedValue(l, k), key);
       }
