@@ -145,8 +145,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   (fix rounds: Task 1 ×2 — the seam removed, a zero lean is no lean; Task 6 — any end miter is a level cut; Task 8 — magnitude and
   direction separate). Full suite at 4b06e42 + records: 8200 tests across 235 files, 8195 pass — the 5 failures are
   load timing (4 `curvesPerf` budgets, 1 `curvesOracle` 5 s timeout), the known class; `npm run build` clean. Browser verification (plan Task 14) DONE on the dev server: 15 checks PASS
-  (`docs/browser-verification-splayed-legs.md`). Merged at the user's word with these still owed, now owed before deploy: its three remaining checks — a gizmo drag of a levelled leg, a lean
-  edit with a section on, a pointer snap onto a foot — and the perf guards re-run on a quiet machine (curvesPerf failed under load on
+  (`docs/browser-verification-splayed-legs.md`). Merged at the user's word with the three remaining browser checks owed; they PASS on master at `bfa1c96` (checks 16–18: a gizmo drag of a levelled leg, a lean
+  edit with a section on, a pointer snap onto a foot). Still owed before deploy: the perf guards re-run on a quiet machine (curvesPerf failed under load on
   master too). The final whole-branch review's fixes (I1 tip hull from the feet's vertices, I2 no sites with a leaning part, I3 one lean
   predicate, M1 no turn candidates for a leaning part, M3 the Gizmo's null-start guard) are in. Merged tree = branch tree; at the merge 8204/8209 pass (5 `curvesPerf` budgets, load average 7.7), build clean. Owed to the user: the Amended (build) block. New invariant 57; follow-ups 436–446.
 - **Mirrored links (fu 432; 2026-10-23; branch `mirrored-links`, MERGED `a2ad5f6`, DEPLOYED at `68dca2d` as `index-_J_yZLbU.js`, CSS unchanged; SCHEMA 21 —

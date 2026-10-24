@@ -42,8 +42,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 - **Rollback:** the nearest refusing boundary is `e2729ee` (AI profiles, `index-D_ed_oQ3.js`, schema 20): it REFUSES every
   project saved at 21 — export first. Below it, every deploy back to `98c7df4` is schema 20 and free among themselves. Full
   table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-24):** **Splayed legs chunk 1** (schema 22, inv 57) is MERGED (`02e7b24`): browser checks 15 PASS;
-  owed before deploy: a levelled leg's gizmo drag, a lean edit with a section on, a snap onto a foot, perf guards on a quiet machine. Owed to the user: the splayed legs and mirrored
+- **NEXT (2026-10-24):** **Splayed legs chunk 1** (schema 22, inv 57) is MERGED (`02e7b24`): browser checks 18 PASS;
+  owed before deploy: perf guards on a quiet machine. Owed to the user: the splayed legs and mirrored
   links specs' Amended blocks; fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles

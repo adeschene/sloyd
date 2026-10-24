@@ -25,9 +25,15 @@ browser (software GL). DOM readouts first; numbers read off the live store via V
 
 The stool as drawn: `docs/img/splayed-legs-stool.png`.
 
-**Not verified in the browser** (owed; unit-tested where noted):
-- A free gizmo drag of a levelled leg (the delta-rounding path; `dragTarget` is unit-tested) and the first-frame handle jump
-  TransformControls' `translationSnap` may show on an off-grid proxy.
-- Editing a lean with a section on (the cap memo's lean dependency) — checked only by build and the section unit tests.
-- Snapping the tape onto a leaning foot by pointer (the leaned snap points are unit-tested, Task 4).
-- Real hardware (fu 26a): software GL hides nothing new here (no new shaders), but the by-eye check stays owed.
+## The three owed checks (2026-10-24, on master at `bfa1c96`, same dev server and project)
+
+| # | Check | Result |
+|---|---|---|
+| 16 | Gizmo drag of a levelled leg (Front right, pre-lean corner off-grid at `4.198506…, −0.757741…, 4.215953…`): a free drag on the X arrow moved x by exactly 3.625 (58 grid steps), y and z, the lean and the length bit-identical; one Undo restores the exact corner. A 2 px drag moves x by exactly 1/16 — the delta rounds, the off-grid corner is kept, and the leg does not jump on the first frame | PASS |
+| 17 | Section Front at z = 6, then Rake 8 → 4 typed on Front right: the drawn cap follows the new lean (computed cap y −0.137…15.078, x 5.692…9.276, against 1.396…16 and 5.153…7.872 at 8°); the screenshot shows the cap on the new leg, reaching below the floor where the unlevelled foot now sits; nothing left from the old cap | PASS — `docs/img/splayed-legs-section-lean-edit.png` |
+| 18 | Tape, pointer hover on Front right's foot (Iso): snaps to `corner` points on the leaned foot, `(8.632859, 0, 8.301137)` and `(9.460162, 0, 7.049909)` — y exactly 0, matching the leg's real bounds; anchored on one and hovering the other reads `1-1/2"` (the foot edge) | PASS — `docs/img/splayed-legs-tape-foot.png` |
+
+Every edit undone afterwards (no undo entries left); console 0 errors (warnings: the `PCFSoftShadowMap` deprecation only).
+
+**Not verified in the browser:** real hardware (fu 26a): software GL hides nothing new here (no new shaders), but the by-eye
+check stays owed.
