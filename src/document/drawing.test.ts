@@ -306,6 +306,20 @@ describe('holes on the sheet (holes spec §3.4)', () => {
     // Each visible rim segment is matched by a hidden one at the same place (the exit rim beneath it), not the reverse.
     expect(vis.every((s) => hid.some((h) => near(h.a, s.a) && near(h.b, s.b)))).toBe(true);
   });
+  it('plan of a 20°-tilted through bore: the mouth ellipse r / cos 20° along the tilt, the exit T·tan 20° on (angled holes §8)', () => {
+    const T20 = Math.tan((20 * Math.PI) / 180);
+    const r = pin.diameter / 2;
+    const half = r / Math.cos((20 * Math.PI) / 180);
+    const d = drawView([holed({ depth: 'through', tiltAlong: T20 })], TOP);
+    const around = (s: Seg2) => [s.a, s.b].every((p) => p[0] > 4 && p[0] < 7 && p[1] > -3 && p[1] < -1);
+    const xs = (segs: Seg2[]) => segs.filter(around).flatMap((s) => [s.a[0], s.b[0]]);
+    // Visible: the mouth alone, its extent along the tilt (X) 5 ± r / cos 20°.
+    expect(Math.abs(Math.min(...xs(d.visible)) - (5 - half))).toBeLessThanOrEqual(1e-9);
+    expect(Math.abs(Math.max(...xs(d.visible)) - (5 + half))).toBeLessThanOrEqual(1e-9);
+    // Hidden: the exit ellipse (and the walls, which end at its centre's line): its far extreme is the exit centre
+    // 5 + 3/4·tan 20° plus the same half-extent.
+    expect(Math.abs(Math.max(...xs(d.hidden)) - (5 + 0.75 * T20 + half))).toBeLessThanOrEqual(1e-9);
+  });
   it('exploded: the hole segments move with their part and the sheet draws them (Review Focus 3)', () => {
     const offsets = new Map([['s', [0, 10, 0] as [number, number, number]]]);
     const d0 = drawView([holed()], ISO);

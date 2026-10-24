@@ -5,6 +5,7 @@ import { DIMENSION_ORDER } from './geometry';
 import { toWorld } from './snapPoints';
 import { holeFaults } from './holeFaults';
 import { edgeName, holePitchText, holeSizeText } from './holeText';
+import { isTilted } from './holeTilt';
 import { angleDegrees } from './angleText';
 import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
@@ -160,7 +161,7 @@ export function partFeatures(b: Board, units: Units, bandTypes: readonly BandTyp
     const tags = ids.map((id) => featureTag(b.id, kind, id));
     out.push({ key: tags[0]!, tags, part: b.id, text: faulted ? text + FAULT_SUFFIX : text, trueAxis, trueNormal });
   };
-  for (const r of b.holes) push('hole', [r.id], holeText(r, units), holeFaults(b, r).length > 0, axisOf(b, r.face), null);
+  for (const r of b.holes) push('hole', [r.id], holeText(r, units), holeFaults(b, r).length > 0, isTilted(r) ? null : axisOf(b, r.face), null);
   for (const c of b.angleCuts) {
     // A cut that removes nothing at this size is no feature on paper (the cut list ignores it too; final review #2).
     if (angleCutRemovesNothing(b, c)) continue;
