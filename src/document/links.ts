@@ -17,7 +17,7 @@ export const LINK_FIELDS = {
   id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own', mirrored: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
-  bands: 'shared', cornerRule: 'shared', hardware: 'shared',
+  bands: 'shared', cornerRule: 'shared', hardware: 'shared', lean: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
 
 export type SharedField = {
@@ -34,12 +34,12 @@ const _shapeMatchesTable: [Exclude<keyof Shape, 'id'>] extends [SharedField] ? (
 void _shapeMatchesTable;
 
 /**
- * `sameShared` compares every shared field except `cuts`, `angleCuts`, `holes`, `curves`, `profiles`, `bands` and `hardware` with `!==`, which is
+ * `sameShared` compares every shared field except `cuts`, `angleCuts`, `holes`, `curves`, `profiles`, `bands`, `hardware` and `lean` with `!==`, which is
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
  */
-const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware'>] extends string | number ? true : never = true;
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
 
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
