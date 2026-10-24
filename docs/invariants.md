@@ -876,12 +876,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       numbers as magnitudes with each part's own world sign (a zero part takes +), and `rakeSign` / `splaySign` set a direction and
       keep each part's magnitude (the magnitude field and the direction select are SEPARATE controls). A zero result REMOVES the lean:
       a patch whose `lean` key is present with value `undefined` deletes the stored key everywhere (`sharedPatch`, the Shape,
-      lowering). The refusals, decided for every target before `edit()`, in order: `Only an upright part can lean.`, `A part with holes
-      can't lean yet — that comes with angled holes.`, `The lean can't pass 45° in all — reduce the rake or splay.`; Clear (`null`) is
-      never refused (a loaded file may hold holes and a lean). `setLean` and `levelEnds` return null and do nothing while `gesturing`
+      lowering). The refusals, decided for every target before `edit()`, in order: `Only an upright part can lean.`, `The lean can't pass 45° in
+      all — reduce the rake or splay.`, and (angled holes §7) on a part WITH holes that already leans, a lean whose seam-free face
+      differs from the stored one (`seamFree` re-choosing it would turn the holes a quarter turn about the length): `This lean would
+      turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.` A
+      first lean on a holed part is not a re-choice and is allowed; Clear (`null`) is never refused. `setLean` and `levelEnds` return null and do nothing while `gesturing`
       or exploded (inv 47; no copy). A shape-mate's patch never carries `lean` (each mate would lower the target's world lean through
-      its own flip and the write would disagree). `addHoleRows` refuses a leaning part (`A leaning part can't take holes yet — that
-      comes with angled holes.`), and a posture change on a leaning part is refused in `postureRefusal` (`Clear the lean first — only
+      its own flip and the write would disagree). A leaning part takes hole rows like any other (angled holes §7; the
+      row is in the part's own frame), and a posture change on a leaning part is refused in `postureRefusal` (`Clear the lean first — only
       an upright part can lean.`), the one decider the store and the Posture field share.
     - **A resize keeps the pivot** (`pivotKeptPosition` in `patchBoard`, when the part leans and a dimension or the turn changes; an
       explicit `position` wins): a length change moves the foot end, a width or thickness change is symmetric about the pivot, and

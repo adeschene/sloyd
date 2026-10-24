@@ -6,7 +6,8 @@ import { worldBox } from '../../document/designCheck';
 import { acrossOf, holeInstances } from '../../document/holes';
 import { axisDimensions, boardExtents, endFacing } from '../../document/geometry';
 import { findSites } from './sites';
-import { applyJoints, rebaseHoles } from './recipes';
+import { applyJoints } from './recipes';
+import { rebaseHoles } from '../../document/holeRebase';
 import type { JointChoice } from './recipes';
 import { GATE_TOLERANCE, gateUnjoin, readJoints } from './unjoin';
 

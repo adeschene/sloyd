@@ -2,7 +2,7 @@ import { worldParts } from '../document/tree';
 import { ARCH } from '../document/curveFixtures';
 import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
-import { useStore } from './store';
+import { useStore, HOLE_TILT_PAST_BOUND, LEAN_TURNS_HOLES } from './store';
 import type { AngleCut, Board, Lean, Shape, SloydDocument } from '../document/document';
 import { profileFromFields } from '../document/profiles';
 import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
@@ -12,6 +12,7 @@ import { leanMap, slopeOf, worldSlopes } from '../document/lean';
 import { isLevelled, levelCutOf, levelPlan, sameLevelLine, type LevelPlan } from '../document/levelEnds';
 import { partGeometry } from '../document/bodies';
 import { toWorld } from '../document/snapPoints';
+import { holeInstances } from '../document/holes';
 import { partBounds, partsBounds, postureRefusal } from '../document/document';
 import { snapToGrid } from '../document/geometry';
 import { dragTarget } from '../viewport/Gizmo';
@@ -3727,9 +3728,27 @@ describe('setLean, the lean refusals, resize keeps the pivot, drags round the de
     refuses('Only an upright part can lean.', () => s().setLean(['L'], { rake: 8 }));
   });
 
-  it('refuses a lean on a part with holes', () => {
+  // Angled holes §7: both splayed-legs refusals are lifted; only the seam re-choice on a holed part is refused.
+  it('a holed part can take a lean (a first lean chooses its face freely)', () => {
     load(leg({ holes: [HOLE] }));
-    refuses("A part with holes can't lean yet — that comes with angled holes.", () => s().setLean(['L'], { rake: 8 }));
+    expect(s().setLean(['L'], { rake: 8 })).toBeNull();
+    expect(occ('L').lean).toEqual({ x: 0, z: T8, face: 'thickness' });
+    expect(occ('L').holes).toEqual([HOLE]);
+    expect(s().setLean(['L'], { splay: 12 })).toBeNull();     // both non-zero: the face is kept
+    expect(occ('L').lean!.face).toBe('thickness');
+  });
+
+  it('the seam re-choice on a holed part is refused with the copy; the same edit without holes is not', () => {
+    load(leg({ holes: [HOLE], lean: { x: T12, z: T8, face: 'width' } }));
+    const text = 'This lean would turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.';
+    refuses(text, () => s().setLean(['L'], { splay: 0 }));   // x → 0 on face width: seamFree flips to thickness
+    expect(LEAN_TURNS_HOLES).toBe(text);
+    expect(s().setLean(['L'], { rake: 0 })).toBeNull();       // z → 0 on face width keeps width: allowed
+    expect(occ('L').lean).toEqual({ x: T12, z: 0, face: 'width' });
+    expect(s().setLean(['L'], null)).toBeNull();               // Clear is never refused
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    expect(s().setLean(['L'], { splay: 0 })).toBeNull();
+    expect(occ('L').lean!.face).toBe('thickness');
   });
 
   it('refuses a lean past the bound (rake 40 with splay 40), and a single slope past 45°', () => {
@@ -3748,9 +3767,12 @@ describe('setLean, the lean refusals, resize keeps the pivot, drags round the de
     expect(s().updateBoard('L', { length: 18 })).toBeUndefined();
   });
 
-  it('refuses a hole row on a leaning part', () => {
+  it('a hole row can be added to a leaning part, in its own frame', () => {
     load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
-    refuses("A leaning part can't take holes yet — that comes with angled holes.", () => s().addHoleRows('L', [holeRow()]));
+    expect(s().addHoleRows('L', [holeRow()])).toBeNull();
+    const { id: _id, ...stored } = occ('L').holes[0]!;
+    expect(stored).toEqual(holeRow());
+    expect(s().past.length).toBe(1);
   });
 
   it('refuses while gesturing and while exploded, writing nothing', () => {
@@ -4012,5 +4034,123 @@ describe('levelEnds (splayed legs spec §5): every user and placement in one edi
     expect(isLevelled(occ('L'), s().doc.units)).toBe(true);
     s().updateBoard('L', { length: occ('L').length + 1 });
     expect(isLevelled(occ('L'), s().doc.units)).toBe(false);
+  });
+});
+
+describe('tilted rows and holes on leaning parts (angled holes §4, §7)', () => {
+  const s = () => useStore.getState();
+  const occ = (id: string) => worldParts(s().doc).find((b) => b.id === id)!;
+  const side = (over: Partial<Board> = {}) =>
+    createBoard({ id: 'P', name: 'Side', length: 30, width: 12, thickness: 0.75, posture: 'flat', position: [0, 0, 0], ...over });
+  const ROW = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 4 };
+  const bare = (r: typeof ROW & { tiltAlong?: number; tiltAcross?: number }) => { const { id: _id, ...x } = r; return x; };
+
+  it('updateHoleRow writes a tilt within the bound and refuses one past 45° in all, writing nothing', () => {
+    s().replaceDocument({ ...createDocument('Tilt'), boards: [side({ holes: [ROW] })] });
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAlong: slopeOf(30) }))).toBeNull();
+    expect(occ('P').holes[0]!.tiltAlong).toBe(slopeOf(30));
+    const doc = s().doc;
+    const n = s().past.length;
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAlong: slopeOf(40), tiltAcross: slopeOf(40) }))).toBe(HOLE_TILT_PAST_BOUND);
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAlong: slopeOf(46) }))).toBe(HOLE_TILT_PAST_BOUND);
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAlong: Number.NaN }))).toBe(HOLE_TILT_PAST_BOUND);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
+    expect(HOLE_TILT_PAST_BOUND).toBe("The bore can't tilt past 45° in all — reduce an angle.");
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAlong: 0.6, tiltAcross: 0.8 }))).toBeNull(); // hypot exactly 1
+  });
+
+  it('addHoleRows refuses a row past the bound too', () => {
+    s().replaceDocument({ ...createDocument('Tilt'), boards: [side()] });
+    const doc = s().doc;
+    expect(s().addHoleRows('P', [bare({ ...ROW, tiltAlong: 1, tiltAcross: 0.5 })])).toBe(HOLE_TILT_PAST_BOUND);
+    expect(s().doc).toBe(doc);
+  });
+
+  it('typing both angles back to 0 leaves no tilt key (Review Focus 2)', () => {
+    s().replaceDocument({ ...createDocument('Tilt'), boards: [side({ holes: [{ ...ROW, tiltAlong: slopeOf(10), tiltAcross: -slopeOf(5) }] })] });
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAcross: -slopeOf(5) }))).toBeNull();
+    expect(s().updateHoleRow('P', 'r1', bare(ROW))).toBeNull();
+    const r = occ('P').holes[0]!;
+    expect('tiltAlong' in r).toBe(false);
+    expect('tiltAcross' in r).toBe(false);
+    // A zero handed in is not stored either (a stored slope is never 0).
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, tiltAlong: 0, tiltAcross: -0 }))).toBeNull();
+    expect(Object.keys(occ('P').holes[0]!).some((k) => k.startsWith('tilt'))).toBe(false);
+  });
+
+  // Review Focus 3: Level the ends on a holed leaning leg, world readouts before and after within 1e-9.
+  const LEAN: Lean = { x: slopeOf(12), z: slopeOf(8), face: 'width' };
+  const leg = (over: Partial<Board> = {}) =>
+    createBoard({ id: 'L', name: 'Leg', length: 16, width: 1.5, thickness: 1.25, posture: 'upright', position: [0.123, 0, 0.456], lean: LEAN, ...over });
+  const SOCKET = { id: 's1', face: 'width' as const, from: 'min' as const, diameter: 0.5, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 4, count: 1, pitch: 0, acrossFrom: 'max' as const, inset: 0.625 };
+  const TOP = { id: 't1', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, alongFrom: 'min' as const, station: 0.75, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.625 };
+  const W = (b: Board, p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
+  const mouth = (b: Board, id: string) => { const r = b.holes.find((x) => x.id === id)!; return W(b, holeInstances(b, r)[0]!.centre); };
+  const bottom = (b: Board, id: string) => {
+    const h = holeInstances(b, b.holes.find((x) => x.id === id)!)[0]!;
+    return W(b, [h.centre[0] + h.reach * h.bit[0], h.centre[1] + h.reach * h.bit[1], h.centre[2] + h.reach * h.bit[2]]);
+  };
+  const near = (a: readonly number[], c: readonly number[], what: string) => a.forEach((v, i) => expect(Math.abs(v - c[i]!), `${what} ${i}`).toBeLessThanOrEqual(1e-9));
+
+  it('Level the ends keeps a socket measured from the foot at the same place in the wood; a blind row entering the top keeps its bottom', () => {
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg({ holes: [SOCKET, { ...TOP, tiltAlong: slopeOf(7) }] })] });
+    const b0 = occ('L');
+    const m0 = mouth(b0, 's1');
+    const f0 = bottom(b0, 's1');
+    const t0 = bottom(b0, 't1');
+    expect(s().levelEnds('L')).toBeNull();
+    const b1 = occ('L');
+    expect(b1.length).toBeGreaterThan(16);
+    expect(b1.holes[0]!.station).toBeGreaterThan(4);               // the foot grew: eF > 0
+    expect(b1.holes[1]!.depth as number).toBeGreaterThan(1);        // the top grew: eT > 0
+    near(mouth(b1, 's1'), m0, 'socket mouth');
+    near(bottom(b1, 's1'), f0, 'socket bottom');
+    near(bottom(b1, 't1'), t0, 'top bottom');
+    expect(isLevelled(b1, s().doc.units)).toBe(true);
+  });
+
+  it('levelEnds is one undo entry with the holes; undo restores them exactly', () => {
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg({ holes: [SOCKET, TOP] })] });
+    const before = occ('L').holes;
+    const n = s().past.length;
+    expect(s().levelEnds('L')).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+    expect(occ('L').holes).not.toEqual(before);
+    s().undo();
+    expect(occ('L').holes).toEqual(before);
+    expect(occ('L').angleCuts).toHaveLength(0);
+  });
+
+  it('shared legs (mirror and turn, one Shape): every user keeps its socket mouth in the world; the holes are written once', () => {
+    const { id: _id, name: _name, position: _p, rotation: _r, ...shared } = leg({ holes: [{ ...SOCKET, tiltAcross: slopeOf(15) }, { ...TOP, tiltAlong: -slopeOf(6), tiltAcross: slopeOf(4) }] });
+    s().replaceDocument({
+      ...createDocument('Level'),
+      shapes: [{ id: 'sh', ...shared } as Shape],
+      boards: [
+        { id: 'a', name: 'Front left', position: [0, 0, 0], rotation: 0, shape: 'sh' },
+        { id: 'b', name: 'Front right', position: [12, 0, 0], rotation: 0, shape: 'sh', mirrored: true },
+        { id: 'c', name: 'Back right', position: [12, 0, 12], rotation: 180, shape: 'sh' },
+        { id: 'd', name: 'Back left', position: [0, 0, 12], rotation: 180, shape: 'sh', mirrored: true },
+      ] as Board[],
+    });
+    const ids = ['a', 'b', 'c', 'd'];
+    const before = new Map(ids.map((id) => { const b = occ(id); return [id, [mouth(b, 's1'), bottom(b, 's1'), bottom(b, 't1')]]; }));
+    expect(s().levelEnds('b')).toBeNull();
+    expect(s().past.length).toBe(1);
+    for (const id of ids) {
+      const b = occ(id);
+      const [m, f, t] = before.get(id)!;
+      near(mouth(b, 's1'), m!, `${id} socket mouth`);
+      near(bottom(b, 's1'), f!, `${id} socket bottom`);
+      near(bottom(b, 't1'), t!, `${id} top bottom`);
+    }
+  });
+
+  it('Level the ends refuses, writing nothing, when a shortened foot would cut a hole away', () => {
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg({ length: 30, position: [0.123, -14, 0.456], holes: [{ ...SOCKET, station: 0.5 }] })] });
+    const doc = s().doc;
+    expect(s().levelEnds('L')).toBe('Levelling the ends would cut away a hole — move it or remove it first.');
+    expect(s().doc).toBe(doc);
   });
 });

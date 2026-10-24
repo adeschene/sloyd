@@ -7,6 +7,7 @@ import type { Board } from '../document/document';
 import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
 import { holeLengthText } from '../document/holeText';
+import { slopeOf } from '../document/lean';
 
 const side = (over: Partial<Board> = {}) => createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -324,5 +325,111 @@ describe('preset details read the project units (presets minors 3)', () => {
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     expect(screen.getByText('6.4 mm pins every 32 mm along the length')).toBeInTheDocument();
     expect(screen.getByText('35 mm cup, 12.7 mm deep, 22.5 mm in from the edge')).toBeInTheDocument();
+  });
+});
+
+// Angled holes §4 (Task 9): a row's tilt is two magnitude fields, each with the end or side it leans toward.
+describe('tilting a row', () => {
+  const H = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
+    station: 6, count: 1, pitch: 0, acrossFrom: 'min', inset: 4 } as const;
+  const T = (deg: number) => Math.tan((deg * Math.PI) / 180);
+
+  it('a square row reads 0 in both, with no readout', () => {
+    open(side({ holes: [H] }));
+    expect(screen.getByLabelText('Tilt toward end')).toHaveValue('0.0°');
+    expect(screen.getByLabelText('Tilt toward side')).toHaveValue('0.0°');
+    expect(screen.queryByText(/off square ·/)).toBeNull();
+  });
+
+  it('Tilt toward end 10 with the far-end select writes tiltAlong = tan 10° and leaves tiltAcross untouched', async () => {
+    const user = userEvent.setup();
+    const c = -T(5) / 3;
+    open(side({ holes: [{ ...H, tiltAcross: c }] }));
+    await user.selectOptions(screen.getByLabelText('Tilt end'), 'max');
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '10{Enter}');
+    expect(rows()[0]!.tiltAlong).toBe(slopeOf(10));
+    expect(rows()[0]!.tiltAcross).toBe(c);
+    expect(useStore.getState().past.length).toBe(1);
+  });
+
+  it('the near-end select leans it the other way; switching the select on a tilted row negates the slope exactly', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [H] }));
+    await user.selectOptions(screen.getByLabelText('Tilt end'), 'min');
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '10{Enter}');
+    expect(rows()[0]!.tiltAlong).toBe(-slopeOf(10));
+    expect(screen.getByLabelText('Tilt end')).toHaveValue('min');
+    await user.selectOptions(screen.getByLabelText('Tilt end'), 'max');
+    expect(rows()[0]!.tiltAlong).toBe(slopeOf(10));
+    // A typed magnitude keeps the stored direction.
+    await user.clear(f); await user.type(f, '12{Enter}');
+    expect(rows()[0]!.tiltAlong).toBe(slopeOf(12));
+  });
+
+  it('Tilt toward side writes tiltAcross toward the side named', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [{ ...H, acrossFrom: 'max' }] }));
+    await user.selectOptions(screen.getByLabelText('Tilt side'), 'min');
+    const f = screen.getByLabelText('Tilt toward side');
+    await user.clear(f); await user.type(f, '20{Enter}');
+    expect(rows()[0]!.tiltAcross).toBe(slopeOf(20));   // min is the far side from acrossFrom 'max'
+    expect('tiltAlong' in rows()[0]!).toBe(false);
+  });
+
+  it('typing both angles back to 0 leaves no tilt key', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [{ ...H, tiltAlong: T(10), tiltAcross: T(5) }] }));
+    for (const label of ['Tilt toward end', 'Tilt toward side']) {
+      const f = screen.getByLabelText(label);
+      await user.clear(f); await user.type(f, '0{Enter}');
+    }
+    expect(Object.keys(rows()[0]!).some((k) => k.startsWith('tilt'))).toBe(false);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('changing From keeps the bore\'s direction (retilt): the stored slope flips with the flag', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [{ ...H, tiltAlong: T(10), tiltAcross: T(5) }] }));
+    await user.selectOptions(screen.getByLabelText('From'), 'max');
+    expect(rows()[0]).toMatchObject({ alongFrom: 'max', tiltAlong: -T(10), tiltAcross: T(5) });
+    // The select still names the same end of the part (the bit still leans toward the length max end).
+    expect(screen.getByLabelText('Tilt end')).toHaveValue('max');
+  });
+
+  it('a diameter edit keeps the tilt exactly; a face change is a new bore (square)', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [{ ...H, tiltAlong: T(10) }] }));
+    const d = screen.getByLabelText('Diameter');
+    await user.clear(d); await user.type(d, '3/8{Enter}');
+    expect(rows()[0]).toMatchObject({ diameter: 0.375, tiltAlong: T(10) });
+    await user.selectOptions(screen.getByLabelText('Face'), 'thickness|min');
+    expect('tiltAlong' in rows()[0]!).toBe(false);
+  });
+
+  it('the readout on a tilted row: the angle off square and the sightline from the along dimension', () => {
+    open(side({ holes: [{ ...H, tiltAlong: 0.2, tiltAcross: 0.15 }] }));
+    // atan(hypot(0.2, 0.15)) = atan(0.25) = 14.04°; atan2(0.15, 0.2) = 36.87°.
+    expect(screen.getByText('Bore 14.0° off square · sightline 36.9° from the length')).toBeInTheDocument();
+  });
+
+  it('a tilt past 45° in all is refused as the field\'s own error, nothing stored', async () => {
+    const user = userEvent.setup();
+    open(side({ holes: [{ ...H, tiltAlong: T(40) }] }));
+    const f = screen.getByLabelText('Tilt toward side');
+    await user.clear(f); await user.type(f, '40{Enter}');
+    expect(screen.getByRole('alert')).toHaveTextContent("The bore can't tilt past 45° in all — reduce an angle.");
+    expect(f).toHaveValue('40');
+    expect('tiltAcross' in rows()[0]!).toBe(false);
+  });
+
+  it('a holed leaning part shows the Holes section working: a row can be tilted there too', async () => {
+    const user = userEvent.setup();
+    open(side({ length: 16, width: 1.5, thickness: 1.25, posture: 'upright', lean: { x: T(12), z: T(8), face: 'width' },
+      holes: [{ ...H, face: 'width', from: 'min', station: 4, inset: 0.625 }] }));
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '10{Enter}');
+    expect(rows()[0]!.tiltAlong).toBe(slopeOf(10));
   });
 });

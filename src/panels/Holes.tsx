@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { useStore } from '../store/store';
+import { useStore, HOLE_TILT_PAST_BOUND } from '../store/store';
 import { isMetric } from '../units/length';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults, retilt, tiltDegrees, withinTiltBound } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
-import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine } from '../document/holeText';
-import { leans } from '../document/lean';
+import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout } from '../document/holeText';
+import { leans, slopeOf } from '../document/lean';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
+import { AngleField } from './AngleField';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
 const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
@@ -33,6 +34,18 @@ const seedPitch = (diameter: number) => (mm(32) > diameter ? mm(32) : 2 * diamet
  *  end-grain row in a 30" rail would otherwise seed a 15" bore. */
 const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
 
+const flipEnd = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
+/** The fields whose change re-reads the tilt (controller ruling T2c): the bit keeps its board-local direction through
+ *  `retilt`, or, for a new face or entry side, the row is square again. Every other edit keeps the stored slopes. */
+const FRAME_KEYS = ['face', 'from', 'along', 'alongFrom', 'acrossFrom'] as const;
+/** A tilt key is stored only when non-zero (Global Constraints): an absent, zero or −0 slope leaves no key. */
+function cleanTilt(r: HoleRow): HoleRow {
+  const { tiltAlong, tiltAcross, ...rest } = r;
+  return { ...rest, ...(tiltAlong ? { tiltAlong } : {}), ...(tiltAcross ? { tiltAcross } : {}) };
+}
+/** The end (or side) a stored slope leans toward: a positive slope leans to the far one from its flag. Null at 0. */
+const toward = (slope: number | undefined, from: CutFrom): CutFrom | null => (!slope ? null : slope > 0 ? flipEnd(from) : from);
+
 function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   const units = useStore((s) => s.doc.units);
   // Diameter and Every read as a hole is specified (spec R7), through the bench line's own formatter (holeText.ts).
@@ -44,11 +57,25 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   const line = holeLine(board, row, units);
   const stored = distinctFaults(holeFaults(board, row));
   const across = acrossOf(row);
+  // The end / side a square slope will lean toward once typed (a zero slope has no direction to store): the far one from
+  // the row's flag until the select names another. A stored slope's own direction always wins.
+  const [endPick, setEndPick] = useState<CutFrom | null>(null);
+  const [sidePick, setSidePick] = useState<CutFrom | null>(null);
+  const tiltEnd = toward(row.tiltAlong, row.alongFrom) ?? endPick ?? flipEnd(row.alongFrom);
+  const tiltSide = toward(row.tiltAcross, row.acrossFrom) ?? sidePick ?? flipEnd(row.acrossFrom);
+  const deg = tiltDegrees(row);
+  const readout = holeTiltReadout(row);
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
   const attempt = (patch: Partial<Omit<HoleRow, 'id'>>): string | null => {
     let next: HoleRow = { ...row, ...patch };
     // A face change onto the row's direction swaps the two: the row keeps running along the old face dimension.
     if (next.along === next.face) next = { ...next, along: row.face };
+    // Angled holes §3.1 (ruling T2c): an edit of the row's frame keeps the bit's board-local direction (or squares it
+    // for a new face); a typed tilt is written by its own field, never re-derived.
+    if (FRAME_KEYS.some((k) => next[k] !== row[k])) next = retilt(row, next);
+    next = cleanTilt(next);
+    // The store's ONE bound, judged first so a steep pair reads as the bound, not as whatever fault it would cause.
+    if (!withinTiltBound(next.tiltAlong ?? 0, next.tiltAcross ?? 0)) return HOLE_TILT_PAST_BOUND;
     // Ruling R5: a single hole becoming a row gets a real pitch in the SAME edit (Every is hidden at count 1, and a
     // stored pitch of 0 would stack hole 2 on hole 1); the fault check below judges the seeded row.
     if (row.count === 1 && next.count > 1 && next.pitch < next.diameter) next = { ...next, pitch: seedPitch(next.diameter) };
@@ -57,16 +84,27 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
     const had = new Set(stored.map(key));
     const added = holeFaults({ ...board, holes: board.holes.map((r) => (r.id === row.id ? next : r)) }, next).find((f) => !had.has(key(f)));
     if (added) return refusal(added, next, row.id);
-    setError(null);
     const { id: _id, ...rest } = next;
-    updateHoleRow(board.id, row.id, rest);
-    return null;
+    const refused = updateHoleRow(board.id, row.id, rest) ?? null;
+    if (!refused) setError(null);
+    return refused;
   };
   // Ruling R7: a typed field owns its refusal (DimensionField shows the returned text as ITS error, keeps the text and
   // focus, and no sibling's success clears it). A select or checkbox shows its refusal on the row (it stays on the
   // stored value, so the row-level alert can never sit beside a stale control).
   const field = (patch: Partial<Omit<HoleRow, 'id'>>): string | undefined => attempt(patch) ?? undefined;
   const set = (patch: Partial<Omit<HoleRow, 'id'>>) => { const r = attempt(patch); if (r) setError(r); };
+  /** A typed magnitude (degrees) in its ONE slope, toward the end or side the select names; the other slope is kept
+   *  exactly (degrees only in typed input: `slopeOf`). 0 removes the key. */
+  const typedTilt = (k: 'tiltAlong' | 'tiltAcross', from: CutFrom, to: CutFrom) => (d: number): string | undefined =>
+    field({ [k]: (to === from ? -1 : 1) * slopeOf(d) });
+  /** The select: a stored slope leans the other way by an exact negation; a square one remembers the choice. */
+  const pickTilt = (k: 'tiltAlong' | 'tiltAcross', from: CutFrom, remember: (f: CutFrom) => void) => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const to = e.target.value as CutFrom;
+    remember(to);
+    const slope = row[k];
+    if (slope && toward(slope, from) !== to) set({ [k]: 0 - slope });
+  };
   return (
     <div className="cut">
       <div className="cut-head">
@@ -122,7 +160,24 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
             <option value="max">{`${cap(across)} max ${end(across)}`}</option>
           </select>
         </div>
+        <AngleField label="Tilt toward end" value={Math.abs(deg.along)} max={45} min0 onCommit={typedTilt('tiltAlong', row.alongFrom, tiltEnd)} />
+        <div className="field">
+          <label htmlFor={`hole-tilt-end-${row.id}`}>Tilt end</label>
+          <select id={`hole-tilt-end-${row.id}`} className="input" value={tiltEnd} onChange={pickTilt('tiltAlong', row.alongFrom, setEndPick)}>
+            <option value="min">{`${cap(row.along)} min ${end(row.along)}`}</option>
+            <option value="max">{`${cap(row.along)} max ${end(row.along)}`}</option>
+          </select>
+        </div>
+        <AngleField label="Tilt toward side" value={Math.abs(deg.across)} max={45} min0 onCommit={typedTilt('tiltAcross', row.acrossFrom, tiltSide)} />
+        <div className="field">
+          <label htmlFor={`hole-tilt-side-${row.id}`}>Tilt side</label>
+          <select id={`hole-tilt-side-${row.id}`} className="input" value={tiltSide} onChange={pickTilt('tiltAcross', row.acrossFrom, setSidePick)}>
+            <option value="min">{`${cap(across)} min ${end(across)}`}</option>
+            <option value="max">{`${cap(across)} max ${end(across)}`}</option>
+          </select>
+        </div>
       </div>
+      {readout && <p className="field-note">{readout}</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
   );
@@ -131,9 +186,10 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
 /** The Holes section (holes spec §7, as amended): one row per stored HoleRow, and + Add hole ▾. */
 export function Holes({ board }: { board: Board }) {
   const addHoleRows = useStore((s) => s.addHoleRows);
-  // The store refuses a hole on a leaning part (splayed legs spec §8); its text shows here, as the panel's other refusals do.
+  // The store's refusal of an add (a tilt past the bound; angled holes §3.1) shows here, as the panel's other refusals do.
+  // A leaning part takes holes like any other (angled holes §7).
   const [error, setError] = useState<string | null>(null);
-  // A refusal belongs to the part and lean it was made for: Clear lean (or another part) retires it.
+  // A refusal belongs to the part and lean it was made for: another part (or a lean change) retires it.
   const isLeaning = leans(board);
   useEffect(() => setError(null), [board.id, isLeaning]);
   const add = (rows: Omit<HoleRow, 'id'>[]) => setError(addHoleRows(board.id, rows));

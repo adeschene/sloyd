@@ -20,20 +20,33 @@ import { copyBand, sameBands, withBands, withBandTypes } from '../document/bandM
 import { copyHardwareUse, HARDWARE_COUNT_MAX, sameHardware, withHardwareTypes, withHardwareUse } from '../document/hardwareModel';
 import type { HardwareTarget } from '../document/hardware';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
+import { withinTiltBound } from '../document/holeTilt';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 
 const HISTORY_LIMIT = 50;
 
+/** A row's tilt is within the loader's ONE bound (`withinTiltBound`); a square row always is. */
+const tiltWithin = (r: Pick<HoleRow, 'tiltAlong' | 'tiltAcross'>): boolean => withinTiltBound(r.tiltAlong ?? 0, r.tiltAcross ?? 0);
+/** The stored form of a row's tilt (Global Constraints): a slope is stored only when non-zero, so a zero (or −0) key goes. */
+function storedTilt(r: HoleRow): HoleRow {
+  if (r.tiltAlong !== 0 && r.tiltAcross !== 0) return r;
+  const { tiltAlong, tiltAcross, ...rest } = r;
+  return { ...rest, ...(tiltAlong ? { tiltAlong } : {}), ...(tiltAcross ? { tiltAcross } : {}) };
+}
+
 /** `setLean`'s world argument: signed degrees, and/or a direction (±1) that keeps the part's own magnitude. */
 export interface LeanWorld { rake?: number; splay?: number; rakeSign?: 1 | -1; splaySign?: 1 | -1 }
 
-/** setLean's and addHoleRows' refusals (splayed legs spec §3.2, §4, §8), verbatim. */
+/** setLean's refusals (splayed legs spec §3.2, §4; angled holes §7), verbatim. */
 export const LEAN_NOT_UPRIGHT = 'Only an upright part can lean.';
-export const LEAN_HAS_HOLES = "A part with holes can't lean yet — that comes with angled holes.";
 export const LEAN_PAST_BOUND = "The lean can't pass 45° in all — reduce the rake or splay.";
-export const HOLES_ON_LEAN = "A leaning part can't take holes yet — that comes with angled holes.";
+/** Angled holes §7: a lean edit whose seam-free face differs from the stored one turns the part's features a quarter
+ *  turn about its length; on a holed part that would turn its sockets the wrong way. */
+export const LEAN_TURNS_HOLES = 'This lean would turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.';
+/** addHoleRows' and updateHoleRow's refusal (angled holes §3.1): `withinTiltBound`, the loader's own bound. */
+export const HOLE_TILT_PAST_BOUND = "The bore can't tilt past 45° in all — reduce an angle.";
 
 /**
  * Which viewport tool has the pointer. View state, not document state — it is
@@ -405,9 +418,11 @@ interface StoreState {
   updateAngleCut: (boardId: string, cutId: string, next: Omit<AngleCut, 'id'>) => void;
   removeAngleCut: (boardId: string, cutId: string) => void;
   /** Hole rows (holes spec §7): several in one call are one undo entry. */
-  /** Refused, with `HOLES_ON_LEAN`, on a leaning part (splayed legs spec §8); null otherwise. */
+  /** Refused, with `HOLE_TILT_PAST_BOUND`, when a row's tilt is past the bound (angled holes §3.1); null otherwise. A
+   *  leaning part takes holes like any other (angled holes §7). A zero tilt key is not stored. */
   addHoleRows: (boardId: string, rows: Omit<HoleRow, 'id'>[]) => string | null;
-  updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => void;
+  /** As addHoleRows: `HOLE_TILT_PAST_BOUND` past the bound, decided before any mutation; null otherwise. */
+  updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => string | null;
   removeHoleRow: (boardId: string, rowId: string) => void;
   /** Curve cuts (curves spec §8): several in one call are one undo entry. */
   addCurves: (boardId: string, curves: Omit<CurveCut, 'id'>[]) => void;
@@ -1789,23 +1804,25 @@ export const useStore = create<StoreState>((set, get) => {
       if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
       if (!board || rows.length === 0) return null;
-      // Splayed legs spec §8: a hole on a leaning part waits for angled holes (chunk 2). Decided before edit().
-      if (leans(board)) return HOLES_ON_LEAN;
-      const added = rows.map((r) => ({ ...copyHoleRow(r as HoleRow), id: nextId() }));
+      // Angled holes §3.1: the loader's ONE bound, decided before edit(). A leaning part takes holes (§7).
+      if (!rows.every(tiltWithin)) return HOLE_TILT_PAST_BOUND;
+      const added = rows.map((r) => ({ ...storedTilt(copyHoleRow(r as HoleRow)), id: nextId() }));
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, holes: [...b.holes, ...added] } : b))));
       judgeHeld();
       return null;
     },
     updateHoleRow: (boardId, rowId, next) => {
-      if (readOnly()) return;
+      if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
       const cur = board?.holes.find((r) => r.id === rowId);
-      if (!board || !cur) return;
-      const after: HoleRow = { ...copyHoleRow(next as HoleRow), id: rowId };
-      if (sameHoleRow(cur, after)) return; // a no-op edit pushes no undo entry (invariant 4)
+      if (!board || !cur) return null;
+      if (!tiltWithin(next)) return HOLE_TILT_PAST_BOUND;
+      const after: HoleRow = { ...storedTilt(copyHoleRow(next as HoleRow)), id: rowId };
+      if (sameHoleRow(cur, after)) return null; // a no-op edit pushes no undo entry (invariant 4)
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         b.id === boardId ? { ...b, holes: b.holes.map((r) => (r.id === rowId ? after : r)) } : b)));
       judgeHeld();
+      return null;
     },
     removeHoleRow: (boardId, rowId) => {
       if (readOnly()) return;
@@ -1913,7 +1930,6 @@ export const useStore = create<StoreState>((set, get) => {
           continue;
         }
         if (b.posture !== 'upright') return LEAN_NOT_UPRIGHT;
-        if (b.holes.length > 0) return LEAN_HAS_HOLES;
         // World slopes, the typed one replaced and the other copied as is (§3.1: no trig round trip), then turned back
         // into the part's turn-0 frame: quarter turns are swaps and negations, so the untouched slope keeps its bits.
         const [wx, wz] = worldSlopes(b);
@@ -1933,6 +1949,9 @@ export const useStore = create<StoreState>((set, get) => {
         // The facing dimension is chosen once, when the part had no lean, and kept by later edits (§3.1); the stored
         // form is always seam-free.
         const lean = seamFree({ x, z, face: b.lean ? b.lean.face : chooseFace(b, x, z) });
+        // Angled holes §7: a RE-choice of the face (seamFree flipping a stored lean) turns the part's features a quarter
+        // turn about its length; refused on a holed part (a first lean, or Clear, is not a re-choice).
+        if (b.holes.length > 0 && b.lean && lean.face !== b.lean.face) return LEAN_TURNS_HOLES;
         if (b.lean && b.lean.x === lean.x && b.lean.z === lean.z && b.lean.face === lean.face) continue; // inv 4
         next.set(id, lean);
       }
@@ -1973,14 +1992,15 @@ export const useStore = create<StoreState>((set, get) => {
         plans.set(w.id, p);
       }
       if (users.every((w) => isLevelled(w, doc0.units))) return null; // inv 4: nothing would change
-      // Controller ruling 1: the SHARED fields (length, angle cuts) are written ONCE, through `b` — the Shape carries
+      // Controller ruling 1: the SHARED fields (length, angle cuts, and the holes re-anchored with them: angled holes §7)
+      // are written ONCE, through `b` — the Shape carries
       // them to every other user in its own hand (each user's own world cuts would be disagreeing edits across a
       // mirror) — and each storage target's OWN position from its own plan (one per target: placements share it).
       const writes = oneEditPerTarget(doc0, [b.id, ...users.map((w) => w.id)]);
       edit((doc) => mapWorld(doc, (w) => w.map((x) => {
         if (!writes.has(x.id)) return x;
         const p = plans.get(x.id)!;
-        return x.id === b.id ? { ...x, length: p.length, position: p.position, angleCuts: p.angleCuts } : { ...x, position: p.position };
+        return x.id === b.id ? { ...x, length: p.length, position: p.position, angleCuts: p.angleCuts, holes: p.holes } : { ...x, position: p.position };
       })));
       // Inv 24: the ends and length moved every user's snap points.
       judgeHeld();

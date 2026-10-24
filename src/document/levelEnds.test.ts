@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { isLevelled, levelCutOf, levelPlan, sameLevelLine, LEVEL_BELOW_FLOOR, LEVEL_FOOT_CUT, LEVEL_TOP_CUT, type LevelPlan } from './levelEnds';
+import { isLevelled, levelCutOf, levelPlan, sameLevelLine, LEVEL_BELOW_FLOOR, LEVEL_CUTS_HOLE, LEVEL_FOOT_CUT, LEVEL_TOP_CUT, type LevelPlan } from './levelEnds';
+import { levelEndHoles } from './holeRebase';
+import { holeInstances } from './holes';
 import { leanMap, slopeOf } from './lean';
 import { miterFields, taperCut } from './angleCuts';
 import { partGeometry } from './bodies';
 import { toWorld } from './snapPoints';
-import type { AngleCut, Board, Lean } from './types';
+import type { AngleCut, Board, HoleRow, Lean } from './types';
 import type { Units } from '../units/length';
 import type { Vec3 } from './frames';
 
@@ -229,5 +231,118 @@ describe('levelPlan (splayed legs spec §5)', () => {
       const { lean: _l, ...plain } = leg();
       expect(isLevelled(plain as Board, IN)).toBe(false);
     });
+  });
+});
+
+// Angled holes spec §7 (Task 9): Level the ends keeps every hole row where it was in the wood. The foot grows by eF (the
+// length MIN end), the top by eT (the MAX end); the old wood occupies length ∈ [eF, eF + L] of the new part.
+describe('levelEndHoles: the rows after the ends grow (angled holes §7)', () => {
+  const base = (over: Partial<HoleRow>): HoleRow => ({
+    id: 'h', face: 'width', from: 'min', diameter: 0.25, depth: 0.5, along: 'length', alongFrom: 'min', station: 3, count: 1,
+    pitch: 0, acrossFrom: 'min', inset: 0.4, ...over,
+  });
+  const eF = 0.3125;
+  const eT = 0.4375;
+  const run = (r: HoleRow) => levelEndHoles([r], eF, eT, leg())[0]!;
+
+  it('a station measured from the foot moves by eF, from the top by eT (one addition)', () => {
+    expect(run(base({ alongFrom: 'min' })).station).toBe(3 + eF);
+    expect(run(base({ alongFrom: 'max' })).station).toBe(3 + eT);
+  });
+
+  it('an inset measured along the length moves by its end\'s amount', () => {
+    const r = base({ face: 'width', along: 'thickness', station: 0.5, inset: 2 });
+    expect(run({ ...r, acrossFrom: 'min' }).inset).toBe(2 + eF);
+    expect(run({ ...r, acrossFrom: 'max' }).inset).toBe(2 + eT);
+    expect(run({ ...r, acrossFrom: 'min' }).station).toBe(0.5);
+  });
+
+  it('a blind square row entering an end deepens by that end\'s amount; its station and inset stay', () => {
+    const r = base({ face: 'length', along: 'width', station: 0.75, inset: 0.6, depth: 1 });
+    const f = run({ ...r, from: 'min' });
+    expect(f.depth).toBe(1 + eF);
+    expect([f.station, f.inset]).toEqual([0.75, 0.6]);
+    expect(run({ ...r, from: 'max' }).depth).toBe(1 + eT);
+  });
+
+  it('a through square row entering an end is the same object; a row nothing moves is the same object', () => {
+    const t = base({ face: 'length', along: 'width', station: 0.75, inset: 0.6, depth: 'through' });
+    expect(run(t)).toBe(t);
+    const none = base({});
+    expect(levelEndHoles([none], 0, 0, leg())[0]).toBe(none);
+  });
+
+  it('a blind tilted row entering an end: depth += e·|bit|, station −= e·tiltAlong, inset −= e·tiltAcross', () => {
+    const a = slopeOf(10);
+    const c = -slopeOf(6);
+    const r = base({ face: 'length', along: 'width', station: 0.75, inset: 0.6, depth: 1, tiltAlong: a, tiltAcross: c });
+    for (const [from, e] of [['min', eF], ['max', eT]] as const) {
+      const g = run({ ...r, from });
+      expect(g.depth).toBe(1 + e * Math.hypot(1, a, c));
+      expect(g.station).toBe(0.75 - e * a);
+      expect(g.inset).toBe(0.6 - e * c);
+      expect([g.tiltAlong, g.tiltAcross]).toEqual([a, c]);
+    }
+  });
+
+  it('a through tilted row entering an end keeps its line in the wood: station and inset shift, depth stays through', () => {
+    const a = slopeOf(10);
+    const r = base({ face: 'length', from: 'max', along: 'width', station: 0.75, inset: 0.6, depth: 'through', tiltAlong: a });
+    const g = run(r);
+    expect(g.depth).toBe('through');
+    expect(g.station).toBe(0.75 - eT * a);
+    expect(g.inset).toBe(0.6);
+  });
+
+  // Review Focus 3, in the pure plan, through the real leaned placement, for every flag combination: a row measured
+  // along the length keeps its world mouth (and bottom); a row entering an end keeps its world LINE (the old mouth on
+  // the new axis, the same direction) and a blind one its world bottom — its mouth moved out with the end face.
+  const W = (b: Board, p: readonly number[]) => toWorld(b, P(p));
+  const sub = (a: Vec3, c: Vec3): Vec3 => [a[0] - c[0], a[1] - c[1], a[2] - c[2]];
+  const near = (a: Vec3, c: Vec3, what: string) => a.forEach((x, i) => expect(Math.abs(x - c[i]!), `${what} axis ${i}`).toBeLessThanOrEqual(1e-9));
+  const along = (b: Board, p: LevelPlan): void => {
+    const nb: Board = { ...apply(b, p), holes: p.holes };
+    b.holes.forEach((r, k) => {
+      const h = holeInstances(b, r)[0]!;
+      const g = holeInstances(nb, p.holes[k]!)[0]!;
+      const far = (x: typeof h): Vec3 => [x.centre[0] + x.reach * x.bit[0], x.centre[1] + x.reach * x.bit[1], x.centre[2] + x.reach * x.bit[2]];
+      const tip = (x: typeof h): Vec3 => [x.centre[0] + x.bit[0], x.centre[1] + x.bit[1], x.centre[2] + x.bit[2]];
+      if (r.depth !== 'through') near(W(nb, far(g)), W(b, far(h)), `${r.id} bottom`);
+      if (r.face !== 'length') { near(W(nb, g.centre), W(b, h.centre), `${r.id} mouth`); return; }
+      const d = sub(W(nb, tip(g)), W(nb, g.centre));
+      near(d, sub(W(b, tip(h)), W(b, h.centre)), `${r.id} direction`);
+      const o = sub(W(b, h.centre), W(nb, g.centre));
+      const t = (o[0] * d[0] + o[1] * d[1] + o[2] * d[2]) / (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+      expect(Math.abs(t), `${r.id} the mouth moved`).toBeGreaterThan(0.01);
+      near([o[0] - t * d[0], o[1] - t * d[1], o[2] - t * d[2]], [0, 0, 0], `${r.id} old mouth off the new axis`);
+    });
+  };
+  for (const from of ['min', 'max'] as const) for (const af of ['min', 'max'] as const) for (const cf of ['min', 'max'] as const) {
+    it(`world points kept: an end row from ${from} (along ${af}, across ${cf}) and a side socket`, () => {
+      const holes: HoleRow[] = [
+        base({ id: 'e', face: 'length', from, along: 'width', alongFrom: af, acrossFrom: cf, station: 0.7, inset: 0.55, depth: 1.25, tiltAlong: slopeOf(9), tiltAcross: -slopeOf(5) }),
+        base({ id: 't', face: 'length', from, along: 'thickness', alongFrom: af, acrossFrom: cf, station: 0.6, inset: 0.7, depth: 'through', tiltAlong: slopeOf(2) }),
+        base({ id: 's', face: 'thickness', from: 'max', along: 'length', alongFrom: af, acrossFrom: cf, station: 5, inset: 0.6, depth: 0.5, tiltAlong: slopeOf(20) }),
+      ];
+      const b = leg({ holes });
+      const p = ok(levelPlan(b, IN));
+      expect(p.length).not.toBe(b.length);
+      along(b, p);
+    });
+  }
+
+  it('the foot shortened past a hole near it refuses before any change (the loader would drop the row)', () => {
+    const b = leg({ length: 30, position: [0.123, -14, 0.456], holes: [base({ station: 0.01 })] });
+    expect(levelPlan(b, IN)).toBe(LEVEL_CUTS_HOLE);
+    expect(LEVEL_CUTS_HOLE).toBe('Levelling the ends would cut away a hole — move it or remove it first.');
+    expect(typeof levelPlan({ ...b, holes: [base({ station: 20 })] }, IN)).not.toBe('string');
+  });
+
+  it('a plan with no holes returns an empty list; a levelled leg plans the same rows', () => {
+    expect(ok(levelPlan(leg(), IN)).holes).toEqual([]);
+    const b = leg({ holes: [base({})] });
+    const p = ok(levelPlan(b, IN));
+    const done: Board = { ...apply(b, p), holes: p.holes };
+    expect(ok(levelPlan(done, IN)).holes[0]).toBe(done.holes[0]);
   });
 });

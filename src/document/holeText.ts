@@ -112,6 +112,13 @@ function tiltText(r: HoleRow): string {
   return `, ${words}${r.depth === 'through' ? '' : ', depth measured along the bit'}`;
 }
 
+/** The Holes section's readout on a tilted row (angled holes §4), at the bench line's own 0.1° (`tiltText`), so the
+ *  two never disagree; null for a square row. */
+export function holeTiltReadout(r: HoleRow): string | null {
+  if (!isTilted(r)) return null;
+  return `Bore ${tiltResultantDeg(r).toFixed(1)}° off square · sightline ${tiltSightlineDeg(r).toFixed(1)}° from the ${r.along}`;
+}
+
 function holeLineBase(r: HoleRow, units: Units): string {
   return holeLineSquare(r, units) + tiltText(r);
 }
