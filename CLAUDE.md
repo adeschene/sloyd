@@ -78,7 +78,7 @@ created after adoption (inv 30).
 
 Static single-page app. No server, no database, no backend API, no env vars. **One
 outbound call**: Generate/joinery call `api.anthropic.com` from the browser with the
-user's own key (`dangerouslyAllowBrowser`), stored only in `sloyd.llm.v1`; the CSP's
+user's own key, stored only in `sloyd.llm.v1`; the CSP's
 `connect-src` allows only that origin.
 
 **The plain-JSON document is the source of truth; the Three.js scene is derived from it
@@ -153,25 +153,25 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 | lengths ↔ text | `units/length.ts` (inv 52); nominal names `units/nominal.ts` |
 | schema, load, migrate, ids | `document/types.ts`, `document.ts` (inv 11, 33), `ids.ts` |
 | turns, extents | `document/geometry.ts` `axisFrame` (inv 44, 2) |
-| composition, walk, write-back | `frames.ts`, `tree.ts` `worldParts`, `treeEdit.ts` (inv 46) |
-| shapes / links | `shapes.ts` `resolveBoard`, `links.ts` `LINK_FIELDS`, `linksToShapes.ts` (inv 45) |
-| rectangular cuts | `cuts.ts` (`CUT_GEOMETRY_FIELDS`, `cutShape`, `clippedRegion`; inv 40) |
+| composition, walk, write-back | `frames.ts`, `tree.ts`, `treeEdit.ts` (inv 46) |
+| shapes / links | `shapes.ts`, `links.ts`, `linksToShapes.ts` (inv 45) |
+| rectangular cuts | `cuts.ts` (inv 40) |
 | angle cuts | `angleCuts.ts`; AI `angleWorld.ts` / `taperWorld.ts` (inv 48) |
 | holes | `holes.ts`, `holeFaults.ts`; AI `holeWorld.ts` (inv 50) |
 | curves | `curves.ts`, `curveDrawing.ts` (inv 53) |
-| edge profiles | `profiles.ts` (`geometryBoard`), `profilePath.ts`, `sweep.ts` and kin; AI `profileWorld.ts` (inv 48, 53) |
+| edge profiles | `profiles.ts`, `profilePath.ts`, `sweep.ts` and kin; AI `profileWorld.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
 | edge banding | `bandModel.ts`, `banding.ts`; AI `bandWorld.ts` (inv 54) |
 | lean | `lean.ts`, `levelEnds.ts`, `leanContacts.ts`, `worldBounds.ts` (inv 57) |
-| bodies and edges | `bodies.ts` `partGeometry` / `boardBodies` / `edgesOf`, `seams.ts`, `outline.ts` (inv 16, 48) |
+| bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Repair; Refine's carry | `featureCarry.ts` (inv 56), `joints/featureZones.ts`, `featureRegions.ts`, `joints/tapers.ts` `joineryRefusal` |
-| cut list, nesting, Buying | `cutlist.ts` (inv 18), `nesting.ts` (inv 19, 22, 23), `purchase.ts`, `materials.ts` (inv 49) |
+| cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts`, `materials.ts` (inv 18, 19, 22, 23, 49) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
-| design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `refineDesign.ts`, `roleLinks.ts`, `generate/` (inv 41) |
+| design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `generate/` (inv 41) |
 | state | `store/store.ts` (inv 4, 24, 34, 42–47), `visibility.ts` (inv 43) |
 | persistence | `storage/` only, through `storage/index.ts` (invs 7, 29–31) |
 | viewport | `viewport/` — NO unit tests by design except the pure helpers and perf/watertight guards |
-| panels | `panels/` — one section per feature (AngleCuts, Holes, Curves, Profiles, Banding, Lean), each over a pure refusal module |
+| panels | `panels/` — one section per feature, each over a pure refusal module |
 
 **Test-only modules** (never import a test module — it re-registers its suite): `treeFixtures.ts`,
 `turnFixtures.ts`, `curveFixtures.ts`, `sweepFixtures.ts`, `meshCases.ts`, `shakerTableFixture.ts`, `stoolFixture.ts`.
@@ -318,21 +318,21 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 15. **Anything memoising on what `boardUVs` reads keys on `boardUVSignature`, never a
     hand-written field list.** The signature is the same for every solid of a board, so
     don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
-    the same failure. It includes every hole row, curve and profile. Bands are NOT in it: BoardMesh's memos add
+    the same failure. It includes every hole row and curve (profiles through `geometryBoard`; a
+    swept profile appends its own suffix). Bands are NOT in it: BoardMesh's memos add
     `bandViewSignature`, because a band type edit keeps the board object.
 16. **Edge lines come from `boardEdges` (`pocketEdges`, or `bodyEdges` once a part has angle
     cuts; `curvedEdges` for a curved part — `edgesOf` is the three-way choice), not from the
     solids. A marker or line must sit on a feature that is actually drawn.** No facet lines: a
     hole draws rims, never wall facets; a curve draws its outline and a through line only at a
     SHARP vertex (judged on the true arc, suppressed per INTERVAL, never as a whole line); a
-    stopped profile's run-out and a swept profile draw none (`smoothPair`, `sweptSmoothPair`),
+    stopped profile's run-out and a swept profile draw none,
     creases at sharp section vertices stay. **A run-out joins only faces of its own path end**,
     read off `BodyFace.stop` and the path, never the bare `runout` tag. **The fast swept edge path
     skips edges but never faces, and decides a line between two section faces only where both
-    cover the same stretch** (`coveredBothSides`); everything else, and every `overlap` face, goes
+    cover the same stretch**; everything else, and every `overlap` face, goes
     through `bodyEdges` with every face. Snap-point exceptions: a hole's centre and an arc's
-    centre may sit in air (the centre of a drawn rim/arc); waste is air to `stockProbe`
-    (`profileAirTester`, `sweptAirTester`), P3's on-arc points excepted.
+    centre may sit in air (the centre of a drawn rim/arc); waste is air to `stockProbe`, P3's on-arc points excepted.
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -526,8 +526,8 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     stay CONVEX; `pocketCells` is stock minus RECTANGULAR cuts only.** Anything that draws, edges,
     occludes or probes reads bodies (through `partGeometry`); anything that describes or joins
     rectangular cuts stays on `pocketCells`. A body no feature touches keeps its object/bytes. A
-    curve's waste is CLIPPED when the kept wood is convex (`curvePlan`, the strengthened P6), else
-    SPLIT into merged convex pieces (`convexPieces`), diagonals peeled LAST. A stopped profile
+    curve's waste is CLIPPED when the kept wood is convex, else
+    SPLIT into merged convex pieces, diagonals peeled LAST. A stopped profile
     subtracts its band plus `runoutPieces`. **A SWEPT profile's kept wood is BUILT, never its waste
     subtracted** (`sweep.ts`: skeleton bands × the kept section, plus the rest of the outline). A
     b2 stop's run-out is built in its station's MODEL-chord frame (`stopRunoutPieces`); a stop never
@@ -548,7 +548,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     convex. `holeFaults` is the ONE strict-rule decider** (`breaks-out` — a curve's waste
     included, keyed apart by `faultKey` —, `off-flat`, `meets-hole`, `too-deep`). An add is
     refused on any fault, an edit only when it ADDS one; a fault a later edit causes is KEPT,
-    noted, never clamped. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (`holeRowsFor`; the hole grid snaps the STORED distances, never world offsets; shape faults, a stored number past MAX_MAGNITUDE included, reject the part, reason `'hole'`); untouched rows return EXACTLY through the exact-row map (`originalHoles`, `sameHoles` as a set; only in a kept frame, inv 56), in the original order when every row is restored; a strict fault from the model is KEPT and flagged (`holeDesignFaults`, `'hole-fault'`), never rejected or clamped. Joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
+    noted, never clamped. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (the hole grid snaps the STORED distances, never world offsets; shape faults, a stored number past MAX_MAGNITUDE included, reject the part, reason `'hole'`); untouched rows return EXACTLY through the exact-row map (`originalHoles`, `sameHoles` as a set; only in a kept frame, inv 56), in the original order when every row is restored; a strict fault from the model is KEPT and flagged (`holeDesignFaults`, `'hole-fault'`), never rejected or clamped. Joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
     BoxGeometry routing; a part with no holes and no curves keeps its bytes. **A curved part's mesh
     is WATERTIGHT** (welded, conformed, centroid-fanned; `curvesWatertight.test.ts`); a shaped part
     is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (the list of what is memoised and where: `docs/invariants.md`). Perf guards are the MINIMUM of
@@ -572,7 +572,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     A `CurveCut` is a closed WASTE outline of lines and MINOR arcs (`rise` OR `radius`, the other
     derived, never written back); kinds are derived structurally. Authoring refuses an ADDED fault;
     one a resize causes is KEPT and noted. **Every edit is refused when an arc would pass a half
-    circle** (the loader would DROP it; it alone holds one within 4 ulps of its coordinates to the bound, fu 416). **A curved part's edges are BUILT** (`curvedEdges`). An
+    circle** (the loader would DROP it; it alone holds one within 4 ulps of its coordinates to the bound, fu 416). **A curved part's edges are BUILT**. An
     unknown segment `type` refuses the document. **Edge profiles are stored as `ProfileCut`s and
     every reader goes through `geometryBoard`** (a NEW reader takes the view too); `profileFaults` is
     the ONE profile fault decider; `profilePath.ts` the ONE path home. Faults and decisions read the
@@ -595,7 +595,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     on parts by flat name from the RESOLVED flat part (a shaped part's Shape included); only ASSEMBLY hardware reads the STORED definitions
     (`flatDocument` empties them, P2; inv 56); joinery and Repair accept it. Hardware is typed, never derived from holes.
 
-56. **Refine keeps a featured part's posture and rotation by ONE decision (`keptFrame`; the prohibition below): always with carried curves or carried profiles (`carriesProfiles`; `frameFor`), with only holes, bands and/or authored profiles only while its world extents keep their rank and thickness axis.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
+56. **Refine keeps a featured part's posture and rotation by ONE decision (`keptFrame`; the prohibition below): always with carried curves or carried profiles (`carriesProfiles`; `frameFor`), with only holes, bands and/or authored profiles only while its world extents keep their rank and thickness axis. Never `orient` either otherwise.** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` (band and hardware
     types through `designToDocument`'s opts) and before `linkByRole`. Holes, a plain part's bands and authored profiles are no longer carried (invs 50, 54, 53: authored in world words) but `hasFrameFeatures` still counts them (hardware never); a part whose only frame features are holes, bands and/or authored profiles the model turned (any strict rank inversion of its world extents: onto another face, C1, or in plan, R1; or, from an original tied at its smallest extent, a thickness axis no longer smallest — the tie clause) is `orient`ed like its plain twin, the exact-row and exact-entry swaps skipped, its holes, bands and profiles converted from the model's world words; `turnCandidates` never turns a part with curves or
     carried profiles, and re-stores a holed, banded or profiled part through world forms (holes and profiles with an exact set). A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop
     (`'feature-turned'`); the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
