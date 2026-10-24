@@ -4,7 +4,7 @@ import type { Board, Lean } from './types';
 import { checkDesign } from './designCheck';
 import { levelFaces, overlapArea } from './leanContacts';
 import { levelPlan } from './levelEnds';
-import { slopeOf } from './lean';
+import { chooseFace, slopeOf } from './lean';
 import { partBounds } from './worldBounds';
 import type { Units } from '../units/length';
 
@@ -76,5 +76,31 @@ describe('levelFaces (splayed legs §7.2)', () => {
     expect(v.map((x) => `${x.kind}:${x.parts.join(',')}`)).toEqual(['unsupported:Leg']);
     // The same leg levelled for its own lean is grounded (alone it would tip: its centre of mass is off its foot).
     expect(checkDesign({ ...createDocument('T'), boards: [l12] }, NO_LIMITS).map((x) => x.kind)).toEqual(['tips']);
+  });
+});
+
+describe('the tip footprint is the feet themselves (final review I1)', () => {
+  /** A three-legged staked stool: 1.5in legs 16in long on a 4in circle at 15°, 135° and 255°, each leaning 14° straight
+   *  outward, levelled; a 16 x 1.5 x 16 seat on their tops, pushed 5.25in toward 75° (the outward normal of the hull edge
+   *  between the first two feet). A levelled foot is the section turned to its sightline, so its plan bounding box reaches
+   *  past that slanted edge where no wood is: on the boxes' hull the centre of mass is about 1.16in inside (passes
+   *  TIP_MARGIN), on the feet's own hull 0.96in (tips). */
+  const stance = (): Board[] => {
+    const legs = [15, 135, 255].map((deg, k) => {
+      const a = deg * Math.PI / 180;
+      const x = slopeOf(14) * Math.cos(a);
+      const z = slopeOf(14) * Math.sin(a);
+      return levelled(createBoard({ id: `L${k}`, name: `Leg ${k + 1}`, length: 16, width: 1.5, thickness: 1.5, posture: 'upright',
+        position: [4 * Math.cos(a) - 0.75, 0, 4 * Math.sin(a) - 0.75], lean: { x, z, face: chooseFace(createBoard({ posture: 'upright' }), x, z) } }));
+    });
+    const n = 75 * Math.PI / 180;
+    const seat = createBoard({ id: 'S', name: 'Seat', length: 16, width: 16, thickness: 1.5, posture: 'flat',
+      position: [-8 + 5.25 * Math.cos(n), 16, -8 + 5.25 * Math.sin(n)] });
+    return [...legs, seat];
+  };
+  it('tips: the centre of mass is under 1in inside the hull of the feet, though over 1in inside their bounding boxes', () => {
+    const v = checkDesign({ ...createDocument('T'), boards: stance() }, NO_LIMITS);
+    expect(v.map((x) => x.kind)).toEqual(['tips']);
+    expect(v[0]!.message).toContain('0.96in inside');
   });
 });

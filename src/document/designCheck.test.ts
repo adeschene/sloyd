@@ -638,7 +638,9 @@ describe('leaning parts (splayed legs §7): extended, never weakened', () => {
     const foot = levelFaces(short).filter((f) => !f.up);
     expect(foot.length).toBeGreaterThan(0);
     for (const f of foot) expect(f.y).toBeGreaterThan(0.9);
-    expect(report(docOf(short, ...legs.slice(1), seatAt(16)))).toEqual(['hangs:Front right']);
+    // Three feet are left, and the centre of mass sits under 1in inside their real hull (final review I1: the feet's
+    // bounding boxes hid this tip), so the piece also tips: a second, true fault, not a restatement of the hang.
+    expect(report(docOf(short, ...legs.slice(1), seatAt(16)))).toEqual(['hangs:Front right', 'tips:']);
   });
 
   it('a leg whose foot cut is removed stands on a corner: the seat still rests on it, but it hangs', () => {
@@ -647,7 +649,8 @@ describe('leaning parts (splayed legs §7): extended, never weakened', () => {
     // Its lowest corner pokes through the floor plane, so its real box reaches the floor; its foot is no face.
     expect(partBounds(rocking).min[1]).toBeLessThan(0);
     expect(levelFaces(rocking).filter((f) => !f.up)).toEqual([]);
-    expect(report(docOf(rocking, ...legs.slice(1), seatAt(16)))).toEqual(['hangs:Front right']);
+    // Three feet are left; on their real hull the piece tips too (final review I1, as above).
+    expect(report(docOf(rocking, ...legs.slice(1), seatAt(16)))).toEqual(['hangs:Front right', 'tips:']);
   });
 
   it('a short, wide leaning pad glued up under the seat is not held by its top: (c) never applies to a leaning part', () => {

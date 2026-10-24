@@ -465,7 +465,8 @@ interface LeanView {
   /** The plan area by which part i RESTS on part j — a level down face of i within TOUCH in y of a level up face of j —
    *  for a pair with a leaning part; 0 when it does not. */
   rests(i: number, j: number): number;
-  /** A leaning part's footprint: the plan bounding boxes of its level faces on the floor. */
+  /** A leaning part's footprint: its level faces on the floor, as one zero-size box per polygon vertex (so the tip hull is
+   *  the feet's own hull, never their bounding boxes'). */
   feet(i: number): Box[];
 }
 
@@ -515,11 +516,9 @@ function leanView(doc: FlatDocument, boxes: Box[], touching: Box[][], leaning: b
     floor: boxes.map((b, k) => (leaning[k] ? facesOf(k).some(onFloor) : b.min[1] <= TOUCH)),
     unlevelled: leaning.map((l, k) => l && !facesOf(k).some((f) => !f.up)),
     rests,
-    feet: (k) => facesOf(k).filter(onFloor).map((f) => {
-      const xs = f.poly.map((p) => p[0]);
-      const zs = f.poly.map((p) => p[1]);
-      return { name: boxes[k].name, min: [Math.min(...xs), f.y, Math.min(...zs)], max: [Math.max(...xs), f.y, Math.max(...zs)] };
-    }),
+    // One zero-size box per foot VERTEX, so the hull of the boxes' corners is exactly the hull of the feet (final review
+    // I1): a levelled foot is a parallelogram skewed along the sightline, and its bounding box reaches out where no wood is.
+    feet: (k) => facesOf(k).filter(onFloor).flatMap((f) => f.poly.map(([x, z]): Box => ({ name: boxes[k].name, min: [x, f.y, z], max: [x, f.y, z] }))),
   };
 }
 
