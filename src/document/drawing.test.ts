@@ -1,11 +1,18 @@
 import { createBoard, defaultShelfPinRow, holeInStock, partGeometry, stockChecks, taperCut } from './document';
 import { ARCH } from './curveFixtures';
-import type { Board, HoleRow } from './types';
+import type { Board, HoleRow, Lean } from './types';
 import { chiralAngled, chiralCurved } from './turnFixtures';
-import { archCurve, bowCurve, defaultCorners } from './curves';
-import { mirrorPart } from './frames';
+import { archCurve, bowCurve, cornerCurve, defaultCorners } from './curves';
+import { mirrorPart, type Vec3 } from './frames';
+import type { BodyFace } from './bodies';
+import { slopeOf } from './lean';
+import { levelPlan } from './levelEnds';
+import { toWorld } from './snapPoints';
+import { partBounds } from './worldBounds';
+import { dimensionView } from './dimensions';
+import { IMPERIAL } from '../units/length';
 import { curveSilhouettes } from './curveDrawing';
-import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type Seg2 } from './drawing';
+import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type P2, type Seg2, type View } from './drawing';
 
 const len = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
 const total = (segs: Seg2[], part?: string) =>
@@ -527,5 +534,161 @@ describe('drawView: feature tags (feature callouts spec §4.1)', () => {
     const top = box('p', 36, 20, 0.75);
     const four = defaultCorners(top).map((c, i) => ({ id: `k${i}`, ...c }));
     expect(tags(drawView([{ ...top, curves: four }], TOP).visible)).toEqual(new Set(four.map((c) => `p:curve:${c.id}`)));
+  });
+});
+
+describe('drawings read the lean (splayed legs spec §6.1 R1–R3, §6.2)', () => {
+  const T8 = slopeOf(8);
+  const T12 = slopeOf(12);
+  /** Rake 8° (world Z), splay 12° (world X): both slopes non-zero and unequal (the `chiralPart` rule). */
+  const LEAN: Lean = { x: T12, z: T8, face: 'width' };
+  const legOf = (over: Partial<Board> = {}): Board =>
+    createBoard({ id: 'L', name: 'Leg', length: 16, width: 1.5, thickness: 1.25, posture: 'upright', position: [0.123, 0, 0.456], lean: LEAN, ...over });
+  const levelled = (b: Board): Board => {
+    const p = levelPlan(b, IMPERIAL);
+    if (typeof p === 'string') throw new Error(p);
+    return { ...b, length: p.length, position: p.position, angleCuts: p.angleCuts };
+  };
+  const P = (v: readonly number[]) => ({ length: v[0]!, width: v[1]!, thickness: v[2]! });
+  const dotv = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+  /** A face's world outward normal, off `toWorld` (which composes the lean, R1): independent of `worldBodies`. */
+  const worldNormal = (b: Board, f: BodyFace): Vec3 => {
+    const v0 = f.verts[0]!;
+    const a = toWorld(b, P(v0));
+    const tip = toWorld(b, P([v0[0] + f.n[0], v0[1] + f.n[1], v0[2] + f.n[2]]));
+    return [tip[0] - a[0], tip[1] - a[1], tip[2] - a[2]];
+  };
+  /** The lines of a single CONVEX part as an oracle: each body edge (two faces sharing two vertices) is visible exactly
+   *  when one of its two faces faces the viewer. Total projected lengths, visible and hidden. */
+  function convexOracle(b: Board, view: View): { visible: number; hidden: number } {
+    const [body] = partGeometry(b).bodies;
+    expect(partGeometry(b).bodies).toHaveLength(1);
+    const faces = body!.faces;
+    const same = (p: readonly number[], q: readonly number[]) => Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!) <= 1e-9;
+    let visible = 0;
+    let hidden = 0;
+    for (let i = 0; i < faces.length; i++) for (let j = i + 1; j < faces.length; j++) {
+      const shared = faces[i]!.verts.filter((p) => faces[j]!.verts.some((q) => same(p, q)));
+      if (shared.length !== 2) continue;
+      const [A, E] = shared.map((p) => toWorld(b, P(p)));
+      const l = Math.hypot(dotv(E!, view.right) - dotv(A!, view.right), dotv(E!, view.up) - dotv(A!, view.up));
+      const faces2 = [faces[i]!, faces[j]!].map((f) => dotv(worldNormal(b, f), view.toward));
+      if (faces2.some((x) => x > 1e-9)) visible += l; else hidden += l;
+    }
+    return { visible, hidden };
+  }
+
+  it('a leaning leg\'s Front view: the lowest visible line of a levelled leg lies on y = 0, ending at the projected foot vertices', () => {
+    const b = levelled(legOf());
+    const foot = b.angleCuts.find((c) => c.from === 'min' && c.face === 'length')!;
+    const footVerts = partGeometry(b).bodies.flatMap((body) => body.faces).filter((f) => f.cut === foot.id)
+      .flatMap((f) => f.verts.map((v) => toWorld(b, P(v))));
+    expect(footVerts.length).toBeGreaterThan(0);
+    for (const v of footVerts) expect(Math.abs(v[1])).toBeLessThanOrEqual(1e-9);
+    const xs = footVerts.map((v) => v[0]);
+    const d = drawView([b], FRONT);
+    const lowest = Math.min(...d.visible.flatMap((s) => [s.a[1], s.b[1]]));
+    expect(Math.abs(lowest)).toBeLessThanOrEqual(1e-9);
+    // The twist turns the foot in plan, so the Front view sees two foot edges meeting at the front corner: together they run
+    // from the leftmost foot vertex to the rightmost, and every end is a projected foot vertex.
+    const onFloor = d.visible.filter((s) => Math.abs(s.a[1]) <= 1e-9 && Math.abs(s.b[1]) <= 1e-9);
+    expect(onFloor.length).toBeGreaterThan(0);
+    for (const s of onFloor) for (const p of [s.a, s.b]) expect(Math.min(...xs.map((x) => Math.abs(x - p[0])))).toBeLessThanOrEqual(1e-9);
+    expect(Math.min(...onFloor.flatMap((s) => [s.a[0], s.b[0]]))).toBeCloseTo(Math.min(...xs), 9);
+    expect(Math.max(...onFloor.flatMap((s) => [s.a[0], s.b[0]]))).toBeCloseTo(Math.max(...xs), 9);
+    expect(total(onFloor)).toBeCloseTo(Math.max(...xs) - Math.min(...xs), 9);
+  });
+
+  /** Inches: a hidden span's ends are trimmed by DRAW_EPS-scale amounts (1e-6; the clip's grown, sampled ray), so totals over a
+   *  dozen edges agree with the oracle to a few 1e-6 (measured ≤ 2.3e-6), never exactly. */
+  const TRIM = 1e-5;
+  const agrees = (b: Board, view: View) => {
+    const want = convexOracle(b, view);
+    const d = drawView([b], view);
+    expect.soft(Math.abs(total(d.visible) - want.visible), `${view.title} visible`).toBeLessThanOrEqual(TRIM);
+    expect.soft(Math.abs(total(d.hidden) - want.hidden), `${view.title} hidden`).toBeLessThanOrEqual(TRIM);
+  };
+
+  it('the oracle agrees with today\'s drawing of an unleaned box and leg (so the lean checks below are not vacuous)', () => {
+    for (const b of [legOf({ lean: undefined }), box('q', 3, 2, 1, [0.5, 0.25, 0.125])]) for (const view of [FRONT, SIDE, TOP, ISO]) agrees(b, view);
+  });
+
+  it.each([['levelled (planes path)', true], ['uncut (the box body, R3)', false]] as const)(
+    'a %s leaning leg hides exactly the lines its own leaned wood hides, in every view', (_, cut) => {
+      const b = cut ? levelled(legOf()) : legOf();
+      expect(partGeometry(b).bodies[0]!.box !== null).toBe(!cut);
+      for (const view of [FRONT, SIDE, TOP, ISO]) agrees(b, view);
+    });
+
+  it('a drawing\'s bounds are the leaning part\'s real bounds (R2), never its pre-lean box', () => {
+    const b = levelled(legOf());
+    const r = partBounds(b);
+    for (const view of [FRONT, SIDE, TOP]) {
+      const d = drawView([b], view);
+      const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => [(k & 1 ? r.max : r.min)[0], (k & 2 ? r.max : r.min)[1], (k & 4 ? r.max : r.min)[2]]);
+      const sx = corners.map((c) => dotv(c, view.right));
+      const sy = corners.map((c) => dotv(c, view.up));
+      expect(d.bounds.min[0]).toBeCloseTo(Math.min(...sx), 12);
+      expect(d.bounds.max[0]).toBeCloseTo(Math.max(...sx), 12);
+      expect(d.bounds.min[1]).toBeCloseTo(Math.min(...sy), 12);
+      expect(d.bounds.max[1]).toBeCloseTo(Math.max(...sy), 12);
+    }
+  });
+
+  it('dimension chains use real extents: a seat on levelled legs dimensions its real height', () => {
+    const leg = levelled(legOf());
+    // The level top cut sits at the pivot's height (16), the foot on the floor; the seat rests on the tops.
+    const seat = box('S', 20, 14, 1, [-5, 16, -5]);
+    const d = dimensionView([leg, seat], FRONT, IMPERIAL);
+    expect(d.vertical.overall!.from).toBeCloseTo(0, 9);
+    expect(d.vertical.overall!.to).toBe(17);
+    expect(d.vertical.overall!.label).toBe('17"');
+  });
+
+  it('another part still hides a leaning leg (the own-wood lift skips no other wood): a seat over it hides it in Plan', () => {
+    const leg = levelled(legOf());
+    const seat = box('S', 20, 14, 1, [-5, 16, -5]);
+    const d = drawView([leg, seat], TOP);
+    expect(total(d.visible, 'L')).toBe(0);
+    expect(total(d.hidden, 'L')).toBeGreaterThan(0);
+    // The seat's lift-free probe is unchanged by the leg beneath it: its four plan edges are visible.
+    expect(total(d.visible, 'S')).toBeCloseTo(2 * (20 + 14), 9);
+  });
+
+  it('a hand-loaded leaning part with holes still draws (the occluder stays hole-free, inv 47)', () => {
+    const b = levelled(legOf());
+    const row = defaultShelfPinRow(b);
+    expect(row).not.toBeNull();
+    const holed: Board = { ...b, holes: [{ ...row!, id: 'h' }] };
+    expect(() => drawView([holed], FRONT)).not.toThrow();
+    expect(total(drawView([holed], FRONT).visible)).toBeGreaterThan(0);
+  });
+
+  it('a curved leaning leg draws its silhouette where its LEANED faces turn from the view (silhouetteLines gets the world view)', () => {
+    const corner = { id: 'rc', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'max', radius: 0.5 }) };
+    const b = legOf({ width: 1.5, thickness: 1.5, curves: [corner] });
+    // The oracle: two adjacent faces of the curve whose world normals face opposite ways to the view; their shared line,
+    // projected, must be drawn (a smooth join draws nothing else, inv 16).
+    const faces = partGeometry(b).bodies.flatMap((body) => body.faces).filter((f) => f.curve === 'rc');
+    const same = (p: readonly number[], q: readonly number[]) => Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!) <= 1e-9;
+    let found = 0;
+    for (const view of [ISO, FRONT, SIDE]) {
+      const d = drawView([b], view);
+      const drawn = [...d.visible, ...d.hidden].filter((s) => s.feature === 'L:curve:rc');
+      for (let i = 0; i < faces.length; i++) for (let j = i + 1; j < faces.length; j++) {
+        const [s1, s2] = [faces[i]!, faces[j]!].map((f) => dotv(worldNormal(b, f), view.toward));
+        if (!(s1! * s2! < 0 && Math.abs(s1!) > 1e-9 && Math.abs(s2!) > 1e-9)) continue;
+        const shared = faces[i]!.verts.filter((p) => faces[j]!.verts.some((q) => same(p, q)));
+        if (shared.length !== 2) continue;
+        const [A, E] = shared.map((p) => { const w = toWorld(b, P(p)); return [dotv(w, view.right), dotv(w, view.up)] as P2; });
+        const L = Math.hypot(E![0] - A![0], E![1] - A![1]);
+        // Drawn segments on that line: both ends within 1e-6 of it.
+        const off = (p: P2) => Math.abs((E![0] - A![0]) * (p[1] - A![1]) - (E![1] - A![1]) * (p[0] - A![0])) / L;
+        const on = drawn.filter((s) => off(s.a) <= 1e-6 && off(s.b) <= 1e-6);
+        expect(total(on)).toBeCloseTo(L, 6);
+        found += 1;
+      }
+    }
+    expect(found).toBeGreaterThan(0);
   });
 });

@@ -11,7 +11,7 @@ import type { Section } from '../document/section';
 import { cuttingLine, hatchPatterns, HATCHES, markedView, sectionTitle, sectionViewOf, type CuttingLine } from '../document/sectionView';
 import { buildCutList, flatDocument } from '../document/document';
 import { anchorsFor, layoutBalloons, numberList, type PlacedBalloon } from './planBalloons';
-import { partFeatures } from '../document/featureKeys';
+import { leanNotes, partFeatures } from '../document/featureKeys';
 import { planKeys, type KeyTag } from './planKeys';
 import { LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
 
@@ -188,6 +188,10 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, sec
   const keys = useMemo(() => planKeys(features,
     [{ view: TOP, d: top.d, at: lay.top }, { view: FRONT, d: front.d, at: lay.front }, { view: SIDE, d: side.d, at: lay.side }],
     lay.scale, lay), [features, views]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Splayed legs §6.2: each keyed leaning part's note, once per sheet (the keying is the feature callouts'), built in the
+  // document layer (inv 19); listed here only. Two same-named parts may read alike, so the list keys by position.
+  const leaning = useMemo(() => leanNotes(parts, keyed), [parts, keyed]);
+  notes.push(...leaning);
   if (keys.notShown.length > 0) notes.push(`Not shown in these views: ${keys.notShown.join('; ')}.`);
   if (keys.unkeyed.length > 0) notes.push(`Not keyed (no room): ${keys.unkeyed.join(', ')}.`);
   return (
@@ -203,7 +207,7 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, sec
           {keys.lines.map((l) => <li key={l.letter}><span className="plans-key-letter">{l.letter}</span> {l.shown}</li>)}
         </ul>
       )}
-      {notes.length > 0 && <ul className="plans-notes">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+      {notes.length > 0 && <ul className="plans-notes">{notes.map((n, i) => <li key={`${i}:${n}`}>{n}</li>)}</ul>}
     </figure>
   );
 });

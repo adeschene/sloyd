@@ -479,10 +479,29 @@ export function curveEdgeLifts(board: Board, toward: readonly number[]): (V3 | u
         if (m > 0 && (best === 0 || m < best)) best = m;
       }
     }
-    if (best === 0) return undefined;
-    const s = Math.min(LIFT_MAX, PROBE / best);
-    return [toward[0]! * s, toward[1]! * s, toward[2]! * s] as V3;
+    return liftAlong(best, toward);
   });
+}
+
+/** curveEdgeLifts' lift for an edge whose most viewer-facing face meets the view at `best` (0: none faces it): ALONG the
+ *  view by `min(LIFT_MAX, PROBE / best)`, or undefined. */
+function liftAlong(best: number, toward: readonly number[]): V3 | undefined {
+  if (best === 0) return undefined;
+  const s = Math.min(LIFT_MAX, PROBE / best);
+  return [toward[0]! * s, toward[1]! * s, toward[2]! * s] as V3;
+}
+
+/**
+ * Splayed legs §6.2: curveEdgeLifts' along-view lift for an edge of a LEANING part, from the WORLD outward normals of the
+ * faces holding it — the most viewer-facing of them (`facing`: edge-on and away add nothing). A lean turns every face
+ * oblique to every standard view, and a face meeting the view at n.toward ≲ 0.25 grazes its own edge hidden in its
+ * DRAW_EPS-grown body (measured: a 14.3° leg's long outline read hidden in Plan, gone from the isometric). The probe moves,
+ * never the drawn line; grazing OTHER wood still hides.
+ */
+export function ownWoodLift(normals: readonly (readonly number[])[], toward: readonly number[]): V3 | undefined {
+  let best = 0;
+  for (const n of normals) { const x = dot3(n, toward); if (facing(x) > 0 && x > best) best = x; }
+  return liftAlong(best, toward);
 }
 
 /** Inches: a board-local point on a body face's plane, and inside its polygon (closed), for curveEdgeLifts' run-out faces. */
