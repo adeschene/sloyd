@@ -1,13 +1,18 @@
 import { worldParts } from './tree';
 import { describe, expect, it } from 'vitest';
-import { checkDesign, faceContacts, rejectedViolations, TOUCH } from './designCheck';
+import { checkDesign, faceContacts, partMass, rejectedViolations, TOUCH } from './designCheck';
 import type { DesignLimits } from './designCheck';
 import { createBoard, createDocument, flatDocument, migrateDocument } from './document';
 import workbenchRaw from './fixtures/simple-workbench.sloyd?raw';
 import type { FlatDocument } from './document';
 import type { Board } from './types';
 import { taperCut } from './angleCuts';
-import { axisFrame, endFacing } from './geometry';
+import { axisFrame, boardExtents, endFacing } from './geometry';
+import { chooseFace, leanMap, slopeOf } from './lean';
+import { levelCutOf, levelPlan } from './levelEnds';
+import { levelFaces } from './leanContacts';
+import { mirrorPart } from './frames';
+import { partBounds } from './worldBounds';
 import type { AngleCut } from './types';
 
 const NO_LIMITS: DesignLimits = { width: null, depth: null, height: null, maxParts: 100 };
@@ -517,5 +522,203 @@ describe('the displayed copy in a metric project (fu 355)', () => {
   it('the display units can be given apart from the document (Refine checks an imperial conversion)', () => {
     const v = one(docOf(box('A', [0, 0, 0], [10, 1, 10]), box('B', [0, 0.75, 0], [10, 1, 10])), 'overlap', MM);
     expect(v.shown).toBe('B passes 6.4 mm into A along Y.');
+  });
+});
+
+describe('leaning parts (splayed legs §7): extended, never weakened', () => {
+  const IN = { display: 'imperial-fractional', precision: 16 } as const;
+  const T8 = slopeOf(8);
+  const T12 = slopeOf(12);
+  /**
+   * The four legs by the §3.4 idiom, built as pure world parts (the store's Copy mirrored and Link are not needed to
+   * judge world parts): the front-right leg leans its foot toward +X and +Z with its pivot (top centre) at (5, 16, 5);
+   * `mirrorPart` gives its left twin across x = 0, and a 180° turn about the vertical through the origin gives the back
+   * pair. Then each world leg is levelled by `levelPlan` (or not).
+   */
+  const turned180 = (b: Board): Board => {
+    const e = boardExtents(b);
+    return { ...b, rotation: ((b.rotation + 180) % 360) as Board['rotation'], position: [0 - (b.position[0] + e[0]), b.position[1], 0 - (b.position[2] + e[2])] };
+  };
+  const fourLegs = (x: number, z: number, side = 1.5): Board[] => {
+    const fr = createBoard({ name: 'Front right', length: 16, width: side, thickness: side, posture: 'upright', position: [5 - side / 2, 0, 5 - side / 2],
+      lean: { x, z, face: chooseFace(createBoard({ posture: 'upright' }), x, z) } });
+    const fl = { ...mirrorPart(fr), name: 'Front left' };
+    return [fr, fl, { ...turned180(fr), name: 'Back left' }, { ...turned180(fl), name: 'Back right' }];
+  };
+  const level = (b: Board): Board => {
+    const p = levelPlan(b, IN);
+    if (typeof p === 'string') throw new Error(p);
+    return { ...b, length: p.length, position: p.position, angleCuts: p.angleCuts };
+  };
+  const seatAt = (y: number) => box('Seat', [-7, y, -7], [14, 1.5, 14]);
+  const outward = () => fourLegs(T12, T8).map(level);
+  const report = (doc: FlatDocument) => checkDesign(doc, NO_LIMITS).map((v) => `${v.kind}:${v.parts.join(',')}`);
+
+  it('the idiom: four levelled legs share one length, each foot outboard of its pivot and on the floor', () => {
+    const legs = outward();
+    expect(new Set(legs.map((b) => b.length)).size).toBe(1);
+    for (const b of legs) {
+      const piv = leanMap(b)!.pivot;
+      const foot = levelFaces(b).filter((f) => !f.up);
+      expect(foot.length).toBeGreaterThan(0);
+      for (const f of foot) {
+        expect(Math.abs(f.y)).toBeLessThanOrEqual(1e-9);
+        const cx = f.poly.reduce((s, p) => s + p[0], 0) / f.poly.length;
+        const cz = f.poly.reduce((s, p) => s + p[1], 0) / f.poly.length;
+        expect(Math.sign(cx)).toBe(Math.sign(piv[0]));
+        expect(Math.abs(cx)).toBeGreaterThan(Math.abs(piv[0]) + 3);
+        expect(Math.abs(cz)).toBeGreaterThan(Math.abs(piv[2]) + 2);
+      }
+    }
+  });
+
+  it('a levelled four-leg stool stands', () => {
+    const v = report(docOf(...outward(), seatAt(16)));
+    expect(v.filter((k) => /^(unsupported|hangs|tips)/.test(k))).toEqual([]);
+    expect(v).toEqual([]);
+  });
+
+  it('an unlevelled leg is not grounded: the stool reports each leg, and says to level its ends', () => {
+    // Each leg dropped until its lowest corner is on the floor, the seat set on the highest top corner: every contact is
+    // an edge or a corner, never a face.
+    const legs = fourLegs(T12, T8).map((b) => {
+      const lo = partBounds(b).min[1];
+      return { ...b, position: [b.position[0], b.position[1] - lo, b.position[2]] as Board['position'] };
+    });
+    expect(Math.min(...legs.map((b) => partBounds(b).min[1]))).toBeCloseTo(0, 12);
+    const top = Math.max(...legs.map((b) => partBounds(b).max[1]));
+    const v = checkDesign(docOf(...legs, seatAt(top)), NO_LIMITS);
+    const unsupported = v.filter((x) => x.kind === 'unsupported');
+    expect(unsupported.map((x) => x.parts[0])).toEqual(['Front right', 'Front left', 'Back left', 'Back right', 'Seat']);
+    for (const x of unsupported.slice(0, 4)) {
+      expect(x.message).toBe(`${x.parts[0]} is not connected to the floor through touching parts; it leans, and its foot is not level: Level the ends.`);
+    }
+    // The seat does not lean: no hint.
+    expect(unsupported[4]!.message).toBe('Seat is not connected to the floor through touching parts.');
+    expect(v.filter((x) => x.kind === 'overlap')).toEqual([]);
+  });
+
+  it('the hint rides in `shown` too, after the nearest supported part', () => {
+    const legs = outward();
+    const stray = fourLegs(T12, T8)[0]!;
+    const far = { ...stray, name: 'Stray', position: [40, 0, 0] as Board['position'] };
+    const v = checkDesign({ ...docOf(...legs, seatAt(16), far), units: { display: 'metric-mm', precision: 16 } }, NO_LIMITS);
+    const x = v.find((k) => k.kind === 'unsupported')!;
+    expect(x.parts).toEqual(['Stray']);
+    expect(x.message).toMatch(/^Stray is not connected to the floor through touching parts; the nearest supported part is .+, [\d.]+in away; it leans, and its foot is not level: Level the ends\.$/);
+    expect(x.shown).toMatch(/; the nearest supported part is .+, [\d.]+ mm away; it leans, and its foot is not level: Level the ends\.$/);
+  });
+
+  it('overlap on real bodies: a levelled top raised 0.25 into the seat reports; exactly touching reports none', () => {
+    const legs = outward();
+    expect(report(docOf(...legs, seatAt(16))).filter((k) => k.startsWith('overlap'))).toEqual([]);
+    const raised = legs.map((b, i) => (i === 0 ? { ...b, position: [b.position[0], b.position[1] + 0.25, b.position[2]] as Board['position'] } : b));
+    const v = checkDesign(docOf(...raised, seatAt(16)), NO_LIMITS).filter((x) => x.kind === 'overlap');
+    expect(v.map((x) => x.message)).toEqual(['Seat passes 0.25in into Front right along Y.']);
+  });
+
+  it('overlap reads the leaned body, not the pre-lean box', () => {
+    // A block inside the bottom of the leg's PRE-lean box, which is air: the foot has splayed ~3.4in toward +X.
+    const legs = outward();
+    const fr = legs[0]!;
+    const e = boardExtents(fr);
+    const block = box('Block', [fr.position[0], 0, fr.position[2]], [1, 1, e[2]]);
+    expect(report(docOf(fr, block)).filter((k) => k.startsWith('overlap'))).toEqual([]);
+  });
+
+  it.each([
+    ['splayed out', () => outward()],
+    // Leaning in, the foot lies under the seat in plan: a rest must be judged on height too, never on plan alone.
+    ['leaning in', () => fourLegs(-0.25, -0.25, 1).map(level)],
+  ] as const)('a levelled leg whose foot stops short of the floor hangs from the seat (%s): a leaning part is held only by resting', (_n, make) => {
+    const legs = make();
+    // 1in off the foot end, the pivot kept (the box's top stays put): the foot cut rides with the end, still level, now
+    // about 1in up. The seat still rests on it, so it is grounded through the seat, but nothing is under it.
+    const short = { ...legs[0]!, length: legs[0]!.length - 1, position: [legs[0]!.position[0], legs[0]!.position[1] + 1, legs[0]!.position[2]] as Board['position'] };
+    const foot = levelFaces(short).filter((f) => !f.up);
+    expect(foot.length).toBeGreaterThan(0);
+    for (const f of foot) expect(f.y).toBeGreaterThan(0.9);
+    expect(report(docOf(short, ...legs.slice(1), seatAt(16)))).toEqual(['hangs:Front right']);
+  });
+
+  it('a leg whose foot cut is removed stands on a corner: the seat still rests on it, but it hangs', () => {
+    const legs = outward();
+    const rocking = { ...legs[0]!, angleCuts: legs[0]!.angleCuts.filter((c) => levelCutOf(c) !== 'foot') };
+    // Its lowest corner pokes through the floor plane, so its real box reaches the floor; its foot is no face.
+    expect(partBounds(rocking).min[1]).toBeLessThan(0);
+    expect(levelFaces(rocking).filter((f) => !f.up)).toEqual([]);
+    expect(report(docOf(rocking, ...legs.slice(1), seatAt(16)))).toEqual(['hangs:Front right']);
+  });
+
+  it('a short, wide leaning pad glued up under the seat is not held by its top: (c) never applies to a leaning part', () => {
+    // Upright, 6 x 6 in plan, splayed 5°, levelled and then cut down to 1.5in long from its foot, pivot kept: thinnest in Y,
+    // so an unleaned pad there would be held by its top face (the seat is held without it).
+    const pad0 = level(createBoard({ name: 'Pad', length: 16, width: 6, thickness: 6, posture: 'upright', position: [-3, 0, -3],
+      lean: { x: slopeOf(5), z: 0, face: 'width' } }));
+    const cut = pad0.length - 1.5;
+    const pad = { ...pad0, length: 1.5, position: [pad0.position[0], pad0.position[1] + cut, pad0.position[2]] as Board['position'] };
+    const r = partBounds(pad);
+    expect(r.max[1] - r.min[1]).toBeLessThan(Math.min(r.max[0] - r.min[0], r.max[2] - r.min[2]));
+    expect(report(docOf(...outward(), seatAt(16), pad))).toEqual(['hangs:Pad']);
+  });
+
+  it("a part fastened to a leaning leg's PRE-lean box face is not held by it (the lean's touching is its level faces only)", () => {
+    // Splay only, so the leg is not twisted; the cleat stands against the -X face of the levelled front-right leg's
+    // pre-lean box, which is air: the leaned leg's -X face runs away from it below the top. Thin in X, its top under the
+    // seat (grounded through it, but not a broad face): an unleaned leg there would hold it by (c).
+    const legs = fourLegs(T12, 0).map(level);
+    const fr = legs[0]!;
+    const cleat = box('Cleat', [fr.position[0] - 0.75, 13, fr.position[2]], [0.75, 3, 1.5]);
+    expect(report(docOf(...legs, seatAt(16), cleat))).toEqual(['hangs:Cleat']);
+  });
+
+  it('an unlevelled (uncut) leaning leg is measured on its leaned body, never its pre-lean box', () => {
+    const fr = fourLegs(T12, T8)[0]!;
+    expect(fr.angleCuts).toEqual([]);
+    const e = boardExtents(fr);
+    // Inside the bottom of the pre-lean box: air, the foot has splayed out.
+    const inBox = box('Block', [fr.position[0], 0, fr.position[2]], [1, 1, e[2]]);
+    expect(report(docOf(fr, inBox)).filter((k) => k.startsWith('overlap'))).toEqual([]);
+    // Around the leaned foot, outside the pre-lean box: a real overlap.
+    const f = partBounds(fr);
+    const atFoot = box('Block', [f.max[0] - 1, f.min[1], f.max[2] - 1], [2, 1, 2]);
+    expect(atFoot.position[0]).toBeGreaterThan(fr.position[0] + e[0]);
+    expect(report(docOf(fr, atFoot)).filter((k) => k.startsWith('overlap'))).toEqual(['overlap:Block,Front right']);
+  });
+
+  it('partMass weighs an uncut leaning leg where its wood is: the leaned centre, the same volume', () => {
+    const fr = fourLegs(T12, T8)[0]!;
+    const e = boardExtents(fr);
+    const m = partMass(fr);
+    expect(m.v).toBeCloseTo(e[0] * e[1] * e[2], 9);
+    const c = leanMap(fr)!.apply([fr.position[0] + e[0] / 2, fr.position[1] + e[1] / 2, fr.position[2] + e[2] / 2]);
+    for (let k = 0; k < 3; k += 1) expect(m.c[k]).toBeCloseTo(c[k]!, 9);
+    expect(m.c[0]).toBeGreaterThan(fr.position[0] + e[0] / 2 + 1);
+  });
+
+  it('the tip footprint includes leaning feet: splayed out, a load past the pivots stands', () => {
+    // 12 x 6 x 12 resting on the seat from x = 3 to 15: its centre of mass (≈ 5.9) is past the pivots' square (±5.75)
+    // but well inside the splayed feet (≈ ±9.2).
+    const load = box('Load', [3, 17.5, -6], [12, 6, 12]);
+    const v = report(docOf(...outward(), seatAt(16), load));
+    expect(v).toEqual([]);
+  });
+
+  it('the tip footprint includes leaning feet: leaning in to a 2 × 2 square of feet, a load that would stand on the pivots tips', () => {
+    // Slope 0.25 on each axis carries each foot centre from (±5, ±5) to (±1, ±1) over the 16in drop: feet on a 2 × 2
+    // square. 1in legs, so the feet clear each other.
+    const inward = fourLegs(-0.25, -0.25, 1).map(level);
+    for (const b of inward) {
+      for (const f of levelFaces(b).filter((g) => !g.up)) {
+        const cx = f.poly.reduce((s, p) => s + p[0], 0) / f.poly.length;
+        expect(Math.abs(Math.abs(cx) - 1)).toBeLessThan(0.1);
+      }
+    }
+    // The bare stool stands.
+    expect(report(docOf(...inward, seatAt(16)))).toEqual([]);
+    // 8 x 6 x 8 from x = 2 to 10: centre of mass ≈ 2.9, past the feet (≈ ±1.75) yet more than 1in inside the pivots'
+    // square (±5.5), so a footprint of the legs' pre-lean boxes would let it stand.
+    const load = box('Load', [2, 17.5, -4], [8, 6, 8]);
+    expect(report(docOf(...inward, seatAt(16), load))).toEqual(['tips:']);
   });
 });

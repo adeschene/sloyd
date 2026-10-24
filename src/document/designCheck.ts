@@ -2,12 +2,15 @@ import type { Board, FlatDocument } from './document';
 import type { Region } from './types';
 import type { RejectedPart } from './generated';
 import { pocketCells } from './cuts';
-import { clipConvex, partGeometry } from './bodies';
+import { clipConvex } from './bodies';
 import type { BodyFace } from './bodies';
 import { splitRegion, taperFields, touchedRegion } from './angleCuts';
 import type { AngleConflict, TaperConflict } from './angledRefusal';
-import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset, toWorldOffset } from './geometry';
+import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset } from './geometry';
 import { localToDir } from './taperWorld';
+import { leans } from './lean';
+import { partBounds } from './worldBounds';
+import { levelFaces, overlapArea, worldBodyFaces, type LevelFace } from './leanContacts';
 import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../units/length';
 
 /**
@@ -32,6 +35,11 @@ import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../un
  * Contacts, grounding and the tip footprint read `contactSolids` (an angled part counts only where it is flat; a sloped face
  * is never a contact); overlap stays on `worldSolids` except for a pair with an angled part, measured on real bodies (fu 302);
  * the tip check weighs an angled part by its real bodies (`partMass`, fu 303).
+ *
+ * A LEANING part (splayed legs spec §7) is extended onto, never weakened: its box is its real bounds (`partBounds`, R2),
+ * its overlap and weight read its leaned bodies, and it touches only by RESTING — a level face of it on a level face of
+ * the other part (`LeanView`). Every unleaned pair takes the code above untouched, and a lean-free document never builds
+ * the view (inv 39's PROHIBITION stands as written).
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'angle-joint' | 'feature-turned' | 'hole-fault' | 'band-fault' | 'profile-fault';
 export interface Violation {
@@ -109,8 +117,8 @@ function hull(points: P2[]): P2[] {
  * on-the-floor parts' plan corners. Floating parts are left out — they are
  * already `unsupported`, and one fault gets one report.
  */
-function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number) => Box[], mass: (i: number) => { v: number; c: number[] } | null): ((len: Len) => string) | null {
-  const floor = boxes.flatMap((b, i) => (b.min[1] <= TOUCH ? footprint(i) : []));
+function tipsMessage(boxes: Box[], grounded: Set<number>, onFloor: (i: number) => boolean, footprint: (i: number) => Box[], mass: (i: number) => { v: number; c: number[] } | null): ((len: Len) => string) | null {
+  const floor = boxes.flatMap((_, i) => (onFloor(i) ? footprint(i) : []));
   if (floor.length === 0) return null;
   let vol = 0, cx = 0, cz = 0;
   for (const i of grounded) {
@@ -158,13 +166,21 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number)
   return (len) => `The piece would tip toward ${dir}: its centre of mass is ${len(Math.abs(d))} ${d >= 0 ? 'inside' : 'beyond'} the edge of what touches the floor; keep it at least ${len(m)} inside. Widen the base or move weight inward.`;
 }
 
-/** The parts connected to the floor through touching parts, optionally with one part removed from the design. */
-function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null): Set<number> {
-  const joined = (i: number, j: number) => (tapered[i] || tapered[j]
+/**
+ * The parts connected to the floor through touching parts, optionally with one part removed from the design. The ONE
+ * grounding walk (inv 39): with a `lean` view, a pair with a leaning part is joined only when one RESTS on the other and a
+ * leaning part starts the walk only from a level foot on the floor (splayed legs §7.2); every other pair and part is
+ * judged exactly as without it.
+ */
+function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null, lean: LeanView | null = null): Set<number> {
+  const plain = (i: number, j: number) => (tapered[i] || tapered[j]
     ? touching[i].some((a) => touching[j].some((b) => connected(a, b)))
     : connected(boxes[i], boxes[j]));
+  const joined = lean
+    ? (i: number, j: number) => (lean.leaning[i] || lean.leaning[j] ? lean.rests(i, j) > 0 || lean.rests(j, i) > 0 : plain(i, j))
+    : plain;
   const grounded = new Set<number>();
-  const queue = boxes.flatMap((b, i) => (i !== skip && b.min[1] <= TOUCH ? [i] : []));
+  const queue = boxes.flatMap((b, i) => (i !== skip && (lean ? lean.floor[i] : b.min[1] <= TOUCH) ? [i] : []));
   queue.forEach((i) => grounded.add(i));
   while (queue.length) {
     const i = queue.shift()!;
@@ -178,8 +194,9 @@ function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: 
   return grounded;
 }
 
-/** One face contact ON a box: which face (axis, side), who touches it, over what area. */
-interface Contact { other: number; axis: number; side: -1 | 1; area: number }
+/** One face contact ON a box: which face (axis, side), who touches it, over what area. `rest`: a RESTING contact of a pair
+ *  with a leaning part (splayed legs §7.2; always axis 1), which only clause (a) of `isHeld` reads. */
+interface Contact { other: number; axis: number; side: -1 | 1; area: number; rest?: true }
 
 /**
  * Face contacts per box: face planes coincide within TOUCH on one axis, and
@@ -244,10 +261,14 @@ function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
  * pass; coverage, not two-sidedness, is what catches the workbench shelf: it
  * touched legs on BOTH ends, 19% each.
  */
-function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean, groundedWithout: (skip: number) => Set<number>): boolean {
+function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean, groundedWithout: (skip: number) => Set<number>, lean: LeanView | null): boolean {
   const b = boxes[i];
-  const cs = without === null ? contacts[i] : contacts[i].filter((c) => c.other !== without);
-  if (cs.some((c) => c.axis === 1 && c.side === -1)) return true;
+  const all = without === null ? contacts[i] : contacts[i].filter((c) => c.other !== without);
+  if (all.some((c) => c.axis === 1 && c.side === -1)) return true;
+  // Splayed legs §7.2: a leaning part is held only by resting (a); "between" and "lapped" never apply to it, and a pair
+  // with a leaning part touches only by resting, so its contacts never feed (b) or (c) of an unleaned part.
+  if (lean?.leaning[i]) return false;
+  const cs = lean ? all.filter((c) => !c.rest) : all;
   if ([0, 2].some((axis) => coverage(b, cs, axis, -1) >= HELD_COVERAGE && coverage(b, cs, axis, 1) >= HELD_COVERAGE)) return true;
   const ext = [0, 1, 2].map((k) => b.max[k] - b.min[k]);
   const thin = Math.min(...ext);
@@ -256,12 +277,13 @@ function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number 
     if (!(c.axis === 1 && c.side === 1)) return true;
     if (!allowTop) return false;
     const o = c.other;
-    return boxes[o].min[1] <= TOUCH || (groundedWithout(i).has(o) && isHeld(o, boxes, contacts, i, false, groundedWithout));
+    // `o` never leans here (a leaning part's contacts are rests, filtered out above), so its box is its floor test.
+    return boxes[o].min[1] <= TOUCH || (groundedWithout(i).has(o) && isHeld(o, boxes, contacts, i, false, groundedWithout, lean));
   });
 }
 
-function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWithout: (skip: number) => Set<number>): string | null {
-  if (isHeld(i, boxes, contacts, null, true, groundedWithout)) return null;
+function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWithout: (skip: number) => Set<number>, lean: LeanView | null): string | null {
+  if (isHeld(i, boxes, contacts, null, true, groundedWithout, lean)) return null;
   const b = boxes[i];
   const cs = contacts[i];
   const pairs = [0, 2].map((axis) => ({ axis, lo: coverage(b, cs, axis, -1), hi: coverage(b, cs, axis, 1) }));
@@ -361,24 +383,11 @@ export function contactSolids(b: Board): Box[] {
 }
 const solidBoxesOf = (doc: FlatDocument): Box[][] => doc.boards.map(worldSolids);
 
-const DIM_INDEX = { length: 0, width: 1, thickness: 2 } as const;
 type P3 = [number, number, number];
 const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
 
-/**
- * A part's bodies (boardBodies: pocket cells clipped by its angle cuts) in WORLD space, each as faces with outward
- * normals — the checks' home of the body crossing (drawing.ts' worldBodies is the drawings'; a box body's extents are
- * pinned against worldBox in every posture and turn by test) — the same crossing as worldBox (position + toWorldOffset on the dimension each axis shows; a reversed axis
- * flips the normal). The checks read it only for an angled part (fu 302, 303).
- */
-export function worldBodyFaces(b: Board): BodyFace[][] {
-  const frame = axisFrame(b);
-  const toW = (p: readonly number[]): P3 => [0, 1, 2].map((i) => b.position[i]! + toWorldOffset(b, i, p[DIM_INDEX[frame[i]!.dim]]!)) as P3;
-  return partGeometry(b).bodies.map((body) => body.faces.map((f) => ({
-    n: [0, 1, 2].map((i) => f.n[DIM_INDEX[frame[i]!.dim]]! * (frame[i]!.reversed ? -1 : 1)) as P3,
-    verts: f.verts.map(toW),
-  })));
-}
+/** The checks' body crossing (the lean included) lives in `leanContacts.ts`, beside the level faces it feeds. */
+export { worldBodyFaces };
 
 /** The world extents of two convex bodies' intersection, or null when they do not meet in a solid (fu 302). */
 function bodyOverlap(p: BodyFace[], q: BodyFace[]): number[] | null {
@@ -393,12 +402,13 @@ function bodyOverlap(p: BodyFace[], q: BodyFace[]): number[] | null {
 }
 
 /**
- * A part's volume and world centre for the tip check (fu 303). Untapered: its box, by the same arithmetic as before
- * (a notched part still weighs its box). Angled: its real bodies, each split into tetrahedra from an interior point
+ * A part's volume and world centre for the tip check (fu 303). Unangled and unleaned: its box, by the same arithmetic as before
+ * (a notched part still weighs its box). Angled or leaning: its real (leaned) bodies, each split into tetrahedra from an interior point
  * (the mean of its vertices: a convex body contains it), volumes and centroids summed.
  */
 export function partMass(b: Board): { v: number; c: P3 } {
-  if (!isAngled(b)) {
+  // A leaning part weighs its leaned bodies (splayed legs §7.1): its box is not where its wood is.
+  if (!isAngled(b) && !leans(b)) {
     const e = boardExtents(b);
     return { v: e[0] * e[1] * e[2], c: [0, 1, 2].map((i) => b.position[i]! + e[i]! / 2) as P3 };
   }
@@ -432,9 +442,111 @@ export function faceContacts(doc: FlatDocument): FaceContact[] {
     cs.filter((c) => c.other > a).map((c) => ({ a, b: c.other, axis: c.axis, side: c.side, area: c.area })));
 }
 
+/**
+ * A RESTING contact's least plan area, in square inches: float noise only. Leaned vertices carry ~1e-15in of error
+ * (`leanMap`'s one rotation), so two faces meeting only along an edge or at a corner clip to a sliver of area ~1e-15 times
+ * the face's size (well under 1e-9 for any part under 10,000in); the least real contact the unleaned rule accepts is
+ * TOUCH × TOUCH ≈ 1e-3. Never a design tolerance: do not raise it to make a contact fail, nor drop it to 0.
+ */
+const REST_AREA = 1e-9;
+
+/**
+ * What the checks know of the LEANING parts (splayed legs spec §7.2). Built once per check, and only when some part leans,
+ * so a lean-free document never builds it and every walk takes today's code (Global Constraints: byte for byte).
+ */
+interface LeanView {
+  /** Per part: it leans (`leans`). */
+  leaning: boolean[];
+  /** Per part: on the floor. A leaning part by a level DOWN face at |y| <= TOUCH (an edge or a corner on the floor is not
+   *  standing: it rocks); any other part by its box, as before (min y <= TOUCH). */
+  floor: boolean[];
+  /** Per part: a leaning part with no level down face at all (its foot is not cut level): the `unsupported` hint. */
+  unlevelled: boolean[];
+  /** The plan area by which part i RESTS on part j — a level down face of i within TOUCH in y of a level up face of j —
+   *  for a pair with a leaning part; 0 when it does not. */
+  rests(i: number, j: number): number;
+  /** A leaning part's footprint: the plan bounding boxes of its level faces on the floor. */
+  feet(i: number): Box[];
+}
+
+/**
+ * The view, for `boxes` (a leaning part's its real bounds) and `touching` (an unleaned part's contact solids). An unleaned
+ * part's level faces are its contact solids' top and bottom (flat wood only, inv 38); a leaning part's are `levelFaces`.
+ */
+function leanView(doc: FlatDocument, boxes: Box[], touching: Box[][], leaning: boolean[]): LeanView {
+  const n = boxes.length;
+  const faces: (LevelFace[] | undefined)[] = [];
+  const facesOf = (k: number): LevelFace[] => {
+    let f = faces[k];
+    if (!f) {
+      f = leaning[k] ? levelFaces(doc.boards[k]!) : touching[k].flatMap((s): LevelFace[] => {
+        const poly: [number, number][] = [[s.min[0], s.min[2]], [s.max[0], s.min[2]], [s.max[0], s.max[2]], [s.min[0], s.max[2]]];
+        return [{ y: s.min[1], up: false, poly }, { y: s.max[1], up: true, poly }];
+      });
+      faces[k] = f;
+    }
+    return f;
+  };
+  const onFloor = (f: LevelFace) => !f.up && Math.abs(f.y) <= TOUCH;
+  const memo = new Map<number, number>();
+  const rests = (i: number, j: number): number => {
+    const key = i * n + j;
+    let a = memo.get(key);
+    if (a === undefined) {
+      a = 0;
+      // Real bounds that do not come within TOUCH cannot hold faces that do.
+      if ([0, 1, 2].every((k) => shared(boxes[i], boxes[j], k) >= -TOUCH)) {
+        const ups = facesOf(j).filter((f) => f.up);
+        for (const d of facesOf(i)) {
+          if (d.up) continue;
+          for (const u of ups) {
+            if (Math.abs(d.y - u.y) > TOUCH) continue;
+            const s = overlapArea(d.poly, u.poly);
+            if (s > REST_AREA) a += s;
+          }
+        }
+      }
+      memo.set(key, a);
+    }
+    return a;
+  };
+  return {
+    leaning,
+    floor: boxes.map((b, k) => (leaning[k] ? facesOf(k).some(onFloor) : b.min[1] <= TOUCH)),
+    unlevelled: leaning.map((l, k) => l && !facesOf(k).some((f) => !f.up)),
+    rests,
+    feet: (k) => facesOf(k).filter(onFloor).map((f) => {
+      const xs = f.poly.map((p) => p[0]);
+      const zs = f.poly.map((p) => p[1]);
+      return { name: boxes[k].name, min: [Math.min(...xs), f.y, Math.min(...zs)], max: [Math.max(...xs), f.y, Math.max(...zs)] };
+    }),
+  };
+}
+
+/** RESTING contacts (splayed legs §7.2) for every pair with a leaning part, added to `contacts`: i's bottom on j's top. */
+function addRests(contacts: Contact[][], lean: LeanView): void {
+  const n = contacts.length;
+  for (let i = 0; i < n; i += 1) {
+    for (let j = 0; j < n; j += 1) {
+      if (i === j || !(lean.leaning[i] || lean.leaning[j])) continue;
+      const area = lean.rests(i, j);
+      if (area <= 0) continue;
+      contacts[i].push({ other: j, axis: 1, side: -1, area, rest: true });
+      contacts[j].push({ other: i, axis: 1, side: 1, area, rest: true });
+    }
+  }
+}
+
 /** `display`: the units the person reads (default the document's; Refine passes the original project's). */
 export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Units = doc.units): Violation[] {
-  const boxes = boxesOf(doc);
+  // Splayed legs §7: which parts lean, once per part. None: `lean` stays null and every check below is today's code.
+  const leaning = doc.boards.map(leans);
+  const anyLean = leaning.some(Boolean);
+  // A leaning part's box is its real bounds (§7.3, R2): too-small, too-large and the distances read its real extent.
+  const boxes = anyLean
+    ? boxesOf(doc).map((b, k) => (leaning[k] ? { name: b.name, ...partBounds(doc.boards[k]!) } as Box : b))
+    : boxesOf(doc);
+  const leanAt = (k: number) => anyLean && leaning[k]!;
   const out: Violation[] = [];
 
   for (const b of boxes) {
@@ -462,11 +574,16 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
       let worst: number[] | null = null;
       // A pair with an angled part is measured on real solids (fu 302): a box would claim wood an angle cut removed. Only
       // when the boxes overlap at all: a body lies inside its cell, so the bodies cannot overlap where the boxes do not.
-      const real = (isAngled(doc.boards[i]!) || isAngled(doc.boards[j]!))
-        && solids[i].some((p) => solids[j].some((q) => [0, 1, 2].every((k) => shared(p, q, k) > TOUCH)));
+      const meet = (ps: Box[], qs: Box[]) => ps.some((p) => qs.some((q) => [0, 1, 2].every((k) => shared(p, q, k) > TOUCH)));
+      // A pair with a leaning part is measured on its LEANED bodies only (§7.1), even with no angle cut: its solids are its
+      // pre-lean boxes, so it is gated on its real bounds, which hold its bodies, and never falls back to boxes.
+      const leanPair = leanAt(i) || leanAt(j);
+      const real = leanPair
+        ? meet(leanAt(i) ? [boxes[i]] : solids[i], leanAt(j) ? [boxes[j]] : solids[j])
+        : (isAngled(doc.boards[i]!) || isAngled(doc.boards[j]!)) && meet(solids[i], solids[j]);
       const pairs: [Box | BodyFace[], Box | BodyFace[]][] = real
         ? bodiesOf(i).flatMap((p) => bodiesOf(j).map((q) => [p, q] as [BodyFace[], BodyFace[]]))
-        : solids[i].flatMap((p) => solids[j].map((q) => [p, q] as [Box, Box]));
+        : leanPair ? [] : solids[i].flatMap((p) => solids[j].map((q) => [p, q] as [Box, Box]));
       for (const [p, q] of pairs) {
         const s = Array.isArray(p) ? bodyOverlap(p, q as BodyFace[]) : [0, 1, 2].map((k) => shared(p, q as Box, k));
         if (s && s.every((v) => v > TOUCH) && (!worst || Math.min(...s) > Math.min(...worst))) worst = s;
@@ -483,13 +600,17 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
 
   // Contact trusts only flat wood (AI-tapers spec §3.3); overlap above stays on the full solids.
   const tapered = doc.boards.map(isAngled);
-  const touching = doc.boards.map((b, i) => (tapered[i] ? contactSolids(b) : solids[i]));
-  const grounded = groundedSet(boxes, touching, tapered);
+  // A leaning part touches through its level faces only (§7.2), never its pre-lean solids.
+  const touching = doc.boards.map((b, i) => (leanAt(i) ? [] : tapered[i] ? contactSolids(b) : solids[i]));
+  const lean = anyLean ? leanView(doc, boxes, touching, leaning) : null;
+  const grounded = groundedSet(boxes, touching, tapered, null, lean);
   boxes.forEach((b, i) => {
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
     const hint = (len: Len) => (near ? `; the nearest supported part is ${near.name}, ${len(distance(b, near))} away` : '');
-    out.push({ kind: 'unsupported', ...worded(display, (len) => `${b.name} is not connected to the floor through touching parts${hint(len)}.`), parts: [b.name] });
+    // An unlevelled leg stands on an edge or a corner, so it rocks: name the action that cuts its foot flat (§7.2).
+    const levelHint = lean?.unlevelled[i] ? '; it leans, and its foot is not level: Level the ends' : '';
+    out.push({ kind: 'unsupported', ...worded(display, (len) => `${b.name} is not connected to the floor through touching parts${hint(len)}${levelHint}.`), parts: [b.name] });
   });
 
   if (boxes.length > 0) {
@@ -515,19 +636,23 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
   // Held (fu 165). One fault, one report: a part on the floor, already
   // unsupported, or named in an overlap is never also reported as hanging.
   const contacts = solidContactsOf(touching);
+  if (lean) addRests(contacts, lean);
+  const onFloor = (i: number) => (lean ? lean.floor[i]! : boxes[i].min[1] <= TOUCH);
   const memo = new Map<number, Set<number>>();
   const groundedWithout = (skip: number) => {
-    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, touching, tapered, skip));
+    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, touching, tapered, skip, lean));
     return memo.get(skip)!;
   };
-  boxes.forEach((b, i) => {
-    if (b.min[1] <= TOUCH || !grounded.has(i) || overlapping.has(i)) return;
-    const message = hangsMessage(i, boxes, contacts, groundedWithout);
+  boxes.forEach((_, i) => {
+    if (onFloor(i) || !grounded.has(i) || overlapping.has(i)) return;
+    const message = hangsMessage(i, boxes, contacts, groundedWithout, lean);
     if (message) out.push({ kind: 'hangs', message, parts: [boxes[i].name] });
   });
 
-  const tip = tipsMessage(boxes, grounded, (i) => (tapered[i] ? touching[i].filter((s) => s.min[1] <= TOUCH) : [boxes[i]]),
-    (i) => (tapered[i] ? partMass(doc.boards[i]!) : null));
+  // A leaning part stands on its level feet and weighs its leaned bodies (§7.1, §7.2).
+  const tip = tipsMessage(boxes, grounded, onFloor,
+    (i) => (lean?.leaning[i] ? lean.feet(i) : tapered[i] ? touching[i].filter((s) => s.min[1] <= TOUCH) : [boxes[i]]),
+    (i) => (tapered[i] || leanAt(i) ? partMass(doc.boards[i]!) : null));
   if (tip) out.push({ kind: 'tips', ...worded(display, tip), parts: [] });
   return out;
 }
