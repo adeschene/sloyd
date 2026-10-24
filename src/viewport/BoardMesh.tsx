@@ -306,7 +306,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // the part sits — unlike the meshes, a cap depends on the part's place relative to the plane. Rebuilt on a slider
   // move only for parts the plane crosses; the part meshes never rebuild (invariant 50). A move that keeps the plane's
   // place in the part (a drag across its direction) reruns this memo, but sectionCaps then only re-maps a cached local
-  // cap (section.ts' LOCAL_CAPS).
+  // cap (section.ts' LOCAL_CAPS). A leaning part's cap is in leaned world inches (drawn outside the group, below).
   const cap = useMemo(() => {
     if (!section) return null;
     const c = sectionCaps(board, section, offset);
@@ -330,7 +330,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(c.outline.flatMap(([a, b]) => [...a, ...b]), 3));
     return { fillGeo, lineGeo };
   }, [section, offset?.[0], offset?.[1], offset?.[2], board.position[0], board.position[1], board.position[2],
-    board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board)]);
+    board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board),
+    // The lean: not in boardUVSignature (UVs are part-local, splayed legs spec §6.2), but a leaning cap is cut by it.
+    board.lean?.x, board.lean?.z, board.lean?.face]);
   useEffect(() => () => { cap?.fillGeo.dispose(); cap?.lineGeo.dispose(); }, [cap]);
   const capColor = useMemo(
     () => (faded ? fadedColor : new THREE.Color(color)).clone().multiplyScalar(CAP_DARKEN),
