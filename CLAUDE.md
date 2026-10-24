@@ -37,13 +37,13 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `68dca2d`, bundle `index-_J_yZLbU.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 21** (mirrored links, fu 432: a linked
-  part may be its Shape's mirror image, inv 44–46; deployed 2026-10-23). Owed to the user: see NEXT.
-- **Rollback:** the nearest refusing boundary is `e2729ee` (AI profiles, `index-D_ed_oQ3.js`, schema 20): it REFUSES every
-  project saved at 21 — export first. Below it, every deploy back to `98c7df4` is schema 20 and free among themselves. Full
+- **Production: `f3fced0`, bundle `index-B3SCZcHR.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 22** (splayed legs chunk 1, inv 57: a
+  part leans, Level the ends; merge `02e7b24`; deployed 2026-10-24). Owed to the user: see NEXT.
+- **Rollback:** the nearest refusing boundary is `68dca2d` (mirrored links, `index-_J_yZLbU.js`, schema 21): it REFUSES every
+  project saved at 22 — export first. Below it, `e2729ee` refuses 21; every deploy back to `98c7df4` is schema 20. Full
   table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-24):** **Splayed legs chunk 1** (schema 22, inv 57) is MERGED (`02e7b24`): browser checks 18 PASS;
-  owed before deploy: perf guards on a quiet machine. Owed to the user: the splayed legs and mirrored
+- **NEXT (2026-10-24):** **Splayed legs chunk 1** (schema 22, inv 57) is DEPLOYED (`index-B3SCZcHR.js`): browser checks 18 PASS;
+  owed: perf guards on a quiet machine (deployed at the user's word before it). Owed to the user: the splayed legs and mirrored
   links specs' Amended blocks; fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -68,7 +68,7 @@ removing them "is just a waste of time"); never clear the dev profile wholesale 
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (21 since mirrored links, deployed 2026-10-23; 22 on master since splayed legs, not yet deployed)
+**Rollback cost is a schema question.** A build understanding less than the file's version (22 since splayed legs, deployed 2026-10-24)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -120,7 +120,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **22** (splayed legs, not yet deployed). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **22** (splayed legs, deployed 2026-10-24). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
