@@ -10,7 +10,9 @@ import type { BandType, HardwareType, ProfileSide, AngleCut, Board, Lean, HoleRo
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
-import { chooseFace, leans, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
+import { chooseFace, leanMap, leans, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
+import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../document/levelEnds';
+import { displayNames } from '../document/tree';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
 import { copyProfile, sameProfile } from '../document/profiles';
@@ -424,6 +426,14 @@ interface StoreState {
    * silently (null) while gesturing or exploded. Clear is never refused.
    */
   setLean: (ids: string[], world: { rake?: number; splay?: number } | null) => string | null;
+  /**
+   * Level the ends (splayed legs spec §5): the foot cut to the floor and the top level, the length set at each end
+   * (`levelPlan`), for EVERY user of the part's Shape and every placement of its stored part, in ONE undo entry.
+   * Returns a refusal sentence — an end already cut, the top at or below the floor, users' tops at different heights —
+   * decided before `edit()`, or null. Null and nothing done for a part that does not lean, while gesturing or exploded,
+   * and when every user is already levelled (inv 4: a second press pushes no entry).
+   */
+  levelEnds: (id: string) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -1918,6 +1928,45 @@ export const useStore = create<StoreState>((set, get) => {
       // into its Shape once; `lean: undefined` removes it everywhere (treeEdit's ABSENT).
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (next.has(b.id) ? { ...b, lean: next.get(b.id) } : b))));
       // Inv 24: a lean moves the part's snap points (they compose the lean), so held points are re-judged.
+      judgeHeld();
+      return null;
+    },
+
+    levelEnds: (id) => {
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const world = worldParts(doc0);
+      const b = world.find((w) => w.id === id);
+      if (!b || !leans(b)) return null; // controller ruling 3: no lean, nothing to level (the button is not shown)
+      // Every user (a Shape's) and every placement (one stored part's): length and angle cuts are shared between them.
+      const key = storageKey(doc0, id);
+      const users = world.filter((w) => (b.shape !== undefined ? w.shape === b.shape : storageKey(doc0, w.id) === key));
+      const own = levelPlan(b, doc0.units);
+      if (typeof own === 'string') return own;
+      // One shared length levels them all only when their pivots stand at one world height (§5).
+      const ys = users.map((w) => leanMap(w)!.pivot[1]);
+      if (Math.max(...ys) - Math.min(...ys) > 1e-9) {
+        const names = displayNames(doc0);
+        return levelUsersDisagree([...new Set(users.map((w) => names.get(w.id) ?? w.name))]);
+      }
+      const plans = new Map<string, LevelPlan>([[b.id, own]]);
+      for (const w of users) {
+        if (w === b) continue;
+        const p = levelPlan(w, doc0.units);
+        if (typeof p === 'string') return p; // shared cuts and one pivot height: unreachable, but never half-written
+        plans.set(w.id, p);
+      }
+      if (users.every((w) => isLevelled(w, doc0.units))) return null; // inv 4: nothing would change
+      // Controller ruling 1: the SHARED fields (length, angle cuts) are written ONCE, through `b` — the Shape carries
+      // them to every other user in its own hand (each user's own world cuts would be disagreeing edits across a
+      // mirror) — and each storage target's OWN position from its own plan (one per target: placements share it).
+      const writes = oneEditPerTarget(doc0, [b.id, ...users.map((w) => w.id)]);
+      edit((doc) => mapWorld(doc, (w) => w.map((x) => {
+        if (!writes.has(x.id)) return x;
+        const p = plans.get(x.id)!;
+        return x.id === b.id ? { ...x, length: p.length, position: p.position, angleCuts: p.angleCuts } : { ...x, position: p.position };
+      })));
+      // Inv 24: the ends and length moved every user's snap points.
       judgeHeld();
       return null;
     },

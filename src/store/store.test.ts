@@ -3,12 +3,15 @@ import { ARCH } from '../document/curveFixtures';
 import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
-import type { Board, Shape, SloydDocument } from '../document/document';
+import type { AngleCut, Board, Lean, Shape, SloydDocument } from '../document/document';
 import { profileFromFields } from '../document/profiles';
 import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
 import type { ProfileSide } from '../document/types';
 import { taperCut } from '../document/document';
 import { leanMap, slopeOf, worldSlopes } from '../document/lean';
+import { isLevelled, levelCutOf, levelPlan, sameLevelLine, type LevelPlan } from '../document/levelEnds';
+import { partGeometry } from '../document/bodies';
+import { toWorld } from '../document/snapPoints';
 import { partBounds, partsBounds, postureRefusal } from '../document/document';
 import { snapToGrid } from '../document/geometry';
 import { dragTarget } from '../viewport/Gizmo';
@@ -3809,5 +3812,143 @@ describe('setLean, the lean refusals, resize keeps the pivot, drags round the de
     s().moveGroupTo(['L', 'o'], bounds.min.map((v, i) => v + d[i]!) as [number, number, number]);
     for (const id of ['L', 'o'] as const) occ(id).position.forEach((v, i) => expect(Math.abs(v - start[id][i]! - snap(d[i]!))).toBeLessThan(1e-12));
     expect(Math.abs(partBounds(occ('L')).min[1])).toBeLessThan(1e-12);
+  });
+});
+
+describe('levelEnds (splayed legs spec §5): every user and placement in one edit', () => {
+  const s = () => useStore.getState();
+  const occ = (id: string) => worldParts(s().doc).find((b) => b.id === id)!;
+  const LEAN: Lean = { x: slopeOf(12), z: slopeOf(8), face: 'width' };
+  const leg = (over: Partial<Board> = {}) =>
+    createBoard({ id: 'L', name: 'Leg', length: 16, width: 1.5, thickness: 1.25, posture: 'upright', position: [0.123, 0, 0.456], lean: LEAN, ...over });
+  /** The §3.4 idiom: one leg, its mirrored twin, both turned 180° for the back pair, all one Shape. */
+  const idiom = (topOf: (id: string) => number = () => 16): SloydDocument => {
+    const { id: _id, name: _name, position: _p, rotation: _r, ...shared } = leg();
+    const at = (id: string, x: number, z: number): [number, number, number] => [x, topOf(id) - 16, z];
+    return {
+      ...createDocument('Level'),
+      shapes: [{ id: 's1', ...shared } as Shape],
+      boards: [
+        { id: 'a', name: 'Front left', position: at('a', 0, 0), rotation: 0, shape: 's1' },
+        { id: 'b', name: 'Front right', position: at('b', 12, 0), rotation: 0, shape: 's1', mirrored: true },
+        { id: 'c', name: 'Back right', position: at('c', 12, 12), rotation: 180, shape: 's1' },
+        { id: 'd', name: 'Back left', position: at('d', 0, 12), rotation: 180, shape: 's1', mirrored: true },
+      ] as Board[],
+    };
+  };
+  const cutFaceYs = (b: Board, end: 'foot' | 'top') => {
+    const c = b.angleCuts.find((x) => levelCutOf(x, b.lean!) === end)!;
+    const ys = partGeometry(b).bodies.flatMap((body) => body.faces).filter((f) => f.cut === c.id)
+      .flatMap((f) => f.verts.map((v) => toWorld(b, { length: v[0], width: v[1], thickness: v[2] })[1]));
+    expect(ys.length).toBeGreaterThan(0);
+    return ys;
+  };
+  const expectLevelled = (ids: readonly string[]) => {
+    for (const id of ids) {
+      const b = occ(id);
+      for (const y of cutFaceYs(b, 'foot')) expect(Math.abs(y), `${id} foot`).toBeLessThanOrEqual(1e-9);
+      for (const y of cutFaceYs(b, 'top')) expect(Math.abs(y - 16), `${id} top`).toBeLessThanOrEqual(1e-9);
+      const box = partBounds(b);
+      expect(Math.abs(box.min[1]), `${id} floor`).toBeLessThanOrEqual(1e-9);
+      expect(Math.abs(box.max[1] - 16), `${id} top`).toBeLessThanOrEqual(1e-9);
+      expect(isLevelled(b, s().doc.units), id).toBe(true);
+    }
+  };
+
+  it('shared legs level together: four users (mirror and turn) get floor feet and level tops in ONE undo entry', () => {
+    s().replaceDocument(idiom());
+    const ids = ['a', 'b', 'c', 'd'];
+    const plans = new Map(ids.map((id) => [id, levelPlan(occ(id), s().doc.units) as LevelPlan]));
+    const before = s().past.length;
+    expect(s().levelEnds('a')).toBeNull();
+    expect(s().past.length).toBe(before + 1);
+    expectLevelled(ids);
+    // The consistency the single write relies on: each user's OWN plan agrees, within 1e-9, with what the Shape now
+    // gives it in its own hand (a mirrored user stores the line from the other side, so compare from one side).
+    for (const id of ids) {
+      const p = plans.get(id)!;
+      const b = occ(id);
+      expect(Math.abs(b.length - p.length), id).toBeLessThanOrEqual(1e-9);
+      b.position.forEach((v, i) => expect(Math.abs(v - p.position[i]!), id).toBeLessThanOrEqual(1e-9));
+      expect(b.angleCuts).toHaveLength(p.angleCuts.length);
+      p.angleCuts.forEach((c, i) => expect(sameLevelLine(c, b.angleCuts[i]!, b.width), `${id} cut ${i}`).toBe(true));
+    }
+    s().undo();
+    expect(occ('a').angleCuts).toHaveLength(0);
+    expect(occ('d').length).toBe(16);
+  });
+
+  it('a second press changes nothing and pushes no undo entry (inv 4)', () => {
+    s().replaceDocument(idiom());
+    s().levelEnds('c');
+    const doc = s().doc;
+    const before = s().past.length;
+    expect(s().levelEnds('c')).toBeNull();
+    expect(s().levelEnds('b')).toBeNull();
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(before);
+  });
+
+  it('every placement of a definition levels: an assembly placed twice, once mirrored, shares one stored part', () => {
+    const part = leg({ id: 'p', position: [0, 0, 0] });
+    s().replaceDocument({
+      ...createDocument('Level'),
+      definitions: [{ id: 'd1', boards: [part], instances: [], hardware: [] }],
+      instances: [
+        { id: 'i1', name: 'Left', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+        { id: 'i2', name: 'Right', definition: 'd1', position: [20, 0, 0], rotation: 90, mirrored: true },
+      ],
+    });
+    const ids = worldParts(s().doc).map((b) => b.id);
+    expect(ids).toHaveLength(2);
+    expect(s().levelEnds(ids[1]!)).toBeNull();
+    expectLevelled(ids);
+  });
+
+  it('refuses, verbatim and before any mutation, linked users whose tops are at 16 and 17', () => {
+    s().replaceDocument(idiom((id) => (id === 'c' ? 17 : 16)));
+    const doc = s().doc;
+    expect(s().levelEnds('a')).toBe("These linked parts' tops are at different heights, so one length can't level them all: Front left, Front right, Back right, Back left.");
+    expect(s().doc).toBe(doc);
+  });
+
+  it('returns the plan\'s refusal (an end already cut) and does nothing', () => {
+    const across: AngleCut = { id: 'x', kind: 'miter', face: 'length', from: 'min', along: 'thickness', alongFrom: 'min', points: [[0, 0], [1.25, 0.5]] };
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg({ angleCuts: [across] })] });
+    const doc = s().doc;
+    expect(s().levelEnds('L')).toBe('Remove the angle cut on the foot first.');
+    expect(s().doc).toBe(doc);
+  });
+
+  it('a part that does not lean, a gesture or the exploded view: null, nothing done', () => {
+    const { lean: _l, ...plain } = leg();
+    s().replaceDocument({ ...createDocument('Level'), boards: [plain as Board] });
+    let doc = s().doc;
+    expect(s().levelEnds('L')).toBeNull();
+    expect(s().doc).toBe(doc);
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg()] });
+    doc = s().doc;
+    s().setExplode(0.5);
+    expect(s().levelEnds('L')).toBeNull();
+    s().setExplode(0);
+    s().beginGesture();
+    expect(s().levelEnds('L')).toBeNull();
+    s().endGesture();
+    expect(s().doc).toBe(doc);
+    expect(s().levelEnds('L')).toBeNull();
+    expect(s().doc).not.toBe(doc);
+    expectLevelled(['L']);
+  });
+
+  it('isLevelled goes false after a lean edit or a resize through the store', () => {
+    s().replaceDocument({ ...createDocument('Level'), boards: [leg()] });
+    s().levelEnds('L');
+    expect(isLevelled(occ('L'), s().doc.units)).toBe(true);
+    s().setLean(['L'], { rake: 9 });
+    expect(isLevelled(occ('L'), s().doc.units)).toBe(false);
+    s().levelEnds('L');
+    expect(isLevelled(occ('L'), s().doc.units)).toBe(true);
+    s().updateBoard('L', { length: occ('L').length + 1 });
+    expect(isLevelled(occ('L'), s().doc.units)).toBe(false);
   });
 });
