@@ -41,7 +41,7 @@ export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFace, T
 export {
   HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
   clipPolygon, clipPlan, copyHoleRow, holeBottom, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
-  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
+  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, tiltedHole, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
 } from './holes';
 export type { Hole, Plane } from './holes';
 export { bitVector, isTilted, retilt, tiltDegrees, tiltResultantDeg, tiltSightlineDeg, withinTiltBound } from './holeTilt';

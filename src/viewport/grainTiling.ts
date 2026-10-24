@@ -1,7 +1,7 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  HOLE_EPS, holeBottom, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  HOLE_EPS, holeBottom, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusPrism, ringInside, spanToWorldOffset, tiltedHole, toWorldOffset,
   wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, unionLoops, uvDims,
 } from '../document/document';
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
@@ -859,8 +859,7 @@ function holed(body: Body, holes: readonly Hole[]): boolean {
  * fallback path).
  */
 function ringDisc(h: Hole, t: number): [V3, number] {
-  const a = DIMENSION_ORDER.indexOf(h.axis);
-  if (h.bit[(a + 1) % 3] === 0 && h.bit[(a + 2) % 3] === 0) return [h.centre, h.radius];
+  if (!tiltedHole(h)) return [h.centre, h.radius];
   const b = h.bit;
   return [[h.centre[0] + t * b[0], h.centre[1] + t * b[1], h.centre[2] + t * b[2]], h.radius * Math.hypot(b[0], b[1], b[2])];
 }
@@ -937,7 +936,7 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
   const a = dimIndex(h.axis);
   // Angled holes (spec §6.1): a TILTED bore's wall is square to its bit, not to the face axis; a square hole keeps the
   // face-axis expressions it always had (bodyMeshIdentity).
-  const tilt = h.bit[(a + 1) % 3] !== 0 || h.bit[(a + 2) % 3] !== 0;
+  const tilt = tiltedHole(h);
   const bl = Math.hypot(h.bit[0], h.bit[1], h.bit[2]);
   const bx = h.bit[0] / bl, by = h.bit[1] / bl, bz = h.bit[2] / bl;
   const inward = tilt

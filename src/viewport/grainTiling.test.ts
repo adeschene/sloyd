@@ -8,7 +8,7 @@ import { mirrorPart } from '../document/frames';
 import { ARCH } from '../document/curveFixtures';
 import { boardBodies } from '../document/document';
 import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh, holesMesh } from './grainTiling';
-import { boardHoles, holeRing, holeTouchesBox, HOLE_SEGMENTS, partGeometry, stockChecks } from '../document/document';
+import { boardHoles, holePrism, holeRing, holeTouchesBox, HOLE_SEGMENTS, minusPrism, partGeometry, stockChecks } from '../document/document';
 import { curveOutline, localSegments } from '../document/document';
 import type { Body, LocalArc, V3 } from '../document/document';
 import { cornerCurve } from '../document/document';
@@ -891,6 +891,35 @@ describe('a tilted bore in the mesh (angled holes Task 4)', () => {
     const { b, pts, bit, ax, dot } = read('through');
     for (const { n } of pts) expect(dot(n, bit)).toBeCloseTo(0, 6);
     for (const { p } of pts) expect(Math.abs(p[ax]!)).toBeCloseTo(b.thickness / 2, 5);
+  });
+});
+
+describe('faceTriangles: a tilted bore\'s disc on the EXIT face sits where the bit carries it (Task 4 review)', () => {
+  // A 10 x 10 panel, 1in thick; two r = 0.5 through bores from the top, leaning toward each other at 0.75 per inch:
+  // mouths 2 apart (clear), exits 0.5 apart (their ellipses, 1.25 long on the length, overlap). Only the exit-plane centre
+  // (ringDisc's `c + t·bit`) sees the overlap; the mouth centre would call the exit rings disjoint and earcut them.
+  const bore = (id: string, station: number, tiltAlong: number) => ({ id, face: 'thickness' as const, from: 'max' as const,
+    diameter: 1, depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const, station, count: 1, pitch: 0,
+    acrossFrom: 'min' as const, inset: 5, tiltAlong });
+  const b = createBoard({ id: 'xd', length: 10, width: 10, thickness: 1, holes: [bore('a', 4, 0.75), bore('b', 6, -0.75)] });
+  const area = (tris: number[][][]) => tris.reduce((s, t) => s + Math.abs((t[1]![0]! - t[0]![0]!) * (t[2]![1]! - t[0]![1]!) - (t[2]![0]! - t[0]![0]!) * (t[1]![1]! - t[0]![1]!)) / 2, 0);
+  const polyArea = (p: readonly number[][]) => Math.abs(p.reduce((s, q, i) => { const r = p[(i + 1) % p.length]!; return s + q[0]! * r[1]! - r[0]! * q[1]!; }, 0)) / 2;
+  it('the exit face loses the two bores\' union (the fallback split), not two overlapping rings', () => {
+    const holes = boardHoles(b);
+    const bottom = boardBodies(b)[0]!.faces.find((f) => f.n[2] === -1)!;
+    // Reference: the face minus each prism, the fallback's own construction, independent of the triangulation choice.
+    let pieces = [bottom.verts];
+    for (const h of holes) pieces = pieces.flatMap((q) => minusPrism(q, holePrism(h)));
+    const expected = pieces.reduce((s, q) => s + polyArea(q), 0);
+    const ellipse = (HOLE_SEGMENTS / 2) * 0.25 * Math.sin((2 * Math.PI) / HOLE_SEGMENTS) * 1.25;
+    expect(100 - expected).toBeLessThan(2 * ellipse - 0.05);           // the overlap is real
+    expect(area(faceTriangles(bottom, holes))).toBeCloseTo(expected, 9);
+  });
+  it('the entry face (mouths clear) loses both whole rings', () => {
+    const holes = boardHoles(b);
+    const top = boardBodies(b)[0]!.faces.find((f) => f.n[2] === 1)!;
+    const ellipse = (HOLE_SEGMENTS / 2) * 0.25 * Math.sin((2 * Math.PI) / HOLE_SEGMENTS) * 1.25;
+    expect(area(faceTriangles(top, holes))).toBeCloseTo(100 - 2 * ellipse, 9);
   });
 });
 
