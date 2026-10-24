@@ -10,6 +10,7 @@ import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
 import { LlmError } from '../llm/types';
 import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
+import { socketPlan } from '../document/legSockets';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
@@ -1497,6 +1498,24 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const out = await ok(client, doc);
     expect(out.doc.boards.find((b) => b.name === 'Front left')).toEqual(before);
     expect(worldParts(out.doc).find((b) => b.name === 'Front left')!.lean).toEqual(worldParts(doc).find((b) => b.name === 'Front left')!.lean);
+  });
+
+  it('Refine keeps a bored seat verbatim, drops a model part named Seat, and reports it kept (angled holes spec §9)', async () => {
+    const base = stoolDocument();
+    const id = base.boards.find((b) => b.name === 'Seat')!.id;
+    const plan = socketPlan(base, id, 0.75);
+    if (typeof plan === 'string') throw new Error(plan);
+    const doc = migrateDocument({ ...base, boards: base.boards.map((b) => (b.id === id ? { ...(b as Board), holes: plan.holes } : b)) });
+    const before = doc.boards.find((b) => b.id === id)! as Board;
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat', 20), bx('Shelf', [-3, 6, -3], [6, 0.75, 6])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    const after = out.doc.boards.find((b) => b.id === id)! as Board;
+    expect(after).toEqual(before);
+    after.holes.forEach((h, i) => expect(h).toEqual(before.holes[i]));
+    expect(flatDocument(out.doc).boards.filter((b) => b.name === 'Seat')).toHaveLength(1);
+    expect(out.leaning).toEqual({ kept: expect.arrayContaining(['Seat', ...LEGS]), replaced: ['Seat'] });
+    // Nothing moved relative to the kept parts.
+    expect(flatDocument(out.doc).boards.find((b) => b.name === 'Shelf')!.position).toEqual([-3, 6, -3]);
   });
 
   it('a lean-free Refine reports nothing kept', async () => {

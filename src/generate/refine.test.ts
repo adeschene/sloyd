@@ -21,7 +21,8 @@ import { builtInCatalog, catalogOf } from '../document/materials';
 import { ARCH } from '../document/curveFixtures';
 import type { StoredBoard } from '../document/types';
 import { stoolDocument, stoolLegs, stoolSeat, stoolWithCut } from '../document/stoolFixture';
-import { keptParts } from '../document/leanKeep';
+import { keptParts, keptNote } from '../document/leanKeep';
+import { socketPlan } from '../document/legSockets';
 import { partBounds } from '../document/worldBounds';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
@@ -311,6 +312,42 @@ describe('Refine and leaning parts (splayed legs spec §8)', () => {
     const doc = migrateDocument({ ...createDocument('Base'), boards: [stoolSeat()],
       definitions: [{ id: 'd1', boards: [leg!], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
-    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part inside an assembly yet — Ungroup it first: Frame › Front right.");
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Frame › Front right.");
+  });
+});
+
+describe('Refine and angled holes (angled holes spec §9)', () => {
+  /** The stool with Bore leg sockets done: the seat carries tilted rows. */
+  const socketed = () => {
+    const doc = stoolDocument();
+    const seat = doc.boards.find((b) => b.name === 'Seat')!;
+    const plan = socketPlan(doc, seat.id, 0.75);
+    if (typeof plan === 'string') throw new Error(plan);
+    return migrateDocument({ ...doc, boards: doc.boards.map((b) => (b.id === seat.id ? { ...(b as Board), holes: plan.holes } : b)) });
+  };
+
+  it('keeps the bored seat with the legs: the base design omits both, and the note says why', () => {
+    const doc = socketed();
+    expect((doc.boards.find((b) => b.name === 'Seat') as Board).holes.some((h) => h.tiltAlong !== undefined || h.tiltAcross !== undefined)).toBe(true);
+    expect(keptParts(doc).names.sort()).toEqual(['Back left', 'Back right', 'Front left', 'Front right', 'Seat']);
+    const note = keptNote(doc)!;
+    expect(note).toContain('"Seat" has angled holes and is kept as is:');
+    expect(note).toContain('"Front right" leans and is kept as is:');
+    expect(note).toContain('These parts lean or have angled holes');
+  });
+
+  it('a square-holed seat is not kept', () => {
+    const doc = stoolDocument();
+    expect(keptParts(doc).names).not.toContain('Seat');
+    expect(keptNote(doc)).not.toContain('"Seat"');
+  });
+
+  it('refuses a part with a tilted row inside an assembly, in its own words', () => {
+    const doc = socketed();
+    const seat = doc.boards.find((b) => b.name === 'Seat') as Board;
+    const legs = doc.boards.filter((b) => b.name !== 'Seat');
+    const wrapped = migrateDocument({ ...doc, boards: legs, definitions: [{ id: 'd1', boards: [seat], instances: [], hardware: [] }],
+      instances: [{ id: 'i1', name: 'Top', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
+    expect(refineRefusal(wrapped)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Top › Seat.");
   });
 });

@@ -96,7 +96,7 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   // below (its angle cuts are in its own leaned frame, which no world-word converter reads). Only at the root: an
   // assembly's definition is rebuilt from the model's, so a leaning part inside one is refused.
   const inAssembly = leaningInAssembly(doc);
-  if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part inside an assembly yet — Ungroup it first: ${inAssembly}.`);
+  if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: ${inAssembly}.`);
   const kept = keptParts(doc);
   const keptIds = new Set(kept.boards.map((b) => b.id));
   const described = flatDocument(doc).boards.filter((b) => !(parentPath(b.id) === null && keptIds.has(b.id)));

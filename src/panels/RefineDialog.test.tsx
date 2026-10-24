@@ -106,11 +106,11 @@ describe('RefineDialog', () => {
     const run = (leaning?: { kept: string[]; replaced: string[] }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Stool — refined', costUsd: 0.07, outcome: {
       doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, ...(leaning ? { leaning } : {}) } });
     const { unmount } = render(<RefineDialog {...base} run={run({ kept: ['Front right', 'Back left'], replaced: ['Front right'] })} />);
-    screen.getByText('Kept as is (leans): Front right, Back left');
+    screen.getByText('Kept as is (leans or angled holes): Front right, Back left');
     screen.getByText('Replaced by the kept part of the same name: Front right');
     unmount();
     const { unmount: u2 } = render(<RefineDialog {...base} run={run({ kept: ['Leg'], replaced: [] })} />);
-    screen.getByText('Kept as is (leans): Leg');
+    screen.getByText('Kept as is (leans or angled holes): Leg');
     expect(screen.queryByText(/^Replaced by the kept part/)).toBeNull();
     u2();
     render(<RefineDialog {...base} run={run()} />);

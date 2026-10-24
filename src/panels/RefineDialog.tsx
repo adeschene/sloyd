@@ -139,7 +139,7 @@ export function RefineDialog(p: Props) {
             {out.carried.notKept.length > 0 && (<><p>Not kept:</p><ul>{out.carried.notKept.map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
             {out.carried.check.length > 0 && (<><p>Check at the new size:</p><ul>{out.carried.check.map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
             {/* Splayed legs spec §8: leaning parts come back exactly as they were; a model part reusing one's name was dropped. */}
-            {out.leaning && out.leaning.kept.length > 0 && <p>{`Kept as is (leans): ${out.leaning.kept.join(', ')}`}</p>}
+            {out.leaning && out.leaning.kept.length > 0 && <p>{`Kept as is (leans or angled holes): ${out.leaning.kept.join(', ')}`}</p>}
             {out.leaning && out.leaning.replaced.length > 0 && <p>{`Replaced by the kept part of the same name: ${out.leaning.replaced.join(', ')}`}</p>}
             {out.changes.length === 0 ? <p>No changes.</p> : (
               <ul className="generate-runs">

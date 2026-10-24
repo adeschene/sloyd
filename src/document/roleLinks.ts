@@ -11,6 +11,7 @@ import { taperCutsFor, worldTapers } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, worldAngles } from './angleWorld';
 import { holeRowsFor, sortHoleRows, worldHoles } from './holeWorld';
 import { sameHoleRow } from './holes';
+import { isTilted } from './holeTilt';
 import { BUILT_IN_BAND_ID } from './bandModel';
 import { bandsFor, worldBands } from './bandWorld';
 import { profilesFor, sortProfiles, worldProfiles } from './profileWorld';
@@ -37,7 +38,7 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 export function turnCandidates(b: Board): Board[] {
   // A leaning part has none (final review M1): its lean is stored in the turn-0 frame, so `{ ...b, rotation }` would
   // re-aim the leg; it links by its own form and its mirror only (splayed legs §3.4).
-  if (b.cuts.length > 0 || carriesProfiles(b) || leans(b)) return [];
+  if (b.cuts.length > 0 || carriesProfiles(b) || leans(b) || b.holes.some(isTilted)) return [];
   const shown = worldProfiles(b);
   if (shown === null) return [];
   const profileExact = new Set(shown.flatMap((p) => [p.size, p.fillet, p.depth, p.start, p.end]));
