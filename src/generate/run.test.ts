@@ -1488,6 +1488,17 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     for (const n of LEGS) expect(out.doc.boards.find((b) => b.name === n)).toEqual(doc.boards.find((b) => b.name === n));
   });
 
+  it('keeps a kept part\'s mirror flag (spec §8 (a)): a mirrored user of its Shape comes back mirrored', async () => {
+    const base = stoolDocument();
+    const doc = migrateDocument({ ...base, boards: base.boards.map((b) => (b.name === 'Front left' ? { ...b, mirrored: true } : b)) });
+    const before = doc.boards.find((b) => b.name === 'Front left')!;
+    expect((before as { mirrored?: boolean }).mirrored).toBe(true);
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat')], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(out.doc.boards.find((b) => b.name === 'Front left')).toEqual(before);
+    expect(worldParts(out.doc).find((b) => b.name === 'Front left')!.lean).toEqual(worldParts(doc).find((b) => b.name === 'Front left')!.lean);
+  });
+
   it('a lean-free Refine reports nothing kept', async () => {
     const doc = migrateDocument({ ...createDocument('T'), boards: [stoolSeat(0)] });
     const { client } = fakeClient([{ name: 'T', parts: [bx('Seat', [-7, 0, -7], [14, 1.5, 14])], assemblies: [] }]);
