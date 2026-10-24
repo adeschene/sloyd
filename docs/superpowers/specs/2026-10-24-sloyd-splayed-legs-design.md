@@ -1,6 +1,6 @@
 # Splayed legs, chunk 1: a part that leans — design
 
-Status: draft, 2026-10-24. Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
+Status: draft, 2026-10-24; builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
 The user chose this gap and said: "a stool, typing rake and splay angles". On scope they said: "I just want to implement
 features that a woodworker would expect, so do whatever makes sense with that goal in mind". They approved the chunked
 outline in chat ("Looks right, write the design"). Every decision below that is not quoted from the user is **my call**
@@ -62,6 +62,12 @@ the only angled parts. Aprons and stretchers between splayed legs need compound-
 
 - **Values:** `lean` on a part stores two slopes, `[x, z]`. These are the foot's horizontal travel per inch of drop
   along world X and world Z.
+- **The facing dimension:** `lean` also stores which of the leg's two horizontal dimensions faces the sightline
+  (`width` or `thickness`; §3.3). It is stored, not derived (builder check, 2026-10-24). Deriving the twist with a
+  reduction into any half-open interval breaks at the endpoint. For example, rake equal to splay, the commonest
+  diagonal layout, gives σ = 45° exactly, so its mirror twin would be spun 90° and its level cuts would sit on the
+  wrong dimension. A derived twist would also jump 90° on a 0.01° edit. The facing dimension is chosen when a lean is
+  first set (the one needing the smaller twist; width on a tie) and is kept by later edits. Clear lean removes it.
 - **Frame:** the slopes are measured in the part's own frame at its stored posture, *before* its quarter turn and
   before any mirror. So the lean turns and mirrors with the part.
 - **When stored:** only when non-zero. A part with no lean stores nothing, and the loader treats absent as `[0, 0]`.
@@ -85,7 +91,10 @@ the only angled parts. Aprons and stretchers between splayed legs need compound-
 
 ### 3.2 The pivot and `position`
 
-- **The pivot is the centre of the part's top face** (the max-Y face of the pre-lean box). Changing the lean swings the
+- **Only an upright part can lean** (posture `upright`: length vertical; my call, builder check). A leaning flat or
+  on-edge board is the tilted panel this chunk excludes. The Lean section shows only on an upright part. A posture
+  change is refused while a lean is set, with a sentence ("Clear the lean first"). §3.5 is replaced by this rule.
+- **The pivot is the centre of the part's top face** (the top end of the pre-lean box). Changing the lean swings the
   foot and keeps the joint with the seat where it was. Woodworkers lay out a staked piece from the seat's mortise
   locations.
 - **`position` keeps its meaning** (inv 2): it is the min corner of the *pre-lean* box.
@@ -94,6 +103,13 @@ the only angled parts. Aprons and stretchers between splayed legs need compound-
     vertical commutes with a lean about that same vertical line through the pivot.
   - Properties' Position fields stay as they are and get one note on a leaning part: "Position is the part before its
     lean; it leans about the centre of its top." (my call)
+- **A resize keeps the pivot** (my call, builder check). This is the woodworker's expectation: the joint with the seat
+  stays put.
+  - A length change grows or shrinks the foot end.
+  - A width or thickness change is symmetric about the pivot.
+  - On a leaning part, the Properties resize path therefore lowers a position delta alongside the size. This is a
+    third case beside inv 46's two write-back rules, applied per user for a shared size.
+  - A resize also makes levelled ends stale (§5's note).
 
 ### 3.3 The rotation, and why the leg turns to its sightline
 
@@ -103,8 +119,13 @@ the only angled parts. Aprons and stretchers between splayed legs need compound-
   1. first a twist of `σ` about the vertical through the pivot;
   2. then a tilt of `R` about the horizontal axis perpendicular to the sightline, so the foot moves along the sightline
      by `hypot(x, z)` per inch of drop.
-- **Smallest twist:** the twist is the smallest that puts one of the leg's two horizontal dimensions on the sightline
-  (σ reduced into (−45°, 45°]), so a splay-only or rake-only lean twists nothing.
+- **The twist** is the signed angle from the stored facing dimension's + direction to the sightline, reduced into
+  (−90°, 90°]. When first set it is the smaller of the two choices (§3.1), so a splay-only or rake-only lean twists
+  nothing.
+  - **The seam:** the twist is continuous except where the sightline swings 90° from where it was first set. At that
+    seam the leg spins 180° about its own axis. Its ends are stale by then anyway, because any lean edit makes them
+    stale (§5).
+  - The `lean.ts` tests pin both the seam and the rake = splay case.
 - **Consequence (my call, approved in the chat outline):** the leg's faces face its sightline. A square leg is therefore
   seen turned in plan. A round or octagonal staked leg looks the same either way.
 - **Why:** with this twist, the floor's normal in the leg's own frame lies in one of the leg's own planes. "Level the
@@ -121,12 +142,17 @@ the only angled parts. Aprons and stretchers between splayed legs need compound-
 ### 3.4 Turns, mirrors and assemblies
 
 - **Turns:** a quarter turn rotates the lean with the part. That falls out of §3.1's frame.
-- **Mirrors:** a mirror, either a part's own (schema 21, `mirrorDim`) or an instance's (schema 13), reflects the lean by
-  negating the slope along the mirror's world axis.
-  - This is an exact sign flip and is its own inverse, which keeps it in the spirit of inv 44's "flag flips, never
-    arithmetic".
+- **Mirrors:** a mirror, either a part's own (schema 21, `mirrorDim`) or an instance's (schema 13), applies to the
+  lean as a **conjugation of the whole leaned rotation by the reflection**. It is never applied by flipping a slope and
+  re-deriving the twist.
+  - Re-deriving fails: from flipped slopes the derived twist differs from the true mirrored twist by 180° whenever the
+    facing dimension is the one on X (builder check, 2026-10-24).
+  - In stored terms, a mirrored user resolves to the Shape's slopes with the turn-0 X slope negated, the same facing
+    dimension, and the twist negated. That is exact sign flips, and its own inverse. `mirrorPart` reflects along
+    `mirrorDim` and negates the turn, so the flip is always the stored turn-0 X slope, whatever the part's turn.
   - `mirrorFeatures` / `lowerOwnMirror` and the instance mirror step each get it, each with an exact inverse.
-  - Equivariance tests must use a lean with *both* slopes non-zero and unequal (the `chiralPart` rule).
+  - Equivariance tests must use a lean with *both* slopes non-zero and unequal (the `chiralPart` rule), and also the
+    rake = splay case.
 - **Composition:** assemblies compose unchanged (§3.2). The ONE walk (`worldParts`) carries each part's lean in its world
   form, so readers do not re-derive it.
 - **Write-back (`treeEdit.ts`):**
@@ -143,9 +169,7 @@ the only angled parts. Aprons and stretchers between splayed legs need compound-
 
 ### 3.5 Posture
 
-- A posture change keeps the stored slopes, so the lean stays in the same world directions at turn 0.
-- `reorientedPosition` keeps its job. The pivot follows from the new box.
-- My call: no refusal is needed.
+Replaced by §3.2's rule: only an upright part leans, and a posture change is refused while a lean is set.
 
 ### 3.6 Schema 21 → 22
 
@@ -169,7 +193,7 @@ The section sits on a selected part, near Turn and Mirrored. My calls:
   - Editing either writes the stored local slopes through the turns and mirrors (§3.4).
   - Typed input runs through the existing degree parsing used by angle cuts. A refusal shows as the field's own error
     (`DimensionField`'s contract).
-- **Readout:** `Resultant 14.3° · sightline 33.7° from the front edge`. That is the bench pair. Wording is the
+- **Readout:** `Resultant 14.3° · sightline 33.5° from the front edge`. That is the bench pair. Wording is the
   builder's, from `angleText.ts`'s precision (0.1°).
 - **No lean:** the section shows the two fields at 0 and no readout.
 - **Clear lean:** a button that sets both slopes to 0.
@@ -184,8 +208,10 @@ The section sits on a selected part, near Turn and Mirrored. My calls:
 
 A button in the Lean section. My calls throughout.
 
-- **The foot:** a sloped end cut on the part's bottom end, so the foot is a face on the world floor, `y = 0`.
+- **The foot:** a sloped end cut on the part's bottom end, so the foot is a face on the world floor. **The floor is
+  world `y = 0`**, the design checks' floor, whatever assembly the leg is in (my call).
 - **The top:** a sloped end cut on the top end, level through the pivot.
+- **Refused:** when the pivot is at or below the floor.
 - **Storage:** both are ordinary `AngleCut`s, in the kind the angle-cuts spec uses for an angled cut across an end (the
   builder confirms Miter versus Bevel against `angleCuts.ts`). Each cut's line runs in the plane of the leg's length and
   the dimension facing the sightline (§3.3), with depths from today's stored-slope rule, `tan R`.
@@ -195,22 +221,36 @@ A button in the Lean section. My calls throughout.
   - drawings;
   - snapping;
   - links (angle cuts are shared).
-- **If the leg is too short:** after a lean, the low corners of the top face sit *below* the pivot's level and the
-  foot's high corners sit above the floor. Cuts alone would leave a gap at the seat and a foot that rocks.
-  - **The extension:** Level the ends therefore **lengthens the leg along its own axis at whichever end needs it**, in
-    the same undo entry. Each end gets the smallest extension at which every corner of that end reaches its plane,
-    rounded **up** to the drag grid (1/16", or 1 mm in a metric project), so the cut list prints a buyable blank.
-  - **The foot:** extending the foot changes `length` and `position` only. The pivot stays where it is.
+- **The length is always adjusted** (builder check: the top needs it on any non-zero lean). A level plane through the
+  top-face centre leaves half that face's corners below it, so cuts alone would leave a gap at the seat. The foot's
+  high corners may sit above the floor, or the foot may run far below it.
+  - **The adjustment:** Level the ends therefore **sets the leg's length along its own axis at each end**, in the same
+    undo entry, so that every corner of that end just reaches its plane. The top is always extended. The foot is
+    extended, or **shortened** when it runs past the floor, so the foot cut is always the small wedge. Each end's
+    change is rounded **up** to the drag grid (1/16", or 1 mm in a metric project), so the cut list prints a buyable
+    blank.
+  - **The foot:** changing the foot changes `length` and `position` only. The pivot stays where it is.
   - **The top:** extending the top moves the pre-lean box so that **the leaned axis is the same line and still passes
     through the old pivot point**. The pivot (§3.2: the new top face's centre) therefore moves up that axis, above the
     levelled top. The levelled top face then lies wholly in the level plane through the *old* pivot.
   - **Exactness:** this must be exact to float, and tested. The leaned axis before and after is one line, the old pivot
     lies on it, and every corner of each levelled face is on its plane.
-  - **Known consequence:** a later lean edit pivots about the new, higher point. Record it; it is not a bug.
+  - **Always moves the pivot:** because the top is always extended, Level the ends always moves the pivot up the axis.
+    A later lean edit pivots about that higher point. Record it; it is not a bug.
+  - **The cuts are read-only rows:** after the round-up the cut lines are offset (they reach depth 0 at neither side).
+    `miterFields` then returns null, so each Angle cuts row shows the bench line and Remove only, never editable
+    fields. That is intended (re-level instead). The recognition test below must accept offset lines.
+- **On a shared leg** (a link, or a part in a definition placed more than once): length and angle cuts are shared, but
+  position is each user's own.
+  - The action levels **every user and every placement in one edit**. Each user's own position moves by its own
+    recipe, which is the same recipe in the Shape's frame, applied through that user's turn and mirror.
+  - Because the lean is shared, every user has the same resultant, so the top extension is the same for all.
+  - The foot change depends on each user's pivot height. When users' pivots are not all at one world height (to 1e-9),
+    one shared length cannot level them all, so the action is **refused** with a sentence naming the parts.
 - **If an existing angle cut is on an end:** the action is refused, with the existing "remove it first" wording style.
   It never stacks a second cut on an end.
 - **One undo entry; refused while read-only.**
-- **Staleness:** after a later lean edit, the levelled ends are no longer level. My call for v1: the Lean section shows
+- **Staleness:** after a later lean edit or resize, the levelled ends are no longer level. My call for v1: the Lean section shows
   a note, `Ends were levelled for a different lean — Level the ends again`, and Level the ends replaces the two cuts it
   recognises.
   - **How it recognises them:** cuts on the two ends whose lines match a level cut for *some* lean in the same
@@ -253,9 +293,14 @@ world and in whatever reads `position + boardExtents` as a world box.
   - Inv 12/15/35 are untouched; the lean is not in `boardUVSignature`, because UVs are part-local.
   - Perf guards (inv 50) do not move.
 - **Picking:** the raycast honours the group matrix. `keptBySection` tests world hit points, which is already correct.
-- **Gizmo and Move:** both are translate-only and work on deltas, so they stay as they are.
+- **Gizmo and Move:** both are translate-only.
   - The handle sits at the real bounds' centre (R2).
-  - Group moves round the group's real-bounds min corner once (inv 42's rule, with R2's bounds).
+  - **A free drag of a single leaning part rounds the drag DELTA to the grid, never a corner** (my call, builder check).
+    The pre-lean corner is off-grid after Level the ends, so rounding it would lift a levelled foot off `y = 0` by up to
+    half a grid step. The real-bounds corner would move the seat joint. A grid-multiple delta keeps both exact.
+  - Group moves keep inv 42's rule (round the group's min corner once, one delta). For a group containing a leaning
+    part the delta is rounded instead, by the same argument.
+  - Inv 25 and inv 42 get this clause.
 - **Snap points:**
   - The 26-point lattice and feature points are built part-local and mapped through `toWorld`, plus the lean.
   - `stockProbe`'s world-to-local mapping uses the inverse.
@@ -273,7 +318,7 @@ world and in whatever reads `position + boardExtents` as a world box.
   - Feature tags still sit on their segments (inv 16, 47).
   - Unleaned drawings are byte for byte unchanged (`drawingIdentity`).
   - A leaning part gets an HTML note under the figure, never a measured SVG label (inv 19): `Leg: rake 8.0°, splay 12.0°
-    — resultant 14.3° on a 33.7° sightline`. It appears once per part per sheet and follows the feature callouts'
+    — resultant 14.3° on a 33.5° sightline`. It appears once per part per sheet and follows the feature callouts'
     keying (`keyed`). Wording is the builder's.
 - **Cut list, nesting, Buying:** unchanged. They are stock plus part-local cuts, with no pose. The level-end cuts print
   as their usual bench lines. Two legs with the same stock and cuts share a row whatever their leans. My call: lean is
@@ -342,8 +387,19 @@ Every refusal is decided before any mutation (inv 41's rule) and reads as a sent
   - **Why:** the design schema describes parts as world boxes (`at` + `size`), and every world-word converter assumes
     part axes equal world axes. Teaching the model leans is a `DESIGN_SCHEMA` change with grammar cost (fu 322), so it
     is out of scope.
-  - **Ordering:** the keep happens in the same place, and in the same order relative to `migrateDocument` and
-    `linkByRole`, as inv 56's carry. The PROHIBITION there stands.
+  - **Constraints the mechanism must meet** (builder check; the mechanism in `refine.ts` is the builder's):
+    - (a) **World pose:** each kept part keeps its world pose exactly, in whatever form Refine's output stores parts
+      (its flat world form if the output is flat, with the lean in world terms). Its features, lean and mirror flag
+      come back unchanged.
+    - (b) **The floor rule:** the floor shift (`-min[1]` in `generated.ts`) must not separate the piece from its kept
+      parts. Either it is computed over the whole result with the kept parts' **real** bounds (R2), or the result is
+      shifted so the kept parts do not move. The other parts move to them, never the reverse.
+    - (c) **Shapes:** kept parts are **excluded from `linkByRole`**. Their Shape survives with its id, re-minted only
+      on an id collision (inv 33's rule).
+    - (d) **Ordering:** the keep sits where inv 56's carry sits (before `migrateDocument` and `linkByRole`), so that
+      PROHIBITION stands.
+    - (e) **Collisions:** a model part that reuses a kept part's flat name is dropped. It is reported in the done view
+      as replaced by the kept part.
   - **Joined Refine is refused up front** while a leaning part exists, the same as joinery.
 - **Generate:** never produces a lean. Unchanged.
 - **Ungroup, Group, definitions and copies:** carry the lean like any shared field. Ungroup's exactness (direct child
@@ -353,7 +409,7 @@ Every refusal is decided before any mutation (inv 41's rule) and reads as a sent
 
 - **`lean.ts`:**
   - round trips (degrees → slopes → degrees; point → world → point);
-  - resultant and sightline against hand-worked examples (rake 8°, splay 12° → R and σ by hand, stated in the test);
+  - resultant and sightline against hand-worked examples (rake 8°, splay 12° → R = 14.30°, σ = 33.47° = atan2(tan 8°, tan 12°), NOT atan(8/12) = 33.7°; stated in the test);
   - edge cases: 0, a single-axis lean, the bound;
   - mirror and turn equivariance with an asymmetric lean.
 - **Byte-for-byte guards:** every existing identity test (`drawingIdentity`, `sweptIdentity`, `bandFreeIdentity`,
