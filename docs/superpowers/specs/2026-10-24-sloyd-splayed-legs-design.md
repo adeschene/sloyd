@@ -1,8 +1,9 @@
 # Splayed legs, chunk 1: a part that leans — design
 
 Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
-**Built 2026-10-24 on branch `splayed-legs`** (plan Tasks 1–13; schema 22); NOT merged or deployed — the browser verification
-(plan Task 14), the merge and the deploy are pending. Later rulings: the *Amended (build)* block at the end, which wins where it
+**Built 2026-10-24 on branch `splayed-legs`** (plan Tasks 1–13; schema 22); NOT merged or deployed. Browser verification (plan
+Task 14) is done: 15 checks PASS (`docs/browser-verification-splayed-legs.md`); three are still owed (a gizmo drag of a levelled leg,
+a lean edit with a section on, a pointer snap onto a foot). The merge and the deploy are pending. Later rulings: the *Amended (build)* block at the end, which wins where it
 differs from the text.
 The user chose this gap and said: "a stool, typing rake and splay angles". On scope they said: "I just want to implement
 features that a woodworker would expect, so do whatever makes sense with that goal in mind". They approved the chunked
@@ -532,7 +533,9 @@ govern; where one differs from the text above, this block wins. Records: invaria
   faces share only an edge). A leaning part resting on a leaning part uses the same level-face-on-level-face rule (§7.2's under-defined
   case; conservative). Nothing is held "between" leaning parts or lapped onto a leaning leg's side in this chunk: aprons and stretchers on
   splayed legs report unsupported or hangs until chunk 3 (fu 438). A grounded leaning part off the floor keeps the existing `hangs`
-  sentence (no new copy, fu 439). The tip footprint is the bounding boxes of the feet's floor polygons (fu 444). The hint is the clause
+  sentence (no new copy, fu 439). The tip footprint is the feet's floor polygons themselves: `feet(i)` gives one zero-size box per
+  polygon VERTEX, so the hull is exactly the feet's (fu 444, closed by the final review I1: the bounding boxes passed a three-leg
+  stance whose real hull edge is under 1in from its centre of mass). The hint is the clause
   `; it leans, and its foot is not level: Level the ends`, appended to the unsupported message (and `shown`) only for a leaning part
   with no level down face.
 - **Ruling 14 — Repair refuses only with cuts present (§8's "refused up front when the document has a leaning part", narrowed).** The
@@ -548,8 +551,10 @@ govern; where one differs from the text above, this block wins. Records: invaria
 - **Ruling 17 — Refine's keep, as built (§8, made definite).** `keptParts` keeps every ROOT stored part whose resolved form leans, its
   Shapes and flat names; the model is told in the USER turn with real bounds (`keptNote`); a loose model part reusing a kept flat name is
   dropped before conversion and reported as `Replaced by the kept part of the same name: <names>` (my wording; the kept line is the
-  verbatim `Kept as is (leans): <names>`); `jointFaults` is unchanged (a stray `angle-joint` fault between a kept leg's level top and a
-  seat did not appear; the fix if it does is to exclude leaning parts from its sites); `KEEP_LINE` is unchanged; kept parts count toward
+  verbatim `Kept as is (leans): <names>`); a stray `angle-joint` fault on a kept leg DID appear (final review I2: an apron butting a
+  kept leg's PRE-LEAN side near its top drew "Front right's miter runs into where it meets Apron …", a rail at its foot a phantom site),
+  so `findSites` skips every pair with a leaning part (one place; `jointFaults`, joinery, unjoin and Refine's keys all read it; joinery
+  and Repair refuse a leaning document anyway); `KEEP_LINE` is unchanged; kept parts count toward
   the result's part caps (fu 442); a model ASSEMBLY placement named like a kept part is renamed by the load gate, not reported (fu 443).
 - **Ruling 18 — a hand-loaded leaning part with holes (§8's "section caps then omit its bores, with a note", narrowed).** It is kept and
   drawn, and its section caps omit the bores, but no note is shown (fu 437).

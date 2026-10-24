@@ -7213,6 +7213,10 @@ the kept part of the same name: …` line. A model assembly PLACEMENT with that 
 polygon, so its box is slightly larger than the foot and slightly favours "stands". The convex hull of the polygons' vertices would be
 exact (stricter).
 **Status:** open (minor).
+**Status:** closed 2026-10-24 (final review I1): the boxes passed a three-leg staked stool whose centre of mass is 0.96in from its
+feet's real hull edge (1.16in from the boxes' hull; TIP_MARGIN 1in). `feet(i)` now gives one zero-size box per polygon VERTEX, so
+the tip hull is exactly the feet's (`leanContacts.test.ts`). Three `designCheck.test.ts` hang cases (a four-leg stool with one
+foot off the floor or uncut) now also report `tips`: their three remaining feet's real hull is under the margin, which the boxes hid.
 
 **445. The Lean section's single-selection parts (Task 8 minors).** (1) `Level the ends` and the stale-ends note show for a single
 selected part only (`levelEnds(id)` takes one id; one undo entry). One linked leg levels its whole Shape, but unlinked legs are
@@ -7245,3 +7249,7 @@ vertex- or edge-on-plane test on the oblique path; `LocalCap.li` is reused as a 
 `jointFaults` unchanged (R5: a stray `angle-joint` fault between a kept leg's level top and a seat did not appear; if it does, exclude
 leaning parts from its sites); a leaning project WITH cuts shows both the joinery and the Repair sentence in the Joinery dialog (R1).
 **Status:** open (record-only).
+**Status:** open (record-only), amended 2026-10-24 by the final review: (3)'s "mixed predicates" can no longer disagree —
+`leanMap` begins with `leans(b)` (I3: a flat board carrying a lean had a map while `leans` said no), so `leans(b)` and
+`leanMap(b) !== null` are one predicate; the double build remains. (11)'s stray `angle-joint` fault DID appear (I2: an apron butting a
+kept leg's pre-lean side) and is fixed: `findSites` skips every pair with a leaning part. The rest stands.

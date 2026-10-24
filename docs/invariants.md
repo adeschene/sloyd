@@ -227,8 +227,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     side** in chunk 1 (aprons and stretchers between splayed legs report unsupported or hangs until chunk 3; fu 438). A leaning part
     resting on another leaning part follows the same level-face-on-level-face rule. A grounded leaning part off the floor reports the
     existing `hangs` sentence (fu 439). An unlevelled leg touches the floor at an edge or corner, so it is not grounded; its fault (and
-    `shown`) adds `; it leans, and its foot is not level: Level the ends`. The tip footprint of a leaning part is the bounding boxes
-    of its floor polygons (`feet(i)`; the exact hull would be stricter, fu 444). For every UNLEANED pair clause (c), the coverage
+    `shown`) adds `; it leans, and its foot is not level: Level the ends`. The tip footprint of a leaning part is its floor polygons
+    THEMSELVES (`feet(i)`: one zero-size box per polygon vertex, so the hull is exactly the feet's; never their bounding boxes, which
+    passed a three-leg stance that tips — final review I1, fu 444). For every UNLEANED pair clause (c), the coverage
     threshold and both halves of the top-face clause run untouched, so the PROHIBITION above stands as written.
 40. **Anything deciding "same cut" derives from `CUT_GEOMETRY_FIELDS` (`cuts.ts`), checked
     against `Cut` by `satisfies`.** Do not replace the table with a list in a function body

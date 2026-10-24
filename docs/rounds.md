@@ -145,10 +145,11 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   `docs/superpowers/plans/2026-10-24-sloyd-splayed-legs.md`. Subagent-driven, 12 build tasks and this records task, each task-reviewed
   (fix rounds: Task 1 ×2 — the seam removed, a zero lean is no lean; Task 6 — any end miter is a level cut; Task 8 — magnitude and
   direction separate). Full suite at 4b06e42 + records: 8200 tests across 235 files, 8195 pass — the 5 failures are
-  load timing (4 `curvesPerf` budgets, 1 `curvesOracle` 5 s timeout), the known class; `npm run build` clean. Owed before merge (plan Task 14): the browser verification on the dev server
-  (`docs/browser-verification-splayed-legs.md`: the four-leg idiom, Level the ends, section with a lean edit, Plans, exploded, snapping
-  onto a leaning foot, the Gizmo's first-frame snap) and the perf guards re-run on a quiet machine (curvesPerf failed under load on
-  master too). Owed to the user: the Amended (build) block. New invariant 57; follow-ups 436–446.
+  load timing (4 `curvesPerf` budgets, 1 `curvesOracle` 5 s timeout), the known class; `npm run build` clean. Browser verification (plan Task 14) DONE on the dev server: 15 checks PASS
+  (`docs/browser-verification-splayed-legs.md`). Owed before merge: its three remaining checks — a gizmo drag of a levelled leg, a lean
+  edit with a section on, a pointer snap onto a foot — and the perf guards re-run on a quiet machine (curvesPerf failed under load on
+  master too). The final whole-branch review's fixes (I1 tip hull from the feet's vertices, I2 no sites with a leaning part, I3 one lean
+  predicate, M1 no turn candidates for a leaning part, M3 the Gizmo's null-start guard) are on the branch. Owed to the user: the Amended (build) block. New invariant 57; follow-ups 436–446.
 - **Mirrored links (fu 432; 2026-10-23; branch `mirrored-links`, MERGED `a2ad5f6`, DEPLOYED at `68dca2d` as `index-_J_yZLbU.js`, CSS unchanged; SCHEMA 21 —
   rolling back past it REFUSES every project saved at 21, export first)**: spec
   `docs/superpowers/specs/2026-10-23-sloyd-mirrored-links-design.md` (the user chose a mirror flag on parts, §1.1; Amended (execution) holds

@@ -42,8 +42,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 - **Rollback:** the nearest refusing boundary is `e2729ee` (AI profiles, `index-D_ed_oQ3.js`, schema 20): it REFUSES every
   project saved at 21 — export first. Below it, every deploy back to `98c7df4` is schema 20 and free among themselves. Full
   table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-24):** **Splayed legs chunk 1** (schema 22, inv 57) is on branch `splayed-legs`, pending browser
-  verification (plan Task 14), merge and deploy. Owed to the user: the splayed legs and mirrored
+- **NEXT (2026-10-24):** **Splayed legs chunk 1** (schema 22, inv 57) is on branch `splayed-legs`: browser checks 15 PASS;
+  owed: a levelled leg's gizmo drag, a lean edit with a section on, a snap onto a foot; then merge, deploy. Owed to the user: the splayed legs and mirrored
   links specs' Amended blocks; fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -626,7 +626,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 **`docs/follow-ups.md` is authoritative** (1–446). Every entry's LAST `**Status:**` line governs; all 380 were triaged
-2026-10-16 (tagged `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
+2026-10-16 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
@@ -635,11 +635,11 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
-- **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain; 37's seed attempt reverted by ruling).
+- **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434, 435.
-- **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442–445; record-only 440, 446.
+- **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
