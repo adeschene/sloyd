@@ -129,8 +129,8 @@ function timesT(m: Mat3, v: readonly number[]): Vec3 {
 }
 
 /**
- * `b`'s lean as a map (§3.3), or null when `b` has no lean, a zero one (x = z = 0 is no lean), or a facing dimension
- * that is not horizontal (which the loader never lets through, §3.2). `m = T · Ry(τ)`:
+ * `b`'s lean as a map (§3.3), or null exactly when `leans(b)` is false: no lean, a zero one (x = z = 0 is no lean), or a
+ * part that is not upright (which the loader never lets through, §3.2). `m = T · Ry(τ)`:
  * - the facing dimension is `seamFree`'s, so τ is never ±π/2;
  * - `Ry(τ)` twists by τ about the vertical, `(x, z) → (x cos τ − z sin τ, x sin τ + z cos τ)`, turning the facing
  *   dimension's axis line onto the sightline σ = atan2(wz, wx);
@@ -140,9 +140,11 @@ function timesT(m: Mat3, v: readonly number[]): Vec3 {
  * A mirror conjugates the whole map (§3.4): the flipped lean (`leanFlip`) on the reflected part gives `S · m · S`.
  */
 export function leanMap(b: Board): LeanMap | null {
-  // A zero lean is no lean (the loader never stores one, Global Constraints): σ = atan2(0, 0) would twist a seamFree
-  // face by 90°, so it takes the no-lean path and lean.ts stays total.
-  if (!b.lean || (b.lean.x === 0 && b.lean.z === 0)) return null;
+  // ONE predicate with `leans` (final review I3): no lean, a zero lean, or a part that is not upright. A zero lean is no
+  // lean (the loader never stores one, Global Constraints): σ = atan2(0, 0) would twist a seamFree face by 90°. A flat
+  // board's width is horizontal too, so without the posture clause it got a map while `leans` said no, and modules gated
+  // on one drew it upright while others bounded, snapped or noted it as leaning.
+  if (!leans(b) || !b.lean) return null;
   const [wx, wz] = worldSlopes(b);
   const tau = twistOf(b, seamFree(b.lean).face, wx, wz);
   if (tau === null) return null;
@@ -176,7 +178,7 @@ export function leanMap(b: Board): LeanMap | null {
 }
 
 /** Whether `b` leans: `leanMap(b)` would be non-null, without building it (a zero lean is no lean; only an upright part
- *  carries one, §3.2). */
+ *  carries one, §3.2). The ONE predicate: `leanMap` begins by asking it (final review I3). */
 export function leans(b: Board): boolean {
   return b.lean !== undefined && (b.lean.x !== 0 || b.lean.z !== 0) && b.posture === 'upright';
 }

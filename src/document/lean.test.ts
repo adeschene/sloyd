@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import { cornerShift, mirrorPart, rotateVec, type Vec3 } from './frames';
 import {
-  chooseFace, degreesOf, leanFlip, leanMap, resultantDeg, seamFree, sightlineDeg, slopeOf, withinBound, worldSlopes,
+  chooseFace, degreesOf, leanFlip, leanMap, leans, resultantDeg, seamFree, sightlineDeg, slopeOf, withinBound, worldSlopes,
   type LeanMap, type Mat3,
 } from './lean';
 import { axisFrame } from './geometry';
@@ -197,5 +197,25 @@ describe('lean.ts (splayed legs spec §3.1–§3.4)', () => {
   it('no lean, no map', () => {
     const b = createBoard({ posture: 'upright' });
     expect(leanMap(b)).toBeNull();
+  });
+});
+
+describe('leanMap and leans agree: one predicate (final review I3)', () => {
+  // A part that is not upright cannot lean (§3.2; the loader strips such a lean). Built past the loader, a flat or on-edge
+  // board carrying one used to get a map (its 'width' face is horizontal) while `leans` said no, so modules gated on
+  // one drew it upright while others bounded, snapped or noted it as leaning.
+  for (const posture of ['flat', 'on-edge'] as const) {
+    for (const face of ['width', 'thickness'] as const) {
+      it(`${posture}, a ${face}-facing lean: no map, and it does not lean`, () => {
+        const b: Board = { ...createBoard({ posture, length: 16, width: 1.5, thickness: 1.5 }), lean: { x: 0.2, z: 0.1, face } };
+        expect(leanMap(b)).toBeNull();
+        expect(leans(b)).toBe(false);
+      });
+    }
+  }
+  it('an upright board with the same lean has a map and leans', () => {
+    const b: Board = { ...createBoard({ posture: 'upright', length: 16, width: 1.5, thickness: 1.5 }), lean: { x: 0.2, z: 0.1, face: 'width' } };
+    expect(leanMap(b)).not.toBeNull();
+    expect(leans(b)).toBe(true);
   });
 });
