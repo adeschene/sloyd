@@ -5,7 +5,7 @@ import {
   holeRegion, holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
 } from './holes';
 import { parseLength, IMPERIAL } from '../units/length';
-import { readFileSync } from 'node:fs';
+import snapshotRaw from './holesSquare.snapshot.json?raw';
 import { bitVector } from './holeTilt';
 import { SQUARE_CASES } from './holesSquareCases';
 import { holeBottom, holeTouches, holeTouchesBox } from './holes';
@@ -233,7 +233,7 @@ describe('the stored tilt in a row\'s values (angled holes, schema 23)', () => {
 
 describe('square rows are as they were (angled holes, Task 2: snapshots of the code before the tilt)', () => {
   // Captured from holes.ts at 60ba752 (before the tilt), every number as it was (-0 kept as the string "-0").
-  const snap = JSON.parse(readFileSync('src/document/holesSquare.snapshot.json', 'utf8'), (_k, v) => (v === '-0' ? -0 : v)) as {
+  const snap = JSON.parse(snapshotRaw, (_k, v) => (v === '-0' ? -0 : v)) as {
     name: string; instances: Hole[]; ringMouth: V3[]; ringMid: V3[]; ringFar: V3[]; prism: unknown; rims: unknown; region: unknown;
   }[];
   it.each(SQUARE_CASES.map((c, i) => [c.name, c, snap[i]!] as const))('%s', (_n, c, s) => {
@@ -435,6 +435,34 @@ describe('the tilted bore (angled holes spec §6.1)', () => {
       const after: V3 = [0, 1, 2].map((i) => h.centre[i]! + (h.reach + 0.01) * h.bit[i]!) as V3;
       expect(insideHole(h, after)).toBe(false);
     }
+  });
+  it('insideHole: a blind bore\'s far cap is the bottom disc, square to the bit — not the axial plane through its centre', () => {
+    // Task 2 review: off-axis points by the bottom of BLIND (tilted (0.2, -0.05)). w is e_a's part square to the bit,
+    // normalised: moving along it changes the axial t by sin θ per inch while staying in a plane square to the bit. `up`
+    // is the way along w that makes the bore SHALLOWER (t decreasing). From the bottom centre:
+    // - up 0.8r and 0.01 along the bit: past the bottom disc (along-bit depth + 0.01) yet axially SHORT of reach — wood;
+    // - down 0.8r and 0.01 back along the bit: inside the disc's plane yet axially PAST reach — air.
+    // Mutation: judging a blind bore's far cap by `t > reach` (the face-parallel plane) flips both.
+    const h = holeInstances(thick, BLIND)[0]!;
+    const a = axisIdx(h);
+    const L = len(h.bit);
+    const b = h.bit.map((x) => x / L) as V3;
+    const ea: V3 = [0, 0, 0]; ea[a] = 1;
+    const wRaw = sub(ea, b.map((x) => x * b[a]!) as V3);
+    const w = wRaw.map((x) => x / len(wRaw)) as V3;
+    const up = w.map((x) => -h.dir * x) as V3;
+    const bottom: V3 = [0, 1, 2].map((i) => h.centre[i]! + h.reach * h.bit[i]!) as V3;
+    const pt = (k: number, d: number): V3 => [0, 1, 2].map((i) => bottom[i]! + k * 0.8 * h.radius * up[i]! + d * b[i]!) as V3;
+    const t = (p: V3) => h.dir * (p[a]! - h.centre[a]!);
+    const uphill = pt(1, 0.01);
+    const downhill = pt(-1, -0.01);
+    // The set-up is what it claims: the axial t falls short of reach uphill and runs past it downhill.
+    expect(t(uphill)).toBeLessThan(h.reach);
+    expect(t(downhill)).toBeGreaterThan(h.reach);
+    expect(dotv(sub(uphill, h.centre), b)).toBeGreaterThan(h.depth);
+    expect(dotv(sub(downhill, h.centre), b)).toBeLessThan(h.depth);
+    expect(insideHole(h, uphill)).toBe(false);
+    expect(insideHole(h, downhill)).toBe(true);
   });
   it('rims: the mouth ring, then the bottom (blind) or the exit ring (through)', () => {
     for (const h of holes) {

@@ -143,7 +143,9 @@ function frameOf(h: Pick<Hole, 'axis'>): { a: number; u: number; v: number } {
   return { a, u, v };
 }
 
-/** The bit leaves the face axis. Every square hole takes the code paths it always did (Global Constraints). */
+/** The bit leaves the face axis. Every square hole takes the code paths it always did (Global Constraints). Exported
+ *  as `tiltedHole` for holeFaults' branches. */
+export const tiltedHole = (h: Pick<Hole, 'axis' | 'bit'>): boolean => tilted(h);
 const tilted = (h: Pick<Hole, 'axis' | 'bit'>): boolean => {
   const { u, v } = frameOf(h);
   return h.bit[u] !== 0 || h.bit[v] !== 0;

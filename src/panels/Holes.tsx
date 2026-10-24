@@ -20,6 +20,7 @@ function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
     case 'off-flat': return `Puts hole ${n} where a cut has removed the wood — move it first.`;
     case 'meets-hole': return `Puts hole ${n} into ${f.other!.row === rowId ? `hole ${f.other!.index + 1}` : `hole ${f.other!.index + 1} of another row`} — move it or widen the spacing first.`;
     case 'too-deep': return `Deeper than the ${r.face} — use Through.`;
+    case 'too-shallow': return 'Too shallow for its angle — deepen it, or use Through.';
   }
 }
 /** The note for a fault the stored row already has (a later edit caused it), from THE fault words (holeText.ts). */

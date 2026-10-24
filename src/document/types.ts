@@ -130,7 +130,7 @@ export interface HoleRow {
   acrossFrom: CutFrom;
   /** … and how far. */
   inset: number;
-  /** Schema 23 (angled holes spec §3.1): the bit's travel along `along` per inch of depth, positive toward the far end
+  /** Schema 23 (angled holes spec §3.1): the bit's travel along `along` per inch of axial travel (along the face's normal), positive toward the far end
    *  from `alongFrom`. Absent = square; stored only when non-zero. */
   tiltAlong?: number;
   /** Likewise along the third dimension, positive toward the far side from `acrossFrom`. */
