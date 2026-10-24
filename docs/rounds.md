@@ -12,6 +12,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
+| `68dca2d` (mirrored links) | `index-_J_yZLbU.js` | 21 | ONCE SPLAYED LEGS DEPLOYS (not yet; branch `splayed-legs`, schema 22): REFUSES every project saved at 22 — export first; leans stop |
 | `e2729ee` (AI profiles) | `index-D_ed_oQ3.js` | 20 | REFUSES every project saved at 21 — export first; mirrored links stop |
 | `ef88e09` (AI bands) | `index-lH3mycr3.js` | 20 | free; Claude stops authoring profiles, and the design form returns to four angle arrays |
 | `0b5e5ca` (wording, fu 410–412) | `index-CuLt9iDe.js` | 20 | free; also Claude stops authoring edging |
@@ -134,9 +135,20 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | AI bands | 10-23 | — | Generate and Refine author edge bands in world words (`bandWorld.ts`; `edging` = veneer, a project type, or `solid <material>` minted once as `<Label> edging` at 1/4in); band types threaded through every path; band faults fed back (not for curved parts, whose bands stay carried); banded parts link through turns; Generate edges exposed plywood front edges by default; `vec3` into `$defs` (fu 322) (inv 48/54/56; fu 430 chunk 1, 432, 433). **Merged `e7ce893`, deployed 2026-10-23 at `ef88e09` (`index-lH3mycr3.js`)** |
 | AI profiles | 10-23 | — | The design form's four angle arrays merged into ONE `angles` item to fit the grammar (`toWireDesign` / `parseDesign` split; the internal form unchanged); Generate and Refine author edge profiles in world words (`profileWorld.ts`; untouched entries exact through the exact-entry map); `profile-fault` kept and fed back (`profileDesignFaults.ts`); profiled parts link through turns and follow the rank + thickness frame rule; a part with curves or a two-side run keeps its profiles carried (`carriesProfiles`); profile lines in the change list (inv 40/41/48/53/56; fu 430 closed, 434). **Merged `30f1299`, deployed 2026-10-23 at `e2729ee` (`index-D_ed_oQ3.js`)** |
 | mirrored links | 10-23 | 21 | A linked part may be its Shape's MIRROR image (`mirrored`, an own field of a shaped part; `resolveBoard` applies it by flag flips, `mirrorFeatures`): edits lower through it exactly (`lowerOwnMirror`), a side is chain parity XOR the flag (`sideAt`); Generate and Refine link mirror twins (`mirrorCandidates`, after turns); the Mirrored checkbox (world X, in place) and ⇋ badge; joinery keeps a mirrored link (exact regroup); Unlink leaves two plain parts as they looked (inv 44/45/46; fu 432 closed, 435). **Merged `a2ad5f6`, deployed 2026-10-23 at `68dca2d` (`index-_J_yZLbU.js`)** |
+| splayed legs (chunk 1) | 10-24 | 22 | A part LEANS (`Board.lean`: two slopes and a facing dimension, shared, upright only; `lean.ts` the ONE home): typed rake and splay in world words (the Lean section: magnitude fields and direction selects, the resultant and sightline readout, Clear lean); position stays the pre-lean min corner, the pivot is the top's centre (a resize keeps it); mirrors by `leanFlip`; every world crossing composes it and every extent reader uses `partBounds`; drags round the delta; Level the ends (`levelEnds.ts`: two end miters, length rounded up to the grid); the viewport, snapping, section caps, drawings and a Plans note read it; the checks rest a leaning part on its level faces (`leanContacts.ts`); joinery and Repair refuse it, Refine keeps it as is (`leanKeep.ts`) (inv 57; inv 2/24/25/38/39/41/42/44–47/51/56 clauses; fu 436–446). **On branch `splayed-legs`; not merged or deployed** |
 
-## Status log (to 2026-10-23)
+## Status log (to 2026-10-24)
 
+- **Splayed legs, chunk 1 (feature gap §1; 2026-10-24; branch `splayed-legs`, NOT merged or deployed — merge commit to be filled at
+  merge; SCHEMA 22 — once deployed, rolling back past it REFUSES every project saved at 22, export first)**: spec
+  `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md` (Amended (build) holds Rulings 1–19 with their costs), plan
+  `docs/superpowers/plans/2026-10-24-sloyd-splayed-legs.md`. Subagent-driven, 12 build tasks and this records task, each task-reviewed
+  (fix rounds: Task 1 ×2 — the seam removed, a zero lean is no lean; Task 6 — any end miter is a level cut; Task 8 — magnitude and
+  direction separate). Full suite at 4b06e42 + records: 8200 tests across 235 files, 8195 pass — the 5 failures are
+  load timing (4 `curvesPerf` budgets, 1 `curvesOracle` 5 s timeout), the known class; `npm run build` clean. Owed before merge (plan Task 14): the browser verification on the dev server
+  (`docs/browser-verification-splayed-legs.md`: the four-leg idiom, Level the ends, section with a lean edit, Plans, exploded, snapping
+  onto a leaning foot, the Gizmo's first-frame snap) and the perf guards re-run on a quiet machine (curvesPerf failed under load on
+  master too). Owed to the user: the Amended (build) block. New invariant 57; follow-ups 436–446.
 - **Mirrored links (fu 432; 2026-10-23; branch `mirrored-links`, MERGED `a2ad5f6`, DEPLOYED at `68dca2d` as `index-_J_yZLbU.js`, CSS unchanged; SCHEMA 21 —
   rolling back past it REFUSES every project saved at 21, export first)**: spec
   `docs/superpowers/specs/2026-10-23-sloyd-mirrored-links-design.md` (the user chose a mirror flag on parts, §1.1; Amended (execution) holds
@@ -460,7 +472,9 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
 … in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
-Since the bulk approval: the mirrored links spec's *Amended (execution)* (Rulings 1–11, chiefly Ruling 1 replacing §5.1's
+Since the bulk approval: the splayed legs spec's *Amended (build)* (Rulings 1–19 — chiefly Ruling 1 `seamFree`, Ruling 4 the
+magnitude/direction controls replacing §4's "same world lean to each", Ruling 7 Level's top reference R narrowing §5's "always extends",
+Ruling 8 any end miter recognised, Rulings 14–16 Repair only with cuts, Refine's assembly refusal and no floor shift; not deployed). The mirrored links spec's *Amended (execution)* (Rulings 1–11, chiefly Ruling 1 replacing §5.1's
 mirror-candidate mechanism, Ruling 5 the checkbox's world-X form, Ruling 6 Link's flag rule, Rulings 10–11 joinery's exact regroup).
 (The AI profiles and bands spec's *Chunk 2 (execution)* block — Rulings 1–16, the final review's fixes,
 R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-10-23; Rulings 10/16 individually the same day.)

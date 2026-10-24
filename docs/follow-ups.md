@@ -7151,3 +7151,97 @@ two-level nested chain for the checkbox; the checkbox is not refused while gestu
 characterisation tests not mutation-shown; turn/mirror candidates recomputed per representative; `linkByRole`'s restore pairs records
 by index with `linksToShapes` unasserted; turned mirror candidates tested upright only.
 **Status:** open (record-only).
+
+## From the splayed legs round (chunk 1) — 2026-10-24
+
+**436. Automatic re-levelling (splayed legs spec §5).** Level the ends is a button: after a later lean edit or resize the ends are
+stale, the Lean section says `Ends were levelled for a different lean — Level the ends again`, and the user presses it. Re-levelling
+on every lean edit was left out of v1 on purpose (narrower, and no hidden derived cut). If wanted, it would be a store-side follow-on to
+`setLean` / the resize path through `levelPlan` (same undo entry), with the refusals (an end bevel or chamfer, a top at the floor,
+linked tops at different heights) deciding whether the edit itself is refused.
+**Status:** open (feature; ask first).
+
+**437. Leaning parts with holes (splayed legs chunk 2, angled holes).** In chunk 1 a part with hole rows cannot take a lean (`A part
+with holes can't lean yet — that comes with angled holes.`) and a leaning part cannot take a hole row (`A leaning part can't take holes
+yet — that comes with angled holes.`). A hand-edited or imported document that has both is kept and drawn (its drawing does not throw),
+and its section caps omit the bores — with NO note (spec §8 said "with a note"; Amended (build) Ruling 18). Chunk 2 adds hole rows
+that are not square to a face (the seat's leg sockets, bored along the leg's real axis), oblique bores in caps and drawings, and probably
+a round or tapered round tenon on a leg's top; it lifts both refusals.
+**Status:** open (feature-sized; needs its own spec — chunk 2).
+
+**438. Aprons and stretchers between splayed legs (chunk 3).** The design checks hold nothing "between" leaning parts or lapped onto a
+leaning leg's side (Amended (build) Ruling 13, inv 39): a leaning part touches only through its level faces. So a splayed table's
+aprons or stretchers report `unsupported` (or `hangs`, when they also rest on something unleaned) until chunk 3 designs the joints
+(rung length and angles from the two legs' leaned axes). Conservative: it never passes a design that should fail.
+**Status:** open (feature-sized; chunk 3).
+
+**439. The `hangs` sentence for a grounded leaning part off the floor.** A leaning part that is grounded through other parts but does
+not reach the floor (a leg whose foot stops short and hangs from the seat) reports the existing `hangs` message — "its X sides are
+covered 0% and 0% … fit it between two parts …" — which says less than it could about a leaning part (Ruling 13: no new copy this
+chunk). A lean-specific sentence (e.g. naming Level the ends, or "its foot does not reach the floor") is the candidate.
+**Status:** open (wording; ask first).
+
+**440. The twist's 180° seam (spec §3.3).** `seamFree` removed the EXACT seam (Ruling 1: a lean landing exactly on it faces the other
+dimension, twist 0). What remains is §3.3's accepted behaviour: the twist is reduced into (−90°, 90°], so a sightline that crosses
+the seam through a sign change (the stored face's + direction going perpendicular to the sightline, e.g. a leg first set splay-heavy on
+width later edited to a rake-heavy lean whose splay changes sign) spins the leg 180° about its own axis — the same box, its features
+(curves, profiles, bands) turned. Its ends are stale by then anyway. A re-choice of the face on such an edit would trade the spin for a
+90° turn. Reachable only through large lean edits.
+**Status:** open (record-only; accepted by the spec).
+
+**441. Refine refuses a leaning part inside an assembly (Ruling 15).** `Refine can't keep a leaning part inside an assembly yet —
+Ungroup it first: <name>.` (reason `'lean-assembly'`). Refine rebuilds every definition from the model's assembly, so a kept part
+there has no stable container; keeping it in flat world form at the root would change its container and flat name, and per-placement
+copies would lose the definition's sharing. The §3.4 idiom builds legs at the root, so the common case is kept. A grouped staked piece
+must be ungrouped first.
+**Status:** open (by decision for chunk 1; ask first).
+
+**442. Kept parts count toward Refine's part caps (Task 12, R7).** Kept leaning parts count toward `distinctPartsViolation` and the
+placed ceiling, but `limitLines` does not tell the model that they use part of "at most N different parts", so a model that fills the
+cap gets a `too-many-parts` fault it cannot explain. Candidate: subtract the kept parts in `limitLines`' numbers, or exclude them from
+the cap.
+**Status:** open.
+
+**443. A model ASSEMBLY placement named like a kept part is silently renamed (Task 12 review minor).** `designToDocument`'s `kept`
+drop (spec §8(e)) catches a LOOSE model part whose cleaned name equals a kept flat name and reports it on the done view's `Replaced by
+the kept part of the same name: …` line. A model assembly PLACEMENT with that name is not dropped: the load gate's dedupe renames it
+(inv 8), and nothing reports it.
+**Status:** open (minor).
+
+**444. The tip footprint of a leaning part uses its feet's bounding boxes (Task 11 minor; final review should triage).** `designCheck.ts`
+`feet(i)` gives the axis-aligned bounding box of each floor polygon, as the plan said. A splayed foot's cut face is a sloped-section
+polygon, so its box is slightly larger than the foot and slightly favours "stands". The convex hull of the polygons' vertices would be
+exact (stricter).
+**Status:** open (minor).
+
+**445. The Lean section's single-selection parts (Task 8 minors).** (1) `Level the ends` and the stale-ends note show for a single
+selected part only (`levelEnds(id)` takes one id; one undo entry). One linked leg levels its whole Shape, but unlinked legs are
+levelled one at a time. (2) With rake or splay at 0° the direction select is a no-op (nothing to sign).
+(3) The readout (`Resultant … · sightline …`) is hidden on a symmetric multi-selection (±12°), though both numbers are sign-free and
+agree; it could show when they are equal. Multi-selection Rake and Splay themselves are done (Ruling 4: magnitude and direction are
+separate controls).
+**Status:** open (minor).
+
+**446. Splayed legs chunk 1: deferred minors (2026-10-24, the SDD ledger and task reviews).** (1) `document.ts`: `validateLean`'s JSDoc
+orphans the "A part's SHARED fields…" comment above `validateSharedFields` (move it); the loader tests drop a lean only on `flat`, not
+`on-edge`. (2) `treeEdit.ts`' Shape path now writes through `storedValue`: a shared key missing from `after` reads ABSENT (only `lean`
+can be missing today). (3) `partsBounds`, framing, section and dimensions build `leanMap` twice (predicate, then use) — `leans(b)` now
+exists for the predicate; `drawing.ts` mixes `leans(b)` and `leanMap(b)` as predicates. (4) The dimensions / section / framing /
+worldBounds lean tests compare against `partBounds` or the same composition (routing, not values); `worldBounds.test.ts`' comment
+promises an 8-corner comparison it does not assert; the Plans dimension-chain test passed before its change (its mutation fails it).
+(5) `store.test.ts`: the group-move test cannot discriminate on Y (lift the group off-grid); another restates `dragTarget`'s formula;
+`expect(x).toBe(x)` tautology near the Lean tests; the Holes panel's error-clear on a board-id change is untested. (6) Return
+conventions differ: `updateBoards` / `updateBoard` return `string | undefined` (DimensionField's `onCommit` type), `setLean` /
+`levelEnds` / `addHoleRows` `string | null`; `setLean` and `levelEnds` return null silently while gesturing or exploded (no copy).
+(7) Level the ends: the disagreeing-tops refusal names every user, not only the outliers (Ruling 9); `levelPlan` mints ids with
+`nextId()` for a missing end cut even inside `isLevelled` and unwritten mates' plans (a counter only); no minimum length when R sits
+just above the floor. (8) Drawings: no test passes `inverseDir` to `curveEdgeLifts` alone (the silhouette test covers
+`silhouetteLines`); `leanLifts` finds an edge's faces by infinite-plane membership, so a coplanar face of another body could donate a
+normal (bounded by 1e-3"). (9) Section caps: `section.ts` restates `leanMap`'s pivot (derive it from `map.pivot − position`); no
+vertex- or edge-on-plane test on the oblique path; `LocalCap.li` is reused as a world axis; leaning caps carry ~1e-15 off the plane.
+(10) Design checks: the per-pair `meet` closure is allocated in lean-free documents too (hoist it behind `anyLean`); a wrong
+`tipping()` comment in `leanFreeChecks.test.ts`; internal pocket-cell faces count as level faces (harmless; comment owed).
+(11) Refine: no explicit lean-free identity test for `designToDocument` with an empty `kept`; a redundant guard in `RefineDialog.tsx`;
+`jointFaults` unchanged (R5: a stray `angle-joint` fault between a kept leg's level top and a seat did not appear; if it does, exclude
+leaning parts from its sites); a leaning project WITH cuts shows both the joinery and the Repair sentence in the Joinery dialog (R1).
+**Status:** open (record-only).

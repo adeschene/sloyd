@@ -294,9 +294,9 @@ function placed(board: Board, p: Point): [number, number, number] {
 }
 
 /**
- * A world point in the board's own space: `toWorld`'s exact inverse (splayed legs §6.2). The lean's `inverse` first,
- * for a leaning part, then `fromWorldOffset` on each world axis (a turn may reverse any horizontal axis, inv 44). On a
- * leaning part the round trip carries float noise (~1e-15): never feed it to an exact closed-span test where the
+ * A world point in the board's own space: `toWorld`'s inverse, exact for an unleaned part (splayed legs §6.2). The
+ * lean's `inverse` first, for a leaning part, then `fromWorldOffset` on each world axis (a turn may reverse any horizontal
+ * axis, inv 44). On a leaning part the round trip carries float noise (~1e-15): never feed it to an exact closed-span test where the
  * pre-lean point is to hand (`boardSnapPoints` filters before it maps).
  */
 export function fromWorld(board: Board, at: readonly number[]): Point {
