@@ -6,9 +6,11 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { BandType, HardwareType, ProfileSide, AngleCut, Board, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { BandType, HardwareType, ProfileSide, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
+import { rotateVec } from '../document/frames';
+import { chooseFace, leans, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
 import { copyProfile, sameProfile } from '../document/profiles';
@@ -21,6 +23,12 @@ import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 
 const HISTORY_LIMIT = 50;
+
+/** setLean's and addHoleRows' refusals (splayed legs spec §3.2, §4, §8), verbatim. */
+export const LEAN_NOT_UPRIGHT = 'Only an upright part can lean.';
+export const LEAN_HAS_HOLES = "A part with holes can't lean yet — that comes with angled holes.";
+export const LEAN_PAST_BOUND = "The lean can't pass 45° in all — reduce the rake or splay.";
+export const HOLES_ON_LEAN = "A leaning part can't take holes yet — that comes with angled holes.";
 
 /**
  * Which viewport tool has the pointer. View state, not document state — it is
@@ -233,7 +241,11 @@ interface StoreState {
   setTapeAxis: (axis: TapeAxis | null) => void;
 
   addBoard: () => void;
-  updateBoard: (id: string, patch: Partial<Board>) => void;
+  /**
+   * Returns a refusal sentence (`postureRefusal`: a posture change on a leaning part, or across a mirror), else
+   * undefined — not null, so a `DimensionField`'s `onCommit` (void | string) can return it straight through.
+   */
+  updateBoard: (id: string, patch: Partial<Board>) => string | undefined;
   /**
    * One patch to every named part, as ONE undo entry. Each part goes through
    * the same per-board rules a single edit does — its own min corner, its own
@@ -241,7 +253,7 @@ interface StoreState {
    * single edits sharing one snapshot. Unknown ids are ignored.
    */
   /** `adopt`: custom materials copied into the document in the SAME edit (a library pick, spec §4.2). */
-  updateBoards: (ids: string[], patch: Partial<Board>, adopt?: CustomMaterial[], bandTypes?: BandType[], hardwareTypes?: HardwareType[]) => void;
+  updateBoards: (ids: string[], patch: Partial<Board>, adopt?: CustomMaterial[], bandTypes?: BandType[], hardwareTypes?: HardwareType[]) => string | undefined;
   /**
    * The Materials & prices dialog's project write (spec §4.1): its edited copies, and with `assign` the
    * selection's new material — ONE edit, one undo entry. Unused copies are pruned by edit(). Refused while exploded.
@@ -388,7 +400,8 @@ interface StoreState {
   updateAngleCut: (boardId: string, cutId: string, next: Omit<AngleCut, 'id'>) => void;
   removeAngleCut: (boardId: string, cutId: string) => void;
   /** Hole rows (holes spec §7): several in one call are one undo entry. */
-  addHoleRows: (boardId: string, rows: Omit<HoleRow, 'id'>[]) => void;
+  /** Refused, with `HOLES_ON_LEAN`, on a leaning part (splayed legs spec §8); null otherwise. */
+  addHoleRows: (boardId: string, rows: Omit<HoleRow, 'id'>[]) => string | null;
   updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => void;
   removeHoleRow: (boardId: string, rowId: string) => void;
   /** Curve cuts (curves spec §8): several in one call are one undo entry. */
@@ -401,6 +414,16 @@ interface StoreState {
   removeProfile: (boardId: string, profileId: string) => void;
   /** Sets `sides` to band type `type` (null clears) on every named part, one edit, one undo entry; refused while exploded. */
   setBands: (ids: string[], sides: readonly ProfileSide[], type: string | null) => void;
+  /**
+   * The Lean section's write (splayed legs spec §3.1, §3.4, §4): signed WORLD degrees — rake + is the foot toward the
+   * front (+Z), splay + toward the right (+X) — for the selected placement; an absent one leaves that slope exactly as
+   * stored; `null` clears the lean. Each becomes a world slope (`slopeOf`), then the part's turn-0 slopes (the inverse
+   * turn, exact), then the stored ones through `mapWorld`'s lowering (a flip per mirror). Users of one Shape collapse
+   * to the FIRST selected (the rest follow through the Shape, each in its own hand). ONE undo entry. Returns a refusal
+   * sentence, decided for every target before `edit()` — not upright, holes, past the bound — or null; refused
+   * silently (null) while gesturing or exploded. Clear is never refused.
+   */
+  setLean: (ids: string[], world: { rake?: number; splay?: number } | null) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -804,10 +827,19 @@ export const useStore = create<StoreState>((set, get) => {
     const reorienting =
       (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
       (patch.posture !== undefined && patch.posture !== current.posture);
+    // A LEANING part keeps its pivot, the centre of its pre-lean top face, through a resize (splayed legs spec §3.2:
+    // the joint with the seat stays put; a length change moves the foot end). A turn in the same patch lands where
+    // reorientedPosition would put it (pivotKeptPosition shares its X/Z arithmetic). A part that does not lean takes
+    // the path above, byte for byte. A posture change never reaches here on a leaning part (postureRefusal).
+    const resizing = (['length', 'width', 'thickness'] as const).some((k) => patch[k] !== undefined && patch[k] !== current[k]);
     const position =
-      reorienting && !patch.position
-        ? reorientedPosition(current, patch)
-        : patch.position;
+      patch.position
+        ? patch.position
+        : leans(current) && (reorienting || resizing)
+          ? pivotKeptPosition(current, patch)
+          : reorienting
+            ? reorientedPosition(current, patch)
+            : undefined;
 
     // Sheet goods have no 'thickness' grain — see isSheetGood's comment.
     // Switching a board's material to plywood/MDF while its grain is
@@ -1094,11 +1126,16 @@ export const useStore = create<StoreState>((set, get) => {
       // layout by up to a sixteenth, invisibly (invariant 25).
       const units = get().doc.units;
       const snap = (v: number) => snapToGrid(v, units);
-      const delta = [
-        snap(minCorner[0]) - bounds.min[0],
-        snap(minCorner[1]) - bounds.min[1],
-        snap(minCorner[2]) - bounds.min[2],
-      ] as const;
+      // A group holding a LEANING part rounds the DELTA instead (splayed legs spec §6.2): its real-bounds corner moves
+      // with the lean and its pre-lean corner is off-grid, so rounding either would lift a levelled foot off the floor
+      // or move the seat joint; a grid-multiple delta keeps both exact. A lean-free group is unchanged, byte for byte.
+      const delta = moving.some(leans)
+        ? [0, 1, 2].map((i) => snap(minCorner[i]! - bounds.min[i]!)) as [number, number, number]
+        : [
+          snap(minCorner[0]) - bounds.min[0],
+          snap(minCorner[1]) - bounds.min[1],
+          snap(minCorner[2]) - bounds.min[2],
+        ] as const;
       if (delta[0] === 0 && delta[1] === 0 && delta[2] === 0) return;
       translateBoards(new Set([...wanted].filter((id) => paths.has(id))), delta);
     },
@@ -1129,14 +1166,17 @@ export const useStore = create<StoreState>((set, get) => {
     updateBoard: (id, patch) => get().updateBoards([id], patch),
 
     updateBoards: (ids, patch, adopt, bandTypes, hardwareTypes) => {
-      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
+      if (readOnly()) return undefined; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
-      if (targets.size === 0) return;
+      if (targets.size === 0) return undefined;
       // Refused before ANY mutation, the grab clear below included (invariant
       // 4): a d0-moving posture change on a Shape used on both sides of a
-      // mirror would write two different cut sets to it.
-      if (postureRefusal(get().doc, [...targets], patch.posture) !== null) return;
+      // mirror would write two different cut sets to it; and any posture
+      // change on a leaning part (splayed legs spec §3.2), returned so a
+      // caller can show it (the Posture field reads the same decider).
+      const refused = postureRefusal(get().doc, [...targets], patch.posture);
+      if (refused !== null) return refused;
 
       // Invariant 24: a grab holds a world position captured at grab time, not
       // a reference to the board. Properties stays fully live in Move mode
@@ -1177,7 +1217,9 @@ export const useStore = create<StoreState>((set, get) => {
       // for ONE reason: a posture change must re-pivot each about its own
       // centre (invariant 2), since posture is shared and a min corner is not.
       // Their shape writes agree with the targets', so applyWorldEdits merges
-      // them. Name, position and rotation never reach them. The board-precise
+      // them. Name, position and rotation never reach them — but patchBoard may
+      // move a leaning mate's corner so a shared resize keeps ITS pivot
+      // (splayed legs spec §3.2, per user). The board-precise
       // `grabbed` clause above is for the TARGETS only; the other users' held
       // points go through the point-precise test below.
       // A lean never reaches them (splayed legs spec §3.4): it is in each part's OWN hand, so a mate across a mirror
@@ -1210,6 +1252,7 @@ export const useStore = create<StoreState>((set, get) => {
       // no-op rather than a second opinion. Every held point is judged: a
       // shape's Length moves every user's points, not only the targets'.
       judgeHeld();
+      return undefined;
     },
 
     applyMaterials: (upserts, assign, bandTypes, hardwareTypes) => {
@@ -1724,12 +1767,15 @@ export const useStore = create<StoreState>((set, get) => {
     // user sees the edit (invariant 45). Held points are re-judged after (invariant 24): a hole can swallow a grabbed
     // lattice point (the mouth is air).
     addHoleRows: (boardId, rows) => {
-      if (readOnly()) return;
+      if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
-      if (!board || rows.length === 0) return;
+      if (!board || rows.length === 0) return null;
+      // Splayed legs spec §8: a hole on a leaning part waits for angled holes (chunk 2). Decided before edit().
+      if (leans(board)) return HOLES_ON_LEAN;
       const added = rows.map((r) => ({ ...copyHoleRow(r as HoleRow), id: nextId() }));
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, holes: [...b.holes, ...added] } : b))));
       judgeHeld();
+      return null;
     },
     updateHoleRow: (boardId, rowId, next) => {
       if (readOnly()) return;
@@ -1819,6 +1865,61 @@ export const useStore = create<StoreState>((set, get) => {
         return sameBands(next, b.bands) ? b : { ...b, bands: next };
       })));
       judgeHeld();
+    },
+
+    setLean: (ids, world) => {
+      // Refused at entry while exploded (invariant 47) or mid-gesture (a drag's lazy snapshot would swallow it). No
+      // sentence: the copy has none, and the Lean section is inside EditLock.
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const byId = new Map(worldParts(doc0).map((b) => [b.id, b]));
+      // ONE write per Shape, through the first selected user (controller ruling 1): a Shape cannot hold "the same
+      // world lean" on both sides of a mirror, and the other users follow through it, each in its own hand.
+      const shapes = new Set<string>();
+      const firsts = ids.filter((id) => {
+        const b = byId.get(id);
+        if (!b) return false;
+        if (b.shape === undefined) return true;
+        if (shapes.has(b.shape)) return false;
+        shapes.add(b.shape);
+        return true;
+      });
+      // A −0 from the turn becomes +0, so a stored zero slope is a plain zero (`seamFree` and `Object.is` agree).
+      const plus0 = (v: number) => (v === 0 ? 0 : v);
+      const next = new Map<string, Lean | undefined>();
+      for (const id of oneEditPerTarget(doc0, firsts)) {
+        const b = byId.get(id)!;
+        if (world === null) {
+          if (b.lean) next.set(id, undefined); // Clear is never refused: a loaded holed, leaning part can be cleared
+          continue;
+        }
+        if (b.posture !== 'upright') return LEAN_NOT_UPRIGHT;
+        if (b.holes.length > 0) return LEAN_HAS_HOLES;
+        // World slopes, the typed one replaced and the other copied as is (§3.1: no trig round trip), then turned back
+        // into the part's turn-0 frame: quarter turns are swaps and negations, so the untouched slope keeps its bits.
+        const [wx, wz] = worldSlopes(b);
+        const w = [world.splay === undefined ? wx : slopeOf(world.splay), 0, world.rake === undefined ? wz : slopeOf(world.rake)];
+        const t = rotateVec(inverseTurn(b.rotation), w);
+        const x = plus0(t[0]);
+        const z = plus0(t[2]);
+        if (!withinBound(x, z)) return LEAN_PAST_BOUND;
+        if (x === 0 && z === 0) {
+          if (b.lean) next.set(id, undefined); // a zero lean is no lean: never stored (Global Constraints)
+          continue;
+        }
+        // The facing dimension is chosen once, when the part had no lean, and kept by later edits (§3.1); the stored
+        // form is always seam-free.
+        const lean = seamFree({ x, z, face: b.lean ? b.lean.face : chooseFace(b, x, z) });
+        if (b.lean && b.lean.x === lean.x && b.lean.z === lean.z && b.lean.face === lean.face) continue; // inv 4
+        next.set(id, lean);
+      }
+      if (next.size === 0) return null;
+      // A world-part edit: `mapWorld` lowers the lean through every turn and mirror on the path, and a shaped part's
+      // into its Shape once; `lean: undefined` removes it everywhere (treeEdit's ABSENT).
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (next.has(b.id) ? { ...b, lean: next.get(b.id) } : b))));
+      // Inv 24: a lean moves the part's snap points (they compose the lean), so held points are re-judged.
+      judgeHeld();
+      return null;
     },
 
     setHardware: (target, type, count) => {

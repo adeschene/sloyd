@@ -8,7 +8,10 @@ import { profileFromFields } from '../document/profiles';
 import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
 import type { ProfileSide } from '../document/types';
 import { taperCut } from '../document/document';
-import { leanMap } from '../document/lean';
+import { leanMap, slopeOf, worldSlopes } from '../document/lean';
+import { partBounds, partsBounds, postureRefusal } from '../document/document';
+import { snapToGrid } from '../document/geometry';
+import { dragTarget } from '../viewport/Gizmo';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -3569,4 +3572,242 @@ describe('a lean through the store\'s world edit (splayed legs spec §3.4)', () 
       before.forEach((p, k) => p.forEach((v, i) => expect(Math.abs(after[k]![i]! - v)).toBeLessThan(1e-12)));
     });
   }
+});
+
+describe('setLean, the lean refusals, resize keeps the pivot, drags round the delta (splayed legs spec §3.2, §4, §6.2)', () => {
+  const s = () => useStore.getState();
+  const occ = (id: string) => worldParts(s().doc).find((b) => b.id === id)!;
+  const T8 = slopeOf(8);
+  const T12 = slopeOf(12);
+  const leg = (over: Partial<Board> = {}) =>
+    createBoard({ id: 'L', name: 'Leg', length: 16, width: 1.5, thickness: 1.25, posture: 'upright', position: [0.123, 0, 0.456], ...over });
+  const load = (...boards: Board[]) => s().replaceDocument({ ...createDocument('Lean'), boards });
+  const HOLE = { id: 'h1', face: 'thickness' as const, from: 'min' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'max' as const, inset: 0.5 };
+  const holeRow = () => { const { id: _id, ...r } = HOLE; return r; };
+
+  it('setLean writes slopes: rake 8, splay 12 on a turn-0 part stores z = tan 8°, x = tan 12° exactly', () => {
+    load(leg());
+    expect(s().setLean(['L'], { rake: 8, splay: 12 })).toBeNull();
+    const l = occ('L').lean!;
+    expect(l.z).toBe(T8);
+    expect(l.x).toBe(T12);
+    expect(s().past.length).toBe(1);
+  });
+
+  it('typing splay keeps rake bit for bit (and the reverse), one undo entry each', () => {
+    load(leg());
+    s().setLean(['L'], { rake: 8, splay: 12 });
+    const z = occ('L').lean!.z;
+    s().setLean(['L'], { splay: 5 });
+    expect(occ('L').lean!.z).toBe(z);
+    expect(occ('L').lean!.x).toBe(slopeOf(5));
+    s().setLean(['L'], { rake: 3 });
+    expect(occ('L').lean!.x).toBe(slopeOf(5));
+    expect(s().past.length).toBe(3);
+  });
+
+  it('world terms on a turned part: rake 8 on rotation 90 gives a world z slope of tan 8°; splay then keeps it bit for bit', () => {
+    load(leg({ rotation: 90 }));
+    s().setLean(['L'], { rake: 8 });
+    const [wx, wz] = worldSlopes(occ('L'));
+    expect(Math.abs(wz - T8)).toBeLessThan(1e-12);
+    expect(wx).toBe(0);
+    s().setLean(['L'], { splay: 12 });
+    expect(worldSlopes(occ('L'))[1]).toBe(wz);
+    expect(Math.abs(worldSlopes(occ('L'))[0] - T12)).toBeLessThan(1e-12);
+  });
+
+  it('a zero slope the inverse turn makes negative is stored as +0 (rotation 270, splay typed 0)', () => {
+    load(leg({ rotation: 270 }));
+    s().setLean(['L'], { rake: 8, splay: 0 });                // world x is +0, so the turn back gives z = −0
+    const l = (s().doc.boards[0] as Board).lean!;
+    expect(l.x).toBe(T8);
+    expect(Object.is(l.z, 0)).toBe(true);
+  });
+
+  it('the face is chosen only when the part had no lean, and kept otherwise', () => {
+    load(leg());
+    s().setLean(['L'], { rake: 8, splay: 12 });
+    expect(occ('L').lean!.face).toBe('width');                 // sightline nearer X: width needs the smaller twist
+    load(leg({ lean: { x: T12, z: T8, face: 'thickness' } }));
+    s().setLean(['L'], { rake: 9 });                             // chooseFace would say width here
+    expect(occ('L').lean!.face).toBe('thickness');
+  });
+
+  it('the stored lean is seam-free: splay 0 on a width-facing lean stores face thickness', () => {
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    s().setLean(['L'], { splay: 0 });
+    expect(occ('L').lean).toEqual({ x: 0, z: T8, face: 'thickness' });
+  });
+
+  it('a lean set to zero, or cleared, is no lean: the key is removed; clearing an unleaned part pushes nothing', () => {
+    load(leg({ lean: { x: 0, z: T8, face: 'thickness' } }));
+    s().setLean(['L'], { rake: 0 });
+    expect('lean' in s().doc.boards[0]!).toBe(false);
+    s().setLean(['L'], { rake: 8 });
+    expect(s().setLean(['L'], null)).toBeNull();
+    expect('lean' in s().doc.boards[0]!).toBe(false);
+    const n = s().past.length;
+    expect(s().setLean(['L'], null)).toBeNull();
+    expect(s().past.length).toBe(n);
+  });
+
+  it('the same lean again pushes no undo entry', () => {
+    load(leg());
+    s().setLean(['L'], { rake: 8, splay: 12 });
+    const n = s().past.length;
+    s().setLean(['L'], { rake: 8 });
+    expect(s().past.length).toBe(n);
+  });
+
+  it('Clear lean is never refused: a loaded holed, leaning part can be cleared', () => {
+    load(leg({ lean: { x: T12, z: T8, face: 'width' }, holes: [HOLE] }));
+    expect(s().setLean(['L'], null)).toBeNull();
+    expect('lean' in s().doc.boards[0]!).toBe(false);
+  });
+
+  const refuses = (text: string, run: () => string | null | void) => {
+    const doc = s().doc;
+    const n = s().past.length;
+    expect(run()).toBe(text);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
+  };
+
+  it('refuses a lean on a non-upright part', () => {
+    load(leg({ posture: 'flat' }));
+    refuses('Only an upright part can lean.', () => s().setLean(['L'], { rake: 8 }));
+  });
+
+  it('refuses a lean on a part with holes', () => {
+    load(leg({ holes: [HOLE] }));
+    refuses("A part with holes can't lean yet — that comes with angled holes.", () => s().setLean(['L'], { rake: 8 }));
+  });
+
+  it('refuses a lean past the bound (rake 40 with splay 40), and a single slope past 45°', () => {
+    load(leg());
+    refuses("The lean can't pass 45° in all — reduce the rake or splay.", () => s().setLean(['L'], { rake: 40, splay: 40 }));
+    refuses("The lean can't pass 45° in all — reduce the rake or splay.", () => s().setLean(['L'], { rake: 46 }));
+    expect(s().setLean(['L'], { rake: 40 })).toBeNull();
+  });
+
+  it('refuses a posture change on a leaning part, in the store and in the ONE decider the Posture field reads', () => {
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    refuses('Clear the lean first — only an upright part can lean.', () => s().updateBoard('L', { posture: 'flat' }));
+    refuses('Clear the lean first — only an upright part can lean.', () => s().updateBoards(['L'], { posture: 'on-edge' }));
+    expect(postureRefusal(s().doc, ['L'], 'flat')).toBe('Clear the lean first — only an upright part can lean.');
+    expect(postureRefusal(s().doc, ['L'], 'upright')).toBeNull();
+    expect(s().updateBoard('L', { length: 18 })).toBeUndefined();
+  });
+
+  it('refuses a hole row on a leaning part', () => {
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    refuses("A leaning part can't take holes yet — that comes with angled holes.", () => s().addHoleRows('L', [holeRow()]));
+  });
+
+  it('refuses while gesturing and while exploded, writing nothing', () => {
+    load(leg());
+    s().beginGesture();
+    const doc = s().doc;
+    s().setLean(['L'], { rake: 8 });
+    expect(s().doc).toBe(doc);
+    s().endGesture();
+    s().setExplode(1);
+    s().setLean(['L'], { rake: 8 });
+    expect(s().doc).toBe(doc);
+  });
+
+  // Controller ruling 1: one write per Shape, through the FIRST selected user; the rest follow in their own hand.
+  const linked = (): SloydDocument => {
+    const { id: _id, name: _name, position: _p, rotation: _r, ...shared } = leg({ lean: { x: 0.1, z: 0.25, face: 'thickness' } });
+    return {
+      ...createDocument('Lean'),
+      shapes: [{ id: 's1', ...shared } as Shape],
+      boards: [
+        { id: 'a', name: 'Front left', position: [0, 0, 0], rotation: 0, shape: 's1' },
+        { id: 'b', name: 'Front right', position: [10, 0, 0], rotation: 0, shape: 's1', mirrored: true },
+      ],
+    };
+  };
+
+  it('two users of one Shape across a mirror: no throw, one undo entry, the first selected user reads the typed world lean', () => {
+    s().replaceDocument(linked());
+    expect(() => s().setLean(['a', 'b'], { rake: 8 })).not.toThrow();
+    expect(s().past.length).toBe(1);
+    const [ax, az] = worldSlopes(occ('a'));
+    const [bx, bz] = worldSlopes(occ('b'));
+    expect(az).toBe(T8);
+    expect([bx, bz]).toEqual([-ax, az]);                       // the mirror image
+    s().setLean(['b', 'a'], { splay: 12 });
+    expect(Math.abs(worldSlopes(occ('b'))[0] - T12)).toBeLessThan(1e-12);
+    expect(Math.abs(worldSlopes(occ('a'))[0] + T12)).toBeLessThan(1e-12);
+    expect(s().past.length).toBe(2);
+  });
+
+  // Spec §3.2: a resize keeps the pivot (the centre of the pre-lean top face).
+  const pivot = (id: string) => leanMap(occ(id))!.pivot;
+  const near = (a: readonly number[], b: readonly number[]) => a.forEach((v, i) => expect(Math.abs(v - b[i]!)).toBeLessThan(1e-12));
+
+  for (const rotation of [0, 90] as const) {
+    it(`resize keeps the pivot (rotation ${rotation}): length 16 → 18, width 1.5 → 2, thickness 1.25 → 1`, () => {
+      load(leg({ rotation, lean: { x: T12, z: T8, face: 'width' } }));
+      for (const patch of [{ length: 18 }, { width: 2 }, { thickness: 1 }]) {
+        const before = pivot('L');
+        const n = s().past.length;
+        expect(s().updateBoard('L', patch)).toBeUndefined();
+        expect(s().past.length).toBe(n + 1);
+        near(pivot('L'), before);
+      }
+    });
+  }
+
+  it('an unleaned resize keeps the min corner, as before; an explicit position wins on a leaning part', () => {
+    load(leg());
+    s().updateBoard('L', { length: 18, width: 2 });
+    expect(occ('L').position).toEqual([0.123, 0, 0.456]);
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    s().updateBoard('L', { length: 18, position: [1, 2, 3] });
+    expect(occ('L').position).toEqual([1, 2, 3]);
+  });
+
+  it('a shared resize keeps every linked user\'s own pivot', () => {
+    s().replaceDocument(linked());
+    const before = ['a', 'b'].map(pivot);
+    s().updateBoard('a', { length: 18 });
+    near(pivot('a'), before[0]!);
+    near(pivot('b'), before[1]!);
+  });
+
+  // Spec §6.2: a leaning part's drag rounds the DELTA, never a corner, so a foot on the floor stays there.
+  const units = createDocument('x').units;
+  const snap = (v: number) => snapToGrid(v, units);
+  const footDown = (over: Partial<Board> = {}) => {
+    const b = leg({ lean: { x: T12, z: T8, face: 'width' }, ...over });
+    const y = -partBounds(b).min[1];
+    return { ...b, position: [b.position[0], y, b.position[2]] as [number, number, number] };
+  };
+
+  it('free drag of a levelled leg keeps the foot on the floor: dragTarget rounds the delta', () => {
+    const b = footDown();
+    expect(Math.abs(partBounds(b).min[1])).toBeLessThan(1e-12);
+    expect(Number.isInteger(b.position[1] / (1 / 16))).toBe(false);   // the pre-lean corner is off-grid
+    const d = [0.3, 0.01, 0.2];
+    const raw = b.position.map((v, i) => v + d[i]!) as [number, number, number];
+    const to = dragTarget(b.position, raw, units, true);
+    to.forEach((v, i) => expect(v).toBe(b.position[i]! + snap(raw[i]! - b.position[i]!)));
+    to.forEach((v, i) => expect(Math.abs(v - b.position[i]! - snap(d[i]!))).toBeLessThan(1e-12));
+    expect(Math.abs(partBounds({ ...b, position: to }).min[1])).toBeLessThan(1e-12);
+    // An unleaned part keeps rounding its corner, byte for byte as before.
+    expect(dragTarget(b.position, raw, units, false)).toEqual(raw.map(snap));
+  });
+
+  it('group move with a leaning part rounds the delta: the foot stays on the floor, the layout exact', () => {
+    load(footDown(), createBoard({ id: 'o', name: 'Other', position: [5.01, 0.02, 3.3] }));
+    const start = { L: [...occ('L').position], o: [...occ('o').position] };
+    const bounds = partsBounds(worldParts(s().doc))!;
+    const d = [0.3, 0.01, 0.2];
+    s().moveGroupTo(['L', 'o'], bounds.min.map((v, i) => v + d[i]!) as [number, number, number]);
+    for (const id of ['L', 'o'] as const) occ(id).position.forEach((v, i) => expect(Math.abs(v - start[id][i]! - snap(d[i]!))).toBeLessThan(1e-12));
+    expect(Math.abs(partBounds(occ('L')).min[1])).toBeLessThan(1e-12);
+  });
 });

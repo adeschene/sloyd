@@ -14,7 +14,7 @@ import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, rotateVec, toLocal } from './frames';
 import type { Frame } from './frames';
 import { mirrorCut } from './mirrorCut';
-import { leanFlip } from './lean';
+import { leanFlip, leans } from './lean';
 import type { Container } from './tree';
 import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, sideAt, worldParts } from './tree';
 
@@ -201,6 +201,8 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
 }
 
 export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can't change between flat and upright. Unlink first.";
+/** A posture change on a leaning part (splayed legs spec §3.2: only an upright part can lean). */
+export const POSTURE_WHILE_LEANING = 'Clear the lean first — only an upright part can lean.';
 
 /**
  * Why a posture patch on `ids` must be refused, or null (mirrored-instances spec
@@ -219,10 +221,15 @@ export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can
  * the store's updateBoards and the Posture field. A side is `sideAt`: the chain's
  * parity XOR the part's own mirror flag (mirrored links, fu 432, spec §4), so a Shape
  * with a mirrored and an unmirrored user is refused like one split by an assembly.
+ * First of all, a posture change on a LEANING part is refused (`POSTURE_WHILE_LEANING`, splayed legs spec §3.2): only an
+ * upright part can lean, and the loader would drop the lean the change strands.
  */
 export function postureRefusal(doc: SloydDocument, ids: readonly string[], posture: Posture | undefined): string | null {
   if (posture === undefined) return null;
   const world = worldParts(doc);
+  if (ids.some((id) => { const b = world.find((x) => x.id === id); return b !== undefined && b.posture !== posture && leans(b); })) {
+    return POSTURE_WHILE_LEANING;
+  }
   const sideOf = new Map<string, boolean>();
   for (const id of ids) {
     const b = world.find((x) => x.id === id);

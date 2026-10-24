@@ -175,6 +175,29 @@ export function leanMap(b: Board): LeanMap | null {
   };
 }
 
+/** Whether `b` leans: `leanMap(b)` would be non-null, without building it (a zero lean is no lean; only an upright part
+ *  carries one, §3.2). */
+export function leans(b: Board): boolean {
+  return b.lean !== undefined && (b.lean.x !== 0 || b.lean.z !== 0) && b.posture === 'upright';
+}
+
+/**
+ * Where a leaning part's min corner goes so that `changes` (a resize, or a turn in the same patch) keeps its PIVOT, the
+ * centre of the pre-lean top face (§3.2: the joint with the seat stays put). A length change grows or shrinks the foot
+ * end (Y min moves by −ΔL), a width or thickness change is symmetric about the pivot (−Δ/2 on the world axis that
+ * dimension runs along). Extents come from `boardExtents`, so the axis is `axisFrame`'s (inv 44); X and Z are
+ * `reorientedPosition`'s arithmetic, so a pure turn lands on the same corner it would.
+ */
+export function pivotKeptPosition(board: Board, changes: Partial<Board>): [number, number, number] {
+  const before = boardExtents(board);
+  const after = boardExtents({ ...board, ...changes });
+  return [
+    board.position[0] + (before[0] - after[0]) / 2,
+    board.position[1] + (before[1] - after[1]),
+    board.position[2] + (before[2] - after[2]) / 2,
+  ];
+}
+
 /** A lean reflected along the part's turn-0 X (§3.4): the X slope negated, the facing dimension kept; its own inverse.
  *  `0 - x` keeps a zero +0. With `mirrorPart`, the map is conjugated by the reflection exactly. */
 export function leanFlip(l: Lean): Lean {

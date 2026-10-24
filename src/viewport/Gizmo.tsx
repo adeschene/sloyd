@@ -6,7 +6,23 @@ import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
 import { boardCenter, boardExtents, partsBounds, isCovered, partAt, worldParts } from '../document/document';
 import { snapStep, snapToGrid } from '../document/geometry';
+import { leans } from '../document/lean';
+import type { Units } from '../units/length';
 import { stabilizeTranslateGizmo, type ControlsInternals } from './gizmoPatch';
+
+/**
+ * Where a single part's free drag puts its min corner (invariant 25: round what a free drag produced). `start` is the
+ * corner at drag start, `raw` the unrounded corner the drag produced. A part that does not lean rounds the CORNER, byte
+ * for byte as before (a board lands flush on the grid). A LEANING part rounds the DELTA (splayed legs spec §6.2): its
+ * pre-lean corner is off-grid after Level the ends, so rounding it would lift a levelled foot off the floor by up to
+ * half a step, and its real-bounds corner would move the seat joint; a grid-multiple delta keeps both exact.
+ */
+export function dragTarget(start: readonly number[], raw: readonly number[], units: Units, leaning: boolean): [number, number, number] {
+  const snap = (v: number) => snapToGrid(v, units);
+  return (leaning
+    ? [0, 1, 2].map((i) => start[i]! + snap(raw[i]! - start[i]!))
+    : [snap(raw[0]!), snap(raw[1]!), snap(raw[2]!)]) as [number, number, number];
+}
 
 export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   // Bare fields, derived below — a selector returning a fresh array would
@@ -15,7 +31,6 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   const selectedIds = useStore((s) => s.selectedIds);
   const doc = useStore((s) => s.doc);
   const step = snapStep(doc.units);
-  const snap = (v: number) => snapToGrid(v, doc.units);
   const updateBoard = useStore((s) => s.updateBoard);
   const moveGroupTo = useStore((s) => s.moveGroupTo);
   const selected = useMemo(() => {
@@ -47,6 +62,9 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   const selectionKey = selectedIds.join('|');
   const proxy = useRef<THREE.Object3D>(new THREE.Object3D());
   const dragging = useRef(false);
+  // A single part's corner and the proxy's place at mouse-down: a leaning part's drag is a delta from them
+  // (dragTarget), wherever the handle sits.
+  const dragStart = useRef<{ corner: [number, number, number]; proxy: [number, number, number] } | null>(null);
   // True from a mid-drag selection change until the mouse comes up. See the
   // effect that sets it.
   const abandoned = useRef(false);
@@ -167,14 +185,14 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
       // then snap — snapping the corner, not the center, is what makes a board
       // land flush on a 1/16" boundary. `translationSnap` already steps the
       // control itself; this second snap keeps the stored corner exact after the
-      // center-to-corner conversion.
-      updateBoard(board.id, {
-        position: [
-          snap(p.x - extents[0] / 2),
-          snap(p.y - extents[1] / 2),
-          snap(p.z - extents[2] / 2),
-        ],
-      });
+      // center-to-corner conversion. A leaning part rounds the delta from its
+      // mouse-down corner instead (dragTarget).
+      const start = dragStart.current;
+      const leaning = leans(board) && start !== null;
+      const raw = leaning
+        ? [start.corner[0] + (p.x - start.proxy[0]), start.corner[1] + (p.y - start.proxy[1]), start.corner[2] + (p.z - start.proxy[2])]
+        : [p.x - extents[0] / 2, p.y - extents[1] / 2, p.z - extents[2] / 2];
+      updateBoard(board.id, { position: dragTarget(start?.corner ?? board.position, raw, doc.units, leaning) });
       return;
     }
     // Two or more parts, or any assembly: hand the store the group's wanted min corner, UNROUNDED.
@@ -195,7 +213,12 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
         object={proxy.current}
         mode="translate"
         translationSnap={step}
-        onMouseDown={() => { abandoned.current = false; dragging.current = true; useStore.getState().beginGesture(); }}
+        onMouseDown={() => {
+          abandoned.current = false; dragging.current = true;
+          const q = proxy.current.position;
+          dragStart.current = board ? { corner: [...board.position], proxy: [q.x, q.y, q.z] } : null;
+          useStore.getState().beginGesture();
+        }}
         onObjectChange={commit}
         onMouseUp={() => {
           if (abandoned.current) {
