@@ -161,6 +161,45 @@ describe('a tilted bore on the sheet (angled holes spec §8)', () => {
       expect(Math.hypot(s1[0]! - c[0]!, s1[1]! - c[1]!, s1[2]! - c[2]!)).toBeCloseTo(r, 12);
     }
   });
+  it('an oblique view: each generator touches the projected mouth and exit ellipses at their extreme square to the bit (Task 6 review)', () => {
+    // A compound through bore seen from an iso-like direction; nothing in it is edge-on or axis-aligned.
+    const k = 1 / Math.sqrt(3);
+    const toward = [k, k, k];
+    const row = tilt({ depth: 'through', tiltAcross: 0.3 });
+    const segs = holeDrawingSegments(side([row]), toward);
+    expect(segs).toHaveLength(2 * DRAWING_HOLE_SEGMENTS + 2);
+    const mouth = segs.slice(0, DRAWING_HOLE_SEGMENTS).map(([a]) => a);
+    const exit = segs.slice(DRAWING_HOLE_SEGMENTS, 2 * DRAWING_HOLE_SEGMENTS).map(([a]) => a);
+    const walls = segs.slice(2 * DRAWING_HOLE_SEGMENTS);
+    const sub = (p: number[], q: number[]) => [0, 1, 2].map((i) => p[i]! - q[i]!);
+    const dotv = (p: number[], q: number[]) => p[0]! * q[0]! + p[1]! * q[1]! + p[2]! * q[2]!;
+    const centre = (ring: number[][]) => [0, 1, 2].map((i) => (ring[0]![i]! + ring[DRAWING_HOLE_SEGMENTS / 2]![i]!) / 2);
+    // The bit in world (flat, turn 0: length X, thickness Y, width Z), from the mouth centre to the exit centre.
+    const cm = centre(mouth); const ce = centre(exit);
+    const bit = sub(ce, cm);
+    // The in-view perpendicular to the bit: square to it and to the view direction (so it lies in the view plane).
+    const n0 = [bit[1]! * toward[2]! - bit[2]! * toward[1]!, bit[2]! * toward[0]! - bit[0]! * toward[2]!, bit[0]! * toward[1]! - bit[1]! * toward[0]!];
+    const nl = Math.hypot(n0[0]!, n0[1]!, n0[2]!);
+    const n = n0.map((x) => x / nl);
+    // A ring is c + cos θ·P0 + sin θ·Q0 exactly, so its true extreme along n is hypot(P0·n, Q0·n).
+    const extreme = (ring: number[][], c: number[]) =>
+      Math.hypot(dotv(sub(ring[0]!, c), n), dotv(sub(ring[DRAWING_HOLE_SEGMENTS / 4]!, c), n));
+    const em = extreme(mouth, cm); const ee = extreme(exit, ce);
+    expect(em).toBeCloseTo(ee, 12);   // the exit plane is parallel to the mouth's: the same ellipse
+    expect(Math.max(...mouth.map((p) => dotv(sub(p, cm), n)))).toBeLessThanOrEqual(em + 1e-12);   // the 96-gon inside it
+    const offsets = walls.map(([a, b]) => {
+      // Each generator runs from the mouth plane (Y 0.75) to the exit plane (Y 0), parallel to the bit.
+      const [hi, lo] = a[1]! > b[1]! ? [a, b] : [b, a];
+      expect(hi[1]).toBeCloseTo(0.75, 12);
+      expect(lo[1]).toBeCloseTo(0, 12);
+      sub(lo, hi).forEach((x, i) => expect(x).toBeCloseTo(bit[i]!, 12));
+      // Tangent: its offset along n touches the projected mouth's extreme, and the exit's.
+      expect(dotv(sub(lo, ce), n)).toBeCloseTo(dotv(sub(hi, cm), n), 12);
+      return dotv(sub(hi, cm), n);
+    }).sort((p, q) => p - q);
+    expect(offsets[0]).toBeCloseTo(-em, 12);
+    expect(offsets[1]).toBeCloseTo(em, 12);
+  });
   it('looking down the bit: rims only, no silhouettes', () => {
     expect(holeDrawingSegments(side([tilt()]), [-S20, C20, 0])).toHaveLength(2 * DRAWING_HOLE_SEGMENTS);
   });
