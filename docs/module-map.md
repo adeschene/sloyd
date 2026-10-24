@@ -40,8 +40,8 @@ src/
 │   │                     angled holes §7), storableRow (the loader's keep test for a re-anchored row)
 │   ├── legSockets.ts     Bore leg sockets (angled holes §5), the ONE decider, pure: legsUnder (leaning parts whose level top is within
 │   │                     TOUCH of a down face, overlap > designCheck's REST_AREA), socketRow (a through row on the leg's
-│   │                     axis, entering from the top, `othersOf` layout, nearer end/side), isSocketOf / staleSocketOf (1e-9;
-│   │                     the axis segment through the leg's level top), socketPlan (every copy plans its own legs; lowered
+│   │                     axis, entering from the top, `othersOf` layout, nearer end/side), isSocketOf (a through bore from the top, 1e-9) / staleSocketOf (tilted;
+│   │                     the axis line through a leg top in the TOUCH band; none for a matched leg), socketPlan (every copy plans its own legs; lowered
 │   │                     STORED row sets compared as a multiset, flag-free, 1e-9; a faulted socket left out as `note`); its four sentences, verbatim
 │   ├── levelEnds.ts      Level the ends (splayed legs §5, inv 57): levelPlan (two end miters along seamFree's face, each end's
 │   │                     length change rounded UP to the grid, top through R — the recognised top cut on the axis, else the pivot),

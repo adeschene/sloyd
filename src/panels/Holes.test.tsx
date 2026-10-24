@@ -469,6 +469,23 @@ describe('Bore leg sockets (angled holes §5)', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  it('a socket diameter of 0 is refused by the field, and the button does not act while it is', async () => {
+    const user = userEvent.setup();
+    openPart(stoolDocument(), 'Seat');
+    const d = screen.getByLabelText('Socket diameter');
+    await user.clear(d); await user.type(d, '0{Enter}');
+    expect(d).toHaveAttribute('aria-invalid', 'true');
+    expect(d).toHaveFocus();
+    const bore = screen.getByRole('button', { name: 'Bore leg sockets' });
+    expect(bore).toBeDisabled();
+    await user.click(bore);
+    expect(seat().holes).toHaveLength(0);
+    await user.clear(d); await user.type(d, '7/8{Enter}');
+    expect(bore).toBeEnabled();
+    await user.click(bore);
+    expect(seat().holes.map((r) => r.diameter)).toEqual([0.875, 0.875, 0.875, 0.875]);
+  });
+
   it('not shown on a leg, nor on a part with nothing leaning under it', () => {
     openPart(stoolDocument(), 'Front right');
     expect(screen.queryByRole('button', { name: 'Bore leg sockets' })).toBeNull();

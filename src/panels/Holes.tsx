@@ -209,6 +209,9 @@ export function Holes({ board }: { board: Board }) {
   const doc = useStore((s) => s.doc);
   const boreLegSockets = useStore((s) => s.boreLegSockets);
   const [socketDiameter, setSocketDiameter] = useState(1);
+  // The field refuses 0 and below itself (DimensionField's default "> 0" rule); while it shows a refusal the button does
+  // not act on the stored value behind it (copy in a row's precedent, fu 218).
+  const [diameterRefused, setDiameterRefused] = useState(false);
   const legs = useMemo(() => (isLeaning ? [] : legsUnder(worldParts(doc), board)), [doc, board, isLeaning]);
   const stale = useMemo(() => {
     if (legs.length === 0) return [];
@@ -244,8 +247,8 @@ export function Holes({ board }: { board: Board }) {
       {legs.length > 0 && (
         <div className="field-grid field-grid-2">
           <DimensionField label="Socket diameter" value={socketDiameter} units={units} format={(v) => holeLengthText(v, units, 'diameter')}
-            onCommit={(d) => { setSocketDiameter(d); }} />
-          <button className="add-cut" onClick={() => setError(boreLegSockets(board.id, socketDiameter))}>Bore leg sockets</button>
+            onCommit={(d) => { setSocketDiameter(d); }} onErrorChange={setDiameterRefused} />
+          <button className="add-cut" disabled={diameterRefused} onClick={() => setError(boreLegSockets(board.id, socketDiameter))}>Bore leg sockets</button>
         </div>
       )}
       {error && <p className="field-error" role="alert">{error}</p>}

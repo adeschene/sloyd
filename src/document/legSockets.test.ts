@@ -307,6 +307,65 @@ describe('socketRow / socketPlan', () => {
     expect(staleSocketOf(seat3, fr)).toBeNull();
   });
 
+  it('a leg moved DOWN 1/64" (still under, within TOUCH) is stale, and boring again replaces its socket in place', () => {
+    const doc0 = migrateDocument({ ...createDocument('Down'), boards: [...stoolLegs(), stoolSeat()] });
+    const doc1 = bore(doc0, seatOf(doc0).id);
+    const fr0 = named(doc1, 'Front right')[0]!;
+    const old = seatOf(doc1).holes.find((r) => isSocketOf(seatOf(doc1), r, fr0))!;
+    for (const dy of [-1 / 64, 1 / 64]) {
+      const doc2 = mapWorld(doc1, (w) => w.map((b) => (b.id === fr0.id ? { ...b, position: [b.position[0], b.position[1] + dy, b.position[2]] as [number, number, number] } : b)));
+      const fr = named(doc2, 'Front right')[0]!;
+      const seat2 = seatOf(doc2);
+      expect(legsUnder(world(doc2), seat2), `dy ${dy}`).toContainEqual(fr);
+      expect(staleSocketOf(seat2, fr), `dy ${dy}`).toBe(seat2.holes.find((r) => r.id === old.id));
+      const seat3 = seatOf(bore(doc2, seat2.id));
+      expect(seat3.holes).toHaveLength(4);
+      expect(seat3.holes.findIndex((r) => r.id === old.id)).toBe(seat2.holes.findIndex((r) => r.id === old.id));
+      expect(isSocketOf(seat3, seat3.holes.find((r) => r.id === old.id)!, fr)).toBe(true);
+    }
+  });
+
+  it('a leaning part far below the seat (outside the resting band) is never stale, though the old line crosses its top', () => {
+    const doc0 = stoolDocument();
+    const doc = bore(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    const fr = named(doc, 'Front right')[0]!;
+    const low = { ...fr, position: [fr.position[0], fr.position[1] - 3, fr.position[2]] as [number, number, number] };
+    expect(legsUnder([...world(doc), low], seat)).not.toContainEqual(low);
+    expect(staleSocketOf(seat, low)).toBeNull();
+  });
+
+  it('a leg that has its socket is never stale, even with another tilted row through its top', () => {
+    const doc0 = stoolDocument();
+    const doc = bore(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    const fr = named(doc, 'Front right')[0]!;
+    const socket = seat.holes.find((r) => isSocketOf(seat, r, fr))!;
+    const extra = { ...socket, id: 'extra', tiltAcross: 0 - socket.tiltAcross! };
+    expect(staleSocketOf({ ...seat, holes: [...seat.holes, extra] }, fr)).toBeNull();
+  });
+
+  it('a blind bore along the axis, or one entering from the bottom, is not the socket', () => {
+    const doc0 = stoolDocument();
+    const doc = bore(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    const fr = named(doc, 'Front right')[0]!;
+    const socket = seat.holes.find((r) => isSocketOf(seat, r, fr))!;
+    expect(isSocketOf(seat, { ...socket, depth: 1 }, fr)).toBe(false);
+    // The same line entered from the bottom: mouth at the old exit, the bit reversed (the entry side and both slopes
+    // flip). The unturned flat seat: length on X, width on Z.
+    const [, exit] = ends(seat, socket);
+    const local = { length: exit[0] - seat.position[0], width: exit[2] - seat.position[2] };
+    const fromBottom: HoleRow = { ...socket, from: 'min', tiltAlong: 0 - socket.tiltAlong!, tiltAcross: 0 - socket.tiltAcross!,
+      station: socket.alongFrom === 'min' ? local.length : seat.length - local.length,
+      inset: socket.acrossFrom === 'min' ? local.width : seat.width - local.width };
+    const [m, f] = ends(seat, fromBottom);
+    const ax = axisOf(fr);
+    expect(offAxis(m, ax)).toBeLessThanOrEqual(1e-9);
+    expect(offAxis(f, ax)).toBeLessThanOrEqual(1e-9);
+    expect(isSocketOf(seat, fromBottom, fr)).toBe(false);
+  });
+
   it('the stale note copy', () => {
     expect(socketStale('Front right')).toBe("Front right's socket no longer follows its leg — Bore leg sockets again.");
   });

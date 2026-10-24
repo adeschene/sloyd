@@ -4215,6 +4215,42 @@ describe('Bore leg sockets through the store (angled holes §5)', () => {
     expect(s().past.length).toBe(0);
   });
 
+  it('a leg moved down 1/64" after boring: boring again replaces its socket in place, one undo entry', () => {
+    s().replaceDocument(migrateDocument({ ...createDocument('Down'), boards: [...stoolLegs(), stoolSeat()] }));
+    expect(s().boreLegSockets(seat().id, 1)).toBeNull();
+    const fr = worldParts(s().doc).find((b) => b.name === 'Front right')!;
+    const ids = seat().holes.map((r) => r.id);
+    s().updateBoard(fr.id, { position: [fr.position[0], fr.position[1] - 1 / 64, fr.position[2]] });
+    const n = s().past.length;
+    expect(s().boreLegSockets(seat().id, 1)).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+    expect(seat().holes.map((r) => r.id)).toEqual(ids);
+  });
+
+  it("one copy's stale replace is refused while another copy still needs the old socket; nothing written", () => {
+    // One seat definition placed over two plain stools; after boring, stool 2's Front right moves: copy 2 would replace
+    // that socket, copy 1 still needs it.
+    const legs1 = stoolLegs();
+    const legs2 = stoolLegs().map((b) => ({ ...b, id: `${b.id}-2`, position: [b.position[0] + 30, b.position[1], b.position[2]] as [number, number, number] }));
+    s().replaceDocument(migrateDocument({ ...createDocument('Shared'), boards: [...legs1, ...legs2],
+      definitions: [{ id: 'd', boards: [stoolSeat()], instances: [], hardware: [] }],
+      instances: [
+        { id: 'i1', name: 'Stool 1', definition: 'd', position: [0, 0, 0], rotation: 0 },
+        { id: 'i2', name: 'Stool 2', definition: 'd', position: [30, 0, 0], rotation: 0 },
+      ] }));
+    const seats = () => worldParts(s().doc).filter((b) => b.name === 'Seat');
+    expect(s().boreLegSockets(seats()[0]!.id, 1)).toBeNull();
+    const fr2 = legs2[0]!;
+    const at = worldParts(s().doc).find((b) => b.id === fr2.id)!;
+    s().updateBoard(fr2.id, { position: [at.position[0] + 0.25, at.position[1], at.position[2]] });
+    const doc = s().doc;
+    const n = s().past.length;
+    expect(s().boreLegSockets(seats()[1]!.id, 1)).toBe('Its copies stand over different legs (Stool 2 › Seat, Stool 1 › Seat) — make them match, or make this part unique first.');
+    expect(s().boreLegSockets(seats()[0]!.id, 1)).toBe('Its copies stand over different legs (Stool 1 › Seat, Stool 2 › Seat) — make them match, or make this part unique first.');
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
+  });
+
   it('a seat placed twice over the same legs is written once, in the definition', () => {
     const parts = [...stoolLegs(), stoolSeat()];
     s().replaceDocument(migrateDocument({ ...createDocument('Two'),

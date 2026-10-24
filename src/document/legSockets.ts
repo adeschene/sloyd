@@ -44,6 +44,14 @@ const unit = (a: readonly number[]): V3 => { const n = norm(a); return [a[0]! / 
 const point = (v: readonly number[]): Point => ({ length: v[0]!, width: v[1]!, thickness: v[2]! });
 const sign = (f: CutFrom) => (f === 'min' ? 1 : -1);
 
+/** A socket's entry: the seat dimension on world Y, from its upper side — world y max is the face dimension's max unless
+ *  that axis is reversed (no turn or posture reverses world Y today, `axisFrame`; read through the frame all the same,
+ *  inv 44). */
+function entryOf(seat: Board): { face: Dimension; from: CutFrom } {
+  const y = axisFrame(seat)[1]!;
+  return { face: y.dim, from: y.reversed ? 'min' : 'max' };
+}
+
 /** A leaning leg's axis in the world: through its pivot, along its leaned length, pointing UP (unit). */
 function legAxis(leg: Board): { p: V3; u: V3 } | null {
   const m = leanMap(leg);
@@ -84,11 +92,7 @@ export function legsUnder(world: readonly Board[], seat: Board): Board[] {
 export function socketRow(seat: Board, leg: Board, diameter: number): Omit<HoleRow, 'id'> {
   const ax = legAxis(leg);
   if (!ax) throw new Error(`socketRow: ${leg.id} does not lean`);
-  const frame = axisFrame(seat);
-  const face = frame[1]!.dim;
-  // The upper side of the vertical dimension: world y max is the face dimension's max unless that axis is reversed (no
-  // turn or posture reverses world Y today, `axisFrame`; read through the frame all the same, inv 44).
-  const from: CutFrom = frame[1]!.reversed ? 'min' : 'max';
+  const { face, from } = entryOf(seat);
   const top = seat.position[1] + seat[face];
   const t = (top - ax.p[1]) / ax.u[1];
   const at: V3 = [ax.p[0] + t * ax.u[0], top, ax.p[2] + t * ax.u[2]];
@@ -119,11 +123,14 @@ function boreEnds(seat: Board, row: HoleRow): [V3, V3] {
   return [toWorld(seat, point(h.centre)), toWorld(seat, point(far))];
 }
 
-/** Whether `row` is `leg`'s socket: a single bore whose world axis IS the leg's axis — its mouth centre on the axis and
- *  its bit parallel to it, both to 1e-9 (spec §5). */
+/** Whether `row` is `leg`'s socket: a single THROUGH bore entering where `socketRow` enters (the seat's top) whose world
+ *  axis IS the leg's axis — its mouth centre on the axis and its bit parallel to it, both to 1e-9 (spec §5). A blind bore
+ *  along the same axis is not the socket. */
 export function isSocketOf(seat: Board, row: HoleRow, leg: Board): boolean {
   const ax = legAxis(leg);
-  if (!ax || row.count !== 1) return false;
+  if (!ax || row.count !== 1 || row.depth !== 'through') return false;
+  const entry = entryOf(seat);
+  if (row.face !== entry.face || row.from !== entry.from) return false;
   const [m, f] = boreEnds(seat, row);
   return norm(cross(sub(m, ax.p), ax.u)) <= EPS && norm(cross(unit(sub(f, m)), ax.u)) <= EPS;
 }
@@ -144,21 +151,26 @@ function inConvex(poly: readonly [number, number][], q: readonly [number, number
 
 /**
  * `leg`'s STALE socket in `seat` (spec §5), or null: a single TILTED bore (`socketRow` always tilts, its leg leans: a
- * user's own square clearance hole over a leg top is never taken for a socket) that is not `isSocketOf` the leg but whose axis
- * segment (mouth centre to far centre) passes through one of the leg's up-facing level faces — at that face's height,
- * inside its plan polygon. The structural test of "the socket this leg once had": a later lean edit, resize or move
- * left it pointing the old way. `skip` names rows already claimed (another leg's match or replacement).
+ * user's own square clearance hole over a leg top is never taken for a socket) whose axis LINE passes through one of the
+ * leg's up-facing level faces that rests in `legsUnder`'s band (within TOUCH in height of one of the seat's down-facing
+ * level faces) — at that face's height, inside its plan polygon. The line, not the mouth-to-exit segment: a top up to
+ * TOUCH BELOW the seat's bottom is under the seat too (one band for both; Task 10 review, fix 1). The structural test of
+ * "the socket this leg once had": a later lean edit, resize or move left it pointing the old way. Null when some row
+ * already IS the leg's socket (`isSocketOf`; the plan skips that leg). `skip` names rows already claimed (another leg's
+ * match or replacement).
  */
 export function staleSocketOf(seat: Board, leg: Board, skip: ReadonlySet<string> = new Set()): HoleRow | null {
-  const ups = levelFaces(leg).filter((f) => f.up);
+  if (seat.holes.some((r) => !skip.has(r.id) && isSocketOf(seat, r, leg))) return null;
+  const downs = levelFaces(seat).filter((f) => !f.up);
+  const ups = levelFaces(leg).filter((f) => f.up && downs.some((d) => Math.abs(f.y - d.y) <= TOUCH));
+  if (ups.length === 0) return null;
   for (const row of seat.holes) {
-    if (row.count !== 1 || !isTilted(row) || skip.has(row.id) || isSocketOf(seat, row, leg)) continue;
+    if (row.count !== 1 || !isTilted(row) || skip.has(row.id)) continue;
     const [m, f] = boreEnds(seat, row);
     const dy = f[1] - m[1];
     if (Math.abs(dy) <= EPS) continue;
     for (const face of ups) {
       const t = (face.y - m[1]) / dy;
-      if (t < -EPS || t > 1 + EPS) continue;
       if (inConvex(face.poly, [m[0] + t * (f[0] - m[0]), m[2] + t * (f[2] - m[2])])) return row;
     }
   }
