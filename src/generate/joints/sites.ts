@@ -2,6 +2,7 @@ import type { FlatDocument } from '../../document/document';
 import { TOUCH, faceContacts } from '../../document/designCheck';
 import { bandRegions } from '../../document/featureRegions';
 import { SNAP_INCHES, axisDimensions, endFacing, spanToWorldOffset } from '../../document/geometry';
+import { leans } from '../../document/lean';
 import { boxOf } from './pocket';
 import type { WorldBox } from './pocket';
 
@@ -119,10 +120,17 @@ const inPlane = (axis: number) => [0, 1, 2].filter((k) => k !== axis) as (0 | 1 
  */
 export function findSites(doc: FlatDocument): Site[] {
   const boxes = doc.boards.map(boxOf);
+  const leaning = doc.boards.map(leans);
   const found: Omit<Site, 'id' | 'allowed'>[] = [];
   const kinds: SiteKind[] = [];
 
   for (const c of faceContacts(doc)) {
+    // A leaning part is no site (splayed legs spec §8, Amended Ruling 17; final review I2): its box is its PRE-LEAN
+    // placement, not where its wood is, so a contact with it is a phantom, and `jointFaults` would feed Refine an
+    // `angle-joint` fault naming a kept leg the model can never change. Joinery and Repair refuse a leaning document
+    // before reading sites (`leaningRefusal`), so nothing is lost. Here, not in `faceContacts`: that is the document's
+    // general contact list, and every reader of a site (jointFaults, joinery, unjoin, Refine's keys) comes through here.
+    if (leaning[c.a] || leaning[c.b]) continue;
     const A = doc.boards[c.a];
     const B = doc.boards[c.b];
     const da = axisDimensions(A)[c.axis];

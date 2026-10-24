@@ -5,10 +5,10 @@ import { repairDocument } from './repair';
 import type { LlmClient } from '../../llm/types';
 import { designToDocument, parseDesign, toWireDesign } from '../../document/generated';
 import type { GeneratedDesign } from '../../document/generated';
-import { chamferCut, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
+import { chamferCut, createBoard, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
 import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
 import type { AngleCut, Board, FlatDocument, SloydDocument } from '../../document/document';
-import { axisDimensions, axisFrame, boardCenter, endFacing, toWorldOffset } from '../../document/geometry';
+import { axisDimensions, axisFrame, boardCenter, boardExtents, endFacing, toWorldOffset } from '../../document/geometry';
 import { worldTapers } from '../../document/taperWorld';
 import { formatLength, imperialAt } from '../../units/length';
 import { findSites } from './sites';
@@ -539,4 +539,29 @@ describe('leaning parts (splayed legs spec §8): joinery, Repair and a joined Re
     expect(repairDocument(stoolWithCut())).toEqual({ refused: "Repair can't join a leaning part yet: Front right." });
     expect(repairDocument(stoolDocument())).toBeNull();
   });
+
+  // Final review I2: a kept leaning leg's PRE-LEAN box is not where its wood is, so a contact with it is no joint site and
+  // no `angle-joint` fault (Refine fed the model faults naming a kept part it can never change). Joinery and Repair
+  // refuse a leaning document outright (above), so skipping the pair loses nothing. The apron at the top reproduces the
+  // phantom fault ("Front right's miter runs into where it meets Apron …"); the rail at the foot a phantom site.
+  describe('no site and no angle-joint fault for a part meeting a leaning part (final review I2)', () => {
+    /** The stool with a world-square part butting Front right's pre-lean side (+X, or -X when `side` is -1) at height `y`,
+     *  its end into the side. */
+    const butting = (name: string, y: number, side: 1 | -1): FlatDocument => {
+      const flat = flatDocument(stoolDocument());
+      const fr = flat.boards.find((b) => b.name === 'Front right')!;
+      const [ex, , ez] = boardExtents(fr);
+      const part = createBoard({ name, length: 6, width: 1, thickness: 0.75, posture: 'flat',
+        position: [side === 1 ? fr.position[0] + ex : fr.position[0] - 6, y, fr.position[2] + (ez - 1) / 2] });
+      return { ...flat, boards: [...flat.boards, part] };
+    };
+    for (const [name, y, side] of [['Apron', 15.25, 1], ['Rail', 0, -1]] as const) {
+      it(`${name} on the ${side === 1 ? '+' : '-'}X side: no site, no fault`, () => {
+        const flat = butting(name, y, side);
+        expect(jointFaults(flat).map((v) => v.message)).toEqual([]);
+        expect(findSites(flat)).toEqual([]);
+      });
+    }
+  });
 });
+
