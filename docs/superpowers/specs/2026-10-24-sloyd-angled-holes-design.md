@@ -1,6 +1,6 @@
 # Splayed legs, chunk 2: angled holes — design
 
-Status: DRAFT, awaiting the user's approval; builder check taken 2026-10-24 (one question, answered in §5 as my call). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`),
+Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken 2026-10-24 (one question, answered in §5 as my call). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`),
 follow-up 437. Chunk 1 (a part that leans, schema 22) is deployed: `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md`.
 
 The user chose stretchers next. The numbers on the chunk 1 stool (rake 8°, splay 12°) showed that a square rung's end lands
