@@ -119,4 +119,14 @@ describe('a mirrored user (mirrored links, fu 432, spec §3)', () => {
     expect('shape' in p).toBe(false);
     expect(p.holes).toEqual(got.holes);
   });
+
+  it('resolveBoard gives each user its own lean object, never the Shape\'s', () => {
+    const leaning: Shape = { ...leg, lean: { x: 0.1, z: 0.2, face: 'width' } };
+    const m = new Map([['s1', leaning]]);
+    const a = resolveBoard(m, user('a', 0))!;
+    const b = resolveBoard(m, user('b', 5))!;
+    expect(a.lean).toEqual(leaning.lean);
+    expect(a.lean).not.toBe(leaning.lean);
+    expect(a.lean).not.toBe(b.lean);
+  });
 });

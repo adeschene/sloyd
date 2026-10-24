@@ -578,6 +578,18 @@ describe('writeBackFlat shares where identical', () => {
     expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
     expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
   });
+  it('users whose leans are equal by value stay one Shape; a differing lean splits (groupSignature)', () => {
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const before = flat(doc);
+    const leans = [{ x: 0.1, z: 0.2, face: 'width' as const }, { x: 0.1, z: 0.2, face: 'width' as const }, { x: 0.1, z: 0.25, face: 'width' as const }];
+    const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, lean: leans[k]! })));
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
+    expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
+    expect(worldParts(out).map((b) => b.lean)).toEqual(leans);
+  });
   it('users whose curves differ only in order and ids stay one Shape; a differing curve splits (groupSignature)', () => {
     const shape = { id: 's1', length: 30, width: 5, thickness: 0.75, material: 'oak', grain: 'length' as const, posture: 'flat' as const, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
     const doc: SloydDocument = { ...createDocument(), shapes: [shape],

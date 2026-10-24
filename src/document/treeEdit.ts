@@ -543,7 +543,7 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
  *  (regroupShapes) and to compare placements of one definition (resultSignature, fu 316). */
 function groupSignature(b: Board): unknown[] {
   const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : k === 'hardware' ? b.hardware.map((u) => `${u.type}:${u.count}`).join(';') : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : k === 'hardware' ? b.hardware.map((u) => `${u.type}:${u.count}`).join(';') : k === 'lean' ? (b.lean ? `${b.lean.x},${b.lean.z},${b.lean.face}` : '') : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation

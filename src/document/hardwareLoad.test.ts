@@ -13,14 +13,14 @@ const types = (list: object[]) => migrateDocument(raw({ hardwareTypes: list })).
 const typesNoJson = (list: object[]) => migrateDocument({ ...raw({}), hardwareTypes: list }).hardwareTypes;
 
 describe('loading schema 20 (hardware spec §2.3)', () => {
-  it('this build writes 21', () => expect(CURRENT_VERSION).toBe(21));
+  it('this build writes 22', () => expect(CURRENT_VERSION).toBe(22));
 
   it('a v19 document with no hardware fields loads empty everywhere', () => {
     const r = raw({ boards: [part(), users('u1'), users('u2')], shapes: [{ ...createBoard({ id: 's1' }) }], instances: [{ id: 'i1', name: 'A', definition: 'd1', position: [0, 0, 0], rotation: 0 }], definitions: [{ id: 'd1', boards: [part({ id: 'x' })], instances: [] }] });
     for (const o of [r, ...r.boards, ...r.shapes, ...r.definitions]) delete o.hardware;
     delete r.hardwareTypes;
     const d = migrateDocument(r);
-    expect(d.version).toBe(21);
+    expect(d.version).toBe(22);
     expect(d.hardwareTypes).toEqual([]);
     expect(d.hardware).toEqual([]);
     expect(board0(d).hardware).toEqual([]);
@@ -79,5 +79,5 @@ describe('loading schema 20 (hardware spec §2.3)', () => {
       expect(board0(migrateDocument(raw({ hardwareTypes: [type({ packSize: 0 })], boards: [part({ hardware: [{ type: 'h1', count: 1 }] })] }))).hardware).toEqual([]));
   });
 
-  it('refuses a v22 document', () => expect(() => migrateDocument(raw({ version: 22 }))).toThrow(DocumentError));
+  it('refuses a v23 document', () => expect(() => migrateDocument(raw({ version: 23 }))).toThrow(DocumentError));
 });

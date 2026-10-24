@@ -2,7 +2,7 @@ import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from '
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
   Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
-  Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse,
+  Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse, Lean,
 } from './types';
 import type { SharedField } from './links';
 import type { LengthDisplay } from '../units/length';
@@ -19,6 +19,7 @@ import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from '
 import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf } from './geometry';
+import { seamFree, withinBound } from './lean';
 
 export * from './types';
 export * from './materials';
@@ -180,8 +181,15 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * dropped; dropped from a plain part). No step: an absent flag is an unmirrored user. Harm a v20 build would do: it
  * ignores the flag and draws the mirrored side with its Shape's own hand — pins on the outside, edging on the back —
  * silently, and autosaves it. So a v21 file must be refused by a v20 build.
+ *
+ * v22 (splayed legs spec §3.1, §3.6): `lean` ({ x, z, face }) on a part or a Shape, document-level, no step — an absent
+ * lean is a part standing true. The loader drops a lean on any posture but 'upright', a non-finite or out-of-bound slope
+ * (`withinBound`), a `face` other than width | thickness, and a zero lean; it stores the seam-free form (`seamFree`). It
+ * refuses nothing on content. Harm a v21 build would do: it ignores the lean, so a splayed leg is drawn and cut as a
+ * plumb one — a stool's legs stand straight, its cut list and drawings lose the lean — silently, and autosaves it.
+ * So a v22 file must be refused by a v21 build.
  */
-export const CURRENT_VERSION = 21;
+export const CURRENT_VERSION = 22;
 
 export class DocumentError extends Error {
   /**
@@ -777,6 +785,20 @@ const validRotation = (r: unknown): Rotation => (VALID_ROTATIONS.includes(r as n
  * number: the caller decides whether that refuses the file (a part) or drops
  * the thing (a shape). `bad` names the first bad dimension.
  */
+/**
+ * A part's lean (splayed legs spec §3.1, §3.2), or undefined. Dropped, never clamped: not an object, any posture but
+ * 'upright', a non-finite or out-of-bound slope (`withinBound`), a `face` other than width | thickness, or a zero lean
+ * (no lean is no key). Kept in its seam-free form (`seamFree`), so the stored face never puts the twist at exactly 90°.
+ */
+function validateLean(raw: unknown, posture: Posture): Lean | undefined {
+  if (posture !== 'upright' || typeof raw !== 'object' || raw === null) return undefined;
+  const l = raw as Record<string, unknown>;
+  if (typeof l.x !== 'number' || typeof l.z !== 'number' || !withinBound(l.x, l.z)) return undefined;
+  if (l.face !== 'width' && l.face !== 'thickness') return undefined;
+  if (l.x === 0 && l.z === 0) return undefined;
+  return seamFree({ x: l.x, z: l.z, face: l.face });
+}
+
 function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, hardwareIds: ReadonlySet<string>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {
   for (const key of ['length', 'width', 'thickness'] as const) {
     if (!isPositiveFinite(b[key])) return { bad: key };
@@ -805,6 +827,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
     grain: normalizedGrain,
     material,
   };
+  const lean = validateLean(b.lean, fields.posture);
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
   // Profile runs spec §3.2/P7/P8: curves and profiles share one id scope; every curve profileOf recognises moves into
@@ -814,7 +837,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds), ...(lean ? { lean } : {}) } };
 }
 
 /**

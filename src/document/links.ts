@@ -38,8 +38,8 @@ void _shapeMatchesTable;
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
- * `lean` (an object) is excluded here but NOT YET HANDLED: `sameShared` still compares it with `!==`, by reference,
- * until the splayed-legs loader task adds its by-value comparison.
+ * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face`; absent equals absent
+ * only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`.
  */
 const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
@@ -57,6 +57,8 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     profiles: b.profiles.map(copyProfile),
     bands: b.bands.map(copyBand), cornerRule: b.cornerRule,
     hardware: b.hardware.map(copyHardwareUse),
+    // Optional (splayed legs spec §3.1): a fresh object when present, no key at all when absent.
+    ...(b.lean ? { lean: { ...b.lean } } : {}),
   };
 }
 
@@ -72,6 +74,7 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.profiles) out.profiles = patch.profiles.map(copyProfile);
   if (patch.bands) out.bands = patch.bands.map(copyBand);
   if (patch.hardware) out.hardware = patch.hardware.map(copyHardwareUse);
+  if (patch.lean) out.lean = { ...patch.lean };
   return out;
 }
 
@@ -118,6 +121,13 @@ export function sameShared(a: Board, b: Board): boolean {
       if (!sameBands(a.bands, b.bands)) return false;
     } else if (k === 'hardware') {
       if (!sameHardware(a.hardware, b.hardware)) return false;
+    } else if (k === 'lean') {
+      // By value, exact; absent equals absent only (spec §3.1).
+      if (a.lean === undefined || b.lean === undefined) {
+        if (a.lean !== b.lean) return false;
+      } else if (a.lean.x !== b.lean.x || a.lean.z !== b.lean.z || a.lean.face !== b.lean.face) {
+        return false;
+      }
     } else if (a[k] !== b[k]) {
       return false;
     }
