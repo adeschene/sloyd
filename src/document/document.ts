@@ -191,7 +191,7 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * plumb one — a stool's legs stand straight, its cut list and drawings lose the lean — silently, and autosaves it.
  * So a v22 file must be refused by a v21 build.
  */
-export const CURRENT_VERSION = 22;
+export const CURRENT_VERSION = 23;
 
 export class DocumentError extends Error {
   /**
@@ -461,10 +461,21 @@ function validateHoleRows(raw: unknown): HoleRow[] {
     if (r.depth !== 'through' && !(finite(r.depth) && r.depth > 0)) continue;
     if (!Number.isInteger(r.count) || (r.count as number) < 1 || (r.count as number) > HOLE_COUNT_MAX) continue;
     if (![r.station, r.pitch, r.inset].every((v) => finite(v) && v >= 0)) continue;
+    // Schema 23 (angled holes spec §3.3): a tilt is a finite slope, zero is no tilt, and the row stays inside the bound
+    // (each |slope| <= 1, resultant <= 1 = 45 degrees). A malformed or out-of-bound one drops the ROW, never clamps.
+    const tilts: { tiltAlong?: number; tiltAcross?: number } = {};
+    let badTilt = false;
+    for (const k of ['tiltAlong', 'tiltAcross'] as const) {
+      const t = r[k];
+      if (t === undefined) continue;
+      if (!finite(t) || Math.abs(t) > 1) { badTilt = true; break; }
+      if (t !== 0) tilts[k] = t;
+    }
+    if (badTilt || Math.hypot(tilts.tiltAlong ?? 0, tilts.tiltAcross ?? 0) > 1) continue;
     out.push({
       id: takeId(r.id, seen), face, from: r.from as CutFrom, diameter: r.diameter, depth: r.depth as number | 'through',
       along, alongFrom: r.alongFrom as CutFrom, station: r.station as number, count: r.count as number,
-      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number,
+      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number, ...tilts,
     });
   }
   return out;

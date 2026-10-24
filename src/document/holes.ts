@@ -8,7 +8,7 @@ import { DIMENSION_ORDER } from './geometry';
  */
 export const HOLE_FIELDS = {
   face: true, from: true, diameter: true, depth: true, along: true, alongFrom: true,
-  station: true, count: true, pitch: true, acrossFrom: true, inset: true,
+  station: true, count: true, pitch: true, acrossFrom: true, inset: true, tiltAlong: true, tiltAcross: true,
 } as const satisfies Record<Exclude<keyof HoleRow, 'id'>, true>;
 
 export const HOLE_KEYS = Object.keys(HOLE_FIELDS) as (keyof typeof HOLE_FIELDS)[];
@@ -18,16 +18,25 @@ export const HOLE_COUNT_MAX = 500;
 
 /** One row's comparable values, in HOLE_KEYS order. A single bore's `pitch` reads 0: stored and ignored at count 1, it
  *  places nothing, so two single bores that once had different pitches are the same row (fu 338, the user's ruling) —
- *  on the cut list, in a link, as a no-op edit. Every other value exact. */
+ *  on the cut list, in a link, as a no-op edit. Every other value exact. A tilt (schema 23) is appended as its key NAME then
+ *  its value, only when present: a square row's array is exactly as before, and a tiltAlong-only row can never equal a
+ *  tiltAcross-only one of the same value. */
 export function holeRowValues(r: Omit<HoleRow, 'id'>): (string | number)[] {
-  return HOLE_KEYS.map((k) => (k === 'pitch' && r.count === 1 ? 0 : r[k]));
+  const out: (string | number)[] = [];
+  for (const k of HOLE_KEYS) {
+    const v = r[k];
+    if (v === undefined) continue;
+    if (k === 'tiltAlong' || k === 'tiltAcross') out.push(k);
+    out.push(k === 'pitch' && r.count === 1 ? 0 : v);
+  }
+  return out;
 }
 
 /** Exact equality on every HOLE_FIELDS field (stored values, invariant 18), a single bore's pitch aside (fu 338). */
 export function sameHoleRow(a: Omit<HoleRow, 'id'>, b: Omit<HoleRow, 'id'>): boolean {
   const x = holeRowValues(a);
   const y = holeRowValues(b);
-  return x.every((v, i) => v === y[i]);
+  return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
 /** A copy that is not the same object, so no two parts ever hold one row. */

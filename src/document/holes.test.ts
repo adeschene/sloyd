@@ -19,7 +19,7 @@ describe('hole rows (holes spec §2)', () => {
     expect(sameHoleRow(PIN, renamed)).toBe(true);
     const changed: Record<string, unknown> = {
       face: 'width', from: 'min', diameter: 0.3, depth: 'through', along: 'width', alongFrom: 'max',
-      station: 2.5, count: 20, pitch: 1.25, acrossFrom: 'max', inset: 1,
+      station: 2.5, count: 20, pitch: 1.25, acrossFrom: 'max', inset: 1, tiltAlong: 0.25, tiltAcross: 0.25,
     };
     for (const k of HOLE_KEYS) expect(sameHoleRow(PIN, { ...PIN, [k]: changed[k] } as HoleRow), k).toBe(false);
   });
@@ -200,5 +200,27 @@ describe('the Hinge cup preset (spec §7)', () => {
       station: 3, count: 1, pitch: 0, acrossFrom: 'min', inset: mm(22.5),
     });
     expect(defaultHingeCup(wide).along).toBe(defaultShelfPinRow(wide)!.along);
+  });
+});
+
+describe('the stored tilt in a row\'s values (angled holes, schema 23)', () => {
+  const { id: _id, ...sq } = PIN;
+  it('holeRowValues of a square row is unchanged', () => {
+    const b = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
+    const h = defaultHole(b)!;
+    const v = holeRowValues(h);
+    expect(v).toEqual([h.face, h.from, h.diameter, h.depth, h.along, h.alongFrom, h.station, h.count, 0, h.acrossFrom, h.inset]);
+    expect(v).toHaveLength(11);
+  });
+  it('sameHoleRow tells tilts apart', () => {
+    expect(sameHoleRow({ ...sq, tiltAcross: 0.1 }, { ...sq, tiltAcross: 0.2 })).toBe(false);
+    expect(sameHoleRow({ ...sq, tiltAcross: 0.1 }, { ...sq, tiltAcross: 0.1 })).toBe(true);
+  });
+  it('a square row differs from a tilted one', () => {
+    expect(sameHoleRow(sq, { ...sq, tiltAlong: 0.25 })).toBe(false);
+    expect(sameHoleRow({ ...sq, tiltAlong: 0.25 }, sq)).toBe(false);
+  });
+  it('tiltAlong-only differs from tiltAcross-only at the same value', () => {
+    expect(sameHoleRow({ ...sq, tiltAlong: 0.25 }, { ...sq, tiltAcross: 0.25 })).toBe(false);
   });
 });
