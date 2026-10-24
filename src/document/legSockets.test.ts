@@ -69,12 +69,6 @@ const relevel = (b: Board): Board => {
   return { ...b, length: p.length, position: p.position, angleCuts: p.angleCuts };
 };
 
-/** The leg moved down so its level top is at y = 16 (under the stool seat). */
-const seated = (b: Board): Board => {
-  const top = levelFaces(b).find((f) => f.up)!.y;
-  return { ...b, position: [b.position[0], b.position[1] - (top - 16), b.position[2]] };
-};
-
 describe('legsUnder', () => {
   it('finds the four legs under the seat, in world order', () => {
     const doc = stoolDocument();
@@ -235,35 +229,40 @@ describe('socketRow / socketPlan', () => {
     }
   });
 
-  it("a bore from a socket's mouth at another angle is not the socket, and is stale", () => {
+  it("a bore from a socket's mouth at another angle is not the socket, and is stale; a square one is neither", () => {
     const doc0 = stoolDocument();
     const doc = bore(doc0, seatOf(doc0).id);
     const seat = seatOf(doc);
     const fr = named(doc, 'Front right')[0]!;
-    const { tiltAlong: _a, tiltAcross: _c, ...square } = seat.holes.find((r) => isSocketOf(seat, r, fr))!;
-    const moved = { ...seat, holes: seat.holes.map((r) => (r.id === square.id ? square : r)) };
-    expect(isSocketOf(moved, square, fr)).toBe(false);
-    expect(staleSocketOf(moved, fr)).toBe(square);
+    const socket = seat.holes.find((r) => isSocketOf(seat, r, fr))!;
+    const swap = (r: HoleRow) => ({ ...seat, holes: seat.holes.map((x) => (x.id === r.id ? r : x)) });
+    // Mouth still on the axis, the bit leaning the other way across: not the socket, and stale.
+    const other = { ...socket, tiltAcross: 0 - socket.tiltAcross! };
+    expect(isSocketOf(swap(other), other, fr)).toBe(false);
+    expect(staleSocketOf(swap(other), fr)).toBe(other);
+    // A square through bore over the leg's top (a user's clearance hole) is never taken for a socket.
+    const { tiltAlong: _a, tiltAcross: _c, ...square } = socket;
+    expect(staleSocketOf(swap(square), fr)).toBeNull();
   });
 
-  it("a socket that would break out is not bored, naming the leg; the others are bored", () => {
+  it("a socket that would break out is not bored, naming each such leg; the others are bored", () => {
     // The seat's right edge at x = 5.2: the right legs' 1" sockets run past the length max end.
     const doc = migrateDocument({ ...createDocument('Edge'), boards: [...stoolLegs(),
       createBoard({ name: 'Seat', length: 12.2, width: 14, thickness: 1.5, posture: 'flat', position: [-7, 16, -7] })] });
     expect(legsUnder(world(doc), seatOf(doc))).toHaveLength(4);
     const p = socketPlan(doc, seatOf(doc).id, 1);
-    expect(p).toMatchObject({ note: "Front right's socket would run past the length max end — move the leg, or choose a smaller diameter." });
+    expect(p).toMatchObject({ note: "Front right's socket would run past the length max end — move the leg, or choose a smaller diameter. Back right's socket would run past the length max end — move the leg, or choose a smaller diameter." });
     const after = bore(doc, seatOf(doc).id);
     const seat = seatOf(after);
     expect(seat.holes).toHaveLength(2);
     expectSockets(seat, legsOf(after).filter((b) => b.name.endsWith('left')));
   });
 
-  it('when every socket would fault, the action refuses with the first', () => {
+  it('when every socket would fault, the action refuses naming every leg, in world order', () => {
     const doc = migrateDocument({ ...createDocument('Edge'), boards: [...stoolLegs(),
       createBoard({ name: 'Seat', length: 10.4, width: 14, thickness: 1.5, posture: 'flat', position: [-5.2, 16, -7] })] });
     expect(legsUnder(world(doc), seatOf(doc))).toHaveLength(4);
-    expect(socketPlan(doc, seatOf(doc).id, 1)).toBe("Front right's socket would run past the length max end — move the leg, or choose a smaller diameter.");
+    expect(socketPlan(doc, seatOf(doc).id, 1)).toBe("Front right's socket would run past the length max end — move the leg, or choose a smaller diameter. Front left's socket would run past the length min end — move the leg, or choose a smaller diameter. Back left's socket would run past the length min end — move the leg, or choose a smaller diameter. Back right's socket would run past the length max end — move the leg, or choose a smaller diameter.");
   });
 
   it("a diameter at the leg's section refuses, naming the leg", () => {
@@ -282,10 +281,13 @@ describe('socketRow / socketPlan', () => {
     const same = socketPlan(doc1, seat1.id, 1);
     expect(typeof same === 'object' && same.holes).toBe(seat1.holes);
     expect(staleSocketOf(seat1, fr0)).toBeNull();
-    // A new rake on Front right, re-levelled (a re-level keeps the old top cut's reference, so the top rises a hair) and
-    // set back down onto the seat: what the user does before boring again.
-    const doc2 = mapWorld(doc1, (w) => w.map((b) => (b.id === fr0.id ? seated(relevel({ ...b, lean: { ...b.lean!, z: slopeOf(10) } })) : b)));
+    // A new rake on Front right, re-levelled. A re-level keeps the old top cut's reference, so the top lands a hair above
+    // the seat's bottom; within TOUCH, the leg still stands under it (the design checks' resting rule).
+    const doc2 = mapWorld(doc1, (w) => w.map((b) => (b.id === fr0.id ? relevel({ ...b, lean: { ...b.lean!, z: slopeOf(10) } }) : b)));
     const fr = named(doc2, 'Front right')[0]!;
+    const gap = levelFaces(fr).find((f) => f.up)!.y - 16;
+    expect(gap).toBeGreaterThan(1e-4);
+    expect(legsUnder(world(doc2), seatOf(doc2)).map((b) => b.name)).toContain('Front right');
     const seat2 = seatOf(doc2);
     expect(isSocketOf(seat2, old, fr)).toBe(false);
     expect(staleSocketOf(seat2, fr)).toBe(seat2.holes.find((r) => r.id === old.id));

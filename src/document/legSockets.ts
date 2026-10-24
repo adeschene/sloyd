@@ -3,11 +3,12 @@ import type { Point } from './cuts';
 import type { V3 } from './angleCuts';
 import { axisFrame, DIMENSION_ORDER } from './geometry';
 import { leanMap, leans } from './lean';
-import { LEVEL_EPS, levelFaces, overlapArea } from './leanContacts';
-import { REST_AREA } from './designCheck';
+import { levelFaces, overlapArea } from './leanContacts';
+import { REST_AREA, TOUCH } from './designCheck';
 import { fromWorld, toWorld } from './snapPoints';
 import { holeInstances, holeRowValues, othersOf } from './holes';
 import { holeFaults } from './holeFaults';
+import { isTilted } from './holeTilt';
 import { socketFaultWords } from './holeText';
 import { displayNames, partAt, worldParts } from './tree';
 import { mapWorld, storageKey } from './treeEdit';
@@ -54,9 +55,12 @@ function legAxis(leg: Board): { p: V3; u: V3 } | null {
 }
 
 /**
- * The leaning parts standing under `seat` (spec §5): a leaning part with an up-facing level face (`levelFaces`, inv 57)
- * coplanar (|Δy| ≤ LEVEL_EPS) with one of `seat`'s down-facing level faces, overlapping it in plan by more than
- * `REST_AREA` (the resting rule the design checks use). `world` is `worldParts`, so the legs and the seat may sit in
+ * The leaning parts standing under `seat` (spec §5): a leaning part with an up-facing level face (`levelFaces`, inv 57,
+ * level to LEVEL_EPS) within `TOUCH` in height of one of `seat`'s down-facing level faces, overlapping it in plan by more
+ * than `REST_AREA` — the resting rule the design checks use (`designCheck`'s `rests`). The height gap is `TOUCH`, not
+ * LEVEL_EPS (a bound on a face's NORMAL, never a gap): a lean edit then Level the ends keeps the old top cut's
+ * reference, so the re-levelled top lands a hair off the seat (0.0013" for rake 8° → 10° on the stool), and the leg must
+ * still be found, noted stale and re-bored. `world` is `worldParts`, so the legs and the seat may sit in
  * different assemblies. World order.
  */
 export function legsUnder(world: readonly Board[], seat: Board): Board[] {
@@ -64,7 +68,7 @@ export function legsUnder(world: readonly Board[], seat: Board): Board[] {
   const downs = levelFaces(seat).filter((f) => !f.up);
   if (downs.length === 0) return [];
   return world.filter((w) => w.id !== seat.id && leans(w) && levelFaces(w).some((u) => u.up
-    && downs.some((d) => Math.abs(u.y - d.y) <= LEVEL_EPS && overlapArea(u.poly, d.poly) > REST_AREA)));
+    && downs.some((d) => Math.abs(u.y - d.y) <= TOUCH && overlapArea(u.poly, d.poly) > REST_AREA)));
 }
 
 /**
@@ -139,7 +143,8 @@ function inConvex(poly: readonly [number, number][], q: readonly [number, number
 }
 
 /**
- * `leg`'s STALE socket in `seat` (spec §5), or null: a single-bore row that is not `isSocketOf` the leg but whose axis
+ * `leg`'s STALE socket in `seat` (spec §5), or null: a single TILTED bore (`socketRow` always tilts, its leg leans: a
+ * user's own square clearance hole over a leg top is never taken for a socket) that is not `isSocketOf` the leg but whose axis
  * segment (mouth centre to far centre) passes through one of the leg's up-facing level faces — at that face's height,
  * inside its plan polygon. The structural test of "the socket this leg once had": a later lean edit, resize or move
  * left it pointing the old way. `skip` names rows already claimed (another leg's match or replacement).
@@ -147,7 +152,7 @@ function inConvex(poly: readonly [number, number][], q: readonly [number, number
 export function staleSocketOf(seat: Board, leg: Board, skip: ReadonlySet<string> = new Set()): HoleRow | null {
   const ups = levelFaces(leg).filter((f) => f.up);
   for (const row of seat.holes) {
-    if (row.count !== 1 || skip.has(row.id) || isSocketOf(seat, row, leg)) continue;
+    if (row.count !== 1 || !isTilted(row) || skip.has(row.id) || isSocketOf(seat, row, leg)) continue;
     const [m, f] = boreEnds(seat, row);
     const dy = f[1] - m[1];
     if (Math.abs(dy) <= EPS) continue;
@@ -161,7 +166,7 @@ export function staleSocketOf(seat: Board, leg: Board, skip: ReadonlySet<string>
 }
 
 /** One copy's outcome: its new world rows (placeholder ids for new sockets), the legs it bores, its first fault. */
-interface CopyPlan { rows: HoleRow[]; bored: Board[]; tooWide: Board | null; fault: string | null }
+interface CopyPlan { rows: HoleRow[]; bored: Board[]; tooWide: Board | null; faults: string[] }
 
 /** A placeholder id for the k-th new socket while the copies are compared (never stored: the final write mints ids). */
 const trialId = (k: number) => `__socket${k}`;
@@ -169,14 +174,14 @@ const trialId = (k: number) => `__socket${k}`;
 /**
  * One copy's sockets, in its own world frame: per leg in world order, skipped when a row already is its socket,
  * otherwise its socket replaces the leg's stale socket IN PLACE (the id kept) or is appended. Each socket is judged by
- * `holeFaults` on the seat holding every row accepted so far; a faulted one is not added (the first is named).
+ * `holeFaults` on the seat holding every row accepted so far; a faulted one is not added, and named (one sentence each).
  */
 function copyPlan(world: readonly Board[], seat: Board, diameter: number, names: ReadonlyMap<string, string>): CopyPlan {
   let rows = seat.holes;
   const claimed = new Set<string>();
   const bored: Board[] = [];
   let tooWide: Board | null = null;
-  let fault: string | null = null;
+  const faulted: string[] = [];
   let k = 0;
   for (const leg of legsUnder(world, seat)) {
     const mine = seat.holes.find((r) => !claimed.has(r.id) && isSocketOf(seat, r, leg));
@@ -187,14 +192,14 @@ function copyPlan(world: readonly Board[], seat: Board, diameter: number, names:
     const trial = stale ? rows.map((r) => (r.id === stale.id ? row : r)) : [...rows, row];
     const faults = holeFaults({ ...seat, holes: trial }, row);
     if (faults.length > 0) {
-      fault ??= socketFaulted(names.get(leg.id) ?? leg.name, socketFaultWords(faults[0]!));
+      faulted.push(socketFaulted(names.get(leg.id) ?? leg.name, socketFaultWords(faults[0]!)));
       continue;
     }
     if (stale) claimed.add(stale.id);
     rows = trial;
     bored.push(leg);
   }
-  return { rows, bored, tooWide, fault };
+  return { rows, bored, tooWide, faults: faulted };
 }
 
 /** The STORED rows a copy's world rows would write (`mapWorld`, so lowered through every turn and mirror on its path and
@@ -242,8 +247,9 @@ function sameRowSet(a: readonly HoleRow[], b: readonly HoleRow[], size: Pick<Boa
  * `levelEnds` collects them — plans its OWN legs (`copyPlan`); the stored row sets they would write must agree, or the
  * action refuses naming the copies, since the rows are stored once and a socket bored from one copy lands in all.
  * Refusals, in the spec's order: a diameter at or above a leg's smaller section (`socketTooWide`); copies that disagree
- * (`socketsDisagree`); and, when no socket can be bored, the first faulted one (`socketFaulted`). A faulted socket among
- * others is not added and the rest are bored (§5: "The others are bored"): the plan then carries that sentence as `note`.
+ * (`socketsDisagree`); and, when no socket can be bored, the faulted ones (`socketFaulted`, one sentence per leg). A
+ * faulted socket among others is not added and the rest are bored (§5: "The others are bored"): the plan then carries
+ * those sentences as `note`.
  * `holes` is the seat's own array, unchanged, when every leg already has its socket (the store pushes no entry). New
  * sockets get fresh ids; a replaced stale socket keeps its id.
  */
@@ -261,7 +267,9 @@ export function socketPlan(doc: SloydDocument, seatId: string, diameter: number)
   const ref = storedRows(doc, seat, own.rows);
   const off = copies.filter((c, i) => c !== seat && !sameRowSet(ref, storedRows(doc, c, plans[i]!.rows), seat));
   if (off.length > 0) return socketsDisagree([...new Set([seat, ...off].map((c) => names.get(c.id) ?? c.name))]);
-  if (own.bored.length === 0) return own.fault ?? { holes: seat.holes };
+  // Every faulted leg is named, one sentence each, in world order.
+  const note = own.faults.length > 0 ? own.faults.join(' ') : undefined;
+  if (own.bored.length === 0) return note ?? { holes: seat.holes };
   const holes = own.rows.map((r) => (r.id.startsWith('__socket') ? { ...r, id: nextId() } : r));
-  return own.fault ? { holes, note: own.fault } : { holes };
+  return note ? { holes, note } : { holes };
 }

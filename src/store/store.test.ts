@@ -4196,7 +4196,7 @@ describe('Bore leg sockets through the store (angled holes §5)', () => {
   it('a faulted socket among others: the others bored in one entry, the note returned', () => {
     s().replaceDocument(migrateDocument({ ...createDocument('Edge'), boards: [...stoolLegs(),
       createBoard({ name: 'Seat', length: 12.2, width: 14, thickness: 1.5, posture: 'flat', position: [-7, 16, -7] })] }));
-    expect(s().boreLegSockets(seat().id, 1)).toBe("Front right's socket would run past the length max end — move the leg, or choose a smaller diameter.");
+    expect(s().boreLegSockets(seat().id, 1)).toBe("Front right's socket would run past the length max end — move the leg, or choose a smaller diameter. Back right's socket would run past the length max end — move the leg, or choose a smaller diameter.");
     expect(s().past.length).toBe(1);
     expect(seat().holes).toHaveLength(2);
   });

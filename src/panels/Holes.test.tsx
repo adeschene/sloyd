@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createBoard, createDocument, defaultProfile, migrateDocument, worldParts } from '../document/document';
-import { stoolDocument } from '../document/stoolFixture';
+import { createBoard, createDocument, defaultProfile, isSocketOf, migrateDocument, worldParts } from '../document/document';
+import { stoolDocument, stoolLegs, stoolSeat } from '../document/stoolFixture';
 import type { Board } from '../document/document';
 import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
@@ -497,6 +497,30 @@ describe('Bore leg sockets (angled holes §5)', () => {
     await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
     expect(screen.queryByText(/socket no longer follows its leg/)).toBeNull();
     expect(seat().holes).toHaveLength(4);
+  });
+});
+
+describe('Bore leg sockets after a lean edit, through the store (spec §5)', () => {
+  it('bore, a new rake, Level the ends: the stale note shows; boring again replaces the socket and the note goes', async () => {
+    const user = userEvent.setup();
+    const st = () => useStore.getState();
+    // Plain (unlinked) legs: a linked stool would carry the rake to Back left too.
+    st().replaceDocument(migrateDocument({ ...createDocument('Stool'), boards: [...stoolLegs(), stoolSeat()] }));
+    const part = (name: string) => worldParts(st().doc).find((b) => b.name === name)!;
+    expect(st().boreLegSockets(part('Seat').id, 1)).toBeNull();
+    const fr = part('Front right').id;
+    const old = part('Seat').holes.find((r) => isSocketOf(part('Seat'), r, part('Front right')))!;
+    expect(st().setLean([fr], { rake: 10 })).toBeNull();
+    expect(st().levelEnds(fr)).toBeNull();
+    st().selectBoard(part('Seat').id);
+    render(<Properties />);
+    expect(screen.getByText("Front right's socket no longer follows its leg — Bore leg sockets again.")).toBeInTheDocument();
+    expect(screen.getAllByText(/socket no longer follows its leg/)).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(screen.queryByText(/socket no longer follows its leg/)).toBeNull();
+    const seat = part('Seat');
+    expect(seat.holes).toHaveLength(4);
+    expect(isSocketOf(seat, seat.holes.find((r) => r.id === old.id)!, part('Front right'))).toBe(true);
   });
 });
 
