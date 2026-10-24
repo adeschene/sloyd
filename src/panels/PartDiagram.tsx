@@ -420,9 +420,17 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           const x = left + fit.offsetX + c.h * fit.sx;
           const y = top + (view.vUp ? view.v - c.v : c.v) * fit.sy;
           const k = HOLE_MARK;
+          // A tilted bore's ellipse (angled holes spec §8) is drawn in board inches through the view's own map — scale
+          // (v flipped on a vUp view) after rotate, so it stays exact under the sliver clamp (sx ≠ sy); its stroke is
+          // the screen's, like every other line here.
+          const rad = ((c.rot ?? 0) * Math.PI) / 180;
+          const f = view.vUp ? -fit.sy : fit.sy;
           return (
             <g key={`${c.row}:${c.index}`}>
-              <ellipse className="cutlist-diagram-hole" cx={x} cy={y} rx={c.r * fit.sx} ry={c.r * fit.sy} />
+              {c.rx !== undefined
+                ? <ellipse className="cutlist-diagram-hole" vectorEffect="non-scaling-stroke" cx={0} cy={0} rx={c.rx} ry={c.ry}
+                    transform={`matrix(${fit.sx * Math.cos(rad)} ${f * Math.sin(rad)} ${-fit.sx * Math.sin(rad)} ${f * Math.cos(rad)} ${x} ${y})`} />
+                : <ellipse className="cutlist-diagram-hole" cx={x} cy={y} rx={c.r * fit.sx} ry={c.r * fit.sy} />}
               <path className="cutlist-diagram-hole-centre" d={`M${x - k} ${y}H${x + k}M${x} ${y - k}V${y + k}`} />
             </g>
           );
@@ -431,6 +439,16 @@ export function PartDiagram({ view }: { view: DiagramView }) {
         {view.holeSides.flatMap((s) => {
           const X = (h: number) => left + fit.offsetX + h * fit.sx;
           const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
+          // A tilted bore's slanted band (angled holes spec §8): its two walls, and the bottom (blind only) between the
+          // far corners.
+          if (s.quad) {
+            const [m1, f1, f2, m2] = s.quad;
+            const band: [number, number, number, number][] = [[X(m1[0]), Y(m1[1]), X(f1[0]), Y(f1[1])], [X(m2[0]), Y(m2[1]), X(f2[0]), Y(f2[1])]];
+            if (s.bottomAt) band.push([X(f1[0]), Y(f1[1]), X(f2[0]), Y(f2[1])]);
+            return band.map(([x1, y1, x2, y2], i) => (
+              <line key={`${s.row}:${s.index}:${i}`} className="cutlist-diagram-hole-side" x1={x1} y1={y1} x2={x2} y2={y2} />
+            ));
+          }
           // The two walls run along the hole's axis; the bottom (blind only) closes its far end.
           const lines: [number, number, number, number][] = s.axis === 'h'
             ? [[X(s.h[0]), Y(s.v[0]), X(s.h[1]), Y(s.v[0])], [X(s.h[0]), Y(s.v[1]), X(s.h[1]), Y(s.v[1])]]

@@ -952,6 +952,49 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
       : Number(lines[0]!.getAttribute('y1')) > Number(lines[0]!.getAttribute('y2'));
     expect(lowFirst).toBe(true);
   });
+  it('a tilted bore\'s mouth draws as its ellipse: rx across, ry along the tilt, mapped like the outline (angled holes §8)', () => {
+    for (const from of ['max', 'min'] as const) {   // thickness min is a vUp view
+      const tilted = { ...pins, id: 't', from, count: 1, tiltAlong: 0.3, tiltAcross: 0.2 };
+      const v = holedView({ holes: [tilted] });
+      const c = v.holes[0]!;
+      const { container } = render(<PartDiagram view={v} />);
+      const e = container.querySelector('ellipse.cutlist-diagram-hole')!;
+      expect(e.getAttribute('vector-effect')).toBe('non-scaling-stroke');
+      expect([e.getAttribute('rx'), e.getAttribute('ry')].map(Number)).toEqual([c.rx, c.ry]);
+      const m = /^matrix\(([^)]*)\)$/.exec(e.getAttribute('transform')!)![1]!.split(' ').map(Number);
+      const at = (px: number, py: number) => [m[0]! * px + m[2]! * py + m[4]!, m[1]! * px + m[3]! * py + m[5]!];
+      const { sx, sy, X, Y } = scales(container, v);
+      // The ry axis's tip lies `ry` along the bit's lateral travel from the centre, in board inches.
+      const L = Math.hypot(0.3, 0.2);   // the lateral travel reads off alongFrom/acrossFrom only, not the face side
+      const [th, tv] = [0.3 / L, 0.2 / L];
+      const tips = [at(0, c.ry!), at(0, -c.ry!)];
+      const want = [X(c.h + c.ry! * th), Y(c.v + c.ry! * tv)];
+      expect(tips.some(([x, y]) => Math.abs(x! - want[0]!) < 1e-6 && Math.abs(y! - want[1]!) < 1e-6)).toBe(true);
+      // The rx axis's tip: r across the tilt.
+      const across = [at(c.rx!, 0), at(-c.rx!, 0)];
+      const wantA = [X(c.h - c.rx! * tv), Y(c.v + c.rx! * th)];
+      expect(across.some(([x, y]) => Math.abs(x! - wantA[0]!) < 1e-6 && Math.abs(y! - wantA[1]!) < 1e-6)).toBe(true);
+      expect(sx).toBeGreaterThan(0); expect(sy).toBeGreaterThan(0);
+      cleanup();
+    }
+  });
+  it('a tilted bore seen across its axis draws its slanted band: two walls (and the bottom when blind) on the quad', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    for (const depth of [0.375, 'through' as const]) {
+      const tilted = { ...pins, id: 't', count: 1, depth, tiltAlong: 0.3 };
+      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [tilted], cuts: [rabbet] }), IMPERIAL)
+        .find((x) => x.key === 'width|min')!;
+      const { container } = render(<PartDiagram view={w} />);
+      const { X, Y } = scales(container, w);
+      const q = w.holeSides[0]!.quad!;
+      const seg = (a: [number, number], b: [number, number]) => [X(a[0]), Y(a[1]), X(b[0]), Y(b[1])];
+      const want = [seg(q[0], q[1]), seg(q[3], q[2]), ...(depth === 'through' ? [] : [seg(q[1], q[2])])];
+      const got = [...container.querySelectorAll('line.cutlist-diagram-hole-side')].map((l) => ['x1', 'y1', 'x2', 'y2'].map((k) => Number(l.getAttribute(k))));
+      expect(got).toHaveLength(want.length);
+      got.forEach((g, i) => g.forEach((x, j) => expect(x).toBeCloseTo(want[i]![j]!, 6)));
+      cleanup();
+    }
+  });
   /** The figure's scales, read back off the rendered outline (not from the code under test). */
   const scales = (container: HTMLElement, w: { h: number; v: number; vUp: boolean }) => {
     const o = container.querySelector('.cutlist-diagram-outline')!;
