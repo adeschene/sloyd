@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { useStore, HOLES_ON_LEAN, LEAN_HAS_HOLES } from '../store/store';
+import { useStore, HOLES_ON_LEAN, LEAN_HAS_HOLES, LEAN_NOT_UPRIGHT, LEAN_PAST_BOUND } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
 import { slopeOf } from '../document/lean';
+import { LEVEL_FOOT_CUT, LEVEL_TOP_CUT, LEVEL_BELOW_FLOOR, levelUsersDisagree } from '../document/levelEnds';
+import { POSTURE_WHILE_LEANING } from '../document/treeEdit';
 import { Properties } from './Properties';
 
 const T = Math.tan;
@@ -37,7 +39,7 @@ describe('the Lean section (splayed legs spec §4)', () => {
     expect(screen.getByText('Resultant 14.3° · sightline 33.5° from the front edge')).toBeInTheDocument();
   });
 
-  it('typing rake commits once, signed by the select (back is negative)', async () => {
+  it('typing rake commits once, as a magnitude that keeps the part\'s own sign', async () => {
     const setLean = vi.fn(() => null);
     open([leg()]);
     act(() => useStore.setState({ setLean }));
@@ -45,7 +47,7 @@ describe('the Lean section (splayed legs spec §4)', () => {
     await user.clear(input('Rake'));
     await user.type(input('Rake'), '10{Enter}');
     expect(setLean).toHaveBeenCalledTimes(1);
-    expect(setLean).toHaveBeenCalledWith(['a'], { rake: -10 });
+    expect(setLean).toHaveBeenCalledWith(['a'], { rake: 10 }, { keepSign: true });
   });
 
   it('the direction select re-commits the current magnitude with the new sign', async () => {
@@ -54,7 +56,7 @@ describe('the Lean section (splayed legs spec §4)', () => {
     act(() => useStore.setState({ setLean }));
     await userEvent.setup().selectOptions(screen.getByLabelText('Splay direction'), 'left');
     expect(setLean).toHaveBeenCalledTimes(1);
-    expect(setLean).toHaveBeenCalledWith(['a'], { splay: -12 });
+    expect(setLean).toHaveBeenCalledWith(['a'], { splaySign: -1 });
   });
 
   it('a refusal is the field\'s own error: a holed part\'s text, the typed text kept', async () => {
@@ -141,12 +143,45 @@ describe('the Lean section (splayed legs spec §4)', () => {
     expect(screen.queryByText(/Resultant/)).toBeNull();
   });
 
-  it('editing a multi-selection writes the same world lean to each part (a mixed field types toward the front)', async () => {
-    open([leg(), leg({ id: 'b', name: 'Leg 2', position: [5, 2, 0], lean: { x: T(12 * D), z: -T(3 * D), face: 'width' } })], ['a', 'b']);
-    const user = userEvent.setup();
-    await user.type(input('Rake'), '6{Enter}');
-    expect(part('a').lean!.z).toBeCloseTo(slopeOf(6), 12);
+  it('different magnitudes stay empty-mixed, and typing writes each part\'s own sign', async () => {
+    open([leg(), leg({ id: 'b', name: 'Leg 2', position: [5, 2, 0], lean: { x: T(12 * D), z: T(3 * D), face: 'width' } })], ['a', 'b']);
+    expect(input('Rake').value).toBe('');
+    expect((screen.getByLabelText('Rake direction') as HTMLSelectElement).value).toBe('');
+    await userEvent.setup().type(input('Rake'), '6{Enter}');
+    expect(part('a').lean!.z).toBeCloseTo(-slopeOf(6), 12);
     expect(part('b').lean!.z).toBeCloseTo(slopeOf(6), 12);
+  });
+
+  describe('a symmetric pair (splay -12 and +12): magnitude and direction are separate controls', () => {
+    const pair = () => open([
+      leg({ lean: { x: -T(12 * D), z: 0, face: 'width' } }),
+      leg({ id: 'b', name: 'Leg 2', position: [5, 2, 0], lean: { x: T(12 * D), z: 0, face: 'width' } }),
+    ], ['a', 'b']);
+    const splayOf = (id: string) => Math.atan(part(id).lean!.x) / D;
+
+    it('the field shows 12.0° and the select says mixed', () => {
+      pair();
+      expect(input('Splay').value).toBe('12.0°');
+      expect((screen.getByLabelText('Splay direction') as HTMLSelectElement).value).toBe('');
+      expect(screen.getByRole('option', { name: 'mixed' })).toBeInTheDocument();
+    });
+
+    it('typing 10 gives -10 and +10, one undo entry', async () => {
+      pair();
+      const before = useStore.getState().past.length;
+      await userEvent.setup().clear(input('Splay'));
+      await userEvent.setup().type(input('Splay'), '10{Enter}');
+      expect(splayOf('a')).toBeCloseTo(-10, 9);
+      expect(splayOf('b')).toBeCloseTo(10, 9);
+      expect(useStore.getState().past.length).toBe(before + 1);
+    });
+
+    it('the select set to "toward the right" gives +12 and +12', async () => {
+      pair();
+      await userEvent.setup().selectOptions(screen.getByLabelText('Splay direction'), 'right');
+      expect(splayOf('a')).toBeCloseTo(12, 9);
+      expect(splayOf('b')).toBeCloseTo(12, 9);
+    });
   });
 
   it('sits inside EditLock: disabled while exploded (inv 47)', () => {
@@ -164,5 +199,35 @@ describe('the Holes panel shows the store\'s refusal on a leaning part', () => {
     await user.click(screen.getByRole('button', { name: /^Hole/ }));
     expect(screen.getByRole('alert')).toHaveTextContent(HOLES_ON_LEAN);
     expect(part('a').holes).toEqual([]);
+  });
+});
+
+describe('the Holes refusal is retired with the lean it was made for', () => {
+  it('Clear lean removes a stale "can\'t take holes" text', async () => {
+    open([leg()]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    await user.click(screen.getByRole('button', { name: /^Hole/ }));
+    expect(screen.getByText(HOLES_ON_LEAN)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear lean' }));
+    expect(screen.queryByText(HOLES_ON_LEAN)).toBeNull();
+  });
+});
+
+describe('the refusal copy is pinned verbatim (Global Constraints)', () => {
+  it('lean and hole refusals', () => {
+    expect(LEAN_NOT_UPRIGHT).toBe('Only an upright part can lean.');
+    expect(LEAN_HAS_HOLES).toBe("A part with holes can't lean yet — that comes with angled holes.");
+    expect(LEAN_PAST_BOUND).toBe("The lean can't pass 45° in all — reduce the rake or splay.");
+    expect(HOLES_ON_LEAN).toBe("A leaning part can't take holes yet — that comes with angled holes.");
+  });
+  it('posture while leaning', () => {
+    expect(POSTURE_WHILE_LEANING).toBe('Clear the lean first — only an upright part can lean.');
+  });
+  it('level refusals', () => {
+    expect(LEVEL_FOOT_CUT).toBe('Remove the angle cut on the foot first.');
+    expect(LEVEL_TOP_CUT).toBe('Remove the angle cut on the top first.');
+    expect(LEVEL_BELOW_FLOOR).toBe('The top of this part is at or below the floor.');
+    expect(levelUsersDisagree(['A', 'B'])).toBe("These linked parts' tops are at different heights, so one length can't level them all: A, B.");
   });
 });

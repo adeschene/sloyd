@@ -3597,6 +3597,51 @@ describe('setLean, the lean refusals, resize keeps the pivot, drags round the de
     expect(s().past.length).toBe(1);
   });
 
+  it('keepSign: a magnitude keeps each part\'s own world sign (a part at 0 takes +), one undo entry', () => {
+    load(leg({ id: 'A', name: 'A' }), leg({ id: 'B', name: 'B', position: [5, 0, 0] }), leg({ id: 'C', name: 'C', position: [9, 0, 0] }));
+    s().setLean(['A'], { splay: -12 });
+    s().setLean(['B'], { splay: 12 });
+    const before = s().past.length;
+    expect(s().setLean(['A', 'B', 'C'], { splay: 10 }, { keepSign: true })).toBeNull();
+    expect(s().past.length).toBe(before + 1);
+    expect(worldSlopes(occ('A'))[0]).toBe(-slopeOf(10));
+    expect(worldSlopes(occ('B'))[0]).toBe(slopeOf(10));
+    expect(worldSlopes(occ('C'))[0]).toBe(slopeOf(10));
+  });
+
+  it('a direction (splaySign) keeps each part\'s own magnitude exactly, one undo entry', () => {
+    load(leg({ id: 'A', name: 'A' }), leg({ id: 'B', name: 'B', position: [5, 0, 0] }));
+    s().setLean(['A'], { splay: -12, rake: 4 });
+    s().setLean(['B'], { splay: 7 });
+    const before = s().past.length;
+    s().setLean(['A', 'B'], { splaySign: 1 });
+    expect(s().past.length).toBe(before + 1);
+    expect(worldSlopes(occ('A'))[0]).toBe(slopeOf(12));
+    expect(worldSlopes(occ('B'))[0]).toBe(slopeOf(7));
+    expect(worldSlopes(occ('A'))[1]).toBe(worldSlopes(occ('A'))[1]); // rake untouched
+    expect(Math.abs(worldSlopes(occ('A'))[1] - slopeOf(4))).toBeLessThan(1e-12);
+    s().setLean(['A', 'B'], { splaySign: -1 });
+    expect(worldSlopes(occ('A'))[0]).toBe(-slopeOf(12));
+    expect(worldSlopes(occ('B'))[0]).toBe(-slopeOf(7));
+  });
+
+  it('keepSign across a mirror: the first user decides and the mirrored mate follows with its opposite sign', () => {
+    const { id: _i, name: _n, position: _p, rotation: _r, ...shared } = leg({ lean: { x: slopeOf(12), z: 0, face: 'width' } });
+    s().replaceDocument({
+      ...createDocument('Lean'),
+      shapes: [{ id: 's1', ...shared } as never],
+      boards: [
+        { id: 'a', name: 'Left', position: [0, 0, 0], rotation: 0, shape: 's1' },
+        { id: 'b', name: 'Right', position: [10, 0, 0], rotation: 0, shape: 's1', mirrored: true },
+      ],
+    });
+    const before = s().past.length;
+    s().setLean(['a', 'b'], { splay: 10 }, { keepSign: true });
+    expect(s().past.length).toBe(before + 1);
+    expect(worldSlopes(occ('a'))[0]).toBe(slopeOf(10));
+    expect(worldSlopes(occ('b'))[0]).toBe(-slopeOf(10));
+  });
+
   it('typing splay keeps rake bit for bit (and the reverse), one undo entry each', () => {
     load(leg());
     s().setLean(['L'], { rake: 8, splay: 12 });

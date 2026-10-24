@@ -26,6 +26,9 @@ import { clickTarget } from './assemblyPick';
 
 const HISTORY_LIMIT = 50;
 
+/** `setLean`'s world argument: signed degrees, and/or a direction (±1) that keeps the part's own magnitude. */
+export interface LeanWorld { rake?: number; splay?: number; rakeSign?: 1 | -1; splaySign?: 1 | -1 }
+
 /** setLean's and addHoleRows' refusals (splayed legs spec §3.2, §4, §8), verbatim. */
 export const LEAN_NOT_UPRIGHT = 'Only an upright part can lean.';
 export const LEAN_HAS_HOLES = "A part with holes can't lean yet — that comes with angled holes.";
@@ -425,7 +428,13 @@ interface StoreState {
    * sentence, decided for every target before `edit()` — not upright, holes, past the bound — or null; refused
    * silently (null) while gesturing or exploded. Clear is never refused.
    */
-  setLean: (ids: string[], world: { rake?: number; splay?: number } | null) => string | null;
+  /**
+   * Sets the lean in SIGNED world degrees (rake + = foot toward the front, splay + = toward the right); null clears.
+   * `keepSign` reads `rake`/`splay` as MAGNITUDES and gives each part its OWN current world sign (a part at 0 takes +),
+   * so a symmetric selection keeps its sides. `rakeSign`/`splaySign` (±1) set only the DIRECTION, keeping each part's own
+   * magnitude exactly (no trig round trip). Still ONE write per Shape (the first selected user) and ONE undo entry.
+   */
+  setLean: (ids: string[], world: LeanWorld | null, opts?: { keepSign?: boolean }) => string | null;
   /**
    * Level the ends (splayed legs spec §5): the foot cut to the floor and the top level, the length set at each end
    * (`levelPlan`), for EVERY user of the part's Shape and every placement of its stored part, in ONE undo entry.
@@ -1877,7 +1886,7 @@ export const useStore = create<StoreState>((set, get) => {
       judgeHeld();
     },
 
-    setLean: (ids, world) => {
+    setLean: (ids, world, opts) => {
       // Refused at entry while exploded (invariant 47) or mid-gesture (a drag's lazy snapshot would swallow it). No
       // sentence: the copy has none, and the Lean section is inside EditLock.
       if (readOnly() || get().gesturing) return null;
@@ -1908,7 +1917,11 @@ export const useStore = create<StoreState>((set, get) => {
         // World slopes, the typed one replaced and the other copied as is (§3.1: no trig round trip), then turned back
         // into the part's turn-0 frame: quarter turns are swaps and negations, so the untouched slope keeps its bits.
         const [wx, wz] = worldSlopes(b);
-        const w = [world.splay === undefined ? wx : slopeOf(world.splay), 0, world.rake === undefined ? wz : slopeOf(world.rake)];
+        const pick = (typed: number | undefined, sign: 1 | -1 | undefined, own: number): number => {
+          if (typed !== undefined) return (opts?.keepSign ? (own < 0 ? -1 : 1) : 1) * slopeOf(typed);
+          return sign === undefined ? own : sign * Math.abs(own);
+        };
+        const w = [pick(world.splay, world.splaySign, wx), 0, pick(world.rake, world.rakeSign, wz)];
         const t = rotateVec(inverseTurn(b.rotation), w);
         const x = plus0(t[0]);
         const z = plus0(t[2]);

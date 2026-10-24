@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import { isMetric } from '../units/length';
 import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine } from '../document/holeText';
+import { leans } from '../document/lean';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
@@ -131,6 +132,9 @@ export function Holes({ board }: { board: Board }) {
   const addHoleRows = useStore((s) => s.addHoleRows);
   // The store refuses a hole on a leaning part (splayed legs spec §8); its text shows here, as the panel's other refusals do.
   const [error, setError] = useState<string | null>(null);
+  // A refusal belongs to the part and lean it was made for: Clear lean (or another part) retires it.
+  const isLeaning = leans(board);
+  useEffect(() => setError(null), [board.id, isLeaning]);
   const add = (rows: Omit<HoleRow, 'id'>[]) => setError(addHoleRows(board.id, rows));
   const units = useStore((s) => s.doc.units);
   // A preset whose default would fault on this part is withheld, not added and refused (AngleCuts' precedent).
