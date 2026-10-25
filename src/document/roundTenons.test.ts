@@ -4,6 +4,7 @@ import type { Board } from './types';
 import { TENON_FIELDS, copyTenon, hasTenons, lowerTenons, mirrorTenons, sameTenon, tenonAt, tenonValues, tenonsOf, withTenons } from './roundTenons';
 import type { AngleCut, Band, CurveCut, HoleRow, ProfileCut, RoundTenon } from './types';
 import { addedTenonFaults, endCutOf, shoulderAt, tenonFaults, tenonZone } from './roundTenons';
+import { curveOutline } from './curves';
 import { tenonFaultText } from './tenonText';
 
 const min: RoundTenon = { id: 't1', end: 'min', diameter: 1, length: 1.5 };
@@ -205,5 +206,42 @@ describe('round tenons: addedTenonFaults (the edit rule)', () => {
     expect(addedTenonFaults(bad, withTenons(bad, [tn('max', 20, 2)]), 'max').map((f) => f.kind)).toEqual(['too-long']);
     expect(addedTenonFaults(leg(), withTenons(leg(), [tn('max', 3, 2)]), 'max').map((f) => f.kind)).toEqual(['too-wide']);
     expect(addedTenonFaults(bad, leg(), 'max')).toEqual([]);
+  });
+});
+
+describe('round tenons: fix round 1 (review of Task 3)', () => {
+  const side = { across: 'width' as const, from: 'min' as const };
+  const stopped = (at: number): ProfileCut => ({ id: 'p', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side, through: 'min' }, end: { side, from: 'min', at } } });
+  it('a profile stopped just short of the shoulder whose run-out enters the zone is meets-feature', () => {
+    expect(kinds(leg({ profiles: [stopped(16.9)] }), tn('max', 3))).toEqual(['meets-feature:profile']);
+    expect(kinds(leg({ profiles: [stopped(5)] }), tn('max', 3))).toEqual([]);
+  });
+  it("a curve whose ARC (not its chords) enters the zone is meets-feature", () => {
+    // an arc bulging toward +length: its apex is at x0 + 0.3 = 17.004, just past the zone start at 17
+    const arc = (x0: number): CurveCut => ({ id: 'cv', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [x0, 0.5],
+      segments: [{ type: 'arc', to: [x0, 1.5], side: 'right', rise: 0.3 }, { type: 'line', to: [x0, 0.5] }] });
+    const part = leg({ curves: [arc(16.704)] });
+    const chordMax = Math.max(...curveOutline(part, part.curves[0]!).pts.map((p) => p[0]));
+    expect(chordMax).toBeLessThan(17); // the chord vertices stop short of the zone ...
+    expect(kinds(part, tn('max', 3))).toEqual(['meets-feature:curve']); // ... the arc does not
+    expect(kinds(leg({ curves: [arc(16.6)] }), tn('max', 3))).toEqual([]);
+  });
+  it('an end miter that reaches depth 0 inside the section (a corner clip) keeps the zone inside the part', () => {
+    const b = leg({ angleCuts: [topMiter(-1, 0.5)] }); // depth 0 at 1.33 of 2: the centre extrapolates to -0.25
+    expect(shoulderAt(b, tn('max', 3))).toBe(17);
+    const clip = leg({ angleCuts: [topMiter(-1, 0.5)], holes: [hole(16.9)] });
+    expect(kinds(clip, tn('max', 3))).toContain('meets-feature:hole');
+  });
+  it('a mitered min end, and a miter stored with alongFrom max', () => {
+    const lo: AngleCut = { id: 'm', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0.25], [2, 0.75]] };
+    const b = leg({ angleCuts: [lo] });
+    expect(shoulderAt(b, tn('min', 3))).toBeCloseTo(3.5, 12);
+    expect(kinds(b, tn('min', 0.5))).toEqual([]);
+    expect(kinds(b, tn('min', 0.25))).toEqual(['cut-reaches-shoulder']);
+    const hi: AngleCut = { ...topMiter(0.75, 0.25), alongFrom: 'max' }; // the same plane as (0.25, 0.75) from min
+    const c = leg({ angleCuts: [hi] });
+    expect(shoulderAt(c, tn('max', 3))).toBeCloseTo(16.5, 12);
+    expect(kinds(c, tn('max', 0.5))).toEqual([]);
+    expect(kinds(c, tn('max', 0.25))).toEqual(['cut-reaches-shoulder']);
   });
 });

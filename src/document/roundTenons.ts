@@ -1,10 +1,9 @@
-import { type AngleCut, type Board, type Dimension, type ProfileCut, type Region, type RoundTenon } from './types';
+import { type AngleCut, type Board, type Dimension, type Region, type RoundTenon } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { clippedRegion, cutRemovesNothing } from './cuts';
 import { angleCutRemovesNothing, depthAt, touchedRegion } from './angleCuts';
 import { boardHoles, holeRegion } from './holes';
-import { curveOutline, uvDims } from './curves';
-import { endPos, oneSide, runDim } from './profiles';
+import { featureMeetsBox, shapedFeatures } from './featureRegions';
 
 /**
  * Every field of `RoundTenon` that decides "same tenon": all but `id` (round tenons spec §3.1). A TABLE CHECKED AGAINST THE
@@ -104,7 +103,9 @@ export function endCutOf(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTeno
  *  `levelPlan` reads it); 0 for a square end or an `'other'` one. */
 function centreDepth(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTenon['end']): number {
   const c = endCutOf(b, end);
-  return c && c !== 'other' ? depthAt(c, b[c.along] / 2) : 0;
+  // Clamped: a miter that reaches depth 0 inside the section (a corner clip) extrapolates negative at the centre, and the
+  // end face's centre is never outside the part.
+  return c && c !== 'other' ? Math.max(0, depthAt(c, b[c.along] / 2)) : 0;
 }
 
 /** The deepest the end's miter reaches into the length over the 4 section corners (the line is linear in the station,
@@ -142,23 +143,6 @@ function meets(a: Region, z: Region): boolean {
   return DIMENSION_ORDER.every((d) => Math.min(a[d][1], z[d][1]) - Math.max(a[d][0], z[d][0]) > EPS);
 }
 
-/** A profile's box: its run along the run dimension, the edge strip across (its reach, summed over every size it
- *  carries), the whole thickness; a loop or an unbuilt run is the whole part. Conservative, never one that can miss. */
-function profileBox(b: Pick<Board, Dimension>, p: ProfileCut): Region {
-  const whole: Region = { length: [0, b.length], width: [0, b.width], thickness: [0, b.thickness] };
-  if (!oneSide(p.run)) return whole;
-  const side = p.run.start.side;
-  const r = runDim(side);
-  const a = endPos(b, p.run.start);
-  const e = endPos(b, p.run.end);
-  const reach = p.size + (p.fillet ?? 0) + (p.depth ?? 0);
-  const A = b[side.across];
-  const out: Region = { ...whole };
-  out[r] = [Math.min(a, e), Math.max(a, e)];
-  out[side.across] = side.from === 'min' ? [0, Math.min(A, reach)] : [Math.max(0, A - reach), A];
-  return out;
-}
-
 /** The feature kinds whose region's box meets `zone` (spec §3.2): conservative boxes, never sampled. `endCut` is the
  *  end's own miter, which is the tip and not a feature. */
 function featuresMeeting(b: Board, zone: Region, end: RoundTenon['end'], endCut: AngleCut | null | 'other'): TenonFeature[] {
@@ -170,16 +154,11 @@ function featuresMeeting(b: Board, zone: Region, end: RoundTenon['end'], endCut:
     if (!out.includes('angle-cut')) out.push('angle-cut');
   }
   if (boardHoles(b).some((h) => meets(holeRegion(h), zone))) out.push('hole');
-  if (b.curves.some((c) => {
-    const [u, v] = uvDims(c.through);
-    const pts = curveOutline(b, c).pts;
-    if (pts.length === 0) return false;
-    const r: Region = { length: [0, b.length], width: [0, b.width], thickness: [0, b.thickness] };
-    r[u] = [Math.min(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[0]))];
-    r[v] = [Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[1]))];
-    return meets(r, zone);
-  })) out.push('curve');
-  if (b.profiles.some((p) => meets(profileBox(b, p), zone))) out.push('profile');
+  // Curves and profiles through the ONE geometry view (inv 53): true arcs, stopped profiles' run-outs, swept profiles.
+  const { view, features } = shapedFeatures(b);
+  const hit = features.filter((f) => featureMeetsBox(view, f, zone));
+  if (hit.some((f) => f.word === 'curve')) out.push('curve');
+  if (hit.some((f) => f.word !== 'curve')) out.push('profile');
   // A band covers its side over the part's whole run: a long edge reaches both ends; an end edge sits at its own end (its
   // thickness lives in the band type, which the part does not carry, so only the tenon's own end is judged).
   if (b.bands.some((band) => (band.side.across === 'width' ? zone.length[1] - zone.length[0] > EPS : band.side.from === end))) {
