@@ -1,5 +1,5 @@
 import type { Board, RoundTenon } from './types';
-import { shoulderAt, type TenonFault, type TenonFeature } from './roundTenons';
+import { shoulderAt, tenonFaults, type TenonFault, type TenonFeature } from './roundTenons';
 import { formatLength, type Units } from '../units/length';
 import { holeLengthText } from './holeText';
 
@@ -28,10 +28,16 @@ export function tenonFaultText(f: TenonFault): string {
  * One round tenon as a bench line (round tenons spec §8): THE one home of the string (invariant 19). Every length through the
  * document's units (inv 52), the diameter at a hole's precision (`holeLengthText`), so a tenon and its socket read the same
  * number. `<s>` is the shoulder's distance from the OTHER end at the centre: where the axis meets that end's face, square or
- * mitered (`shoulderAt` with a zero length is that point), never its long point. Printed for every STORED tenon.
+ * mitered (`shoulderAt` with a zero length is that point), never its long point. A far end with any other cut (a bevel, a
+ * chamfer, a second cut: `endCutOf`'s `'other'`) is measured from its uncut END FACE, as `shoulderAt` models it — right for a
+ * corner chamfer, which leaves the axis on the square face; approximate for a cut that crosses the axis. Printed for every
+ * STORED tenon; a faulted one (kept, not built) ends with its first fault and how many more (ruling T6b, `holeLine`'s shape).
  */
 export function tenonLine(b: Board, t: RoundTenon, units: Units): string {
   const far = shoulderAt(b, { end: t.end === 'min' ? 'max' : 'min', length: 0 });
   const s = Math.abs(shoulderAt(b, t) - far);
-  return `${holeLengthText(t.diameter, units, 'diameter')} round tenon, ${formatLength(t.length, units)} long — at the length ${t.end} end, shoulder ${formatLength(s, units)} from the other end`;
+  const base = `${holeLengthText(t.diameter, units, 'diameter')} round tenon, ${formatLength(t.length, units)} long — at the length ${t.end} end, shoulder ${formatLength(s, units)} from the other end`;
+  const faults = tenonFaults(b, t);
+  if (faults.length === 0) return base;
+  return `${base} — check: ${tenonFaultText(faults[0]!)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }

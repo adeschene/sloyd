@@ -741,32 +741,56 @@ describe('drawView: a round tenon (round tenons spec §7, §8)', () => {
   });
 });
 
-describe('drawView: a round tenon adds no tags (round tenons spec §8, out of scope: callouts)', () => {
+describe('drawView: a round tenon adds no tags; a mitered tip keeps its miter\'s (round tenons spec §8; ruling T6a)', () => {
   const miter = (from: 'min' | 'max') => ({ id: `m${from}`, kind: 'miter' as const, face: 'length' as const, from, along: 'width' as const,
     alongFrom: 'min' as const, points: [[0, 0.25], [2, 0.75]] as [[number, number], [number, number]] });
-  // Upright 2 x 2 x 20 (length on Y), both ends mitered (centre depth 0.5): the tip's shoulder at 20 − 0.5 − 3 = 16.5.
+  // Upright 2 x 2 x 20 (length on Y, width on X), both ends mitered (centre depth 0.5): the tip's shoulder at 20 − 0.5 − 3 = 16.5.
   const plain = createBoard({ id: 'L', name: 'Leg', length: 20, width: 2, thickness: 2, posture: 'upright', position: [0, 0, 0],
     angleCuts: [miter('min'), miter('max')] });
-  const leg = { ...plain, tenons: [{ id: 't', end: 'max' as const, diameter: 1, length: 3 }] };
+  const tenon = { id: 't', end: 'max' as const, diameter: 1, length: 3 };
+  const leg = { ...plain, tenons: [tenon] };
   const all = (d: ReturnType<typeof drawView>) => [...d.visible, ...d.hidden];
   const pos = (s: Seg2) => JSON.stringify([s.a, s.b, s.part]);
+  const at = (y: number) => (s: Seg2) => Math.abs(s.a[1] - y) < 1e-9 && Math.abs(s.b[1] - y) < 1e-9;
+  const above = (y: number) => (s: Seg2) => Math.min(s.a[1], s.b[1]) > y + 1e-6;
+  // The tip miter's plane seen edge-on from the front (it holds the thickness, the view direction): y = 20 − (0.25 + x/4).
+  const onTipPlane = (p: P2) => Math.abs(p[1] - (19.75 - p[0] / 4)) <= 1e-6;
 
-  it.each([['front', FRONT], ['side', SIDE], ['top', TOP], ['iso', ISO]] as const)('%s: no tenon segment carries a curve tag or the tip miter\'s tag; the foot miter keeps its own', (_n, view) => {
+  it.each([['front', FRONT], ['side', SIDE], ['top', TOP], ['iso', ISO]] as const)('%s: no curve tag; the tip ring takes the tip miter\'s tag; the foot miter keeps its own', (_n, view) => {
     const d = drawView([leg], view);
-    for (const s of all(d)) {
-      expect(s.feature ?? '', `${s.a} → ${s.b}`).not.toMatch(/:curve:/);
-      expect(s.feature, `${s.a} → ${s.b}`).not.toBe('L:angle:mmax');
-    }
-    // The foot's miter segments are the tenon-free twin's, tagged alike (the tip is the tenon's: none tagged).
+    for (const s of all(d)) expect(s.feature ?? '', `${s.a} → ${s.b}`).not.toMatch(/:curve:/);
+    expect(all(d).filter((s) => s.feature === 'L:angle:mmax').length).toBeGreaterThan(0);
     const foot = (x: ReturnType<typeof drawView>) => all(x).filter((s) => s.feature === 'L:angle:mmin').map(pos).sort();
     expect(foot(d).length).toBeGreaterThan(0);
     expect(foot(d)).toEqual(foot(drawView([plain], view)));
-    // Every segment on the tenon (above the shoulder; front and side draw world Y up) has NO feature key at all, not an
-    // undefined one.
+  });
+
+  it('front: on the tenon, the tip ring (in the miter plane) is the miter\'s, everything else (sides, silhouettes) has NO key', () => {
+    // By midpoint: a silhouette's on-wood interval starts ~5e-7 above the shoulder.
+    const segs = all(drawView([leg], FRONT)).filter((s) => (s.a[1] + s.b[1]) / 2 > 16.5 + 1e-6);
+    const ring = segs.filter((s) => onTipPlane(s.a) && onTipPlane(s.b));
+    expect(ring.length).toBeGreaterThan(0);
+    for (const s of ring) expect(s.feature, `${s.a} → ${s.b}`).toBe('L:angle:mmax');
+    const rest = segs.filter((s) => !ring.includes(s));
+    expect(rest.length).toBeGreaterThan(0);
+    for (const s of rest) expect('feature' in s, `${s.a} → ${s.b}`).toBe(false);
+  });
+
+  it.each([['front', FRONT], ['side', SIDE]] as const)('%s: the shoulder ring carries no key (review Minor 3)', (_n, view) => {
+    const shoulder = all(drawView([leg], view)).filter(at(16.5));
+    expect(shoulder.length).toBeGreaterThan(0);
+    for (const s of shoulder) expect('feature' in s, `${s.a} → ${s.b}`).toBe(false);
+  });
+
+  it.each([['front', FRONT], ['side', SIDE], ['top', TOP], ['iso', ISO]] as const)('%s: a SQUARE tip\'s ring has no key: no cut owns it', (_n, view) => {
+    const square = { ...createBoard({ id: 'L', name: 'Leg', length: 20, width: 2, thickness: 2, posture: 'upright', position: [0, 0, 0],
+      angleCuts: [miter('min')] }), tenons: [tenon] };
+    const d = all(drawView([square], view));
+    for (const s of d) expect([undefined, 'L:angle:mmin'], `${s.a} → ${s.b} ${s.feature}`).toContain(s.feature);
     if (view !== FRONT && view !== SIDE) return;
-    const tenonSegs = all(d).filter((s) => s.part === 'L' && Math.min(s.a[1], s.b[1]) > 16.5 + 1e-6);
-    expect(tenonSegs.length).toBeGreaterThan(0);
-    for (const s of tenonSegs) expect('feature' in s, `${s.a} → ${s.b}`).toBe(false);
+    const tip = d.filter(above(17));
+    expect(tip.filter(at(20)).length).toBeGreaterThan(0);
+    for (const s of tip) expect('feature' in s, `${s.a} → ${s.b}`).toBe(false);
   });
 
   it.each([

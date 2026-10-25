@@ -37,4 +37,27 @@ describe('tenonLine (round tenons spec §8)', () => {
     const foot = leg({ tenons: [top], angleCuts: [miter('min')] });
     expect(tenonLine(foot, top, IMPERIAL)).toBe('1" round tenon, 3" long — at the length max end, shoulder 16-1/2" from the other end');
   });
+
+  it('a chamfered foot (its axis on the square face) is measured from the end face (review Minor 1)', () => {
+    // A 1/4" corner chamfer at the min end's width-min edge: the axis (width 1) meets the uncut end face.
+    const chamfer: AngleCut = { id: 'c', kind: 'chamfer', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0.25], [0.25, 0]] };
+    const b = leg({ tenons: [top], angleCuts: [chamfer] });
+    expect(tenonLine(b, top, IMPERIAL)).toBe('1" round tenon, 3" long — at the length max end, shoulder 17" from the other end');
+  });
+
+  it('a faulted tenon ends with its first fault, ruling T6b (holeLine\'s shape), imperial and metric', () => {
+    const wide: RoundTenon = { ...top, diameter: 2 };
+    expect(tenonLine(leg({ tenons: [wide] }), wide, IMPERIAL))
+      .toBe('2" round tenon, 3" long — at the length max end, shoulder 17" from the other end — check: A round tenon must be narrower than the part\'s section.');
+    expect(tenonLine(leg({ tenons: [wide] }), wide, MM))
+      .toBe('50.8 mm round tenon, 76 mm long — at the length max end, shoulder 432 mm from the other end — check: A round tenon must be narrower than the part\'s section.');
+  });
+
+  it('several faults: the first, then how many more', () => {
+    // Too wide AND the two would meet (12 + 9 ≥ 20).
+    const a: RoundTenon = { id: 'a', end: 'max', diameter: 2, length: 12 };
+    const z: RoundTenon = { id: 'z', end: 'min', diameter: 1, length: 9 };
+    expect(tenonLine(leg({ tenons: [z, a] }), a, IMPERIAL))
+      .toBe('2" round tenon, 12" long — at the length max end, shoulder 8" from the other end — check: A round tenon must be narrower than the part\'s section. (and 1 more)');
+  });
 });
