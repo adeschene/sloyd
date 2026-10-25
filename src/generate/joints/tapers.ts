@@ -9,6 +9,7 @@ import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import { findSites } from './sites';
 import { leans } from '../../document/lean';
+import { hasTenons } from '../../document/roundTenons';
 import type { Site } from './sites';
 
 /**
@@ -142,15 +143,32 @@ export function leaningRefusal(entry: JoineryEntry, flat: FlatDocument): string 
   return b ? LEANING_TEXT[entry](b.name) : null;
 }
 
+const TENON_TEXT: Record<JoineryEntry, (name: string) => string> = {
+  joinery: (n) => `Add joinery can't join a part with a round tenon yet: ${n}.`,
+  repair: (n) => `Repair can't join a part with a round tenon yet: ${n}.`,
+  refine: (n) => `Refine can't keep joints with a part with a round tenon yet: ${n}.`,
+};
+
+/**
+ * The round-tenon refusal (round tenons spec §9), `joineryRefusal`'s SECOND step, after `leaningRefusal`: a document with
+ * a part carrying a round tenon is refused whole, naming its first such part in flat order (v1; a later chunk can rule
+ * kinds out per site instead). A flat part is resolved, so a Shape's tenon counts for every user; a faulted tenon counts.
+ * Exported for the same two callers as `leaningRefusal` (Repair and a joined Refine). Pure.
+ */
+export function tenonRefusal(entry: JoineryEntry, flat: FlatDocument): string | null {
+  const b = flat.boards.find(hasTenons);
+  return b ? TENON_TEXT[entry](b.name) : null;
+}
+
 /**
  * THE joinery refusal (AI-tapers spec §4.2; AI-angles spec §3; splayed legs spec §8): a leaning part first
- * (`leaningRefusal`, in `entry`'s words), then every taper or other angle cut running into a joint, one sentence per part,
+ * (`leaningRefusal`, in `entry`'s words), then a part with a round tenon (`tenonRefusal`, likewise), then every taper or other angle cut running into a joint, one sentence per part,
  * else null. `runJoinery`, the dialog and a joined Refine all call it, so they refuse in the same words. Holes, curves,
  * profiles and bands no longer refuse (joinery-features spec §3): `featureAllowed` narrows the sites. Decided before any
  * call or mutation. `doc` is kept for the callers; only `flat` is read.
  */
 export function joineryRefusal(entry: JoineryEntry, doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
-  return leaningRefusal(entry, flat) ?? jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
+  return leaningRefusal(entry, flat) ?? tenonRefusal(entry, flat) ?? jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 
 /** The angle-at-joint rule on a DESIGN (AI-tapers spec 5.3; AI-angles spec §5.4): every conflict as an `angle-joint` fault, for evaluateDesign and Refine's preexisting set. */

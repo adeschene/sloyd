@@ -5,7 +5,7 @@ import { repairDocument } from './repair';
 import type { LlmClient } from '../../llm/types';
 import { designToDocument, parseDesign, toWireDesign } from '../../document/generated';
 import type { GeneratedDesign } from '../../document/generated';
-import { chamferCut, createBoard, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
+import { chamferCut, createBoard, createDocument, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
 import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
 import type { AngleCut, Board, FlatDocument, SloydDocument } from '../../document/document';
 import { axisDimensions, axisFrame, boardCenter, boardExtents, endFacing, toWorldOffset } from '../../document/geometry';
@@ -565,3 +565,42 @@ describe('leaning parts (splayed legs spec §8): joinery, Repair and a joined Re
   });
 });
 
+
+describe('round tenons (round tenons spec §9): joinery, Repair and a joined Refine refuse, one decider', () => {
+  const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const CUT = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const top = (): Board => createBoard({ id: 'P', name: 'Top', length: 20, width: 10, thickness: 0.75, posture: 'flat', position: [0, 0, 20] });
+  const rung = (name = 'Rung', x = 0): Board => ({ ...createBoard({ name, length: 18, width: 1.5, thickness: 1.25, posture: 'flat', position: [x, 0, 0] }), tenons: [{ ...T }] });
+  const docOf = (...boards: Board[]) => migrateDocument({ ...createDocument('T'), boards });
+
+  it('joinery refuses a tenoned part: the verbatim text, decided before any call or mutation', async () => {
+    const doc = docOf(top(), rung());
+    const before = JSON.stringify(doc);
+    expect(joineryRefusal('joinery', doc)).toBe("Add joinery can't join a part with a round tenon yet: Rung.");
+    const complete = vi.fn();
+    const client = { userTurn: (text: string) => ({ role: 'user', text }), estimateCostUsd: () => 0, complete } as unknown as LlmClient;
+    const out = await runJoinery(client, doc, new AbortController().signal, () => {});
+    expect(out).toEqual({ refused: "Add joinery can't join a part with a round tenon yet: Rung." });
+    expect(complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(doc)).toBe(before);
+  });
+
+  it('names the caller and the FIRST tenoned part in flat order; a tenon-free document is unchanged', () => {
+    const doc = docOf(top(), rung('Rung 1'), rung('Rung 2', 30));
+    expect(joineryRefusal('repair', doc)).toBe("Repair can't join a part with a round tenon yet: Rung 1.");
+    expect(joineryRefusal('refine', doc)).toBe("Refine can't keep joints with a part with a round tenon yet: Rung 1.");
+    expect(joineryRefusal('joinery', { ...doc, boards: [...doc.boards].reverse() })).toBe("Add joinery can't join a part with a round tenon yet: Rung 2.");
+    expect(joineryRefusal('joinery', docOf(top()))).toBeNull();
+  });
+
+  it('runs after the leaning refusal: a document with both speaks the lean\'s sentence', () => {
+    const stool = stoolDocument();
+    const doc = migrateDocument({ ...stool, boards: [rung('Rung', 40), ...stool.boards] });
+    expect(joineryRefusal('joinery', doc)).toBe("Add joinery can't join a leaning part yet: Front right.");
+  });
+
+  it('Repair refuses a joined project with a tenoned part in its own words; one with no cuts has nothing to repair', () => {
+    expect(repairDocument(docOf({ ...top(), cuts: [CUT] }, rung()))).toEqual({ refused: "Repair can't join a part with a round tenon yet: Rung." });
+    expect(repairDocument(docOf(top(), rung()))).toBeNull();
+  });
+});

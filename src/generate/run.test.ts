@@ -1536,6 +1536,20 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     expect(flatDocument(out.doc).boards.find((b) => b.name === 'Shelf')!.position).toEqual([-3, 6, -3]);
   });
 
+  it('Refine keeps a tenoned rung verbatim, drops a model part named Rung, and reports it kept (round tenons spec §9)', async () => {
+    const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+    const doc = migrateDocument({ ...createDocument('T'), boards: [
+      { ...createBoard({ name: 'Rung', length: 18, width: 1.5, thickness: 1.25, posture: 'flat', position: [0, 0, 0] }), tenons: [T] }, stoolSeat(0)] });
+    const before = doc.boards.find((b) => b.name === 'Rung')! as Board;
+    expect(before.tenons).toEqual([T]);
+    const { client } = fakeClient([{ name: 'T', parts: [bx('Rung', [0, 30, 0], [2, 2, 2]), bx('Seat', [-7, 0, -7], [14, 1.5, 14])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(out.doc.boards[0]).toEqual(before);
+    expect((out.doc.boards[0] as Board).tenons).toEqual([T]);
+    expect(out.doc.boards.filter((b) => b.name === 'Rung')).toHaveLength(1);
+    expect(out.leaning).toEqual({ kept: ['Rung'], replaced: ['Rung'] });
+  });
+
   it('a lean-free Refine reports nothing kept', async () => {
     const doc = migrateDocument({ ...createDocument('T'), boards: [stoolSeat(0)] });
     const { client } = fakeClient([{ name: 'T', parts: [bx('Seat', [-7, 0, -7], [14, 1.5, 14])], assemblies: [] }]);
