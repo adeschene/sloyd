@@ -38,9 +38,9 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 export function turnCandidates(b: Board): Board[] {
   // A leaning part has none (final review M1): its lean is stored in the turn-0 frame, so `{ ...b, rotation }` would
   // re-aim the leg; it links by its own form and its mirror only (splayed legs §3.4).
-  // A tenoned part has none (round tenons spec §3.1; plan Task 10): its tenons name ends of the stored length, so a turn
+  // A tenoned part has none, through `keepsExactly` (round tenons spec §3.1; plan Task 10): its tenons name ends of the stored length, so a turn
   // that reverses the length in the world (a flat part's 180°) would carry each tenon to the other world end.
-  if (b.cuts.length > 0 || carriesProfiles(b) || keepsExactly(b) || hasTenons(b)) return [];
+  if (b.cuts.length > 0 || carriesProfiles(b) || keepsExactly(b)) return [];
   const shown = worldProfiles(b);
   if (shown === null) return [];
   const profileExact = new Set(shown.flatMap((p) => [p.size, p.fillet, p.depth, p.start, p.end]));

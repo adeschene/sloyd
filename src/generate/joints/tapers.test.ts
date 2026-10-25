@@ -12,6 +12,7 @@ import { axisDimensions, axisFrame, boardCenter, boardExtents, endFacing, toWorl
 import { worldTapers } from '../../document/taperWorld';
 import { formatLength, imperialAt } from '../../units/length';
 import { findSites } from './sites';
+import { linkByRole } from '../../document/roleLinks';
 import { angleConflicts, joineryRefusal, taperConflicts, jointFaults } from './tapers';
 import { taperJointRefusal } from '../../document/angledRefusal';
 import { checkDesign } from '../../document/designCheck';
@@ -591,6 +592,15 @@ describe('round tenons (round tenons spec §9): joinery, Repair and a joined Ref
     expect(joineryRefusal('refine', doc)).toBe("Refine can't keep joints with a part with a round tenon yet: Rung 1.");
     expect(joineryRefusal('joinery', { ...doc, boards: [...doc.boards].reverse() })).toBe("Add joinery can't join a part with a round tenon yet: Rung 2.");
     expect(joineryRefusal('joinery', docOf(top()))).toBeNull();
+  });
+
+  it('a LINKED tenoned pair (the tenon on the Shape) is refused by name, through the resolved part', () => {
+    const linked = linkByRole(docOf(top(), { ...rung('Left'), id: 'L' }, { ...rung('Right', 30), id: 'R' }), new Map([['L', 'rung'], ['R', 'rung']]));
+    expect(linked.shapes).toHaveLength(1);
+    expect(linked.boards.some((b) => 'tenons' in b)).toBe(false);
+    expect(joineryRefusal('joinery', linked)).toBe("Add joinery can't join a part with a round tenon yet: Left.");
+    const cut = { ...linked, boards: linked.boards.map((b) => (b.name === 'Top' ? { ...(b as Board), cuts: [CUT] } : b)) };
+    expect(repairDocument(cut)).toEqual({ refused: "Repair can't join a part with a round tenon yet: Left." });
   });
 
   it('runs after the leaning refusal: a document with both speaks the lean\'s sentence', () => {

@@ -21,7 +21,7 @@ import { builtInCatalog, catalogOf } from '../document/materials';
 import { ARCH } from '../document/curveFixtures';
 import type { StoredBoard } from '../document/types';
 import { stoolDocument, stoolLegs, stoolSeat, stoolWithCut } from '../document/stoolFixture';
-import { keptParts, keptNote } from '../document/leanKeep';
+import { keepsExactly, keptParts, keptNote } from '../document/leanKeep';
 import { linkByRole } from '../document/roleLinks';
 import { socketPlan } from '../document/legSockets';
 import { partBounds } from '../document/worldBounds';
@@ -313,7 +313,7 @@ describe('Refine and leaning parts (splayed legs spec §8)', () => {
     const doc = migrateDocument({ ...createDocument('Base'), boards: [stoolSeat()],
       definitions: [{ id: 'd1', boards: [leg!], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
-    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Frame › Front right.");
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Frame › Front right.");
   });
 });
 
@@ -349,7 +349,7 @@ describe('Refine and angled holes (angled holes spec §9)', () => {
     const legs = doc.boards.filter((b) => b.name !== 'Seat');
     const wrapped = migrateDocument({ ...doc, boards: legs, definitions: [{ id: 'd1', boards: [seat], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Top', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
-    expect(refineRefusal(wrapped)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Top › Seat.");
+    expect(refineRefusal(wrapped)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Top › Seat.");
   });
 
   it('a JOINED Refine is refused up front when a part has angled holes (ruling T11a); an unjoined one still keeps the seat', () => {
@@ -387,7 +387,9 @@ describe('Refine and round tenons (round tenons spec §9)', () => {
     const note = keptNote(doc)!;
     expect(note).toContain('"Rung" has round tenons and is kept as is:');
     expect(note).toContain('These parts lean, have angled holes or have round tenons');
-    // A tenon-free document keeps nothing.
+    // A tenon-free document keeps nothing. Raw, never through the loader: an EMPTY list is no tenon (not key presence).
+    expect(keepsExactly(rung())).toBe(true);
+    expect(keepsExactly({ ...rung(), tenons: [] })).toBe(false);
     expect(keptParts(docOf(top(), { ...rung(), tenons: undefined } as Board)).names).toEqual([]);
   });
 
@@ -405,7 +407,7 @@ describe('Refine and round tenons (round tenons spec §9)', () => {
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
     const r = documentToDesign(doc, REFINE_MAX);
     expect('refused' in r && r.refused.reason).toBe('lean-assembly');
-    expect(refineRefusal(doc)).toMatch(/inside an assembly yet — Ungroup it first: Frame › Rung\.$/);
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Frame › Rung.");
   });
 
   it('a JOINED Refine is refused up front when a part has a round tenon, in its own words; the lean speaks first', () => {
