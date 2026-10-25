@@ -403,7 +403,7 @@ src/
 │                     band's normal (`stopJunctions`); stopNormals.test.ts
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties (the Mirrored checkbox on a linked part), CopyInRow,
 │                     PartsList (a mirrored part's ⇋ badge, `role="img"` "Mirrored"),
-│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (moved from CLAUDE.md: a row click closes the
+│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (as CLAUDE.md's per-file rule: a row click closes the
 │                     menu at once; `onOpen` resolves null or why the project cannot be opened (`storage.readProject`, asked only
 │                     on failure so the switch path keeps `loadProject`), and a failure reopens the menu on that row with the
 │                     message, focus on the caret, fu 35),

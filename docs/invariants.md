@@ -858,7 +858,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     design form cannot describe a tilt, and re-storing a row in world words would drill it square): `keepsExactly(b)` (`leans(b)`
     or any `isTilted` row) is the ONE predicate and `keptParts(doc)` (`leanKeep.ts`) the ONE decision — every ROOT stored part
     whose resolved form `keepsExactly`, the Shapes those records reference, and their flat names; `turnCandidates` never turns
-    such a part. Kept parts are left
+    such a part (it asks `keepsExactly` too). Kept parts are left
     out of `boxes()` and every taper/angle pre-check in `documentToDesign`; the model is told about them in the USER turn
     (`keptNote`: each one's real bounds through `partBounds`, and not to return those names), never in `SYSTEM_PROMPT` or
     `DESIGN_SCHEMA`. `designToDocument`'s `kept` opt drops a loose model part whose `clean(name)` is a kept flat name BEFORE

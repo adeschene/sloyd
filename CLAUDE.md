@@ -253,7 +253,9 @@ argument, `woodCut`'s seam argument, `App.tsx`'s `pending` — **read it there.*
 - **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
-  `storage.available` (the ADAPTER flag, never React's `available`; fu 159). A failed open reopens the menu on its row with the message (fu 35; the path: `docs/module-map.md`). Escape focuses the
+  `storage.available` (the ADAPTER flag, never React's `available`; fu 159). A row click closes the menu at once; `onOpen`
+  resolves null or why the project cannot be opened (`storage.readProject`, asked only on failure so the switch path keeps
+  `loadProject`), and a failure reopens the menu on that row with the message, focus on the caret (fu 35). Escape focuses the
   caret before closing (fu 152).
 - **`GuidesList.tsx`** has no selection model, deliberately.
 - **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
@@ -448,7 +450,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     (`taperConflicts`, `angleConflicts`, `clearsTenon`), one sentence per part; `rebaseAngleCuts` re-anchors on
     resize and `readJoints`' `resizeAt` undoes it exactly. The unjoin gate compares cuts as a
     MULTISET (`sameCutSet`, exact at 1e-9). On a holed, curved, profiled or banded project joinery rules kinds out per site BEFORE the call (`featureAllowed`, watched trials; per-site ruling-out, units and the zone tests: `docs/invariants.md`); stop ends are narrowed to those that clear (one decider); a stopped dado's smallest inset clears a receiver band. **A curve, profile or band is judged in the ORIGINAL frame (P5, P9; a band as stored), never on a mid-trial board; the run-through exception is decided per growing face (P7)**; a curve or straight profile that only meets a growing end is exempt when its end-face waste clears the tenon section (fu 415). `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` re-anchor on resize and `resizeAt` undoes them; `sameJoined` compares holes (within `GATE_TOLERANCE`), curves, profiles and bands (exact). Refine carries features onto its plain parts BEFORE `runJoinery` (inv 56). A joined Refine is refused up front when an angle cut
-    already runs into a joint; a conflicting result comes back UNJOINED, never joined over it.
+    already runs into a joint, or (inv 56) when a part has a tilted hole row; a conflicting result comes back UNJOINED, never joined over it.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -547,7 +549,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     noted, never clamped. **A row may TILT (schema 23); `holeTilt.ts` is the ONE home of tilt math** (flag-relative slopes,
     ONE bound `withinTiltBound`; a `Hole`'s `bit`, axial `reach`, a blind depth along the bit); square rows keep their paths
     byte for byte (`tiltedHole` gates). **A tilted row's faults are EXACT or CONSERVATIVE, never under-reported** (the clean,
-    unclipped mesh path trusts them). Bore leg sockets: `legSockets.ts`, the ONE decider. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (STORED distances snapped, never world offsets; a shape fault rejects the part, reason `'hole'`); untouched rows return EXACTLY (`originalHoles`, only in a kept frame, inv 56); a model's strict fault is KEPT and flagged (`'hole-fault'`), never rejected or clamped. Joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
+    unclipped mesh path trusts them); a tilted bore's mesh is WATERTIGHT. Bore leg sockets: `legSockets.ts`, the ONE decider. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (the hole grid snaps the STORED distances, never world offsets; shape faults, a stored number past MAX_MAGNITUDE included, reject the part, reason `'hole'`); untouched rows return EXACTLY through the exact-row map (`originalHoles`, `sameHoles` as a set; only in a kept frame, inv 56), in the original order when every row is restored; a strict fault from the model is KEPT and flagged (`holeDesignFaults`, `'hole-fault'`), never rejected or clamped. Joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts them. `drawsAsBox` is the ONE
     BoxGeometry routing; a part with no holes and no curves keeps its bytes. **A curved part's mesh
     is WATERTIGHT** (welded, conformed, centroid-fanned; `curvesWatertight.test.ts`); a shaped part
     is ONE geometry (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (the list of what is memoised and where: `docs/invariants.md`). Perf guards are the MINIMUM of
@@ -577,11 +579,11 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     the ONE profile fault decider; `profilePath.ts` the ONE path home. Faults and decisions read the
     tangent point (`profilePath`); B1's ε and Q13's zone are construction only. **The straight
     fallback** is ONE decision in `geometryBoard` (stops first, `stopFallsBack`; a two-side run never
-    falls back). Curves and Profiles refuse an edit that ADDS a fault to ANY profile, naming it. Refine carries curves (inv 56). **Generate and Refine AUTHOR profiles in world words through `profileWorld.ts`, the ONE converter** (untouched entries return exactly, in a kept frame; a shape fault rejects the part; a strict fault is KEPT and flagged, `'profile-fault'`), except on a part with curves or any two-side run (`carriesProfiles`, the ONE predicate), whose profiles stay carried and are never fed to the model. Joinery rules out only the joint kinds whose zone one enters; Repair accepts them.
+    falls back). Curves and Profiles refuse an edit that ADDS a fault to ANY profile, naming it. Refine carries curves (inv 56). **Generate and Refine AUTHOR profiles in world words through `profileWorld.ts`, the ONE converter** (untouched entries return exactly through the exact-entry map, in a kept frame; an echo onto a resized part is restored as stored, Ruling 10; a shape fault rejects the part, reason `'profile'`; a strict fault is KEPT and flagged, `profileDesignFaults`, `'profile-fault'`), except on a part with curves or any two-side run (`carriesProfiles`, the ONE predicate), whose profiles stay carried and are never fed to the model. Joinery rules out only the joint kinds whose zone one enters; Repair accepts them.
 54. **`banding.ts` is the ONE place band numbers are computed** (core, strips, tape runs, faults),
     numbers-only, memoised and deep-frozen. **The model is the FINISHED size; the cut list prints the
     CORE**; bodies are untouched. **A faulted band adds nothing** and prints `— check: <words>`.
-    Authoring refuses an ADDED fault; a later one is KEPT. **Generate and Refine AUTHOR bands in world words through `bandWorld.ts`, the ONE converter** (`mintBandTypes`, ONE design-wide pass; a shape fault rejects the part; a band fault is KEPT and flagged, `'band-fault'`), except on a part with curves, whose bands stay carried (inv 56) and are judged only by `carriedSummary`, never fed to the model; `cornerRule` is always carried; joinery rules out only the joint kinds a band is in the way of (inv 41);
+    Authoring refuses an ADDED fault; a later one is KEPT. **Generate and Refine AUTHOR bands in world words through `bandWorld.ts`, the ONE converter** (`mintBandTypes`: ONE design-wide pass, `solid <m>` reusing or minting one 1/4in type; the type list threaded through every path; a shape fault rejects the part, reason `'band'`; a band fault is KEPT and flagged, `bandDesignFaults`, `'band-fault'`), except on a part with curves, whose bands stay carried (inv 56) and are judged only by `carriedSummary`, never fed to the model; `cornerRule` is always carried; joinery rules out only the joint kinds a band is in the way of (inv 41);
     Repair accepts them; a strip, tape run and glue line count only the VISIBLE run (`visibleRun`, P12). A strip row has no `boardIds`: every reader of a row's parts handles an empty list. A
     band-free document is byte for byte as before (`bandFreeIdentity.test.ts`). The viewport paints a
     band by MOVING triangles into material groups 6+ (`bandedMesh`), never by recolouring a slot;
@@ -635,7 +637,7 @@ This list is the triage's open set — when an entry's status changes, change it
   364–366; banding 399, 400; splayed legs 447 (chunk 2b, round tenons), 438 (chunk 3, stretchers, after 447), 449, 450.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
