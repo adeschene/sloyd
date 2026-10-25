@@ -2,7 +2,7 @@
 
 Status: APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions, each answered below as my call: §5.1, §5.2, §6.3, §6.4). Follow-up 447 (the angled holes spec's §12 outline).
 **Built 2026-10-25 on branch `round-tenons`** (plan Tasks 1–11; schema 24); NOT merged or deployed. Browser verification (plan
-Task 12, dev server) owed; then merge and deploy (the user's decision). Later rulings: the *Amended (build)* block at the end, which
+Task 12, dev server) PASS 8/8; final review clean; merge and deploy are the user's decision. Later rulings: the *Amended (build)* block at the end, which
 wins where it differs from the text — **awaiting the user's approval**. Chunk 1 (a part
 leans, schema 22) and chunk 2 (angled holes, schema 23) are deployed (`index-B114iN-Y.js`). Chunk 3, stretchers (fu 438),
 builds on this one.
@@ -425,3 +425,8 @@ new, invariants 2, 38, 39, 40, 41, 44, 45, 48, 50, 56 and 57 extended (`docs/inv
 - **Ruling T2a — `turnCandidates` never turns a tenoned part (§9's "never turns one", early).** Through `keepsExactly`: a tenon names an
   end of the STORED length, so a turn reversing the length in the world would carry it to the other world end. Cost: a turned twin
   is not linked.
+- **Ruling TFa — a hole never runs into a tenon's waste (final review M2; §7, inv 58).** `intoCurve` skips square-span view curves, so a
+  hole meeting a tenon's zone is judged only by the tenon's own rule (`meets-feature`: the tenon is KEPT, noted and builds nothing),
+  never refused as running into "a curve cut" the part does not have. Before, a hole tangent to the shoulder was refused in curve
+  words while one 0.0025" further in was accepted. Cost: a hole touching the shoulder is now accepted (a tangent bore leaves T-junction
+  cracks on the shoulder plane, fu 469, the same class as any tangent hole).
