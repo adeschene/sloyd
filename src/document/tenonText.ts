@@ -1,4 +1,7 @@
-import type { TenonFault, TenonFeature } from './roundTenons';
+import type { Board, RoundTenon } from './types';
+import { shoulderAt, type TenonFault, type TenonFeature } from './roundTenons';
+import { formatLength, type Units } from '../units/length';
+import { holeLengthText } from './holeText';
 
 /** The words for a feature a tenon would run into (round tenons spec §3.2), verbatim. */
 const FEATURE_WORD: Record<TenonFeature, string> = {
@@ -19,4 +22,16 @@ export function tenonFaultText(f: TenonFault): string {
     case 'meets-feature':
       return `The tenon would run into ${f.feature ? FEATURE_WORD[f.feature] : 'a feature'} — move it or remove it first.`;
   }
+}
+
+/**
+ * One round tenon as a bench line (round tenons spec §8): THE one home of the string (invariant 19). Every length through the
+ * document's units (inv 52), the diameter at a hole's precision (`holeLengthText`), so a tenon and its socket read the same
+ * number. `<s>` is the shoulder's distance from the OTHER end at the centre: where the axis meets that end's face, square or
+ * mitered (`shoulderAt` with a zero length is that point), never its long point. Printed for every STORED tenon.
+ */
+export function tenonLine(b: Board, t: RoundTenon, units: Units): string {
+  const far = shoulderAt(b, { end: t.end === 'min' ? 'max' : 'min', length: 0 });
+  const s = Math.abs(shoulderAt(b, t) - far);
+  return `${holeLengthText(t.diameter, units, 'diameter')} round tenon, ${formatLength(t.length, units)} long — at the length ${t.end} end, shoulder ${formatLength(s, units)} from the other end`;
 }
