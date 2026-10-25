@@ -1,6 +1,6 @@
 # Splayed legs, chunk 2b: round tenons — design
 
-Status: DRAFT 2026-10-25, awaiting the user's review. Follow-up 447 (the angled holes spec's §12 outline). Chunk 1 (a part
+Status: DRAFT 2026-10-25, awaiting the user's review; builder check taken 2026-10-25 (five questions, each answered below as my call: §5.1, §5.2, §6.3, §6.4). Follow-up 447 (the angled holes spec's §12 outline). Chunk 1 (a part
 leans, schema 22) and chunk 2 (angled holes, schema 23) are deployed (`index-B114iN-Y.js`). Chunk 3, stretchers (fu 438),
 builds on this one.
 
@@ -137,10 +137,17 @@ A tenon on part A is **seated** in a hole row on part B (A ≠ B) when every one
 
 1. the row is a single bore (`count` 1);
 2. **coaxial**: the bore's world axis line is the tenon's (the bit parallel to the axis, the bore's mouth centre on the axis
-   line). This is `isSocketOf`'s test, shared and not copied;
+   line). The tenon's axis is the length's centre line through the part's placement and lean, for ANY part, leaning or not
+   (`partAxis`, generalising `legAxis`). The bore may be through or blind and enter from any face. My call after the builder
+   check: one lower-level predicate, "this bore lies along this axis", is split out of `isSocketOf`. The seated test calls it.
+   `isSocketOf` keeps its narrower rule for Bore leg sockets' skip and replace decisions (a through bore from the top),
+   rebuilt on the same predicate, so the two can't drift;
 3. **matching**: the bore's diameter equals the tenon's;
 4. **inside**: the tenon's wood that lies in B lies within the bore's extent. A through bore takes any tenon. In a blind bore,
-   the end's centre does not pass the bore's bottom (to `TOUCH`).
+   **no point of the tip** passes the bore's bottom plane (to `TOUCH`). That is exact, not the centre alone: on a mitered tip
+   the furthest point lies r·tan φ past the centre along the axis, where φ is the angle between the tip's normal and the
+   axis. A part cut away by the bottom's own geometry never counts (my call after the builder check: a centre-only test would
+   waive real overlap).
 
 A tenon in no socket, in a socket of another diameter, or along another line is **not seated**, and nothing below applies
 to it.
@@ -151,7 +158,13 @@ to it.
   measured as today, A's shoulder included, so a shoulder pushed into the seat is still an overlap. The waiver is exact
   because the seated tenon fills its bore exactly.
 - **Held** (inv 39): a new clause, **(d) joined**. A part with a seated tenon in another part, and that other part, are held
-  to each other. A clause is added and none weakened; the prohibition stays verbatim.
+  to each other. **(d) is a full alternative** to resting, between and lapped, for ANY part, leaning or not, with no coverage
+  threshold (the threshold belongs to the contact clauses). So a stool's seat, which after tenoning touches its legs only at
+  shoulder corners, is held by its four joints (my call after the builder check). A clause is added and none weakened; the
+  prohibition stays verbatim.
+- **Real bodies** (inv 38): a part with a tenon is measured on its real bodies, as a tapered part is (`clipConvex`,
+  `contactSolids`). A pocket-cell box would overstate an unseated tenon as full-section wood and give the shoulder a flat
+  contact it doesn't have. Tenon-free pairs are byte for byte unchanged.
 - **Grounding** (`groundedSet`, the ONE walk): a seated tenon connects its two parts.
 - **Leaning parts** (invs 39, 57): today a leaning part is supported only by resting on its level faces. It is now also held
   by a seated tenon, its own or one seated in it (my call: the joint is what holds staked work). The levelled-foot rule is
@@ -194,14 +207,36 @@ disagree, and nothing is written.
 
 ### 6.3 Finding a tenoned leg again
 
-Today a leg "stands under" a seat when its levelled top rests on the seat's underside (`legsUnder`). A tenoned leg's top
-is inside the seat, so the rule is extended (my call): a leaning part also stands under the seat when its top end carries a
-tenon whose tip is a level face coplanar (`TOUCH`) with one of the seat's up-facing level faces, with plan overlap. So:
+Today a leg "stands under" a seat when its levelled top rests on the seat's underside (`legsUnder`). A tenoned leg's top is
+inside the seat, so the rule is extended (my call, revised after the builder check). A leaning part also stands under the
+seat when:
+- its top end carries a tenon;
+- its top is levelled (`isLevelled`);
+- the tip's centre lies within the seat's stock, between its down- and up-facing level faces (inclusive, to `TOUCH`);
+- its axis meets the seat's down-facing level face inside that face's outline.
 
-- Bore leg sockets again, after a lean edit, replaces the stale socket (as today) and re-fits the leg's stale tenon (a
-  top tenon that no longer matches) in the same entry;
+This is structural. Finding a leg for the action grants it no support: support is §5's, only. It does not need the tip to
+land exactly on the seat's top, so Level the ends' small reference drift (it keeps the old cut's reference, landing a hair
+off) doesn't lose the leg.
+
+The order is chunk 2's: **lean, then Level the ends, then Bore leg sockets again**. Straight after a lean edit the tip is no
+longer level, so the leg isn't found, and the seat's Holes section shows the stale notes until the user re-levels.
+
+- Bore leg sockets again replaces the stale socket (as today) and, with Tenon the legs on, re-fits the leg's top tenon in the
+  same entry;
 - **Level the ends on a tenoned top** levels the tip, as it levels any top. The tenon is kept at the end, its length
   unchanged, and its shoulder rides with the end. A fault this causes is kept and noted.
+
+### 6.4 What a re-fit may change (my calls after the builder check)
+
+- **It sets, not adds.** A re-fit computes the leg's top from scratch: tip flush with the seat's top, shoulder clearing the
+  underside (§6.1). So it may **lengthen or shorten** the leg, by one rule both ways: the exact length rounded UP to the
+  grid and the miter's line offset so the tip plane is exact. Holes are kept in the wood by `levelEndHoles` either way, and
+  an unstorable hole refuses as Level the ends does.
+- **It replaces the top tenon of every leg it finds under this seat**, a typed one included. Its diameter becomes the
+  socket's; the checkbox says so (`Tenon the legs (replaces their top tenons)`, builder's wording). With the checkbox off,
+  no tenon and no leg length is touched.
+- A leg's **bottom** tenon is never touched.
 
 The stale-socket note (fu 456) gains a tenon twin: `Front right's tenon no longer fits its socket — Bore leg sockets again`
 on the seat's Holes section, when a tenon that was seated is not.
@@ -253,7 +288,7 @@ on the seat's Holes section, when a tenon that was seated is not.
    alternative, a shoulder parallel to the end, would let today's resting rule carry the leg, but it is not what a tenon
    cutter makes, and it does not fit chunk 3's rungs. Cost if wrong: the shoulder plane changes; the joint rule (§5) stands
    either way.
-2. **One seated tenon holds (§5.2).** Cost: a single peg is called held; the tip check still guards the piece.
+2. **One seated tenon holds, for any part, with no coverage threshold (§5.2).** Cost: a single peg is called held; the tip check still guards the piece.
 3. **Tenoning grows the legs (§6.1), a typed tenon does not (§4).** Cost: two behaviours. The action's purpose is "fit the leg
    through the seat"; the panel's is "cut a tenon on this blank".
 4. **Exact match of diameters (§5.1).** A tenon typed 1/64" smaller than its socket is not seated, so it overlaps. Cost: the
@@ -289,7 +324,7 @@ A read-only survey (2026-10-25) found:
 
 - `docs/invariants.md` and CLAUDE.md:
   - a new **invariant 58** (round tenons: the stored form, the ONE fault decider, the seated test, the joint clause);
-  - clauses in invs 38 (the overlap waiver), 39 (clause (d)), 40 (`TENON_FIELDS`), 44 (the end flip), 45 (shared), 48
+  - clauses in invs 38 (the overlap waiver; a tenoned part measured on real bodies), 39 (clause (d)), 40 (`TENON_FIELDS`), 44 (the end flip), 45 (shared), 48
     (bodies), 56 (kept parts) and 57 (a leaning part held by a joint);
   - the Versioning line (24).
 
