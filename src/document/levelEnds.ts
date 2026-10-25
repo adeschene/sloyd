@@ -1,10 +1,11 @@
-import type { AngleCut, Board, Dimension, Lean } from './types';
+import type { AngleCut, Board, Dimension, HoleRow, Lean } from './types';
 import type { Units } from '../units/length';
 import { axisFrame, boardExtents, snapStep } from './geometry';
 import { depthAt } from './angleCuts';
 import { leanMap, seamFree } from './lean';
 import { toWorld } from './snapPoints';
 import { nextId } from './ids';
+import { levelEndHoles, storableRow } from './holeRebase';
 import type { Vec3 } from './frames';
 
 /**
@@ -22,13 +23,17 @@ import type { Vec3 } from './frames';
 export const LEVEL_FOOT_CUT = 'Remove the angle cut on the foot first.';
 export const LEVEL_TOP_CUT = 'Remove the angle cut on the top first.';
 export const LEVEL_BELOW_FLOOR = 'The top of this part is at or below the floor.';
+/** Angled holes §7 (builder's copy): a re-anchored row the loader would drop (station or inset below 0, a blind depth at
+ *  or below 0) — a shortened end cut the hole away. Refused rather than lost on the next load. */
+export const LEVEL_CUTS_HOLE = 'Levelling the ends would cut away a hole — move it or remove it first.';
 export const levelUsersDisagree = (names: readonly string[]): string =>
   `These linked parts' tops are at different heights, so one length can't level them all: ${names.join(', ')}.`;
 
 /** Comparisons through `leanMap` round trips carry ~1e-15; everything here is judged at 1e-9. */
 const EPS = 1e-9;
 
-export interface LevelPlan { length: number; position: Vec3; angleCuts: AngleCut[] }
+/** `holes` (angled holes §7): every row re-anchored by `levelEndHoles`, so each hole stays where it was in the wood. */
+export interface LevelPlan { length: number; position: Vec3; angleCuts: AngleCut[]; holes: HoleRow[] }
 
 /** The dimension a level cut slopes along: the facing dimension `leanMap` actually twists (seam-free, §3.3). */
 function faceOf(lean: Lean): 'width' | 'thickness' {
@@ -66,8 +71,8 @@ function heightAt(b: Board, face: Dimension, through: Dimension, l: number, f: n
 
 /**
  * The plan for world part `world` (it must lean; a part that does not is a caller's bug and throws): the new length,
- * the new world PRE-lean position (inv 2) and the full angle-cut list with the recognised end cuts replaced (in place,
- * keeping their ids; a new one appended). Or a refusal.
+ * the new world PRE-lean position (inv 2), the hole rows re-anchored (`levelEndHoles`) and the full angle-cut list with
+ * the recognised end cuts replaced (in place, keeping their ids; a new one appended). Or a refusal.
  *
  * - `u` is the leaned axis's up direction (`m` applied to world up; length runs up an upright part).
  * - Foot: `e_f = max over the 4 foot corners of y / u_y`, negative when the foot runs past the floor (shortened).
@@ -119,6 +124,9 @@ export function levelPlan(world: Board, units: Units): LevelPlan | string {
   const eF = roundUp(Math.max(...corners(world, 0)) / uy, step);
   const eT = roundUp((ry - Math.min(...corners(world, L))) / uy, step);
   const length = L + eF + eT;
+  // Angled holes §7: the rows follow the wood (decided before anything is written: a cut-away row refuses).
+  const holes = levelEndHoles(world.holes, eF, eT, world);
+  if (!holes.every(storableRow)) return LEVEL_CUTS_HOLE;
   const pivot: Vec3 = [lm.pivot[0] + eT * u[0], lm.pivot[1] + eT * u[1], lm.pivot[2] + eT * u[2]];
   const [e0, , e2] = boardExtents({ ...world, length });
   const position: Vec3 = [pivot[0] - e0 / 2, pivot[1] - length, pivot[2] - e2 / 2];
@@ -147,7 +155,7 @@ export function levelPlan(world: Board, units: Units): LevelPlan | string {
   }
   if (!footDone) out.push(footNew);
   if (!topDone) out.push(topNew);
-  return { length, position, angleCuts: out };
+  return { length, position, angleCuts: out, holes };
 }
 
 /** Depth into the length of `c`'s line at station `s` measured from `along`'s MIN end, whichever end the cut stores

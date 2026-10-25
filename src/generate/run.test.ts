@@ -10,6 +10,7 @@ import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
 import { LlmError } from '../llm/types';
 import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
+import { socketPlan } from '../document/legSockets';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
@@ -1497,6 +1498,42 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const out = await ok(client, doc);
     expect(out.doc.boards.find((b) => b.name === 'Front left')).toEqual(before);
     expect(worldParts(out.doc).find((b) => b.name === 'Front left')!.lean).toEqual(worldParts(doc).find((b) => b.name === 'Front left')!.lean);
+  });
+
+  it('Refine keeps a bored seat verbatim, drops a model part named Seat, and reports it kept (angled holes spec §9)', async () => {
+    const base = stoolDocument();
+    const id = base.boards.find((b) => b.name === 'Seat')!.id;
+    const plan = socketPlan(base, id, 0.75);
+    if (typeof plan === 'string') throw new Error(plan);
+    const doc = migrateDocument({ ...base, boards: base.boards.map((b) => (b.id === id ? { ...(b as Board), holes: plan.holes } : b)) });
+    const before = doc.boards.find((b) => b.id === id)! as Board;
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat', 20), bx('Shelf', [-3, 6, -3], [6, 0.75, 6])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    const after = out.doc.boards.find((b) => b.id === id)! as Board;
+    expect(after).toEqual(before);
+    after.holes.forEach((h, i) => expect(h).toEqual(before.holes[i]));
+    expect(flatDocument(out.doc).boards.filter((b) => b.name === 'Seat')).toHaveLength(1);
+    expect(out.leaning).toEqual({ kept: expect.arrayContaining(['Seat', ...LEGS]), replaced: ['Seat'] });
+    // Nothing moved relative to the kept parts.
+    expect(flatDocument(out.doc).boards.find((b) => b.name === 'Shelf')!.position).toEqual([-3, 6, -3]);
+  });
+
+  it('tilted-only keep: UNLEANED legs and a tilted seat row — verbatim, first, name dropped, no floor shift', async () => {
+    const base = migrateDocument({ ...createDocument('T'), boards: [
+      createBoard({ name: 'Leg', length: 16, width: 1.5, thickness: 1.5, posture: 'upright', position: [4, 0, 4] }), stoolSeat(16)] });
+    const id = base.boards.find((b) => b.name === 'Seat')!.id;
+    const row = { id: 'tilt1', face: 'thickness' as const, from: 'max' as const, diameter: 0.75, depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const,
+      station: 3, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 3, tiltAlong: 0.2 };
+    const doc = migrateDocument({ ...base, boards: base.boards.map((b) => (b.id === id ? { ...(b as Board), holes: [row] } : b)) });
+    expect(worldParts(doc).some((b) => b.lean)).toBe(false);
+    const before = doc.boards.find((b) => b.id === id)! as Board;
+    // The model's parts alone would drop 6in to the floor; its own "Seat" must be dropped.
+    const { client } = fakeClient([{ name: 'T', parts: [bx('Seat', [0, 30, 0], [2, 2, 2]), bx('Shelf', [-3, 6, -3], [6, 0.75, 6])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    expect(out.doc.boards[0]).toEqual(before);
+    expect(out.doc.boards.filter((b) => b.name === 'Seat')).toHaveLength(1);
+    expect(out.leaning).toEqual({ kept: ['Seat'], replaced: ['Seat'] });
+    expect(flatDocument(out.doc).boards.find((b) => b.name === 'Shelf')!.position).toEqual([-3, 6, -3]);
   });
 
   it('a lean-free Refine reports nothing kept', async () => {

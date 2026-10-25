@@ -29,6 +29,8 @@ const COL_GAP = 6;
 export const LEFT_PAD = 12;
 /** Half-length, in px, of a hole's centre cross. */
 const HOLE_MARK = 3;
+/** Points on a tilted bore's drawn ellipse (a multiple of 4, so both axes' tips are vertices). */
+export const TILT_ELLIPSE_POINTS = 64;
 /**
  * One leader column's width, DERIVED rather than hard-coded.
  *
@@ -420,9 +422,24 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           const x = left + fit.offsetX + c.h * fit.sx;
           const y = top + (view.vUp ? view.v - c.v : c.v) * fit.sy;
           const k = HOLE_MARK;
+          // A tilted bore's ellipse (angled holes spec §8): TILT_ELLIPSE_POINTS points ON it, mapped through the view
+          // like the outline (v flipped on a vUp view), so it stays exact under the sliver clamp (sx ≠ sy) and its
+          // stroke scales with the viewBox like every other hole line — no transform, no vector-effect.
+          const ellipse = () => {
+            const phi = ((c.rot ?? 0) * Math.PI) / 180;
+            const f = view.vUp ? -fit.sy : fit.sy;
+            const pts = Array.from({ length: TILT_ELLIPSE_POINTS }, (_, i) => {
+              const t = (2 * Math.PI * i) / TILT_ELLIPSE_POINTS;
+              const [a, b] = [c.rx! * Math.cos(t), c.ry! * Math.sin(t)];
+              return `${x + fit.sx * (a * Math.cos(phi) - b * Math.sin(phi))} ${y + f * (a * Math.sin(phi) + b * Math.cos(phi))}`;
+            });
+            return `M${pts.join('L')}Z`;
+          };
           return (
             <g key={`${c.row}:${c.index}`}>
-              <ellipse className="cutlist-diagram-hole" cx={x} cy={y} rx={c.r * fit.sx} ry={c.r * fit.sy} />
+              {c.rx !== undefined
+                ? <path className="cutlist-diagram-hole" d={ellipse()} />
+                : <ellipse className="cutlist-diagram-hole" cx={x} cy={y} rx={c.r * fit.sx} ry={c.r * fit.sy} />}
               <path className="cutlist-diagram-hole-centre" d={`M${x - k} ${y}H${x + k}M${x} ${y - k}V${y + k}`} />
             </g>
           );
@@ -431,6 +448,16 @@ export function PartDiagram({ view }: { view: DiagramView }) {
         {view.holeSides.flatMap((s) => {
           const X = (h: number) => left + fit.offsetX + h * fit.sx;
           const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
+          // A tilted bore's slanted band (angled holes spec §8): its two walls, and the bottom (blind only) between the
+          // far corners.
+          if (s.quad) {
+            const [m1, f1, f2, m2] = s.quad;
+            const band: [number, number, number, number][] = [[X(m1[0]), Y(m1[1]), X(f1[0]), Y(f1[1])], [X(m2[0]), Y(m2[1]), X(f2[0]), Y(f2[1])]];
+            if (s.bottomAt) band.push([X(f1[0]), Y(f1[1]), X(f2[0]), Y(f2[1])]);
+            return band.map(([x1, y1, x2, y2], i) => (
+              <line key={`${s.row}:${s.index}:${i}`} className="cutlist-diagram-hole-side" x1={x1} y1={y1} x2={x2} y2={y2} />
+            ));
+          }
           // The two walls run along the hole's axis; the bottom (blind only) closes its far end.
           const lines: [number, number, number, number][] = s.axis === 'h'
             ? [[X(s.h[0]), Y(s.v[0]), X(s.h[1]), Y(s.v[0])], [X(s.h[0]), Y(s.v[1]), X(s.h[1]), Y(s.v[1])]]

@@ -14,6 +14,7 @@ import { BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_KINDS, CORNER_RULES, canonicalBan
 import { canonicalHardware, HARDWARE_COUNT_MAX, PACK_SIZE_MAX } from './hardwareModel';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
+import { withinTiltBound } from './holeTilt';
 import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
 import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
 import { clamp, mirrorCutAlong } from './mirrorCut';
@@ -39,10 +40,13 @@ export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferF
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFace, TaperFields, V3 } from './angleCuts';
 export {
   HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
-  clipPolygon, clipPlan, copyHoleRow, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
-  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
+  clipPolygon, clipPlan, copyHoleRow, holeBottom, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
+  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, tiltedHole, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
 } from './holes';
 export type { Hole, Plane } from './holes';
+export { bitVector, isTilted, retilt, tiltDegrees, tiltResultantDeg, tiltSightlineDeg, withinTiltBound } from './holeTilt';
+export { levelEndHoles, rebaseHoles } from './holeRebase';
+export { isSocketOf, legsUnder, socketPlan, socketRow, staleSocketOf, socketStale, socketsDisagree, socketFaulted, socketTooSteep, socketTooWide } from './legSockets';
 export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords, boundaryDistance, wasteContains, isAir, circleMeetsWaste, rectMeetsWaste, curveFaults, archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, deriveCurveKind, curveKindWord, curveAs, curveKindChoice, curvePlacement, defaultArch, defaultNotch, defaultBow, defaultCorner, defaultCorners, mirrorCurveCut, convexPieces, curvePlan, splitPieces, smoothLines } from './curves';
 export type { P2, LocalArc, LocalLine, LocalSeg, Outline, CurveFaultKind, CurveFault, ArchFields, BowFields, CornerFields, CurveKind, CurveKindChoice, CurvePlacement } from './curves';
 export { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields, profileAsCurve, profileOf, profileFromFields, profileToFields, mirrorProfile, sameProfile, copyProfile, geometryBoard, endToEnd, PROFILE_FIELDS, profileValues } from './profiles';
@@ -190,8 +194,15 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * refuses nothing on content. Harm a v21 build would do: it ignores the lean, so a splayed leg is drawn and cut as a
  * plumb one — a stool's legs stand straight, its cut list and drawings lose the lean — silently, and autosaves it.
  * So a v22 file must be refused by a v21 build.
+ *
+ * v23 (angled holes spec §3): `tiltAlong` / `tiltAcross` on a hole row — the bit's travel per inch of axial travel (along
+ * the face's normal), along the row and across it, relative to the row's own flags — document-level, no step: an absent tilt is a square bore. The loader
+ * keeps a tilt only when finite and non-zero (zero is stored as absent) and DROPS the row, never the part, on a non-finite
+ * slope or one past the bound (`withinTiltBound`: each |slope| <= 1, resultant <= 1, 45 degrees, within lean's 1e-9 allowance). It refuses nothing on
+ * content. Harm a v22 build would do: it rebuilds each row field by field, drops the tilt and drills the bore square — a
+ * seat's leg sockets point straight down — silently, and autosaves it. So a v23 file must be refused by a v22 build.
  */
-export const CURRENT_VERSION = 22;
+export const CURRENT_VERSION = 23;
 
 export class DocumentError extends Error {
   /**
@@ -461,10 +472,22 @@ function validateHoleRows(raw: unknown): HoleRow[] {
     if (r.depth !== 'through' && !(finite(r.depth) && r.depth > 0)) continue;
     if (!Number.isInteger(r.count) || (r.count as number) < 1 || (r.count as number) > HOLE_COUNT_MAX) continue;
     if (![r.station, r.pitch, r.inset].every((v) => finite(v) && v >= 0)) continue;
+    // Schema 23 (angled holes spec §3.3): a tilt is a finite slope, zero is no tilt, and the row stays inside the bound
+    // (withinTiltBound, the ONE bound: each |slope| <= 1, resultant <= 1 = 45 degrees, within lean's 1e-9). A malformed or out-of-bound one
+    // drops the ROW, never clamps.
+    const tilts: { tiltAlong?: number; tiltAcross?: number } = {};
+    let badTilt = false;
+    for (const k of ['tiltAlong', 'tiltAcross'] as const) {
+      const t = r[k];
+      if (t === undefined) continue;
+      if (!finite(t)) { badTilt = true; break; }
+      if (t !== 0) tilts[k] = t;
+    }
+    if (badTilt || !withinTiltBound(tilts.tiltAlong ?? 0, tilts.tiltAcross ?? 0)) continue;
     out.push({
       id: takeId(r.id, seen), face, from: r.from as CutFrom, diameter: r.diameter, depth: r.depth as number | 'through',
       along, alongFrom: r.alongFrom as CutFrom, station: r.station as number, count: r.count as number,
-      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number,
+      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number, ...tilts,
     });
   }
   return out;

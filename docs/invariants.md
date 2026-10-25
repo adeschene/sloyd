@@ -268,7 +268,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     box-based step of its own: Repair refuses only when the document leans AND some part has cuts (a leaning document with no cuts
     is "nothing to repair", Ruling R1; the Joinery dialog always runs Repair), and `plainForRefine` decides it right after the
     "no cuts → plain" return and BEFORE `gateUnjoin` (reason `'lean-joint'`, counted as joined; the gate's box read-back would
-    otherwise answer first).
+    otherwise answer first). A joined Refine also refuses up front when any part has a TILTED hole row (angled holes Ruling T11a,
+    inv 56: such a part is kept exactly, which a re-join cannot promise): `plainForRefine` decides it in the same place, BEFORE
+    `gateUnjoin` (`Refine can't keep a part with angled holes in a joined project yet: <name>.`, reason `'lean-joint'`).
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -306,6 +308,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     edited it or a d0-moving posture change re-reflected it (`changedKeys`), never as a shared world array.
     A hole row reflects by flag flips too (`mirrorHoleRow`: `from`, `alongFrom` or `acrossFrom`, whichever of face, along
     and across is the mirrored dimension); `lowerHoles` is its exact inverse, reusing an untouched stored array.
+    **A row's tilt (schema 23) is FLAG-RELATIVE and flips with the flags** (`tiltAlong` toward the far end from `alongFrom`,
+    `tiltAcross` toward the far side from `acrossFrom`; `holeTilt.ts`): `mirrorHoleRow` spreads the row, so the slopes ride
+    every flip unchanged and the bit reflects with no arithmetic (a `from` flip reverses the axial component, an `alongFrom` or
+    `acrossFrom` flip the lateral one). Never negate or re-derive a stored slope across a mirror.
     A curve reflects by flag flips too (`mirrorCurveCut`: `uFrom` when u is the mirrored dimension,
     `vFrom` when v is, nothing when `through` is) — never arithmetic on coordinates, and `side` never flips (it is defined on
     STORED numbers); `lowerCurves` is its exact inverse, reusing an untouched stored array. Pinned with `chiralCurved`.
@@ -547,10 +553,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 50. **`holes.ts` is the ONE place holes become geometry (`holeInstances`, through `boardHoles` and `partGeometry`'s
     frozen `holes`); `boardBodies` stays hole-free and convex**, so every `Body` reader (`clip`, `clipConvex`, `bodyEdges`,
     occluders, contact) keeps its convexity assumption. **`holeFaults` is the ONE strict-rule decider** (`breaks-out`,
-    `off-flat` — zero skin at a cut's floor counts —, `meets-hole`, `too-deep`; exact closed forms, tangent passes): an add
+    `off-flat` — zero skin at a cut's floor counts —, `meets-hole`, `too-deep`, and since schema 23 `too-shallow`; exact closed
+    forms, tangent passes): an add
     is refused on any fault, an edit only when it ADDS a (hole, kind) fault the stored row lacks (so a row a resize faulted
     can be edited back), decided before any mutation; a fault a later edit causes is KEPT, noted, drawn approximately,
-    never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep once). **Generate
+    never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep and too-shallow once, `faultKey` keys both per
+    row). **Generate
     and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (AI-holes, spec 2026-10-23): the design carries a `holes` array in WORLD words (`WorldHoleRow`: `face`, `diameter`, `depth`, `through`, `offset` (a vec3 from the part's `at`, the first centre, on the face plane), `toward`, `count`, `pitch`), and `holeRowsFor` turns them into stored `HoleRow`s. Its shape faults (the loader's own drop rules plus the 1/32 plane rule) reject the part with reason `'hole'`; a STRICT fault (`holeFaults`) from the model is KEPT and flagged (`holeDesignFaults`, in its own module, `'hole-fault'` violations; the message names the row's first centre, `problemKey` includes that message, and `collapseViolations` groups hole-faults by message minus the part-name prefix), never rejected and never clamped. Values snap to the nearer of 1/64 in and whole mm (`holeSnap`), applied to the STORED numbers (final review I1): the row's end and side are chosen from the model's raw numbers (a reversal in raw numbers), then the station (from the measured end), inset (from the measured side), depth, pitch and diameter are put on the grid — never the world offsets, or a row 37 mm from a part's far side stores an off-grid inset and metric mirrored sides never link. A value in the exact set is kept, and so is a distance whose world-offset source is in it, except that a COMPUTED distance within 1e-9 of its grid value takes the grid value (float drift such as `D − (D − 37 mm)`). Every stored number is then checked finite and within `MAX_MAGNITUDE` (geometry.ts; final review I2): a huge finite input would otherwise snap to Infinity and the loader would drop the row unseen; a failure rejects the part, reason `'hole'`. A canonical row is stored `alongFrom: 'min'` (or `'max'` when a loader-legal row cannot be expressed from min) and the across side is the nearer one, falling back to the far side, so every loader-kept row round-trips. **Untouched rows come back EXACTLY**: Refine reads each part's rows with `worldHoles`, and `PartCarry.originalHoles` (in the carried frame) feeds the exact-row swap, which restores the original stored row when `sameHoles` (centres compared as a SET) says the model changed nothing — only in a kept frame (inv 56). When EVERY returned row is restored and the counts agree, the ORIGINAL stored order is kept (final review M3: Plans letters and the Holes panel follow `b.holes`' order); otherwise the rows are sorted canonically. Refine no longer carries holes as an opaque feature (inv 56); joinery rules out only the joint kinds whose zone a hole enters (inv 41); Repair accepts holed projects; `turnCandidates` re-stores a holed part per turn (inv 56).
     A part with no holes keeps its geometry byte-for-byte (the `BoxGeometry` path included; a part with no
     holes AND no curves (profiles count, through `geometryBoard`) — `drawsAsBox` is the ONE routing decision, `bodyMeshIdentity.test.ts` pins holed uncurved parts to
@@ -576,11 +584,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     1e-6); stop rows at 40 (chunk c1; the notch 60 before), the two-side cove 48 (chunk c2), `wrapFour` 40 ms (chunk c1, fu 394). **`sweptIdentity.test.ts` pins swept parts' bodies, edges, smooth joins, meshes, holes and caps byte for byte (54 fixtures, two lengths): a speed change keeps it green.** **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
     into strips, so a mouth straddles them): every plane a CLEAN hole opens into is the union of its faces (`unionLoops`,
     chained), triangulated with the rings as holes — the wall's own ring vertices — and each triangle conformed; a plane a
-    faulted hole reaches, or whose rings overlap, keeps the per-face `faceTriangles` path (residue, drawn approximately). **Rebuild performance —
+    faulted hole reaches, or whose rings overlap, keeps the per-face `faceTriangles` path (residue, drawn approximately). A
+    tilted bore's ring is judged on a conservative disc (`ringDisc`: the ellipse's centre on the plane, radius `r·|bit|`), so a
+    clean tilted bore near a loop edge can take the per-face path too (accepted; an exact ellipse test is fu 451). **Rebuild performance —
     a resize drag rebuilds a holed part every frame; these break silently:** per-hole prisms and rings are memoised by
     the deep-frozen `Hole`'s IDENTITY (a WeakMap; an unfrozen hole computes fresh — never memoise one that can change);
     seam faces (what a coplanar, opposite-facing face of another body covers) are subtracted ONLY in holed bodies (and in EVERY body of a curved part, box cells included); a
-    CLEAN hole's (`holeInStock`: no breaks-out, off-flat or too-deep) wall and bottom are emitted UNCLIPPED, a faulted
+    CLEAN hole's (`holeInStock`: no breaks-out — a curve's waste included —, off-flat, too-deep or too-shallow) wall and bottom are emitted UNCLIPPED, a faulted
     hole's clipped to the bodies; all of a part's holes are ONE geometry, one mesh (`holesMesh`), never a mesh per hole.
     `viewport/holesPerf.test.ts` guards it (≤40 ms per healthy case, ≤100 ms faulted, the MINIMUM of 9 runs — load only
     inflates a run; still wall-clock, fu 340). **On the Plans sheet** a rim is a `DRAWING_HOLE_SEGMENTS` (96)-gon (the viewport keeps
@@ -588,6 +598,41 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     chords folded onto one line restart the dash and draw a hidden rim solid (chunk 2 R2). For a part with no holes `drawView` and
     `buildDiagrams` are byte-for-byte unchanged; its SVG path differs only by chaining (chunk 2 R2: within one part) — do not undo the chaining to
     "restore" it.
+    **A row may TILT (angled holes, schema 23; spec `2026-10-24-sloyd-angled-holes-design.md` and its *Amended (build)* block).**
+    `HoleRow.tiltAlong` / `tiltAcross` are the bit's travel per inch of axial travel (along the face's normal), relative to the
+    row's own flags (positive toward the far end from `alongFrom`, the far side from `acrossFrom`), stored only when non-zero,
+    inside ONE bound (`withinTiltBound`: each |slope| ≤ 1 and the resultant ≤ 1, 45°, with lean.ts' `withinBound` allowance — `≤ 1 + 1e-9` on each
+    and on the resultant, one rule for both bounds, so a 45° leg's socket survives a reload (final review F1); the loader drops a row past it and
+    the store refuses with `HOLE_TILT_PAST_BOUND`). **`holeTilt.ts` is the ONE home of tilt math** (`bitVector`, `isTilted`,
+    `tiltDegrees`, `tiltResultantDeg`, `tiltSightlineDeg`, `withinTiltBound`, `retilt`, `acrossOf`): degrees exist only in display
+    and typed input; its two degree conversions restate `lean.ts`' (an import would cycle) and a test pins them equal. A `Hole`
+    carries `bit` (`bitVector`, unnormalised: its face-axis component exactly ±1, so a square hole's is the face axis) and `reach`
+    (the AXIAL length); a blind tilted row's `depth` is measured ALONG THE BIT. `retilt` is the edit rule: a changed `face` is a
+    new bore (no tilt); a `from` flip on the same face reverses the bit, so both lateral slopes are negated (the bore keeps its
+    angle through the wood; a zero stays absent, never -0; final review F2); any other flag or `along` change keeps the bit's
+    board-local direction; a typed tilt is written directly. `HOLE_FIELDS`' values (`holeRowValues`) append each PRESENT tilt key's NAME then its value, so a square row's
+    values are unchanged and a square row never equals a tilted one. **Every square row takes the code paths it always did**
+    (`tiltedHole` gates each tilted branch; `holesSquare.snapshot.json`, captured before the change, pins square geometry).
+    **A tilted row's faults are EXACT or CONSERVATIVE — they may over-report, never under-report**: the clean, UNCLIPPED mesh
+    path trusts `holeInStock`, so an under-report draws a wall through air. The mouth and exit `off-flat` test reads the ring's
+    true reach (`n·c − r·|n − dir(n·m)e_a|`), and `meets-hole`'s pair capsule (`capsuleOf`) runs `r·tanθ` past a face-flat end (the mouth's uphill tip).
+    **`too-shallow`**: a blind tilted bore whose bottom disc reaches back to the entry face (`depth ≤ r·tanθ + HOLE_EPS`, depth
+    along the bit; touching is the fault) — refused when an add or edit ADDS it, KEPT and noted when a later edit causes it, as
+    every fault. A tilted ring lies on the face-parallel plane (an ellipse); its mesh is WATERTIGHT (`curvesWatertight.test.ts`
+    holds tilted cases), and `holesPerf.test.ts` guards a seat of four tilted sockets under the same budgets. Drawings, part diagrams (a tilted mouth's ellipse a `<path>` of `TILT_ELLIPSE_POINTS`
+    points in user units, its band slanted; a square hole's `<ellipse>` byte for byte as before), snap points (the exit centre `reach` along the bit), callouts
+    and the bench line (`holeText.ts`: the angle off square and its sightline from the `along` dimension, or the end or side a
+    one-plane tilt leans toward; a blind one ends `, depth measured along the bit`) all read the bit.
+    **Bore leg sockets** (`legSockets.ts`, the ONE decider, pure; the store's `boreLegSockets(seatId, diameter)`): on an UNLEANED
+    part with leaning parts standing under it (`legsUnder`: a leg's level top within `TOUCH` of the seat's down face, overlap
+    above `REST_AREA`), one count-1 THROUGH row per leg on the leg's leaned axis, entering from the top (`socketRow`); every
+    copy of the seat plans its own legs and the copies must agree (lowered stored rows as a multiset, flag-free, 1e-9; else
+    `socketsDisagree`); a diameter at or above a leg's smaller section refuses (`socketTooWide`); a faulted socket is left out
+    and named (`socketFaulted`; one past `withinTiltBound`, which the loader would drop, `socketTooSteep`, final review F1), the
+    rest bored, refused only when none can be;
+    a TILTED count-1 THROUGH row entering from the seat's top (`isSocketOf`'s entry: only a row `socketRow` could have written;
+    final review M4) whose axis line passes through a leg top in the `TOUCH` band is that leg's stale socket
+    (`staleSocketOf`, noted `socketStale` and replaced on the next press; a square row is never one); a matched leg is left alone.
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
     where `explode` is (initial state, `replaceDocument`).** One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
@@ -615,8 +660,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     and the result returned in leaned WORLD coordinates, explode offset included, always in new arrays — so BoardMesh draws a leaning
     part's cap as a SIBLING of its leaned group, at identity, never inside it. A face ON the plane facing the removed side is capped
     (a levelled foot under Top at 0). The cache slot adds the lean's `x`, `z`, `face` (exact), rotation, posture and the plane
-    coordinate; BoardMesh's cap memo depends on `board.lean`. A leaning part never reads holes here (a hand-loaded leaning part with
-    holes gets caps without bores and no note, fu 437); `localCapPieces` is null for it; points carry ~1e-15 off the plane.
+    coordinate; BoardMesh's cap memo depends on `board.lean`. **A leaning part's bores are subtracted** (angled holes §6.2, lifting
+    fu 437's residue): each cut face, still board-local, loses every bore's prism (`minusPrism`) BEFORE it is carried into the pivot
+    frame; `localCapPieces` is null for it; points carry ~1e-15 off the plane.
+    **A tilted bore** (angled holes §6.2) never takes fu 348's rings fast outline: when the plane meets its box (`holeRegion`) the
+    outline is the union of the bored pieces (a slice of a tilted bore is an ellipse, or meets a slanted wall, a tilted bottom
+    or a mouth off the plane); its prism is subtracted wherever the plane is within its box, which a steep bore's far mouth can
+    carry past a square bore's `radius + depth` reach.
 
 52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the DOCUMENT's own `Units`**
     (`formatLength`/`parseLength` take `Units`; there is no module- or browser-level unit setting, so a background run or a
@@ -810,8 +860,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `original` param), never in `SYSTEM_PROMPT`. `refineDesign.ts`' pre-checks judge a featured part in its own frame (`inOwnFrame`).
     **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.** The four Refine-only refusal modules and the `'holes' | 'curves' | 'bands' | 'hardware'` `RefusalReason`s are deleted;
     nothing may bring them back.
-    **A LEANING part is KEPT exactly as stored** (splayed legs §8, inv 57): `keptParts(doc)` (`leanKeep.ts`) is the ONE decision —
-    every ROOT stored part whose resolved form leans, the Shapes those records reference, and their flat names. Kept parts are left
+    **A LEANING part, or one with a TILTED hole row, is KEPT exactly as stored** (splayed legs §8, inv 57; angled holes §9 — the
+    design form cannot describe a tilt, and re-storing a row in world words would drill it square): `keepsExactly(b)` (`leans(b)`
+    or any `isTilted` row) is the ONE predicate and `keptParts(doc)` (`leanKeep.ts`) the ONE decision — every ROOT stored part
+    whose resolved form `keepsExactly`, the Shapes those records reference, and their flat names; `turnCandidates` never turns
+    such a part (it asks `keepsExactly` too). Kept parts are left
     out of `boxes()` and every taper/angle pre-check in `documentToDesign`; the model is told about them in the USER turn
     (`keptNote`: each one's real bounds through `partBounds`, and not to return those names), never in `SYSTEM_PROMPT` or
     `DESIGN_SCHEMA`. `designToDocument`'s `kept` opt drops a loose model part whose `clean(name)` is a kept flat name BEFORE
@@ -819,10 +872,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     in FIRST, verbatim, with their Shapes, BEFORE `migrateDocument` and `linkByRole` (the carry's slot, so the PROHIBITION above
     stands): first-wins (invs 8, 33) keeps their ids and names, and with no role `linkByRole` never judges them. **No floor shift is
     applied while any part is kept** (spec §8(b)'s second option): the result moves to the kept parts, never the reverse; a model
-    part left below the floor stays there and the design checks report it. A leaning part inside an assembly refuses Refine up
-    front (`'lean-assembly'`: `Refine can't keep a leaning part inside an assembly yet — Ungroup it first: <name>.`; Refine rebuilds
-    every definition, fu 441), and a joined Refine refuses (`'lean-joint'`, inv 41). The done view says `Kept as is (leans):
-    <names>`. Kept parts count toward the result's part caps (fu 442).
+    part left below the floor stays there and the design checks report it. A kept part inside an assembly refuses Refine up
+    front (`'lean-assembly'`, `leaningInAssembly`: `Refine can't keep a leaning part or a part with angled holes inside an assembly
+    yet — Ungroup it first: <name>.`; Refine rebuilds every definition, fu 441), and a joined Refine refuses (`'lean-joint'`): a
+    leaning part by `leaningRefusal` (inv 41), and — ruling T11a, because `runJoinery` re-joins the whole refined document, kept
+    boards included — any part with a tilted row, BEFORE the gate (`Refine can't keep a part with angled holes in a joined project
+    yet: <name>.`); joinery and Repair are unchanged by tilts. The model's note (`keptNote`) says why each is kept (it leans, has
+    angled holes, or both). The done view says `Kept as is (leans or angled holes): <names>`. Kept parts count toward the result's part caps (fu 442).
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
     `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face }`, a SHARED
@@ -876,12 +932,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       numbers as magnitudes with each part's own world sign (a zero part takes +), and `rakeSign` / `splaySign` set a direction and
       keep each part's magnitude (the magnitude field and the direction select are SEPARATE controls). A zero result REMOVES the lean:
       a patch whose `lean` key is present with value `undefined` deletes the stored key everywhere (`sharedPatch`, the Shape,
-      lowering). The refusals, decided for every target before `edit()`, in order: `Only an upright part can lean.`, `A part with holes
-      can't lean yet — that comes with angled holes.`, `The lean can't pass 45° in all — reduce the rake or splay.`; Clear (`null`) is
-      never refused (a loaded file may hold holes and a lean). `setLean` and `levelEnds` return null and do nothing while `gesturing`
+      lowering). The refusals, decided for every target before `edit()`, in order: `Only an upright part can lean.`, `The lean can't pass 45° in
+      all — reduce the rake or splay.`, and (angled holes §7) on a part WITH holes that already leans, a lean whose seam-free face
+      differs from the stored one (`seamFree` re-choosing it would turn the holes a quarter turn about the length): `This lean would
+      turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.` A
+      first lean on a holed part is not a re-choice and is allowed; Clear (`null`) is never refused. `setLean` and `levelEnds` return null and do nothing while `gesturing`
       or exploded (inv 47; no copy). A shape-mate's patch never carries `lean` (each mate would lower the target's world lean through
-      its own flip and the write would disagree). `addHoleRows` refuses a leaning part (`A leaning part can't take holes yet — that
-      comes with angled holes.`), and a posture change on a leaning part is refused in `postureRefusal` (`Clear the lean first — only
+      its own flip and the write would disagree). A leaning part takes hole rows like any other (angled holes §7; the
+      row is in the part's own frame), and a posture change on a leaning part is refused in `postureRefusal` (`Clear the lean first — only
       an upright part can lean.`), the one decider the store and the Posture field share.
     - **A resize keeps the pivot** (`pivotKeptPosition` in `patchBoard`, when the part leans and a dimension or the turn changes; an
       explicit `position` wins): a length change moves the foot end, a width or thickness change is symmetric about the pivot, and
@@ -905,6 +963,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       in world Y by more than 1e-9 refuse (`These linked parts' tops are at different heights, so one length can't level them all:
       <names>.`). Re-levelling is never automatic: a lean edit or resize leaves the ends stale, and the Lean section notes `Ends were
       levelled for a different lean — Level the ends again`.
+      **Level the ends keeps holes where they are in the wood** (angled holes §7): `levelPlan` writes the rows re-anchored by
+      `levelEndHoles` (`holeRebase.ts`) with the length and angle cuts (written once, through the clicked part). A station or inset measured
+      from a moving end shifts by that end's change; a row ENTERING an end moves its mouth out with the face — a blind one deepens
+      (by `e·|bit|` when tilted), and a TILTED row, through or blind, also slides its station and inset by `−e` times its slopes
+      (ruling T9a: otherwise its line moves in the wood). Faults the new ends cause are KEPT (inv 50). When a re-anchored row
+      would be unstorable (`storableRow`: a negative station or inset, a blind depth ≤ 0 — the loader would drop it silently)
+      Level REFUSES (`LEVEL_CUTS_HOLE`: `Levelling the ends would cut away a hole — move it or remove it first.`; ruling T9b).
     - **The design checks are extended, never weakened** (invs 38, 39; leanContacts.ts): a leaning part's contact faces are its leaned
       bodies' faces whose world normal is ±Y within `LEVEL_EPS` (1e-9: float error only — a 0.5° slope never counts); it touches the
       floor, rests on a part or holds a part only through them (`overlapArea` > `REST_AREA`, 1e-9 sq in). An unlevelled leg is not
@@ -913,4 +978,5 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       part has cuts (inv 41), and a plain Refine keeps it exactly (inv 56).
     - **Cut list, nesting and Buying are unchanged:** a lean is placement, like position, so two legs with the same stock and cuts
       share a row whatever their leans; the level cuts print as their usual bench lines.
-    - Drawings, section caps and the Plans note: invs 47 and 51. Follow-ups: 436–446.
+    - Drawings, section caps and the Plans note: invs 47 and 51. Holes on a leaning part, sockets and tilts: inv 50 (angled
+      holes, schema 23). Follow-ups: 436–446; angled holes 447–456.

@@ -35,13 +35,22 @@ src/
 │   │                     leanMap (rotation about the top-face centre; apply/applyDir/inverse/inverseDir on WORLD points of the
 │   │                     pre-lean placement; null for no or zero lean), worldSlopes, chooseFace, seamFree, leanFlip (mirrors),
 │   │                     leans (the cheap predicate), pivotKeptPosition (a resize keeps the pivot), withinBound (inv 57)
+│   ├── holeRebase.ts     rebaseHoles (joinery's resize re-anchor, moved from generate/joints/recipes.ts) and levelEndHoles
+│   │                     (Level the ends' end-face rule: rows follow the wood, a tilted row's mouth slides along its bit;
+│   │                     angled holes §7), storableRow (the loader's keep test for a re-anchored row)
+│   ├── legSockets.ts     Bore leg sockets (angled holes §5), the ONE decider, pure: legsUnder (leaning parts whose level top is within
+│   │                     TOUCH of a down face, overlap > designCheck's REST_AREA), socketRow (a through row on the leg's
+│   │                     axis, entering from the top, `othersOf` layout, nearer end/side), isSocketOf (a through bore from the top, 1e-9) / staleSocketOf (tilted, through, from the top;
+│   │                     the axis line through a leg top in the TOUCH band; none for a matched leg), socketPlan (every copy plans its own legs; lowered
+│   │                     STORED row sets compared as a multiset, flag-free, 1e-9; a faulted socket left out as `note`); its five sentences, verbatim
 │   ├── levelEnds.ts      Level the ends (splayed legs §5, inv 57): levelPlan (two end miters along seamFree's face, each end's
 │   │                     length change rounded UP to the grid, top through R — the recognised top cut on the axis, else the pivot),
 │   │                     isLevelled, levelCutOf (ANY end miter is a level cut), sameLevelLine/depthFromMin; the refusals, verbatim
 │   ├── leanContacts.ts   the checks' lean crossing (inv 38, 39, 57): worldBodyFaces (moved here from designCheck.ts, re-exported
 │   │                     there; the lean composed), levelFaces (±Y within LEVEL_EPS 1e-9), overlapArea (plan polygons)
-│   ├── leanKeep.ts       Refine's keep (inv 56, 57): keptParts (THE decision: ROOT stored parts whose resolved form leans + their
-│   │                     Shapes + flat names), leaningInAssembly ('lean-assembly'), keptNote (the USER-turn note, real bounds)
+│   ├── leanKeep.ts       Refine's keep (inv 56, 57): keepsExactly (THE predicate: leans, or a tilted hole row — angled holes §9),
+│   │                     keptParts (THE decision: ROOT stored parts whose resolved form keepsExactly + their
+│   │                     Shapes + flat names), leaningInAssembly ('lean-assembly'), keptNote (the USER-turn note, real bounds, why kept)
 │   ├── worldBounds.ts    partBounds / partsBounds, the ONE real-bounds helper (splayed legs §6.1 R2): a leaning part's
 │   │                     world box from its LEANED body vertices; lean-free = boardsBounds exactly. Every world-box reader
 │   │                     (group move, Copy in a row, section heading/span, Gizmo, framing, explode, Plans dimensions, the
@@ -78,7 +87,14 @@ src/
 │   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
 │   │                     shortPointLine (corner minimum, fu 281; an end chamfer leaving a tongue excluded, fu 385), angleDegrees (→ units)
 │   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
-│   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44),
+│   ├── holeTilt.ts       THE tilt math (angled holes, schema 23, inv 50): acrossOf (moved here from holes.ts, re-exported), isTilted,
+│   │                     bitVector (board-local, unnormalised, face-axis component ±1), tiltDegrees / tiltResultantDeg /
+│   │                     tiltSightlineDeg (lean.ts' two conversions restated — an import would cycle — and pinned equal by test),
+│   │                     withinTiltBound (THE bound, loader and store), retilt (the edit rule: a new face/from drops the tilt)
+│   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
+│   │                     then value, Ruling P1), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44; the tilt rides the flags),
+│   │                     Hole's `bit` and `reach` (axial), tiltedHole (THE gate of every tilted branch), holeRegion (a bore's box,
+│   │                     exact for a tilted one), holeBottom,
 │   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
 │   │                     the min end of the LONGER in-face dimension, 22.5 mm in; fu 343), holeInstances/boardHoles, holeRing/
 │   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
@@ -88,15 +104,19 @@ src/
 │   │                     sortHoleRows
 │   ├── holeDesignFaults.ts holeDesignFaults: a strict fault in a model-authored row → 'hole-fault' violations (message names the row's first centre; `shown`
 │   │                     copy through holeText, so this module takes the → units edge, not holeWorld)
-│   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean);
+│   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep, too-shallow; a tilted bore exact or
+│   │                     CONSERVATIVE, never under — the unclipped mesh trusts it), tooShallow, stockChecks, holeInStock (clean);
 │   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
-│   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units);
+│   │                     holeFaultText (THE fault words), distinctFaults (too-deep and too-shallow once), endWord/edgeName (→ units);
+│   │                     a tilted row's words (the angle off square and sightline, or the end/side a one-plane tilt leans toward;
+│   │                     a blind one's `, depth measured along the bit`); socketFaultWords (a fault as what a socket would do);
 │   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
 │   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
-│   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
+│   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden;
+│   │                     a tilted bore (tiltedLines): mouth and exit rims on the face planes, a blind bottom square to the bit, silhouettes along the bit
 │   ├── curves.ts         THE curve model (inv 53): CURVE_FIELDS (inv 40), CURVE_TOLERANCE 0.005 / SEGMENTS_MAX
 │   │                     24 / STORED_MAX 64, copyCurve, mirrorCurveCut (inv 44), localSegments/arcOf (LocalArc: centre, radius,
 │   │                     rise, crown), curveOutline (chords ON the arc), smoothLines, bowsInto, wasteContains/isAir (P3),
@@ -307,7 +327,8 @@ src/
 │   │                     caps differ; boxes first)
 │   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
 │   │                     sectionCaps (board-local caps minus bores, a per-part local cache; a leaning part's caps clipped in the
-│   │                     pivot frame and returned in leaned WORLD coordinates, buildLeaningPieces, inv 51), unionOutline
+│   │                     pivot frame, its bores subtracted board-local first, and returned in leaned WORLD coordinates,
+│   │                     buildLeaningPieces, inv 51; a tilted bore the plane meets skips fu 348's rings fast outline), unionOutline
 │   │                     (moved to outline.ts and re-exported)
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity); `keyed` / pieceKeyed: which trio keys a part
@@ -322,13 +343,16 @@ src/
 │                         meshCases.ts (TEST-ONLY c2: sweptIdentity's swept fixtures, moved verbatim, shared by the mesh and edge tests);
 │                         shakerTableFixture.ts (the generated, joined, refined Shaker table);
 │                         stoolFixture.ts (TEST-ONLY splayed legs: stoolLegs — four levelled legs, rake 8°, splay 12°, linked
-│                         in two Shapes —, stoolSeat, stoolDocument, stoolWithCut)
+│                         in two Shapes —, stoolSeat, stoolDocument, stoolWithCut);
+│                         holesSquareCases.ts (TEST-ONLY angled holes: SQUARE_CASES, the square rows whose geometry
+│                         holesSquare.snapshot.json holds — captured from the code BEFORE the tilt, so square holes stay byte for byte)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
 │   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46); mirrorLinkedPart (the
 │   │                     Mirrored checkbox: flag + turn inverseTurn(2a + r), world X, inv 46); linkBoards' part-level flags;
-│   │                     setLean (one write per Shape; keepSign / rakeSign / splaySign; refusals LEAN_NOT_UPRIGHT, LEAN_HAS_HOLES,
-│   │                     LEAN_PAST_BOUND; HOLES_ON_LEAN from addHoleRows) and levelEnds (inv 57); patchBoard's pivot-keeping
+│   │                     setLean (one write per Shape; keepSign / rakeSign / splaySign; refusals LEAN_NOT_UPRIGHT,
+│   │                     LEAN_PAST_BOUND, LEAN_TURNS_HOLES — the seam re-choice on a holed part) and levelEnds (inv 57; writes
+│   │                     the plan's holes with length and angle cuts); HOLE_TILT_PAST_BOUND from addHoleRows/updateHoleRow; patchBoard's pivot-keeping
 │   │                     resize; moveGroupTo rounds the delta when a part leans
 │   │                     (source's Shape users keep theirs, others take the source's); store.mirrorLinks.test.ts
 │   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
@@ -346,7 +370,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage — names the project's band types
 │                     (`Edging types in this design`), KEEP_LINE names edging and edge profiles, the design sent through toWireDesign —, detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, hole, band and profile design faults included, runRefine — the result's own band types, plain and joined —, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -361,7 +385,9 @@ src/
 │                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent;
 │                     grainTiling.ts' hole path (inv 50): bodyMesh (holed faces; seam faces subtracted only in holed
 │                     bodies), faceTriangles (rings as holes, clip-split fallback), holeMesh (one hole's wall + bottom;
-│                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard)
+│                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard);
+│                     a tilted bore: elliptical rings on the face planes, ringDisc (its conservative disc for the clearance
+│                     tests, fu 451), the far ring at `reach` or the bottom disc square to the bit (holeBottom); watertight
 │                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap (a leaning part: its group gets the lean as ONE derived transform, the `leaned` memo, and its cap is drawn as a sibling at identity, inv 57); sectionPerf.test.ts
 │                     grainTiling's drawsAsBox (THE BoxGeometry-or-bodyMesh routing: a box no hole reaches,
 │                     on a part WITHOUT curves), bodyMesh's radial normals on chord faces and curvedPart (seams dropped, welded,
@@ -377,7 +403,10 @@ src/
 │                     band's normal (`stopJunctions`); stopNormals.test.ts
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties (the Mirrored checkbox on a linked part), CopyInRow,
 │                     PartsList (a mirrored part's ⇋ badge, `role="img"` "Mirrored"),
-│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
+│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (as CLAUDE.md's per-file rule: a row click closes the
+│                     menu at once; `onOpen` resolves null or why the project cannot be opened (`storage.readProject`, asked only
+│                     on failure so the switch path keeps `loadProject`), and a failure reopens the menu on that row with the
+│                     message, focus on the caret, fu 35),
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
 │                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map), diagramScale, diagramLabels (inv 19); planBalloons
 │                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); planKeys (a trio's
@@ -394,7 +423,8 @@ src/
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
 │                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
 │                     end AND it is the same part, so a hidden rim dashes continuously); PartDiagram draws hole ellipses
-│                     (rx = r·sx, ry = r·sy), centre crosses, dashed sides and the hole notes (keyed by row);
+│                     (rx = r·sx, ry = r·sy), centre crosses, dashed sides and the hole notes (keyed by row); a tilted bore's
+│                     ellipse as a `<path>` of TILT_ELLIPSE_POINTS points in user units and its slanted band (`quad`);
 │                     MaterialsDialog ("Materials & prices": built-in prices, custom definitions + prices, library rows;
 │                     one Save = one project edit + library + prices; refuses, never clamps) on materialsDraft.ts (THE
 │                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; its Edge banding section on bandTypesDraft.ts
@@ -408,7 +438,9 @@ src/
 │                     the resultant/sightline readout, the position note, the stale-ends note, `Level the ends` and the stale
 │                     note single-selection, `Clear lean`; inv 57);
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
-│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
+│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5; Tilt toward end / side with the Tilt end /
+│                     Tilt side selects and the `off square · sightline` readout, retilt on a face/flag/along change only;
+│                     Socket diameter + Bore leg sockets on an unleaned part with legs under it, the stale-socket note), CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
 │                     Hardware (the Hardware section: `+ Add hardware ▾`, a count per type, `New hardware type…`; a part, an assembly or, with
 │                     nothing selected, the project — inv 55; reads `holderHardware`, whose arrays are STORED);
 │                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded

@@ -1,5 +1,5 @@
 import type { BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, Span } from './types';
-import { holeInstances } from './holes';
+import { holeInstances, tiltedHole, type Hole } from './holes';
 import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
 import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
@@ -54,8 +54,14 @@ export interface DiagramCut {
   lengthLabel?: string;
 }
 
-/** A hole seen down its axis (spec §4.3): a circle, board inches, in the view's (h, v). */
-export interface DiagramHole { row: string; index: number; h: number; v: number; r: number }
+/**
+ * A hole seen down its axis (spec §4.3): a circle, board inches, in the view's (h, v). A TILTED bore's mouth (and a
+ * through bore's exit) is an ellipse (angled holes spec §8), and only then carries `rx`, `ry` and `rot`: `rx = r` across
+ * the tilt, `ry = r / cos θ` along it, and `rot` the degrees SVG's `rotate()` turns the ellipse's rx axis by from +h
+ * toward +v, in (−90, 90] — so the ry axis lies along the bit's lateral travel, at the sightline. A square hole's entry
+ * has none of them (diagramIdentity).
+ */
+export interface DiagramHole { row: string; index: number; h: number; v: number; r: number; rx?: number; ry?: number; rot?: number }
 /** A hole seen across its axis: the box of its depth, drawn dashed (the two walls and, when blind, the bottom). */
 export interface DiagramHoleSide {
   row: string; index: number; h: Span; v: Span;
@@ -63,6 +69,46 @@ export interface DiagramHoleSide {
   axis: 'h' | 'v';
   /** Where the bottom line is drawn (blind holes only); null for a through hole. */
   bottomAt: 'hmin' | 'hmax' | 'vmin' | 'vmax' | null;
+  /**
+   * A TILTED bore only (angled holes spec §8): the slanted band's four corners in (h, v) — `[mouth₊, far₊, far₋, mouth₋]`.
+   * The walls are mouth₊→far₊ and mouth₋→far₋, the silhouette generators r either side of the bit's projected line; the
+   * mouths sit on the entry face, a through bore's far corners on the exit face, a blind bore's at the ends of its bottom
+   * disc's projected diameter (square to the bit), the bottom drawn between them. `h` and `v` are then the band's box.
+   */
+  quad?: [[number, number], [number, number], [number, number], [number, number]];
+}
+
+/** A tilted bore's entry or exit ellipse (DiagramHole's doc): the view draws `hi` horizontal, `vi` vertical. */
+function tiltedEllipse(h: Hole, hi: number, vi: number): { rx: number; ry: number; rot: number } {
+  let rot = (Math.atan2(h.bit[vi]!, h.bit[hi]!) * 180) / Math.PI - 90;
+  if (rot <= -90) rot += 180;
+  return { rx: h.radius, ry: h.radius * Math.hypot(h.bit[0], h.bit[1], h.bit[2]), rot };
+}
+
+/**
+ * A tilted bore seen across its axis, in the view of (axial `a`, in-plane `d`): the cylinder's orthographic silhouette is
+ * a band 2r wide square to the bit's projection `(dir, bit[d])`, whatever the bit's component along the view. Its walls
+ * are the lines ±r·n off the projected axis (n the unit normal to it); each meets the entry face at a mouth corner, a
+ * through bore's exit face `reach` further along the bit, and a blind bore's bottom disc at its projected centre ± r·n.
+ * Corners as `[axial, d]`.
+ */
+function tiltedBand(h: Hole, a: number, d: number): [number, number][] {
+  const bd = h.bit[d]!;
+  const L = Math.hypot(1, bd);
+  const n = [-bd / L, h.dir / L];
+  const s0 = h.centre[a]!; const c = h.centre[d]!;
+  const wall = (k: 1 | -1): [[number, number], [number, number]] => {
+    const t = (-k * h.radius * n[0]!) / h.dir;   // slide the offset point along the bit back onto the entry face
+    const mouth: [number, number] = [s0, c + k * h.radius * n[1]! + t * bd];
+    const far: [number, number] = h.through
+      ? [s0 + h.dir * h.reach, mouth[1] + h.reach * bd]
+      // A blind bottom is the straight chord between the disc's two silhouette points: exact when the bit lies in the
+      // view plane; otherwise the disc's shallow projected bulge is omitted, as a square hole's bottom is a straight line.
+      : [s0 + h.dir * h.reach + k * h.radius * n[0]!, c + h.reach * bd + k * h.radius * n[1]!];
+    return [mouth, far];
+  };
+  const [[m1, f1], [m2, f2]] = [wall(1), wall(-1)];
+  return [m1, f1, f2, m2];
 }
 
 /** A curve's waste outline seen down its `through`, clipped to the face, board inches. */
@@ -336,7 +382,11 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
       if (!view) continue;
       const hi = DIMENSION_ORDER.indexOf(view.horizontal);
       const vi = DIMENSION_ORDER.indexOf(view.vertical);
-      view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]!, v: h.centre[vi]!, r: h.radius });
+      if (tiltedHole(h)) {
+        // The exit ellipse sits `reach` along the bit: T·tan θ along the tilt (angled holes spec §8).
+        const k = view === exit ? h.reach : 0;
+        view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]! + k * h.bit[hi]!, v: h.centre[vi]! + k * h.bit[vi]!, r: h.radius, ...tiltedEllipse(h, hi, vi) });
+      } else view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]!, v: h.centre[vi]!, r: h.radius });
       mark(view, r);
     }
   }
@@ -354,6 +404,14 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
       };
       const axisIsH = view.horizontal === r.face;
       const bottomAt = h.through ? null : axisIsH ? (h.dir > 0 ? 'hmax' : 'hmin') : (h.dir > 0 ? 'vmax' : 'vmin');
+      if (tiltedHole(h)) {
+        const d = DIMENSION_ORDER.indexOf(axisIsH ? view.vertical : view.horizontal);
+        const quad = tiltedBand(h, a, d).map(([s, t]) => (axisIsH ? [s, t] : [t, s]) as [number, number]);
+        const box = (i: 0 | 1): Span => [Math.min(...quad.map((p) => p[i])), Math.max(...quad.map((p) => p[i]))];
+        view.holeSides.push({ row: r.id, index: h.index, h: box(0), v: box(1), axis: axisIsH ? 'h' : 'v', bottomAt, quad: quad as NonNullable<DiagramHoleSide['quad']> });
+        mark(view, r);
+        continue;
+      }
       view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt });
       mark(view, r);
     }

@@ -4,7 +4,7 @@ import { buildDiagrams, createBoard } from '../document/document';
 import { stripDiagrams } from '../document/diagram';
 import { BAND_SIDES, BUILT_IN_BAND, strips } from '../document/banding';
 import type { Cut } from '../document/document';
-import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
+import { PartDiagram, LEFT_PAD, TICK, TILT_ELLIPSE_POINTS } from './PartDiagram';
 import { archCurve, defaultCorners } from '../document/curves';
 import { canonicalRun } from '../document/profiles';
 import type { ProfileCut } from '../document/types';
@@ -951,6 +951,57 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
     const lowFirst = s0.axis === 'h' ? Number(lines[0]!.getAttribute('y1')) > Number(lines[1]!.getAttribute('y1'))
       : Number(lines[0]!.getAttribute('y1')) > Number(lines[0]!.getAttribute('y2'));
     expect(lowFirst).toBe(true);
+  });
+  it('a tilted bore\'s mouth draws as its ellipse: a user-unit path, rx across, ry along the tilt (angled holes §8)', () => {
+    // Normal and vUp views (thickness max / min), at even scales and under the sliver clamp (sx ≠ sy).
+    for (const over of [{}, { length: 96, width: 3.5 }]) for (const from of ['max', 'min'] as const) {
+      const tilted = { ...pins, id: 't', from, count: 1, inset: 1.5, tiltAlong: 0.3, tiltAcross: 0.2 };
+      const v = holedView({ ...over, holes: [tilted] });
+      expect(v.vUp).toBe(from === 'min');
+      const c = v.holes[0]!;
+      const { container } = render(<PartDiagram view={v} />);
+      expect(container.querySelector('ellipse.cutlist-diagram-hole')).toBeNull();
+      const p = container.querySelector('path.cutlist-diagram-hole')!;
+      expect(p.getAttribute('transform')).toBeNull();
+      expect(p.getAttribute('vector-effect')).toBeNull();
+      const pts = p.getAttribute('d')!.replace(/^M|Z$/g, '').split('L').map((q) => q.split(' ').map(Number));
+      expect(pts).toHaveLength(TILT_ELLIPSE_POINTS);
+      const { sx, sy, X, Y } = scales(container, v);
+      if ('length' in over) expect(Math.abs(sx - sy)).toBeGreaterThan(1e-3);
+      // Board-inch tips, mapped like the outline: ry along the lateral travel (0.3, 0.2), rx square to it.
+      const L = Math.hypot(0.3, 0.2);   // the lateral travel reads off alongFrom/acrossFrom only, not the face side
+      const [th, tv] = [0.3 / L, 0.2 / L];
+      const near = (h: number, w: number) => pts.some(([x, y]) => Math.abs(x! - X(h)) < 1e-6 && Math.abs(y! - Y(w)) < 1e-6);
+      for (const s of [1, -1]) {
+        expect(near(c.h + s * c.ry! * th, c.v + s * c.ry! * tv)).toBe(true);
+        expect(near(c.h - s * c.rx! * tv, c.v + s * c.rx! * th)).toBe(true);
+      }
+      // Every point lies on the board-inch ellipse.
+      for (const [x, y] of pts) {
+        const dh = (x! - X(0)) / sx - c.h;
+        const dvv = (v.vUp ? v.v - (y! - Y(v.v)) / sy : (y! - Y(0)) / sy) - c.v;   // the outline's map, inverted
+        const along = dh * th + dvv * tv; const acr = -dh * tv + dvv * th;
+        expect((along / c.ry!) ** 2 + (acr / c.rx!) ** 2).toBeCloseTo(1, 9);
+      }
+      cleanup();
+    }
+  });
+  it('a tilted bore seen across its axis draws its slanted band: two walls (and the bottom when blind) on the quad', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    for (const depth of [0.375, 'through' as const]) {
+      const tilted = { ...pins, id: 't', count: 1, depth, tiltAlong: 0.3 };
+      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [tilted], cuts: [rabbet] }), IMPERIAL)
+        .find((x) => x.key === 'width|min')!;
+      const { container } = render(<PartDiagram view={w} />);
+      const { X, Y } = scales(container, w);
+      const q = w.holeSides[0]!.quad!;
+      const seg = (a: [number, number], b: [number, number]) => [X(a[0]), Y(a[1]), X(b[0]), Y(b[1])];
+      const want = [seg(q[0], q[1]), seg(q[3], q[2]), ...(depth === 'through' ? [] : [seg(q[1], q[2])])];
+      const got = [...container.querySelectorAll('line.cutlist-diagram-hole-side')].map((l) => ['x1', 'y1', 'x2', 'y2'].map((k) => Number(l.getAttribute(k))));
+      expect(got).toHaveLength(want.length);
+      got.forEach((g, i) => g.forEach((x, j) => expect(x).toBeCloseTo(want[i]![j]!, 6)));
+      cleanup();
+    }
   });
   /** The figure's scales, read back off the rendered outline (not from the code under test). */
   const scales = (container: HTMLElement, w: { h: number; v: number; vUp: boolean }) => {

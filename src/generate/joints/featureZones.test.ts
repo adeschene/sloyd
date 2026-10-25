@@ -11,6 +11,7 @@ import type { JointChoice } from './recipes';
 import { findSites, rangesOf } from './sites';
 import type { Site } from './sites';
 import { featureAllowed } from './featureZones';
+import { joineryRefusal } from './tapers';
 
 // Joinery-holes spec §3: per site, only the joint kinds that would cut, grow or trim into a hole are ruled out.
 
@@ -364,5 +365,20 @@ describe('with no holes, the same sites array comes back', () => {
     const out = featureAllowed(doc, sites);
     expect(out.sites).toBe(sites);
     expect(out.ruledOut).toEqual([]);
+  });
+});
+
+describe('angled holes (angled holes spec §9)', () => {
+  it('a tilted bore on an unleaned part: joinery is not refused, and the kinds its box enters are ruled out', () => {
+    const plain = design({ name: 'Side', at: [0, 0, 0], size: [0.75, 30, 11.25] }, { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] });
+    // The same shelf pins as the square case, tilted along the row.
+    const tilt = (b: Board) => [2, 9].map((z, i) => ({ ...holeAt(b, 0, 1, [0, 12.375, z], 0.25, 0.375, `p${i}`), tiltAlong: 0.2 }));
+    const doc = withHoles(plain, { Side: tilt });
+    expect(joineryRefusal('joinery', doc as unknown as SloydDocument, doc)).toBeNull();
+    const sites = findSites(doc);
+    const out = featureAllowed(doc, sites);
+    expect(out.sites[0].allowed).toEqual(['butt']);
+    expect(out.ruledOut.every((r) => r.feature === 'holes' && r.part === indexOf(doc, 'Side'))).toBe(true);
+    expect(out.ruledOut.length).toBeGreaterThan(0);
   });
 });

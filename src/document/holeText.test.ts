@@ -114,3 +114,32 @@ describe('a hole into an edge profile reads by the profile\'s name (Task 7 fix r
     expect(curveWord({ kind: null })).toBe('a curve cut');
   });
 });
+
+describe('a tilted row\'s bench line (angled holes, Task 8)', () => {
+  const D = Math.PI / 180;
+  const sq = { ...cup, depth: 'through' as const };
+  it('a two-plane tilt names the angle off square and the sightline from the along dimension', () => {
+    const r = Math.tan(14.3 * D), t = Math.tan(33.5 * D);
+    const row: HoleRow = { ...sq, tiltAlong: r / Math.hypot(1, t), tiltAcross: (r * t) / Math.hypot(1, t) };
+    expect(holeLine(side, row, IMPERIAL)).toBe(`${holeLine(side, sq, IMPERIAL)}, bored 14.3° off square on a 33.5° sightline from the length`);
+  });
+  it('a blind two-plane tilt says the depth is along the bit', () => {
+    const row: HoleRow = { ...cup, tiltAlong: 0.2, tiltAcross: 0.1 };
+    expect(holeLine(side, row, IMPERIAL)).toMatch(/, bored 12\.6° off square on a 26\.6° sightline from the length, depth measured along the bit$/);
+  });
+  it('a single-plane along tilt names the end the bit leans toward', () => {
+    const a = Math.tan(10 * D);
+    expect(holeLine(side, { ...sq, tiltAlong: a }, IMPERIAL)).toMatch(/, bored 10\.0° off square toward the length max end$/);
+    expect(holeLine(side, { ...sq, tiltAlong: -a }, IMPERIAL)).toMatch(/, bored 10\.0° off square toward the length min end$/);
+    expect(holeLine(side, { ...sq, alongFrom: 'max', tiltAlong: a }, IMPERIAL)).toMatch(/toward the length min end$/);
+  });
+  it('a single-plane across tilt names the side the bit leans toward; blind adds the depth note', () => {
+    const a = Math.tan(10 * D);
+    expect(holeLine(side, { ...sq, tiltAcross: a }, IMPERIAL)).toMatch(/, bored 10\.0° off square toward the width max side$/);
+    expect(holeLine(side, { ...sq, acrossFrom: 'max', tiltAcross: a }, IMPERIAL)).toMatch(/toward the width min side$/);
+    expect(holeLine(side, { ...cup, tiltAcross: -a }, IMPERIAL)).toMatch(/toward the width min side, depth measured along the bit$/);
+  });
+  it('a zero or absent tilt leaves the line untouched', () => {
+    expect(holeLine(side, { ...cup, tiltAlong: 0 }, IMPERIAL)).toBe(holeLine(side, cup, IMPERIAL));
+  });
+});

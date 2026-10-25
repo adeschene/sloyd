@@ -2,6 +2,8 @@
 
 Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken 2026-10-24 (one question, answered in §5 as my call). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`),
 follow-up 437. Chunk 1 (a part that leans, schema 22) is deployed: `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md`.
+**Built 2026-10-25 on branch `angled-holes`** (plan Tasks 1–12; schema 23); NOT merged or deployed. Browser verification (plan
+Task 13) DONE 2026-10-25: 9/9 PASS (`docs/browser-verification-angled-holes.md`); next: merge, deploy (the user's decision). Later rulings: the *Amended (build)* block at the end, which wins where it differs from the text.
 
 The user chose stretchers next. The numbers on the chunk 1 stool (rake 8°, splay 12°) showed that a square rung's end lands
 across a leaning leg's corner, so no saw cut can shoulder it flush; staked furniture fits rungs as round tenons in sockets
@@ -253,3 +255,85 @@ model it is not reached by a tilt, and the builder notes it.
 - The structural test that recognises a leg's stale socket (§5).
 - The closed forms of §6.3's exact rows and the shape of the conservative ones, within "never under-report".
 - How the plane-ring helper and the elliptical diagram are built, within byte-identity for square holes.
+
+## Amended (build)
+
+Rulings made while building, on branch `angled-holes` (2026-10-24/25; the SDD ledger and the task reports). The code plus these
+rulings govern; where one differs from the text above, this block wins. Records: invariants 44, 50, 51, 56 and 57 in
+`docs/invariants.md`; follow-ups 447–456 (437 closed but the round tenon).
+
+- **Ruling P1 — tilt keys in `holeRowValues` carry their NAMES (§3.1's "`holeRowValues` skips an absent tilt", narrowed).** For
+  EACH PRESENT tilt key it appends the key's name then its value (e.g. `'tiltAlong', 0.25`), in `HOLE_KEYS` order; an absent key
+  appends nothing, so square rows' arrays are unchanged. `sameHoleRow` also requires equal lengths: "skip absent" alone let a square
+  row equal a tilted one (the shorter array walked) and a `tiltAlong`-only row equal a `tiltAcross`-only row of the same value. Cost:
+  the key strings (cut-list grouping, `geometryKey`) of TILTED rows carry the key names; harmless.
+- **Ruling T2a — `holes.test`'s `holeInstances` deep-equal gains `bit` / `reach`.** The widened `Hole` forces it; "existing tests
+  unchanged" means behaviour, not a deep-equal on a widened struct. Cost: none (the square values are asserted equal).
+- **Ruling T2b — `holeTilt.ts` restates `lean.ts`' two degree conversions.** An import would cycle (holes → holeTilt → lean → frames →
+  holes); a test pins the copies against `lean.ts`. Cost: two one-line copies could drift; the test catches it.
+- **Ruling T2c — `retilt` re-derives from the previous row only (§3.1's edit rule).** The Holes panel applies it ONLY for a change
+  of `face`, `from`, `along`, `alongFrom` or `acrossFrom`, and writes a typed tilt directly. Cost: a combined edit would drop a typed
+  tilt (no such control exists).
+- **Ruling T2d — a new fault kind, `too-shallow` (§6.3, which was silent).** A blind tilted bore whose bottom disc reaches back to the
+  entry face — depth along the bit ≤ r·tanθ + `HOLE_EPS`, the disc's uphill rim at or above the mouth plane — is `too-shallow`:
+  `holeFaults` decides it, `holeInStock` is false (the mesh takes the clipped path), and it has its own words (`holeFaultText`,
+  `faultKey`; the panel's `Too shallow for its angle — deepen it, or use Through.`). An add or edit that ADDS it is refused; one a later
+  edit causes is KEPT and noted (inv 50). Cost: one more fault word; a 1/2" bore at 45° needs more than 1/4" of depth.
+- **Ruling T3a — the off-flat and capsule forms (§6.3's closed forms, as built).** The mouth/exit `off-flat` form is
+  `n·c − r·|n − dir(n·m)e_a|` (the plan's form under-reports at the mouth), and `meets-hole`'s pair capsule (`capsuleOf`) runs `r·tanθ` past a
+  face-flat end (the plain capsule misses the mouth's uphill tip). Both stand over the plan's text. Cost: none (the reviewer re-derived both).
+- **Ruling T7a — square holes keep rendering as `<ellipse>` (the plan said `<circle>` otherwise).** That IS today's output; byte
+  identity wins over the plan's text. A tilted mouth was first an `<ellipse>` with a matrix transform; the Task 7 review replaced it
+  with a `<path>` of `TILT_ELLIPSE_POINTS` points in user units, so its stroke scales with the viewBox like every other hole line.
+  Cost: none.
+- **Ruling T8a — a blind tilted bench line ends `, depth measured along the bit` (§8's "says the depth is along the bit").** Not `,
+  deep along the bit`, which dangles a clause away from the depth number. Cost: a wording tweak.
+- **Ruling T9a — a TILTED row entering an end slides on Level the ends (§7, and the plan's "through rows are unchanged").** Its
+  station and inset move by `−e` times its slopes, through or blind (`levelEndHoles`); "unchanged" holds only for square rows —
+  otherwise the bore's line moves in the wood. Cost: none (world-line tests).
+- **Ruling T9b — Level the ends REFUSES an unstorable hole (§7's "a hole the new ends cut through is KEPT and its fault noted",
+  superseded for that case).** When a shortened end would leave a row with a negative station or inset, or a blind depth ≤ 0
+  (`storableRow`), it refuses: `Levelling the ends would cut away a hole — move it or remove it first.` Those values are unstorable
+  (the loader drops the row silently), so keep-and-note is impossible; a fault on a storable row is still kept and noted. Cost: the
+  user removes a hole before re-levelling; the wording is unreviewed (fu 454).
+- **Ruling T9c — the panel's wording calls (§4).** Selects `Tilt end` / `Tilt side`; a square row's select defaults to the far
+  end/side; the readout ends `from the <along>` (§4 said `… dimension`); `addHoleRows` also refuses an out-of-bound tilt
+  (`HOLE_TILT_PAST_BOUND`). Cost: wording tweaks (fu 454).
+- **Ruling T10a — a faulted socket is left out and the rest bored, each faulted leg named (§5).** The plan's `socketPlan` returned
+  rows or a refusal; it refuses outright only when no socket can be bored, and otherwise carries the sentences as a note. Cost: none
+  (the spec wins).
+- **Ruling T10b — "stands under" judges height within `TOUCH` (1/32"), the design checks' resting tolerance (§5's "the resting
+  rule"), not `LEVEL_EPS`.** After a lean edit and Level the ends a leg's top sits ~0.0013" off the seat and would otherwise lose its
+  stale note and be re-bored beside its old socket. Cost: a leg up to 1/32" below a seat counts as under it.
+- **Ruling T10c — copies are compared on every number at 1e-9, in a flag-free form (§5's "to 1e-9").** Exact comparison fails on
+  non-dyadic offsets. Cost: two copies differing by less than 1e-9 bore as one.
+- **Ruling T10d — only a TILTED count-1 row can be a stale socket (§5's structural test).** A user's square clearance hole over a
+  leg top is never replaced. Cost: a square socket from elsewhere is never replaced (leaning legs always give tilted sockets).
+  Narrowed by the final review (M4): the row must also be a THROUGH bore entering from the seat's top (`isSocketOf`'s entry), so a
+  user's blind or underside bore along the old line is never replaced either.
+- **Ruling T11a — a JOINED Refine refuses up front when any part has a tilted row (§9, which keeps such a part EXACTLY).**
+  `runJoinery` re-joins the whole refined document, kept boards included, which cannot promise "exactly" (as chunk 1 refuses a kept
+  leaning part in a joined Refine): `Refine can't keep a part with angled holes in a joined project yet: <name>.` (reason
+  `'lean-joint'`). Joinery and Repair are unchanged. Cost: Refine is unavailable on a joined project with an angled-hole part until the
+  joints are removed (leaning stools already refuse a joined Refine).
+- **Ruling F1 — the tilt bound takes lean's 1e-9 allowance, and Bore leg sockets refuses past it (final review, Important 1;
+  §3.1's exact bound and the plan's Global Constraints, superseded).** `withinTiltBound` is `≤ 1 + 1e-9` on each slope and on the
+  resultant, the same form as `lean.ts`' `withinBound` (one rule for both bounds); the loader and the store keep calling it. A socket
+  for a leg leaning exactly 45° derives its slopes through `leanMap` / `fromWorld` a few ulps past 1 and was dropped silently on the
+  next load. `socketPlan` also checks every new socket against the bound: one past it is a faulted socket, the leg named
+  (`<leg>'s socket would tilt past 45° — reduce the leg's lean.`, `socketTooSteep`), nothing written for it (Ruling T10a). Cost: a
+  stored slope up to 1 + 1e-9 (≈45.00000003°) is accepted.
+- **Ruling F2 — the other entry side of the same face keeps a tilted bore's angle (final review M3; Ruling T2c, narrowed).**
+  `retilt` on a `from` flip (same face) reverses the bit: both lateral slopes are negated (a pure sign flip; a zero stays absent,
+  never -0), so the bore keeps its angle through the wood (its mouth keeps its station and inset). A FACE change still starts
+  square (T2c). Cost: a flip keeps an angle the user meant to clear (they type 0 to clear it).
+- **Ruling F2a — the flipped bore is parallel, not on the same line (final re-review).** The mouth keeps its station and inset, so the
+  bore enters the other face at the same place and angle and runs parallel to the old one. Keeping the exact line would shift the
+  mouth by T·slope: one float addition (a flip back would not restore the row bit-exactly) that can push a station or inset below 0
+  (the loader drops the row). Cost: a woodworker who flips the entry side expecting the same hole through the wood must move the
+  mouth by the tilt × the thickness themselves.
+
+Also as built (no ruling; the text above reads loosely): §3.1's "per inch of depth" is per inch of AXIAL travel (along the face's
+normal: `bitVector`'s face-axis component is exactly ±1), while a blind row's stored `depth` is measured along the bit (§3.2), so
+the bore's axial reach is `depth / |bit|`. In the section (§6.2), a tilted bore the plane meets never takes fu 348's rings fast
+outline: its outline is the union of the bored pieces.

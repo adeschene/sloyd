@@ -7168,12 +7168,20 @@ and its section caps omit the bores — with NO note (spec §8 said "with a note
 that are not square to a face (the seat's leg sockets, bored along the leg's real axis), oblique bores in caps and drawings, and probably
 a round or tapered round tenon on a leg's top; it lifts both refusals.
 **Status:** open (feature-sized; needs its own spec — chunk 2).
+**Status:** closed 2026-10-25 by angled holes (splayed legs chunk 2, schema 23; built on branch `angled-holes`, not merged or
+deployed): a hole row's bit tilts (`tiltAlong` / `tiltAcross`, `holeTilt.ts`), Bore leg sockets bores a seat along its leaning legs'
+axes (`legSockets.ts`), both refusals are lifted (a holed part may lean, a leaning part takes holes; one new refusal: a lean whose
+seam-free face differs from the stored one on a holed part), a leaning part's section caps subtract its bores, and tilted bores are
+drawn, capped, snapped and listed (inv 50, 51, 57). The round tenon is NOT done: moved to fu 447 (chunk 2b).
 
 **438. Aprons and stretchers between splayed legs (chunk 3).** The design checks hold nothing "between" leaning parts or lapped onto a
 leaning leg's side (Amended (build) Ruling 13, inv 39): a leaning part touches only through its level faces. So a splayed table's
 aprons or stretchers report `unsupported` (or `hangs`, when they also rest on something unleaned) until chunk 3 designs the joints
 (rung length and angles from the two legs' leaned axes). Conservative: it never passes a design that should fail.
 **Status:** open (feature-sized; chunk 3).
+**Status:** open (feature-sized; chunk 3), amended 2026-10-25: depends on chunk 2b's round tenons (fu 447) — a rung fits a leaning
+leg as a round tenon in a socket bored along the rung, and the checks must hold a seated tenon before a rung can be "held". Angled
+holes (chunk 2) are built.
 
 **439. The `hangs` sentence for a grounded leaning part off the floor.** A leaning part that is grounded through other parts but does
 not reach the floor (a leg whose foot stops short and hangs from the seat) reports the existing `hangs` message — "its X sides are
@@ -7195,6 +7203,9 @@ there has no stable container; keeping it in flat world form at the root would c
 copies would lose the definition's sharing. The §3.4 idiom builds legs at the root, so the common case is kept. A grouped staked piece
 must be ungrouped first.
 **Status:** open (by decision for chunk 1; ask first).
+**Status:** open (by decision; ask first), amended 2026-10-25 (angled holes §9): the refusal now covers a part with a tilted hole row
+too, through `leaningInAssembly`/`keepsExactly`, and reads `Refine can't keep a leaning part or a part with angled holes inside an
+assembly yet — Ungroup it first: <name>.`
 
 **442. Kept parts count toward Refine's part caps (Task 12, R7).** Kept leaning parts count toward `distinctPartsViolation` and the
 placed ceiling, but `limitLines` does not tell the model that they use part of "at most N different parts", so a model that fills the
@@ -7253,3 +7264,97 @@ leaning parts from its sites); a leaning project WITH cuts shows both the joiner
 `leanMap` begins with `leans(b)` (I3: a flat board carrying a lean had a map while `leans` said no), so `leans(b)` and
 `leanMap(b) !== null` are one predicate; the double build remains. (11)'s stray `angle-joint` fault DID appear (I2: an apron butting a
 kept leg's pre-lean side) and is fixed: `findSites` skips every pair with a leaning part. The rest stands.
+
+## From the angled holes round (splayed legs chunk 2) — 2026-10-25
+
+**447. Chunk 2b: round tenons (angled holes spec §12; was part of fu 437).** A round (later tapered) tenon on a part's end, coaxial
+with it: a leaning leg's top tenon through its seat socket, and later a rung's ends into leg sockets. The design checks must hold a
+tenon seated in a matching socket (an extension of invs 38/39 — never proximity); today a leg rests on the seat's down face by its
+level top (inv 57), and a socket is a bore with nothing in it. Joinery, the cut list (the tenon's shoulder length) and the drawings
+read it.
+**Status:** open (feature-sized; needs its own spec — chunk 2b, before chunk 3, fu 438).
+
+**448. A socket that follows its leg (angled holes spec §5).** Bore leg sockets is a button: after a lean edit, a resize or a move of
+a leg, its socket is stale (`staleSocketOf`) and the Holes panel says `<leg>'s socket no longer follows its leg — Bore leg sockets
+again.`; pressing again replaces it (its id kept). An automatic follow — the socket re-derived on every edit to the leg — was left out
+on purpose (no hidden derived feature, as Level the ends, fu 436). If wanted, it would be a store-side follow-on through `socketPlan`
+in the leg edit's own undo entry, with its refusals (copies that disagree, a faulted socket) deciding whether the edit is refused.
+**Status:** open (feature; ask first).
+
+**449. Tapered (reamed) sockets.** Staked furniture often reams the seat socket to a taper and shaves the leg's tenon to match. A
+bore is a cylinder (inv 50); a tapered bore would need a cone in `holes.ts` (geometry, faults, rings, mesh, caps, drawings, bench
+line) and pairs naturally with chunk 2b's tapered tenon (fu 447).
+**Status:** open (feature-sized; after fu 447).
+
+**450. Generate and Refine authoring a tilt.** The design form has no tilt (`WorldHoleRow` is square; fu 322's grammar cap), so
+Generate never bores at an angle and Refine KEEPS a part with a tilted row exactly (`keepsExactly`, inv 56) instead of letting the
+model edit it. Authoring a tilt in world words (a bit direction on a hole row, through `holeWorld.ts`) would let Refine change such a
+part and Generate draw a staked stool's sockets. Spec §10 also notes that `holeWorld.sameHoles` compares only some fields (not
+table-driven); not reachable by a tilt while tilted parts are kept, but this entry must make it table-driven first.
+**Status:** open (feature-sized; read fu 322 before any `DESIGN_SCHEMA` change).
+
+**451. An exact ellipse test in the holed-face mesh (Task 4 review minor).** `grainTiling.ts`' `ringDisc` judges a tilted bore's ring
+on a conservative disc (the ellipse's centre on the plane, radius `r·|bit|`), so a clean tilted bore whose ellipse clears a loop
+edge but whose disc does not takes the per-face `faceTriangles` path (the residue rule for overlapping rings; on a curved part it
+can leave T-junctions, drawn approximately). An exact ellipse–segment and ellipse–ellipse disjointness test would keep it on the
+one-region path. Perf guards apply (inv 50).
+**Status:** open (minor).
+
+**452. Bore leg sockets: a partial bore's note shows in the alert slot (Task 10 review minor).** When some sockets are bored and a
+faulted one is left out, `boreLegSockets` returns the plan's `note` (`<leg>'s socket would … — move the leg, or choose a smaller
+diameter.`), and the Holes panel shows it where refusals go, though the action succeeded. A distinct, non-error note would read
+better.
+**Status:** open (minor; the user's call on presentation).
+
+**453. A matched socket keeps its diameter when the diameter changes (Task 10 review minor).** `socketPlan` leaves a leg whose socket
+already matches (`isSocketOf`: a through bore from the top on its axis, 1e-9) alone, and the match does not compare diameters, so
+typing a new `Socket diameter` and pressing Bore leg sockets again does nothing for already-bored legs. Remove the rows (or edit
+their diameter) to change it. Candidate: a matched socket with a different diameter is re-bored at the new one.
+**Status:** open (minor; ask first).
+
+**454. Angled holes copy review (for the user).** Every new string is the builder's or the controller's, unreviewed: (1) too-shallow —
+the design-fault phrase `is too shallow for its angle`; the bench line `— check: too shallow for its angle` (no subject); the panel
+`Too shallow for its angle — deepen it, or use Through.` (2) Level the ends: `Levelling the ends would cut away a hole — move it or
+remove it first.` — it can fire when an end GROWS (a tilted row entering a growing end slides its mouth off the face), where "cut
+away" is inaccurate. (3) The Holes panel: the fields `Tilt toward end` / `Tilt toward side`, the selects `Tilt end` / `Tilt side` (a
+square row's defaults to the far end/side), the readout `Bore … off square · sightline … from the <along>` (a one-plane tilt reads
+sightline 0.0° or 90.0°; the spec said "… dimension"), and `The bore can't tilt past 45° in all — reduce an angle.` (4) The bench
+line: `bored … off square on a … sightline from the <along>` (terse: "from the length"), a tiny tilt printing `0.0°`, and a blind
+one's `, depth measured along the bit`. (5) Bore leg sockets: `Socket diameter`, `Bore leg sockets`, the fault phrases inside `… would
+<words> …`, `The socket must be narrower than <leg>.`, `Its copies stand over different legs (…) — make them match, or make this
+part unique first.`, `<leg>'s socket no longer follows its leg — Bore leg sockets again.`, and (final review F1) `<leg>'s socket would tilt past 45° —
+reduce the leg's lean.` (6) Lean: `This lean would turn the part a
+quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.` (7) Refine: `Kept as
+is (leans or angled holes): …`, the assembly refusal (fu 441), and `Refine can't keep a part with angled holes in a joined project
+yet: <name>.` (names no cure; Task 11 minor). (8) Behaviour (final review F2, Ruling F2): in the Holes panel, choosing the other
+entry side of the SAME face on a tilted row keeps its angle (both slopes negated, its mouth at the same station and inset — a parallel
+bore, not the same line through the wood; Ruling F2a); a different face starts square (T2c). The cost: a flip keeps an angle the user meant to clear
+(type 0). The review's alternative was to refuse the change on a tilted row (`Set the tilt to 0 first — a new face starts
+square.`); ask whether either reads better.
+**Status:** open (owed to the user: wording).
+
+**455. Angled holes: deferred minors (2026-10-25, the SDD ledger and task reviews).** (1) Task 1: the loader's bound boundary is not
+pinned (a slope of exactly 1, a resultant of exactly 1, kept) — closed by the final review's F1 (the boundary pinned with lean's
+1e-9 allowance: 1 and 1 + 1e-9 kept, 1 + 1e-8 dropped, `document.test.ts` / `holeTilt.test.ts`). (2) Task 2: `tiltedBox` is not memoised (cheap; tilted only);
+`touchesPrism`'s facet-order hint in u/v is square-only (order only, not correctness). (3) Task 3: the randomised fault sweep does
+not cover angle-cut off-flat, too-deep or too-shallow on tilted rows (the exact boundary tests do); the conservative rules
+over-refuse (a tilted bore tangent to a dado wall; steep bores near curves) — for the user. (4) Task 4: elliptical-ring punching is
+pinned only through watertightness; no FAULTED tilted watertight case. (5) Task 6: the Plan-view tilted test was a pin, not RED; no
+case with the mouth edge-on and the bottom not; no `visibleOnly` tilted case; the edge-on tolerance is absolute (unit vectors
+assumed). (6) Task 7: under the sliver clamp a tilted ellipse's centre cross stays axis-aligned; no ellipse test in a view whose h
+axis is not the length; the ellipse's stroke wants a real-browser look on the Plans sheet. (7) Task 8: no pin of a count > 1 row
+with a tilt, nor of a tilt with `— check:` (ordering). (8) Task 11: `refine.test.ts`' `const [leg] = stoolLegs()` could be hoisted to
+describe scope.
+**Status:** open (record-only).
+
+**456. No stale-socket note between a lean edit and Level the ends; a leg moved past its top orphans its old socket (Task 13
+finding; final review M5).** (1) Right after a lean edit, BEFORE Level the ends, the seat shows no `<leg>'s socket no longer follows
+its leg` note: the leg's top is no longer level, so it does not stand under the seat (`legsUnder`, the resting rule of spec §5), and
+the cue the user gets instead is the Lean section's `Level the ends again`. Once re-levelled the stale note appears and Bore leg
+sockets again replaces the socket in place (browser check 5, `docs/browser-verification-angled-holes.md`); the spec's "a later lean
+edit … the seat notes it" holds one step later. (2) A leg moved (or resized) farther than its top's half-width, so the old socket's
+axis line misses the top's polygon, leaves its old socket orphaned: `staleSocketOf` finds nothing, no note appears, and pressing Bore
+leg sockets again either appends a second socket beside the old one or, when they overlap, reports `… would meet another hole`.
+Within spec §13's "structural test" latitude. Candidates: note any tilted count-1 through row from the top that matches no leg; or
+fold both into fu 448's automatic follow.
+**Status:** open (record-only; ask first before changing either).

@@ -13,6 +13,7 @@ const PHRASE: Record<HoleFaultKind, string> = {
   'off-flat': 'runs into a cut or angle',
   'meets-hole': 'meets another hole',
   'too-deep': 'is deeper than the part',
+  'too-shallow': 'is too shallow for its angle',
 };
 const KINDS = Object.keys(PHRASE) as HoleFaultKind[];
 

@@ -448,7 +448,7 @@ export function faceContacts(doc: FlatDocument): FaceContact[] {
  * the face's size (well under 1e-9 for any part under 10,000in); the least real contact the unleaned rule accepts is
  * TOUCH × TOUCH ≈ 1e-3. Never a design tolerance: do not raise it to make a contact fail, nor drop it to 0.
  */
-const REST_AREA = 1e-9;
+export const REST_AREA = 1e-9;
 
 /**
  * What the checks know of the LEANING parts (splayed legs spec §7.2). Built once per check, and only when some part leans,

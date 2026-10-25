@@ -10,6 +10,7 @@ import { geometryBoard, shapedPart } from './profiles';
 import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
 import { sectionFrame } from './runout';
 import { leanMap } from './lean';
+import { tiltedHole } from './holes';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
@@ -180,11 +181,13 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
   // owned by the board. A centre sits in AIR — a deliberate exception to invariant 16's marker rule: it is the centre
   // of a drawn rim, and the Tape tool measures centre to centre from it. Deduped by distance against the lattice.
   const close = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
+  // A tilted bore's exit centre is where the bit's line meets the exit face (angled holes spec §8): `reach` along the bit.
   for (const h of geometry.holes) {
     const ends = h.through ? [0, h.depth] : [0];
     for (const t of ends) {
       const c = [...h.centre];
-      c[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * t;
+      if (t !== 0 && tiltedHole(h)) for (let i = 0; i < 3; i += 1) c[i] = h.centre[i]! + h.reach * h.bit[i]!;
+      else c[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * t;
       const at = placed(board, { length: c[0]!, width: c[1]!, thickness: c[2]! });
       if (!lattice.some((q) => close(q.at, at))) lattice.push({ kind: 'face-center', at, owner });
     }

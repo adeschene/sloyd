@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { useStore, HOLES_ON_LEAN, LEAN_HAS_HOLES, LEAN_NOT_UPRIGHT, LEAN_PAST_BOUND } from '../store/store';
+import { useStore, LEAN_NOT_UPRIGHT, LEAN_PAST_BOUND, LEAN_TURNS_HOLES } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
 import { slopeOf } from '../document/lean';
@@ -22,6 +22,7 @@ const open = (boards: Board[], select: string[] = [boards[0]!.id]) => {
 };
 const input = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 const part = (id: string) => useStore.getState().doc.boards.find((b) => b.id === id) as Board;
+const HOLE = { id: 'h', face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, inset: 0.5, acrossFrom: 'min' as const, diameter: 0.25, depth: 'through' as const };
 const STALE = 'Ends were levelled for a different lean — Level the ends again';
 const POSITION = 'Position is the part before its lean; it leans about the centre of its top.';
 
@@ -59,14 +60,25 @@ describe('the Lean section (splayed legs spec §4)', () => {
     expect(setLean).toHaveBeenCalledWith(['a'], { splaySign: -1 });
   });
 
-  it('a refusal is the field\'s own error: a holed part\'s text, the typed text kept', async () => {
-    open([leg({ lean: undefined, holes: [{ id: 'h', face: 'width', from: 'min', along: 'length', alongFrom: 'min', station: 2, count: 1, pitch: 0, inset: 0.5, acrossFrom: 'min', diameter: 0.25, depth: 'through' }] })]);
+  // Angled holes §7: the holed-part refusal is lifted; the seam re-choice on a holed part is the refusal left.
+  it('a holed part leans', async () => {
+    open([leg({ lean: undefined, holes: [HOLE] })]);
     const user = userEvent.setup();
     await user.clear(input('Rake'));
     await user.type(input('Rake'), '5{Enter}');
-    expect(screen.getByRole('alert')).toHaveTextContent(LEAN_HAS_HOLES);
-    expect(input('Rake').value).toBe('5');
-    expect(part('a').lean).toBeUndefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(part('a').lean).toBeDefined();
+    expect(part('a').holes).toEqual([HOLE]);
+  });
+
+  it('a refusal is the field\'s own error: the re-choice on a holed leaning part, the typed text kept', async () => {
+    open([leg({ holes: [HOLE] })]);
+    const user = userEvent.setup();
+    await user.clear(input('Splay'));
+    await user.type(input('Splay'), '0{Enter}');   // x → 0 on face width: the seam-free face would flip to thickness
+    expect(screen.getByRole('alert')).toHaveTextContent(LEAN_TURNS_HOLES);
+    expect(input('Splay').value).toBe('0');
+    expect(part('a').lean).toEqual(LEAN);
   });
 
   it('a zero is a legal rake (min0): typing 0 clears that slope', async () => {
@@ -191,35 +203,23 @@ describe('the Lean section (splayed legs spec §4)', () => {
   });
 });
 
-describe('the Holes panel shows the store\'s refusal on a leaning part', () => {
-  it('adding a hole to a leaning part shows the verbatim text', async () => {
+describe('the Holes panel on a leaning part (angled holes §7)', () => {
+  it('a leaning part takes a hole', async () => {
     open([leg()]);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     await user.click(screen.getByRole('button', { name: /^Hole/ }));
-    expect(screen.getByRole('alert')).toHaveTextContent(HOLES_ON_LEAN);
-    expect(part('a').holes).toEqual([]);
-  });
-});
-
-describe('the Holes refusal is retired with the lean it was made for', () => {
-  it('Clear lean removes a stale "can\'t take holes" text', async () => {
-    open([leg()]);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
-    await user.click(screen.getByRole('button', { name: /^Hole/ }));
-    expect(screen.getByText(HOLES_ON_LEAN)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Clear lean' }));
-    expect(screen.queryByText(HOLES_ON_LEAN)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(part('a').holes).toHaveLength(1);
+    expect(part('a').lean).toEqual(LEAN);
   });
 });
 
 describe('the refusal copy is pinned verbatim (Global Constraints)', () => {
   it('lean and hole refusals', () => {
     expect(LEAN_NOT_UPRIGHT).toBe('Only an upright part can lean.');
-    expect(LEAN_HAS_HOLES).toBe("A part with holes can't lean yet — that comes with angled holes.");
     expect(LEAN_PAST_BOUND).toBe("The lean can't pass 45° in all — reduce the rake or splay.");
-    expect(HOLES_ON_LEAN).toBe("A leaning part can't take holes yet — that comes with angled holes.");
+    expect(LEAN_TURNS_HOLES).toBe('This lean would turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.');
   });
   it('posture while leaning', () => {
     expect(POSTURE_WHILE_LEANING).toBe('Clear the lean first — only an upright part can lean.');

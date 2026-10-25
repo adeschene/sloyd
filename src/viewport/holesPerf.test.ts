@@ -1,4 +1,4 @@
-import { createBoard, partGeometry, stockChecks } from '../document/document';
+import { createBoard, holeFaults, holeInStock, partGeometry, stockChecks } from '../document/document';
 import type { Board } from '../document/document';
 import { bodyMesh, holesMesh } from './grainTiling';
 
@@ -10,7 +10,8 @@ import { bodyMesh, holesMesh } from './grainTiling';
  *   bounding-box reject (R10);
  * - the rows with a dado they CROSS (a faulted row, bound 100 ms, about 3x its measured 31-32 ms): the fallback split,
  *   where the memoised prism per Hole and the prism built once per hole (not per piece) carry the cost — reverting
- *   them takes this case to about 135-140 ms.
+ *   them takes this case to about 135-140 ms;
+ * - a seat with four TILTED leg sockets (angled holes Task 4; bound 40 ms): the tilted bore's rings, wall and bottom.
  * The clean-hole wall path (ruling R15) is pinned deterministically, not here: grainTiling.test.ts' "per hole: one
  * quad per facet (no seam split, nothing doubled)…" counts 96 wall triangles where the clipped path draws 192.
  *
@@ -33,10 +34,18 @@ const crossingDado = { ...dado, offset: 10 };
 
 const side = (length: number, cuts: Board['cuts']) => createBoard({ id: 'side', length, width: 11.25, thickness: 0.75, cuts, holes: rows });
 
+// Angled holes Task 4: a chair seat's four leg sockets, blind, each bored 1" along a bit splayed out toward its corner.
+const socket = (id: string, alongFrom: 'min' | 'max', acrossFrom: 'min' | 'max') => ({
+  id, face: 'thickness' as const, from: 'min' as const, diameter: 1, depth: 1, along: 'length' as const, alongFrom,
+  station: 2.5, count: 1, pitch: 0, acrossFrom, inset: 2.5, tiltAlong: -0.2, tiltAcross: -0.15,
+});
+const sockets = [socket('s1', 'min', 'min'), socket('s2', 'min', 'max'), socket('s3', 'max', 'min'), socket('s4', 'max', 'max')];
+const seat = (length: number) => createBoard({ id: 'seat', length, width: 16, thickness: 1.5, holes: sockets });
+
 let tick = 0;
-function rebuild(cuts: Board['cuts']): number {
+function rebuild(cuts: Board['cuts'], make: (length: number, cuts: Board['cuts']) => Board = side): number {
   tick += 1;
-  const board = side(30 + tick * 1e-6, cuts);
+  const board = make(30 + tick * 1e-6, cuts);
   const start = performance.now();
   const { bodies, holes } = partGeometry(board);
   for (const body of bodies) bodyMesh(board, body, holes, bodies);
@@ -45,9 +54,9 @@ function rebuild(cuts: Board['cuts']): number {
   return performance.now() - start;
 }
 
-function minOf9(cuts: Board['cuts']): number {
-  for (let i = 0; i < 3; i += 1) rebuild(cuts);
-  return Math.min(...Array.from({ length: 9 }, () => rebuild(cuts)));
+function minOf9(cuts: Board['cuts'], make?: (length: number, cuts: Board['cuts']) => Board): number {
+  for (let i = 0; i < 3; i += 1) rebuild(cuts, make);
+  return Math.min(...Array.from({ length: 9 }, () => rebuild(cuts, make)));
 }
 
 describe('a holed part rebuilds inside a frame (Task 11b)', () => {
@@ -59,5 +68,14 @@ describe('a holed part rebuilds inside a frame (Task 11b)', () => {
   });
   it('the same rows and a dado they cross (faulted): minimum of 9 full rebuilds is at most 100 ms', () => {
     expect(minOf9([crossingDado])).toBeLessThanOrEqual(100);
+  });
+  it('a seat with four tilted leg sockets (clean): minimum of 9 full rebuilds is at most 40 ms', () => {
+    const b = seat(30);
+    for (const r of b.holes) expect(holeFaults(b, r)).toEqual([]);
+    for (const h of partGeometry(b).holes) {
+      expect(h.bit[0] !== 0 && h.bit[1] !== 0).toBe(true);
+      expect(holeInStock(b, h, stockChecks(b))).toBe(true);
+    }
+    expect(minOf9([], (length) => seat(length))).toBeLessThanOrEqual(40);
   });
 });

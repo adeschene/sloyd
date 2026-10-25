@@ -2,6 +2,7 @@ import type { Board, CutFrom, Dimension, HoleRow } from './types';
 import { formatLength, formatMm, imperialAt, isMetric, type Units } from '../units/length';
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
+import { isTilted, tiltDegrees, tiltResultantDeg, tiltSightlineDeg } from './holeTilt';
 import { curveKindWord } from './curves';
 import { holeFaults, type FaultCurve, type HoleFault } from './holeFaults';
 import type { ProfileKind } from './profiles';
@@ -26,15 +27,29 @@ export function holeFaultText(f: HoleFault, r: HoleRow): string {
     case 'off-flat': return `hole ${n} sits where a cut has removed the wood`;
     case 'meets-hole': return `hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}`;
     case 'too-deep': return `the holes are deeper than the ${r.face}`;
+    case 'too-shallow': return 'too shallow for its angle';
   }
 }
 
-/** A fault's identity: per hole, except too-deep, which is a property of the ROW (every hole shares its depth). A
+/** A fault as what a SOCKET would do (Bore leg sockets, angled holes spec §5): the verb form of `holeFaultText`'s words,
+ *  for "<Leg>'s socket would <words> — …". A socket is one bore, so no hole number. Lower-case, no full stop. */
+export function socketFaultWords(f: HoleFault): string {
+  switch (f.kind) {
+    case 'breaks-out': return f.curve ? `run into ${curveWord(f.curve)}` : `run past ${edgeName(f.edge!)}`;
+    case 'off-flat': return 'sit where a cut has removed the wood';
+    case 'meets-hole': return 'meet another hole';
+    case 'too-deep': return 'run deeper than the part';
+    case 'too-shallow': return 'be too shallow for its angle';
+  }
+}
+
+/** A fault's identity: per hole, except too-deep and too-shallow, properties of the ROW (every hole shares its depth,
+ *  diameter and tilt; ruling T2d). A
  *  breaks-out names WHAT it breaks into — an edge, or a curve by id (curves spec §6.3: whole-branch review, finding 2) —
  *  so a hole already past an edge is still refused into an arch's waste. The Properties panels' "does this edit ADD a
  *  fault" (Holes and Curves) reads it, and so does distinctFaults: one key for both, or a hole already past an edge and
  *  in a curve would collapse to one fault on one side of the test and be refused on every edit. */
-export const faultKey = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep'
+export const faultKey = (f: HoleFault) => (f.kind === 'too-deep' || f.kind === 'too-shallow' ? f.kind
   : f.kind === 'breaks-out' ? `${f.index}:breaks-out:${f.curve ? `curve:${f.curve.id}` : 'edge'}` : `${f.index}:${f.kind}`);
 /** One fault per key, in holeFaults' order: THE one count of a row's faults (invariant 19), read by the bench line and
  *  the Properties note, so a row thinned under its depth reads one fault, not one per hole. A hole past an edge and into
@@ -88,7 +103,39 @@ export function holePitchText(r: HoleRow, units: Units): string {
  *  design fault's person copy (AI-holes spec §3.1) read it here. */
 export const holeFaceText = (r: Pick<HoleRow, 'face' | 'from'>) => faceName(r.face, r.from);
 
+const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
+
+/**
+ * A tilted bore's bench words (angled holes spec §8): a bit leaning in ONE plane names the end or side it leans toward
+ * (a positive slope leans to the far end from `alongFrom`, the far side from `acrossFrom`); a bit leaning in both gives
+ * the angle off square and its sightline from the `along` dimension. A blind bore's depth is measured along the bit. Empty for a
+ * square row, so a square row's line is byte for byte as before.
+ */
+function tiltText(r: HoleRow): string {
+  if (!isTilted(r)) return '';
+  const deg = (n: number) => `${n.toFixed(1)}°`;
+  const t = tiltDegrees(r);
+  const along = r.tiltAlong ? 1 : 0;
+  const acr = r.tiltAcross ? 1 : 0;
+  let words: string;
+  if (along + acr === 2) words = `bored ${deg(tiltResultantDeg(r))} off square on a ${deg(tiltSightlineDeg(r))} sightline from the ${r.along}`;
+  else if (along) words = `bored ${deg(tiltResultantDeg(r))} off square toward the ${r.along} ${t.along > 0 ? flip(r.alongFrom) : r.alongFrom} ${end(r.along)}`;
+  else words = `bored ${deg(tiltResultantDeg(r))} off square toward the ${acrossOf(r)} ${t.across > 0 ? flip(r.acrossFrom) : r.acrossFrom} ${end(acrossOf(r))}`;
+  return `, ${words}${r.depth === 'through' ? '' : ', depth measured along the bit'}`;
+}
+
+/** The Holes section's readout on a tilted row (angled holes §4), at the bench line's own 0.1° (`tiltText`), so the
+ *  two never disagree; null for a square row. */
+export function holeTiltReadout(r: HoleRow): string | null {
+  if (!isTilted(r)) return null;
+  return `Bore ${tiltResultantDeg(r).toFixed(1)}° off square · sightline ${tiltSightlineDeg(r).toFixed(1)}° from the ${r.along}`;
+}
+
 function holeLineBase(r: HoleRow, units: Units): string {
+  return holeLineSquare(r, units) + tiltText(r);
+}
+
+function holeLineSquare(r: HoleRow, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   const size = holeSizeText(r, units);
   const where = `in ${holeFaceText(r)}`;

@@ -79,6 +79,14 @@ describe('partFeatures: identity and true views', () => {
     expect(f!.trueAxis!.map((x) => Math.abs(Math.round(x)))).toEqual([0, 1, 0]);
     expect(f!.trueNormal).toBeNull();
   });
+  it('a tilted row is true in no orthographic view: trueAxis null (angled holes spec §8)', () => {
+    const row = { id: 'r', ...defaultShelfPinRow(side)!, tiltAlong: 0.25 };
+    const [f] = partFeatures({ ...side, holes: [row] }, IMPERIAL);
+    expect(f!.trueAxis).toBeNull();
+    expect(f!.trueNormal).toBeNull();
+    const [g] = partFeatures({ ...side, holes: [{ ...row, tiltAlong: undefined, tiltAcross: -0.25 }] }, IMPERIAL);
+    expect(g!.trueAxis).toBeNull();
+  });
   it('a mirrored copy has the same true directions up to sign (Review Focus 1)', () => {
     const b = { ...side, holes: [{ id: 'r', ...defaultShelfPinRow(side)! }], angleCuts: [{ id: 't', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 18, amount: 0.5 }) }] };
     const a = partFeatures(b, IMPERIAL);

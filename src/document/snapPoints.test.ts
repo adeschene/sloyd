@@ -915,6 +915,30 @@ describe('hole centres (holes spec §3.5)', () => {
   });
 });
 
+describe('a tilted bore\'s exit centre (angled holes spec §8)', () => {
+  // 20° toward +length from the top face: the bit (tan 20°, 0, −1) board-local meets the bottom face 3/4·tan 20° along.
+  const T20 = Math.tan((20 * Math.PI) / 180);
+  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const, station: 5, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5, tiltAlong: T20 };
+  const near = (pts: BoardSnapPoint[], at: readonly number[], tol: number) => pts.filter((p) => p.at.every((v, i) => Math.abs(v - at[i]!) <= tol));
+  it('is where the bit\'s line meets the exit face, not straight below the mouth', () => {
+    const b = createBoard({ id: 'p', length: 24, width: 5.5, thickness: 0.75, holes: [row] });
+    const pts = boardSnapPoints(b);
+    expect(near(pts, [5, 0.75, 1.5], 1e-12)).toHaveLength(1);                 // the mouth centre
+    expect(near(pts, [5 + 0.75 * T20, 0, 1.5], 1e-12)).toHaveLength(1);       // the exit centre
+    expect(near(pts, [5, 0, 1.5], 1e-9)).toHaveLength(0);
+  });
+  it('maps through the lean on a leaning part', () => {
+    const T12 = slopeOf(12);
+    const plain = createBoard({ length: 28, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 90, position: [3, 1, -2],
+      holes: [{ ...row, station: 10, inset: 0.75 }] });
+    const b: Board = { ...plain, lean: { x: T12, z: 0, face: chooseFace(plain, T12, 0) } };
+    const exit = toWorld(plain, { length: 10 + 1.5 * T20, width: 0.75, thickness: 0 });
+    const want = leanMap(b)!.apply(exit);
+    expect(near(boardSnapPoints(b), want, 1e-12)).toHaveLength(1);
+    expect(near(boardSnapPoints(plain), exit, 1e-12)).toHaveLength(1);
+  });
+});
+
 describe('curve snap points (curves spec §3.5, P5)', () => {
   const apron = createBoard({ id: 'p', length: 30, width: 5, thickness: 0.75, curves: [ARCH] });
   const has = (pts: BoardSnapPoint[], at: number[], kind?: string) => pts.some((p) => (!kind || p.kind === kind) && p.at.every((v, i) => Math.abs(v - at[i]!) <= 1e-9));

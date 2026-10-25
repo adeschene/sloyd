@@ -27,8 +27,9 @@ function unmatchedEdges(board: Board): { triangles: number; unmatched: number } 
   const count = new Map<string, number>();
   let triangles = 0;
   for (const body of bodies) expect(drawsAsBox(board, body, holes)).toBe(false);
-  // Chunk c2 (stage 1): the one geometry BoardMesh draws.
-  const meshes = [partMesh(board, bodies, holes).positions];
+  // Chunk c2 (stage 1): the one geometry BoardMesh draws. A flat holed part (angled holes Task 4) is not shaped: BoardMesh
+  // draws each holed body through bodyMesh, so its bodies' meshes are what it draws.
+  const meshes = shapedPart(geometryBoard(board)) ? [partMesh(board, bodies, holes).positions] : bodies.map((body) => bodyMesh(board, body, holes, bodies).positions);
   const h = holesMesh(board, holes, bodies, stockChecks(board));
   if (h) meshes.push(h.positions);
   for (const p of meshes) {
@@ -279,6 +280,22 @@ describe('a holed plane the merge cannot trust keeps the per-face path (fu 369)'
     expect(polyArea(both)).toBeGreaterThan(0);
     expect(topArea(board)).toBeCloseTo(topArea(plain) - mouths, 6);
   });
+  // Angled holes Task 4: two TILTED bores (45° along the row) whose mouth ELLIPSES overlap where circles of their radius
+  // would not (0.3" apart; 2r = 0.25", 2r·√2 ≈ 0.354"). Both clean by holeInStock (it does not judge meets-hole): judged by
+  // their radius alone, the merge and the per-face path would both hand earcut two overlapping rings.
+  it('overlapping tilted mouths (ellipses overlap, circles of their radius do not): the face loses exactly their union', () => {
+    const plain = createBoard({ ...apron, curves: [arch] });
+    const t = { ...one, tiltAlong: 1 };
+    const board = createBoard({ ...apron, curves: [arch], holes: [t, { ...t, id: 'q', station: 15.3 }] });
+    const [a, b] = partGeometry(board).holes as [Hole, Hole];
+    for (const h of [a, b]) expect(holeInStock(board, h, stockChecks(board))).toBe(true);
+    expect(Math.abs(a.centre[0] - b.centre[0])).toBeGreaterThan(2 * a.radius);
+    const ra = holeRing(a, 0), rb = holeRing(b, 0);
+    let both: V3[] = [...rb];
+    for (const q of holePrism(a).slice(0, ra.length)) both = clipPolygon(both, q);
+    expect(polyArea(both)).toBeGreaterThan(0);
+    expect(topArea(board)).toBeCloseTo(topArea(plain) - (polyArea(ra) + polyArea(rb) - polyArea(both)), 6);
+  });
   // A FAULTED bore (breaking out of the length-min end) on the same face as a clean one: the merge would triangulate
   // around the clean ring only and cover the faulted mouth with face.
   it('a faulted bore on the plane: its mouth is still open', () => {
@@ -430,5 +447,40 @@ describe('a run whose two ends\' bands overlap is watertight for every section k
   it.each(kindGapCases)('%s: the cap across the band', (_name, board) => {
     const p = board.profiles[0]!;
     expect(capCracks(board, 'top', p.face === 'max' ? 0.7 : 0.05)).toBe(0);
+  });
+});
+
+// Angled holes Task 4 (spec §6.1): a TILTED bore's mesh is watertight — its mouth (and a through exit) an ellipse cut from
+// the face, its wall ruled along the bit, a blind bottom square to the bit. Kept apart from holedCases: those also run
+// capCracks, and a tilted bore's section caps are not this task's.
+const seat = { length: 20, width: 10, thickness: 1.5 };
+const tiltedBore = (over: Partial<HoleRow>): HoleRow => ({ id: 't', face: 'thickness', from: 'min', diameter: 0.75, depth: 'through', along: 'length',
+  alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 3, tiltAlong: 0.25, tiltAcross: 0.1, ...over });
+const tiltedCases: [string, Board][] = [
+  ['a through tilted bore in a flat board', createBoard({ ...seat, holes: [tiltedBore({})] })],
+  ['a blind tilted bore in a flat board', createBoard({ ...seat, holes: [tiltedBore({ from: 'max', depth: 1, tiltAlong: -0.3, tiltAcross: 0.2 })] })],
+  ['a blind tilted bore on a split arch\'s strips', createBoard({ ...apron, curves: [arch], holes: [{ ...one, tiltAlong: 0.3 }] })],
+  ['a through tilted bore on a split arch\'s strips (the exit ring off the mouth\'s centre)',
+    createBoard({ ...apron, curves: [arch], holes: [{ ...one, depth: 'through', tiltAlong: 0.3, tiltAcross: 0.1 }] })],
+  ['a tilted bore beside a stopped roundover\'s run-out', stoppedBoard('roundover', 3, 3, 'face', [{ ...clearBore(), tiltAlong: 0.3 }])],
+];
+describe('a tilted bore\'s mesh is watertight (angled holes Task 4)', () => {
+  it('the fixtures are what they claim: every bore tilted and clean', () => {
+    for (const [name, b] of tiltedCases) {
+      const { holes } = partGeometry(b);
+      expect(holes.length, name).toBeGreaterThan(0);
+      for (const h of holes) {
+        const lateral = [0, 1, 2].filter((i) => i !== ['length', 'width', 'thickness'].indexOf(h.axis)).map((i) => h.bit[i]!);
+        expect(lateral.some((x) => x !== 0), name).toBe(true);
+        expect(holeInStock(b, h, stockChecks(b)), name).toBe(true);
+      }
+      for (const r of b.holes) expect(holeFaults(b, r), name).toEqual([]);
+    }
+    for (const [, b] of tiltedCases.slice(2, 4)) for (const c of b.curves) expect(curvePlan(b, c)?.clip).toBe(false);
+  });
+  it.each(tiltedCases)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
   });
 });

@@ -12,6 +12,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
+| — (angled holes, branch `angled-holes`) | not built for deploy | 23 | NOT DEPLOYED. Once deployed, rolling back to `f3fced0` REFUSES every project saved at 23 — export first; tilts and sockets stop |
 | `f3fced0` (splayed legs) | `index-B3SCZcHR.js` | 22 | current |
 | `68dca2d` (mirrored links) | `index-_J_yZLbU.js` | 21 | REFUSES every project saved at 22 — export first; leans stop |
 | `e2729ee` (AI profiles) | `index-D_ed_oQ3.js` | 20 | REFUSES every project saved at 21 — export first; mirrored links stop |
@@ -137,9 +138,21 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | AI profiles | 10-23 | — | The design form's four angle arrays merged into ONE `angles` item to fit the grammar (`toWireDesign` / `parseDesign` split; the internal form unchanged); Generate and Refine author edge profiles in world words (`profileWorld.ts`; untouched entries exact through the exact-entry map); `profile-fault` kept and fed back (`profileDesignFaults.ts`); profiled parts link through turns and follow the rank + thickness frame rule; a part with curves or a two-side run keeps its profiles carried (`carriesProfiles`); profile lines in the change list (inv 40/41/48/53/56; fu 430 closed, 434). **Merged `30f1299`, deployed 2026-10-23 at `e2729ee` (`index-D_ed_oQ3.js`)** |
 | mirrored links | 10-23 | 21 | A linked part may be its Shape's MIRROR image (`mirrored`, an own field of a shaped part; `resolveBoard` applies it by flag flips, `mirrorFeatures`): edits lower through it exactly (`lowerOwnMirror`), a side is chain parity XOR the flag (`sideAt`); Generate and Refine link mirror twins (`mirrorCandidates`, after turns); the Mirrored checkbox (world X, in place) and ⇋ badge; joinery keeps a mirrored link (exact regroup); Unlink leaves two plain parts as they looked (inv 44/45/46; fu 432 closed, 435). **Merged `a2ad5f6`, deployed 2026-10-23 at `68dca2d` (`index-_J_yZLbU.js`)** |
 | splayed legs (chunk 1) | 10-24 | 22 | A part LEANS (`Board.lean`: two slopes and a facing dimension, shared, upright only; `lean.ts` the ONE home): typed rake and splay in world words (the Lean section: magnitude fields and direction selects, the resultant and sightline readout, Clear lean); position stays the pre-lean min corner, the pivot is the top's centre (a resize keeps it); mirrors by `leanFlip`; every world crossing composes it and every extent reader uses `partBounds`; drags round the delta; Level the ends (`levelEnds.ts`: two end miters, length rounded up to the grid); the viewport, snapping, section caps, drawings and a Plans note read it; the checks rest a leaning part on its level faces (`leanContacts.ts`); joinery and Repair refuse it, Refine keeps it as is (`leanKeep.ts`) (inv 57; inv 2/24/25/38/39/41/42/44–47/51/56 clauses; fu 436–446). **Deployed `f3fced0`, `index-B3SCZcHR.js`** |
+| angled holes (splayed legs chunk 2) | 10-24/25 | 23 | A hole row's bit TILTS (`tiltAlong` / `tiltAcross`, flag-relative slopes; `holeTilt.ts` the ONE home of tilt math; one bound, 45°): typed in the Holes panel (Tilt toward end / side, the readout off square and sightline); faults exact or conservative, never under, and a new `too-shallow`; the mesh watertight, square holes byte for byte; caps, drawings, part diagrams, snap points, callouts and the bench line read the bit; Bore leg sockets bores a seat along its leaning legs' axes (`legSockets.ts`; stale sockets noted); a holed part may lean and a leaning part takes holes (one refusal: a seam re-choice on a holed part); Level the ends keeps holes (`holeRebase.ts` `levelEndHoles`); a leaning part's caps subtract its bores; Refine keeps a part with a tilted row exactly, a joined Refine refuses one (inv 44/50/51/56/57; fu 437 closed but the round tenon, 447–456). **On branch `angled-holes`; not merged or deployed** |
 
-## Status log (to 2026-10-24)
+## Status log (to 2026-10-25)
 
+- **Angled holes, splayed legs chunk 2 (fu 437; 2026-10-24/25; branch `angled-holes`, NOT merged or deployed; SCHEMA 23 — once
+  deployed, rolling back past it REFUSES every project saved at 23, export first)**: spec
+  `docs/superpowers/specs/2026-10-24-sloyd-angled-holes-design.md` (Amended (build) holds Rulings P1, T2a–T11a with their costs), plan
+  `docs/superpowers/plans/2026-10-24-sloyd-angled-holes.md`. Subagent-driven, 11 build tasks and this records task, each
+  task-reviewed (fix rounds: Task 7 — the tilted diagram ellipse as a user-unit path; Task 10 — stale sockets within the resting band;
+  Task 11 — a joined Refine refuses a kept part with angled holes). Full suite with the records: 8389 tests across 237 files, all
+  passing in one run; `npm run build` clean. Browser verification on the dev server (plan Task 13) DONE 2026-10-25: 9/9 PASS
+  (`docs/browser-verification-angled-holes.md`; its finding is fu 456). Final review fixes: F1 (the tilt bound takes lean's 1e-9
+  allowance, so a 45° leg's socket survives a reload; `socketPlan` refuses a socket past it), F2 (the other entry side keeps a tilted
+  bore's angle, a parallel bore; F2a), M4 (only a through row from the top can be a stale socket). Next: the merge and the deploy (the user's decision). Owed to the user: the Amended (build) block and the copy review (fu
+  454). Invariants 41, 44, 50, 51, 56 and 57 extended; follow-ups 447–456.
 - **Splayed legs, chunk 1 (feature gap §1; 2026-10-24; MERGED `02e7b24`, DEPLOYED 2026-10-24 at `f3fced0` as `index-B3SCZcHR.js` (CSS unchanged); SCHEMA 22 — once deployed, rolling back past it REFUSES every project saved at 22, export first)**: spec
   `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md` (Amended (build) holds Rulings 1–19 with their costs), plan
   `docs/superpowers/plans/2026-10-24-sloyd-splayed-legs.md`. Subagent-driven, 12 build tasks and this records task, each task-reviewed
@@ -473,7 +486,9 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
 … in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
-Since the bulk approval: the splayed legs spec's *Amended (build)* (Rulings 1–19 — chiefly Ruling 1 `seamFree`, Ruling 4 the
+Since the bulk approval: the angled holes spec's *Amended (build)* (Rulings P1, T2a–T2d, T3a, T7a, T8a, T9a–T9c, T10a–T10d,
+T11a — chiefly T2d the new `too-shallow` fault, T9b Level the ends refusing an unstorable hole where §7 said "kept and noted", T10a
+partial bores, T11a the joined-Refine refusal; not merged) and its copy (fu 454). The splayed legs spec's *Amended (build)* (Rulings 1–19 — chiefly Ruling 1 `seamFree`, Ruling 4 the
 magnitude/direction controls replacing §4's "same world lean to each", Ruling 7 Level's top reference R narrowing §5's "always extends",
 Ruling 8 any end miter recognised, Rulings 14–16 Repair only with cuts, Refine's assembly refusal and no floor shift; not deployed). The mirrored links spec's *Amended (execution)* (Rulings 1–11, chiefly Ruling 1 replacing §5.1's
 mirror-candidate mechanism, Ruling 5 the checkbox's world-X form, Ruling 6 Link's flag rule, Rulings 10–11 joinery's exact regroup).

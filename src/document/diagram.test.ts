@@ -5,6 +5,7 @@ import { axisFrame } from './geometry';
 import type { Dimension, HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
 import { canonicalRun, geometryBoard, profileCurve, PROFILE_KINDS } from './profiles';
 import { curveLineEntries } from './curveText';
+import { holeInstances, holeRing } from './holes';
 
 /** The canonical cut from the joinery work: 3/4" wide, 3/8" deep, 6" along. */
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -598,6 +599,125 @@ describe('stopped profiles on part diagrams (profile runs a2, P16)', () => {
       const b = createBoard({ id: 'b1', name: 'Top', length: 36, width: 20, thickness: 0.75, curves: (['length', 'width'] as const).flatMap((through) =>
         (['min', 'max'] as const).map((uFrom) => ({ id: `${through}${uFrom}`, ...profileCurve({ through, uFrom, vFrom: 'max', facing: 'v', kind, ...sz }) }))) });
       expect(fnv(JSON.stringify(buildDiagrams(b, IMPERIAL))), kind).toBe(PINNED[kind]);
+    }
+  });
+});
+
+describe('a tilted bore in the part diagrams (angled holes spec §8)', () => {
+  // Entered from the top (thickness max), 1/4" dia, at length 5, width 2; the thickness view draws length h, width v.
+  const pin = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 5, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 2 };
+  const side = (holes: HoleRow[], cuts: Cut[] = []) => createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75, holes, cuts });
+  const T20 = Math.tan((20 * Math.PI) / 180);
+  const C20 = Math.cos((20 * Math.PI) / 180);
+  const r = 0.125;
+  const DEG = Math.PI / 180;
+  /** The ellipse's `ry` axis, in the view's (h, v), from `rot` (SVG's rotate: the local y axis goes to (−sin, cos)). */
+  const ryAxis = (rot: number) => [-Math.sin(rot * DEG), Math.cos(rot * DEG)];
+  const minDado = { id: 'c1', face: 'thickness' as const, from: 'min' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const rabbet = { id: 'c2', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+
+  it('the entry view: rx = r, ry = r / cos θ along the tilt (a tilt along the length: ry along h)', () => {
+    const v = buildDiagrams(side([{ ...pin, tiltAlong: T20 }]), IMPERIAL).find((w) => w.key === 'thickness|max')!;
+    expect(v.holes).toHaveLength(1);
+    const e = v.holes[0]!;
+    expect(e).toMatchObject({ row: 'h1', index: 0, h: 5, v: 2, r, rx: r });
+    expect(e.ry).toBeCloseTo(r / C20, 12);
+    expect(e.rot).toBe(90);
+  });
+  it('a compound tilt: the ellipse is rotated by the sightline (ry along the bit\'s lateral travel), signed by the flags', () => {
+    const a = 0.3; const c = 0.2;   // sightline atan2(0.2, 0.3) ≈ 33.7° from the length
+    const sight = Math.atan2(c, a) / DEG;
+    const theta = Math.atan(Math.hypot(a, c));
+    const one = buildDiagrams(side([{ ...pin, tiltAlong: a, tiltAcross: c }]), IMPERIAL)[0]!.holes[0]!;
+    expect(one.rx).toBe(r);
+    expect(one.ry).toBeCloseTo(r / Math.cos(theta), 12);
+    expect(one.rot! + 90).toBeCloseTo(sight, 12);
+    // Across from the max side: the tilt runs toward −width, so the ry axis is at −sightline.
+    const two = buildDiagrams(side([{ ...pin, acrossFrom: 'max' as const, tiltAlong: a, tiltAcross: c }]), IMPERIAL)[0]!.holes[0]!;
+    // The ry axis is a line: its direction from `rot` is parallel (either way) to the bit's lateral travel (a, −c).
+    const [dh, dv] = ryAxis(two.rot!);
+    expect(dh! * -c - dv! * a).toBeCloseTo(0, 12);
+    expect(Math.abs(dh! * a + dv! * -c)).toBeCloseTo(Math.hypot(a, c), 12);
+    expect(two.rot).toBeGreaterThan(-90);
+    expect(two.rot).toBeLessThanOrEqual(90);
+  });
+  it('a through bore\'s exit ellipse sits T·tan θ along the tilt, the same shape', () => {
+    const a = 0.3; const c = 0.2;
+    const views = buildDiagrams(side([{ ...pin, depth: 'through', tiltAlong: a, tiltAcross: c }], [minDado]), IMPERIAL);
+    const entry = views.find((w) => w.key === 'thickness|max')!.holes[0]!;
+    const exit = views.find((w) => w.key === 'thickness|min')!.holes[0]!;
+    expect(exit.h).toBeCloseTo(5 + 0.75 * a, 12);
+    expect(exit.v).toBeCloseTo(2 + 0.75 * c, 12);
+    expect(Math.hypot(exit.h - entry.h, exit.v - entry.v)).toBeCloseTo(0.75 * Math.hypot(a, c), 12);   // T·tan θ
+    expect([exit.rx, exit.ry, exit.rot]).toEqual([entry.rx, entry.ry, entry.rot]);
+  });
+  it('a side view draws a through bore as a band slanted by θ: four corners, mouth to exit', () => {
+    const w = buildDiagrams(side([{ ...pin, depth: 'through', tiltAlong: T20 }], [rabbet]), IMPERIAL).find((x) => x.key === 'width|min')!;
+    expect(w.holeSides).toHaveLength(1);
+    const s = w.holeSides[0]!;
+    expect(s).toMatchObject({ axis: 'v', bottomAt: null });
+    const q = s.quad!;
+    expect(q).toHaveLength(4);
+    // Entry corners on the top face (v = 0.75), r / cos θ either side of the mouth centre; the far ones on v = 0.
+    expect(q[0]![1]).toBe(0.75); expect(q[3]![1]).toBe(0.75);
+    expect(q[1]![1]).toBeCloseTo(0, 12); expect(q[2]![1]).toBeCloseTo(0, 12);
+    expect([q[0]![0], q[3]![0]].sort((x, y) => x - y)).toEqual([expect.closeTo(5 - r / C20, 12), expect.closeTo(5 + r / C20, 12)]);
+    for (const [e, f] of [[q[0]!, q[1]!], [q[3]!, q[2]!]] as const) {
+      expect(Math.atan2(f[0] - e[0], e[1] - f[1]) / DEG).toBeCloseTo(20, 12);   // each wall slants by θ
+    }
+    // The span is the band's box.
+    expect(s.h[0]).toBeCloseTo(5 - r / C20, 12);
+    expect(s.h[1]).toBeCloseTo(5 + 0.75 * T20 + r / C20, 12);
+    expect(s.v).toEqual([expect.closeTo(0, 12), 0.75]);
+  });
+  it('a blind tilted bore\'s band ends on the bottom disc, square to the bit, depth along the bit', () => {
+    const w = buildDiagrams(side([{ ...pin, tiltAlong: T20 }], [rabbet]), IMPERIAL).find((x) => x.key === 'width|min')!;
+    const s = w.holeSides[0]!;
+    expect(s.bottomAt).toBe('vmin');
+    const q = s.quad!;
+    const S20 = Math.sin(20 * DEG);
+    const cb = [5 + 0.375 * S20, 0.75 - 0.375 * C20];   // the bottom disc's centre
+    const mid = [(q[1]![0] + q[2]![0]) / 2, (q[1]![1] + q[2]![1]) / 2];
+    mid.forEach((x, i) => expect(x).toBeCloseTo(cb[i]!, 12));
+    expect(Math.hypot(q[1]![0] - q[2]![0], q[1]![1] - q[2]![1])).toBeCloseTo(2 * r, 12);
+    // The bottom is square to the bit (S20, −C20).
+    expect((q[1]![0] - q[2]![0]) * S20 - (q[1]![1] - q[2]![1]) * C20).toBeCloseTo(0, 12);
+    // Each wall runs parallel to the bit.
+    for (const [e, f] of [[q[0]!, q[1]!], [q[3]!, q[2]!]] as const) expect((f[0] - e[0]) * C20 + (f[1] - e[1]) * S20).toBeCloseTo(0, 12);
+  });
+  it('a compound tilt\'s band: the mouth corners span the mouth ring exactly, the walls 2r apart square to the bit', () => {
+    const row = { ...pin, depth: 'through' as const, tiltAlong: 0.3, tiltAcross: 0.2 };
+    const w = buildDiagrams(side([row], [rabbet]), IMPERIAL).find((x) => x.key === 'width|min')!;
+    const q = w.holeSides[0]!.quad!;
+    const hole = holeInstances(side([row]), row)[0]!;
+    // The mouth ring (fine) seen in this view (h = length): its extent along the length, from the ring itself.
+    const ring = holeRing(hole, 0, 4096).map((p) => p[0]!);
+    const [lo, hi] = [Math.min(q[0]![0], q[3]![0]), Math.max(q[0]![0], q[3]![0])];
+    expect(lo).toBeCloseTo(Math.min(...ring), 6);
+    expect(hi).toBeCloseTo(Math.max(...ring), 6);
+    expect(lo).toBeLessThanOrEqual(Math.min(...ring));
+    expect(hi).toBeGreaterThanOrEqual(Math.max(...ring));
+    // Projected bit (0.3, −1) in (h, v): each wall parallel to it, the two 2r apart along its normal.
+    const L = Math.hypot(0.3, 1);
+    for (const [e, f] of [[q[0]!, q[1]!], [q[3]!, q[2]!]] as const) expect((f[0] - e[0]) * 1 + (f[1] - e[1]) * 0.3).toBeCloseTo(0, 12);
+    expect(Math.abs(((q[0]![0] - q[3]![0]) * 1 + (q[0]![1] - q[3]![1]) * 0.3) / L)).toBeCloseTo(2 * r, 12);
+  });
+  it('a side view the tilt runs toward shows no slant (the end view of a length tilt)', () => {
+    const end = { id: 'c3', face: 'length' as const, from: 'min' as const, across: 'width' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const v = buildDiagrams(side([{ ...pin, depth: 'through', tiltAlong: T20 }], [end]), IMPERIAL).find((x) => x.key === 'length|min')!;
+    expect(v.horizontal).toBe('width');
+    const q = v.holeSides[0]!.quad!;
+    // Each wall stands square to the faces at width 2 ± r, from the top (v = 0.75) to the bottom (v = 0).
+    expect(q.map((p) => p[0]).sort((x, y) => x - y)).toEqual([2 - r, 2 - r, 2 + r, 2 + r].map((x) => expect.closeTo(x, 12)));
+    expect(q[0]![0]).toBeCloseTo(q[1]![0], 12);
+    expect(q[3]![0]).toBeCloseTo(q[2]![0], 12);
+    expect(q.map((p) => p[1])).toEqual([0.75, 0, 0, 0.75].map((x) => expect.closeTo(x, 12)));
+  });
+  it('a square hole carries none of the new fields', () => {
+    const v = buildDiagrams(side([pin], [rabbet]), IMPERIAL);
+    for (const w of v) {
+      for (const c of w.holes) expect(Object.keys(c)).toEqual(['row', 'index', 'h', 'v', 'r']);
+      for (const s of w.holeSides) expect(Object.keys(s)).toEqual(['row', 'index', 'h', 'v', 'axis', 'bottomAt']);
     }
   });
 });

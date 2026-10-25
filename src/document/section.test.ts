@@ -1,5 +1,5 @@
 import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, taperCut, miterCut, bevelCut, miterRatio, type Board, type Posture, type Rotation } from './document';
-import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
+import { axisFrame, fromWorldOffset, toWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
 import { unionLoops } from './outline';
@@ -8,6 +8,7 @@ import { levelPlan } from './levelEnds';
 import { IMPERIAL } from '../units/length';
 import { partBounds } from './worldBounds';
 import { chiralPart } from './turnFixtures';
+import { stoolLegs } from './stoolFixture';
 import type { V3 } from './angleCuts';
 
 describe('section side test', () => {
@@ -253,6 +254,12 @@ describe('sectionCaps: every pose agrees with an independent inside-test', () =>
     cases.push([`${posture} ${rotation} mirrored`, mirrorPart(base)]);
   }
   it.each(cases)('%s', (_name, b) => sweep(b));
+  it.each([['flat', 0], ['on-edge', 90], ['upright', 270]] as [Posture, Rotation][])('a tilted bore, %s %s, and its mirror (angled holes spec §6.2)', (posture, rotation) => {
+    const tilted = { ...pin, id: 'tb', count: 1, depth: 'through' as const, tiltAlong: 0.6, tiltAcross: -0.35 };
+    const base: Board = { ...chiralPart(posture), holes: [pin, tilted], rotation, position: [1.25, 0.5, -2.75] };
+    sweep(base);
+    sweep(mirrorPart(base));
+  });
   it.each([['flat', 0], ['upright', 90]] as [Posture, Rotation][])('a tapered leg, %s %s (bodies clipped by an angle cut)', (posture, rotation) => {
     const leg = createBoard({ id: 'leg', length: 20, width: 2, thickness: 2, posture, rotation, position: [0.5, 0, 0.5],
       angleCuts: [{ id: 't1', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 15, amount: 0.75 }) }] });
@@ -315,6 +322,18 @@ describe('unionLoops (fu 369): the same stretches, directed as the pieces run', 
   });
 });
 
+// fu 348: across bores the outline is built from the unbored pieces and the rings; it must be what a union of the bored
+// pieces gives (every segment of each lies on the other's). Overlapping bores fall back to the union itself.
+const covers = (a: [P3, P3][], b: [P3, P3][]) => a.every(([p, q]) => {
+  const m: P3 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+  return b.some(([x, y]) => {
+    const d = [y[0] - x[0], y[1] - x[1], y[2] - x[2]];
+    const l2 = d[0]! ** 2 + d[1]! ** 2 + d[2]! ** 2;
+    const t = Math.max(0, Math.min(1, ((m[0] - x[0]) * d[0]! + (m[1] - x[1]) * d[1]! + (m[2] - x[2]) * d[2]!) / l2));
+    return Math.hypot(m[0] - x[0] - t * d[0]!, m[1] - x[1] - t * d[1]!, m[2] - x[2] - t * d[2]!) <= 1e-9;
+  });
+});
+
 describe('sectionCaps outline', () => {
   it('across bores: the rectangle plus each 48-gon void', () => {
     const pin = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
@@ -322,17 +341,6 @@ describe('sectionCaps outline', () => {
     const b = createBoard({ id: 'v', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pin] });
     const gonPerimeter = 48 * 2 * 0.125 * Math.sin(Math.PI / 48);
     expect(len(sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!.outline as [P3, P3][])).toBeCloseTo(52 + 3 * gonPerimeter, 6);
-  });
-  // fu 348: across bores the outline is built from the unbored pieces and the rings; it must be what a union of the bored
-  // pieces gives (every segment of each lies on the other's). Overlapping bores fall back to the union itself.
-  const covers = (a: [P3, P3][], b: [P3, P3][]) => a.every(([p, q]) => {
-    const m: P3 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
-    return b.some(([x, y]) => {
-      const d = [y[0] - x[0], y[1] - x[1], y[2] - x[2]];
-      const l2 = d[0]! ** 2 + d[1]! ** 2 + d[2]! ** 2;
-      const t = Math.max(0, Math.min(1, ((m[0] - x[0]) * d[0]! + (m[1] - x[1]) * d[1]! + (m[2] - x[2]) * d[2]!) / l2));
-      return Math.hypot(m[0] - x[0] - t * d[0]!, m[1] - x[1] - t * d[1]!, m[2] - x[2] - t * d[2]!) <= 1e-9;
-    });
   });
   const pinRow = (station: number, count: number) => ({ id: `r${station}`, face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
     along: 'length' as const, alongFrom: 'min' as const, station, count, pitch: 2, acrossFrom: 'min' as const, inset: 1.5 });
@@ -428,6 +436,68 @@ function referenceUnionOutline(pieces: readonly (readonly V3[])[], li: number): 
   }
   return out;
 }
+
+describe('sectionCaps: tilted bores (angled holes spec §6.2)', () => {
+  const DEG = Math.PI / 180;
+  /** The 48-gon's area over the circle's: the prism's facets join ring vertices on the true circle. */
+  const GON = (48 / (2 * Math.PI)) * Math.sin((2 * Math.PI) / 48);
+  const tiltedPin = (over: Record<string, unknown> = {}) => ({ id: 't1', face: 'thickness' as const, from: 'max' as const,
+    diameter: 0.5, depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const, station: 6, count: 1,
+    pitch: 0, acrossFrom: 'min' as const, inset: 3, tiltAlong: Math.tan(20 * DEG), tiltAcross: Math.tan(10 * DEG), ...over });
+  it('a tilted bore is subtracted from an unleaned part\'s cap', () => {
+    // Flat at turn 0 (Y = thickness): a Top plane is face-parallel, and cuts the bore's true slice, an ellipse of area
+    // π r² / cos(tilt) — |bit| = hypot(1, tan a, tan c) is 1 / cos(tilt) — strictly between mouth and exit.
+    const b = createBoard({ id: 'tilt-across', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [tiltedPin()] });
+    const bit = Math.hypot(1, Math.tan(20 * DEG), Math.tan(10 * DEG));
+    const ellipse = Math.PI * 0.25 ** 2 * bit;
+    for (const at of [0.3, 0.75, 1.2]) {
+      const cap = sectionCaps(b, { axis: 'top', at, flip: false })!;
+      const removed = 120 - totalArea(cap.pieces as P3[][]);
+      expect(Math.abs(removed - ellipse)).toBeLessThan(0.01 * ellipse * GON);
+      expect(Math.abs(removed - ellipse * GON)).toBeLessThan(1e-9);
+      // The void sits where the bit has carried it: the mouth centre (6, 3) slid by (1.5 − at)·(tan a, tan c).
+      const slid: P3 = [6 + (1.5 - at) * Math.tan(20 * DEG), at, 3 + (1.5 - at) * Math.tan(10 * DEG)];
+      expect(cap.pieces.some((poly) => inConvex(poly as P3[], slid, 1))).toBe(false);
+    }
+  });
+  it('the reach filter keeps a steep bore\'s far mouth', () => {
+    // 40° along the length through 0.75: the exit centre is 0.75·tan 40° ≈ 0.629 along x, and the exit ellipse reaches
+    // r / cos 40° ≈ 0.653 past it — x ≈ 6.282, beyond the mouth centre's radius + depth (5 + 1.25). A Side plane at 6.27
+    // meets only that far tip.
+    const pin = tiltedPin({ diameter: 1, station: 5, tiltAlong: Math.tan(40 * DEG), tiltAcross: undefined });
+    const b = createBoard({ id: 'tilt-reach', length: 20, width: 6, thickness: 0.75, position: [0, 0, 0], holes: [pin] });
+    const at = 6.27;
+    expect(at - 5).toBeGreaterThan(0.5 + 0.75);
+    const cap = sectionCaps(b, { axis: 'side', at, flip: false })!;
+    expect(totalArea(cap.pieces as P3[][])).toBeLessThan(6 * 0.75 - 1e-4);
+    // A point just above the exit face, inside the tip (independent: solidAt reads the prism, not the caps).
+    const p: P3 = [at, 0.001, 3];
+    expect(solidAt(b, p)).toBe(false);
+    expect(cap.pieces.some((poly) => inConvex(poly as P3[], p, 0))).toBe(false);
+  });
+  it('overlapping tilted bores: the outline is the union\'s, not two whole rings', () => {
+    // Tilted 40° across, their ellipses are 2 · 0.25 / cos 40° ≈ 0.65 across the width: 0.55 apart, they overlap, though
+    // their ring[0] radii (0.25, the minor axis) say clear.
+    const t = Math.tan(40 * DEG);
+    const b = createBoard({ id: 'tilt-overlap', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [
+      tiltedPin({ id: 'o1', inset: 2, tiltAlong: undefined, tiltAcross: t }),
+      tiltedPin({ id: 'o2', inset: 2.55, tiltAlong: undefined, tiltAcross: t }),
+    ] });
+    const cap = sectionCaps(b, { axis: 'top', at: 0.75, flip: false })!;
+    const union = unionOutline(cap.pieces, 1) as [P3, P3][];
+    expect(covers(cap.outline as [P3, P3][], union)).toBe(true);
+    expect(covers(union, cap.outline as [P3, P3][])).toBe(true);
+  });
+  it('a tilted bore beside a clean square ring: the outline still has the tilted bore (no ring path past it)', () => {
+    const square = { id: 's1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 1,
+      along: 'length' as const, alongFrom: 'min' as const, station: 12, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 3 };
+    const b = createBoard({ id: 'tilt-mixed', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [square, tiltedPin()] });
+    const cap = sectionCaps(b, { axis: 'top', at: 0.75, flip: false })!;
+    const union = unionOutline(cap.pieces, 1) as [P3, P3][];
+    expect(covers(cap.outline as [P3, P3][], union)).toBe(true);
+    expect(covers(union, cap.outline as [P3, P3][])).toBe(true);
+  });
+});
 
 describe('unionOutline equals the linear-scan reference', () => {
   const pin = (id: string, acrossFrom: 'min' | 'max') => ({
@@ -614,19 +684,47 @@ describe('sectionCaps: a leaning part (splayed legs spec §6.2)', () => {
     expect(sectionCaps(levelled, { axis: 'top', at: 0, flip: false })).toBeNull();
   });
 
-  it('a hand-loaded leaning part WITH holes draws its caps without bores, logs nothing and never throws', () => {
-    const pin = { id: 'r1', face: 'width' as const, from: 'max' as const, diameter: 0.5, depth: 0.75, along: 'length' as const,
-      alongFrom: 'min' as const, station: 14, count: 2, pitch: 2, acrossFrom: 'min' as const, inset: 0.75 };
-    const plain = legAt(0, { id: 'lean-holed' });
-    const holed: Board = { ...plain, holes: [pin] };
-    const spies = (['log', 'warn', 'error'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
-    try {
-      for (const s of [{ axis: 'top', at: 14, flip: false }, { axis: 'front', at: axisOf(plain).mid(2), flip: false }] as Section[]) {
-        const got = sectionCaps(holed, s);
-        expect(got).toEqual(sectionCaps({ ...plain, id: 'lean-unholed' }, s));
+  it('a leaning part\'s cap has its bores (fu 437\'s residue lifted)', () => {
+    // The stool's Front right leg and its mirror, a square through hole across the width at mid-length. The world plane
+    // square to the axis the width runs along, through the bore's mid-depth: the leaned slice of the bore is the 48-gon
+    // over |cos| of the bore's world direction against the plane's normal (independent of the caps: two points through
+    // the lean, never its matrix).
+    const pin = { id: 'r1', face: 'width' as const, from: 'min' as const, diameter: 0.5, depth: 'through' as const,
+      along: 'length' as const, alongFrom: 'min' as const, station: 8, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.75 };
+    const gon = (48 / 2) * 0.25 ** 2 * Math.sin((2 * Math.PI) / 48);
+    for (const plain of stoolLegs().slice(0, 2)) {
+      const holed: Board = { ...plain, id: `${plain.id}-holed`, holes: [pin] };
+      const map = leanMap(holed)!;
+      const frame = axisFrame(holed);
+      const world = (local: readonly number[]): P3 => map.apply(frame.map(({ dim }, k) =>
+        holed.position[k]! + toWorldOffset(holed, k, local[DIMENSION_ORDER.indexOf(dim)]!, frame)) as P3) as P3;
+      const c = world([8, 0.75, 0.75]);
+      const e = world([8, 1.75, 0.75]);
+      const dir = [e[0] - c[0], e[1] - c[1], e[2] - c[2]];
+      const k = frame.findIndex(({ dim }) => dim === 'width');
+      const axis = (['side', 'top', 'front'] as const)[k]!;
+      for (const flip of [false, true]) {
+        const s: Section = { axis, at: c[k]!, flip };
+        const bored = sectionCaps(holed, s)!;
+        const whole = sectionCaps(plain, s)!;
+        expect(totalArea(whole.pieces as P3[][]) - totalArea(bored.pieces as P3[][])).toBeCloseTo(gon / Math.abs(dir[k]!), 9);
+        expect(bored.pieces.some((poly) => inConvex(poly as P3[], c, k))).toBe(false);
+        expect(whole.pieces.some((poly) => inConvex(poly as P3[], c, k))).toBe(true);
+        const union = unionOutline(bored.pieces, k) as [P3, P3][];
+        expect(covers(bored.outline as [P3, P3][], union)).toBe(true);
       }
-      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
-    } finally { for (const spy of spies) spy.mockRestore(); }
+    }
+  });
+
+  it('every plane agrees with an independent inside-test: a holed leaning leg, square and tilted bores', () => {
+    const pins = [
+      { id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.5, depth: 0.75, along: 'length' as const,
+        alongFrom: 'min' as const, station: 14, count: 2, pitch: 2, acrossFrom: 'min' as const, inset: 0.75 },
+      { id: 'h2', face: 'thickness' as const, from: 'min' as const, diameter: 0.375, depth: 'through' as const, along: 'length' as const,
+        alongFrom: 'max' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'max' as const, inset: 0.75, tiltAlong: 0.5, tiltAcross: -0.25 },
+    ];
+    sweepLeaning({ ...tapered(0), id: 'lean-holed-sweep', holes: pins });
+    sweepLeaning(mirrorPart({ ...tapered(90), id: 'lean-holed-sweep-90', holes: pins }));
   });
 
   it('localCapPieces is null for a leaning part (its cut is not one of the part\'s axis planes)', () => {
