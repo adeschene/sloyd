@@ -43,9 +43,9 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   project saved at 23 — export first. Below it, `68dca2d` refuses 22 and `e2729ee` refuses 21; every deploy back to `98c7df4` is
   schema 20. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-25):** round tenons (chunk 2b, fu 447, SCHEMA 24) is BUILT on branch `round-tenons`, NOT merged or deployed:
-  its browser pass (plan Task 12), then merge and deploy (the user's call). Owed to the user: the round tenons, angled holes,
+  browser pass (Task 12), then merge and deploy (the user's call). Owed to the user: the round tenons, angled holes,
   splayed legs and mirrored links specs' Amended blocks; fu 454, 464 (copy); fu 465 (by eye); fu 402(1)–(2); the by-eye and
-  real-hardware items. Next feature: stretchers (fu 438). Then Open follow-ups (417, 429 ask first).
+  real-hardware items. Next: stretchers (fu 438), then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -587,7 +587,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
     React). Refine carries it by flat name (assembly hardware from the STORED definitions; inv 56); joinery and Repair accept it.
     Hardware is typed, never derived from holes.
 
-56. **Refine keeps a featured part's posture and rotation by ONE decision, `keptFrame` (the prohibition below).** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` and before `linkByRole`. A part the model turned is `orient`ed like its plain twin, the exact swaps skipped; `turnCandidates` never turns a part with curves or carried profiles. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop; the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
+56. **Refine keeps a featured part's posture and rotation by ONE decision, `keptFrame` (the prohibition below).** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` and before `linkByRole`. A part whose only frame features are holes, bands and/or authored profiles that the model turned (`keptFrame`'s rank and tie rules) is `orient`ed like its plain twin, the exact swaps skipped; `turnCandidates` never turns a part with curves or carried profiles. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop; the done view's `carried` list is computed plain-to-plain BEFORE `runJoinery`. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
     A LEANING part, one with a TILTED hole row, or one with a round tenon is KEPT exactly (`keepsExactly`, `keptParts`; invs 57,
     58): put in FIRST, verbatim, in the carry's slot; a model part reusing its name is dropped; no floor shift while one is kept;
     one inside an assembly refuses Refine, and so does a joined Refine.
@@ -616,7 +616,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 8659 tests across 242 files (timing guards can fail under load; re-run on a quiet machine before claiming a regression)
+npm test           # Vitest, currently 8659 tests across 242 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
