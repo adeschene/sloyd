@@ -135,7 +135,8 @@ src/
 │   │                     copy through holeText, so this module takes the → units edge, not holeWorld)
 │   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep, too-shallow; a tilted bore exact or
 │   │                     CONSERVATIVE, never under — the unclipped mesh trusts it), tooShallow, stockChecks, holeInStock (clean);
-│   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`)
+│   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`); a round
+│   │                     tenon's square-span view curves are skipped (its own meets-feature judges a hole in its zone)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep and too-shallow once), endWord/edgeName (→ units);
 │   │                     a tilted row's words (the angle off square and sightline, or the end/side a one-plane tilt leans toward;

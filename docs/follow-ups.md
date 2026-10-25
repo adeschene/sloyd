@@ -7379,9 +7379,10 @@ letter (ruling T6a).
 
 **458. Wedges, wedge kerfs and pins through a round tenon (spec §2 non-goal).** Staked work wedges the tenon in a kerf from the top
 (the wedge across the grain of the seat) and some joints are pinned or drawbored. None is modelled: a tenon is a plain cylinder, and
-the cut list has no wedge row. A kerf would be a feature inside the tenon's zone, which `tenonFaults` refuses today
+the cut list has no wedge row. A kerf would be a feature inside the tenon's zone, which `tenonFaults` faults today
 (`meets-feature`), so it needs its own kind and fault rule; a pin is a hole row through both parts, which the design checks ignore
-(inv 38) and which `meets-feature` refuses on the tenoned part.
+(inv 38). A pin hole through a tenon is ACCEPTED (it has no hole fault), and the tenon then faults (`meets-feature`: hole) and
+builds nothing (inv 58's kept-and-noted rule; corrected at the final review, M4).
 **Status:** open (feature-sized; ask first).
 
 **459. A shoulder parallel to the end (scribed shoulder; spec §10 cost 1).** The shoulder is square to the axis (§3.1, a tenon
@@ -7456,8 +7457,25 @@ only loses a link). (3) Task 2: several copy sites test `b.tenons ?` instead of 
 `treeOps.ts`, `store.ts`), so a stray `[]` would be carried; the write-back strips it today. (4) Task 3: an end-edge band on the FAR
 end is never judged (the part does not carry the band type's thickness), so a shoulder inside such a band on a very short part is
 missed — pass the types, or treat it conservatively. (5) Task 3: `tenonFaultText`'s `'a feature'` fallback — make `feature`
-required on `meets-feature`. (6) Task 4: the closed shoulder wall in `holeFaults` is conservative (accepted). (7) Task 6: the
+required on `meets-feature`. (6) Task 4: the closed shoulder wall in `holeFaults` is conservative (accepted) — gone since the final review (M2, ruling
+TFa): `intoCurve` skips a tenon's square-span view curves, so the tenon's own `meets-feature` judges a hole in its zone. (7) Task 6: the
 bench line's `<s>` measures a far end with an `'other'` cut (a bevel, a second cut) from its uncut end face, right for a corner
 chamfer, approximate for a cut that crosses the axis (documented at `tenonLine`). (8) The perf guards (`curvesPerf`) flaked under
 load in Tasks 6–7 and must pass on a quiet machine before the merge.
 **Status:** open (record-only).
+
+**467. A full-length edge profile blocks Add round tenon (final review M1).** A 28 × 1¾ × 1¾ leg with a 1/8" roundover end to end
+on one arris: `tenonFaults` gives `meets-feature: profile` for the default 1" × 1" top tenon, so the Round tenons row withholds Add
+(`The tenon would run into a profile — move it or remove it first.`) and `addTenon` refuses with the same sentence; added the other
+way round, the profile is accepted and the tenon stops building (kept, noted). Yet the roundover's whole section, a corner strip,
+lies outside the tenon's disc, so turning the tenon removes it anyway: the finished wood is identical. Within spec §3.2 and inv 58's
+CONSERVATIVE rule (boxes that may refuse a feature that just clears), so not a defect against the spec. A fix would exempt a
+straight profile or band whose section lies wholly outside the disc, judged in the section's (u, v) plane, in `featuresMeeting`
+(`roundTenons.ts`); today a woodworker stops the profile short of the shoulder.
+**Status:** open (ask first).
+
+**468. Imperial bench-line precision for a fitted tenon length (final review M5).** `tenonLine` prints `<t>` through
+`formatLength(t.length, units)` (`tenonText.ts`), at the default imperial precision of 1/16", but a fitted length (Bore leg sockets'
+Tenon the legs) rounds up to `TENON_STEP`, 1/64": 1 33/64" and 1 1/2" both print `1-1/2"` and land in two cut-list rows that read
+alike. The imperial twin of fu 464(1)'s metric item (76.2 and 76.0 mm both `76 mm`); if the fix is hole precision, apply it to both.
+**Status:** open (owed to the user: the copy review, with 464).

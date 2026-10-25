@@ -3,6 +3,8 @@ import { useStore } from './store';
 import { boardSnapPoints, createBoard, createDocument, worldParts } from '../document/document';
 import { sharedOf } from '../document/links';
 import { toWorld } from '../document/snapPoints';
+import { builtTenons, tenonFaults } from '../document/roundTenons';
+import { holeFaults } from '../document/holeFaults';
 import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { Board, RoundTenon, Shape, SloydDocument, StoredBoard } from '../document/document';
 
@@ -262,5 +264,30 @@ describe('a MIRRORED Shape mate: the tenon\'s end flips in the world (ledger ⚠
     expect('tenons' in occ('r1')).toBe(false);
     expect('tenons' in occ('r2')).toBe(false);
     expect(s().past.length).toBe(3);
+  });
+});
+
+describe('a hole added after the tenon (final review M2, ruling TFa; inv 58: a later feature\'s fault is KEPT and noted)', () => {
+  // The reviewer's leg: 28" × 1 3/4", a top tenon 1 1/2" long (shoulder at 26.5), a 5/8" through bore across the width.
+  const legWith = () => setup({ ...createDocument('T'), boards: [createBoard({ id: 'L', name: 'Leg', length: 28, width: 1.75, thickness: 1.75, tenons: [{ id: 't', end: 'max', diameter: 1, length: 1.5 }] })] });
+  const bore = (station: number) => ({ face: 'width' as const, from: 'min' as const, diameter: 0.625, depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const, station, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 });
+  it('a bore whose edge lies on the shoulder is taken with no fault of its own, and the tenon still builds', () => {
+    legWith();
+    expect(s().addHoleRows('L', [bore(26.1875)])).toBeNull();
+    const b = stored();
+    expect(b.holes).toHaveLength(1);
+    expect(holeFaults(b, b.holes[0]!)).toEqual([]); // no "runs into a curve cut" (the Holes panel offers the add)
+    expect(tenonFaults(b, b.tenons![0]!)).toEqual([]);
+    expect(builtTenons(b)).toHaveLength(1);
+  });
+  it('a bore inside the zone is taken; the tenon is KEPT with its meets-feature fault and builds nothing', () => {
+    legWith();
+    expect(s().addHoleRows('L', [bore(27.25)])).toBeNull();
+    const b = stored();
+    expect(holeFaults(b, b.holes[0]!)).toEqual([]);
+    expect(b.tenons).toHaveLength(1); // kept, never removed or clamped
+    expect(tenonFaults(b, b.tenons![0]!)).toEqual([{ kind: 'meets-feature', feature: 'hole' }]);
+    expect(builtTenons(b)).toEqual([]);
+    expect(s().past.length).toBe(1);
   });
 });

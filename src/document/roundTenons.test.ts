@@ -397,6 +397,28 @@ describe('round tenons: geometry — bodies, edges, silhouettes', () => {
     expect(holeFaults(bored, bored.holes[0]!)).toEqual([]);
   });
 
+  // Final review M2 (ruling TFa): a tenon's view curves are not curve cuts, so a hole is never refused as running into "a
+  // curve cut" for one; a hole meeting the zone is the tenon's own meets-feature, KEPT and noted (inv 58).
+  const reviewLeg = (station: number) => createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75,
+    tenons: [{ id: 't', end: 'max', diameter: 1, length: 1.5 }],
+    holes: [{ id: 'h', face: 'width', from: 'min', diameter: 0.625, depth: 'through', along: 'length', alongFrom: 'min', station, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.875 }] });
+  it('M2: a bore whose edge lies ON the shoulder (5/8" at 26 3/16 under a 1 1/2" tenon of a 28" leg) has no curve fault; the tenon builds', () => {
+    const b = reviewLeg(26.1875); // the hole's top edge at 26.5, the shoulder
+    expect(shoulderAt(b, b.tenons![0]!)).toBe(26.5);
+    // The tenon builds, so its square-span view curves exist and `intoCurve` would meet them (touching is meeting).
+    expect(tenonFaults(b, b.tenons![0]!)).toEqual([]); // the zone test is open: touching the shoulder plane is not entering
+    expect(builtTenons(b)).toHaveLength(1);
+    expect(geometryBoard(b).curves.filter((c) => spanOf(c)?.square)).toHaveLength(2);
+    expect(holeFaults(b, b.holes[0]!)).toEqual([]);
+  });
+  it('M2: a bore well inside the zone has no curve fault; the TENON faults (meets-feature: hole) and builds nothing', () => {
+    const b = reviewLeg(27.25);
+    expect(kinds(b, b.tenons![0]!)).toEqual(['meets-feature:hole']);
+    expect(builtTenons(b)).toEqual([]);
+    // By construction: a faulted tenon builds no view curves, so there is nothing for `intoCurve` to meet.
+    expect(holeFaults(b, b.holes[0]!)).toEqual([]);
+  });
+
   it('silhouettes: one pair in a side view, at ±r, from the shoulder to the end', () => {
     const b = leg({ tenons: [tn('max', 3)] });
     const origin = toWorld(b, { length: 0, width: 0, thickness: 0 });

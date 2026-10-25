@@ -661,8 +661,14 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
       const real = leanPair
         ? meet(leanAt(i) ? [boxes[i]] : solids[i], leanAt(j) ? [boxes[j]] : solids[j])
         : (realBodied(doc.boards[i]!) || realBodied(doc.boards[j]!)) && meet(solids[i], solids[j]);
+      // Each side's bodies once per pair (final review M3: `pairBodies` re-clips a seated tenon's part per call).
+      const sideBodies = (k: number, other: number) => (anyTenon ? pairBodies(k, other) : bodiesOf(k));
       const pairs: [Box | BodyFace[], Box | BodyFace[]][] = real
-        ? (anyTenon ? pairBodies(i, j) : bodiesOf(i)).flatMap((p) => (anyTenon ? pairBodies(j, i) : bodiesOf(j)).map((q) => [p, q] as [BodyFace[], BodyFace[]]))
+        ? (() => {
+          const pi = sideBodies(i, j);
+          const pj = sideBodies(j, i);
+          return pi.flatMap((p) => pj.map((q) => [p, q] as [BodyFace[], BodyFace[]]));
+        })()
         : leanPair ? [] : solids[i].flatMap((p) => solids[j].map((q) => [p, q] as [Box, Box]));
       for (const [p, q] of pairs) {
         const s = Array.isArray(p) ? bodyOverlap(p, q as BodyFace[]) : [0, 1, 2].map((k) => shared(p, q as Box, k));
