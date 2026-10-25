@@ -6,7 +6,7 @@ import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
 import { copyHardwareUse } from './hardwareModel';
 import { copyHoleRow } from './holes';
-import { copyTenon } from './roundTenons';
+import { copyTenon, hasTenons } from './roundTenons';
 import { mirrorFeatures } from './frames';
 import type { SharedField } from './links';
 
@@ -36,6 +36,8 @@ export function resolveBoard(shapes: ReadonlyMap<string, Shape>, b: StoredBoard)
   const shared: Record<string, unknown> = {};
   for (const k of SHARED_KEYS) {
     if (!(k in s)) continue;
+    // An optional list stored empty or undefined is no list (round tenons spec §3.1): never `[]` or `undefined` on a user.
+    if (k === 'tenons' && !hasTenons(s)) continue;
     shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : k === 'profiles' ? s.profiles.map(copyProfile) : k === 'bands' ? s.bands.map(copyBand) : k === 'hardware' ? s.hardware.map(copyHardwareUse) : k === 'lean' ? { ...s.lean! } : k === 'tenons' ? s.tenons!.map(copyTenon) : s[k];
   }
   const { shape, mirrored, ...own } = b;

@@ -2,7 +2,7 @@ import type { Board, Shape } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { copyAngleCut, sameAngleCut } from './angleCuts';
 import { copyHoleRow, sameHoleRow } from './holes';
-import { copyTenon, sameTenon } from './roundTenons';
+import { copyTenon, hasTenons, sameTenon } from './roundTenons';
 import { copyCurve, sameCurve } from './curves';
 import { copyProfile, sameProfile } from './profiles';
 import { copyBand, sameBands } from './bandModel';
@@ -40,7 +40,8 @@ void _shapeMatchesTable;
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
  * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face`; absent equals absent
- * only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`.
+ * only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`. `tenons` (a list,
+ * round tenons spec §3.1) likewise: compared in order, ids included, by `sameTenon`; never stored empty.
  */
 const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean' | 'tenons'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
@@ -60,14 +61,15 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     hardware: b.hardware.map(copyHardwareUse),
     // Optional (splayed legs spec §3.1): a fresh object when present, no key at all when absent.
     ...(b.lean ? { lean: { ...b.lean } } : {}),
-    // Optional (round tenons spec §3.1): fresh copies when present, no key at all when absent.
-    ...(b.tenons ? { tenons: b.tenons.map(copyTenon) } : {}),
+    // Optional (round tenons spec §3.1): fresh copies when present, no key at all when absent or empty (never `[]`).
+    ...(hasTenons(b) ? { tenons: b.tenons!.map(copyTenon) } : {}),
   };
 }
 
 /** The shared part of a patch: what propagates to the other members. A `lean` key present with the value `undefined`
  *  is a REMOVAL and is kept as such (splayed legs spec §3.1, controller ruling 1); an absent key means untouched, as
- *  for every other field. The write-back stores a removal as a deleted key, never `lean: undefined`. */
+ *  for every other field. The write-back stores a removal as a deleted key, never `lean: undefined`. `tenons` likewise
+ *  (round tenons spec §3.1), a present `[]` read as the same removal: an empty list is never stored. */
 export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedField>> {
   const out: Partial<Pick<Board, SharedField>> = {};
   for (const k of SHARED_KEYS) if (patch[k] !== undefined) (out as Record<string, unknown>)[k] = patch[k];
@@ -79,7 +81,8 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.profiles) out.profiles = patch.profiles.map(copyProfile);
   if (patch.bands) out.bands = patch.bands.map(copyBand);
   if (patch.hardware) out.hardware = patch.hardware.map(copyHardwareUse);
-  if (patch.tenons) out.tenons = patch.tenons.map(copyTenon);
+  if (hasTenons(patch)) out.tenons = patch.tenons!.map(copyTenon);
+  else if ('tenons' in patch) out.tenons = undefined;
   if (patch.lean) out.lean = { ...patch.lean };
   else if ('lean' in patch && patch.lean === undefined) out.lean = undefined;
   return out;

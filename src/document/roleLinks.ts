@@ -11,6 +11,7 @@ import { taperCutsFor, worldTapers } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, worldAngles } from './angleWorld';
 import { holeRowsFor, sortHoleRows, worldHoles } from './holeWorld';
 import { sameHoleRow } from './holes';
+import { hasTenons, sameTenon } from './roundTenons';
 import { BUILT_IN_BAND_ID } from './bandModel';
 import { bandsFor, worldBands } from './bandWorld';
 import { profilesFor, sortProfiles, worldProfiles } from './profileWorld';
@@ -37,7 +38,9 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 export function turnCandidates(b: Board): Board[] {
   // A leaning part has none (final review M1): its lean is stored in the turn-0 frame, so `{ ...b, rotation }` would
   // re-aim the leg; it links by its own form and its mirror only (splayed legs §3.4).
-  if (b.cuts.length > 0 || carriesProfiles(b) || keepsExactly(b)) return [];
+  // A tenoned part has none (round tenons spec §3.1; plan Task 10): its tenons name ends of the stored length, so a turn
+  // that reverses the length in the world (a flat part's 180°) would carry each tenon to the other world end.
+  if (b.cuts.length > 0 || carriesProfiles(b) || keepsExactly(b) || hasTenons(b)) return [];
   const shown = worldProfiles(b);
   if (shown === null) return [];
   const profileExact = new Set(shown.flatMap((p) => [p.size, p.fillet, p.depth, p.start, p.end]));
@@ -120,11 +123,15 @@ function inOrderOf(rep: Board, c: Board): Board {
  * as it is: the same object, so plain linking is unchanged.
  */
 export function alignedTo(rep: Board, b: Board): Board | null {
-  if (b.angleCuts.length === 0 && b.holes.length === 0 && b.profiles.length === 0) return sameShared(rep, b) ? b : null;
+  if (b.angleCuts.length === 0 && b.holes.length === 0 && b.profiles.length === 0 && !hasTenons(b)) return sameShared(rep, b) ? b : null;
   if (b.angleCuts.length !== rep.angleCuts.length || !b.angleCuts.every((c, i) => sameAngleCut(c, rep.angleCuts[i]!))) return null;
   if (b.holes.length !== rep.holes.length || !b.holes.every((r, i) => sameHoleRow(r, rep.holes[i]!))) return null;
   if (b.profiles.length !== rep.profiles.length || !b.profiles.every((p, i) => sameProfile(p, rep.profiles[i]!))) return null;
-  const a: Board = { ...b, profiles: b.profiles.map((p, i) => ({ ...p, id: rep.profiles[i]!.id })), angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
+  // Tenons (round tenons spec §3.1) in canonical order, so index pairing is end pairing.
+  const bt = b.tenons ?? [];
+  const rt = rep.tenons ?? [];
+  if (bt.length !== rt.length || !bt.every((t, i) => sameTenon(t, rt[i]!))) return null;
+  const a: Board = { ...b, ...(bt.length > 0 ? { tenons: bt.map((t, i) => ({ ...t, id: rt[i]!.id })) } : {}), profiles: b.profiles.map((p, i) => ({ ...p, id: rep.profiles[i]!.id })), angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
     holes: b.holes.map((r, i) => ({ ...r, id: rep.holes[i]!.id })) };
   return sameShared(rep, a) ? a : null;
 }

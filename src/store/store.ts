@@ -19,6 +19,7 @@ import { copyCurve, sameCurve } from '../document/curves';
 import { copyProfile, sameProfile } from '../document/profiles';
 import { copyBand, sameBands, withBands, withBandTypes } from '../document/bandModel';
 import { copyHardwareUse, HARDWARE_COUNT_MAX, sameHardware, withHardwareTypes, withHardwareUse } from '../document/hardwareModel';
+import { copyTenon } from '../document/roundTenons';
 import type { HardwareTarget } from '../document/hardware';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { withinTiltBound } from '../document/holeTilt';
@@ -971,6 +972,8 @@ export const useStore = create<StoreState>((set, get) => {
       profiles: source.profiles.map((p) => ({ ...copyProfile(p), id: nextId() })),
       bands: source.bands.map(copyBand),
       hardware: source.hardware.map(copyHardwareUse),
+      // Optional (round tenons spec §3.1, inv 33): fresh ids when present, no key when absent.
+      ...(source.tenons ? { tenons: source.tenons.map((t) => ({ ...copyTenon(t), id: nextId() })) } : {}),
     });
   };
 

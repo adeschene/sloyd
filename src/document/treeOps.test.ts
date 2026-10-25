@@ -225,6 +225,24 @@ describe('shared definitions', () => {
     expect((r.doc.definitions[0]!.boards[0] as Board).holes[0]).not.toBe(lifted.holes[0]);
   });
 
+  const tenon = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+
+  it('makeUniqueItem and ungroupItem copy round tenons with their ids, sharing no tenon object; none adds no key', () => {
+    const doc = base();
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Rung', tenons: [tenon] });
+    const out = makeUniqueItem(doc, 'i2')!;
+    const i2 = out.instances.find((i) => i.id === 'i2')!;
+    const copy = out.definitions.find((d) => d.id === i2.definition)!.boards[0] as Board;
+    expect(copy.tenons).toEqual([tenon]);
+    expect(copy.tenons![0]).not.toBe(tenon);
+    const r = ungroupItem(doc, 'i1')!;
+    const lifted = partAt(r.doc, r.rekey('i1/b1')) as Board;
+    expect(lifted.tenons).toEqual([tenon]);
+    expect(lifted.tenons![0]).not.toBe(tenon);
+    const bare = base();
+    expect('tenons' in (partAt(ungroupItem(bare, 'i1')!.doc, ungroupItem(bare, 'i1')!.rekey('i1/b1')) as Board)).toBe(false);
+  });
+
   it('makeUniqueItem copies curves with their ids, sharing no curve object', () => {
     const doc = base();
     doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Apron', curves: [ARCH] });

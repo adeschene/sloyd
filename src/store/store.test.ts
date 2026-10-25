@@ -4265,3 +4265,27 @@ describe('Bore leg sockets through the store (angled holes §5)', () => {
     expect((s().doc.definitions[0]!.boards.find((b) => b.name === 'Seat') as Board).holes).toHaveLength(4);
   });
 });
+
+describe('round tenons in copies (round tenons spec §3.1, inv 33)', () => {
+  const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const setup = (boards: Board[]) => {
+    useStore.setState({ doc: { ...createDocument('T'), boards }, selectedIds: [], past: [], future: [], tool: 'select', grabbed: null, tapeAnchor: null, tapeHover: null, explode: 0 });
+  };
+  const s = () => useStore.getState();
+
+  it('duplicateBoards re-mints tenon ids', () => {
+    setup([createBoard({ id: 'r', name: 'Rung', length: 18, width: 1.5, thickness: 1.5, tenons: [T] })]);
+    s().duplicateBoards(['r']);
+    const copy = s().doc.boards[1] as Board;
+    expect(copy.tenons).toHaveLength(1);
+    expect(copy.tenons![0]!.id).not.toBe(T.id);
+    expect({ ...copy.tenons![0]!, id: T.id }).toEqual(T);
+    expect(copy.tenons![0]).not.toBe((s().doc.boards[0] as Board).tenons![0]);
+  });
+
+  it('a tenon-free part\'s copy has no tenons key', () => {
+    setup([createBoard({ id: 'r', name: 'Rung' })]);
+    s().duplicateBoards(['r']);
+    expect('tenons' in s().doc.boards[1]!).toBe(false);
+  });
+});

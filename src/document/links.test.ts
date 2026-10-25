@@ -4,6 +4,10 @@ import type { AngleCut, HoleRow } from './types';
 import { LINK_ACROSS_MIRROR, LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
 import type { LinkPlan } from './links';
 import { ARCH } from './curveFixtures';
+import { linkByRole } from './roleLinks';
+import { resolveBoard } from './shapes';
+import { createDocument } from './document';
+import type { RoundTenon, Shape, SloydDocument } from './types';
 
 /** The plan, failing the test when linkPlan gave none or refused. */
 const ok = (p: ReturnType<typeof linkPlan>): LinkPlan => {
@@ -272,5 +276,63 @@ describe('lean in links (splayed legs spec §3.1)', () => {
     expect(p.lean).toBeUndefined();
     expect('lean' in sharedPatch({ name: 'Leg' })).toBe(false);
     expect('lean' in sharedPatch({ length: 20 })).toBe(false);
+  });
+});
+
+describe('tenons in links (round tenons spec §3.1)', () => {
+  const t: RoundTenon = { id: 't1', end: 'max', diameter: 0.75, length: 1.25 };
+
+  it('linking two legs stores their tenons once on the Shape', () => {
+    // Two legs made apart: equal tenons under different ids (ids are not geometry; alignedTo adopts the first's).
+    const a = { ...leg({ tenons: [t] }), id: 'a', name: 'Leg 1' };
+    const b = { ...leg({ tenons: [{ ...t, id: 't9' }] }), id: 'b', name: 'Leg 2', position: [10, 0, 0] as [number, number, number] };
+    const doc: SloydDocument = { ...createDocument('T'), boards: [a, b] };
+    const out = linkByRole(doc, new Map([['a', 'leg'], ['b', 'leg']]));
+    expect(out.shapes).toHaveLength(1);
+    expect(out.shapes[0]!.tenons).toEqual([t]);
+    // Stored ONCE: neither user's record carries the field.
+    expect(out.boards.map((x) => 'tenons' in x)).toEqual([false, false]);
+    // A fresh copy per user (copyTenon), never the Shape's object.
+    const shapes = new Map(out.shapes.map((s) => [s.id, s]));
+    const users = out.boards.map((x) => resolveBoard(shapes, x)!);
+    expect(users.map((u) => u.tenons)).toEqual([[t], [t]]);
+    expect(users[0]!.tenons![0]).not.toBe(out.shapes[0]!.tenons![0]);
+    expect(users[0]!.tenons![0]).not.toBe(users[1]!.tenons![0]);
+  });
+
+  it('legs whose tenons differ by a field do not link', () => {
+    const a = { ...leg({ tenons: [t] }), id: 'a' };
+    const b = { ...leg({ tenons: [{ ...t, id: 't9', diameter: 1 }] }), id: 'b', position: [10, 0, 0] as [number, number, number] };
+    const out = linkByRole({ ...createDocument('T'), boards: [a, b] }, new Map([['a', 'leg'], ['b', 'leg']]));
+    expect(out.shapes).toHaveLength(0);
+  });
+
+  it('sharedOf copies the tenons and stores no key for none, absent or empty (never [])', () => {
+    const s = sharedOf(leg({ tenons: [t] }));
+    expect(s.tenons).toEqual([t]);
+    expect(s.tenons![0]).not.toBe(t);
+    expect('tenons' in sharedOf(leg())).toBe(false);
+    expect('tenons' in sharedOf(leg({ tenons: [] }))).toBe(false);
+  });
+
+  it('sharedPatch copies tenons it propagates; a present key undefined or [] is a REMOVAL; absent is untouched', () => {
+    const p = sharedPatch({ tenons: [t] });
+    expect(p.tenons).toEqual([t]);
+    expect(p.tenons![0]).not.toBe(t);
+    for (const removal of [{ tenons: undefined }, { tenons: [] }]) {
+      const q = sharedPatch(removal);
+      expect('tenons' in q).toBe(true);
+      expect(q.tenons).toBeUndefined();
+    }
+    expect('tenons' in sharedPatch({ length: 20 })).toBe(false);
+  });
+
+  it('resolveBoard: a Shape with no tenons, or a key present as undefined, gives a user with no key; never throws', () => {
+    const { tenons: _t, ...bare } = { id: 's1', ...sharedOf(leg()) } as Shape;
+    const user = { id: 'u', name: 'U', position: [0, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' };
+    expect('tenons' in resolveBoard(new Map([['s1', bare]]), user)!).toBe(false);
+    const undef = { ...bare, tenons: undefined } as Shape;
+    expect(() => resolveBoard(new Map([['s1', undef]]), user)).not.toThrow();
+    expect('tenons' in resolveBoard(new Map([['s1', undef]]), user)!).toBe(false);
   });
 });
