@@ -25,6 +25,17 @@ describe('LINK_FIELDS', () => {
   });
 });
 
+describe('sameShared: tenons', () => {
+  const t = { id: 't1', end: 'min' as const, diameter: 1, length: 1.5 };
+  it('compares ids too (inv 40), and every field', () => {
+    const a = leg({ tenons: [t] });
+    expect(sameShared(a, leg({ tenons: [{ ...t }] }))).toBe(true);
+    expect(sameShared(a, leg({ tenons: [{ ...t, id: 't2' }] }))).toBe(false);
+    expect(sameShared(a, leg({ tenons: [{ ...t, length: 2 }] }))).toBe(false);
+    expect(sameShared(a, leg())).toBe(false);
+  });
+});
+
 describe('sameShared', () => {
   it('is false when any shared field differs, true when only own fields differ', () => {
     const a = leg({ cuts: [cut] });

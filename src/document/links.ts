@@ -129,10 +129,10 @@ export function sameShared(a: Board, b: Board): boolean {
     } else if (k === 'hardware') {
       if (!sameHardware(a.hardware, b.hardware)) return false;
     } else if (k === 'tenons') {
-      // By value, exact, ids ignored; absent equals absent only.
+      // In order, ids included, then every field exact (inv 40, like holes); absent equals absent only.
       const x = a.tenons ?? [];
       const y = b.tenons ?? [];
-      if (x.length !== y.length || x.some((t, i) => !sameTenon(t, y[i]!))) return false;
+      if (x.length !== y.length || x.some((t, i) => t.id !== y[i]!.id || !sameTenon(t, y[i]!))) return false;
     } else if (k === 'lean') {
       // By value, exact; absent equals absent only (spec §3.1).
       if (a.lean === undefined || b.lean === undefined) {
