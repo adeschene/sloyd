@@ -12,7 +12,7 @@ import { partBounds } from './worldBounds';
 import { dimensionView } from './dimensions';
 import { IMPERIAL } from '../units/length';
 import { curveSilhouettes } from './curveDrawing';
-import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type P2, type Seg2, type View } from './drawing';
+import { DRAW_EPS, drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type P2, type Seg2, type View } from './drawing';
 
 const len = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
 const total = (segs: Seg2[], part?: string) =>
@@ -704,5 +704,33 @@ describe('drawings read the lean (splayed legs spec §6.1 R1–R3, §6.2)', () =
       }
     }
     expect(found).toBeGreaterThan(0);
+  });
+});
+
+describe('drawView: a round tenon (round tenons spec §7, §8)', () => {
+  // An upright 2 x 2 x 20 leg (length on Y, width on X) with a 1" tenon 3" long at its top: shoulder y = 17, sides x = 0.5, 1.5.
+  const leg = createBoard({ id: 'L', name: 'Leg', length: 20, width: 2, thickness: 2, posture: 'upright', position: [0, 0, 0],
+    tenons: [{ id: 't', end: 'max', diameter: 1, length: 3 }] });
+  const vertical = (s: Seg2) => Math.abs(s.a[0] - s.b[0]) < 1e-9 && Math.abs(s.a[1] - s.b[1]) > 1e-9;
+  const inZone = (s: Seg2) => (s.a[1] + s.b[1]) / 2 > 17 + 1e-9;
+
+  it('front: the shoulder line across the section, the two silhouette sides at ±r, and no facet lines', () => {
+    const d = drawView([leg], FRONT);
+    // The shoulder: the full section's top edge at y = 17, 2" across.
+    expect(horizontalAt(d.visible, 17).reduce((n, s) => n + len(s), 0)).toBeCloseTo(2, 9);
+    // The sides: one visible line each at x = 0.5 and 1.5, from the shoulder to the end.
+    for (const x of [0.5, 1.5]) {
+      const side = verticalAt(d.visible, x).filter(inZone);
+      expect(side).toHaveLength(1);
+      // Within DRAW_EPS of the shoulder (the silhouette's on-wood interval starts ~5e-7 in).
+      expect(Math.abs(Math.min(side[0]!.a[1], side[0]!.b[1]) - 17)).toBeLessThan(DRAW_EPS);
+      expect(Math.max(side[0]!.a[1], side[0]!.b[1])).toBeCloseTo(20, 9);
+    }
+    // No facet line along the round side, visible or hidden: in the zone a line along the length is a silhouette or nothing.
+    for (const s of [...d.visible, ...d.hidden].filter((t) => vertical(t) && inZone(t))) {
+      expect([0.5, 1.5].some((x) => Math.abs(s.a[0] - x) < 1e-9), `${s.a} → ${s.b}`).toBe(true);
+    }
+    // The full section's corners stop at the shoulder.
+    expect([0, 2].flatMap((x) => verticalAt(d.visible, x)).filter(inZone)).toEqual([]);
   });
 });

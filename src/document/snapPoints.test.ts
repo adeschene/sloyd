@@ -8,7 +8,9 @@ import type { Point } from './cuts';
 import { chooseFace, leanMap, slopeOf } from './lean';
 import { boardSnapPoints, cutSnapPoints, fromWorld, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, toWorld, towardFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
-import type { AngleCut, Board, Cut, Posture, Rotation } from './types';
+import type { AngleCut, Board, Cut, Posture, Rotation, RoundTenon } from './types';
+import { keptHalfSpace } from './angleCuts';
+import { stoolLegs } from './stoolFixture';
 import type { BoardSnapPoint } from './snapPoints';
 import { ARCH, CORNER } from './curveFixtures';
 
@@ -1058,5 +1060,67 @@ describe('snap points of a leaning part (splayed legs spec §6.1 R1, §6.2)', ()
     const plain = unleaned(b);
     const p = toWorld(plain, { length: 7, width: 0.25, thickness: 1.5 });
     expect(fromWorld(plain, p)).toEqual({ length: 7, width: 0.25, thickness: 1.5 });
+  });
+});
+
+describe('round tenon snap points (round tenons spec §7)', () => {
+  // A 2 x 2 x 20 leg (flat, turn 0) with a 1" tenon 3" long at its max end.
+  const tenon = (over: Partial<RoundTenon> = {}): RoundTenon => ({ id: 't', end: 'max', diameter: 1, length: 3, ...over });
+  const leg = (extra: Partial<Board> = {}) => createBoard({ id: 'leg', name: 'Leg', length: 20, width: 2, thickness: 2, position: [1, 2, 3], ...extra });
+  /** A top miter (along the width): depth 0.25 at width 0 to 0.75 at width 2. */
+  const TOP: AngleCut = { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0.25], [2, 0.75]] };
+  const key = (p: SnapPoint) => p.at.join(',');
+  const has = (pts: SnapPoint[], at: readonly number[]) => pts.filter((p) => p.at.every((v, i) => Math.abs(v - at[i]!) <= 1e-9));
+  /** Where the axis (width W/2, thickness T/2) meets the miter's plane, solved from `keptHalfSpace` (not from the tenon code). */
+  const onMiter = (b: Board, c: AngleCut) => {
+    const h = keptHalfSpace(b, c)!;
+    return -(h.d + h.n[1] * b.width / 2 + h.n[2] * b.thickness / 2) / h.n[0];
+  };
+
+  it('a square end: the shoulder ring\'s centre is added; the tip centre is the end face\'s own centre', () => {
+    const b = leg({ tenons: [tenon()] });
+    const got = boardSnapPoints(b);
+    const plain = boardSnapPoints(leg());
+    const shoulder = toWorld(b, { length: 17, width: 1, thickness: 1 });
+    const tip = toWorld(b, { length: 20, width: 1, thickness: 1 });
+    expect(has(got, shoulder).map((p) => p.kind)).toEqual(['face-center']);
+    expect(has(got, tip).map((p) => p.kind)).toEqual(['face-center']);
+    // Nothing else is added (the ruling: the view curves' ring points are not snap points); the end face's 8 lattice
+    // points out in the waste are withheld.
+    expect(got.filter((p) => !plain.some((q) => key(q) === key(p))).map(key)).toEqual([key({ ...got[0]!, at: shoulder })]);
+    expect(plain.filter((p) => !got.some((q) => key(q) === key(p)))).toHaveLength(8);
+  });
+
+  it('a min-end tenon: the shoulder centre at its length', () => {
+    const b = leg({ tenons: [tenon({ end: 'min', length: 2.5 })] });
+    expect(has(boardSnapPoints(b), toWorld(b, { length: 2.5, width: 1, thickness: 1 })).map((p) => p.kind)).toEqual(['face-center']);
+  });
+
+  it('a mitered tip: the tip centre ON the miter, on the axis, and the shoulder centre the tenon\'s length inward', () => {
+    const b = leg({ angleCuts: [TOP], tenons: [tenon()] });
+    const x = onMiter(b, TOP);
+    expect(x).toBeCloseTo(19.5, 12);
+    const got = boardSnapPoints(b);
+    expect(has(got, toWorld(b, { length: x, width: 1, thickness: 1 })).map((p) => p.kind)).toEqual(['face-center']);
+    expect(has(got, toWorld(b, { length: x - 3, width: 1, thickness: 1 })).map((p) => p.kind)).toEqual(['face-center']);
+  });
+
+  it('a levelled leaning leg (the stool\'s): both centres through the lean', () => {
+    const fr = stoolLegs()[0]!;
+    const b: Board = { ...fr, tenons: [tenon({ diameter: 0.75, length: 1.5 })] };
+    const miter = b.angleCuts.find((c) => c.from === 'max')!;
+    const x = onMiter(b, miter);
+    const got = boardSnapPoints(b);
+    const c = { width: b.width / 2, thickness: b.thickness / 2 };
+    expect(has(got, toWorld(b, { length: x, ...c })).map((p) => p.kind)).toEqual(['face-center']);
+    expect(has(got, toWorld(b, { length: x - 1.5, ...c })).map((p) => p.kind)).toEqual(['face-center']);
+  });
+
+  it('a FAULTED tenon builds nothing, so it adds no point', () => {
+    expect(boardSnapPoints(leg({ tenons: [tenon({ diameter: 2 })] }))).toEqual(boardSnapPoints(leg()));   // too wide
+    // A bore well clear of the zone, so the part takes the feature path rather than the plain lattice's early return.
+    const bore = { id: 'h', face: 'width' as const, from: 'min' as const, diameter: 0.5, depth: 'through' as const, along: 'length' as const,
+      alongFrom: 'min' as const, station: 5, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1 };
+    expect(boardSnapPoints(leg({ holes: [bore], tenons: [tenon({ diameter: 2 })] }))).toEqual(boardSnapPoints(leg({ holes: [bore] })));
   });
 });

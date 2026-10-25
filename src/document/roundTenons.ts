@@ -189,6 +189,12 @@ export function tenonFaults(b: Board, t: RoundTenon): TenonFault[] {
   return out;
 }
 
+/** The tenons that BUILD (spec §7): fault-free, judged on the stored part. A faulted tenon builds nothing (the swept-profile
+ *  rule Q6), so nothing draws, notes or snaps to it either: `geometryBoard` and every reader of a tenon's shape ask this. */
+export function builtTenons(b: Board): RoundTenon[] {
+  return tenonsOf(b).filter((t) => tenonFaults(b, t).length === 0);
+}
+
 const faultKey = (f: TenonFault) => `${f.kind}|${f.feature ?? ''}`;
 
 /** The faults `after`'s tenon at `tenonEnd` has that `before`'s did not (the edit rule: refused only when it ADDS one). A

@@ -1,5 +1,5 @@
 import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide, RoundTenon } from './types';
-import { tenonFaults, tenonViewCurves } from './roundTenons';
+import { builtTenons, tenonViewCurves } from './roundTenons';
 import { curveFaults, sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
 import { faceOutline, isSwept, profilePath, sideStretch, stationPoint, throughConsistent, type FaceOutline, type OutlineChord, type Opts as PathOpts } from './profilePath';
 import { BEARING } from './runout';
@@ -630,7 +630,7 @@ export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { pr
   // view: a tenon is not a feature of itself). All faulted and no profiles: the part itself, as a tenon-free part's.
   const pv = profileView(b);
   const board = b as unknown as Board;
-  const extra = tenons.filter((t) => tenonFaults(board, t).length === 0).flatMap((t) => tenonViewCurves(board, t));
+  const extra = builtTenons(board).flatMap((t) => tenonViewCurves(board, t));
   const view = extra.length === 0 ? pv : { ...pv, curves: [...pv.curves, ...extra] } as T;
   tenonViews.set(b, view);
   tenonViews.set(view, view);

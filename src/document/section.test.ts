@@ -1,4 +1,7 @@
 import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, taperCut, miterCut, bevelCut, miterRatio, type Board, type Posture, type Rotation } from './document';
+import { arcChords, arcOf, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE } from './curves';
+import { toWorld as toWorldOf } from './snapPoints';
+import type { HoleRow, RoundTenon } from './types';
 import { axisFrame, fromWorldOffset, toWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
@@ -764,5 +767,55 @@ describe('sectionCaps: a leaning part (splayed legs spec §6.2)', () => {
       world.outline.length = 0;
       expect(sectionCaps(leg, s)).toEqual(expected);
     });
+  });
+});
+
+describe('sectionCaps: round tenons (round tenons spec §7)', () => {
+  // An upright 2 x 2 x 20 leg (length on Y) with a 1" tenon 3" long at its top: the shoulder at y = 17.
+  const r = 0.5;
+  /** The inscribed polygon round the whole circle: 4 quarter arcs of `arcChords` chords, vertices ON the circle. */
+  const sides = 4 * arcChords(arcOf([1, 0.5], [0.5, 1], 'left', { radius: r }, 0), CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+  const polyArea = (sides / 2) * r * r * Math.sin((2 * Math.PI) / sides);
+  const gon48 = (48 / 2) * r * r * Math.sin((2 * Math.PI) / 48);
+  const tenon: RoundTenon = { id: 't', end: 'max', diameter: 1, length: 3 };
+  const leg = (id: string, extra: Partial<Board> = {}) =>
+    createBoard({ id, name: 'Leg', length: 20, width: 2, thickness: 2, posture: 'upright', position: [0, 0, 0], tenons: [tenon], ...extra });
+  const centroid = (pieces: readonly (readonly number[])[][]) => {
+    const pts = pieces.flat();
+    return [0, 1, 2].map((k) => pts.reduce((s, p) => s + p[k]!, 0) / pts.length);
+  };
+
+  it('a Top plane through the tenon caps a disc of radius r: the inscribed polygon, its outline the ring', () => {
+    const b = leg('tenon-cap');
+    const centre = toWorldOf(b, { length: 18.5, width: 1, thickness: 1 });
+    const cap = sectionCaps(b, { axis: 'top', at: 18.5, flip: false })!;
+    expect(Math.abs(totalArea(cap.pieces as P3[][]) - polyArea)).toBeLessThan(1e-9);
+    // One closed ring of `sides` chords, every end on the circle: no seam between the outlines' pieces.
+    expect(cap.outline).toHaveLength(sides);
+    for (const [p, q] of cap.outline) for (const v of [p, q]) {
+      expect(Math.abs(Math.hypot(v[0] - centre[0]!, v[2] - centre[2]!) - r)).toBeLessThan(1e-9);
+      expect(v[1]).toBeCloseTo(18.5, 12);
+    }
+    // Below the shoulder the full section is capped.
+    expect(totalArea(sectionCaps(b, { axis: 'top', at: 16, flip: false })!.pieces as P3[][])).toBeCloseTo(4, 9);
+  });
+
+  it('a seated tenon: the seat caps with its bore subtracted, and the leg caps the disc inside the bore', () => {
+    // A 10 x 10 x 1.5 seat (flat, thickness on Y, y 17 .. 18.5) bored through at its centre, over the leg's axis (1, 1).
+    const bore: HoleRow = { id: 'h', face: 'thickness', from: 'max', diameter: 1, depth: 'through', along: 'length',
+      alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 5 };
+    const seat = createBoard({ id: 'seated-seat', name: 'Seat', length: 10, width: 10, thickness: 1.5, position: [-4, 17, -4], holes: [bore] });
+    const b = leg('seated-leg');
+    const s: Section = { axis: 'top', at: 17.75, flip: false };
+    const seatCap = sectionCaps(seat, s)!;
+    const legCap = sectionCaps(b, s)!;
+    expect(Math.abs(totalArea(seatCap.pieces as P3[][]) - (100 - gon48))).toBeLessThan(1e-6);
+    expect(Math.abs(totalArea(legCap.pieces as P3[][]) - polyArea)).toBeLessThan(1e-9);
+    const c = centroid(legCap.pieces);
+    expect(c[0]).toBeCloseTo(1, 9);
+    expect(c[2]).toBeCloseTo(1, 9);
+    // Every point of the leg's cap lies in the bore (radius r about (1, 1)), which the seat's cap leaves empty.
+    for (const p of legCap.pieces.flat()) expect(Math.hypot(p[0] - 1, p[2] - 1)).toBeLessThanOrEqual(r + 1e-9);
+    expect(seatCap.pieces.flat().every((p) => Math.hypot(p[0] - 1, p[2] - 1) >= r - 1e-9)).toBe(true);
   });
 });

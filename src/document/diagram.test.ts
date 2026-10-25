@@ -721,3 +721,64 @@ describe('a tilted bore in the part diagrams (angled holes spec §8)', () => {
     }
   });
 });
+
+describe('round tenons in the part diagrams (round tenons spec §8)', () => {
+  // A 2 x 2 x 20 leg with a 1" tenon 3" long at its max end: the shoulder at 17.
+  const tenon = { id: 't', end: 'max' as const, diameter: 1, length: 3 };
+  const leg = (extra: Partial<Board> = {}) => createBoard({ id: 'leg', name: 'Leg', length: 20, width: 2, thickness: 2, ...extra });
+  const drawsNoCurve = (vs: ReturnType<typeof buildDiagrams>) => vs.forEach((v) => {
+    expect(v.curves, v.key).toEqual([]);
+    expect(v.curveLines, v.key).toEqual([]);
+    expect(v.curveNotes, v.key).toEqual([]);
+  });
+
+  it('the end view draws the circle; a side view (opened when none exists) draws the shoulder; never as a curve', () => {
+    const vs = buildDiagrams(leg({ tenons: [tenon] }), IMPERIAL);
+    expect(vs.map((v) => v.key)).toEqual(['length|max', 'thickness|min']);
+    for (const v of vs) expect(v.tenons, v.key).toEqual([{ end: 'max', diameter: 1, shoulder: 17 }]);
+    drawsNoCurve(vs);
+  });
+
+  it('a min-end tenon opens the min end view; its shoulder at its length', () => {
+    const vs = buildDiagrams(leg({ tenons: [{ ...tenon, end: 'min', length: 2.5 }] }), IMPERIAL);
+    expect(vs.map((v) => v.key)).toEqual(['length|min', 'thickness|min']);
+    for (const v of vs) expect(v.tenons).toEqual([{ end: 'min', diameter: 1, shoulder: 2.5 }]);
+  });
+
+  it('every existing side view draws it, and no sharp-vertex line from the view curves', () => {
+    const bore: HoleRow = { id: 'h', face: 'width', from: 'min', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min',
+      station: 8, count: 1, pitch: 0, acrossFrom: 'min', inset: 1 };
+    const vs = buildDiagrams(leg({ tenons: [tenon], holes: [bore] }), IMPERIAL);
+    expect(vs.map((v) => v.key)).toEqual(['length|max', 'width|min']);   // no thickness view opened: a side view exists
+    for (const v of vs) expect(v.tenons, v.key).toEqual([{ end: 'max', diameter: 1, shoulder: 17 }]);
+    drawsNoCurve(vs);
+  });
+
+  it('a mitered tip: the shoulder the tenon\'s length in from where the miter meets the axis', () => {
+    const miter = { id: 'm', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const,
+      alongFrom: 'min' as const, points: [[0, 0.25], [2, 0.75]] as [[number, number], [number, number]] };
+    const vs = buildDiagrams(leg({ tenons: [tenon], angleCuts: [miter] }), IMPERIAL);
+    expect(vs.map((v) => v.key)).toEqual(['length|max', 'thickness|min']);
+    for (const v of vs) expect(v.tenons, v.key).toEqual([{ end: 'max', diameter: 1, shoulder: 16.5 }]);
+  });
+
+  it('the side view a tenon opens is opened BEFORE the holes are drawn: an end bore\'s depth box shows in it', () => {
+    const bore: HoleRow = { id: 'h', face: 'length', from: 'min', diameter: 0.5, depth: 2, along: 'width', alongFrom: 'min',
+      station: 1, count: 1, pitch: 0, acrossFrom: 'min', inset: 1 };
+    const vs = buildDiagrams(leg({ tenons: [tenon], holes: [bore] }), IMPERIAL);
+    expect(vs.map((v) => v.key)).toEqual(['length|min', 'length|max', 'thickness|min']);
+    const side = vs.find((v) => v.key === 'thickness|min')!;
+    expect(side.holeSides.map((h) => [h.h, h.v])).toEqual([[[0, 2], [0.75, 1.25]]]);
+    expect(side.tenons).toEqual([{ end: 'max', diameter: 1, shoulder: 17 }]);
+    // The min end view (the bore's) shows no tenon: the tenon is at the max end.
+    expect(vs.find((v) => v.key === 'length|min')!.tenons).toBeUndefined();
+  });
+
+  it('a FAULTED tenon builds nothing and draws nothing: the diagrams are the tenon-free part\'s', () => {
+    expect(buildDiagrams(leg({ tenons: [{ ...tenon, diameter: 2 }] }), IMPERIAL)).toEqual(buildDiagrams(leg(), IMPERIAL));
+  });
+
+  it('a tenon-free part\'s views carry no tenons key', () => {
+    for (const v of buildDiagrams(leg(), IMPERIAL)) expect('tenons' in v).toBe(false);
+  });
+});
