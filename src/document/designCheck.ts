@@ -10,9 +10,9 @@ import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset } from './geome
 import { localToDir } from './taperWorld';
 import { leans } from './lean';
 import { partBounds } from './worldBounds';
-import { levelFaces, overlapArea, worldBodyFaces, type LevelFace } from './leanContacts';
+import { LEVEL_EPS, levelFaces, overlapArea, worldBodyFaces, type LevelFace } from './leanContacts';
 import { REST_AREA, TOUCH } from './checkTolerances';
-import { builtTenons, hasTenons, shoulderAt } from './roundTenons';
+import { builtTenons, shoulderAt } from './roundTenons';
 import { tenonJoints, tenonMeetsBore, withoutTenon, type TenonJoint } from './tenonJoints';
 import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../units/length';
 
@@ -47,9 +47,13 @@ import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../un
  * A ROUND TENON (round tenons spec §5.2) seated in a matching bore (`tenonJoints`, the ONE exception to "holes are ignored
  * by every check", inv 38) is a JOINT: its round wood is not measured against its socket's part (`withoutTenon`, that pair
  * only — the shoulder still is), it connects its two parts in the grounding walk, and it holds both (`isHeld`'s clause
- * (d), joined: a full alternative to (a)–(c), for any part, leaning or not). A tenoned part is measured on its real bodies
- * (`realBodied`), and its round wood is never a contact (`contactRegions` trims to the shoulders). A tenon-free document
- * scans for tenons once and takes every path above unchanged.
+ * (d), joined: a full alternative to (a)–(c), for any part, leaning or not, by a partner still grounded without it). A
+ * part with a BUILT tenon is measured on its real bodies (`realBodied`; one whose tenons are all faulted checks as its
+ * tenon-free twin), and a built tenon's wood, its tip disc included, is never a contact anywhere: not a rest, not the
+ * floor, not grounding's `connected`, not the tip footprint — an unleaned part reads `contactRegions` (trimmed to the
+ * shoulders; its floor test too, `stands`), a leaning one `checkedLevelFaces` (its bodies cut at the shoulders). So a part
+ * standing only on a foot tenon's tip is not on the floor. A tenon-free document scans for tenons once and takes every path
+ * above unchanged.
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'angle-joint' | 'feature-turned' | 'hole-fault' | 'band-fault' | 'profile-fault';
 export interface Violation {
@@ -186,7 +190,7 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, onFloor: (i: number) =
  * leaning part starts the walk only from a level foot on the floor (splayed legs §7.2); every other pair and part is
  * judged exactly as without it.
  */
-function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null, lean: LeanView | null = null, joint: ((i: number, j: number) => boolean) | null = null): Set<number> {
+function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null, lean: LeanView | null = null, joint: ((i: number, j: number) => boolean) | null = null, stands: readonly boolean[] | null = null): Set<number> {
   const plain = (i: number, j: number) => (tapered[i] || tapered[j]
     ? touching[i].some((a) => touching[j].some((b) => connected(a, b)))
     : connected(boxes[i], boxes[j]));
@@ -197,7 +201,7 @@ function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: 
   // by its joint too. No tenon in the document: `joint` is null and the walk is exactly as before.
   const joined = joint ? (i: number, j: number) => joint(i, j) || touches(i, j) : touches;
   const grounded = new Set<number>();
-  const queue = boxes.flatMap((b, i) => (i !== skip && (lean ? lean.floor[i] : b.min[1] <= TOUCH) ? [i] : []));
+  const queue = boxes.flatMap((b, i) => (i !== skip && (lean ? lean.floor[i] : stands ? stands[i] : b.min[1] <= TOUCH) ? [i] : []));
   queue.forEach((i) => grounded.add(i));
   while (queue.length) {
     const i = queue.shift()!;
@@ -282,12 +286,13 @@ function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
  * leaning or not, with no coverage threshold (that belongs to the contact clauses). It is ADDED: (a), (b), (c), the
  * coverage threshold and both halves of the top-face clause run exactly as before (inv 39's PROHIBITION).
  */
-function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean, groundedWithout: (skip: number) => Set<number>, lean: LeanView | null, partners: readonly number[][] | null): boolean {
+function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean, groundedWithout: (skip: number) => Set<number>, lean: LeanView | null, partners: readonly number[][] | null, stands: readonly boolean[] | null): boolean {
   const b = boxes[i];
   const all = without === null ? contacts[i] : contacts[i].filter((c) => c.other !== without);
   if (all.some((c) => c.axis === 1 && c.side === -1)) return true;
-  // (d), above the leaning rule: a leaning part is held by a joint too.
-  if (partners && partners[i]!.some((o) => o !== without)) return true;
+  // (d), above the leaning rule: a leaning part is held by a joint too. Only by a partner still grounded WITHOUT this part
+  // (ruling T7g, the top-face clause's guard): a peg seated in a hanging shelf holds nothing up.
+  if (partners && partners[i]!.some((o) => o !== without && groundedWithout(i).has(o))) return true;
   // Splayed legs §7.2: a leaning part is held only by resting (a); "between" and "lapped" never apply to it, and a pair
   // with a leaning part touches only by resting, so its contacts never feed (b) or (c) of an unleaned part.
   if (lean?.leaning[i]) return false;
@@ -300,13 +305,14 @@ function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number 
     if (!(c.axis === 1 && c.side === 1)) return true;
     if (!allowTop) return false;
     const o = c.other;
-    // `o` never leans here (a leaning part's contacts are rests, filtered out above), so its box is its floor test.
-    return boxes[o].min[1] <= TOUCH || (groundedWithout(i).has(o) && isHeld(o, boxes, contacts, i, false, groundedWithout, lean, partners));
+    // `o` never leans here (a leaning part's contacts are rests, filtered out above), so its box is its floor test — its
+    // trimmed wood when it has a built tenon (`stands`, ruling T7f).
+    return (stands ? stands[o]! : boxes[o].min[1] <= TOUCH) || (groundedWithout(i).has(o) && isHeld(o, boxes, contacts, i, false, groundedWithout, lean, partners, stands));
   });
 }
 
-function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWithout: (skip: number) => Set<number>, lean: LeanView | null, partners: readonly number[][] | null): string | null {
-  if (isHeld(i, boxes, contacts, null, true, groundedWithout, lean, partners)) return null;
+function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWithout: (skip: number) => Set<number>, lean: LeanView | null, partners: readonly number[][] | null, stands: readonly boolean[] | null): string | null {
+  if (isHeld(i, boxes, contacts, null, true, groundedWithout, lean, partners, stands)) return null;
   const b = boxes[i];
   const cs = contacts[i];
   const pairs = [0, 2].map((axis) => ({ axis, lo: coverage(b, cs, axis, -1), hi: coverage(b, cs, axis, 1) }));
@@ -350,10 +356,10 @@ export function worldSolids(b: Board): Box[] {
 /** A part carrying any angle cut: the checks read its real bodies (overlap, weight) and its flat wood (contact). */
 export const isAngled = (b: Board): boolean => b.angleCuts.length > 0;
 
-/** A part the checks read on its REAL bodies: angled (fu 302, 303), or with a round tenon (round tenons spec §5.2: a box
- *  would overstate a tenon as full-section wood and give its shoulder a flat it does not have). A tenon-free part: exactly
- *  `isAngled`. */
-export const realBodied = (b: Board): boolean => isAngled(b) || hasTenons(b);
+/** A part the checks read on its REAL bodies: angled (fu 302, 303), or with a BUILT round tenon (round tenons spec §5.2: a
+ *  box would overstate a tenon as full-section wood and give its shoulder a flat it does not have). A part whose tenons
+ *  are all faulted builds none, so it checks exactly as its tenon-free twin (ruling T7h): `isAngled`. */
+export const realBodied = (b: Board): boolean => isAngled(b) || builtTenons(b).length > 0;
 
 /**
  * A part's solids AS FAR AS CONTACT CAN TRUST THEM (AI-tapers spec §3.2; AI-angles spec §2), board-local regions.
@@ -363,8 +369,10 @@ export const realBodied = (b: Board): boolean => isAngled(b) || hasTenons(b);
  * taper's amount (read through `taperFields`, so a line stored deep-end-last reads as the same taper). Then every miter,
  * bevel and chamfer splits what is left around its touched box (`splitRegion`): a sloped face is never a contact, and
  * nothing a cut removes is ever trusted. The second reader of angle cuts besides `boardBodies` (invariant 48),
- * box-valued, never over-claiming wood. A part with round tenons (round tenons spec §5.2) is trimmed to its shoulders as
- * a taper's stations are: a tenon's round wood (and its tip) is never a contact.
+ * box-valued, never over-claiming wood. A part with BUILT round tenons (round tenons spec §5.2) is trimmed to its
+ * shoulders as a taper's stations are, so its contacts, its connection in the grounding walk, its floor test (`stands`)
+ * and its tip footprint all read the shoulder side: a tenon's round wood and its tip are never a contact. (A leaning part
+ * touches through `checkedLevelFaces`, trimmed the same way.)
  */
 export function contactRegions(b: Board): Region[] {
   const cells = pocketCells(b);
@@ -497,16 +505,41 @@ interface LeanView {
 }
 
 /**
+ * A leaning part's level faces AS THE CHECKS TRUST THEM (ruling T7f): `levelFaces`, except that a part with built tenons
+ * reads its bodies cut at every shoulder (`withoutTenon`), so a tip disc never rests, stands or makes a footprint. Local
+ * to the checks: `levelFaces` itself keeps the tips, which Bore leg sockets finds legs by (`legsUnder`, `staleSocketOf`).
+ * The face rule is `levelFaces`' own (unit normal within LEVEL_EPS of ±Y, height the vertices' mean); a shoulder is square
+ * to a leaning axis, so it is never level.
+ */
+function checkedLevelFaces(b: Board): LevelFace[] {
+  const ts = builtTenons(b);
+  if (ts.length === 0) return levelFaces(b);
+  let bodies = worldBodyFaces(b);
+  for (const t of ts) bodies = withoutTenon(bodies, b, t);
+  const out: LevelFace[] = [];
+  for (const body of bodies) {
+    for (const f of body) {
+      const len = Math.hypot(f.n[0], f.n[1], f.n[2]);
+      if (!(len > 0) || f.verts.length < 3) continue;
+      if (Math.abs(f.n[0] / len) > LEVEL_EPS || Math.abs(f.n[2] / len) > LEVEL_EPS) continue;
+      const y = f.verts.reduce((acc, v) => acc + v[1]!, 0) / f.verts.length;
+      out.push({ y, up: f.n[1] > 0, poly: f.verts.map((v) => [v[0]!, v[2]!]) });
+    }
+  }
+  return out;
+}
+
+/**
  * The view, for `boxes` (a leaning part's its real bounds) and `touching` (an unleaned part's contact solids). An unleaned
  * part's level faces are its contact solids' top and bottom (flat wood only, inv 38); a leaning part's are `levelFaces`.
  */
-function leanView(doc: FlatDocument, boxes: Box[], touching: Box[][], leaning: boolean[]): LeanView {
+function leanView(doc: FlatDocument, boxes: Box[], touching: Box[][], leaning: boolean[], stands: readonly boolean[] | null): LeanView {
   const n = boxes.length;
   const faces: (LevelFace[] | undefined)[] = [];
   const facesOf = (k: number): LevelFace[] => {
     let f = faces[k];
     if (!f) {
-      f = leaning[k] ? levelFaces(doc.boards[k]!) : touching[k].flatMap((s): LevelFace[] => {
+      f = leaning[k] ? checkedLevelFaces(doc.boards[k]!) : touching[k].flatMap((s): LevelFace[] => {
         const poly: [number, number][] = [[s.min[0], s.min[2]], [s.max[0], s.min[2]], [s.max[0], s.max[2]], [s.min[0], s.max[2]]];
         return [{ y: s.min[1], up: false, poly }, { y: s.max[1], up: true, poly }];
       });
@@ -539,7 +572,7 @@ function leanView(doc: FlatDocument, boxes: Box[], touching: Box[][], leaning: b
   };
   return {
     leaning,
-    floor: boxes.map((b, k) => (leaning[k] ? facesOf(k).some(onFloor) : b.min[1] <= TOUCH)),
+    floor: boxes.map((b, k) => (leaning[k] ? facesOf(k).some(onFloor) : stands ? stands[k]! : b.min[1] <= TOUCH)),
     unlevelled: leaning.map((l, k) => l && !facesOf(k).some((f) => !f.up)),
     rests,
     // One zero-size box per foot VERTEX, so the hull of the boxes' corners is exactly the hull of the feet (final review
@@ -573,7 +606,7 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
     : boxesOf(doc);
   const leanAt = (k: number) => anyLean && leaning[k]!;
   // Round tenons §5.2: ONE scan. None: `joints` stays empty, `partners` and `joint` null, and every check below is as before.
-  const anyTenon = doc.boards.some(hasTenons);
+  const anyTenon = doc.boards.some((b) => builtTenons(b).length > 0);
   const joints: TenonJoint[] = anyTenon ? tenonJoints(doc) : [];
   const partners: number[][] | null = anyTenon ? doc.boards.map(() => []) : null;
   for (const j of joints) { partners![j.a]!.push(j.b); partners![j.b]!.push(j.a); }
@@ -649,8 +682,11 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
   const tapered = doc.boards.map(realBodied);
   // A leaning part touches through its level faces only (§7.2), never its pre-lean solids.
   const touching = doc.boards.map((b, i) => (leanAt(i) ? [] : tapered[i] ? contactSolids(b) : solids[i]));
-  const lean = anyLean ? leanView(doc, boxes, touching, leaning) : null;
-  const grounded = groundedSet(boxes, touching, tapered, null, lean, joint);
+  // Ruling T7f: an unleaned part with a built tenon stands on its TRIMMED wood (`touching`, cut at the shoulders), never on a
+  // tip, so grounding agrees with the footprint. No tenon: null, and every floor test is the box's, as before.
+  const stands = anyTenon ? boxes.map((b, k) => (builtTenons(doc.boards[k]!).length > 0 ? touching[k]!.some((s) => s.min[1] <= TOUCH) : b.min[1] <= TOUCH)) : null;
+  const lean = anyLean ? leanView(doc, boxes, touching, leaning, stands) : null;
+  const grounded = groundedSet(boxes, touching, tapered, null, lean, joint, stands);
   boxes.forEach((b, i) => {
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
@@ -684,15 +720,15 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
   // unsupported, or named in an overlap is never also reported as hanging.
   const contacts = solidContactsOf(touching);
   if (lean) addRests(contacts, lean);
-  const onFloor = (i: number) => (lean ? lean.floor[i]! : boxes[i].min[1] <= TOUCH);
+  const onFloor = (i: number) => (lean ? lean.floor[i]! : stands ? stands[i]! : boxes[i].min[1] <= TOUCH);
   const memo = new Map<number, Set<number>>();
   const groundedWithout = (skip: number) => {
-    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, touching, tapered, skip, lean, joint));
+    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, touching, tapered, skip, lean, joint, stands));
     return memo.get(skip)!;
   };
   boxes.forEach((_, i) => {
     if (onFloor(i) || !grounded.has(i) || overlapping.has(i)) return;
-    const message = hangsMessage(i, boxes, contacts, groundedWithout, lean, partners);
+    const message = hangsMessage(i, boxes, contacts, groundedWithout, lean, partners, stands);
     if (message) out.push({ kind: 'hangs', message, parts: [boxes[i].name] });
   });
 

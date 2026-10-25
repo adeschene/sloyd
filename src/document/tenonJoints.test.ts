@@ -466,3 +466,77 @@ describe('a chiral rung through mirrors: the world tenon flips ends (Review Focu
     expect(checkDesign(flat, NO_LIMITS)).toEqual([]);
   });
 });
+
+// ---- Fix round 1 (rulings T7f, T7g, T7h) ---------------------------------------------------------------------------
+
+const checks = (doc: ReturnType<typeof flatOf>) => checkDesign(doc, NO_LIMITS).map((v) => `${v.kind}:${v.parts.join(',')}`);
+
+describe('a tenon\'s wood is never a contact (T7f)', () => {
+  it('a leaning stool with top tenons and NO sockets: the seat on the tips is unsupported, as on unleaned posts', () => {
+    // Shoulders 1" below the underside, tips flush at y 16 (the stool's levelled tops): nothing but tip discs meets the seat.
+    const legs = stoolLegs().map((l) => topTenon(l, 1, 1));
+    for (const l of legs) {
+      expect(leans(l)).toBe(true);
+      expect(builtTenons(l)).toHaveLength(1);
+      expect(Math.abs(onAxis(l, tipCentre(l, l.tenons![0]!))[1] - UNDER)).toBeLessThanOrEqual(1e-9);
+    }
+    const doc = flatOf(...legs, stoolSeat());
+    expect(tenonJoints(doc)).toEqual([]);
+    expect(checks(doc)).toEqual(['unsupported:Seat']);
+    // The unleaned twin: four posts, 1" top tenons, the seat on their tips.
+    const p = (n: string, x: number, z: number) => ({ ...createBoard({ name: n, posture: 'upright', length: 16, width: 1.5, thickness: 1.5, position: [x, 0, z] }), tenons: [tenonOf('t', 'max', 1)] });
+    const twin = flatOf(p('A', 0, 0), p('B', 10.5, 0), p('C', 0, 10.5), p('D', 10.5, 10.5),
+      createBoard({ name: 'Seat', posture: 'flat', length: 12, width: 12, thickness: 1.5, position: [0, 16, 0] }));
+    expect(checks(twin)).toEqual(['unsupported:Seat']);
+  });
+
+  it('four posts standing on foot-tenon tips are not on the floor: nothing is grounded', () => {
+    const p = (n: string, x: number, z: number) => ({ ...createBoard({ name: n, posture: 'upright', length: 16, width: 1.5, thickness: 1.5, position: [x, 0, z] }), tenons: [tenonOf('t', 'min', 1)] });
+    const doc = flatOf(p('A', 0, 0), p('B', 10.5, 0), p('C', 0, 10.5), p('D', 10.5, 10.5),
+      createBoard({ name: 'Seat', posture: 'flat', length: 12, width: 12, thickness: 1.5, position: [0, 16, 0] }));
+    for (const b of doc.boards.slice(0, 4)) expect(builtTenons(b)).toHaveLength(1);
+    expect(checks(doc)).toEqual(['unsupported:A', 'unsupported:B', 'unsupported:C', 'unsupported:D', 'unsupported:Seat']);
+  });
+
+  it('a leaning leg on a foot-tenon tip is not on the floor either', () => {
+    // FR given a foot tenon (its levelled foot miter is the tip): it stands only on the tip disc.
+    const base = tenonedStool();
+    const doc = migrateDocument({ ...base, boards: base.boards.map((b) => (b.name === 'Front right'
+      ? { ...(b as Board), tenons: [{ id: 'tf', end: 'min' as const, diameter: 1, length: 1 }, ...(b as Board).tenons!] } : b)) });
+    const fr = part(doc, 'Front right');
+    expect(builtTenons(fr)).toHaveLength(2);
+    expect(levelFaces(fr).some((f) => !f.up && Math.abs(f.y) <= TOUCH)).toBe(true); // the tip IS a level face on the floor
+    // Held by its seated top tenon, so grounded through the seat; not standing, so it is not part of the footprint.
+    expect(kinds(doc)).toEqual(['tips:']);
+  });
+});
+
+describe('a joint holds only toward the floor (T7g)', () => {
+  it('a peg seated in a shelf that hangs off a post does not hold the shelf up', () => {
+    const P = createBoard({ name: 'Post', posture: 'upright', length: 30, width: 1.5, thickness: 1.5, position: [0, 0, 0] });
+    const bore: HoleRow = { id: 'h', face: 'thickness', from: 'max', diameter: 0.5, depth: 0.5, along: 'length', alongFrom: 'min', station: 3.875, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.75 };
+    const S = { ...createBoard({ name: 'Shelf', posture: 'flat', length: 10, width: 1.5, thickness: 0.75, position: [1.5, 10, 0] }), holes: [bore] };
+    const T = { ...createBoard({ name: 'Peg', posture: 'upright', length: 2.5 + GAP, width: 0.75, thickness: 0.75, position: [5, 10.25, 0.375] }), tenons: [tenonOf('t', 'min', 0.5 + GAP)] };
+    const doc = flatOf(P, S, T);
+    expect(tenonJoints(doc)).toEqual([{ a: 2, b: 1, tenon: 't', row: 'h' }]);
+    expect(checks(doc).filter((k) => k.startsWith('hangs'))).toEqual(['hangs:Shelf']);
+    // Without the peg, the same.
+    expect(checks(flatOf(P, { ...S, holes: [] })).filter((k) => k.startsWith('hangs'))).toEqual(['hangs:Shelf']);
+  });
+});
+
+describe('a part whose tenons are all faulted checks as its tenon-free twin (T7h)', () => {
+  it('a notched board with a too-wide tenon: the same results as without it', () => {
+    // A's top is notched over x 0..5; B sits on A's BOX there, 0.5" above A's wood.
+    const a = { ...createBoard({ name: 'A', posture: 'flat', length: 10, width: 10, thickness: 1, position: [0, 0, 0] }),
+      cuts: [{ id: 'c', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 0, width: 5, depth: 0.5, stopMin: 0, stopMax: 0 }] };
+    const b = createBoard({ name: 'B', posture: 'flat', length: 4, width: 4, thickness: 1, position: [0.5, 1, 3] });
+    const faulted = { ...a, tenons: [tenonOf('t', 'max', 1)] as RoundTenon[] };
+    faulted.tenons[0] = { ...faulted.tenons[0]!, diameter: 2 };
+    expect(tenonFaults(faulted, faulted.tenons[0]!).map((f) => f.kind)).toContain('too-wide');
+    expect(builtTenons(faulted)).toHaveLength(0);
+    const twin = checkDesign(flatOf(a, b), NO_LIMITS);
+    expect(twin.map((v) => v.kind)).toContain('hangs'); // what it claims: B is grounded by A's box, held by nothing
+    expect(checkDesign(flatOf(faulted, b), NO_LIMITS)).toEqual(twin);
+  });
+});
