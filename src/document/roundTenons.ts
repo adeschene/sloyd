@@ -3,7 +3,7 @@ import type { CurveSpan, ViewCurve } from './curves';
 import { DIMENSION_ORDER } from './geometry';
 import { clippedRegion, cutRemovesNothing } from './cuts';
 import { angleCutRemovesNothing, depthAt, touchedRegion } from './angleCuts';
-import { boardHoles, holeRegion } from './holes';
+import { boardHoles, holeRegion, mm } from './holes';
 import { featureMeetsBox, shapedFeatures } from './featureRegions';
 
 /**
@@ -187,6 +187,23 @@ export function tenonFaults(b: Board, t: RoundTenon): TenonFault[] {
   }
   for (const feature of featuresMeeting(b, tenonZone(b, t), t.end, endCut)) out.push({ kind: 'meets-feature', feature });
   return out;
+}
+
+/**
+ * The tenon Properties' Add round tenon puts on `end` (round tenons spec §4): 1" (25 mm in a metric project), or, when
+ * that is `too-wide` (THE decider, `tenonFaults`), the largest whole 1/8" (whole mm) that is not; 1" (25 mm) long. Null
+ * when no step fits. Only the diameter is chosen here: whether the default is free of every OTHER fault is the caller's
+ * to ask (`tenonFaults`), as a preset is withheld when its default would be refused. `metric` rather than `Units`: this
+ * module produces no text (the `→ units` edge rule).
+ */
+export function defaultTenon(b: Board, end: RoundTenon['end'], metric: boolean): Omit<RoundTenon, 'id'> | null {
+  const [steps, step] = metric ? [25, mm] : [8, (k: number) => k / 8];
+  const length = step(steps);
+  for (let k = steps; k >= 1; k--) {
+    const t: RoundTenon = { id: '__default', end, diameter: step(k), length };
+    if (!tenonFaults(b, t).some((f) => f.kind === 'too-wide')) return { end, diameter: t.diameter, length };
+  }
+  return null;
 }
 
 const BUILT = new WeakMap<object, readonly RoundTenon[]>();

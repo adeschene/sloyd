@@ -24,6 +24,13 @@ export function tenonFaultText(f: TenonFault): string {
   }
 }
 
+/** The shoulder's distance from the OTHER end, at the centre (where the axis meets that end's face: `shoulderAt` with a
+ *  zero length is that point). The ONE home of the number the bench line and the Properties readout both print. */
+export function shoulderFromFarEnd(b: Board, t: RoundTenon): number {
+  const far = shoulderAt(b, { end: t.end === 'min' ? 'max' : 'min', length: 0 });
+  return Math.abs(shoulderAt(b, t) - far);
+}
+
 /**
  * One round tenon as a bench line (round tenons spec §8): THE one home of the string (invariant 19). Every length through the
  * document's units (inv 52), the diameter at a hole's precision (`holeLengthText`), so a tenon and its socket read the same
@@ -34,8 +41,7 @@ export function tenonFaultText(f: TenonFault): string {
  * STORED tenon; a faulted one (kept, not built) ends with its first fault and how many more (ruling T6b, `holeLine`'s shape).
  */
 export function tenonLine(b: Board, t: RoundTenon, units: Units): string {
-  const far = shoulderAt(b, { end: t.end === 'min' ? 'max' : 'min', length: 0 });
-  const s = Math.abs(shoulderAt(b, t) - far);
+  const s = shoulderFromFarEnd(b, t);
   const base = `${holeLengthText(t.diameter, units, 'diameter')} round tenon, ${formatLength(t.length, units)} long — at the length ${t.end} end, shoulder ${formatLength(s, units)} from the other end`;
   const faults = tenonFaults(b, t);
   if (faults.length === 0) return base;

@@ -3,7 +3,7 @@ import { cornerCurve, createBoard, createDocument, migrateDocument } from './doc
 import type { Board } from './types';
 import { TENON_FIELDS, copyTenon, hasTenons, lowerTenons, mirrorTenons, sameTenon, tenonAt, tenonValues, tenonsOf, withTenons } from './roundTenons';
 import type { AngleCut, Band, CurveCut, HoleRow, ProfileCut, RoundTenon } from './types';
-import { addedTenonFaults, builtTenons, endCutOf, shoulderAt, tenonFaults, tenonZone } from './roundTenons';
+import { addedTenonFaults, builtTenons, defaultTenon, endCutOf, shoulderAt, tenonFaults, tenonZone } from './roundTenons';
 import { curveOutline } from './curves';
 import { tenonFaultText } from './tenonText';
 import { arcChords, arcOf, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, spanOf } from './curves';
@@ -423,5 +423,44 @@ describe('round tenons: builtTenons (fix round 1, memoised)', () => {
     const wide = { ...b, tenons: [tn('max', 3, 2)] };   // an edit is a new object: too wide, so it builds nothing
     expect(builtTenons(wide)).toEqual([]);
     expect(builtTenons(leg())).toBe(builtTenons(leg()));
+  });
+});
+
+describe('round tenons: the Properties default (spec §4)', () => {
+  const part = (w: number, t: number) => createBoard({ length: 20, width: w, thickness: t });
+  it('1" and 1" long in an imperial project when 1" is not too wide', () => {
+    expect(defaultTenon(part(1.5, 1.5), 'max', false)).toEqual({ end: 'max', diameter: 1, length: 1 });
+  });
+  it('else the largest whole 1/8" that is not too wide (a 1" section takes 7/8"; 3/4" takes 5/8")', () => {
+    expect(defaultTenon(part(1, 1.5), 'min', false)).toEqual({ end: 'min', diameter: 0.875, length: 1 });
+    expect(defaultTenon(part(1.5, 0.75), 'max', false)!.diameter).toBe(0.625);
+    // 0.76: 3/4 is narrower than the section by more than 1e-9, so it is the default.
+    expect(defaultTenon(part(0.76, 2), 'max', false)!.diameter).toBe(0.75);
+  });
+  it('25 mm, 25 mm long in a metric project; else the largest whole mm that is not too wide', () => {
+    expect(defaultTenon(part(1.5, 1.5), 'max', true)).toEqual({ end: 'max', diameter: 25 / 25.4, length: 25 / 25.4 });
+    expect(defaultTenon(part(0.75, 1.5), 'max', true)!.diameter).toBe(19 / 25.4); // 19.05 mm section
+    expect(defaultTenon(part(1, 1.5), 'max', true)!.diameter).toBe(25 / 25.4); // 25.4 mm section: 25 still fits
+    expect(defaultTenon(part(25 / 25.4, 1.5), 'max', true)!.diameter).toBe(24 / 25.4);
+  });
+  it('null when no step fits (a section 1/8" or thinner; 1 mm in metric)', () => {
+    expect(defaultTenon(part(0.125, 2), 'max', false)).toBeNull();
+    expect(defaultTenon(part(0.126, 2), 'max', false)!.diameter).toBe(0.125);
+    expect(defaultTenon(part(1 / 25.4, 2), 'max', true)).toBeNull();
+  });
+  it('the diameter is the ONE decider\'s: every default is free of too-wide', () => {
+    for (const w of [0.2, 0.5, 0.74, 0.75, 0.751, 1, 1.25, 3]) {
+      for (const metric of [false, true]) {
+        const b = part(w, 4);
+        const d = defaultTenon(b, 'max', metric);
+        if (!d) continue;
+        expect(tenonFaults(b, { id: 'p', ...d }).some((f) => f.kind === 'too-wide')).toBe(false);
+        const step = metric ? 1 / 25.4 : 0.125;
+        // and the next step up would be too wide, unless it is the 1"/25 mm cap
+        if (d.diameter < (metric ? 25 / 25.4 : 1)) {
+          expect(tenonFaults(b, { id: 'p', ...d, diameter: d.diameter + step }).some((f) => f.kind === 'too-wide')).toBe(true);
+        }
+      }
+    }
   });
 });
