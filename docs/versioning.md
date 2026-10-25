@@ -6,7 +6,7 @@
 
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **23**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **24**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -33,6 +33,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 20→21 | `mirrored` on a SHAPED stored part (mirrored links spec §3: the part is its Shape with cuts, angle cuts, hole rows, curves, profiles and bands mirrored along `mirrorDim`, applied only by `resolveBoard`; kept only when literally `true`, any other value dropped; dropped from a PLAIN part, whose features are already in its own hand; `plainOf` strips it) | document-level, no step | wrong geometry, silently (the mirrored side drawn with its Shape's own hand — pins on the outside, edging on the back — then autosaved) |
 | 21→22 | `lean` ({ x, z, face }) on a part or a Shape (splayed legs spec §3.1: the foot's travel per inch of drop along world X and Z, in the part's frame at rotation 0; kept in its seam-free form, `seamFree`; DROPPED on any posture but `upright`, on a non-finite or out-of-bound slope (`withinBound`: each at most 1, resultant at most 45°), on a `face` other than width or thickness, and when zero; the loader refuses nothing on content) | document-level, no step | wrong geometry, silently (a splayed leg drawn, cut and listed as a plumb one, then autosaved) |
 | 22→23 | `tiltAlong` / `tiltAcross` on a hole row (angled holes spec §3: the bit's travel per inch of axial travel (along the face's normal), along the row and across it, relative to the row's own flags; kept only when finite and non-zero; a row with a non-finite slope, a slope past 1 or a resultant past 1 (45°) is DROPPED, the part kept; a zero slope is stored as absent) | document-level, no step | wrong geometry, silently (a 22 build rebuilds the row field by field, drops the tilt and drills it square, then autosaves it) |
+| 23→24 | `tenons` on a part (round tenons spec §3: `{ id, end, diameter, length }`, at most one per end, canonical order `min` then `max`, stored only when the part has one: never `[]`; DROPPED, the part kept — a non-object, an `end` other than `min`/`max`, a non-finite or non-positive `diameter` or `length`, a second tenon for an end (first wins); a well-formed faulted tenon is KEPT; ids per board by `takeId`) | document-level, no step | wrong geometry, silently (a 23 build rebuilds each part field by field, drops the tenons and loads the leg as full-section stock all the way into the seat, then autosaves it) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument. A content-keyed

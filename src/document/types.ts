@@ -253,6 +253,9 @@ export interface Board {
   hardware: HardwareUse[];
   /** The part's lean (splayed legs spec §3.1); absent on a part that does not lean. A shared field (inv 45). */
   lean?: Lean;
+  /** Round tenons on the part's ends (round tenons spec §3.1), at most one per end, `min` first. Absent on a part with none
+   *  (never `[]`, so a tenon-free part keeps its bytes). */
+  tenons?: RoundTenon[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a
@@ -263,6 +266,18 @@ export interface Board {
    *  it (the loader drops it, `plainOf` strips it). `resolveBoard` applies it and keeps it on the resolved part, so a
    *  writer knows to lower through it. */
   mirrored?: true;
+}
+
+/**
+ * A round tenon turned on one end of a part (round tenons spec §3.1): coaxial with the length, centred on the section.
+ * `length` runs along the axis from the shoulder (a plane of constant length coordinate) to the end's centre.
+ */
+export interface RoundTenon {
+  id: string;
+  /** An end of the part's `length` dimension. */
+  end: 'min' | 'max';
+  diameter: number;
+  length: number;
 }
 
 /**

@@ -2,6 +2,7 @@ import type { Board, Shape } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { copyAngleCut, sameAngleCut } from './angleCuts';
 import { copyHoleRow, sameHoleRow } from './holes';
+import { copyTenon, sameTenon } from './roundTenons';
 import { copyCurve, sameCurve } from './curves';
 import { copyProfile, sameProfile } from './profiles';
 import { copyBand, sameBands } from './bandModel';
@@ -17,7 +18,7 @@ export const LINK_FIELDS = {
   id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own', mirrored: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
-  bands: 'shared', cornerRule: 'shared', hardware: 'shared', lean: 'shared',
+  bands: 'shared', cornerRule: 'shared', hardware: 'shared', lean: 'shared', tenons: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
 
 export type SharedField = {
@@ -41,7 +42,7 @@ void _shapeMatchesTable;
  * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face`; absent equals absent
  * only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`.
  */
-const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean'>] extends string | number ? true : never = true;
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean' | 'tenons'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
 
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
@@ -59,6 +60,8 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     hardware: b.hardware.map(copyHardwareUse),
     // Optional (splayed legs spec §3.1): a fresh object when present, no key at all when absent.
     ...(b.lean ? { lean: { ...b.lean } } : {}),
+    // Optional (round tenons spec §3.1): fresh copies when present, no key at all when absent.
+    ...(b.tenons ? { tenons: b.tenons.map(copyTenon) } : {}),
   };
 }
 
@@ -76,6 +79,7 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.profiles) out.profiles = patch.profiles.map(copyProfile);
   if (patch.bands) out.bands = patch.bands.map(copyBand);
   if (patch.hardware) out.hardware = patch.hardware.map(copyHardwareUse);
+  if (patch.tenons) out.tenons = patch.tenons.map(copyTenon);
   if (patch.lean) out.lean = { ...patch.lean };
   else if ('lean' in patch && patch.lean === undefined) out.lean = undefined;
   return out;
@@ -124,6 +128,11 @@ export function sameShared(a: Board, b: Board): boolean {
       if (!sameBands(a.bands, b.bands)) return false;
     } else if (k === 'hardware') {
       if (!sameHardware(a.hardware, b.hardware)) return false;
+    } else if (k === 'tenons') {
+      // By value, exact, ids ignored; absent equals absent only.
+      const x = a.tenons ?? [];
+      const y = b.tenons ?? [];
+      if (x.length !== y.length || x.some((t, i) => !sameTenon(t, y[i]!))) return false;
     } else if (k === 'lean') {
       // By value, exact; absent equals absent only (spec §3.1).
       if (a.lean === undefined || b.lean === undefined) {

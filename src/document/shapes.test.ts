@@ -27,8 +27,8 @@ describe('shapes', () => {
     for (const k of SHARED_KEYS) expect(b[k]).toEqual(leg[k]);
     // `mirrored` is an OPTIONAL own field (fu 432): absent on an unmirrored user, never `undefined`.
     const own = Object.entries(LINK_FIELDS).filter(([k, v]) => v === 'own' && k !== 'mirrored').map(([k]) => k);
-    // `lean` is an OPTIONAL shared field (splayed legs spec §3.1): this shape does not lean, so it stays absent.
-    expect(Object.keys(b).sort()).toEqual([...own, ...SHARED_KEYS.filter((k) => k !== 'lean')].sort());
+    // `lean` and `tenons` are OPTIONAL shared fields (splayed legs spec §3.1, round tenons spec §3.1): this shape has neither, so it stays absent.
+    expect(Object.keys(b).sort()).toEqual([...own, ...SHARED_KEYS.filter((k) => k !== 'lean' && k !== 'tenons')].sort());
   });
 
   it('resolveBoard leaves a shared field the shape lacks ABSENT, not undefined', () => {
