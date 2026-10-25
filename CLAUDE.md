@@ -640,7 +640,7 @@ This list is the triage's open set — when an entry's status changes, change it
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434, 435.
 - **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
-  holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456. Round tenons
+  holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the

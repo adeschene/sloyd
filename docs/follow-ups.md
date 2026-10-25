@@ -7479,3 +7479,12 @@ straight profile or band whose section lies wholly outside the disc, judged in t
 Tenon the legs) rounds up to `TENON_STEP`, 1/64": 1 33/64" and 1 1/2" both print `1-1/2"` and land in two cut-list rows that read
 alike. The imperial twin of fu 464(1)'s metric item (76.2 and 76.0 mm both `76 mm`); if the fix is hole precision, apply it to both.
 **Status:** open (owed to the user: the copy review, with 464).
+
+**469. A bore exactly tangent to a built tenon's shoulder leaves T-junction cracks (final fix wave).** A 28" leg with a 1.5" top
+tenon and a 5/8" through bore whose edge lies on the shoulder (station 26.1875): the tenon builds (the zone test is open) and the
+mesh shows 456 unmatched edges on the shoulder plane; 0.0075" short of it is watertight. Not new: the same arises when the tenon is
+added after such a bore (accepted before TFa), and any bore tangent to a face does the same today (a plain leg's bore tangent to its
+end face: 360/352 unmatched edges; `faceTriangles` documents T-junctions for a tangent hole). It contradicts inv 50's "a curved
+part's mesh is WATERTIGHT" in that one tangent case. Remedies to weigh: a closed tenon zone test (touching counts as meeting, the
+tenon faults), or conforming the shoulder plane to a tangent bore's rim.
+**Status:** open (record-only; by eye first — a crack at a tangent rim may be invisible).
