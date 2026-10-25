@@ -418,6 +418,32 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           return <line key={`${l.id}:${i}`} className="cutlist-diagram-curve-line" x1={x1} y1={y1} x2={x2} y2={y2} />;
         })}
 
+        {(view.tenons ?? []).map((t) => {
+          // A round tenon (round tenons spec §8), board inches through the view's map (v flipped on a vUp view). Down the
+          // length (an end view): a circle of the diameter at the section's centre. Across it (a side view, h the length):
+          // the shoulder line across the section, then the tenon's two sides at V/2 ± r from the shoulder to the end.
+          const X = (h: number) => left + fit.offsetX + h * fit.sx;
+          const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
+          const r = t.diameter / 2;
+          const key = `tenon:${t.end}`;
+          if (view.face === 'length') {
+            return <ellipse key={key} className="cutlist-diagram-tenon" cx={X(view.h / 2)} cy={Y(view.v / 2)} rx={r * fit.sx} ry={r * fit.sy} />;
+          }
+          // Each side stops at the end: the part's end face, or on a mitered tip the miter line (`tip`, built in diagram.ts).
+          const end = t.end === 'max' ? view.h : 0;
+          const [lo, hi] = t.tip ?? [end, end];
+          const lines: [number, number, number, number][] = [
+            [X(t.shoulder), Y(0), X(t.shoulder), Y(view.v)],
+            [X(t.shoulder), Y(view.v / 2 - r), X(lo), Y(view.v / 2 - r)],
+            [X(t.shoulder), Y(view.v / 2 + r), X(hi), Y(view.v / 2 + r)],
+          ];
+          return (
+            <g key={key}>
+              {lines.map(([x1, y1, x2, y2], i) => <line key={i} className="cutlist-diagram-tenon" x1={x1} y1={y1} x2={x2} y2={y2} />)}
+            </g>
+          );
+        })}
+
         {view.holes.map((c) => {
           const x = left + fit.offsetX + c.h * fit.sx;
           const y = top + (view.vUp ? view.v - c.v : c.v) * fit.sy;

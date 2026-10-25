@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { worldParts } from './tree';
 import { describe, expect, it } from 'vitest';
 import { checkDesign, faceContacts, partMass, rejectedViolations, TOUCH } from './designCheck';
@@ -13,7 +14,10 @@ import { levelCutOf, levelPlan } from './levelEnds';
 import { levelFaces } from './leanContacts';
 import { mirrorPart } from './frames';
 import { partBounds } from './worldBounds';
-import type { AngleCut } from './types';
+import type { AngleCut, SloydDocument, StoredBoard } from './types';
+import { mapWorld } from './treeEdit';
+import { socketPlan } from './legSockets';
+import { stoolDocument, stoolLegs, stoolSeat } from './stoolFixture';
 
 const NO_LIMITS: DesignLimits = { width: null, depth: null, height: null, maxParts: 100 };
 
@@ -723,5 +727,39 @@ describe('leaning parts (splayed legs §7): extended, never weakened', () => {
     // square (±5.5), so a footprint of the legs' pre-lean boxes would let it stand.
     const load = box('Load', [2, 17.5, -4], [8, 6, 8]);
     expect(report(docOf(...inward, seatAt(16), load))).toEqual(['tips:']);
+  });
+});
+
+// Round tenons Task 7 (Review Focus 5): tenon-free LEANING documents take every path as before. The shas were captured on
+// the tree BEFORE Task 7 touched `designCheck.ts` (HEAD f6dd0a8; leanFreeChecks.test.ts pins the lean-free fixtures, the
+// Shaker table among them). Never re-capture a literal to make this pass.
+describe('tenon-free stools: check results unchanged (round tenons Review Focus 5)', () => {
+  const sha = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
+  const seatMoved = (doc: SloydDocument, f: (b: Board) => Board) => {
+    const seat = worldParts(doc).find((b) => b.name === 'Seat')!;
+    return mapWorld(doc, (w) => w.map((b) => (b.id === seat.id ? f(b) : b)));
+  };
+  const at = (y: number) => (b: Board): Board => ({ ...b, position: [b.position[0], y, b.position[2]] });
+  const bored = () => seatMoved(stoolDocument(), (b) => {
+    const p = socketPlan(stoolDocument(), b.id, 1);
+    if (typeof p === 'string') throw new Error(p);
+    return { ...b, holes: p.holes.map((r, k) => ({ ...r, id: `s${k}` })) };
+  });
+  const mirrored = () => migrateDocument({ ...createDocument('Mirror'),
+    definitions: [{ id: 'd', boards: [...stoolLegs(), stoolSeat()].map((b) => b as StoredBoard), instances: [], hardware: [] }],
+    instances: [
+      { id: 'i1', name: 'Left', definition: 'd', position: [0, 0, 0], rotation: 0 },
+      { id: 'i2', name: 'Right', definition: 'd', position: [30, 0, 0], rotation: 270, mirrored: true },
+    ] });
+  it.each([
+    ['stool', () => stoolDocument(), ['', '4f53cda18c2baa0c']],
+    ['stool, sockets bored', bored, ['', '4f53cda18c2baa0c']],
+    ['stool, seat lifted', () => seatMoved(stoolDocument(), at(17)), ['unsupported:Seat', '803acb63159f1d77']],
+    ['stool, seat sunk', () => seatMoved(stoolDocument(), at(15.5)),
+      ['overlap:Seat,Front right | overlap:Seat,Front left | overlap:Seat,Back left | overlap:Seat,Back right | unsupported:Seat', 'a4d8a58320778535']],
+    ['two stools, one mirrored', mirrored, ['', '4f53cda18c2baa0c']],
+  ] as const)('%s', (_name, make, pinned) => {
+    const v = checkDesign(flatDocument(migrateDocument(make())), NO_LIMITS);
+    expect([v.map((x) => `${x.kind}:${x.parts.join(',')}`).join(' | '), sha(v)]).toEqual(pinned);
   });
 });

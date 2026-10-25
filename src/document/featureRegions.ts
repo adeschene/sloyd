@@ -7,7 +7,7 @@
  */
 import type { Band, BandType, Board, CutFrom, Dimension, ProfileCut, Region } from './types';
 import { localSegments, rectOverlapsWaste, spanOf, uvDims, wasteOnSegment, CURVE_EPS, type P2, type ViewCurve } from './curves';
-import { geometryBoard, profileFields } from './profiles';
+import { profileFields, profileView } from './profiles';
 import { runoutReach } from './runout';
 import { builtSwept, sweptWasteMeetsBox } from './sweep';
 import { profileWord, type FeatureWord } from './ruledOutText';
@@ -22,7 +22,9 @@ export interface ShapedFeature { word: FeatureWord; curve?: ViewCurve; swept?: P
  *  the bodies build (`builtSwept`, as `intoCurve` reads them: a faulted swept profile builds no wood). Words as `intoCurve`
  *  reads them: `profileFields(c)?.kind` for a view curve, `p.kind` for a swept one. */
 export function shapedFeatures(board: Board): { view: Board; features: ShapedFeature[] } {
-  const view = geometryBoard(board);
+  // The profile view: a round tenon's view curves are no shaped feature (round tenons spec §7; `tenonFaults` judges a tenon
+  // against these, so it never reads its own waste). The same view as `geometryBoard`'s for a part with no tenons.
+  const view = profileView(board);
   const features: ShapedFeature[] = view.curves.map((c) => {
     const p = profileFields(c);
     return { word: p ? profileWord(p.kind) : 'curve', curve: c as ViewCurve };
@@ -36,7 +38,7 @@ export function shapedFeatures(board: Board): { view: Board; features: ShapedFea
 function throughExtent(view: Board, c: ViewCurve): [number, number] {
   const sp = spanOf(c);
   if (!sp) return [0, view[c.through]];
-  const reach = sp.stopLo || sp.stopHi ? runoutReach(view, c) : 0;
+  const reach = !sp.square && (sp.stopLo || sp.stopHi) ? runoutReach(view, c) : 0;
   return [sp.lo - (sp.stopLo ? reach : 0), sp.hi + (sp.stopHi ? reach : 0)];
 }
 

@@ -13,6 +13,8 @@ import { geometryBoard, shapedPart } from './profiles';
 import { BAND_SIDES, bandFaults, glueLines, sameSide } from './banding';
 import { faceOutline, sideStretch } from './profilePath';
 import { leanMap, leans } from './lean';
+import { squareSpan } from './curves';
+import { builtTenons, endCutOf, hasTenons, onTenonSurface } from './roundTenons';
 import { partBounds } from './worldBounds';
 
 /**
@@ -244,6 +246,35 @@ function leanLifts(b: Board, toward: readonly number[]): ((p: readonly number[],
   };
 }
 
+/**
+ * Which of a TENONED part's edges are the tenon's (round tenons spec §8: a tenon adds no tags; its callouts are out of scope):
+ * one whose two ends lie on a built tenon's round surface (`onTenonSurface`: the shoulder ring, the round side, the tip's
+ * ring). That covers every edge of a tenon's view curves (`squareSpan`): a view-curve-only test adds nothing (fix round 1,
+ * mutant D2/D3). Null for a tenon-free part, which keeps its path exactly. `b` is the geometry view.
+ */
+function tenonUntagged(b: Board): ((p: readonly number[], q: readonly number[]) => boolean) | null {
+  if (!hasTenons(b)) return null;
+  const at = (x: readonly number[]) => ({ length: x[0]!, width: x[1]!, thickness: x[2]! });
+  return (p, q) => onTenonSurface(b, at(p)) && onTenonSurface(b, at(q));
+}
+
+/**
+ * A tenon edge's tag (ruling T6a): a MITERED tip's ring lies in its miter's plane and is that miter's outline, so an edge with
+ * both ends on a built tenon's end miter plane keeps the miter's tag (`angleTag`'s test, that cut only); every other tenon
+ * edge (the sides, the shoulder ring, a square tip's ring) has none.
+ */
+function tenonEdgeTag(b: Board, p: readonly number[], q: readonly number[]): string | undefined {
+  for (const t of builtTenons(b)) {
+    const c = endCutOf(b, t.end);
+    if (!c || c === 'other') continue;
+    const h = keptHalfSpace(b, c);
+    if (!h) continue;
+    const on = (x: readonly number[]) => Math.abs(h.n[0] * x[0]! + h.n[1] * x[1]! + h.n[2] * x[2]! + h.d) <= DRAW_EPS;
+    if (on(p) && on(q)) return featureTag(b.id, 'angle', c.id);
+  }
+  return undefined;
+}
+
 function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly BandType[]): Seg3[] {
   const planes = bandPlanes(b, bandTypes);
   b = geometryBoard(b);
@@ -261,10 +292,14 @@ function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly 
   // Final review F1: an edge a curve's outline bounds carries the silhouettes' lift, so a shallow viewer-facing face
   // does not graze it hidden in its own wood. The lift moves only the hidden-line probe.
   const lifts = curveEdgeLifts(b, toward);
+  const untagged = tenonUntagged(b);
   return curveDrawEdges(b).map((e, i) => {
     const A = W(e.p);
     const E = W(e.q);
-    const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q) ?? (planes.length ? bandTag(planes, e.p, e.q) : undefined);
+    // A round tenon's edges carry no tag of their own (round tenons spec §8: no callouts), decided BEFORE the curve tag;
+    // only a mitered tip's ring keeps its miter's (ruling T6a).
+    const tag = untagged?.(e.p, e.q) ? tenonEdgeTag(b, e.p, e.q)
+      : e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q) ?? (planes.length ? bandTag(planes, e.p, e.q) : undefined);
     // A leaning part's edge no outline face lifts (a level cut's face) takes its own-wood lift (splayed legs §6.2).
     const lift = lifts[i] ?? leanLift?.(e.p, e.q);
     if (!e.path) return withTag(lift ? { A, E, lift } : { A, E }, tag);
@@ -370,10 +405,12 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     if (section && !keptBox(boardBox(b, off), section)) continue;
     // Board edges (invariant 16) and hole lines (holes spec §3.4): one list, one hidden-line pass, the same occluders —
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
+    const views = hasTenons(b) ? new Set(geometryBoard(b).curves.filter(squareSpan).map((c) => c.id)) : null;
     const segments: Seg3[] = [
       ...partSegments(b, view.toward, bandTypes),
       ...holeDrawingTagged(b, view.toward, visibleOnly).map(({ A, E, row }) => ({ A, E, feature: featureTag(b.id, 'hole', row) })),
-      ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
+      // A round tenon's silhouettes (its round side) carry no tag (spec §8), as its edges.
+      ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => (views?.has(curve) ? s : { ...s, feature: featureTag(b.id, 'curve', curve) })),
       // Profile runs a2: a stopped profile's run-outs outline themselves by facet-chain silhouettes; b1: so does a swept
       // profile's surface (none on any other part).
       ...profileSilhouettes(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),

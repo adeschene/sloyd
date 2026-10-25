@@ -1,4 +1,4 @@
-import { addTurns, inverseTurn, mirrorFeatures, mirrorInPlace, mirrorPart, placeBoard, placeInstance, rotateVec } from './frames';
+import { addTurns, inverseTurn, mirrorDim, mirrorFeatures, mirrorInPlace, mirrorPart, placeBoard, placeInstance, rotateVec } from './frames';
 import { chiralAll } from './sweepFixtures';
 import { boardExtents } from './geometry';
 import { boardHoles } from './holes';
@@ -171,5 +171,34 @@ describe('a lean through mirrors and assemblies (splayed legs spec §3.4)', () =
     expect(mirrorFeatures(f).lean).toEqual(lean);
     expect('lean' in mirrorFeatures(upright)).toBe(false);
     expect('lean' in mirrorPart(upright)).toBe(false);
+  });
+});
+
+describe('round tenons through mirrors (round tenons spec §3.1, inv 44)', () => {
+  // Chiral: a tenon on the max end only.
+  const TENON = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const rung = (posture: Posture): Board => ({ ...chiralPart(posture), tenons: [TENON] });
+
+  it('a mirrored instance\'s world part has its tenon on the mirrored end', () => {
+    for (const posture of ['flat', 'on-edge'] as const) for (const r of TURNS) {
+      const b = rung(posture);
+      expect(mirrorDim(b), posture).toBe('length');   // else the brief's "don't swap" mutation could not fail
+      const plain: Instance = { id: 'i', name: 'I', definition: 'd', position: [5, 0, 2], rotation: r };
+      expect(placeBoard({ ...plain, mirrored: true }, b).tenons, `${posture} ${r}`).toEqual([{ ...TENON, end: 'min' }]);
+      // Unmirrored: unchanged.
+      expect(placeBoard(plain, b).tenons, `${posture} ${r} plain`).toEqual([TENON]);
+    }
+    // Upright: the mirror runs across the width, so the ends stay (the same array).
+    const up = rung('upright');
+    expect(mirrorDim(up)).toBe('width');
+    expect(mirrorPart(up).tenons).toBe(up.tenons);
+  });
+
+  it('mirrorFeatures adds no tenons key to a tenon-free part; a mirrored user resolves to the reflection', () => {
+    expect('tenons' in mirrorFeatures(chiralPart('flat'))).toBe(false);
+    expect('tenons' in mirrorPart(chiralPart('flat'))).toBe(false);
+    const shapes = new Map([['s1', { id: 's1', ...sharedOf(rung('flat')) }]]);
+    const user = resolveBoard(shapes, { id: 'u', name: 'U', position: [0, 0, 0], rotation: 0, shape: 's1', mirrored: true } satisfies ShapedBoard)!;
+    expect(user.tenons).toEqual([{ ...TENON, end: 'min' }]);
   });
 });

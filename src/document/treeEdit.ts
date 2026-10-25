@@ -15,6 +15,7 @@ import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, 
 import type { Frame } from './frames';
 import { mirrorCut } from './mirrorCut';
 import { leanFlip, leans } from './lean';
+import { copyTenon, hasTenons, lowerTenons, tenonValues } from './roundTenons';
 import type { Container } from './tree';
 import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, sideAt, worldParts } from './tree';
 
@@ -197,6 +198,7 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     profiles: lowerProfiles(lowerBefore, draft),
     bands: lowerBands(lowerBefore, draft),
     ...lowerLean(lowerBefore, draft),
+    ...lowerTenons(lowerBefore.tenons, draft, mirrorDim(draft)),
   };
 }
 
@@ -394,16 +396,21 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
       // that is not the stored one. `lowerLean` maps an untouched lean back to the stored (or Shape's) object.
       return rec(before)[k] !== rec(after)[k] || (cur.lean !== after.lean && cur.lean !== ref.lean);
     }
+    if (k === 'tenons') {
+      // As holes (round tenons spec §3.1): written when edited, or when a mirror lowering produced a fresh array that is
+      // not the stored one. `lowerTenons` maps an untouched list back to the stored (or Shape's) array.
+      return rec(before)[k] !== rec(after)[k] || (cur.tenons !== after.tenons && cur.tenons !== ref.tenons);
+    }
     return k === 'cuts' ? cur.cuts !== ref.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : k === 'hardware' ? cur.hardware : k === 'lean' ? cur.lean : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : k === 'curves' ? cur.curves : k === 'profiles' ? cur.profiles : k === 'bands' ? cur.bands : k === 'hardware' ? cur.hardware : k === 'lean' ? cur.lean : k === 'tenons' ? cur.tenons : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
 /** `b` carrying the Shape's OWN feature arrays (the Shape's hand): the reference a mirrored user's features are lowered
  *  against, so an untouched feature maps back to the Shape's object (no drift, inv 44). */
 function withShapeFeatures(b: Board, shape: Shape): Board {
-  return { ...b, cuts: shape.cuts, angleCuts: shape.angleCuts, holes: shape.holes, curves: shape.curves, profiles: shape.profiles, bands: shape.bands, ...(shape.lean ? { lean: shape.lean } : {}) };
+  return { ...b, cuts: shape.cuts, angleCuts: shape.angleCuts, holes: shape.holes, curves: shape.curves, profiles: shape.profiles, bands: shape.bands, ...(shape.lean ? { lean: shape.lean } : {}), ...(shape.tenons ? { tenons: shape.tenons } : {}) };
 }
 
 /**
@@ -422,6 +429,7 @@ function lowerOwnMirror(ref: Board, cur: Board, keepWorld: boolean): Board {
     profiles: lowerProfiles(ref, cur),
     bands: lowerBands(ref, cur),
     ...lowerLean(ref, cur),
+    ...lowerTenons(ref.tenons, cur, mirrorDim(cur)),
   };
 }
 
@@ -432,12 +440,15 @@ const ABSENT = Symbol('absent');
  *  has. `lean` (splayed legs spec §3.1) is optional and is removed by an edit whose key is present and `undefined`
  *  (controller ruling 1; `sharedPatch` carries that removal), so an undefined lean is ABSENT too: no `lean: undefined`
  *  is ever stored (an absent key and an undefined one read differently through `in`, as `resolveBoard` does). Any other
- *  key set to undefined stays a write, not a delete (the merge test pins that a delete and an undefined disagree). */
+ *  key set to undefined stays a write, not a delete (the merge test pins that a delete and an undefined disagree).
+ *  `tenons` is the same, an empty list read as a removal too. */
 function storedValue(l: Lowered, k: string): unknown {
   if (k === 'position' || k === 'rotation') return l.valueOf(k);
   if (!(k in l.after)) return ABSENT;
   const v = l.valueOf(k);
-  return k === 'lean' && v === undefined ? ABSENT : v;
+  if (k === 'lean' && v === undefined) return ABSENT;
+  // `tenons` (round tenons spec §3.1): a removal is `undefined` or `[]` (`sharedPatch`), and neither is ever stored.
+  return k === 'tenons' && !hasTenons({ tenons: v as Board['tenons'] }) ? ABSENT : v;
 }
 
 /** Field-by-field merge of every edit into one record: a field written twice
@@ -569,12 +580,12 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
 
 /** A part's shared fields as comparable values, each cut by GEOMETRY (CUT_GEOMETRY_KEYS, in order) and NOT by id:
  *  pocketFor mints fresh cut ids per board, so identical mortises differ only by id (spec §5); angle cuts likewise by
- *  ANGLE_CUT_FIELDS, holes and curves by their tables. Each list SORTED: the order cuts were stored in is not geometry
+ *  ANGLE_CUT_FIELDS, holes, curves and tenons by their tables. Each list SORTED: the order cuts were stored in is not geometry
  *  (joinery appends mortises in site order, a turned user's list differs from its mate's). Used to group a shape's users
  *  (regroupShapes) and to compare placements of one definition (resultSignature, fu 316). */
 function groupSignature(b: Board): unknown[] {
   const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : k === 'hardware' ? b.hardware.map((u) => `${u.type}:${u.count}`).join(';') : k === 'lean' ? (b.lean ? `${b.lean.x},${b.lean.z},${b.lean.face}` : '') : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : k === 'hardware' ? b.hardware.map((u) => `${u.type}:${u.count}`).join(';') : k === 'lean' ? (b.lean ? `${b.lean.x},${b.lean.z},${b.lean.face}` : '') : k === 'tenons' ? sorted((b.tenons ?? []).map(tenonValues)) : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation
@@ -615,7 +626,7 @@ function copyDefinition(d: Definition): Definition {
     id: nextId(),
     boards: d.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand), hardware: b.hardware.map(copyHardwareUse) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand), hardware: b.hardware.map(copyHardwareUse), ...(b.tenons ? { tenons: b.tenons.map(copyTenon) } : {}) })),
     instances: d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
     hardware: d.hardware.map(copyHardwareUse),
   };

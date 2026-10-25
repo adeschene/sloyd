@@ -21,7 +21,8 @@ import { builtInCatalog, catalogOf } from '../document/materials';
 import { ARCH } from '../document/curveFixtures';
 import type { StoredBoard } from '../document/types';
 import { stoolDocument, stoolLegs, stoolSeat, stoolWithCut } from '../document/stoolFixture';
-import { keptParts, keptNote } from '../document/leanKeep';
+import { keepsExactly, keptParts, keptNote } from '../document/leanKeep';
+import { linkByRole } from '../document/roleLinks';
 import { socketPlan } from '../document/legSockets';
 import { partBounds } from '../document/worldBounds';
 
@@ -312,7 +313,7 @@ describe('Refine and leaning parts (splayed legs spec §8)', () => {
     const doc = migrateDocument({ ...createDocument('Base'), boards: [stoolSeat()],
       definitions: [{ id: 'd1', boards: [leg!], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
-    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Frame › Front right.");
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Frame › Front right.");
   });
 });
 
@@ -348,7 +349,7 @@ describe('Refine and angled holes (angled holes spec §9)', () => {
     const legs = doc.boards.filter((b) => b.name !== 'Seat');
     const wrapped = migrateDocument({ ...doc, boards: legs, definitions: [{ id: 'd1', boards: [seat], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Top', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
-    expect(refineRefusal(wrapped)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Top › Seat.");
+    expect(refineRefusal(wrapped)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Top › Seat.");
   });
 
   it('a JOINED Refine is refused up front when a part has angled holes (ruling T11a); an unjoined one still keeps the seat', () => {
@@ -367,5 +368,60 @@ describe('Refine and angled holes (angled holes spec §9)', () => {
     expect(refineRefusal(upright)).toBe(msg);
     expect(plainForRefine(doc)).toEqual({ plain: doc, joints: null });
     expect(refineRefusal(doc)).toBeNull();
+  });
+});
+
+describe('Refine and round tenons (round tenons spec §9)', () => {
+  const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const CUT = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const top = (): Board => createBoard({ id: 'P', name: 'Top', length: 20, width: 10, thickness: 0.75, posture: 'flat', position: [0, 0, 20] });
+  const rung = (id = 'L', name = 'Rung', x = 0): Board => ({ ...createBoard({ id, name, length: 18, width: 1.5, thickness: 1.25, posture: 'flat', position: [x, 0, 0] }), tenons: [{ ...T }] });
+  const docOf = (...boards: Board[]) => migrateDocument({ ...createDocument('T'), boards });
+
+  it('keeps a tenoned part: left out of the design, and the note says why', () => {
+    const doc = docOf(top(), rung());
+    expect(keptParts(doc).names).toEqual(['Rung']);
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.parts.map((q) => q.name)).toEqual(['Top']);
+    const note = keptNote(doc)!;
+    expect(note).toContain('"Rung" has round tenons and is kept as is:');
+    expect(note).toContain('These parts lean, have angled holes or have round tenons');
+    // A tenon-free document keeps nothing. Raw, never through the loader: an EMPTY list is no tenon (not key presence).
+    expect(keepsExactly(rung())).toBe(true);
+    expect(keepsExactly({ ...rung(), tenons: [] })).toBe(false);
+    expect(keptParts(docOf(top(), { ...rung(), tenons: undefined } as Board)).names).toEqual([]);
+  });
+
+  it('reads the RESOLVED part: a Shape\'s tenon keeps every user of it, with the Shape', () => {
+    const linked = linkByRole(docOf(top(), rung('L', 'Left'), rung('R', 'Right', 30)), new Map([['L', 'rung'], ['R', 'rung']]));
+    expect(linked.shapes).toHaveLength(1);
+    expect(linked.boards.some((b) => 'tenons' in b)).toBe(false);
+    const kept = keptParts(linked);
+    expect(kept.names).toEqual(['Left', 'Right']);
+    expect(kept.shapes).toEqual(linked.shapes);
+  });
+
+  it('refuses a tenoned part inside an assembly (its definition would be rebuilt from the model\'s)', () => {
+    const doc = migrateDocument({ ...createDocument('T'), boards: [top()], definitions: [{ id: 'd1', boards: [rung()], instances: [], hardware: [] }],
+      instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
+    const r = documentToDesign(doc, REFINE_MAX);
+    expect('refused' in r && r.refused.reason).toBe('lean-assembly');
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Frame › Rung.");
+  });
+
+  it('a JOINED Refine is refused up front when a part has a round tenon, in its own words; the lean speaks first', () => {
+    const msg = "Refine can't keep joints with a part with a round tenon yet: Rung.";
+    const joined = docOf({ ...top(), cuts: [CUT] }, rung());
+    expect(plainForRefine(joined)).toEqual({ refused: { reason: 'lean-joint', message: msg } });
+    const info = refineDialogInfo(joined);
+    expect(info.joined).toBe(true);
+    expect(info.refusal).toBe(msg);
+    // An unjoined one is not refused.
+    expect(refineRefusal(docOf(top(), rung()))).toBeNull();
+    // With leaning legs, the lean's sentence wins.
+    const stool = stoolWithCut();
+    const withRung = migrateDocument({ ...stool, boards: [...stool.boards, rung('X', 'Rung', 40)] });
+    expect(refineRefusal(withRung)).toBe("Refine can't keep joints with a leaning part yet: Front right.");
   });
 });

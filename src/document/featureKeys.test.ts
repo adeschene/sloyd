@@ -257,3 +257,16 @@ describe('partFeatures: band keys (edge banding chunk 2, Q6)', () => {
     expect(partFeatures(holed, IMPERIAL, types)).toEqual(partFeatures(holed, IMPERIAL));
   });
 });
+
+describe('a round tenon has no Plans feature key (round tenons spec §8; out of scope, spec §2)', () => {
+  const tenon = { id: 't', end: 'max' as const, diameter: 1, length: 3 };
+  const leg = createBoard({ id: 'L', name: 'Leg', length: 20, width: 2, thickness: 2, tenons: [tenon] });
+  it('its view curves are no curve feature', () => {
+    expect(partFeatures(leg, IMPERIAL)).toEqual([]);
+  });
+  it('a real curve on the tenoned part keeps its key', () => {
+    // A corner round at the length max / width max corner of the far (min-end) tenon's part: outside the tenon's zone.
+    const b = { ...leg, tenons: [{ ...tenon, end: 'min' as const }], curves: [{ id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 0.5 }) }] };
+    expect(partFeatures(b, IMPERIAL).map((f) => f.key)).toEqual(['L:curve:k']);
+  });
+});

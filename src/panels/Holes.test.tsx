@@ -546,6 +546,59 @@ describe('Bore leg sockets after a lean edit, through the store (spec §5)', () 
   });
 });
 
+describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
+  const st = () => useStore.getState();
+  const part = (name: string) => worldParts(st().doc).find((b) => b.name === name)!;
+  const legNames = ['Front right', 'Front left', 'Back left', 'Back right'];
+  const openSeat = () => {
+    st().selectBoard(part('Seat').id);
+    render(<Properties />);
+  };
+
+  it('the checkbox sits beside the diameter, ON by default: one press bores the sockets and tenons the legs', async () => {
+    const user = userEvent.setup();
+    st().replaceDocument(stoolDocument());
+    openSeat();
+    const box = screen.getByLabelText('Tenon the legs (replaces their top tenons)');
+    expect(box).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(part('Seat').holes).toHaveLength(4);
+    for (const n of legNames) expect(part(n).tenons?.map((t) => t.end), n).toEqual(['max']);
+    expect(st().past.length).toBe(1);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/tenon no longer fits its socket/)).toBeNull();
+  });
+
+  it('unchecked: the sockets only, no leg touched', async () => {
+    const user = userEvent.setup();
+    st().replaceDocument(stoolDocument());
+    const shapes = st().doc.shapes;
+    openSeat();
+    await user.click(screen.getByLabelText('Tenon the legs (replaces their top tenons)'));
+    expect(screen.getByLabelText('Tenon the legs (replaces their top tenons)')).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(part('Seat').holes).toHaveLength(4);
+    expect(st().doc.shapes).toBe(shapes);
+  });
+
+  it("the stale tenon note: after a rake edit and Level the ends, \"Front right's tenon no longer fits its socket — Bore leg sockets again.\"; boring again clears it", async () => {
+    const user = userEvent.setup();
+    // Plain (unlinked) legs: a linked stool would carry the rake to Back left too.
+    st().replaceDocument(migrateDocument({ ...createDocument('Stool'), boards: [...stoolLegs(), stoolSeat()] }));
+    expect(st().boreLegSockets(part('Seat').id, 1, true)).toBeNull();
+    const fr = part('Front right').id;
+    expect(st().setLean([fr], { rake: 10 })).toBeNull();
+    expect(st().levelEnds(fr)).toBeNull();
+    openSeat();
+    expect(screen.getByText("Front right's tenon no longer fits its socket — Bore leg sockets again.")).toBeInTheDocument();
+    expect(screen.getAllByText(/tenon no longer fits its socket/)).toHaveLength(1);
+    expect(screen.getByText("Front right's socket no longer follows its leg — Bore leg sockets again.")).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Bore leg sockets' }));
+    expect(screen.queryByText(/tenon no longer fits its socket/)).toBeNull();
+    expect(screen.queryByText(/socket no longer follows its leg/)).toBeNull();
+  });
+});
+
 describe('the tilt end / side picks (Task 9 review)', () => {
   const H = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
     station: 6, count: 1, pitch: 0, acrossFrom: 'min', inset: 4 } as const;

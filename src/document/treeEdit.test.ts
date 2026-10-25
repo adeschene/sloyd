@@ -2,7 +2,7 @@ import { mapWorld, translateItems, writeBackFlat } from './treeEdit';
 import { flatDocument, instanceAt, partAt, resolvedPartAt, worldParts } from './tree';
 import { assemblyDoc } from './treeFixtures';
 import { boardCenter, reorientedPosition } from './geometry';
-import type { Board, Cut } from './types';
+import type { Board, Cut, RoundTenon } from './types';
 import type { Shape, SloydDocument } from './types';
 import { createDocument, migrateDocument } from './document';
 import { mirrorCut } from './mirrorCut';
@@ -801,4 +801,112 @@ describe('a lean through write-back (splayed legs spec §3.4)', () => {
       expect(worldParts(out).some((b) => 'lean' in b)).toBe(false);
     });
   }
+});
+
+describe('round tenons through write-back (round tenons spec §3.1, inv 44, 46)', () => {
+  // Chiral: a tenon on the max end only; a flat rung, so a mirror runs along the length (mirrorDim) and swaps the end.
+  const T: RoundTenon = { id: 't1', end: 'max', diameter: 0.75, length: 1 };
+  const fields = { length: 18, width: 1.5, thickness: 1.25, material: 'oak', grain: 'length' as const, posture: 'flat' as const,
+    cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long' as const, hardware: [] };
+  const at = (x: number): [number, number, number] => [x, 0, 0];
+  const linked = (mirrored = false): SloydDocument => ({ ...createDocument(), shapes: [{ id: 's1', ...fields, tenons: [T] }],
+    boards: [{ id: 'a', name: 'A', position: at(0), rotation: 0, shape: 's1' },
+      { id: 'b', name: 'B', position: at(30), rotation: 0, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) }] });
+
+  it('a shaped part\'s tenon edit writes the Shape, changed fields only', () => {
+    const doc = linked();
+    const out = edit(doc, 'a', (b) => ({ ...b, tenons: [{ ...b.tenons![0]!, length: 1.5 }] }));
+    expect(out.shapes[0]!.tenons).toEqual([{ ...T, length: 1.5 }]);
+    // Only the tenons were written: the users' records and every other Shape field are the stored objects.
+    expect(out.boards[0]).toBe(doc.boards[0]);
+    expect(out.boards[1]).toBe(doc.boards[1]);
+    // (cuts are re-copied by every resolve and always rewritten, as today; not asserted.)
+    for (const k of ['angleCuts', 'holes', 'curves', 'profiles', 'bands', 'hardware'] as const) expect(out.shapes[0]![k]).toBe(doc.shapes[0]![k]);
+    expect(worldParts(out).map((b) => b.tenons![0]!.length)).toEqual([1.5, 1.5]);
+  });
+
+  it('a removal (undefined or []) deletes the Shape\'s key; a rename leaves the Shape\'s tenons the same object', () => {
+    for (const removal of [undefined, []]) {
+      const out = edit(linked(), 'a', (b) => ({ ...b, tenons: removal }));
+      expect('tenons' in out.shapes[0]!).toBe(false);
+      expect(worldParts(out).some((b) => 'tenons' in b)).toBe(false);
+    }
+    // The Shape record itself is rewritten on any edit through an unflagged user (its cuts come back as resolveBoard's
+    // copy, as before tenons); its tenons are the stored array.
+    const doc = linked();
+    expect(edit(doc, 'a', (b) => ({ ...b, name: 'A2' })).shapes[0]!.tenons).toBe(doc.shapes[0]!.tenons);
+  });
+
+  it('a flagged (mirrored) user: the world tenon is on the other end; an edit lowers through the flag; a rename writes nothing', () => {
+    const doc = linked(true);
+    expect(worldParts(doc).map((b) => b.tenons![0]!.end)).toEqual(['max', 'min']);
+    const out = edit(doc, 'b', (b) => ({ ...b, tenons: [{ ...b.tenons![0]!, diameter: 0.625 }] }));
+    expect(out.shapes[0]!.tenons).toEqual([{ ...T, diameter: 0.625 }]);
+    const renamed = edit(doc, 'b', (b) => ({ ...b, name: 'B2' }));
+    expect(renamed.shapes[0]).toBe(doc.shapes[0]);
+    expect(renamed.shapes[0]!.tenons).toBe(doc.shapes[0]!.tenons);
+  });
+
+  /** The rung in definition `d`, placed by a mirrored instance (twice nested when `twice`). */
+  const mirroredDoc = (tenons: boolean, twice = false): SloydDocument => {
+    const rung = { id: 'r', name: 'Rung', position: [0.5, 2, 0.25] as [number, number, number], rotation: 90 as const, ...fields, ...(tenons ? { tenons: [T] } : {}) };
+    const d = { id: 'd', boards: [rung], instances: [], hardware: [] };
+    if (!twice) return { ...createDocument(), definitions: [d], instances: [{ id: 'i1', name: 'A', definition: 'd', position: [5, 0, 2], rotation: 90, mirrored: true }] };
+    const e = { id: 'e', boards: [], instances: [{ id: 'j', name: 'B', definition: 'd', position: [1.5, 0, 0.5] as [number, number, number], rotation: 180 as const, mirrored: true as const }], hardware: [] };
+    return { ...createDocument(), definitions: [d, e], instances: [{ id: 'i1', name: 'A', definition: 'e', position: [5, 0, 2], rotation: 90, mirrored: true }] };
+  };
+
+  for (const [what, twice, id, end] of [['one mirror', false, 'i1/r', 'min'], ['two nested mirrors', true, 'i1/j/r', 'max']] as const) {
+    it(`${what}: the world tenon flips once per mirror; an edit lowers exactly; a rename keeps the stored array`, () => {
+      const doc = mirroredDoc(true, twice);
+      expect(worldParts(doc).find((b) => b.id === id)!.tenons).toEqual([{ ...T, end }]);
+      const out = edit(doc, id, (b) => ({ ...b, tenons: [{ ...b.tenons![0]!, length: 1.25 }] }));
+      expect((partAt(out, id) as Board).tenons).toEqual([{ ...T, length: 1.25 }]);
+      expect(partAt(out, id)!.position).toBe(partAt(doc, id)!.position);
+      const renamed = edit(doc, id, (b) => ({ ...b, name: 'Rung 2' }));
+      expect((partAt(renamed, id) as Board).tenons).toBe((partAt(doc, id) as Board).tenons);
+      const removed = edit(doc, id, (b) => ({ ...b, tenons: undefined }));
+      expect('tenons' in partAt(removed, id)!).toBe(false);
+    });
+  }
+
+  it('a posture change that moves the mirror dimension keeps the world tenon as seen (written though the array is untouched)', () => {
+    const doc = mirroredDoc(true);
+    expect(worldParts(doc)[0]!.tenons).toEqual([{ ...T, end: 'min' }]);
+    // Flat -> upright: the mirror now runs across the width, so the stored end must become the seen one.
+    const out = edit(doc, 'i1/r', (b) => ({ ...b, posture: 'upright' }));
+    expect((partAt(out, 'i1/r') as Board).tenons).toEqual([{ ...T, end: 'min' }]);
+    expect(worldParts(out)[0]!.tenons).toEqual([{ ...T, end: 'min' }]);
+  });
+
+  it('a tenon-free part through a mirror gains no key on an edit', () => {
+    const doc = mirroredDoc(false);
+    const out = edit(doc, 'i1/r', (b) => ({ ...b, length: 20 }));
+    expect('tenons' in partAt(out, 'i1/r')!).toBe(false);
+    expect('tenons' in worldParts(out)[0]!).toBe(false);
+  });
+
+  it('users whose tenons differ only in ids stay one Shape (the founder\'s ids); a differing tenon splits (groupSignature)', () => {
+    const doc: SloydDocument = { ...createDocument(), shapes: [{ id: 's1', ...fields }],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Rung ${k}`, position: at(k * 30), rotation: 0 as const, shape: 's1' })) };
+    const before = flatDocument(doc).boards;
+    const sets: RoundTenon[][] = [[{ ...T, id: 'a' }], [{ ...T, id: 'b' }], [{ ...T, id: 'c', length: 2 }]];
+    const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, tenons: sets[k]! })));
+    expect(out.shapes).toHaveLength(2);
+    const shapeOf = (id: string) => (out.boards.find((b) => b.id === id) as { shape: string }).shape;
+    expect(shapeOf('l0')).toBe(shapeOf('l1'));
+    expect(shapeOf('l2')).not.toBe(shapeOf('l0'));
+    expect(out.shapes.find((s) => s.id === shapeOf('l0'))!.tenons).toEqual([{ ...T, id: 'a' }]);
+  });
+
+  it('a split definition\'s plain part owns its tenons: no tenon object shared with the original (copyDefinition)', () => {
+    const doc = mirroredDoc(true);
+    const placed: SloydDocument = { ...doc, instances: [...doc.instances, { id: 'i2', name: 'B', definition: 'd', position: [40, 0, 0], rotation: 0 }] };
+    const before = flatDocument(placed).boards;
+    // Only the second placement's rung is lengthened: the definition splits.
+    const out = writeBackFlat(placed, before, before.map((b) => (b.id === 'i2/r' ? { ...b, length: 20 } : b)));
+    expect(out.definitions).toHaveLength(2);
+    const [r1, r2] = out.definitions.map((x) => x.boards[0] as Board);
+    expect(r1!.tenons![0]).not.toBe(r2!.tenons![0]);
+  });
 });

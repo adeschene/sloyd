@@ -10,6 +10,7 @@ import type { Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
+import { RoundTenons } from './RoundTenons';
 import { Lean } from './Lean';
 import { Curves } from './Curves';
 import { Profiles } from './Profiles';
@@ -752,6 +753,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
 
       <AngleCuts board={board} />
       <Holes board={board} />
+      <RoundTenons board={board} />
       <Curves board={board} />
       <Profiles board={board} />
       <Banding boards={[board]} onNewBandType={onNewBandType} />

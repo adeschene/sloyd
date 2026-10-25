@@ -7,7 +7,7 @@ import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures'
 import { mirrorPart } from '../document/frames';
 import { ARCH } from '../document/curveFixtures';
 import { boardBodies } from '../document/document';
-import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh, holesMesh } from './grainTiling';
+import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, drawsAsBox, facePlans, faceTriangles, holeMesh, holesMesh } from './grainTiling';
 import { boardHoles, holePrism, holeRing, holeTouchesBox, HOLE_SEGMENTS, minusPrism, partGeometry, stockChecks } from '../document/document';
 import { curveOutline, localSegments } from '../document/document';
 import type { Body, LocalArc, V3 } from '../document/document';
@@ -22,6 +22,27 @@ const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'o
 
 // BoxGeometry's material-group order.
 const PX = 0, PY = 2, PZ = 4;
+
+// Round tenons (spec §7): the tenon reaches the mesh's cache keys through the geometry view's curves, and routes the part to
+// bodyMesh; a tenon-free part's keys and routing are untouched.
+describe('round tenons: drawsAsBox and boardUVSignature', () => {
+  const leg = createBoard({ length: 28, width: 1.75, thickness: 1.75 });
+  const tenoned = { ...leg, tenons: [{ id: 't', end: 'max' as const, diameter: 1, length: 1.5 }] };
+  it('drawsAsBox is false for every body of a tenoned part, and true for the plain leg', () => {
+    expect(boardBodies(leg).every((b) => drawsAsBox(leg, b, []))).toBe(true);
+    const bodies = boardBodies(tenoned);
+    expect(bodies.length).toBeGreaterThan(1);
+    expect(bodies.some((b) => drawsAsBox(tenoned, b, []))).toBe(false);
+  });
+  it('boardUVSignature differs with a tenon (and with its length), and is unchanged without one', () => {
+    expect(boardUVSignature(tenoned)).not.toBe(boardUVSignature(leg));
+    expect(boardUVSignature({ ...tenoned, tenons: [{ ...tenoned.tenons[0]!, length: 1.25 }] })).not.toBe(boardUVSignature(tenoned));
+    // Without one: the plain leg's key as recorded before round tenons (e34f2b1), byte for byte.
+    expect(boardUVSignature({ ...leg, id: 'leg' })).toBe('leg|0|flat|pine|length|28|1.75|1.75||||');
+    // A FAULTED tenon builds nothing: the same geometry, so the same key as the plain leg.
+    expect(boardUVSignature({ ...leg, tenons: [{ id: 't', end: 'max', diameter: 1.75, length: 1.5 }] })).toBe(boardUVSignature(leg));
+  });
+});
 
 describe('facePlans', () => {
   it('describes six faces', () => {

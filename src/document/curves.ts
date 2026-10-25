@@ -34,17 +34,22 @@ const FIELD_TEXT: { [K in keyof typeof CURVE_FIELDS]: (v: CurveCut[K]) => string
   segments: (v) => v.map(segText).join(' '),
 };
 
-/** VIEW-ONLY (P18): a stopped profile's extent along `through` in the geometry view; never stored, never validated. */
-export interface CurveSpan { lo: number; hi: number; stopLo: boolean; stopHi: boolean }
+/** VIEW-ONLY (P18): a stopped profile's extent along `through` in the geometry view; never stored, never validated.
+ *  `square` (round tenons spec §7): every stop is a plain wall square to `through` — a tenon's shoulder — with NO router
+ *  run-out; past a stop is wood. Absent on every profile's span, so their values and geometry are as before. */
+export interface CurveSpan { lo: number; hi: number; stopLo: boolean; stopHi: boolean; square?: true }
 export type ViewCurve = CurveCut & { span?: CurveSpan };
 export const spanOf = (c: Omit<CurveCut, 'id'>): CurveSpan | undefined => (c as ViewCurve).span;
+/** A view curve whose stops are square walls with no run-out (`CurveSpan.square`: a round tenon's waste). Every reader of a
+ *  span that would apply a profile's run-out (its reach, its revolved waste, its faces' names) asks this first. */
+export const squareSpan = (c: Omit<CurveCut, 'id'>): boolean => spanOf(c)?.square === true;
 
 /** One curve's comparable value, exact, in CURVE_KEYS order (the cut list's grouping and geometryKey read it). A view
  *  curve's span (P18) is appended; a curve with none keeps its value byte for byte. */
 export function curveValues(c: Omit<CurveCut, 'id'>): string {
   const base = CURVE_KEYS.map((k) => (FIELD_TEXT[k] as (v: unknown) => string)(c[k])).join('|');
   const span = spanOf(c);
-  return span ? `${base}|span:${num(span.lo)},${num(span.hi)},${span.stopLo ? 1 : 0},${span.stopHi ? 1 : 0}` : base;
+  return span ? `${base}|span:${num(span.lo)},${num(span.hi)},${span.stopLo ? 1 : 0},${span.stopHi ? 1 : 0}${span.square ? ',square' : ''}` : base;
 }
 
 /** Exact equality on every CURVE_FIELDS field (stored values, invariant 18). */

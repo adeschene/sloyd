@@ -2,7 +2,7 @@ import type { Board, CutFrom, Dimension, HoleRow } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { clippedRegion } from './cuts';
 import { keptHalfSpace, type V3 } from './angleCuts';
-import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, spanOf, uvDims, type CurveKind, type ViewCurve } from './curves';
+import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, spanOf, squareSpan, uvDims, type CurveKind, type ViewCurve } from './curves';
 import { runoutReach } from './runout';
 import { HOLE_EPS, holeInstances, holeRegion, holeTouchesBox, tiltedHole, type Hole } from './holes';
 import { geometryBoard, profileFields, type ProfileKind } from './profiles';
@@ -177,10 +177,13 @@ function tiltedBreaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFrom
 }
 
 /** A hole meeting a curve's waste (curves spec §6.3; touching is meeting): along `through` its disc, square to it the
- *  rectangle it projects to on (u, v). The first such curve, or null. */
+ *  rectangle it projects to on (u, v). The first such curve, or null. A round tenon's square-span view curves are skipped
+ *  (final review M2, ruling TFa): they are not curve cuts, and a hole meeting the tenon's zone is the TENON's fault
+ *  (`tenonFaults`' meets-feature, KEPT and noted, inv 58), never a hole's breaks-out into "a curve cut". */
 export function intoCurve(board: Board, h: Hole): FaultCurve | null {
   board = geometryBoard(board);
   for (const c of board.curves) {
+    if (squareSpan(c)) continue;
     const [u, v] = uvDims(c.through);
     const iu = idx(u);
     const iv = idx(v);

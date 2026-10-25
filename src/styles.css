@@ -1223,6 +1223,13 @@ select.input { cursor: pointer; }
   stroke-width: 0.5;
 }
 
+/* A round tenon (round tenons spec §8): the end view's circle, and a side view's shoulder line and two sides; solid, no fill. */
+.cutlist-diagram-tenon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
 .cutlist-diagram-hole {
   fill: none;
   stroke: currentColor;

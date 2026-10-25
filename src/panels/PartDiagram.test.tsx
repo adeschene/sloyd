@@ -1208,3 +1208,74 @@ describe('PartDiagram: bands and a strip\'s mitres (edge banding 2, Q1, Q7)', ()
     expect(c2.querySelectorAll('polygon.cutlist-diagram-angle')).toHaveLength(0);
   });
 });
+
+describe('PartDiagram round tenons (round tenons spec §8)', () => {
+  // A 2 x 2 x 20 leg with a 1" tenon 3" long at its max end: the shoulder at 17, the sides at 1 ± 0.5.
+  const views = () => buildDiagrams(createBoard({ length: 20, width: 2, thickness: 2, tenons: [{ id: 't', end: 'max', diameter: 1, length: 3 }] }), IMPERIAL);
+  const n = (e: Element, a: string) => Number(e.getAttribute(a));
+  const outlineOf = (c: HTMLElement) => {
+    const o = c.querySelector('rect.cutlist-diagram-outline')!;
+    return { x: n(o, 'x'), y: n(o, 'y'), w: n(o, 'width'), h: n(o, 'height') };
+  };
+
+  it('the end view draws the tenon as a circle of its diameter at the section\'s centre', () => {
+    const v = views().find((x) => x.key === 'length|max')!;
+    const { container } = render(<PartDiagram view={v} />);
+    const o = outlineOf(container);
+    const circles = container.querySelectorAll('ellipse.cutlist-diagram-tenon');
+    expect(circles).toHaveLength(1);
+    const e = circles[0]!;
+    expect(n(e, 'cx')).toBeCloseTo(o.x + o.w / 2, 6);
+    expect(n(e, 'cy')).toBeCloseTo(o.y + o.h / 2, 6);
+    expect(n(e, 'rx')).toBeCloseTo((0.5 / 2) * o.w, 6);
+    expect(n(e, 'ry')).toBeCloseTo((0.5 / 2) * o.h, 6);
+    expect(container.querySelectorAll('line.cutlist-diagram-tenon')).toHaveLength(0);
+  });
+
+  it('a side view draws the shoulder line across the section and the two sides at ±r, both ways up', () => {
+    const base = views().find((x) => x.key === 'thickness|min')!;
+    for (const vUp of [false, true]) {
+      const { container } = render(<PartDiagram view={{ ...base, vUp }} />);
+      const o = outlineOf(container);
+      const X = (h: number) => o.x + (h / 20) * o.w;
+      const Y = (v: number) => o.y + ((vUp ? 2 - v : v) / 2) * o.h;
+      const lines = [...container.querySelectorAll('line.cutlist-diagram-tenon')].map((l) => [n(l, 'x1'), n(l, 'y1'), n(l, 'x2'), n(l, 'y2')]);
+      expect(lines, `vUp ${vUp}`).toHaveLength(3);
+      const want = [[X(17), Y(0), X(17), Y(2)], [X(17), Y(0.5), X(20), Y(0.5)], [X(17), Y(1.5), X(20), Y(1.5)]];
+      want.forEach((w, i) => w.forEach((c, k) => expect(lines[i]![k], `vUp ${vUp} line ${i}`).toBeCloseTo(c, 6)));
+      expect(container.querySelectorAll('ellipse.cutlist-diagram-tenon')).toHaveLength(0);
+      cleanup();
+    }
+  });
+
+  it('a min-end tenon\'s sides run from the shoulder to the min end', () => {
+    const v = buildDiagrams(createBoard({ length: 20, width: 2, thickness: 2, tenons: [{ id: 't', end: 'min', diameter: 1, length: 3 }] }), IMPERIAL)
+      .find((x) => x.key === 'thickness|min')!;
+    const { container } = render(<PartDiagram view={v} />);
+    const o = outlineOf(container);
+    const sides = [...container.querySelectorAll('line.cutlist-diagram-tenon')].slice(1);
+    expect(sides).toHaveLength(2);
+    for (const s of sides) {
+      expect(n(s, 'x1')).toBeCloseTo(o.x + (3 / 20) * o.w, 6);
+      expect(n(s, 'x2')).toBeCloseTo(o.x, 6);
+    }
+  });
+
+  it('a side with a tip station stops there (a mitered tip, fix round 1); a square end runs to the end', () => {
+    const base = views().find((x) => x.key === 'thickness|min')!;
+    const mitered = { ...base, tenons: [{ ...base.tenons![0]!, tip: [19.625, 19.375] as [number, number] }] };
+    for (const [v, ends] of [[mitered, [19.625, 19.375]], [base, [20, 20]]] as const) {
+      const { container } = render(<PartDiagram view={v} />);
+      const o = outlineOf(container);
+      const sides = [...container.querySelectorAll('line.cutlist-diagram-tenon')].slice(1);
+      expect(sides).toHaveLength(2);
+      sides.forEach((s, i) => expect(n(s, 'x2')).toBeCloseTo(o.x + (ends[i]! / 20) * o.w, 6));
+      cleanup();
+    }
+  });
+
+  it('a tenon-free view draws no tenon mark', () => {
+    const { container } = render(<PartDiagram view={buildDiagrams(createBoard({ length: 20, width: 2, thickness: 2 }), IMPERIAL)[0]!} />);
+    expect(container.querySelectorAll('.cutlist-diagram-tenon')).toHaveLength(0);
+  });
+});

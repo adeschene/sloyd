@@ -6,6 +6,7 @@ import { copyProfile } from './profiles';
 import { copyBand } from './bandModel';
 import { copyHardwareUse, mergeHardware } from './hardwareModel';
 import { copyHoleRow } from './holes';
+import { copyTenon } from './roundTenons';
 import { copyAngleCut } from './angleCuts';
 import { uniqueName } from './names';
 import type { Named } from './names';
@@ -211,7 +212,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
       // plainOf: no `shape` key, and no `mirrored` (a mirrored user's flag, fu 432: a plain part's features are its own).
-      : { ...plainOf(placed), name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand), hardware: placed.hardware.map(copyHardwareUse) };
+      : { ...plainOf(placed), name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow), curves: placed.curves.map(copyCurve), profiles: placed.profiles.map(copyProfile), bands: placed.bands.map(copyBand), hardware: placed.hardware.map(copyHardwareUse), ...(placed.tenons ? { tenons: placed.tenons.map(copyTenon) } : {}) };
     taken.push(named);
     return [named];
   });
@@ -339,7 +340,7 @@ export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument 
     id: nextId(),
     boards: def.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand), hardware: b.hardware.map(copyHardwareUse) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow), curves: b.curves.map(copyCurve), profiles: b.profiles.map(copyProfile), bands: b.bands.map(copyBand), hardware: b.hardware.map(copyHardwareUse), ...(b.tenons ? { tenons: b.tenons.map(copyTenon) } : {}) })),
     instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
     hardware: def.hardware.map(copyHardwareUse),
   };

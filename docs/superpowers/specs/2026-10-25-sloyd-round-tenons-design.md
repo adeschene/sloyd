@@ -1,6 +1,9 @@
 # Splayed legs, chunk 2b: round tenons — design
 
-Status: APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions, each answered below as my call: §5.1, §5.2, §6.3, §6.4). Follow-up 447 (the angled holes spec's §12 outline). Chunk 1 (a part
+Status: APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions, each answered below as my call: §5.1, §5.2, §6.3, §6.4). Follow-up 447 (the angled holes spec's §12 outline).
+**Built 2026-10-25 on branch `round-tenons`** (plan Tasks 1–11; schema 24); NOT merged or deployed. Browser verification (plan
+Task 12, dev server) PASS 8/8; final review clean; merge and deploy are the user's decision. Later rulings: the *Amended (build)* block at the end, which
+wins where it differs from the text — **awaiting the user's approval**. Chunk 1 (a part
 leans, schema 22) and chunk 2 (angled holes, schema 23) are deployed (`index-B114iN-Y.js`). Chunk 3, stretchers (fu 438),
 builds on this one.
 
@@ -348,3 +351,82 @@ A read-only survey (2026-10-25) found:
 - The structural test of §6.3's tenoned "stands under", and the shape of §3.2's conservative `meets-feature` boxes.
 - Where the seated test lives (a module beside `legSockets.ts` sharing `isSocketOf` and an exported `legAxis`), within "one
   test, not copied".
+
+## Amended (build)
+
+Rulings made while building, on branch `round-tenons` (2026-10-25; the SDD ledger and the task reports). The code plus these rulings
+govern; where one differs from the text above, this block wins. **Every entry awaits the user's approval.** Records: invariant 58
+new, invariants 2, 38, 39, 40, 41, 44, 45, 48, 50, 56 and 57 extended (`docs/invariants.md`); follow-ups 457–466 (447 closed).
+
+- **Ruling P1 — the bench line's end words (§8's example).** It reads `<d> round tenon, <t> long — at the length <min|max> end,
+  shoulder <s> from the other end` (the existing rectangular `tenonLine`'s words), not §8's `at the top end, shoulder … from the
+  bottom`: one sheet names ends one way. Cost: wording only (copy review, fu 464).
+- **Ruling T5d — `DiagramTenon` carries the tip (§8's side views).** On a MITERED end each side view's two sides stop where their
+  generator meets the miter plane (`tip`, two stations), so a side never runs through the miter's waste; a square end's tenon carries
+  only `end`, `diameter`, `shoulder`. Cost: one optional field.
+- **Ruling T6a — a mitered tip keeps the miter's drawing tag (§8: "tags not added").** The tip's outline lies in the miter's plane and
+  IS the miter's outline, so it keeps the miter's tag (keyed and lettered like a foot's miter); only the segments that are the
+  tenon's alone — the sides, the silhouettes, the shoulder ring — carry no tag. Cost: if wrong, the tip shows a miter letter, which
+  is still a true statement about the wood.
+- **Ruling T6b — a faulted tenon's bench line (§8, silent).** Every STORED tenon prints; a faulted one ends ` — check: <its first
+  fault>` and `(and N more)` (the holes/curves/bands shape). Cost: wording, folded into the copy review.
+- **Ruling T7a — "seated" requires the tenon to ENTER the bore (§5.1).** Beyond §5.1's four conditions, along the tenon's outward
+  direction the tenon (shoulder to the tip's furthest point) and the bore (mouth to far centre) must share more than `TOUCH`; and
+  (with T7h) the tenon must BUILD (`builtTenons`: a faulted tenon cuts no wood, so it fills no bore). Without the first, a collinear
+  bore anywhere further along the axis seats the tenon, and first-match would steal the joint. Cost: none found.
+- **Ruling T7b / T7c — the mismatch hint (§5.2's hints, builder's wording).** ` — its round tenon doesn't match the socket there`,
+  only when the unseated tenon runs where one of the other part's single bores is (a bore on its axis it enters by more than
+  `TOUCH`, or one of its diameter on another line within the two radii; so a too-deep tip in a matching blind socket gets it too);
+  the tenoned part is named first so "its" reads right. Cost: wording (copy review).
+- **Ruling T7e — first match wins (§5.1, silent).** One joint per tenon: the first single bore in world and row order that seats it. A
+  tenon through one part's through socket into a second part's socket reports an overlap with the second. Cost: a false overlap on a
+  rare build (fu 461).
+- **Ruling T7f — a built tenon's wood, its tip disc included, is never a CONTACT (§5.2's "Real bodies", tightened).** Not a rest,
+  not the floor, not grounding's `connected`, not the tip footprint, for leaning and unleaned parts alike: an unleaned part's contact
+  regions and floor test read its wood trimmed to the shoulders (`contactRegions`, `stands`), a leaning part's level faces its bodies
+  cut at the shoulders (`checkedLevelFaces`, local to the checks: `levelFaces` keeps the tips, which Bore leg sockets finds legs by).
+  The top-face clause's floor test reads `stands[o]` for a part with a built tenon; both halves of the clause are otherwise as
+  before. Cost: a part standing only on a foot tenon's tip is not grounded (true to §5.2); a leaning one also gets the `Level the
+  ends` hint, which would not help (ruling T7i, fu 462).
+- **Ruling T7g — clause (d) holds only toward the floor (§5.2's "held to each other").** A joint holds a part only when its partner
+  reaches the floor WITHOUT that part (`groundedWithout(i)`, the top-face clause's own guard): §5.2 assumed an anchored partner, and
+  two parts holding each other up with nothing grounded was a false clean. Cost: none found (every existing case passes).
+- **Ruling T7h — "real bodies" means a BUILT tenon (§5.2: "a part with a tenon").** `realBodied` is `isAngled(b) ||
+  builtTenons(b).length > 0`: a part whose tenons are all faulted builds none and checks exactly as its tenon-free twin. Cost: none.
+- **Ruling T8a — the panel's end words (§4).** `Top` / `Bottom` on an upright part, `Length min end` / `Length max end` otherwise; row
+  groups `<end> tenon`; the readout `Shoulder <len> from the <other end word>` and `Seated in <part>'s socket.` Cost: wording.
+- **Ruling T8b — an action never reports success for doing nothing (§4, silent).** `addTenon` on an end that has one, `updateTenon`
+  changing `end`, and a non-positive or non-finite size refuse with a sentence (`This end already has a round tenon.`, `A round
+  tenon can't change ends — remove it and add one at the other end.`, `A round tenon's diameter and length must be more than
+  zero.`); a stale id is null, as the hole actions. Cost: three sentences for the copy review.
+- **Ruling T8c — Add is withheld when its default would fault (§4).** The row shows the fault instead of `Add round tenon` (the
+  AngleCuts preset rule). Cost: none.
+- **Ruling T9a — finding a tenoned leg again (AMENDS §6.3's third bullet).** A tenoned leg also stands under the seat when its top
+  tenon's CENTRE SEGMENT, shoulder centre → tip centre, in the world, meets the seat's stock between its level faces (a down face and
+  an up face above it, inclusive to `TOUCH`), with its axis meeting that down face inside its outline — not the tip's centre alone.
+  ONE predicate, `tenonInSeat`, is shared by `legsUnder` and `staleSocketOf` (the review showed `legsUnder` alone makes the re-fit
+  bore a second socket beside each old one and refuse). `legsUnder` also requires `isLevelled`; `staleSocketOf` does not (its
+  callers have already found the leg). So a LOWERED seat under fitted legs is found and the re-fit SHORTENS each leg, its socket and
+  tenon ids kept; a RAISED seat (a gap above the tips) is not found, as an untenoned leg's is not. Cost: a leg whose tenon merely
+  pokes into a seat's stock is found (being found grants no support).
+- **Ruling T9c — Tenon the legs' details (§6.1, §6.2).** The tenon takes its socket ROW's diameter; a linked leg copy under no seat
+  refuses with `socketsDisagree` naming the copies; Level the ends' refusal for any leg refuses the WHOLE action (nothing written);
+  a leg whose fit faults is named in the note and not patched, its socket still bored. Cost: Level the ends' sentence does not name
+  the leg (copy review).
+- **Ruling T9d — a units switch (§6.3's `isLevelled`).** `isLevelled` rounds in the project's units, so after an imperial ↔ metric
+  switch tenoned legs are not found until re-levelled; left as is, consistent with the Lean section's not-levelled note. Cost: the
+  user presses Level the ends again before re-boring (fu 463).
+- **Ruling T10a — the assembly refusal names tenons (§9).** `Refine can't keep a leaning part, a part with angled holes or a part
+  with a round tenon inside an assembly yet — Ungroup it first: <name>.` Cost: one sentence for the copy review.
+- **Ruling T10b — the model-facing note (§9).** A kept tenoned part's line says `has round tenons`; the header names round tenons
+  only when one is kept, so a tenon-free prompt is byte for byte as before. Cost: none.
+- **Ruling T10c — the order in a joined Refine (§9).** The tenon check runs after the lean and before the tilted-row check, matching
+  `joineryRefusal` (lean, tenon, angle cuts). Cost: none.
+- **Ruling T2a — `turnCandidates` never turns a tenoned part (§9's "never turns one", early).** Through `keepsExactly`: a tenon names an
+  end of the STORED length, so a turn reversing the length in the world would carry it to the other world end. Cost: a turned twin
+  is not linked.
+- **Ruling TFa — a hole never runs into a tenon's waste (final review M2; §7, inv 58).** `intoCurve` skips square-span view curves, so a
+  hole meeting a tenon's zone is judged only by the tenon's own rule (`meets-feature`: the tenon is KEPT, noted and builds nothing),
+  never refused as running into "a curve cut" the part does not have. Before, a hole tangent to the shoulder was refused in curve
+  words while one 0.0025" further in was accepted. Cost: a hole touching the shoulder is now accepted (a tangent bore leaves T-junction
+  cracks on the shoulder plane, fu 469, the same class as any tangent hole).

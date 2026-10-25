@@ -169,3 +169,17 @@ describe('trioDrawings: cached per band types too (edge banding chunk 2)', () =>
     expect(trioDrawings(parts, thin)).toBe(a);
   });
 });
+
+describe('a tenoned leg with a mitered tip (round tenons spec §8; ruling T6a)', () => {
+  const miter = (from: 'min' | 'max') => ({ id: `m${from}`, kind: 'miter' as const, face: 'length' as const, from, along: 'width' as const,
+    alongFrom: 'min' as const, points: [[0, 0.25], [2, 0.75]] as [[number, number], [number, number]] });
+  const leg = createBoard({ id: 'L', name: 'Leg', length: 20, width: 2, thickness: 2, posture: 'upright', position: [0, 0, 0],
+    angleCuts: [miter('min'), miter('max')], tenons: [{ id: 't', end: 'max', diameter: 1, length: 3 }] });
+  it('keys both miters, the tip\'s included: nothing is listed as not shown, and the tenon has no key', () => {
+    const fs = partFeatures(leg, IMPERIAL);
+    expect(fs.map((f) => f.key)).toEqual(['L:angle:mmin', 'L:angle:mmax']);
+    const kv = views(drawView([leg], TOP), drawView([leg], FRONT), drawView([leg], SIDE));
+    for (const f of fs) expect(chooseView(f, kv), f.key).not.toBeNull();
+    expect(planKeys(fs, kv, 10, { width: 1000, height: 1000 }).notShown).toEqual([]);
+  });
+});

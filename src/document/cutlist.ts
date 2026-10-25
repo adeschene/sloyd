@@ -22,6 +22,9 @@ import { geometryBoard, profileValues, sweptProfiles } from './profiles';
 import { bandSignature, coreSize, cutStock, stripBoard, strips } from './banding';
 import type { Strip } from './banding';
 import { bandLine } from './bandText';
+import { tenonLine as roundTenonLine } from './tenonText';
+import { hasTenons, tenonsOf, tenonValues } from './roundTenons';
+import { squareSpan } from './curves';
 
 /**
  * One row of the cut list: every part that is cut from the same stock, in the
@@ -219,7 +222,8 @@ function stripSetup(s: Strip): string {
 /** A strip row's identity tail: its ends, exact (a square and a mitred strip of one cut size are two setups). */
 const endsKey = (s: Strip) => s.ends.map((e) => (e.mitre === null ? 'sq' : String(e.mitre))).join(',');
 
-/** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged; the band line last. */
+/** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged; then one per ROUND tenon
+ *  (round tenons spec §8, every stored one), before the angle-cut lines; the band line last. */
 function setupLines(board: Board, units: Units, types: readonly BandType[]): string[] {
   const tenons = findTenons(board);
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
@@ -231,6 +235,7 @@ function setupLines(board: Board, units: Units, types: readonly BandType[]): str
     if (!t) { lines.push(setupLine(board, cut, units, solids)); continue; }
     if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, units)); }
   }
+  for (const t of tenonsOf(board)) lines.push(roundTenonLine(board, t, units));
   for (const c of angleCutsThatRemoveStock(board)) lines.push(angleLine(board, c, units));
   const short = shortPointLine(board, units);
   if (short) lines.push(short);
@@ -254,10 +259,18 @@ function holeSignature(board: Board): string {
 /** The curve half of a row's identity: EXACT and order-independent, ids ignored (curves spec §4.2). */
 function curveSignature(board: Board): string {
   board = geometryBoard(board);
-  const curves = board.curves.map(curveValues).sort().join(';');
+  // A round tenon's view curves (`squareSpan`) are its drawing, not a curve cut: the tenon is keyed by `tenonSignature`.
+  const curves = board.curves.filter((c) => !squareSpan(c)).map(curveValues).sort().join(';');
   // Swept profiles (profile runs b1), the same rule: exact, sorted, ids ignored; appended only when the view holds one.
   const swept = sweptProfiles(board);
   return swept.length === 0 ? curves : `${curves}|${swept.map(profileValues).sort().join(';')}`;
+}
+
+/** The round-tenon half of a row's identity (round tenons spec §8): EXACT and order-independent, ids ignored, over the
+ *  STORED tenons (a faulted one is kept and still cut differently). Self-identifying (`tenons:` and `:` inside an entry, as
+ *  holeSignature joins), since it and the band signature are both optional trailing fields of a `|`-joined key. */
+function tenonSignature(board: Board): string {
+  return `tenons:${tenonsOf(board).map((t) => tenonValues(t).split('|').join(':')).sort().join(';')}`;
 }
 
 /**
@@ -308,6 +321,8 @@ function rowKey(board: Board, units: Units, types: readonly BandType[]): string 
     curveSignature(board),
     // Appended only when non-empty, so a band-free key is byte for byte what it was.
     ...(bands === '' ? [] : [bands]),
+    // Round tenons: appended only when the part has one, so a tenon-free key is byte for byte what it was.
+    ...(hasTenons(board) ? [tenonSignature(board)] : []),
   ].join('|');
 }
 

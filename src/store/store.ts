@@ -6,7 +6,7 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { BandType, HardwareType, ProfileSide, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
@@ -19,6 +19,8 @@ import { copyCurve, sameCurve } from '../document/curves';
 import { copyProfile, sameProfile } from '../document/profiles';
 import { copyBand, sameBands, withBands, withBandTypes } from '../document/bandModel';
 import { copyHardwareUse, HARDWARE_COUNT_MAX, sameHardware, withHardwareTypes, withHardwareUse } from '../document/hardwareModel';
+import { addedTenonFaults, copyTenon, sameTenon, tenonAt, tenonFaults, tenonsOf, withTenons } from '../document/roundTenons';
+import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { HardwareTarget } from '../document/hardware';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { withinTiltBound } from '../document/holeTilt';
@@ -38,6 +40,9 @@ function storedTilt(r: HoleRow): HoleRow {
   const { tiltAlong, tiltAcross, ...rest } = r;
   return { ...rest, ...(tiltAlong ? { tiltAlong } : {}), ...(tiltAcross ? { tiltAcross } : {}) };
 }
+
+/** A tenon size the loader keeps (`validateTenons`: finite and > 0); anything else would vanish on reload. */
+const tenonSize = (v: number): boolean => Number.isFinite(v) && v > 0;
 
 /** `setLean`'s world argument: signed degrees, and/or a direction (±1) that keeps the part's own magnitude. */
 export interface LeanWorld { rake?: number; splay?: number; rakeSign?: 1 | -1; splaySign?: 1 | -1 }
@@ -427,6 +432,22 @@ interface StoreState {
   /** As addHoleRows: `HOLE_TILT_PAST_BOUND` past the bound, decided before any mutation; null otherwise. */
   updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => string | null;
   removeHoleRow: (boardId: string, rowId: string) => void;
+  /**
+   * Round tenons (round tenons spec §4) on the WORLD part `boardId`, `end` in its world frame (a mirrored Shape user's
+   * end is lowered through its mirror by `mapWorld`, inv 46). Refused, with the first fault's `tenonFaultText`, on ANY
+   * `tenonFaults` of the new tenon, decided before `edit()`; with `TENON_END_TAKEN` for an end that already has one (at
+   * most one per end) and `TENON_SIZE_POSITIVE` for a size the loader would drop (not finite and > 0; ruling T8b). Null
+   * and nothing done while exploded (inv 47) or gesturing, and for a stale part id (the hole actions' convention). The
+   * part's `length` is never changed (spec §4: the shoulder moves inward). One undo entry.
+   */
+  addTenon: (boardId: string, end: RoundTenon['end'], diameter: number, length: number) => string | null;
+  /** As addTenon, but refused only when the edit ADDS a fault (`addedTenonFaults`): a tenon a later resize faulted can
+   *  still be edited toward fitting. `next.end` must be the tenon's own end (`TENON_END_FIXED` otherwise: the edit rule
+   *  pairs a tenon with its before-state by end); `TENON_SIZE_POSITIVE` as addTenon. A stale part or tenon id is null
+   *  and nothing done (as updateHoleRow). An unchanged tenon pushes no undo entry (inv 4). */
+  updateTenon: (boardId: string, tenonId: string, next: Omit<RoundTenon, 'id'>) => string | null;
+  /** Removes the tenon; the last one leaves no `tenons` key (never `[]`). Never refused but while exploded or gesturing. */
+  removeTenon: (boardId: string, tenonId: string) => void;
   /** Curve cuts (curves spec §8): several in one call are one undo entry. */
   addCurves: (boardId: string, curves: Omit<CurveCut, 'id'>[]) => void;
   updateCurve: (boardId: string, curveId: string, next: Omit<CurveCut, 'id'>) => void;
@@ -467,8 +488,12 @@ interface StoreState {
    * and mirrors, and into its Shape once), one undo entry. Returns the plan's refusal, or its note when a faulted socket
    * was left out and the others bored, or null. Null and nothing done while gesturing or exploded (inv 47), for a part
    * that leans, and when every leg already has its socket (inv 4: no entry).
+   *
+   * `tenonLegs` (round tenons spec §6, the checkbox `Tenon the legs`): the same entry also fits each socketed leg's top
+   * tenon — the seat's rows and every leg's patch (`socketPlan`'s `legs`: a linked leg's shared fields once, on its Shape,
+   * each other user its own position) in ONE `edit` through `mapWorld`. Off (the default), no leg is touched.
    */
-  boreLegSockets: (seatId: string, diameter: number) => string | null;
+  boreLegSockets: (seatId: string, diameter: number, tenonLegs?: boolean) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -971,6 +996,8 @@ export const useStore = create<StoreState>((set, get) => {
       profiles: source.profiles.map((p) => ({ ...copyProfile(p), id: nextId() })),
       bands: source.bands.map(copyBand),
       hardware: source.hardware.map(copyHardwareUse),
+      // Optional (round tenons spec §3.1, inv 33): fresh ids when present, no key when absent.
+      ...(source.tenons ? { tenons: source.tenons.map((t) => ({ ...copyTenon(t), id: nextId() })) } : {}),
     });
   };
 
@@ -1844,6 +1871,48 @@ export const useStore = create<StoreState>((set, get) => {
       judgeHeld();
     },
 
+    // Round tenons (round tenons spec §4): as hole rows, through mapWorld, so a shaped part's tenons are its Shape's
+    // (written once, inv 45) and a mirrored user's world end is lowered through its mirror (inv 46). Every refusal is
+    // judged on the WORLD part after the edit, before edit(). `withTenons` keeps canonical order and drops the key when
+    // the list empties. Held points are re-judged after (invariant 24): a tenon cuts away its end's corners.
+    addTenon: (boardId, end, diameter, length) => {
+      if (readOnly() || get().gesturing) return null;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board) return null; // a stale id: as the hole actions (addHoleRows)
+      if (tenonAt(board, end)) return TENON_END_TAKEN;
+      if (!tenonSize(diameter) || !tenonSize(length)) return TENON_SIZE_POSITIVE;
+      const added: RoundTenon = { id: nextId(), end, diameter, length };
+      const fault = tenonFaults(withTenons(board, [...tenonsOf(board), added]), added)[0];
+      if (fault) return tenonFaultText(fault);
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? withTenons(b, [...tenonsOf(b), added]) : b))));
+      judgeHeld();
+      return null;
+    },
+    updateTenon: (boardId, tenonId, next) => {
+      if (readOnly() || get().gesturing) return null;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      const cur = board?.tenons?.find((t) => t.id === tenonId);
+      if (!board || !cur) return null; // a stale id: as the hole actions (updateHoleRow)
+      if (next.end !== cur.end) return TENON_END_FIXED;
+      if (!tenonSize(next.diameter) || !tenonSize(next.length)) return TENON_SIZE_POSITIVE;
+      const after: RoundTenon = { id: tenonId, end: cur.end, diameter: next.diameter, length: next.length };
+      if (sameTenon(cur, after)) return null; // a no-op edit pushes no undo entry (invariant 4)
+      const replaced = (b: Board) => withTenons(b, tenonsOf(b).map((t) => (t.id === tenonId ? after : t)));
+      const fault = addedTenonFaults(board, replaced(board), cur.end)[0];
+      if (fault) return tenonFaultText(fault);
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? replaced(b) : b))));
+      judgeHeld();
+      return null;
+    },
+    removeTenon: (boardId, tenonId) => {
+      if (readOnly() || get().gesturing) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || !tenonsOf(board).some((t) => t.id === tenonId)) return;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? withTenons(b, tenonsOf(b).filter((t) => t.id !== tenonId)) : b)));
+      judgeHeld();
+    },
+
     // Curve cuts (curves spec §8): as hole rows, through mapWorld; held points re-judged after (invariant 24): the
     // waste is air, so a curve can swallow a grabbed lattice point.
     addCurves: (boardId, curves) => {
@@ -2018,19 +2087,23 @@ export const useStore = create<StoreState>((set, get) => {
       return null;
     },
 
-    boreLegSockets: (seatId, diameter) => {
+    boreLegSockets: (seatId, diameter, tenonLegs = false) => {
       if (readOnly() || get().gesturing) return null;
       if (!(Number.isFinite(diameter) && diameter > 0)) return null;
       const doc0 = get().doc;
-      const plan = socketPlan(doc0, seatId, diameter);
+      // Every refusal (sockets, copies, Level the ends' for a leg, tenons that disagree) is decided here, before edit().
+      const plan = socketPlan(doc0, seatId, diameter, tenonLegs);
       if (typeof plan === 'string') return plan;
       const seat = worldParts(doc0).find((b) => b.id === seatId);
-      if (!seat || plan.holes === seat.holes) return null; // inv 4: every leg already has its socket
+      const legs = new Map((plan.legs ?? []).map((l) => [l.id, l.patch]));
+      // inv 4: every leg already has its socket (and, tenoning, its fitted tenon)
+      if (!seat || (plan.holes === seat.holes && legs.size === 0)) return plan.note ?? null;
       // ONE write through this copy (levelEnds' ruling 1): the rows are shared by every copy, and socketPlan has judged
-      // that every copy would store the same ones.
+      // that every copy would store the same ones; each leg patch is one per storage target, a Shape's shared fields once.
       const holes = plan.holes;
-      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === seatId ? { ...b, holes } : b))));
-      // Inv 24: a bore swallows the lattice points in its mouth.
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === seatId ? (holes === b.holes ? b : { ...b, holes })
+        : legs.has(b.id) ? { ...b, ...legs.get(b.id)! } : b))));
+      // Inv 24: a bore swallows the lattice points in its mouth, and a fitted leg's length and ends move its points.
       judgeHeld();
       return plan.note ?? null;
     },

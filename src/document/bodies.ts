@@ -329,6 +329,9 @@ function stoppedPieces(board: Board, c: ViewCurve): Piece[] {
   const k = DIMENSION_ORDER.indexOf(c.through);
   const axis = (s: number): V3 => { const n: V3 = [0, 0, 0]; n[k] = s; return n; };
   const slabs = [...(span.stopLo ? [{ n: axis(1), d: -span.lo }] : []), ...(span.stopHi ? [{ n: axis(-1), d: span.hi }] : [])];
+  // A SQUARE span (a round tenon's waste, round tenons spec §7): the band between square walls and nothing else — no run-out,
+  // and no section-edge names (no run-out face for them to join).
+  if (span.square) return splitPieces(board, c).map((p) => ({ planes: [...slabs, ...p.planes], onArc: [...slabs.map(() => false), ...p.onArc] }));
   // T6 fix 1: every plane on a section-outline edge OFF the part's faces names that edge (on a face — s = 0 or t = 0 at
   // both ends — it caps nothing drawn apart from the face itself). The band's planes are matched to their edge by the
   // edge's two outline points lying on them; the run-out's come with their index.
@@ -906,7 +909,7 @@ export function curvedEdges(board: Board, bodies: readonly Body[], joins?: Smoot
   // adjacent edges at a SMOOTH outline vertex (curveOutline's flags, judged on the true arcs). A sharp vertex (a bead's
   // quirk) stays a crease, and so does anything against an untagged face.
   const stopped = new Map<string, boolean[]>();
-  for (const c of board.curves) { const sp = spanOf(c); if (sp && (sp.stopLo || sp.stopHi)) stopped.set(c.id, curveOutline(board, c).smooth); }
+  for (const c of board.curves) { const sp = spanOf(c); if (sp && !sp.square && (sp.stopLo || sp.stopHi)) stopped.set(c.id, curveOutline(board, c).smooth); }
   const edgeOf = (f: BodyFace): [string, number, number] | null => {
     const e = profileEdgeOf(f);
     return e ? [e.curve, e.a, e.b] : null;

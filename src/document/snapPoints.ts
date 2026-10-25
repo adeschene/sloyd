@@ -1,6 +1,7 @@
 import { keptHalfSpace } from './angleCuts';
 import { partGeometry } from './bodies';
-import { localSegments, spanOf, uvDims } from './curves';
+import { localSegments, spanOf, squareSpan, uvDims } from './curves';
+import { builtTenons, onTenonSurface, shoulderAt } from './roundTenons';
 import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
@@ -137,6 +138,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
 
 /** `boardSnapPoints` before the lean: today's lattice and feature points, in world inches of the pre-lean placement. */
 function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
+  const stored = board;
   board = geometryBoard(board);
   const [ex, ey, ez] = boardExtents(board);
   const [px, py, pz] = board.position;
@@ -200,6 +202,8 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
   // part's marks are byte for byte as before.
   const swept = board.profiles.length > 0 && builtSwept(board).length > 0;
   for (const c of board.curves) {
+    // A round tenon's view curves (round tenons spec §7) are not curves to the user: its own two points follow.
+    if (squareSpan(c)) continue;
     const [u, v] = uvDims(c.through);
     const inFace = (q: P2) => q[0] >= -1e-9 && q[0] <= board[u] + 1e-9 && q[1] >= -1e-9 && q[1] <= board[v] + 1e-9;
     for (const s of localSegments(board, c)) {
@@ -241,6 +245,17 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
       }
     }
   }
+  // A round tenon's two points (round tenons spec §7), 'face-center', on the axis (the section's centre): the TIP's centre,
+  // where the axis meets the end face, square or mitered (the tenon's length out from the shoulder), and the shoulder RING's
+  // centre, which sits inside the tenon's wood — the hole-centre exception to invariant 16 (the centre of a drawn ring), so
+  // it is not put to `touchesStock`. Only a tenon that builds (a faulted one draws no ring). Deduped against the lattice.
+  for (const t of builtTenons(stored)) {
+    const shoulder = shoulderAt(board, t);
+    for (const length of [shoulder, t.end === 'max' ? shoulder + t.length : shoulder - t.length]) {
+      const at = placed(board, { length, width: board.width / 2, thickness: board.thickness / 2 });
+      if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind: 'face-center', at, owner });
+    }
+  }
   if (board.angleCuts.length === 0) return lattice;
 
   // A sloped face's corners (angle-cuts spec §3.6) are the endpoints of drawn edges lying on an angle cut's
@@ -250,9 +265,14 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
   // Dedupe by distance, not by exact key: clipped body vertices carry ~1e-14 noise, so a sloped corner that
   // coincides with a lattice corner would never match its exact coordinates. The first point found wins.
   const near = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
+  // A built tenon's mitered tip is a ring of chords ON the miter's plane: its vertices are the tenon's, not the sloped
+  // face's corners (ruling T4b; fix round 1), so they are not offered. Asked only of a tenoned part, so every other part's
+  // marks (a curved part with an angle cut included) are as before.
+  const tenoned = builtTenons(stored).length > 0;
   for (const [a, b] of geometry.edges) {
     for (const p of [a, b]) {
       if (!onSlope(p)) continue;
+      if (tenoned && onTenonSurface(stored, p)) continue;
       const at = placed(board, p);
       if (lattice.some((q) => near(q.at, at))) continue;
       lattice.push({ kind: 'corner', at, owner });

@@ -22,6 +22,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `curves` and `profiles`, and `bands` and `cornerRule` (a band moves nothing).
     `lean` is absent too: a lean moves no min corner (`position` is the PRE-lean box's, inv 57), and it has its own store actions
     (`setLean`, `levelEnds`). On a LEANING part a resize or turn keeps the PIVOT instead of the corner (`pivotKeptPosition`, inv 57).
+    `tenons` is absent too (round tenons, schema 24, inv 58): a tenon moves no min corner and never changes the part's length, so it
+    has its own store actions (`addTenon`, `updateTenon`, `removeTenon`). Bore leg sockets' Tenon the legs grows or shortens a leg on
+    purpose, and its plan carries the leg's `length` AND `position` in one patch (Level the ends' shape, `levelPlan`).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -92,6 +95,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     fast swept edge path skips edges but never faces, and decides a line between two section faces only where both cover the same
     stretch** (`coveredBothSides`); anything else, and every face an overlap piece cuts (`BodyFace.overlap`), is judged by
     `bodyEdges` with every face (a dropped face or a plane-only match drew phantom lines at T-junctions and stops). The fast path makes no candidate of a face the part's other bodies cover completely (`faceCover`); it stays a wing (chunk c2).
+    A ROUND TENON (inv 58) draws its shoulder ring, its tip's outline and, in drawings, its silhouettes — never a seam or facet
+    line on its round side (its two view curves meet only at smooth outline vertices, inv 48). Its shoulder ring's centre is a snap
+    point though it sits in the tenon's WOOD (not put to `touchesStock`): the hole-centre exception, for the centre of a drawn ring.
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -167,7 +173,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes: part and instance ids per
     container; definition and shape ids per document; cut ids per board (per shape for a
-    shape), and so angle-cut, hole and curve ids; profile ids share the part's CURVE scope (curves validated first), so the
+    shape), and so angle-cut, hole, curve and round-tenon ids (schema 24, inv 58); profile ids share the part's CURVE scope (curves validated first), so the
     geometry view never holds two curves with one id. Band type ids per document (one `seen` set; the built-in's id fixed);
     bands carry no id (keyed by side). `/` in an id is re-minted. A guide with no id is dropped. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
@@ -214,12 +220,29 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     overlap (`overlapArea` > `REST_AREA` = 1e-9 sq in, against the ~1e-15 slivers of an edge-only meeting); its pre-lean boxes make no
     contact (`touching` is `[]`). Every walk is gated on `leaning`, computed once: a lean-free document takes today's expressions,
     and its check results are pinned byte for byte (`leanFreeChecks.test.ts`, a sha of every violation over eight fixtures).
+    **A seated ROUND TENON is THE ONE EXCEPTION to "holes are ignored"** (round tenons spec §5, inv 58; `tenonJoints.ts`): a part's
+    bodies stay hole-free (inv 50), so a bore still never decides an overlap, a contact, the footprint or the weight — except that a
+    single bore a seated tenon fills (`seatedIn`) makes that tenon a JOINT. Nothing else about a hole reaches the checks. A joint's
+    tenon is not measured against its socket's part: that pair's bodies are cut at the tenon's shoulder (`withoutTenon`, the
+    shoulder's kept half-space), so a shoulder pushed into the seat is still an overlap and every other pair is measured as before.
+    A tenon that is NOT seated but runs where a single bore of the other part is (`tenonMeetsBore`: a bore on its axis it enters by
+    more than `TOUCH`, or one of its diameter on another line within the two radii) gets the overlap's hint ` — its round tenon
+    doesn't match the socket there` (`TENON_HINT`), the tenoned part named first. **A part with a BUILT tenon is measured on its real
+    bodies** (`realBodied` = `isAngled(b) || builtTenons(b).length > 0`, read wherever `isAngled` chose real bodies: the overlap path,
+    `contactSolids`, `partMass`); a part whose tenons are all faulted builds none and checks exactly as its tenon-free twin (ruling
+    T7h). **A built tenon's wood, its tip disc included, is never a contact** (ruling T7f): not a rest, not the floor, not grounding's
+    `connected`, not the tip footprint. An unleaned part reads `contactRegions` trimmed to its shoulders (as a taper's stations), and
+    its floor test is that trimmed wood (`stands`, replacing the box's `min[1] <= TOUCH` wherever a floor test is made, only for a
+    part with a built tenon); a leaning part reads `checkedLevelFaces` (its leaned bodies cut at every shoulder, then `levelFaces`'
+    rule). `levelFaces` itself keeps the tips (Bore leg sockets finds legs by them). So a part standing only on a foot tenon's tip is
+    not on the floor. One scan (`anyTenon`): a document with no built tenon takes every path above unchanged.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
     the coverage threshold, or either half of the top-face clause.** One fault, one report.
     `groundedSet` is the ONE grounding walk. Known limits: follow-up 176.
-    **A leaning part takes part in support only by RESTING (splayed legs §7.2, inv 57):** through its level faces it touches the floor
+    **A leaning part takes part in support only by RESTING (splayed legs §7.2, inv 57)** — or, since round tenons, by a seated
+    tenon's joint (clause (d) below): through its level faces it touches the floor
     (`floor[i]`: a level down face at |y| ≤ TOUCH; the hangs skip and the tip floor read it), rests on a part below and holds a part
     resting on it (`rests`, added as axis-1 contacts flagged `rest`); `groundedSet` stays the ONE walk (for a pair with a leaning part
     it joins on `rests` either way; a leaning part seeds it only from `floor`). In `isHeld` a leaning part passes by (a) only, and an
@@ -231,6 +254,20 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     THEMSELVES (`feet(i)`: one zero-size box per polygon vertex, so the hull is exactly the feet's; never their bounding boxes, which
     passed a three-leg stance that tips — final review I1, fu 444). For every UNLEANED pair clause (c), the coverage
     threshold and both halves of the top-face clause run untouched, so the PROHIBITION above stands as written.
+    **(d) JOINED (round tenons spec §5.2, inv 58): a seated tenon holds a part, only toward the floor.** A seated tenon (`tenonJoints`)
+    joins its part and its socket's part (`partners`, either way round), and either is held by the other — but only when that
+    partner reaches the floor WITHOUT the part being judged (`groundedWithout(i).has(o)`, the top-face clause's own guard; ruling
+    T7g), so two parts never hold each other up off the ground and a peg in a hanging shelf holds nothing. `without` is excluded as
+    for every clause. (d) is a full alternative to (a)–(c), for ANY part, leaning or not, with no coverage threshold (that belongs to
+    the contact clauses), and it is asked BEFORE the leaning rule in `isHeld`, so **a leaning part is held by a joint too** (its own
+    tenon or one seated in it), not only by resting. `groundedSet` stays the ONE walk: its `joint` predicate connects a seated pair,
+    asked before the leaning rule's `rests`, so a joint grounds a leaning part too; a leaning part still SEEDS the walk only from
+    `floor` (an unlevelled one is still not grounded). It is ADDED: (a), (b), (c), the coverage threshold and both halves of the
+    top-face clause run exactly as before. The top-face clause's floor test reads `stands[o]` for a part `o` with a built tenon (its
+    shoulder-trimmed wood, ruling T7f) and `boxes[o].min[1] <= TOUCH` otherwise, unchanged. The tip check still judges the whole
+    piece: a joint does not stop a piece tipping. A document with no built tenon passes `partners`, `joint` and `stands` as null and
+    takes every walk as before. Known limits: first match wins (fu 461); a leaning leg standing only on a foot tenon gets the
+    `Level the ends` hint, which would not help (fu 462).
 40. **Anything deciding "same cut" derives from `CUT_GEOMETRY_FIELDS` (`cuts.ts`), checked
     against `Cut` by `satisfies`.** Do not replace the table with a list in a function body
     or add an exclusion without a written reason. `cutsThatRemoveStock` decides which cuts
@@ -245,6 +282,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     them through the geometry view (as curves); `sameShared` in order, ids included.
     Bands have `BAND_FIELDS` (`bandModel.ts`, `satisfies`: `side`, `type`), exact; the cut list keys by `bandSignature` (the corner
     rule appended ONLY where `bandsMeetAtCorner` holds, the one case its words depend on it; final review 1); `sameShared` in canonical order.
+    Round tenons have `TENON_FIELDS` (`roundTenons.ts`, `satisfies`: `end`, `diameter`, `length`), exact (`tenonValues`, `-0` told
+    apart from 0): `sameTenon`; the cut list keys by `tenonSignature` (exact, order-independent, ids ignored, over the STORED tenons,
+    appended to `rowKey` only when the part has one); `sameShared` compares in order, ids included (Task 1 review I1); `alignedTo`
+    adopts the representative's tenon ids only when `sameTenon` matches end for end (canonical order). `geometryKey` reads a built
+    tenon through its view curves (`geometryBoard`, inv 48).
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -271,6 +313,15 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     otherwise answer first). A joined Refine also refuses up front when any part has a TILTED hole row (angled holes Ruling T11a,
     inv 56: such a part is kept exactly, which a re-join cannot promise): `plainForRefine` decides it in the same place, BEFORE
     `gateUnjoin` (`Refine can't keep a part with angled holes in a joined project yet: <name>.`, reason `'lean-joint'`).
+    **A part with a ROUND TENON is refused, never joined (round tenons spec §9, inv 58), by the decider's SECOND step:**
+    `joineryRefusal` runs `leaningRefusal`, then `tenonRefusal(entry, flat)` — the first part in flat order carrying any stored
+    tenon (`hasTenons`: a faulted one counts; a flat part is resolved, so a Shape's tenon counts for every user), one verbatim
+    sentence per caller (`Add joinery can't join a part with a round tenon yet: <name>.`, `Repair can't join a part with a round
+    tenon yet: <name>.`, `Refine can't keep joints with a part with a round tenon yet: <name>.`) — then the taper and angle rules.
+    v1: the whole document is refused; a later chunk can rule kinds out per site instead (fu 460). Repair calls `leaningRefusal ??
+    tenonRefusal` with the same "some part has cuts" gate; `plainForRefine` calls `tenonRefusal` after `leaningRefusal` and BEFORE
+    the tilted-row check (ruling T10c, matching `joineryRefusal`'s order), reason `'lean-joint'`. Needed because `shapedFeatures`
+    reads `profileView` (a tenon's waste is no shaped feature), so `featureAllowed` would not see a tenon.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -337,6 +388,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     rotation (`S · m · S`); never re-derive a twist from flipped slopes. A quarter turn needs nothing: the lean is stored at turn 0 and
     `worldSlopes` turns it (`rotateVec(b.rotation, …)`, `setLean` back through `inverseTurn`). Pinned with an asymmetric lean (both
     slopes non-zero and unequal), rake = splay and the seam leans.
+    **A round tenon reflects by a FLAG FLIP too** (round tenons spec §3.1, inv 58: `mirrorTenons`): a mirror along the LENGTH swaps
+    each tenon's `end` and re-sorts (`min` first); across the width or thickness nothing moves and the SAME array comes back. It is its
+    own inverse; `lowerTenons` lowers through one mirror (an untouched tenon maps back to the stored object, an untouched list to the
+    stored array; a draft with none adds no key). `mirrorFeatures` applies it (a part's own mirror and a mirrored instance's step);
+    `lower` and `lowerOwnMirror` lower it. Pinned with a chiral leg (a tenon on one end only) inside a mirrored instance: the legs are
+    still seated in the world.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -371,6 +428,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `groupSignature` carries its value form. A shape-mate's patch never carries `lean` (mates exist only to re-pivot posture; each
     would lower the target's world lean through its own flip and the edits would disagree). `setLean` and `levelEnds` write a Shape's
     lean, length and angle cuts ONCE, through the first selected (or the clicked) user.
+    **`tenons` is SHARED** (round tenons spec §3.1, inv 58; an optional list, so excluded from `_sharedPrimitives`' primitive check):
+    four linked legs share one tenon list, stored once on the Shape, a FRESH copy per user (`copyTenon`). Never stored empty:
+    `sharedOf` copies it only when present; `sharedPatch` reads a present `[]` or `undefined` as a REMOVAL (the write-back stores it as
+    a deleted key, `storedValue`'s `ABSENT`, never `tenons: []` or `tenons: undefined`); `sameShared` compares in order, ids included,
+    every field exact (`sameTenon`); `resolveBoard` copies it; `groupSignature` carries its sorted `tenonValues`. `turnCandidates`
+    never turns a tenoned part (through `keepsExactly`, inv 56): its tenons name ends of the STORED length, so a turn that reverses the
+    length in the world would carry each to the other world end. Bore leg sockets' Tenon the legs writes a Shape's tenons, length,
+    angle cuts and holes ONCE, through the group's first leg, and each other storage target only its own position (`fitLegs`).
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -532,6 +597,17 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     band where it re-entered the half-plane (deployed b1 byte-identical on 450 End to end parts). Where an open run's two ends come
     within reach round one corner, the overlap takes BOTH chords' kept sections — the router cuts both passes, so the wood is their
     INTERSECTION (`SweptPlan.bands`, `restMore`; not a fault).
+    **A ROUND TENON's waste is built through the same path** (round tenons spec §7, inv 58), so `boardBodies` stays the ONE place and
+    bodies stay convex: `geometryBoard` appends each BUILT tenon's two VIEW curves (`tenonViewCurves`: the section minus the tenon's
+    disc, as two overlapping outlines each missing one quadrant, every arc minor, so the round side is one inscribed polygon whose
+    every vertex is some outline's SMOOTH vertex — no seam line, inv 16; ids `tenon/<id>/a|b`, which no loaded id can equal, since
+    `takeId` re-mints a `/`) after everything else, with a SQUARE span (`CurveSpan.square`, `squareSpan`): a plain wall at the
+    shoulder, no run-out, the end side open so the end's miter (applied first) clips the tip. Every reader of a span that would apply
+    a profile's run-out (`stoppedPieces`, `curvedEdges`' stopped map, `stockProbe`, `intoCurve`, `throughExtent`) asks `squareSpan`
+    first. VIEW-ONLY: never stored or validated; a faulted tenon builds nothing (`builtTenons`, memoised per board object, frozen).
+    `shapedFeatures` reads `profileView`, never `geometryBoard`, so a tenon is never a feature of itself. A tenon's view curves are
+    not curves to the user: the cut list's curve signature, bench lines, feature keys, drawing tags, the diagram's curve layers and
+    snap points all skip `squareSpan` curves; the tenon draws and keys itself (inv 58).
 
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
     `isSheetGood`, `grainFamily`, `hasGrain` and shop validation read it off the id with no catalog; a stored `kind` that
@@ -633,6 +709,35 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     a TILTED count-1 THROUGH row entering from the seat's top (`isSocketOf`'s entry: only a row `socketRow` could have written;
     final review M4) whose axis line passes through a leg top in the `TOUCH` band is that leg's stale socket
     (`staleSocketOf`, noted `socketStale` and replaced on the next press; a square row is never one); a matched leg is left alone.
+    **Round tenons (schema 24, inv 58) extend Bore leg sockets.** `partAxis(b)` (`legSockets.ts`) is ANY part's world axis — the
+    length's centre line through its placement and lean, `min` → `max`; a leaning part's is exactly the numbers `legAxis` always used,
+    so socket rows are unchanged — and `legAxis` is `partAxis` pointing up, for a leaning part only. **`boreAlongAxis(holder, row,
+    axis)` is the ONE coaxial test** (the bore's mouth centre on the line and its bit parallel to it, either way, both to 1e-9;
+    through or blind, any face): `isSocketOf` adds its own narrower rule on it (a count-1 through bore from the seat's top) and the
+    tenon joint's `seatedIn` adds its own (inv 58), so the two cannot drift. `boreEnds` is exported for the joint. **A tenoned leg
+    also stands under the seat** (spec §6.3 as amended by ruling T9a): `legsUnder(world, seat, units)` finds a leaning part whose
+    levelled top rests on a down face as before, OR whose top (`max`) end carries a tenon whose CENTRE SEGMENT — shoulder centre to tip
+    centre, in the world — meets the seat's stock over one of its down-facing level faces (between that face and an up face above it,
+    inclusive to `TOUCH`) with its axis meeting that down face's plane inside its outline (`tenonInSeat`), AND whose top is levelled
+    (`isLevelled(w, units)`, in `legsUnder` only). **`tenonInSeat` is the ONE predicate `legsUnder` and `staleSocketOf` share**
+    (`staleSocketOf`'s callers have already found the leg, so it adds no `isLevelled`; without the shared predicate a lowered seat's
+    re-fit bored a second socket beside each old one and refused). A seat RAISED clear of the tips is not found, as an untenoned
+    leg's is not. Being found grants no support (support is the joint's, inv 39 (d)). A units switch can make `isLevelled` false, so
+    tenoned legs are not found until re-levelled (ruling T9d, fu 463). **Tenon the legs** (`socketPlan(doc, seatId, diameter,
+    tenonLegs)`, the store's `boreLegSockets(seatId, diameter, tenonLegs?)`, the Holes panel's checkbox `Tenon the legs (replaces
+    their top tenons)`, on by default): every leg that HAS its socket after the plan (bored now, or already bored) gets its TOP tenon
+    fitted in the same `mapWorld` edit and undo entry (`fitTop` / `legTenonPlan`): the top through `levelPlan(leg, units, { topAt:
+    the seat's top face })` (it SETS, not adds: the length change, either way, rounds UP to the drag grid, the tip plane exact, holes
+    kept by `levelEndHoles`); the shoulder where the leg's highest section corner just clears the seat's underside; the tenon's
+    diameter the socket ROW's, its length from the shoulder to the tip's centre rounded UP to `tenonStep` (1/64", 0.1 mm) with Level
+    the ends' `roundUp`, so the shoulder only drops; the `max` tenon replaced (its id kept) or added, the `min` tenon never touched.
+    Every copy and every storage group (a Shape's users, or one stored part's placements) is judged against its OWN seat; a member
+    under no seat, or one storing a different fit (1e-9, ids ignored), refuses the whole action with `socketsDisagree` naming the
+    copies; Level the ends' refusal for any leg refuses the whole action; a fit that faults (`tenonFaults`) is named in `note`
+    (`<leg>'s tenon: <fault>`) and not written, its socket still bored; a fit that changes nothing writes nothing (inv 4). The write
+    is Level the ends' shape: the shared fields once through the group's first leg, each other storage target its own position.
+    Off, no leg is touched. The seat's Holes section adds the tenon twin of the stale note for a found leg whose top tenon is seated
+    in none of the seat's bores (`staleTenonOf`, `tenonStale`: `<leg>'s tenon no longer fits its socket — Bore leg sockets again.`).
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
     where `explode` is (initial state, `replaceDocument`).** One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
@@ -873,12 +978,19 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     stands): first-wins (invs 8, 33) keeps their ids and names, and with no role `linkByRole` never judges them. **No floor shift is
     applied while any part is kept** (spec §8(b)'s second option): the result moves to the kept parts, never the reverse; a model
     part left below the floor stays there and the design checks report it. A kept part inside an assembly refuses Refine up
-    front (`'lean-assembly'`, `leaningInAssembly`: `Refine can't keep a leaning part or a part with angled holes inside an assembly
-    yet — Ungroup it first: <name>.`; Refine rebuilds every definition, fu 441), and a joined Refine refuses (`'lean-joint'`): a
+    front (`'lean-assembly'`, `leaningInAssembly`: `Refine can't keep a leaning part, a part with angled holes or a part with a round
+    tenon inside an assembly yet — Ungroup it first: <name>.`, widened by ruling T10a; Refine rebuilds every definition, fu 441), and a joined Refine refuses (`'lean-joint'`): a
     leaning part by `leaningRefusal` (inv 41), and — ruling T11a, because `runJoinery` re-joins the whole refined document, kept
     boards included — any part with a tilted row, BEFORE the gate (`Refine can't keep a part with angled holes in a joined project
     yet: <name>.`); joinery and Repair are unchanged by tilts. The model's note (`keptNote`) says why each is kept (it leans, has
-    angled holes, or both). The done view says `Kept as is (leans or angled holes): <names>`. Kept parts count toward the result's part caps (fu 442).
+    angled holes, has round tenons, or a list of them: `whyKept`). The done view says `Kept as is (leans, angled holes or round tenons): <names>`. Kept parts count toward the result's part caps (fu 442).
+    **A part with a ROUND TENON is KEPT exactly too** (round tenons spec §9, inv 58): `keepsExactly(b)` is `leans(b)`, any `isTilted`
+    row, or `hasTenons(b)` — read off the STORED list, so a faulted tenon is kept verbatim too; the design form has no word for a
+    tenon (the design schema is unchanged, fu 322), so none reaches the model and none comes back squared. `turnCandidates` never
+    turns one (through `keepsExactly`; one place decides it, Task 10 review). A joined Refine refuses one (`tenonRefusal`, inv 41,
+    `Refine can't keep joints with a part with a round tenon yet: <name>.`), after the lean and BEFORE the tilted-row check (ruling
+    T10c). `keptNote`'s header names round tenons only when one is kept (`These parts lean, have angled holes or have round tenons,
+    …`; otherwise the old header), so a tenon-free prompt is byte for byte as before (ruling T10b).
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
     `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face }`, a SHARED
@@ -978,5 +1090,102 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       part has cuts (inv 41), and a plain Refine keeps it exactly (inv 56).
     - **Cut list, nesting and Buying are unchanged:** a lean is placement, like position, so two legs with the same stock and cuts
       share a row whatever their leans; the level cuts print as their usual bench lines.
+    - **A leaning part is held by a seated tenon's joint too** (round tenons, schema 24, invs 39 (d), 58), not only by resting: a
+      joint holds it and connects it in `groundedSet` when its partner reaches the floor without it. It still SEEDS grounding only
+      from a level foot on the floor, and its contacts are its level faces cut at every built tenon's shoulder
+      (`checkedLevelFaces`), so a tip disc never rests or stands. A leaning leg standing only on a foot tenon is not on the floor,
+      and its fault still carries the `Level the ends` hint (fu 462).
+    - **Level the ends on a tenoned end levels the tip** (spec §6.3): the end's one miter IS the tenon's tip (inv 58), replaced like
+      any end miter; the tenon is kept at the end, its length unchanged (measured from the end's centre), so its shoulder rides with
+      the end; a fault this causes is KEPT and noted, never refused. `levelPlan(world, units, { topAt })` takes a given world height
+      for the top's reference instead of R (Bore leg sockets' Tenon the legs: the seat's top face); absent, R as always, value for
+      value. `roundUp` is exported as THE one rounding rule (Tenon the legs' fitted tenon length rounds with it, to `tenonStep`).
     - Drawings, section caps and the Plans note: invs 47 and 51. Holes on a leaning part, sockets and tilts: inv 50 (angled
-      holes, schema 23). Follow-ups: 436–446; angled holes 447–456.
+      holes, schema 23). Round tenons: inv 58 (schema 24). Follow-ups: 436–446; angled holes 447–456; round tenons 457–466.
+
+58. **A round tenon is a STORED feature of a part's end, and `roundTenons.ts` is its ONE home** (splayed legs chunk 2b, schema 24;
+    spec `2026-10-25-sloyd-round-tenons-design.md` and its *Amended (build)* block). `Board.tenons?: RoundTenon[]`, `RoundTenon =
+    { id, end: 'min' | 'max', diameter, length }` in inches, at most one per end, canonical order `min` then `max` (`withTenons`).
+    The tenon is COAXIAL with the length and centred on the section; its SHOULDER is square to the axis (a plane of constant length
+    coordinate, `shoulderAt`); `length` runs along the axis from the shoulder to the END'S CENTRE, where the axis meets the end face,
+    square or mitered. The tenon is inside the part's length: adding, editing or removing a typed tenon never changes `length` (the
+    shoulder moves), so the cut list's length is still the blank (inv 18).
+    - **A tenon-free part is byte for byte as before**: it has NO `tenons` key — never `[]`, never `undefined` (`withTenons` drops the
+      key on an empty list; the loader, `sharedOf`, `resolveBoard`, every copy site and the write-back's `storedValue` keep it so);
+      `geometryBoard`, `geometryKey`, `rowKey`, `boardUVSignature`, `drawsAsBox` and every design-check result are identical, and
+      `bodyMeshIdentity`, `drawingIdentity`, `diagramIdentity`, `sweptIdentity`, `bandFreeIdentity` and every existing test pass
+      unchanged.
+    - **Load** (v24, `docs/versioning.md`): `validateTenons` DROPS a malformed tenon (not an object, an `end` other than `min`/`max`, a
+      non-finite or non-positive `diameter` or `length`, a second one for an end: the first wins) and KEEPS a well-formed faulted one;
+      ids per board (per Shape for a Shape) by `takeId` (inv 33), a `/` re-minted. Copies (`copyBoard`, Duplicate, copy in a row)
+      re-mint ids. A schema-23 build refuses a 24 file.
+    - **Shared and mirrored**: `tenons` is SHARED (inv 45); mirrors flip by flags (`mirrorTenons`: along the length the ends swap;
+      across, nothing; inv 44). `TENON_FIELDS` (inv 40) is "same tenon".
+    - **`tenonFaults(b, t)` is the ONE fault decider** (spec §3.2), faults in this order, one `meets-feature` per feature kind:
+      `too-wide` (diameter at or above the smaller of width and thickness, 1e-9); `too-long` (the shoulders would meet or cross, at the
+      centre, with the other end's STORED tenon read from `b`); `cut-reaches-shoulder` (the end's miter reaches the shoulder anywhere
+      across the full section: its deepest corner depth ≥ the centre depth + length); `meets-feature` (another feature's region meets
+      the ZONE, the end slab from the shoulder to the end over the full section, `tenonZone`, with positive extent on every
+      dimension): a rectangular cut (`clippedRegion`), an angle cut other than the end's own miter (`touchedRegion`), any other cut on
+      that end (`endCutOf` 'other'), a hole row (`holeRegion`), a curve or a profile (through `shapedFeatures` over `profileView`, the
+      ONE geometry view: true arcs, run-outs, swept profiles; `featureMeetsBox`), a band (a long-edge band always; an end-edge band
+      only on the tenon's own end — its thickness is in the band type, which the part does not carry). **CONSERVATIVE**: boxes that
+      may refuse a feature that just clears, never the reverse. **The end's own cut** (`endCutOf`, spec §3.3): a tenoned end is
+      square, or carries exactly ONE end miter (`kind 'miter'`, `face 'length'`, on that end — what Level the ends writes), which is
+      the tenon's TIP; anything else on that end is a `meets-feature` (angle cut) fault. Copy has ONE home, `tenonText.ts`
+      (`tenonFaultText`, verbatim: `A round tenon must be narrower than the part's section.` / `The tenons would meet — shorten one.` /
+      `The end's cut reaches the shoulder — lengthen the tenon.` / `The tenon would run into <a rectangular cut | an angle cut | a
+      hole | a curve | a profile | a band> — move it or remove it first.`).
+    - **The holes rule**: an ADD is refused on ANY fault; an EDIT only when it ADDS one (`addedTenonFaults`, by `kind|feature`), so a
+      tenon a later resize faulted can be edited toward fitting; a fault a later edit causes (a resize, a lean, a new cut, a feature
+      added in the zone) is KEPT, noted (the Round tenons row shows `tenonFaultText` and `(and N more)`), never clamped. **A
+      faulted tenon builds NOTHING** (`builtTenons`, the ONE "which tenons build" list, memoised per board object and frozen): no
+      geometry, edges, caps, snap points, diagram or joint — only the bench line, which prints every STORED tenon.
+    - **Geometry is inv 48's path** (`geometryBoard` appends each built tenon's two square-span view curves; bodies stay convex; no
+      seam or facet line on the round side, inv 16). The mesh is WATERTIGHT (`curvesWatertight.test.ts`: a square end, a mitered
+      tip, a leaning part); `curvesPerf` holds tenon cases under the existing budgets (the minimum of 9). Edges: the shoulder ring, the
+      tip's outline (a circle, or an ellipse on a miter), silhouettes in drawings. Section caps come from the bodies (a seated tenon
+      fills the seat's subtracted bore, so a cut shows two solids). **Snap points**: the tip's centre and the shoulder ring's centre
+      ('face-center', on the axis; the shoulder centre sits in wood, inv 16's ring-centre exception), and no sloped-face corners on a
+      tenon's round surface (`onTenonSurface`). **Drawings**: lines from the part's edges; only the segments that are the tenon's
+      alone (the sides, silhouettes, the shoulder ring) carry no feature tag; the mitered tip's outline lies in the miter's plane and
+      KEEPS the miter's tag (ruling T6a). No Plans feature callout for a tenon (fu 457). **Part diagrams** (`DiagramTenon`: `end`,
+      `diameter`, `shoulder`, and on a mitered end's side views `tip`, each side's station where its generator meets the miter plane,
+      ruling T5d): the end view draws the tenon as a circle at the section's centre; every side view the shoulder line and the two
+      sides; a tenoned part with no side view opens the thickness view. **The cut list**: the row's length is the blank, tenon
+      included; one bench line per STORED tenon after the rectangular-cut lines and before the angle-cut lines (`tenonLine`, one home:
+      `<d> round tenon, <t> long — at the length <min|max> end, shoulder <s> from the other end`, the diameter at hole precision
+      `holeLengthText`, `<s>` measured to where the axis meets the far end's face; a faulted one ends ` — check: <first fault>` and
+      `(and N more)`, ruling T6b); `rowKey` appends `tenonSignature` only when the part has one. The tenon's view curves are never
+      shown as curves (no curve line, key, tag, diagram curve or curve snap).
+    - **The joint** (`tenonJoints.ts`; spec §5, invs 38, 39): `seatedIn(a, t, b, row)` holds, in the WORLD (`worldParts` entries,
+      so the parts may sit in different assemblies or under mirrors), when (1) `t` BUILDS; (2) `row` is a single bore (`count` 1) of
+      another part; (3) its diameter equals the tenon's (1e-9: exact match, so a tenon 1/64" small is not seated); (4) it lies along
+      `a`'s axis (`boreAlongAxis(b, row, partAxis(a))`, inv 50: through or blind, from any face); (5) the tenon ENTERS it — along the
+      tenon's outward direction, the tenon (shoulder to the tip's furthest point) and the bore (mouth to far centre) share more than
+      `TOUCH` (ruling T7a: otherwise a collinear bore further along the line would seat it); (6) in a BLIND bore no point of the tip
+      passes the bottom's plane by more than `TOUCH` — the tip's FURTHEST point (`tipFarthest`: on a mitered tip the centre advanced
+      by r·tan φ), never the centre alone; a through bore takes any tenon. `tenonJoints(doc)` lists every seated tenon in one pass,
+      world order, each tenon against every other part's single bores in world and row order — **the FIRST match wins** (one joint per
+      tenon; known limit fu 461). A tenon near a socket, in one of another size, or along another line is NOT a joint: its wood in the
+      other part is an overlap, as today, with the mismatch hint (inv 38). **Support is never granted by proximity.**
+    - **Edits** (store; the Properties section **Round tenons**, after Holes, `RoundTenons.tsx`): `addTenon(boardId, end, diameter,
+      length)`, `updateTenon(boardId, tenonId, next)`, `removeTenon(boardId, tenonId)` on the WORLD part, written through `mapWorld`
+      (a Shape's tenons once, a mirrored user's end lowered through its mirror; inv 46), one undo entry, held points re-judged
+      (`judgeHeld`, inv 24). Every refusal is decided before `edit()`, as a sentence (ruling T8b: an action never reports success for
+      doing nothing): the first fault's `tenonFaultText`; `This end already has a round tenon.` (`TENON_END_TAKEN`); `A round tenon
+      can't change ends — remove it and add one at the other end.` (`TENON_END_FIXED`); `A round tenon's diameter and length must be
+      more than zero.` (`TENON_SIZE_POSITIVE`, a size the loader would drop). Null and nothing done while exploded (inv 47) or
+      gesturing, and for a stale id (the hole actions' convention); an unchanged edit pushes no entry (inv 4). The panel: one row per
+      end (`Top`/`Bottom` on an upright part, `Length min end`/`Length max end` otherwise; ruling T8a); an end without one offers
+      `Add round tenon` with the spec §4 default (`defaultTenon`: 1" or 25 mm, else the largest whole 1/8" or mm that is not
+      `too-wide`; 1" or 25 mm long), WITHHELD with its fault shown when the store would refuse it (ruling T8c); an end with one shows
+      Diameter (hole precision), Length, the readout `Shoulder <len> from the <other end word>` (`shoulderFromFarEnd`, the ONE home of
+      that number) and, when seated, `Seated in <part>'s socket.` (`tenonJoints` over the flat document), the kept-fault note, Remove.
+    - **Bore leg sockets tenons the legs** (inv 50: `partAxis`, `boreAlongAxis`, `tenonInSeat`, Tenon the legs, the stale tenon
+      note). A fitted tenon's length rounds UP to `TENON_STEP` (`roundTenons.ts`: 1/64" imperial, 0.1 mm metric; `tenonStep(units)`
+      reads only `units.display` through a TYPE-only `Units` import, so `roundTenons.ts` takes no `→ units` edge; `defaultTenon` takes
+      a `metric` boolean for the same reason). `tenonText.ts` produces the strings and imports `units` (the edge rule).
+    - **AI paths**: Generate is unchanged (the design schema is byte for byte the same, fu 322); Refine KEEPS a tenoned part exactly
+      (`keepsExactly`, inv 56) and a joined Refine refuses one; joinery and Repair refuse a tenoned document (`tenonRefusal`, inv 41).
+      No path squares an end: a tenon is never lost silently.

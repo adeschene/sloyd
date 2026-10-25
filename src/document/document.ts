@@ -1,7 +1,7 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Board, Instance, Definition, Cut, AngleCut, RoundTenon, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
   Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse, Lean,
 } from './types';
 import type { SharedField } from './links';
@@ -14,6 +14,7 @@ import { BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_KINDS, CORNER_RULES, canonicalBan
 import { canonicalHardware, HARDWARE_COUNT_MAX, PACK_SIZE_MAX } from './hardwareModel';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
+import { withTenons } from './roundTenons';
 import { withinTiltBound } from './holeTilt';
 import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
 import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
@@ -46,7 +47,7 @@ export {
 export type { Hole, Plane } from './holes';
 export { bitVector, isTilted, retilt, tiltDegrees, tiltResultantDeg, tiltSightlineDeg, withinTiltBound } from './holeTilt';
 export { levelEndHoles, rebaseHoles } from './holeRebase';
-export { isSocketOf, legsUnder, socketPlan, socketRow, staleSocketOf, socketStale, socketsDisagree, socketFaulted, socketTooSteep, socketTooWide } from './legSockets';
+export { isSocketOf, legsUnder, legTenonPlan, socketPlan, socketRow, staleSocketOf, socketStale, socketsDisagree, socketFaulted, socketTooSteep, socketTooWide } from './legSockets';
 export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords, boundaryDistance, wasteContains, isAir, circleMeetsWaste, rectMeetsWaste, curveFaults, archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, deriveCurveKind, curveKindWord, curveAs, curveKindChoice, curvePlacement, defaultArch, defaultNotch, defaultBow, defaultCorner, defaultCorners, mirrorCurveCut, convexPieces, curvePlan, splitPieces, smoothLines } from './curves';
 export type { P2, LocalArc, LocalLine, LocalSeg, Outline, CurveFaultKind, CurveFault, ArchFields, BowFields, CornerFields, CurveKind, CurveKindChoice, CurvePlacement } from './curves';
 export { DEFAULT_PROFILE_EDGE, PROFILE_EDGES, PROFILE_KINDS, defaultProfile, profileAsymmetric, profileCurve, profileFields, profileAsCurve, profileOf, profileFromFields, profileToFields, mirrorProfile, sameProfile, copyProfile, geometryBoard, endToEnd, PROFILE_FIELDS, profileValues } from './profiles';
@@ -70,7 +71,7 @@ export { findTenons } from './tenons';
 export type { Tenon } from './tenons';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
 export { buildDiagrams } from './diagram';
-export type { DiagramCut, DiagramHole, DiagramHoleSide, DiagramView } from './diagram';
+export type { DiagramCut, DiagramHole, DiagramHoleSide, DiagramTenon, DiagramView } from './diagram';
 export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
@@ -201,8 +202,15 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * slope or one past the bound (`withinTiltBound`: each |slope| <= 1, resultant <= 1, 45 degrees, within lean's 1e-9 allowance). It refuses nothing on
  * content. Harm a v22 build would do: it rebuilds each row field by field, drops the tilt and drills the bore square — a
  * seat's leg sockets point straight down — silently, and autosaves it. So a v23 file must be refused by a v22 build.
+ *
+ * v24 (round tenons spec §3): `tenons` on a part, absent when the part has none (never `[]`), document-level, no step. Each
+ * is `{ id, end, diameter, length }`, at most one per end, canonical order (min, then max). The loader DROPS a malformed one
+ * (a missing or non-finite number, a non-positive diameter or length, an unknown end, a second one for an end: the first
+ * wins) and KEEPS a well-formed faulted one; it refuses nothing on content. Harm a v23 build would do: it rebuilds each part
+ * field by field, drops the tenons and loads the leg as full-section stock all the way into the seat — silently, and
+ * autosaves it. So a v24 file must be refused by a v23 build.
  */
-export const CURRENT_VERSION = 23;
+export const CURRENT_VERSION = 24;
 
 export class DocumentError extends Error {
   /**
@@ -491,6 +499,29 @@ function validateHoleRows(raw: unknown): HoleRow[] {
     });
   }
   return out;
+}
+
+/**
+ * A part's round tenons (round tenons spec §3.1, §3.2), or undefined (no key: a tenon-free part keeps its bytes). Dropped,
+ * never clamped: not an object, an `end` other than min | max, a non-finite or non-positive diameter or length, and a
+ * second tenon for an end (the first wins). A FAULTED but well-formed tenon (`too-wide`...) is KEPT. Ids are scoped to
+ * this board (invariant 33), like a hole row's. Rebuilt field by field, in canonical order (`withTenons`).
+ */
+function validateTenons(raw: unknown): RoundTenon[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set<string>();
+  const ends = new Set<string>();
+  const out: RoundTenon[] = [];
+  const positive = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const t = item as Record<string, unknown>;
+    if (t.end !== 'min' && t.end !== 'max') continue;
+    if (!positive(t.diameter) || !positive(t.length) || ends.has(t.end)) continue;
+    ends.add(t.end);
+    out.push({ id: takeId(t.id, seen), end: t.end, diameter: t.diameter, length: t.length });
+  }
+  return out.length ? withTenons({} as Pick<Board, 'tenons'>, out).tenons : undefined;
 }
 
 /** A segment `type` this build cannot draw (spec §2.4): the whole document is refused, as a newer version is. */
@@ -853,6 +884,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
     material,
   };
   const lean = validateLean(b.lean, fields.posture);
+  const tenons = validateTenons(b.tenons);
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
   // Profile runs spec §3.2/P7/P8: curves and profiles share one id scope; every curve profileOf recognises moves into
@@ -862,7 +894,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds), ...(lean ? { lean } : {}) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds), ...(lean ? { lean } : {}), ...(tenons ? { tenons } : {}) } };
 }
 
 /**

@@ -2,7 +2,7 @@ import type { Board, CurveCut, Dimension, ProfileCut, ProfileEnd, ProfileSide } 
 import { formatLength, type Units } from '../units/length';
 import { edgeName, endWord } from './holeText';
 import {
-  archFields, bowFields, cornerFields, curveFaults, localSegments, spanOf, uvDims, type CurveFault, type LocalArc,
+  archFields, bowFields, cornerFields, curveFaults, localSegments, spanOf, squareSpan, uvDims, type CurveFault, type LocalArc,
 } from './curves';
 import { endPos, endToEnd, geometryBoard, oneSide, profileAsymmetric, profileFields, profileToFields, runDim, viewProfileFaults, type ProfileFault, type ProfileFields } from './profiles';
 import { faceOutline, sideStretch } from './profilePath';
@@ -273,7 +273,10 @@ export function curveLineEntries(board: Board, units: Units): { ids: string[]; t
   }
   // Q7: curves, then straight profiles (the view's curves, in that order), then swept profiles, each in stored order.
   return [
-    ...board.curves.flatMap((c) => (skip.has(c) ? [] : [collapsed.get(c) ?? { ids: [c.id], text: curveLine(board, c, units) }])),
+    // A round tenon's view curves (`squareSpan`) are its drawing, not curve cuts: no line (its own `tenonLine` is the bench
+    // line), so no cut-list line, Plans feature key or diagram note either (round tenons spec §8; rulings T4b, T5a). Judged
+    // here, not by removing them from `board`: every other line is read off the whole view, as before.
+    ...board.curves.flatMap((c) => (skip.has(c) || squareSpan(c) ? [] : [collapsed.get(c) ?? { ids: [c.id], text: curveLine(board, c, units) }])),
     ...(board.profiles ?? []).map((p) => ({ ids: [p.id], text: sweptLine(board, p, units) })),
   ];
 }

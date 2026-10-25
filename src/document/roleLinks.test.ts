@@ -598,3 +598,34 @@ describe('mirror twins (fu 432, mirrored-links spec §5.1)', () => {
     expect(doc.definitions[0]!.boards[0]).toBe(right);
   });
 });
+
+describe('round tenons in linkByRole (round tenons spec §3.1)', () => {
+  // A plain flat rung, chiral by its tenon alone: one on the max end only.
+  const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const rung = (): Board => ({ ...createBoard({ id: 'L', name: 'Left', length: 18, width: 1.5, thickness: 1.25, posture: 'flat' }), tenons: [T] });
+  const strip = (b: Board) => { const { shape: _s, mirrored: _m, ...rest } = b; return rest; };
+  const world = (doc: SloydDocument) => worldParts(doc).map(strip).map(({ tenons, ...rest }) => ({ ...rest, tenons: tenons?.map(({ id: _id, ...t }) => t) }));
+
+  it('linkByRole\'s mirror candidate mirrors the tenon', () => {
+    const left = rung();
+    const right: Board = { ...mirrorInPlace(left), id: 'R', name: 'Right', position: [30, 0, 0], tenons: [{ ...T, id: 't9', end: 'min' }] };
+    expect(mirrorCandidates(right).map((c) => c.tenons)).toEqual([[{ ...T, id: 't9', end: 'max' }]]);
+    const before: SloydDocument = { ...createDocument('T'), boards: [left, right] };
+    const doc = linkByRole(before, new Map([['L', 'rung'], ['R', 'rung']]));
+    expect(doc.shapes).toHaveLength(1);
+    expect(doc.boards.map((b) => [b.id, isShaped(b), b.mirrored === true])).toEqual([['L', true, false], ['R', true, true]]);
+    expect(doc.shapes[0]!.tenons).toEqual([T]);
+    // Each world part keeps its tenon on its own end.
+    expect(world(doc)).toEqual(world(before));
+  });
+
+  it('turnCandidates(tenoned) = [] (a turn would carry the stored end to the other world end)', () => {
+    const left = rung();
+    expect(turnCandidates(left)).toEqual([]);
+    // The same rung turned 180°: its tenon on the other world end. Linked by a turn, it would move.
+    const turned: Board = { ...left, id: 'R', name: 'Right', rotation: 180, position: [30, 0, 0], tenons: [{ ...T, id: 't9' }] };
+    const before: SloydDocument = { ...createDocument('T'), boards: [left, turned] };
+    const doc = linkByRole(before, new Map([['L', 'rung'], ['R', 'rung']]));
+    expect(world(doc)).toEqual(world(before));
+  });
+});

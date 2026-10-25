@@ -8,6 +8,13 @@ import { cutRegion } from './cuts';
 import { ARCH } from './curveFixtures';
 import { loop, topCorners } from './sweepFixtures';
 import { axisFrame, spanToWorldOffset } from './geometry';
+import { migrateDocument, worldParts, writeBackFlat } from './document';
+import { designToDocument, parseDesign } from './generated';
+import { SHAKER_TABLE_JSON } from './shakerTableFixture';
+import { applyJoints } from '../generate/joints/recipes';
+import { findSites } from '../generate/joints/sites';
+import { defaultChoice } from '../generate/joints/choose';
+import type { AngleCut, RoundTenon } from './types';
 
 /** A document containing exactly these boards, with unique default names. */
 const docWith = (...boards: Partial<Board>[]): FlatDocument => ({
@@ -962,4 +969,66 @@ it('two ogee loops differing only in facing are two rows with different words (p
     'Roman ogee 1/2" all round the thickness face (max side)',
     'Roman ogee 1/2" all round the thickness face (max side), top on the edge',
   ]);
+});
+
+describe('round tenons on the cut list (round tenons spec §8)', () => {
+  const tenon: RoundTenon = { id: 't', end: 'max', diameter: 1, length: 3 };
+  const foot: RoundTenon = { id: 'f', end: 'min', diameter: 1, length: 2 };
+  const legs = (extra: Partial<Board>[]) => ({ ...createDocument('T'), boards: extra.map((x, i) => createBoard({ id: `l${i}`, name: `Leg ${i}`,
+    length: 20, width: 2, thickness: 2, material: 'oak', ...x })) }) as FlatDocument;
+  const rows = (extra: Partial<Board>[]) => buildCutList(legs(extra)).groups[0]!.rows;
+
+  it('two identical tenoned legs are one row of 2, whatever their ids', () => {
+    const r = rows([{ tenons: [tenon] }, { tenons: [{ ...tenon, id: 'other' }] }]);
+    expect(r).toHaveLength(1);
+    expect(r[0]!.qty).toBe(2);
+  });
+  it('a tenoned key: the curve field empty (its view curves are not curve cuts), the tenon field self-identifying, last', () => {
+    expect(rows([{ tenons: [foot, tenon] }])[0]!.key).toBe('oak|2"|20"|2"|length|||||tenons:max:1:3;min:1:2');
+  });
+  it('a tenoned leg and a plain one are two rows', () => {
+    expect(rows([{ tenons: [tenon] }, {}])).toHaveLength(2);
+  });
+  it('a FAULTED tenon (kept, not built) still splits the row: the signature reads the stored tenons', () => {
+    const wide = { ...tenon, diameter: 2 };   // too-wide: no geometry, no view curves
+    expect(rows([{ tenons: [wide] }, {}])).toHaveLength(2);
+  });
+  it('legs differing only in tenon length are two rows, EXACTLY: below display precision too (inv 18, 40)', () => {
+    expect(rows([{ tenons: [tenon] }, { tenons: [{ ...tenon, length: 4 }] }])).toHaveLength(2);
+    expect(rows([{ tenons: [tenon] }, { tenons: [{ ...tenon, length: 3 + 1 / 256 }] }])).toHaveLength(2);
+  });
+  it('the signature is order-independent: the same two tenons stored max-first are one row', () => {
+    expect(rows([{ tenons: [foot, tenon] }, { tenons: [tenon, foot] }])).toHaveLength(1);
+  });
+  it('a tenoned leg\'s setup is its tenon line alone: no curve line for its view curves', () => {
+    expect(rows([{ tenons: [tenon] }])[0]!.setup).toEqual(['1" round tenon, 3" long — at the length max end, shoulder 17" from the other end']);
+  });
+  it('the row\'s length is the blank\'s, tenon included (spec §3.1, inv 18)', () => {
+    const r = rows([{ tenons: [tenon] }])[0]!;
+    expect(r.length).toBe(20);
+    expect(r.dims.startsWith('20" ')).toBe(true);
+  });
+  it('the bench line comes after the rectangular-cut lines and before the angle-cut lines', () => {
+    const dado: Cut = { id: 'c1', face: 'width', from: 'max', across: 'thickness', offset: 8, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const miter: AngleCut = { id: 'm', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0.25], [2, 0.75]] };
+    const setup = rows([{ tenons: [tenon], cuts: [dado], angleCuts: [miter] }])[0]!.setup;
+    const at = setup.indexOf('1" round tenon, 3" long — at the length max end, shoulder 16-1/2" from the other end');
+    expect(at, setup.join('\n')).toBe(1);
+    expect(setup[2]).toMatch(/^Miter /);
+  });
+
+  it('a tenon-free row\'s key is unchanged: the joined Shaker table\'s keys as master computed them', () => {
+    // Captured on master (df2cde7) before this task, from this same flow (bandFreeIdentity's shaker()). Never re-capture.
+    const made = designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false });
+    const flat = flatDocument(made.doc);
+    const sites = findSites(flat);
+    const joined = applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites)));
+    const doc = flatDocument(migrateDocument(writeBackFlat(made.doc, flat.boards, worldParts(joined.doc))));
+    expect(buildCutList(doc).groups.flatMap((g) => g.rows.map((r) => r.key))).toEqual([
+      'oak|1-3/4"|28-1/4"|1-3/4"|length|thickness:max:length:0.25:0.75:0.5625:23.25:0;width:max:length:0.25:0.75:0.5625:23.25:0|taper:thickness:max:length:min:0:0.5:22.5:0;taper:width:max:length:min:0:0.5:22.5:0||',
+      'oak|3/4"|32"|22"|length||||',
+      'oak|3/4"|27-5/8"|5"|length||||',
+      'oak|3/4"|17-5/8"|5"|length||||',
+    ]);
+  });
 });

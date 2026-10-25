@@ -346,3 +346,66 @@ describe('levelEndHoles: the rows after the ends grow (angled holes §7)', () =>
     expect(ok(levelPlan(done, IN)).holes[0]).toBe(done.holes[0]);
   });
 });
+
+// Round tenons spec §6.1, §6.4 (Task 9): `topAt` moves the top's reference height; without it nothing changes.
+describe('levelPlan with topAt (round tenons §6.1)', () => {
+  /** The exact growth of the top so its lowest corner reaches `y`, before any rounding (independent of levelPlan). */
+  const exactTopGrowth = (b: Board, y: number): number => {
+    const u = axisUp(b);
+    const lowest = Math.min(...[[0, 0], [b.width, 0], [0, b.thickness], [b.width, b.thickness]]
+      .map(([w, t]) => toWorld(b, { length: b.length, width: w!, thickness: t! })[1]));
+    return (y - lowest) / u[1];
+  };
+
+  it('a levelled leg re-levelled to a higher top: every vertex of the top cut at topAt, the growth rounded UP to 1/16', () => {
+    const b = levelled(leg());
+    const exact = exactTopGrowth(b, 17.5);
+    // The fixture must make round-up and round-down differ, or a rounding mutation would pass.
+    expect(Math.abs(exact * 16 - Math.round(exact * 16))).toBeGreaterThan(1e-6);
+    const p = ok(levelPlan(b, IN, { topAt: 17.5 }));
+    const growth = p.length - b.length;
+    expect(Number.isInteger(Math.round(growth * 16 * 1e6) / 1e6)).toBe(true);
+    expect(growth).toBeGreaterThanOrEqual(exact - 1e-9);
+    expect(growth).toBeLessThan(exact + 1 / 16);
+    const a: Board = { ...apply(b, p), holes: p.holes };
+    const faces = cutFaces(a, cutOn(a, 'top'));
+    expect(faces.length).toBeGreaterThan(0);
+    for (const f of faces) {
+      for (const v of f.verts) expect(Math.abs(v[1] - 17.5)).toBeLessThanOrEqual(1e-9);
+      expect(Math.abs(f.normal[1] - 1)).toBeLessThanOrEqual(1e-12);
+    }
+    // The foot is untouched by topAt: still on the floor, the same line.
+    expect(sameLevelLine(cutOn(a, 'foot'), cutOn(b, 'foot'), a[cutOn(b, 'foot').along])).toBe(true);
+    // The top cut keeps its id (replaced in place).
+    expect(cutOn(a, 'top').id).toBe(cutOn(b, 'top').id);
+  });
+
+  it('a lower topAt SHORTENS the leg, the change rounded UP (toward zero), the plane still exact', () => {
+    const b = ok(levelPlan(levelled(leg()), IN, { topAt: 17.5 }));
+    const tall: Board = { ...levelled(leg()), length: b.length, position: b.position, angleCuts: b.angleCuts };
+    const exact = exactTopGrowth(tall, 17);
+    expect(exact).toBeLessThan(0);
+    const p = ok(levelPlan(tall, IN, { topAt: 17 }));
+    const change = p.length - tall.length;
+    expect(change).toBeLessThan(0);
+    expect(change).toBeGreaterThanOrEqual(exact - 1e-9);
+    expect(change).toBeLessThan(exact + 1 / 16);
+    const a = apply(tall, p);
+    for (const f of cutFaces(a, cutOn(a, 'top'))) for (const v of f.verts) expect(Math.abs(v[1] - 17)).toBeLessThanOrEqual(1e-9);
+  });
+
+  it('without topAt (or with no opts) the plan is the same, value for value', () => {
+    // A NEW cut is minted a fresh id on every call, so ids are read apart; a replaced cut keeps its own.
+    const noIds = (p: LevelPlan | string) => (typeof p === 'string' ? p : { ...p, angleCuts: p.angleCuts.map(({ id: _id, ...c }) => c) });
+    for (const b of [leg(), levelled(leg()), leg({ length: 30, position: [0.123, -14, 0.456] })]) {
+      expect(noIds(levelPlan(b, IN, {}))).toEqual(noIds(levelPlan(b, IN)));
+      expect(noIds(levelPlan(b, IN, { topAt: undefined }))).toEqual(noIds(levelPlan(b, IN)));
+    }
+    const lv = levelled(leg());
+    expect(levelPlan(lv, IN, {})).toEqual(levelPlan(lv, IN));
+  });
+
+  it('topAt at or below the floor refuses as the top below the floor does', () => {
+    expect(levelPlan(leg(), IN, { topAt: 0 })).toBe(LEVEL_BELOW_FLOOR);
+  });
+});
