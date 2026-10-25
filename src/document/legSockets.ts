@@ -152,14 +152,42 @@ function tenonInSeat(w: Board, downs: readonly Face[], ups: readonly Face[]): bo
 }
 
 /**
- * The socket `leg` needs in `seat` (spec §5), a single THROUGH bore:
- * - entering from the seat's face OPPOSITE the one the leg meets: the face dimension on world Y, from its upper side;
- * - its mouth centre where the leg's axis meets that face (`fromWorld`, exact on an unleaned seat);
- * - its bit along the axis, read into the seat's frame by mapping two points, scaled so the axial component is ±1
- *   (`bitVector`'s form), the lateral components stored as flag-relative slopes;
+ * The ONE bore core (stretchers spec §3.4), shared by the seat's sockets (`socketRow`) and a rung's (`rungSocketRow`) so the
+ * two cannot drift: a single-hole row of `holder` entering its `face` dimension from `from`, its mouth centre at the world
+ * point `mouth` (on that face) and its bit along the world direction `dir` (pointing INTO the holder):
+ * - the bit read into the holder's frame by mapping two points (`fromWorld` of `mouth` and `mouth + dir`, exact on an
+ *   unleaned holder, ~1e-15 on a leaning one), scaled so the axial component is ±1 (`bitVector`'s form), the lateral
+ *   components stored as flag-relative slopes;
  * - `along` as the presets choose it (`othersOf`: the longer, length on a tie), so every copy stores the same layout;
  *   `alongFrom` / `acrossFrom` the nearer end / side (the mouth's centre half, `min` on the exact middle).
- * A zero slope is omitted (Global Constraints). The leg must lean (`legsUnder` only returns leaning parts).
+ * A zero slope is omitted (Global Constraints). The bound (`withinTiltBound`) is the caller's: it names the leg.
+ */
+export function boreRow(holder: Board, face: Dimension, from: CutFrom, mouth: V3, dir: V3, diameter: number,
+  depth: number | 'through'): Omit<HoleRow, 'id'> {
+  const local = fromWorld(holder, mouth);
+  const next = fromWorld(holder, [mouth[0] + dir[0], mouth[1] + dir[1], mouth[2] + dir[2]]);
+  const d: V3 = [next.length - local.length, next.width - local.width, next.thickness - local.thickness];
+  const s = sign(from) / d[idx(face)]!;
+  const [along, across] = othersOf(holder, face);
+  const alongFrom: CutFrom = local[along] <= holder[along] / 2 ? 'min' : 'max';
+  const acrossFrom: CutFrom = local[across] <= holder[across] / 2 ? 'min' : 'max';
+  // m[along] = sign(alongFrom) · tiltAlong (bitVector), so the slope is that product again; `+ 0` keeps a zero plus.
+  const tiltAlong = sign(alongFrom) * s * d[idx(along)]! + 0;
+  const tiltAcross = sign(acrossFrom) * s * d[idx(across)]! + 0;
+  return {
+    face, from, diameter, depth, along, alongFrom,
+    station: alongFrom === 'min' ? local[along] : holder[along] - local[along],
+    count: 1, pitch: 0, acrossFrom,
+    inset: acrossFrom === 'min' ? local[across] : holder[across] - local[across],
+    ...(tiltAlong !== 0 ? { tiltAlong } : {}),
+    ...(tiltAcross !== 0 ? { tiltAcross } : {}),
+  };
+}
+
+/**
+ * The socket `leg` needs in `seat` (spec §5), a single THROUGH bore through the one core (`boreRow`): entering from the
+ * seat's face OPPOSITE the one the leg meets (the face dimension on world Y, from its upper side), its mouth centre where
+ * the leg's axis meets that face, its bit down the axis. The leg must lean (`legsUnder` only returns leaning parts).
  */
 export function socketRow(seat: Board, leg: Board, diameter: number): Omit<HoleRow, 'id'> {
   const ax = legAxis(leg);
@@ -168,24 +196,56 @@ export function socketRow(seat: Board, leg: Board, diameter: number): Omit<HoleR
   const top = seat.position[1] + seat[face];
   const t = (top - ax.p[1]) / ax.u[1];
   const at: V3 = [ax.p[0] + t * ax.u[0], top, ax.p[2] + t * ax.u[2]];
-  const local = fromWorld(seat, at);
-  const below = fromWorld(seat, sub(at, ax.u));
-  const d: V3 = [below.length - local.length, below.width - local.width, below.thickness - local.thickness];
-  const s = sign(from) / d[idx(face)]!;
-  const [along, across] = othersOf(seat, face);
-  const alongFrom: CutFrom = local[along] <= seat[along] / 2 ? 'min' : 'max';
-  const acrossFrom: CutFrom = local[across] <= seat[across] / 2 ? 'min' : 'max';
-  // m[along] = sign(alongFrom) · tiltAlong (bitVector), so the slope is that product again; `+ 0` keeps a zero plus.
-  const tiltAlong = sign(alongFrom) * s * d[idx(along)]! + 0;
-  const tiltAcross = sign(acrossFrom) * s * d[idx(across)]! + 0;
-  return {
-    face, from, diameter, depth: 'through', along, alongFrom,
-    station: alongFrom === 'min' ? local[along] : seat[along] - local[along],
-    count: 1, pitch: 0, acrossFrom,
-    inset: acrossFrom === 'min' ? local[across] : seat[across] - local[across],
-    ...(tiltAlong !== 0 ? { tiltAlong } : {}),
-    ...(tiltAcross !== 0 ? { tiltAcross } : {}),
-  };
+  return boreRow(seat, face, from, at, [0 - ax.u[0], 0 - ax.u[1], 0 - ax.u[2]], diameter, 'through');
+}
+
+const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+
+/** A rung socket's entry (stretchers spec §3.4): of `leg`'s four LONG faces (normal square to its length), the one whose
+ *  world outward normal (leaned, `leanMap`) is nearest `towardOther` (the largest dot product), the first in `axisFrame`
+ *  order on a tie. */
+function rungEntryOf(leg: Board, towardOther: V3): { face: Dimension; from: CutFrom } {
+  const m = leanMap(leg);
+  let best: { face: Dimension; from: CutFrom } | null = null;
+  let most = -Infinity;
+  axisFrame(leg).forEach((a, k) => {
+    if (a.dim === 'length') return;
+    for (const from of ['min', 'max'] as const) {
+      const n: V3 = [0, 0, 0];
+      n[k] = (from === 'max') !== a.reversed ? 1 : -1;
+      const v = dot(m ? m.applyDir(n) : n, towardOther);
+      if (v > most) { most = v; best = { face: a.dim, from }; }
+    }
+  });
+  return best!;
+}
+
+/**
+ * The blind socket a rung's tenon needs in `leg` (stretchers spec §3.4), through the one core (`boreRow`): bored along the
+ * rung's world axis `line`, entering the long face nearest `towardOther` (the direction toward the other leg,
+ * `rungEntryOf`), its mouth centre where `line` crosses that face, its bit along `line` into the leg, `diameter` the
+ * tenon's, its depth along the bit from the mouth to the tenon's `tip` (a point on `line`) rounded UP to `step`
+ * (`TENON_STEP`'s), so the tip always seats (`seatedIn`'s bottom rule). `socketTooSteep` past the ONE tilt bound (the
+ * loader would drop the row). A line that never crosses the face, or a tip short of the mouth, is a caller's error: thrown.
+ */
+export function rungSocketRow(leg: Board, line: WorldAxis, towardOther: V3, diameter: number, tip: V3, step: number):
+  Omit<HoleRow, 'id'> | string {
+  const { face, from } = rungEntryOf(leg, towardOther);
+  const dir: V3 = dot(line.u, towardOther) > 0 ? [0 - line.u[0], 0 - line.u[1], 0 - line.u[2]] : line.u;
+  // The face's plane, in the leg's own frame: `fromWorld` is affine, so the line's crossing is one division.
+  const a = fromWorld(leg, line.p)[face];
+  const b = fromWorld(leg, [line.p[0] + dir[0], line.p[1] + dir[1], line.p[2] + dir[2]])[face];
+  const at = from === 'min' ? 0 : leg[face];
+  if (Math.abs(b - a) <= EPS) throw new Error(`rungSocketRow: the line never crosses ${leg.id}'s ${face} ${from} face`);
+  const t = (at - a) / (b - a);
+  const mouth: V3 = [line.p[0] + t * dir[0], line.p[1] + t * dir[1], line.p[2] + t * dir[2]];
+  const local = fromWorld(leg, mouth);
+  const off = DIMENSION_ORDER.some((d) => d !== face && (local[d] < -EPS || local[d] > leg[d] + EPS));
+  if (off) throw new Error(`rungSocketRow: the line crosses ${leg.id}'s ${face} ${from} plane off the face`);
+  const reach = dot(sub(tip, mouth), unit(dir));
+  if (reach <= 0) throw new Error(`rungSocketRow: the tip is short of ${leg.id}'s mouth`);
+  const row = boreRow(leg, face, from, mouth, dir, diameter, roundUp(reach, step));
+  return withinTiltBound(row.tiltAlong ?? 0, row.tiltAcross ?? 0) ? row : socketTooSteep(leg.name);
 }
 
 /** A single bore's mouth centre and far centre (the exit, through; the bottom disc's centre, blind) in the world. */
