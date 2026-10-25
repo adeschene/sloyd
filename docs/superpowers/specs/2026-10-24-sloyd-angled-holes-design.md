@@ -323,10 +323,15 @@ rulings govern; where one differs from the text above, this block wins. Records:
   next load. `socketPlan` also checks every new socket against the bound: one past it is a faulted socket, the leg named
   (`<leg>'s socket would tilt past 45° — reduce the leg's lean.`, `socketTooSteep`), nothing written for it (Ruling T10a). Cost: a
   stored slope up to 1 + 1e-9 (≈45.00000003°) is accepted.
-- **Ruling F2 — the other entry side of the same face keeps a tilted bore's line (final review M3; Ruling T2c, narrowed).**
+- **Ruling F2 — the other entry side of the same face keeps a tilted bore's angle (final review M3; Ruling T2c, narrowed).**
   `retilt` on a `from` flip (same face) reverses the bit: both lateral slopes are negated (a pure sign flip; a zero stays absent,
   never -0), so the bore keeps its angle through the wood (its mouth keeps its station and inset). A FACE change still starts
   square (T2c). Cost: a flip keeps an angle the user meant to clear (they type 0 to clear it).
+- **Ruling F2a — the flipped bore is parallel, not on the same line (final re-review).** The mouth keeps its station and inset, so the
+  bore enters the other face at the same place and angle and runs parallel to the old one. Keeping the exact line would shift the
+  mouth by T·slope: one float addition (a flip back would not restore the row bit-exactly) that can push a station or inset below 0
+  (the loader drops the row). Cost: a woodworker who flips the entry side expecting the same hole through the wood must move the
+  mouth by the tilt × the thickness themselves.
 
 Also as built (no ruling; the text above reads loosely): §3.1's "per inch of depth" is per inch of AXIAL travel (along the face's
 normal: `bitVector`'s face-axis component is exactly ±1), while a blind row's stored `depth` is measured along the bit (§3.2), so

@@ -151,7 +151,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   passing in one run; `npm run build` clean. Browser verification on the dev server (plan Task 13) DONE 2026-10-25: 9/9 PASS
   (`docs/browser-verification-angled-holes.md`; its finding is fu 456). Final review fixes: F1 (the tilt bound takes lean's 1e-9
   allowance, so a 45° leg's socket survives a reload; `socketPlan` refuses a socket past it), F2 (the other entry side keeps a tilted
-  bore's line), M4 (only a through row from the top can be a stale socket). Next: the merge and the deploy (the user's decision). Owed to the user: the Amended (build) block and the copy review (fu
+  bore's angle, a parallel bore; F2a), M4 (only a through row from the top can be a stale socket). Next: the merge and the deploy (the user's decision). Owed to the user: the Amended (build) block and the copy review (fu
   454). Invariants 41, 44, 50, 51, 56 and 57 extended; follow-ups 447–456.
 - **Splayed legs, chunk 1 (feature gap §1; 2026-10-24; MERGED `02e7b24`, DEPLOYED 2026-10-24 at `f3fced0` as `index-B3SCZcHR.js` (CSS unchanged); SCHEMA 22 — once deployed, rolling back past it REFUSES every project saved at 22, export first)**: spec
   `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md` (Amended (build) holds Rulings 1–19 with their costs), plan

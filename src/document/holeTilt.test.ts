@@ -74,7 +74,7 @@ describe('retilt: an edit keeps the bore pointing the same way (spec §3.1)', ()
     expect('tiltAlong' in retilt(ROW, { ...ROW, alongFrom: 'max' })).toBe(false);
     expect('tiltAcross' in retilt(ROW, { ...ROW, alongFrom: 'max' })).toBe(false);
   });
-  it('an entry flip on the same face keeps the bore\'s line: the bit reverses, both slopes negate (final review F2)', () => {
+  it('an entry flip on the same face keeps the bore\'s angle: the bit reverses, both slopes negate (final review F2)', () => {
     const r = retilt(chiral, { ...chiral, from: 'min' });
     expect(r.tiltAlong).toBe(-0.2);
     expect(r.tiltAcross).toBe(0.05);

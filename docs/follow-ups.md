@@ -7327,8 +7327,8 @@ reduce the leg's lean.` (6) Lean: `This lean would turn the part a
 quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.` (7) Refine: `Kept as
 is (leans or angled holes): …`, the assembly refusal (fu 441), and `Refine can't keep a part with angled holes in a joined project
 yet: <name>.` (names no cure; Task 11 minor). (8) Behaviour (final review F2, Ruling F2): in the Holes panel, choosing the other
-entry side of the SAME face on a tilted row keeps its angle (both slopes negated, the bore's line through the wood kept, its mouth
-at the same station and inset); a different face starts square (T2c). The cost: a flip keeps an angle the user meant to clear
+entry side of the SAME face on a tilted row keeps its angle (both slopes negated, its mouth at the same station and inset — a parallel
+bore, not the same line through the wood; Ruling F2a); a different face starts square (T2c). The cost: a flip keeps an angle the user meant to clear
 (type 0). The review's alternative was to refuse the change on a tilted row (`Set the tilt to 0 first — a new face starts
 square.`); ask whether either reads better.
 **Status:** open (owed to the user: wording).

@@ -78,8 +78,10 @@ export function withinTiltBound(a: number, c: number): boolean {
  * The edit rule (spec §3.1): `next` with its tilt re-derived from `prev`'s. A changed `face` is a new bore: no tilt (ruling
  * T2c). Otherwise the bit keeps its BOARD-LOCAL line — each dimension's signed lateral component of `prev`'s bit is re-read
  * through `next`'s `along`, `alongFrom` and `acrossFrom` (a sign flip at most, so exact). A `from` flip on the same face
- * (final review F2) enters from the other side along the same line: the bit is REVERSED, so both lateral components are
- * negated before that re-read — the bore keeps its angle through the wood (its mouth stays at its station and inset). A
+ * (final review F2) enters from the other side at the same angle: the bit is REVERSED, so both lateral components are
+ * negated before that re-read — the bore keeps its angle through the wood (its mouth stays at its station and inset, so the new bore runs parallel to
+ * the old one, not on its line: a line-keeping shift would be inexact on a flip back and could push the mouth off the part;
+ * Ruling F2a). A
  * zero component is omitted (never -0). `next`'s own tilt keys are not read: an edit OF the tilt writes its slopes itself.
  */
 export function retilt(prev: HoleRow, next: HoleRow): HoleRow {
