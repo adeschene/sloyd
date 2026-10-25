@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { Board, HoleRow, Shape, SloydDocument, StoredBoard } from './types';
+import type { AngleCut, Board, HoleRow, Shape, SloydDocument, StoredBoard } from './types';
+import type { Vec3 } from './frames';
+import { TOUCH } from './checkTolerances';
 import type { V3 } from './angleCuts';
+import type { Units } from '../units/length';
 import { createBoard, createDocument, migrateDocument } from './document';
-import { axisFrame } from './geometry';
+import { axisFrame, snapStep } from './geometry';
 import { chooseFace, leanMap, resultantDeg, slopeOf, sightlineDeg, worldSlopes } from './lean';
-import { levelPlan } from './levelEnds';
+import { LEVEL_CUTS_HOLE, LEVEL_TOP_CUT, levelPlan, sameLevelLine } from './levelEnds';
 import { levelFaces } from './leanContacts';
 import { holeInstances } from './holes';
 import { tiltResultantDeg, tiltSightlineDeg } from './holeTilt';
@@ -506,27 +509,32 @@ const onGrid = (v: number, step: number) => Math.abs(v / step - Math.round(v / s
  * centre in the seat's top face (height to 1e-9, inside the face's plan outline), its shoulder's highest corner at or below
  * the underside by less than one TENON_STEP × u_y, its length on the 1/64 grid; the leg levelled (so it is found again).
  */
-function expectFitted(doc: SloydDocument, seat: Board, legs: readonly Board[], d = 1): void {
+function expectFitted(doc: SloydDocument, seat: Board, legs: readonly Board[], d = 1, units: Units = IN): void {
   const top = seat.position[1] + seat.thickness;
   const under = seat.position[1];
+  const step = units.display === 'metric-mm' ? 0.1 / 25.4 : 1 / 64;
   for (const leg of legs) {
     const ts = builtTenons(leg);
     expect(ts.map((t) => t.end), leg.id).toEqual(['max']);
     const t = ts[0]!;
     expect(t.diameter, leg.id).toBe(d);
-    expect(onGrid(t.length, 1 / 64), `${leg.id} tenon length ${t.length}`).toBe(true);
+    expect(onGrid(t.length, step), `${leg.id} tenon length ${t.length}`).toBe(true);
     const tip = tipOf(leg);
     expect(Math.abs(tip[1] - top), `${leg.id} tip`).toBeLessThanOrEqual(1e-9);
     expect(Math.abs(tip[0] - seat.position[0]) < seat.length && tip[0] > seat.position[0], `${leg.id} tip x`).toBe(true);
     expect(tip[2] > seat.position[2] && tip[2] < seat.position[2] + seat.width, `${leg.id} tip z`).toBe(true);
     const high = Math.max(...cornerYs(leg, shoulderAt(leg, t)));
     expect(high, `${leg.id} shoulder`).toBeLessThanOrEqual(under + 1e-9);
-    expect(high, `${leg.id} shoulder`).toBeGreaterThan(under - upY(leg) / 64 - 1e-9);
-    expect(isLevelled(leg, IN), leg.id).toBe(true);
+    expect(high, `${leg.id} shoulder`).toBeGreaterThan(under - upY(leg) * step - 1e-9);
+    expect(isLevelled(leg, units), leg.id).toBe(true);
     expect(seat.holes.some((r) => isSocketOf(seat, r, leg)), `${leg.id} socket`).toBe(true);
   }
-  expect(legsUnder(world(doc), seat, IN).map((b) => b.id).sort()).toEqual(legs.map((b) => b.id).sort());
+  expect(legsUnder(world(doc), seat, units).map((b) => b.id).sort()).toEqual(legs.map((b) => b.id).sort());
 }
+const MM: Units = { display: 'metric-mm', precision: 16 };
+/** `doc` with the part named `name` moved `dy` in world Y (a plain part). */
+const moveSeat = (doc: SloydDocument, dy: number, name = 'Seat') => mapWorld(doc, (w) => w.map((b) => (b.name === name
+  ? { ...b, position: [b.position[0], b.position[1] + dy, b.position[2]] as Vec3 } : b)));
 const kindsOf = (doc: SloydDocument) => checkDesign(flatDocument(doc), NO_LIMITS).map((v) => `${v.kind}:${v.parts.join(',')}`);
 
 describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
@@ -608,9 +616,9 @@ describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
     const fr = named(doc1, 'Front right')[0]!;
     expect(builtTenons(fr)).toHaveLength(1);
     const low = { ...seatOf(doc1), position: [-7, 15.5, -7] as [number, number, number] };
-    // Through the store this leg is NOT found under the lowered seat (its tip stands 1/2" above the top, past TOUCH), so
-    // the shortening is exercised on the plan itself.
-    expect(legsUnder([...world(doc1).filter((b) => b.name !== 'Seat'), low], low, IN)).toEqual([]);
+    // Its tip stands 1/2" above the lowered top, past TOUCH, but its tenon's centre segment still meets the stock: found
+    // (T9a; the action itself is the next test).
+    expect(legsUnder([...world(doc1).filter((b) => b.name !== 'Seat'), low], low, IN)).toHaveLength(4);
     const p = legTenonPlan(low, fr, 1, IN);
     if (typeof p === 'string') throw new Error(p);
     const exact = (17 - Math.min(...cornerYs(fr, fr.length))) / upY(fr);
@@ -622,6 +630,118 @@ describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
     expect(Math.abs(tipOf(after)[1] - 17)).toBeLessThanOrEqual(1e-9);
     expect(p.tenons.find((t) => t.end === 'max')!.id).toBe(tenonAt(fr, 'max')!.id);
     expect(Math.max(...cornerYs(after, shoulderAt(after, tenonAt(after, 'max')!)))).toBeLessThanOrEqual(15.5 + 1e-9);
+  });
+
+  it('T9a: the seat LOWERED 1/2" under fitted legs: found by the tenon, socket and tenon ids kept, every leg shortened', () => {
+    const doc0 = stoolDocument();
+    const doc1 = fit(doc0, seatOf(doc0).id);
+    const seat1 = seatOf(doc1);
+    const socketOf = new Map(legsOf(doc1).map((l) => [l.id, seat1.holes.find((r) => isSocketOf(seat1, r, l))!.id]));
+    const doc2 = moveSeat(doc1, -0.5);
+    const seat2 = seatOf(doc2);
+    expect(seat2.position[1]).toBe(15.5);
+    for (const leg of legsOf(doc2)) {
+      // The fixture: every tip stands past TOUCH above the lowered top (the tip-in-stock rule alone would lose it) …
+      expect(tipOf(leg)[1] - 17, leg.name).toBeGreaterThan(TOUCH);
+      // … and the stale socket the re-fit replaces is the leg's old one, by id (not a second socket beside it).
+      expect(staleSocketOf(seat2, leg)?.id, leg.name).toBe(socketOf.get(leg.id));
+    }
+    expect(legsUnder(world(doc2), seat2, IN)).toHaveLength(4);
+    const doc3 = fit(doc2, seat2.id);
+    const seat3 = seatOf(doc3);
+    expect(seat3.holes.map((r) => r.id)).toEqual(seat2.holes.map((r) => r.id));
+    for (const leg of legsOf(doc3)) {
+      const old = legsOf(doc2).find((b) => b.id === leg.id)!;
+      expect(leg.length, leg.name).toBeLessThan(old.length);
+      expect(tenonAt(leg, 'max')!.id, leg.name).toBe(tenonAt(old, 'max')!.id);
+      expect(seat3.holes.find((r) => r.id === socketOf.get(leg.id) && isSocketOf(seat3, r, leg)), leg.name).toBeDefined();
+    }
+    expectFitted(doc3, seat3, legsOf(doc3));
+    expect(tenonJoints(flatDocument(doc3))).toHaveLength(4);
+    expect(kindsOf(doc3)).toEqual([]);
+    const again = socketPlan(doc3, seat3.id, 1, true);
+    expect(typeof again === 'object' && again.holes).toBe(seat3.holes);
+    expect(typeof again === 'object' && (again.legs ?? [])).toEqual([]);
+  });
+
+  it('T9a\'s known limit: a seat RAISED clear of the tips (a gap above them) is not found, as an untenoned leg is not', () => {
+    const doc0 = stoolDocument();
+    const doc1 = fit(doc0, seatOf(doc0).id);
+    const doc2 = moveSeat(doc1, 2);
+    const seat2 = seatOf(doc2);
+    for (const leg of legsOf(doc2)) expect(seat2.position[1] - tipOf(leg)[1], leg.name).toBeGreaterThan(TOUCH);
+    expect(legsUnder(world(doc2), seat2, IN)).toEqual([]);
+    const p = socketPlan(doc2, seat2.id, 1, true);
+    expect(typeof p === 'object' && (p.legs ?? [])).toEqual([]);
+    expect(typeof p === 'object' && p.holes).toBe(seat2.holes);
+  });
+
+  it('T9a: nor a seat lowered BELOW the shoulders (the tenon\'s segment wholly above its top)', () => {
+    const doc0 = stoolDocument();
+    const doc1 = fit(doc0, seatOf(doc0).id);
+    const doc2 = moveSeat(doc1, -2);
+    const seat2 = seatOf(doc2);
+    const top = seat2.position[1] + seat2.thickness;
+    for (const leg of legsOf(doc2)) {
+      const t = tenonAt(leg, 'max')!;
+      expect(onAxisAt(leg, shoulderAt(leg, t))[1] - top, leg.name).toBeGreaterThan(TOUCH);
+    }
+    expect(legsUnder(world(doc2), seat2, IN)).toEqual([]);
+  });
+
+  it('Level the ends refusing for ONE leg refuses the whole action, verbatim; checkbox off, the sockets are bored', () => {
+    // Plain parts. Front right's levelled top also carries a small chamfer: an end cut Level the ends cannot replace.
+    const legs = stoolLegs();
+    const chamfer: AngleCut = { id: 'ch', kind: 'chamfer', face: 'length', from: 'max', along: 'width', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] };
+    const doc = migrateDocument({ ...createDocument('Chamfer'), boards: [{ ...legs[0]!, angleCuts: [...legs[0]!.angleCuts, chamfer] }, ...legs.slice(1), stoolSeat()] });
+    const fr = named(doc, 'Front right')[0]!;
+    expect(fr.angleCuts.map((c) => c.id)).toContain('ch');
+    expect(levelPlan(fr, IN)).toBe(LEVEL_TOP_CUT);
+    expect(legsUnder(world(doc), seatOf(doc), IN)).toHaveLength(4);
+    expect(socketPlan(doc, seatOf(doc).id, 1, true)).toBe(LEVEL_TOP_CUT);
+    const off = socketPlan(doc, seatOf(doc).id, 1, false);
+    expect(typeof off === 'object' && off.holes).toHaveLength(4);
+  });
+
+  it('Level the ends refusing for a Shape MATE under another seat refuses the whole action, verbatim', () => {
+    // Two stools whose Front rights share one Shape, fitted together; then seat 2 comes down 1/2" and the Shape gains a
+    // small hole 1/4" below its top: the mate's shortened fit (T9a finds it) would cut the hole away.
+    const legs1 = migrateDocument({ ...createDocument('L'), boards: stoolLegs() }).boards as Board[];
+    const legs2 = legs1.map((b) => ({ ...b, id: `${b.id}-2`, position: [b.position[0] + 30, b.position[1], b.position[2]] as Vec3 }));
+    const { id: _i, name: _n, position: _p, rotation: _r, ...shared } = legs1[0]!;
+    const user = (b: Board) => ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 'leg' });
+    const doc0 = migrateDocument({ ...createDocument('Two stools'), shapes: [{ id: 'leg', ...shared } as Shape],
+      boards: [user(legs1[0]!), ...legs1.slice(1), user(legs2[0]!), ...legs2.slice(1), stoolSeat(), { ...stoolSeat(), name: 'Seat 2', position: [23, 16, -7] }] as Board[] });
+    const doc1 = fit(doc0, seatOf(doc0).id);
+    expect(doc1.shapes[0]!.tenons).toHaveLength(1);
+    const hole: HoleRow = { id: 'h', face: 'thickness', from: 'max', diameter: 0.125, depth: 0.25, along: 'length', alongFrom: 'max',
+      station: 0.25, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.75 };
+    const doc2 = moveSeat({ ...doc1, shapes: doc1.shapes.map((sh) => ({ ...sh, holes: [hole] })) }, -0.5, 'Seat 2');
+    const mate = world(doc2).find((b) => b.id === legs2[0]!.id)!;
+    expect(legsUnder(world(doc2), named(doc2, 'Seat 2')[0]!, IN).map((b) => b.id)).toContain(mate.id);
+    expect(levelPlan(mate, IN, { topAt: 17 })).toBe(LEVEL_CUTS_HOLE);
+    expect(socketPlan(doc2, seatOf(doc2).id, 1, true)).toBe(LEVEL_CUTS_HOLE);
+  });
+
+  it('a METRIC stool: the growth on the 1 mm grid, the tenon on 0.1 mm, the tip flush, the shoulder clear, clean', () => {
+    const doc0 = { ...stoolDocument(), units: MM };
+    const before = new Map(legsOf(doc0).map((b) => [b.id, b]));
+    const doc = fit(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    expect(seat.holes).toHaveLength(4);
+    expectFitted(doc, seat, legsOf(doc), 1, MM);
+    for (const leg of legsOf(doc)) {
+      const change = leg.length - before.get(leg.id)!.length;
+      expect(change, leg.name).toBeGreaterThan(1);
+      // Both ends' changes round to the drag grid (Level the ends re-rounds an imperial-levelled foot too): 1 mm.
+      expect(onGrid(change, snapStep(MM)), `${leg.name} change ${change}`).toBe(true);
+      expect(onGrid(change, 1 / 16), `${leg.name} change ${change}`).toBe(false);
+      expect(onGrid(tenonAt(leg, 'max')!.length, 1 / 64), leg.name).toBe(false);
+    }
+    expect(tenonJoints(flatDocument(doc))).toHaveLength(4);
+    expect(kindsOf(doc)).toEqual([]);
+    const again = socketPlan(doc, seat.id, 1, true);
+    expect(typeof again === 'object' && (again.legs ?? [])).toEqual([]);
   });
 
   it('a leg\'s bottom tenon is untouched; its existing top tenon is replaced, keeping its id', () => {
@@ -732,6 +852,46 @@ describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
     expectFitted(doc, seatOf(doc), legsOf(doc));
     expect(tenonJoints(flatDocument(doc))).toHaveLength(4);
     expect(kindsOf(doc)).toEqual([]);
+  });
+
+  it('Minor 2: two placements of ONE shaped user whose fits agree in the Shape but not in its stored position: refused', () => {
+    // Reachable only in principle, on a first press through the resting rule: the level cuts pin the floor and the seat's
+    // top in the part's own frame, so two placements store the same cuts and length only when the second stands exactly
+    // k·u_y/16 higher (to 1e-9) under a seat at the SAME height. Here k = 1: placement 2 stands h = u_y/16 higher, and the
+    // seats sit 0.03" above placement 1's top (both within TOUCH of their legs). Placement 2's foot grows 1/16 and its
+    // top 1/16 less: the same length and cuts, its stored pivot 1/16 lower along the axis.
+    const [fr, , bl] = migrateDocument({ ...createDocument('L'), boards: stoolLegs() }).boards as [Board, Board, Board];
+    const h = upY(fr) / 16;
+    const { id: _i, name: _n, position: _p, rotation: _r, ...shared } = fr;
+    const doc = migrateDocument({ ...createDocument('Placements'), shapes: [{ id: 'leg', ...shared } as Shape],
+      definitions: [{ id: 'd', boards: [{ id: 'u', name: 'Leg', position: fr.position, rotation: fr.rotation, shape: 'leg' } as StoredBoard], instances: [], hardware: [] }],
+      instances: [
+        { id: 'i1', name: 'One', definition: 'd', position: [0, 0, 0], rotation: 0 },
+        { id: 'i2', name: 'Two', definition: 'd', position: [30, h, 0], rotation: 0 },
+      ],
+      boards: [{ id: bl.id, name: 'Twin', position: bl.position, rotation: bl.rotation, shape: 'leg' } as StoredBoard,
+        stoolSeat(16.03), { ...stoolSeat(16.03), name: 'Seat 2', position: [23, 16.03, -7] }] as Board[] });
+    const one = world(doc).find((b) => b.id === 'i1/u')!;
+    const two = world(doc).find((b) => b.id === 'i2/u')!;
+    const s1 = seatOf(doc);
+    const s2 = named(doc, 'Seat 2')[0]!;
+    expect(doc.shapes).toHaveLength(1);
+    expect(legsUnder(world(doc), s1, IN).map((b) => b.id).sort()).toEqual([bl.id, one.id].sort());
+    expect(legsUnder(world(doc), s2, IN).map((b) => b.id)).toEqual([two.id]);
+    const p1 = legTenonPlan(s1, one, 1, IN);
+    const p2 = legTenonPlan(s2, two, 1, IN);
+    if (typeof p1 === 'string' || typeof p2 === 'string') throw new Error('fit');
+    expect(p2.length).toBe(p1.length);
+    expect(p2.length).toBeGreaterThan(one.length);
+    expect(Math.abs((p2.position[1] - h) - p1.position[1])).toBeGreaterThan(1e-3);
+    // The fixture: the two fits store the same Shape (so only the position comparison can tell them apart).
+    const bWith = (b: Board, p: typeof p1) => ({ ...b, ...p });
+    expect(p2.angleCuts.length).toBe(p1.angleCuts.length);
+    expect(p2.angleCuts.every((c, i) => sameLevelLine(c, p1.angleCuts[i]!, bWith(one, p1)[c.along]))).toBe(true);
+    // Named as every refusal here is: the group's representative (the first leg under the seat, in world order) and the
+    // copy that disagrees.
+    const names = displayNames(doc);
+    expect(socketPlan(doc, s1.id, 1, true)).toBe(socketsDisagree([names.get(bl.id)!, names.get(two.id)!]));
   });
 
   it('a stool inside a mirrored instance: one action from either copy fits both copies\' legs, stored once', () => {

@@ -9,7 +9,7 @@ import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
 import type { ProfileSide } from '../document/types';
 import { taperCut } from '../document/document';
 import { leanMap, slopeOf, worldSlopes } from '../document/lean';
-import { isLevelled, levelCutOf, levelPlan, sameLevelLine, type LevelPlan } from '../document/levelEnds';
+import { isLevelled, LEVEL_TOP_CUT, levelCutOf, levelPlan, sameLevelLine, type LevelPlan } from '../document/levelEnds';
 import { partGeometry } from '../document/bodies';
 import { toWorld } from '../document/snapPoints';
 import { holeInstances } from '../document/holes';
@@ -4349,6 +4349,44 @@ describe('Bore leg sockets tenons the legs through the store (round tenons §6)'
     expect(staleTenonOf(seat(), fr2)).toBeNull();
     expectFitted();
     expect(clean()).toEqual([]);
+  });
+
+  it('T9a: the seat LOWERED 1/2" under fitted legs, then again: one entry shortens every leg, socket and tenon ids kept, clean', () => {
+    s().replaceDocument(stoolDocument());
+    expect(s().boreLegSockets(seat().id, 1, true)).toBeNull();
+    const socketOf = new Map(legs().map((b) => [b.id, seat().holes.find((r) => isSocketOf(seat(), r, b))!.id]));
+    const tenonOf = new Map(legs().map((b) => [b.id, b.tenons![0]!.id]));
+    const lengthOf = new Map(legs().map((b) => [b.id, b.length]));
+    s().updateBoard(seat().id, { position: [-7, 15.5, -7] });
+    for (const b of legs()) expect(tipY(b) - 17, b.name).toBeGreaterThan(1 / 32);
+    expect(legsUnder(w(), seat(), IN)).toHaveLength(4);
+    const n = s().past.length;
+    expect(s().boreLegSockets(seat().id, 1, true)).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+    expect(seat().holes.map((r) => r.id).sort()).toEqual([...socketOf.values()].sort());
+    for (const b of legs()) {
+      expect(b.length, b.name).toBeLessThan(lengthOf.get(b.id)!);
+      expect(b.tenons!.map((t) => t.id), b.name).toEqual([tenonOf.get(b.id)]);
+      expect(isSocketOf(seat(), seat().holes.find((r) => r.id === socketOf.get(b.id))!, b), b.name).toBe(true);
+    }
+    expectFitted();
+    expect(clean()).toEqual([]);
+    const doc = s().doc;
+    expect(s().boreLegSockets(seat().id, 1, true)).toBeNull();
+    expect(s().doc).toBe(doc);
+  });
+
+  it('Level the ends refusing for one leg refuses the whole action, verbatim: nothing written, no entry, no socket', () => {
+    const legs0 = stoolLegs();
+    const chamfer: AngleCut = { id: 'ch', kind: 'chamfer', face: 'length', from: 'max', along: 'width', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] };
+    s().replaceDocument(migrateDocument({ ...createDocument('Chamfer'), boards: [{ ...legs0[0]!, angleCuts: [...legs0[0]!.angleCuts, chamfer] },
+      ...legs0.slice(1), stoolSeat()] }));
+    expect(legsUnder(w(), seat(), IN)).toHaveLength(4);
+    const doc = s().doc;
+    expect(s().boreLegSockets(seat().id, 1, true)).toBe(LEVEL_TOP_CUT);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(0);
+    expect(seat().holes).toHaveLength(0);
   });
 
   it('Review Focus 4: two stools sharing one leg Shape, seats of different thickness: refused naming both, nothing written', () => {

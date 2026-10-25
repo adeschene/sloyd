@@ -97,9 +97,10 @@ function legAxis(leg: Board): WorldAxis | null {
  * still be found, noted stale and re-bored. `world` is `worldParts`, so the legs and the seat may sit in
  * different assemblies. World order.
  *
- * OR, a TENONED leg (round tenons spec §6.3, my call revised after the builder check): its top inside the seat, so
- * `tenonedUnder`. Structural: being found grants no support (support is the joint's, `tenonJoints`). `units` is the
- * project's: `isLevelled` rounds as Level the ends does.
+ * OR, a TENONED leg (round tenons spec §6.3, amended T9a): its top tenon in the seat (`tenonInSeat`, the ONE predicate
+ * `staleSocketOf` shares) and its top levelled (`isLevelled`, here only: `staleSocketOf`'s callers have already found the
+ * leg through this function). Structural: being found grants no support (support is the joint's, `tenonJoints`). `units`
+ * is the project's: `isLevelled` rounds as Level the ends does.
  */
 export function legsUnder(world: readonly Board[], seat: Board, units: Units): Board[] {
   if (leans(seat)) return [];
@@ -109,40 +110,45 @@ export function legsUnder(world: readonly Board[], seat: Board, units: Units): B
   const ups = faces.filter((f) => f.up);
   return world.filter((w) => w.id !== seat.id && leans(w) && (levelFaces(w).some((u) => u.up
     && downs.some((d) => Math.abs(u.y - d.y) <= TOUCH && overlapArea(u.poly, d.poly) > REST_AREA))
-    || tenonedUnder(w, downs, ups, units)));
+    || (tenonInSeat(w, downs, ups) && isLevelled(w, units))));
 }
 
 type Face = ReturnType<typeof levelFaces>[number];
 
 /** The world height band of a seat's stock over its down face `d`: from `d` to the up faces above it, inclusive to TOUCH
- *  both ways (round tenons spec §6.3). */
-function inStock(y: number, d: Face, ups: readonly Face[]): boolean {
-  return y >= d.y - TOUCH && ups.some((u) => u.y > d.y && y <= u.y + TOUCH);
+ *  both ways (round tenons spec §6.3), met by the world segment from height `lo` to `hi`. */
+function meetsStock(lo: number, hi: number, d: Face, ups: readonly Face[]): boolean {
+  return hi >= d.y - TOUCH && ups.some((u) => u.y > d.y && lo <= u.y + TOUCH);
 }
 
-/** The world centre of a part's TOP end (its length's `max` end): where the axis meets that end's face, square or
- *  mitered (`shoulderAt` with a zero length is that point). */
-function topCentre(b: Board): V3 {
-  return toWorld(b, { length: shoulderAt(b, { end: 'max', length: 0 }), width: b.width / 2, thickness: b.thickness / 2 });
+/** The world point on a part's axis at tenon `t`'s shoulder (`t.length` 0: the end's centre, where the axis meets that
+ *  end's face, square or mitered). */
+function centreAt(b: Board, t: Pick<RoundTenon, 'end' | 'length'>): V3 {
+  return toWorld(b, { length: shoulderAt(b, t), width: b.width / 2, thickness: b.thickness / 2 });
 }
 
 /**
- * Spec §6.3's tenoned rule: a leaning part whose TOP end carries a tenon, whose top is levelled (`isLevelled`), whose tip's
- * centre lies within the seat's stock (between a down-facing level face and an up-facing one above it, inclusive to
- * `TOUCH`), and whose axis meets that down face's plane inside its outline. It does not need the tip exactly on the seat's
- * top, so Level the ends' small reference drift does not lose the leg. `isLevelled` last: it plans a level.
+ * Spec §6.3's tenoned rule (amended T9a), the ONE predicate `legsUnder` and `staleSocketOf` share: a leaning part whose
+ * TOP end carries a tenon whose CENTRE SEGMENT — shoulder centre to tip centre, in the world — meets the seat's stock
+ * over one of its down-facing level faces (between that face and an up-facing one above it, inclusive to `TOUCH`), and
+ * whose axis meets that down face's plane inside its outline. Not the tip alone: a seat lowered under fitted legs leaves
+ * the tips above its top, and the leg must still be found, its sockets replaced in place and the leg shortened (shared
+ * with `staleSocketOf`, or the re-fit would bore a second socket beside each old one and refuse). Known limit: a seat
+ * RAISED clear of the tips (a gap above them) is not found, as an untenoned leg's is not. `isLevelled` is not part of
+ * it (it needs the units); `legsUnder` adds it.
  */
-function tenonedUnder(w: Board, downs: readonly Face[], ups: readonly Face[], units: Units): boolean {
-  if (!tenonAt(w, 'max')) return false;
+function tenonInSeat(w: Board, downs: readonly Face[], ups: readonly Face[]): boolean {
+  const t = tenonAt(w, 'max');
+  if (!t) return false;
   const ax = legAxis(w);
   if (!ax) return false;
-  const tip = topCentre(w);
-  const meets = downs.some((d) => {
-    if (!inStock(tip[1], d, ups)) return false;
-    const t = (d.y - ax.p[1]) / ax.u[1];
-    return inConvex(d.poly, [ax.p[0] + t * ax.u[0], ax.p[2] + t * ax.u[2]]);
+  const a = centreAt(w, t)[1];
+  const b = centreAt(w, { end: 'max', length: 0 })[1];
+  return downs.some((d) => {
+    if (!meetsStock(Math.min(a, b), Math.max(a, b), d, ups)) return false;
+    const k = (d.y - ax.p[1]) / ax.u[1];
+    return inConvex(d.poly, [ax.p[0] + k * ax.u[0], ax.p[2] + k * ax.u[2]]);
   });
-  return meets && isLevelled(w, units);
 }
 
 /**
@@ -224,9 +230,11 @@ function inConvex(poly: readonly [number, number][], q: readonly [number, number
 /**
  * `leg`'s STALE socket in `seat` (spec §5), or null: a single TILTED THROUGH bore entering from the seat's top (what
  * `socketRow` writes, `isSocketOf`'s entry: a user's blind or underside bore, or own square clearance hole over a leg top,
- * is never taken for a socket; final review M4) whose axis LINE passes through one of the
- * leg's up-facing level faces that rests in `legsUnder`'s band (within TOUCH in height of one of the seat's down-facing
- * level faces) — at that face's height, inside its plan polygon. The line, not the mouth-to-exit segment: a top up to
+ * is never taken for a socket; final review M4) whose axis LINE passes through one of the leg's up-facing level faces —
+ * at that face's height, inside its plan polygon — that `legsUnder` finds it by: for a leg with a top tenon, any of them
+ * when `tenonInSeat` holds (the ONE predicate both share, T9a: the tenon's centre segment in the seat's stock), none
+ * otherwise; for any other leg, one in the resting band (within TOUCH in height of one of the seat's down-facing level
+ * faces). The line, not the mouth-to-exit segment: a top up to
  * TOUCH BELOW the seat's bottom is under the seat too (one band for both; Task 10 review, fix 1). The structural test of
  * "the socket this leg once had": a later lean edit, resize or move left it pointing the old way. Null when some row
  * already IS the leg's socket (`isSocketOf`; the plan skips that leg). `skip` names rows already claimed (another leg's
@@ -237,11 +245,11 @@ export function staleSocketOf(seat: Board, leg: Board, skip: ReadonlySet<string>
   const faces = levelFaces(seat);
   const downs = faces.filter((f) => !f.up);
   const seatUps = faces.filter((f) => f.up);
-  // A tenoned leg's top is inside the seat (round tenons spec §6.3): its up face in the band is its TIP face lying in the
-  // seat's stock. Any other leg's, as before: within TOUCH of the underside.
-  const tenoned = tenonAt(leg, 'max') !== undefined;
-  const ups = levelFaces(leg).filter((f) => f.up
-    && downs.some((d) => (tenoned ? inStock(f.y, d, seatUps) : Math.abs(f.y - d.y) <= TOUCH)));
+  // A tenoned leg's top is inside the seat (round tenons spec §6.3, T9a): `legsUnder`'s own predicate, then its up faces
+  // (its tip's). Any other leg's, as before: within TOUCH of the underside.
+  const ups = tenonAt(leg, 'max') !== undefined
+    ? (tenonInSeat(leg, downs, seatUps) ? levelFaces(leg).filter((f) => f.up) : [])
+    : levelFaces(leg).filter((f) => f.up && downs.some((d) => Math.abs(f.y - d.y) <= TOUCH));
   if (ups.length === 0) return null;
   const entry = entryOf(seat);
   for (const row of seat.holes) {
@@ -409,23 +417,27 @@ function changesNothing(w: Board, p: LegTenonPlan): boolean {
 }
 
 /** What world part `w`'s plan would STORE (`mapWorld`, lowered through every turn and mirror on its path and a mirrored
- *  Shape user's own flag, inv 46): the Shape's fields, or the stored part's — its position too, which placements share. */
+ *  Shape user's own flag, inv 46): the Shape's fields, or the stored part's; and the stored part's own position (a Shape
+ *  user's too: its own field), with its storage target, since placements of one stored part share it. */
 function storedFit(doc: SloydDocument, w: Board, p: LegTenonPlan): StoredFit {
   const d = mapWorld(doc, (ws) => ws.map((b) => (b.id === w.id ? { ...b, ...p } : b)));
   const stored = partAt(d, w.id)!;
-  return isShaped(stored) ? { b: shapeMap(d).get(stored.shape)!, position: null } : { b: stored as Board, position: (stored as Board).position };
+  const key = storageKey(doc, w.id) ?? w.id;
+  return { b: isShaped(stored) ? shapeMap(d).get(stored.shape)! : stored as Board, key, position: stored.position };
 }
 
-/** The shared fields a fit stores (a Shape's, or a stored part's), and the stored position when placements share it. */
-interface StoredFit { b: Pick<Board, Dimension | 'angleCuts' | 'holes' | 'tenons'>; position: Vec3 | null }
+/** The shared fields a fit stores (a Shape's, or a stored part's), and the stored part's own position and storage key. */
+interface StoredFit { b: Pick<Board, Dimension | 'angleCuts' | 'holes' | 'tenons'>; key: string; position: Vec3 }
 
 /** Two copies' fits agree in the shared frame, to 1e-9: length, end cuts, holes and tenons (ids ignored), and, for
- *  placements of one stored part, the stored position. */
+ *  placements of ONE stored part (a plain part or a Shape user: the same storage key), the stored position. Reachable for
+ *  a Shape user only in principle (two placements k·u_y/16 apart in height under seats at one height, on a first press;
+ *  Task 9 review, Minor 2), but only one placement's position is written, so it is compared like a plain part's. */
 function sameStoredFit(x: StoredFit, y: StoredFit): boolean {
   const a = x.b;
   const b = y.b;
   return near(a.length, b.length) && sameCuts(a.angleCuts, b.angleCuts, a) && sameRowSet(a.holes, b.holes, a)
-    && sameTenons(tenonsOf(a), tenonsOf(b)) && (x.position === null || y.position === null || x.position.every((v, i) => near(v, y.position![i]!)));
+    && sameTenons(tenonsOf(a), tenonsOf(b)) && (x.key !== y.key || x.position.every((v, i) => near(v, y.position[i]!)));
 }
 
 /**
@@ -465,6 +477,8 @@ function fitLegs(doc: SloydDocument, world: readonly Board[], copies: readonly B
     const userFits = new Map<string, LegTenonPlan>();
     const off: Board[] = [];
     const ref = storedFit(doc, rep, repFit);
+    // Each storage target's first fit: a later placement of it must store the same position (`sameStoredFit`'s key rule).
+    const byKey = new Map<string, StoredFit>([[ref.key, ref]]);
     for (const u of users) {
       let p = fits.get(u.id);
       if (!p) {
@@ -475,10 +489,18 @@ function fitLegs(doc: SloydDocument, world: readonly Board[], copies: readonly B
         if (!q) { off.push(u); continue; }
         p = q;
       }
-      if (u !== rep && !sameStoredFit(ref, storedFit(doc, u, p))) { off.push(u); continue; }
+      if (u !== rep) {
+        const sf = storedFit(doc, u, p);
+        const first = byKey.get(sf.key);
+        if (!sameStoredFit(ref, sf) || (first && !sameStoredFit(first, sf))) { off.push(u); continue; }
+        if (!first) byKey.set(sf.key, sf);
+      }
       userFits.set(u.id, p);
     }
     if (off.length > 0) return socketsDisagree([...new Set([rep, ...off].map(name))]);
+    // Judged ONCE, on the representative's fit, and the sentence given to every member under THIS seat: every member's fit
+    // stores the same fields (just checked, to 1e-9), and a tenon's faults read only board-local fields (its zone, the end
+    // cuts, the part's features; never the pose), so each member's own fit would fault alike (Task 9 review, Minor 5).
     const f = fitFaults(rep, repFit);
     if (f.length > 0) {
       const named = users.filter((u) => mine.has(u.id));
