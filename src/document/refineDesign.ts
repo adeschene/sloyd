@@ -92,9 +92,9 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
   }
-  // A leaning part is KEPT, never described (splayed legs spec §8): it is left out of the design and of every pre-check
+  // A leaning part or one with a tilted hole row is KEPT, never described (splayed legs spec §8): it is left out of the design and of every pre-check
   // below (its angle cuts are in its own leaned frame, which no world-word converter reads). Only at the root: an
-  // assembly's definition is rebuilt from the model's, so a leaning part inside one is refused.
+  // assembly's definition is rebuilt from the model's, so such a part inside one is refused.
   const inAssembly = leaningInAssembly(doc);
   if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: ${inAssembly}.`);
   const kept = keptParts(doc);

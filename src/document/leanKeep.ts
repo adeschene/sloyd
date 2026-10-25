@@ -1,7 +1,6 @@
-import type { Shape, SloydDocument, StoredBoard } from './types';
+import type { Board, Shape, SloydDocument, StoredBoard } from './types';
 import { leans } from './lean';
 import { isTilted } from './holeTilt';
-import type { Board } from './types';
 import { partBounds } from './worldBounds';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, parentPath } from './tree';
@@ -12,7 +11,7 @@ import { flatDocument, parentPath } from './tree';
  * position, turn, features, Shape reference and mirror flag) and the Shapes those records point to. The design format
  * describes parts as world boxes and every world-word converter assumes part axes equal world axes, so a leaning part is
  * never sent to the model as a part, never converted back from it, and never linked by role (`linkByRole` skips it: it
- * has no role). A Shape's users all share its lean (`LINK_FIELDS.lean` is shared), so a kept Shape has only kept users.
+ * has no role). A Shape's users all share its lean and its holes (`LINK_FIELDS.lean` and `holes` are shared), so a kept Shape has only kept users.
  *
  * Root only: a leaning part inside an assembly is refused (`leaningInAssembly`), because its definition is rebuilt from
  * the model's assembly. At the root a part's flat name is its stored name and its world part is its resolved record.
@@ -57,7 +56,7 @@ export function keptNote(doc: SloydDocument): string | null {
   const n = (v: number) => +v.toFixed(3);
   const lines = flatDocument(doc).boards.filter((b) => kept.has(b.name)).map((b) => {
     const { min, max } = partBounds(b);
-    const why = leans(b) ? (b.holes.some(isTilted) ? 'leans, has angled holes' : 'leans') : 'has angled holes';
+    const why = leans(b) ? (b.holes.some(isTilted) ? 'leans and has angled holes,' : 'leans') : 'has angled holes';
     return `"${b.name}" ${why} and is kept as is: x ${n(min[0])} to ${n(max[0])}, y ${n(min[1])} to ${n(max[1])}, z ${n(min[2])} to ${n(max[2])}.`;
   });
   return [

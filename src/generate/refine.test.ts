@@ -307,8 +307,8 @@ describe('Refine and leaning parts (splayed legs spec §8)', () => {
     expect(refineMessage(r.design, S, undefined, { ...doc, boards: doc.boards.filter((b) => b.name === 'Seat'), shapes: [] })).not.toContain('kept as is');
   });
 
-  it('refuses a leaning part inside an assembly (its definition would be rebuilt from the model\'s)', () => {
     const [leg] = stoolLegs();
+  it('refuses a leaning part inside an assembly (its definition would be rebuilt from the model\'s)', () => {
     const doc = migrateDocument({ ...createDocument('Base'), boards: [stoolSeat()],
       definitions: [{ id: 'd1', boards: [leg!], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
@@ -349,5 +349,23 @@ describe('Refine and angled holes (angled holes spec §9)', () => {
     const wrapped = migrateDocument({ ...doc, boards: legs, definitions: [{ id: 'd1', boards: [seat], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Top', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
     expect(refineRefusal(wrapped)).toBe("Refine can't keep a leaning part or a part with angled holes inside an assembly yet — Ungroup it first: Top › Seat.");
+  });
+
+  it('a JOINED Refine is refused up front when a part has angled holes (ruling T11a); an unjoined one still keeps the seat', () => {
+    const doc = socketed();
+    const joined = migrateDocument({ ...doc, boards: doc.boards.map((b) => (b.name === 'Seat' ? { ...(b as Board), cuts: [
+      { id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 },
+    ] } : b)) });
+    const msg = "Refine can't keep a part with angled holes in a joined project yet: Seat.";
+    // With leaning legs the lean gate speaks first.
+    expect(refineRefusal(joined)).toBe("Refine can't keep joints with a leaning part yet: Front right.");
+    // Unleaned legs and a tilted seat only: the lean gate cannot fire, this one does.
+    const seat = doc.boards.find((b) => b.name === 'Seat') as Board;
+    const upright = migrateDocument({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Leg', length: 16, width: 1.5, thickness: 1.5, posture: 'upright' }), cuts: [] },
+      { ...seat, cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 }] }] });
+    expect(plainForRefine(upright)).toEqual({ refused: { reason: 'lean-joint', message: msg } });
+    expect(refineRefusal(upright)).toBe(msg);
+    expect(plainForRefine(doc)).toEqual({ plain: doc, joints: null });
+    expect(refineRefusal(doc)).toBeNull();
   });
 });

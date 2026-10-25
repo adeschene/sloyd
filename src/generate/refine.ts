@@ -20,6 +20,7 @@ import { findSites } from './joints/sites';
 import { carryFromOriginal } from '../document/featureCarry';
 import { featuredNote } from '../document/carryText';
 import { keptNote } from '../document/leanKeep';
+import { isTilted } from '../document/holeTilt';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -80,6 +81,10 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     // decider (invariant 41), BEFORE the gate — whose read-back is box-based and would refuse in the wrong words.
     const leaning = leaningRefusal('refine', flat);
     if (leaning) return { refused: { reason: 'lean-joint', message: leaning } };
+    // Likewise a kept part with a tilted row (angled holes spec §9, ruling T11a): gateUnjoin would strip its cuts and
+    // runJoinery would re-join the whole refined document, kept boards included, so "kept exactly" could not hold.
+    const angled = flat.boards.find((b) => b.holes.some(isTilted));
+    if (angled) return { refused: { reason: 'lean-joint', message: `Refine can't keep a part with angled holes in a joined project yet: ${angled.name}.` } };
     const g = gateUnjoin(flat);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
     const plain = migrateDocument(writeBackFlat(doc, flat.boards, g.plain));

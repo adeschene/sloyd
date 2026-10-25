@@ -178,7 +178,7 @@ interface EvaluateOpts {
   units?: Units;
   /** Refine: faults only the original can judge (a featured part turned onto another face; refine-features spec §4). */
   extraFaults?: (flat: FlatDocument) => Violation[];
-  /** Refine: the original's leaning parts, kept as stored (splayed legs spec §8), put in by the converter. */
+  /** Refine: the original's kept parts (leaning, or with a tilted hole row), kept as stored (splayed legs spec §8), put in by the converter. */
   kept?: KeptParts;
 }
 
@@ -248,7 +248,7 @@ export interface JointsSummary {
 export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null;
   /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
   carried: { notKept: string[]; check: string[] };
-  /** Present only when the original has leaning parts (splayed legs spec §8): their flat names, kept as stored, and the
+  /** Present only when the original has kept parts (leaning, or with a tilted hole row) (splayed legs spec §8): their flat names, kept as stored, and the
    *  model's parts dropped because they reused one of those names. */
   leaning?: { kept: string[]; replaced: string[] } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
