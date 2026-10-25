@@ -154,10 +154,11 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   contact, a joint holds only toward the floor; Task 8 — refusals as sentences; Task 9 — one centre-segment predicate shared by
   `legsUnder` and `staleSocketOf`; Task 10 — the assembly refusal names tenons). Full suite with the records (`c144abf` + this
   commit, docs only): 8659 tests across 242 files, all passing in one run (load average 0.4 at the start, 2.8 at the end; the perf guards included);
-  `npm run build` clean (the branch builds `index-DI0f3IAT.js`, CSS `index-BvtLBoRl.css`). The perf guards flaked under load in
-  Tasks 6–7: re-run them on a quiet machine at the merge. Owed: browser verification (plan Task 12, dev server), then merge and
-  deploy (the user's decision); the Amended (build) block; the copy review (fu 464) and the by-eye items (fu 465). Invariant 58 new;
-  2, 38, 39, 40, 41, 44, 45, 48, 50, 56 and 57 extended; follow-ups 457–466 (447 closed).
+  `npm run build` clean. Browser verification (Task 12) PASS, 8/8 (`docs/browser-verification-round-tenons.md`). Final review:
+  ready to merge, 5 minors (M2 TFa: holes skip a tenon's view curves; M3; M4; M1, M5 → fu 467, 468; fu 469 the tangent-bore
+  crack). At `6012b9f`: 8663 tests across 242 files, all passing in one run, the perf guards included (load average 1.3 at the
+  start, quiet), and `npm run build` clean (`index-ObjqEMR0.js`, CSS `index-BvtLBoRl.css`). Owed: merge and deploy (the user's decision); the Amended (build) block; the copy review (fu 464) and the by-eye items (fu 465). Invariant 58 new;
+  2, 38, 39, 40, 41, 44, 45, 48, 50, 56 and 57 extended; follow-ups 457–469 (447 closed).
 - **Angled holes, splayed legs chunk 2 (fu 437; 2026-10-24/25; MERGED `aa1f841`, DEPLOYED 2026-10-25 at `aa1f841` as `index-B114iN-Y.js` (CSS unchanged); SCHEMA 23 — once
   deployed, rolling back past it REFUSES every project saved at 23, export first)**: spec
   `docs/superpowers/specs/2026-10-24-sloyd-angled-holes-design.md` (Amended (build) holds Rulings P1, T2a–T11a with their costs), plan

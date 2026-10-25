@@ -42,8 +42,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 - **Rollback:** the nearest refusing boundary is `f3fced0` (splayed legs chunk 1, `index-B3SCZcHR.js`, schema 22): it REFUSES every
   project saved at 23 — export first. Below it, `68dca2d` refuses 22 and `e2729ee` refuses 21; every deploy back to `98c7df4` is
   schema 20. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-25):** round tenons (chunk 2b, fu 447, SCHEMA 24) is BUILT on branch `round-tenons`, NOT merged or deployed:
-  browser pass (Task 12), then merge and deploy (the user's call). Owed to the user: the round tenons, angled holes,
+- **NEXT (2026-10-25):** round tenons (chunk 2b, fu 447, SCHEMA 24) is BUILT and verified on branch `round-tenons`, NOT merged
+  or deployed: merge and deploy are the user's call. Owed to the user: the round tenons, angled holes,
   splayed legs and mirrored links specs' Amended blocks; fu 454, 464 (copy); fu 465 (by eye); fu 402(1)–(2); the by-eye and
   real-hardware items. Next: stretchers (fu 438), then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
@@ -616,7 +616,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 8659 tests across 242 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 8663 tests across 242 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
