@@ -37,7 +37,8 @@ describe('round tenons: drawsAsBox and boardUVSignature', () => {
   it('boardUVSignature differs with a tenon (and with its length), and is unchanged without one', () => {
     expect(boardUVSignature(tenoned)).not.toBe(boardUVSignature(leg));
     expect(boardUVSignature({ ...tenoned, tenons: [{ ...tenoned.tenons[0]!, length: 1.25 }] })).not.toBe(boardUVSignature(tenoned));
-    expect(boardUVSignature({ ...leg })).toBe(boardUVSignature(leg));
+    // Without one: the plain leg's key as recorded before round tenons (e34f2b1), byte for byte.
+    expect(boardUVSignature({ ...leg, id: 'leg' })).toBe('leg|0|flat|pine|length|28|1.75|1.75||||');
     // A FAULTED tenon builds nothing: the same geometry, so the same key as the plain leg.
     expect(boardUVSignature({ ...leg, tenons: [{ id: 't', end: 'max', diameter: 1.75, length: 1.5 }] })).toBe(boardUVSignature(leg));
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBoard } from './document';
+import { cornerCurve, createBoard, createDocument, migrateDocument } from './document';
 import type { Board } from './types';
 import { TENON_FIELDS, copyTenon, hasTenons, lowerTenons, mirrorTenons, sameTenon, tenonAt, tenonValues, tenonsOf, withTenons } from './roundTenons';
 import type { AngleCut, Band, CurveCut, HoleRow, ProfileCut, RoundTenon } from './types';
@@ -287,8 +287,8 @@ describe('round tenons: geometry — bodies, edges, silhouettes', () => {
     expect(geometryBoard(b)).toBe(v);
     expect(geometryBoard(v)).toBe(v);
     expect(v.curves.map((c) => [c.id, spanOf(c)])).toEqual([
-      ['tenon:t-max:a', { lo: 17, hi: 20, stopLo: true, stopHi: false, square: true }],
-      ['tenon:t-max:b', { lo: 17, hi: 20, stopLo: true, stopHi: false, square: true }],
+      ['tenon/t-max/a', { lo: 17, hi: 20, stopLo: true, stopHi: false, square: true }],
+      ['tenon/t-max/b', { lo: 17, hi: 20, stopLo: true, stopHi: false, square: true }],
     ]);
     // Every arc is MINOR, of radius d / 2 about the section's centre.
     for (const c of v.curves) for (const s of localSegments(v, c)) {
@@ -308,10 +308,26 @@ describe('round tenons: geometry — bodies, edges, silhouettes', () => {
     const side = { across: 'width' as const, from: 'min' as const };
     const profiled = leg({ tenons: [tn('max', 3)], profiles: [{ id: 'p', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side, through: 'min' }, end: { side, from: 'min', at: 5 } } }] });
     const v = geometryBoard(profiled);
-    expect(v.curves.map((c) => c.id)).toEqual(['p', 'tenon:t-max:a', 'tenon:t-max:b']);
+    expect(v.curves.map((c) => c.id)).toEqual(['p', 'tenon/t-max/a', 'tenon/t-max/b']);
     expect(profileView(v).curves.map((c) => c.id)).toEqual(['p']);
     expect(profileView(profiled)).toBe(profileView(v));
+    // The profile view's own geometry view is the SAME view (fix round 1: never a second, equal object).
+    expect(geometryBoard(profileView(profiled))).toBe(v);
     expect(tenonFaults(profiled, profiled.tenons![0]!)).toEqual([]);
+  });
+
+  it('view-curve ids never collide with a loaded curve id (the loader re-mints a "/", inv 33)', () => {
+    // Two corners at the length-min end, clear of the tenon's zone at the max end.
+    const corner = (id: string, vFrom: 'min' | 'max'): CurveCut => ({ id, ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom, radius: 0.25 }) });
+    // Both forms stored: the old `tenon:<id>:a` is a legal id and SURVIVES the loader; the new `tenon/<id>/a` is re-minted.
+    const raw = { ...createDocument('T'), version: 24, boards: [leg({ curves: [corner('tenon:t:a', 'min'), corner('tenon/t/a', 'max')],
+      tenons: [{ id: 't', end: 'max', diameter: 1, length: 3 }] })] };
+    const b = migrateDocument(raw).boards[0] as Board;
+    expect(b.curves.map((c) => c.id)[0]).toBe('tenon:t:a');
+    expect(b.curves.map((c) => c.id)[1]).not.toBe('tenon/t/a');
+    const ids = geometryBoard(b).curves.map((c) => c.id);
+    expect(ids).toHaveLength(4);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('geometryKey reads the tenon', () => {

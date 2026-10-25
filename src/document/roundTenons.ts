@@ -218,7 +218,9 @@ export function addedTenonFaults(before: Board, after: Board, tenonEnd: RoundTen
  * vertex of some outline: no seam line along it (inv 16), and the silhouettes come from that outline's smooth vertices. No
  * edge code knows about tenons.
  *
- * Ids `tenon:<tenon id>:a` and `:b`, `uFrom`/`vFrom` 'min' (u the width, v the thickness: `uvDims('length')`).
+ * Ids `tenon/<tenon id>/a` and `/b`: the loader re-mints every stored id holding a `/` (inv 33's `takeId`, tenon ids too),
+ * so no loaded curve, profile or tenon id can equal one. `uFrom`/`vFrom` 'min' (u the width, v the thickness:
+ * `uvDims('length')`).
  */
 export function tenonViewCurves(b: Pick<Board, Dimension | 'angleCuts'>, t: RoundTenon): ViewCurve[] {
   const W = b.width, T = b.thickness;
@@ -235,11 +237,11 @@ export function tenonViewCurves(b: Pick<Board, Dimension | 'angleCuts'>, t: Roun
   const base = { through: 'length' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [0, 0] as [number, number] };
   return [
     // A: open at the (+u, −v) quadrant; arcs bottom → left → top → right.
-    { ...base, id: `tenon:${t.id}:a`, span, segments: [
+    { ...base, id: `tenon/${t.id}/a`, span, segments: [
       line([cx, 0]), line(bottom), arc(left), arc(top), arc(right), line([W, cy]), line([W, T]), line([0, T]), line([0, 0]),
     ] },
     // B: open at the (−u, +v) quadrant; arcs top → right → bottom → left.
-    { ...base, id: `tenon:${t.id}:b`, span, segments: [
+    { ...base, id: `tenon/${t.id}/b`, span, segments: [
       line([W, 0]), line([W, T]), line([cx, T]), line(top), arc(right), arc(bottom), arc(left), line([0, cy]), line([0, 0]),
     ] },
   ];

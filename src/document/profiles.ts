@@ -638,6 +638,8 @@ export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { pr
     tenonBases.set(view, pv);
     views.set(view, view);
   }
+  // The profile view carries the same tenons: its geometry view is this one (never a second, equal object).
+  if (pv !== b) tenonViews.set(pv, view);
   return view;
 }
 /** A tenoned part's geometry view (and the view itself) → that view (`geometryBoard`). */
