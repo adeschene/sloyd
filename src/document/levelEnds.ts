@@ -59,8 +59,8 @@ export function levelCutOf(c: AngleCut): 'foot' | 'top' | null {
 }
 
 /** Round an end's change UP to the grid (Global Constraints): a negative foot change rounds toward zero. `+ 0` makes −0
- *  a plain 0. */
-function roundUp(v: number, step: number): number {
+ *  a plain 0. THE one rounding rule: Bore leg sockets' fitted tenon length rounds with it too (round tenons spec §6.1). */
+export function roundUp(v: number, step: number): number {
   return Math.ceil(v / step - EPS) * step + 0;
 }
 
@@ -76,7 +76,7 @@ function heightAt(b: Board, face: Dimension, through: Dimension, l: number, f: n
  *
  * - `u` is the leaned axis's up direction (`m` applied to world up; length runs up an upright part).
  * - Foot: `e_f = max over the 4 foot corners of y / u_y`, negative when the foot runs past the floor (shortened).
- * - Top: through the reference R — where an existing RECOGNISED top cut's plane meets the leaned axis (its centre
+ * - Top: through the reference R (or `opts.topAt`, a given world height: round tenons spec §6.1) — where an existing RECOGNISED top cut's plane meets the leaned axis (its centre
  *   station), else the pivot P — so the seat-joint height is kept across re-levels and a levelled part plans no change
  *   (idempotent; controller ruling, Task 6). `e_t = (R.y − min over the 4 top corners of y) / u_y`: from an uncut top it
  *   is always positive (the top is always extended, §5); on a re-level it may be negative, and it is 0 on a levelled
@@ -86,7 +86,7 @@ function heightAt(b: Board, face: Dimension, through: Dimension, l: number, f: n
  * - Depths come from the NEW board's own map: the length-wise distance from each end face to its plane at stations 0 and
  *   A (the facing dimension), stations from `min`.
  */
-export function levelPlan(world: Board, units: Units): LevelPlan | string {
+export function levelPlan(world: Board, units: Units, opts?: { topAt?: number }): LevelPlan | string {
   const lean = world.lean;
   const lm = lean ? leanMap(world) : null;
   if (!lean || !lm) throw new Error('levelPlan: the part does not lean');
@@ -117,7 +117,9 @@ export function levelPlan(world: Board, units: Units): LevelPlan | string {
   const topCut = world.angleCuts.find((c) => levelCutOf(c) === 'top');
   // The cut's own centre station (its `along` may be the other cross dimension, after a seam-free flip): a depth there
   // is the same from either side, so `alongFrom` does not matter, and the axis runs through every cross centre.
-  const ry = lm.pivot[1] - (topCut ? depthAt(topCut, world[topCut.along] / 2) : 0) * uy;
+  // `topAt` (round tenons spec §6.1, Bore leg sockets' tenoning): the top's reference height given, the seat's top face,
+  // instead of R. Absent, R as always.
+  const ry = opts?.topAt ?? lm.pivot[1] - (topCut ? depthAt(topCut, world[topCut.along] / 2) : 0) * uy;
   if (ry <= EPS) return LEVEL_BELOW_FLOOR;
 
   const step = snapStep(units);

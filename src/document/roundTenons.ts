@@ -5,6 +5,7 @@ import { clippedRegion, cutRemovesNothing } from './cuts';
 import { angleCutRemovesNothing, depthAt, touchedRegion } from './angleCuts';
 import { boardHoles, holeRegion, mm } from './holes';
 import { featureMeetsBox, shapedFeatures } from './featureRegions';
+import type { Units } from '../units/length';
 
 /**
  * Every field of `RoundTenon` that decides "same tenon": all but `id` (round tenons spec §3.1). A TABLE CHECKED AGAINST THE
@@ -84,6 +85,11 @@ export function lowerTenons(stored: RoundTenon[] | undefined, draft: Pick<Board,
   });
   return { tenons: stored && out.length === stored.length && out.every((t, i) => t === stored[i]) ? stored : out };
 }
+
+/** The step a FITTED tenon's length rounds up to (round tenons spec §6.1, Global Constraints): 1/64" in an imperial
+ *  project, 0.1 mm in a metric one (the hole grid's fine steps). A type-only `Units` import: no text is produced here. */
+export const TENON_STEP = { imperial: 1 / 64, metric: mm(0.1) } as const;
+export const tenonStep = (units: Units): number => (units.display === 'metric-mm' ? TENON_STEP.metric : TENON_STEP.imperial);
 
 // ---- The zone and the faults (round tenons spec §3.2, §3.3) ------------------------------------------------------
 

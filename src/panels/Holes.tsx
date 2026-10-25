@@ -5,6 +5,8 @@ import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, display
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout } from '../document/holeText';
 import { leans, slopeOf } from '../document/lean';
+import { staleTenonOf } from '../document/tenonJoints';
+import { tenonStale } from '../document/tenonText';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
@@ -210,14 +212,23 @@ export function Holes({ board }: { board: Board }) {
   const doc = useStore((s) => s.doc);
   const boreLegSockets = useStore((s) => s.boreLegSockets);
   const [socketDiameter, setSocketDiameter] = useState(1);
+  // Round tenons spec §6.1: Tenon the legs, on by default; the same action then fits each leg's top tenon.
+  const [tenonLegs, setTenonLegs] = useState(true);
   // The field refuses 0 and below itself (DimensionField's default "> 0" rule); while it shows a refusal the button does
   // not act on the stored value behind it (copy in a row's precedent, fu 218).
   const [diameterRefused, setDiameterRefused] = useState(false);
-  const legs = useMemo(() => (isLeaning ? [] : legsUnder(worldParts(doc), board)), [doc, board, isLeaning]);
+  const legs = useMemo(() => (isLeaning ? [] : legsUnder(worldParts(doc), board, units)), [doc, board, isLeaning, units]);
   const stale = useMemo(() => {
     if (legs.length === 0) return [];
     const names = displayNames(doc);
     return legs.filter((l) => staleSocketOf(board, l) !== null).map((l) => ({ id: l.id, text: socketStale(names.get(l.id) ?? l.name) }));
+  }, [doc, board, legs]);
+  // The stale socket note's tenon twin (round tenons spec §6.4): a leg found under this seat whose top tenon is not seated
+  // in it.
+  const staleTenons = useMemo(() => {
+    if (legs.length === 0) return [];
+    const names = displayNames(doc);
+    return legs.filter((l) => staleTenonOf(board, l) !== null).map((l) => ({ id: l.id, text: tenonStale(names.get(l.id) ?? l.name) }));
   }, [doc, board, legs]);
   // A preset whose default would fault on this part is withheld, not added and refused (AngleCuts' precedent).
   const fits = (r: Omit<HoleRow, 'id'> | null): r is Omit<HoleRow, 'id'> => {
@@ -245,11 +256,16 @@ export function Holes({ board }: { board: Board }) {
         ? <Popover className="add-hole" label={<>+ Add hole<span aria-hidden="true"> ▾</span></>} title="Add a hole" items={items} />
         : <p className="field-note">No hole preset fits this part.</p>}
       {stale.map((n) => <p key={n.id} className="field-note" role="status">{n.text}</p>)}
+      {staleTenons.map((n) => <p key={`tenon-${n.id}`} className="field-note" role="status">{n.text}</p>)}
       {legs.length > 0 && (
         <div className="field-grid field-grid-2">
           <DimensionField label="Socket diameter" value={socketDiameter} units={units} format={(v) => holeLengthText(v, units, 'diameter')}
             onCommit={(d) => { setSocketDiameter(d); }} onErrorChange={setDiameterRefused} />
-          <button className="add-cut" disabled={diameterRefused} onClick={() => setError(boreLegSockets(board.id, socketDiameter))}>Bore leg sockets</button>
+          <div className="field">
+            <label htmlFor={`tenon-legs-${board.id}`}>Tenon the legs (replaces their top tenons)</label>
+            <input id={`tenon-legs-${board.id}`} type="checkbox" checked={tenonLegs} onChange={(e) => setTenonLegs(e.target.checked)} />
+          </div>
+          <button className="add-cut" disabled={diameterRefused} onClick={() => setError(boreLegSockets(board.id, socketDiameter, tenonLegs))}>Bore leg sockets</button>
         </div>
       )}
       {error && <p className="field-error" role="alert">{error}</p>}

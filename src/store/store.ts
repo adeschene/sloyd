@@ -488,8 +488,12 @@ interface StoreState {
    * and mirrors, and into its Shape once), one undo entry. Returns the plan's refusal, or its note when a faulted socket
    * was left out and the others bored, or null. Null and nothing done while gesturing or exploded (inv 47), for a part
    * that leans, and when every leg already has its socket (inv 4: no entry).
+   *
+   * `tenonLegs` (round tenons spec §6, the checkbox `Tenon the legs`): the same entry also fits each socketed leg's top
+   * tenon — the seat's rows and every leg's patch (`socketPlan`'s `legs`: a linked leg's shared fields once, on its Shape,
+   * each other user its own position) in ONE `edit` through `mapWorld`. Off (the default), no leg is touched.
    */
-  boreLegSockets: (seatId: string, diameter: number) => string | null;
+  boreLegSockets: (seatId: string, diameter: number, tenonLegs?: boolean) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -2083,19 +2087,23 @@ export const useStore = create<StoreState>((set, get) => {
       return null;
     },
 
-    boreLegSockets: (seatId, diameter) => {
+    boreLegSockets: (seatId, diameter, tenonLegs = false) => {
       if (readOnly() || get().gesturing) return null;
       if (!(Number.isFinite(diameter) && diameter > 0)) return null;
       const doc0 = get().doc;
-      const plan = socketPlan(doc0, seatId, diameter);
+      // Every refusal (sockets, copies, Level the ends' for a leg, tenons that disagree) is decided here, before edit().
+      const plan = socketPlan(doc0, seatId, diameter, tenonLegs);
       if (typeof plan === 'string') return plan;
       const seat = worldParts(doc0).find((b) => b.id === seatId);
-      if (!seat || plan.holes === seat.holes) return null; // inv 4: every leg already has its socket
+      const legs = new Map((plan.legs ?? []).map((l) => [l.id, l.patch]));
+      // inv 4: every leg already has its socket (and, tenoning, its fitted tenon)
+      if (!seat || (plan.holes === seat.holes && legs.size === 0)) return plan.note ?? null;
       // ONE write through this copy (levelEnds' ruling 1): the rows are shared by every copy, and socketPlan has judged
-      // that every copy would store the same ones.
+      // that every copy would store the same ones; each leg patch is one per storage target, a Shape's shared fields once.
       const holes = plan.holes;
-      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === seatId ? { ...b, holes } : b))));
-      // Inv 24: a bore swallows the lattice points in its mouth.
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === seatId ? (holes === b.holes ? b : { ...b, holes })
+        : legs.has(b.id) ? { ...b, ...legs.get(b.id)! } : b))));
+      // Inv 24: a bore swallows the lattice points in its mouth, and a fitted leg's length and ends move its points.
       judgeHeld();
       return plan.note ?? null;
     },

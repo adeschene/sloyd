@@ -18,6 +18,12 @@ export const TENON_END_TAKEN = 'This end already has a round tenon.';
 export const TENON_END_FIXED = "A round tenon can't change ends — remove it and add one at the other end.";
 export const TENON_SIZE_POSITIVE = "A round tenon's diameter and length must be more than zero.";
 
+/** Copy (verbatim, Global Constraints): a leg found under a seat whose top tenon is not seated in it (round tenons spec
+ *  §6.4, the stale-socket note's tenon twin). */
+export const tenonStale = (leg: string) => `${leg}'s tenon no longer fits its socket — Bore leg sockets again.`;
+/** Bore leg sockets' sentence for a leg whose fitted tenon would fault (spec §6.1): the leg named, then the fault. */
+export const legTenonFaulted = (leg: string, f: TenonFault) => `${leg}'s tenon: ${tenonFaultText(f)}`;
+
 /** The ONE home of the tenon fault copy (Global Constraints, verbatim). Pure: imports nothing from store or panels. */
 export function tenonFaultText(f: TenonFault): string {
   switch (f.kind) {

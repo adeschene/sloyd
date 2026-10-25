@@ -2,7 +2,7 @@ import type { Board, FlatDocument, HoleRow, RoundTenon } from './types';
 import type { V3 } from './angleCuts';
 import { depthAt } from './angleCuts';
 import { clipConvex, type BodyFace } from './bodies';
-import { builtTenons, endCutOf, sameTenon, shoulderAt } from './roundTenons';
+import { builtTenons, endCutOf, sameTenon, shoulderAt, tenonAt } from './roundTenons';
 import { boreAlongAxis, boreEnds, partAxis } from './legSockets';
 import { toWorld } from './snapPoints';
 import { TOUCH } from './checkTolerances';
@@ -88,6 +88,18 @@ export function seatedIn(a: Board, t: RoundTenon, b: Board, row: HoleRow): boole
   const [mouth, far] = boreEnds(b, row).map(along) as [number, number];
   if (Math.min(tip, Math.max(mouth, far)) - Math.max(0, Math.min(mouth, far)) <= TOUCH) return false;
   return row.depth === 'through' || tip <= far + TOUCH;
+}
+
+/**
+ * `leg`'s TOP tenon (its length's `max` end, the end Level the ends and Bore leg sockets treat as the top) when it is
+ * seated in none of `seat`'s bores (`seatedIn`), or null: no top tenon, or seated. The seat's Holes section notes it
+ * (round tenons spec §6.4, `tenonStale`) for a leg found under the seat (`legsUnder`). A faulted tenon builds nothing, so
+ * it is never seated: it is noted too.
+ */
+export function staleTenonOf(seat: Board, leg: Board): RoundTenon | null {
+  const t = tenonAt(leg, 'max');
+  if (!t) return null;
+  return seat.holes.some((r) => seatedIn(leg, t, seat, r)) ? null : t;
 }
 
 /**
