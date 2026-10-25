@@ -13,6 +13,11 @@ const FEATURE_WORD: Record<TenonFeature, string> = {
   band: 'a band',
 };
 
+/** The store's refusals that are not faults (ruling T8b: an action never reports success for doing nothing), verbatim. */
+export const TENON_END_TAKEN = 'This end already has a round tenon.';
+export const TENON_END_FIXED = "A round tenon can't change ends — remove it and add one at the other end.";
+export const TENON_SIZE_POSITIVE = "A round tenon's diameter and length must be more than zero.";
+
 /** The ONE home of the tenon fault copy (Global Constraints, verbatim). Pure: imports nothing from store or panels. */
 export function tenonFaultText(f: TenonFault): string {
   switch (f.kind) {

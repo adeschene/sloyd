@@ -20,7 +20,8 @@ const part = (id = 'r') => useStore.getState().doc.boards.find((b) => b.id === i
 const row = (end: string) => within(screen.getByRole('group', { name: `${end} tenon` }));
 const tenon = (id: string, end: 'min' | 'max', diameter = 0.75, length = 1): RoundTenon => ({ id, end, diameter, length });
 
-afterEach(() => { act(() => useStore.getState().setExplode(0)); });
+const { addTenon: realAddTenon } = useStore.getState();
+afterEach(() => { useStore.setState({ addTenon: realAddTenon }); act(() => useStore.getState().setExplode(0)); });
 
 describe('the Round tenons section (round tenons spec §4)', () => {
   it('sits after Holes, one row per end, each with Add round tenon; a flat part names the length\'s ends', () => {
@@ -71,6 +72,18 @@ describe('the Round tenons section (round tenons spec §4)', () => {
     act(() => useStore.getState().selectBoard('short'));
     expect(row('Length max end').queryByRole('button', { name: 'Add round tenon' })).toBeNull();
     expect(row('Length max end').getByText('The tenons would meet — shorten one.')).toBeInTheDocument();
+  });
+  it('the default follows the part: a resize that leaves no step withholds Add, and units are read afresh', async () => {
+    const user = userEvent.setup();
+    open([rung()]);
+    expect(row('Length max end').getByRole('button', { name: 'Add round tenon' })).toBeInTheDocument();
+    act(() => useStore.getState().updateBoard('r', { width: 0.125 }));
+    expect(row('Length max end').queryByRole('button', { name: 'Add round tenon' })).toBeNull();
+    expect(row('Length max end').getByText(tenonFaultText({ kind: 'too-wide' }))).toBeInTheDocument();
+    act(() => useStore.getState().updateBoard('r', { width: 1.5 }));
+    act(() => useStore.setState({ doc: { ...useStore.getState().doc, units: METRIC } }));
+    await user.click(row('Length max end').getByRole('button', { name: 'Add round tenon' }));
+    expect(part().tenons![0]!.diameter).toBe(25 / 25.4);
   });
   it('a refused Diameter is the field\'s own error: the typed text and focus kept, nothing stored', async () => {
     const user = userEvent.setup();
@@ -144,6 +157,25 @@ describe('the Round tenons section (round tenons spec §4)', () => {
     await user.click(row('Length max end').getByRole('button', { name: 'Remove' }));
     expect('tenons' in part()).toBe(false);
     expect(row('Length max end').getByRole('button', { name: 'Add round tenon' })).toBeInTheDocument();
+  });
+  it('a refused Add\'s alert stays while the part is unchanged, and goes when the part object changes (an edit, an undo)', async () => {
+    const user = userEvent.setup();
+    open([rung()]);
+    // The store's add refusal is unreachable through a withheld default; stand one in to see where the alert lives.
+    useStore.setState({ addTenon: () => 'Refused for the test.' });
+    const add = () => user.click(row('Length max end').getByRole('button', { name: 'Add round tenon' }));
+    await add();
+    expect(row('Length max end').getByRole('alert')).toHaveTextContent('Refused for the test.');
+    // A store change that leaves the part object alone does not retire it.
+    act(() => useStore.getState().setTool('select'));
+    expect(row('Length max end').getByRole('alert')).toHaveTextContent('Refused for the test.');
+    act(() => useStore.getState().updateBoard('r', { name: 'Stretcher' }));
+    expect(row('Length max end').queryByRole('alert')).toBeNull();
+    await add();
+    expect(row('Length max end').getByRole('alert')).toBeInTheDocument();
+    act(() => useStore.getState().undo());
+    expect(part().name).toBe('Rung');
+    expect(row('Length max end').queryByRole('alert')).toBeNull();
   });
   it('is locked while exploded (inv 47)', () => {
     open([rung({ tenons: [tenon('t', 'max')] })]);

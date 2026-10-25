@@ -34,7 +34,7 @@ function TenonControls({ board, tenon, seatedIn }: { board: Board; tenon: RoundT
     updateTenon(board.id, tenon.id, { end: tenon.end, diameter: tenon.diameter, length: tenon.length, ...patch }) ?? undefined;
   // A fault the stored tenon already has (a later resize, or a feature added in its zone, caused it): KEPT, noted, and the
   // tenon builds nothing until it is fixed (spec §7) — this note is what says so.
-  const kept = tenonFaults(board, tenon);
+  const kept = useMemo(() => tenonFaults(board, tenon), [board, tenon]);
   return (
     <>
       <div className="field-grid field-grid-2">
@@ -59,16 +59,22 @@ function TenonEnd({ board, end, seatedIn }: { board: Board; end: End; seatedIn: 
   const units = useStore((s) => s.doc.units);
   const addTenon = useStore((s) => s.addTenon);
   const [error, setError] = useState<string | null>(null);
-  // A refusal belongs to the part it was made for: another part retires it.
-  useEffect(() => setError(null), [board.id]);
+  // A refusal belongs to the part AS IT WAS when it was made: any change to the part object (another part, an edit, an
+  // undo) retires it. A refused Add leaves the part object untouched, so its own alert stays.
+  useEffect(() => setError(null), [board]);
   const tenon = tenonAt(board, end);
   const words = endWords(board, end);
+  const metric = isMetric(units);
   // The default (spec §4); one the store would refuse on this part is withheld, not added and then refused (AngleCuts'
-  // precedent), and the row says why with the ONE fault text.
-  const proposal = tenon ? null : defaultTenon(board, end, isMetric(units));
-  const withheld = tenon ? null
-    : proposal === null ? tenonFaultText({ kind: 'too-wide' })
-    : (() => { const f = tenonFaults(board, { id: '__default', ...proposal })[0]; return f ? tenonFaultText(f) : null; })();
+  // precedent), and the row says why with the ONE fault text. Memoised per part object and units: Properties re-renders
+  // on every store change, and each step down is a full `tenonFaults`.
+  const { proposal, withheld } = useMemo(() => {
+    if (tenonAt(board, end)) return { proposal: null, withheld: null };
+    const p = defaultTenon(board, end, metric);
+    if (p === null) return { proposal: null, withheld: tenonFaultText({ kind: 'too-wide' }) };
+    const f = tenonFaults(board, { id: '__default', ...p })[0];
+    return { proposal: p, withheld: f ? tenonFaultText(f) : null };
+  }, [board, end, metric]);
   return (
     <div className="cut" role="group" aria-label={`${words.title} tenon`}>
       <div className="cut-head"><span className="cut-label">{words.title}</span></div>

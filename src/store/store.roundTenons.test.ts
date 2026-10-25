@@ -3,7 +3,7 @@ import { useStore } from './store';
 import { boardSnapPoints, createBoard, createDocument, worldParts } from '../document/document';
 import { sharedOf } from '../document/links';
 import { toWorld } from '../document/snapPoints';
-import { tenonFaultText } from '../document/tenonText';
+import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { Board, RoundTenon, Shape, SloydDocument, StoredBoard } from '../document/document';
 
 /**
@@ -44,9 +44,19 @@ describe('addTenon / updateTenon / removeTenon (round tenons spec §4)', () => {
   });
   it('an end that already has a tenon takes no second one', () => {
     s().addTenon('r', 'max', 0.75, 1);
-    expect(s().addTenon('r', 'max', 0.5, 2)).toBeNull();
+    expect(s().addTenon('r', 'max', 0.5, 2)).toBe(TENON_END_TAKEN);
+    expect(TENON_END_TAKEN).toBe('This end already has a round tenon.');
     expect(stored().tenons).toHaveLength(1);
     expect(stored().tenons![0]!.diameter).toBe(0.75);
+    expect(s().past.length).toBe(1);
+  });
+  it('a stale part or tenon id does nothing and returns null (the hole actions\' convention)', () => {
+    expect(s().addTenon('gone', 'max', 0.75, 1)).toBeNull();
+    s().addTenon('r', 'max', 0.75, 1);
+    expect(s().updateTenon('r', 'gone', { end: 'max', diameter: 0.5, length: 1 })).toBeNull();
+    expect(s().updateTenon('gone', stored().tenons![0]!.id, { end: 'max', diameter: 0.5, length: 1 })).toBeNull();
+    s().removeTenon('r', 'gone');
+    expect(stored().tenons).toHaveLength(1);
     expect(s().past.length).toBe(1);
   });
   it('an unchanged update pushes no undo entry (inv 4)', () => {
@@ -59,18 +69,22 @@ describe('addTenon / updateTenon / removeTenon (round tenons spec §4)', () => {
     s().addTenon('r', 'max', 0.75, 1);
     s().addTenon('r', 'min', 0.5, 1);
     const max = stored().tenons![1]!;
-    expect(s().updateTenon('r', max.id, { ...bare(max), end: 'min', diameter: 0.6 })).toBeNull();
+    expect(s().updateTenon('r', max.id, { ...bare(max), end: 'min', diameter: 0.6 })).toBe(TENON_END_FIXED);
+    expect(TENON_END_FIXED).toBe("A round tenon can't change ends — remove it and add one at the other end.");
     expect(stored().tenons!.map((t) => [t.end, t.diameter])).toEqual([['min', 0.5], ['max', 0.75]]);
     expect(s().past.length).toBe(2);
   });
   it('a non-positive or non-finite size is never stored (the loader would drop it)', () => {
-    expect(s().addTenon('r', 'max', 0, 1)).toBeNull();
-    expect(s().addTenon('r', 'max', 0.75, -1)).toBeNull();
-    expect(s().addTenon('r', 'max', Number.NaN, 1)).toBeNull();
+    expect(TENON_SIZE_POSITIVE).toBe("A round tenon's diameter and length must be more than zero.");
+    expect(s().addTenon('r', 'max', 0, 1)).toBe(TENON_SIZE_POSITIVE);
+    expect(s().addTenon('r', 'max', 0.75, -1)).toBe(TENON_SIZE_POSITIVE);
+    expect(s().addTenon('r', 'max', Number.NaN, 1)).toBe(TENON_SIZE_POSITIVE);
     expect('tenons' in stored()).toBe(false);
     s().addTenon('r', 'max', 0.75, 1);
     const t = stored().tenons![0]!;
-    expect(s().updateTenon('r', t.id, { ...bare(t), length: Number.POSITIVE_INFINITY })).toBeNull();
+    expect(s().updateTenon('r', t.id, { ...bare(t), length: Number.POSITIVE_INFINITY })).toBe(TENON_SIZE_POSITIVE);
+    expect(s().updateTenon('r', t.id, { ...bare(t), diameter: 0 })).toBe(TENON_SIZE_POSITIVE);
+    expect(s().past.length).toBe(1);
     expect(stored().tenons![0]!.length).toBe(1);
   });
   it('is refused while exploded (inv 47)', () => {
