@@ -4,7 +4,7 @@ import type { V3 } from './angleCuts';
 import { axisFrame, DIMENSION_ORDER } from './geometry';
 import { leanMap, leans } from './lean';
 import { levelFaces, overlapArea } from './leanContacts';
-import { REST_AREA, TOUCH } from './designCheck';
+import { REST_AREA, TOUCH } from './checkTolerances';
 import { fromWorld, toWorld } from './snapPoints';
 import { holeInstances, holeRowValues, othersOf } from './holes';
 import { holeFaults } from './holeFaults';
@@ -55,14 +55,32 @@ function entryOf(seat: Board): { face: Dimension; from: CutFrom } {
   return { face: y.dim, from: y.reversed ? 'min' : 'max' };
 }
 
-/** A leaning leg's axis in the world: through its pivot, along its leaned length, pointing UP (unit). */
-function legAxis(leg: Board): { p: V3; u: V3 } | null {
-  const m = leanMap(leg);
-  if (!m) return null;
+/** A line in the world: a point on it and a unit direction. */
+export interface WorldAxis { p: V3; u: V3 }
+
+/**
+ * ANY part's axis in the world (round tenons spec §5.1): the length's centre line through the part's placement and lean,
+ * `u` (unit) pointing from the length's `min` end to its `max` end. A leaning part: through its pivot (`leanMap`), along
+ * its leaned length — exactly the numbers `legAxis` always used, so Bore leg sockets' rows are unchanged. An unleaned part:
+ * through its `max` end's section centre (`toWorld`), along the world axis showing its length, signed by that axis's
+ * reversal (inv 44: a turned rung runs max → min along −X).
+ */
+export function partAxis(b: Board): WorldAxis {
+  const frame = axisFrame(b);
+  const k = frame.findIndex((a) => a.dim === 'length');
   const e: V3 = [0, 0, 0];
-  e[axisFrame(leg).findIndex((a) => a.dim === 'length')] = 1;
-  const u = unit(m.applyDir(e));
-  return { p: m.pivot, u: u[1] < 0 ? [0 - u[0], 0 - u[1], 0 - u[2]] : u };
+  e[k] = frame[k]!.reversed ? -1 : 1;
+  const m = leanMap(b);
+  if (m) return { p: m.pivot, u: unit(m.applyDir(e)) };
+  return { p: toWorld(b, { length: b.length, width: b.width / 2, thickness: b.thickness / 2 }), u: e };
+}
+
+/** A leaning leg's axis in the world: `partAxis`, pointing UP. Null for a part that does not lean (Bore leg sockets only
+ *  bores for leaning legs). */
+function legAxis(leg: Board): WorldAxis | null {
+  if (!leans(leg)) return null;
+  const { p, u } = partAxis(leg);
+  return { p, u: u[1] < 0 ? [0 - u[0], 0 - u[1], 0 - u[2]] : u };
 }
 
 /**
@@ -120,22 +138,28 @@ export function socketRow(seat: Board, leg: Board, diameter: number): Omit<HoleR
 }
 
 /** A single bore's mouth centre and far centre (the exit, through; the bottom disc's centre, blind) in the world. */
-function boreEnds(seat: Board, row: HoleRow): [V3, V3] {
+export function boreEnds(seat: Board, row: HoleRow): [V3, V3] {
   const h = holeInstances(seat, row)[0]!;
   const far = [0, 1, 2].map((i) => h.centre[i]! + h.reach * h.bit[i]!);
   return [toWorld(seat, point(h.centre)), toWorld(seat, point(far))];
 }
 
+/** `holder`'s bore `row` (its FIRST hole: a caller asks this of a single bore) lies along the world line `axis`: its mouth
+ *  centre on the line and its bit parallel to it (either way), both to 1e-9 (spec §5; round tenons spec §5.1). The
+ *  coaxial test ONLY — through or blind, any face: `isSocketOf` and the tenon joint (`seatedIn`) add their own rules. */
+export function boreAlongAxis(holder: Board, row: HoleRow, axis: WorldAxis): boolean {
+  const [m, f] = boreEnds(holder, row);
+  return norm(cross(sub(m, axis.p), axis.u)) <= EPS && norm(cross(unit(sub(f, m)), axis.u)) <= EPS;
+}
+
 /** Whether `row` is `leg`'s socket: a single THROUGH bore entering where `socketRow` enters (the seat's top) whose world
- *  axis IS the leg's axis — its mouth centre on the axis and its bit parallel to it, both to 1e-9 (spec §5). A blind bore
- *  along the same axis is not the socket. */
+ *  axis IS the leg's axis (`boreAlongAxis`, spec §5). A blind bore along the same axis is not the socket. */
 export function isSocketOf(seat: Board, row: HoleRow, leg: Board): boolean {
   const ax = legAxis(leg);
   if (!ax || row.count !== 1 || row.depth !== 'through') return false;
   const entry = entryOf(seat);
   if (row.face !== entry.face || row.from !== entry.from) return false;
-  const [m, f] = boreEnds(seat, row);
-  return norm(cross(sub(m, ax.p), ax.u)) <= EPS && norm(cross(unit(sub(f, m)), ax.u)) <= EPS;
+  return boreAlongAxis(seat, row, ax);
 }
 
 /** Whether plan point `q` is inside (or on) convex polygon `poly`, either winding. */

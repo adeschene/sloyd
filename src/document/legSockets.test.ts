@@ -12,7 +12,7 @@ import { toWorld } from './snapPoints';
 import { mapWorld } from './treeEdit';
 import { worldParts } from './tree';
 import { stoolDocument, stoolLegs, stoolSeat } from './stoolFixture';
-import { isSocketOf, legsUnder, socketPlan, socketRow, socketTooSteep, staleSocketOf, socketStale } from './legSockets';
+import { boreAlongAxis, isSocketOf, legsUnder, partAxis, socketPlan, socketRow, socketTooSteep, staleSocketOf, socketStale } from './legSockets';
 
 const sub = (a: readonly number[], b: readonly number[]): V3 => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
 const len = (a: readonly number[]) => Math.hypot(a[0]!, a[1]!, a[2]!);
@@ -437,5 +437,41 @@ describe('a 45° leg (final review F1)', () => {
     const plan = socketPlan(doc, seatOf(doc).id, 1);
     expect(plan).toMatchObject({ note: "Steep's socket would tilt past 45° — reduce the leg's lean." });
     expect(typeof plan !== 'string' && plan.holes).toHaveLength(1);
+  });
+});
+
+// Round tenons Task 7: `partAxis` for ANY part, `legAxis` its upward flip (Bore leg sockets' rows are unchanged: every
+// test above still passes as written).
+describe('partAxis', () => {
+  it('a leaning leg: through its pivot, along its leaned length (the independent axisOf), min → max', () => {
+    for (const leg of stoolLegs()) {
+      const ax = partAxis(leg);
+      const ref = axisOf(leg);
+      expect(ax.p).toEqual(ref.p);
+      expect(len(sub(ax.u, ref.u))).toBeLessThanOrEqual(1e-15);
+      expect(ax.u[1]).toBeGreaterThan(0);
+    }
+  });
+  it('an unleaned part: through its max end\'s section centre, signed by its turn', () => {
+    const rung = createBoard({ posture: 'flat', length: 10, width: 1.5, thickness: 0.75, position: [2, 8, 0] });
+    expect(partAxis(rung)).toEqual({ p: [12, 8.375, 0.75], u: [1, 0, 0] });
+    // Turned 180°, the length runs max → min along −X: its max end is now the −X one.
+    expect(partAxis({ ...rung, rotation: 180 })).toEqual({ p: [2, 8.375, 0.75], u: [-1, 0, 0] });
+    const post = createBoard({ posture: 'upright', length: 30, width: 1.5, thickness: 1.5, position: [0, 0, 0] });
+    expect(partAxis(post)).toEqual({ p: [0.75, 30, 0.75], u: [0, 1, 0] });
+  });
+  it('isSocketOf stays narrower than boreAlongAxis: a blind bore along the axis is coaxial, not a socket', () => {
+    const doc0 = stoolDocument();
+    const doc = bore(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    const fr = named(doc, 'Front right')[0]!;
+    const socket = seat.holes.find((r) => isSocketOf(seat, r, fr))!;
+    const blind = { ...socket, depth: 0.75 };
+    const swapped = { ...seat, holes: seat.holes.map((x) => (x.id === socket.id ? blind : x)) };
+    expect(boreAlongAxis(swapped, blind, partAxis(fr))).toBe(true);
+    expect(isSocketOf(swapped, blind, fr)).toBe(false);
+    // An unleaned leg has no socket at all (Bore leg sockets only bores for leaning legs).
+    const { lean: _l, ...upright } = fr;
+    expect(isSocketOf(seat, socket, upright as Board)).toBe(false);
   });
 });
