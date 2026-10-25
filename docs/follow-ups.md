@@ -7182,6 +7182,11 @@ aprons or stretchers report `unsupported` (or `hangs`, when they also rest on so
 **Status:** open (feature-sized; chunk 3), amended 2026-10-25: depends on chunk 2b's round tenons (fu 447) — a rung fits a leaning
 leg as a round tenon in a socket bored along the rung, and the checks must hold a seated tenon before a rung can be "held". Angled
 holes (chunk 2) are built.
+**Status:** open (feature-sized; chunk 3), amended 2026-10-25 (round tenons records): chunk 2b is BUILT on branch `round-tenons`
+(schema 24; not yet merged or deployed). A rung uses inv 39's new clause **(d) joined**: a seated tenon holds its part (leaning or
+not, no coverage threshold) when the partner reaches the floor without it, so a rung tenoned into two legs' sockets is held by
+either joint; `partAxis` already gives any part's world axis and `boreAlongAxis` the coaxial test (inv 50). Watch fu 461 (first
+match wins): a rung's tenon through one leg's through socket into a second part reports a false overlap.
 
 **439. The `hangs` sentence for a grounded leaning part off the floor.** A leaning part that is grounded through other parts but does
 not reach the floor (a leg whose foot stops short and hangs from the seat) reports the existing `hangs` message — "its X sides are
@@ -7273,6 +7278,9 @@ tenon seated in a matching socket (an extension of invs 38/39 — never proximit
 level top (inv 57), and a socket is a bore with nothing in it. Joinery, the cut list (the tenon's shoulder length) and the drawings
 read it.
 **Status:** open (feature-sized; needs its own spec — chunk 2b, before chunk 3, fu 438).
+**Status:** closed 2026-10-25 — BUILT on branch `round-tenons` (spec `docs/superpowers/specs/2026-10-25-sloyd-round-tenons-design.md`,
+schema 24, inv 58; invs 2, 38–41, 44, 45, 48, 50, 56, 57 extended); merge and deploy pending (the user's decision), browser
+verification owed (plan Task 12). The tapered tenon stays fu 449; joinery on a tenoned part is fu 460; the rest is fu 457–466.
 
 **448. A socket that follows its leg (angled holes spec §5).** Bore leg sockets is a button: after a lean edit, a resize or a move of
 a leg, its socket is stale (`staleSocketOf`) and the Holes panel says `<leg>'s socket no longer follows its leg — Bore leg sockets
@@ -7358,3 +7366,98 @@ leg sockets again either appends a second socket beside the old one or, when the
 Within spec §13's "structural test" latitude. Candidates: note any tilted count-1 through row from the top that matches no leg; or
 fold both into fu 448's automatic follow.
 **Status:** open (record-only; ask first before changing either).
+
+## From the round tenons round (splayed legs chunk 2b) — 2026-10-25
+
+**457. Plans feature callouts for a round tenon (spec §2 non-goal, §8).** A tenon carries no feature key and no drawing tag on the
+Plans sheet: its own segments (sides, silhouettes, the shoulder ring) are untagged, and its square-span view curves are skipped by
+every curve key and tag (`featureKeys.ts`, `planKeys.ts`). The bench line (`tenonText.ts` `tenonLine`) and the part diagram carry
+it. A callout would need a `partFeatures` entry (a key line through `tenonLine`'s words, no positions), tags on the tenon's own
+segments in `drawView`, and `drawingIdentity` kept green (tags never change a segment). A mitered tip already shows the MITER's
+letter (ruling T6a).
+**Status:** open (feature; ask first).
+
+**458. Wedges, wedge kerfs and pins through a round tenon (spec §2 non-goal).** Staked work wedges the tenon in a kerf from the top
+(the wedge across the grain of the seat) and some joints are pinned or drawbored. None is modelled: a tenon is a plain cylinder, and
+the cut list has no wedge row. A kerf would be a feature inside the tenon's zone, which `tenonFaults` refuses today
+(`meets-feature`), so it needs its own kind and fault rule; a pin is a hole row through both parts, which the design checks ignore
+(inv 38) and which `meets-feature` refuses on the tenoned part.
+**Status:** open (feature-sized; ask first).
+
+**459. A shoulder parallel to the end (scribed shoulder; spec §10 cost 1).** The shoulder is square to the axis (§3.1, a tenon
+cutter's): on a leaning leg it does not sit flat on a level seat's underside, and the shoulder's highest corner just touches (Tenon
+the legs). A woodworker who scribes the shoulder to the seat sees a gap the model shows too. Parallel to the end would let the
+resting rule carry the leg, but it is not what a tenon cutter makes and it does not fit chunk 3's rungs. The joint rule (§5,
+inv 39 (d)) stands either way; the shoulder plane (`shoulderAt`, `tenonZone`, `tenonViewCurves`' span, `withoutTenon`) would change.
+**Status:** open (only if wanted; ask first).
+
+**460. Joinery and Repair on a part with a round tenon (spec §9).** v1 refuses the whole document (`tenonRefusal`, inv 41: `Add
+joinery can't join a part with a round tenon yet: <name>.`, and Repair's and a joined Refine's twins). A later chunk can rule joint
+kinds out per site instead, as holes, curves, profiles and bands do (`featureAllowed`): a tenon's zone (`tenonZone`) is the region a
+kind must not enter, and `resize` would need a rebase (a tenon is measured from its end's centre, so a growing end carries it).
+`shapedFeatures` reads `profileView`, so `featureZones` sees no tenon today — that is why the whole document is refused.
+**Status:** open (feature-sized).
+
+**461. First match wins: a tenon through one part's through socket into a second part's socket (ruling T7e).** `tenonJoints` gives
+each tenon ONE joint, the first single bore in world and row order that seats it. A tenon that passes through a through socket in one
+part and into a second part's socket is seated in the first only; its wood in the second is reported as an overlap (a false
+overlap). Rare in staked work (a leg through a seat into a cap). Candidate: let a tenon seat in every coaxial bore it passes through
+whose stretch it fills, each a joint, the overlap waived per pair.
+**Status:** open (record-only; chunk 3's rungs may need it).
+
+**462. A misleading `Level the ends` hint for a leaning leg on a foot tenon (ruling T7i).** A built tenon's wood is never a contact
+(ruling T7f), so a leaning leg standing ONLY on a foot tenon's tip is not on the floor, and its `unsupported` fault adds `; it leans,
+and its foot is not level: Level the ends` — levelling would not help (the foot is a tenon). Rare: a foot tenon with nothing below it
+is a half-finished model. Candidate: a hint that names the tenon (`it stands on its round tenon`).
+**Status:** open (record-only; wording for the user).
+
+**463. A units switch loses tenoned legs from Bore leg sockets until re-levelled (ruling T9d).** `legsUnder`'s tenoned branch requires
+`isLevelled(leg, units)`, which re-plans with the project's rounding; after an imperial ↔ metric switch a leg levelled in the other
+units is "not levelled", so tenoned legs are not found: the seat's Holes section hides Bore leg sockets and every stale note until
+the user presses Level the ends again. Consistent with the untenoned finder's Lean note (`Lean.tsx` shows the not-levelled note
+through `isLevelled` too) but against inv 52's spirit (a units switch moves no number). Candidate: a units-free structural test
+(a level up face at the tip). Task 9 review Minor 0.
+**Status:** open (record-only; ask first).
+
+**464. Round tenons copy review (for the user).** Every new string is the builder's or the controller's, unreviewed (the Global
+Constraints' verbatim fault copy, readout, checkbox, joinery sentences and kept list were the plan's): (1) the bench line `<d> round
+tenon, <t> long — at the length <min|max> end, shoulder <s> from the other end` (Ruling P1: the plan's end words, where the spec's
+example said `at the top end` and the panel says Top/Bottom on an upright part, ruling T8a); a faulted one's ` — check: <fault>` and
+`(and N more)` (T6b); a METRIC `<t>` prints at whole mm though a fitted length steps at 0.1 mm (76.2 and 76.0 mm both read `76 mm`, as
+two rows; Task 6 review Minor 2 — use hole precision?). (2) The overlap hint ` — its round tenon doesn't match the socket there`
+(`TENON_HINT`, T7b/T7c; it also fires for a too-deep tip in a matching blind socket). (3) The panel: row titles `Top` / `Bottom` /
+`Length min end` / `Length max end` and group names `<end> tenon` (T8a); the kept-fault note `The tenon would run into a hole — …`
+reads oddly when the hole is already there; the readout's first line has no period and `Seated in <part>'s socket.` has one; a part
+inside an assembly is named by its path (`Frame › Post A`). (4) The store's sentences (T8b): `This end already has a round tenon.`,
+`A round tenon can't change ends — remove it and add one at the other end.`, `A round tenon's diameter and length must be more than
+zero.` (5) Bore leg sockets: the checkbox `Tenon the legs (replaces their top tenons)`; `<leg>'s tenon: <fault>`; `socketsDisagree`
+naming leg copies (`Its copies stand over different legs (Front right, Front right (1)) …`), and its group form naming the group's
+first leg and the disagreeing placement; Level the ends' refusal, when it refuses the whole action, does not name the leg (T9c); the
+stale tenon note `<leg>'s tenon no longer fits its socket — Bore leg sockets again.` also shows for a typed top tenon that was never
+seated (before the first Bore; Task 9 review Minor 4). (6) Refine: the widened assembly sentence `Refine can't keep a leaning part, a
+part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: <name>.` (T10a) and `Kept as is
+(leans, angled holes or round tenons): …`.
+**Status:** open (owed to the user: wording).
+
+**465. Round tenons by eye (for the user).** (1) The Holes panel's `Tenon the legs` checkbox: its label and box sit inside the
+two-column field grid beside Socket diameter (the grid gets a third child) — check the layout. (2) A seat LOWERED under fitted
+legs (ruling T9a): the seat's Holes section now shows the Bore controls and the stale socket and tenon notes; check they read
+right before the re-fit. (3) The part diagram's side view: the tenon's waste (the four corners past the shoulder) stays inside the
+blank's outline, unhatched (Task 5 review Minor 2), while every other feature hatches its waste. (4) The tape snaps only to the
+tip's centre and the shoulder ring's centre: no shoulder section corners, no points on a square tip's ring (Task 5 review Minor 3).
+(5) A mitered tip shows the miter's letter on the tenon's end on the Plans sheet (ruling T6a). Plan Task 12's browser pass may
+close some.
+**Status:** open (owed to the user: by eye).
+
+**466. Round tenons: deferred minors (2026-10-25, the SDD ledger and task reviews).** (1) Task 1: `validateTenons` reaches the
+canonical sort through a `withTenons({} as …)` cast — export a canonicaliser. (2) Task 2: `turnCandidates` refuses every tenoned
+part (through `keepsExactly`), stricter than needed (a turn of an upright part that keeps the length's direction would be fine; it
+only loses a link). (3) Task 2: several copy sites test `b.tenons ?` instead of `hasTenons` (`frames.ts`, `treeEdit.ts`,
+`treeOps.ts`, `store.ts`), so a stray `[]` would be carried; the write-back strips it today. (4) Task 3: an end-edge band on the FAR
+end is never judged (the part does not carry the band type's thickness), so a shoulder inside such a band on a very short part is
+missed — pass the types, or treat it conservatively. (5) Task 3: `tenonFaultText`'s `'a feature'` fallback — make `feature`
+required on `meets-feature`. (6) Task 4: the closed shoulder wall in `holeFaults` is conservative (accepted). (7) Task 6: the
+bench line's `<s>` measures a far end with an `'other'` cut (a bevel, a second cut) from its uncut end face, right for a corner
+chamfer, approximate for a cut that crosses the axis (documented at `tenonLine`). (8) The perf guards (`curvesPerf`) flaked under
+load in Tasks 6–7 and must pass on a quiet machine before the merge.
+**Status:** open (record-only).

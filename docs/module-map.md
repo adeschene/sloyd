@@ -38,17 +38,28 @@ src/
 │   ├── holeRebase.ts     rebaseHoles (joinery's resize re-anchor, moved from generate/joints/recipes.ts) and levelEndHoles
 │   │                     (Level the ends' end-face rule: rows follow the wood, a tilted row's mouth slides along its bit;
 │   │                     angled holes §7), storableRow (the loader's keep test for a re-anchored row)
-│   ├── legSockets.ts     Bore leg sockets (angled holes §5), the ONE decider, pure: legsUnder (leaning parts whose level top is within
-│   │                     TOUCH of a down face, overlap > designCheck's REST_AREA), socketRow (a through row on the leg's
+│   ├── legSockets.ts     Bore leg sockets (angled holes §5), the ONE decider, pure: legsUnder(world, seat, units) (leaning parts whose
+│   │                     level top is within TOUCH of a down face, overlap > REST_AREA — from checkTolerances.ts —, OR a TENONED leg:
+│   │                     tenonInSeat — its top tenon's centre segment, shoulder centre → tip centre, in the seat's stock over a down face,
+│   │                     the axis meeting that face inside its outline; the ONE predicate staleSocketOf shares, ruling T9a — and
+│   │                     isLevelled, round tenons §6.3), partAxis (ANY part's world axis, min → max; WorldAxis), legAxis (partAxis
+│   │                     pointing up, leaning parts only), boreEnds, boreAlongAxis (THE coaxial test, 1e-9: isSocketOf and the tenon
+│   │                     joint's seatedIn each add their own rule on it), socketRow (a through row on the leg's
 │   │                     axis, entering from the top, `othersOf` layout, nearer end/side), isSocketOf (a through bore from the top, 1e-9) / staleSocketOf (tilted, through, from the top;
 │   │                     the axis line through a leg top in the TOUCH band; none for a matched leg), socketPlan (every copy plans its own legs; lowered
-│   │                     STORED row sets compared as a multiset, flag-free, 1e-9; a faulted socket left out as `note`); its five sentences, verbatim
+│   │                     STORED row sets compared as a multiset, flag-free, 1e-9; a faulted socket left out as `note`); its five sentences, verbatim;
+│   │                     round tenons §6: socketPlan's `tenonLegs` → `legs` (world patches, one per storage target), fitTop (levelPlan with
+│   │                     `topAt` the seat's top, the shoulder clearing the underside, the length rounded UP to tenonStep), legTenonPlan
+│   │                     (fitTop judged by tenonFaults), fitLegs (every storage group judged against its own seat; socketsDisagree;
+│   │                     Level the ends' refusal refuses all; a faulted fit named in `note`), changesNothing (inv 4)
 │   ├── levelEnds.ts      Level the ends (splayed legs §5, inv 57): levelPlan (two end miters along seamFree's face, each end's
 │   │                     length change rounded UP to the grid, top through R — the recognised top cut on the axis, else the pivot),
-│   │                     isLevelled, levelCutOf (ANY end miter is a level cut), sameLevelLine/depthFromMin; the refusals, verbatim
+│   │                     isLevelled, levelCutOf (ANY end miter is a level cut), sameLevelLine/depthFromMin; the refusals, verbatim;
+│   │                     round tenons: levelPlan's `opts.topAt` (a given top height, Tenon the legs) and roundUp exported (THE rounding rule)
 │   ├── leanContacts.ts   the checks' lean crossing (inv 38, 39, 57): worldBodyFaces (moved here from designCheck.ts, re-exported
 │   │                     there; the lean composed), levelFaces (±Y within LEVEL_EPS 1e-9), overlapArea (plan polygons)
-│   ├── leanKeep.ts       Refine's keep (inv 56, 57): keepsExactly (THE predicate: leans, or a tilted hole row — angled holes §9),
+│   ├── leanKeep.ts       Refine's keep (inv 56, 57): keepsExactly (THE predicate: leans, a tilted hole row — angled holes §9 — or a
+│   │                     round tenon, hasTenons, faulted included — round tenons §9), whyKept (the note's reason words),
 │   │                     keptParts (THE decision: ROOT stored parts whose resolved form keepsExactly + their
 │   │                     Shapes + flat names), leaningInAssembly ('lean-assembly'), keptNote (the USER-turn note, real bounds, why kept)
 │   ├── worldBounds.ts    partBounds / partsBounds, the ONE real-bounds helper (splayed legs §6.1 R2): a leaning part's
@@ -91,6 +102,24 @@ src/
 │   │                     bitVector (board-local, unnormalised, face-axis component ±1), tiltDegrees / tiltResultantDeg /
 │   │                     tiltSightlineDeg (lean.ts' two conversions restated — an import would cycle — and pinned equal by test),
 │   │                     withinTiltBound (THE bound, loader and store), retilt (the edit rule: a new face/from drops the tilt)
+│   ├── roundTenons.ts    THE round tenon (schema 24, inv 58): TENON_FIELDS (inv 40) / tenonValues / sameTenon / copyTenon, tenonsOf,
+│   │                     hasTenons, tenonAt, withTenons (canonical order; an empty list REMOVES the key), mirrorTenons / lowerTenons
+│   │                     (inv 44: the ends swap along the length), TENON_STEP / tenonStep (1/64", 0.1 mm; a TYPE-only Units import, no
+│   │                     → units edge), endCutOf (the end's own cut: none, its one miter — the tip —, or 'other'), shoulderAt,
+│   │                     tenonZone, tenonFaults (THE fault decider: too-wide, too-long, cut-reaches-shoulder, meets-feature —
+│   │                     conservative boxes, curves and profiles through featureRegions' shapedFeatures over profileView),
+│   │                     addedTenonFaults (the edit rule), defaultTenon (spec §4; a `metric` boolean, not Units), builtTenons (THE list
+│   │                     of tenons that build: fault-free, memoised per board object, frozen), onTenonSurface (snapPoints: no sloped-face
+│   │                     corners on the round side), tenonViewCurves (the waste as two overlapping square-span view curves, ids
+│   │                     `tenon/<id>/a|b`; appended by profiles.ts' geometryBoard)
+│   ├── tenonJoints.ts    THE tenon joint (round tenons §5, invs 38, 39): seatedIn (builds, single bore, same diameter, boreAlongAxis,
+│   │                     enters by > TOUCH, a blind bottom not passed by the tip's FURTHEST point, tipFarthest), tenonJoints (every seated
+│   │                     tenon in a flat document, world order, the FIRST match wins), staleTenonOf (a found leg's top tenon seated in
+│   │                     none of the seat's bores: the Holes section's note), withoutTenon (world bodies clipped to the shoulder's kept
+│   │                     half-space: the overlap waiver and checkedLevelFaces), tenonMeetsBore (the overlap's mismatch hint)
+│   ├── checkTolerances.ts TOUCH and REST_AREA, in a LEAF module (imports nothing): legSockets.ts and tenonJoints.ts read them, and
+│   │                     designCheck.ts (which re-exports both, so every old import site stays valid) imports tenonJoints, so taking them
+│   │                     from designCheck would cycle (designCheck → tenonJoints → legSockets → designCheck; ruling T7d)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
 │   │                     then value, Ruling P1), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44; the tilt rides the flags),
 │   │                     Hole's `bit` and `reach` (axial), tiltedHole (THE gate of every tilted branch), holeRegion (a bore's box,
@@ -113,11 +142,16 @@ src/
 │   │                     a blind one's `, depth measured along the bit`); socketFaultWords (a fault as what a socket would do);
 │   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
 │   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
+│   ├── tenonText.ts      THE round tenon words (→ units: it produces strings): tenonFaultText (the fault copy, verbatim), tenonLine (THE
+│   │                     bench line; the diameter at hole precision, holeLengthText; a faulted one's `— check:`), shoulderFromFarEnd
+│   │                     (THE shoulder number, bench line and Properties readout), TENON_END_TAKEN / TENON_END_FIXED /
+│   │                     TENON_SIZE_POSITIVE (the store's non-fault refusals, ruling T8b), tenonStale, legTenonFaulted
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden;
 │   │                     a tilted bore (tiltedLines): mouth and exit rims on the face planes, a blind bottom square to the bit, silhouettes along the bit
 │   ├── curves.ts         THE curve model (inv 53): CURVE_FIELDS (inv 40), CURVE_TOLERANCE 0.005 / SEGMENTS_MAX
+│   │                     (round tenons: CurveSpan.square and squareSpan — a span whose stops are plain walls with no run-out, a tenon's waste)
 │   │                     24 / STORED_MAX 64, copyCurve, mirrorCurveCut (inv 44), localSegments/arcOf (LocalArc: centre, radius,
 │   │                     rise, crown), curveOutline (chords ON the arc), smoothLines, bowsInto, wasteContains/isAir (P3),
 │   │                     circleMeetsWaste/rectMeetsWaste, rectOverlapsWaste (joinery's open test, P4: a side counts only where
@@ -138,7 +172,9 @@ src/
 │   │                     copyProfile, endToEnd, profileToFields/profileFromFields (v is always thickness: face = vFrom, side = u at
 │   │                     uFrom, facing v ↔ 'face'), profileAsCurve (THE profile → geometry step), profileOf (the migration's reader),
 │   │                     mirrorProfile (flag flips; a station run swaps on every mirror), geometryBoard (THE geometry view: curves then
-│   │                     profiles as chunk 1's CurveCuts, memoised per part, idempotent, the same object with no profiles; a stopped one carries `span`);
+│   │                     profiles as chunk 1's CurveCuts, memoised per part, idempotent, the same object with no profiles; a stopped one carries `span`;
+│   │                     round tenons: each built tenon's view curves appended last; profileView is the view WITHOUT them, read by
+│   │                     shapedFeatures so a tenon is never a feature of itself);
 │   │                     a2: runDim, travelSign, endPos (THE station → coordinate), oneSide, canonicalRun (P11), profileSpan,
 │   │                     profileFaults / viewProfileFaults (THE profile fault decider: stop-off, overlap; b1: runs-off, too-tight,
 │   │                     overlap on the path's cover; memoised per view, deep-frozen); b1: the view's `profiles` holds exactly the SWEPT
@@ -254,7 +290,10 @@ src/
 │   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3);
 │   │                     per view `curves` (waste polygons, hatched), `curveLines` (sharp-vertex lines, only on a face
 │   │                     the vertex lies on) and `curveNotes` (`curveLineEntries`); a curve opens its through face's min view only when
-│   │                     neither side exists, AFTER holes' entry views
+│   │                     neither side exists, AFTER holes' entry views; per view `tenons` (DiagramTenon: end, diameter, shoulder, and
+│   │                     `tip` — each side's station at the miter plane — on a mitered end's side views; round tenons §8): built tenons
+│   │                     only, on their own end view and every side view (a tenoned part with no side view opens thickness/min); a
+│   │                     tenon's square-span view curves are never drawn as curves
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
@@ -309,7 +348,11 @@ src/
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
 │   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
 │   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48); leaning parts
-│   │                     (inv 39, 57): LeanView (floor / rests / unlevelled / feet), REST_AREA 1e-9, the `Level the ends` hint;
+│   │                     (inv 39, 57): LeanView (floor / rests / unlevelled / feet), the `Level the ends` hint; TOUCH and REST_AREA
+│   │                     re-exported from checkTolerances.ts; round tenons (§5.2): realBodied (isAngled or built tenons), the joint
+│   │                     (`tenonJoints`: pairBodies' waiver, `joint` in groundedSet, isHeld's clause (d) with its groundedWithout guard),
+│   │                     `stands` (a tenoned part's floor test on its shoulder-trimmed wood), checkedLevelFaces (a leaning part's level
+│   │                     faces cut at its shoulders), TENON_HINT (the overlap's mismatch hint);
 │   │                     leanFreeChecks.test.ts pins lean-free results byte for byte
 │   ├── featureKeys.ts    THE feature keys (feature callouts spec §3): partFeatures (identity, owned segment tags, key line —
 │   │                     a short bench line, no positions —, fault suffix, true axis/normal), featureTag, FAULT_SUFFIX; b2: every stopped
@@ -353,7 +396,10 @@ src/
 │   │                     setLean (one write per Shape; keepSign / rakeSign / splaySign; refusals LEAN_NOT_UPRIGHT,
 │   │                     LEAN_PAST_BOUND, LEAN_TURNS_HOLES — the seam re-choice on a holed part) and levelEnds (inv 57; writes
 │   │                     the plan's holes with length and angle cuts); HOLE_TILT_PAST_BOUND from addHoleRows/updateHoleRow; patchBoard's pivot-keeping
-│   │                     resize; moveGroupTo rounds the delta when a part leans
+│   │                     resize; moveGroupTo rounds the delta when a part leans; round tenons (inv 58): addTenon / updateTenon /
+│   │                     removeTenon (world part, through mapWorld; refused with tenonFaultText or a T8b sentence before edit(); the
+│   │                     length never changed; store.roundTenons.test.ts) and boreLegSockets' `tenonLegs` (the seat's rows and every
+│   │                     leg patch in ONE edit); copyBoard re-mints tenon ids
 │   │                     (source's Shape users keep theirs, others take the source's); store.mirrorLinks.test.ts
 │   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
 │   │                     addCurves/updateCurve/removeCurve, the same shape
@@ -370,7 +416,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage — names the project's band types
 │                     (`Edging types in this design`), KEEP_LINE names edging and edge profiles, the design sent through toWireDesign —, detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, hole, band and profile design faults included, runRefine — the result's own band types, plain and joined —, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57), then `tenonRefusal` (round tenons §9: a part with any stored tenon, one sentence each; Repair and a joined Refine call it too, after the lean); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -403,14 +449,18 @@ src/
 │                     band's normal (`stopJunctions`); stopNormals.test.ts
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties (the Mirrored checkbox on a linked part), CopyInRow,
 │                     PartsList (a mirrored part's ⇋ badge, `role="img"` "Mirrored"),
-│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (as CLAUDE.md's per-file rule: a row click closes the
+│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (CLAUDE.md's per-file rule, in full: a row click closes the
 │                     menu at once; `onOpen` resolves null or why the project cannot be opened (`storage.readProject`, asked only
 │                     on failure so the switch path keeps `loadProject`), and a failure reopens the menu on that row with the
 │                     message, focus on the caret, fu 35),
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
-│                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map), diagramScale, diagramLabels (inv 19); planBalloons
+│                     SheetLayout (index labels are cut-list ROW numbers via its `numbers` map; a callout's number sits in a row outside the
+│                     drawing's nearer long edge — `packRow`, measured boxes, ordered by the part's centre — with a leader from the
+│                     part's near edge to its own number), diagramScale, diagramLabels (inv 19); planBalloons
 │                     (anchorsFor / layoutBalloons: the exploded view's balloon columns; with none it IS layoutSingle); planKeys (a trio's
-│                     feature tags: chooseView, letters, anchors, merge and push; pure); Popover (Claude ▾, More ▾; an item may carry a
+│                     feature tags: chooseView, letters, anchors, merge and push; pure — view order true and visible, visible, true
+│                     and hidden, any hidden, ties Front, Side, Plan; same-letter tags within a diameter merge, others pushed out
+│                     along their leaders and clamped inside the figure, a tag that still overlaps not drawn and its letter noted); Popover (Claude ▾, More ▾; an item may carry a
 │                     `title`, and `items` may be a function, called on each render while open),
 │                     Banding (the Banding section, the additions' pattern: while no selected part is banded only `+ Add banding ▾`; once
 │                     any is, a select per side, `Band ▾` — each type's all edges / long edges / ends, Remove all bands —, Corners only where
@@ -440,7 +490,12 @@ src/
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
 │                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5; Tilt toward end / side with the Tilt end /
 │                     Tilt side selects and the `off square · sightline` readout, retilt on a face/flag/along change only;
-│                     Socket diameter + Bore leg sockets on an unleaned part with legs under it, the stale-socket note), CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
+│                     Socket diameter + Bore leg sockets on an unleaned part with legs under it, the stale-socket note; round tenons:
+│                     the checkbox `Tenon the legs (replaces their top tenons)`, on by default, and the stale tenon note per found leg);
+│                     RoundTenons (the Round tenons section, after Holes, round tenons §4: one row per end — Top/Bottom upright, else
+│                     Length min/max end —; `Add round tenon` with defaultTenon, withheld with its fault when the store would refuse it;
+│                     Diameter, Length, `Shoulder … from the …`, `Seated in …'s socket.`, the kept-fault note, Remove; every decision
+│                     the store's addTenon / updateTenon / removeTenon), CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
 │                     Hardware (the Hardware section: `+ Add hardware ▾`, a count per type, `New hardware type…`; a part, an assembly or, with
 │                     nothing selected, the project — inv 55; reads `holderHardware`, whose arrays are STORED);
 │                     Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
