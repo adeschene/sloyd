@@ -37,14 +37,14 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `f3fced0`, bundle `index-B3SCZcHR.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 22** (splayed legs chunk 1, inv 57: a
-  part leans, Level the ends; merge `02e7b24`; deployed 2026-10-24). Owed to the user: see NEXT.
-- **Rollback:** the nearest refusing boundary is `68dca2d` (mirrored links, `index-_J_yZLbU.js`, schema 21): it REFUSES every
-  project saved at 22 — export first. Below it, `e2729ee` refuses 21; every deploy back to `98c7df4` is schema 20. Full
-  table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-25):** **Angled holes** (splayed legs chunk 2, schema 23; fu 437) is BUILT on branch `angled-holes`, not merged or
-  deployed; browser verification DONE (9/9 PASS, `docs/browser-verification-angled-holes.md`); next: merge, deploy (the user's decision). Splayed legs chunk 1 is deployed; owed: its perf guards on a
-  quiet machine. Owed to the user: the angled holes, splayed legs and mirrored links specs' Amended blocks; fu 454 (copy); fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups (417, 429 ask first).
+- **Production: `aa1f841`, bundle `index-B114iN-Y.js`, CSS `index-Cj7r9G0C.css`, SCHEMA 23** (angled holes, splayed legs chunk 2,
+  fu 437: a hole row tilts, Bore leg sockets; merge `aa1f841`; deployed 2026-10-25). Owed to the user: see NEXT.
+- **Rollback:** the nearest refusing boundary is `f3fced0` (splayed legs chunk 1, `index-B3SCZcHR.js`, schema 22): it REFUSES every
+  project saved at 23 — export first. Below it, `68dca2d` refuses 22 and `e2729ee` refuses 21; every deploy back to `98c7df4` is
+  schema 20. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (2026-10-25):** angled holes is deployed (perf guards passed on a quiet machine at the merge, 8395/8395). Owed to the
+  user: the angled holes, splayed legs and mirrored links specs' Amended blocks; fu 454 (copy); fu 402(1)–(2); the by-eye and
+  real-hardware items. Next feature: chunk 2b, round tenons (fu 447), then stretchers (fu 438). Then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -68,7 +68,7 @@ removing them "is just a waste of time"); never clear the dev profile wholesale 
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (22 since splayed legs, deployed 2026-10-24; 23 on branch `angled-holes`)
+**Rollback cost is a schema question.** A build understanding less than the file's version (23 since angled holes, deployed 2026-10-25)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -120,7 +120,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **23** (angled holes, on branch `angled-holes`, not deployed). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **23** (angled holes, deployed 2026-10-25). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -619,7 +619,7 @@ changes. The pre-2026-10-07 text with worked examples is in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 8389 tests across 237 files (timing guards can fail under load; re-run on a quiet machine before claiming a regression)
+npm test           # Vitest, currently 8395 tests across 237 files (timing guards can fail under load; re-run on a quiet machine before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
