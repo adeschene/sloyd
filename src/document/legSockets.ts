@@ -8,7 +8,7 @@ import { REST_AREA, TOUCH } from './designCheck';
 import { fromWorld, toWorld } from './snapPoints';
 import { holeInstances, holeRowValues, othersOf } from './holes';
 import { holeFaults } from './holeFaults';
-import { isTilted } from './holeTilt';
+import { isTilted, withinTiltBound } from './holeTilt';
 import { socketFaultWords } from './holeText';
 import { displayNames, partAt, worldParts } from './tree';
 import { mapWorld, storageKey } from './treeEdit';
@@ -32,6 +32,9 @@ export const socketsDisagree = (names: readonly string[]) =>
   `Its copies stand over different legs (${names.join(', ')}) — make them match, or make this part unique first.`;
 /** Copy (verbatim): a socket with a hole fault (`socketFaultWords`) is not bored. */
 export const socketFaulted = (leg: string, words: string) => `${leg}'s socket would ${words} — move the leg, or choose a smaller diameter.`;
+/** Copy (verbatim, final review F1): the socket's slopes would pass the tilt bound (`withinTiltBound`), which the loader
+ *  would drop; not bored. */
+export const socketTooSteep = (leg: string) => `${leg}'s socket would tilt past 45° — reduce the leg's lean.`;
 /** Copy (verbatim): the diameter is at or above the leg's smaller section dimension. */
 export const socketTooWide = (leg: string) => `The socket must be narrower than ${leg}.`;
 
@@ -150,8 +153,9 @@ function inConvex(poly: readonly [number, number][], q: readonly [number, number
 }
 
 /**
- * `leg`'s STALE socket in `seat` (spec §5), or null: a single TILTED bore (`socketRow` always tilts, its leg leans: a
- * user's own square clearance hole over a leg top is never taken for a socket) whose axis LINE passes through one of the
+ * `leg`'s STALE socket in `seat` (spec §5), or null: a single TILTED THROUGH bore entering from the seat's top (what
+ * `socketRow` writes, `isSocketOf`'s entry: a user's blind or underside bore, or own square clearance hole over a leg top,
+ * is never taken for a socket; final review M4) whose axis LINE passes through one of the
  * leg's up-facing level faces that rests in `legsUnder`'s band (within TOUCH in height of one of the seat's down-facing
  * level faces) — at that face's height, inside its plan polygon. The line, not the mouth-to-exit segment: a top up to
  * TOUCH BELOW the seat's bottom is under the seat too (one band for both; Task 10 review, fix 1). The structural test of
@@ -164,8 +168,12 @@ export function staleSocketOf(seat: Board, leg: Board, skip: ReadonlySet<string>
   const downs = levelFaces(seat).filter((f) => !f.up);
   const ups = levelFaces(leg).filter((f) => f.up && downs.some((d) => Math.abs(f.y - d.y) <= TOUCH));
   if (ups.length === 0) return null;
+  const entry = entryOf(seat);
   for (const row of seat.holes) {
-    if (row.count !== 1 || !isTilted(row) || skip.has(row.id)) continue;
+    // Only a row socketRow could have written (final review M4, the T10d precedent): a tilted single THROUGH bore entering
+    // from the seat's top, as `isSocketOf` requires. A user's blind or underside bore along the old line is left alone.
+    if (row.count !== 1 || row.depth !== 'through' || row.face !== entry.face || row.from !== entry.from) continue;
+    if (!isTilted(row) || skip.has(row.id)) continue;
     const [m, f] = boreEnds(seat, row);
     const dy = f[1] - m[1];
     if (Math.abs(dy) <= EPS) continue;
@@ -201,6 +209,11 @@ function copyPlan(world: readonly Board[], seat: Board, diameter: number, names:
     if (diameter >= Math.min(leg.width, leg.thickness)) { tooWide ??= leg; continue; }
     const stale = staleSocketOf(seat, leg, claimed);
     const row: HoleRow = { ...socketRow(seat, leg, diameter), id: stale ? stale.id : trialId(k++) };
+    // Past the ONE tilt bound the loader would drop the row (final review F1): a faulted socket, named, nothing written.
+    if (!withinTiltBound(row.tiltAlong ?? 0, row.tiltAcross ?? 0)) {
+      faulted.push(socketTooSteep(names.get(leg.id) ?? leg.name));
+      continue;
+    }
     const trial = stale ? rows.map((r) => (r.id === stale.id ? row : r)) : [...rows, row];
     const faults = holeFaults({ ...seat, holes: trial }, row);
     if (faults.length > 0) {
@@ -259,7 +272,8 @@ function sameRowSet(a: readonly HoleRow[], b: readonly HoleRow[], size: Pick<Boa
  * `levelEnds` collects them — plans its OWN legs (`copyPlan`); the stored row sets they would write must agree, or the
  * action refuses naming the copies, since the rows are stored once and a socket bored from one copy lands in all.
  * Refusals, in the spec's order: a diameter at or above a leg's smaller section (`socketTooWide`); copies that disagree
- * (`socketsDisagree`); and, when no socket can be bored, the faulted ones (`socketFaulted`, one sentence per leg). A
+ * (`socketsDisagree`); and, when no socket can be bored, the faulted ones (`socketFaulted`, or `socketTooSteep` past the
+ * tilt bound; one sentence per leg). A
  * faulted socket among others is not added and the rest are bored (§5: "The others are bored"): the plan then carries
  * those sentences as `note`.
  * `holes` is the seat's own array, unchanged, when every leg already has its socket (the store pushes no entry). New

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bitVector, isTilted, retilt, tiltDegrees, tiltResultantDeg, tiltSightlineDeg, withinTiltBound,
 } from './holeTilt';
-import { resultantDeg, sightlineDeg, slopeOf } from './lean';
+import { resultantDeg, sightlineDeg, slopeOf, withinBound } from './lean';
 import type { Dimension, HoleRow } from './types';
 
 const ROW: HoleRow = {
@@ -74,8 +74,25 @@ describe('retilt: an edit keeps the bore pointing the same way (spec §3.1)', ()
     expect('tiltAlong' in retilt(ROW, { ...ROW, alongFrom: 'max' })).toBe(false);
     expect('tiltAcross' in retilt(ROW, { ...ROW, alongFrom: 'max' })).toBe(false);
   });
-  it('a face or entry change clears the tilt', () => {
-    for (const next of [{ ...chiral, face: 'width' as const, along: 'length' as const }, { ...chiral, from: 'min' as const }]) {
+  it('an entry flip on the same face keeps the bore\'s line: the bit reverses, both slopes negate (final review F2)', () => {
+    const r = retilt(chiral, { ...chiral, from: 'min' });
+    expect(r.tiltAlong).toBe(-0.2);
+    expect(r.tiltAcross).toBe(0.05);
+    expect(same(bitVector(r), bitVector(chiral).map((v) => 0 - v))).toBe(true);
+    // Back again is the identity, exactly.
+    expect(retilt(r, { ...r, from: 'max' })).toEqual(chiral);
+    // With a flag flip in the same edit, each slope is re-read through the new flag too.
+    const both = retilt(chiral, { ...chiral, from: 'min', alongFrom: 'max' });
+    expect(both.tiltAlong).toBe(0.2);
+    expect(same(bitVector(both), bitVector(chiral).map((v) => 0 - v))).toBe(true);
+    // A zero slope stays absent (never -0), and a square row stays square.
+    const one = retilt({ ...ROW, tiltAlong: 0.3 }, { ...ROW, tiltAlong: 0.3, from: 'min' });
+    expect(one.tiltAlong).toBe(-0.3);
+    expect('tiltAcross' in one).toBe(false);
+    expect(Object.keys(retilt(ROW, { ...ROW, from: 'min' })).some((k) => k.startsWith('tilt'))).toBe(false);
+  });
+  it('a face change clears the tilt (ruling T2c)', () => {
+    for (const next of [{ ...chiral, face: 'width' as const, along: 'length' as const }, { ...chiral, face: 'width' as const, along: 'length' as const, from: 'min' as const }]) {
       const r = retilt(chiral, next);
       expect('tiltAlong' in r).toBe(false);
       expect('tiltAcross' in r).toBe(false);
@@ -108,8 +125,16 @@ describe('degrees, for display only', () => {
   });
 });
 
-describe('withinTiltBound: the ONE bound (each ≤ 45°, the resultant ≤ 45°)', () => {
-  it('the boundary is in', () => {
+describe('withinTiltBound: the ONE bound (each ≤ 45°, the resultant ≤ 45°, lean\'s 1e-9 allowance)', () => {
+  it('the boundary is in, with lean.ts\' withinBound allowance (final review F1)', () => {
+    expect(withinTiltBound(1 + 1e-9, 0)).toBe(true);
+    expect(withinTiltBound(0, -1 - 1e-9)).toBe(true);
+    expect(withinTiltBound(1 + 2 ** -52, 0)).toBe(true);
+    expect(withinTiltBound(1.000000000000005, 0)).toBe(true);   // the reviewer's 45° socket slope
+    // One rule for both bounds: agrees with lean's withinBound on every probe.
+    for (const [a, c] of [[1, 0], [1 + 1e-9, 0], [1 + 1e-8, 0], [0.6, 0.8], [0.6, 0.8 + 1e-9], [0.6, 0.8 + 1e-8], [0.8, 0.8], [NaN, 0]] as const) {
+      expect(withinTiltBound(a, c), `${a}, ${c}`).toBe(withinBound(a, c));
+    }
     expect(withinTiltBound(1, 0)).toBe(true);
     expect(withinTiltBound(0, -1)).toBe(true);
     expect(withinTiltBound(0.6, 0.8)).toBe(true);
@@ -117,8 +142,9 @@ describe('withinTiltBound: the ONE bound (each ≤ 45°, the resultant ≤ 45°)
     expect(withinTiltBound(0, 0)).toBe(true);
   });
   it('past it is out, and so is a non-finite slope', () => {
-    expect(withinTiltBound(1 + 2 ** -52, 0)).toBe(false);
-    expect(withinTiltBound(0, -1 - 2 ** -52)).toBe(false);
+    expect(withinTiltBound(1 + 1e-8, 0)).toBe(false);
+    expect(withinTiltBound(0, -1 - 1e-8)).toBe(false);
+    expect(withinTiltBound(0.6, 0.8 + 1e-8)).toBe(false);
     expect(withinTiltBound(0.6, 0.81)).toBe(false);
     expect(withinTiltBound(0.8, 0.8)).toBe(false);
     expect(withinTiltBound(NaN, 0)).toBe(false);

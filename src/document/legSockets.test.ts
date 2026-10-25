@@ -3,7 +3,7 @@ import type { Board, HoleRow, Shape, SloydDocument, StoredBoard } from './types'
 import type { V3 } from './angleCuts';
 import { createBoard, createDocument, migrateDocument } from './document';
 import { axisFrame } from './geometry';
-import { leanMap, resultantDeg, slopeOf, sightlineDeg, worldSlopes } from './lean';
+import { chooseFace, leanMap, resultantDeg, slopeOf, sightlineDeg, worldSlopes } from './lean';
 import { levelPlan } from './levelEnds';
 import { levelFaces } from './leanContacts';
 import { holeInstances } from './holes';
@@ -12,7 +12,7 @@ import { toWorld } from './snapPoints';
 import { mapWorld } from './treeEdit';
 import { worldParts } from './tree';
 import { stoolDocument, stoolLegs, stoolSeat } from './stoolFixture';
-import { isSocketOf, legsUnder, socketPlan, socketRow, staleSocketOf, socketStale } from './legSockets';
+import { isSocketOf, legsUnder, socketPlan, socketRow, socketTooSteep, staleSocketOf, socketStale } from './legSockets';
 
 const sub = (a: readonly number[], b: readonly number[]): V3 => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
 const len = (a: readonly number[]) => Math.hypot(a[0]!, a[1]!, a[2]!);
@@ -364,6 +364,14 @@ describe('socketRow / socketPlan', () => {
     expect(offAxis(m, ax)).toBeLessThanOrEqual(1e-9);
     expect(offAxis(f, ax)).toBeLessThanOrEqual(1e-9);
     expect(isSocketOf(seat, fromBottom, fr)).toBe(false);
+    // Nor is either STALE (final review M4): only a row socketRow could have written — a through bore from the seat's top —
+    // is ever replaced, so a user's blind or underside bore along the leg's line is left alone.
+    const only = (r: HoleRow): Board => ({ ...seat, holes: seat.holes.map((x) => (x.id === socket.id ? r : x)) });
+    expect(staleSocketOf(only(fromBottom), fr)).toBeNull();
+    expect(staleSocketOf(only({ ...socket, depth: 1 }), fr)).toBeNull();
+    // The control: the same row from the top at another angle is still stale.
+    const other = { ...socket, tiltAcross: 0 - socket.tiltAcross! };
+    expect(staleSocketOf(only(other), fr)).toBe(other);
   });
 
   it('the stale note copy', () => {
@@ -379,5 +387,55 @@ describe('socketRow / socketPlan', () => {
     const row = socketRow(seat, leg, 1);
     expect('tiltAlong' in row).toBe(false);
     expect(row.tiltAcross).not.toBe(0);
+  });
+});
+
+// Final review, Important 1 (ruling F1): a socket bored for a leg leaning 45° stores slopes a few ulps past 1 (leanMap and
+// fromWorld); the tilt bound takes lean's 1e-9 allowance, so it survives a reload, and socketPlan refuses past it.
+describe('a 45° leg (final review F1)', () => {
+  const T45 = slopeOf(45);
+  const legAt = (x: number, z: number): Board => relevel(createBoard({ name: 'Leg', length: 16, width: 1.5, thickness: 1.5,
+    posture: 'upright', position: [-0.75, 0, -0.75], lean: { x, z, face: chooseFace(createBoard({ posture: 'upright' }), x, z) } }));
+  const docOver = (leg: Board): SloydDocument => {
+    const p = leanMap(leg)!.pivot;
+    const top = levelFaces(leg).find((f) => f.up)!.y;
+    return { ...createDocument('Splay'), boards: [leg,
+      createBoard({ name: 'Seat', length: 40, width: 40, thickness: 1.5, posture: 'flat', position: [p[0] - 20, top, p[2] - 20] })] };
+  };
+
+  for (const [x, z] of [[T45, 0], [0, T45], [Math.SQRT1_2, Math.SQRT1_2]] as const) {
+    it(`lean (${x}, ${z}): the socket is bored, written, and KEPT through JSON and migrateDocument`, () => {
+      const doc = docOver(legAt(x, z));
+      expect(legsUnder(world(doc), seatOf(doc))).toHaveLength(1);
+      const after = bore(doc, seatOf(doc).id);
+      const row = seatOf(after).holes[0]!;
+      expect(seatOf(after).holes).toHaveLength(1);
+      const back = migrateDocument(JSON.parse(JSON.stringify(after)));
+      expect(seatOf(back).holes).toEqual([row]);
+      expectSockets(seatOf(back), legsOf(back));
+    });
+  }
+
+  it("a socket past the tilt bound is not bored: the leg is named in one sentence and nothing is written", () => {
+    // A lean past the bound never loads (withinBound), so the leg is built directly: 50° along X.
+    const leg = legAt(slopeOf(50), 0);
+    const doc = docOver(leg);
+    expect(legsUnder(world(doc), seatOf(doc))).toHaveLength(1);
+    expect(socketPlan(doc, seatOf(doc).id, 1)).toBe("Leg's socket would tilt past 45° — reduce the leg's lean.");
+    expect(socketTooSteep('Front right')).toBe("Front right's socket would tilt past 45° — reduce the leg's lean.");
+  });
+
+  it('a steep leg among others: the others are bored, the steep one noted', () => {
+    const steep = { ...legAt(slopeOf(50), 0), name: 'Steep' };
+    const ok = { ...legAt(slopeOf(10), 0), name: 'Fine' };
+    const p = leanMap(steep)!.pivot;
+    const top = levelFaces(steep).find((f) => f.up)!.y;
+    const moved = { ...ok, position: [ok.position[0], ok.position[1], ok.position[2] + 10] as [number, number, number] };
+    const doc: SloydDocument = { ...createDocument('Two'), boards: [steep, moved,
+      createBoard({ name: 'Seat', length: 40, width: 40, thickness: 1.5, posture: 'flat', position: [p[0] - 20, top, p[2] - 20] })] };
+    expect(legsUnder(world(doc), seatOf(doc))).toHaveLength(2);
+    const plan = socketPlan(doc, seatOf(doc).id, 1);
+    expect(plan).toMatchObject({ note: "Steep's socket would tilt past 45° — reduce the leg's lean." });
+    expect(typeof plan !== 'string' && plan.holes).toHaveLength(1);
   });
 });

@@ -57,28 +57,37 @@ export function tiltSightlineDeg(r: Pick<HoleRow, 'tiltAlong' | 'tiltAcross'>): 
   return Math.atan2(Math.abs(r.tiltAcross ?? 0), Math.abs(r.tiltAlong ?? 0)) / DEG;
 }
 
+/** The bound's float allowance: lean.ts' `BOUND_EPS`, written out again for the import cycle above (one rule for both
+ *  bounds, final review F1). */
+const BOUND_EPS = 1e-9;
+
 /**
- * The ONE bound on a tilt (spec §3.1): each slope at most 1 (45°) and the resultant `hypot` at most 1 (45° in all),
- * EXACT — the loader (`validateHoleRows`) and the store refuse with it, so what one keeps the other accepts. Unlike
- * lean.ts' `withinBound` there is no 1e-9 allowance: `tan 45°` and (0.6, 0.8) are inside as computed. A non-finite slope
- * is out.
+ * The ONE bound on a tilt (spec §3.1): each slope at most 1 (45°) and the resultant `hypot` at most 1 (45° in all), each
+ * within lean.ts' `withinBound` allowance (`<= 1 + 1e-9`, the same form) — the loader (`validateHoleRows`) and the store
+ * refuse with it, so what one keeps the other accepts. The allowance exists because a socket bored for a leg leaning
+ * exactly 45° (which lean's bound accepts) derives its slopes through `leanMap` and `fromWorld`, a few ulps past 1; an
+ * exact bound made the loader drop that socket silently (final review, Important 1). Its cost: a stored slope up to
+ * 1 + 1e-9 (≈45.00000003°) is accepted. A non-finite slope is out.
  */
 export function withinTiltBound(a: number, c: number): boolean {
   if (!Number.isFinite(a) || !Number.isFinite(c)) return false;
-  return Math.abs(a) <= 1 && Math.abs(c) <= 1 && Math.hypot(a, c) <= 1;
+  return Math.abs(a) <= 1 + BOUND_EPS && Math.abs(c) <= 1 + BOUND_EPS && Math.hypot(a, c) <= 1 + BOUND_EPS;
 }
 
 /**
- * The edit rule (spec §3.1): `next` with its tilt re-derived from `prev`'s. A changed `face` or `from` is a new bore: no
- * tilt. Otherwise the bit keeps its BOARD-LOCAL direction — each dimension's signed lateral component of `prev`'s bit is
- * re-read through `next`'s `along`, `alongFrom` and `acrossFrom` (a sign flip at most, so exact). A zero component is
- * omitted. `next`'s own tilt keys are not read: an edit OF the tilt writes its slopes itself.
+ * The edit rule (spec §3.1): `next` with its tilt re-derived from `prev`'s. A changed `face` is a new bore: no tilt (ruling
+ * T2c). Otherwise the bit keeps its BOARD-LOCAL line — each dimension's signed lateral component of `prev`'s bit is re-read
+ * through `next`'s `along`, `alongFrom` and `acrossFrom` (a sign flip at most, so exact). A `from` flip on the same face
+ * (final review F2) enters from the other side along the same line: the bit is REVERSED, so both lateral components are
+ * negated before that re-read — the bore keeps its angle through the wood (its mouth stays at its station and inset). A
+ * zero component is omitted (never -0). `next`'s own tilt keys are not read: an edit OF the tilt writes its slopes itself.
  */
 export function retilt(prev: HoleRow, next: HoleRow): HoleRow {
   const { tiltAlong: _a, tiltAcross: _c, ...rest } = next;
-  if (next.face !== prev.face || next.from !== prev.from) return rest;
+  if (next.face !== prev.face) return rest;
   const m = bitVector(prev);
-  const along = sign(next.alongFrom) * m[DIMENSION_ORDER.indexOf(next.along)]!;
-  const across = sign(next.acrossFrom) * m[DIMENSION_ORDER.indexOf(acrossOf(next))]!;
+  const rev = next.from !== prev.from ? -1 : 1;
+  const along = rev * sign(next.alongFrom) * m[DIMENSION_ORDER.indexOf(next.along)]!;
+  const across = rev * sign(next.acrossFrom) * m[DIMENSION_ORDER.indexOf(acrossOf(next))]!;
   return { ...rest, ...(along !== 0 ? { tiltAlong: along } : {}), ...(across !== 0 ? { tiltAcross: across } : {}) };
 }

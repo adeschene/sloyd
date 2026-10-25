@@ -1835,7 +1835,15 @@ describe('schema 23: the stored tilt (angled holes spec §3)', () => {
       expect(r, JSON.stringify(edge)).toBeDefined();
       for (const [k, v] of Object.entries(edge)) if (v !== 0) expect(r![k as 'tiltAlong']).toBe(v);
     }
-    for (const past of [{ tiltAlong: 1 + 2 ** -52 }, { tiltAlong: 0.6, tiltAcross: 0.81 }]) expect(holesOf(at(23, [{ ...row, ...past }]))).toEqual([]);
+    // Lean's 1e-9 allowance (final review F1): 1 + 1e-9 on a slope or on the resultant is kept; 1 + 1e-8 is dropped.
+    for (const edge of [{ tiltAlong: 1 + 1e-9 }, { tiltAcross: -1 - 1e-9 }, { tiltAlong: 0.6, tiltAcross: 0.8 + 1e-9 }]) {
+      const r = holesOf(at(23, [{ ...row, ...edge }]))[0];
+      expect(r, JSON.stringify(edge)).toBeDefined();
+      for (const [k, v] of Object.entries(edge)) expect(r![k as 'tiltAlong']).toBe(v);
+    }
+    for (const past of [{ tiltAlong: 1 + 1e-8 }, { tiltAcross: -1 - 1e-8 }, { tiltAlong: 0.6, tiltAcross: 0.8 + 1e-8 }, { tiltAlong: 0.6, tiltAcross: 0.81 }]) {
+      expect(holesOf(at(23, [{ ...row, ...past }])), JSON.stringify(past)).toEqual([]);
+    }
   });
   it('a zero tilt is stored as absent', () => {
     const r = holesOf(at(23, [{ ...row, tiltAlong: 0, tiltAcross: 0.2 }]))[0]!;

@@ -399,14 +399,19 @@ describe('tilting a row', () => {
     expect(screen.getByLabelText('Tilt end')).toHaveValue('max');
   });
 
-  it('a diameter edit keeps the tilt exactly; a face change is a new bore (square)', async () => {
+  it('a diameter edit keeps the tilt exactly; the other entry side keeps the line (slopes negated); a face change is a new bore (square)', async () => {
     const user = userEvent.setup();
-    open(side({ holes: [{ ...H, tiltAlong: T(10) }] }));
+    open(side({ holes: [{ ...H, station: 0.375, tiltAlong: T(10), tiltAcross: T(5) }] }));
     const d = screen.getByLabelText('Diameter');
     await user.clear(d); await user.type(d, '3/8{Enter}');
-    expect(rows()[0]).toMatchObject({ diameter: 0.375, tiltAlong: T(10) });
+    expect(rows()[0]).toMatchObject({ diameter: 0.375, tiltAlong: T(10), tiltAcross: T(5) });
+    // Final review F2: entering from the other side of the same face keeps the bore's angle through the wood.
     await user.selectOptions(screen.getByLabelText('Face'), 'thickness|min');
-    expect('tiltAlong' in rows()[0]!).toBe(false);
+    expect(rows()[0]).toMatchObject({ from: 'min', tiltAlong: -T(10), tiltAcross: -T(5) });
+    // A new face is a new bore (ruling T2c): square.
+    await user.selectOptions(screen.getByLabelText('Face'), 'length|min');
+    expect(rows()[0]!.face).toBe('length');
+    expect(Object.keys(rows()[0]!).some((k) => k.startsWith('tilt'))).toBe(false);
   });
 
   it('the readout on a tilted row: the angle off square and the sightline from the along dimension', () => {
@@ -566,8 +571,10 @@ describe('the tilt end / side picks (Task 9 review)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 past the width min side');
     expect(rows()[0]!.tiltAcross).toBe(T(40));
     expect(sel).toHaveValue('max');
-    // The other entry side is a new bore: square, and the select reads its default (the far side), not the refused pick.
-    await user.selectOptions(screen.getByLabelText('Face'), 'thickness|min');
+    // Another face is a new bore: square, and the select reads its default (the far side), not the refused pick. (The
+    // other entry side of the same face keeps the line since final review F2, so it is not a square row.)
+    await user.selectOptions(screen.getByLabelText('Face'), 'width|max');
+    expect(rows()[0]!.face).toBe('width');
     expect('tiltAcross' in rows()[0]!).toBe(false);
     expect(screen.getByLabelText('Tilt side')).toHaveValue('max');
   });

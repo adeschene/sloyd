@@ -35,8 +35,9 @@ const seedPitch = (diameter: number) => (mm(32) > diameter ? mm(32) : 2 * diamet
 const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
 
 const flipEnd = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
-/** The fields whose change re-reads the tilt (controller ruling T2c): the bit keeps its board-local direction through
- *  `retilt`, or, for a new face or entry side, the row is square again. Every other edit keeps the stored slopes. */
+/** The fields whose change re-reads the tilt (controller ruling T2c): the bit keeps its board-local line through
+ *  `retilt` (the other entry side of the same face negates both slopes, final review F2), or, for a new face, the row is
+ *  square again. Every other edit keeps the stored slopes. */
 const FRAME_KEYS = ['face', 'from', 'along', 'alongFrom', 'acrossFrom'] as const;
 /** A tilt key is stored only when non-zero (Global Constraints): an absent, zero or −0 slope leaves no key. */
 function cleanTilt(r: HoleRow): HoleRow {
@@ -72,8 +73,8 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
     let next: HoleRow = { ...row, ...patch };
     // A face change onto the row's direction swaps the two: the row keeps running along the old face dimension.
     if (next.along === next.face) next = { ...next, along: row.face };
-    // Angled holes §3.1 (ruling T2c): an edit of the row's frame keeps the bit's board-local direction (or squares it
-    // for a new face); a typed tilt is written by its own field, never re-derived.
+    // Angled holes §3.1 (ruling T2c, final review F2): an edit of the row's frame keeps the bit's board-local line (or
+    // squares it for a new face); a typed tilt is written by its own field, never re-derived.
     if (FRAME_KEYS.some((k) => next[k] !== row[k])) next = retilt(row, next);
     next = cleanTilt(next);
     // The store's ONE bound, judged first so a steep pair reads as the bound, not as whatever fault it would cause.
