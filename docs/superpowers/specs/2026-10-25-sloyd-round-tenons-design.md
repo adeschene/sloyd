@@ -1,8 +1,8 @@
 # Splayed legs, chunk 2b: round tenons — design
 
 Status: APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions, each answered below as my call: §5.1, §5.2, §6.3, §6.4). Follow-up 447 (the angled holes spec's §12 outline).
-**Built 2026-10-25 on branch `round-tenons`** (plan Tasks 1–11; schema 24); NOT merged or deployed. Browser verification (plan
-Task 12, dev server) PASS 8/8; final review clean; merge and deploy are the user's decision. Later rulings: the *Amended (build)* block at the end, which
+**Built 2026-10-25; merged `0699965` and DEPLOYED 2026-10-25 as `index-ObjqEMR0.js`** (plan Tasks 1–12; schema 24). Browser verification (plan
+Task 12, dev server) PASS 8/8; final review clean. Later rulings: the *Amended (build)* block at the end, which
 wins where it differs from the text — **awaiting the user's approval**. Chunk 1 (a part
 leans, schema 22) and chunk 2 (angled holes, schema 23) are deployed (`index-B114iN-Y.js`). Chunk 3, stretchers (fu 438),
 builds on this one.

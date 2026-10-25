@@ -12,8 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| round tenons (branch `round-tenons`, `c144abf` + records) | — (not deployed; the branch builds `index-DI0f3IAT.js`, CSS `index-BvtLBoRl.css`) | 24 | NOT DEPLOYED. Once deployed, rolling back to `aa1f841` REFUSES every project saved at 24 — export first; tenons, joints and Tenon the legs stop |
-| `aa1f841` (angled holes) | `index-B114iN-Y.js` | 23 | current |
+| `0699965` (round tenons) | `index-ObjqEMR0.js` (CSS `index-BvtLBoRl.css`) | 24 | current |
+| `aa1f841` (angled holes) | `index-B114iN-Y.js` | 23 | REFUSES every project saved at 24 — export first; tenons, joints and Tenon the legs stop |
 | `f3fced0` (splayed legs) | `index-B3SCZcHR.js` | 22 | REFUSES every project saved at 23 — export first; tilts and sockets stop |
 | `68dca2d` (mirrored links) | `index-_J_yZLbU.js` | 21 | REFUSES every project saved at 22 — export first; leans stop |
 | `e2729ee` (AI profiles) | `index-D_ed_oQ3.js` | 20 | REFUSES every project saved at 21 — export first; mirrored links stop |
@@ -144,8 +144,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Status log (to 2026-10-25)
 
-- **Round tenons, splayed legs chunk 2b (fu 447; 2026-10-25; branch `round-tenons`, NOT merged or deployed; SCHEMA 24 — once
-  deployed, rolling back past it REFUSES every project saved at 24, export first)**: spec
+- **Round tenons, splayed legs chunk 2b (fu 447; 2026-10-25; MERGED `0699965`, DEPLOYED 2026-10-25 as `index-ObjqEMR0.js`, CSS
+  `index-BvtLBoRl.css`; SCHEMA 24 — rolling back to `aa1f841` REFUSES every project saved at 24, export first)**: spec
   `docs/superpowers/specs/2026-10-25-sloyd-round-tenons-design.md` (its *Amended (build)* block holds the rulings that changed it,
   awaiting the user's approval), plan `docs/superpowers/plans/2026-10-25-sloyd-round-tenons.md`. Subagent-driven, 10 build tasks
   and this records task, each task-reviewed (fix rounds: Task 1 — `sameShared` compares tenon ids; Task 3 — shaped features through
