@@ -1,4 +1,5 @@
-import { type AngleCut, type Board, type Dimension, type Region, type RoundTenon } from './types';
+import { type AngleCut, type Board, type CurveSegment, type Dimension, type Region, type RoundTenon } from './types';
+import type { CurveSpan, ViewCurve } from './curves';
 import { DIMENSION_ORDER } from './geometry';
 import { clippedRegion, cutRemovesNothing } from './cuts';
 import { angleCutRemovesNothing, depthAt, touchedRegion } from './angleCuts';
@@ -198,4 +199,48 @@ export function addedTenonFaults(before: Board, after: Board, tenonEnd: RoundTen
   const old = tenonAt(before, tenonEnd);
   const had = new Set((old ? tenonFaults(before, old) : []).map(faultKey));
   return tenonFaults(after, t).filter((f) => !had.has(faultKey(f)));
+}
+
+// ---- Geometry: the tenon's waste as view curves (round tenons spec §7) -------------------------------------------
+
+/**
+ * The waste round a tenon (spec §7, P18's mechanism): the section minus the tenon's disc, through the length, over the zone,
+ * with a SQUARE stop at the shoulder (`span.square`: a plain wall, no run-out) and the end side open, so the end's miter (an
+ * angle cut, applied first) clips the tip. VIEW-ONLY: never stored, never validated; `geometryBoard` appends them for a
+ * fault-free tenon only.
+ *
+ * A rectangle minus a disc is no one simple outline, so it is TWO, which OVERLAP: each the section minus the disc minus one
+ * quadrant (A opens at the (+u, −v) quadrant, B at the (−u, +v) one), each round three quarter arcs of radius d / 2 about the
+ * section's centre, every arc MINOR. Their union is the waste. Where one outline leaves the circle (a sharp vertex of its
+ * own: a line meeting an arc square), the OTHER runs on round it through a quarter join — a tangent join, so its own outline
+ * judges it smooth (`curveOutline`, on the true arcs) — and the two quarters they share are the same arcs from the same
+ * points, so their chords are the same planes. So the round side is one inscribed polygon, every vertex of it a smooth
+ * vertex of some outline: no seam line along it (inv 16), and the silhouettes come from that outline's smooth vertices. No
+ * edge code knows about tenons.
+ *
+ * Ids `tenon:<tenon id>:a` and `:b`, `uFrom`/`vFrom` 'min' (u the width, v the thickness: `uvDims('length')`).
+ */
+export function tenonViewCurves(b: Pick<Board, Dimension | 'angleCuts'>, t: RoundTenon): ViewCurve[] {
+  const W = b.width, T = b.thickness;
+  const cx = W / 2, cy = T / 2, r = t.diameter / 2;
+  const bottom: [number, number] = [cx, cy - r], left: [number, number] = [cx - r, cy];
+  const top: [number, number] = [cx, cy + r], right: [number, number] = [cx + r, cy];
+  // Clockwise round the centre: an arc bowing to the LEFT of travel runs clockwise (`arcOf`).
+  const arc = (to: [number, number]): CurveSegment => ({ type: 'arc', to, side: 'left', radius: r });
+  const line = (to: [number, number]): CurveSegment => ({ type: 'line', to });
+  const s = shoulderAt(b, t);
+  const span: CurveSpan = t.end === 'max'
+    ? { lo: s, hi: b.length, stopLo: true, stopHi: false, square: true }
+    : { lo: 0, hi: s, stopLo: false, stopHi: true, square: true };
+  const base = { through: 'length' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [0, 0] as [number, number] };
+  return [
+    // A: open at the (+u, −v) quadrant; arcs bottom → left → top → right.
+    { ...base, id: `tenon:${t.id}:a`, span, segments: [
+      line([cx, 0]), line(bottom), arc(left), arc(top), arc(right), line([W, cy]), line([W, T]), line([0, T]), line([0, 0]),
+    ] },
+    // B: open at the (−u, +v) quadrant; arcs top → right → bottom → left.
+    { ...base, id: `tenon:${t.id}:b`, span, segments: [
+      line([W, 0]), line([W, T]), line([cx, T]), line(top), arc(right), arc(bottom), arc(left), line([0, cy]), line([0, 0]),
+    ] },
+  ];
 }

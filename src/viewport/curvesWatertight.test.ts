@@ -10,6 +10,8 @@ import { chamferCut } from '../document/angleCuts';
 import { builtSwept, sweptStops } from '../document/sweep';
 import { mirrorPart } from '../document/frames';
 import { defaultHole } from '../document/holes';
+import { tenonFaults } from '../document/roundTenons';
+import { stoolLegs } from '../document/stoolFixture';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, bowFront, chiralTwoSide, frontAndEnds, shortEnds, stationFrontToBack,
   stationFrontToRight, stationRightToBack, cornerGap, overlapCases, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
 
@@ -168,6 +170,31 @@ describe('a stopped profile\'s mesh is watertight, run-outs and chord scraps inc
     const { triangles, unmatched } = unmatchedEdges(board);
     expect(triangles).toBeGreaterThan(0);
     expect(unmatched).toBe(0);
+  });
+});
+
+// Round tenons (spec §7): a tenon's waste is two square-stopped view curves round the end; the mesh must close on the
+// shoulder, round the tenon and across the tip — a square end, a mitered tip, and a levelled leaning leg (its end miters).
+const tenonLeg = { length: 28, width: 1.75, thickness: 1.75 };
+const tenon = (end: 'min' | 'max' = 'max') => ({ id: `t-${end}`, end, diameter: 1, length: 1.5 });
+const tipMiter = { id: 'm', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0.1], [1.75, 0.4]] as [[number, number], [number, number]] };
+const tenonCases: [string, Board][] = [
+  ['a round tenon on a square end', createBoard({ ...tenonLeg, tenons: [tenon()] })],
+  ['round tenons on both ends', createBoard({ ...tenonLeg, tenons: [tenon('min'), tenon('max')] })],
+  ['a round tenon with a mitered tip', createBoard({ ...tenonLeg, angleCuts: [tipMiter], tenons: [tenon()] })],
+  ['a round tenon on a levelled leaning leg', { ...stoolLegs()[0]!, tenons: [tenon()] }],
+];
+describe('a round-tenoned part\'s mesh is watertight (round tenons spec §7)', () => {
+  it.each(tenonCases)('%s', (_name, board) => {
+    // The fixture is what it claims: every tenon fault-free, so it builds.
+    for (const t of board.tenons!) expect(tenonFaults(board, t)).toEqual([]);
+    expect(geometryBoard(board).curves.filter((c) => spanOf(c)?.square)).toHaveLength(2 * board.tenons!.length);
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it('the leaning fixture leans', () => {
+    expect(tenonCases[3]![1].lean).toBeDefined();
   });
 });
 

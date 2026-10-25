@@ -202,7 +202,8 @@ export function intoCurve(board: Board, h: Hole): FaultCurve | null {
     // A stopped profile (P14): the hole's extent along `through` must also meet the band extended by BEARING + reach at each stop.
     const sp = spanOf(c);
     if (hit && sp) {
-      const reach = runoutReach(board, c as ViewCurve);
+      // A square span (a round tenon's waste, round tenons spec §7) has no run-out: its walls are where it stops.
+      const reach = sp.square ? 0 : runoutReach(board, c as ViewCurve);
       const k = idx(c.through);
       const [a, z] = box ? box[c.through] : h.axis === c.through ? span(h) : [h.centre[k]! - h.radius, h.centre[k]! + h.radius];
       hit = z >= sp.lo - (sp.stopLo ? reach : 0) - HOLE_EPS && a <= sp.hi + (sp.stopHi ? reach : 0) + HOLE_EPS;

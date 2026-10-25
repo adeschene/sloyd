@@ -6,6 +6,14 @@ import type { AngleCut, Band, CurveCut, HoleRow, ProfileCut, RoundTenon } from '
 import { addedTenonFaults, endCutOf, shoulderAt, tenonFaults, tenonZone } from './roundTenons';
 import { curveOutline } from './curves';
 import { tenonFaultText } from './tenonText';
+import { arcChords, arcOf, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, spanOf } from './curves';
+import { geometryBoard, profileView } from './profiles';
+import { boardBodies, boardEdges, bodyVolume, geometryKey } from './bodies';
+import { silhouetteLines } from './curveDrawing';
+import { toWorld } from './snapPoints';
+import { stockProbe, type Segment } from './cuts';
+import { holeFaults } from './holeFaults';
+import type { V3 } from './angleCuts';
 
 const min: RoundTenon = { id: 't1', end: 'min', diameter: 1, length: 1.5 };
 const max: RoundTenon = { id: 't2', end: 'max', diameter: 1, length: 1.5 };
@@ -243,5 +251,148 @@ describe('round tenons: fix round 1 (review of Task 3)', () => {
     expect(shoulderAt(c, tn('max', 3))).toBeCloseTo(16.5, 12);
     expect(kinds(c, tn('max', 0.5))).toEqual([]);
     expect(kinds(c, tn('max', 0.25))).toEqual(['cut-reaches-shoulder']);
+  });
+});
+
+// ---- Geometry (round tenons spec §7; Task 4) ----
+
+describe('round tenons: geometry — bodies, edges, silhouettes', () => {
+  // A 2" x 2" x 20" leg with a 1" tenon 3" long: the shoulder at 17 (max) or 3 (min).
+  const r = 0.5;
+  /** Chords round the whole circle: 4 quarter arcs, each `arcChords` chords with vertices ON the circle (CURVE_TOLERANCE). */
+  const sides = 4 * arcChords(arcOf([1, 0.5], [0.5, 1], 'left', { radius: r }, 0), CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+  /** The inscribed polygon's area (the brief's π r² cannot hold to 1e-6: chords sit inside the arc, ~1.1% at r = 1/2"). */
+  const polyArea = (sides / 2) * r * r * Math.sin((2 * Math.PI) / sides);
+  const totalVolume = (b: Board) => boardBodies(b).reduce((s, x) => s + bodyVolume(x), 0);
+  const pts = (s: Segment): [V3, V3] => [[s[0].length, s[0].width, s[0].thickness], [s[1].length, s[1].width, s[1].thickness]];
+  /** Segments running along the length (no across component). */
+  const alongLength = (s: Segment) => {
+    const [a, b] = pts(s);
+    return Math.abs(b[1] - a[1]) <= 1e-9 && Math.abs(b[2] - a[2]) <= 1e-9 && Math.abs(b[0] - a[0]) > 1e-9;
+  };
+  /** Segments whose both ends lie on the plane length = x, at distance r from the section's centre (a ring's chords). */
+  const ringAt = (b: Board, x: number) => boardEdges(b).filter((s) => pts(s).every((p) => Math.abs(p[0] - x) <= 1e-9
+    && Math.abs(Math.hypot(p[1] - b.width / 2, p[2] - b.thickness / 2) - r) <= 1e-9));
+  const inZone = (b: Board, [lo, hi]: [number, number]) => boardEdges(b).filter((s) => alongLength(s)).filter((s) => {
+    const m = (s[0].length + s[1].length) / 2;
+    return m > lo + 1e-9 && m < hi - 1e-9;
+  });
+
+  it('geometryBoard: a tenon-free part is the SAME object; a tenon appends two square-stopped view curves', () => {
+    const plain = leg();
+    expect(geometryBoard(plain)).toBe(plain);
+    const b = leg({ tenons: [tn('max', 3)] });
+    const v = geometryBoard(b);
+    expect(v).not.toBe(b);
+    expect(geometryBoard(b)).toBe(v);
+    expect(geometryBoard(v)).toBe(v);
+    expect(v.curves.map((c) => [c.id, spanOf(c)])).toEqual([
+      ['tenon:t-max:a', { lo: 17, hi: 20, stopLo: true, stopHi: false, square: true }],
+      ['tenon:t-max:b', { lo: 17, hi: 20, stopLo: true, stopHi: false, square: true }],
+    ]);
+    // Every arc is MINOR, of radius d / 2 about the section's centre.
+    for (const c of v.curves) for (const s of localSegments(v, c)) {
+      if (s.kind !== 'arc') continue;
+      expect(s.radius).toBe(r);
+      expect(Math.abs(s.sweep)).toBeLessThan(Math.PI);
+      expect(Math.hypot(s.centre[0] - 1, s.centre[1] - 1)).toBeLessThan(1e-12);
+    }
+    expect(spanOf(geometryBoard(leg({ tenons: [tn('min', 3)] })).curves[0]!)).toEqual({ lo: 0, hi: 3, stopLo: false, stopHi: true, square: true });
+  });
+
+  it('a FAULTED tenon builds nothing; a tenoned part with a profile returns (no recursion) and judges against the profile view', () => {
+    const wide = leg({ tenons: [tn('max', 3, 2)] });
+    expect(tenonFaults(wide, wide.tenons![0]!).map((f) => f.kind)).toEqual(['too-wide']);
+    expect(geometryBoard(wide)).toBe(wide);
+    expect(totalVolume(wide)).toBeCloseTo(80, 9);
+    const side = { across: 'width' as const, from: 'min' as const };
+    const profiled = leg({ tenons: [tn('max', 3)], profiles: [{ id: 'p', face: 'max', kind: 'roundover', size: 0.25, facing: 'face', run: { start: { side, through: 'min' }, end: { side, from: 'min', at: 5 } } }] });
+    const v = geometryBoard(profiled);
+    expect(v.curves.map((c) => c.id)).toEqual(['p', 'tenon:t-max:a', 'tenon:t-max:b']);
+    expect(profileView(v).curves.map((c) => c.id)).toEqual(['p']);
+    expect(profileView(profiled)).toBe(profileView(v));
+    expect(tenonFaults(profiled, profiled.tenons![0]!)).toEqual([]);
+  });
+
+  it('geometryKey reads the tenon', () => {
+    expect(geometryKey(leg({ tenons: [tn('max', 3)] }))).not.toBe(geometryKey(leg()));
+    expect(geometryKey(leg({ tenons: [tn('max', 3)] }))).not.toBe(geometryKey(leg({ tenons: [tn('max', 2.5)] })));
+  });
+
+  it('volume: the section x the shoulder plus the inscribed polygon x the tenon (square ends, each end, both)', () => {
+    for (const t of [tn('max', 3), tn('min', 3)]) {
+      const want = 4 * 17 + polyArea * 3;
+      expect(Math.abs(totalVolume(leg({ tenons: [t] })) - want)).toBeLessThan(1e-6 * want);
+    }
+    const want = 4 * 15 + polyArea * 5;
+    expect(Math.abs(totalVolume(leg({ tenons: [tn('min', 2), tn('max', 3)] })) - want)).toBeLessThan(1e-6 * want);
+  });
+
+  it('volume: a mitered tip — the polygon x the tenon length at the centre (the plane through the axis point cancels)', () => {
+    const b = leg({ angleCuts: [topMiter(0.25, 0.75)], tenons: [tn('max', 3)] });
+    const want = 4 * shoulderAt(b, b.tenons![0]!) + polyArea * 3;
+    expect(Math.abs(totalVolume(b) - want)).toBeLessThan(1e-6 * want);
+  });
+
+  it('every body is convex', () => {
+    for (const b of [leg({ tenons: [tn('max', 3)] }), leg({ tenons: [tn('min', 2), tn('max', 3)] }), leg({ angleCuts: [topMiter(0.25, 0.75)], tenons: [tn('max', 3)] })]) {
+      for (const body of boardBodies(b)) {
+        const verts = body.faces.flatMap((f) => f.verts);
+        for (const f of body.faces) {
+          const d = f.n[0] * f.verts[0]![0] + f.n[1] * f.verts[0]![1] + f.n[2] * f.verts[0]![2];
+          for (const p of verts) expect(f.n[0] * p[0] + f.n[1] * p[1] + f.n[2] * p[2] - d).toBeLessThanOrEqual(1e-9);
+        }
+      }
+    }
+  });
+
+  it('edges: a ring at the shoulder and one at the end, the inscribed polygon each', () => {
+    const b = leg({ tenons: [tn('max', 3)] });
+    expect(ringAt(b, 17)).toHaveLength(sides);
+    expect(ringAt(b, 20)).toHaveLength(sides);
+    const m = leg({ tenons: [tn('min', 3)] });
+    expect(ringAt(m, 3)).toHaveLength(sides);
+    expect(ringAt(m, 0)).toHaveLength(sides);
+  });
+
+  it('THE SEAM TEST (spec §7): no line along the length inside the zone — a round tenon has no sharp vertex', () => {
+    const cases: [Board, [number, number]][] = [
+      [leg({ tenons: [tn('max', 3)] }), [17, 20]],
+      [leg({ tenons: [tn('min', 3)] }), [0, 3]],
+      [leg({ angleCuts: [topMiter(0.25, 0.75)], tenons: [tn('max', 3)] }), [16.5, 20]],
+      [createBoard({ name: 'Rung', length: 20, width: 2.5, thickness: 1.5, tenons: [tn('max', 3), tn('min', 2.5)] }), [17, 20]],
+    ];
+    for (const [b, zone] of cases) expect(inZone(b, zone)).toEqual([]);
+    // ... while the shoulder's own wood still draws its four corner lines along the length.
+    expect(boardEdges(leg({ tenons: [tn('max', 3)] })).filter((s) => alongLength(s) && (s[0].length + s[1].length) / 2 < 17)).toHaveLength(4);
+  });
+
+  it('a square stop has no run-out: the stock probe and hole faults read the shoulder as wood', () => {
+    const b = leg({ tenons: [tn('max', 3)] });
+    const probe = stockProbe(b);
+    const corner = (length: number) => ({ length, width: 0.1, thickness: 0.1 });
+    expect(probe(corner(16.9))).toBe(true);
+    expect(probe(corner(17))).toBe(true); // the shoulder's face is stock
+    expect(probe(corner(18))).toBe(false); // the waste round the tenon is air
+    expect(probe({ length: 18, width: 1, thickness: 1 })).toBe(true); // the tenon itself
+    // A bore 1/4" short of the shoulder (a profile's run-out reach would catch it) breaks nothing out.
+    const bored = leg({ tenons: [tn('max', 3)], holes: [{ ...hole(16.5), diameter: 0.25 }] });
+    expect(tenonFaults(bored, bored.tenons![0]!)).toEqual([]);
+    expect(holeFaults(bored, bored.holes[0]!)).toEqual([]);
+  });
+
+  it('silhouettes: one pair in a side view, at ±r, from the shoulder to the end', () => {
+    const b = leg({ tenons: [tn('max', 3)] });
+    const origin = toWorld(b, { length: 0, width: 0, thickness: 0 });
+    const dir = (p: { length: number; width: number; thickness: number }) => toWorld(b, p).map((w, i) => w - origin[i]!) as V3;
+    // Looking along the width and along the thickness: each tangent point is a quarter join (one outline's smooth vertex).
+    for (const toward of [dir({ length: 0, width: 1, thickness: 0 }), dir({ length: 0, width: 0, thickness: 1 })]) {
+      const lines = silhouetteLines(b, toward);
+      expect(lines).toHaveLength(2);
+      for (const l of lines) {
+        const a = Math.min(l.A[0], l.E[0]), e = Math.max(l.A[0], l.E[0]);
+        expect([a, e]).toEqual([17, 20]);
+      }
+    }
   });
 });

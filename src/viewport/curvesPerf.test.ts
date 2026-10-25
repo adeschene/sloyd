@@ -157,6 +157,19 @@ describe('a curved part rebuilds inside a frame', () => {
       expect(minOf9(board)).toBeLessThanOrEqual(40);
     });
   }
+  // Round tenons (spec §7): a 1 3/4" leg with a 1" round tenon 1 1/2" long at its top — two square-stopped view curves round
+  // the tenon — and a mitered tip; the existing curve budget.
+  const tenonLeg = (k: number, angleCuts: Board['angleCuts'] = []) => createBoard({ length: 28 * k, width: 1.75, thickness: 1.75, angleCuts,
+    tenons: [{ id: 't', end: 'max', diameter: 1, length: 1.5 }] });
+  const tipMiter: Board['angleCuts'][number] = { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0.1], [1.75, 0.4]] };
+  it('a leg with a round tenon: at most 40 ms', () => {
+    expect(geometryBoard(tenonLeg(1)).curves.every((c) => spanOf(c)?.square)).toBe(true);
+    expect(minOf9((k) => tenonLeg(k))).toBeLessThanOrEqual(40);
+  });
+  it('a leg with a round tenon and a mitered tip: at most 40 ms', () => {
+    expect(geometryBoard(tenonLeg(1, [tipMiter])).curves).toHaveLength(2);
+    expect(minOf9((k) => tenonLeg(k, [tipMiter]))).toBeLessThanOrEqual(40);
+  });
 });
 
 // Profile runs b1 (Task 5; spec Q4, the Global Constraints' table): a profile that FOLLOWS the outline — the swept band built
