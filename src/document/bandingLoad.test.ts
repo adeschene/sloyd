@@ -83,7 +83,7 @@ describe('loading schema 19 (edge banding spec §2.3)', () => {
     expect(d.materials.map((m) => m.id)).toEqual(['m-s-wenge']);
     expect(d.bandTypes[1]).toMatchObject({ material: 'm-s-wenge' });
   });
-  it('a v23 file is refused by the version gate', () => {
+  it('a v24 file is refused by the version gate', () => {
     expect(() => migrateDocument({ ...raw({}), version: 24 })).toThrow(/newer version/);
   });
 });

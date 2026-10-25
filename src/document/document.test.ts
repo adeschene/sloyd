@@ -1228,7 +1228,7 @@ describe('the v10 step: instances and definitions (assemblies spec §2.5)', () =
     expect(d.definitions).toEqual([]);
   });
 
-  it('refuses a version above 22', () => {
+  it('refuses a version above 23', () => {
     expect(() => migrateDocument({ version: 24, boards: [] })).toThrow(/newer version/);
   });
 });
@@ -1377,7 +1377,7 @@ describe('v13: mirrored instances (mirrored-instances spec §2)', () => {
       expect('mirrored' in i, String(bad)).toBe(false);
     }
   });
-  it('a v12 file loads unmirrored; a v23 file is refused', () => {
+  it('a v12 file loads unmirrored; a v24 file is refused', () => {
     const v12 = { ...raw(undefined), version: 12 };
     expect('mirrored' in migrateDocument(JSON.parse(JSON.stringify(v12))).instances[0]!).toBe(false);
     expect(() => migrateDocument({ ...raw(true), version: 24 })).toThrow(DocumentError);
@@ -1750,7 +1750,7 @@ describe('schema 21: a mirrored shaped part (mirrored links, fu 432, spec §3)',
     expect(d.boards.some((b) => 'mirrored' in b)).toBe(false);
   });
 
-  it('a v23 file is refused', () => {
+  it('a v24 file is refused', () => {
     expect(() => migrateDocument(raw([user('a'), user('b', true)], 24))).toThrow(/newer version of Sloyd/);
   });
 });

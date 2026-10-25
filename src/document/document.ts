@@ -194,6 +194,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * refuses nothing on content. Harm a v21 build would do: it ignores the lean, so a splayed leg is drawn and cut as a
  * plumb one — a stool's legs stand straight, its cut list and drawings lose the lean — silently, and autosaves it.
  * So a v22 file must be refused by a v21 build.
+ *
+ * v23 (angled holes spec §3): `tiltAlong` / `tiltAcross` on a hole row — the bit's travel per inch of axial travel (along
+ * the face's normal), along the row and across it, relative to the row's own flags — document-level, no step: an absent tilt is a square bore. The loader
+ * keeps a tilt only when finite and non-zero (zero is stored as absent) and DROPS the row, never the part, on a non-finite
+ * slope or one past the bound (`withinTiltBound`: each |slope| <= 1, resultant <= 1, 45 degrees). It refuses nothing on
+ * content. Harm a v22 build would do: it rebuilds each row field by field, drops the tilt and drills the bore square — a
+ * seat's leg sockets point straight down — silently, and autosaves it. So a v23 file must be refused by a v22 build.
  */
 export const CURRENT_VERSION = 23;
 
