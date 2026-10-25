@@ -188,7 +188,8 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, onFloor: (i: number) =
  * The parts connected to the floor through touching parts, optionally with one part removed from the design. The ONE
  * grounding walk (inv 39): with a `lean` view, a pair with a leaning part is joined only when one RESTS on the other and a
  * leaning part starts the walk only from a level foot on the floor (splayed legs §7.2); every other pair and part is
- * judged exactly as without it.
+ * judged exactly as without it. `joint` adds the seated-tenon pairs (round tenons §5.2); `stands`, when given, is each
+ * part's floor test on its tenon-trimmed wood (a built tenon is never a contact), replacing the box's.
  */
 function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null, lean: LeanView | null = null, joint: ((i: number, j: number) => boolean) | null = null, stands: readonly boolean[] | null = null): Set<number> {
   const plain = (i: number, j: number) => (tapered[i] || tapered[j]
@@ -282,7 +283,9 @@ function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
  * pass; coverage, not two-sidedness, is what catches the workbench shelf: it
  * touched legs on BOTH ends, 19% each.
  * (d) JOINED (round tenons spec §5.2): a seated tenon joins its part and its socket's part (`partners`, either way round),
- * and either is held by the other (`without` excluded, as for every clause). A full alternative to (a)–(c), for any part,
+ * and either is held by the other (`without` excluded, as for every clause) — but only when that partner reaches the
+ * floor without `i` (`groundedWithout(i)`, the top-face clause's own guard), so two parts never hold each other up off
+ * the ground. A full alternative to (a)–(c), for any part,
  * leaning or not, with no coverage threshold (that belongs to the contact clauses). It is ADDED: (a), (b), (c), the
  * coverage threshold and both halves of the top-face clause run exactly as before (inv 39's PROHIBITION).
  */
