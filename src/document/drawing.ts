@@ -13,6 +13,8 @@ import { geometryBoard, shapedPart } from './profiles';
 import { BAND_SIDES, bandFaults, glueLines, sameSide } from './banding';
 import { faceOutline, sideStretch } from './profilePath';
 import { leanMap, leans } from './lean';
+import { squareSpan } from './curves';
+import { hasTenons, onTenonSurface } from './roundTenons';
 import { partBounds } from './worldBounds';
 
 /**
@@ -244,6 +246,19 @@ function leanLifts(b: Board, toward: readonly number[]): ((p: readonly number[],
   };
 }
 
+/**
+ * Which of a TENONED part's edges are the tenon's (round tenons spec §8: a tenon adds no tags; its callouts are out of scope):
+ * one on a tenon's view curve (`squareSpan`), or one whose two ends lie on a built tenon's round surface (`onTenonSurface`:
+ * the shoulder ring, the round side, a mitered tip's ring). Null for a tenon-free part, which keeps its path exactly.
+ * `b` is the geometry view.
+ */
+function tenonUntagged(b: Board): ((curve: string | undefined, p: readonly number[], q: readonly number[]) => boolean) | null {
+  if (!hasTenons(b)) return null;
+  const views = new Set(b.curves.filter(squareSpan).map((c) => c.id));
+  const at = (x: readonly number[]) => ({ length: x[0]!, width: x[1]!, thickness: x[2]! });
+  return (curve, p, q) => (curve !== undefined && views.has(curve)) || (onTenonSurface(b, at(p)) && onTenonSurface(b, at(q)));
+}
+
 function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly BandType[]): Seg3[] {
   const planes = bandPlanes(b, bandTypes);
   b = geometryBoard(b);
@@ -261,10 +276,14 @@ function partSegments(b: Board, toward: readonly number[], bandTypes?: readonly 
   // Final review F1: an edge a curve's outline bounds carries the silhouettes' lift, so a shallow viewer-facing face
   // does not graze it hidden in its own wood. The lift moves only the hidden-line probe.
   const lifts = curveEdgeLifts(b, toward);
+  const untagged = tenonUntagged(b);
   return curveDrawEdges(b).map((e, i) => {
     const A = W(e.p);
     const E = W(e.q);
-    const tag = e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q) ?? (planes.length ? bandTag(planes, e.p, e.q) : undefined);
+    // A round tenon's edges carry NO tag (round tenons spec §8: no callouts), decided BEFORE the angle fall-through, or a
+    // mitered tip's ring would take the miter's tag.
+    const tag = untagged?.(e.curve, e.p, e.q) ? undefined
+      : e.curve ? featureTag(b.id, 'curve', e.curve) : angleTag(b, e.p, e.q) ?? (planes.length ? bandTag(planes, e.p, e.q) : undefined);
     // A leaning part's edge no outline face lifts (a level cut's face) takes its own-wood lift (splayed legs §6.2).
     const lift = lifts[i] ?? leanLift?.(e.p, e.q);
     if (!e.path) return withTag(lift ? { A, E, lift } : { A, E }, tag);
@@ -370,10 +389,12 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     if (section && !keptBox(boardBox(b, off), section)) continue;
     // Board edges (invariant 16) and hole lines (holes spec §3.4): one list, one hidden-line pass, the same occluders —
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
+    const views = hasTenons(b) ? new Set(geometryBoard(b).curves.filter(squareSpan).map((c) => c.id)) : null;
     const segments: Seg3[] = [
       ...partSegments(b, view.toward, bandTypes),
       ...holeDrawingTagged(b, view.toward, visibleOnly).map(({ A, E, row }) => ({ A, E, feature: featureTag(b.id, 'hole', row) })),
-      ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),
+      // A round tenon's silhouettes (its round side) carry no tag (spec §8), as its edges.
+      ...silhouetteLines(b, view.toward).map(({ curve, ...s }) => (views?.has(curve) ? s : { ...s, feature: featureTag(b.id, 'curve', curve) })),
       // Profile runs a2: a stopped profile's run-outs outline themselves by facet-chain silhouettes; b1: so does a swept
       // profile's surface (none on any other part).
       ...profileSilhouettes(b, view.toward).map(({ curve, ...s }) => ({ ...s, feature: featureTag(b.id, 'curve', curve) })),

@@ -1000,6 +1000,9 @@ describe('round tenons on the cut list (round tenons spec §8)', () => {
   it('the signature is order-independent: the same two tenons stored max-first are one row', () => {
     expect(rows([{ tenons: [foot, tenon] }, { tenons: [tenon, foot] }])).toHaveLength(1);
   });
+  it('a tenoned leg\'s setup is its tenon line alone: no curve line for its view curves', () => {
+    expect(rows([{ tenons: [tenon] }])[0]!.setup).toEqual(['1" round tenon, 3" long — at the length max end, shoulder 17" from the other end']);
+  });
   it('the row\'s length is the blank\'s, tenon included (spec §3.1, inv 18)', () => {
     const r = rows([{ tenons: [tenon] }])[0]!;
     expect(r.length).toBe(20);

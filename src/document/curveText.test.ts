@@ -344,3 +344,16 @@ describe('stopped runs on a turned path and two-side runs (profile runs b2, Q21)
     expect(lastLine(withRun(topCorners(2), p), IMPERIAL)[0]).toBe('Roundover 1/4" on the thickness face (max side), from the width min side at 10" round the corner to the length max end at its width max side (stopped)');
   });
 });
+
+describe('a round tenon prints no curve line (round tenons spec §8: the tenon\'s own line replaces its view curves)', () => {
+  const tenon = { id: 't', end: 'max' as const, diameter: 1, length: 3 };
+  const leg = createBoard({ id: 'L', name: 'Leg', length: 20, width: 2, thickness: 2, tenons: [tenon] });
+  it('a tenoned part has no curve lines', () => {
+    expect(curveLines(leg, IMPERIAL)).toEqual([]);
+  });
+  it('its real curves keep theirs', () => {
+    const k = { id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 0.5 }) };
+    const b = { ...leg, tenons: [{ ...tenon, end: 'min' as const }], curves: [k] };
+    expect(curveLines(b, IMPERIAL)).toEqual([curveLine(b, k, IMPERIAL)]);
+  });
+});
