@@ -20,7 +20,7 @@ in the dev profile with its four sockets bored (the user's 2026-10-17 ruling).
 
 **Finding (check 5):** right after a lean edit, BEFORE Level the ends, the seat shows no stale note: the leg's top is no longer
 level, so it does not "stand under" the seat (spec §5's resting rule), and the Lean section's own `Level the ends again` note is
-the cue. Once re-levelled the stale note appears and re-boring works. Recorded as a follow-up; the spec's "a later lean edit …
+the cue. Once re-levelled the stale note appears and re-boring works. Recorded as follow-up 456; the spec's "a later lean edit …
 the seat notes it" holds one step later.
 
 **Not verified in the browser:** real hardware (fu 26a): software GL hides nothing new (no new shaders), but the by-eye check

@@ -3,7 +3,7 @@
 Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken 2026-10-24 (one question, answered in §5 as my call). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`),
 follow-up 437. Chunk 1 (a part that leans, schema 22) is deployed: `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md`.
 **Built 2026-10-25 on branch `angled-holes`** (plan Tasks 1–12; schema 23); NOT merged or deployed. Browser verification (plan
-Task 13) is owed. Later rulings: the *Amended (build)* block at the end, which wins where it differs from the text.
+Task 13) DONE 2026-10-25: 9/9 PASS (`docs/browser-verification-angled-holes.md`); next: merge, deploy (the user's decision). Later rulings: the *Amended (build)* block at the end, which wins where it differs from the text.
 
 The user chose stretchers next. The numbers on the chunk 1 stool (rake 8°, splay 12°) showed that a square rung's end lands
 across a leaning leg's corner, so no saw cut can shoulder it flush; staked furniture fits rungs as round tenons in sockets
@@ -260,7 +260,7 @@ model it is not reached by a tilt, and the builder notes it.
 
 Rulings made while building, on branch `angled-holes` (2026-10-24/25; the SDD ledger and the task reports). The code plus these
 rulings govern; where one differs from the text above, this block wins. Records: invariants 44, 50, 51, 56 and 57 in
-`docs/invariants.md`; follow-ups 447–455 (437 closed but the round tenon).
+`docs/invariants.md`; follow-ups 447–456 (437 closed but the round tenon).
 
 - **Ruling P1 — tilt keys in `holeRowValues` carry their NAMES (§3.1's "`holeRowValues` skips an absent tilt", narrowed).** For
   EACH PRESENT tilt key it appends the key's name then its value (e.g. `'tiltAlong', 0.25`), in `HOLE_KEYS` order; an absent key
@@ -309,11 +309,24 @@ rulings govern; where one differs from the text above, this block wins. Records:
   non-dyadic offsets. Cost: two copies differing by less than 1e-9 bore as one.
 - **Ruling T10d — only a TILTED count-1 row can be a stale socket (§5's structural test).** A user's square clearance hole over a
   leg top is never replaced. Cost: a square socket from elsewhere is never replaced (leaning legs always give tilted sockets).
+  Narrowed by the final review (M4): the row must also be a THROUGH bore entering from the seat's top (`isSocketOf`'s entry), so a
+  user's blind or underside bore along the old line is never replaced either.
 - **Ruling T11a — a JOINED Refine refuses up front when any part has a tilted row (§9, which keeps such a part EXACTLY).**
   `runJoinery` re-joins the whole refined document, kept boards included, which cannot promise "exactly" (as chunk 1 refuses a kept
   leaning part in a joined Refine): `Refine can't keep a part with angled holes in a joined project yet: <name>.` (reason
   `'lean-joint'`). Joinery and Repair are unchanged. Cost: Refine is unavailable on a joined project with an angled-hole part until the
   joints are removed (leaning stools already refuse a joined Refine).
+- **Ruling F1 — the tilt bound takes lean's 1e-9 allowance, and Bore leg sockets refuses past it (final review, Important 1;
+  §3.1's exact bound and the plan's Global Constraints, superseded).** `withinTiltBound` is `≤ 1 + 1e-9` on each slope and on the
+  resultant, the same form as `lean.ts`' `withinBound` (one rule for both bounds); the loader and the store keep calling it. A socket
+  for a leg leaning exactly 45° derives its slopes through `leanMap` / `fromWorld` a few ulps past 1 and was dropped silently on the
+  next load. `socketPlan` also checks every new socket against the bound: one past it is a faulted socket, the leg named
+  (`<leg>'s socket would tilt past 45° — reduce the leg's lean.`, `socketTooSteep`), nothing written for it (Ruling T10a). Cost: a
+  stored slope up to 1 + 1e-9 (≈45.00000003°) is accepted.
+- **Ruling F2 — the other entry side of the same face keeps a tilted bore's line (final review M3; Ruling T2c, narrowed).**
+  `retilt` on a `from` flip (same face) reverses the bit: both lateral slopes are negated (a pure sign flip; a zero stays absent,
+  never -0), so the bore keeps its angle through the wood (its mouth keeps its station and inset). A FACE change still starts
+  square (T2c). Cost: a flip keeps an angle the user meant to clear (they type 0 to clear it).
 
 Also as built (no ruling; the text above reads loosely): §3.1's "per inch of depth" is per inch of AXIAL travel (along the face's
 normal: `bitVector`'s face-axis component is exactly ±1), while a blind row's stored `depth` is measured along the bit (§3.2), so

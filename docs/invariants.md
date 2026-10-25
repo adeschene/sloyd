@@ -268,7 +268,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     box-based step of its own: Repair refuses only when the document leans AND some part has cuts (a leaning document with no cuts
     is "nothing to repair", Ruling R1; the Joinery dialog always runs Repair), and `plainForRefine` decides it right after the
     "no cuts → plain" return and BEFORE `gateUnjoin` (reason `'lean-joint'`, counted as joined; the gate's box read-back would
-    otherwise answer first).
+    otherwise answer first). A joined Refine also refuses up front when any part has a TILTED hole row (angled holes Ruling T11a,
+    inv 56: such a part is kept exactly, which a re-join cannot promise): `plainForRefine` decides it in the same place, BEFORE
+    `gateUnjoin` (`Refine can't keep a part with angled holes in a joined project yet: <name>.`, reason `'lean-joint'`).
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -599,14 +601,16 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     **A row may TILT (angled holes, schema 23; spec `2026-10-24-sloyd-angled-holes-design.md` and its *Amended (build)* block).**
     `HoleRow.tiltAlong` / `tiltAcross` are the bit's travel per inch of axial travel (along the face's normal), relative to the
     row's own flags (positive toward the far end from `alongFrom`, the far side from `acrossFrom`), stored only when non-zero,
-    inside ONE bound (`withinTiltBound`: each |slope| ≤ 1 and the resultant ≤ 1, 45°, exact; the loader drops a row past it and
+    inside ONE bound (`withinTiltBound`: each |slope| ≤ 1 and the resultant ≤ 1, 45°, with lean.ts' `withinBound` allowance — `≤ 1 + 1e-9` on each
+    and on the resultant, one rule for both bounds, so a 45° leg's socket survives a reload (final review F1); the loader drops a row past it and
     the store refuses with `HOLE_TILT_PAST_BOUND`). **`holeTilt.ts` is the ONE home of tilt math** (`bitVector`, `isTilted`,
     `tiltDegrees`, `tiltResultantDeg`, `tiltSightlineDeg`, `withinTiltBound`, `retilt`, `acrossOf`): degrees exist only in display
     and typed input; its two degree conversions restate `lean.ts`' (an import would cycle) and a test pins them equal. A `Hole`
     carries `bit` (`bitVector`, unnormalised: its face-axis component exactly ±1, so a square hole's is the face axis) and `reach`
-    (the AXIAL length); a blind tilted row's `depth` is measured ALONG THE BIT. `retilt` is the edit rule: a changed `face` or
-    `from` is a new bore (no tilt); any other flag or `along` change keeps the bit's board-local direction; a typed tilt is written
-    directly. `HOLE_FIELDS`' values (`holeRowValues`) append each PRESENT tilt key's NAME then its value, so a square row's
+    (the AXIAL length); a blind tilted row's `depth` is measured ALONG THE BIT. `retilt` is the edit rule: a changed `face` is a
+    new bore (no tilt); a `from` flip on the same face reverses the bit, so both lateral slopes are negated (the bore keeps its
+    angle through the wood; a zero stays absent, never -0; final review F2); any other flag or `along` change keeps the bit's
+    board-local direction; a typed tilt is written directly. `HOLE_FIELDS`' values (`holeRowValues`) append each PRESENT tilt key's NAME then its value, so a square row's
     values are unchanged and a square row never equals a tilted one. **Every square row takes the code paths it always did**
     (`tiltedHole` gates each tilted branch; `holesSquare.snapshot.json`, captured before the change, pins square geometry).
     **A tilted row's faults are EXACT or CONSERVATIVE — they may over-report, never under-report**: the clean, UNCLIPPED mesh
@@ -624,8 +628,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     above `REST_AREA`), one count-1 THROUGH row per leg on the leg's leaned axis, entering from the top (`socketRow`); every
     copy of the seat plans its own legs and the copies must agree (lowered stored rows as a multiset, flag-free, 1e-9; else
     `socketsDisagree`); a diameter at or above a leg's smaller section refuses (`socketTooWide`); a faulted socket is left out
-    and named (`socketFaulted`), the rest bored, refused only when none can be;
-    a TILTED count-1 through row whose axis line passes through a leg top in the `TOUCH` band is that leg's stale socket
+    and named (`socketFaulted`; one past `withinTiltBound`, which the loader would drop, `socketTooSteep`, final review F1), the
+    rest bored, refused only when none can be;
+    a TILTED count-1 THROUGH row entering from the seat's top (`isSocketOf`'s entry: only a row `socketRow` could have written;
+    final review M4) whose axis line passes through a leg top in the `TOUCH` band is that leg's stale socket
     (`staleSocketOf`, noted `socketStale` and replaced on the next press; a square row is never one); a matched leg is left alone.
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
@@ -973,4 +979,4 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - **Cut list, nesting and Buying are unchanged:** a lean is placement, like position, so two legs with the same stock and cuts
       share a row whatever their leans; the level cuts print as their usual bench lines.
     - Drawings, section caps and the Plans note: invs 47 and 51. Holes on a leaning part, sockets and tilts: inv 50 (angled
-      holes, schema 23). Follow-ups: 436–446; angled holes 447–455.
+      holes, schema 23). Follow-ups: 436–446; angled holes 447–456.

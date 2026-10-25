@@ -43,7 +43,7 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
   project saved at 22 — export first. Below it, `e2729ee` refuses 21; every deploy back to `98c7df4` is schema 20. Full
   table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-25):** **Angled holes** (splayed legs chunk 2, schema 23; fu 437) is BUILT on branch `angled-holes`, not merged or
-  deployed: owed the browser checks (plan Task 13), then merge, deploy. Splayed legs chunk 1 is deployed; owed: its perf guards on a
+  deployed; browser verification DONE (9/9 PASS, `docs/browser-verification-angled-holes.md`); next: merge, deploy (the user's decision). Splayed legs chunk 1 is deployed; owed: its perf guards on a
   quiet machine. Owed to the user: the angled holes, splayed legs and mirrored links specs' Amended blocks; fu 454 (copy); fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups (417, 429 ask first).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -628,7 +628,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–455). Every entry's LAST `**Status:**` line governs; all 380 were triaged
+**`docs/follow-ups.md` is authoritative** (1–456). Every entry's LAST `**Status:**` line governs; all 380 were triaged
 2026-10-16 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -643,7 +643,7 @@ This list is the triage's open set — when an entry's status changes, change it
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434, 435.
 - **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
-  holes (2026-10-25): 448 and 453 (ask first), 451, 452; owed to the user 454 (copy); record-only 455.
+  holes (2026-10-25): 448 and 453 (ask first), 451, 452; owed to the user 454 (copy); record-only 455, 456.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

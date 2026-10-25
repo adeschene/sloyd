@@ -7322,14 +7322,20 @@ sightline 0.0° or 90.0°; the spec said "… dimension"), and `The bore can't t
 line: `bored … off square on a … sightline from the <along>` (terse: "from the length"), a tiny tilt printing `0.0°`, and a blind
 one's `, depth measured along the bit`. (5) Bore leg sockets: `Socket diameter`, `Bore leg sockets`, the fault phrases inside `… would
 <words> …`, `The socket must be narrower than <leg>.`, `Its copies stand over different legs (…) — make them match, or make this
-part unique first.`, `<leg>'s socket no longer follows its leg — Bore leg sockets again.` (6) Lean: `This lean would turn the part a
+part unique first.`, `<leg>'s socket no longer follows its leg — Bore leg sockets again.`, and (final review F1) `<leg>'s socket would tilt past 45° —
+reduce the leg's lean.` (6) Lean: `This lean would turn the part a
 quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.` (7) Refine: `Kept as
 is (leans or angled holes): …`, the assembly refusal (fu 441), and `Refine can't keep a part with angled holes in a joined project
-yet: <name>.` (names no cure; Task 11 minor).
+yet: <name>.` (names no cure; Task 11 minor). (8) Behaviour (final review F2, Ruling F2): in the Holes panel, choosing the other
+entry side of the SAME face on a tilted row keeps its angle (both slopes negated, the bore's line through the wood kept, its mouth
+at the same station and inset); a different face starts square (T2c). The cost: a flip keeps an angle the user meant to clear
+(type 0). The review's alternative was to refuse the change on a tilted row (`Set the tilt to 0 first — a new face starts
+square.`); ask whether either reads better.
 **Status:** open (owed to the user: wording).
 
 **455. Angled holes: deferred minors (2026-10-25, the SDD ledger and task reviews).** (1) Task 1: the loader's bound boundary is not
-pinned (a slope of exactly 1, a resultant of exactly 1, kept). (2) Task 2: `tiltedBox` is not memoised (cheap; tilted only);
+pinned (a slope of exactly 1, a resultant of exactly 1, kept) — closed by the final review's F1 (the boundary pinned with lean's
+1e-9 allowance: 1 and 1 + 1e-9 kept, 1 + 1e-8 dropped, `document.test.ts` / `holeTilt.test.ts`). (2) Task 2: `tiltedBox` is not memoised (cheap; tilted only);
 `touchesPrism`'s facet-order hint in u/v is square-only (order only, not correctness). (3) Task 3: the randomised fault sweep does
 not cover angle-cut off-flat, too-deep or too-shallow on tilted rows (the exact boundary tests do); the conservative rules
 over-refuse (a tilted bore tangent to a dado wall; steep bores near curves) — for the user. (4) Task 4: elliptical-ring punching is
@@ -7340,3 +7346,15 @@ axis is not the length; the ellipse's stroke wants a real-browser look on the Pl
 with a tilt, nor of a tilt with `— check:` (ordering). (8) Task 11: `refine.test.ts`' `const [leg] = stoolLegs()` could be hoisted to
 describe scope.
 **Status:** open (record-only).
+
+**456. No stale-socket note between a lean edit and Level the ends; a leg moved past its top orphans its old socket (Task 13
+finding; final review M5).** (1) Right after a lean edit, BEFORE Level the ends, the seat shows no `<leg>'s socket no longer follows
+its leg` note: the leg's top is no longer level, so it does not stand under the seat (`legsUnder`, the resting rule of spec §5), and
+the cue the user gets instead is the Lean section's `Level the ends again`. Once re-levelled the stale note appears and Bore leg
+sockets again replaces the socket in place (browser check 5, `docs/browser-verification-angled-holes.md`); the spec's "a later lean
+edit … the seat notes it" holds one step later. (2) A leg moved (or resized) farther than its top's half-width, so the old socket's
+axis line misses the top's polygon, leaves its old socket orphaned: `staleSocketOf` finds nothing, no note appears, and pressing Bore
+leg sockets again either appends a second socket beside the old one or, when they overlap, reports `… would meet another hole`.
+Within spec §13's "structural test" latitude. Candidates: note any tilted count-1 through row from the top that matches no leg; or
+fold both into fu 448's automatic follow.
+**Status:** open (record-only; ask first before changing either).
