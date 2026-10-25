@@ -759,7 +759,22 @@ describe('round tenons in the part diagrams (round tenons spec §8)', () => {
       alongFrom: 'min' as const, points: [[0, 0.25], [2, 0.75]] as [[number, number], [number, number]] };
     const vs = buildDiagrams(leg({ tenons: [tenon], angleCuts: [miter] }), IMPERIAL);
     expect(vs.map((v) => v.key)).toEqual(['length|max', 'thickness|min']);
-    for (const v of vs) expect(v.tenons, v.key).toEqual([{ end: 'max', diameter: 1, shoulder: 16.5 }]);
+    expect(vs[0]!.tenons).toEqual([{ end: 'max', diameter: 1, shoulder: 16.5 }]);
+    // Fix round 1: each side stops at the miter line. The miter's depth runs 0.25 → 0.75 linearly across the width (its
+    // stored points), so the thickness view's sides at width 0.5 and 1.5 meet it at 20 − 0.375 and 20 − 0.625.
+    const depth = (w: number) => 0.25 + (0.75 - 0.25) * (w / 2);
+    expect(vs[1]!.tenons).toEqual([{ end: 'max', diameter: 1, shoulder: 16.5, tip: [20 - depth(0.5), 20 - depth(1.5)] }]);
+    // A width view (vertical = thickness): both sides are the generators at width 1, the miter's centre depth 0.5.
+    const bore: HoleRow = { id: 'h', face: 'width', from: 'min', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min',
+      station: 8, count: 1, pitch: 0, acrossFrom: 'min', inset: 1 };
+    const wv = buildDiagrams(leg({ tenons: [tenon], angleCuts: [miter], holes: [bore] }), IMPERIAL).find((v) => v.key === 'width|min')!;
+    expect(wv.tenons).toEqual([{ end: 'max', diameter: 1, shoulder: 16.5, tip: [20 - depth(1), 20 - depth(1)] }]);
+    // A min-end miter (depth 0.25 → 0.75 across the width again): the tip stations are measured from 0.
+    const foot = { ...miter, from: 'min' as const };
+    const mv = buildDiagrams(leg({ tenons: [{ ...tenon, end: 'min' }], angleCuts: [foot] }), IMPERIAL).find((v) => v.key === 'thickness|min')!;
+    const { tip, ...rest } = mv.tenons![0]!;
+    expect(rest).toEqual({ end: 'min', diameter: 1, shoulder: 3.5 });
+    [depth(0.5), depth(1.5)].forEach((want, i) => expect(tip![i]).toBeCloseTo(want, 12));
   });
 
   it('the side view a tenon opens is opened BEFORE the holes are drawn: an end bore\'s depth box shows in it', () => {

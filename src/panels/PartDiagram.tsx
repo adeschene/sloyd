@@ -429,11 +429,13 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           if (view.face === 'length') {
             return <ellipse key={key} className="cutlist-diagram-tenon" cx={X(view.h / 2)} cy={Y(view.v / 2)} rx={r * fit.sx} ry={r * fit.sy} />;
           }
+          // Each side stops at the end: the part's end face, or on a mitered tip the miter line (`tip`, built in diagram.ts).
           const end = t.end === 'max' ? view.h : 0;
+          const [lo, hi] = t.tip ?? [end, end];
           const lines: [number, number, number, number][] = [
             [X(t.shoulder), Y(0), X(t.shoulder), Y(view.v)],
-            [X(t.shoulder), Y(view.v / 2 - r), X(end), Y(view.v / 2 - r)],
-            [X(t.shoulder), Y(view.v / 2 + r), X(end), Y(view.v / 2 + r)],
+            [X(t.shoulder), Y(view.v / 2 - r), X(lo), Y(view.v / 2 - r)],
+            [X(t.shoulder), Y(view.v / 2 + r), X(hi), Y(view.v / 2 + r)],
           ];
           return (
             <g key={key}>

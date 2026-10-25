@@ -1261,6 +1261,19 @@ describe('PartDiagram round tenons (round tenons spec §8)', () => {
     }
   });
 
+  it('a side with a tip station stops there (a mitered tip, fix round 1); a square end runs to the end', () => {
+    const base = views().find((x) => x.key === 'thickness|min')!;
+    const mitered = { ...base, tenons: [{ ...base.tenons![0]!, tip: [19.625, 19.375] as [number, number] }] };
+    for (const [v, ends] of [[mitered, [19.625, 19.375]], [base, [20, 20]]] as const) {
+      const { container } = render(<PartDiagram view={v} />);
+      const o = outlineOf(container);
+      const sides = [...container.querySelectorAll('line.cutlist-diagram-tenon')].slice(1);
+      expect(sides).toHaveLength(2);
+      sides.forEach((s, i) => expect(n(s, 'x2')).toBeCloseTo(o.x + (ends[i]! / 20) * o.w, 6));
+      cleanup();
+    }
+  });
+
   it('a tenon-free view draws no tenon mark', () => {
     const { container } = render(<PartDiagram view={buildDiagrams(createBoard({ length: 20, width: 2, thickness: 2 }), IMPERIAL)[0]!} />);
     expect(container.querySelectorAll('.cutlist-diagram-tenon')).toHaveLength(0);

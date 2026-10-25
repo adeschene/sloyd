@@ -1,7 +1,7 @@
 import { keptHalfSpace } from './angleCuts';
 import { partGeometry } from './bodies';
 import { localSegments, spanOf, squareSpan, uvDims } from './curves';
-import { builtTenons, shoulderAt } from './roundTenons';
+import { builtTenons, onTenonSurface, shoulderAt } from './roundTenons';
 import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
@@ -265,9 +265,14 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
   // Dedupe by distance, not by exact key: clipped body vertices carry ~1e-14 noise, so a sloped corner that
   // coincides with a lattice corner would never match its exact coordinates. The first point found wins.
   const near = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
+  // A built tenon's mitered tip is a ring of chords ON the miter's plane: its vertices are the tenon's, not the sloped
+  // face's corners (ruling T4b; fix round 1), so they are not offered. Asked only of a tenoned part, so every other part's
+  // marks (a curved part with an angle cut included) are as before.
+  const tenoned = builtTenons(stored).length > 0;
   for (const [a, b] of geometry.edges) {
     for (const p of [a, b]) {
       if (!onSlope(p)) continue;
+      if (tenoned && onTenonSurface(stored, p)) continue;
       const at = placed(board, p);
       if (lattice.some((q) => near(q.at, at))) continue;
       lattice.push({ kind: 'corner', at, owner });

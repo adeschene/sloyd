@@ -730,6 +730,11 @@ describe('drawView: a round tenon (round tenons spec §7, §8)', () => {
     for (const s of [...d.visible, ...d.hidden].filter((t) => vertical(t) && inZone(t))) {
       expect([0.5, 1.5].some((x) => Math.abs(s.a[0] - x) < 1e-9), `${s.a} → ${s.b}`).toBe(true);
     }
+    // The tip's ring seen edge-on: one visible run across the tenon's diameter at the end, x 0.5 .. 1.5 (fix round 1).
+    const tip = horizontalAt(d.visible, 20);
+    expect(tip.reduce((n, s) => n + len(s), 0)).toBeCloseTo(1, 9);
+    expect(Math.min(...tip.flatMap((s) => [s.a[0], s.b[0]]))).toBeCloseTo(0.5, 9);
+    expect(Math.max(...tip.flatMap((s) => [s.a[0], s.b[0]]))).toBeCloseTo(1.5, 9);
     // The full section's corners stop at the shoulder.
     expect([0, 2].flatMap((x) => verticalAt(d.visible, x)).filter(inZone)).toEqual([]);
   });

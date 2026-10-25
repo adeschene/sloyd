@@ -189,10 +189,31 @@ export function tenonFaults(b: Board, t: RoundTenon): TenonFault[] {
   return out;
 }
 
+const BUILT = new WeakMap<object, readonly RoundTenon[]>();
+
 /** The tenons that BUILD (spec §7): fault-free, judged on the stored part. A faulted tenon builds nothing (the swept-profile
- *  rule Q6), so nothing draws, notes or snaps to it either: `geometryBoard` and every reader of a tenon's shape ask this. */
-export function builtTenons(b: Board): RoundTenon[] {
-  return tenonsOf(b).filter((t) => tenonFaults(b, t).length === 0);
+ *  rule Q6), so nothing draws, notes or snaps to it either: `geometryBoard` and every reader of a tenon's shape ask this.
+ *  Memoised per board OBJECT (a part is never mutated: an edit makes a new object, as `geometryBoard`'s own cache assumes);
+ *  the list is frozen, so no caller can change what the next one reads. */
+export function builtTenons(b: Board): readonly RoundTenon[] {
+  if (!b.tenons || b.tenons.length === 0) return NONE;
+  const hit = BUILT.get(b);
+  if (hit) return hit;
+  const out = Object.freeze(tenonsOf(b).filter((t) => tenonFaults(b, t).length === 0));
+  BUILT.set(b, out);
+  return out;
+}
+
+/** Whether a board-local point lies on a built tenon's ROUND surface: past the shoulder (inside the zone) and at the
+ *  tenon's radius from the axis, within 1e-9. The tip's outline and the rings are chains of chords whose vertices lie on
+ *  it; a reader that offers edge endpoints (snapPoints' sloped-face corners) asks this so a tenon's ring is never mistaken
+ *  for a sloped face's corners (ruling T4b). */
+export function onTenonSurface(b: Board, p: { length: number; width: number; thickness: number }): boolean {
+  return builtTenons(b).some((t) => {
+    const s = shoulderAt(b, t);
+    const inZone = t.end === 'max' ? p.length >= s - EPS : p.length <= s + EPS;
+    return inZone && Math.abs(Math.hypot(p.width - b.width / 2, p.thickness - b.thickness / 2) - t.diameter / 2) <= EPS;
+  });
 }
 
 const faultKey = (f: TenonFault) => `${f.kind}|${f.feature ?? ''}`;

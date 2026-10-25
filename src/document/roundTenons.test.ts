@@ -3,7 +3,7 @@ import { cornerCurve, createBoard, createDocument, migrateDocument } from './doc
 import type { Board } from './types';
 import { TENON_FIELDS, copyTenon, hasTenons, lowerTenons, mirrorTenons, sameTenon, tenonAt, tenonValues, tenonsOf, withTenons } from './roundTenons';
 import type { AngleCut, Band, CurveCut, HoleRow, ProfileCut, RoundTenon } from './types';
-import { addedTenonFaults, endCutOf, shoulderAt, tenonFaults, tenonZone } from './roundTenons';
+import { addedTenonFaults, builtTenons, endCutOf, shoulderAt, tenonFaults, tenonZone } from './roundTenons';
 import { curveOutline } from './curves';
 import { tenonFaultText } from './tenonText';
 import { arcChords, arcOf, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, spanOf } from './curves';
@@ -410,5 +410,18 @@ describe('round tenons: geometry — bodies, edges, silhouettes', () => {
         expect([a, e]).toEqual([17, 20]);
       }
     }
+  });
+});
+
+describe('round tenons: builtTenons (fix round 1, memoised)', () => {
+  it('the same frozen list per board object; a new object is judged afresh; none is the shared empty list', () => {
+    const b = leg({ tenons: [tn('max', 3)] });
+    const first = builtTenons(b);
+    expect(first).toEqual([b.tenons![0]]);
+    expect(builtTenons(b)).toBe(first);
+    expect(Object.isFrozen(first)).toBe(true);
+    const wide = { ...b, tenons: [tn('max', 3, 2)] };   // an edit is a new object: too wide, so it builds nothing
+    expect(builtTenons(wide)).toEqual([]);
+    expect(builtTenons(leg())).toBe(builtTenons(leg()));
   });
 });

@@ -1,4 +1,4 @@
-import type { BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, Span } from './types';
+import type { BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, RoundTenon, Span } from './types';
 import { holeInstances, tiltedHole, type Hole } from './holes';
 import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
@@ -8,7 +8,7 @@ import { formatLengthBare, type Units } from '../units/length';
 import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
 import { angleLine } from './angleText';
 import { curveOutline, spanOf, squareSpan, twiceArea, uvDims } from './curves';
-import { builtTenons, shoulderAt } from './roundTenons';
+import { builtTenons, endCutOf, shoulderAt } from './roundTenons';
 import { curveLineEntries } from './curveText';
 import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
 import { geometryBoard } from './profiles';
@@ -119,7 +119,31 @@ function tiltedBand(h: Hole, a: number, d: number): [number, number][] {
  * the narrowed outline — the shoulder line across the section at h = `shoulder`, and the tenon's two sides at v = V/2 ± r
  * from the shoulder to the end. Only a tenon that builds is drawn (a faulted one builds nothing).
  */
-export interface DiagramTenon { end: 'min' | 'max'; diameter: number; shoulder: number }
+export interface DiagramTenon {
+  end: 'min' | 'max'; diameter: number; shoulder: number;
+  /**
+   * A SIDE view of a tenon whose end is mitered (fix round 1): where each side stops, the length station at which the
+   * side's silhouette generator (v = V/2 − r, then V/2 + r, at the section's centre in depth) meets the end's miter plane.
+   * Absent on a square end (the sides run to the end) and on an end view, so the brief's three fields are all a square
+   * tenon carries.
+   */
+  tip?: [number, number];
+}
+
+/** A side view's tip stations for a tenon on a mitered end (`DiagramTenon.tip`): each side's generator against the miter's
+ *  plane, n·p + d = 0, solved for the length. Null on a square end. */
+function tipStations(b: Board, t: RoundTenon, vertical: Dimension): [number, number] | null {
+  const cut = endCutOf(b, t.end);
+  if (!cut || cut === 'other') return null;   // 'other' never builds (a meets-feature fault); square: no tip
+  const h = keptHalfSpace(b, cut);
+  if (!h) return null;
+  const vi = DIMENSION_ORDER.indexOf(vertical);
+  const di = 3 - vi;                          // the view's depth axis (length is 0; width 1, thickness 2)
+  const depth = DIMENSION_ORDER[di]!;
+  const at = (v: number) => -(h.d + h.n[vi]! * v + h.n[di]! * (b[depth] / 2)) / h.n[0];
+  const c = b[vertical] / 2, r = t.diameter / 2;
+  return [at(c - r), at(c + r)];
+}
 
 /** A curve's waste outline seen down its `through`, clipped to the face, board inches. */
 export interface DiagramCurve { id: string; poly: [number, number][] }
@@ -517,7 +541,11 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
   if (tenons.length > 0) {
     for (const v of views.values()) {
       const here = tenons.filter((t) => v.face !== 'length' || v.from === t.end);
-      if (here.length > 0) v.tenons = here.map((t) => ({ end: t.end, diameter: t.diameter, shoulder: shoulderAt(stored, t) }));
+      if (here.length === 0) continue;
+      v.tenons = here.map((t) => {
+        const tip = v.face === 'length' ? null : tipStations(stored, t, v.vertical);
+        return { end: t.end, diameter: t.diameter, shoulder: shoulderAt(stored, t), ...(tip ? { tip } : {}) };
+      });
     }
   }
 

@@ -1071,6 +1071,10 @@ describe('round tenon snap points (round tenons spec §7)', () => {
   const TOP: AngleCut = { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0.25], [2, 0.75]] };
   const key = (p: SnapPoint) => p.at.join(',');
   const has = (pts: SnapPoint[], at: readonly number[]) => pts.filter((p) => p.at.every((v, i) => Math.abs(v - at[i]!) <= 1e-9));
+  /** The points of `got` not in `base` (by distance), sorted. */
+  const sorted = (ats: readonly (readonly number[])[]) => [...ats].map((a) => [...a]).sort((p, q) => p[0]! - q[0]! || p[1]! - q[1]! || p[2]! - q[2]!);
+  const added = (got: SnapPoint[], base: SnapPoint[]) =>
+    sorted(got.filter((p) => !base.some((q) => q.at.every((v, i) => Math.abs(v - p.at[i]!) <= 1e-9))).map((p) => p.at));
   /** Where the axis (width W/2, thickness T/2) meets the miter's plane, solved from `keptHalfSpace` (not from the tenon code). */
   const onMiter = (b: Board, c: AngleCut) => {
     const h = keptHalfSpace(b, c)!;
@@ -1101,8 +1105,13 @@ describe('round tenon snap points (round tenons spec §7)', () => {
     const x = onMiter(b, TOP);
     expect(x).toBeCloseTo(19.5, 12);
     const got = boardSnapPoints(b);
-    expect(has(got, toWorld(b, { length: x, width: 1, thickness: 1 })).map((p) => p.kind)).toEqual(['face-center']);
-    expect(has(got, toWorld(b, { length: x - 3, width: 1, thickness: 1 })).map((p) => p.kind)).toEqual(['face-center']);
+    const tip = toWorld(b, { length: x, width: 1, thickness: 1 });
+    const shoulder = toWorld(b, { length: x - 3, width: 1, thickness: 1 });
+    expect(has(got, tip).map((p) => p.kind)).toEqual(['face-center']);
+    expect(has(got, shoulder).map((p) => p.kind)).toEqual(['face-center']);
+    // Nothing else is added (fix round 1): the tip's outline on the miter is the tenon's ring, so its chord vertices are
+    // not the sloped face's corners (ruling T4b).
+    expect(added(got, boardSnapPoints(leg({ angleCuts: [TOP] })))).toEqual(sorted([tip, shoulder]));
   });
 
   it('a levelled leaning leg (the stool\'s): both centres through the lean', () => {
@@ -1112,8 +1121,11 @@ describe('round tenon snap points (round tenons spec §7)', () => {
     const x = onMiter(b, miter);
     const got = boardSnapPoints(b);
     const c = { width: b.width / 2, thickness: b.thickness / 2 };
-    expect(has(got, toWorld(b, { length: x, ...c })).map((p) => p.kind)).toEqual(['face-center']);
-    expect(has(got, toWorld(b, { length: x - 1.5, ...c })).map((p) => p.kind)).toEqual(['face-center']);
+    const tip = toWorld(b, { length: x, ...c });
+    const shoulder = toWorld(b, { length: x - 1.5, ...c });
+    expect(has(got, tip).map((p) => p.kind)).toEqual(['face-center']);
+    expect(has(got, shoulder).map((p) => p.kind)).toEqual(['face-center']);
+    expect(added(got, boardSnapPoints(fr))).toEqual(sorted([tip, shoulder]));   // nothing else (fix round 1)
   });
 
   it('a FAULTED tenon builds nothing, so it adds no point', () => {
