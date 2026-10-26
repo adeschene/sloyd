@@ -57,6 +57,29 @@ export function depthAt(c: Pick<AngleCut, 'points'>, s: number): number {
   return q1 + ((q2 - q1) * (s - s1)) / (s2 - s1);
 }
 
+/**
+ * The FULL depth into `face` at station `s` (from `alongFrom`'s end) and cross position `t` (from `across.from`'s side,
+ * along `throughOf(c)`): `depthAt(c, s) + rise · (t − T/2)`, anchored at the through dimension's centre (square-set legs
+ * spec §3.1), so on the part's centre line it is `depthAt` exactly. A single-slope cut returns `depthAt(c, s)` itself,
+ * with no arithmetic added (byte for byte as before schema 25). Every reader that wants a corner's or a disc edge's depth
+ * calls this, never `depthAt`.
+ */
+export function depthAtCross(c: Pick<AngleCut, 'points' | 'face' | 'along' | 'across'>, b: Pick<Board, Dimension>, s: number, t: number): number {
+  if (!c.across) return depthAt(c, s);
+  return depthAt(c, s) + c.across.rise * (t - b[throughOf(c)] / 2);
+}
+
+/**
+ * The deepest the cut reaches into `face` over the part's section: the full depth is affine in station and cross
+ * position, so its greatest value is at a corner; `rise > 0`, so that corner is at `t = T`. A single-slope cut reads the
+ * two ends of `along` exactly as before schema 25.
+ */
+export function deepestCorner(c: AngleCut, b: Pick<Board, Dimension>): number {
+  if (!c.across) return Math.max(depthAt(c, 0), depthAt(c, b[c.along]));
+  const T = b[throughOf(c)];
+  return Math.max(depthAtCross(c, b, 0, T), depthAtCross(c, b, b[c.along], T));
+}
+
 /** The station where the line reaches depth 0; NaN when the depths are equal (the line never does). */
 export function zeroStation(c: Pick<AngleCut, 'points'>): number {
   const [[s1, q1], [s2, q2]] = c.points;
@@ -70,7 +93,11 @@ const sign = (f: CutFrom) => (f === 'min' ? 1 : -1);
  * The cut's KEPT side as a half-space n·x + d >= 0 in board-local inches,
  * |n| = 1 (angle-cuts spec §2.2). With q(x) the depth from the `from` face and
  * s(x) the station from `alongFrom`'s end, the kept side is
- * q(x) − depthAt(s(x)) >= 0. Null for equal stations (validation drops such a
+ * q(x) − depthAt(s(x)) >= 0. A compound cut (schema 25) also subtracts its across
+ * term, rise · (t(x) − T/2) with t(x) the position from `across.from` along
+ * `throughOf(c)`: the kept side is q(x) − depthAtCross(s(x), t(x)) >= 0, so every
+ * plane reader (bodies, probes, snapping, hole faults, drawing tags, diagram
+ * polygons) follows. Null for equal stations (validation drops such a
  * cut; a Board built in code is answered, not thrown at).
  */
 export function keptHalfSpace(board: Pick<Board, Dimension>, c: AngleCut): { n: V3; d: number } | null {
@@ -85,18 +112,31 @@ export function keptHalfSpace(board: Pick<Board, Dimension>, c: AngleCut): { n: 
   n[DIMENSION_ORDER.indexOf(c.face)] = sf;
   n[DIMENSION_ORDER.indexOf(c.along)] = -k * sa;
   const d = cf - q1 - k * (ca - s1);
-  const len = Math.hypot(1, k);
-  return { n: [n[0] / len, n[1] / len, n[2] / len], d: d / len };
+  if (!c.across) {
+    const len = Math.hypot(1, k);
+    return { n: [n[0] / len, n[1] / len, n[2] / len], d: d / len };
+  }
+  // The across term (square-set legs spec §3.1): t(x) = st·x + ct, and the kept side loses rise · (t(x) − T/2).
+  const { rise } = c.across;
+  const through = throughOf(c);
+  const st = sign(c.across.from);
+  const ct = c.across.from === 'min' ? 0 : board[through];
+  n[DIMENSION_ORDER.indexOf(through)] = -rise * st;
+  const dx = d - rise * (ct - board[through] / 2);
+  const len = Math.hypot(1, k, rise);
+  return { n: [n[0] / len, n[1] / len, n[2] / len], d: dx / len };
 }
 
 /**
- * True when the cut takes no stock out of this part: its line is at or below
- * depth 0 at both ends of `along` (linear, so nowhere in between is deeper).
- * Kept in the document and noted in Properties (spec §2.3); never dropped on load.
- * `!(x > 0)` so a NaN counts as nothing removed.
+ * True when the cut takes no stock out of this part: its full depth is at or
+ * below 0 at every corner of the section (`deepestCorner`; affine, so nowhere in
+ * between is deeper). A compound cut biting at one across corner only removes
+ * stock (square-set legs Review Focus 1). Kept in the document and noted in
+ * Properties (spec §2.3); never dropped on load. `!(x > 0)` so a NaN counts as
+ * nothing removed.
  */
 export function angleCutRemovesNothing(board: Pick<Board, Dimension>, c: AngleCut): boolean {
-  return !(Math.max(depthAt(c, 0), depthAt(c, board[c.along])) > 0);
+  return !(deepestCorner(c, board) > 0);
 }
 
 /** The angle cuts that actually remove stock — what the cut list prints and groups by. */
@@ -104,19 +144,31 @@ export function angleCutsThatRemoveStock(board: Board): AngleCut[] {
   return board.angleCuts.filter((c) => !angleCutRemovesNothing(board, c));
 }
 
+/** The cut's line on its deepest cross line (`t = T`): a compound cut's points shifted by rise · T/2; a single-slope
+ *  cut is its own line (the same object, so its readers are byte for byte as before). */
+function deepestLine(c: AngleCut, b: Pick<Board, Dimension>): Pick<AngleCut, 'points'> {
+  if (!c.across) return c;
+  const h = (c.across.rise * b[throughOf(c)]) / 2;
+  const [[s1, q1], [s2, q2]] = c.points;
+  return { points: [[s1, q1 + h], [s2, q2 + h]] };
+}
+
 /**
  * The smallest board-local box holding every point the cut can remove (AI-angles spec §2.1): along `along`, the
  * stations where the line is deeper than 0; into `face`, from the `from` face to the line's greatest depth there
  * (clamped to the dimension); all of `throughOf(c)`. Depth is linear in station, so the greatest depth is at an end.
+ * A compound cut (schema 25) is read on its DEEPEST cross line, `t = T` (`rise > 0`): the line shifted by rise · T/2,
+ * which is at or above the full depth at every cross position of its station.
  * Null for a cut that removes nothing. Board-local: a caller crosses it to world space through `worldBox` (invariant 44).
  */
 export function touchedRegion(board: Pick<Board, Dimension>, c: AngleCut): Region | null {
   if (angleCutRemovesNothing(board, c)) return null;
   const A = board[c.along];
   const F = board[c.face];
-  const d0 = depthAt(c, 0);
-  const d1 = depthAt(c, A);
-  const z = Math.min(A, Math.max(0, zeroStation(c)));
+  const line = deepestLine(c, board);
+  const d0 = depthAt(line, 0);
+  const d1 = depthAt(line, A);
+  const z = Math.min(A, Math.max(0, zeroStation(line)));
   // Stations from `alongFrom` where the line is deeper than 0: up to (or from) its zero, or all of `along`.
   const lo = d0 > 0 ? 0 : z;
   const hi = d1 > 0 ? A : z;

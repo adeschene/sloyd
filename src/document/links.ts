@@ -39,8 +39,8 @@ void _shapeMatchesTable;
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
- * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face`; absent equals absent
- * only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`. `tenons` (a list,
+ * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face` and `square`, schema 25;
+ * absent equals absent only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`. `tenons` (a list,
  * round tenons spec §3.1) likewise: compared in order, ids included, by `sameTenon`; never stored empty.
  */
 const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean' | 'tenons'>] extends string | number ? true : never = true;

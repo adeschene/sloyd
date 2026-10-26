@@ -70,6 +70,18 @@ describe('schema 25: square-set leans and the across slope (square-set legs spec
     expect(part(at(25, { angleCuts: [noKind] })).angleCuts).toStrictEqual([COMPOUND]);
   });
 
+  it('a rise above 1 + 1e-9 drops the cut (past the 45° lean bound); a rise of 1 + 1e-9 or less is kept', () => {
+    const other = { ...MITER, id: 'a2', from: 'max' as const };
+    for (const rise of [1.0000001, 2, 1e9]) {
+      const doc = at(25, { angleCuts: [{ ...MITER, across: { rise, from: 'min' } }, other] });
+      expect(part(doc).angleCuts, `${rise}`).toStrictEqual([other]);
+    }
+    for (const rise of [1, 1 + 1e-9]) {
+      const c: AngleCut = { ...MITER, across: { rise, from: 'max' } };
+      expect(part(at(25, { angleCuts: [c] })).angleCuts, `${rise}`).toStrictEqual([c]);
+    }
+  });
+
   it('rebuilds across field by field (a stray key is not kept)', () => {
     const doc = at(25, { angleCuts: [{ ...COMPOUND, across: { ...COMPOUND.across, stray: 1 } }] });
     expect(part(doc).angleCuts).toStrictEqual([COMPOUND]);

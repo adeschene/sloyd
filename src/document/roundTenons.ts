@@ -2,7 +2,7 @@ import { type AngleCut, type Board, type CurveSegment, type Dimension, type Regi
 import type { CurveSpan, ViewCurve } from './curves';
 import { DIMENSION_ORDER } from './geometry';
 import { clippedRegion, cutRemovesNothing } from './cuts';
-import { angleCutRemovesNothing, depthAt, touchedRegion } from './angleCuts';
+import { angleCutRemovesNothing, deepestCorner, depthAt, touchedRegion } from './angleCuts';
 import { boardHoles, holeRegion, mm } from './holes';
 import { featureMeetsBox, shapedFeatures } from './featureRegions';
 import type { Units } from '../units/length';
@@ -107,7 +107,9 @@ export function endCutOf(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTeno
 }
 
 /** Depth into the length from the end face at the centre of the section (where the miter plane meets the axis, as
- *  `levelPlan` reads it); 0 for a square end or an `'other'` one. */
+ *  `levelPlan` reads it); 0 for a square end or an `'other'` one. EXACT on a compound miter too, by construction: its
+ *  across term is anchored at the through dimension's centre, so `depthAt` at the centre station is its full depth there
+ *  (square-set legs spec §3.1). */
 function centreDepth(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTenon['end']): number {
   const c = endCutOf(b, end);
   // Clamped: a miter that reaches depth 0 inside the section (a corner clip) extrapolates negative at the centre, and the
@@ -115,12 +117,13 @@ function centreDepth(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTenon['e
   return c && c !== 'other' ? Math.max(0, depthAt(c, b[c.along] / 2)) : 0;
 }
 
-/** The deepest the end's miter reaches into the length over the 4 section corners (the line is linear in the station,
- *  so an end of `along` is the extreme); 0 for a square end. */
-function deepestDepth(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTenon['end']): number {
+/** The deepest the end's miter reaches into the length over the 4 section corners (the full depth is affine in the
+ *  station and cross position, so a corner is the extreme: `deepestCorner`, a compound miter's across term included);
+ *  0 for a square end. */
+export function deepestDepth(b: Pick<Board, Dimension | 'angleCuts'>, end: RoundTenon['end']): number {
   const c = endCutOf(b, end);
   if (!c || c === 'other') return 0;
-  return Math.max(depthAt(c, 0), depthAt(c, b[c.along]));
+  return deepestCorner(c, b);
 }
 
 /**

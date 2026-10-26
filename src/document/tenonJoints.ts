@@ -49,12 +49,21 @@ function outward(b: Board, t: RoundTenon): V3 {
  * this is exact. A square end: the end face itself. A mitered tip (the end's one miter, §3.3): its depth is linear in the
  * station along the miter's `along`, so over the tenon's disc it is least at the disc's edge, `r` either side of the
  * centre — the centre's depth less r·tan φ, φ the angle between the miter's normal and the axis — never below the end (a
- * miter that reaches depth 0 inside the disc leaves that part of the tip square).
+ * miter that reaches depth 0 inside the disc leaves that part of the tip square). A compound miter's least depth is the
+ * centre's less r·hypot(k, rise), k its along slope (square-set legs spec §4).
  */
-function tipFarthest(b: Board, t: RoundTenon): number {
+export function tipFarthest(b: Board, t: RoundTenon): number {
   const c = endCutOf(b, t.end);
   let d = 0;
-  if (c && c !== 'other') {
+  if (c && c !== 'other' && c.across) {
+    // A compound miter (square-set legs spec §4): the full depth is affine over the disc, gradient (k, rise) in the
+    // section's (along, through) plane, so its least value is the centre's less r·|gradient| — never the least of ±r
+    // probes along each axis, which reports a shallower minimum and seats a tip that passes a blind bottom.
+    const [[s1, q1], [s2, q2]] = c.points;
+    const k = (q2 - q1) / (s2 - s1);
+    const centre = depthAt(c, b[c.along] / 2);
+    d = Math.max(0, centre - (t.diameter / 2) * Math.hypot(k, c.across.rise));
+  } else if (c && c !== 'other') {
     const mid = b[c.along] / 2;
     const r = t.diameter / 2;
     d = Math.max(0, Math.min(depthAt(c, mid - r), depthAt(c, mid + r)));
@@ -72,7 +81,8 @@ function tipFarthest(b: Board, t: RoundTenon): number {
  *    (mouth to far centre) share more than `TOUCH`. A tenon short of the mouth is in no socket, however its line runs
  *    (spec §5.1's "seated in"; builder's call: without it a collinear bore further along the line would seat it);
  * 6. inside, for a BLIND bore: no point of the tip passes the bottom's plane by more than `TOUCH` — the tip's furthest
- *    point (`tipFarthest`: the centre advanced by r·tan φ on a mitered tip), never the centre alone. A through bore takes
+ *    point (`tipFarthest`: the centre advanced by r·tan φ on a mitered tip, by r·hypot(k, rise) of depth on a compound
+ *    one), never the centre alone. A through bore takes
  *    any tenon. A blind bore that opens AWAY from the tenon never passes 5 and 6 together (its bottom is the bore's near
  *    end: entering by more than TOUCH puts the tip that far past it), so no separate direction test is needed.
  */

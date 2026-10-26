@@ -436,8 +436,9 @@ function validateCuts(raw: unknown, board: Pick<Board, Dimension>): Cut[] {
  * missing. A cut that removes nothing is KEPT (unlike fu 178): keeping it loses
  * nothing and restores the cut if the part grows back. Ids are scoped to this
  * board, or this shape (invariant 33). Schema 25: a present `across` that is
- * malformed (a rise not finite and > 0, a bad `from`, or on anything but an end
- * miter, judged on the RESOLVED kind) drops the cut; a good one is rebuilt
+ * malformed (a rise not finite and > 0, a rise above 1 + 1e-9 — past the 45°
+ * lean bound —, a bad `from`, or on anything but an end miter, judged on the
+ * RESOLVED kind) drops the cut; a good one is rebuilt
  * field by field, and an absent one stores no key.
  */
 function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCut[] {
@@ -471,6 +472,8 @@ function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCu
       const a = c.across as Record<string, unknown> | null;
       if (kind !== 'miter' || face !== 'length' || typeof a !== 'object' || a === null) continue;
       if (typeof a.rise !== 'number' || !Number.isFinite(a.rise) || a.rise <= 0 || !VALID_FROMS.includes(a.from as CutFrom)) continue;
+      // Under the 45° lean bound a level cut's across slope never exceeds 1 (tan 45°): a steeper one is no level cut.
+      if (a.rise > 1 + 1e-9) continue;
       across = { rise: a.rise, from: a.from as CutFrom };
     }
     // The id is taken only once the cut is known to be kept, so a dropped cut never claims one (inv 33).

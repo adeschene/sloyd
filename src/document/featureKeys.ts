@@ -7,7 +7,7 @@ import { holeFaults } from './holeFaults';
 import { edgeName, holePitchText, holeSizeText } from './holeText';
 import { isTilted } from './holeTilt';
 import { angleDegrees } from './angleText';
-import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
+import { angleCutRemovesNothing, chamferFields, deepestCorner, depthAt, keptHalfSpace, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
 import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } from './curveText';
 import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './profiles';
@@ -51,8 +51,9 @@ function holeText(r: HoleRow, units: Units): string {
   return r.count === 1 ? `Hole ${size}` : `Row of ${r.count} holes, ${size}, every ${holePitchText(r, units)}`;
 }
 
-/** An angle cut a later resize pushed past its part: its line runs deeper than the dimension it enters (fu 296's note). */
-const overruns = (b: Board, c: AngleCut) => Math.max(depthAt(c, 0), depthAt(c, b[c.along])) > b[c.face] + 1e-9;
+/** An angle cut a later resize pushed past its part: its line runs deeper than the dimension it enters (fu 296's note),
+ *  at its deepest corner (`deepestCorner`: a compound cut's full depth). */
+export const overruns = (b: Board, c: AngleCut) => deepestCorner(c, b) > b[c.face] + 1e-9;
 
 function angleText(b: Board, c: AngleCut, units: Units): string {
   const f = (n: number) => formatLength(n, units);

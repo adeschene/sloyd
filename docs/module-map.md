@@ -90,7 +90,8 @@ src/
 │   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
 │   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
-│   ├── angleCuts.ts      AngleCut model (inv 48): ANGLE_CUT_FIELDS (inv 40), keptHalfSpace, depthAt/zeroStation, touchedRegion
+│   ├── angleCuts.ts      AngleCut model (inv 48): ANGLE_CUT_FIELDS (inv 40), keptHalfSpace, depthAt/zeroStation, depthAtCross /
+│   │                     deepestCorner (a compound miter's full depth, schema 25: every corner or disc-edge reader), touchedRegion
 │   │                     (the box a cut can remove) / splitRegion (a cell split around it: contact's flat wood),
 │   │                     mirrorAngleCut (inv 44), deriveKind; the shop-field conversions per kind — taperFields,
 │   │                     MiterFields/BevelFields (stored slope RATIO, miterRatio 45° → 1), ChamferFields (12 canonical
