@@ -882,7 +882,7 @@ describe('hole centres (holes spec §3.5)', () => {
     const pts = boardSnapPoints({ ...b, holes: [{ ...centred, station: 5 }] });
     expect(pts).toHaveLength(27);
   });
-  // CLAUDE.md's snapPoints.ts rule: local→world is position[axis] + toWorldOffset(local[axisFrame[axis].dim]); a
+  // docs/module-map.md's snapPoints.ts per-file rule: local→world is position[axis] + toWorldOffset(local[axisFrame[axis].dim]); a
   // centre-relative mapping is off by half the part, plausibly — so pin rotated, non-flat poses (final review 5).
   // The hole: entry on the thickness max face, 5" along the length from its min end, 1-1/2" in from the width min side,
   // so its board-local centre is (length 5, width 1-1/2, thickness 3/4) on a 24 × 5-1/2 × 3/4 part whose min corner is

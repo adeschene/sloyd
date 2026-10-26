@@ -1,7 +1,8 @@
 # Sloyd — module map
 
 > Split out of `CLAUDE.md` on 2026-10-20: the annotated source tree, as maintained. `CLAUDE.md`
-> keeps a short index and the per-file rules. Where a file's own doc comment is the stated single
+> keeps a short index. The per-file rules not covered by an invariant (moved here 2026-10-26) are
+> at the end, in full: they are rules, not annotation. Where a file's own doc comment is the stated single
 > source of truth, read it there. Rules are in `docs/invariants.md` (`inv N`).
 
 
@@ -502,7 +503,7 @@ src/
 │                     band's normal (`stopJunctions`); stopNormals.test.ts
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties (the Mirrored checkbox on a linked part), CopyInRow,
 │                     PartsList (a mirrored part's ⇋ badge, `role="img"` "Mirrored"),
-│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (CLAUDE.md's per-file rule, in full: a row click closes the
+│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (its per-file rule below, in full: a row click closes the
 │                     menu at once; `onOpen` resolves null or why the project cannot be opened (`storage.readProject`, asked only
 │                     on failure so the switch path keeps `loadProject`), and a failure reopens the menu on that row with the
 │                     message, focus on the caret, fu 35),
@@ -586,6 +587,94 @@ src/
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal; `FEATURE_CHECK_FAILED` (the joinery
                       dialog REFUSED when checking features against joints throws, fu 244, P8)
 ```
+
+## Per-file rules not covered by an invariant
+
+Moved from `CLAUDE.md` on 2026-10-26, verbatim; `CLAUDE.md` lists the files. Each is a rule
+(the invariants are in `docs/invariants.md`).
+
+- **`snapPoints.ts`**: local→world is `position[axis] + toWorldOffset(board, axis,
+  local[axisFrame(board)[axis].dim])`, then `leanMap(board).apply` for a leaning part (`fromWorld` inverts it — exactly only for an unleaned part). `pointToLocalXYZ` and `solidWorldBox` are
+  CENTRE-relative and both look like they do this — using either puts every point off by
+  half the board, plausibly. Pin with a rotated, non-flat pose. `towardFor` is the tape's
+  ONE direction source (preview and commit); a locked axis wins over a hover, never falls
+  back to it.
+- **`cutlist.ts` / `diagram.ts`**: a group's key is its rows' key prefix (`groupFields`; fu 54). Format from `cutShape`, never from stored
+  `across`/`offset`/`width`/stops (fu 192). The cut list accumulates EXACT stock, never
+  qty × rounded dimensions, and ignores cuts (stock, not remainder). `storedAsShape`
+  returns an already-aligned cut as the same object.
+- **`bodies.ts`**: read bodies and edges through `partGeometry` wherever it runs per frame or per part (snap
+  points, drawings, BoardMesh). Its results are SHARED between parts with one `geometryKey`, deep-frozen:
+  never mutate them. The key is board-local (dimensions, cut geometry, angle cuts, hole rows) — no pose — and carries each
+  angle cut's and hole row's ID (why: `docs/module-map.md`).
+- **`angleCuts.ts` field conversions**: the row's fields carry STORED values — a miter/bevel its slope ratio, a chamfer
+  its legs, a taper its stations and depths — never re-derived through `atan`/`tan`, so an edit of side, end or face keeps
+  a 45° cut at depth = run exactly. Degrees exist only in display and typed input, and reach a writer only through
+  `miterRatio`. A reader returns null for a stored line its row cannot represent (an offset bevel line; a line that
+  never reaches 0 inside the part) — the row then shows the bench line and Remove, never a control that would rewrite it.
+- **`AngleCuts.tsx`**: every hook sits above every `kind` branch (a fixed crash class). Every refusal reads `Removes more
+  than the <dimension> — reduce the <control> first.`, is decided before `updateAngleCut`, and leaves the select on the
+  stored value. A menu preset whose default would be refused on this part is withheld, not added and then refused.
+  A cut a later resize pushed past its part is KEPT and noted (`… at this size.`); an edit is refused only when it would
+  overrun by MORE than the stored cut does (fu 296, the holes/curves precedent).
+- **`nesting.ts`** takes `doc.boards`, NEVER `CutListRows`; too-big parts go in
+  `unplaceable`, never dropped. The word `turned` rides on `dims` (inv 19).
+- **`SheetLayout.tsx`** is the only caller of `fitLabel`'s `requireDetail`; the tier
+  decision stays in `fitLabel`, not as a panel override. The sheet key list is NOT an
+  `<ol>` (the number comes from `nextIndex`, not DOM position; fu 162). A part that cannot hold even its NUMBER
+  (`holdsIndex`) is a callout (fu 96): its number in a row outside the drawing, the row only when used, so a drawing with no
+  callouts keeps its viewBox (the layout: `docs/module-map.md`). A long leader across another part is accepted (the user's ruling).
+- **`plans.ts` keying**: a STORED part (container id + part id) is keyed by the first trio that keys it (`claimed`; fu 381(4),
+  the user's ruling: no duplicate labels) — only assembly trios can share one.
+- **`featureKeys.ts` / `planKeys.ts`** (feature callouts): a key line is built only in `partFeatures` (its sources: `docs/module-map.md`), never in the panel. A tag sits only on a segment `drawView` tagged for its feature (inv 16); tagging never changes a segment, its order
+  or the visible/hidden split (`drawingIdentity.test` hashes the drawing with tags stripped). Angle cuts are tagged by
+  plane membership (`keptHalfSpace`'s plane is `n·x + d = 0`), so `bodyEdges` is untouched. A part's features are keyed by the innermost
+  LISTED assembly's trio (`keyed`), so each feature once per sheet (view order, merging and pushing: `docs/module-map.md`).
+- **`pocket.ts`**: `pocketFor` stores each of its OWN numbers within EPS of a 1/64" or 0.1 mm grid point AS that point's float
+  (`onGrid`, dyadic first; fu 216; why: `docs/module-map.md`). A `storedAsShape` re-store after it is off-grid but deterministic (fu 382); never snap after it, and
+  never round the row key instead.
+- **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
+  must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
+  `concepts.ts`. **`concepts.ts`**' parse is all-or-nothing (never mixes planned and
+  built-in concepts).
+- **`SettingsDialog.tsx`**: a new key is shape-checked and verified with one free
+  `GET /v1/models`; 401/403 refuses, anything else saves with a note. **There is
+  deliberately no prefix rule.**
+- **`useGenerations.ts`**: auth or cancel during planning starts no run; a cancel landing
+  as planning resolves is caught before the runs (its test asserts run CALLS).
+  A failed run's cost comes from `spentOnFailure` (run.ts; Refine too): a `RunFailed`'s usage or the calls before a rethrown
+  error, null when nothing was spent; every spent cost prints through `formatCost` (`< $0.01`, never `≈ $0.00`; fu 168).
+- **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
+  `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
+  `setKerf` refuses a kerf outside [0, 1) (fu 98; why: `docs/module-map.md`).
+  `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
+- **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
+  post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
+  only, never grab sources. Its dep list is inv 15's failure mode.
+- **`TapeTool.tsx`** subscribes to `tapeAxis`; locked with nothing typed draws NO line (a
+  decision; fu 130 is the alternative). A click while locked re-anchors and keeps the lock.
+- **`BoardMesh.tsx`**: its `stopPropagation` is load-bearing (a toggle reaching two solids
+  is a no-op); `selectable` is required so Move's commit click cannot select its target.
+- **`Viewport.tsx`**: the projection swap re-frames only once `controls.object === camera`,
+  or it aims the new camera at the origin.
+- **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. A mixed field emptied after typing is untouched (fu 210). Enter commits
+  and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
+  it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
+  until its own next commit or an external resync — no sibling clears it (AngleCuts' Angle fields: fu 339).
+- **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
+  `<button>` at the same sibling index in both branches — giving either a `key` breaks
+  focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
+  `storage.available` (the ADAPTER flag, never React's `available`; fu 159). A row click closes the menu at once; a failed open
+  reopens it on that row with the message, focus on the caret (fu 35; `onOpen`: `docs/module-map.md`). Escape focuses the
+  caret before closing (fu 152).
+- **`GuidesList.tsx`** has no selection model, deliberately.
+- **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
+  Escape is bound on its subtree with `stopPropagation`, never on window (inv 27).
+  ProjectMenu keeps its own copy, with the same fu 250 guard (`docs/module-map.md`).
+- **`styles.css`**: rules read surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…),
+  never raw `--grey-*`/`--walnut-*`; grey chrome re-points the roles in one context selector.
+- **`App.tsx` keys**: plain and Shift+H match by `e.key`; only Alt+H by `e.code === 'KeyH'`;
+  Ctrl/Cmd+H is unbound. Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 `security-headers.conf`.

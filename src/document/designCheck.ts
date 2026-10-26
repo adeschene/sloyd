@@ -344,8 +344,9 @@ export function worldBox(b: Board, s: Region): Box {
  * A part's SOLIDS in world space — invariant 2's mapping, position plus the
  * local span on the dimension each axis shows, reflected on any axis the turn
  * reverses (spanToWorldOffset). NOT solidWorldBox, which is
- * centre-relative (CLAUDE.md warns about exactly this). Exported as the ONE
- * home of this mapping: joinery's blockers judge the same solids (fu 203).
+ * centre-relative (the snapPoints.ts per-file rule in docs/module-map.md
+ * warns about exactly this). Exported as the ONE home of this mapping:
+ * joinery's blockers judge the same solids (fu 203).
  * Boxes: rectangular cuts only, angle cuts ignored — `drawing.ts`'s `worldBodies` adds angle
  * cuts for the drawings (spec §3.5). Overlap and joinery's blockers/trims are measured on these
  * solids; held/hangs contacts, grounding and the tip footprint read `contactSolids` when a part is

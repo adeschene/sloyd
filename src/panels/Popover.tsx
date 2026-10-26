@@ -29,7 +29,7 @@ interface Props {
  * Escape on its own subtree (never a window keydown listener — invariant 27),
  * an outside pointerdown on window only while open, focus leaving it, or an item
  * being chosen. ProjectMenu keeps its own copy of these rules on purpose (its
- * arm/disarm focus handling is its own; CLAUDE.md "ProjectMenu.tsx").
+ * arm/disarm focus handling is its own; docs/module-map.md per-file rule "ProjectMenu.tsx").
  *
  * Choosing an item focuses the trigger BEFORE running it: an item that opens a
  * dialog has App record `document.activeElement` as the place to return focus,

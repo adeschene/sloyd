@@ -1961,7 +1961,7 @@ describe('App assemblies', () => {
     });
   });
 
-  // Fu 228 / CLAUDE.md "App.tsx keys": Escape's ladder is grabbed, tapeAxis,
+  // Fu 228 / docs/module-map.md per-file rule "App.tsx keys": Escape's ladder is grabbed, tapeAxis,
   // tapeAnchor, tool, and last the open assembly. One rung per press, and a
   // press with nothing left to back out of is not prevented.
   describe('Escape backs out one rung at a time (fu 228)', () => {
