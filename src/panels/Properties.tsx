@@ -12,11 +12,15 @@ import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
 import { RoundTenons } from './RoundTenons';
 import { Lean } from './Lean';
+import { StretcherReadout, StretcherSection } from './Stretcher';
+import type { AddedStretcher } from './Stretcher';
 import { Curves } from './Curves';
 import { Profiles } from './Profiles';
 import { Banding } from './Banding';
 import { Hardware } from './Hardware';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
+
+const NO_NOTES: readonly string[] = [];
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
   length: 'Length',
@@ -408,7 +412,7 @@ function MaterialSelect({ ids, value, library, onNewMaterial }: {
   );
 }
 
-function GroupProperties({ library, onNewMaterial, onNewBandType }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler; onNewBandType?: () => void }) {
+function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdded }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler; onNewBandType?: () => void; onStretcherAdded: (added: AddedStretcher) => void }) {
   const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
@@ -490,6 +494,10 @@ function GroupProperties({ library, onNewMaterial, onNewBandType }: { library: C
       </div>
       </div>
       <Lean boards={boards} />
+      {/* Stretchers spec §4: exactly two upright parts (leaning or not). */}
+      {boards.length === 2 && boards.every((b) => b.posture === 'upright') && (
+        <StretcherSection legIds={[boards[0]!.id, boards[1]!.id]} onAdded={onStretcherAdded} />
+      )}
       <Banding boards={boards} onNewBandType={onNewBandType} />
       </>}
       </EditLock>
@@ -605,6 +613,14 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
     return p !== null && isShaped(p) ? p.mirrored === true : null;
   });
   const lengthRef = useRef<HTMLInputElement>(null);
+  // The last Add stretcher's link notes (spec §4): the Add selects the new rung, which unmounts the multi-selection panel
+  // that made it, so they are held here and shown in the rung's own panel while it is selected and the document is the
+  // one the Add made (another selection, an edit or an undo retires them).
+  const [added, setAdded] = useState<AddedStretcher | null>(null);
+  // A boolean (inv 43): the panel re-renders only when it flips, never on every document change.
+  const sameDoc = useStore((s) => added !== null && s.doc === added.doc);
+  const addedNotes = added && board?.id === added.rung && sameDoc ? added.notes : NO_NOTES;
+  useEffect(() => { if (added && addedNotes === NO_NOTES) setAdded(null); }, [added, addedNotes]);
 
   // This component remounts (`key={board.id}` below) on every selection
   // change, including a plain click in the parts list or viewport. Only
@@ -617,7 +633,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
     }
   }, [board?.id]);
 
-  if (groupSize >= 2) return <GroupProperties library={library} onNewMaterial={onNewMaterial} onNewBandType={onNewBandType} />;
+  if (groupSize >= 2) return <GroupProperties library={library} onNewMaterial={onNewMaterial} onNewBandType={onNewBandType} onStretcherAdded={setAdded} />;
   if (instPath) return <InstanceProperties path={instPath} onNewHardwareType={newHardware} />;
   if (!board) return (
     <>
@@ -754,6 +770,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
       <AngleCuts board={board} />
       <Holes board={board} />
       <RoundTenons board={board} />
+      <StretcherReadout board={board} notes={addedNotes} />
       <Curves board={board} />
       <Profiles board={board} />
       <Banding boards={[board]} onNewBandType={onNewBandType} />
