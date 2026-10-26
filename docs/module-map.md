@@ -100,7 +100,7 @@ src/
 │   │                     four corners), hasCompoundCut (THE predicate: joinery's compoundRefusal, Refine's keepsExactly), touchedRegion
 │   │                     (the box a cut can remove) / splitRegion (a cell split around it: contact's flat wood),
 │   │                     mirrorAngleCut (inv 44), deriveKind; the shop-field conversions per kind — taperFields,
-│   │                     MiterFields/BevelFields (stored slope RATIO, miterRatio 45° → 1; miterFields null for a compound miter), ChamferFields (12 canonical
+│   │                     MiterFields/BevelFields (stored slope RATIO, miterRatio 45° → 1; miterFields null for a compound miter; compoundLongCorner, its long corner for the bench line, TFa), ChamferFields (12 canonical
 │   │                     CHAMFER_EDGES, exact legs) — each with its xCut writer and default; imports only types/geometry
 │   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
 │   │                     shortPointLine (corner minimum, fu 281, a compound end's corners through depthAtCross; an end chamfer leaving a tongue

@@ -74,7 +74,7 @@ describe('the Angles section', () => {
   it('a COMPOUND miter shows its bench line and Remove only: no End, Across, Long point or Angle (square-set legs §4)', () => {
     const c: AngleCut = { id: 'a1', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2, 0.5]], across: { rise: 0.25, from: 'min' } };
     open(leg({ angleCuts: [c] }));
-    expect(screen.getByText('Compound miter at the length max end: 14.0° across the width, 14.0° across the thickness')).toBeInTheDocument();
+    expect(screen.getByText('Compound miter at the length max end: 14.0° across the width, 14.0° across the thickness, long corner at the width min side and the thickness min side')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Remove angle cut \(Compound miter/ })).toBeInTheDocument();
     for (const label of ['End', 'Across', 'Long point', 'Angle']) expect(screen.queryByLabelText(label), label).toBeNull();
   });
@@ -89,8 +89,8 @@ describe('the Angles section', () => {
     await user.click(screen.getByRole('button', { name: 'Clear lean' }));
     expect(fr().lean).toBeUndefined();
     expect(fr().angleCuts).toEqual(before);
-    expect(screen.getByText('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness')).toBeInTheDocument();
-    expect(screen.getByText('Compound miter at the length max end: 12.0° across the width, 8.0° across the thickness')).toBeInTheDocument();
+    expect(screen.getByText('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness, long corner at the width max side and the thickness max side')).toBeInTheDocument();
+    expect(screen.getByText('Compound miter at the length max end: 12.0° across the width, 8.0° across the thickness, long corner at the width min side and the thickness min side')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Remove angle cut \(Compound miter/ })).toHaveLength(2);
     for (const label of ['End', 'Across', 'Long point', 'Angle']) expect(screen.queryByLabelText(label), label).toBeNull();
   });

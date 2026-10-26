@@ -5,7 +5,8 @@ import type { AngleCut } from './types';
 import { boardBodies, bodyVerts } from './bodies';
 import { bevelCut, chamferCut, defaultChamfer, defaultRaisedPanel, miterRatio } from './angleCuts';
 import { angleDegrees, angleLine, faceName, shortPointLine } from './angleText';
-import { squareStoolLegs } from './stoolFixture';
+import { squareStoolDocument, squareStoolLegs } from './stoolFixture';
+import { worldParts } from './tree';
 import { slopeOf } from './lean';
 
 const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
@@ -126,7 +127,7 @@ describe('angle text (spec §4.2)', () => {
       const leg = mk([corner], [16, 1.5, 1.5]);
       expect(measured(leg)).toBeCloseTo(15.9375, 9);
       expect(shortPointLine(leg, IMPERIAL)).toBe('Short point 15-15/16"');
-      expect(angleLine(leg, corner, IMPERIAL)).toBe('Compound miter at the length max end: 4.8° across the width, 14.0° across the thickness');
+      expect(angleLine(leg, corner, IMPERIAL)).toBe('Compound miter at the length max end: 4.8° across the width, 14.0° across the thickness, long corner at the width max side and the thickness min side');
     });
     it('the square stool\'s legs: the short point is the shortest of the four long edges', () => {
       for (const b of squareStoolLegs()) {
@@ -219,8 +220,8 @@ describe('the compound miter\'s bench line (square-set legs §4)', () => {
   it('the square stool\'s feet and tops, verbatim; both degrees are the lean\'s (12° splay across the width, 8° rake across the thickness)', () => {
     for (const b of squareStoolLegs()) {
       const [foot, top] = (['min', 'max'] as const).map((e) => b.angleCuts.find((c) => c.from === e)!);
-      expect(angleLine(b, foot!, IMPERIAL), b.name).toBe('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness');
-      expect(angleLine(b, top!, IMPERIAL), b.name).toBe('Compound miter at the length max end: 12.0° across the width, 8.0° across the thickness');
+      expect(angleLine(b, foot!, IMPERIAL), b.name).toMatch(/^Compound miter at the length min end: 12\.0° across the width, 8\.0° across the thickness, long corner at the width (min|max) side and the thickness (min|max) side$/);
+      expect(angleLine(b, top!, IMPERIAL), b.name).toMatch(/^Compound miter at the length max end: 12\.0° across the width, 8\.0° across the thickness, long corner at the width (min|max) side and the thickness (min|max) side$/);
     }
     // The oracle is the lean, not the cut's own slopes: the stool's lean is slopeOf(12) across x and slopeOf(8) across z.
     const fr = squareStoolLegs()[0]!;
@@ -230,7 +231,33 @@ describe('the compound miter\'s bench line (square-set legs §4)', () => {
   it('a compound miter\'s degrees each read their own slope (a steeper rise than along slope)', () => {
     const c: AngleCut = { id: 'c', kind: 'miter', face: 'length', from: 'max', along: 'thickness', alongFrom: 'min', points: [[0, 0], [1.5, miterRatio(10) * 1.5]], across: { rise: miterRatio(30), from: 'max' } };
     const b = createBoard({ length: 16, width: 1.5, thickness: 1.5, angleCuts: [c] });
-    expect(angleLine(b, c, IMPERIAL)).toBe('Compound miter at the length max end: 10.0° across the thickness, 30.0° across the width');
+    expect(angleLine(b, c, IMPERIAL)).toBe('Compound miter at the length max end: 10.0° across the thickness, 30.0° across the width, long corner at the thickness min side and the width max side');
+  });
+  // Ruling TFa (final review M1): the line names its LONG CORNER — the corner of the end face where the full depth is least,
+  // the corner a woodworker marks first — so mirror-twin legs print different rows.
+  it('mirror-twin legs print different foot lines: Front right and Front left of the square stool, verbatim (TFa)', () => {
+    const parts = worldParts(squareStoolDocument());
+    const foot = (name: string) => {
+      const b = parts.find((p) => p.name === name)!;
+      return angleLine(b, b.angleCuts.find((c) => c.from === 'min')!, IMPERIAL);
+    };
+    expect(foot('Front right')).toBe('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness, long corner at the width max side and the thickness max side');
+    expect(foot('Front left')).toBe('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness, long corner at the width min side and the thickness max side');
+    expect(foot('Front right')).not.toBe(foot('Front left'));
+  });
+  it('a hand-built compound cut names the corner whose full depth is least, pinned against its four corner depths (TFa)', () => {
+    // 16 × 2 × 1 leg; along the width from max, across the thickness from min. Depth at station s (from width max) and t
+    // (from thickness min): 0.5 − 0.2·s + 0.3·(t − 0.5), worked by hand, not by depthAtCross.
+    const c: AngleCut = { id: 'h', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'max', points: [[0, 0.5], [2, 0.1]], across: { rise: 0.3, from: 'min' } };
+    const b = createBoard({ length: 16, width: 2, thickness: 1, angleCuts: [c] });
+    // Corners by side: width max = s 0, width min = s 2; thickness min = t 0, thickness max = t 1.
+    const corners = { 'width max, thickness min': 0.35, 'width max, thickness max': 0.65, 'width min, thickness min': -0.05, 'width min, thickness max': 0.25 };
+    const least = Object.entries(corners).reduce((a, x) => (x[1] < a[1] ? x : a))[0];
+    expect(least).toBe('width min, thickness min');
+    expect(angleLine(b, c, IMPERIAL)).toBe('Compound miter at the length min end: 11.3° across the width, 16.7° across the thickness, long corner at the width min side and the thickness min side');
+    // A negative rise (code-built; the loader keeps rise > 0) moves the corner to the far side of `across.from`.
+    const neg: AngleCut = { ...c, across: { rise: -0.3, from: 'min' } };
+    expect(angleLine(b, neg, IMPERIAL)).toBe('Compound miter at the length min end: 11.3° across the width, 16.7° across the thickness, long corner at the width min side and the thickness max side');
   });
   it('a plain miter reads exactly as before', () => {
     const b = createBoard({ length: 20, width: 2.5, thickness: 0.75, angleCuts: [miter('max')] });

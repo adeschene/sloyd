@@ -314,6 +314,21 @@ export function miterLongSide(c: AngleCut, board: Pick<Board, Dimension>): CutFr
 }
 
 /**
+ * A COMPOUND miter's long corner (ruling TFa, square-set legs final review M1): the corner of the end face where the end
+ * is longest — the least full depth, the corner a woodworker marks first. The single miter's long-point rule
+ * (`miterLongSide`, ties to `alongFrom`) picks the `along` side; `depthAtCross` at that station then picks the through
+ * side (ties to `across.from`). The full depth is affine and separable in station and cross position, so the two choices
+ * together are the corner minimum. Null for a single-slope cut.
+ */
+export function compoundLongCorner(c: AngleCut, board: Pick<Board, Dimension>): { along: CutFrom; through: CutFrom } | null {
+  if (!c.across) return null;
+  const along = miterLongSide(c, board);
+  const s = along === c.alongFrom ? 0 : board[c.along];
+  const through = depthAtCross(c, board, s, 0) <= depthAtCross(c, board, s, board[throughOf(c)]) ? c.across.from : flip(c.across.from);
+  return { along, through };
+}
+
+/**
  * The shop numbers of a stored miter. The long point is the side where the line is shallower; the ratio is read
  * straight off the stored points (no trigonometry), so editing only the end or side keeps it exactly. A miter whose
  * `along` is somehow `length` (hand-edited) reads as across the width. Editing rewrites it canonically via `miterCut`.

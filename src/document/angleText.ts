@@ -1,5 +1,5 @@
 import type { AngleCut, Board, CutFrom, Dimension } from './types';
-import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, depthAtCross, throughOf, miterDegrees, miterLongSide, zeroStation } from './angleCuts';
+import { angleCutsThatRemoveStock, bevelFields, chamferFields, compoundLongCorner, depthAt, depthAtCross, throughOf, miterDegrees, miterLongSide, zeroStation } from './angleCuts';
 import { formatLength, type Units } from '../units/length';
 
 /** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
@@ -43,8 +43,13 @@ export function angleLine(board: Board, c: AngleCut, units: Units): string {
       return `Taper off ${side}: ${f(Math.max(0, near))} at the ${c.along} ${c.alongFrom} end, ${f(Math.max(0, depthAt(c, A)))} at the ${c.along} ${other(c.alongFrom)} end`;
     case 'miter':
       // A compound miter (square-set legs §4): both slopes in degrees, display only — the along slope as every miter
-      // prints it, the across slope (`rise`) the same way. No long point: it is a corner, not a side.
-      if (c.across) return `Compound miter at the length ${c.from} end: ${deg} across the ${c.along}, ${miterDegrees(Math.abs(c.across.rise)).toFixed(1)}° across the ${throughOf(c)}`;
+      // prints it, the across slope (`rise`) the same way — then its LONG CORNER (ruling TFa), the end face's corner of
+      // least full depth, named by its side on each dimension, so mirror-twin legs print different rows.
+      if (c.across) {
+        const lc = compoundLongCorner(c, board)!;
+        const through = throughOf(c);
+        return `Compound miter at the length ${c.from} end: ${deg} across the ${c.along}, ${miterDegrees(Math.abs(c.across.rise)).toFixed(1)}° across the ${through}, long corner at the ${c.along} ${lc.along} side and the ${through} ${lc.through} side`;
+      }
       return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end, long point on the ${c.along} ${miterLongSide(c, board)} side`;
     case 'bevel': {
       const bf = bevelFields(c, board);

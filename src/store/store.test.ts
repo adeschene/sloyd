@@ -4147,6 +4147,34 @@ describe('levelEnds (splayed legs spec §5): every user and placement in one edi
     expectLevelled(ids);
   });
 
+  it('a square-set leg (schema 25) in a definition placed twice, once turned 90 and mirrored: every placement levels with two compound cuts; undo and redo (final review M3)', () => {
+    const part = leg({ id: 'p', position: [0, 0, 0], lean: { ...LEAN, square: true } });
+    s().replaceDocument({
+      ...createDocument('Level'),
+      definitions: [{ id: 'd1', boards: [part], instances: [], hardware: [] }],
+      instances: [
+        { id: 'i1', name: 'Left', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+        { id: 'i2', name: 'Right', definition: 'd1', position: [20, 0, 0], rotation: 90, mirrored: true },
+      ],
+    });
+    const ids = worldParts(s().doc).map((b) => b.id);
+    expect(ids).toHaveLength(2);
+    const before = s().past.length;
+    expect(s().levelEnds(ids[1]!)).toBeNull();
+    expect(s().past.length).toBe(before + 1);
+    const compound = () => ids.map((id) => occ(id).angleCuts.filter((c) => c.across !== undefined && c.across.rise > 0.01).length);
+    expect(compound()).toEqual([2, 2]);
+    for (const id of ids) expect(occ(id).angleCuts, id).toHaveLength(2);
+    expectLevelled(ids);
+    const levelled = s().doc;
+    s().undo();
+    expect(compound()).toEqual([0, 0]);
+    for (const id of ids) expect(occ(id).angleCuts, id).toHaveLength(0);
+    s().redo();
+    expect(s().doc).toBe(levelled);
+    expectLevelled(ids);
+  });
+
   it('refuses, verbatim and before any mutation, linked users whose tops are at 16 and 17', () => {
     s().replaceDocument(idiom((id) => (id === 'c' ? 17 : 16)));
     const doc = s().doc;

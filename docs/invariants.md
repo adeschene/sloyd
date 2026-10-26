@@ -1294,7 +1294,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       deepest corner and the touched box (inv 48); the field table, values and copies (inv 40; `copyAngleCut` gives a fresh
       `across`); mirrors by flag flips (inv 44); a round tenon's tip by `max(0, centre − r·hypot(k, rise))` (inv 58). **Words**:
       the bench line (`angleLine`) `Compound miter at the length <min|max> end: <a>° across the <along>, <b>° across the
-      <through>` (one decimal, display only; `<b>` is `miterDegrees(|rise|)`); `shortPointLine` from the four corners' full depths;
+      <through>, long corner at the <along> <min|max> side and the <through> <min|max> side` (one decimal, display only; `<b>` is
+      `miterDegrees(|rise|)`; the long corner is the end face's corner of least full depth, `compoundLongCorner`, so mirror twins
+      print different rows; ruling TFa); `shortPointLine` from the four corners' full depths;
       the Plans feature key `Compound miter <a>° × <b>°` (along, then across, the chamfer's form; ruling T5a). **Part diagrams**:
       the wedge on BOTH cross faces' views, each side's polygon on its own face (`wedgeOn(board, h, face, at)`: the offset
       `n[face]·at + d`; a single-slope cut takes the old expression, so `diagramIdentity` holds), opening a face's min view (else

@@ -243,3 +243,11 @@ new (§7's choice: a new invariant, not clauses in 48 and 57), invariants 40, 41
 - **Ruling T6b — defence in depth beyond `keepsExactly` (§4).** `worldAngles` returns null for a part with any `across` cut, and
   `angleRatiosOf` skips such a cut, so even a direct caller never reads a compound miter as a plain one (null makes Refine refuse,
   `'angle-form'`, or keeps the part unturned). Awaiting the user's approval. Cost: one guard each.
+- **Ruling TFa — the compound bench line names its long corner (§4 Text; final review M1).** The line §4 quotes named no long point,
+  so mirror-twin legs (Front right, Front left) printed two cut-list rows with identical text. It now reads, verbatim:
+  `Compound miter at the length <min|max> end: <a>° across the <along>, <b>° across the <through>, long corner at the <along>
+  <min|max> side and the <through> <min|max> side`. The long corner is the end face's corner of least full depth (the end is
+  longest there; the corner a woodworker marks first), picked by the single miter's long-point rule (`miterLongSide`, ties to
+  `alongFrom`) on the along dimension and by `depthAtCross` at that station on the through one (ties to `across.from`):
+  `compoundLongCorner` (`angleCuts.ts`). The square stool's feet: Front right `…, long corner at the width max side and the thickness max side`, Front left `…, long corner at the width min side and the thickness max side`. §4's text above
+  is left as written. Awaiting the user's approval. Cost: copy review (fu 473).

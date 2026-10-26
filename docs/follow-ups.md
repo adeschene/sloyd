@@ -7528,8 +7528,10 @@ existing views all come back empty, open its other side.
 
 **473. Square-set legs copy review (for the user).** Every new string is the spec's (quoted there as the builder's calls, marked
 "my call") or the builder's: (1) the bench line `Compound miter at the length <min|max> end: <a>° across the <along>, <b>° across
-the <through>` (the square stool's foot: `Compound miter at the length min end: 12.0° across the width, 8.0° across the
-thickness`); the Angles row's head still reads `Miter` above it (the head is the kind, capitalised; Task 5 review M2). (2) The
+the <through>, long corner at the <along> <min|max> side and the <through> <min|max> side` (the long corner added after the final
+review, ruling TFa, so mirror twins differ; the square stool's feet: Front right `Compound miter at the length min end: 12.0° across
+the width, 8.0° across the thickness, long corner at the width max side and the thickness max side`, Front left `Compound miter at the length min end: 12.0° across the width, 8.0° across
+the thickness, long corner at the width min side and the thickness max side`); the Angles row's head still reads `Miter` above it (the head is the kind, capitalised; Task 5 review M2). (2) The
 Plans feature key `Compound miter <a>° × <b>°` (ruling T5a, along then across, the chamfer's `a × b` form). (3) The Lean
 section's Set select: label `Set`, options `Square to the sides` / `Turned to the lean (one-cut ends)`, and `mixed`. (4) The Set
 refusal `Changing how this leg is set would turn it about its length and move its holes — remove the holes first.` (5) The three
@@ -7538,6 +7540,11 @@ yet: <name>.`, `Refine can't keep joints with a part with a compound end cut yet
 note line `"<leg>" has a compound end cut and is kept as is:` (ruling T6a), under a header that still reads `These parts lean or
 have angled holes, which the design format cannot describe` for a cleared leg kept for nothing else (Task 6 review M1; the spec
 said the kept-list wording does not change, and `keptNote`'s header already has a tenon conditional, so a compound one is cheap).
+(7) Final review M2: Refine's assembly refusal (`refineDesign.ts`, `lean-assembly`) reads `Refine can't keep a leaning part, a part
+with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: <name>.` for a cleared square-set leg (Level
+the ends, then Clear lean) inside an assembly, which is none of those: it is kept for its compound end cut alone. The refusal itself is
+the accepted knock-on (builder check Q3); only the sentence misdescribes it. Candidate: add `or a part with a compound end cut`, or
+make it conditional as `keptNote`'s header is. No code change made.
 **Status:** open (owed to the user: wording).
 
 **474. Square-set legs: deferred minors (2026-10-26, the SDD ledger and task reviews).** (1) Task 6 review M2: `whyKept` names a

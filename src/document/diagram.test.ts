@@ -378,7 +378,7 @@ describe('a compound miter in the part diagrams (square-set legs §4)', () => {
         const a = angleOf(v, c.id)!;
         expect(a, `${c.from} end in ${v.key}`).toBeDefined();
         expect(key(a.poly), `${c.from} end in ${v.key}`).toEqual(expected(leg, c, v.face as 'width' | 'thickness', v.from));
-        expect(a.label).toBe(`Compound miter at the length ${c.from} end: 12.0° across the width, 8.0° across the thickness`);
+        expect(a.label).toBe(`Compound miter at the length ${c.from} end: 12.0° across the width, 8.0° across the thickness, long corner at ${c.from === 'min' ? 'the width max side and the thickness max side' : 'the width min side and the thickness min side'}`);
       }
     }
   });
