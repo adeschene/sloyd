@@ -105,7 +105,10 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
     // cuts has nothing to repair (null), so a leaning prototype never shows a second refusal beside joinery's.
     // A part with a round tenon likewise (round tenons spec §9), after the lean, and then a part with a compound end cut
     // (square-set legs spec §4), as in `joineryRefusal`.
-    const leaning = flat.boards.some((b) => b.cuts.length > 0) ? leaningRefusal('repair', flat) ?? tenonRefusal('repair', flat) ?? compoundRefusal('repair', flat) : null;
+    const joined = flat.boards.some((b) => b.cuts.length > 0);
+    const leaning = joined
+      ? leaningRefusal('repair', flat) ?? tenonRefusal('repair', flat) ?? compoundRefusal('repair', flat)
+      : null;
     if (leaning) return { refused: leaning };
     const r = repairJoints(flat, storedKeys(doc));
     if (r === null || 'refused' in r) return r;

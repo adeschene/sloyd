@@ -116,6 +116,9 @@ export function worldAngles(b: Board): WorldAngles | null {
   const out = noAngles();
   for (const c of b.angleCuts) {
     if (c.kind === 'taper') continue;
+    // A compound miter (square-set legs spec §4, ruling T6b) has no design form: its points alone read as a plain miter
+    // and `across` would be lost. Null, so every caller refuses or keeps (Refine's 'angle-form', no turn), never drops it.
+    if (c.across !== undefined) return null;
     const [[s0, q0], [s1, q1]] = c.points;
     if (c.kind === 'miter' || c.kind === 'bevel') {
       const shaped = c.kind === 'miter'
@@ -146,13 +149,16 @@ export function worldAngles(b: Board): WorldAngles | null {
 /**
  * The exact-angle map (§6.2): each degree value `worldAngles` writes for a miter or bevel on these parts → its stored
  * slope (depth ÷ run, read off the points). `ratioFor` uses it so an untouched angle is re-stored exactly. Two slopes
- * printing the same degree value keep the first (they differ by float noise only).
+ * printing the same degree value keep the first (they differ by float noise only). A compound miter contributes nothing
+ * (ruling T6b): `worldAngles` writes no degree value for one.
  */
 export function angleRatiosOf(boards: readonly Board[]): Map<number, number> {
   const out = new Map<number, number>();
   for (const b of boards) {
     for (const c of b.angleCuts) {
       if (c.kind !== 'miter' && c.kind !== 'bevel') continue;
+      // A compound miter's along slope is not its angle (ruling T6b): never read as a plain miter's degree value.
+      if (c.across !== undefined) continue;
       const [[, ], [s1, q1]] = c.points;
       if (!(s1 > 0 && q1 > 0)) continue;
       const deg = miterDegrees(q1 / s1);

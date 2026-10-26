@@ -149,3 +149,21 @@ describe('two miters that leave wood (final review M1)', () => {
     expect('cuts' in angleCutsFor(b, miters(b, ['-', '-']))).toBe(true);
   });
 });
+
+describe('a compound miter has no design form (square-set legs spec §4, ruling T6b)', () => {
+  // The (0,0) form worldAngles otherwise reads as a plain miter: only `across` tells them apart.
+  const square = createBoard({ length: 16, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0 });
+  const plain = { id: 'm', ...miterCut({ end: 'min', across: 'width', longSide: 'min', ratio: 0.2 }, square) };
+  const compound = { ...plain, across: { rise: 0.1, from: 'min' as const } };
+
+  it('worldAngles is null for a part with one, never a plain miter without its `across`', () => {
+    expect(worldAngles({ ...square, angleCuts: [plain] })!.miters).toHaveLength(1);
+    expect(worldAngles({ ...square, angleCuts: [compound] })).toBeNull();
+    expect(worldAngles({ ...square, angleCuts: [plain, { ...compound, id: 'c', from: 'max' }] })).toBeNull();
+  });
+
+  it('angleRatiosOf reads no degree value off one', () => {
+    expect(angleRatiosOf([{ ...square, angleCuts: [plain] }]).size).toBe(1);
+    expect(angleRatiosOf([{ ...square, angleCuts: [compound] }]).size).toBe(0);
+  });
+});
