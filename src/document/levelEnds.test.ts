@@ -4,7 +4,9 @@ import { isLevelled, levelCutOf, levelPlan, sameLevelLine, LEVEL_BELOW_FLOOR, LE
 import { levelEndHoles } from './holeRebase';
 import { holeInstances } from './holes';
 import { leanMap, slopeOf } from './lean';
-import { miterFields, taperCut } from './angleCuts';
+import { depthAt, depthAtCross, miterFields, mirrorAngleCut, taperCut, throughOf } from './angleCuts';
+import { squareStoolLegs } from './stoolFixture';
+import { mirrorPart } from './frames';
 import { partGeometry } from './bodies';
 import { toWorld } from './snapPoints';
 import type { AngleCut, Board, HoleRow, Lean } from './types';
@@ -407,5 +409,193 @@ describe('levelPlan with topAt (round tenons §6.1)', () => {
 
   it('topAt at or below the floor refuses as the top below the floor does', () => {
     expect(levelPlan(leg(), IN, { topAt: 0 })).toBe(LEVEL_BELOW_FLOOR);
+  });
+});
+
+// Square-set legs spec §3.3 (Task 4): on a square-set leg the floor's normal leaves the length × face plane, so each end
+// is ONE compound miter: `along` the dimension with the larger slope (ties: width), `points` its line through the end's
+// centre, `across` the rest. Every check reads the real leaned bodies (`partGeometry` through `toWorld`).
+describe('Level the ends on a square-set leg (square-set legs §3.3)', () => {
+  const SQ: Lean = { ...LEAN, square: true };
+  const sq = (over: Partial<Board> = {}) => leg({ lean: SQ, ...over });
+  /** Every world vertex of the leaned bodies: the lowest at the floor, the highest at `top`, and every downward
+   *  (upward) face's vertices exactly on its plane. */
+  const standsLevel = (b: Board, top: number, what = b.name) => {
+    const faces = allFaces(b);
+    const ys = faces.flatMap((f) => f.verts.map((v) => v[1]));
+    expect(Math.abs(Math.min(...ys)), `${what} lowest`).toBeLessThanOrEqual(1e-9);
+    expect(Math.abs(Math.max(...ys) - top), `${what} highest`).toBeLessThanOrEqual(1e-9);
+    for (const end of ['foot', 'top'] as const) {
+      const fs = cutFaces(b, cutOn(b, end));
+      expect(fs.length, `${what} ${end} faces`).toBeGreaterThan(0);
+      for (const f of fs) {
+        for (const v of f.verts) expect(Math.abs(v[1] - (end === 'foot' ? 0 : top)), `${what} ${end}`).toBeLessThanOrEqual(1e-9);
+        expect(Math.abs(Math.abs(f.normal[1]) - 1), `${what} ${end} normal`).toBeLessThanOrEqual(1e-12);
+      }
+    }
+  };
+  /** The four section corners of an end on its cut's own plane (depthAtCross), in the world. */
+  const cornerYs = (b: Board, end: 'foot' | 'top') => {
+    const c = cutOn(b, end);
+    const through = throughOf(c);
+    const A = b[c.along];
+    const T = b[through];
+    return [[0, 0], [A, 0], [0, T], [A, T]].map(([s, t]) => {
+      const q = depthAtCross(c, b, s!, t!);
+      const p = { length: end === 'foot' ? q : b.length - q, [c.along]: c.alongFrom === 'min' ? s! : A - s!,
+        [through]: c.across?.from === 'max' ? T - t! : t! } as Record<'length' | 'width' | 'thickness', number>;
+      return toWorld(b, p)[1];
+    });
+  };
+
+  it('the square leg would not level as a turned one: its through dimension tilts (the turned guard stays turned-only)', () => {
+    const lm = leanMap(sq())!;
+    // Both cross dimensions carry a slope: no single-slope line holds the floor.
+    expect(Math.abs(lm.applyDir([1, 0, 0])[1])).toBeGreaterThan(0.01);
+    expect(Math.abs(lm.applyDir([0, 0, 1])[1])).toBeGreaterThan(0.01);
+    expect(typeof levelPlan(sq(), IN)).toBe('object');
+  });
+
+  it('one compound miter per end, along the larger slope, from the centre line; feet on the floor, tops at R', () => {
+    const b = levelled(sq());
+    standsLevel(b, 16, 'leg');
+    expect(b.angleCuts).toHaveLength(2);
+    for (const end of ['foot', 'top'] as const) {
+      const c = cutOn(b, end);
+      expect(c).toMatchObject({ kind: 'miter', face: 'length', from: end === 'foot' ? 'min' : 'max', along: 'width', alongFrom: 'min' });
+      expect(c.across!.rise).toBeGreaterThan(0.01);
+      // The section corners on the cut's own plane: every one at the floor, or at R.
+      for (const y of cornerYs(b, end)) expect(Math.abs(y - (end === 'foot' ? 0 : 16))).toBeLessThanOrEqual(1e-9);
+    }
+    // The foot and the top slope across the through dimension in opposite senses (the plane is the same one, seen
+    // from opposite ends).
+    expect(cutOn(b, 'foot').across!.from).not.toBe(cutOn(b, 'top').across!.from);
+  });
+
+  it('along is the cross dimension with the larger slope; a tie goes to width', () => {
+    // Rake 12° (Z: thickness at turn 0), splay 8° (X: width): thickness slopes more.
+    const t = levelled(sq({ lean: { x: T8, z: T12, face: 'thickness', square: true } }));
+    expect(t.angleCuts.map((c) => c.along)).toEqual(['thickness', 'thickness']);
+    standsLevel(t, 16, 'thickness');
+    // A tie (rake = splay) goes to width, and it still stands level.
+    const w = levelled(sq({ lean: { x: T8, z: T8, face: 'width', square: true } }));
+    expect(w.angleCuts.map((c) => c.along)).toEqual(['width', 'width']);
+    standsLevel(w, 16, 'tie');
+    // Every quarter turn (the through direction read through axisFrame, a reversed axis included).
+    for (const rotation of [90, 180, 270] as const) {
+      const r = levelled(sq({ rotation }));
+      standsLevel(r, 16, `turn ${rotation}`);
+      expect(isLevelled(r, IN)).toBe(true);
+    }
+  });
+
+  it('a rake-only square-set lean writes a plain miter: no across is stored for a zero slope', () => {
+    const b = levelled(sq({ lean: { x: 0, z: T8, face: 'thickness', square: true } }));
+    expect(b.angleCuts).toHaveLength(2);
+    for (const c of b.angleCuts) {
+      expect('across' in c).toBe(false);
+      expect(c.along).toBe('thickness');
+    }
+    standsLevel(b, 16, 'rake-only');
+  });
+
+  it('lengths round UP to the grid (imperial 1/16, metric 1 mm)', () => {
+    const p = ok(levelPlan(sq(), IN));
+    expect(Number.isInteger(p.length * 16)).toBe(true);
+    expect(p.length).toBeGreaterThan(16);
+    const m = ok(levelPlan(sq({ length: 400 / 25.4 }), MM));
+    expect(Math.abs(m.length * 25.4 - Math.round(m.length * 25.4))).toBeLessThanOrEqual(1e-9);
+    // A long leg's foot is shortened (toward zero), still on the floor.
+    const s = levelled(sq({ length: 30, position: [0.123, -14, 0.456] }));
+    expect(s.length).toBeLessThan(30);
+    expect(Number.isInteger(s.length * 16)).toBe(true);
+    standsLevel(s, 16, 'long');
+  });
+
+  it('re-level is a no-op (isLevelled), and a rake edit makes it stale until re-levelled', () => {
+    expect(isLevelled(sq(), IN)).toBe(false);
+    const once = levelled(sq());
+    expect(isLevelled(once, IN)).toBe(true);
+    const twice = ok(levelPlan(once, IN));
+    expect(twice.angleCuts.map((c) => c.id)).toEqual(once.angleCuts.map((c) => c.id));
+    twice.angleCuts.forEach((c, i) => expect(sameLevelLine(c, once.angleCuts[i]!, once[c.along])).toBe(true));
+    const edited: Board = { ...once, lean: { ...SQ, z: slopeOf(9) } };
+    expect(isLevelled(edited, IN)).toBe(false);
+    // The top through R: where the old (compound) top cut meets the axis, its centre-line depth (spec §3.1's anchor).
+    const top = cutOn(edited, 'top');
+    const seat = leanMap(edited)!.pivot[1] - depthAt(top, edited[top.along] / 2) * axisUp(edited)[1];
+    expect(Math.abs(seat - 16)).toBeGreaterThan(1e-4);
+    const again = levelled(edited);
+    expect(again.angleCuts.map((c) => c.id)).toEqual(once.angleCuts.map((c) => c.id));
+    expect(isLevelled(again, IN)).toBe(true);
+    standsLevel(again, seat, 'again');
+  });
+
+  it('sameLevelLine compares across: rise within 1e-9, the same from, or both absent', () => {
+    const c = cutOn(levelled(sq()), 'foot');
+    const W = 1.5;
+    expect(sameLevelLine(c, { ...c, across: { ...c.across!, rise: c.across!.rise + 5e-10 } }, W)).toBe(true);
+    expect(sameLevelLine(c, { ...c, across: { ...c.across!, rise: c.across!.rise + 1e-8 } }, W)).toBe(false);
+    expect(sameLevelLine(c, { ...c, across: { ...c.across!, from: c.across!.from === 'min' ? 'max' : 'min' } }, W)).toBe(false);
+    const { across: _a, ...plain } = c;
+    expect(sameLevelLine(c, plain, W)).toBe(false);
+    expect(sameLevelLine(plain, c, W)).toBe(false);
+    expect(sameLevelLine(plain, { ...plain }, W)).toBe(true);
+  });
+
+  it('the square stool (Review Focus 2): every foot corner at y = 0 and top corner at 16, Front left Front right\'s mirror', () => {
+    const legs = squareStoolLegs();
+    expect(legs.map((b) => b.name)).toEqual(['Front right', 'Front left', 'Back left', 'Back right']);
+    for (const b of legs) {
+      expect(b.lean!.square).toBe(true);
+      standsLevel(b, 16);
+      for (const y of cornerYs(b, 'foot')) expect(Math.abs(y), `${b.name} foot corner`).toBeLessThanOrEqual(1e-9);
+      for (const y of cornerYs(b, 'top')) expect(Math.abs(y - 16), `${b.name} top corner`).toBeLessThanOrEqual(1e-9);
+      expect(b.angleCuts.every((c) => c.across !== undefined)).toBe(true);
+      expect(isLevelled(b, IN), b.name).toBe(true);
+    }
+    // The mirror's feet are Front right's flag-flipped (along the mirror's dimension), the same lines read from one side.
+    const [fr, fl] = legs;
+    expect(fl!.length).toBe(fr!.length);
+    for (const end of ['foot', 'top'] as const) {
+      const a = cutOn(fr!, end);
+      expect(sameLevelLine(mirrorAngleCut(a, 'width'), cutOn(fl!, end), fl![a.along])).toBe(true);
+    }
+    // Mirrored AFTER levelling, never re-levelled (the flags flip, inv 44): still level and `isLevelled`. Front right's
+    // mirror is along its `along` (alongFrom flips); a thickness-along leg's width mirror is along its THROUGH
+    // dimension, so `across.from` flips (Task 2's flip on Task 4's cut).
+    const thick = levelled(sq({ lean: { x: T8, z: T12, face: 'thickness', square: true } }));
+    expect(thick.angleCuts.map((c) => c.along)).toEqual(['thickness', 'thickness']);
+    for (const [label, b] of [['Front right', fr!], ['thickness-along', thick]] as const) {
+      const m = mirrorPart(b);
+      if (label === 'thickness-along') expect(m.angleCuts.map((c) => c.across!.from)).toEqual(b.angleCuts.map((c) => (c.across!.from === 'min' ? 'max' : 'min')));
+      standsLevel(m, 16, `${label} mirrored`);
+      for (const y of cornerYs(m, 'foot')) expect(Math.abs(y), `${label} mirrored foot corner`).toBeLessThanOrEqual(1e-9);
+      expect(isLevelled(m, IN), `${label} mirrored`).toBe(true);
+    }
+    // A Front right rake edit makes it stale; re-levelled, it is level again and back on the floor.
+    const raked: Board = { ...fr!, lean: { ...fr!.lean!, z: slopeOf(10) } };
+    expect(isLevelled(raked, IN)).toBe(false);
+    const again = levelled(raked);
+    expect(isLevelled(again, IN)).toBe(true);
+    for (const y of cornerYs(again, 'foot')) expect(Math.abs(y), 'raked foot corner').toBeLessThanOrEqual(1e-9);
+  });
+
+  it('holes stay in the wood (levelEndHoles) on a square-set leg: every bottom, and a side row\'s mouth, in place', () => {
+    const r: HoleRow = { id: 'e', face: 'length', from: 'max', diameter: 0.25, depth: 1.25, along: 'width', alongFrom: 'min', station: 0.7,
+      count: 1, pitch: 0, acrossFrom: 'min', inset: 0.55, tiltAlong: slopeOf(9), tiltAcross: -slopeOf(5) };
+    const s: HoleRow = { ...r, id: 's', face: 'thickness', along: 'length', station: 5, inset: 0.6, depth: 0.5, tiltAlong: slopeOf(20), tiltAcross: undefined };
+    const { tiltAcross: _t, ...side } = s;
+    const b = sq({ holes: [r, side as HoleRow] });
+    const p = ok(levelPlan(b, IN));
+    const nb: Board = { ...apply(b, p), holes: p.holes };
+    const far = (x: ReturnType<typeof holeInstances>[number]): Vec3 => [x.centre[0] + x.reach * x.bit[0], x.centre[1] + x.reach * x.bit[1], x.centre[2] + x.reach * x.bit[2]];
+    b.holes.forEach((row, k) => {
+      const h = holeInstances(b, row)[0]!;
+      const g = holeInstances(nb, p.holes[k]!)[0]!;
+      toWorld(nb, P(far(g))).forEach((v, i) => expect(Math.abs(v - toWorld(b, P(far(h)))[i]!), `${row.id} bottom`).toBeLessThanOrEqual(1e-9));
+      if (row.face !== 'length') toWorld(nb, P(g.centre)).forEach((v, i) => expect(Math.abs(v - toWorld(b, P(h.centre))[i]!), `${row.id} mouth`).toBeLessThanOrEqual(1e-9));
+    });
+    expect(p.length).not.toBe(b.length);
   });
 });

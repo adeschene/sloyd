@@ -14,7 +14,7 @@ import { tiltResultantDeg, tiltSightlineDeg } from './holeTilt';
 import { toWorld } from './snapPoints';
 import { mapWorld } from './treeEdit';
 import { worldParts } from './tree';
-import { stoolDocument, stoolLegs, stoolSeat } from './stoolFixture';
+import { squareStoolDocument, stoolDocument, stoolLegs, stoolSeat } from './stoolFixture';
 import { boreAlongAxis, isSocketOf, legsUnder, legTenonPlan, partAxis, socketPlan, socketRow, socketsDisagree, socketTooSteep, staleSocketOf, socketStale } from './legSockets';
 import { isLevelled } from './levelEnds';
 import { builtTenons, shoulderAt, tenonAt } from './roundTenons';
@@ -565,6 +565,30 @@ describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
     }
     expect(tenonJoints(flatDocument(doc))).toHaveLength(4);
     expect(kindsOf(doc)).toEqual([]);
+  });
+
+  it('the square-set stool (square-set legs §3.3): four sockets, four top tenons seated on compound tips, a clean check', () => {
+    const doc0 = squareStoolDocument();
+    // Linked by role as the turned stool is (two Shapes, each leg with its 180° twin), so the storage-group path runs.
+    expect(doc0.shapes).toHaveLength(2);
+    expect(stoolDocument().shapes).toHaveLength(2);
+    expect(legsOf(doc0).every((b) => b.lean!.square === true && b.angleCuts.every((c) => c.across !== undefined))).toBe(true);
+    const doc = fit(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    expect(seat.holes).toHaveLength(4);
+    expectFitted(doc, seat, legsOf(doc));
+    // The fitted tops are still one compound miter each (the top re-levelled through the seat's top face).
+    for (const leg of legsOf(doc)) {
+      const top = leg.angleCuts.filter((c) => c.face === 'length' && c.from === 'max');
+      expect(top, leg.name).toHaveLength(1);
+      expect(top[0]!.across, leg.name).toBeDefined();
+    }
+    expect(tenonJoints(flatDocument(doc))).toHaveLength(4);
+    expect(kindsOf(doc)).toEqual([]);
+    // Again: nothing to do (sameCuts reads the compound tops through sameLevelLine).
+    const p = socketPlan(doc, seatOf(doc).id, 1, true);
+    expect(typeof p === 'object' && p.holes).toBe(seatOf(doc).holes);
+    expect(typeof p === 'object' && (p.legs ?? [])).toEqual([]);
   });
 
   it('again, immediately: nothing to do (the seat\'s own rows, no leg patch)', () => {

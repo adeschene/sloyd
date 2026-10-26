@@ -13,10 +13,14 @@ import type { Vec3 } from './frames';
  * checks' floor) and its top cut level, its length set at each end so every corner of that end just reaches its plane,
  * each end's change rounded UP to the drag grid (Global Constraints) so the cut list prints a buyable blank.
  *
- * Both cuts are ordinary end miters (`face 'length'`), sloping along the dimension the lean faces (`seamFree`'s, the one
- * `leanMap` twists onto the sightline), so the floor's normal lies in the length × face plane (§3.3) and one sloped line
- * stores the plane exactly. The stored lines are offset after the round-up, so `miterFields` reads them as null: the
- * rows show the bench line and Remove only (re-level instead).
+ * Both cuts are end miters (`face 'length'`). On a TURNED lean each slopes along the dimension the lean faces
+ * (`seamFree`'s, the one `leanMap` twists onto the sightline), so the floor's normal lies in the length × face plane
+ * (§3.3) and one sloped line stores the plane exactly. On a SQUARE-SET lean (schema 25; square-set legs spec §3.3) the
+ * part is never twisted, so the normal tilts in both cross dimensions: each end is ONE compound miter, `along` the cross
+ * dimension with the larger slope (ties: width), `points` its single-slope line through the end's CENTRE, and `across`
+ * the remaining slope (none stored for a zero one, so a rake- or splay-only square-set lean writes a plain miter). Either
+ * way the stored lines are offset after the round-up, so `miterFields` reads them as null: the rows show the bench line
+ * and Remove only (re-level instead).
  */
 
 /** The refusals, verbatim (Global Constraints), all decided before any mutation. */
@@ -35,9 +39,19 @@ const EPS = 1e-9;
 /** `holes` (angled holes §7): every row re-anchored by `levelEndHoles`, so each hole stays where it was in the wood. */
 export interface LevelPlan { length: number; position: Vec3; angleCuts: AngleCut[]; holes: HoleRow[] }
 
-/** The dimension a level cut slopes along: the facing dimension `leanMap` actually twists (seam-free, §3.3). */
+/** The dimension a TURNED lean's level cut slopes along: the facing dimension `leanMap` actually twists (seam-free,
+ *  §3.3). A square-set lean's is read off its map instead (`levelPlan`). */
 function faceOf(lean: Lean): 'width' | 'thickness' {
   return seamFree(lean).face;
+}
+
+/** The world PRE-lean direction in which dimension `d`'s local coordinate grows (`axisFrame`, inv 44: a reversed axis
+ *  runs along the world axis's negative). */
+function dirOf(b: Board, d: Dimension): Vec3 {
+  const v: Vec3 = [0, 0, 0];
+  const i = axisFrame(b).findIndex((a) => a.dim === d);
+  v[i] = axisFrame(b)[i]!.reversed ? -1 : 1;
+  return v;
 }
 
 /**
@@ -84,13 +98,20 @@ function heightAt(b: Board, face: Dimension, through: Dimension, l: number, f: n
  * - `L' = L + e_f + e_t`; the new pivot is `P' = P + e_t·u`, so the leaned axis is the same line (the rotation does not
  *   depend on length or position); `position' = P' − (e0/2, L', e2/2)`.
  * - Depths come from the NEW board's own map: the length-wise distance from each end face to its plane at stations 0 and
- *   A (the facing dimension), stations from `min`.
+ *   A (the facing dimension, or a square-set lean's `along`), stations from `min`. A turned lean reads them at through
+ *   position 0 (its plane has no through slope; byte for byte as before schema 25); a square-set one at the through
+ *   CENTRE, so `depthAt(c, A/2)` is the depth on the axis and R stays exact, and its `across` is the depth's slope across
+ *   the through dimension, `{ rise: |s|, from: the side the depth grows from }`, stored only when `|s| > 1e-9`.
  */
 export function levelPlan(world: Board, units: Units, opts?: { topAt?: number }): LevelPlan | string {
   const lean = world.lean;
   const lm = lean ? leanMap(world) : null;
   if (!lean || !lm) throw new Error('levelPlan: the part does not lean');
-  const face = faceOf(lean);
+  // A square-set lean's cut slopes along the cross dimension whose world height changes faster (ties: width, §3.3).
+  const square = lean.square === true;
+  const face: 'width' | 'thickness' = square
+    ? (Math.abs(lm.applyDir(dirOf(world, 'width'))[1]) + EPS >= Math.abs(lm.applyDir(dirOf(world, 'thickness'))[1]) ? 'width' : 'thickness')
+    : faceOf(lean);
   const through: Dimension = face === 'width' ? 'thickness' : 'width';
 
   // A face 'length' cut on an end that is not a level cut: never stack a second cut on an end (§5).
@@ -98,13 +119,12 @@ export function levelPlan(world: Board, units: Units, opts?: { topAt?: number })
   if (onEnd('min').some((c) => levelCutOf(c) === null)) return LEVEL_FOOT_CUT;
   if (onEnd('max').some((c) => levelCutOf(c) === null)) return LEVEL_TOP_CUT;
 
-  // §3.3's guarantee: the floor normal has no component on the through dimension, so a line in length × face holds the
-  // plane. Its leaned direction must be horizontal; anything else is a bug in lean.ts, not a part to cut.
-  const frame = axisFrame(world);
-  const tAxis = frame.findIndex((a) => a.dim === through);
-  const tDir: Vec3 = [0, 0, 0];
-  tDir[tAxis] = 1;
-  if (Math.abs(lm.applyDir(tDir)[1]) > EPS) throw new Error('levelPlan: the floor normal leaves the length × face plane');
+  // §3.3's guarantee for a TURNED lean: the floor normal has no component on the through dimension, so a line in
+  // length × face holds the plane. Its leaned direction must be horizontal; anything else is a bug in lean.ts, not a part
+  // to cut. A square-set lean's through slope is real and goes into `across` (square-set legs spec §3.3).
+  const tDir = dirOf(world, through);
+  const gt = lm.applyDir(tDir)[1];
+  if (!square && Math.abs(gt) > EPS) throw new Error('levelPlan: the floor normal leaves the length × face plane');
 
   const u = lm.applyDir([0, 1, 0]);
   const uy = u[1];
@@ -135,15 +155,25 @@ export function levelPlan(world: Board, units: Units, opts?: { topAt?: number })
 
   // Depths off the new board's own map (its pivot is P'): y is linear in ℓ with slope u_y.
   const nb: Board = { ...world, length, position };
-  const footDepth = (s: number) => -heightAt(nb, face, through, 0, s, 0) / uy;
-  const topDepth = (s: number) => (heightAt(nb, face, through, length, s, 0) - ry) / uy;
-  const cut = (from: 'min' | 'max', id: string | undefined, d: (s: number) => number): AngleCut => ({
-    id: id ?? nextId(), kind: 'miter', face: 'length', from, along: face, alongFrom: 'min', points: [[0, d(0)], [A, d(A)]],
-  });
+  // A square-set line runs through the through CENTRE (the across term is anchored there, spec §3.1); a turned one at 0.
+  const tc = square ? T / 2 : 0;
+  const footDepth = (s: number) => -heightAt(nb, face, through, 0, s, tc) / uy;
+  const topDepth = (s: number) => (heightAt(nb, face, through, length, s, tc) - ry) / uy;
+  // The depth's slope across the through dimension (per inch from its min side): the foot's depth falls as y rises, the
+  // top's grows. The rotation is the same on the new board (it depends on neither length nor position).
+  const acrossOf = (slope: number): AngleCut['across'] =>
+    (square && Math.abs(slope) > EPS ? { rise: Math.abs(slope), from: slope > 0 ? 'min' : 'max' } : undefined);
+  const cut = (from: 'min' | 'max', id: string | undefined, d: (s: number) => number, slope: number): AngleCut => {
+    const across = acrossOf(slope);
+    return {
+      id: id ?? nextId(), kind: 'miter', face: 'length', from, along: face, alongFrom: 'min', points: [[0, d(0)], [A, d(A)]],
+      ...(across ? { across } : {}),
+    };
+  };
 
   const foot = world.angleCuts.find((c) => levelCutOf(c) === 'foot');
-  const footNew = cut('min', foot?.id, footDepth);
-  const topNew = cut('max', topCut?.id, topDepth);
+  const footNew = cut('min', foot?.id, footDepth, -gt / uy);
+  const topNew = cut('max', topCut?.id, topDepth, gt / uy);
   // Recognised cuts are replaced in place, the first per end; any FURTHER recognised cut on that end (only a hand-edited
   // file has one) is removed, deliberately: an end holds one level cut, never a stack. New ones append.
   const out: AngleCut[] = [];
@@ -166,9 +196,13 @@ export function depthFromMin(c: AngleCut, alongSize: number, s: number): number 
   return depthAt(c, c.alongFrom === 'min' ? s : alongSize - s);
 }
 
-/** The same end line within 1e-9: every flag but `alongFrom`, and the depths at both ends read from one side. */
+/** The same end line within 1e-9: every flag but `alongFrom`, the depths at both ends read from one side, and the same
+ *  `across` (square-set legs spec §3.3): both absent, or the same `from` and rise within 1e-9. `from` is compared as
+ *  stored: with `rise > 0` it names the one side the depth grows from, so unlike `alongFrom` it has no second spelling. */
 export function sameLevelLine(a: AngleCut, b: AngleCut, alongSize: number): boolean {
   return a.kind === b.kind && a.face === b.face && a.from === b.from && a.along === b.along
+    && (a.across === undefined ? b.across === undefined
+      : b.across !== undefined && a.across.from === b.across.from && Math.abs(a.across.rise - b.across.rise) <= EPS)
     && [0, alongSize].every((s) => Math.abs(depthFromMin(a, alongSize, s) - depthFromMin(b, alongSize, s)) <= EPS);
 }
 
