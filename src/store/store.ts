@@ -473,8 +473,7 @@ interface StoreState {
    * silently (null) while gesturing or exploded. Clear is never refused. Square-set legs §3.2: a first lean is
    * square-set; `world.square` is the Set change (alone, it keeps the slopes bit for bit), refused on a holed part when
    * it would turn the part (`LEAN_SET_TURNS_HOLES`, τ ≠ 0); the face re-choice refusal applies only to a turned lean.
-   */
-  /**
+   *
    * Sets the lean in SIGNED world degrees (rake + = foot toward the front, splay + = toward the right); null clears.
    * `keepSign` reads `rake`/`splay` as MAGNITUDES and gives each part its OWN current world sign (a part at 0 takes +),
    * so a symmetric selection keeps its sides. `rakeSign`/`splaySign` (±1) set only the DIRECTION, keeping each part's own

@@ -3963,6 +3963,10 @@ describe('square-set leans through setLean (square-set legs spec §3.2)', () => 
     refuses(SET, () => s().setLean(['L'], { square: true }));
     // A combined edit that ends at τ = 0 still leaves a turned lean whose own twist is not 0: refused.
     refuses(SET, () => s().setLean(['L'], { square: true, splay: 0 }));
+    // The other way the turned end is the NEW lean: square-set 8°/12° → turned rake-only has τ = 0, only a tilt: allowed.
+    load(leg({ holes: [HOLE], lean: { x: T12, z: T8, face: 'width', square: true } }));
+    expect(s().setLean(['L'], { square: false, splay: 0 })).toBeNull();
+    expect(occ('L').lean).toEqual({ x: 0, z: T8, face: 'thickness' });
     // Without holes the same changes are allowed.
     load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
     expect(s().setLean(['L'], { square: true })).toBeNull();
@@ -4020,12 +4024,15 @@ describe('square-set leans through setLean (square-set legs spec §3.2)', () => 
     load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
     s().beginGesture();
     const doc = s().doc;
-    s().setLean(['L'], { square: true });
+    const n = s().past.length;
+    expect(s().setLean(['L'], { square: true })).toBeNull();
     expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
     s().endGesture();
     s().setExplode(1);
-    s().setLean(['L'], { square: true });
+    expect(s().setLean(['L'], { square: true })).toBeNull();
     expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
   });
 });
 

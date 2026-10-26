@@ -159,6 +159,8 @@ export function leanMap(b: Board): LeanMap | null {
   // on one drew it upright while others bounded, snapped or noted it as leaning.
   if (!leans(b) || !b.lean) return null;
   const [wx, wz] = worldSlopes(b);
+  // τ is computed for every lean only for the null contract (unreachable once `leans` held: an upright part's faces are
+  // horizontal); only the TURNED branch below reads its value. A square-set map never does.
   const tau = leanTwist(b, b.lean);
   if (tau === null) return null;
 
