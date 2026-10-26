@@ -6559,7 +6559,7 @@ outline: this entry).
 **Status:** open — chunk b1 implemented and merged 2026-10-18 (not deployed; no schema change): End to end follows a cut side and
 carries round its corner arcs (B1, B1a), All round follows the whole outline, and a saved End to end follows on load (B10) or, too
 tight to follow, runs straight as a2 built it (the user's ruling). Next: b2 (two-side runs, B3; stops on a turned run). Residue 393.
-**Status:** closed — chunk b complete: profile runs b2 (2026-10-19, code complete at `5027ff9`; not yet merged or deployed; no
+**Status:** closed — chunk b complete: profile runs b2 (2026-10-19, code complete at `5027ff9`; merged `0e41f87` and deployed 2026-10-19 as `index-BhtaBf2G.js`; no
 schema change) makes a stop on an arch, bow, notch or corner arc follow and run out there, and a stopped run start on one side and
 stop on another (B3); saved a2 stops on a turned path follow on load or run straight by cause. Chunk c (speed) stays under 393(2)
 and 394(5); blind curved recesses under 365. Residue 394.
@@ -7168,8 +7168,8 @@ and its section caps omit the bores — with NO note (spec §8 said "with a note
 that are not square to a face (the seat's leg sockets, bored along the leg's real axis), oblique bores in caps and drawings, and probably
 a round or tapered round tenon on a leg's top; it lifts both refusals.
 **Status:** open (feature-sized; needs its own spec — chunk 2).
-**Status:** closed 2026-10-25 by angled holes (splayed legs chunk 2, schema 23; built on branch `angled-holes`, not merged or
-deployed): a hole row's bit tilts (`tiltAlong` / `tiltAcross`, `holeTilt.ts`), Bore leg sockets bores a seat along its leaning legs'
+**Status:** closed 2026-10-25 by angled holes (splayed legs chunk 2, schema 23; merged `aa1f841` and
+deployed 2026-10-25 as `index-B114iN-Y.js`): a hole row's bit tilts (`tiltAlong` / `tiltAcross`, `holeTilt.ts`), Bore leg sockets bores a seat along its leaning legs'
 axes (`legSockets.ts`), both refusals are lifted (a holed part may lean, a leaning part takes holes; one new refusal: a lean whose
 seam-free face differs from the stored one on a holed part), a leaning part's section caps subtract its bores, and tilted bores are
 drawn, capped, snapped and listed (inv 50, 51, 57). The round tenon is NOT done: moved to fu 447 (chunk 2b).
@@ -7200,7 +7200,7 @@ sides first (Lean).` (square-set legs spec §5, the builder's call, recorded the
 `sameLevelLine`, which now compares `across`). Square-set legs took invariant 59, so the stretchers spec's "inv 58 clause or a new
 inv 59" (its §9, Records) becomes inv 58 or a new inv 60.
 **Status:** closed 2026-10-26 — stretchers BUILT on branch `stretchers` (spec `docs/superpowers/specs/2026-10-25-sloyd-stretchers-design.md`,
-NO schema change, inv 60 new; invs 50 and 58 extended); merge and deploy pending (the user's decision); browser verification
+NO schema change, inv 60 new; invs 50 and 58 extended); merged `fc4302a` and deployed 2026-10-26 as `index-D-XnmIBh.js`; browser verification
 DONE (plan Task 7, `docs/browser-verification-stretchers.md`, 8/8 PASS, e4a18ce). A rung between two upright legs (leaning or not) is held by inv 39's clause (d) through its two seated round tenons;
 the "between" rule for leaning parts STANDS as written (a part laid between leaning legs without tenons is still `unsupported`,
 by design). Aprons, this entry's other half, are fu 480; the rest is fu 475–483 (tapered tenons stay fu 449, wedges and pins fu
@@ -7297,8 +7297,8 @@ level top (inv 57), and a socket is a bore with nothing in it. Joinery, the cut 
 read it.
 **Status:** open (feature-sized; needs its own spec — chunk 2b, before chunk 3, fu 438).
 **Status:** closed 2026-10-25 — BUILT on branch `round-tenons` (spec `docs/superpowers/specs/2026-10-25-sloyd-round-tenons-design.md`,
-schema 24, inv 58; invs 2, 38–41, 44, 45, 48, 50, 56, 57 extended); merge and deploy pending (the user's decision), browser
-verification owed (plan Task 12). The tapered tenon stays fu 449; joinery on a tenoned part is fu 460; the rest is fu 457–466.
+schema 24, inv 58; invs 2, 38–41, 44, 45, 48, 50, 56, 57 extended); merged `0699965` and deployed 2026-10-25 as `index-ObjqEMR0.js`;
+browser verification DONE (plan Task 12, 8/8 PASS). The tapered tenon stays fu 449; joinery on a tenoned part is fu 460; the rest is fu 457–466.
 
 **448. A socket that follows its leg (angled holes spec §5).** Bore leg sockets is a button: after a lean edit, a resize or a move of
 a leg, its socket is stale (`staleSocketOf`) and the Holes panel says `<leg>'s socket no longer follows its leg — Bore leg sockets

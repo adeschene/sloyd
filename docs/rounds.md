@@ -536,16 +536,16 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
 
 Since the bulk approval: the angled holes spec's *Amended (build)* (Rulings P1, T2a–T2d, T3a, T7a, T8a, T9a–T9c, T10a–T10d,
 T11a — chiefly T2d the new `too-shallow` fault, T9b Level the ends refusing an unstorable hole where §7 said "kept and noted", T10a
-partial bores, T11a the joined-Refine refusal; not merged) and its copy (fu 454). The splayed legs spec's *Amended (build)* (Rulings 1–19 — chiefly Ruling 1 `seamFree`, Ruling 4 the
+partial bores, T11a the joined-Refine refusal; deployed) and its copy (fu 454). The splayed legs spec's *Amended (build)* (Rulings 1–19 — chiefly Ruling 1 `seamFree`, Ruling 4 the
 magnitude/direction controls replacing §4's "same world lean to each", Ruling 7 Level's top reference R narrowing §5's "always extends",
-Ruling 8 any end miter recognised, Rulings 14–16 Repair only with cuts, Refine's assembly refusal and no floor shift; not deployed). The mirrored links spec's *Amended (execution)* (Rulings 1–11, chiefly Ruling 1 replacing §5.1's
+Ruling 8 any end miter recognised, Rulings 14–16 Repair only with cuts, Refine's assembly refusal and no floor shift; deployed). The mirrored links spec's *Amended (execution)* (Rulings 1–11, chiefly Ruling 1 replacing §5.1's
 mirror-candidate mechanism, Ruling 5 the checkbox's world-X form, Ruling 6 Link's flag rule, Rulings 10–11 joinery's exact regroup).
 The round tenons spec's *Amended (build)* (Rulings P1, T2a, T5d, T6a–T10c and TFa; merged and deployed) and its
 copy (fu 464, 468). The square-set legs spec's *Amended (build)* (T1a–T6b and the T3 API choice — chiefly T1b the loader's rise bound, T3a the Set gate's
-turned end, T5a the feature key, T5b the extra along-face diagram view, T6a/T6b Refine's reason words and `worldAngles`' null; not
-merged) and its copy (fu 473). The stretchers spec's *Amended (build)* (S1 and P1, T3b–T3e, T4a, T5a–T5c, the stale-row exclusion —
+turned end, T5a the feature key, T5b the extra along-face diagram view, T6a/T6b Refine's reason words and `worldAngles`' null; deployed)
+and its copy (fu 473). The stretchers spec's *Amended (build)* (S1 and P1, T3b–T3e, T4a, T5a–T5c, the stale-row exclusion —
 chiefly T3e the closure joining through every used row where §6.3 said "moves", T3b a stale tenon with no bore re-bored where
-§6.4 said "nothing else", T5a the link notes in the rung's panel; not merged) and its copy (fu 482).
+§6.4 said "nothing else", T5a the link notes in the rung's panel; deployed) and its copy (fu 482).
 (The AI profiles and bands spec's *Chunk 2 (execution)* block — Rulings 1–16, the final review's fixes,
 R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-10-23; Rulings 10/16 individually the same day.)
 

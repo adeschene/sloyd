@@ -2,8 +2,8 @@
 
 Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken 2026-10-24 (one question, answered in §5 as my call). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`),
 follow-up 437. Chunk 1 (a part that leans, schema 22) is deployed: `docs/superpowers/specs/2026-10-24-sloyd-splayed-legs-design.md`.
-**Built 2026-10-25 on branch `angled-holes`** (plan Tasks 1–12; schema 23); NOT merged or deployed. Browser verification (plan
-Task 13) DONE 2026-10-25: 9/9 PASS (`docs/browser-verification-angled-holes.md`); next: merge, deploy (the user's decision). Later rulings: the *Amended (build)* block at the end, which wins where it differs from the text.
+**Built 2026-10-25; merged `aa1f841` and DEPLOYED 2026-10-25 as `index-B114iN-Y.js`** (plan Tasks 1–12; schema 23). Browser verification (plan
+Task 13) DONE 2026-10-25: 9/9 PASS (`docs/browser-verification-angled-holes.md`). Later rulings: the *Amended (build)* block at the end, which wins where it differs from the text.
 
 The user chose stretchers next. The numbers on the chunk 1 stool (rake 8°, splay 12°) showed that a square rung's end lands
 across a leaning leg's corner, so no saw cut can shoulder it flush; staked furniture fits rungs as round tenons in sockets

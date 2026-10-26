@@ -1,9 +1,9 @@
 # Splayed legs, chunk 1: a part that leans — design
 
 Status: APPROVED by the user 2026-10-24 ("Approved, write the plan"); builder check taken the same day (every answer is my call, marked). Feature gap §1 "Splayed / raked legs, compound angles" (`docs/feature-gaps.md`).
-**Built 2026-10-24 on branch `splayed-legs`** (plan Tasks 1–13; schema 22); NOT merged or deployed. Browser verification (plan
+**Built 2026-10-24; merged `02e7b24` and DEPLOYED 2026-10-24 as `index-B3SCZcHR.js`** (plan Tasks 1–13; schema 22). Browser verification (plan
 Task 14) is done: 15 checks PASS (`docs/browser-verification-splayed-legs.md`); three are still owed (a gizmo drag of a levelled leg,
-a lean edit with a section on, a pointer snap onto a foot). The merge and the deploy are pending. Later rulings: the *Amended (build)* block at the end, which wins where it
+a lean edit with a section on, a pointer snap onto a foot). Later rulings: the *Amended (build)* block at the end, which wins where it
 differs from the text.
 The user chose this gap and said: "a stool, typing rake and splay angles". On scope they said: "I just want to implement
 features that a woodworker would expect, so do whatever makes sense with that goal in mind". They approved the chunked
