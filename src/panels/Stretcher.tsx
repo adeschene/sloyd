@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/store';
 import { displayNames, worldParts } from '../document/document';
-import type { Board } from '../document/document';
+import type { Board, SloydDocument } from '../document/document';
 import { defaultHeight, rungSize, rungTenon, stretcherOf, stretcherPlan } from '../document/stretchers';
 import { ADD_STRETCHER, FIT_STRETCHER, STRETCHER_FIELDS, STRETCHER_HEADING, stretcherReadout, stretcherStale } from '../document/stretcherText';
 import { holeLengthText } from '../document/holeText';
@@ -10,7 +10,7 @@ import { DimensionField } from './DimensionField';
 /** The link notes of the last successful Add (spec §4): shown in the rung's own panel while that rung is selected and the
  *  document is the one the Add made. Held by `Properties`, which outlives the switch from the multi-selection panel (the
  *  Add selects the rung) to the single-part one. */
-export interface AddedStretcher { rung: string; doc: unknown; notes: string[] }
+export interface AddedStretcher { rung: string; doc: SloydDocument; notes: string[] }
 
 /**
  * The Stretcher section (stretchers spec §4), in the multi-selection panel when exactly two upright parts are selected
@@ -22,9 +22,23 @@ export interface AddedStretcher { rung: string; doc: unknown; notes: string[] }
  * The link notes come from the planner's own `notes`: `stretcherPlan` over the SAME document object the store then reads,
  * called in the same tick, so they cannot disagree with what the store wrote (the store's return stays `string | null`).
  */
+/**
+ * What the Height default reads of the document, as ONE string (a primitive, inv 43): the two world legs, each with its
+ * position taken relative to the first leg's X and Z (its Y kept: the default is a third of the lower top). A common
+ * horizontal move of the pair (a gizmo drag of the two selected legs, which edits the document every frame) leaves the
+ * default where it is, so it is not recomputed; any change to either leg's own fields, its height or the two legs'
+ * offset from each other is (ruling T5c: inv 34 forbids a component reading `gesturing`, so the memo is keyed on what
+ * the default depends on instead).
+ */
+function pairSignature(world: readonly Board[], a: string, b: string): string {
+  const legs = [a, b].map((id) => world.find((p) => p.id === id));
+  if (!legs[0] || !legs[1]) return '';
+  const [x0, , z0] = legs[0].position;
+  return JSON.stringify(legs.map((l) => ({ ...l, position: [l!.position[0] - x0, l!.position[1], l!.position[2] - z0] })));
+}
+
 export function StretcherSection({ legIds, onAdded }: { legIds: [string, string]; onAdded: (added: AddedStretcher) => void }) {
-  const doc = useStore((s) => s.doc);
-  const units = doc.units;
+  const units = useStore((s) => s.doc.units);
   const addStretcher = useStore((s) => s.addStretcher);
   const [typedHeight, setTypedHeight] = useState<number | null>(null);
   const [typedSize, setTypedSize] = useState<number | null>(null);
@@ -35,8 +49,10 @@ export function StretcherSection({ legIds, onAdded }: { legIds: [string, string]
   const size = typedSize ?? rungSize(units);
   const diameter = typedDiameter ?? rungTenon(units);
   const [a, b] = legIds;
-  // Up to 20 trial plans: a memo over the document, the pair and the diameter, never a selector.
-  const fallback = useMemo(() => defaultHeight(doc, [a, b], diameter), [doc, a, b, diameter]);
+  // Up to 20 trial plans: a memo, never a selector, keyed on the pair's signature (ruling T5c), the units and the
+  // diameter. It reads the document current when one of those changed.
+  const signature = useStore((s) => pairSignature(worldParts(s.doc), a, b));
+  const fallback = useMemo(() => defaultHeight(useStore.getState().doc, [a, b], diameter), [signature, units, a, b, diameter]);
   const height = typedHeight ?? fallback;
   const commit = (set: (v: number) => void) => (v: number) => { set(v); setError(null); };
   const flag = (k: keyof typeof refused) => (r: boolean) => setRefused((f) => (f[k] === r ? f : { ...f, [k]: r }));
@@ -71,14 +87,15 @@ export function StretcherSection({ legIds, onAdded }: { legIds: [string, string]
  * The rung's readout (stretchers spec §4), under Round tenons in the single-part panel: shown only when `stretcherOf`
  * finds the part a stretcher (structurally, every time; nothing stored says so). `Between …` when both tenons are seated,
  * else the stale sentence and Fit the stretcher again, whose refusal is the store's (`fitStretcher`), shown as an alert
- * until the part object changes. Lengths through `units/length.ts` with the document's units (inv 52); names as the
+ * until the document or the part object changes. Lengths through `units/length.ts` with the document's units (inv 52); names as the
  * planner names them (`displayNames`). Derived in a memo over the document, never a selector returning an object (inv 43).
  */
 export function StretcherReadout({ board, notes }: { board: Board; notes: readonly string[] }) {
   const doc = useStore((s) => s.doc);
   const fitStretcher = useStore((s) => s.fitStretcher);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => setError(null), [board]);
+  // Any document change retires a refused Fit's alert (a leg edit or an undo can fix it with the rung object unchanged).
+  useEffect(() => setError(null), [doc, board]);
   const found = useMemo(() => {
     const f = stretcherOf(worldParts(doc), board);
     if (!f) return null;

@@ -6,7 +6,14 @@ import { createBoard, createDocument, migrateDocument, worldParts } from '../doc
 import type { Board, Definition } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { squareStoolDocument, stoolDocument } from '../document/stoolFixture';
-import { stretcherOf, stretcherPlan } from '../document/stretchers';
+import { defaultHeight, stretcherOf, stretcherPlan } from '../document/stretchers';
+import { partsBounds } from '../document/document';
+
+// The Height default's planner, counted (ruling T5c): a pass-through, so every other test sees the real one.
+vi.mock('../document/stretchers', async (importOriginal) => {
+  const m = await importOriginal<typeof import('../document/stretchers')>();
+  return { ...m, defaultHeight: vi.fn(m.defaultHeight) };
+});
 import { stretcherLinkNote } from '../document/stretcherText';
 import type { Units } from '../units/length';
 import { Properties } from './Properties';
@@ -184,6 +191,73 @@ describe('the Stretcher section (stretchers spec §4)', () => {
   });
 });
 
+describe('the Stretcher section, review fix round 1', () => {
+  const calls = () => vi.mocked(defaultHeight).mock.calls.length;
+  /** The square stool with its front rung at 6", Front right and Back right selected (default 5-5/16" at 5/8"). */
+  const sidePair = () => {
+    s().replaceDocument(squareStoolDocument());
+    expect(s().addStretcher([id('Front right'), id('Front left')], 6, 1, 5 / 8)).toBeNull();
+    s().selectBoard(id('Front right'));
+    s().toggleSelected(id('Back right'));
+    render(<Properties />);
+  };
+  const type = async (user: ReturnType<typeof userEvent.setup>, label: string, text: string) => {
+    await user.clear(input(label));
+    await user.type(input(label), `${text}{Enter}`);
+  };
+  const refuse = async (user: ReturnType<typeof userEvent.setup>) => {
+    await type(user, 'Height', '16-1/2');
+    await user.click(addButton());
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  };
+
+  it('T5c: a common horizontal move of the pair (a group drag) does not recompute the default; moving one leg does', () => {
+    open(squareStoolDocument(), 'Front right', 'Front left');
+    const ids = [id('Front right'), id('Front left')];
+    const before = calls();
+    const b = partsBounds(world().filter((p) => ids.includes(p.id)))!;
+    act(() => { s().beginGesture(); s().moveGroupTo(ids, [b.min[0] + 2, b.min[1], b.min[2] + 1]); s().endGesture(); });
+    expect(world().find((p) => p.id === ids[0])!.position[0]).not.toBe(squareStoolDocument().boards[0]!.position[0]);
+    expect(calls()).toBe(before);
+    expect(input('Height').value).toBe('5-5/16"');
+    // One leg alone moves the pair's offset: the default is read again.
+    act(() => { s().moveGroupTo([ids[0]!], [partsBounds([world().find((p) => p.id === ids[0])!])!.min[0] + 1, 0, partsBounds([world().find((p) => p.id === ids[0])!])!.min[2]]); });
+    expect(calls()).toBeGreaterThan(before);
+  });
+
+  it('T5c: an edit of another part (the Seat) does not recompute the default', () => {
+    open(squareStoolDocument(), 'Front right', 'Front left');
+    const before = calls();
+    act(() => s().updateBoard(id('Seat'), { name: 'Top' }));
+    expect(calls()).toBe(before);
+  });
+
+  it('M2: typing exactly the shown default pins it (commitUnchanged): a later diameter change leaves it', async () => {
+    const user = userEvent.setup();
+    sidePair();
+    expect(input('Height').value).toBe('5-5/16"');
+    await type(user, 'Height', '5-5/16');
+    await type(user, 'Tenon diameter', '7/8');
+    expect(input('Height').value).toBe('5-5/16"');
+  });
+
+  it('M3: a Height commit clears the alert', async () => {
+    const user = userEvent.setup();
+    open(squareStoolDocument(), 'Front right', 'Front left');
+    await refuse(user);
+    await type(user, 'Height', '6');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('M3: a Tenon diameter commit clears the alert', async () => {
+    const user = userEvent.setup();
+    open(squareStoolDocument(), 'Front right', 'Front left');
+    await refuse(user);
+    await type(user, 'Tenon diameter', '1/2');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
 describe('the Stretcher section on pairs that are not the square stool (never a crash)', () => {
   const post = (name: string, x: number, z: number, over: Partial<Board> = {}) =>
     createBoard({ name, length: 30, width: 1.5, thickness: 1.5, posture: 'upright', position: [x, 0, z], ...over });
@@ -263,6 +337,20 @@ describe('the rung\'s readout (stretchers spec §4)', () => {
     await user.click(screen.getByRole('button', { name: 'Fit the stretcher again' }));
     expect(fitStretcher).toHaveBeenCalledWith(rungs()[0]!.id);
     expect(screen.getByRole('alert')).toHaveTextContent('Refused for a reason.');
+  });
+
+  it('M1: a refused Fit\'s alert clears on any document change, the rung object unchanged', async () => {
+    const user = userEvent.setup();
+    withFront();
+    releanAll();
+    const fitStretcher = vi.fn(() => 'Refused for a reason.');
+    act(() => useStore.setState({ fitStretcher }));
+    await user.click(screen.getByRole('button', { name: 'Fit the stretcher again' }));
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    const rung = world().find((b) => b.id === rungs()[0]!.id);
+    act(() => s().updateBoard(id('Seat'), { name: 'Top' }));
+    expect(world().find((b) => b.id === rung!.id)).toBe(rung);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('a part that is not a stretcher has no readout', () => {
