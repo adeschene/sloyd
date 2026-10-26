@@ -49,8 +49,9 @@ function faceOf(lean: Lean): 'width' | 'thickness' {
  *  runs along the world axis's negative). */
 function dirOf(b: Board, d: Dimension): Vec3 {
   const v: Vec3 = [0, 0, 0];
-  const i = axisFrame(b).findIndex((a) => a.dim === d);
-  v[i] = axisFrame(b)[i]!.reversed ? -1 : 1;
+  const frame = axisFrame(b);
+  const i = frame.findIndex((a) => a.dim === d);
+  v[i] = frame[i]!.reversed ? -1 : 1;
   return v;
 }
 
@@ -60,7 +61,7 @@ function dirOf(b: Board, d: Dimension): Vec3 {
  * still be replaced) and whichever cross dimension it slopes along. Width OR thickness, because a later lean edit can
  * flip the seam-free facing dimension (`seamFree`: a lean made rake- or splay-only), and the cuts levelled along the old
  * one must still be replaced, never refused as foreign (Task 6 review ruling). Level writes its new cut along
- * `seamFree(lean).face`. `from 'min'` is the foot, `'max'` the top. An end bevel or chamfer (`face 'length'`, another
+ * `seamFree(lean).face` (a square-set lean: the larger slope, with any `across`; `levelPlan`). `from 'min'` is the foot, `'max'` the top. An end bevel or chamfer (`face 'length'`, another
  * kind) is not a level cut: it refuses.
  *
  * Only a `face 'length'` cut is ON an end. A taper (or any cut along the length, `face` width or thickness) may reach

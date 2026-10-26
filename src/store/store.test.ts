@@ -4099,6 +4099,27 @@ describe('levelEnds (splayed legs spec §5): every user and placement in one edi
     expect(occ('d').length).toBe(16);
   });
 
+  it('a square-set Shape (schema 25) levels once: the Shape holds the two compound cuts, every user stands level, ONE undo entry', () => {
+    const d0 = idiom();
+    const doc0: SloydDocument = { ...d0, shapes: d0.shapes.map((sh) => ({ ...sh, lean: { ...LEAN, square: true } })) };
+    s().replaceDocument(doc0);
+    const ids = ['a', 'b', 'c', 'd'];
+    const before = s().past.length;
+    expect(s().levelEnds('c')).toBeNull();
+    expect(s().past.length).toBe(before + 1);
+    // Written ONCE, on the Shape: its users carry no cuts or length of their own.
+    expect(s().doc.shapes).toHaveLength(1);
+    const shape = s().doc.shapes[0]!;
+    expect(shape.lean!.square).toBe(true);
+    expect(shape.angleCuts).toHaveLength(2);
+    for (const c of shape.angleCuts) expect(c.across!.rise).toBeGreaterThan(0.01);
+    for (const b of s().doc.boards) expect('angleCuts' in b || 'length' in b, b.id).toBe(false);
+    expectLevelled(ids);
+    for (const id of ids) expect(occ(id).angleCuts.every((c) => c.across !== undefined), id).toBe(true);
+    s().undo();
+    expect(s().doc.shapes[0]!.angleCuts).toHaveLength(0);
+  });
+
   it('a second press changes nothing and pushes no undo entry (inv 4)', () => {
     s().replaceDocument(idiom());
     s().levelEnds('c');
