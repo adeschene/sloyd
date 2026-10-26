@@ -16,7 +16,8 @@ renamed, imported) is left in the dev profile with its four stretchers.
 | 7 | Refusals: Front right + Back left (a diagonal) → `These legs aren't square to each other at that height — a stretcher must run straight along the front, back or sides.`; Height 30 → `Front right doesn't reach that height.`; nothing added (still four rungs) | PASS (verbatim) |
 | 8 | Console: 0 errors throughout (warnings: three.js deprecations only) | PASS |
 
-**No new findings.** The readout names the legs in tenon order (`Between Front left and Front right` for a rung added from Front right
+**No new findings.** (After the final review the readout's gap rounds UP to the grid under "up to" — ruling TFb; the readouts quoted
+above were not re-run. A second Add on the same pair now refuses, and the default steps past it — TFa.) The readout names the legs in tenon order (`Between Front left and Front right` for a rung added from Front right
 then Front left) — ruling T5b, in the copy review.
 
 **Not verified in the browser:** real hardware (fu 26a) and a printed Plans sheet; a metric stool (covered by unit tests).
