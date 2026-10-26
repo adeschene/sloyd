@@ -156,10 +156,9 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   top, the material, one `faceCrossing`; Task 3 — one closure entry per STORED rung (T3d), the stale row's diameter and through
   filters, a row holding another part's tenon never taken, the closure's repeat-until-stable loop; Task 4 — Fit's no-change
   check by name, store tests against `refitPlan`, twice-placed and turned assemblies; Task 5 — the Height default keyed on the
-  pair (T5c), a Fit alert retired by any edit). Full suite at `8982cfc` + these records (docs only): 8880 tests across 247 files —
-  8877 passed in one run under load (load average 4.4 at the start, 9.5 at the end, a browser check running alongside), the 3
-  failures the perf guards (`curvesPerf` bead 83 ms / cove 55 ms, `holesPerf` 40.05 ms against 40), which then passed alone
-  (38/38, load 8.0); a quiet full re-run is owed before merge. `npm run build` clean (`index-oqCfCXQr.js`, CSS `index-BvtLBoRl.css`). Owed: the browser check (plan Task 7), the
+  pair (T5c), a Fit alert retired by any edit). Full suite at `8982cfc` + these records (docs only): 8880 tests across 247 files,
+  all passing in one run, the perf guards included (load average 5.5 at the start and end); an earlier run under heavier load
+  (9.5, a browser check alongside) failed only three perf guards, which passed alone. `npm run build` clean (`index-oqCfCXQr.js`, CSS `index-BvtLBoRl.css`). Owed: the browser check (plan Task 7), the
   final review, the Amended (build) block, the copy review (fu 482). Invariant 60 new; 50 and 58 extended; fu 438 closed,
   475–483 new.
 - **Square-set legs, splayed legs chunk 2c (2026-10-26; MERGED `447df4b`, DEPLOYED 2026-10-26 as `index-3F79fb4S.js`, CSS

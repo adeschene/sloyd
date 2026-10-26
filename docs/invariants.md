@@ -1405,6 +1405,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       signature, never on `gesturing`, inv 34; ruling T5c); the rung's own panel, under Round tenons, shows `Between <A> and <B>,
       <h> up · shoulder gap up to <g>` when seated, else `No longer fits <A> and <B> — Fit the stretcher again.` and the button;
       the last Add's link notes show there while that rung is selected and the document is the Add's (ruling T5a). Copy has ONE
-      home, `stretcherText.ts`, which imports `units` (the edge rule); `stretchers.ts` takes only a TYPE-only `Units`.
+      home, `stretcherText.ts`, which imports `units` (the edge rule); `stretchers.ts` takes only a TYPE-only `Units` (its sentences, from
+      `stretcherText.ts`, carry no length).
     - Joinery, Repair and Refine are unchanged (a tenoned part refuses or is kept, inv 41, 56); the design schema is byte for byte
       the same. Follow-ups 475–483.

@@ -60,8 +60,8 @@ src/
 │   │                     `topAt` the seat's top, the shoulder clearing the underside, the length rounded UP to tenonStep), legTenonPlan
 │   │                     (fitTop judged by tenonFaults), fitLegs (every storage group judged against its own seat; socketsDisagree;
 │   │                     Level the ends' refusal refuses all; a faulted fit named in `note`), changesNothing (inv 4)
-│   ├── stretchers.ts     Add stretcher and Fit the stretcher again (splayed legs chunk 3, inv 60), the ONE planner, pure, numbers
-│   │                     only (a TYPE-only `Units`): rungLine (the legs' axis points at y = h, exactly one of X/Z apart by > 1e-6,
+│   ├── stretchers.ts     Add stretcher and Fit the stretcher again (splayed legs chunk 3, inv 60), the ONE planner, pure, no → units
+│   │                     edge (a TYPE-only `Units`; its sentences come from stretcherText.ts and carry no length): rungLine (the legs' axis points at y = h, exactly one of X/Z apart by > 1e-6,
 │   │                     made exactly axis-aligned; out of reach / not square), shoulderStation (the four corner lines' exits from
 │   │                     the leaned bodies — bodySpans, THE line-vs-body clip, cornerExits —, the largest), gapOf (the shoulder gap,
 │   │                     ruling P1), fitOn (L and S floored to the grid, the slack split, the tips; the entry-face pre-check

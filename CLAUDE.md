@@ -104,9 +104,9 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 (`formatLength`, so one dimension never reads two ways on one sheet) and
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so do `designCheck.ts` (a metric violation's
 `shown` copy, fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), and the copy homes
-`bandText.ts`, `tenonText.ts` and `stretcherText.ts` (`banding.ts`, `roundTenons.ts` and `stretchers.ts` stay numbers-only).
+`bandText.ts`, `tenonText.ts` and `stretcherText.ts` (`banding.ts` and `roundTenons.ts` stay numbers-only).
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
-`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`), nor is `gridDensity.ts`' `isMetric` (the
+`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
@@ -598,7 +598,7 @@ changes.
     decider** (CONSERVATIVE boxes, never under; copy only in `tenonText.ts`): an add refuses any fault, an edit only an ADDED one,
     a later one is KEPT and noted; **a faulted tenon builds nothing** (`builtTenons`). A tenoned end is square or carries ONE end
     miter, the tip. **The joint** (`tenonJoints.ts` `seatedIn`, in the world; every condition: `docs/invariants.md`): the same
-    diameter (1e-9), coaxial, entered, a blind bottom not passed by the tip's FURTHEST point; first match wins. **Support is never granted by proximity.** A stretcher is held by (d) (inv 60).
+    diameter (1e-9), coaxial, entered, a blind bottom not passed by the tip's FURTHEST point; first match wins. **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
 
 59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (turned: `T · Ry(τ)`, unchanged;
     `leanTwist` its τ). A first lean is square-set; a leaning part keeps its setting; a Set change on a holed part is refused when
