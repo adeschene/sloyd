@@ -2,7 +2,8 @@
 // (two Shapes: each leg shares one with its 180° twin), and a 14 x 1.5 x 14 seat resting on their level tops at y = 16. Shared
 // by joinery's refusal (generate/joints/tapers.test.ts), Refine's base and message (generate/refine.test.ts) and the
 // end-to-end keep (generate/run.test.ts), so the three cannot drift. Never import a test module instead. `squareStool…`:
-// the same stool square-set (schema 25), its ends compound miters (levelEnds.test.ts, legSockets.test.ts).
+// the same stool square-set (schema 25), its ends compound miters (levelEnds.test.ts, legSockets.test.ts); `cleared…`: that
+// stool after Clear lean, its compound end cuts kept (square-set legs spec §4.1; joinery's and Refine's compound refusal and keep).
 import { createBoard, createDocument, migrateDocument } from './document';
 import type { Board, SloydDocument } from './types';
 import { boardExtents } from './geometry';
@@ -59,6 +60,14 @@ export function squareStoolDocument(): SloydDocument {
 function stoolOf(legs: Board[]): SloydDocument {
   const doc = migrateDocument({ ...createDocument('Stool'), boards: [...legs, stoolSeat()] });
   return linkByRole(doc, new Map(doc.boards.filter((b) => b.name !== 'Seat').map((b) => [b.id, 'leg'])));
+}
+
+/** The square-set stool after Clear lean (square-set legs spec §4.1): every lean removed (on the Shapes, where a linked leg
+ *  keeps it, and on any unshaped part), the compound end cuts kept, through the load gate. Linked as `squareStoolDocument`. */
+export function clearedSquareStoolDocument(): SloydDocument {
+  const doc = squareStoolDocument();
+  const unlean = <T extends object>(x: T): T => { const { lean: _lean, ...rest } = x as T & { lean?: unknown }; return rest as T; };
+  return migrateDocument({ ...doc, boards: doc.boards.map(unlean), shapes: doc.shapes.map(unlean) });
 }
 
 /** The stool with one rectangular cut on its seat: a joined project (Refine's joint gate and Repair read its cuts). */

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { stoolDocument, stoolWithCut } from '../../document/stoolFixture';
+import { clearedSquareStoolDocument, squareStoolDocument, stoolDocument, stoolWithCut } from '../../document/stoolFixture';
 import { runJoinery } from '../run';
 import { repairDocument } from './repair';
 import type { LlmClient } from '../../llm/types';
@@ -13,7 +13,7 @@ import { worldTapers } from '../../document/taperWorld';
 import { formatLength, imperialAt } from '../../units/length';
 import { findSites } from './sites';
 import { linkByRole } from '../../document/roleLinks';
-import { angleConflicts, joineryRefusal, taperConflicts, jointFaults } from './tapers';
+import { angleConflicts, compoundRefusal, joineryRefusal, taperConflicts, jointFaults } from './tapers';
 import { taperJointRefusal } from '../../document/angledRefusal';
 import { checkDesign } from '../../document/designCheck';
 import { applyJoints, rebaseAngleCuts } from './recipes';
@@ -612,5 +612,66 @@ describe('round tenons (round tenons spec §9): joinery, Repair and a joined Ref
   it('Repair refuses a joined project with a tenoned part in its own words; one with no cuts has nothing to repair', () => {
     expect(repairDocument(docOf({ ...top(), cuts: [CUT] }, rung()))).toEqual({ refused: "Repair can't join a part with a round tenon yet: Rung." });
     expect(repairDocument(docOf(top(), rung()))).toBeNull();
+  });
+});
+
+describe('compound end cuts (square-set legs spec §4): joinery, Repair and a joined Refine refuse, one decider', () => {
+  const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const CUT = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const rung = (): Board => ({ ...createBoard({ name: 'Rung', length: 18, width: 1.5, thickness: 1.25, posture: 'flat', position: [40, 0, 0] }), tenons: [{ ...T }] });
+  const withCut = (doc: SloydDocument) => migrateDocument({ ...doc, boards: doc.boards.map((b) => (b.name === 'Seat' ? { ...(b as Board), cuts: [CUT] } : b)) });
+
+  it('the fixture: Clear lean left every leg unleaned with its compound end cuts (Review Focus 4)', () => {
+    const legs = flatDocument(clearedSquareStoolDocument()).boards.filter((b) => b.name !== 'Seat');
+    expect(legs).toHaveLength(4);
+    for (const b of legs) {
+      expect(b.lean).toBeUndefined();
+      expect(b.angleCuts.filter((c) => c.across !== undefined)).toHaveLength(2);
+    }
+  });
+
+  it('joinery refuses a cleared levelled square-set leg: the verbatim text, decided before any call or mutation', async () => {
+    const doc = clearedSquareStoolDocument();
+    const before = JSON.stringify(doc);
+    expect(joineryRefusal('joinery', doc)).toBe("Add joinery can't join a part with a compound end cut yet: Front right.");
+    const complete = vi.fn();
+    const client = { userTurn: (text: string) => ({ role: 'user', text }), estimateCostUsd: () => 0, complete } as unknown as LlmClient;
+    const out = await runJoinery(client, doc, new AbortController().signal, () => {});
+    expect(out).toEqual({ refused: "Add joinery can't join a part with a compound end cut yet: Front right." });
+    expect(complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(doc)).toBe(before);
+  });
+
+  it('names the caller and the FIRST such part in flat order; a document without one is not refused by it', () => {
+    const doc = clearedSquareStoolDocument();
+    expect(joineryRefusal('repair', doc)).toBe("Repair can't join a part with a compound end cut yet: Front right.");
+    expect(joineryRefusal('refine', doc)).toBe("Refine can't keep joints with a part with a compound end cut yet: Front right.");
+    const later = { ...doc, boards: [doc.boards.find((b) => b.name === 'Seat')!, ...doc.boards.filter((b) => b.name !== 'Seat').reverse()] };
+    expect(joineryRefusal('joinery', later)).toBe("Add joinery can't join a part with a compound end cut yet: Back right.");
+    expect(compoundRefusal('joinery', flatDocument(stoolDocument()))).toBeNull();
+    expect(compoundRefusal('joinery', flatDocument({ ...doc, boards: doc.boards.filter((b) => b.name === 'Seat'), shapes: [] }))).toBeNull();
+  });
+
+  it('order: lean, then tenon, then compound — a leaning one speaks the lean, a tenoned cleared one the tenon', () => {
+    const lean = squareStoolDocument();
+    expect(joineryRefusal('joinery', migrateDocument({ ...lean, boards: [...lean.boards, rung()] }))).toBe("Add joinery can't join a leaning part yet: Front right.");
+    const cleared = clearedSquareStoolDocument();
+    expect(joineryRefusal('joinery', migrateDocument({ ...cleared, boards: [...cleared.boards, rung()] }))).toBe("Add joinery can't join a part with a round tenon yet: Rung.");
+  });
+
+  it('order: compound before the angle-at-joint rule — a taper into its joint beside a cleared leg speaks the compound', () => {
+    const corner = withLeg(CORNER, inside(24));
+    expect(joineryRefusal('joinery', corner)).toContain('taper runs into its joint');
+    const leg = flatDocument(clearedSquareStoolDocument()).boards.find((b) => b.name === 'Front right')!;
+    const both: FlatDocument = { ...corner, boards: [...corner.boards, { ...leg, position: [leg.position[0] + 100, leg.position[1], leg.position[2]] }] };
+    expect(joineryRefusal('joinery', both)).toBe("Add joinery can't join a part with a compound end cut yet: Front right.");
+  });
+
+  it('Repair refuses a joined project with a compound cut in its own words, after the tenon; one with no cuts has nothing to repair', () => {
+    const cleared = clearedSquareStoolDocument();
+    expect(repairDocument(withCut(cleared))).toEqual({ refused: "Repair can't join a part with a compound end cut yet: Front right." });
+    expect(repairDocument(cleared)).toBeNull();
+    expect(repairDocument(withCut(migrateDocument({ ...cleared, boards: [...cleared.boards, rung()] })))).toEqual({ refused: "Repair can't join a part with a round tenon yet: Rung." });
+    expect(repairDocument(withCut(squareStoolDocument()))).toEqual({ refused: "Repair can't join a leaning part yet: Front right." });
   });
 });

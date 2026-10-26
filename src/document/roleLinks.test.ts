@@ -10,7 +10,7 @@ import { worldBands } from './bandWorld';
 import { sortHoleRows, worldHoles } from './holeWorld';
 import { boardHoles } from './holes';
 import { axisDimensions, boardExtents, toWorldOffset } from './geometry';
-import { miterDegrees, taperCut } from './angleCuts';
+import { miterCut, miterDegrees, taperCut } from './angleCuts';
 import { turnCandidates, alignedTo, linkByRole, mirrorCandidates } from './roleLinks';
 import { mirrorFeatures, mirrorInPlace } from './frames';
 import { chiralCurved } from './turnFixtures';
@@ -198,6 +198,15 @@ describe('turned links (fu 301)', () => {
     const square = createBoard({ length: 16, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0 });
     expect(turnCandidates(square).map((c) => c.rotation)).toEqual([90, 180, 270]);
     expect(turnCandidates({ ...square, lean: { x: 0.2, z: 0.1, face: 'width' } })).toEqual([]);
+  });
+
+  it('a part with a compound end cut is never turned (square-set legs spec §4, through `keepsExactly`)', () => {
+    // A miter in the shape worldAngles reads (through station 0 at depth 0), so only keepsExactly stands between it and a turn
+    // that would re-store the cut without its `across`.
+    const square = createBoard({ length: 16, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0 });
+    const miter = { id: 'm', ...miterCut({ end: 'min', across: 'width', longSide: 'min', ratio: 0.2 }, square) };
+    expect(turnCandidates({ ...square, angleCuts: [miter] }).length).toBeGreaterThan(0);
+    expect(turnCandidates({ ...square, angleCuts: [{ ...miter, across: { rise: 0.1, from: 'min' } }] })).toEqual([]);
   });
 
   it('a part with a tilted hole row is never turned (angled holes spec §9)', () => {

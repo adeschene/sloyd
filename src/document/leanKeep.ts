@@ -2,6 +2,7 @@ import type { Board, Shape, SloydDocument, StoredBoard } from './types';
 import { leans } from './lean';
 import { isTilted } from './holeTilt';
 import { hasTenons } from './roundTenons';
+import { hasCompoundCut } from './angleCuts';
 import { partBounds } from './worldBounds';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, parentPath } from './tree';
@@ -26,9 +27,12 @@ export interface KeptParts {
   names: string[];
 }
 
-/** A part Refine keeps as stored: it leans, has a tilted hole row or has a round tenon (the ONE predicate; angled holes
- *  spec §9, round tenons spec §9). A tenon is read off the stored list, faulted or not: a faulted one is kept verbatim too. */
-export const keepsExactly = (b: Board): boolean => leans(b) || b.holes.some(isTilted) || hasTenons(b);
+/** A part Refine keeps as stored: it leans, has a tilted hole row, has a round tenon or has a compound end cut (the ONE
+ *  predicate; angled holes spec §9, round tenons spec §9, square-set legs spec §4). A tenon is read off the stored list,
+ *  faulted or not: a faulted one is kept verbatim too. A compound cut is kept so no world-word converter (`worldAngles`,
+ *  `angleCutsFor`) ever reads it as a single-slope miter and drops its `across`; it exists only on a leg that leans, or did
+ *  (Clear lean keeps it), so the leaning wording of the kept list and the assembly refusal stands. */
+export const keepsExactly = (b: Board): boolean => leans(b) || b.holes.some(isTilted) || hasTenons(b) || hasCompoundCut(b);
 
 /** The ONE decision of what Refine keeps (splayed legs spec §8; angled holes §9; round tenons §9): every root part whose resolved form leans, has a tilted row or has a round tenon. */
 export function keptParts(doc: SloydDocument): KeptParts {
@@ -46,9 +50,12 @@ export function leaningInAssembly(doc: SloydDocument): string | null {
   return flatDocument(doc).boards.find((b) => parentPath(b.id) !== null && keepsExactly(b))?.name ?? null;
 }
 
-/** Why a kept part is kept, in the note's words: the existing two-reason forms unchanged, a round tenon appended. */
+/** Why a kept part is kept, in the note's words: the existing two-reason forms unchanged, a round tenon appended. A
+ *  compound end cut is named only on a part kept for nothing else (a leg whose lean was cleared), so a leaning leg's line
+ *  is byte for byte as before. */
 function whyKept(b: Board): string {
   const why = [leans(b) && 'leans', b.holes.some(isTilted) && 'has angled holes', hasTenons(b) && 'has round tenons'].filter((w): w is string => w !== false);
+  if (why.length === 0) return 'has a compound end cut';
   if (why.length === 1) return why[0]!;
   return `${why.slice(0, -1).join(', ')} and ${why[why.length - 1]},`;
 }

@@ -20,7 +20,7 @@ import { BUILT_IN_BAND } from '../document/bandModel';
 import { builtInCatalog, catalogOf } from '../document/materials';
 import { ARCH } from '../document/curveFixtures';
 import type { StoredBoard } from '../document/types';
-import { stoolDocument, stoolLegs, stoolSeat, stoolWithCut } from '../document/stoolFixture';
+import { clearedSquareStoolDocument, stoolDocument, stoolLegs, stoolSeat, stoolWithCut } from '../document/stoolFixture';
 import { keepsExactly, keptParts, keptNote } from '../document/leanKeep';
 import { linkByRole } from '../document/roleLinks';
 import { socketPlan } from '../document/legSockets';
@@ -423,5 +423,50 @@ describe('Refine and round tenons (round tenons spec §9)', () => {
     const stool = stoolWithCut();
     const withRung = migrateDocument({ ...stool, boards: [...stool.boards, rung('X', 'Rung', 40)] });
     expect(refineRefusal(withRung)).toBe("Refine can't keep joints with a leaning part yet: Front right.");
+  });
+});
+
+describe('Refine and compound end cuts (square-set legs spec §4)', () => {
+  const T = { id: 't1', end: 'max' as const, diameter: 0.75, length: 1 };
+  const CUT = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const LEGS = ['Front right', 'Front left', 'Back left', 'Back right'];
+  const withCut = (doc: SloydDocument) => migrateDocument({ ...doc, boards: doc.boards.map((b) => (b.name === 'Seat' ? { ...(b as Board), cuts: [CUT] } : b)) });
+
+  it('keeps a cleared levelled square-set leg (Review Focus 4): left out of the design, and the note says why', () => {
+    const doc = clearedSquareStoolDocument();
+    const legs = flatDocument(doc).boards.filter((b) => b.name !== 'Seat');
+    expect(legs.every((b) => b.lean === undefined && keepsExactly(b))).toBe(true);
+    expect(keptParts(doc).names).toEqual(LEGS);
+    expect(keptParts(doc).shapes).toEqual(doc.shapes);
+    expect(refineRefusal(doc)).toBeNull();
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.parts.map((q) => q.name)).toEqual(['Seat']);
+    const note = keptNote(doc)!;
+    for (const n of LEGS) expect(note).toContain(`"${n}" has a compound end cut and is kept as is:`);
+    expect(note).not.toContain('undefined');
+    // The same leg without its compound cuts' `across` keeps nothing: the cut is the reason.
+    const [leg] = legs;
+    expect(keepsExactly({ ...leg!, angleCuts: leg!.angleCuts.map(({ across: _a, ...c }) => c) })).toBe(false);
+  });
+
+  it('refuses a cleared compound part inside an assembly, in the existing sentence (a compound cut only exists on a leg that leans, or did)', () => {
+    const leg = flatDocument(clearedSquareStoolDocument()).boards.find((b) => b.name === 'Front right')!;
+    const doc = migrateDocument({ ...createDocument('Base'), boards: [stoolSeat()],
+      definitions: [{ id: 'd1', boards: [{ ...leg, id: 'L', shape: undefined } as Board], instances: [], hardware: [] }],
+      instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [0, 0, 0], rotation: 0 }] });
+    expect(refineRefusal(doc)).toBe("Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: Frame › Front right.");
+  });
+
+  it('a JOINED Refine is refused up front for a compound cut, in its own words; the tenon speaks first', () => {
+    const msg = "Refine can't keep joints with a part with a compound end cut yet: Front right.";
+    const joined = withCut(clearedSquareStoolDocument());
+    expect(plainForRefine(joined)).toEqual({ refused: { reason: 'lean-joint', message: msg } });
+    const info = refineDialogInfo(joined);
+    expect(info.joined).toBe(true);
+    expect(info.refusal).toBe(msg);
+    const cleared = clearedSquareStoolDocument();
+    const rung = { ...createBoard({ name: 'Rung', length: 18, width: 1.5, thickness: 1.25, posture: 'flat', position: [40, 0, 0] }), tenons: [{ ...T }] };
+    expect(refineRefusal(withCut(migrateDocument({ ...cleared, boards: [...cleared.boards, rung] })))).toBe("Refine can't keep joints with a part with a round tenon yet: Rung.");
   });
 });

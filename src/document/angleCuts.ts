@@ -46,6 +46,10 @@ export function copyAngleCut(c: AngleCut): AngleCut {
   return out;
 }
 
+/** A part with a compound end cut (square-set legs spec §4): a miter whose depth also slopes across its through dimension
+ *  (`across`). The ONE predicate: joinery's refusal (`compoundRefusal`) and Refine's keep (`keepsExactly`) read it. */
+export const hasCompoundCut = (b: Pick<Board, 'angleCuts'>): boolean => b.angleCuts.some((c) => c.across !== undefined);
+
 /** The dimension the cut runs straight through. */
 export function throughOf(c: Pick<AngleCut, 'face' | 'along'>): Dimension {
   return DIMENSION_ORDER.find((d) => d !== c.face && d !== c.along)!;

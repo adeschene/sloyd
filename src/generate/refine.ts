@@ -15,7 +15,7 @@ import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
-import { joineryRefusal, leaningRefusal, tenonRefusal } from './joints/tapers';
+import { compoundRefusal, joineryRefusal, leaningRefusal, tenonRefusal } from './joints/tapers';
 import { findSites } from './joints/sites';
 import { carryFromOriginal } from '../document/featureCarry';
 import { featuredNote } from '../document/carryText';
@@ -84,6 +84,10 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     // Likewise a kept part with a round tenon (round tenons spec §9), by the same decider's second step, as for a tilted row below.
     const tenoned = tenonRefusal('refine', flat);
     if (tenoned) return { refused: { reason: 'lean-joint', message: tenoned } };
+    // Likewise a kept part with a compound end cut (square-set legs spec §4), the decider's third step: the gate's
+    // read-back would re-anchor its cuts field by field (`rebaseAngleCuts`) and a re-join could not keep it exactly.
+    const compound = compoundRefusal('refine', flat);
+    if (compound) return { refused: { reason: 'lean-joint', message: compound } };
     // Likewise a kept part with a tilted row (angled holes spec §9, ruling T11a): gateUnjoin would strip its cuts and
     // runJoinery would re-join the whole refined document, kept boards included, so "kept exactly" could not hold.
     const angled = flat.boards.find((b) => b.holes.some(isTilted));
