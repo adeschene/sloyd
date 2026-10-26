@@ -202,3 +202,11 @@ export function floorToTick(inches: number, units: Units): number {
     ? Math.floor(inches * MM_PER_INCH + 1e-9) / MM_PER_INCH
     : Math.floor(inches * units.precision + 1e-9) / units.precision;
 }
+
+/** Round UP to the display grid — an "up to" BOUND is never understated (stretchers' shoulder gap; final review M1): 1/precision
+ *  inch, or 1 mm. The 1e-9 is float noise (inv 22), so a value on a tick stays on it. */
+export function ceilToTick(inches: number, units: Units): number {
+  return isMetric(units)
+    ? Math.ceil(inches * MM_PER_INCH - 1e-9) / MM_PER_INCH + 0 // + 0: a zero gap is +0, never −0
+    : Math.ceil(inches * units.precision - 1e-9) / units.precision + 0;
+}

@@ -771,6 +771,15 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     is Level the ends' shape: the shared fields once through the group's first leg, each other storage target its own position.
     Off, no leg is touched. The seat's Holes section adds the tenon twin of the stale note for a found leg whose top tenon is seated
     in none of the seat's bores (`staleTenonOf`, `tenonStale`: `<leg>'s tenon no longer fits its socket — Bore leg sockets again.`).
+    **ONE bore core** (stretchers, inv 60): `boreRow(holder, face, from, mouth, dir, diameter, depth)` is the ONLY arithmetic that
+    turns a world mouth and a world bit direction into a single-hole row (`fromWorld` of `mouth` and `mouth + dir`, scaled so the
+    axial component is ±1, the lateral components stored as flag-relative slopes, a zero slope omitted; `along` by `othersOf`,
+    the nearer end and side); the tilt bound is the caller's, which names the part. `socketRow` (a seat's THROUGH socket) and
+    `rungSocketRow` (a rung's BLIND socket in a leg: the long face `rungEntryOf` picks — the leaned outward normal nearest the
+    direction toward the other leg —, its mouth where the rung's axis crosses it, `faceCrossing`, the depth to the tip rounded
+    UP to `tenonStep`) both call it, so they cannot drift; Bore leg sockets' rows are unchanged (a pinned literal test).
+    `faceCrossing` is the ONE line-meets-a-face test (`rungSocketRow` and stretchers' entry-face pre-check). `rungSocketRow`
+    THROWS for a line that misses the face or a tip short of the mouth: its caller refuses first (ruling T1a).
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
     where `explode` is (initial state, `replaceDocument`).** One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
@@ -1237,6 +1246,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - **AI paths**: Generate is unchanged (the design schema is byte for byte the same, fu 322); Refine KEEPS a tenoned part exactly
       (`keepsExactly`, inv 56) and a joined Refine refuses one; joinery and Repair refuse a tenoned document (`tenonRefusal`, inv 41).
       No path squares an end: a tenon is never lost silently.
+    - **A stretcher** (inv 60) is a part whose two tenons are seated in blind sockets in two upright legs: it is held by clause
+      (d) through those joints (each leg reaches the floor without it) — no clause, hint or reader is added for it (between
+      leaning legs nothing is held "between", fu 438, and that stands). A stale rung (a lean edit after the Add) is reported as any unseated tenon is: an overlap with the
+      mismatch hint.
 
 59. **A lean may be SQUARE-SET, and a square-set leg's level ends are COMPOUND miters** (splayed legs chunk 2c, schema 25; spec
     `2026-10-25-sloyd-square-set-legs-design.md` and its *Amended (build)* block). A square-set leg is tilted onto its slopes and
@@ -1314,3 +1327,92 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       the bench line and Remove, joinery refuses it, Refine keeps it.
     - Test-only fixtures (`stoolFixture.ts`): `squareStoolLegs` / `squareStoolDocument` (the chunk 1 stool square-set and levelled, its legs
       17.125 in long) and `clearedSquareStoolDocument` (the same after Clear lean). Follow-ups 470–474.
+
+60. **A stretcher is an ordinary part with two round tenons seated in two blind sockets; `stretchers.ts` is the ONE planner of
+    Add stretcher and Fit the stretcher again, and nothing about a stretcher is stored** (splayed legs chunk 3, fu 438; NO schema
+    change; spec `2026-10-25-sloyd-stretchers-design.md` and its *Amended (build)* block). The rung is a `flat` part, its length
+    along world X (turn 0) or Z (turn 90), its section the typed rung size (square), grain along the length, one `min` and one `max`
+    `RoundTenon` (inv 58); its sockets are ordinary count-1 BLIND `HoleRow`s in the legs (a linked leg's on its Shape, inv 45).
+    Which legs a rung joins is FOUND from the geometry every time (`rungLegAt`, `stretcherOf`), never stored. **A project without a
+    stretcher is byte for byte as before**; no check, reader, drawing or loader changes (the rung is held by the existing joint,
+    inv 39 (d), inv 58: support is never granted by proximity).
+    - **The axis** (`rungLine`, spec §3.1): the points where the two legs' axes (`partAxis`, inv 50) cross `y = h`, `h` strictly
+      between each axis's lowest and highest world Y by more than 1e-9 (else `<Leg> doesn't reach that height.`); they must differ in EXACTLY one of
+      X and Z by more than 1e-6 (else `These legs aren't square to each other at that height — a stretcher must run straight along
+      the front, back or sides.`), and the axis is then made EXACTLY axis-aligned — its cross coordinate the two points' midpoint,
+      Y = h — so both sockets are bored along one exact line and the joints seat at 1e-9 by construction. Diagonal and X rungs
+      refuse (fu 475).
+    - **The fit** (`fitOn`, Add's and Fit's one computation): `D` the axis points' distance; the stock length `L` = `D` rounded
+      DOWN to the drag grid (`snapStep`: 1/16", 1 mm, `floorToGrid`), centred, so each tip stops `(D − L)/2` short of its leg's
+      axis; each end's shoulder station is the largest distance, over the four lines parallel to the axis through the section's
+      corners, at which that line leaves the leg's LEANED bodies (`worldBodies`, R1; `bodySpans` the ONE line-vs-body clip,
+      `cornerExits`); `S = D − sA − sB` rounded DOWN to the same grid, the slack split evenly, so the shoulder never enters a leg;
+      each tenon the length that placement leaves, stored exact (the two sum to `L − S`). Before any station is measured, the
+      section's centre line and four corner lines must cross each leg's entry face inside its rectangle and the tip must stop
+      short of the centre line's crossing (`onEntryFace`, ruling T1a, through `faceCrossing`), else out of reach; a tenon whose
+      length comes out ≤ 1e-9 is out of reach too. The shoulder stays SQUARE; the readout prints the gap (`gapOf` over
+      `cornerExits`: the shoulder's distance less the nearest corner line's exit, the larger end's).
+    - **The sockets** (`rungSocketRow`, inv 50's bore core): blind, along the exact axis, entering the leg's LONG face whose leaned
+      outward normal is nearest the direction toward the other leg (`rungEntryOf`, first in `axisFrame` order on a tie), its mouth
+      where the axis crosses that face, its bit along the axis, the tenon's diameter, its depth along the bit from the mouth to the
+      tip ROUNDED UP to `tenonStep` (1/64", 0.1 mm) so the tip always seats. A leg already holding a row the planned tenon is
+      `seatedIn` (inv 58's own test, never a looser tolerance) REUSES it — a linked mate's copy of a socket — unless that row
+      already holds ANOTHER part's seated tenon in this leg (`holderOf`, THE held test, shared with Fit's `usedRow`): a second
+      rung on the first refuses (`These legs already have a stretcher at that height: <Rung>.`, ruling TFa); a count-1 bore along the axis the tenon would enter by
+      more than `TOUCH` but not be seated in refuses (`<Leg> already has a different socket there — remove it first.`); a socket
+      past the tilt bound refuses (`socketTooSteep`, unreachable on any legal lean: the lean bound is the tilt bound); a socket with
+      any `holeFaults` fault (THE decider, inv 50) refuses the WHOLE action, naming the leg (`<Leg>'s socket would <words> —
+      choose a different height, or a smaller tenon.`, `socketFaultWords`) — unlike Bore leg sockets, which bores the rest. The
+      second leg is judged on a trial document holding the first socket (two legs on one Shape carry both).
+    - **Add stretcher** (`stretcherPlan(doc, legIds, { height, size, diameter })`, the store's `addStretcher`): every refusal is
+      decided before `edit()`, in this order: a height, rung size or tenon diameter not finite and more than zero (`A
+      stretcher's height, rung size and tenon diameter must be more than zero.`; the loader would drop such a socket), a leg
+      leaning TURNED with a non-zero twist (`leanTwist`; `Set <Leg> square to the
+      sides first (Lean).`, spec Amended S1; a turned lean with zero twist is the square-set map and allowed), legs in different
+      containers (`Select two legs in the same assembly.`), a leg reached through ANY mirrored instance on its chain (`A stretcher
+      can't join a leg inside a mirrored copy yet: <Leg>.`), out of reach, not square, out of reach on the entry face, the tenons'
+      faults (`tenonFaults`, inv 58; its first sentence), then per leg a taken row (TFa), a different socket, too steep, a
+      socket fault. Then ONE
+      `edit`: the rung inserted into the legs' container (named `uniqueName('Stretcher', …)` among that container's parts and
+      assemblies, inv 8; the legs' material when they share one, else the default) and written to its world placement through
+      `mapWorld` (inv 46's Properties rule, no `keepWorld`), each leg's holes in the same pass, ONE entry per storage target (a
+      Shape once); the rung selected; `judgeHeld()` (inv 24). One undo entry; null and nothing done while exploded (inv 47) or
+      gesturing (no sentence, as every sibling action; ruling T4a), and for a stale id. The plan's `notes` name every OTHER world
+      part whose holes gained the row (`<Part> got this socket too, through its link.`); a rung added on one side of a linked
+      stool bores the mates' sockets too, and the other side's rung then reuses them.
+    - **Finding a stretcher** (`rungLegAt`, `stretcherOf`; a NEW predicate, not `tenonInSeat`): a tenon's leg is the FIRST part
+      in world order, other than the rung, that is UPRIGHT and whose world bodies the tenon's centre segment (shoulder centre →
+      tip centre) meets by more than `TOUCH`; a rung is a stretcher only when it is UNLEANED, its length LEVEL (along world X or
+      Z), and its `min` and `max` tenons find two DIFFERENT legs. `seated` when both are `seatedIn` a row of their leg; otherwise
+      it is stale. The legs are listed in TENON order (the `min` tenon's first; ruling T5b).
+    - **Fit the stretcher again** (`refitPlan(doc, rungId)`, the store's `fitStretcher`; spec §6.3, §6.4): re-fits the CLOSURE —
+      the rung, and every other stretcher that uses (seated in, or, stale, found at) a row a member uses, repeated until stable
+      (ruling T3e: the safe side of §6.3's "moves"), ONE member per STORED rung (ruling T3d) — each at its OWN axis height
+      through the same `legRefusal`, `rungLine`, `fitOn` and socket builder as Add, its own section and tenons. A stale tenon's
+      row is the single blind bore of its diameter nearest its tip (bottom centre to tip centre), never a row another part's
+      tenon is seated in; two equally near (1e-9) refuse (`<Leg> has two sockets this tenon could be in — remove one.`); a tenon
+      with no row reuses one an earlier member just bored that it seats in, else a new one is bored (ruling T3b). It changes
+      ONLY each rung's `length`, `position` and tenon lengths (ids kept by end) and moves each used row IN PLACE (index and id
+      kept); a value within 1e-9 of the stored one is the stored one. Refusals, all before any write: the ambiguous tenon; per
+      member its legs' checks, the axis, an axis now along the other world axis (`<Rung> would now run the other way — add it
+      again.`), the fit, a rung now reversed along its axis (the same sentence), the tenons' faults, too steep; a shared row two members plan
+      differently (to 1e-9; `These linked legs need their shared socket in different places: <rungs>.`); then, on the final rows,
+      a different socket and a socket fault. One `mapWorld` edit, one undo entry, `judgeHeld()`; **a fitted rung's Fit pushes NO
+      entry** (inv 4: the store's own no-change check by name — `length`, `position`, `tenons` — and any other patched key
+      throws). `refitPlan` throws for a part that is not a stretcher; the store returns the internal `This part is not a
+      stretcher.` first.
+    - **The default height** (`defaultHeight`): one third of the LOWER leg's top (`axisTop`, its axis's highest world Y),
+      snapped to the grid (`snapToGrid`), stepped up by 1-1/2" (40 mm) while a trial plan at the default rung size refuses with a
+      `meets-hole` socket fault on either leg or a taken row (TFa: a second Add on one pair defaults to the next free
+      height), at most 20 steps (no fixture reaches the cap, ruling T2b), then the last height
+      tried.
+    - **The UI**: the **Stretcher** section in the multi-selection panel when exactly two upright parts are selected (Height,
+      Rung size, Tenon diameter, `Add stretcher`; a refusal is the section's alert; the Height default memoised on a pair
+      signature, never on `gesturing`, inv 34; ruling T5c); the rung's own panel, under Round tenons, shows `Between <A> and <B>,
+      <h> up · shoulder gap up to <g>` (`<g>` rounded UP to the display grid, `ceilToTick`: a bound never understated)
+      when seated, else `No longer fits <A> and <B> — Fit the stretcher again.` and the button;
+      the last Add's link notes show there while that rung is selected and the document is the Add's (ruling T5a). Copy has ONE
+      home, `stretcherText.ts`, which imports `units` (the edge rule); `stretchers.ts` takes only a TYPE-only `Units` (its sentences, from
+      `stretcherText.ts`, carry no length).
+    - Joinery, Repair and Refine are unchanged (a tenoned part refuses or is kept, inv 41, 56); the design schema is byte for byte
+      the same. Follow-ups 475–483.

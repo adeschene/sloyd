@@ -1,6 +1,7 @@
 # Splayed legs, chunk 3: stretchers — design
 
-Status: APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (six questions, each answered as my call: §3.1, §3.3,
+Status: BUILT 2026-10-26 on branch `stretchers` (no schema change; inv 60), NOT merged or deployed; the *Amended (build)* block
+below awaits the user's approval. APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (six questions, each answered as my call: §3.1, §3.3,
 §3.4, §4, §6.1–6.3; three claims the code contradicted, corrected). Follow-up 438 (the splayed legs spec's §12 and the angled holes spec's §12 outline).
 Chunk 1 (a part leans, schema 22), chunk 2 (angled holes, schema 23) and chunk 2b (round tenons, schema 24) are deployed
 (`index-ObjqEMR0.js`).
@@ -234,7 +235,7 @@ round tenon (`tenonRefusal`). The design schema is byte for byte the same.
 
 ## 9. Records
 
-Invariant 58 (round tenons) gains a stretcher clause (or a new inv 59, the builder's call by size): Add stretcher is ONE
+Invariant 58 (round tenons) gains a stretcher clause (or a new inv 60, the builder's call by size): Add stretcher is ONE
 action and ONE planner; its geometry and finder are structural; no schema. CLAUDE.md condensed; `docs/module-map.md`;
 `docs/rounds.md`; `docs/follow-ups.md` (438 closed, the §11 follow-ups added); the feature-gaps row.
 
@@ -259,4 +260,71 @@ a typed tenon depth kept across a re-fit; aprons; a three-legged stool's rungs.
 - The closed form of the shoulder station (a line leaving a convex leaned box) and of the socket's depth along a tilted bit.
 - Whether the socket builder is one function with options or two thin wrappers over one core (ONE planner either way).
 - The UI wording beyond the quoted sentences (copy review).
-- Whether the stretcher clause joins inv 58 or opens inv 59.
+- Whether the stretcher clause joins inv 58 or opens inv 60.
+
+## Amended (build)
+
+Rulings made while building (2026-10-25/26), **awaiting the user's approval**:
+
+- **S1 — square-set legs first (the user's choice, 2026-10-25).** Task 2 found that a compound lean TURNED a square leg about
+  its axis (~33.5° on the chunk 1 stool), so a level rung met the leg's face at ~34°: through the leg's centre a 5/8" socket broke
+  out and only 3/8" fit. Asked, the user chose **"Untwisted legs first"**; chunk 2c (square-set legs, schema 25, deployed
+  `447df4b`) sets a leaning leg square to the sides (within ~0.83° at 8°/12°), and this spec's §3.4 and §5.3 numbers hold on such
+  legs. Consequences here (my calls): Add stretcher refuses a leg that leans TURNED with a non-zero twist, verbatim `Set <Leg>
+  square to the sides first (Lean).` (a turned lean with zero twist — rake-only or splay-only — is the same map and is allowed);
+  the tests' stool is `squareStoolDocument()`; the stretcher invariant is 60 (59 is square-set legs).
+- **P1 — the found stretcher carries its gap (my call, plan pre-flight).** §4's readout needs the shoulder gap on a rung that is
+  only FOUND, so `stretcherOf` returns `gap` too: the larger end's widest shoulder-corner gap, measured by the add plan's own
+  helper (`gapOf` over `cornerExits`) along the rung's OWN axis (the line through its two tip centres, each shoulder its tenon's
+  length from its tip) — the add plan's number on a fitted rung, still a number on a stale one; an end whose corner lines miss its
+  leg adds no gap. Awaiting the user's approval.
+- **T3b — a stale tenon with no socket is re-bored (§6.2, §6.4 "nothing else").** §6.2 did not cover a stale tenon whose leg has
+  NO blind bore of its diameter (a socket removed by hand). Fit again then does what Add would: it reuses a row another rung of
+  the closure has just bored that this tenon seats in, else bores a new row (a fresh id, appended). Nothing refuses (refusing would
+  need new copy). Awaiting the user's approval.
+- **T3c — what "a stretcher" and "nearest" mean (§6.2).** `stretcherOf` also requires the rung's length to be LEVEL (along world X or
+  Z), not only the rung unleaned: the corner-line geometry assumes a horizontal axis. "Meets the leg's wood to TOUCH" is the length of
+  the centre segment inside a body exceeding `TOUCH` (`seatedIn`'s "enters" measure). "The bore nearest its tip" is measured from the
+  tip's centre to the bore's bottom centre. Awaiting the user's approval.
+- **The stale row is never another part's socket (§6.2; Task 3 review M-3).** Once stale, a tenon's row is the nearest single
+  BLIND bore of its diameter that does NOT hold another part's seated tenon: otherwise a stale tenon's nearest bore could be a
+  neighbouring rung's seated socket (sockets close in height after a big lean change), and Fit again would pull that rung in, or,
+  if it is not a stretcher, move its socket silently. Awaiting the user's approval.
+- **T3d — one closure entry per STORED rung (§6.3).** A rung inside a definition placed twice is ONE member of the closure (the
+  first placement found stands for it; the write-back moves every placement); planning each placement would send two disagreeing
+  edits to one storage target. Awaiting the user's approval.
+- **T3e — the closure joins through every row a member USES (§6.3 said "moves").** A rung joins when it uses (seated in, or stale,
+  found at) any row a member uses, moved or not — the safe side: a shared row two rungs would disagree on refuses rather than being
+  left unchecked. Cost: Fit again can re-plan, or refuse over, a twin rung whose shared row would not have moved. Awaiting the
+  user's approval.
+- **T4a — exploded or mid-gesture: nothing, and no sentence (§4).** `addStretcher` and `fitStretcher` return null and do nothing
+  while exploded (inv 47) or gesturing, as every sibling action does (the controls sit inside `EditLock`); no copy was invented.
+  Awaiting the user's approval.
+- **T5a — the link notes show in the rung's panel (§4, §6.1).** The Add selects the new rung, which unmounts the multi-selection
+  panel; so the notes (`<Part> got this socket too, through its link.`) show under the rung's readout while that rung stays selected
+  and the document is the one the Add made, not "under the section". Awaiting the user's approval.
+- **T5b — the readout names the legs in tenon order (§4).** `Between <A> and <B>` lists the `min` tenon's leg first, whatever the
+  selection order (the front rung added from Front right, Front left reads `Between Front left and Front right, …`). Copy review,
+  fu 482. Awaiting the user's approval.
+- **T5c — the Height default is not recomputed during a drag (§4).** The default (up to 20 trial plans, ≈ 6 ms each) is memoised on
+  a signature of the two legs (positions relative to the first leg's X and Z), the units and the diameter, so a common horizontal
+  move of the pair (a gizmo drag) recomputes nothing; inv 34 forbids a component reading `gesturing`. Awaiting the user's approval.
+- **TFa — no stretcher on top of another (§2's "No overlap is made", §6.1; the controller's ruling on the final review's I1,
+  2026-10-26).** Selecting the same two legs again and adding at the default height stacked a second rung exactly on the first,
+  reusing its own sockets (`overlap: Stretcher (1) passes 1in into Stretcher`). Add now REUSES a row the planned tenon is
+  `seatedIn` only when that row holds no OTHER part's seated tenon in that leg (the same held test as Fit's stale row, review
+  M-3); otherwise it refuses, verbatim `These legs already have a stretcher at that height: <Rung>.`, and the Height default steps
+  past that refusal as it steps past `meets-hole`, so a second Add on one pair defaults 1-1/2" (40 mm) higher. A linked mate's
+  socket with no rung in it is still reused (the back rung on the square stool). Copy review, fu 482. Awaiting the user's
+  approval.
+- **The final review's minors (2026-10-26), not changing the spec's intent:** the readout's gap prints under "up to", so it is
+  rounded UP to the display grid (`ceilToTick`, `units/length.ts`; the stool's 0.2528" at 6" reads 5/16", 6.03 mm reads 7 mm);
+  Add refuses a height, rung size or tenon diameter that is not finite and more than zero, first, verbatim `A stretcher's height,
+  rung size and tenon diameter must be more than zero.` (the loader would drop such a socket; the panel's fields already refuse
+  it, so only a programmatic caller reaches it). Copy review, fu 482. Awaiting the user's approval.
+- Also from the build, not changing the spec: §3.1's "the legs must reach the height" is checked twice — on the axis, then (ruling
+  T1a) the rung's section must cross each leg's ENTRY face inside its rectangle with the tip short of it, the same out-of-reach
+  sentence; §3.4's too-steep refusal and §4's 20-step cap are unreachable on any legal lean (T2b, fu 483); §6.4's "it refuses
+  instead" has the sentence `<Rung> would now run the other way — add it again.`, which also covers a rung now reversed along its
+  axis; the internal `This part is not a stretcher.` (T4b). New copy is listed in fu 482.
+

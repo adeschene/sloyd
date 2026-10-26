@@ -15,10 +15,10 @@ import { toWorld } from './snapPoints';
 import { mapWorld } from './treeEdit';
 import { worldParts } from './tree';
 import { squareStoolDocument, stoolDocument, stoolLegs, stoolSeat } from './stoolFixture';
-import { boreAlongAxis, isSocketOf, legsUnder, legTenonPlan, partAxis, socketPlan, socketRow, socketsDisagree, socketTooSteep, staleSocketOf, socketStale } from './legSockets';
+import { boreAlongAxis, isSocketOf, legsUnder, legTenonPlan, partAxis, rungSocketRow, socketPlan, socketRow, socketsDisagree, socketTooSteep, staleSocketOf, socketStale, type WorldAxis } from './legSockets';
 import { isLevelled } from './levelEnds';
-import { builtTenons, shoulderAt, tenonAt } from './roundTenons';
-import { staleTenonOf, tenonJoints } from './tenonJoints';
+import { builtTenons, shoulderAt, TENON_STEP, tenonAt } from './roundTenons';
+import { seatedIn, staleTenonOf, tenonJoints } from './tenonJoints';
 import { checkDesign, type DesignLimits } from './designCheck';
 import { flatDocument } from './document';
 import { displayNames } from './tree';
@@ -934,5 +934,99 @@ describe('Bore leg sockets tenons the legs (round tenons §6)', () => {
       expectFitted(doc, seat, w.filter((b) => b.name !== 'Seat' && b.id.startsWith(`${prefix}/`)));
     }
     expect(kindsOf(doc)).toEqual([]);
+  });
+});
+
+/** Bore leg sockets' four stool rows, captured at 324ea54 BEFORE the bore core was factored out (stretchers Task 1): the
+ *  refactor must return them bit for bit. */
+const STOOL_SOCKETS: [string, Omit<HoleRow, 'id'>][] = [
+  ['Front right', { face: 'thickness', from: 'max', diameter: 1, depth: 'through', along: 'length', alongFrom: 'max', station: 2.3188348425050336, count: 1, pitch: 0, acrossFrom: 'max', inset: 2.2108112520535883, tiltAlong: -0.2125565616700246, tiltAcross: -0.14054083470239292 }],
+  ['Front left', { face: 'thickness', from: 'max', diameter: 1, depth: 'through', along: 'length', alongFrom: 'min', station: 2.3188348425050327, count: 1, pitch: 0, acrossFrom: 'max', inset: 2.2108112520535883, tiltAlong: -0.21255656167002274, tiltAcross: -0.14054083470239292 }],
+  ['Back left', { face: 'thickness', from: 'max', diameter: 1, depth: 'through', along: 'length', alongFrom: 'min', station: 2.3188348425050327, count: 1, pitch: 0, acrossFrom: 'min', inset: 2.2108112520535874, tiltAlong: -0.21255656167002274, tiltAcross: -0.140540834702392 }],
+  ['Back right', { face: 'thickness', from: 'max', diameter: 1, depth: 'through', along: 'length', alongFrom: 'max', station: 2.3188348425050336, count: 1, pitch: 0, acrossFrom: 'min', inset: 2.2108112520535874, tiltAlong: -0.2125565616700246, tiltAcross: -0.140540834702392 }],
+];
+
+describe('one bore core (stretchers spec §3.4)', () => {
+  it('socketRow and Bore leg sockets return the rows they returned before the refactor, exactly', () => {
+    const doc = stoolDocument();
+    const seat = seatOf(doc);
+    expect(legsOf(doc).map((l) => [l.name, socketRow(seat, l, 1)])).toEqual(STOOL_SOCKETS);
+    const p = socketPlan(doc, seat.id, 1);
+    if (typeof p === 'string') throw new Error(p);
+    expect(p.holes.map(({ id: _id, ...r }) => r)).toEqual(STOOL_SOCKETS.map(([, r]) => r));
+  });
+
+  /** The front rung's line at height `h`, built by hand (Task 2 builds the real one): the two front legs' axes crossing
+   *  y = h give the points; the line runs along exactly +X through them at their mean z. */
+  function frontLine(legs: readonly Board[], h: number): { line: WorldAxis; right: V3; left: V3 } {
+    const at = (name: string): V3 => {
+      const { p, u } = partAxis(legs.find((b) => b.name === name)!);
+      const t = (h - p[1]) / u[1];
+      return [p[0] + t * u[0], h, p[2] + t * u[2]];
+    };
+    const right = at('Front right');
+    const left = at('Front left');
+    return { line: { p: [left[0], h, (left[2] + right[2]) / 2], u: [1, 0, 0] }, right, left };
+  }
+
+  it('a rung socket on Front right: along the rung\'s line, blind, seating a tenon whose tip is the given tip', () => {
+    const doc = stoolDocument();
+    const legs = legsOf(doc);
+    const leg = legs.find((b) => b.name === 'Front right')!;
+    const { line, right, left } = frontLine(legs, 6);
+    expect(Math.abs(right[2] - left[2])).toBeLessThanOrEqual(1e-6);
+    // A 1 x 1 flat rung along +X, centred between the axis points, its length on the 1/16 grid; its max end is Front right's.
+    const D = right[0] - left[0];
+    const L = Math.floor(D * 16) / 16;
+    const x0 = (left[0] + right[0]) / 2 - L / 2;
+    const tenon = { id: 't-max', end: 'max' as const, diameter: 5 / 8, length: 1.25 };
+    const rung = createBoard({ name: 'Rung', posture: 'flat', length: L, width: 1, thickness: 1, position: [x0, 5.5, line.p[2] - 0.5],
+      tenons: [{ id: 't-min', end: 'min', diameter: 5 / 8, length: 1.25 }, tenon] });
+    expect(builtTenons(rung)).toHaveLength(2);
+    expect(len(cross(sub(partAxis(rung).p, line.p), line.u))).toBeLessThanOrEqual(1e-9);
+    const tip: V3 = [x0 + L, 6, line.p[2]];
+    const r = rungSocketRow(leg, line, [-1, 0, 0], 5 / 8, tip, TENON_STEP.imperial);
+    if (typeof r === 'string') throw new Error(r);
+    const row: HoleRow = { ...r, id: 'h1' };
+    expect(boreAlongAxis(leg, row, line)).toBe(true);
+    expect(seatedIn(rung, tenon, leg, row)).toBe(true);
+    // The depth runs along the bit from the mouth to the tip, rounded UP to the step.
+    const [mouth] = ends(leg, row);
+    const dist = len(sub(tip, mouth));
+    const depth = row.depth as number;
+    expect(depth).toBeGreaterThanOrEqual(dist);
+    expect(depth).toBeLessThan(dist + TENON_STEP.imperial);
+    expect(Math.abs(depth / TENON_STEP.imperial - Math.round(depth / TENON_STEP.imperial))).toBeLessThanOrEqual(1e-9);
+    // The leg leans, so its socket is a tilted row.
+    expect(row.tiltAlong !== undefined || row.tiltAcross !== undefined).toBe(true);
+  });
+
+  const post = () => createBoard({ name: 'Post', posture: 'upright', length: 30, width: 1.5, thickness: 1.5, position: [0, 0, 0] });
+
+  it('an unleaned upright leg: a square socket (no tilt key) entering the face toward the other leg', () => {
+    const leg = post();
+    const x = axisFrame(leg)[0]!;
+    // The other leg on −X: the line enters the X-min face.
+    const fromLeft = rungSocketRow(leg, { p: [-5, 10, 0.75], u: [1, 0, 0] }, [-1, 0, 0], 0.5, [0.6, 10, 0.75], TENON_STEP.imperial);
+    if (typeof fromLeft === 'string') throw new Error(fromLeft);
+    expect(Object.keys(fromLeft)).not.toContain('tiltAlong');
+    expect(Object.keys(fromLeft)).not.toContain('tiltAcross');
+    expect([fromLeft.face, fromLeft.from]).toEqual([x.dim, x.reversed ? 'max' : 'min']);
+    expect(fromLeft.depth).toBe(39 / 64);
+    // The other leg on +X: the X-max face, the line given either way.
+    const fromRight = rungSocketRow(leg, { p: [5, 10, 0.75], u: [-1, 0, 0] }, [1, 0, 0], 0.5, [0.9, 10, 0.75], TENON_STEP.imperial);
+    if (typeof fromRight === 'string') throw new Error(fromRight);
+    expect([fromRight.face, fromRight.from]).toEqual([x.dim, x.reversed ? 'min' : 'max']);
+    expect(Object.keys(fromRight)).not.toContain('tiltAlong');
+    expect(Object.keys(fromRight)).not.toContain('tiltAcross');
+    expect(fromRight.depth).toBe(39 / 64);
+  });
+
+  it('a line 50° off the entry face\'s normal: the steep sentence', () => {
+    const c = Math.cos(50 * Math.PI / 180);
+    const s = Math.sin(50 * Math.PI / 180);
+    const tip: V3 = [0.5 * c, 10 + 0.5 * s, 0.75];
+    expect(rungSocketRow(post(), { p: [0, 10, 0.75], u: [c, s, 0] }, [-1, 0, 0], 0.5, tip, TENON_STEP.imperial))
+      .toBe(socketTooSteep('Post'));
   });
 });

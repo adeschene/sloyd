@@ -12,7 +12,7 @@
 > | `docs/invariants.md` | the FULL text of every invariant (condensed below; read the full one before touching its area) |
 > | `docs/module-map.md` | the annotated source tree, file by file |
 > | `docs/versioning.md` | the full migration table (what each loader step validates and drops) |
-> | `docs/rounds.md` | one row per shipped round, and the per-round Status log (merges, bundles, rollback, review items), and the rollback table by schema boundary |
+> | `docs/rounds.md` | one row per shipped round, and the per-round Status log, and the rollback table by schema boundary |
 > | `docs/follow-ups.md` | every follow-up; authoritative |
 > | `docs/history.md` | the record (narratives); not maintained |
 >
@@ -31,9 +31,7 @@ general-purpose CAD tool — the domain assumptions (boards, stock thickness, fr
 inches) are the point. The name is from *sloyd* (Swedish *slöjd*), the Scandinavian
 handicraft education tradition built around hand woodworking.
 
-What it does today — boards, joinery (by hand and AI), assemblies and components, Generate/Refine/Repair via Claude,
-the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves, edge profiles, edge banding, hardware
-— is listed round by round in `docs/rounds.md`.
+What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
@@ -42,9 +40,8 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 - **Rollback:** the nearest refusing boundary is `0699965` (round tenons, `index-ObjqEMR0.js`, schema 24): it REFUSES every project
   saved at 25 — export first. Below it, `aa1f841` refuses 24, `f3fced0` 23, `68dca2d` 22, `e2729ee` 21; back to `98c7df4` is
   schema 20. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-26):** square-set legs is deployed. Stretchers (fu 438) are parked on `stretchers` at `52e975f`: rebase onto
-  master, then resume at Task 2 on square-set legs. Owed to the user: five specs' Amended blocks (`docs/rounds.md`); fu 454, 464,
-  468, 473 (copy); fu 465 (by eye); fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups.
+- **NEXT (2026-10-26):** stretchers (fu 438, no schema change) are BUILT on branch `stretchers`, NOT merged or deployed: browser
+  check, final review, merge, deploy. Owed: six specs' Amended blocks (`docs/rounds.md`); the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -67,7 +64,7 @@ rather than assumed. On the DEV server, test projects a check creates are LEFT i
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (25 since square-set legs, deployed 2026-10-26)
+**Rollback cost is a schema question.** A build understanding less than the file's version (25)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -105,10 +102,11 @@ Each layer depends only on the ones before it:
 **The `→ units` edge rule: a module imports `units` when it produces a string a person
 reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts`
 (`formatLength`, so one dimension never reads two ways on one sheet) and
-`viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so does `designCheck.ts` (a metric violation's
-`shown` copy, fu 355; its model `message` stays decimal inches), and `sectionView.ts` (the section's heading), and `bandText.ts` (the band line and the core note; `banding.ts` stays numbers-only), and `tenonText.ts` (the tenon's bench line and copy; `roundTenons.ts` stays numbers-only).
+`viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so do `designCheck.ts` (a metric violation's
+`shown` copy, fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), and the copy homes
+`bandText.ts`, `tenonText.ts` and `stretcherText.ts` (`banding.ts` and `roundTenons.ts` stay numbers-only).
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
-`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`), nor is `gridDensity.ts`' `isMetric` (the
+`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
@@ -151,7 +149,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | shapes / links | `shapes.ts`, `links.ts`, `linksToShapes.ts` (inv 45) |
 | rectangular cuts | `cuts.ts` (inv 40) |
 | angle cuts | `angleCuts.ts`; AI `angleWorld.ts` / `taperWorld.ts` (inv 48, 59) |
-| holes | `holes.ts`, `holeFaults.ts`, tilt `holeTilt.ts`, `holeRebase.ts`, `legSockets.ts`; AI `holeWorld.ts` (inv 50) |
+| holes | `holes.ts`, `holeFaults.ts`, tilt `holeTilt.ts`, `holeRebase.ts`, `legSockets.ts`, stretchers `stretchers.ts`; AI `holeWorld.ts` (inv 50, 60) |
 | curves | `curves.ts`, `curveDrawing.ts` (inv 53) |
 | edge profiles | `profiles.ts`, `profilePath.ts`, `sweep.ts` and kin; AI `profileWorld.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
@@ -178,7 +176,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
   CENTRE-relative and both look like they do this — using either puts every point off by
   half the board, plausibly. Pin with a rotated, non-flat pose. `towardFor` is the tape's
   ONE direction source (preview and commit); a locked axis wins over a hover, never falls
-  back to it. `sameSnapPoint` lives here because the store needs it.
+  back to it.
 - **`cutlist.ts` / `diagram.ts`**: a group's key is its rows' key prefix (`groupFields`; fu 54). Format from `cutShape`, never from stored
   `across`/`offset`/`width`/stops (fu 192). The cut list accumulates EXACT stock, never
   qty × rounded dimensions, and ignores cuts (stock, not remainder). `storedAsShape`
@@ -186,7 +184,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 - **`bodies.ts`**: read bodies and edges through `partGeometry` wherever it runs per frame or per part (snap
   points, drawings, BoardMesh). Its results are SHARED between parts with one `geometryKey`, deep-frozen:
   never mutate them. The key is board-local (dimensions, cut geometry, angle cuts, hole rows) — no pose — and carries each
-  angle cut's and hole row's ID, because a clipped face names its cut (`BodyFace.cut`) and `bodyMesh` looks it up by id.
+  angle cut's and hole row's ID (why: `docs/module-map.md`).
 - **`angleCuts.ts` field conversions**: the row's fields carry STORED values — a miter/bevel its slope ratio, a chamfer
   its legs, a taper its stations and depths — never re-derived through `atan`/`tan`, so an edit of side, end or face keeps
   a 45° cut at depth = run exactly. Degrees exist only in display and typed input, and reach a writer only through
@@ -211,8 +209,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
   plane membership (`keptHalfSpace`'s plane is `n·x + d = 0`), so `bodyEdges` is untouched. A part's features are keyed by the innermost
   LISTED assembly's trio (`keyed`), so each feature once per sheet (view order, merging and pushing: `docs/module-map.md`).
 - **`pocket.ts`**: `pocketFor` stores each of its OWN numbers within EPS of a 1/64" or 0.1 mm grid point AS that point's float
-  (`onGrid`, dyadic first; fu 216) — a box arrives through world differences and reflections, and the cut list compares
-  stored cuts exactly. A `storedAsShape` re-store after it is off-grid but deterministic (fu 382); never snap after it, and
+  (`onGrid`, dyadic first; fu 216; why: `docs/module-map.md`). A `storedAsShape` re-store after it is off-grid but deterministic (fu 382); never snap after it, and
   never round the row key instead.
 - **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
   must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
@@ -227,7 +224,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
   error, null when nothing was spent; every spent cost prints through `formatCost` (`< $0.01`, never `≈ $0.00`; fu 168).
 - **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
   `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
-  `setKerf` refuses a kerf outside [0, 1) — the loader DEFAULTS one there, so storing it would be silently replaced (fu 98).
+  `setKerf` refuses a kerf outside [0, 1) (fu 98; why: `docs/module-map.md`).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
 - **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
   post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
@@ -419,7 +416,7 @@ changes.
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
     the coverage threshold, or either half of the top-face clause.** One fault, one report.
     `groundedSet` is the ONE grounding walk. Known limits: follow-up 176. A LEANING part is supported only by RESTING on
-    its level faces, or by a joint (d): nothing is held "between" or lapped onto one (fu 438); an unlevelled one is not grounded
+    its level faces, or by a joint (d): nothing is held "between" or lapped onto one; an unlevelled one is not grounded
     (hint `Level the ends`). Every unleaned pair runs as before. **(d) JOINED (inv 58): a seated tenon holds either of its two
     parts, ONLY toward the floor** (the partner grounded without it, `groundedWithout(i)`), any part, no coverage threshold;
     `groundedSet`'s `joint` connects them. ADDED: the top-face clause's floor test reads `stands[o]` for a built-tenon part, both
@@ -501,7 +498,7 @@ changes.
     Select; `setExplode` is the one writer. The UI lock is `EditLock`'s disabled `<fieldset>` around
     EDITING regions only; the explode offset is a render-time translation, never written back. **Drawings:**
     `drawView` takes lines from `boardEdges` and `holeDrawingSegments` (one hidden-line pass),
-    occluders from the HOLE-FREE `worldBodies` (you cannot see through a hole), and TAGS each
+    occluders from the HOLE-FREE `worldBodies`, and TAGS each
     segment with its feature — tagging changes nothing else. A curved part's edges come through `curveDrawEdges`,
     **visibility judged on the MODEL chord**; silhouettes from `silhouetteLines` (probed along the faces' normals); every model
     edge of a curved or LEANING part carries a probe lift; ONE facing test (`EDGE_ON`). Non-curved drawings are byte-for-byte
@@ -531,7 +528,7 @@ changes.
     refused on any fault, an edit only when it ADDS one; a fault a later edit causes is KEPT,
     noted, never clamped. **A row may TILT (schema 23); `holeTilt.ts` is the ONE home of tilt math**; square rows keep their
     paths byte for byte. **A tilted row's faults are EXACT or CONSERVATIVE, never under-reported** (the unclipped mesh path
-    trusts them). Bore leg sockets: `legSockets.ts`, the ONE decider; `boreAlongAxis` the ONE coaxial test; `tenonInSeat`
+    trusts them). Bore leg sockets: `legSockets.ts`, the ONE decider; `boreRow` the ONE bore core (seat and rung sockets); `boreAlongAxis` the ONE coaxial test; `tenonInSeat`
     the ONE tenoned-leg predicate. **Generate and
     Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (the grid snaps STORED distances; untouched rows return
     EXACTLY; a strict model fault is KEPT and flagged, never clamped). `drawsAsBox` is the ONE BoxGeometry routing. **A curved
@@ -601,7 +598,7 @@ changes.
     decider** (CONSERVATIVE boxes, never under; copy only in `tenonText.ts`): an add refuses any fault, an edit only an ADDED one,
     a later one is KEPT and noted; **a faulted tenon builds nothing** (`builtTenons`). A tenoned end is square or carries ONE end
     miter, the tip. **The joint** (`tenonJoints.ts` `seatedIn`, in the world; every condition: `docs/invariants.md`): the same
-    diameter (1e-9), coaxial, entered, a blind bottom not passed by the tip's FURTHEST point; first match wins. **Support is never granted by proximity.**
+    diameter (1e-9), coaxial, entered, a blind bottom not passed by the tip's FURTHEST point; first match wins. **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
 
 59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (turned: `T · Ry(τ)`, unchanged;
     `leanTwist` its τ). A first lean is square-set; a leaning part keeps its setting; a Set change on a holed part is refused when
@@ -610,12 +607,19 @@ changes.
     four corners; mirrors flip `across.from`. A document without either is byte for byte as before. **Every reader is correct or
     refuses** (`hasCompoundCut` the ONE predicate): `miterFields` null, joinery and Repair refuse, Refine keeps, `worldAngles` null.
 
+60. **A stretcher is an ordinary part with two round tenons in two BLIND sockets; `stretchers.ts` is the ONE planner (Add
+    stretcher, Fit the stretcher again); nothing about one is stored** (no schema change; a stretcher-free project is byte for
+    byte as before; inv 39 (d) holds it, no check changes). Its legs are FOUND every time (`rungLegAt`, `stretcherOf`). Its axis
+    is EXACTLY axis-aligned (legs not square to 1e-6 refuse); `L` and `S` round DOWN to the grid, a socket's depth UP to
+    `tenonStep`; a free row the tenon is `seatedIn` is reused; any socket fault refuses the WHOLE action. Every refusal before
+    `edit()`; ONE undo entry, none for a fitted rung's Fit. Fit re-fits the CLOSURE (each stretcher sharing a used row).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 8766 tests across 244 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 8880 tests across 247 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -624,23 +628,24 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–474). Every entry's LAST `**Status:**` line governs; all 380 were triaged
-2026-10-16 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
+**`docs/follow-ups.md` is authoritative** (1–483). Every entry's LAST `**Status:**` line governs
+(numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400; splayed legs 438 (chunk 3, stretchers), 449, 450; round tenons 457, 458, 460; square-set legs 470, 471.
+  364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs); by eye — 465 (round tenons); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers); by eye — 465 (round tenons); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
 - **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
   holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
-  (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474.
+  (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
+  (2026-10-26): 479 (ask first); record-only 483.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

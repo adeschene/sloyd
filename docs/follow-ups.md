@@ -7199,6 +7199,12 @@ sides first (Lean).` (square-set legs spec §5, the builder's call, recorded the
 `legSockets.ts`), to rebase onto master after square-set legs merges (the overlap is small: `legSockets.ts`' `sameCuts` reads
 `sameLevelLine`, which now compares `across`). Square-set legs took invariant 59, so the stretchers spec's "inv 58 clause or a new
 inv 59" (its §9, Records) becomes inv 58 or a new inv 60.
+**Status:** closed 2026-10-26 — stretchers BUILT on branch `stretchers` (spec `docs/superpowers/specs/2026-10-25-sloyd-stretchers-design.md`,
+NO schema change, inv 60 new; invs 50 and 58 extended); merge and deploy pending (the user's decision); browser verification
+DONE (plan Task 7, `docs/browser-verification-stretchers.md`, 8/8 PASS, e4a18ce). A rung between two upright legs (leaning or not) is held by inv 39's clause (d) through its two seated round tenons;
+the "between" rule for leaning parts STANDS as written (a part laid between leaning legs without tenons is still `unsupported`,
+by design). Aprons, this entry's other half, are fu 480; the rest is fu 475–483 (tapered tenons stay fu 449, wedges and pins fu
+458, first match wins fu 461).
 
 **439. The `hangs` sentence for a grounded leaning part off the floor.** A leaning part that is grounded through other parts but does
 not reach the floor (a leg whose foot stops short and hangs from the seat) reports the existing `hangs` message — "its X sides are
@@ -7560,4 +7566,89 @@ mutation removing it went red; ACCEPTED as designed. (5) Task 6: `rebaseAngleCut
 `compoundRefusal`, inv 41). (6) Task 3: a Set change keeps the stored, seam-free `face` (spec §3.1), so a leg first leaned
 square-set and later switched to turned faces whatever `chooseFace` picked at its first lean. (7) Task 2: `tipFarthest`,
 `deepestDepth` and `overruns` were exported for direct pins (ruling T2a).
+**Status:** open (record-only).
+
+## From the stretchers round (splayed legs chunk 3) — 2026-10-26
+
+**475. Diagonal and X stretchers (stretchers spec §2, §11).** Add stretcher refuses two legs whose axis points at the height differ
+in both X and Z (`These legs aren't square to each other at that height — …`): the rung is a `flat` part turned 0 or 90, and an
+unleaned part turns by quarter turns only. A diagonal or X stretcher needs a horizontal posture at any angle in plan (a new
+posture, or a lean-like placement for a flat part), and its sockets would enter a leg's corner region, not one face.
+**Status:** open (feature-sized; needs a spec).
+
+**476. H stretchers: a rung between two rungs (spec §2, §11).** Add stretcher takes two UPRIGHT parts; an H stretcher's middle rung
+joins two level rungs, its sockets bored across a rung's section, its length from the two rungs' faces (no leaning axis to cross).
+`rungLegAt` finds only upright legs, so the middle rung would never be found as a stretcher either.
+**Status:** open (feature-sized; needs a spec).
+
+**477. Round (turned) rung stock (spec §2, §5.3, §11).** The rung is square stock (Sloyd's parts are boxes) with round tenons, so
+its square shoulder meets a leaning leg at one corner and stands off it at the others (the readout's `shoulder gap up to <g>`,
+about 1/4" for a 1" rung on the square-set stool). Real staked work turns the rung round and the gap disappears. Needs a round part
+(a body, a cut-list line, drawings).
+**Status:** open (feature-sized; needs a spec).
+
+**478. A shoulder cut to the leg's face (spec §2, §5.3, §11).** The shoulder stays square to the rung's axis; a coped or angled
+shoulder that sits flush on a leaning leg's face is a compound cut no single stored cut holds (an end cut whose plane is the leg's
+face, around a round tenon). The readout prints the gap so the woodworker can pare or chamfer it.
+**Status:** open (feature-sized; needs a spec).
+
+**479. A typed tenon depth kept across a re-fit (spec §8, §11).** Add stretcher runs each tenon to its leg's axis (the tip
+`(D − L)/2` short of it, the tenon what the squared shoulder leaves). A different depth is an edit after the Add (the rung's
+length, a tenon's, a socket's depth), and Fit the stretcher again puts the default back. A kept depth needs either a stored
+preference (a schema field) or reading the current tip-to-axis distance as the intent.
+**Status:** open (ask first).
+
+**480. Aprons between splayed legs (spec §2, §11; fu 438's other half).** A wide rail at a leg's top needs a compound-angle
+RECTANGULAR tenon (or a loose tenon or dowels) into a leaning leg's face; the round-tenon joint (inv 58) does not describe it, and a
+part laid between leaning legs is still `unsupported` (inv 39: nothing is held "between" leaning parts).
+**Status:** open (feature-sized; needs a spec).
+
+**481. A three-legged stool's rungs (spec §8, §11).** A three-legged stool's legs are not square to each other in plan, so every
+rung is a diagonal one (fu 475) and Add stretcher refuses each pair with the not-square sentence.
+**Status:** open (feature-sized; after fu 475).
+
+**482. Stretchers copy review (for the user).** Every new string is in `stretcherText.ts` (its ONE home), quoted in the spec or the
+plan's Global Constraints as the builder's calls: (1) the refusals — `Set <Leg> square to the sides first (Lean).` (spec Amended
+S1); `These legs aren't square to each other at that height — a stretcher must run straight along the front, back or sides.`;
+`<Leg> doesn't reach that height.` (also a section off the leg's entry face, or a tenon that would come out zero long); `Select two
+legs in the same assembly.`; `A stretcher can't join a leg inside a mirrored copy yet: <Leg>.` (it names the first of the two legs;
+both are inside the same copy); `<Leg>'s socket would <words> — choose a different height, or a smaller tenon.`; `<Leg> already
+has a different socket there — remove it first.`; Fit again's `These linked legs need their shared socket in different places:
+<rungs>.`, `<Rung> would now run the other way — add it again.` (also a rung that would face the other way along its own axis)
+and `<Leg> has two sockets this tenon could be in — remove one.`; from the final review (2026-10-26): `These legs already
+have a stretcher at that height: <Rung>.` (ruling TFa: the same pair again where a rung already sits) and `A stretcher's height,
+rung size and tenon diameter must be more than zero.` (M2; programmatic callers only, the fields refuse it first); reused, not new: `socketTooSteep`, the too-wide tenon sentence.
+(2) The link note `<Part> got this socket too, through its link.`, shown in the RUNG's panel after the Add (ruling T5a), not under
+the section. (3) The readout `Between <A> and <B>, <h> up · shoulder gap up to <g>` (`<g>` rounded UP to the display grid since the final
+review's M1, so "up to" never understates: the stool's 0.2528" reads 5/16") and the stale line `No longer fits <A> and <B> —
+Fit the stretcher again.`; the legs are named in TENON order, the `min` tenon's leg first (ruling T5b), so the front rung added from
+Front right and Front left reads `Between Front left and Front right, …`, whatever the selection order. (4) The section heading
+`Stretcher`, the fields `Height`, `Rung size`, `Tenon diameter`, the buttons `Add stretcher` and `Fit the stretcher again`. (5)
+INTERNAL, never shown by the panel (the button appears only for a stretcher): the store's `This part is not a stretcher.`
+(`STRETCHER_NOT_A_STRETCHER`, ruling T4b).
+**Status:** open (owed to the user: wording).
+
+**483. Stretchers: deferred minors (2026-10-26, the SDD ledger and task reviews).** (1) Ruling T2b: the too-steep refusal
+(`socketTooSteep`) and `defaultHeight`'s 20-step cap are unreached by any fixture — a world-axis rung meets a square-set or
+zero-twist leg's face at the leg's own lean, and the lean bound is the tilt bound (splay-only at the bound gives tiltAlong
+−1.0000000000000024, inside `BOUND_EPS`); both stay as guards. (2) Task 2 review M18: `defaultHeight` steps when ANY of a socket's
+faults is `meets-hole` (`faults.some`), but no test has `meets-hole` behind another fault, so reading `faults[0]` alone survives.
+(3) Ruling T1c: `rungSocketRow` signs its bit by `dot(line.u, towardOther) > 0`, so a line exactly perpendicular to `towardOther`
+silently takes `+u` (unreachable: the rung's `towardOther` runs along the line; it would then throw on the face check, loudly);
+`roundUp`'s 1e-9 tolerance can leave a depth ~1e-9·step under the true reach (harmless: `seatedIn` has its own tolerance). (4)
+Ruling T1b: the face-rectangle test (`faceCrossing`) uses the bare `[0, dim]` box and ignores angle cuts, so a mouth on a levelled
+end's waste would pass it (unreachable on a long face at a height the leg's axis reaches). (5) Task 3 report: re-fitting the
+closure from the front rung or from the back rung gives documents equal to 1e-9, not bit for bit (the first rung's row is the one
+stored); a fitted rung is bit-exact either way. (6) Ruling T5c's caveat: the Height default's memo key (`pairSignature`) treats a
+common horizontal move of the pair as no change; under a translation the planner's arithmetic could in principle differ in the last
+bits (its thresholds are 1e-9). (7) Two doc comments in `stretchers.ts` (`StretcherPlan.gap`, `stretcherOf`) still name
+`shoulderGap`, an export removed in Task 3's fix round (review M-1); the helper is `gapOf` over `cornerExits`. A comment fix only. **Fixed** in the controller's commit after Task 7 (2026-10-26).
+(8) Spec §6.2 left a stale tenon with NO bore of its diameter uncovered: Fit reuses a row another closure rung just bored that it
+seats in, else bores a new one (ruling T3b; tested with a socket removed by hand). (9) Final review, ruling TFa: the Height
+default now also depends on OTHER parts' tenons (a taken row), but its memo key (`pairSignature`) reads only the two legs. Adding a
+rung on a LINKED pair reuses rows without changing the legs, so an undo or redo of that rung while the other pair stays selected
+leaves the default stale. That is safe: Add then refuses with the taken sentence, and nothing overlaps; a selection change remounts
+the section. `holderOf`'s two exclusions (the rung itself, the leg itself) are unobservable through today's callers (the planned
+rung is not in the world; a stale tenon is not seated by definition; a leg's own tenons never sit in its own sockets) and stay as
+guards.
 **Status:** open (record-only).
