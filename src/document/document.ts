@@ -209,8 +209,18 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * wins) and KEEPS a well-formed faulted one; it refuses nothing on content. Harm a v23 build would do: it rebuilds each part
  * field by field, drops the tenons and loads the leg as full-section stock all the way into the seat — silently, and
  * autosaves it. So a v24 file must be refused by a v23 build.
+ *
+ * v25 (square-set legs spec §3.4): `square: true` on a lean (a square-set leg, never turned about its own axis) and
+ * `across: { rise, from }` on an end miter (a second slope across the through dimension) — document-level, no step:
+ * absent fields default (a turned lean, a single slope). The loader keeps `square` only when exactly `true` (anything
+ * else is dropped from the lean, which stays) and DROPS the cut, never the part, on a malformed `across` (a rise that is
+ * not finite and > 0, a `from` other than min | max, or `across` on anything but a resolved `kind 'miter'` with `face
+ * 'length'`). It refuses nothing on content. Harm a v24 build would do: it rebuilds the lean field by field and drops
+ * `square`, so the leg re-twists by the seam-free twist (about 33° at 8°/12°) — its level cuts no longer level, its
+ * sockets point wrong; and it rebuilds each angle cut field by field and drops `across`, so a compound foot loads as a
+ * single slope and rocks — both silently, and it autosaves. So a v25 file must be refused by a v24 build.
  */
-export const CURRENT_VERSION = 24;
+export const CURRENT_VERSION = 25;
 
 export class DocumentError extends Error {
   /**
@@ -425,7 +435,10 @@ function validateCuts(raw: unknown, board: Pick<Board, Dimension>): Cut[] {
  * (`deriveKind`), not dropped — the geometry is good and only the word is
  * missing. A cut that removes nothing is KEPT (unlike fu 178): keeping it loses
  * nothing and restores the cut if the part grows back. Ids are scoped to this
- * board, or this shape (invariant 33).
+ * board, or this shape (invariant 33). Schema 25: a present `across` that is
+ * malformed (a rise not finite and > 0, a bad `from`, or on anything but an end
+ * miter, judged on the RESOLVED kind) drops the cut; a good one is rebuilt
+ * field by field, and an absent one stores no key.
  */
 function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCut[] {
   if (!Array.isArray(raw)) return [];
@@ -453,7 +466,15 @@ function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCu
     if (!Number.isFinite(ds) || !Number.isFinite((points[1][1] - points[0][1]) / ds)) continue;
     const base = { face, from: c.from as CutFrom, along, alongFrom: c.alongFrom as CutFrom, points };
     const kind = ANGLE_KINDS.includes(c.kind as AngleKind) ? (c.kind as AngleKind) : deriveKind(base, board);
-    out.push({ id: takeId(c.id, seen), kind, ...base });
+    let across: AngleCut['across'];
+    if (c.across !== undefined) {
+      const a = c.across as Record<string, unknown> | null;
+      if (kind !== 'miter' || face !== 'length' || typeof a !== 'object' || a === null) continue;
+      if (typeof a.rise !== 'number' || !Number.isFinite(a.rise) || a.rise <= 0 || !VALID_FROMS.includes(a.from as CutFrom)) continue;
+      across = { rise: a.rise, from: a.from as CutFrom };
+    }
+    // The id is taken only once the cut is known to be kept, so a dropped cut never claims one (inv 33).
+    out.push({ id: takeId(c.id, seen), kind, ...base, ...(across ? { across } : {}) });
   }
   return out;
 }
@@ -845,6 +866,7 @@ const validRotation = (r: unknown): Rotation => (VALID_ROTATIONS.includes(r as n
  * A part's lean (splayed legs spec §3.1, §3.2), or undefined. Dropped, never clamped: not an object, any posture but
  * 'upright', a non-finite or out-of-bound slope (`withinBound`), a `face` other than width | thickness, or a zero lean
  * (no lean is no key). Kept in its seam-free form (`seamFree`), so the stored face never puts the twist at exactly 90°.
+ * `square` (schema 25) is kept only when exactly `true`; anything else is dropped from the lean, which stays.
  */
 function validateLean(raw: unknown, posture: Posture): Lean | undefined {
   if (posture !== 'upright' || typeof raw !== 'object' || raw === null) return undefined;
@@ -852,7 +874,7 @@ function validateLean(raw: unknown, posture: Posture): Lean | undefined {
   if (typeof l.x !== 'number' || typeof l.z !== 'number' || !withinBound(l.x, l.z)) return undefined;
   if (l.face !== 'width' && l.face !== 'thickness') return undefined;
   if (l.x === 0 && l.z === 0) return undefined;
-  return seamFree({ x: l.x, z: l.z, face: l.face });
+  return seamFree({ x: l.x, z: l.z, face: l.face, ...(l.square === true ? { square: true as const } : {}) });
 }
 
 function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<string>, bandIds: ReadonlySet<string>, hardwareIds: ReadonlySet<string>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {

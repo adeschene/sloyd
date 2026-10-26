@@ -17,15 +17,17 @@ export const ANGLE_KINDS: AngleKind[] = ['taper', 'miter', 'bevel', 'chamfer'];
  * `tsc` here until it is listed.
  */
 export const ANGLE_CUT_FIELDS = {
-  kind: true, face: true, from: true, along: true, alongFrom: true, points: true,
+  kind: true, face: true, from: true, along: true, alongFrom: true, points: true, across: true,
 } as const satisfies Record<Exclude<keyof AngleCut, 'id'>, true>;
 
 export const ANGLE_CUT_KEYS = Object.keys(ANGLE_CUT_FIELDS) as (keyof typeof ANGLE_CUT_FIELDS)[];
 
-/** One angle cut's comparable values, in ANGLE_CUT_KEYS order, `points` flattened. */
+/** One angle cut's comparable values, in ANGLE_CUT_KEYS order, `points` and `across` flattened. An absent `across`
+ *  adds NOTHING (it is last), so a single-slope cut's values are byte for byte as before schema 25. */
 export function angleCutValues(c: Omit<AngleCut, 'id'>): (string | number)[] {
   return ANGLE_CUT_KEYS.flatMap((k): (string | number)[] => {
     if (k === 'points') return [c.points[0][0], c.points[0][1], c.points[1][0], c.points[1][1]];
+    if (k === 'across') return c.across ? [c.across.rise, c.across.from] : [];
     return [c[k]];
   });
 }
@@ -37,9 +39,11 @@ export function sameAngleCut(a: AngleCut, b: AngleCut): boolean {
   return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
-/** A copy sharing no array with the original, so no two parts ever hold one cut's points. */
+/** A copy sharing no array or object with the original, so no two parts ever hold one cut's points or `across`. */
 export function copyAngleCut(c: AngleCut): AngleCut {
-  return { ...c, points: [[c.points[0][0], c.points[0][1]], [c.points[1][0], c.points[1][1]]] };
+  const out: AngleCut = { ...c, points: [[c.points[0][0], c.points[0][1]], [c.points[1][0], c.points[1][1]]] };
+  if (c.across) out.across = { rise: c.across.rise, from: c.across.from };
+  return out;
 }
 
 /** The dimension the cut runs straight through. */
@@ -170,12 +174,15 @@ const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
  * are measured from `alongFrom` and depths from `from`, so a reflection is a
  * flag flip and NO arithmetic (angle-cuts spec 5.2; invariant 44's one hand
  * reflection stays `mirrorCutAlong`, for rectangular cuts). Exact, and an
- * involution. Always a fresh object with fresh points.
+ * involution. Always a fresh object with fresh points. Along the through
+ * dimension only a compound cut changes: `across.from` flips (square-set legs
+ * spec §3.1); a single-slope cut runs straight through it and is unchanged.
  */
 export function mirrorAngleCut(c: AngleCut, d: Dimension): AngleCut {
   const out = copyAngleCut(c);
   if (c.face === d) out.from = flip(c.from);
   else if (c.along === d) out.alongFrom = flip(c.alongFrom);
+  else if (out.across) out.across.from = flip(out.across.from);
   return out;
 }
 

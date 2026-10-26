@@ -97,6 +97,10 @@ export interface AngleCut {
   alongFrom: CutFrom;
   /** Two points on the line: [station along `along`, depth into `face`], inches. Stations differ. */
   points: [[number, number], [number, number]];
+  /** Schema 25 (square-set legs spec §3.1): a second slope, legal only on an end miter (`kind 'miter'`, `face 'length'`).
+   *  The depth also grows by `rise` (> 0, finite) per inch across `throughOf(c)`, measured from that dimension's CENTRE,
+   *  increasing away from its `from` side: depth(s, t) = depthAt(c, s) + rise · (t − T/2). Absent = a single slope. */
+  across?: { rise: number; from: CutFrom };
 }
 
 /**
@@ -211,9 +215,11 @@ export interface ProfileCut {
  * `face` is which of the leg's two horizontal dimensions faces the sightline (§3.3): stored, never derived, chosen when
  * a lean is first set (the smaller twist, width on a tie) and kept by later edits. Stored ONLY when `x` or `z` is
  * non-zero, and only on an upright part (§3.2). Degrees exist only in display and typed input; every number derived
- * from a lean comes from `lean.ts`.
+ * from a lean comes from `lean.ts`. `square` (schema 25, square-set legs spec §3.1) is present, only as `true`, when the
+ * leg is square-set (tilted onto its lean, never turned about its own axis); absent means turned, as every lean stored
+ * before schema 25. `face` is still stored on a square-set lean (switching back to turned uses it).
  */
-export interface Lean { x: number; z: number; face: 'width' | 'thickness' }
+export interface Lean { x: number; z: number; face: 'width' | 'thickness'; square?: true }
 
 export interface Board {
   id: string;

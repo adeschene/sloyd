@@ -200,8 +200,8 @@ export function pivotKeptPosition(board: Board, changes: Partial<Board>): [numbe
   ];
 }
 
-/** A lean reflected along the part's turn-0 X (§3.4): the X slope negated, the facing dimension kept; its own inverse.
- *  `0 - x` keeps a zero +0. With `mirrorPart`, the map is conjugated by the reflection exactly. */
+/** A lean reflected along the part's turn-0 X (§3.4): the X slope negated, the facing dimension and `square` (schema 25)
+ *  kept; its own inverse. `0 - x` keeps a zero +0. With `mirrorPart`, the map is conjugated by the reflection exactly. */
 export function leanFlip(l: Lean): Lean {
-  return { x: 0 - l.x, z: l.z, face: l.face };
+  return { x: 0 - l.x, z: l.z, face: l.face, ...(l.square ? { square: true as const } : {}) };
 }

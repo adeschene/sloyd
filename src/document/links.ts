@@ -137,10 +137,10 @@ export function sameShared(a: Board, b: Board): boolean {
       const y = b.tenons ?? [];
       if (x.length !== y.length || x.some((t, i) => t.id !== y[i]!.id || !sameTenon(t, y[i]!))) return false;
     } else if (k === 'lean') {
-      // By value, exact; absent equals absent only (spec §3.1).
+      // By value, exact, `square` included (square-set legs spec §3.1); absent equals absent only (spec §3.1).
       if (a.lean === undefined || b.lean === undefined) {
         if (a.lean !== b.lean) return false;
-      } else if (a.lean.x !== b.lean.x || a.lean.z !== b.lean.z || a.lean.face !== b.lean.face) {
+      } else if (a.lean.x !== b.lean.x || a.lean.z !== b.lean.z || a.lean.face !== b.lean.face || a.lean.square !== b.lean.square) {
         return false;
       }
     } else if (a[k] !== b[k]) {

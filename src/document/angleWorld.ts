@@ -38,13 +38,14 @@ export function sortAngleCuts<T extends Omit<AngleCut, 'id'>>(cuts: T[]): T[] {
     if (k !== 0) return k;
     const a = angleCutValues(x);
     const b = angleCutValues(y);
-    for (let i = 0; i < a.length; i += 1) {
+    for (let i = 0; i < Math.min(a.length, b.length); i += 1) {
       const p = a[i]!;
       const q = b[i]!;
       if (p === q) continue;
       return typeof p === 'number' && typeof q === 'number' ? p - q : String(p) < String(q) ? -1 : 1;
     }
-    return 0;
+    // A cut without `across` has the shorter values (a prefix of a compound one's): it sorts first, both ways round.
+    return a.length - b.length;
   };
   return [...cuts].sort(cmp);
 }

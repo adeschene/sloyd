@@ -29,7 +29,7 @@ const g = (b: Board, c: AngleCut, p: [number, number, number]) => {
 
 describe('the angle-cut model', () => {
   it('lists every field but id, kind included', () => {
-    expect([...ANGLE_CUT_KEYS].sort()).toEqual(['along', 'alongFrom', 'face', 'from', 'kind', 'points']);
+    expect([...ANGLE_CUT_KEYS].sort()).toEqual(['across', 'along', 'alongFrom', 'face', 'from', 'kind', 'points']);
   });
 
   it('reads depth along the line and finds where it reaches zero', () => {

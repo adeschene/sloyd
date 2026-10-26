@@ -143,7 +143,7 @@ function lowerBands(storedBefore: Board, draft: Board): Band[] {
 
 /**
  * A part's lean lowered back through ONE mirror (splayed legs spec §3.4): `leanFlip`, exact and its own inverse, so one
- * flip per mirror on the path; equal by value to the stored lean: the stored object (an untouched lean is never
+ * flip per mirror on the path; equal by value (`square` included, schema 25) to the stored lean: the stored object (an untouched lean is never
  * rewritten). The flip keeps a zero slope zero, so a seam-free lean (`seamFree`) stays seam-free. A draft with no lean
  * (none, or one being removed) adds nothing: its own key, present or absent, is the after-state's.
  */
@@ -151,7 +151,7 @@ function lowerLean(storedBefore: Board, draft: Board): { lean?: Lean } {
   if (!draft.lean) return {};
   const back = leanFlip(draft.lean);
   const s = storedBefore.lean;
-  return { lean: s && s.x === back.x && s.z === back.z && s.face === back.face ? s : back };
+  return { lean: s && s.x === back.x && s.z === back.z && s.face === back.face && s.square === back.square ? s : back };
 }
 
 /**
@@ -585,7 +585,7 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
  *  (regroupShapes) and to compare placements of one definition (resultSignature, fu 316). */
 function groupSignature(b: Board): unknown[] {
   const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : k === 'hardware' ? b.hardware.map((u) => `${u.type}:${u.count}`).join(';') : k === 'lean' ? (b.lean ? `${b.lean.x},${b.lean.z},${b.lean.face}` : '') : k === 'tenons' ? sorted((b.tenons ?? []).map(tenonValues)) : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : k === 'profiles' ? sorted(b.profiles.map(profileValues)) : k === 'bands' ? b.bands.map(bandValues).join(';') : k === 'hardware' ? b.hardware.map((u) => `${u.type}:${u.count}`).join(';') : k === 'lean' ? (b.lean ? `${b.lean.x},${b.lean.z},${b.lean.face}${b.lean.square ? ',square' : ''}` : '') : k === 'tenons' ? sorted((b.tenons ?? []).map(tenonValues)) : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation
