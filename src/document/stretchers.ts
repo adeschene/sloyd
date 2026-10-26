@@ -249,7 +249,7 @@ export interface StretcherPlan {
   legs: StretcherLeg[];
   /** One `stretcherLinkNote` per OTHER world part (not the two legs) whose resolved holes gain a row, world order. */
   notes: string[];
-  /** The larger end's widest shoulder-corner gap (`shoulderGap`, ruling P1). */
+  /** The larger end's widest shoulder-corner gap (`gapOf`, ruling P1). */
   gap: number;
 }
 
@@ -525,7 +525,7 @@ function rungAxisOf(rung: Board): 0 | 2 | null {
 /**
  * `rung` as a stretcher (spec §6.2), or null: non-null only for an UNLEANED rung whose length is level (along world X or
  * Z) and whose two tenons (`min` and `max`) find two DIFFERENT upright legs (`rungLegAt`). `seated` when both tenons are
- * `seatedIn` a row of their leg; otherwise it is stale (the panel's note and Fit again). `gap` (ruling P1) is `shoulderGap`'s
+ * `seatedIn` a row of their leg; otherwise it is stale (the panel's note and Fit again). `gap` (ruling P1) is `gapOf`'s
  * measure along the rung's OWN axis — the line through its two tip centres, each shoulder its tenon's length from its tip —
  * so it is the add plan's number on a fitted rung and still a number on a stale one; an end whose corner lines miss its leg
  * adds no gap.

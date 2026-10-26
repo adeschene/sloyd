@@ -7639,7 +7639,7 @@ closure from the front rung or from the back rung gives documents equal to 1e-9,
 stored); a fitted rung is bit-exact either way. (6) Ruling T5c's caveat: the Height default's memo key (`pairSignature`) treats a
 common horizontal move of the pair as no change; under a translation the planner's arithmetic could in principle differ in the last
 bits (its thresholds are 1e-9). (7) Two doc comments in `stretchers.ts` (`StretcherPlan.gap`, `stretcherOf`) still name
-`shoulderGap`, an export removed in Task 3's fix round (review M-1); the helper is `gapOf` over `cornerExits`. A comment fix only.
+`shoulderGap`, an export removed in Task 3's fix round (review M-1); the helper is `gapOf` over `cornerExits`. A comment fix only. **Fixed** in the controller's commit after Task 7 (2026-10-26).
 (8) Spec §6.2 left a stale tenon with NO bore of its diameter uncovered: Fit reuses a row another closure rung just bored that it
 seats in, else bores a new one (ruling T3b; tested with a socket removed by hand).
 **Status:** open (record-only).
