@@ -204,7 +204,7 @@ const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]
 /** A rung socket's entry (stretchers spec §3.4): of `leg`'s four LONG faces (normal square to its length), the one whose
  *  world outward normal (leaned, `leanMap`) is nearest `towardOther` (the largest dot product), the first in `axisFrame`
  *  order on a tie. */
-function rungEntryOf(leg: Board, towardOther: V3): { face: Dimension; from: CutFrom } {
+export function rungEntryOf(leg: Board, towardOther: V3): { face: Dimension; from: CutFrom } {
   const m = leanMap(leg);
   let best: { face: Dimension; from: CutFrom } | null = null;
   let most = -Infinity;
