@@ -470,7 +470,7 @@ changes.
     Equivariance tests use `chiralPart` (and kin), never a symmetric fixture; mutate any new one. A part's own mirror (schema 21)
     is the same flips along `mirrorDim` (`mirrorFeatures`; inverse `lowerOwnMirror`); rect cuts are not bit-exact twice.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
-    is the ONE shared/own table (classify an optional field with care, fu 231;
+    is the ONE shared/own table (classify an optional own field with care, fu 231;
     `_sharedPrimitives`: `docs/invariants.md`). `resolveBoard` is
     the ONE place a shape is read into a part. `linksToShapes` is the ONE label→shape builder,
     with two callers (the v10→v11 step and `linkByRole`); both judge equality by `sameShared`
@@ -591,7 +591,7 @@ changes.
     stays the PRE-lean min corner; the lean turns about the PIVOT (the top's centre), which a resize keeps. **Mirrors flip it
     by `leanFlip` only.** **R1:** every part→world crossing composes it (`cuts.ts`' group-relative helpers stay lean-free).
     **R2:** extents come from `partBounds`; **a leaning part's pre-lean box is never presented as its extent.** **R3:** no
-    box fast path. Drags round the DELTA. Level the ends (`levelEnds.ts`): two end miters (compound on a square-set leg, inv 59), lengths rounded UP, the top through R;
+    box fast path. Drags round the DELTA. Level the ends (`levelEnds.ts`): two end miters (compound on a two-slope square-set leg, inv 59), lengths rounded UP, the top through R;
     never automatic; holes kept in the wood; on a tenoned end it levels the tip and keeps the tenon. Checks extended, never
     weakened (a joint holds a leaning part too, inv 39 (d)); joinery and Repair refuse, Refine keeps; the cut list ignores it.
 
@@ -606,7 +606,7 @@ changes.
 
 59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (turned: `T · Ry(τ)`, unchanged;
     `leanTwist` its τ). A first lean is square-set; a leaning part keeps its setting; a Set change on a holed part is refused when
-    τ ≠ 0. **A square-set leg's level ends are COMPOUND miters**: `across: { rise, from }`, end miters only, the depth
+    τ ≠ 0. **A two-slope square-set leg's level ends are COMPOUND miters**: `across: { rise, from }`, end miters only, the depth
     `depthAtCross` = `depthAt + rise·(t − T/2)`, anchored at the through CENTRE (axis depths stay exact); `deepestCorner` reads all
     four corners; mirrors flip `across.from`. A document without either is byte for byte as before. **Every reader is correct or
     refuses** (`hasCompoundCut` the ONE predicate): `miterFields` null, joinery and Repair refuse, Refine keeps, `worldAngles` null.
@@ -638,7 +638,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
-  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–429, 433 (ask first), 434, 435.
+  when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
 - **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
   holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474.
