@@ -47,6 +47,8 @@ plan and the spec differ, the spec wins and the difference is reported.
   - out of reach: `<Leg> doesn't reach that height.`
   - containers: `Select two legs in the same assembly.`
   - mirrored copy: `A stretcher can't join a leg inside a mirrored copy yet: <Leg>.`
+  - turned leg (spec Amended S1): `Set <Leg> square to the sides first (Lean).` — a leg leaning TURNED with a non-zero twist
+    (lean.ts' twist helper); checked first, before the geometry
   - socket fault: `<Leg>'s socket would <words> — choose a different height, or a smaller tenon.` (`<words>` as
     `socketFaulted`'s)
   - too steep: `socketTooSteep(<Leg>)` (existing)
@@ -130,7 +132,7 @@ plan and the spec differ, the spec wins and the difference is reported.
   - `defaultHeight(doc, legIds, diameter): number` (Global Constraints' stagger).
 - `stretcherText.ts`: every new sentence above, as constants or small functions.
 
-- [ ] **Step 1: Failing tests** (on `stoolDocument()` unless stated):
+- [ ] **Step 1: Failing tests** (on `squareStoolDocument()` unless stated; spec Amended S1):
   - front rung (Front right, Front left) at h = 6: the rung runs along X, level (both tenons' axis points at y = 6 to
     1e-9); `L` and `S` are multiples of 1/16 to 1e-9; each tip lies short of its leg axis by (D − L)/2; every shoulder
     corner is outside the leg's bodies (a probe 1e-6 inside the shoulder plane at each corner is not in the leg);
@@ -138,7 +140,9 @@ plan and the spec differ, the spec wins and the difference is reported.
   - the four legs' Shapes: Front right's socket also appears on Back left (shared); notes name `Back left` and `Back right`;
   - then the back rung at h = 6: it REUSES those rows (hole counts unchanged), 4 rung joints in all, the check clean;
   - a side rung at h = 6 with the front rung present: refused with the socket-fault sentence (`meets-hole`);
-    `defaultHeight` returns 6 + 1-1/2 there;
+    `defaultHeight` returns the base default plus 1-1/2" there (the base is one third of the legs' axis top, rounded to the grid —
+    5-5/16" on the stool, not 6);
+  - on the TURNED stool (`stoolDocument()`): the turned-leg sentence naming the first turned leg;
   - legs not square (one leg nudged 0.01 in Z): the not-square sentence; h above a leg's top: out-of-reach naming it;
     diameter ≥ size: the too-wide sentence; legs in two assemblies: the container sentence; a leg reached through a mirrored
     instance: the mirrored-copy sentence naming it;
@@ -221,7 +225,7 @@ plan and the spec differ, the spec wins and the difference is reported.
 
 ### Task 6: Records
 
-- `docs/invariants.md`: invariant **59** in full (or a stretcher clause in 58, the builder's call by size; say which):
+- `docs/invariants.md`: invariant **60** in full (or a stretcher clause in 58, the builder's call by size; say which):
   Add stretcher and Fit again are ONE planner (`stretchers.ts`); the rung is found structurally (`rungLegAt`), never stored;
   sockets along the exact axis; the bore core is shared with Bore leg sockets; no check changes. Inv 50's Bore leg sockets
   line names the shared `boreRow`.

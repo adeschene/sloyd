@@ -234,7 +234,7 @@ round tenon (`tenonRefusal`). The design schema is byte for byte the same.
 
 ## 9. Records
 
-Invariant 58 (round tenons) gains a stretcher clause (or a new inv 59, the builder's call by size): Add stretcher is ONE
+Invariant 58 (round tenons) gains a stretcher clause (or a new inv 60, the builder's call by size): Add stretcher is ONE
 action and ONE planner; its geometry and finder are structural; no schema. CLAUDE.md condensed; `docs/module-map.md`;
 `docs/rounds.md`; `docs/follow-ups.md` (438 closed, the §11 follow-ups added); the feature-gaps row.
 
@@ -259,4 +259,17 @@ a typed tenon depth kept across a re-fit; aprons; a three-legged stool's rungs.
 - The closed form of the shoulder station (a line leaving a convex leaned box) and of the socket's depth along a tilted bit.
 - Whether the socket builder is one function with options or two thin wrappers over one core (ONE planner either way).
 - The UI wording beyond the quoted sentences (copy review).
-- Whether the stretcher clause joins inv 58 or opens inv 59.
+- Whether the stretcher clause joins inv 58 or opens inv 60.
+
+## Amended (build)
+
+Rulings made while building (2026-10-25/26), **awaiting the user's approval**:
+
+- **S1 — square-set legs first (the user's choice, 2026-10-25).** Task 2 found that a compound lean TURNED a square leg about
+  its axis (~33.5° on the chunk 1 stool), so a level rung met the leg's face at ~34°: through the leg's centre a 5/8" socket broke
+  out and only 3/8" fit. Asked, the user chose **"Untwisted legs first"**; chunk 2c (square-set legs, schema 25, deployed
+  `447df4b`) sets a leaning leg square to the sides (within ~0.83° at 8°/12°), and this spec's §3.4 and §5.3 numbers hold on such
+  legs. Consequences here (my calls): Add stretcher refuses a leg that leans TURNED with a non-zero twist, verbatim `Set <Leg>
+  square to the sides first (Lean).` (a turned lean with zero twist — rake-only or splay-only — is the same map and is allowed);
+  the tests' stool is `squareStoolDocument()`; the stretcher invariant is 60 (59 is square-set legs).
+
