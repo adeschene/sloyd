@@ -50,6 +50,9 @@ export function Lean({ boards }: { boards: Board[] }) {
   const rakeDir = sharedSign(degs.map((d) => d.rake));
   const splayDir = sharedSign(degs.map((d) => d.splay));
   const leaning = boards.some(leans);
+  // Set (square-set legs §3.2): the shared setting of the leaning parts, '' when they differ.
+  const sets = boards.filter(leans).map((b) => (b.lean?.square === true ? 'square' : 'turned'));
+  const setValue = sets.every((x) => x === sets[0]) ? (sets[0] ?? 'turned') : '';
   const single = boards.length === 1 ? boards[0]! : null;
   // Spec §5 staleness: the part leans, carries a recognised level cut, and is not level for the lean it has.
   const stale = single !== null && leans(single) && single.angleCuts.some((c) => levelCutOf(c) !== null) && !isLevelled(single, units);
@@ -96,6 +99,16 @@ export function Lean({ boards }: { boards: Board[] }) {
           </select>
         </div>
       </div>
+      {leaning && (
+        <div className="field">
+          <label htmlFor="lean-set">Set</label>
+          <select id="lean-set" className="input" value={setValue} onChange={(e) => run({ square: e.target.value === 'square' })}>
+            {setValue === '' && <option value="" disabled>mixed</option>}
+            <option value="square">Square to the sides</option>
+            <option value="turned">Turned to the lean (one-cut ends)</option>
+          </select>
+        </div>
+      )}
       {readout && <p className="field-note">{readout}</p>}
       {leaning && <p className="field-note">Position is the part before its lean; it leans about the centre of its top.</p>}
       {stale && <p className="field-note" role="status">Ends were levelled for a different lean — Level the ends again</p>}
