@@ -1,10 +1,12 @@
-import { IMPERIAL } from '../units/length';
+import { IMPERIAL, formatLength } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut } from './types';
 import { boardBodies, bodyVerts } from './bodies';
 import { bevelCut, chamferCut, defaultChamfer, defaultRaisedPanel, miterRatio } from './angleCuts';
 import { angleDegrees, angleLine, faceName, shortPointLine } from './angleText';
+import { squareStoolLegs } from './stoolFixture';
+import { slopeOf } from './lean';
 
 const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
 const miter = (from: 'min' | 'max', run = 2.5): AngleCut => ({ id: `m${from}`, kind: 'miter', face: 'length', from, along: 'width', alongFrom: 'min', points: [[0, 0], [run, run]] });
@@ -110,6 +112,29 @@ describe('angle text (spec §4.2)', () => {
       expect(measured(two)).toBeCloseTo(13.5, 9);
       expect(shortPointLine(two, IMPERIAL)).toBe('Short point 13-1/2"');
     });
+    // Square-set legs §4: a compound end's depth at a corner is its FULL depth (`depthAtCross`), t read from `across.from`.
+    // alongFrom (max) differs from across.from (min), and the min end slopes across the thickness, so a t read from the
+    // wrong side moves the deepest corner and the answer (15-7/16" instead of 15-1/16").
+    const compound: AngleCut = { id: 'cx', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'max', points: [[0, 0], [1.5, 0.375]], across: { rise: 0.25, from: 'min' } };
+    it('a compound end: the corner minimum of the full depths (square-set legs §4)', () => {
+      const leg = mk([{ ...end('min', 'thickness', 'min', 0), points: [[0, 0], [1.5, 0.375]] }, compound], [16, 1.5, 1.5]);
+      expect(measured(leg)).toBeCloseTo(15.0625, 9);
+      expect(shortPointLine(leg, IMPERIAL)).toBe('Short point 15-1/16"');
+    });
+    it('a compound end that bites only at one across corner shortens the part (Review Focus 1)', () => {
+      const corner: AngleCut = { ...compound, points: [[0, -0.25], [1.5, -0.125]] };
+      const leg = mk([corner], [16, 1.5, 1.5]);
+      expect(measured(leg)).toBeCloseTo(15.9375, 9);
+      expect(shortPointLine(leg, IMPERIAL)).toBe('Short point 15-15/16"');
+      expect(angleLine(leg, corner, IMPERIAL)).toBe('Compound miter at the length max end: 4.8° across the width, 14.0° across the thickness');
+    });
+    it('the square stool\'s legs: the short point is the shortest of the four long edges', () => {
+      for (const b of squareStoolLegs()) {
+        const at = measured(b);
+        expect(at).toBeGreaterThan(0);
+        expect(shortPointLine(b, IMPERIAL), b.name).toBe(`Short point ${formatLength(at, IMPERIAL)}`);
+      }
+    });
     it('a min-end miter across the width with a max-end miter across the thickness: the corner minimum', () => {
       const mixed = mk([end('min', 'width', 'min', 3.5), end('max', 'thickness', 'min', 0.75)]);
       expect(measured(mixed)).toBeCloseTo(15.75, 9);
@@ -187,5 +212,28 @@ describe('the short point leaves out an end chamfer that keeps part of the end f
   it('a miter beside a tongue-leaving chamfer: the miter alone sets the short point', () => {
     const miter: AngleCut = { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [12, 12]] };
     expect(shortPointLine({ ...panel, length: 30, angleCuts: [endChamfer('min', 0.5), miter] }, IMPERIAL)).toBe('Short point 18"');
+  });
+});
+
+describe('the compound miter\'s bench line (square-set legs §4)', () => {
+  it('the square stool\'s feet and tops, verbatim; both degrees are the lean\'s (12° splay across the width, 8° rake across the thickness)', () => {
+    for (const b of squareStoolLegs()) {
+      const [foot, top] = (['min', 'max'] as const).map((e) => b.angleCuts.find((c) => c.from === e)!);
+      expect(angleLine(b, foot!, IMPERIAL), b.name).toBe('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness');
+      expect(angleLine(b, top!, IMPERIAL), b.name).toBe('Compound miter at the length max end: 12.0° across the width, 8.0° across the thickness');
+    }
+    // The oracle is the lean, not the cut's own slopes: the stool's lean is slopeOf(12) across x and slopeOf(8) across z.
+    const fr = squareStoolLegs()[0]!;
+    expect(Math.abs(fr.lean!.x)).toBeCloseTo(slopeOf(12), 12);
+    expect(Math.abs(fr.lean!.z)).toBeCloseTo(slopeOf(8), 12);
+  });
+  it('a compound miter\'s degrees each read their own slope (a steeper rise than along slope)', () => {
+    const c: AngleCut = { id: 'c', kind: 'miter', face: 'length', from: 'max', along: 'thickness', alongFrom: 'min', points: [[0, 0], [1.5, miterRatio(10) * 1.5]], across: { rise: miterRatio(30), from: 'max' } };
+    const b = createBoard({ length: 16, width: 1.5, thickness: 1.5, angleCuts: [c] });
+    expect(angleLine(b, c, IMPERIAL)).toBe('Compound miter at the length max end: 10.0° across the thickness, 30.0° across the width');
+  });
+  it('a plain miter reads exactly as before', () => {
+    const b = createBoard({ length: 20, width: 2.5, thickness: 0.75, angleCuts: [miter('max')] });
+    expect(angleLine(b, miter('max'), IMPERIAL)).toBe('Miter 45.0° across the width at the length max end, long point on the width min side');
   });
 });

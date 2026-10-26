@@ -7,7 +7,7 @@ import { holeFaults } from './holeFaults';
 import { edgeName, holePitchText, holeSizeText } from './holeText';
 import { isTilted } from './holeTilt';
 import { angleDegrees } from './angleText';
-import { angleCutRemovesNothing, chamferFields, deepestCorner, depthAt, keptHalfSpace, taperFields } from './angleCuts';
+import { angleCutRemovesNothing, chamferFields, deepestCorner, depthAt, keptHalfSpace, miterDegrees, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
 import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } from './curveText';
 import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './profiles';
@@ -59,7 +59,8 @@ function angleText(b: Board, c: AngleCut, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   const deg = `${angleDegrees(c).toFixed(1)}°`;
   switch (c.kind) {
-    case 'miter': return `Miter ${deg}`;
+    // A compound miter (square-set legs §4) keys both angles — along, then across — as the bench line orders them.
+    case 'miter': return c.across ? `Compound miter ${deg} × ${miterDegrees(Math.abs(c.across.rise)).toFixed(1)}°` : `Miter ${deg}`;
     case 'bevel': return `Bevel ${deg}`;
     case 'chamfer': {
       const cf = chamferFields(c, b);

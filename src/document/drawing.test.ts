@@ -12,6 +12,8 @@ import { partBounds } from './worldBounds';
 import { dimensionView } from './dimensions';
 import { IMPERIAL } from '../units/length';
 import { curveSilhouettes } from './curveDrawing';
+import { squareStoolLegs } from './stoolFixture';
+import { featureTag, partFeatures } from './featureKeys';
 import { createHash } from 'node:crypto';
 import { DRAW_EPS, drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type P2, type Seg2, type View } from './drawing';
 
@@ -705,6 +707,25 @@ describe('drawings read the lean (splayed legs spec §6.1 R1–R3, §6.2)', () =
       }
     }
     expect(found).toBeGreaterThan(0);
+  });
+});
+
+describe('drawView: a compound foot keeps its miter tag (square-set legs §4; tags by plane membership)', () => {
+  const all = (d: ReturnType<typeof drawView>) => [...d.visible, ...d.hidden];
+  const floor = (s: Seg2) => Math.abs(s.a[1]) <= 1e-9 && Math.abs(s.b[1]) <= 1e-9;
+  it.each([['front', FRONT], ['side', SIDE]] as const)('%s: every foot edge (on the floor) carries the foot\'s tag, and the key lists it', (_n, view) => {
+    const leg = squareStoolLegs()[0]!;
+    const foot = leg.angleCuts.find((c) => c.from === 'min')!;
+    const tag = featureTag(leg.id, 'angle', foot.id);
+    const onFloor = all(drawView([leg], view)).filter(floor);
+    expect(onFloor.length).toBeGreaterThan(0);
+    for (const s of onFloor) expect(s.feature, `${s.a} → ${s.b}`).toBe(tag);
+    expect(partFeatures(leg, IMPERIAL).find((f) => f.tags.includes(tag))?.text).toBe('Compound miter 12.0° × 8.0°');
+  });
+  it('iso: both compound ends are tagged', () => {
+    const leg = squareStoolLegs()[0]!;
+    const seen = new Set(all(drawView([leg], ISO)).map((s) => s.feature));
+    for (const c of leg.angleCuts) expect(seen.has(featureTag(leg.id, 'angle', c.id)), c.from).toBe(true);
   });
 });
 

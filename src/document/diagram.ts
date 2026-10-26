@@ -1,4 +1,4 @@
-import type { BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, RoundTenon, Span } from './types';
+import type { AngleCut, BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, RoundTenon, Span } from './types';
 import { holeInstances, tiltedHole, type Hole } from './holes';
 import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
@@ -197,7 +197,7 @@ export interface DiagramView {
   vUp: boolean;
   /** This face's depth field, from `buildDepthField`. */
   cells: FaceCell[];
-  /** Angle cuts seen edge-on as a line: drawn in every view looking along their through dimension (the min side opened when neither exists). Empty for most views. */
+  /** Angle cuts seen edge-on as a line: drawn in every view looking along their through dimension (the min side opened when neither exists); a compound miter also in its along dimension's views, each side its own face's wedge (square-set legs §4). Empty for most views. */
   angles: DiagramAngle[];
   /** One line per distinct crossing depth, already formatted. Empty when none. */
   crossings: string[];
@@ -246,6 +246,55 @@ function wasteOnFace(board: Board, c: CurveCut, W: number, H: number): [number, 
   }
   const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
   return clean.length >= 3 && Math.abs(twiceArea(clean)) > 1e-12 ? clean : null;
+}
+
+/**
+ * An angle cut's removed side on one face's rectangle (n·x + d < 0), in the face's (horizontal, vertical) board inches:
+ * Sutherland–Hodgman, one edge. `at` is the face's own coordinate along `face` (0 on the min side, the dimension on the
+ * max side), read only for a compound cut, whose plane is not square to the face (square-set legs §4); a single-slope
+ * cut's plane holds `face`'s direction, so both sides share one polygon and `at` is never read. Null when under 3 vertices remain.
+ */
+function wedgeOn(board: Board, h: { n: readonly number[]; d: number }, face: Dimension, at?: number): [number, number][] | null {
+  const [horizontal, vertical] = DIMENSION_ORDER.filter((d) => d !== face);
+  const hi = DIMENSION_ORDER.indexOf(horizontal!);
+  const vi = DIMENSION_ORDER.indexOf(vertical!);
+  const W = board[horizontal!];
+  const H = board[vertical!];
+  const off = at === undefined ? h.d : h.n[DIMENSION_ORDER.indexOf(face)]! * at + h.d;
+  const rect: [number, number][] = [[0, 0], [W, 0], [W, H], [0, H]];
+  const g = ([x, y]: [number, number]) => -(h.n[hi]! * x + h.n[vi]! * y + off);
+  const poly: [number, number][] = [];
+  for (let i = 0; i < rect.length; i += 1) {
+    const p = rect[i]!;
+    const q = rect[(i + 1) % rect.length]!;
+    if (g(p) >= 0) poly.push(p);
+    if ((g(p) >= 0) !== (g(q) >= 0)) {
+      const t = g(p) / (g(p) - g(q));
+      poly.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+    }
+  }
+  // A vertex exactly on the line is kept AND is its own crossing point: drop consecutive repeats.
+  const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
+  return clean.length < 3 ? null : clean;
+}
+
+/**
+ * A compound miter's wedges (square-set legs §4): it slopes across BOTH cross dimensions, so it shows in the views of its
+ * through face AND of its along face, each side drawing the plane's own boundary on that side's face (the two sides
+ * differ). Per face, every existing view with a non-empty wedge takes it; when neither side exists, the min side is
+ * opened, or the max side when only it shows the cut (a cut biting at one corner).
+ */
+function compoundWedges(board: Board, c: AngleCut, h: { n: readonly number[]; d: number }, label: string,
+  views: Map<string, DiagramView>, ensure: (face: Dimension, from: CutFrom) => DiagramView): void {
+  for (const face of [throughOf(c), c.along]) {
+    const polys = { min: wedgeOn(board, h, face, 0), max: wedgeOn(board, h, face, board[face]) };
+    const existing = (['min', 'max'] as const).filter((from) => views.has(`${face}|${from}`));
+    const sides = existing.length > 0 ? existing : polys.min ? ['min' as const] : polys.max ? ['max' as const] : [];
+    for (const from of sides) {
+      const poly = polys[from];
+      if (poly) ensure(face, from).angles.push({ id: c.id, poly, label });
+    }
+  }
 }
 
 /**
@@ -362,30 +411,12 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
   for (const c of angleCutsThatRemoveStock(board)) {
     const h = keptHalfSpace(board, c);
     if (!h) continue;
+    if (c.across) { compoundWedges(board, c, h, angleLine(board, c, u), views, ensure); continue; }
     const face = throughOf(c);
     // Both sides of one face share (horizontal, vertical) and the outline: the polygon, in board inches,
     // is the same in either view (vUp, the far side's flip, is the panel's job).
-    const [horizontal, vertical] = DIMENSION_ORDER.filter((d) => d !== face);
-    const hi = DIMENSION_ORDER.indexOf(horizontal!);
-    const vi = DIMENSION_ORDER.indexOf(vertical!);
-    const W = board[horizontal!];
-    const H = board[vertical!];
-    // The face's rectangle, clipped to the REMOVED side (n·x + d < 0): Sutherland–Hodgman, one edge.
-    const rect: [number, number][] = [[0, 0], [W, 0], [W, H], [0, H]];
-    const g = ([x, y]: [number, number]) => -(h.n[hi]! * x + h.n[vi]! * y + h.d);
-    const poly: [number, number][] = [];
-    for (let i = 0; i < rect.length; i += 1) {
-      const p = rect[i]!;
-      const q = rect[(i + 1) % rect.length]!;
-      if (g(p) >= 0) poly.push(p);
-      if ((g(p) >= 0) !== (g(q) >= 0)) {
-        const t = g(p) / (g(p) - g(q));
-        poly.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
-      }
-    }
-    // A vertex exactly on the line is kept AND is its own crossing point: drop consecutive repeats.
-    const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
-    if (clean.length < 3) continue;
+    const clean = wedgeOn(board, h, face);
+    if (!clean) continue;
     const existing = (['min', 'max'] as const).map((from) => views.get(`${face}|${from}`)).filter((v): v is DiagramView => v !== undefined);
     const targets = existing.length > 0 ? existing : [ensure(face, 'min')];
     const label = angleLine(board, c, u);

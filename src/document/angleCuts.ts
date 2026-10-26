@@ -314,10 +314,12 @@ export function miterLongSide(c: AngleCut, board: Pick<Board, Dimension>): CutFr
  * straight off the stored points (no trigonometry), so editing only the end or side keeps it exactly. A miter whose
  * `along` is somehow `length` (hand-edited) reads as across the width. Editing rewrites it canonically via `miterCut`.
  * Null for an OFFSET line (fu 297; hand-edited: depth 0 at neither side of `along`), as `bevelFields` is: the row then
- * shows the line and Remove, never a control whose first edit would rewrite it into a different cut.
+ * shows the line and Remove, never a control whose first edit would rewrite it into a different cut. Null too for a
+ * COMPOUND miter (`across`, square-set legs §4): the row has no control for its second slope, and `miterCut` never writes one.
  */
 export function miterFields(c: AngleCut, board: Pick<Board, Dimension>): MiterFields | null {
   const eps = 1e-9;   // local, as bevelFields' (bodies.ts imports this module)
+  if (c.across) return null;
   if (!(Math.abs(depthAt(c, 0)) <= eps || Math.abs(depthAt(c, board[c.along])) <= eps)) return null;
   const across = c.along === 'thickness' ? 'thickness' : 'width';
   const [[s1, q1], [s2, q2]] = c.points;

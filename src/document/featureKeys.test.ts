@@ -9,6 +9,7 @@ import { apronArch, frontAndEnds, frontOnly, loop, plainLoop, stopOnArch, stopOn
 import { FAULT_SUFFIX, featureTag, partFeatures } from './featureKeys';
 import type { BandType, Board } from './types';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID } from './banding';
+import { squareStoolLegs } from './stoolFixture';
 
 const MM = { display: 'metric-mm' as const, precision: 16 };
 const side = createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75 });
@@ -36,6 +37,12 @@ describe('partFeatures: key lines (spec §3)', () => {
     expect(texts({ ...rail, angleCuts: cuts })).toEqual(['Miter 45.0°', 'Bevel 15.0°', 'Taper 1/2" over 18"', 'Chamfer 1/4"', 'Chamfer 1/4" × 1/2"']);
     const both = { id: 'b', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.25], [20, 0.5]] as [[number, number], [number, number]] };
     expect(texts({ ...rail, angleCuts: [both] })).toEqual(['Taper 1/4" to 1/2"']);
+  });
+  it('a compound miter keys both angles, so it never shares a plain miter\'s letter (square-set legs §4)', () => {
+    const fr = squareStoolLegs()[0]!;
+    expect(texts(fr)).toEqual(['Compound miter 12.0° × 8.0°', 'Compound miter 12.0° × 8.0°']);
+    const plain = { ...fr, angleCuts: fr.angleCuts.map(({ across: _a, ...c }) => c) };
+    expect(texts(plain)).toEqual(['Miter 12.0°', 'Miter 12.0°']);
   });
   it('arch, half-round notch, bow, one corner, four corners collapsed (one feature, four tags)', () => {
     const apron = createBoard({ id: 'a', length: 30, width: 5, thickness: 0.75 });
