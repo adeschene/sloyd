@@ -3,6 +3,9 @@
 Status: APPROVED by the user 2026-10-26 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions answered as my calls: §3.2, §4,
 §4.1, §4.2, §8; four claims the code contradicted, corrected). Comes before chunk 3, stretchers (fu 438), which is parked at its Task 1 on branch
 `stretchers` (`52e975f`).
+**Built 2026-10-26 on branch `square-legs`** (plan Tasks 1–8, `63fd0d5`..`e318f88` plus the records; schema 25), **NOT merged or
+deployed**; browser verification (plan Task 9, dev server) owed. Later rulings: the *Amended (build)* block at the end, which wins
+where it differs from the text — **awaiting the user's approval**.
 
 ## 0. How this round came about
 
@@ -186,3 +189,57 @@ throws (`levelPlan`'s floor-normal guard), and the field table forces a compile 
 one gate (`seamFree` / `twistOf` in `leanMap`); every other `leanMap` caller applies the map and is twist-agnostic, but the
 lean record is rebuilt field by field in `leanFlip`, `validateLean` and `setLean`, compared in `sameShared`, and keyed in
 two viewport memos.
+
+## Amended (build)
+
+Rulings made while building, on branch `square-legs` (2026-10-26; the SDD ledger and the task reports). The code plus these rulings
+govern; where one differs from the text above, this block wins. **Every entry awaits the user's approval.** Records: invariant 59
+new (§7's choice: a new invariant, not clauses in 48 and 57), invariants 40, 41, 44, 45, 48, 56, 57 and 58 extended
+(`docs/invariants.md`); follow-ups 470–474, 438 amended.
+
+- **Ruling T1a — the stored forms' knock-ons (§3.1, §3.4).** `across` is judged on the RESOLVED kind (a missing `kind` on an end cut
+  derives `miter` and keeps a good `across`); `groupSignature` carries `square` (so the write-back splits a Shape whose users differ
+  only in it), `lowerLean` compares it, `sortAngleCuts` stays antisymmetric once value lists differ in length, and `mirrorAngleCut`
+  gains the through-dimension branch (§4's flip). 44 existing tests changed: the field-table pin gains `across`, and the version
+  pins move 24→25 (and the first refused version 25→26), as at the schema-24 bump. Awaiting the user's approval. Cost: none.
+- **Ruling T1b — `rise` has an upper bound (§3.4).** The loader also DROPS a cut whose `rise` is above `1 + 1e-9`: the 45° lean
+  bound means a level cut's across slope never exceeds 1, and an unbounded `rise` could overflow `rise · T/2`. Awaiting the user's
+  approval. Cost: none (only a hand-edited file carries a steeper one).
+- **Ruling T2a — three readers exported for direct pins.** `tipFarthest`, `deepestDepth` and `overruns` are exported so the
+  single-slope identity tests read them directly. Refinements of §4 found in the build: `deepestCorner` reads all FOUR corners, so a
+  `rise` of either sign built in code is answered, and `tipFarthest` is `max(0, centre − r·hypot(k, rise))` (clamped at 0, as the
+  single-slope tip is). Awaiting the user's approval. Cost: none.
+- **The T3 API choice — the Set is a `setLean` patch field (§3.2).** `LeanWorld.square?: boolean`, no new action: `{ square }` alone
+  keeps both slopes bit for bit, writes nothing on a part that does not lean, and may combine with a slope edit; `leanTwist` (the τ a
+  turned lean would apply, through `twistOf`) and `LEAN_SET_TURNS_HOLES` are exported for the gate and the panel. Awaiting the
+  user's approval. Cost: none.
+- **Ruling T3a — the Set gate judges the TURNED end (§3.2).** A Set change on a holed part is refused when τ of the lean on the turned
+  side of the change is not 0: the old lean when leaving turned, the new one when entering it. So a combined `{ square: true, splay:
+  0 }` on a turned 8°/12° holed leg is refused (the leg still loses its ~33.5° twist, though τ at the new slopes is 0). Awaiting
+  the user's approval. Cost: none.
+- **Ruling T3b — interim only.** Between Tasks 3 and 4 Level the ends threw on a new square-set two-slope leg (the floor-normal guard).
+  Resolved by Task 4 (`eaf1406`): the guard applies to a turned lean only. Nothing of it remains on the branch. Awaiting the user's
+  approval. Cost: none.
+- **Ruling T3c — τ = 0 compared exactly.** `leanTwist` returns exactly `+0` for a rake-only or splay-only lean in every turn and face
+  tried, so the gate compares `!== 0` with no tolerance (pinned). Awaiting the user's approval. Cost: none.
+- **Builder note T4 — the along tie (§3.3).** `along` is the cross dimension whose world height changes faster under the map, `width`
+  when `|w|_y + 1e-9 ≥ |t|_y`: at rake = splay the two slopes are equal only to float precision, so the tie needs the tolerance
+  (Task 4 review M4, accepted as designed). The directions are `axisFrame`'s, signed by `reversed` (a leg turned 180° otherwise
+  got the wrong `across.from`). `legSockets.ts` needed no change (§4.2 expected one): its `sameCuts` reads `sameLevelLine`.
+  Awaiting the user's approval. Cost: none.
+- **Ruling T5a — the feature key's words (§4 Text).** A compound miter keys on the Plans sheet as `Compound miter <a>° × <b>°`, along
+  then across, the chamfer's `a × b` form (the spec quoted none). Awaiting the user's approval. Cost: copy review (fu 473).
+- **Ruling T5b — a compound cut also draws in its along face's views (§4 "both cross views").** Its plane shows on both cross faces,
+  so the diagram opens an along face's view too (the stool leg gains `width|min` beside `thickness|min`); each side's polygon is
+  drawn on its own face (`wedgeOn`), which also fixes the clip that ignored `n[through]`. Single-slope parts are unchanged
+  (`diagramIdentity`). Awaiting the user's approval. Cost: none.
+- **Ruling T5c — a rare missing wedge, parked.** A face whose only existing views sit on the wedge's empty side draws the cut nowhere
+  (a corner-only compound cut plus dados that opened exactly those views): fu 472. Awaiting the user's approval. Cost: a rare
+  missing wedge.
+- **Ruling T6a — the model-facing keep reason (§4 Refine keeps).** A part kept for its compound cut alone (a cleared leg) reads
+  `"<leg>" has a compound end cut and is kept as is: …` in the USER-turn note (without it the empty reason list printed
+  `undefined`); `keptNote`'s header and every UI sentence are unchanged, as §4 said. Awaiting the user's approval. Cost: model
+  wording only (fu 473).
+- **Ruling T6b — defence in depth beyond `keepsExactly` (§4).** `worldAngles` returns null for a part with any `across` cut, and
+  `angleRatiosOf` skips such a cut, so even a direct caller never reads a compound miter as a plain one (null makes Refine refuse,
+  `'angle-form'`, or keeps the part unturned). Awaiting the user's approval. Cost: one guard each.

@@ -65,7 +65,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     edge memos add `bandViewSignature(board, bandTypes)` (`viewport/bandFaces.ts`: each unfaulted band's side, kind, thickness and
     solid material, plus the corner rule once a glue line exists; `''` with none), because a band type edit keeps the board object.
 16. **Edge lines come from `boardEdges` (the cell grid's `pocketEdges`, or `bodyEdges` once a part has angle
-    cuts), not from the solids.** General
+    cuts, or `curvedEdges` for a curved part; `edgesOf` is the three-way choice), not from the solids.** General
     rule: a marker or line must sit on a feature that is actually drawn. A hole draws its rim on its entry face (and exit
     face when through) and, when blind, its bottom rim (a crease); its wall draws no facet lines. The exception: a hole's
     centre snap point sits in air (the mouth is air to `stockProbe`) — it is the centre of a drawn rim.
@@ -287,6 +287,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     appended to `rowKey` only when the part has one); `sameShared` compares in order, ids included (Task 1 review I1); `alignedTo`
     adopts the representative's tenon ids only when `sameTenon` matches end for end (canonical order). `geometryKey` reads a built
     tenon through its view curves (`geometryBoard`, inv 48).
+    A compound miter's `across` (square-set legs, schema 25, inv 59) is `ANGLE_CUT_FIELDS`' LAST entry: `angleCutValues` flattens it
+    to `[rise, from]` as it does `points` (pushed raw, an object would compare by identity), and an absent one adds NOTHING, so a
+    single-slope cut's values — the cut list's row key, `geometryKey`, the UV signature, `groupSignature` — are byte for byte as
+    before; `sameAngleCut` tells cuts apart by `rise`, by `from` and by whether `across` is present. `sortAngleCuts` compares up to
+    the shorter values list, then sorts the shorter first, so it stays antisymmetric once lists can differ in length.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -322,6 +327,16 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     tenonRefusal` with the same "some part has cuts" gate; `plainForRefine` calls `tenonRefusal` after `leaningRefusal` and BEFORE
     the tilted-row check (ruling T10c, matching `joineryRefusal`'s order), reason `'lean-joint'`. Needed because `shapedFeatures`
     reads `profileView` (a tenon's waste is no shaped feature), so `featureAllowed` would not see a tenon.
+    **A part with a COMPOUND end cut is refused, never joined (square-set legs spec §4, inv 59), by the decider's THIRD step:**
+    `joineryRefusal` runs `leaningRefusal`, `tenonRefusal`, then `compoundRefusal(entry, flat)` — the first part in flat order
+    for which `hasCompoundCut` holds (a flat part is resolved, so a Shape's cut counts for every user), one verbatim sentence per
+    caller (`Add joinery can't join a part with a compound end cut yet: <name>.`, `Repair can't join a part with a compound end cut
+    yet: <name>.`, `Refine can't keep joints with a part with a compound end cut yet: <name>.`) — then the taper and angle rules.
+    Repair calls `leaningRefusal ?? tenonRefusal ?? compoundRefusal` under the same "some part has cuts" gate; `plainForRefine` calls
+    it right after `tenonRefusal` and BEFORE the tilted-row check and `gateUnjoin`, reason `'lean-joint'`. Only Level the ends makes a
+    compound cut, on a leaning part the first step already refuses, so this step fires only after Clear lean. It is why
+    `rebaseAngleCuts` (field by field) and the box-based read-back never see one: every production entry to `applyJoints` and
+    `readJoints` sits behind one of the three calls.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -387,7 +402,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     applies it, `lowerLean` is its exact inverse (a value-equal result maps back to the stored object). It conjugates the whole leaned
     rotation (`S · m · S`); never re-derive a twist from flipped slopes. A quarter turn needs nothing: the lean is stored at turn 0 and
     `worldSlopes` turns it (`rotateVec(b.rotation, …)`, `setLean` back through `inverseTurn`). Pinned with an asymmetric lean (both
-    slopes non-zero and unequal), rake = splay and the seam leans.
+    slopes non-zero and unequal), rake = splay and the seam leans. `leanFlip` keeps `square` (square-set legs, schema 25, inv 59;
+    by conditional spread, so a turned lean gains no key); a square-set map is `T` alone, already mirror-equivariant (`S · T · S`
+    is the flipped lean's tilt), so it conjugates with no seam case.
+    **A compound miter reflects by a FLAG FLIP too** (square-set legs spec §3.1, inv 59): `mirrorAngleCut` flips `from` along
+    `face`, `alongFrom` along `along`, and — the only change along the THROUGH dimension — `across.from` (a single-slope cut runs
+    straight through it and is unchanged); a fresh `across` object every time, an involution. `lowerAngleCuts` needed no change (it
+    round-trips through `mirrorAngleCut` and `sameAngleCut`, both of which read `across`). Pinned with mixed-flag fixtures (an
+    `across.from` differing from both `from` and `alongFrom`) and a levelled square stool mirrored without a re-level.
     **A round tenon reflects by a FLAG FLIP too** (round tenons spec §3.1, inv 58: `mirrorTenons`): a mirror along the LENGTH swaps
     each tenon's `end` and re-sorts (`min` first); across the width or thickness nothing moves and the SAME array comes back. It is its
     own inverse; `lowerTenons` lowers through one mirror (an untouched tenon maps back to the stored object, an untouched list to the
@@ -423,7 +445,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (a mirrored pair joining another Shape by Link loses its mirror relation; fu 435).
     **`lean` is SHARED** (splayed legs §3.1, inv 57; an optional object, so excluded from `_sharedPrimitives`' primitive check): four
     linked legs share one lean, which each user's own turn and mirror flag turn outward. `sameShared` compares it by value (`x`, `z`,
-    `face` exact; absent equals only absent); `sharedOf` and `sharedPatch` copy it (a removal stays `{ lean: undefined }`, key
+    `face` exact, and `square` since schema 25, inv 59, as `lowerLean` does; `groupSignature` appends `,square` only when present, so
+    `writeBackFlat` splits a Shape whose users differ only in `square`; absent equals only absent); `sharedOf` and `sharedPatch` copy it (a removal stays `{ lean: undefined }`, key
     present — inv 46's removal convention); `resolveBoard` gives each user a FRESH `{ ...lean }`, flipped for a mirrored user;
     `groupSignature` carries its value form. A shape-mate's patch never carries `lean` (mates exist only to re-pivot posture; each
     would lower the target's world lean through its own flip and the edits would disagree). `setLean` and `levelEnds` write a Shape's
@@ -608,6 +631,16 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `shapedFeatures` reads `profileView`, never `geometryBoard`, so a tenon is never a feature of itself. A tenon's view curves are
     not curves to the user: the cut list's curve signature, bench lines, feature keys, drawing tags, the diagram's curve layers and
     snap points all skip `squareSpan` curves; the tenon draws and keys itself (inv 58).
+    **A COMPOUND miter is one plane through the same path** (square-set legs spec §4, inv 59): `keptHalfSpace` adds the across term
+    (`n[through] = −rise · sign(across.from)`, the offset less `rise · (ct − T/2)`, normalised by `hypot(1, k, rise)`; the
+    single-slope path is textually unchanged), so bodies stay convex and every plane reader — bodies, `stockProbe`, snapping's
+    `onSlope`, hole faults, drawing tags, the diagram's polygons — follows. `depthAt` stays the single-slope line on the centre;
+    `depthAtCross` is the full depth and `deepestCorner` (all four section corners, either sign of a code-built `rise`) the
+    greatest, read by `angleCutRemovesNothing`, `overruns` and `deepestDepth`, so a compound cut biting at one across corner only
+    removes stock and is listed; `touchedRegion` reads its deepest cross line (the points shifted by |rise|·T/2, the through
+    dimension still full). A single-slope cut takes every old expression unchanged (`compoundCut.test.ts` pins 12 such cases
+    against literals captured before any reader changed). Generate and Refine have no word for it: `worldAngles` returns null
+    for a part with any `across` cut and `angleRatiosOf` skips one (ruling T6b), and such a part is kept exactly (inv 56).
 
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
     `isSheetGood`, `grainFamily`, `hasGrain` and shop validation read it off the id with no catalog; a stored `kind` that
@@ -991,16 +1024,24 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `Refine can't keep joints with a part with a round tenon yet: <name>.`), after the lean and BEFORE the tilted-row check (ruling
     T10c). `keptNote`'s header names round tenons only when one is kept (`These parts lean, have angled holes or have round tenons,
     …`; otherwise the old header), so a tenon-free prompt is byte for byte as before (ruling T10b).
+    **A part with a COMPOUND end cut is KEPT exactly too** (square-set legs spec §4, inv 59): `keepsExactly(b)` also holds when
+    `hasCompoundCut(b)`, so no world-word converter (`worldAngles`, `angleCutsFor`) ever reads one as a single-slope miter, and
+    the knock-ons are a leaning part's: `turnCandidates` never turns one, and inside an assembly it refuses Refine (the existing
+    `leaningInAssembly` sentence, unchanged). A compound cut exists only on a leg that leans or did (Clear lean keeps it), so the
+    kept list, the done view and the assembly sentence keep their wording; `whyKept` names `has a compound end cut` only for a part
+    kept for nothing else (a cleared leg), so a leaning leg's line is byte for byte as before; `keptNote`'s header is unchanged
+    (fu 473). A joined Refine refuses one (`compoundRefusal`, inv 41, after the tenon and BEFORE the tilted-row check).
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
-    `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face }`, a SHARED
+    `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face, square? }`, a SHARED
     field, `LINK_FIELDS.lean = 'shared'`, so a Shape carries it too) stores two SLOPES — the foot's travel per inch of drop along X
     and Z, in the part's frame at rotation 0, before any mirror — and the facing dimension (`width` | `thickness`), chosen when a
-    lean is first set (`chooseFace`: the smaller twist, width on a tie within 1e-9) and kept by later edits. Degrees exist only in
+    lean is first set (`chooseFace`: the smaller twist, width on a tie within 1e-9) and kept by later edits; `square: true`
+    (schema 25, inv 59) marks a SQUARE-SET lean, whose map ignores `face`. Degrees exist only in
     display and typed input (`slopeOf` / `degreesOf`; the `angleCuts.ts` field-conversion rule: a typed rake replaces only its own
     slope, so editing one never drifts the other). The resultant is `atan(hypot(x, z))` and the sightline `atan2(|wz|, |wx|)` on WORLD
     slopes (`worldSlopes`; rake 8°, splay 12° gives 14.2957° and 33.4724°, NOT `atan(8/12)`). Nothing else computes a lean: `leanMap`
-    (the rotation `m = T · Ry(τ)` about the PIVOT, the centre of the pre-lean box's top face; `apply` / `applyDir` / `inverse` /
+    (the rotation `m = T · Ry(τ)` about the PIVOT — `m = T` for a square-set lean, inv 59 — the centre of the pre-lean box's top face; `apply` / `applyDir` / `inverse` /
     `inverseDir` on WORLD points of the pre-lean placement; null for no lean), `leans` (the cheap predicate), `withinBound`,
     `chooseFace`, `seamFree`, `leanFlip` and `pivotKeptPosition` all live there.
     - **Stored only when non-zero, only on an UPRIGHT part, always seam-free.** The loader drops a lean on any other posture, a
@@ -1048,7 +1089,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       all — reduce the rake or splay.`, and (angled holes §7) on a part WITH holes that already leans, a lean whose seam-free face
       differs from the stored one (`seamFree` re-choosing it would turn the holes a quarter turn about the length): `This lean would
       turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.` A
-      first lean on a holed part is not a re-choice and is allowed; Clear (`null`) is never refused. `setLean` and `levelEnds` return null and do nothing while `gesturing`
+      first lean on a holed part is not a re-choice and is allowed; Clear (`null`) is never refused. Since schema 25 (inv 59) a
+      first lean is SQUARE-SET (`square: true`), a leaning part keeps its setting, the quarter-turn refusal above applies only when
+      the old and new lean are both TURNED, and a Set change on a holed part is refused when it would turn the part
+      (`Changing how this leg is set would turn it about its length and move its holes — remove the holes first.`). `setLean` and `levelEnds` return null and do nothing while `gesturing`
       or exploded (inv 47; no copy). A shape-mate's patch never carries `lean` (each mate would lower the target's world lean through
       its own flip and the write would disagree). A leaning part takes hole rows like any other (angled holes §7; the
       row is in the part's own frame), and a posture change on a leaning part is refused in `postureRefusal` (`Clear the lean first — only
@@ -1062,7 +1106,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       over `partsBounds`. The pre-lean corner is off-grid after Level the ends, so rounding it would lift a levelled foot off the floor.
       A lean-free drag is unchanged.
     - **Level the ends is ordinary angle cuts** (`levelEnds.ts`: `levelPlan`, `isLevelled`, `levelCutOf`; the store's `levelEnds(id)`).
-      Both cuts are end miters (`kind 'miter'`, `face 'length'`) along `seamFree(lean).face`; each end's length change is rounded UP to
+      Both cuts are end miters (`kind 'miter'`, `face 'length'`) along `seamFree(lean).face` on a TURNED lean; on a SQUARE-SET
+      lean each is ONE compound miter along the larger slope (ties within 1e-9: width), `across` the rest, none stored for a zero
+      slope (inv 59); each end's length change is rounded UP to
       the drag grid, so the cut list prints a buyable blank and the stored lines are offset (`miterFields` null: the rows show the
       bench line and Remove only). The foot reaches the world floor (`y = 0`, whatever assembly the part is in). The TOP reference R is
       where an existing recognised top cut's plane meets the leaned axis (its centre station), else the pivot: a first levelling
@@ -1101,7 +1147,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       for the top's reference instead of R (Bore leg sockets' Tenon the legs: the seat's top face); absent, R as always, value for
       value. `roundUp` is exported as THE one rounding rule (Tenon the legs' fitted tenon length rounds with it, to `tenonStep`).
     - Drawings, section caps and the Plans note: invs 47 and 51. Holes on a leaning part, sockets and tilts: inv 50 (angled
-      holes, schema 23). Round tenons: inv 58 (schema 24). Follow-ups: 436–446; angled holes 447–456; round tenons 457–466.
+      holes, schema 23). Round tenons: inv 58 (schema 24). Square-set leans and compound level cuts: inv 59 (schema 25). Follow-ups:
+      436–446; angled holes 447–456; round tenons 457–469; square-set legs 470–474.
 
 58. **A round tenon is a STORED feature of a part's end, and `roundTenons.ts` is its ONE home** (splayed legs chunk 2b, schema 24;
     spec `2026-10-25-sloyd-round-tenons-design.md` and its *Amended (build)* block). `Board.tenons?: RoundTenon[]`, `RoundTenon =
@@ -1165,7 +1212,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       tenon's outward direction, the tenon (shoulder to the tip's furthest point) and the bore (mouth to far centre) share more than
       `TOUCH` (ruling T7a: otherwise a collinear bore further along the line would seat it); (6) in a BLIND bore no point of the tip
       passes the bottom's plane by more than `TOUCH` — the tip's FURTHEST point (`tipFarthest`: on a mitered tip the centre advanced
-      by r·tan φ), never the centre alone; a through bore takes any tenon. `tenonJoints(doc)` lists every seated tenon in one pass,
+      by r·tan φ; on a COMPOUND tip, inv 59, the least depth over the disc, `max(0, centre − r·hypot(k, rise))` with `k` the along
+      slope, never the least of ±r probes along each axis, which over-reports seating), never the centre alone; a through bore takes any tenon. `tenonJoints(doc)` lists every seated tenon in one pass,
       world order, each tenon against every other part's single bores in world and row order — **the FIRST match wins** (one joint per
       tenon; known limit fu 461). A tenon near a socket, in one of another size, or along another line is NOT a joint: its wood in the
       other part is an overlap, as today, with the mismatch hint (inv 38). **Support is never granted by proximity.**
@@ -1189,3 +1237,78 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - **AI paths**: Generate is unchanged (the design schema is byte for byte the same, fu 322); Refine KEEPS a tenoned part exactly
       (`keepsExactly`, inv 56) and a joined Refine refuses one; joinery and Repair refuse a tenoned document (`tenonRefusal`, inv 41).
       No path squares an end: a tenon is never lost silently.
+
+59. **A lean may be SQUARE-SET, and a square-set leg's level ends are COMPOUND miters** (splayed legs chunk 2c, schema 25; spec
+    `2026-10-25-sloyd-square-set-legs-design.md` and its *Amended (build)* block). A square-set leg is tilted onto its slopes and
+    never turned about its axis, so its faces stay within about 1° of the world axes (0.83° at rake 8°, splay 12°; a square leg
+    leaning two ways cannot keep both exactly square), where a TURNED leg (chunk 1, inv 57) sits about 33.5° off them. Its foot
+    and top are then a compound cut, sloping across both the width and the thickness. `lean.ts` stays the ONE home of the map
+    (inv 57) and `angleCuts.ts` the ONE home of the compound depth.
+    - **Stored forms.** `Lean.square?: true`, stored ONLY as `true` (absent is turned: every lean saved before schema 25); `face`
+      keeps its meaning and is still stored (a square-set map ignores it; switching back to turned uses it). `AngleCut.across?:
+      { rise, from }`, legal only on an END MITER (the RESOLVED kind `miter`, `face 'length'`): the depth also grows by `rise` per
+      inch across `throughOf(c)`, measured from that dimension's CENTRE, increasing away from its `from` side. The full depth at
+      station `s` (from `alongFrom`) and cross position `t` (from `across.from`, along the through dimension of size `T`) is
+      `depthAtCross(c, b, s, t) = depthAt(c, s) + rise · (t − T/2)`; a cut with no `across` returns `depthAt(c, s)` itself, with no
+      arithmetic added. **Anchored at the centre**, so the depth on the part's axis is the single-slope `depthAt` exactly and round
+      tenons' `centreDepth` / `shoulderAt` stay exact (inv 58); a reader assuming a min-face anchor would be off by `rise · T/2`.
+    - **Load** (v25, `docs/versioning.md`): `validateLean` keeps `square` only when it is `=== true` (any other value is dropped
+      from the lean, which stays; `seamFree`'s spread carries it through a re-face). `validateAngleCuts` judges `across` on the
+      RESOLVED kind (a missing kind on an end cut derives `miter` and keeps a good `across`) and DROPS THE CUT, the part kept, when
+      `across` is not an object, sits on any other kind or face, has a `rise` that is not finite, ≤ 0 or above `1 + 1e-9` (the
+      45° lean bound: a level cut's across slope never exceeds 1), or a `from` other than `min` / `max`; a good one is rebuilt field
+      by field (stray keys dropped), an absent one stores no key. A schema-24 build refuses a 25 file. **A project saved before
+      schema 25 is byte for byte as before**: no `square` or `across` key appears unless this round's paths write one, and every
+      identity test (`bodyMeshIdentity`, `drawingIdentity`, `diagramIdentity`, `sweptIdentity`, `bandFreeIdentity`,
+      `hardwareFreeIdentity`, `mirrorFreeIdentity`) passes unchanged.
+    - **The map.** `leanMap` is `m = T` for a square-set lean (no `Ry(τ)`), `T · Ry(τ)` otherwise, the turned product unchanged
+      byte for byte. `T` is mirror-equivariant alone, so mirror conjugation (inv 57) holds with no seam case. `leanTwist(b, l)` is
+      the seam-free twist τ a TURNED lean `l` would apply (through `twistOf`, still the ONE twist computation; it never reads
+      `l.square`); it is exactly `+0` for a rake-only or splay-only lean, where the two maps agree, and is compared exactly (ruling
+      T3c). The leaning-cap key (`section.ts`) and BoardMesh's two memo dep lists carry `square`.
+    - **The default and the Set** (`setLean`, store): a part that does not lean yet gets `square: true` (written only as `true`,
+      never `false` or `undefined`); a leaning part keeps its own setting through rake and splay edits; a lean built directly
+      (a loaded file, a fixture) keeps what it stores. `LeanWorld.square` is the Set change (ruling: a `setLean` patch field, no
+      new action): alone it keeps both slopes bit for bit; on a part that does not lean it writes nothing; it may combine with a
+      slope edit. On a holed leaning part a Set change is refused when the TURNED end's τ is not 0 — the old lean when leaving
+      turned, the new one when entering it (ruling T3a: a combined Set and slope edit judges that same end) — verbatim `Changing how
+      this leg is set would turn it about its length and move its holes — remove the holes first.` (`LEAN_SET_TURNS_HOLES`); with
+      τ = 0 it is allowed. The face-flip refusal (`LEAN_TURNS_HOLES`, inv 57) applies only when the old and the new lean are both
+      turned: a square-set lean's `face` never reaches the map, so its re-choice turns nothing. The no-op test (inv 4) compares
+      `square`. One undo entry, one write per Shape, `judgeHeld()` at the end, null while gesturing or exploded, as inv 57. The
+      Lean section's **Set** select (label `Set`; `Square to the sides` / `Turned to the lean (one-cut ends)`; `mixed`, disabled,
+      when the selected leaning parts differ) calls `setLean(ids, { square })` through the section's `run`, so a refusal shows as
+      an alert and the select stays on the stored value; a Set change leaves levelled ends stale (the existing note).
+    - **Level the ends on a square-set leg** (`levelPlan`, spec §3.3): each end is ONE miter whose plane is the floor (or the
+      top) plane exactly. `along` is the cross dimension whose world height changes faster under the map (`|m·dir|_y`, ties
+      within 1e-9 to width); `points` is its single-slope line through the end's through CENTRE (`t = T/2`, so R, the top cut's
+      centre depth, stays exact); `across = { rise: |s|, from: s > 0 ? 'min' : 'max' }`, `s` the depth's slope per inch across the
+      through dimension (the foot's and the top's opposite), stored only when `|s| > 1e-9` — a rake- or splay-only square-set lean
+      writes plain miters. Each dimension's world direction comes from `axisFrame` SIGNED by `reversed` (`dirOf`; unsigned, a
+      leg turned 180° got the wrong `across.from`). The floor-normal throw stays for a TURNED lean only, whose plan (`t = 0`, no
+      `across`) is byte for byte as before. Every other rule of inv 57 stands: lengths rounded UP, the top through R or `topAt`,
+      holes kept in the wood, any end miter replaced in place, other end kinds refuse, one edit per Shape. `sameLevelLine`
+      compares `across` (both absent, or the same `from` and a rise within 1e-9), so `isLevelled` and Bore leg sockets'
+      `sameCuts` follow (`legSockets.ts` needed no change). On the square stool fixture every foot corner is at y = 0 exactly.
+    - **Every reader of a compound miter is correct, or refuses** (spec §4; the survey's 24 silent readers): the plane, the
+      deepest corner and the touched box (inv 48); the field table, values and copies (inv 40; `copyAngleCut` gives a fresh
+      `across`); mirrors by flag flips (inv 44); a round tenon's tip by `max(0, centre − r·hypot(k, rise))` (inv 58). **Words**:
+      the bench line (`angleLine`) `Compound miter at the length <min|max> end: <a>° across the <along>, <b>° across the
+      <through>` (one decimal, display only; `<b>` is `miterDegrees(|rise|)`); `shortPointLine` from the four corners' full depths;
+      the Plans feature key `Compound miter <a>° × <b>°` (along, then across, the chamfer's form; ruling T5a). **Part diagrams**:
+      the wedge on BOTH cross faces' views, each side's polygon on its own face (`wedgeOn(board, h, face, at)`: the offset
+      `n[face]·at + d`; a single-slope cut takes the old expression, so `diagramIdentity` holds), opening a face's min view (else
+      its max view, for a cut biting at one corner) when neither exists, so an along face's view is added (ruling T5b; fu 472: a
+      face whose only views show nothing draws the cut nowhere). **Authoring**: `miterFields` is null for one (the Angles row
+      shows the bench line and Remove only, as a levelled offset miter does) and `miterCut` never writes one; only Level the ends
+      makes a compound cut (fu 470 a hand-authored one; fu 471 a compound bevel, chamfer or taper).
+    - **AI paths refuse or keep, never misread.** `hasCompoundCut(b)` (`angleCuts.ts`, in `document` so both `generate` and
+      `leanKeep.ts` read it) is the ONE predicate. Joinery, Repair and a joined Refine refuse by `compoundRefusal`, the ONE
+      decider's third step (inv 41); Refine keeps such a part exactly (`keepsExactly`, inv 56; model-facing reason `has a compound
+      end cut`, ruling T6a); `worldAngles` returns null for any part with an `across` cut and `angleRatiosOf` skips one (ruling
+      T6b, defence in depth: every caller then refuses, keeps or does not snap that degree). The design schema is byte for byte
+      the same (fu 322).
+    - **Clear lean keeps the compound cuts** (spec §4.1): the cleared part is a non-leaning part with a compound cut — its rows show
+      the bench line and Remove, joinery refuses it, Refine keeps it.
+    - Test-only fixtures (`stoolFixture.ts`): `squareStoolLegs` / `squareStoolDocument` (the chunk 1 stool square-set and levelled, its legs
+      17.125 in long) and `clearedSquareStoolDocument` (the same after Clear lean). Follow-ups 470–474.
