@@ -7200,8 +7200,8 @@ sides first (Lean).` (square-set legs spec §5, the builder's call, recorded the
 `sameLevelLine`, which now compares `across`). Square-set legs took invariant 59, so the stretchers spec's "inv 58 clause or a new
 inv 59" (its §9, Records) becomes inv 58 or a new inv 60.
 **Status:** closed 2026-10-26 — stretchers BUILT on branch `stretchers` (spec `docs/superpowers/specs/2026-10-25-sloyd-stretchers-design.md`,
-NO schema change, inv 60 new; invs 50 and 58 extended); merge and deploy pending (the user's decision), browser verification owed
-(plan Task 7). A rung between two upright legs (leaning or not) is held by inv 39's clause (d) through its two seated round tenons;
+NO schema change, inv 60 new; invs 50 and 58 extended); merge and deploy pending (the user's decision); browser verification
+DONE (plan Task 7, `docs/browser-verification-stretchers.md`, 8/8 PASS, e4a18ce). A rung between two upright legs (leaning or not) is held by inv 39's clause (d) through its two seated round tenons;
 the "between" rule for leaning parts STANDS as written (a part laid between leaning legs without tenons is still `unsupported`,
 by design). Aprons, this entry's other half, are fu 480; the rest is fu 475–483 (tapered tenons stay fu 449, wedges and pins fu
 458, first match wins fu 461).
@@ -7615,9 +7615,12 @@ legs in the same assembly.`; `A stretcher can't join a leg inside a mirrored cop
 both are inside the same copy); `<Leg>'s socket would <words> — choose a different height, or a smaller tenon.`; `<Leg> already
 has a different socket there — remove it first.`; Fit again's `These linked legs need their shared socket in different places:
 <rungs>.`, `<Rung> would now run the other way — add it again.` (also a rung that would face the other way along its own axis)
-and `<Leg> has two sockets this tenon could be in — remove one.`; reused, not new: `socketTooSteep`, the too-wide tenon sentence.
+and `<Leg> has two sockets this tenon could be in — remove one.`; from the final review (2026-10-26): `These legs already
+have a stretcher at that height: <Rung>.` (ruling TFa: the same pair again where a rung already sits) and `A stretcher's height,
+rung size and tenon diameter must be more than zero.` (M2; programmatic callers only, the fields refuse it first); reused, not new: `socketTooSteep`, the too-wide tenon sentence.
 (2) The link note `<Part> got this socket too, through its link.`, shown in the RUNG's panel after the Add (ruling T5a), not under
-the section. (3) The readout `Between <A> and <B>, <h> up · shoulder gap up to <g>` and the stale line `No longer fits <A> and <B> —
+the section. (3) The readout `Between <A> and <B>, <h> up · shoulder gap up to <g>` (`<g>` rounded UP to the display grid since the final
+review's M1, so "up to" never understates: the stool's 0.2528" reads 5/16") and the stale line `No longer fits <A> and <B> —
 Fit the stretcher again.`; the legs are named in TENON order, the `min` tenon's leg first (ruling T5b), so the front rung added from
 Front right and Front left reads `Between Front left and Front right, …`, whatever the selection order. (4) The section heading
 `Stretcher`, the fields `Height`, `Rung size`, `Tenon diameter`, the buttons `Add stretcher` and `Fit the stretcher again`. (5)
@@ -7641,5 +7644,11 @@ common horizontal move of the pair as no change; under a translation the planner
 bits (its thresholds are 1e-9). (7) Two doc comments in `stretchers.ts` (`StretcherPlan.gap`, `stretcherOf`) still name
 `shoulderGap`, an export removed in Task 3's fix round (review M-1); the helper is `gapOf` over `cornerExits`. A comment fix only. **Fixed** in the controller's commit after Task 7 (2026-10-26).
 (8) Spec §6.2 left a stale tenon with NO bore of its diameter uncovered: Fit reuses a row another closure rung just bored that it
-seats in, else bores a new one (ruling T3b; tested with a socket removed by hand).
+seats in, else bores a new one (ruling T3b; tested with a socket removed by hand). (9) Final review, ruling TFa: the Height
+default now also depends on OTHER parts' tenons (a taken row), but its memo key (`pairSignature`) reads only the two legs. Adding a
+rung on a LINKED pair reuses rows without changing the legs, so an undo or redo of that rung while the other pair stays selected
+leaves the default stale. That is safe: Add then refuses with the taken sentence, and nothing overlaps; a selection change remounts
+the section. `holderOf`'s two exclusions (the rung itself, the leg itself) are unobservable through today's callers (the planned
+rung is not in the world; a stale tenon is not seated by definition; a leg's own tenons never sit in its own sockets) and stay as
+guards.
 **Status:** open (record-only).

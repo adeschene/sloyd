@@ -611,7 +611,7 @@ changes.
     stretcher, Fit the stretcher again); nothing about one is stored** (no schema change; a stretcher-free project is byte for
     byte as before; inv 39 (d) holds it, no check changes). Its legs are FOUND every time (`rungLegAt`, `stretcherOf`). Its axis
     is EXACTLY axis-aligned (legs not square to 1e-6 refuse); `L` and `S` round DOWN to the grid, a socket's depth UP to
-    `tenonStep`; a row the tenon is `seatedIn` is reused; any socket fault refuses the WHOLE action. Every refusal before
+    `tenonStep`; a free row the tenon is `seatedIn` is reused; any socket fault refuses the WHOLE action. Every refusal before
     `edit()`; ONE undo entry, none for a fitted rung's Fit. Fit re-fits the CLOSURE (each stretcher sharing a used row).
 
 ## Commands

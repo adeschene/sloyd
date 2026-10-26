@@ -1,4 +1,4 @@
-import { formatLength, type Units } from '../units/length';
+import { ceilToTick, formatLength, type Units } from '../units/length';
 
 /**
  * The stretchers' copy (stretchers spec §3, §4, §6; Global Constraints, verbatim): the ONE home of every new sentence.
@@ -22,13 +22,20 @@ export const stretcherMirrored = (leg: string) => `A stretcher can't join a leg 
 /** A socket with a hole fault (`holeFaults`); `words` are `socketFaultWords`' (Bore leg sockets' `socketFaulted` shape). */
 export const stretcherSocketFaulted = (leg: string, words: string) =>
   `${leg}'s socket would ${words} — choose a different height, or a smaller tenon.`;
+/** The planned tenon would be seated in a row that already holds ANOTHER part's seated tenon in this leg (`rung` the
+ *  holder's name): a second rung on the first (ruling TFa). */
+export const stretcherTaken = (rung: string) => `These legs already have a stretcher at that height: ${rung}.`;
+/** A height, rung size or tenon diameter that is not finite and more than zero (the loader would drop such a socket;
+ *  final review M2). Checked first. */
+export const STRETCHER_SIZE_POSITIVE = "A stretcher's height, rung size and tenon diameter must be more than zero.";
 /** A bore along the rung's axis that the planned tenon would enter but not be seated in. */
 export const stretcherDifferentSocket = (leg: string) => `${leg} already has a different socket there — remove it first.`;
 /** One line per part that received the socket through its link (a Shape's other user, a definition's other placement). */
 export const stretcherLinkNote = (part: string) => `${part} got this socket too, through its link.`;
-/** The rung's readout (§4): `g` the larger end's widest shoulder-corner gap (§5.3). */
+/** The rung's readout (§4): `g` the larger end's widest shoulder-corner gap (§5.3), rounded UP to the display grid
+ *  (`ceilToTick`; final review M1): it prints under "up to", a bound never understated. */
 export const stretcherReadout = (a: string, b: string, h: number, g: number, units: Units) =>
-  `Between ${a} and ${b}, ${formatLength(h, units)} up · shoulder gap up to ${formatLength(g, units)}`;
+  `Between ${a} and ${b}, ${formatLength(h, units)} up · shoulder gap up to ${formatLength(ceilToTick(g, units), units)}`;
 /** A stretcher whose tenons are no longer seated (§6.2). */
 export const stretcherStale = (a: string, b: string) => `No longer fits ${a} and ${b} — Fit the stretcher again.`;
 /** A re-fit's closure plans one shared row in two places (§6.3). */

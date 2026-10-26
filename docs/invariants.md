@@ -1356,18 +1356,23 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       outward normal is nearest the direction toward the other leg (`rungEntryOf`, first in `axisFrame` order on a tie), its mouth
       where the axis crosses that face, its bit along the axis, the tenon's diameter, its depth along the bit from the mouth to the
       tip ROUNDED UP to `tenonStep` (1/64", 0.1 mm) so the tip always seats. A leg already holding a row the planned tenon is
-      `seatedIn` (inv 58's own test, never a looser tolerance) REUSES it; a count-1 bore along the axis the tenon would enter by
+      `seatedIn` (inv 58's own test, never a looser tolerance) REUSES it — a linked mate's copy of a socket — unless that row
+      already holds ANOTHER part's seated tenon in this leg (`holderOf`, THE held test, shared with Fit's `usedRow`): a second
+      rung on the first refuses (`These legs already have a stretcher at that height: <Rung>.`, ruling TFa); a count-1 bore along the axis the tenon would enter by
       more than `TOUCH` but not be seated in refuses (`<Leg> already has a different socket there — remove it first.`); a socket
       past the tilt bound refuses (`socketTooSteep`, unreachable on any legal lean: the lean bound is the tilt bound); a socket with
       any `holeFaults` fault (THE decider, inv 50) refuses the WHOLE action, naming the leg (`<Leg>'s socket would <words> —
       choose a different height, or a smaller tenon.`, `socketFaultWords`) — unlike Bore leg sockets, which bores the rest. The
       second leg is judged on a trial document holding the first socket (two legs on one Shape carry both).
     - **Add stretcher** (`stretcherPlan(doc, legIds, { height, size, diameter })`, the store's `addStretcher`): every refusal is
-      decided before `edit()`, in this order: a leg leaning TURNED with a non-zero twist (`leanTwist`; `Set <Leg> square to the
+      decided before `edit()`, in this order: a height, rung size or tenon diameter not finite and more than zero (`A
+      stretcher's height, rung size and tenon diameter must be more than zero.`; the loader would drop such a socket), a leg
+      leaning TURNED with a non-zero twist (`leanTwist`; `Set <Leg> square to the
       sides first (Lean).`, spec Amended S1; a turned lean with zero twist is the square-set map and allowed), legs in different
       containers (`Select two legs in the same assembly.`), a leg reached through ANY mirrored instance on its chain (`A stretcher
       can't join a leg inside a mirrored copy yet: <Leg>.`), out of reach, not square, out of reach on the entry face, the tenons'
-      faults (`tenonFaults`, inv 58; its first sentence), then per leg a different socket, too steep, a socket fault. Then ONE
+      faults (`tenonFaults`, inv 58; its first sentence), then per leg a taken row (TFa), a different socket, too steep, a
+      socket fault. Then ONE
       `edit`: the rung inserted into the legs' container (named `uniqueName('Stretcher', …)` among that container's parts and
       assemblies, inv 8; the legs' material when they share one, else the default) and written to its world placement through
       `mapWorld` (inv 46's Properties rule, no `keepWorld`), each leg's holes in the same pass, ONE entry per storage target (a
@@ -1398,12 +1403,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       stretcher.` first.
     - **The default height** (`defaultHeight`): one third of the LOWER leg's top (`axisTop`, its axis's highest world Y),
       snapped to the grid (`snapToGrid`), stepped up by 1-1/2" (40 mm) while a trial plan at the default rung size refuses with a
-      `meets-hole` socket fault on either leg, at most 20 steps (no fixture reaches the cap, ruling T2b), then the last height
+      `meets-hole` socket fault on either leg or a taken row (TFa: a second Add on one pair defaults to the next free
+      height), at most 20 steps (no fixture reaches the cap, ruling T2b), then the last height
       tried.
     - **The UI**: the **Stretcher** section in the multi-selection panel when exactly two upright parts are selected (Height,
       Rung size, Tenon diameter, `Add stretcher`; a refusal is the section's alert; the Height default memoised on a pair
       signature, never on `gesturing`, inv 34; ruling T5c); the rung's own panel, under Round tenons, shows `Between <A> and <B>,
-      <h> up · shoulder gap up to <g>` when seated, else `No longer fits <A> and <B> — Fit the stretcher again.` and the button;
+      <h> up · shoulder gap up to <g>` (`<g>` rounded UP to the display grid, `ceilToTick`: a bound never understated)
+      when seated, else `No longer fits <A> and <B> — Fit the stretcher again.` and the button;
       the last Add's link notes show there while that rung is selected and the document is the Add's (ruling T5a). Copy has ONE
       home, `stretcherText.ts`, which imports `units` (the edge rule); `stretchers.ts` takes only a TYPE-only `Units` (its sentences, from
       `stretcherText.ts`, carry no length).

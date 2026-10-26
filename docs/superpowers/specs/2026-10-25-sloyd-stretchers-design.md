@@ -309,6 +309,19 @@ Rulings made while building (2026-10-25/26), **awaiting the user's approval**:
 - **T5c — the Height default is not recomputed during a drag (§4).** The default (up to 20 trial plans, ≈ 6 ms each) is memoised on
   a signature of the two legs (positions relative to the first leg's X and Z), the units and the diameter, so a common horizontal
   move of the pair (a gizmo drag) recomputes nothing; inv 34 forbids a component reading `gesturing`. Awaiting the user's approval.
+- **TFa — no stretcher on top of another (§2's "No overlap is made", §6.1; the controller's ruling on the final review's I1,
+  2026-10-26).** Selecting the same two legs again and adding at the default height stacked a second rung exactly on the first,
+  reusing its own sockets (`overlap: Stretcher (1) passes 1in into Stretcher`). Add now REUSES a row the planned tenon is
+  `seatedIn` only when that row holds no OTHER part's seated tenon in that leg (the same held test as Fit's stale row, review
+  M-3); otherwise it refuses, verbatim `These legs already have a stretcher at that height: <Rung>.`, and the Height default steps
+  past that refusal as it steps past `meets-hole`, so a second Add on one pair defaults 1-1/2" (40 mm) higher. A linked mate's
+  socket with no rung in it is still reused (the back rung on the square stool). Copy review, fu 482. Awaiting the user's
+  approval.
+- **The final review's minors (2026-10-26), not changing the spec's intent:** the readout's gap prints under "up to", so it is
+  rounded UP to the display grid (`ceilToTick`, `units/length.ts`; the stool's 0.2528" at 6" reads 5/16", 6.03 mm reads 7 mm);
+  Add refuses a height, rung size or tenon diameter that is not finite and more than zero, first, verbatim `A stretcher's height,
+  rung size and tenon diameter must be more than zero.` (the loader would drop such a socket; the panel's fields already refuse
+  it, so only a programmatic caller reaches it). Copy review, fu 482. Awaiting the user's approval.
 - Also from the build, not changing the spec: §3.1's "the legs must reach the height" is checked twice — on the axis, then (ruling
   T1a) the rung's section must cross each leg's ENTRY face inside its rectangle with the tip short of it, the same out-of-reach
   sentence; §3.4's too-steep refusal and §4's 20-step cap are unreachable on any legal lean (T2b, fu 483); §6.4's "it refuses

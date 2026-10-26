@@ -7,7 +7,7 @@ import { tenonJoints } from '../document/tenonJoints';
 import { toWorld } from '../document/snapPoints';
 import { squareStoolDocument } from '../document/stoolFixture';
 import { refitPlan, stretcherOf, stretcherPlan, type StretcherPlan } from '../document/stretchers';
-import { STRETCHER_NOT_A_STRETCHER, stretcherLinkNote } from '../document/stretcherText';
+import { STRETCHER_NOT_A_STRETCHER, STRETCHER_SIZE_POSITIVE, stretcherLinkNote, stretcherTaken } from '../document/stretcherText';
 
 /**
  * Stretchers Task 4: the store actions. Each decides every refusal before `edit()` (the planner's), writes the plan in ONE
@@ -390,5 +390,27 @@ describe('fitStretcher, review fix round 1', () => {
     }
     expect(s().doc).toBe(doc);
     expect(s().past.length).toBe(2);
+  });
+});
+
+describe('addStretcher, final review (I1 ruling TFa, M2)', () => {
+  it('a second Add on the same pair at the same height refuses, naming the first rung, and changes nothing', () => {
+    const ids = legs('Front right', 'Front left');
+    expect(s().addStretcher(ids, 6, O.size, O.diameter)).toBeNull();
+    const doc = s().doc;
+    const n = s().past.length;
+    const selected = s().selectedIds;
+    expect(s().addStretcher(ids, 6, O.size, O.diameter)).toBe(stretcherTaken('Stretcher'));
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
+    expect(s().selectedIds).toBe(selected);
+    expect(rungs()).toHaveLength(1);
+  });
+
+  it('a size not more than zero refuses with the size sentence and changes nothing', () => {
+    const doc = s().doc;
+    expect(s().addStretcher(legs('Front right', 'Front left'), 6, O.size, 0)).toBe(STRETCHER_SIZE_POSITIVE);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(0);
   });
 });

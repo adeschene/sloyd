@@ -20,8 +20,9 @@ import { TOUCH } from './checkTolerances';
 import { containerAt, displayNames, instancesOn, parentPath, worldParts } from './tree';
 import { mapWorld, storageKey } from './treeEdit';
 import {
-  STRETCHER_CONTAINERS, STRETCHER_NOT_SQUARE, stretcherAmbiguous, stretcherClosureDisagrees, stretcherDifferentSocket,
-  stretcherLinkNote, stretcherMirrored, stretcherOutOfReach, stretcherSocketFaulted, stretcherTurned, stretcherTurnedLeg,
+  STRETCHER_CONTAINERS, STRETCHER_NOT_SQUARE, STRETCHER_SIZE_POSITIVE, stretcherAmbiguous, stretcherClosureDisagrees,
+  stretcherDifferentSocket, stretcherLinkNote, stretcherMirrored, stretcherOutOfReach, stretcherSocketFaulted, stretcherTaken,
+  stretcherTurned, stretcherTurnedLeg,
 } from './stretcherText';
 
 /**
@@ -253,8 +254,15 @@ export interface StretcherPlan {
   gap: number;
 }
 
-/** A refusal, and the hole fault behind it when it is a socket's (`defaultHeight` steps over `meets-hole`). */
-interface Refusal { sentence: string; holeFault?: HoleFaultKind }
+/** A refusal, and the hole fault behind it when it is a socket's, or `taken` when the rung would sit on another
+ *  (`defaultHeight` steps over `meets-hole` and `taken`). */
+interface Refusal { sentence: string; holeFault?: HoleFaultKind; taken?: true }
+
+/** THE "held" test (Fit's stale row, review M-3; Add's reuse, ruling TFa): the first world part other than `except` and the
+ *  leg itself with a built tenon `seatedIn` row `r` of `leg`, or undefined. */
+function holderOf(world: readonly Board[], leg: Board, r: HoleRow, except: string): Board | undefined {
+  return world.find((a) => a.id !== except && a.id !== leg.id && builtTenons(a).some((x) => seatedIn(a, x, leg, r)));
+}
 
 /** The checks on the two legs before any geometry, in order (spec Amended S1, §3.2): a leg leaning TURNED with a non-zero
  *  twist (first), the legs' container, a leg reached through a mirrored instance. Add stretcher and Fit again share them. */
@@ -333,6 +341,8 @@ const holesKey = (doc: SloydDocument, b: Board) => (b.shape !== undefined ? `sha
 function plan(doc: SloydDocument, legIds: readonly [string, string], o: { height: number; size: number; diameter: number }):
   StretcherPlan | Refusal {
   const refuse = (sentence: string, holeFault?: HoleFaultKind): Refusal => (holeFault ? { sentence, holeFault } : { sentence });
+  // First (final review M2): a size the loader would drop (a socket of diameter <= 0), or no number at all.
+  if (![o.height, o.size, o.diameter].every((v) => Number.isFinite(v) && v > 0)) return refuse(STRETCHER_SIZE_POSITIVE);
   const world = worldParts(doc);
   const legs = legIds.map((id) => {
     const w = world.find((b) => b.id === id);
@@ -379,7 +389,14 @@ function plan(doc: SloydDocument, legIds: readonly [string, string], o: { height
     const leg = worldParts(trial).find((b) => b.id === legs[i]!.id)!;
     const t = tenons[i]!;
     const { p, w } = endOf(line, atStart);
-    if (leg.holes.some((r) => seatedIn(rung, t, leg, r))) continue;
+    // A row the tenon is seated in is REUSED (a linked mate's copy of a socket), unless another part's tenon already sits
+    // in it in this leg: that is a second rung on the first (ruling TFa).
+    const seated = leg.holes.filter((r) => seatedIn(rung, t, leg, r));
+    if (seated.length > 0) {
+      const holders = seated.map((r) => holderOf(world, leg, r, rung.id));
+      if (holders.some((h) => h === undefined)) continue;
+      return { sentence: stretcherTaken(nameOf(holders[0]!)), taken: true };
+    }
     // A bore on the rung's axis the tenon would enter but not be seated in: never bored beside (spec §6.1).
     const shoulder = along(p, w, shoulders[i]!);
     const out: V3 = [0 - w[0], 0 - w[1], 0 - w[2]];
@@ -421,12 +438,15 @@ function plan(doc: SloydDocument, legIds: readonly [string, string], o: { height
  *   each tip stops `(D − L)/2` short of its leg's axis; the shoulder-to-shoulder `S` = `D − sA − sB` (`shoulderStation`)
  *   rounded DOWN to the same grid, its slack split evenly; each tenon the length that placement leaves (exact);
  * - each leg's socket (`rungSocketRow`): REUSED when the planned tenon is already `seatedIn` a row of the leg (a linked
- *   leg's mate bored it, inv 45), else bored, judged by `holeFaults` (THE decider, inv 50) on the leg holding it.
- * Every refusal is decided here, before anything is written, in this order: a leg leaning TURNED with a
+ *   leg's mate bored it, inv 45) that holds no OTHER part's seated tenon (`holderOf`), else bored, judged by `holeFaults`
+ *   (THE decider, inv 50) on the leg holding it.
+ * Every refusal is decided here, before anything is written, in this order: a height, rung size or tenon diameter not
+ * finite and more than zero (`STRETCHER_SIZE_POSITIVE`), a leg leaning TURNED with a
  * non-zero twist (`stretcherTurnedLeg`, spec Amended S1: first, before the geometry), the legs' container
  * (`STRETCHER_CONTAINERS`), a leg reached through a mirrored instance, out of reach (the axis), not square, out of reach
  * again (the section must lie on the entry face, its tip inside: ruling T1a), the tenons' faults (`tenonFaults`: the too-wide sentence first), then per leg a
- * different socket on the axis, too steep (`socketTooSteep`) and a socket fault (`stretcherSocketFaulted`).
+ * seated row another part's tenon holds (`stretcherTaken`, ruling TFa), a different socket on the axis, too steep
+ * (`socketTooSteep`) and a socket fault (`stretcherSocketFaulted`).
  */
 export function stretcherPlan(doc: SloydDocument, legIds: [string, string], o: { height: number; size: number; diameter: number }):
   StretcherPlan | string {
@@ -437,8 +457,8 @@ export function stretcherPlan(doc: SloydDocument, legIds: [string, string], o: {
 /**
  * The panel's default height (Global Constraints): one third of the lower leg's top height (`axisTop`), rounded to the
  * drag grid, stepped up by 1-1/2" (40 mm) while a trial plan there (the default rung size, this `diameter`) refuses with a
- * `meets-hole` socket fault on either leg (two rungs meeting a leg at one height; spec §3.4). At most 20 steps; then the
- * last height tried.
+ * `meets-hole` socket fault on either leg (two rungs meeting a leg at one height; spec §3.4) or because a rung already sits
+ * there (`stretcherTaken`, ruling TFa). At most 20 steps; then the last height tried.
  */
 export function defaultHeight(doc: SloydDocument, legIds: [string, string], diameter: number): number {
   const world = worldParts(doc);
@@ -451,7 +471,7 @@ export function defaultHeight(doc: SloydDocument, legIds: [string, string], diam
   let n = 0;
   while (n < 20) {
     const p = plan(doc, legIds, { height: at(n), size, diameter });
-    if (!('sentence' in p) || p.holeFault !== 'meets-hole') break;
+    if (!('sentence' in p) || (p.holeFault !== 'meets-hole' && !p.taken)) break;
     n += 1;
   }
   return at(n);
@@ -569,7 +589,7 @@ function usedRow(world: readonly Board[], rung: Board, t: RoundTenon, leg: Board
   if (seated) return seated;
   const tip = tenonSegment(rung, t)[1];
   // Another part's tenon seated in a row holds it: never taken for this tenon's (review M-3).
-  const held = (r: HoleRow) => world.some((a) => a.id !== rung.id && a.id !== leg.id && builtTenons(a).some((x) => seatedIn(a, x, leg, r)));
+  const held = (r: HoleRow) => holderOf(world, leg, r, rung.id) !== undefined;
   const near = leg.holes
     .filter((r) => r.count === 1 && r.depth !== 'through' && Math.abs(r.diameter - t.diameter) <= EPS && !held(r))
     .map((r) => ({ r, d: Math.hypot(...sub(boreEnds(leg, r)[1], tip)) }))
@@ -649,7 +669,6 @@ export function refitPlan(doc: SloydDocument, rungId: string): RefitPlan | strin
     if (stored.has(sk)) return null;
     stored.add(sk);
     members.push(c.m);
-    for (const key of c.keys) moved.add(key);
     return null;
   };
   const r0 = join(first);

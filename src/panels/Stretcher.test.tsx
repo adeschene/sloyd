@@ -94,6 +94,18 @@ describe('the Stretcher section (stretchers spec §4)', () => {
     expect(rungs()).toHaveLength(2);
   });
 
+  it('TFa: after an Add, the same pair\'s default moves past the new rung (1-1/2"), and a second Add there succeeds', async () => {
+    const user = userEvent.setup();
+    open(squareStoolDocument(), 'Front right', 'Front left');
+    expect(input('Height').value).toBe('5-5/16"');
+    await user.click(addButton());
+    select('Front right', 'Front left');
+    expect(input('Height').value).toBe('6-13/16"');
+    await user.click(addButton());
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(rungs()).toHaveLength(2);
+  });
+
   it('the default follows the Tenon diameter until a Height is typed', async () => {
     const user = userEvent.setup();
     s().replaceDocument(squareStoolDocument());
@@ -310,7 +322,8 @@ describe('the rung\'s readout (stretchers spec §4)', () => {
 
   it('a metric project\'s readout is in mm', () => {
     withFront({ ...squareStoolDocument(), units: MM });
-    expect(screen.getByText('Between Front left and Front right, 135 mm up · shoulder gap up to 6 mm')).toBeInTheDocument();
+    // The gap is 6.03 mm: rounded UP under "up to" (final review M1).
+    expect(screen.getByText('Between Front left and Front right, 135 mm up · shoulder gap up to 7 mm')).toBeInTheDocument();
   });
 
   it('a stale rung reads the stale sentence and Fit the stretcher again; Fit re-fits it (one entry) and the readout returns', async () => {

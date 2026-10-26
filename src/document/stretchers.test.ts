@@ -21,8 +21,9 @@ import {
   defaultHeight, refitPlan, rungLegAt, rungLine, shoulderStation, stretcherOf, stretcherPlan, type RefitPlan, type StretcherPlan,
 } from './stretchers';
 import {
-  STRETCHER_CONTAINERS, STRETCHER_NOT_SQUARE, stretcherAmbiguous, stretcherClosureDisagrees, stretcherDifferentSocket,
-  stretcherLinkNote, stretcherMirrored, stretcherOutOfReach, stretcherSocketFaulted, stretcherTurned, stretcherTurnedLeg,
+  STRETCHER_CONTAINERS, STRETCHER_NOT_SQUARE, STRETCHER_SIZE_POSITIVE, stretcherAmbiguous, stretcherClosureDisagrees, stretcherDifferentSocket,
+  stretcherLinkNote, stretcherMirrored, stretcherOutOfReach, stretcherReadout, stretcherSocketFaulted, stretcherTaken, stretcherTurned,
+  stretcherTurnedLeg,
 } from './stretcherText';
 
 type V3 = [number, number, number];
@@ -949,5 +950,58 @@ describe('stretchers: Fit again, fix round 1 (review I1, I2, M-3, M-4, M-5)', ()
     const next = applyRefit(doc, p);
     expect(rungJoints(next)).toHaveLength(4);
     expect(kindsOf(next)).toEqual([]);
+  });
+});
+
+describe('stretchers: final review (I1 ruling TFa, M2)', () => {
+  const doc = squareStoolDocument();
+  const front = ids(doc, 'Front right', 'Front left');
+  const h0 = defaultHeight(doc, front, 5 / 8);
+  const one = apply(doc, planOf(doc, front, { height: h0, ...O }));
+
+  it('TFa: the same pair again at the same height refuses, naming the rung already there (either order)', () => {
+    expect(stretcherTaken('Stretcher')).toBe('These legs already have a stretcher at that height: Stretcher.');
+    expect(stretcherPlan(one, ids(one, 'Front right', 'Front left'), { height: h0, ...O })).toBe(stretcherTaken('Stretcher'));
+    expect(stretcherPlan(one, ids(one, 'Front left', 'Front right'), { height: h0, ...O })).toBe(stretcherTaken('Stretcher'));
+  });
+
+  it('TFa: the default height on that pair steps past the rung already there (1-1/2"), and a plan there succeeds', () => {
+    expect(h0).toBe(5 + 5 / 16);
+    const h = defaultHeight(one, ids(one, 'Front right', 'Front left'), 5 / 8);
+    expect(h).toBe(5 + 5 / 16 + 1.5);
+    const two = apply(one, planOf(one, ids(one, 'Front right', 'Front left'), { height: h, ...O }));
+    expect(rungJoints(two)).toHaveLength(4);
+    expect(kindsOf(two)).toEqual([]);
+  });
+
+  it('TFa: a linked mate\'s socket with no rung in it is still reused (the back rung at the front rung\'s height)', () => {
+    const back = ids(one, 'Back left', 'Back right');
+    expect(defaultHeight(one, back, 5 / 8)).toBe(h0);
+    const p = planOf(one, back, { height: h0, ...O });
+    for (const e of p.legs) expect(e.holes).toEqual(world(one).find((b) => b.id === e.id)!.holes);
+    // And with both rungs in, neither pair takes a third at that height.
+    const two = apply(one, p);
+    expect(stretcherPlan(two, ids(two, 'Back left', 'Back right'), { height: h0, ...O })).toBe(stretcherTaken(p.rung.name));
+  });
+
+  it('M1: the readout\'s gap rounds UP to the display grid (it prints under "up to"): the front rung at 6" is 0.2528"', () => {
+    const p = planOf(doc, front, { height: 6, ...O });
+    expect(p.gap).toBeGreaterThan(0.25);
+    expect(p.gap).toBeLessThan(0.2535);
+    expect(stretcherReadout('A', 'B', 6, p.gap, doc.units)).toBe('Between A and B, 6" up · shoulder gap up to 5/16"');
+    expect(stretcherReadout('A', 'B', 6, 0.25, doc.units)).toBe('Between A and B, 6" up · shoulder gap up to 1/4"');
+    expect(stretcherReadout('A', 'B', 6, 0, doc.units)).toBe('Between A and B, 6" up · shoulder gap up to 0"');
+    expect(stretcherReadout('A', 'B', 135 / 25.4, 6.03 / 25.4, MM)).toBe('Between A and B, 135 mm up · shoulder gap up to 7 mm');
+  });
+
+  it('M2: a height, rung size or tenon diameter not more than zero (or not finite) refuses, before anything else', () => {
+    expect(STRETCHER_SIZE_POSITIVE).toBe("A stretcher's height, rung size and tenon diameter must be more than zero.");
+    for (const bad of [0, -0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(stretcherPlan(doc, front, { height: 6, size: 1, diameter: bad }), `diameter ${bad}`).toBe(STRETCHER_SIZE_POSITIVE);
+      expect(stretcherPlan(doc, front, { height: 6, size: bad, diameter: 5 / 8 }), `size ${bad}`).toBe(STRETCHER_SIZE_POSITIVE);
+      expect(stretcherPlan(doc, front, { height: bad, size: 1, diameter: 5 / 8 }), `height ${bad}`).toBe(STRETCHER_SIZE_POSITIVE);
+    }
+    // First, before the legs' checks and any geometry (a flat Seat as the second leg).
+    expect(stretcherPlan(doc, ids(doc, 'Front right', 'Seat'), { height: 6, size: 1, diameter: 0 })).toBe(STRETCHER_SIZE_POSITIVE);
   });
 });

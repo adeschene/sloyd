@@ -1,4 +1,4 @@
-import { parseLength, formatLength, canBeginLength, formatLengthBare, formatMm, formatSize, mmBracket, tradeLength, tradeSize, floorToTick, IMPERIAL, imperialAt, type Units } from './length';
+import { parseLength, formatLength, canBeginLength, formatLengthBare, formatMm, formatSize, mmBracket, tradeLength, tradeSize, floorToTick, ceilToTick, IMPERIAL, imperialAt, type Units } from './length';
 
 describe('parseLength', () => {
   it.each([
@@ -243,6 +243,19 @@ describe('floorToTick', () => {
     expect(floorToTick(23.47, IMPERIAL)).toBe(Math.floor(23.47 * 16 + 1e-9) / 16);
     expect(formatLength(floorToTick(inch(596.9), MM), MM)).toBe('596 mm');
     expect(floorToTick(inch(596), MM) * 25.4).toBeCloseTo(596, 9);   // exactly on a tick stays
+  });
+});
+
+describe('ceilToTick', () => {
+  it('rounds UP to the display grid (an "up to" bound is never understated); a value on a tick stays', () => {
+    expect(ceilToTick(0.2528, IMPERIAL)).toBe(5 / 16);
+    expect(formatLength(ceilToTick(0.2528, IMPERIAL), IMPERIAL)).toBe('5/16"');
+    expect(ceilToTick(0.2528, imperialAt(8))).toBe(3 / 8);
+    expect(ceilToTick(0.25, IMPERIAL)).toBe(0.25);
+    expect(ceilToTick(0.25 + 1e-12, IMPERIAL)).toBe(0.25);   // float noise above a tick stays on it
+    expect(ceilToTick(0, IMPERIAL)).toBe(0);
+    expect(formatLength(ceilToTick(inch(6.2), MM), MM)).toBe('7 mm');
+    expect(ceilToTick(inch(6), MM) * 25.4).toBeCloseTo(6, 9);
   });
 });
 

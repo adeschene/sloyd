@@ -14,7 +14,7 @@ source of truth — `tapeHover`'s clearing enumeration, `tapeAxis`'s structural 
 ```
 src/
 ├── units/            length.ts (Units; parseLength/formatLength(…, units)/canBeginLength; capture set {0-9 . -}; formatMm,
-│                     formatLengthBare, formatSize, floorToTick; inv 52), nominal.ts
+│                     formatLengthBare, formatSize, floorToTick, ceilToTick; inv 52), nominal.ts
 │                     (NOMINAL_SECTIONS, nominalName — EXACT at 1e-9, either order —, stockLengthText: whole feet `8′`),
 │                     quantity.ts (board/square feet, two decimals fixed)
 ├── document/
@@ -66,8 +66,9 @@ src/
 │   │                     the leaned bodies — bodySpans, THE line-vs-body clip, cornerExits —, the largest), gapOf (the shoulder gap,
 │   │                     ruling P1), fitOn (L and S floored to the grid, the slack split, the tips; the entry-face pre-check
 │   │                     onEntryFace, ruling T1a), stretcherPlan (every refusal in order, the rung as a WORLD part, `container`,
-│   │                     `legs` one per storage target, `notes`, `gap`; reuse by seatedIn, holeFaults on a trial document),
-│   │                     defaultHeight (a third of the lower axisTop, snapped, stepped 1-1/2" / 40 mm past a `meets-hole`, ≤ 20
+│   │                     `legs` one per storage target, `notes`, `gap`; reuse by seatedIn unless another part's tenon holds the row —
+│   │                     holderOf, THE held test, shared with usedRow; ruling TFa —, holeFaults on a trial document),
+│   │                     defaultHeight (a third of the lower axisTop, snapped, stepped 1-1/2" / 40 mm past a `meets-hole` or a taken row, ≤ 20
 │   │                     steps), axisTop, rungSize / rungTenon and RUNG_SIZE / RUNG_TENON / RUNG_STAGGER (the defaults),
 │   │                     rungLegAt (THE finder: the first UPRIGHT part in world order a tenon's centre segment meets by > TOUCH),
 │   │                     stretcherOf (an unleaned, level rung whose two tenons find two different legs; `seated`, `height`, `gap`;
@@ -76,9 +77,10 @@ src/
 │   │                     rule: the nearest blind bore of the diameter not holding another part's seated tenon; throws for a
 │   │                     non-stretcher); stretchers.test.ts
 │   ├── stretcherText.ts  THE stretchers words (→ units: it produces strings), verbatim: the refusals (stretcherTurnedLeg,
-│   │                     STRETCHER_NOT_SQUARE, stretcherOutOfReach, STRETCHER_CONTAINERS, stretcherMirrored, stretcherSocketFaulted,
-│   │                     stretcherDifferentSocket, stretcherClosureDisagrees, stretcherTurned, stretcherAmbiguous), stretcherLinkNote,
-│   │                     stretcherReadout / stretcherStale (the rung's readout, formatLength with the document's units), the
+│   │                     STRETCHER_SIZE_POSITIVE, STRETCHER_NOT_SQUARE, stretcherOutOfReach, STRETCHER_CONTAINERS, stretcherMirrored,
+│   │                     stretcherSocketFaulted, stretcherTaken, stretcherDifferentSocket, stretcherClosureDisagrees, stretcherTurned, stretcherAmbiguous), stretcherLinkNote,
+│   │                     stretcherReadout / stretcherStale (the rung's readout, formatLength with the document's units; the gap rounded UP,
+│   │                     ceilToTick, under "up to"), the
 │   │                     section's heading, fields and buttons; STRETCHER_NOT_A_STRETCHER (internal, ruling T4b)
 │   ├── levelEnds.ts      Level the ends (splayed legs §5, inv 57): levelPlan (two end miters along seamFree's face — on a SQUARE-SET
 │   │                     lean, inv 59, one compound miter per end along the larger slope, ties width, `across` the rest, its line
