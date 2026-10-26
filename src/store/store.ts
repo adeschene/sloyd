@@ -2191,29 +2191,27 @@ export const useStore = create<StoreState>((set, get) => {
       // Inv 4: refitPlan returns a full plan for a fitted rung (every value the stored one, new arrays), so a part whose
       // planned values are its own is left as the SAME object; when none changes, mapWorld returns the same document and
       // edit() pushes no entry.
+      // A re-fit patches only `length`, `position` and `tenons` (refitPlan's contract); any other key is an internal error,
+      // never silently compared by reference (a fresh array would make every no-op Fit an undo entry).
+      const samePatched = (b: Board, k: string, v: unknown): boolean => {
+        if (k === 'length') return v === b.length;
+        if (k === 'position') return (v as number[]).every((x, i) => x === b.position[i]);
+        if (k === 'tenons') {
+          const next = (v as RoundTenon[] | undefined) ?? [];
+          const own = tenonsOf(b);
+          return next.length === own.length && next.every((t, i) => t.id === own[i]!.id && sameTenon(t, own[i]!));
+        }
+        throw new Error(`fitStretcher: refitPlan patched ${k}`);
+      };
       const unchanged = (b: Board, patch: Partial<Board> | undefined, rows: HoleRow[] | undefined) =>
         (rows === undefined || sameRows(rows, b.holes))
-        && (patch === undefined || Object.entries(patch).every(([k, v]) => {
-          const cur = (b as unknown as Record<string, unknown>)[k];
-          if (k === 'position') return (v as number[]).every((x, i) => x === b.position[i]);
-          if (k === 'tenons') {
-            const next = (v as RoundTenon[] | undefined) ?? [];
-            const own = tenonsOf(b);
-            return next.length === own.length && next.every((t, i) => t.id === own[i]!.id && sameTenon(t, own[i]!));
-          }
-          return v === cur;
-        }));
-      edit((doc) => mapWorld(doc, (w) => {
-        let changed = false;
-        const out = w.map((b) => {
-          const patch = patches.get(b.id);
-          const rows = holes.get(b.id);
-          if ((!patch && !rows) || unchanged(b, patch, rows)) return b;
-          changed = true;
-          return { ...b, ...(patch ?? {}), ...(rows ? { holes: rows } : {}) };
-        });
-        return changed ? out : w;
-      }));
+        && (patch === undefined || Object.entries(patch).every(([k, v]) => samePatched(b, k, v)));
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => {
+        const patch = patches.get(b.id);
+        const rows = holes.get(b.id);
+        if ((!patch && !rows) || unchanged(b, patch, rows)) return b;
+        return { ...b, ...(patch ?? {}), ...(rows ? { holes: rows } : {}) };
+      })));
       // Inv 24: the rungs' length and ends moved, and so did the sockets.
       judgeHeld();
       return null;

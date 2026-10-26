@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from './store';
 import { flatDocument, migrateDocument, snapPointsFor, worldParts } from '../document/document';
-import type { Definition, SloydDocument } from '../document/document';
+import type { Board, Definition, SloydDocument } from '../document/document';
 import { checkDesign, type DesignLimits } from '../document/designCheck';
 import { tenonJoints } from '../document/tenonJoints';
 import { toWorld } from '../document/snapPoints';
 import { squareStoolDocument } from '../document/stoolFixture';
-import { stretcherOf, stretcherPlan, type StretcherPlan } from '../document/stretchers';
+import { refitPlan, stretcherOf, stretcherPlan, type StretcherPlan } from '../document/stretchers';
 import { STRETCHER_NOT_A_STRETCHER, stretcherLinkNote } from '../document/stretcherText';
 
 /**
@@ -149,7 +149,8 @@ describe('addStretcher (stretchers spec §6.1)', () => {
     setup(placed([3, 0, -2], 90));
     s().openAssembly('i1');
     const ids = legs('Front right', 'Front left');
-    const p = planOf(s().doc, ids, 6);
+    const before = s().doc;
+    const p = planOf(before, ids, 6);
     expect(s().addStretcher(ids, 6, O.size, O.diameter)).toBeNull();
     expect(s().doc.definitions[0]!.boards.some((b) => b.name === p.rung.name)).toBe(true);
     const rung = rungs()[0]!;
@@ -158,6 +159,11 @@ describe('addStretcher (stretchers spec §6.1)', () => {
     expect(rungJoints(s().doc)).toHaveLength(2);
     expect(kindsOf(s().doc)).toEqual([]);
     expect(stretcherOf(world(), rung)!.seated).toBe(true);
+    const after = s().doc;
+    s().undo();
+    expect(s().doc).toEqual(before);
+    s().redo();
+    expect(s().doc).toEqual(after);
   });
 
   it('refused while exploded (inv 47) and mid-gesture: null, nothing changed (the store\'s convention)', () => {
@@ -298,3 +304,91 @@ describe('fitStretcher (stretchers spec §6.3, §6.4)', () => {
   });
 });
 
+/** Rake 10 on all four legs of every placement (one definition: every copy follows), then Level the ends (ruling T3a). */
+function rakeAll(prefix = '') {
+  const all = ['Front left', 'Front right', 'Back left', 'Back right'].map((n) => world().find((b) => b.name === n && b.id.startsWith(prefix))!.id);
+  expect(s().setLean(all, { rake: 10 }, { keepSign: true })).toBeNull();
+  expect(s().levelEnds(all[1]!)).toBeNull();
+  expect(s().levelEnds(all[0]!)).toBeNull();
+}
+
+describe('fitStretcher, review fix round 1', () => {
+  it('writes exactly refitPlan\'s patches and rows (every rung of the closure, every leg)', () => {
+    s().addStretcher(legs('Front right', 'Front left'), 6, O.size, O.diameter);
+    s().addStretcher(legs('Back left', 'Back right'), 6, O.size, O.diameter);
+    rakeAll();
+    const before = s().doc;
+    const w0 = worldParts(before);
+    const front = rungs()[0]!;
+    const p = refitPlan(before, front.id);
+    if (typeof p === 'string') throw new Error(p);
+    expect(p.rungs).toHaveLength(2);
+    expect(s().fitStretcher(front.id)).toBeNull();
+    for (const r of p.rungs) {
+      const was = w0.find((b) => b.id === r.id)!;
+      expectClose(bare(world().find((b) => b.id === r.id)), bare({ ...was, ...r.patch }));
+    }
+    for (const l of p.legs) expectClose(bare(world().find((b) => b.id === l.id)!.holes), bare(l.holes));
+  });
+
+  it('a rung whose only difference from its plan is its LENGTH is re-fitted (one entry, the planned length)', () => {
+    s().addStretcher(legs('Front right', 'Front left'), 6, O.size, O.diameter);
+    const fitted = rungs()[0]!;
+    // 1e-6 longer at its max end, its min corner kept: the plan keeps the stored position and tenons (within 1e-9) and
+    // the rows, and changes only the length back.
+    useStore.setState({ doc: { ...s().doc, boards: s().doc.boards.map((b) => (b.id === fitted.id ? { ...b, length: (b as Board).length + 1e-6 } : b)) } });
+    const p = refitPlan(s().doc, fitted.id);
+    if (typeof p === 'string') throw new Error(p);
+    expect(Object.keys(p.rungs[0]!.patch).filter((k) => k !== 'position' && k !== 'tenons')).toEqual(['length']);
+    const n = s().past.length;
+    expect(s().fitStretcher(fitted.id)).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+    expect(rungs()[0]!.length).toBe(fitted.length);
+  });
+
+  it('a definition placed twice (i1 at the origin, i2 at 40" turned 90): Add in i2 joins both copies; Fit re-fits both; one entry each', () => {
+    const doc = squareStoolDocument();
+    const d: Definition = { id: 'd', boards: doc.boards, instances: [], hardware: [] };
+    setup(migrateDocument({ ...doc, boards: [], definitions: [d], instances: [
+      { id: 'i1', name: 'Stool', definition: 'd', position: [0, 0, 0], rotation: 0 },
+      { id: 'i2', name: 'Stool', definition: 'd', position: [40, 0, 0], rotation: 90 },
+    ] }));
+    s().openAssembly('i2');
+    const pick = (n: string) => world().find((b) => b.name === n && b.id.startsWith('i2/'))!.id;
+    expect(s().addStretcher([pick('Front right'), pick('Front left')], 6, O.size, O.diameter)).toBeNull();
+    expect(s().addStretcher([pick('Back left'), pick('Back right')], 6, O.size, O.diameter)).toBeNull();
+    expect(s().past.length).toBe(2);
+    expect(rungs()).toHaveLength(4);
+    expect(rungJoints(s().doc)).toHaveLength(8);
+    expect(kindsOf(s().doc)).toEqual([]);
+    // A fitted rung in either copy: no entry.
+    const fitted = s().doc;
+    for (const r of rungs()) expect(s().fitStretcher(r.id)).toBeNull();
+    expect(s().doc).toBe(fitted);
+    rakeAll('i2/');
+    const before = s().doc;
+    const n = s().past.length;
+    for (const r of rungs()) expect(stretcherOf(world(), r)!.seated).toBe(false);
+    expect(s().fitStretcher(rungs().find((r) => r.id.startsWith('i1/'))!.id)).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+    expect(rungJoints(s().doc)).toHaveLength(8);
+    expect(kindsOf(s().doc)).toEqual([]);
+    for (const r of rungs()) expect(stretcherOf(world(), r)!.seated).toBe(true);
+    s().undo();
+    expect(s().doc).toEqual(before);
+  });
+
+  it('a fitted rung in an assembly placed away and TURNED: Fit is a no-op, no entry', () => {
+    setup(placed([3, 0, -2], 90));
+    s().openAssembly('i1');
+    expect(s().addStretcher(legs('Front right', 'Front left'), 6, O.size, O.diameter)).toBeNull();
+    expect(s().addStretcher(legs('Back left', 'Back right'), 6, O.size, O.diameter)).toBeNull();
+    const doc = s().doc;
+    for (const r of rungs()) {
+      expect(stretcherOf(world(), r)!.seated).toBe(true);
+      expect(s().fitStretcher(r.id)).toBeNull();
+    }
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(2);
+  });
+});
