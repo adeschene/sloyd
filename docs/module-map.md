@@ -590,8 +590,8 @@ src/
 
 ## Per-file rules not covered by an invariant
 
-Moved from `CLAUDE.md` on 2026-10-26, verbatim; `CLAUDE.md` lists the files. Each is a rule
-(the invariants are in `docs/invariants.md`).
+Moved from `CLAUDE.md` on 2026-10-26, verbatim except that its pointers to this file now read "the tree" (the
+annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invariants are in `docs/invariants.md`).
 
 - **`snapPoints.ts`**: local→world is `position[axis] + toWorldOffset(board, axis,
   local[axisFrame(board)[axis].dim])`, then `leanMap(board).apply` for a leaning part (`fromWorld` inverts it — exactly only for an unleaned part). `pointToLocalXYZ` and `solidWorldBox` are
@@ -606,7 +606,7 @@ Moved from `CLAUDE.md` on 2026-10-26, verbatim; `CLAUDE.md` lists the files. Eac
 - **`bodies.ts`**: read bodies and edges through `partGeometry` wherever it runs per frame or per part (snap
   points, drawings, BoardMesh). Its results are SHARED between parts with one `geometryKey`, deep-frozen:
   never mutate them. The key is board-local (dimensions, cut geometry, angle cuts, hole rows) — no pose — and carries each
-  angle cut's and hole row's ID (why: `docs/module-map.md`).
+  angle cut's and hole row's ID (why: the tree).
 - **`angleCuts.ts` field conversions**: the row's fields carry STORED values — a miter/bevel its slope ratio, a chamfer
   its legs, a taper its stations and depths — never re-derived through `atan`/`tan`, so an edit of side, end or face keeps
   a 45° cut at depth = run exactly. Degrees exist only in display and typed input, and reach a writer only through
@@ -623,15 +623,15 @@ Moved from `CLAUDE.md` on 2026-10-26, verbatim; `CLAUDE.md` lists the files. Eac
   decision stays in `fitLabel`, not as a panel override. The sheet key list is NOT an
   `<ol>` (the number comes from `nextIndex`, not DOM position; fu 162). A part that cannot hold even its NUMBER
   (`holdsIndex`) is a callout (fu 96): its number in a row outside the drawing, the row only when used, so a drawing with no
-  callouts keeps its viewBox (the layout: `docs/module-map.md`). A long leader across another part is accepted (the user's ruling).
+  callouts keeps its viewBox (the layout: the tree). A long leader across another part is accepted (the user's ruling).
 - **`plans.ts` keying**: a STORED part (container id + part id) is keyed by the first trio that keys it (`claimed`; fu 381(4),
   the user's ruling: no duplicate labels) — only assembly trios can share one.
-- **`featureKeys.ts` / `planKeys.ts`** (feature callouts): a key line is built only in `partFeatures` (its sources: `docs/module-map.md`), never in the panel. A tag sits only on a segment `drawView` tagged for its feature (inv 16); tagging never changes a segment, its order
+- **`featureKeys.ts` / `planKeys.ts`** (feature callouts): a key line is built only in `partFeatures` (its sources: the tree), never in the panel. A tag sits only on a segment `drawView` tagged for its feature (inv 16); tagging never changes a segment, its order
   or the visible/hidden split (`drawingIdentity.test` hashes the drawing with tags stripped). Angle cuts are tagged by
   plane membership (`keptHalfSpace`'s plane is `n·x + d = 0`), so `bodyEdges` is untouched. A part's features are keyed by the innermost
-  LISTED assembly's trio (`keyed`), so each feature once per sheet (view order, merging and pushing: `docs/module-map.md`).
+  LISTED assembly's trio (`keyed`), so each feature once per sheet (view order, merging and pushing: the tree).
 - **`pocket.ts`**: `pocketFor` stores each of its OWN numbers within EPS of a 1/64" or 0.1 mm grid point AS that point's float
-  (`onGrid`, dyadic first; fu 216; why: `docs/module-map.md`). A `storedAsShape` re-store after it is off-grid but deterministic (fu 382); never snap after it, and
+  (`onGrid`, dyadic first; fu 216; why: the tree). A `storedAsShape` re-store after it is off-grid but deterministic (fu 382); never snap after it, and
   never round the row key instead.
 - **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
   must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
@@ -646,7 +646,7 @@ Moved from `CLAUDE.md` on 2026-10-26, verbatim; `CLAUDE.md` lists the files. Eac
   error, null when nothing was spent; every spent cost prints through `formatCost` (`< $0.01`, never `≈ $0.00`; fu 168).
 - **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
   `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
-  `setKerf` refuses a kerf outside [0, 1) (fu 98; why: `docs/module-map.md`).
+  `setKerf` refuses a kerf outside [0, 1) (fu 98; why: the tree).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
 - **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
   post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
@@ -665,12 +665,12 @@ Moved from `CLAUDE.md` on 2026-10-26, verbatim; `CLAUDE.md` lists the files. Eac
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
   `storage.available` (the ADAPTER flag, never React's `available`; fu 159). A row click closes the menu at once; a failed open
-  reopens it on that row with the message, focus on the caret (fu 35; `onOpen`: `docs/module-map.md`). Escape focuses the
+  reopens it on that row with the message, focus on the caret (fu 35; `onOpen`: the tree). Escape focuses the
   caret before closing (fu 152).
 - **`GuidesList.tsx`** has no selection model, deliberately.
 - **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
   Escape is bound on its subtree with `stopPropagation`, never on window (inv 27).
-  ProjectMenu keeps its own copy, with the same fu 250 guard (`docs/module-map.md`).
+  ProjectMenu keeps its own copy, with the same fu 250 guard (the tree).
 - **`styles.css`**: rules read surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…),
   never raw `--grey-*`/`--walnut-*`; grey chrome re-points the roles in one context selector.
 - **`App.tsx` keys**: plain and Shift+H match by `e.key`; only Alt+H by `e.code === 'KeyH'`;
