@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { useStore, LEAN_NOT_UPRIGHT, LEAN_PAST_BOUND, LEAN_TURNS_HOLES } from '../store/store';
+import { useStore, LEAN_NOT_UPRIGHT, LEAN_PAST_BOUND, LEAN_TURNS_HOLES, LEAN_SET_TURNS_HOLES } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
 import { slopeOf } from '../document/lean';
@@ -203,6 +203,80 @@ describe('the Lean section (splayed legs spec §4)', () => {
   });
 });
 
+describe('the Set select (square-set legs spec §3.2)', () => {
+  const SQUARE = 'Square to the sides';
+  const TURNED = 'Turned to the lean (one-cut ends)';
+  const set = () => screen.getByLabelText('Set') as HTMLSelectElement;
+
+  it('shows on a leaning part with both options, reading the stored setting', () => {
+    open([leg()]);
+    expect(screen.getByRole('option', { name: SQUARE })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: TURNED })).toBeInTheDocument();
+    expect(set().value).toBe('turned');
+  });
+
+  it('reads square on a square-set part and is absent on a part that does not lean', () => {
+    open([leg({ lean: { ...LEAN, square: true } })]);
+    expect(set().value).toBe('square');
+  });
+
+  it('is absent on a part that does not lean', () => {
+    open([leg({ lean: undefined })]);
+    expect(screen.queryByLabelText('Set')).toBeNull();
+  });
+
+  it('choosing an option calls setLean with { square } alone', async () => {
+    const setLean = vi.fn(() => null);
+    open([leg()]);
+    act(() => useStore.setState({ setLean }));
+    await userEvent.setup().selectOptions(set(), 'square');
+    expect(setLean).toHaveBeenCalledTimes(1);
+    expect(setLean).toHaveBeenCalledWith(['a'], { square: true });
+  });
+
+  it('turned writes square: false', async () => {
+    const setLean = vi.fn(() => null);
+    open([leg({ lean: { ...LEAN, square: true } })]);
+    act(() => useStore.setState({ setLean }));
+    await userEvent.setup().selectOptions(set(), 'turned');
+    expect(setLean).toHaveBeenCalledWith(['a'], { square: false });
+  });
+
+  it('a real change stores it', async () => {
+    open([leg()]);
+    await userEvent.setup().selectOptions(set(), 'square');
+    expect(part('a').lean).toEqual({ ...LEAN, square: true });
+    expect(set().value).toBe('square');
+  });
+
+  it('a refusal shows as an alert and the select returns to the stored value', async () => {
+    open([leg({ holes: [HOLE] })]);
+    await userEvent.setup().selectOptions(set(), 'square');
+    expect(screen.getByRole('alert')).toHaveTextContent(LEAN_SET_TURNS_HOLES);
+    expect(set().value).toBe('turned');
+    expect(part('a').lean).toEqual(LEAN);
+  });
+
+  it('the stale note appears after a Set change on a levelled leg', async () => {
+    open([leg()]);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Level the ends' }));
+    expect(screen.queryByText(STALE)).toBeNull();
+    await userEvent.setup().selectOptions(set(), 'square');
+    expect(screen.getByText(STALE)).toBeInTheDocument();
+  });
+
+  it('is disabled while exploded (EditLock)', () => {
+    open([leg()]);
+    act(() => useStore.getState().setExplode(1));
+    expect(set().closest('fieldset')).toBeDisabled();
+  });
+
+  it('reads mixed when the selection disagrees', () => {
+    open([leg(), leg({ id: 'b', name: 'Leg 2', position: [5, 2, 0], lean: { ...LEAN, square: true } })], ['a', 'b']);
+    expect(set().value).toBe('');
+  });
+});
+
 describe('the Holes panel on a leaning part (angled holes §7)', () => {
   it('a leaning part takes a hole', async () => {
     open([leg()]);
@@ -219,6 +293,7 @@ describe('the refusal copy is pinned verbatim (Global Constraints)', () => {
   it('lean and hole refusals', () => {
     expect(LEAN_NOT_UPRIGHT).toBe('Only an upright part can lean.');
     expect(LEAN_PAST_BOUND).toBe("The lean can't pass 45° in all — reduce the rake or splay.");
+    expect(LEAN_SET_TURNS_HOLES).toBe('Changing how this leg is set would turn it about its length and move its holes — remove the holes first.');
     expect(LEAN_TURNS_HOLES).toBe('This lean would turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.');
   });
   it('posture while leaning', () => {

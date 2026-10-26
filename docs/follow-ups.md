@@ -7187,6 +7187,18 @@ holes (chunk 2) are built.
 not, no coverage threshold) when the partner reaches the floor without it, so a rung tenoned into two legs' sockets is held by
 either joint; `partAxis` already gives any part's world axis and `boreAlongAxis` the coaxial test (inv 50). Watch fu 461 (first
 match wins): a rung's tenon through one leg's through socket into a second part reports a false overlap.
+**Status:** open (feature-sized; chunk 3), amended 2026-10-26 (square-set legs records): stretchers RESUME ON SQUARE-SET LEGS.
+Stretchers' own Task 2 found what its spec missed (square-set legs spec §0): a compound lean twists a TURNED square leg about its
+axis (`m = T · Ry(τ)`, about 33.5° on the 8°/12° stool), so a level rung meets the leg's face about 34° askew — bored through the
+leg's centre, a 5/8" socket breaks out of the leg's side and only 3/8" fits. The user chose "Untwisted legs first": square-set legs
+and compound level cuts (splayed legs chunk 2c, schema 25, inv 59) are BUILT on branch `square-legs`, not merged or deployed. On a
+square-set stool a level rung meets a leg face within about 1° (0.83° at 8°/12°), so the stretchers spec stands as written (5/8"
+sockets centred, the ~0.2" shoulder gap); when chunk 3 resumes, Add stretcher refuses a TURNED leg with `Set <Leg> square to the
+sides first (Lean).` (square-set legs spec §5, the builder's call, recorded there), and its fixture is the square-set stool
+(`squareStoolDocument`, `stoolFixture.ts`). Branch `stretchers` is parked at its Task 1 (`52e975f`, the bore core in
+`legSockets.ts`), to rebase onto master after square-set legs merges (the overlap is small: `legSockets.ts`' `sameCuts` reads
+`sameLevelLine`, which now compares `across`). Square-set legs took invariant 59, so the stretchers spec's "inv 58 clause or a new
+inv 59" (its §9, Records) becomes inv 58 or a new inv 60.
 
 **439. The `hangs` sentence for a grounded leaning part off the floor.** A leaning part that is grounded through other parts but does
 not reach the floor (a leg whose foot stops short and hangs from the seat) reports the existing `hangs` message — "its X sides are
@@ -7488,3 +7500,64 @@ end face: 360/352 unmatched edges; `faceTriangles` documents T-junctions for a t
 part's mesh is WATERTIGHT" in that one tangent case. Remedies to weigh: a closed tenon zone test (touching counts as meeting, the
 tenon faults), or conforming the shoulder plane to a tangent bore's rim.
 **Status:** open (record-only; by eye first — a crack at a tangent rim may be invisible).
+
+## From the square-set legs round (splayed legs chunk 2c) — 2026-10-26
+
+**470. A hand-authored compound miter (spec §2 non-goal, §6).** Only Level the ends on a square-set leg makes a compound miter
+(`across`, inv 59). The Angles row shows its bench line and Remove only (`miterFields` is null for one; `miterCut` never writes
+one), so a woodworker who needs a compound end cut anywhere else cannot type one. A writer would need a second-slope control (an
+`Across` angle beside `Angle`), the loader's bound (`rise ≤ 1 + 1e-9`) as the field's bound, and the existing refusal sentence
+(`Removes more than the <dimension> — reduce the <control> first.`) judged on `deepestCorner`.
+**Status:** open (feature; ask first).
+
+**471. A compound bevel, chamfer or taper (spec §2 non-goal).** `across` is legal only on an end miter (`kind 'miter'`, `face
+'length'`): the loader drops the CUT otherwise. A bevel or chamfer sloping across its third dimension, or a taper that does, has
+no stored form. Every reader of `across` (inv 48's plane, `deepestCorner`, `touchedRegion`, the text, the diagram) is written for
+the general affine depth, but the loader gate, `miterFields`' null and `compoundRefusal`'s rationale (only Level the ends makes
+one) are miter-only.
+**Status:** open (feature-sized; needs a spec).
+
+**472. A compound cut drawn in no part diagram (ruling T5c; Task 5 review M1).** `compoundWedges` (`diagram.ts`) draws a compound
+cut on each cross face's EXISTING views, opening a view only when neither side of that face exists. When every existing view of a
+face is on the side where the wedge is empty, nothing is drawn on that face and no other side is opened. Reached only by a cut
+that bites at one across corner on a part whose other features opened exactly those wrong-side views (Review Focus 1's
+corner-only cut with a dado on `thickness|min` and another on `width|max`): the cut, and its bench-line note, then appear in no
+diagram. Candidate: when a face's
+existing views all come back empty, open its other side.
+**Status:** open (record-only; a rare missing wedge).
+
+**473. Square-set legs copy review (for the user).** Every new string is the spec's (quoted there as the builder's calls, marked
+"my call") or the builder's: (1) the bench line `Compound miter at the length <min|max> end: <a>° across the <along>, <b>° across
+the <through>, long corner at the <along> <min|max> side and the <through> <min|max> side` (the long corner added after the final
+review, ruling TFa, so mirror twins differ; the square stool's feet: Front right `Compound miter at the length min end: 12.0° across
+the width, 8.0° across the thickness, long corner at the width max side and the thickness max side`, Front left `Compound miter at the length min end: 12.0° across the width, 8.0° across
+the thickness, long corner at the width min side and the thickness max side`); the Angles row's head still reads `Miter` above it (the head is the kind, capitalised; Task 5 review M2). (2) The
+Plans feature key `Compound miter <a>° × <b>°` (ruling T5a, along then across, the chamfer's `a × b` form). (3) The Lean
+section's Set select: label `Set`, options `Square to the sides` / `Turned to the lean (one-cut ends)`, and `mixed`. (4) The Set
+refusal `Changing how this leg is set would turn it about its length and move its holes — remove the holes first.` (5) The three
+refusals: `Add joinery can't join a part with a compound end cut yet: <name>.`, `Repair can't join a part with a compound end cut
+yet: <name>.`, `Refine can't keep joints with a part with a compound end cut yet: <name>.` (6) Model-facing only: Refine's kept
+note line `"<leg>" has a compound end cut and is kept as is:` (ruling T6a), under a header that still reads `These parts lean or
+have angled holes, which the design format cannot describe` for a cleared leg kept for nothing else (Task 6 review M1; the spec
+said the kept-list wording does not change, and `keptNote`'s header already has a tenon conditional, so a compound one is cheap).
+(7) Final review M2: Refine's assembly refusal (`refineDesign.ts`, `lean-assembly`) reads `Refine can't keep a leaning part, a part
+with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: <name>.` for a cleared square-set leg (Level
+the ends, then Clear lean) inside an assembly, which is none of those: it is kept for its compound end cut alone. The refusal itself is
+the accepted knock-on (builder check Q3); only the sentence misdescribes it. Candidate: add `or a part with a compound end cut`, or
+make it conditional as `keptNote`'s header is. No code change made.
+**Status:** open (owed to the user: wording).
+
+**474. Square-set legs: deferred minors (2026-10-26, the SDD ledger and task reviews).** (1) Task 6 review M2: `whyKept` names a
+compound end cut only when no other reason applies, so a part with a tilted row AND a compound cut is described by the tilt alone
+(harmless: both mean kept as is). (2) Task 5 review M3: `angleText.test.ts`' square-stool short-point test cannot fail on a `t`
+flip (the foot's and top's across terms cancel at every corner, their `across.from` opposite); the hand-built one-end cut is the
+discriminating test — a comment there would say so. (3) Task 5: the ISO tag test passes with the across term dropped from
+`keptHalfSpace` (the FRONT and SIDE floor-edge tests are the ones that go red), and the Clear lean panel test has no mutation of its
+own (the stool's levelled lines were already offset, so `miterFields` was null before the compound guard). (4) Task 4 review M4:
+the along tie (rake = splay) rests on the 1e-9 tolerance in `levelPlan` (the two slopes are equal only to float precision); a
+mutation removing it went red; ACCEPTED as designed. (5) Task 6: `rebaseAngleCuts`' `{ ...c, points }` spread would SHARE an
+`across` object by reference if it were ever reached for a compound cut (unreachable: every production path to it sits behind
+`compoundRefusal`, inv 41). (6) Task 3: a Set change keeps the stored, seam-free `face` (spec §3.1), so a leg first leaned
+square-set and later switched to turned faces whatever `chooseFace` picked at its first lean. (7) Task 2: `tipFarthest`,
+`deepestDepth` and `overruns` were exported for direct pins (ruling T2a).
+**Status:** open (record-only).

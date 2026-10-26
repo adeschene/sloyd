@@ -632,6 +632,19 @@ describe('sectionCaps: a leaning part (splayed legs spec §6.2)', () => {
     }
   });
 
+  it('a Set change (square-set legs §3.2) rebuilds the cached cap: same id, slopes, face, turn and pivot, never stale', () => {
+    // The cache slot is keyed by part id, axis and side; only the `square` term of its geo key tells the two maps apart.
+    const turned = legAt(0, { id: 'set-change' });
+    const square: Board = { ...turned, lean: { ...turned.lean!, square: true } };
+    const sec: Section = { axis: 'top', at: axisOf(turned).mid(1), flip: false };
+    const a = sectionCaps(turned, sec)!;
+    const b = sectionCaps(square, sec)!;
+    expect(b).not.toEqual(a);
+    expect(b).toEqual(sectionCaps({ ...square, id: 'set-change-cold' }, sec));
+    // And back: the turned cap again, not the square one.
+    expect(sectionCaps(turned, sec)).toEqual(sectionCaps({ ...turned, id: 'set-change-cold-turned' }, sec));
+  });
+
   /** Independent of the caps: the drawn point mapped back through the lean, then the unleaned part's inside-test. */
   function sweepLeaning(b: Board) {
     const map = leanMap(b)!;

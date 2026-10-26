@@ -1,6 +1,6 @@
 import type { AngleConflict, AngleCut, Board, FlatDocument, Region, SloydDocument, TaperConflict } from '../../document/document';
 import { flatDocument, jointRefusal } from '../../document/document';
-import { taperFields, throughOf, touchedRegion } from '../../document/angleCuts';
+import { hasCompoundCut, taperFields, throughOf, touchedRegion } from '../../document/angleCuts';
 import { axisDimensions, endFacing, spanFromWorldOffset } from '../../document/geometry';
 import { TOUCH, jointViolations, worldBox } from '../../document/designCheck';
 import type { Violation } from '../../document/designCheck';
@@ -160,15 +160,34 @@ export function tenonRefusal(entry: JoineryEntry, flat: FlatDocument): string | 
   return b ? TENON_TEXT[entry](b.name) : null;
 }
 
+const COMPOUND_TEXT: Record<JoineryEntry, (name: string) => string> = {
+  joinery: (n) => `Add joinery can't join a part with a compound end cut yet: ${n}.`,
+  repair: (n) => `Repair can't join a part with a compound end cut yet: ${n}.`,
+  refine: (n) => `Refine can't keep joints with a part with a compound end cut yet: ${n}.`,
+};
+
+/**
+ * The compound-cut refusal (square-set legs spec §4), `joineryRefusal`'s THIRD step, after `tenonRefusal`: a document
+ * with a part carrying a compound end miter (`hasCompoundCut`) is refused whole, naming its first such part in flat
+ * order. Only Level the ends makes one, on a leaning part (refused by the first step), so it fires only after Clear lean;
+ * `rebaseAngleCuts` and the box-based read-back are then never reached for one. A flat part is resolved, so a Shape's cut
+ * counts for every user. Exported for the same two callers as `tenonRefusal` (Repair and a joined Refine). Pure.
+ */
+export function compoundRefusal(entry: JoineryEntry, flat: FlatDocument): string | null {
+  const b = flat.boards.find(hasCompoundCut);
+  return b ? COMPOUND_TEXT[entry](b.name) : null;
+}
+
 /**
  * THE joinery refusal (AI-tapers spec §4.2; AI-angles spec §3; splayed legs spec §8): a leaning part first
- * (`leaningRefusal`, in `entry`'s words), then a part with a round tenon (`tenonRefusal`, likewise), then every taper or other angle cut running into a joint, one sentence per part,
+ * (`leaningRefusal`, in `entry`'s words), then a part with a round tenon (`tenonRefusal`, likewise), then a part with a
+ * compound end cut (`compoundRefusal`, likewise), then every taper or other angle cut running into a joint, one sentence per part,
  * else null. `runJoinery`, the dialog and a joined Refine all call it, so they refuse in the same words. Holes, curves,
  * profiles and bands no longer refuse (joinery-features spec §3): `featureAllowed` narrows the sites. Decided before any
  * call or mutation. `doc` is kept for the callers; only `flat` is read.
  */
 export function joineryRefusal(entry: JoineryEntry, doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
-  return leaningRefusal(entry, flat) ?? tenonRefusal(entry, flat) ?? jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
+  return leaningRefusal(entry, flat) ?? tenonRefusal(entry, flat) ?? compoundRefusal(entry, flat) ?? jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 
 /** The angle-at-joint rule on a DESIGN (AI-tapers spec 5.3; AI-angles spec §5.4): every conflict as an `angle-joint` fault, for evaluateDesign and Refine's preexisting set. */

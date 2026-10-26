@@ -7,7 +7,7 @@ import { holeFaults } from './holeFaults';
 import { edgeName, holePitchText, holeSizeText } from './holeText';
 import { isTilted } from './holeTilt';
 import { angleDegrees } from './angleText';
-import { angleCutRemovesNothing, chamferFields, depthAt, keptHalfSpace, taperFields } from './angleCuts';
+import { angleCutRemovesNothing, chamferFields, deepestCorner, depthAt, keptHalfSpace, miterDegrees, taperFields } from './angleCuts';
 import { archFields, bowFields, cornerFields, localSegments, spanOf } from './curves';
 import { curveFaulted, curveLineEntries, filletWords, profileName, sweptRun } from './curveText';
 import { endToEnd, geometryBoard, profileFields, viewProfileFaults } from './profiles';
@@ -51,14 +51,16 @@ function holeText(r: HoleRow, units: Units): string {
   return r.count === 1 ? `Hole ${size}` : `Row of ${r.count} holes, ${size}, every ${holePitchText(r, units)}`;
 }
 
-/** An angle cut a later resize pushed past its part: its line runs deeper than the dimension it enters (fu 296's note). */
-const overruns = (b: Board, c: AngleCut) => Math.max(depthAt(c, 0), depthAt(c, b[c.along])) > b[c.face] + 1e-9;
+/** An angle cut a later resize pushed past its part: its line runs deeper than the dimension it enters (fu 296's note),
+ *  at its deepest corner (`deepestCorner`: a compound cut's full depth). */
+export const overruns = (b: Board, c: AngleCut) => deepestCorner(c, b) > b[c.face] + 1e-9;
 
 function angleText(b: Board, c: AngleCut, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   const deg = `${angleDegrees(c).toFixed(1)}°`;
   switch (c.kind) {
-    case 'miter': return `Miter ${deg}`;
+    // A compound miter (square-set legs §4) keys both angles — along, then across — as the bench line orders them.
+    case 'miter': return c.across ? `Compound miter ${deg} × ${miterDegrees(Math.abs(c.across.rise)).toFixed(1)}°` : `Miter ${deg}`;
     case 'bevel': return `Bevel ${deg}`;
     case 'chamfer': {
       const cf = chamferFields(c, b);

@@ -32,7 +32,7 @@ import { toWorld } from '../document/snapPoints';
 import { worldBodies } from '../document/drawing';
 import { sameSet } from '../document/turnFixtures';
 import { axisDimensions } from '../document/geometry';
-import { stoolDocument, stoolSeat } from '../document/stoolFixture';
+import { clearedSquareStoolDocument, stoolDocument, stoolSeat } from '../document/stoolFixture';
 import { leanMap } from '../document/lean';
 import { tenonFaults } from '../document/roundTenons';
 
@@ -1563,6 +1563,23 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     expect(out.doc.boards[0]).toEqual(before);
     expect((out.doc.boards[0] as Board).tenons).toEqual(tenons);
     expect(out.leaning).toEqual({ kept: ['Rung'], replaced: ['Rung'] });
+  });
+
+  it('Refine keeps a cleared square-set leg\'s compound end cuts verbatim (square-set legs spec §4; Review Focus 4)', async () => {
+    const doc = clearedSquareStoolDocument();
+    expect(worldParts(doc).some((b) => b.lean)).toBe(false);
+    const across = (d: SloydDocument) => worldParts(d).filter((b) => LEGS.includes(b.name)).map((b) => b.angleCuts.map((c) => c.across));
+    expect(across(doc).flat().every((a) => a !== undefined)).toBe(true);
+    const { client } = fakeClient([{ name: 'Stool', parts: [seat('Seat'), bx('Front right', [4, 0, 4], [1.5, 16, 1.5]), bx('Shelf', [-3, 6, -3], [6, 0.75, 6])], assemblies: [] }]);
+    const out = await ok(client, doc);
+    for (const n of LEGS) expect(out.doc.boards.find((b) => b.name === n)).toEqual(doc.boards.find((b) => b.name === n));
+    // The cuts live on the Shapes (a shared field): those come back too, `across` and all.
+    expect(out.doc.shapes.filter((s) => doc.shapes.some((o) => o.id === s.id))).toEqual(doc.shapes);
+    expect(across(out.doc)).toEqual(across(doc));
+    expect(flatDocument(out.doc).boards.filter((b) => b.name === 'Front right')).toHaveLength(1);
+    expect(out.leaning).toEqual({ kept: LEGS, replaced: ['Front right'] });
+    // designDiff reads both sides' kept part, the same stored record: no angle line for any kept leg.
+    expect(out.changes.filter((c) => LEGS.includes(c.name))).toEqual([]);
   });
 
   it('a lean-free Refine reports nothing kept', async () => {

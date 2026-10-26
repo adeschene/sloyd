@@ -17,15 +17,17 @@ export const ANGLE_KINDS: AngleKind[] = ['taper', 'miter', 'bevel', 'chamfer'];
  * `tsc` here until it is listed.
  */
 export const ANGLE_CUT_FIELDS = {
-  kind: true, face: true, from: true, along: true, alongFrom: true, points: true,
+  kind: true, face: true, from: true, along: true, alongFrom: true, points: true, across: true,
 } as const satisfies Record<Exclude<keyof AngleCut, 'id'>, true>;
 
 export const ANGLE_CUT_KEYS = Object.keys(ANGLE_CUT_FIELDS) as (keyof typeof ANGLE_CUT_FIELDS)[];
 
-/** One angle cut's comparable values, in ANGLE_CUT_KEYS order, `points` flattened. */
+/** One angle cut's comparable values, in ANGLE_CUT_KEYS order, `points` and `across` flattened. An absent `across`
+ *  adds NOTHING (it is last), so a single-slope cut's values are byte for byte as before schema 25. */
 export function angleCutValues(c: Omit<AngleCut, 'id'>): (string | number)[] {
   return ANGLE_CUT_KEYS.flatMap((k): (string | number)[] => {
     if (k === 'points') return [c.points[0][0], c.points[0][1], c.points[1][0], c.points[1][1]];
+    if (k === 'across') return c.across ? [c.across.rise, c.across.from] : [];
     return [c[k]];
   });
 }
@@ -37,10 +39,16 @@ export function sameAngleCut(a: AngleCut, b: AngleCut): boolean {
   return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
-/** A copy sharing no array with the original, so no two parts ever hold one cut's points. */
+/** A copy sharing no array or object with the original, so no two parts ever hold one cut's points or `across`. */
 export function copyAngleCut(c: AngleCut): AngleCut {
-  return { ...c, points: [[c.points[0][0], c.points[0][1]], [c.points[1][0], c.points[1][1]]] };
+  const out: AngleCut = { ...c, points: [[c.points[0][0], c.points[0][1]], [c.points[1][0], c.points[1][1]]] };
+  if (c.across) out.across = { rise: c.across.rise, from: c.across.from };
+  return out;
 }
+
+/** A part with a compound end cut (square-set legs spec §4): a miter whose depth also slopes across its through dimension
+ *  (`across`). The ONE predicate: joinery's refusal (`compoundRefusal`) and Refine's keep (`keepsExactly`) read it. */
+export const hasCompoundCut = (b: Pick<Board, 'angleCuts'>): boolean => b.angleCuts.some((c) => c.across !== undefined);
 
 /** The dimension the cut runs straight through. */
 export function throughOf(c: Pick<AngleCut, 'face' | 'along'>): Dimension {
@@ -51,6 +59,31 @@ export function throughOf(c: Pick<AngleCut, 'face' | 'along'>): Dimension {
 export function depthAt(c: Pick<AngleCut, 'points'>, s: number): number {
   const [[s1, q1], [s2, q2]] = c.points;
   return q1 + ((q2 - q1) * (s - s1)) / (s2 - s1);
+}
+
+/**
+ * The FULL depth into `face` at station `s` (from `alongFrom`'s end) and cross position `t` (from `across.from`'s side,
+ * along `throughOf(c)`): `depthAt(c, s) + rise · (t − T/2)`, anchored at the through dimension's centre (square-set legs
+ * spec §3.1), so on the part's centre line it is `depthAt` exactly. A single-slope cut returns `depthAt(c, s)` itself,
+ * with no arithmetic added (byte for byte as before schema 25). Every reader that wants a corner's or a disc edge's depth
+ * calls this, never `depthAt`.
+ */
+export function depthAtCross(c: Pick<AngleCut, 'points' | 'face' | 'along' | 'across'>, b: Pick<Board, Dimension>, s: number, t: number): number {
+  if (!c.across) return depthAt(c, s);
+  return depthAt(c, s) + c.across.rise * (t - b[throughOf(c)] / 2);
+}
+
+/**
+ * The deepest the cut reaches into `face` over the part's section: the full depth is affine in station and cross
+ * position, so its greatest value is at one of the four corners (at `t = T` for a stored `rise > 0`). A single-slope cut
+ * reads the two ends of `along` exactly as before schema 25.
+ */
+export function deepestCorner(c: AngleCut, b: Pick<Board, Dimension>): number {
+  if (!c.across) return Math.max(depthAt(c, 0), depthAt(c, b[c.along]));
+  // Every corner, not only t = T: the loader keeps rise > 0 only, but a Board built in code is answered, not trusted.
+  const T = b[throughOf(c)];
+  const A = b[c.along];
+  return Math.max(depthAtCross(c, b, 0, 0), depthAtCross(c, b, 0, T), depthAtCross(c, b, A, 0), depthAtCross(c, b, A, T));
 }
 
 /** The station where the line reaches depth 0; NaN when the depths are equal (the line never does). */
@@ -66,7 +99,11 @@ const sign = (f: CutFrom) => (f === 'min' ? 1 : -1);
  * The cut's KEPT side as a half-space n·x + d >= 0 in board-local inches,
  * |n| = 1 (angle-cuts spec §2.2). With q(x) the depth from the `from` face and
  * s(x) the station from `alongFrom`'s end, the kept side is
- * q(x) − depthAt(s(x)) >= 0. Null for equal stations (validation drops such a
+ * q(x) − depthAt(s(x)) >= 0. A compound cut (schema 25) also subtracts its across
+ * term, rise · (t(x) − T/2) with t(x) the position from `across.from` along
+ * `throughOf(c)`: the kept side is q(x) − depthAtCross(s(x), t(x)) >= 0, so every
+ * plane reader (bodies, probes, snapping, hole faults, drawing tags, diagram
+ * polygons) follows. Null for equal stations (validation drops such a
  * cut; a Board built in code is answered, not thrown at).
  */
 export function keptHalfSpace(board: Pick<Board, Dimension>, c: AngleCut): { n: V3; d: number } | null {
@@ -81,18 +118,31 @@ export function keptHalfSpace(board: Pick<Board, Dimension>, c: AngleCut): { n: 
   n[DIMENSION_ORDER.indexOf(c.face)] = sf;
   n[DIMENSION_ORDER.indexOf(c.along)] = -k * sa;
   const d = cf - q1 - k * (ca - s1);
-  const len = Math.hypot(1, k);
-  return { n: [n[0] / len, n[1] / len, n[2] / len], d: d / len };
+  if (!c.across) {
+    const len = Math.hypot(1, k);
+    return { n: [n[0] / len, n[1] / len, n[2] / len], d: d / len };
+  }
+  // The across term (square-set legs spec §3.1): t(x) = st·x + ct, and the kept side loses rise · (t(x) − T/2).
+  const { rise } = c.across;
+  const through = throughOf(c);
+  const st = sign(c.across.from);
+  const ct = c.across.from === 'min' ? 0 : board[through];
+  n[DIMENSION_ORDER.indexOf(through)] = -rise * st;
+  const dx = d - rise * (ct - board[through] / 2);
+  const len = Math.hypot(1, k, rise);
+  return { n: [n[0] / len, n[1] / len, n[2] / len], d: dx / len };
 }
 
 /**
- * True when the cut takes no stock out of this part: its line is at or below
- * depth 0 at both ends of `along` (linear, so nowhere in between is deeper).
- * Kept in the document and noted in Properties (spec §2.3); never dropped on load.
- * `!(x > 0)` so a NaN counts as nothing removed.
+ * True when the cut takes no stock out of this part: its full depth is at or
+ * below 0 at every corner of the section (`deepestCorner`; affine, so nowhere in
+ * between is deeper). A compound cut biting at one across corner only removes
+ * stock (square-set legs Review Focus 1). Kept in the document and noted in
+ * Properties (spec §2.3); never dropped on load. `!(x > 0)` so a NaN counts as
+ * nothing removed.
  */
 export function angleCutRemovesNothing(board: Pick<Board, Dimension>, c: AngleCut): boolean {
-  return !(Math.max(depthAt(c, 0), depthAt(c, board[c.along])) > 0);
+  return !(deepestCorner(c, board) > 0);
 }
 
 /** The angle cuts that actually remove stock — what the cut list prints and groups by. */
@@ -100,19 +150,31 @@ export function angleCutsThatRemoveStock(board: Board): AngleCut[] {
   return board.angleCuts.filter((c) => !angleCutRemovesNothing(board, c));
 }
 
+/** The cut's line on its deepest cross line (`t = T`): a compound cut's points shifted by rise · T/2; a single-slope
+ *  cut is its own line (the same object, so its readers are byte for byte as before). */
+function deepestLine(c: AngleCut, b: Pick<Board, Dimension>): Pick<AngleCut, 'points'> {
+  if (!c.across) return c;
+  const h = (Math.abs(c.across.rise) * b[throughOf(c)]) / 2; // the deeper side for either sign (a Board built in code)
+  const [[s1, q1], [s2, q2]] = c.points;
+  return { points: [[s1, q1 + h], [s2, q2 + h]] };
+}
+
 /**
  * The smallest board-local box holding every point the cut can remove (AI-angles spec §2.1): along `along`, the
  * stations where the line is deeper than 0; into `face`, from the `from` face to the line's greatest depth there
  * (clamped to the dimension); all of `throughOf(c)`. Depth is linear in station, so the greatest depth is at an end.
+ * A compound cut (schema 25) is read on its DEEPEST cross line (`t = T` for `rise > 0`): the line shifted by |rise| · T/2,
+ * which is at or above the full depth at every cross position of its station.
  * Null for a cut that removes nothing. Board-local: a caller crosses it to world space through `worldBox` (invariant 44).
  */
 export function touchedRegion(board: Pick<Board, Dimension>, c: AngleCut): Region | null {
   if (angleCutRemovesNothing(board, c)) return null;
   const A = board[c.along];
   const F = board[c.face];
-  const d0 = depthAt(c, 0);
-  const d1 = depthAt(c, A);
-  const z = Math.min(A, Math.max(0, zeroStation(c)));
+  const line = deepestLine(c, board);
+  const d0 = depthAt(line, 0);
+  const d1 = depthAt(line, A);
+  const z = Math.min(A, Math.max(0, zeroStation(line)));
   // Stations from `alongFrom` where the line is deeper than 0: up to (or from) its zero, or all of `along`.
   const lo = d0 > 0 ? 0 : z;
   const hi = d1 > 0 ? A : z;
@@ -170,12 +232,15 @@ const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
  * are measured from `alongFrom` and depths from `from`, so a reflection is a
  * flag flip and NO arithmetic (angle-cuts spec 5.2; invariant 44's one hand
  * reflection stays `mirrorCutAlong`, for rectangular cuts). Exact, and an
- * involution. Always a fresh object with fresh points.
+ * involution. Always a fresh object with fresh points. Along the through
+ * dimension only a compound cut changes: `across.from` flips (square-set legs
+ * spec §3.1); a single-slope cut runs straight through it and is unchanged.
  */
 export function mirrorAngleCut(c: AngleCut, d: Dimension): AngleCut {
   const out = copyAngleCut(c);
   if (c.face === d) out.from = flip(c.from);
   else if (c.along === d) out.alongFrom = flip(c.alongFrom);
+  else if (out.across) out.across.from = flip(out.across.from);
   return out;
 }
 
@@ -249,14 +314,31 @@ export function miterLongSide(c: AngleCut, board: Pick<Board, Dimension>): CutFr
 }
 
 /**
+ * A COMPOUND miter's long corner (ruling TFa, square-set legs final review M1): the corner of the end face where the end
+ * is longest — the least full depth, the corner a woodworker marks first. The single miter's long-point rule
+ * (`miterLongSide`, ties to `alongFrom`) picks the `along` side; `depthAtCross` at that station then picks the through
+ * side (ties to `across.from`). The full depth is affine and separable in station and cross position, so the two choices
+ * together are the corner minimum. Null for a single-slope cut.
+ */
+export function compoundLongCorner(c: AngleCut, board: Pick<Board, Dimension>): { along: CutFrom; through: CutFrom } | null {
+  if (!c.across) return null;
+  const along = miterLongSide(c, board);
+  const s = along === c.alongFrom ? 0 : board[c.along];
+  const through = depthAtCross(c, board, s, 0) <= depthAtCross(c, board, s, board[throughOf(c)]) ? c.across.from : flip(c.across.from);
+  return { along, through };
+}
+
+/**
  * The shop numbers of a stored miter. The long point is the side where the line is shallower; the ratio is read
  * straight off the stored points (no trigonometry), so editing only the end or side keeps it exactly. A miter whose
  * `along` is somehow `length` (hand-edited) reads as across the width. Editing rewrites it canonically via `miterCut`.
  * Null for an OFFSET line (fu 297; hand-edited: depth 0 at neither side of `along`), as `bevelFields` is: the row then
- * shows the line and Remove, never a control whose first edit would rewrite it into a different cut.
+ * shows the line and Remove, never a control whose first edit would rewrite it into a different cut. Null too for a
+ * COMPOUND miter (`across`, square-set legs §4): the row has no control for its second slope, and `miterCut` never writes one.
  */
 export function miterFields(c: AngleCut, board: Pick<Board, Dimension>): MiterFields | null {
   const eps = 1e-9;   // local, as bevelFields' (bodies.ts imports this module)
+  if (c.across) return null;
   if (!(Math.abs(depthAt(c, 0)) <= eps || Math.abs(depthAt(c, board[c.along])) <= eps)) return null;
   const across = c.along === 'thickness' ? 'thickness' : 'width';
   const [[s1, q1], [s2, q2]] = c.points;

@@ -1,6 +1,8 @@
 import { IMPERIAL, imperialAt } from '../units/length';
 import { buildDiagrams, createBoard } from './document';
-import type { Board, Cut } from './document';
+import type { AngleCut, Board, Cut, DiagramView } from './document';
+import { depthAtCross, throughOf } from './angleCuts';
+import { squareStoolLegs } from './stoolFixture';
 import { axisFrame } from './geometry';
 import type { Dimension, HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
 import { canonicalRun, geometryBoard, profileCurve, PROFILE_KINDS } from './profiles';
@@ -347,6 +349,65 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
     expect([v.horizontal, v.vertical]).toEqual(['width', 'thickness']);
     const pts = v.angles[0]!.poly.map(([h, t]) => `${Math.round(h * 1e9) / 1e9},${Math.round(t * 1e9) / 1e9}`).sort();
     expect(pts).toEqual(['0,0', '0,0.5', '1.75,0'].sort());
+  });
+});
+
+describe('a compound miter in the part diagrams (square-set legs §4)', () => {
+  const key = (pts: [number, number][]) => pts.map(([a, b]) => `${Math.round(a * 1e9) / 1e9},${Math.round(b * 1e9) / 1e9}`).sort();
+  /** The wedge an end cut leaves on one side face, from `depthAtCross` at that face's two corners (never the plane):
+   *  h = length, v = the face's other cross dimension, the face itself at `from`'s side. */
+  const expected = (b: Board, c: AngleCut, face: 'width' | 'thickness', from: 'min' | 'max') => {
+    const other = face === 'width' ? 'thickness' : 'width';
+    const at = (v: number) => {
+      const pos = { [face]: from === 'min' ? 0 : b[face], [other]: v } as Record<'width' | 'thickness', number>;
+      const local = (d: 'width' | 'thickness', side: 'min' | 'max') => (side === 'min' ? pos[d] : b[d] - pos[d]);
+      const through = throughOf(c) as 'width' | 'thickness';
+      return depthAtCross(c, b, local(c.along as 'width' | 'thickness', c.alongFrom), local(through, c.across!.from));
+    };
+    const end = (d: number) => (c.from === 'min' ? d : b.length - d);
+    return key([[end(0), 0], [end(at(0)), 0], [end(at(b[other])), b[other]], [end(0), b[other]]]);
+  };
+  const angleOf = (v: DiagramView, id: string) => v.angles.find((a) => a.id === id);
+
+  it('the square stool\'s leg: each end\'s wedge in BOTH side views, each the plane\'s boundary on that view\'s face', () => {
+    const leg = squareStoolLegs()[0]!;
+    const views = buildDiagrams(leg, IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['width|min', 'thickness|min']);
+    for (const c of leg.angleCuts) {
+      for (const v of views) {
+        const a = angleOf(v, c.id)!;
+        expect(a, `${c.from} end in ${v.key}`).toBeDefined();
+        expect(key(a.poly), `${c.from} end in ${v.key}`).toEqual(expected(leg, c, v.face as 'width' | 'thickness', v.from));
+        expect(a.label).toBe(`Compound miter at the length ${c.from} end: 12.0° across the width, 8.0° across the thickness, long corner at ${c.from === 'min' ? 'the width max side and the thickness max side' : 'the width min side and the thickness min side'}`);
+      }
+    }
+  });
+  it('each side view draws its OWN face\'s wedge: near and far differ (the plane is not square to either face)', () => {
+    const leg = squareStoolLegs()[0]!;
+    const far: Cut = { id: 'd', face: 'thickness', across: 'width', from: 'max', offset: 8, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const near: Cut = { ...far, id: 'e', face: 'width', across: 'thickness', from: 'max' };
+    // A dado on each side of each face (ruling 108: an existing view takes the wedge), so all four side views exist.
+    const cuts = [far, near].flatMap((x) => [x, { ...x, id: `${x.id}2`, from: 'min' as const }]);
+    const views = buildDiagrams({ ...leg, cuts }, IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['width|min', 'width|max', 'thickness|min', 'thickness|max']);
+    const foot = leg.angleCuts.find((c) => c.from === 'min')!;
+    for (const face of ['thickness', 'width'] as const) {
+      const [lo, hi] = (['min', 'max'] as const).map((from) => angleOf(views.find((v) => v.key === `${face}|${from}`)!, foot.id)!);
+      expect(key(lo!.poly)).toEqual(expected(leg, foot, face, 'min'));
+      expect(key(hi!.poly)).toEqual(expected(leg, foot, face, 'max'));
+      expect(key(hi!.poly)).not.toEqual(key(lo!.poly));
+    }
+  });
+  it('a compound cut biting at one corner only: each face opens the side that shows it (Review Focus 1)', () => {
+    const corner: AngleCut = { id: 'k', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'max', points: [[0, -0.25], [1.5, -0.125]], across: { rise: 0.25, from: 'min' } };
+    const b = createBoard({ length: 16, width: 1.5, thickness: 1.5, angleCuts: [corner] });
+    const views = buildDiagrams(b, IMPERIAL);
+    expect(views.map((v) => v.key).sort()).toEqual(['thickness|max', 'width|min']);
+    // By hand: on the width min face (s = 1.5) the depth −1/8 + 1/4·(t − 3/4) is 1/16 at t = 1.5 and 0 at t = 1.25; on the
+    // thickness max face (t = 1.5) it is 1/16 at width 0 and 0 at width 3/4. Triangles, (length, the other dimension).
+    const at = (k: string) => key(angleOf(views.find((v) => v.key === k)!, 'k')!.poly);
+    expect(at('width|min')).toEqual(key([[15.9375, 1.5], [16, 1.5], [16, 1.25]]));
+    expect(at('thickness|max')).toEqual(key([[15.9375, 0], [16, 0], [16, 0.75]]));
   });
 });
 

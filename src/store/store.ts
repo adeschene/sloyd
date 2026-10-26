@@ -10,7 +10,7 @@ import type { BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, 
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
-import { chooseFace, leanMap, leans, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
+import { chooseFace, leanMap, leans, leanTwist, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
 import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../document/levelEnds';
 import { socketPlan } from '../document/legSockets';
 import { displayNames } from '../document/tree';
@@ -44,8 +44,10 @@ function storedTilt(r: HoleRow): HoleRow {
 /** A tenon size the loader keeps (`validateTenons`: finite and > 0); anything else would vanish on reload. */
 const tenonSize = (v: number): boolean => Number.isFinite(v) && v > 0;
 
-/** `setLean`'s world argument: signed degrees, and/or a direction (±1) that keeps the part's own magnitude. */
-export interface LeanWorld { rake?: number; splay?: number; rakeSign?: 1 | -1; splaySign?: 1 | -1 }
+/** `setLean`'s world argument: signed degrees, and/or a direction (±1) that keeps the part's own magnitude, and/or the
+ *  Set (square-set legs spec §3.2): `square` true is square to the sides, false turned to the lean; absent keeps a
+ *  leaning part's own setting, and a part that does not lean yet becomes square-set. */
+export interface LeanWorld { rake?: number; splay?: number; rakeSign?: 1 | -1; splaySign?: 1 | -1; square?: boolean }
 
 /** setLean's refusals (splayed legs spec §3.2, §4; angled holes §7), verbatim. */
 export const LEAN_NOT_UPRIGHT = 'Only an upright part can lean.';
@@ -53,6 +55,9 @@ export const LEAN_PAST_BOUND = "The lean can't pass 45° in all — reduce the r
 /** Angled holes §7: a lean edit whose seam-free face differs from the stored one turns the part's features a quarter
  *  turn about its length; on a holed part that would turn its sockets the wrong way. */
 export const LEAN_TURNS_HOLES = 'This lean would turn the part a quarter turn about its length, and its holes with it — keep both angles above 0, or remove the holes first.';
+/** Square-set legs spec §3.2: a Set change turns the part about its length by the seam-free twist τ (`leanTwist`),
+ *  carrying its holes; refused on a holed part when τ ≠ 0 (a rake-only or splay-only lean has τ = 0: the same map). */
+export const LEAN_SET_TURNS_HOLES = 'Changing how this leg is set would turn it about its length and move its holes — remove the holes first.';
 /** addHoleRows' and updateHoleRow's refusal (angled holes §3.1): `withinTiltBound`, the loader's own bound. */
 export const HOLE_TILT_PAST_BOUND = "The bore can't tilt past 45° in all — reduce an angle.";
 
@@ -465,9 +470,10 @@ interface StoreState {
    * turn, exact), then the stored ones through `mapWorld`'s lowering (a flip per mirror). Users of one Shape collapse
    * to the FIRST selected (the rest follow through the Shape, each in its own hand). ONE undo entry. Returns a refusal
    * sentence, decided for every target before `edit()` — not upright, holes, past the bound — or null; refused
-   * silently (null) while gesturing or exploded. Clear is never refused.
-   */
-  /**
+   * silently (null) while gesturing or exploded. Clear is never refused. Square-set legs §3.2: a first lean is
+   * square-set; `world.square` is the Set change (alone, it keeps the slopes bit for bit), refused on a holed part when
+   * it would turn the part (`LEAN_SET_TURNS_HOLES`, τ ≠ 0); the face re-choice refusal applies only to a turned lean.
+   *
    * Sets the lean in SIGNED world degrees (rake + = foot toward the front, splay + = toward the right); null clears.
    * `keepSign` reads `rake`/`splay` as MAGNITUDES and gives each part its OWN current world sign (a part at 0 takes +),
    * so a symmetric selection keeps its sides. `rakeSign`/`splaySign` (±1) set only the DIRECTION, keeping each part's own
@@ -2027,12 +2033,24 @@ export const useStore = create<StoreState>((set, get) => {
           continue;
         }
         // The facing dimension is chosen once, when the part had no lean, and kept by later edits (§3.1); the stored
-        // form is always seam-free.
-        const lean = seamFree({ x, z, face: b.lean ? b.lean.face : chooseFace(b, x, z) });
-        // Angled holes §7: a RE-choice of the face (seamFree flipping a stored lean) turns the part's features a quarter
-        // turn about its length; refused on a holed part (a first lean, or Clear, is not a re-choice).
-        if (b.holes.length > 0 && b.lean && lean.face !== b.lean.face) return LEAN_TURNS_HOLES;
-        if (b.lean && b.lean.x === lean.x && b.lean.z === lean.z && b.lean.face === lean.face) continue; // inv 4
+        // form is always seam-free. Square-set legs §3.2: a first lean is square-set unless the Set says otherwise; a
+        // leaning part keeps its own setting. `square` is stored only as `true`.
+        const wasSquare = b.lean?.square === true;
+        const square = world.square ?? (b.lean ? wasSquare : true);
+        const lean: Lean = { ...seamFree({ x, z, face: b.lean ? b.lean.face : chooseFace(b, x, z) }), ...(square ? { square: true as const } : {}) };
+        if (b.holes.length > 0 && b.lean) {
+          if (square !== wasSquare) {
+            // A Set change turns the part about its length by the TURNED end's twist τ (the old lean leaving turned, the
+            // new one entering it); τ = 0 is the same map either way, so it is allowed.
+            if (leanTwist(b, wasSquare ? lean : b.lean) !== 0) return LEAN_SET_TURNS_HOLES;
+          } else if (!square && lean.face !== b.lean.face) {
+            // Angled holes §7: a RE-choice of the face (seamFree flipping a stored lean) turns a TURNED part's features a
+            // quarter turn about its length; refused on a holed part (a first lean, or Clear, is not a re-choice). A
+            // square-set lean's face never reaches the map, so its re-choice turns nothing.
+            return LEAN_TURNS_HOLES;
+          }
+        }
+        if (b.lean && b.lean.x === lean.x && b.lean.z === lean.z && b.lean.face === lean.face && wasSquare === square) continue; // inv 4
         next.set(id, lean);
       }
       if (next.size === 0) return null;

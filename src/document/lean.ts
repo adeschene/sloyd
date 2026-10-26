@@ -79,13 +79,24 @@ export function seamFree(l: Lean): Lean {
  * The twist (§3.3), in radians: the signed angle from facing dimension `face`'s world axis line to the sightline of
  * world slopes (wx, wz), reduced into (−π/2, π/2]. The axis line comes from `axisFrame` (inv 44), so a turned part
  * finds its own facing axis. Null when `face` is not horizontal (a part that is not upright cannot lean, §3.2).
- * The ONE twist computation: `chooseFace` and `leanMap` both read it.
+ * The ONE twist computation: `chooseFace` and `leanTwist` (so `leanMap` and `setLean`'s Set gate) read it.
  */
 function twistOf(b: Board, face: Lean['face'], wx: number, wz: number): number | null {
   const axis = axisFrame(b).findIndex((a) => a.dim === face);
   if (axis !== 0 && axis !== 2) return null;
   const theta = axis === 0 ? 0 : Math.PI / 2;
   return reduceHalfTurn(Math.atan2(wz, wx) - theta);
+}
+
+/**
+ * The seam-free twist τ (radians) a TURNED lean `l` would apply to `b` (`T · Ry(τ)`, §3.3), through `twistOf`, the ONE
+ * twist computation. Null on a part that is not upright. Square-set legs spec §3.2: changing a lean between square-set
+ * and turned turns the part about its length by exactly this angle, so 0 means the two maps are the same (a rake-only
+ * or splay-only lean). It reads `l`'s slopes and face, never `l.square`.
+ */
+export function leanTwist(b: Board, l: Lean): number | null {
+  const [wx, wz] = slopesAt(b, l.x, l.z);
+  return twistOf(b, seamFree(l).face, wx, wz);
 }
 
 /**
@@ -130,7 +141,9 @@ function timesT(m: Mat3, v: readonly number[]): Vec3 {
 
 /**
  * `b`'s lean as a map (§3.3), or null exactly when `leans(b)` is false: no lean, a zero one (x = z = 0 is no lean), or a
- * part that is not upright (which the loader never lets through, §3.2). `m = T · Ry(τ)`:
+ * part that is not upright (which the loader never lets through, §3.2). A SQUARE-SET lean (`square`, schema 25;
+ * square-set legs spec §3.2) is `m = T`: tilted onto its slopes, never twisted, so its faces stay within about 1° of the
+ * world axes and its stored `face` never reaches the map. A turned lean is `m = T · Ry(τ)`:
  * - the facing dimension is `seamFree`'s, so τ is never ±π/2;
  * - `Ry(τ)` twists by τ about the vertical, `(x, z) → (x cos τ − z sin τ, x sin τ + z cos τ)`, turning the facing
  *   dimension's axis line onto the sightline σ = atan2(wz, wx);
@@ -146,11 +159,10 @@ export function leanMap(b: Board): LeanMap | null {
   // on one drew it upright while others bounded, snapped or noted it as leaning.
   if (!leans(b) || !b.lean) return null;
   const [wx, wz] = worldSlopes(b);
-  const tau = twistOf(b, seamFree(b.lean).face, wx, wz);
+  // τ is computed for every lean only for the null contract (unreachable once `leans` held: an upright part's faces are
+  // horizontal); only the TURNED branch below reads its value. A square-set map never does.
+  const tau = leanTwist(b, b.lean);
   if (tau === null) return null;
-  const c = Math.cos(tau);
-  const s = Math.sin(tau);
-  const twist: Mat3 = [[c, 0, -s], [0, 1, 0], [s, 0, c]];
 
   const len = Math.hypot(wx, 1, wz);
   const n: Vec3 = [wx / len, -1 / len, wz / len];
@@ -162,7 +174,15 @@ export function leanMap(b: Board): LeanMap | null {
   const f = 1 / (1 + 1 / len);
   const tilt: Mat3 = [0, 1, 2].map((i) => [0, 1, 2].map((j) => (i === j ? 1 : 0) + K[i]![j]! + K2[i]![j]! * f)) as Mat3;
 
-  const m = mul(tilt, twist);
+  // `T` is mirror-equivariant on its own (S · T · S is the flipped lean's tilt), so a square-set map conjugates with no
+  // seam case. The turned product is unchanged byte for byte.
+  let m: Mat3 = tilt;
+  if (!b.lean.square) {
+    const c = Math.cos(tau);
+    const s = Math.sin(tau);
+    const twist: Mat3 = [[c, 0, -s], [0, 1, 0], [s, 0, c]];
+    m = mul(tilt, twist);
+  }
   const [e0, e1, e2] = boardExtents(b);
   const pivot: Vec3 = [b.position[0] + e0 / 2, b.position[1] + e1, b.position[2] + e2 / 2];
   const about = (v: Vec3): Vec3 => [pivot[0] + v[0], pivot[1] + v[1], pivot[2] + v[2]];
@@ -200,8 +220,8 @@ export function pivotKeptPosition(board: Board, changes: Partial<Board>): [numbe
   ];
 }
 
-/** A lean reflected along the part's turn-0 X (§3.4): the X slope negated, the facing dimension kept; its own inverse.
- *  `0 - x` keeps a zero +0. With `mirrorPart`, the map is conjugated by the reflection exactly. */
+/** A lean reflected along the part's turn-0 X (§3.4): the X slope negated, the facing dimension and `square` (schema 25)
+ *  kept; its own inverse. `0 - x` keeps a zero +0. With `mirrorPart`, the map is conjugated by the reflection exactly. */
 export function leanFlip(l: Lean): Lean {
-  return { x: 0 - l.x, z: l.z, face: l.face };
+  return { x: 0 - l.x, z: l.z, face: l.face, ...(l.square ? { square: true as const } : {}) };
 }

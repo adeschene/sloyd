@@ -21,7 +21,8 @@ const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: 
 /**
  * One angle cut (angle-cuts spec §7). Its `kind` picks the controls, so an
  * edit never swaps them under the user. Every kind is edited; a stored cut the row cannot represent
- * (a hand-edited file) shows its bench line and a remove button only.
+ * (a hand-edited file, or a compound miter — square-set legs §4: `miterFields` is null) shows its bench line and a remove
+ * button only.
  */
 /**
  * fu 296 (holes' and curves' precedent): a cut a later RESIZE pushed past its part is KEPT and noted ("… at this

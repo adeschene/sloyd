@@ -29,7 +29,7 @@ const g = (b: Board, c: AngleCut, p: [number, number, number]) => {
 
 describe('the angle-cut model', () => {
   it('lists every field but id, kind included', () => {
-    expect([...ANGLE_CUT_KEYS].sort()).toEqual(['along', 'alongFrom', 'face', 'from', 'kind', 'points']);
+    expect([...ANGLE_CUT_KEYS].sort()).toEqual(['across', 'along', 'alongFrom', 'face', 'from', 'kind', 'points']);
   });
 
   it('reads depth along the line and finds where it reaches zero', () => {
@@ -181,6 +181,15 @@ describe('miter fields (spec §7)', () => {
     expect(miterFields(mk([[0, 0.5], [2.5, 3]]), b)).toBeNull();
     expect(miterFields(mk([[0.5, 0], [2.5, 2]]), b)).toBeNull();       // zero inside the part, not at a side
     expect(miterFields(mk([[0, 0], [2.5, 2.5]]), b)).not.toBeNull();
+  });
+
+  it('a COMPOUND miter reads as null even with a zero at a side (square-set legs §4); miterCut never writes `across`', () => {
+    const b = rail();
+    const plain = { id: 'x', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0], [2.5, 2.5]] as [[number, number], [number, number]] };
+    expect(miterFields(plain, b)).not.toBeNull();
+    expect(miterFields({ ...plain, across: { rise: 0.1, from: 'min' } }, b)).toBeNull();
+    const written = miterCut(miterFields(plain, b)!, b);
+    expect('across' in written).toBe(false);
   });
 
   it('defaults to a 45° miter across the width at the length max end, long point on the min side', () => {

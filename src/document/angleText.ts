@@ -1,5 +1,5 @@
 import type { AngleCut, Board, CutFrom, Dimension } from './types';
-import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, throughOf, miterLongSide, zeroStation } from './angleCuts';
+import { angleCutsThatRemoveStock, bevelFields, chamferFields, compoundLongCorner, depthAt, depthAtCross, throughOf, miterDegrees, miterLongSide, zeroStation } from './angleCuts';
 import { formatLength, type Units } from '../units/length';
 
 /** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
@@ -42,6 +42,14 @@ export function angleLine(board: Board, c: AngleCut, units: Units): string {
       }
       return `Taper off ${side}: ${f(Math.max(0, near))} at the ${c.along} ${c.alongFrom} end, ${f(Math.max(0, depthAt(c, A)))} at the ${c.along} ${other(c.alongFrom)} end`;
     case 'miter':
+      // A compound miter (square-set legs §4): both slopes in degrees, display only — the along slope as every miter
+      // prints it, the across slope (`rise`) the same way — then its LONG CORNER (ruling TFa), the end face's corner of
+      // least full depth, named by its side on each dimension, so mirror-twin legs print different rows.
+      if (c.across) {
+        const lc = compoundLongCorner(c, board)!;
+        const through = throughOf(c);
+        return `Compound miter at the length ${c.from} end: ${deg} across the ${c.along}, ${miterDegrees(Math.abs(c.across.rise)).toFixed(1)}° across the ${through}, long corner at the ${c.along} ${lc.along} side and the ${through} ${lc.through} side`;
+      }
       return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end, long point on the ${c.along} ${miterLongSide(c, board)} side`;
     case 'bevel': {
       const bf = bevelFields(c, board);
@@ -67,7 +75,8 @@ export function angleLine(board: Board, c: AngleCut, units: Units): string {
  * (a cut on the length face, whatever its `kind`: kind never decides geometry),
  * clamped to [0, length] (an end chamfer leaving a tongue excluded, fu 385); the short point is the least over the corners of
  * length less both ends' depths, clamped at 0. (Each end's depth is a max of
- * linear functions, so convex; the remaining length is concave and its least is at a corner.) Null when the part has no end cut that removes stock.
+ * linear functions, so convex; the remaining length is concave and its least is at a corner.) A compound end's depth
+ * is its full depth at the corner (`depthAtCross`, square-set legs §4). Null when the part has no end cut that removes stock.
  */
 export function shortPointLine(board: Board, units: Units): string | null {
   // fu 385 (the user's ruling): an end CHAMFER that leaves part of the end face standing (a raised panel's tongue) is not a
@@ -84,7 +93,11 @@ export function shortPointLine(board: Board, units: Units): string | null {
   const depth = (end: 'min' | 'max', corner: { width: number; thickness: number }) => Math.max(0, ...ends.filter((c) => c.from === end).map((c) => {
     const x = corner[c.along as 'width' | 'thickness'];
     const s = c.alongFrom === 'min' ? x : board[c.along] - x;
-    return Math.min(L, Math.max(0, depthAt(c, s)));
+    if (!c.across) return Math.min(L, Math.max(0, depthAt(c, s)));
+    // A compound end's FULL depth at the corner (square-set legs §4): t from `across.from`'s side of the through dimension.
+    const through = throughOf(c) as 'width' | 'thickness';
+    const t = c.across.from === 'min' ? corner[through] : board[through] - corner[through];
+    return Math.min(L, Math.max(0, depthAtCross(c, board, s, t)));
   }));
   let least = L;
   for (const width of [0, board.width]) for (const thickness of [0, board.thickness]) {

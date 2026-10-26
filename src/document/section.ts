@@ -331,8 +331,9 @@ const exact = (v: number) => (Object.is(v, -0) ? '-0' : String(v));
 
 /**
  * A leaning part's cap through the local-cap cache (invariant 51), in the pivot frame. ONE slot per (part id, axis, side),
- * as `localCap`'s, under its own prefix; a hit needs the same geometry key, the same lean (x, z, face, exact), the same
- * turn and posture (the frame and the twist read them), and the same pivot-frame plane `u` (Object.is). A move that keeps
+ * as `localCap`'s, under its own prefix; a hit needs the same geometry key, the same lean (x, z, face, exact; `square` only
+ * when present, so a turned key is unchanged), the same turn and posture (the frame and the twist read them), and the
+ * same pivot-frame plane `u` (Object.is). A move that keeps
  * `u` (across the plane's direction) only translates the cap, as a placed part's does.
  */
 function leaningCap(board: Board, map: LeanMap, s: Section, offset?: readonly number[]): LocalCap | null {
@@ -340,7 +341,7 @@ function leaningCap(board: Board, map: LeanMap, s: Section, offset?: readonly nu
   const u = s.at - (offset?.[k] ?? 0) - map.pivot[k]!;
   const lean = board.lean!;
   const key = `lean|${k}|${s.flip ? 'near' : 'far'}|${board.id}`;
-  const geo = `${geometryKey(board)}|${exact(lean.x)},${exact(lean.z)},${lean.face}|${board.rotation}|${board.posture}`;
+  const geo = `${geometryKey(board)}|${exact(lean.x)},${exact(lean.z)},${lean.face}${lean.square ? ',square' : ''}|${board.rotation}|${board.posture}`;
   const hit = LOCAL_CAPS.get(key);
   if (hit) LOCAL_CAPS.delete(key);
   if (hit && hit.geo === geo && Object.is(hit.u, u)) { LOCAL_CAPS.set(key, hit); return hit.cap; }

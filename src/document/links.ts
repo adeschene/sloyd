@@ -39,8 +39,8 @@ void _shapeMatchesTable;
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
- * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face`; absent equals absent
- * only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`. `tenons` (a list,
+ * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face` and `square`, schema 25;
+ * absent equals absent only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`. `tenons` (a list,
  * round tenons spec §3.1) likewise: compared in order, ids included, by `sameTenon`; never stored empty.
  */
 const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean' | 'tenons'>] extends string | number ? true : never = true;
@@ -137,10 +137,10 @@ export function sameShared(a: Board, b: Board): boolean {
       const y = b.tenons ?? [];
       if (x.length !== y.length || x.some((t, i) => t.id !== y[i]!.id || !sameTenon(t, y[i]!))) return false;
     } else if (k === 'lean') {
-      // By value, exact; absent equals absent only (spec §3.1).
+      // By value, exact, `square` included (square-set legs spec §3.1); absent equals absent only (spec §3.1).
       if (a.lean === undefined || b.lean === undefined) {
         if (a.lean !== b.lean) return false;
-      } else if (a.lean.x !== b.lean.x || a.lean.z !== b.lean.z || a.lean.face !== b.lean.face) {
+      } else if (a.lean.x !== b.lean.x || a.lean.z !== b.lean.z || a.lean.face !== b.lean.face || a.lean.square !== b.lean.square) {
         return false;
       }
     } else if (a[k] !== b[k]) {

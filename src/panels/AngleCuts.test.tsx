@@ -6,6 +6,8 @@ import type { AngleCut, Board } from '../document/document';
 import { Properties } from './Properties';
 import { AngleCuts } from './AngleCuts';
 import { IMPERIAL, formatLength } from '../units/length';
+import { squareStoolDocument } from '../document/stoolFixture';
+import { worldParts } from '../document/tree';
 
 const leg = (over: Partial<Board> = {}) => createBoard({ id: 'leg', name: 'Leg', length: 28, width: 2, thickness: 2, ...over });
 const open = (b: Board) => {
@@ -68,6 +70,29 @@ describe('the Angles section', () => {
     expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('Long point')).toBeNull();
     expect(screen.queryByLabelText('Angle')).toBeNull();
+  });
+  it('a COMPOUND miter shows its bench line and Remove only: no End, Across, Long point or Angle (square-set legs §4)', () => {
+    const c: AngleCut = { id: 'a1', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2, 0.5]], across: { rise: 0.25, from: 'min' } };
+    open(leg({ angleCuts: [c] }));
+    expect(screen.getByText('Compound miter at the length max end: 14.0° across the width, 14.0° across the thickness, long corner at the width min side and the thickness min side')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Remove angle cut \(Compound miter/ })).toBeInTheDocument();
+    for (const label of ['End', 'Across', 'Long point', 'Angle']) expect(screen.queryByLabelText(label), label).toBeNull();
+  });
+  it('Clear lean on a levelled square-set leg keeps its compound ends; each row is the bench line and Remove (Review Focus 4)', async () => {
+    const user = userEvent.setup();
+    useStore.getState().replaceDocument(squareStoolDocument());
+    const fr = () => worldParts(useStore.getState().doc).find((b) => b.name === 'Front right')!;
+    const before = fr().angleCuts;
+    expect(before.every((c) => c.across)).toBe(true);
+    useStore.getState().selectBoard(fr().id);
+    render(<Properties />);
+    await user.click(screen.getByRole('button', { name: 'Clear lean' }));
+    expect(fr().lean).toBeUndefined();
+    expect(fr().angleCuts).toEqual(before);
+    expect(screen.getByText('Compound miter at the length min end: 12.0° across the width, 8.0° across the thickness, long corner at the width max side and the thickness max side')).toBeInTheDocument();
+    expect(screen.getByText('Compound miter at the length max end: 12.0° across the width, 8.0° across the thickness, long corner at the width min side and the thickness min side')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Remove angle cut \(Compound miter/ })).toHaveLength(2);
+    for (const label of ['End', 'Across', 'Long point', 'Angle']) expect(screen.queryByLabelText(label), label).toBeNull();
   });
   it('a taper past its thinned face may move to a face it overruns by less, never by more (fu 296)', async () => {
     const user = userEvent.setup();
