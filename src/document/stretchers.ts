@@ -2,7 +2,7 @@ import type { Board, HoleRow, RoundTenon, SloydDocument } from './types';
 import type { Units } from '../units/length';
 import type { V3 } from './angleCuts';
 import { DEFAULT_MATERIAL } from './types';
-import { DIMENSION_ORDER, snapStep, snapToGrid } from './geometry';
+import { snapStep, snapToGrid } from './geometry';
 import { createBoard } from './document';
 import { nextId } from './ids';
 import { uniqueName } from './names';
@@ -11,8 +11,8 @@ import { leans, leanTwist } from './lean';
 import { holeFaults, type HoleFaultKind } from './holeFaults';
 import { socketFaultWords } from './holeText';
 import { worldBodies } from './drawing';
-import { fromWorld, toWorld } from './snapPoints';
-import { boreAlongAxis, boreEnds, partAxis, rungEntryOf, rungSocketRow, socketTooSteep, type WorldAxis } from './legSockets';
+import { toWorld } from './snapPoints';
+import { boreAlongAxis, boreEnds, faceCrossing, partAxis, rungEntryOf, rungSocketRow, socketTooSteep, type WorldAxis } from './legSockets';
 import { shoulderAt, tenonFaults, tenonStep, withTenons } from './roundTenons';
 import { tenonFaultText } from './tenonText';
 import { seatedIn } from './tenonJoints';
@@ -177,8 +177,12 @@ function cornerExits(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, size: number
 export function shoulderStation(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, size: number, atStart: boolean): number {
   const e = cornerExits(leg, line, size, atStart);
   if (!e) throw new Error(`shoulderStation: a corner line misses ${leg.id}`);
-  return Math.max(...e);
+  return stationOf(e);
 }
+
+/** The station and the gap from one end's four corner exits (`cornerExits`): the plan computes the exits once per end. */
+const stationOf = (exits: readonly number[]) => Math.max(...exits);
+const gapOf = (exits: readonly number[], shoulder: number) => shoulder - Math.min(...exits);
 
 /**
  * THE shoulder gap (spec §5.3, ruling P1; `stretcherPlan` and Task 3's `stretcherOf` both call it): with the shoulder placed
@@ -188,7 +192,7 @@ export function shoulderStation(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, s
 export function shoulderGap(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, size: number, atStart: boolean, shoulder: number): number {
   const e = cornerExits(leg, line, size, atStart);
   if (!e) throw new Error(`shoulderGap: a corner line misses ${leg.id}`);
-  return shoulder - Math.min(...e);
+  return gapOf(e, shoulder);
 }
 
 /** Whether the rung's section at this end lies on `leg`'s entry face (ruling T1a, before `rungSocketRow`, which throws
@@ -197,16 +201,7 @@ export function shoulderGap(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, size:
 function onEntryFace(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, size: number, atStart: boolean, tipAt: number): boolean {
   const { p, w } = endOf(line, atStart);
   const { face, from } = rungEntryOf(leg, w);
-  const at = from === 'min' ? 0 : leg[face];
-  // Each line `q(s) = q0 + s·w`; in the leg's frame (affine) its face coordinate is linear in s.
-  const cross = (q0: V3): number | null => {
-    const a = fromWorld(leg, q0)[face];
-    const b = fromWorld(leg, along(q0, w, 1))[face];
-    if (Math.abs(b - a) <= EPS) return null;
-    const s = (at - a) / (b - a);
-    const local = fromWorld(leg, along(q0, w, s));
-    return DIMENSION_ORDER.some((d) => d !== face && (local[d] < -EPS || local[d] > leg[d] + EPS)) ? null : s;
-  };
+  const cross = (q0: V3): number | null => faceCrossing(leg, q0, w, face, from);
   const centre = cross(p);
   if (centre === null || centre <= tipAt + EPS) return false;
   return cornerOffsets(w, size).every((o) => cross([p[0] + o[0], p[1] + o[1], p[2] + o[2]]) !== null);
@@ -282,14 +277,15 @@ function plan(doc: SloydDocument, legIds: readonly [string, string], o: { height
   const tipAt = (D - L) / 2;
   // The rung's section must lie on each leg's entry face, with the tip inside (T1a), before any station is measured.
   const ends = [true, false] as const;
+  const exits: number[][] = [];
   for (const [i, atStart] of ends.entries()) {
     const leg = legs[i]!;
-    if (!onEntryFace(leg, line, o.size, atStart, tipAt) || !cornerExits(leg, line, o.size, atStart)) {
-      return refuse(stretcherOutOfReach(nameOf(leg)));
-    }
+    const e = onEntryFace(leg, line, o.size, atStart, tipAt) ? cornerExits(leg, line, o.size, atStart) : null;
+    if (!e) return refuse(stretcherOutOfReach(nameOf(leg)));
+    exits.push(e);
   }
-  const sA = shoulderStation(legs[0], line, o.size, true);
-  const sB = shoulderStation(legs[1], line, o.size, false);
+  const sA = stationOf(exits[0]!);
+  const sB = stationOf(exits[1]!);
   const S = floorToGrid(D - sA - sB, doc.units);
   const slack = (D - sA - sB) - S;
   // Each shoulder's distance from its leg's axis point, the slack split evenly; each tenon what that placement leaves.
@@ -359,7 +355,7 @@ function plan(doc: SloydDocument, legIds: readonly [string, string], o: { height
   const before = new Map(world.map((b) => [b.id, b]));
   const notes = after.filter((b) => !legIds.includes(b.id) && JSON.stringify(b.holes) !== JSON.stringify(before.get(b.id)?.holes))
     .map((b) => stretcherLinkNote(nameOf(b)));
-  const gap = Math.max(...ends.map((atStart, i) => shoulderGap(legs[i]!, line, o.size, atStart, shoulders[i]!)));
+  const gap = Math.max(gapOf(exits[0]!, shoulders[0]!), gapOf(exits[1]!, shoulders[1]!));
   return { rung, container, legs: out, notes, gap };
 }
 
@@ -395,7 +391,7 @@ export function defaultHeight(doc: SloydDocument, legIds: [string, string], diam
   const units = doc.units;
   const base = snapToGrid(top / 3, units);
   // Metric heights stay `k / 25.4` (snapToGrid's form).
-  const at = (n: number) => (metric(units) ? (Math.round(base * 25.4) + 40 * n) / 25.4 : base + n * RUNG_STAGGER.imperial);
+  const at = (n: number) => (metric(units) ? (Math.round(base * 25.4) + Math.round(RUNG_STAGGER.metric * 25.4) * n) / 25.4 : base + n * RUNG_STAGGER.imperial);
   const size = rungSize(units);
   let n = 0;
   while (n < 20) {

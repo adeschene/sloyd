@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Board, Definition, Instance, SloydDocument } from './types';
+import { DEFAULT_MATERIAL } from './types';
 import type { Units } from '../units/length';
 import { createBoard, createDocument, flatDocument, migrateDocument } from './document';
 import { chooseFace, slopeOf } from './lean';
@@ -360,6 +361,72 @@ function postsDocument(widthB = 1.5, alongZ = false): SloydDocument {
     createBoard({ name: 'Post B', posture: 'upright', length: 30, width: widthB, thickness: widthB, position: at(6, widthB) }),
   ] });
 }
+
+/** A post, upright 1.5" square, its axis at x = `c` (z = 0). `lean` a TURNED compound lean (a non-zero twist) when set. */
+const postAt = (id: string, name: string, c: number, o: { length?: number; material?: string; turned?: boolean } = {}) => {
+  const x = slopeOf(12);
+  const z = slopeOf(8);
+  return createBoard({ id, name, posture: 'upright', length: o.length ?? 30, width: 1.5, thickness: 1.5, position: [c - 0.75, 0, -0.75],
+    ...(o.material ? { material: o.material } : {}),
+    ...(o.turned ? { lean: { x: c < 0 ? -x : x, z, face: chooseFace(createBoard({ posture: 'upright' }), x, z) } } : {}) });
+};
+
+describe('stretchers: fix round 1 (review minors 1-5)', () => {
+  it('a turned leg is refused FIRST: before the container and the mirrored-copy refusals', () => {
+    // In two containers: the turned sentence, not the container one.
+    const d: Definition = { id: 'd', boards: [postAt('b', 'Post B', 0)], instances: [], hardware: [] };
+    const two = migrateDocument({ ...createDocument('Two'), boards: [postAt('a', 'Post A', -6, { turned: true })],
+      instances: [{ id: 'i', name: 'Frame', definition: 'd', position: [6, 0, 0], rotation: 0 }], definitions: [d] });
+    expect(stretcherPlan(two, ['a', 'i/b'], { height: 10, ...O })).toBe(stretcherTurnedLeg('Post A'));
+    // Inside a mirrored copy: the turned sentence, not the mirrored one.
+    const dm: Definition = { id: 'd', boards: [postAt('a', 'Post A', -6, { turned: true }), postAt('b', 'Post B', 6, { turned: true })],
+      instances: [], hardware: [] };
+    const mirrored = migrateDocument({ ...createDocument('Mirror'), definitions: [dm],
+      instances: [{ id: 'i', name: 'Frame', definition: 'd', position: [0, 0, 0], rotation: 0, mirrored: true }] });
+    expect(world(mirrored).every((b) => b.lean !== undefined)).toBe(true);
+    expect(stretcherPlan(mirrored, ['i/a', 'i/b'], { height: 10, ...O })).toBe(stretcherTurnedLeg(displayNames(mirrored).get('i/a')!));
+  });
+
+  it('a mirrored OUTER instance over a plain inner one: the mirrored-copy sentence', () => {
+    const inner: Definition = { id: 'd', boards: [postAt('a', 'Post A', -6), postAt('b', 'Post B', 6)], instances: [], hardware: [] };
+    const outer: Definition = { id: 'do', boards: [], hardware: [],
+      instances: [{ id: 'i', name: 'Frame', definition: 'd', position: [0, 0, 0], rotation: 0 }] };
+    const mk = (mirrored: boolean) => migrateDocument({ ...createDocument('Nested'), definitions: [inner, outer],
+      instances: [{ id: 'o', name: 'Outer', definition: 'do', position: [0, 0, 0], rotation: 0, ...(mirrored ? { mirrored: true } : {}) }] });
+    expect(typeof stretcherPlan(mk(false), ['o/i/a', 'o/i/b'], { height: 10, ...O })).not.toBe('string');
+    const doc = mk(true);
+    expect(stretcherPlan(doc, ['o/i/a', 'o/i/b'], { height: 10, ...O })).toBe(stretcherMirrored(displayNames(doc).get('o/i/a')!));
+  });
+
+  it('the rung\'s name is unique among the legs\' CONTAINER\'s siblings only (inv 8)', () => {
+    const taken = migrateDocument({ ...createDocument('Root'), boards: [postAt('a', 'Post A', -6), postAt('b', 'Post B', 6),
+      createBoard({ id: 's', name: 'Stretcher', position: [0, 0, 20] })] });
+    expect(planOf(taken, ['a', 'b'], { height: 10, ...O }).rung.name).toBe('Stretcher (1)');
+    // A part named Stretcher at the root does not count for legs inside an assembly.
+    const d: Definition = { id: 'd', boards: [postAt('a', 'Post A', -6), postAt('b', 'Post B', 6)], instances: [], hardware: [] };
+    const nested = migrateDocument({ ...createDocument('Nested'), boards: [createBoard({ id: 's', name: 'Stretcher', position: [0, 0, 20] })],
+      instances: [{ id: 'i', name: 'Frame', definition: 'd', position: [0, 0, 0], rotation: 0 }], definitions: [d] });
+    const p = planOf(nested, ['i/a', 'i/b'], { height: 10, ...O });
+    expect(p.rung.name).toBe('Stretcher');
+    expect(p.container).toBe('i');
+  });
+
+  it('the default height reads the LOWER leg\'s top, either order', () => {
+    const doc = migrateDocument({ ...createDocument('Heights'), boards: [postAt('a', 'Tall', -6), postAt('b', 'Short', 6, { length: 12 })] });
+    expect(defaultHeight(doc, ['a', 'b'], 5 / 8)).toBe(4);
+    expect(defaultHeight(doc, ['b', 'a'], 5 / 8)).toBe(4);
+  });
+
+  it('the rung\'s material: the legs\' when they share one, else the default', () => {
+    const same = migrateDocument({ ...createDocument('Oak'), boards: [postAt('a', 'Post A', -6, { material: 'oak' }),
+      postAt('b', 'Post B', 6, { material: 'oak' })] });
+    expect(planOf(same, ['a', 'b'], { height: 10, ...O }).rung.material).toBe('oak');
+    const mixed = migrateDocument({ ...createDocument('Mixed'), boards: [postAt('a', 'Post A', -6, { material: 'oak' }),
+      postAt('b', 'Post B', 6, { material: 'walnut' })] });
+    expect(DEFAULT_MATERIAL).not.toBe('oak');
+    expect(planOf(mixed, ['a', 'b'], { height: 10, ...O }).rung.material).toBe(DEFAULT_MATERIAL);
+  });
+});
 
 describe('stretchers: unleaned posts and a metric project (Review Focus 3, 4)', () => {
   it('two unleaned posts 12" apart: L = 12, tenons 3/4, square sockets (no tilt keys), gap 0, joined and clean', () => {

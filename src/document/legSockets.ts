@@ -220,6 +220,20 @@ export function rungEntryOf(leg: Board, towardOther: V3): { face: Dimension; fro
   return best!;
 }
 
+/** Where the world line `p + t·dir` crosses `leg`'s `face` / `from` face: the `t`, or null when the line runs parallel to
+ *  the face's plane or crosses it off the face (outside its rectangle, to 1e-9). The face's plane in the leg's own frame:
+ *  `fromWorld` is affine, so the crossing is one division. The ONE face-crossing test: `rungSocketRow`'s mouth and
+ *  stretchers' T1a pre-check (`onEntryFace`). */
+export function faceCrossing(leg: Board, p: readonly number[], dir: readonly number[], face: Dimension, from: CutFrom): number | null {
+  const a = fromWorld(leg, p)[face];
+  const b = fromWorld(leg, [p[0]! + dir[0]!, p[1]! + dir[1]!, p[2]! + dir[2]!])[face];
+  const at = from === 'min' ? 0 : leg[face];
+  if (Math.abs(b - a) <= EPS) return null;
+  const t = (at - a) / (b - a);
+  const local = fromWorld(leg, [p[0]! + t * dir[0]!, p[1]! + t * dir[1]!, p[2]! + t * dir[2]!]);
+  return DIMENSION_ORDER.some((d) => d !== face && (local[d] < -EPS || local[d] > leg[d] + EPS)) ? null : t;
+}
+
 /**
  * The blind socket a rung's tenon needs in `leg` (stretchers spec §3.4), through the one core (`boreRow`): bored along the
  * rung's world axis `line`, entering the long face nearest `towardOther` (the direction toward the other leg,
@@ -232,16 +246,9 @@ export function rungSocketRow(leg: Board, line: WorldAxis, towardOther: V3, diam
   Omit<HoleRow, 'id'> | string {
   const { face, from } = rungEntryOf(leg, towardOther);
   const dir: V3 = dot(line.u, towardOther) > 0 ? [0 - line.u[0], 0 - line.u[1], 0 - line.u[2]] : line.u;
-  // The face's plane, in the leg's own frame: `fromWorld` is affine, so the line's crossing is one division.
-  const a = fromWorld(leg, line.p)[face];
-  const b = fromWorld(leg, [line.p[0] + dir[0], line.p[1] + dir[1], line.p[2] + dir[2]])[face];
-  const at = from === 'min' ? 0 : leg[face];
-  if (Math.abs(b - a) <= EPS) throw new Error(`rungSocketRow: the line never crosses ${leg.id}'s ${face} ${from} face`);
-  const t = (at - a) / (b - a);
+  const t = faceCrossing(leg, line.p, dir, face, from);
+  if (t === null) throw new Error(`rungSocketRow: the line misses ${leg.id}'s ${face} ${from} face`);
   const mouth: V3 = [line.p[0] + t * dir[0], line.p[1] + t * dir[1], line.p[2] + t * dir[2]];
-  const local = fromWorld(leg, mouth);
-  const off = DIMENSION_ORDER.some((d) => d !== face && (local[d] < -EPS || local[d] > leg[d] + EPS));
-  if (off) throw new Error(`rungSocketRow: the line crosses ${leg.id}'s ${face} ${from} plane off the face`);
   const reach = dot(sub(tip, mouth), unit(dir));
   if (reach <= 0) throw new Error(`rungSocketRow: the tip is short of ${leg.id}'s mouth`);
   const row = boreRow(leg, face, from, mouth, dir, diameter, roundUp(reach, step));
