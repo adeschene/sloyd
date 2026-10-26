@@ -96,6 +96,68 @@ describe('keptHalfSpace carries the across term (spec §4)', () => {
   });
 });
 
+describe('every flag combination reads its own flag (fix round 1, I1)', () => {
+  // CLIP_MIN's depth field (one corner, (s = 1.5, t = 0), at −0.075) under all 8 settings of from, alongFrom and
+  // across.from, along each of width and thickness: 16 cuts, most with MIXED flags, so a sign read off the wrong flag puts
+  // the plane off the corners. The section is square, so the volume is the same for every one.
+  const FLAGS = ['min', 'max'] as const;
+  const MIXED: AngleCut[] = FLAGS.flatMap((from) => FLAGS.flatMap((alongFrom) => FLAGS.flatMap((acrossFrom) =>
+    (['width', 'thickness'] as const).map((along): AngleCut => ({
+      id: `x-${from}-${alongFrom}-${acrossFrom}-${along}`, kind: 'miter', face: 'length', from, along, alongFrom,
+      points: [[0, 0.3], [1.5, 0.15]], across: { rise: 0.3, from: acrossFrom },
+    })))));
+  const WANT = [0.075, 0.525, -0.075, 0.375];
+
+  it('covers flags that differ from one another', () => {
+    expect(MIXED).toHaveLength(16);
+    expect(MIXED.filter((c) => c.across!.from !== c.from && c.across!.from !== c.alongFrom).length).toBeGreaterThan(0);
+  });
+
+  it('depthAtCross, the plane at the four corners, its sides, the volume and the touched box', () => {
+    for (const c of MIXED) {
+      const b = part(LEG, c);
+      const h = keptHalfSpace(b, c)!;
+      const at = (p: number[]) => h.n[0] * p[0]! + h.n[1] * p[1]! + h.n[2] * p[2]! + h.d;
+      CORNERS.forEach(([s, t], i) => {
+        expect(depthAtCross(c, b, s, t), `${c.id} ${s},${t}`).toBeCloseTo(WANT[i]!, 12);
+        expect(Math.abs(at(local(b, c, s, t, WANT[i]!))), `${c.id} ${s},${t}`).toBeLessThanOrEqual(1e-9);
+        expect(at(local(b, c, s, t, WANT[i]! + 0.01)), `${c.id} ${s},${t}`).toBeGreaterThan(0);
+        expect(at(local(b, c, s, t, WANT[i]! - 0.01)), `${c.id} ${s},${t}`).toBeLessThan(0);
+      });
+      expect(Math.abs(volume(b) - (36 - 0.50859375)), c.id).toBeLessThanOrEqual(1e-9);
+      // The touched box holds every waste point of the plane (the deepest corner is at alongFrom's near end, t = T).
+      const r = touchedRegion(b, c)!;
+      for (let i = 0; i <= 15; i += 1) {
+        for (let j = 0; j <= 15; j += 1) {
+          const s = i / 10;
+          const t = j / 10;
+          const q = 0.3 - 0.1 * s + 0.3 * (t - 0.75);
+          if (!(q > 0)) continue;
+          const p = local(b, c, s, t, q);
+          (['length', 'width', 'thickness'] as const).forEach((d, k) => {
+            expect(p[k]!, `${c.id} ${d}`).toBeGreaterThanOrEqual(r[d][0] - 1e-12);
+            expect(p[k]!, `${c.id} ${d}`).toBeLessThanOrEqual(r[d][1] + 1e-12);
+          });
+        }
+      }
+    }
+  });
+});
+
+describe('a negative rise built in code (fix round 1, M1: answered, not trusted)', () => {
+  it('a cut biting only at t = 0 removes stock and has a touched box holding its waste', () => {
+    // CORNER with the across slope reversed: only the corner (s = 0, t = 0) bites, by 0.075.
+    const c: AngleCut = { ...CORNER, across: { rise: -0.1, from: 'min' } };
+    const b = part(LEG, c);
+    expect(depthAtCross(c, b, 0, 0)).toBeCloseTo(0.075, 12);
+    expect(angleCutRemovesNothing(b, c)).toBe(false);
+    const r = touchedRegion(b, c)!;
+    expect(r.length[1]).toBeCloseTo(0.075, 12);
+    expect(r.thickness[1]).toBeCloseTo(1.125, 12);
+    expect(Math.abs(volume(b) - (36 - 0.010546875))).toBeLessThanOrEqual(1e-9);
+  });
+});
+
 describe('a cut biting at one across corner only (Review Focus 1)', () => {
   it('removes stock, and the cut list sees it', () => {
     const b = part(LEG, CORNER);

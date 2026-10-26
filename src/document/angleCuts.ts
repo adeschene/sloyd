@@ -71,13 +71,15 @@ export function depthAtCross(c: Pick<AngleCut, 'points' | 'face' | 'along' | 'ac
 
 /**
  * The deepest the cut reaches into `face` over the part's section: the full depth is affine in station and cross
- * position, so its greatest value is at a corner; `rise > 0`, so that corner is at `t = T`. A single-slope cut reads the
- * two ends of `along` exactly as before schema 25.
+ * position, so its greatest value is at one of the four corners (at `t = T` for a stored `rise > 0`). A single-slope cut
+ * reads the two ends of `along` exactly as before schema 25.
  */
 export function deepestCorner(c: AngleCut, b: Pick<Board, Dimension>): number {
   if (!c.across) return Math.max(depthAt(c, 0), depthAt(c, b[c.along]));
+  // Every corner, not only t = T: the loader keeps rise > 0 only, but a Board built in code is answered, not trusted.
   const T = b[throughOf(c)];
-  return Math.max(depthAtCross(c, b, 0, T), depthAtCross(c, b, b[c.along], T));
+  const A = b[c.along];
+  return Math.max(depthAtCross(c, b, 0, 0), depthAtCross(c, b, 0, T), depthAtCross(c, b, A, 0), depthAtCross(c, b, A, T));
 }
 
 /** The station where the line reaches depth 0; NaN when the depths are equal (the line never does). */
@@ -148,7 +150,7 @@ export function angleCutsThatRemoveStock(board: Board): AngleCut[] {
  *  cut is its own line (the same object, so its readers are byte for byte as before). */
 function deepestLine(c: AngleCut, b: Pick<Board, Dimension>): Pick<AngleCut, 'points'> {
   if (!c.across) return c;
-  const h = (c.across.rise * b[throughOf(c)]) / 2;
+  const h = (Math.abs(c.across.rise) * b[throughOf(c)]) / 2; // the deeper side for either sign (a Board built in code)
   const [[s1, q1], [s2, q2]] = c.points;
   return { points: [[s1, q1 + h], [s2, q2 + h]] };
 }
@@ -157,7 +159,7 @@ function deepestLine(c: AngleCut, b: Pick<Board, Dimension>): Pick<AngleCut, 'po
  * The smallest board-local box holding every point the cut can remove (AI-angles spec §2.1): along `along`, the
  * stations where the line is deeper than 0; into `face`, from the `from` face to the line's greatest depth there
  * (clamped to the dimension); all of `throughOf(c)`. Depth is linear in station, so the greatest depth is at an end.
- * A compound cut (schema 25) is read on its DEEPEST cross line, `t = T` (`rise > 0`): the line shifted by rise · T/2,
+ * A compound cut (schema 25) is read on its DEEPEST cross line (`t = T` for `rise > 0`): the line shifted by |rise| · T/2,
  * which is at or above the full depth at every cross position of its station.
  * Null for a cut that removes nothing. Board-local: a caller crosses it to world space through `worldBox` (invariant 44).
  */
