@@ -4,7 +4,7 @@ import { DEFAULT_MATERIAL } from './types';
 import type { Units } from '../units/length';
 import { createBoard, createDocument, flatDocument, migrateDocument } from './document';
 import { chooseFace, slopeOf } from './lean';
-import { partAxis } from './legSockets';
+import { boreRow, partAxis } from './legSockets';
 import { holeInstances } from './holes';
 import { toWorld } from './snapPoints';
 import { worldBodies } from './drawing';
@@ -96,7 +96,7 @@ function endFacing(rung: Board, p: V3) {
 
 const rungJoints = (doc: SloydDocument) => {
   const flat = flatDocument(doc);
-  return tenonJoints(flat).filter((j) => flat.boards[j.a]!.name.startsWith('Stretcher'));
+  return tenonJoints(flat).filter((j) => flat.boards[j.a]!.name.includes('Stretcher'));
 };
 
 describe('stretchers: the front rung on the square-set stool (spec §3, Amended S1)', () => {
@@ -544,15 +544,27 @@ function refitOf(doc: SloydDocument, rungId: string): RefitPlan {
   return p;
 }
 
-/** The re-fit applied by hand (Task 4's store does this): each rung's patch, then each leg's holes, through `mapWorld`. */
+/** The re-fit applied by hand (Task 4's store does this): every rung's patch and every leg's holes in ONE `mapWorld`. */
 function applyRefit(doc: SloydDocument, p: RefitPlan): SloydDocument {
-  let out = mapWorld(doc, (w) => w.map((b) => {
+  return mapWorld(doc, (w) => w.map((b) => {
     const r = p.rungs.find((e) => e.id === b.id);
-    return r ? { ...b, ...r.patch } : b;
+    const l = p.legs.find((e) => e.id === b.id);
+    return r || l ? { ...b, ...(r ? r.patch : {}), ...(l ? { holes: l.holes } : {}) } : b;
   }));
-  for (const e of p.legs) out = mapWorld(out, (w) => w.map((b) => (b.id === e.id ? { ...b, holes: e.holes } : b)));
-  return out;
 }
+
+/** `doc`'s parts as one definition placed twice: `i1` at the origin, `i2` 30" along X. */
+function twicePlaced(doc: SloydDocument): SloydDocument {
+  const d: Definition = { id: 'd', boards: doc.boards, instances: [], hardware: [] };
+  return migrateDocument({ ...doc, boards: [], definitions: [d], instances: [
+    { id: 'i1', name: 'Stool', definition: 'd', position: [0, 0, 0], rotation: 0 },
+    { id: 'i2', name: 'Stool', definition: 'd', position: [30, 0, 0], rotation: 0 },
+  ] });
+}
+
+/** A unleaned upright 1.5" post, axis at (x, z = 0), 30 long. */
+const plainPost = (name: string, x: number) =>
+  createBoard({ name, posture: 'upright', length: 30, width: 1.5, thickness: 1.5, position: [x - 0.75, 0, -0.75] });
 
 /** Deep equality with every number within `tol`. */
 function expectClose(a: unknown, b: unknown, tol = 1e-9, path = '$'): void {
@@ -814,5 +826,128 @@ describe('stretchers: Fit the stretcher again (spec §6.3, §6.4)', () => {
       ? { ...b, width: 3, position: [b.position[0], b.position[1], b.position[2] - 1] as V3 } : b)));
     expect(stretcherOf(world(doc), rungsOf(doc)[1]!)!.seated).toBe(true);
     expect(refitPlan(doc, front.id)).toBe(stretcherOutOfReach('Back left'));
+  });
+});
+
+describe('stretchers: Fit again, fix round 1 (review I1, I2, M-3, M-4, M-5)', () => {
+  it('I1: a stool in a definition placed twice: one rung entry per STORED rung, applied in one mapWorld, both copies fitted', () => {
+    const doc = twicePlaced(releaned(twoRungs(), 'Front right', { x: slopeOf(14) }));
+    const rungs = rungsOf(doc);
+    expect(rungs.map((b) => b.id.split('/')[0])).toEqual(['i1', 'i1', 'i2', 'i2']);
+    expect(rungJoints(doc)).toHaveLength(4);
+    const p = refitOf(doc, rungs[0]!.id);
+    expect(p.rungs.map((e) => e.id)).toEqual([rungs[0]!.id, rungs[1]!.id]);
+    expect(p.legs).toHaveLength(2);
+    const next = applyRefit(doc, p);
+    expect(rungJoints(next)).toHaveLength(8);
+    expect(kindsOf(next)).toEqual([]);
+    for (const r of rungsOf(next)) expect(stretcherOf(world(next), r)!.seated).toBe(true);
+    // From the second copy's rung: the same, through its placement.
+    expectClose(applyRefit(doc, refitOf(doc, rungs[2]!.id)), next);
+  });
+
+  it('I1: Add between the legs of a twice-placed definition: one leg entry per storage target, both copies joined', () => {
+    const doc = twicePlaced(squareStoolDocument());
+    const legIds = ids(doc, 'Front right', 'Front left');
+    expect(legIds.every((id) => id.startsWith('i1/'))).toBe(true);
+    const p = planOf(doc, legIds, { height: 6, ...O });
+    expect(p.container).toBe('i1');
+    expect(p.legs.map((e) => e.id)).toEqual(legIds);
+    // The rung into the definition (i1 sits at the origin unturned, so its frame is the world's); the legs in one mapWorld.
+    const withRung = { ...doc, definitions: doc.definitions.map((d) => ({ ...d, boards: [...d.boards, p.rung] })) };
+    const next = mapWorld(withRung, (w) => w.map((b) => {
+      const e = p.legs.find((x) => x.id === b.id);
+      return e ? { ...b, holes: e.holes } : b;
+    }));
+    expect(rungJoints(next)).toHaveLength(4);
+    expect(kindsOf(next)).toEqual([]);
+  });
+
+  /** Posts A (x = -6) and B (x = 6), a rung at 10, then moved up 1.5 (stale); `extra` added to Post A. */
+  function staleWith(extra: (a: Board, tip: V3) => Omit<HoleRow, 'id'>) {
+    const doc0 = migrateDocument({ ...createDocument('Posts'), boards: [plainPost('Post A', -6), plainPost('Post B', 6)] });
+    const one = apply(doc0, planOf(doc0, ids(doc0, 'Post A', 'Post B'), { height: 10, ...O }));
+    const rung = rungsOf(one)[0]!;
+    const up = mapWorld(one, (w) => w.map((b) => (b.id === rung.id ? { ...b, position: [b.position[0], b.position[1] + 1.5, b.position[2]] as V3 } : b)));
+    const a = part(up, 'Post A');
+    const row: HoleRow = { ...extra(a, [-6, 11.5, 0]), id: 'extra' };
+    return mapWorld(up, (w) => w.map((b) => (b.id === a.id ? { ...b, holes: [...b.holes, row] } : b)));
+  }
+
+  function refitsOwnSocket(doc: SloydDocument) {
+    const a = part(doc, 'Post A');
+    const socket = a.holes[0]!;
+    const next = applyRefit(doc, refitOf(doc, rungsOf(doc)[0]!.id));
+    const after = part(next, 'Post A');
+    expect(after.holes.map((r) => r.id)).toEqual([socket.id, 'extra']);
+    expect(after.holes[0]!.station).not.toBe(socket.station);
+    expect(after.holes[1]).toEqual(a.holes[1]);
+    expect(rungJoints(next)).toHaveLength(2);
+    expect(kindsOf(next)).toEqual([]);
+  }
+
+  it('I2: a stale tenon never takes a NEARER bore of another diameter (a 1/4" pin hole) as its socket', () => {
+    // A 1/4" blind bore across the post, 0.4 past the stale tip (its bottom 0.4 from the tip; the socket's is 1.5 below).
+    const doc = staleWith((a, tip) => boreRow(a, 'thickness', 'min', [tip[0] - 0.4, tip[1], -0.75], [0, 0, 1], 0.25, 0.75));
+    refitsOwnSocket(doc);
+  });
+
+  it('I2: a stale tenon never takes a nearer THROUGH bore of its diameter as its socket', () => {
+    const doc = staleWith((a, tip) => boreRow(a, 'thickness', 'min', [tip[0] - 0.4, tip[1], -0.75], [0, 0, 1], 5 / 8, 'through'));
+    refitsOwnSocket(doc);
+  });
+
+  it('M-3: a stale tenon never takes a row another part\'s tenon is seated in (a one-tenon rail), however near', () => {
+    // Post C at x = -18; a rail from C into Post A at 12.2, its C-end tenon removed (one tenon: no stretcher, never re-fitted).
+    const doc0 = migrateDocument({ ...createDocument('Posts'), boards: [plainPost('Post A', -6), plainPost('Post B', 6), plainPost('Post C', -18)] });
+    const one = apply(doc0, planOf(doc0, ids(doc0, 'Post A', 'Post B'), { height: 10, ...O }));
+    const two = apply(one, planOf(one, ids(one, 'Post C', 'Post A'), { height: 12.2, ...O }));
+    const [rung, rail] = rungsOf(two) as [Board, Board];
+    const railTenonInA = tenonsOf(rail).find((t) => rungLegAt(world(two), rail, t)!.name === 'Post A')!;
+    // The rung up 1.4: its tip 0.8 below the rail's socket bottom, 1.4 above its own.
+    const doc = mapWorld(two, (w) => w.map((b) => (b.id === rung.id ? { ...b, position: [b.position[0], b.position[1] + 1.4, b.position[2]] as V3 }
+      : b.id === rail.id ? withTenons(b, [railTenonInA]) : b)));
+    const a = part(doc, 'Post A');
+    expect(a.holes).toHaveLength(2);
+    const next = applyRefit(doc, refitOf(doc, rungsOf(doc)[0]!.id));
+    expect(part(next, 'Post A').holes[1]).toEqual(a.holes[1]);
+    expect(part(next, 'Post A').holes[0]!.id).toBe(a.holes[0]!.id);
+    expect(rungJoints(next)).toHaveLength(3);
+  });
+
+  it('M-4: the closure grows through a rung found LATER (world order B, C, A; A selected; B linked only through C)', () => {
+    // Posts P1 / P2 share a Shape, and P3 / P4: A (P0–P1) shares its P1 row with C (P3–P2), C its P3 row with B (P4–P5).
+    const posts = [plainPost('P0', 0), plainPost('P1', 12), plainPost('P3', 18), plainPost('P2', 30), plainPost('P4', 50), plainPost('P5', 62)];
+    const base = migrateDocument({ ...createDocument('Chain'), boards: posts });
+    const roles = new Map(world(base).map((b) => [b.id, b.name === 'P1' || b.name === 'P2' ? 'a' : b.name === 'P3' || b.name === 'P4' ? 'b' : b.name]));
+    const doc0 = linkByRole(base, roles);
+    expect(part(doc0, 'P1').shape).toBe(part(doc0, 'P2').shape);
+    expect(part(doc0, 'P3').shape).toBe(part(doc0, 'P4').shape);
+    const a = apply(doc0, planOf(doc0, ids(doc0, 'P0', 'P1'), { height: 10, ...O }));
+    const c = apply(a, planOf(a, ids(a, 'P3', 'P2'), { height: 10, ...O }));
+    const b = apply(c, planOf(c, ids(c, 'P4', 'P5'), { height: 10, ...O }));
+    expect(rungJoints(b)).toHaveLength(6);
+    const [rA, rC, rB] = rungsOf(b) as [Board, Board, Board];
+    // World order B, C, A.
+    const doc = { ...b, boards: [...b.boards.filter((x) => ![rA.id, rB.id, rC.id].includes(x.id)), rB, rC, rA] };
+    expect(rungsOf(doc).map((x) => x.id)).toEqual([rB.id, rC.id, rA.id]);
+    const p = refitOf(doc, rA.id);
+    expect(p.rungs.map((e) => e.id)).toEqual([rA.id, rC.id, rB.id]);
+    expect(applyRefit(doc, p)).toEqual(doc);
+  });
+
+  it('M-5: the side rungs (Front left → Back left, Front right → Back right at 7.5) re-fit together after a rake change', () => {
+    const doc0 = squareStoolDocument();
+    const one = apply(doc0, planOf(doc0, ids(doc0, 'Front left', 'Back left'), { height: 7.5, ...O }));
+    const two = apply(one, planOf(one, ids(one, 'Front right', 'Back right'), { height: 7.5, ...O }));
+    for (const n of ['Front right', 'Front left', 'Back left', 'Back right']) expect(part(two, n).holes).toHaveLength(1);
+    const doc = releaned(two, 'Front right', { z: slopeOf(10) });
+    const [left, right] = rungsOf(doc) as [Board, Board];
+    for (const r of [left, right]) expect(stretcherOf(world(doc), r)!.seated).toBe(false);
+    const p = refitOf(doc, left.id);
+    expect(p.rungs.map((e) => e.id)).toEqual([left.id, right.id]);
+    const next = applyRefit(doc, p);
+    expect(rungJoints(next)).toHaveLength(4);
+    expect(kindsOf(next)).toEqual([]);
   });
 });

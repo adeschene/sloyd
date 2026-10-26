@@ -13,7 +13,7 @@ import { socketFaultWords } from './holeText';
 import { worldBodies } from './drawing';
 import { toWorld } from './snapPoints';
 import { boreAlongAxis, boreEnds, faceCrossing, partAxis, rungEntryOf, rungSocketRow, socketTooSteep, type WorldAxis } from './legSockets';
-import { shoulderAt, tenonAt, tenonFaults, tenonsOf, tenonStep, withTenons } from './roundTenons';
+import { builtTenons, shoulderAt, tenonAt, tenonFaults, tenonsOf, tenonStep, withTenons } from './roundTenons';
 import { tenonFaultText } from './tenonText';
 import { seatedIn } from './tenonJoints';
 import { TOUCH } from './checkTolerances';
@@ -193,20 +193,14 @@ export function shoulderStation(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, s
   return stationOf(e);
 }
 
-/** The station and the gap from one end's four corner exits (`cornerExits`): the plan computes the exits once per end. */
+/** The station from one end's four corner exits (`cornerExits`): the plan computes the exits once per end. */
 const stationOf = (exits: readonly number[]) => Math.max(...exits);
-const gapOf = (exits: readonly number[], shoulder: number) => shoulder - Math.min(...exits);
-
 /**
- * THE shoulder gap (spec §5.3, ruling P1; `stretcherPlan` and Task 3's `stretcherOf` both call it): with the shoulder placed
- * `shoulder` from the end's axis point, the most any of its four corners stands off `leg`'s wood — the shoulder's distance
- * less the nearest corner line's exit. Throws as `shoulderStation`.
+ * THE shoulder gap (spec §5.3, ruling P1; `stretcherPlan` and `stretcherOf` both read it, over `cornerExits`): with the
+ * shoulder placed `shoulder` from the end's point, the most any of its four corners stands off the leg's wood — the
+ * shoulder's distance less the nearest corner line's exit.
  */
-export function shoulderGap(leg: Board, line: Pick<RungLine, 'p0' | 'p1'>, size: number, atStart: boolean, shoulder: number): number {
-  const e = cornerExits(leg, line, squareSection(size), atStart);
-  if (!e) throw new Error(`shoulderGap: a corner line misses ${leg.id}`);
-  return gapOf(e, shoulder);
-}
+const gapOf = (exits: readonly number[], shoulder: number) => shoulder - Math.min(...exits);
 
 /** Whether the rung's section at this end lies on `leg`'s entry face (ruling T1a, before `rungSocketRow`, which throws
  *  otherwise): the centre line and the four corner lines, run into the leg, cross the entry face's plane (`rungEntryOf`,
@@ -567,15 +561,17 @@ function rowsAgree(a: Omit<HoleRow, 'id'>, b: Omit<HoleRow, 'id'>): boolean {
 
 /**
  * The row tenon `t` of `rung` used in `leg` (spec §6.2): the first row it is `seatedIn`; once stale, the single blind bore of
- * the tenon's diameter (to 1e-9) whose bottom centre is nearest the tip's centre — `{ tied }` when two are equally near
+ * the tenon's diameter (to 1e-9), not holding another part's seated tenon, whose bottom centre is nearest the tip's centre — `{ tied }` when two are equally near
  * (to 1e-9: a hand-made duplicate needs a human), null when the leg has none.
  */
-function usedRow(rung: Board, t: RoundTenon, leg: Board): HoleRow | null | { tied: HoleRow[] } {
+function usedRow(world: readonly Board[], rung: Board, t: RoundTenon, leg: Board): HoleRow | null | { tied: HoleRow[] } {
   const seated = leg.holes.find((r) => seatedIn(rung, t, leg, r));
   if (seated) return seated;
   const tip = tenonSegment(rung, t)[1];
+  // Another part's tenon seated in a row holds it: never taken for this tenon's (review M-3).
+  const held = (r: HoleRow) => world.some((a) => a.id !== rung.id && a.id !== leg.id && builtTenons(a).some((x) => seatedIn(a, x, leg, r)));
   const near = leg.holes
-    .filter((r) => r.count === 1 && r.depth !== 'through' && Math.abs(r.diameter - t.diameter) <= EPS)
+    .filter((r) => r.count === 1 && r.depth !== 'through' && Math.abs(r.diameter - t.diameter) <= EPS && !held(r))
     .map((r) => ({ r, d: Math.hypot(...sub(boreEnds(leg, r)[1], tip)) }))
     .sort((p, q) => p.d - q.d);
   if (near.length === 0) return null;
@@ -585,7 +581,8 @@ function usedRow(rung: Board, t: RoundTenon, leg: Board): HoleRow | null | { tie
 
 /** Fit again's plan (spec §6.3, §6.4). */
 export interface RefitPlan {
-  /** Every rung in the closure, the selected one first, then in the order found: its WORLD id and the fields it changes
+  /** One entry per STORED rung in the closure (another placement of its definition follows through the write-back; ruling
+   *  T3d), the selected one first, then in the order found: its WORLD id and the fields it changes
    *  (`length`, `position`, `tenons` — the same ids, by end). A value within 1e-9 of the stored one is the stored one. */
   rungs: { id: string; patch: Partial<Board> }[];
   /** One entry per STORAGE target whose rows move, as `StretcherPlan.legs`: a world leg standing for it and that world
@@ -624,7 +621,7 @@ export function refitPlan(doc: SloydDocument, rungId: string): RefitPlan | strin
     let ambiguous: Board | null = null;
     const keys: string[] = [];
     for (const [i, leg] of found.legs.entries()) {
-      const r = usedRow(rung, ts[i]!, leg);
+      const r = usedRow(world, rung, ts[i]!, leg);
       if (r && 'tied' in r) {
         ambiguous ??= leg;
         keys.push(...r.tied.map((x) => keyOf(leg, x)));
@@ -642,8 +639,15 @@ export function refitPlan(doc: SloydDocument, rungId: string): RefitPlan | strin
   const candidates = new Map(world.filter((b) => b.id !== rungId && tenonPair(b) !== null).map((b) => [b.id, memberOf(b)]));
   const members: Member[] = [];
   const moved = new Set<string>();
+  // One member per STORED rung (ruling T3d): another placement of a definition holding a member is the same rung, its rows
+  // the same storage targets; planned once, through the first placement found.
+  const stored = new Set<string>();
   const join = (c: NonNullable<ReturnType<typeof memberOf>>): string | null => {
     if ('ambiguous' in c) return stretcherAmbiguous(nameOf(c.ambiguous));
+    for (const key of c.keys) moved.add(key);
+    const sk = storageKey(doc, c.m.rung.id) ?? c.m.rung.id;
+    if (stored.has(sk)) return null;
+    stored.add(sk);
     members.push(c.m);
     for (const key of c.keys) moved.add(key);
     return null;
