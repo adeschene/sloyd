@@ -35,13 +35,12 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `447df4b`, bundle `index-3F79fb4S.js`, CSS `index-BvtLBoRl.css`, SCHEMA 25** (square-set legs, splayed legs
-  chunk 2c; merge `447df4b`; deployed 2026-10-26). Owed to the user: see NEXT.
-- **Rollback:** the nearest refusing boundary is `0699965` (round tenons, `index-ObjqEMR0.js`, schema 24): it REFUSES every project
-  saved at 25 — export first. Below it, `aa1f841` refuses 24, `f3fced0` 23, `68dca2d` 22, `e2729ee` 21; back to `98c7df4` is
-  schema 20. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-26):** stretchers (fu 438, no schema change) are BUILT on branch `stretchers`, NOT merged or deployed: browser
-  check, final review, merge, deploy. Owed: six specs' Amended blocks (`docs/rounds.md`); the owed list below.
+- **Production: `fc4302a`, bundle `index-D-XnmIBh.js`, CSS `index-BvtLBoRl.css`, SCHEMA 25** (stretchers, splayed legs chunk 3,
+  fu 438; merge `fc4302a`; deployed 2026-10-26). Owed to the user: see NEXT.
+- **Rollback:** back to `447df4b` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
+  `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Below it, `aa1f841` refuses 24, `f3fced0`
+  23, `68dca2d` 22, `e2729ee` 21; back to `98c7df4` is schema 20. Table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (2026-10-26):** stretchers deployed. Owed: six specs' Amended blocks (`docs/rounds.md`); the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.

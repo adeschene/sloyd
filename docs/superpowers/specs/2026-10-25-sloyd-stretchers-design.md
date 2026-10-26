@@ -1,6 +1,6 @@
 # Splayed legs, chunk 3: stretchers — design
 
-Status: BUILT 2026-10-26 on branch `stretchers` (no schema change; inv 60), NOT merged or deployed; the *Amended (build)* block
+Status: BUILT 2026-10-26; merged `fc4302a` and DEPLOYED 2026-10-26 as `index-D-XnmIBh.js` (no schema change; inv 60); the *Amended (build)* block
 below awaits the user's approval. APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (six questions, each answered as my call: §3.1, §3.3,
 §3.4, §4, §6.1–6.3; three claims the code contradicted, corrected). Follow-up 438 (the splayed legs spec's §12 and the angled holes spec's §12 outline).
 Chunk 1 (a part leans, schema 22), chunk 2 (angled holes, schema 23) and chunk 2b (round tenons, schema 24) are deployed

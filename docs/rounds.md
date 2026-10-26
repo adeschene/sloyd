@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `447df4b` (square-set legs) | `index-3F79fb4S.js` (CSS `index-BvtLBoRl.css`) | 25 | current |
+| `fc4302a` (stretchers) | `index-D-XnmIBh.js` (CSS `index-BvtLBoRl.css`) | 25 | current |
+| `447df4b` (square-set legs) | `index-3F79fb4S.js` (CSS `index-BvtLBoRl.css`) | 25 | free (no schema change); Add stretcher and Fit the stretcher again are gone, stretchers already added stay as plain parts with tenons and their sockets |
 | `0699965` (round tenons) | `index-ObjqEMR0.js` (CSS `index-BvtLBoRl.css`) | 24 | REFUSES every project saved at 25 — export first; square-set leans and compound end cuts stop |
 | `aa1f841` (angled holes) | `index-B114iN-Y.js` | 23 | REFUSES every project saved at 24 — export first; tenons, joints and Tenon the legs stop |
 | `f3fced0` (splayed legs) | `index-B3SCZcHR.js` | 22 | REFUSES every project saved at 23 — export first; tilts and sockets stop |
@@ -147,8 +148,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Status log (to 2026-10-26)
 
-- **Stretchers, splayed legs chunk 3 (fu 438; 2026-10-26; built on branch `stretchers`, NOT merged or deployed; NO schema change —
-  rolling back to `447df4b` is free, so the rollback table gains no row)**: spec `docs/superpowers/specs/2026-10-25-sloyd-stretchers-design.md`
+- **Stretchers, splayed legs chunk 3 (fu 438; 2026-10-26; MERGED `fc4302a`, DEPLOYED 2026-10-26 as `index-D-XnmIBh.js`; NO schema change —
+  rolling back to `447df4b` is free)**: spec `docs/superpowers/specs/2026-10-25-sloyd-stretchers-design.md`
   (its *Amended (build)* block — S1 and the build rulings P1, T3b–T3e, T4a, T5a–T5c and the stale-row exclusion — awaits the user's
   approval), plan `docs/superpowers/plans/2026-10-25-sloyd-stretchers.md`. Parked 2026-10-25 at Task 1 for square-set legs (the user's
   "Untwisted legs first"), resumed 2026-10-26 on `447df4b` (branch rebased; Task 1 is `e5a81c2`). Subagent-driven, 5 build tasks and
