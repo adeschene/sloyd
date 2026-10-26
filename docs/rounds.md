@@ -534,7 +534,10 @@ the housing) — and its P8 words: the summary lines (`… ruled out — <part>'
 … in the way of every joint.`) and `FEATURE_CHECK_FAILED`; the curves spec's *Amended (implementation, chunk 1/2)* rulings, the profile runs spec's I1/I2 *Amended (implementation, a2)*, its b1 amendments (B1a, B1's ε, Q3/Q6 Task 3, Q6's I2, Q7's wording), its b2 amendments (R5–R7, crossed stations, M1, M2, the neighbour-refusal and Curves stop-off words, the junction shading override; fu 394), and the section views spec's §3.3 *Amended (implementation)* (its own block, `DRAW_EPS` touching, no kept wood
   draws nothing).
 
-Since the bulk approval: the angled holes spec's *Amended (build)* (Rulings P1, T2a–T2d, T3a, T7a, T8a, T9a–T9c, T10a–T10d,
+**APPROVED 2026-10-26, all six Amended blocks below, in bulk** (the user, after a plain-terms walk-through of every
+ruling that changes what a person sees; the copy reviews — fu 454, 464, 468, 473, 482 — are separate and stay owed).
+
+Since the bulk approval of 2026-10-23: the angled holes spec's *Amended (build)* (Rulings P1, T2a–T2d, T3a, T7a, T8a, T9a–T9c, T10a–T10d,
 T11a — chiefly T2d the new `too-shallow` fault, T9b Level the ends refusing an unstorable hole where §7 said "kept and noted", T10a
 partial bores, T11a the joined-Refine refusal; deployed) and its copy (fu 454). The splayed legs spec's *Amended (build)* (Rulings 1–19 — chiefly Ruling 1 `seamFree`, Ruling 4 the
 magnitude/direction controls replacing §4's "same world lean to each", Ruling 7 Level's top reference R narrowing §5's "always extends",

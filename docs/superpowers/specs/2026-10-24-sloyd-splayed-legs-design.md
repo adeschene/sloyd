@@ -473,6 +473,8 @@ Every refusal is decided before any mutation (inv 41's rule) and reads as a sent
 
 ## Amended (build)
 
+**APPROVED by the user 2026-10-26, every ruling in this block, in bulk** (walked through in plain terms first, in the owed-reviews pass).
+
 Rulings made while building, on branch `splayed-legs` (2026-10-24; the SDD ledger and the task reports). The code plus these rulings
 govern; where one differs from the text above, this block wins. Records: invariant 57 (and its clauses on invs 2, 24, 25, 38, 39, 41,
 42, 44–47, 51 and 56) in `docs/invariants.md`; follow-ups 436–446.

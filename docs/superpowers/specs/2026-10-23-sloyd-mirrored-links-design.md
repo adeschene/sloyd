@@ -181,6 +181,8 @@ parts).
 
 ## Amended (execution)
 
+**APPROVED by the user 2026-10-26, every ruling in this block, in bulk** (walked through in plain terms first, in the owed-reviews pass).
+
 Rulings made while building, on branch `mirrored-links` (2026-10-23; the SDD ledger). The code plus these rulings govern; where one
 differs from the text above, this block wins.
 

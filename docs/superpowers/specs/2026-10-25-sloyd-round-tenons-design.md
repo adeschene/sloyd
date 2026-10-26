@@ -3,7 +3,7 @@
 Status: APPROVED by the user 2026-10-25 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions, each answered below as my call: §5.1, §5.2, §6.3, §6.4). Follow-up 447 (the angled holes spec's §12 outline).
 **Built 2026-10-25; merged `0699965` and DEPLOYED 2026-10-25 as `index-ObjqEMR0.js`** (plan Tasks 1–12; schema 24). Browser verification (plan
 Task 12, dev server) PASS 8/8; final review clean. Later rulings: the *Amended (build)* block at the end, which
-wins where it differs from the text — **awaiting the user's approval**. Chunk 1 (a part
+wins where it differs from the text — APPROVED by the user 2026-10-26. Chunk 1 (a part
 leans, schema 22) and chunk 2 (angled holes, schema 23) are deployed (`index-B114iN-Y.js`). Chunk 3, stretchers (fu 438),
 builds on this one.
 
@@ -354,8 +354,10 @@ A read-only survey (2026-10-25) found:
 
 ## Amended (build)
 
+**APPROVED by the user 2026-10-26, every ruling in this block, in bulk** (walked through in plain terms first, in the owed-reviews pass).
+
 Rulings made while building, on branch `round-tenons` (2026-10-25; the SDD ledger and the task reports). The code plus these rulings
-govern; where one differs from the text above, this block wins. **Every entry awaits the user's approval.** Records: invariant 58
+govern; where one differs from the text above, this block wins. Records: invariant 58
 new, invariants 2, 38, 39, 40, 41, 44, 45, 48, 50, 56 and 57 extended (`docs/invariants.md`); follow-ups 457–466 (447 closed).
 
 - **Ruling P1 — the bench line's end words (§8's example).** It reads `<d> round tenon, <t> long — at the length <min|max> end,

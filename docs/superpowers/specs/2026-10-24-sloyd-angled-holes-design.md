@@ -258,6 +258,8 @@ model it is not reached by a tilt, and the builder notes it.
 
 ## Amended (build)
 
+**APPROVED by the user 2026-10-26, every ruling in this block, in bulk** (walked through in plain terms first, in the owed-reviews pass).
+
 Rulings made while building, on branch `angled-holes` (2026-10-24/25; the SDD ledger and the task reports). The code plus these
 rulings govern; where one differs from the text above, this block wins. Records: invariants 44, 50, 51, 56 and 57 in
 `docs/invariants.md`; follow-ups 447–456 (437 closed but the round tenon).

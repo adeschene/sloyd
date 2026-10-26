@@ -40,7 +40,7 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `447df4b` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
   `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-26):** stretchers deployed; this file trimmed (59.9KB → 48.2KB; per-file rules moved to `docs/module-map.md`). Owed: six specs' Amended blocks (`docs/rounds.md`); the owed list below.
+- **NEXT (2026-10-26):** stretchers deployed; this file trimmed (59.9KB → 48.2KB; per-file rules moved to `docs/module-map.md`). The six specs' Amended blocks APPROVED 2026-10-26. Owed: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
