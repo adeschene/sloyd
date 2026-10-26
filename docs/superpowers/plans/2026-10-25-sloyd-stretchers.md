@@ -24,7 +24,7 @@ plan and the spec differ, the spec wins and the difference is reported.
 
 ## Global Constraints
 
-- **No schema change.** `CURRENT_VERSION` stays 24; `types.ts` gains no field. A project without a stretcher is byte for
+- **No schema change.** `CURRENT_VERSION` stays 25 (square-set legs); `types.ts` gains no field. A project without a stretcher is byte for
   byte as before: every existing test passes unchanged, and `socketRow` / `socketPlan` / Bore leg sockets return exactly
   what they return today (a pinned literal test, Task 1).
 - The rung is an ordinary part: posture `flat`, its length along world X (turn 0) or Z (turn 90), section width ×
