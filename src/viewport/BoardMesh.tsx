@@ -332,7 +332,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   }, [section, offset?.[0], offset?.[1], offset?.[2], board.position[0], board.position[1], board.position[2],
     board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board),
     // The lean: not in boardUVSignature (UVs are part-local, splayed legs spec §6.2), but a leaning cap is cut by it.
-    board.lean?.x, board.lean?.z, board.lean?.face]);
+    board.lean?.x, board.lean?.z, board.lean?.face, board.lean?.square]);
   useEffect(() => () => { cap?.fillGeo.dispose(); cap?.lineGeo.dispose(); }, [cap]);
   const capColor = useMemo(
     () => (faded ? fadedColor : new THREE.Color(color)).clone().multiplyScalar(CAP_DARKEN),
@@ -371,7 +371,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
       0, 0, 0, 1,
     );
     return { position: t, quaternion: new THREE.Quaternion().setFromRotationMatrix(rot) };
-  }, [board.lean?.x, board.lean?.z, board.lean?.face, board.rotation, board.posture,
+  }, [board.lean?.x, board.lean?.z, board.lean?.face, board.lean?.square, board.rotation, board.posture,
     board.position[0], board.position[1], board.position[2], extents[0], extents[1], extents[2],
     offset?.[0], offset?.[1], offset?.[2]]);
 

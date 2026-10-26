@@ -2,7 +2,7 @@ import { worldParts } from '../document/tree';
 import { ARCH } from '../document/curveFixtures';
 import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
-import { useStore, HOLE_TILT_PAST_BOUND, LEAN_TURNS_HOLES } from './store';
+import { useStore, HOLE_TILT_PAST_BOUND, LEAN_SET_TURNS_HOLES, LEAN_TURNS_HOLES } from './store';
 import type { AngleCut, Board, Lean, Shape, SloydDocument } from '../document/document';
 import { profileFromFields } from '../document/profiles';
 import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
@@ -3740,7 +3740,7 @@ describe('setLean, the lean refusals, resize keeps the pivot, drags round the de
   it('a holed part can take a lean (a first lean chooses its face freely)', () => {
     load(leg({ holes: [HOLE] }));
     expect(s().setLean(['L'], { rake: 8 })).toBeNull();
-    expect(occ('L').lean).toEqual({ x: 0, z: T8, face: 'thickness' });
+    expect(occ('L').lean).toEqual({ x: 0, z: T8, face: 'thickness', square: true }); // square-set legs §3.2: the default
     expect(occ('L').holes).toEqual([HOLE]);
     expect(s().setLean(['L'], { splay: 12 })).toBeNull();     // both non-zero: the face is kept
     expect(occ('L').lean!.face).toBe('thickness');
@@ -3887,6 +3887,145 @@ describe('setLean, the lean refusals, resize keeps the pivot, drags round the de
     s().moveGroupTo(['L', 'o'], bounds.min.map((v, i) => v + d[i]!) as [number, number, number]);
     for (const id of ['L', 'o'] as const) occ(id).position.forEach((v, i) => expect(Math.abs(v - start[id][i]! - snap(d[i]!))).toBeLessThan(1e-12));
     expect(Math.abs(partBounds(occ('L')).min[1])).toBeLessThan(1e-12);
+  });
+});
+
+describe('square-set leans through setLean (square-set legs spec §3.2)', () => {
+  const s = () => useStore.getState();
+  const occ = (id: string) => worldParts(s().doc).find((b) => b.id === id)!;
+  const T8 = slopeOf(8);
+  const T12 = slopeOf(12);
+  const leg = (over: Partial<Board> = {}) =>
+    createBoard({ id: 'L', name: 'Leg', length: 16, width: 1.5, thickness: 1.25, posture: 'upright', position: [0.123, 0, 0.456], ...over });
+  const load = (...boards: Board[]) => s().replaceDocument({ ...createDocument('Lean'), boards });
+  const HOLE = { id: 'h1', face: 'thickness' as const, from: 'min' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'max' as const, inset: 0.5 };
+  const SET = 'Changing how this leg is set would turn it about its length and move its holes — remove the holes first.';
+  const refuses = (text: string, run: () => string | null | void) => {
+    const doc = s().doc;
+    const n = s().past.length;
+    expect(run()).toBe(text);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
+  };
+
+  it('a first lean is square-set; rake and splay edits keep it; the Set sentence is verbatim', () => {
+    expect(LEAN_SET_TURNS_HOLES).toBe(SET);
+    load(leg());
+    expect(s().setLean(['L'], { rake: 8, splay: 12 })).toBeNull();
+    expect(occ('L').lean).toEqual({ x: T12, z: T8, face: 'width', square: true });
+    s().setLean(['L'], { rake: 9 });
+    expect(occ('L').lean!.square).toBe(true);
+    s().setLean(['L'], { splaySign: -1 });
+    expect(occ('L').lean!.square).toBe(true);
+    // A first lean may ask for turned: no `square` key at all.
+    load(leg());
+    s().setLean(['L'], { rake: 8, splay: 12, square: false });
+    expect('square' in occ('L').lean!).toBe(false);
+  });
+
+  it('a loaded turned lean stays turned through rake and splay edits: no square key is ever written', () => {
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    s().setLean(['L'], { rake: 9 });
+    s().setLean(['L'], { splay: 10 });
+    expect('square' in occ('L').lean!).toBe(false);
+    expect('square' in (s().doc.boards[0] as Board).lean!).toBe(false);
+  });
+
+  it('the Set change alone keeps the slopes bit for bit, one undo entry each way; the same Set again pushes nothing', () => {
+    load(leg({ rotation: 90 }));
+    s().setLean(['L'], { rake: 8, splay: 12 });
+    const { x, z, face } = occ('L').lean!;
+    const n = s().past.length;
+    expect(s().setLean(['L'], { square: false })).toBeNull();
+    expect(occ('L').lean).toEqual({ x, z, face });
+    expect('square' in occ('L').lean!).toBe(false);
+    expect(s().past.length).toBe(n + 1);
+    s().setLean(['L'], { square: false });                       // inv 4: no change, no entry
+    expect(s().past.length).toBe(n + 1);
+    expect(s().setLean(['L'], { square: true })).toBeNull();
+    expect(occ('L').lean).toEqual({ x, z, face, square: true });
+    expect(s().past.length).toBe(n + 2);
+    s().undo();
+    expect('square' in occ('L').lean!).toBe(false);
+  });
+
+  it('a Set change on an unleaned part writes nothing', () => {
+    load(leg());
+    expect(s().setLean(['L'], { square: true })).toBeNull();
+    expect('lean' in s().doc.boards[0]!).toBe(false);
+    expect(s().past.length).toBe(0);
+  });
+
+  it('a Set change on a holed 8°/12° leg is refused verbatim and changes nothing, either way', () => {
+    load(leg({ holes: [HOLE], lean: { x: T12, z: T8, face: 'width', square: true } }));
+    refuses(SET, () => s().setLean(['L'], { square: false }));
+    load(leg({ holes: [HOLE], lean: { x: T12, z: T8, face: 'width' } }));
+    refuses(SET, () => s().setLean(['L'], { square: true }));
+    // A combined edit that ends at τ = 0 still leaves a turned lean whose own twist is not 0: refused.
+    refuses(SET, () => s().setLean(['L'], { square: true, splay: 0 }));
+    // Without holes the same changes are allowed.
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    expect(s().setLean(['L'], { square: true })).toBeNull();
+    expect(occ('L').lean!.square).toBe(true);
+  });
+
+  it('review focus 5: a rake-only (or splay-only) holed leg changes its Set, and its map is the same either way', () => {
+    for (const lean of [{ x: 0, z: T8, face: 'thickness' as const }, { x: T12, z: 0, face: 'width' as const }]) {
+      load(leg({ holes: [HOLE], lean }));
+      const before = leanMap(occ('L'))!.m;
+      expect(s().setLean(['L'], { square: true })).toBeNull();
+      expect(occ('L').lean).toEqual({ ...lean, square: true });
+      const after = leanMap(occ('L'))!.m;
+      for (let i = 0; i < 3; i += 1) for (let j = 0; j < 3; j += 1) expect(Math.abs(after[i]![j]! - before[i]![j]!)).toBeLessThan(1e-15);
+      expect(occ('L').holes).toEqual([HOLE]);
+      expect(s().setLean(['L'], { square: false })).toBeNull();
+      expect(occ('L').lean).toEqual(lean);
+    }
+  });
+
+  it('a rake → 0 edit on a holed square-set leg is allowed (its face never reaches the map); the turned one is refused', () => {
+    // Stored face thickness with both slopes non-zero: rake → 0 (z → 0) makes seamFree flip it to width.
+    load(leg({ holes: [HOLE], lean: { x: T12, z: T8, face: 'thickness' } }));
+    refuses(LEAN_TURNS_HOLES, () => s().setLean(['L'], { rake: 0 }));
+    load(leg({ holes: [HOLE], lean: { x: T12, z: T8, face: 'thickness', square: true } }));
+    const before = leanMap(occ('L'))!.m;
+    expect(s().setLean(['L'], { rake: 0 })).toBeNull();
+    expect(occ('L').lean).toEqual({ x: T12, z: 0, face: 'width', square: true });
+    expect(occ('L').holes).toEqual([HOLE]);
+    // No turn about the length: the width axis keeps its plan direction (the map only tilts).
+    const w = leanMap(occ('L'))!.applyDir([1, 0, 0]);
+    expect(Math.abs(w[2])).toBeLessThan(1e-12);
+    expect(before).not.toEqual(leanMap(occ('L'))!.m);
+  });
+
+  it('two users of one Shape across a mirror: the Set is written to the Shape once, one undo entry, both read it', () => {
+    const { id: _id, name: _name, position: _p, rotation: _r, ...shared } = leg({ lean: { x: 0.1, z: 0.25, face: 'thickness' } });
+    s().replaceDocument({
+      ...createDocument('Lean'),
+      shapes: [{ id: 's1', ...shared } as Shape],
+      boards: [
+        { id: 'a', name: 'Front left', position: [0, 0, 0], rotation: 0, shape: 's1' },
+        { id: 'b', name: 'Front right', position: [10, 0, 0], rotation: 0, shape: 's1', mirrored: true },
+      ],
+    });
+    expect(s().setLean(['a', 'b'], { square: true })).toBeNull();
+    expect(s().past.length).toBe(1);
+    expect(s().doc.shapes[0]!.lean).toEqual({ x: 0.1, z: 0.25, face: 'thickness', square: true });
+    expect(occ('a').lean!.square).toBe(true);
+    expect(occ('b').lean!.square).toBe(true);
+    expect(occ('b').lean!.x).toBe(-0.1);
+  });
+
+  it('refuses while gesturing and while exploded, writing nothing', () => {
+    load(leg({ lean: { x: T12, z: T8, face: 'width' } }));
+    s().beginGesture();
+    const doc = s().doc;
+    s().setLean(['L'], { square: true });
+    expect(s().doc).toBe(doc);
+    s().endGesture();
+    s().setExplode(1);
+    s().setLean(['L'], { square: true });
+    expect(s().doc).toBe(doc);
   });
 });
 

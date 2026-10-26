@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import { cornerShift, mirrorPart, rotateVec, type Vec3 } from './frames';
 import {
-  chooseFace, degreesOf, leanFlip, leanMap, leans, resultantDeg, seamFree, sightlineDeg, slopeOf, withinBound, worldSlopes,
+  chooseFace, degreesOf, leanFlip, leanMap, leans, leanTwist, resultantDeg, seamFree, sightlineDeg, slopeOf, withinBound, worldSlopes,
   type LeanMap, type Mat3,
 } from './lean';
 import { axisFrame } from './geometry';
@@ -217,5 +217,98 @@ describe('leanMap and leans agree: one predicate (final review I3)', () => {
     const b: Board = { ...createBoard({ posture: 'upright', length: 16, width: 1.5, thickness: 1.5 }), lean: { x: 0.2, z: 0.1, face: 'width' } };
     expect(leanMap(b)).not.toBeNull();
     expect(leans(b)).toBe(true);
+  });
+});
+
+describe('a square-set lean is m = T: tilted, never twisted (square-set legs spec §3.2, §1)', () => {
+  const square = (x: number, z: number, face?: Lean['face'], extra: Partial<Board> = {}): Board => {
+    const b = leg(x, z, face, extra);
+    return { ...b, lean: { ...b.lean!, square: true } };
+  };
+  /** T alone, built independently of leanMap: the Rodrigues rotation taking straight down onto normalize(wx, −1, wz). */
+  const tiltOf = (wx: number, wz: number): Mat3 => {
+    const len = Math.hypot(wx, 1, wz);
+    const n = [wx / len, -1 / len, wz / len];
+    const k = [-n[2]!, 0, n[0]!];
+    const K: Mat3 = [[0, -k[2]!, k[1]!], [k[2]!, 0, -k[0]!], [-k[1]!, k[0]!, 0]];
+    const K2 = mul(K, K);
+    const f = 1 / (1 + 1 / len);
+    return [0, 1, 2].map((i) => [0, 1, 2].map((j) => (i === j ? 1 : 0) + K[i]![j]! + K2[i]![j]! * f)) as unknown as Mat3;
+  };
+
+  it('equals T: orthonormal, det +1, takes straight down onto the slopes, for either stored face', () => {
+    for (const face of ['width', 'thickness'] as const) {
+      const b = square(T12, T8, face);
+      const { m } = mapOf(b);
+      expectMatClose(m, tiltOf(T12, T8), 1e-15);
+      expectMatClose(mul(m, transpose(m)), [[1, 0, 0], [0, 1, 0], [0, 0, 1]]);
+      expect(Math.abs(dot(m[0], cross(m[1], m[2])) - 1)).toBeLessThan(1e-12);
+      const down = mapOf(b).applyDir([0, -1, 0]);
+      const len = Math.hypot(T12, 1, T8);
+      expectVecClose(down, [T12 / len, -1 / len, T8 / len]);
+    }
+    // The stored face never reaches the map.
+    expect(mapOf(square(T12, T8, 'width')).m).toEqual(mapOf(square(T12, T8, 'thickness')).m);
+  });
+
+  it('the faces\' plan twist at rake 8°, splay 12° is −0.83° (width) / +0.82° (thickness), to 0.01°', () => {
+    const m = mapOf(square(T12, T8));
+    const w = m.applyDir([1, 0, 0]);
+    const t = m.applyDir([0, 0, 1]);
+    const D = 180 / Math.PI;
+    expect(Math.abs(Math.atan2(w[2], w[0]) * D - -0.83)).toBeLessThan(0.01);
+    expect(Math.abs((Math.atan2(t[2], t[0]) - Math.PI / 2) * D - 0.82)).toBeLessThan(0.01);
+    // The turned map of the same slopes twists its facing face onto the sightline (about 33.5°): not a near-identity.
+    const turned = mapOf(leg(T12, T8, 'width')).applyDir([1, 0, 0]);
+    expect(Math.abs(Math.atan2(turned[2], turned[0]) * D)).toBeGreaterThan(30);
+  });
+
+  it('mirror conjugation: the flipped square-set lean on the reflected part is S · m · S', () => {
+    const S: Mat3 = [[-1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (const [x, z, face] of [[T12, T8, 'width'], [T12, -T8, 'thickness'], [T10, T10, 'width'], [0, T8, 'thickness'], [T12, 0, 'width']] as const) {
+      const b = square(x, z, face);
+      const flipped = leanFlip(b.lean!);
+      expect(flipped.square).toBe(true);
+      const mirrored: Board = { ...mirrorPart(b), lean: flipped };
+      const m = mapOf(b);
+      const mm = mapOf(mirrored);
+      expectMatClose(mm.m, mul(S, mul(m.m, S)));
+      expectVecClose(mm.pivot, [-m.pivot[0], m.pivot[1], m.pivot[2]]);
+    }
+  });
+
+  it('a turned lean is unchanged byte for byte (captured before square-set existed)', () => {
+    expect(mapOf(leg(T12, T8, 'width')).m).toEqual([
+      [0.8083214867244805, -0.2059745553251538, -0.5515350003926592],
+      [0.24692695919021473, 0.9690340947691541, 2.7755575615628914e-17],
+      [0.5344562198390057, -0.13618886053393325, 0.8341517507875107],
+    ]);
+    expect(mapOf(leg(T12, T8, 'thickness')).m).toEqual([
+      [0.5515350003926593, -0.2059745553251538, 0.8083214867244805],
+      [0, 0.9690340947691541, 0.24692695919021473],
+      [-0.8341517507875107, -0.13618886053393325, 0.5344562198390058],
+    ]);
+  });
+
+  it('leanTwist is exactly 0 for a rake-only or splay-only lean, either sign, either face, every turn; non-zero at 8°/12°', () => {
+    for (const rotation of [0, 90, 180, 270] as const) {
+      for (const [x, z] of [[T12, 0], [-T12, 0], [0, T8], [0, -T8]] as const) {
+        for (const face of ['width', 'thickness'] as const) {
+          expect(leanTwist(leg(x, z, face, { rotation }), { x, z, face })).toBe(0);
+        }
+      }
+    }
+    const b = leg(T12, T8, 'width');
+    expect(Math.abs(leanTwist(b, b.lean!)! * 180 / Math.PI)).toBeGreaterThan(30);
+  });
+
+  it('when τ = 0 (rake only, splay only) the square-set and turned maps are the same, entry for entry', () => {
+    for (const rotation of [0, 90] as const) {
+      for (const [x, z, face] of [[0, T8, 'thickness'], [T12, 0, 'width'], [0, -T8, 'thickness']] as const) {
+        const a = mapOf(leg(x, z, face, { rotation })).m;
+        const q = mapOf(square(x, z, face, { rotation })).m;
+        for (let i = 0; i < 3; i += 1) for (let j = 0; j < 3; j += 1) expect(Math.abs(a[i]![j]! - q[i]![j]!)).toBeLessThan(1e-15);
+      }
+    }
   });
 });
