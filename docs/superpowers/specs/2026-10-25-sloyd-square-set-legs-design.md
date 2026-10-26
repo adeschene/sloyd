@@ -3,8 +3,8 @@
 Status: APPROVED by the user 2026-10-26 ("Approved, write the plan"); builder check taken 2026-10-25 (five questions answered as my calls: §3.2, §4,
 §4.1, §4.2, §8; four claims the code contradicted, corrected). Comes before chunk 3, stretchers (fu 438), which is parked at its Task 1 on branch
 `stretchers` (`52e975f`).
-**Built 2026-10-26 on branch `square-legs`** (plan Tasks 1–8, `63fd0d5`..`e318f88` plus the records; schema 25), **NOT merged or
-deployed**; browser verification (plan Task 9, dev server) owed. Later rulings: the *Amended (build)* block at the end, which wins
+**Built 2026-10-26; merged `447df4b` and DEPLOYED 2026-10-26 as `index-3F79fb4S.js`** (plan Tasks 1–9; schema 25);
+browser verification PASS 7/7; final review approved. Later rulings: the *Amended (build)* block at the end, which wins
 where it differs from the text — **awaiting the user's approval**.
 
 ## 0. How this round came about

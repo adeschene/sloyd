@@ -37,15 +37,14 @@ the cut list with nesting and Buying, the Plans sheet, angle cuts, holes, curves
 
 ## Status
 
-- **Production: `0699965`, bundle `index-ObjqEMR0.js`, CSS `index-BvtLBoRl.css`, SCHEMA 24** (round tenons, splayed legs chunk
-  2b, fu 447; merge `0699965`; deployed 2026-10-25). Owed to the user: see NEXT.
-- **Rollback:** the nearest refusing boundary is `aa1f841` (angled holes, `index-B114iN-Y.js`, schema 23): it REFUSES every project
-  saved at 24 — export first. Below it, `f3fced0` refuses 23, `68dca2d` 22 and `e2729ee` 21; every deploy back to `98c7df4` is
+- **Production: `447df4b`, bundle `index-3F79fb4S.js`, CSS `index-BvtLBoRl.css`, SCHEMA 25** (square-set legs, splayed legs
+  chunk 2c; merge `447df4b`; deployed 2026-10-26). Owed to the user: see NEXT.
+- **Rollback:** the nearest refusing boundary is `0699965` (round tenons, `index-ObjqEMR0.js`, schema 24): it REFUSES every project
+  saved at 25 — export first. Below it, `aa1f841` refuses 24, `f3fced0` 23, `68dca2d` 22, `e2729ee` 21; back to `98c7df4` is
   schema 20. Full table: `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-26):** square-set legs (chunk 2c, SCHEMA 25) is BUILT on branch `square-legs`, NOT merged or deployed: its
-  browser pass (plan Task 9), then merge and deploy (the user's call). Stretchers (fu 438) are parked on `stretchers` at `52e975f`,
-  to rebase after. Owed to the user: five specs' Amended blocks (`docs/rounds.md`); fu 454, 464, 468, 473 (copy); fu 465 (by
-  eye); fu 402(1)–(2); the by-eye and real-hardware items. Next: stretchers, then Open follow-ups.
+- **NEXT (2026-10-26):** square-set legs is deployed. Stretchers (fu 438) are parked on `stretchers` at `52e975f`: rebase onto
+  master, then resume at Task 2 on square-set legs. Owed to the user: five specs' Amended blocks (`docs/rounds.md`); fu 454, 464,
+  468, 473 (copy); fu 465 (by eye); fu 402(1)–(2); the by-eye and real-hardware items. Then Open follow-ups.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -68,7 +67,7 @@ rather than assumed. On the DEV server, test projects a check creates are LEFT i
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (24 since round tenons, deployed 2026-10-25)
+**Rollback cost is a schema question.** A build understanding less than the file's version (25 since square-set legs, deployed 2026-10-26)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -120,7 +119,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **25** on the `square-legs` branch (square-set legs, NOT deployed; production is 24). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **25** (square-set legs, deployed 2026-10-26). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it

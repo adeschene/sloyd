@@ -12,8 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| square-set legs (branch `square-legs`, `e318f88` + records) | — (not deployed; the branch builds `index-C0hRLH4b.js`, CSS `index-BvtLBoRl.css`) | 25 | NOT DEPLOYED. Once deployed, rolling back to `0699965` REFUSES every project saved at 25 — export first; square-set leans and compound end cuts stop |
-| `0699965` (round tenons) | `index-ObjqEMR0.js` (CSS `index-BvtLBoRl.css`) | 24 | current |
+| `447df4b` (square-set legs) | `index-3F79fb4S.js` (CSS `index-BvtLBoRl.css`) | 25 | current |
+| `0699965` (round tenons) | `index-ObjqEMR0.js` (CSS `index-BvtLBoRl.css`) | 24 | REFUSES every project saved at 25 — export first; square-set leans and compound end cuts stop |
 | `aa1f841` (angled holes) | `index-B114iN-Y.js` | 23 | REFUSES every project saved at 24 — export first; tenons, joints and Tenon the legs stop |
 | `f3fced0` (splayed legs) | `index-B3SCZcHR.js` | 22 | REFUSES every project saved at 23 — export first; tilts and sockets stop |
 | `68dca2d` (mirrored links) | `index-_J_yZLbU.js` | 21 | REFUSES every project saved at 22 — export first; leans stop |
@@ -146,8 +146,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Status log (to 2026-10-26)
 
-- **Square-set legs, splayed legs chunk 2c (2026-10-26; branch `square-legs`, NOT merged or deployed; SCHEMA 25 — once deployed,
-  rolling back past it REFUSES every project saved at 25, export first)**: spec
+- **Square-set legs, splayed legs chunk 2c (2026-10-26; MERGED `447df4b`, DEPLOYED 2026-10-26 as `index-3F79fb4S.js`, CSS
+  `index-BvtLBoRl.css`; SCHEMA 25 — rolling back to `0699965` REFUSES every project saved at 25, export first)**: spec
   `docs/superpowers/specs/2026-10-25-sloyd-square-set-legs-design.md` (its *Amended (build)* block holds the rulings that changed or
   refined it, awaiting the user's approval), plan `docs/superpowers/plans/2026-10-26-sloyd-square-set-legs.md`. Came from stretchers'
   Task 2 (a turned leg's ~33.5° twist breaks a 5/8" rung socket out of its side; the user chose "Untwisted legs first"); stretchers
@@ -157,8 +157,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   store test of a square-set Shape; Task 6 — `worldAngles` / `angleRatiosOf` never read a compound miter (T6b), Repair's chain
   wrapped). Full suite at `e318f88` (the records are docs only): 8766 tests across 244 files, all passing in one run (load average
   0.6 at the start, the perf guards included); `npm run build` clean (`index-C0hRLH4b.js`, CSS `index-BvtLBoRl.css`). Owed:
-  browser verification (plan Task 9, dev server), then merge and deploy (the user's decision); the Amended (build) block; the copy
-  review (fu 473). Invariant 59 new; 40, 41, 44, 45, 48, 56, 57 and 58 extended; follow-ups 470–474 (438 amended).
+  the Amended (build) block; the copy review (fu 473). Browser verification (Task 9) PASS 7/7; final review approved (TFa: the
+  compound line names its long corner). Merged master: 8769/8769, the perf guards included (load 1.8 at the start). Invariant 59 new; 40, 41, 44, 45, 48, 56, 57 and 58 extended; follow-ups 470–474 (438 amended).
 - **Round tenons, splayed legs chunk 2b (fu 447; 2026-10-25; MERGED `0699965`, DEPLOYED 2026-10-25 as `index-ObjqEMR0.js`, CSS
   `index-BvtLBoRl.css`; SCHEMA 24 — rolling back to `aa1f841` REFUSES every project saved at 24, export first)**: spec
   `docs/superpowers/specs/2026-10-25-sloyd-round-tenons-design.md` (its *Amended (build)* block holds the rulings that changed it,
