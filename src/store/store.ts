@@ -13,6 +13,8 @@ import { rotateVec } from '../document/frames';
 import { chooseFace, leanMap, leans, leanTwist, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
 import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../document/levelEnds';
 import { socketPlan } from '../document/legSockets';
+import { refitPlan, stretcherOf, stretcherPlan } from '../document/stretchers';
+import { STRETCHER_NOT_A_STRETCHER } from '../document/stretcherText';
 import { displayNames } from '../document/tree';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
@@ -500,6 +502,24 @@ interface StoreState {
    * each other user its own position) in ONE `edit` through `mapWorld`. Off (the default), no leg is touched.
    */
   boreLegSockets: (seatId: string, diameter: number, tenonLegs?: boolean) => string | null;
+  /**
+   * Add stretcher (stretchers spec §6.1) between world legs `legIds` at world height `height`, a `size` square rung with
+   * `diameter` round tenons: `stretcherPlan` decides every refusal before `edit()` (its sentence returned), then ONE
+   * `edit`: the rung inserted into the legs' container and written to its world placement through the write-back (inv 46:
+   * lowered through the container's turns), each leg's holes through `mapWorld` (a linked leg's once, on its Shape, inv 45).
+   * The rung is selected (through `selectionPatch`); held points are re-judged (inv 24). Null on success. Null and nothing
+   * done while exploded (inv 47) or gesturing (the store's convention: there is no sentence for either), and for a stale
+   * leg id (the hole actions').
+   */
+  addStretcher: (legIds: [string, string], height: number, size: number, diameter: number) => string | null;
+  /**
+   * Fit the stretcher again (stretchers spec §6.3, §6.4) on world rung `rungId`: `refitPlan` (its closure: every rung
+   * sharing a moved row) written in ONE `edit` through `mapWorld`, held points re-judged. Returns `refitPlan`'s refusal,
+   * `STRETCHER_NOT_A_STRETCHER` for a part `stretcherOf` does not find (internal: the button shows only for one), or null.
+   * A fitted rung is a no-op that pushes no undo entry (inv 4). Null and nothing done while exploded or gesturing, and for
+   * a stale id.
+   */
+  fitStretcher: (rungId: string) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -555,6 +575,10 @@ export const useStore = create<StoreState>((set, get) => {
 
   /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
   const readOnly = () => get().explode > 0;
+
+  /** Two hole lists with the same rows in the same order, ids included (a stretcher plan's no-op test, inv 4). */
+  const sameRows = (a: readonly HoleRow[], b: readonly HoleRow[]) =>
+    a.length === b.length && a.every((r, i) => r.id === b[i]!.id && sameHoleRow(r, b[i]!));
 
   /**
    * Apply an edit as a new document, pushing the previous one onto the undo
@@ -2124,6 +2148,75 @@ export const useStore = create<StoreState>((set, get) => {
       // Inv 24: a bore swallows the lattice points in its mouth, and a fitted leg's length and ends move its points.
       judgeHeld();
       return plan.note ?? null;
+    },
+
+    addStretcher: (legIds, height, size, diameter) => {
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const world0 = worldParts(doc0);
+      if (!legIds.every((id) => world0.some((b) => b.id === id))) return null; // a stale id: as the hole actions
+      // Every refusal (the legs, the axis, the fit, the tenons, each socket) is decided here, before edit().
+      const plan = stretcherPlan(doc0, legIds, { height, size, diameter });
+      if (typeof plan === 'string') return plan;
+      const { rung, container, legs } = plan;
+      const at = joinPath(container, rung.id);
+      // A reused row leaves its leg's list as it is: that leg is not written (a mirrored user's world rows are a fresh
+      // lowering each time, so an identical list would otherwise be written back to its Shape).
+      const holes = new Map(legs.filter((l) => !sameRows(l.holes, world0.find((b) => b.id === l.id)!.holes)).map((l) => [l.id, l.holes]));
+      // The rung is a WORLD part: inserted into the legs' container (a fresh stored id, a sibling-unique name, inv 8), then
+      // written to its world placement by the ONE write-back, which lowers it through the container's turns and offsets
+      // (inv 46); in the same pass each leg's rows (one entry per storage target: a Shape once, inv 45).
+      edit(
+        (doc) => mapWorld(insertItems(doc, container, { boards: [rung] }), (w) => w.map((b) => (b.id === at ? { ...rung, id: at }
+          : holes.has(b.id) ? { ...b, holes: holes.get(b.id)! } : b))),
+        () => [at],
+      );
+      // Inv 24: a socket swallows the lattice points in its mouth.
+      judgeHeld();
+      return null;
+    },
+
+    fitStretcher: (rungId) => {
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const world0 = worldParts(doc0);
+      const rung = world0.find((b) => b.id === rungId);
+      if (!rung) return null; // a stale id
+      // refitPlan throws for a part that is not a stretcher: the button shows only for one.
+      if (!stretcherOf(world0, rung)) return STRETCHER_NOT_A_STRETCHER;
+      const plan = refitPlan(doc0, rungId);
+      if (typeof plan === 'string') return plan;
+      const patches = new Map(plan.rungs.map((r) => [r.id, r.patch]));
+      const holes = new Map(plan.legs.map((l) => [l.id, l.holes]));
+      // Inv 4: refitPlan returns a full plan for a fitted rung (every value the stored one, new arrays), so a part whose
+      // planned values are its own is left as the SAME object; when none changes, mapWorld returns the same document and
+      // edit() pushes no entry.
+      const unchanged = (b: Board, patch: Partial<Board> | undefined, rows: HoleRow[] | undefined) =>
+        (rows === undefined || sameRows(rows, b.holes))
+        && (patch === undefined || Object.entries(patch).every(([k, v]) => {
+          const cur = (b as unknown as Record<string, unknown>)[k];
+          if (k === 'position') return (v as number[]).every((x, i) => x === b.position[i]);
+          if (k === 'tenons') {
+            const next = (v as RoundTenon[] | undefined) ?? [];
+            const own = tenonsOf(b);
+            return next.length === own.length && next.every((t, i) => t.id === own[i]!.id && sameTenon(t, own[i]!));
+          }
+          return v === cur;
+        }));
+      edit((doc) => mapWorld(doc, (w) => {
+        let changed = false;
+        const out = w.map((b) => {
+          const patch = patches.get(b.id);
+          const rows = holes.get(b.id);
+          if ((!patch && !rows) || unchanged(b, patch, rows)) return b;
+          changed = true;
+          return { ...b, ...(patch ?? {}), ...(rows ? { holes: rows } : {}) };
+        });
+        return changed ? out : w;
+      }));
+      // Inv 24: the rungs' length and ends moved, and so did the sockets.
+      judgeHeld();
+      return null;
     },
 
     setHardware: (target, type, count) => {

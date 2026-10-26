@@ -39,6 +39,10 @@ export const stretcherTurned = (rung: string) => `${rung} would now run the othe
 /** A stale tenon with two equally near candidate bores (§6.2). */
 export const stretcherAmbiguous = (leg: string) => `${leg} has two sockets this tenon could be in — remove one.`;
 
+/** INTERNAL (the store's `fitStretcher` on a part `stretcherOf` does not find; the button is never shown for one): not
+ *  user copy from the spec, so it is short and plain. */
+export const STRETCHER_NOT_A_STRETCHER = 'This part is not a stretcher.';
+
 /** The section's heading, fields and buttons (§4). */
 export const STRETCHER_HEADING = 'Stretcher';
 export const STRETCHER_FIELDS = { height: 'Height', size: 'Rung size', diameter: 'Tenon diameter' } as const;
