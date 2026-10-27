@@ -6,6 +6,7 @@ import { BAND_SIDES, BUILT_IN_BAND, strips } from '../document/banding';
 import type { Cut } from '../document/document';
 import { PartDiagram, LEFT_PAD, TICK, TILT_ELLIPSE_POINTS } from './PartDiagram';
 import { archCurve, defaultCorners } from '../document/curves';
+import { fingerLayout, notchCuts } from '../document/boxJoints';
 import { canonicalRun } from '../document/profiles';
 import type { ProfileCut } from '../document/types';
 import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramLabels';
@@ -1277,5 +1278,21 @@ describe('PartDiagram round tenons (round tenons spec §8)', () => {
   it('a tenon-free view draws no tenon mark', () => {
     const { container } = render(<PartDiagram view={buildDiagrams(createBoard({ length: 20, width: 2, thickness: 2 }), IMPERIAL)[0]!} />);
     expect(container.querySelectorAll('.cutlist-diagram-tenon')).toHaveLength(0);
+  });
+});
+
+describe('PartDiagram: box joint note', () => {
+  it('renders the finger set note text, and none on a plain part', () => {
+    const l = fingerLayout(4.5, 0.5)!;
+    const b = createBoard({ length: 18, width: 4.5, thickness: 0.5, cuts: notchCuts(l, true, 'length', 'min', 'width', 0.5, ['n0', 'n1', 'n2', 'n3']) });
+    const v = buildDiagrams(b, IMPERIAL).find((x) => x.key === 'length|min')!;
+    const { container } = render(<PartDiagram view={v} />);
+    const text = v.fingerNotes![0]!.text;
+    expect(text).toMatch(/^Box joint — 9 fingers/);
+    expect(screen.getByText(text)).toBeTruthy();
+    cleanup();
+    const plain = render(<PartDiagram view={view(dado())} />);
+    expect(plain.container.textContent).not.toContain('Box joint');
+    void container;
   });
 });

@@ -4,6 +4,8 @@ import type { AngleCut, Board, Cut, DiagramView } from './document';
 import { depthAtCross, throughOf } from './angleCuts';
 import { squareStoolLegs } from './stoolFixture';
 import { axisFrame } from './geometry';
+import { fingerLayout, fingerSets, notchCuts } from './boxJoints';
+import { fingerSetLine } from './boxJointText';
 import type { Dimension, HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
 import { canonicalRun, geometryBoard, profileCurve, PROFILE_KINDS } from './profiles';
 import { curveLineEntries } from './curveText';
@@ -856,5 +858,27 @@ describe('round tenons in the part diagrams (round tenons spec §8)', () => {
 
   it('a tenon-free part\'s views carry no tenons key', () => {
     for (const v of buildDiagrams(leg(), IMPERIAL)) expect('tenons' in v).toBe(false);
+  });
+});
+
+describe('box joint finger sets (box joints spec §5.2)', () => {
+  const layout = fingerLayout(4.5, 0.5)!;
+  const sided = () => createBoard({
+    length: 18, width: 4.5, thickness: 0.5,
+    cuts: notchCuts(layout, true, 'length', 'min', 'width', 0.5, ['n0', 'n1', 'n2', 'n3']),
+  });
+
+  it('the end view carries ONE note, the cut list line, and no cut entries; its notches still draw', () => {
+    const b = sided();
+    const views = buildDiagrams(b, IMPERIAL);
+    const end = views.find((v) => v.key === 'length|min')!;
+    const set = fingerSets(b)[0]!;
+    expect(end.fingerNotes).toEqual([{ key: 'n0', text: fingerSetLine(set, IMPERIAL) }]);
+    for (const v of views) expect(v.cuts).toEqual([]);
+    expect(end.cells.length).toBeGreaterThan(0);
+  });
+
+  it('a box-joint-free board has no fingerNotes key on any view', () => {
+    for (const v of buildDiagrams(board(dado()), IMPERIAL)) expect('fingerNotes' in v).toBe(false);
   });
 });

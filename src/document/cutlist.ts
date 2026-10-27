@@ -9,6 +9,8 @@ import { holeLine } from './holeText';
 import { holeRowValues } from './holes';
 import { curveLines } from './curveText';
 import { curveValues } from './curves';
+import { fingerSets } from './boxJoints';
+import { fingerSetLine } from './boxJointText';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams, stripDiagrams } from './diagram';
@@ -225,12 +227,17 @@ const endsKey = (s: Strip) => s.ends.map((e) => (e.mitre === null ? 'sq' : Strin
 /** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged; then one per ROUND tenon
  *  (round tenons spec §8, every stored one), before the angle-cut lines; the band line last. */
 function setupLines(board: Board, units: Units, types: readonly BandType[]): string[] {
-  const tenons = findTenons(board);
+  // Box joints (spec §5.2): finger sets are claimed FIRST, so no notch of one reaches the tenon finder or the per-cut loop;
+  // one line per set, before the tenon lines. A board with none is untouched (`fingerSets` is empty, `board` the same object).
+  const sets = fingerSets(board);
+  const claimed = new Set(sets.flatMap((s) => s.cutIds));
+  const rest = claimed.size === 0 ? board : { ...board, cuts: board.cuts.filter((c) => !claimed.has(c.id)) };
+  const tenons = findTenons(rest);
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
   const done = new Set<Tenon>();
-  const lines: string[] = [];
+  const lines: string[] = sets.map((s) => fingerSetLine(s, units));
   const solids = pocketCells(board);
-  for (const cut of cutsThatRemoveStock(board)) {
+  for (const cut of cutsThatRemoveStock(rest)) {
     const t = owner.get(cut.id);
     if (!t) { lines.push(setupLine(board, cut, units, solids)); continue; }
     if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, units)); }
