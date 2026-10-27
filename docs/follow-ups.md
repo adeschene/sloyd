@@ -7674,6 +7674,8 @@ Through dovetails were specced (`docs/superpowers/specs/2026-10-27-sloyd-dovetai
 *Amended (build)* block awaits the user's approval). Half-blind dovetails, and with them corners of different heights along the joint,
 moved to fu 497 (their one home). The round's own follow-ups are 497–513.
 **Status:** through dovetails BUILT on branch `dovetails` (2026-10-27), not yet deployed — close at deploy; half-blind is fu 497.
+**Status:** CLOSED 2026-10-27 — through dovetails merged `72228cc` and DEPLOYED (`index-BEpsbfAI.js`, schema 26). Half-blind dovetails
+remain open as fu 497.
 
 **485. Box joints on parts of different heights along the joint (spec §2, §12).** A corner whose two parts differ in height along the joint (a
 drawer front taller than its sides) refuses with `<A> and <B> must be the same height along the joint.`; a layout over the shared span with plain

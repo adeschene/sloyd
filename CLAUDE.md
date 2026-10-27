@@ -35,13 +35,13 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `975e418`, bundle `index-EQnlonaA.js`, CSS `index-BvtLBoRl.css`, SCHEMA 25** (box joints, dovetails chunk 1;
-  merge `975e418`; deployed 2026-10-27). Owed to the user: see NEXT.
-- **Rollback:** back to `fc4302a` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
-  `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
+- **Production: `72228cc`, bundle `index-BEpsbfAI.js`, CSS `index-BRfNHt6R.css`, SCHEMA 26** (through dovetails;
+  merge `72228cc`; deployed 2026-10-27). Owed to the user: see NEXT.
+- **Rollback:** the nearest boundary REFUSES: back to `975e418` (box joints, `index-EQnlonaA.js`, schema 25) refuses every
+  project saved at 26 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-27):** box joints are deployed; owed to the user: the copy review (fu 491) and fu 496 (the jointed corner by eye on real
-  hardware, one paid Refine run). The next session starts dovetails (fu 484: its own spec, read fu 484's starting points first). Owed
+- **NEXT (2026-10-27):** through dovetails are deployed; owed to the user: approval of the dovetails spec's *Amended (build)* block
+  (SD1–SD20), the copy reviews (fu 491, 512), the bench chain by eye (fu 511), fu 496 and the dovetailed corner on real hardware. Owed
   otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -119,7 +119,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **26** (dovetails; built on branch `dovetails` 2026-10-27, NOT yet deployed: production is 25). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **26** (dovetails; merged `72228cc` and deployed 2026-10-27). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -571,7 +571,7 @@ This list is the triage's open set — when an entry's status changes, change it
   holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
-  (2026-10-27, not yet deployed): 484 (through dovetails built; close at deploy), 504, 507 and 510 (ask first), 505, 506, 508, 509,
+  (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
   514, 515; record-only 513.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
