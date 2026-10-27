@@ -393,3 +393,33 @@ Rulings made while building (2026-10-27). **Awaiting the user's approval**, in p
   subtraction (`e.far - p0`), so the same drawer at another X offset can plan it an ulp off (14 of 40 offsets on a 7 mm grid refused as
   disagreeing); this is the same class as R-T2a's recognised-number ulp ruling. The Shape still takes the representative's size, and the link
   post-condition still guards the written result.
+
+
+## Amended 2026-10-27 (the user's ruling after the build: equal fingers)
+
+The user, on seeing the build: "having differently-sized first and last fingers … is almost never how a person would make
+box joints in practice. All fingers should be the same size and the awkwardly-cut fingers at one side should be accepted."
+Rulings (2026-10-27): the odd finger goes at the **bottom edge**; a sliver **merges into its neighbour**. This replaces
+§3.3's symmetric layout (two equal outer fingers) and the tie rule (spec difference 4), which no longer arises.
+
+- **Layout.** `k = floor(H/w)` (to 1e-9: an `H` within 1e-9 of a multiple counts as that multiple), `r = H − k·w`.
+  - `r ≤ 1e-9`: `N = k`, every finger exactly `w`.
+  - `0 < r < w/4`: `N = k`, the odd finger is `w + r` (the sliver merged into its neighbour).
+  - `r ≥ w/4`: `N = k + 1`, the odd finger is `r`.
+  - Refuse when `N < 5` (the five-segment floor stays: fewer read as a tenon). `N` may be even.
+- **Where the odd finger goes.** Full-width fingers start at the **top** edge and the odd one is at the **bottom**: when
+  the joint line `J` is world Y, full fingers start at J's world max. When `J` is horizontal, full fingers start at J's
+  world min and the odd one is at the far end. Each part's segments are computed DIRECTLY in its own part-local terms,
+  from whichever of its own J ends is the start edge (never by world conversion of offsets).
+- **Phase.** The part whose run axis comes first in Z, X, Y takes a FINGER in the start-edge segment; the other takes a
+  notch there. Swap fingers inverts it. With an even `N` each part has one finger at one edge and a notch at the other.
+- **Recogniser (§5.1).** Read part-locally, at least 5 alternating segments: every segment exactly the same width `w`
+  (1e-9), except at most ONE end segment, which may be any width in `(0, 1.25w)` (to 1e-9). A set with two differing end
+  segments is not recognised. It reports `fingerAtMin` (does J's min segment carry a finger on this part) and `oddEnd`
+  (`'min' | 'max' | null`, null when every segment is `w`), never anything world-relative.
+- **Copy (replaces the outer-two forms; copy review fu 491 still covers all of it).**
+  - Success: `Jointed <n> corner(s): <N> fingers, <w> wide.` with ` (the odd one <x>)` before the period when one exists.
+    The per-corner form likewise.
+  - Cut list: `Box joint — <N> fingers <w> wide (the odd one <x> at the <J> <oddEnd> edge), <d> deep, at the <dim> <end>
+    end; this part has a <finger | notch> at the <J> <start> edge.` The parenthesis is dropped when there is no odd
+    finger; the start edge is then J's max (a part-local convention).

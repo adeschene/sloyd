@@ -507,3 +507,43 @@ cannot be held.** Do not weaken one to make a test pass.
   instruction about the shelf (one paid run of the two allowed). The drawer comes back exactly: same fingers, same
   position, the kept line names it. Leave the project in place.
 - [ ] **Step 5: Commit** `docs(box joints): browser verification`.
+
+
+### Task 9: Equal fingers (the user's ruling after the build; spec "Amended 2026-10-27 … equal fingers")
+
+**Files:** `src/document/boxJoints.ts`, `src/document/boxJointText.ts`, and their tests; every test that pins the old layout
+or copy (`boxJoints.test.ts`, `cutlist.test.ts`, `diagram.test.ts`, `PartDiagram.test.tsx`, `BoxJoints.test.tsx`,
+`store.boxJoints.test.ts`, the Refine/joinery tests that build box-jointed fixtures); records (CLAUDE.md inv 61 condensed,
+`docs/invariants.md` inv 61, fu 491's copy list, the spec's spec-difference 4 note, `docs/rounds.md`).
+
+**Interfaces (replace Task 2's):**
+- `interface FingerLayout { count: number; width: number; odd: number; length: number }`; `odd === width` when there is
+  no odd finger.
+- `fingerLayout(H, w): FingerLayout | null`, per the amendment (null when `w <= 0` or `N < 5`).
+- `segment(l, k, oddEnd: CutFrom): [number, number]`: segment `k` (1-based from the part-local J MIN), with the odd
+  segment at `oddEnd`. Computed directly: odd at max → `[(k−1)w, kw]`, last `[(N−1)w, H]`; odd at min → first `[0, odd]`,
+  then `[odd + (k−2)w, odd + (k−1)w]`, last ending exactly at `H`.
+- `notchCuts(l, fingerAtMin: boolean, oddEnd: CutFrom, face, from, along, depth, ids)`.
+- `FingerSet { dim, end, layout, depth, fingerAtMin: boolean, oddEnd: CutFrom | null, cutIds }` (replaces `outerFingers`).
+- Planner: per part, `oddEnd` from the world rule (J world Y → start at world max; else start at world min) through
+  `endFacing`; phase by the run-axis rule on the START-edge segment. The linked-agreement signature carries `fingerAtMin`
+  and `oddEnd` in Shape-local terms (through the mirror flag when `mirrorDim` is J).
+
+**Tests (replace the layout examples):**
+- `fingerLayout(4, 0.5)` → 8, odd 0.5. `(4.25, 0.5)` → 9, odd 0.25. `(4.1, 0.5)` → 8, odd 0.6 (sliver merged).
+  `(4.125, 0.5)` → 9, odd 0.125 (exactly w/4 is not a sliver). `(2.25, 0.5)` → 5, odd 0.25. `(2, 0.5)` → null (4 < 5).
+  `(100/25.4, 6/25.4)` → the formula's count. Mutate: the sliver bound `<=` instead of `<`; the `(4.125, 0.5)` case fails.
+- Round trip, both `oddEnd`s, both phases, length and width ends: `fingerSets` returns exactly the planned set (the
+  layout numbers at 1e-9; ints and flags exact).
+- Recogniser rejects: two differing end segments; an odd segment ≥ 1.25w; any inner segment off by 1e-6; fewer than 5.
+- Planner: a 4"-tall drawer at 1/2" gives 8 fingers, every one 1/2", and each corner's world notches exact complements.
+  A 4-1/4" drawer: 9 fingers, the odd 1/4" finger at the BOTTOM (world min Y) on both parts. A horizontal J (a tray's
+  corners, J along X or Z): the odd finger at J's world max. A part turned 180° (its local J reversed) still puts the odd
+  finger at the world bottom. Mutate the start-edge rule to world min for J = Y: the bottom test fails.
+- Panel: the 4" drawer's sentence `Jointed 4 corners: 8 fingers, 1/2" wide.`; a 4-1/4" drawer's
+  `Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").`
+- Cut list: the new line, pinned literally for both a part with an odd finger and one without.
+- Every existing box-joint test is updated to the new layout, never deleted to make it pass; joinery/Refine tests keep
+  their assertions (sets equal before and after).
+
+**Commit** `feat(box joints): equal fingers, the odd one at the bottom (the user's ruling)`.
