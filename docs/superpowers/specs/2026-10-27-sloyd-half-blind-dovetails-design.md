@@ -1,6 +1,6 @@
 # Half-blind dovetails (dovetails chunk 3) — design
 
-Status: DRAFT, awaiting the user's approval. Builder check taken 2026-10-27: two questions, both settled as my calls
+Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"), all five items in §9 as proposed. Builder check taken 2026-10-27: two questions, both settled as my calls
 (Swap on a half-blind corner, §4; disagreeing ends, §8), one claim the code contradicted (corrected in §3.3) and one reader
 added (the bench, §5.2). The user said "you pick, just start" (2026-10-27): they chose to skip the
 brainstorming questions, and Claude picked this gap (`docs/feature-gaps.md` §1, fu 497). **Every decision here is my call**
