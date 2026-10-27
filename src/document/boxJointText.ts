@@ -68,3 +68,9 @@ export function fingerSetLine(set: FingerSet, units: Units): string {
   return `Box joint — ${count} fingers ${formatLength(width, units)} wide${outerWords}, ${formatLength(set.depth, units)} deep, `
     + `at the ${set.dim} ${set.end} end; this part has the outer ${set.outerFingers ? 'fingers' : 'notches'}.`;
 }
+
+/** The panel section's copy (spec §4). */
+export const BOX_HEADING = 'Box joints';
+export const BOX_FIELD_WIDTH = 'Finger width';
+export const BOX_SWAP = 'Swap fingers';
+export const BOX_BUTTON = 'Box joint the corners';

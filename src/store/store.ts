@@ -15,6 +15,7 @@ import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../do
 import { socketPlan } from '../document/legSockets';
 import { refitPlan, stretcherOf, stretcherPlan } from '../document/stretchers';
 import { STRETCHER_NOT_A_STRETCHER } from '../document/stretcherText';
+import { applyBoxJoints, boxJointPlan } from '../document/boxJoints';
 import { displayNames } from '../document/tree';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
@@ -520,6 +521,14 @@ interface StoreState {
    * a stale id.
    */
   fitStretcher: (rungId: string) => string | null;
+  /**
+   * Box joint the corners (box-joints spec §4, §6) among world parts `ids`: `boxJointPlan` decides every refusal before
+   * `edit()` (its sentence returned), then ONE `edit` writes the plan (`applyBoxJoints`, through the write-back, inv 46),
+   * then held points are re-judged on the WRITTEN document (inv 24: other placements of a definition move too, and they
+   * are not keys of the plan). Null on success. Null and nothing done while exploded (inv 47) or gesturing, and for a
+   * stale id.
+   */
+  boxJointCorners: (ids: string[], width: number, swap: boolean) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -2213,6 +2222,19 @@ export const useStore = create<StoreState>((set, get) => {
         return { ...b, ...(patch ?? {}), ...(rows ? { holes: rows } : {}) };
       })));
       // Inv 24: the rungs' length and ends moved, and so did the sockets.
+      judgeHeld();
+      return null;
+    },
+
+    boxJointCorners: (ids, width, swap) => {
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const world0 = worldParts(doc0);
+      if (!ids.every((id) => world0.some((b) => b.id === id))) return null; // a stale id: as the hole actions
+      const plan = boxJointPlan(doc0, ids, { width, swap });
+      if (typeof plan === 'string') return plan;
+      edit((doc) => applyBoxJoints(doc, plan));
+      // Inv 24: ends moved and notches were cut; judged on the written document, not on the plan's keys.
       judgeHeld();
       return null;
     },

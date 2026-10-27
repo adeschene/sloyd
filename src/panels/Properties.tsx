@@ -12,6 +12,7 @@ import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
 import { RoundTenons } from './RoundTenons';
 import { Lean } from './Lean';
+import { BoxJointsSection } from './BoxJoints';
 import { StretcherReadout, StretcherSection } from './Stretcher';
 import type { AddedStretcher } from './Stretcher';
 import { Curves } from './Curves';
@@ -498,6 +499,8 @@ function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdd
       {boards.length === 2 && boards.every((b) => b.posture === 'upright') && (
         <StretcherSection legIds={[boards[0]!.id, boards[1]!.id]} onAdded={onStretcherAdded} />
       )}
+      {/* Box-joints spec §4: two or more parts (all parts, no assemblies). */}
+      {boards.length >= 2 && <BoxJointsSection ids={selectedIds} />}
       <Banding boards={boards} onNewBandType={onNewBandType} />
       </>}
       </EditLock>
