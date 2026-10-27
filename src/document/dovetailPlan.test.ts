@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, flatDocument } from './document';
-import { applyDovetails, autoTailCount, dovetailFaults, dovetailPlan, type DovetailOptions, type DovetailPlan } from './dovetails';
+import { applyDovetails, autoLap, autoTailCount, dovetailFaults, dovetailPlan, type DovetailOptions, type DovetailPlan } from './dovetails';
 import {
   DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE,
 } from './dovetailText';
 import { DOVETAIL_COUNT_MAX, dovetailsOf } from './dovetailModel';
 import { builtDovetails } from './dovetails';
 import { applyBoxJoints, boxJointPlan, fingerSets } from './boxJoints';
-import { expectPartition, type WorldBox } from './dovetailFixtures';
+import { expectLapSlab, expectPartition, type WorldBox } from './dovetailFixtures';
 import { boardExtents, endFacing } from './geometry';
 import { toWorld } from './snapPoints';
 import { worldParts } from './tree';
@@ -17,7 +17,7 @@ import { buildCutList } from './cutlist';
 import { taperCut } from './angleCuts';
 import { archCurve } from './curves';
 import { BUILT_IN_BAND_ID, withBands } from './bandModel';
-import { IMPERIAL, type Units } from '../units/length';
+import { IMPERIAL, formatLength, type Units } from '../units/length';
 import type {
   AngleCut, Board, Cut, CurveCut, Dovetail, HoleRow, Lean, Posture, ProfileCut, Rotation, Shape, ShapedBoard,
   SloydDocument,
@@ -606,5 +606,266 @@ describe('final review fixes (2026-10-27): the count bound, one tail, the kept p
     expect(dovetailsOf(part(out, 'f')).map((d) => d.role)).toEqual(['tails', 'tails']);
     const fresh = applyDovetails({ ...doc0, units: METRIC }, ok(dovetailPlan({ ...doc0, units: METRIC }, DRAWER_IDS, DEFAULTS)));
     for (const id of DRAWER_IDS) expect(dovetailsOf(part(fresh, id)).map((d) => d.pin)).toEqual([6 / 25.4, 6 / 25.4]);
+  });
+});
+
+// ---- Half-blind (half-blind dovetails spec §3.1, §3.2, §4, §6, §8; Task 3) ------------------------------------------
+
+/** The half-blind corner squares of the drawer (the tail part's world box within the pin part, read off the INPUT fixture's
+ *  outside faces, inv 23): the sides' Z span stops `lap` inside the Front's or Back's outside face. The lap slabs: the pin
+ *  part's wood from its outside face to the lap plane, over the side's X span. */
+function halfBlindCorners(lap: number, o: DrawerOpts = {}): [string, string, WorldBox, WorldBox][] {
+  return drawerCorners(o).map(([fb, s, box]) => {
+    const [z0, z1] = [box.min[2], box.max[2]];
+    const inner: WorldBox = fb === 'f'
+      ? { min: [box.min[0], box.min[1], z0 + lap], max: [...box.max] as Vec }
+      : { min: [...box.min] as Vec, max: [box.max[0], box.max[1], z1 - lap] };
+    const slab: WorldBox = fb === 'f'
+      ? { min: [...box.min] as Vec, max: [box.max[0], box.max[1], z0 + lap] }
+      : { min: [box.min[0], box.min[1], z1 - lap], max: [...box.max] as Vec };
+    return [fb, s, inner, slab];
+  });
+}
+const HB: DovetailOptions = { ...DEFAULTS, joint: 'half-blind' };
+/** The world span of `b` on `axis`. */
+const spanW = (b: Board, axis: number): [number, number] => [b.position[axis]!, b.position[axis]! + boardExtents(b)[axis]!];
+const halfBlindDrawer = (o: DrawerOpts = {}, opts: Partial<DovetailOptions> = {}) => {
+  const doc0 = docOf(drawerParts(o));
+  return applyDovetails(doc0, ok(dovetailPlan(doc0, DRAWER_IDS, { ...HB, ...opts })));
+};
+
+describe('half-blind: the run-out (spec §3.1)', () => {
+  for (const rotation of [90, 270] as Rotation[]) {
+    it(`sides turned ${rotation}°: each side's front end lands on the lap plane (min side AND max side); depths; laps; the partition`, () => {
+      const parts = drawerParts().map((b) => (b.id === 'l' || b.id === 'r' ? { ...b, rotation } : b));
+      const doc = docOf(parts);
+      // The lap planes, off the INPUT fixture: Front's outside face (world Z min) + 1/4", Back's outside face (world Z max) − 1/4".
+      const front = parts.find((b) => b.id === 'f')!;
+      const back = parts.find((b) => b.id === 'b')!;
+      const zMin = spanW(front, 2)[0] + 0.25;
+      const zMax = spanW(back, 2)[1] - 0.25;
+      const out = applyDovetails(doc, ok(dovetailPlan(doc, DRAWER_IDS, HB)));
+      for (const id of ['l', 'r']) {
+        const s = part(out, id);
+        const [a, b] = spanW(s, 2);
+        expect(a).toBe(zMin);   // the min side: the moving MIN face lands exactly on the lap plane
+        expect(b).toBe(zMax);   // the max side
+        expect(s.length).toBe(17);
+        for (const d of dovetailsOf(s)) expect([d.role, d.depth, d.lap]).toEqual(['tails', 0.5, 0.25]);
+      }
+      for (const id of ['f', 'b']) {
+        const p = part(out, id);
+        expect(p.length).toBe(13);
+        for (const d of dovetailsOf(p)) expect([d.role, d.depth, d.lap]).toEqual(['pins', 0.5, 0.25]);
+      }
+      allBuild(out);
+      for (const [fb, s, box, slab] of halfBlindCorners(0.25)) {
+        expectPartition(part(out, s), part(out, fb), box);
+        expectLapSlab(part(out, s), part(out, fb), slab);
+      }
+    });
+  }
+
+  it('a Shape-less re-plan back to through moves the end out to the outside face again', () => {
+    const doc = halfBlindDrawer();
+    const out = applyDovetails(doc, ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, joint: 'through' })));
+    for (const id of ['l', 'r']) expect(spanW(part(out, id), 2)).toEqual([0, 17.5]);
+  });
+});
+
+describe('half-blind: the lap (spec §3.2, Global Constraints)', () => {
+  it('autoLap: a third, to 1/16" (at least 1/8") or a whole mm (at least 3 mm)', () => {
+    expect([0.75, 0.625, 0.875, 0.5, 0.25].map((t) => autoLap(t, IMPERIAL))).toEqual([0.25, 0.1875, 0.3125, 0.1875, 0.125]);
+    expect(autoLap(18 / 25.4, METRIC)).toBe(6 / 25.4);
+    expect(autoLap(6 / 25.4, METRIC)).toBe(3 / 25.4);
+  });
+
+  it('Auto on the planner: 3/4" → 1/4", 5/8" → 3/16", 7/8" → 5/16", metric 18 mm → 6 mm; a typed lap is stored exactly', () => {
+    const lapOf = (doc: SloydDocument) => [...new Set(DRAWER_IDS.flatMap((id) => dovetailsOf(part(doc, id)).map((d) => d.lap)))];
+    expect(lapOf(halfBlindDrawer())).toEqual([0.25]);
+    expect(lapOf(halfBlindDrawer({ tFB: 0.625 }))).toEqual([0.1875]);
+    expect(lapOf(halfBlindDrawer({ tFB: 0.875 }))).toEqual([0.3125]);
+    const mm = (v: number) => v / 25.4;
+    const o = { h: mm(152), tS: mm(12), tFB: mm(18), iw: mm(300), id: mm(400) };
+    const doc0 = docOf(drawerParts(o), { units: METRIC });
+    expect(lapOf(applyDovetails(doc0, ok(dovetailPlan(doc0, DRAWER_IDS, HB))))).toEqual([6 / 25.4]);
+    const typed = halfBlindDrawer({}, { lap: 0.3 });
+    expect(lapOf(typed)).toEqual([0.3]);
+    expect(dovetailsOf(part(typed, 'l')).map((d) => d.depth)).toEqual([0.75 - 0.3, 0.75 - 0.3]);
+  });
+
+  it("the narrow probe judges the pins on the TRUE extent (tP − lap): a 1-1/2\" front at 1:4 takes 3 tails half-blind, 2 through", () => {
+    // Side left's tails: X = 1.5 − 0.5 = 1; a tail at the baseline Te − 1/2 against a pin 1/4 + 1/2 (Te < 1-1/4 faults):
+    // 4 tails (Te 1-3/16) fault, 3 (Te 1-2/3) do not. Through, X = 1-1/2 (Te < 1-3/4 faults): 3 fault, 2 (Te 2-5/8) do not.
+    const [f, , l] = drawerParts({ tFB: 1.5 });
+    const doc = docOf([f!, l!]);
+    expect(autoLap(1.5, IMPERIAL)).toBe(0.5);
+    expect(ok(dovetailPlan(doc, ['f', 'l'], { ...DEFAULTS, slope: 4 })).corners.map((c) => c.N)).toEqual([2]);
+    const plan = ok(dovetailPlan(doc, ['f', 'l'], { ...HB, slope: 4 }));
+    expect(plan.corners.map((c) => c.N)).toEqual([3]);
+    allBuild(applyDovetails(doc, plan));
+  });
+
+  it('a typed lap not inside the pin part (0, NaN, the thickness) refuses with the lap sentence, naming it', () => {
+    for (const lap of [0, -0.1, Number.NaN, 0.75, 1]) {
+      expectRefusal(docOf(drawerParts()), DRAWER_IDS, `Front is too thin for a ${formatLength(lap, IMPERIAL)} lap.`, { joint: 'half-blind', lap });
+    }
+  });
+
+  it('a typed lap on an all-through action is ignored: no lap key anywhere, the same plan as without it', () => {
+    const doc = docOf(drawerParts());
+    for (const joint of ['through', 'keep'] as const) {
+      const a = ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, joint, lap: 0.3 }));
+      const b = ok(dovetailPlan(doc, DRAWER_IDS, DEFAULTS));
+      const out = applyDovetails(doc, a);
+      for (const id of DRAWER_IDS) expect(dovetailsOf(part(out, id)).every((d) => !('lap' in d))).toBe(true);
+      expect(a.notes).toEqual(b.notes);
+      expect(DRAWER_IDS.map((id) => noIds(part(out, id)))).toEqual(DRAWER_IDS.map((id) => noIds(part(applyDovetails(doc, b), id))));
+    }
+  });
+});
+
+describe('half-blind: the Joint option on a re-plan (spec §4, H3)', () => {
+  const sizes = (doc: SloydDocument) => DRAWER_IDS.map((id) => [part(doc, id).length, ...part(doc, id).position]);
+
+  it('keep with only a new slope: still half-blind, the same lap, the sides unchanged (Review Focus 1)', () => {
+    const doc = halfBlindDrawer();
+    const plan = ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, slope: 6 }));
+    const out = applyDovetails(doc, plan);
+    expect(sizes(out)).toEqual(sizes(doc));
+    for (const id of DRAWER_IDS) expect(dovetailsOf(part(out, id)).map((d) => [d.slope, d.lap])).toEqual([[6, 0.25], [6, 0.25]]);
+    expect(plan.notes).toEqual(['Dovetailed 4 corners, half-blind: 4 tails, 1:6, 1/4" lap.', 'Tails on Side left, Side right.']);
+    allBuild(out);
+  });
+
+  it('keep on new corners: through, byte for byte the plan with no joint given', () => {
+    const doc = docOf(drawerParts());
+    const a = ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, joint: 'keep' }));
+    const b = ok(dovetailPlan(doc, DRAWER_IDS, DEFAULTS));
+    expect(a.notes).toEqual(b.notes);
+    const strip = (p: DovetailPlan) => JSON.stringify([...p.parts].map(([id, x]) => [id, { ...x, dovetails: noIds(x) }]));
+    expect(strip(a)).toBe(strip(b));
+  });
+
+  it('through on a half-blind drawer: the sides lengthen by exactly the lap, and no lap key is left', () => {
+    const doc = halfBlindDrawer();
+    const plan = ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, joint: 'through' }));
+    const out = applyDovetails(doc, plan);
+    // Each side end moves out by exactly the lap (two ends: the side is 2 × 1/4" longer).
+    for (const id of ['l', 'r']) {
+      const [a0, a1] = spanW(part(doc, id), 2);
+      expect(spanW(part(out, id), 2)).toEqual([a0 - 0.25, a1 + 0.25]);
+      expect(part(out, id).length).toBe(part(doc, id).length + 0.5);
+    }
+    for (const id of DRAWER_IDS) expect(dovetailsOf(part(out, id)).every((d) => !('lap' in d))).toBe(true);
+    expect(plan.notes.slice(0, 1)).toEqual(['Dovetailed 4 corners: 4 tails, 1:8.']);
+    allBuild(out);
+    for (const [fb, s, box] of drawerCorners()) expectPartition(part(out, s), part(out, fb), box);
+  });
+
+  it('half-blind on a through drawer: Auto lap (no stored lap to keep); the sides shorten by it', () => {
+    const doc0 = docOf(drawerParts());
+    const doc = applyDovetails(doc0, ok(dovetailPlan(doc0, DRAWER_IDS, DEFAULTS)));
+    const out = applyDovetails(doc, ok(dovetailPlan(doc, DRAWER_IDS, HB)));
+    for (const id of ['l', 'r']) expect(part(out, id).length).toBe(17);
+    for (const id of DRAWER_IDS) expect(dovetailsOf(part(out, id)).map((d) => d.lap)).toEqual([0.25, 0.25]);
+  });
+
+  it('a re-plan with the pins part unchanged keeps a typed (non-Auto) stored lap', () => {
+    const doc = halfBlindDrawer({}, { lap: 0.3 });
+    for (const joint of ['keep', 'half-blind'] as const) {
+      const out = applyDovetails(doc, ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, joint, slope: 6 })));
+      for (const id of DRAWER_IDS) expect(dovetailsOf(part(out, id)).map((d) => d.lap)).toEqual([0.3, 0.3]);
+    }
+  });
+
+  it('Swap on a half-blind corner: the lap is re-chosen by Auto from the NEW pin part (a 1/2" side: 3/16")', () => {
+    const doc = halfBlindDrawer();
+    for (const joint of ['keep', 'half-blind'] as const) {
+      const plan = ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, joint, swap: true }));
+      expect(tailsOf(plan)).toEqual(['b', 'f']);
+      const out = applyDovetails(doc, plan);
+      for (const id of ['l', 'r']) {
+        expect(dovetailsOf(part(out, id)).map((d) => [d.role, d.depth, d.lap])).toEqual([['pins', 0.75, 0.1875], ['pins', 0.75, 0.1875]]);
+        expect(spanW(part(out, id), 2)).toEqual([0, 17.5]);
+      }
+      for (const id of ['f', 'b']) {
+        expect(dovetailsOf(part(out, id)).map((d) => [d.role, d.depth, d.lap])).toEqual([['tails', 0.5 - 0.1875, 0.1875], ['tails', 0.5 - 0.1875, 0.1875]]);
+        // Front and Back stop 3/16" inside the sides' outside faces (X 0 and 13, off the input fixture).
+        expect(spanW(part(out, id), 0)).toEqual([0.1875, 13 - 0.1875]);
+      }
+      allBuild(out);
+    }
+  });
+
+  it('Swap with a typed lap thicker than the new pin part refuses with the lap sentence, never too-short (Review Focus 4)', () => {
+    const sentence = `Side left is too thin for a ${formatLength(0.6, IMPERIAL)} lap.`;
+    expectRefusal(halfBlindDrawer(), DRAWER_IDS, sentence, { joint: 'keep', swap: true, lap: 0.6 });
+    expectRefusal(docOf(drawerParts()), DRAWER_IDS, sentence, { joint: 'half-blind', swap: true, lap: 0.6 });
+    // The lap is decided before any end moves (planCorners 3a), so before step 4's plain-stock test on another part.
+    const featured = docOf(drawerParts().map((b) => (b.id === 'b' ? { ...b, tenons: [{ id: 'rt', end: 'max' as const, diameter: 0.25, length: 0.5 }] } : b)));
+    expectRefusal(featured, DRAWER_IDS, sentence, { joint: 'half-blind', swap: true, lap: 0.6 });
+    // Without Swap the 3/4" front takes it.
+    expect(typeof dovetailPlan(halfBlindDrawer(), DRAWER_IDS, { ...DEFAULTS, lap: 0.6 })).toBe('object');
+  });
+
+  it("disagreeing ends under keep (spec §8): the PINS entry's lap decides", () => {
+    // Front + Side left dovetailed through, then a lap written by hand on one entry only.
+    const [f, , l] = drawerParts();
+    const doc0 = docOf([f!, l!]);
+    const through = applyDovetails(doc0, ok(dovetailPlan(doc0, ['f', 'l'], DEFAULTS)));
+    // Every part here is a plain board (no Shape), so the stored part is the world part.
+    const withLap = (doc: SloydDocument, id: string): SloydDocument => ({
+      ...doc, boards: (doc.boards as Board[]).map((b) => (b.id === id ? { ...b, dovetails: dovetailsOf(b).map((d) => ({ ...d, lap: 0.25 })) } : b)),
+    });
+    const onPins = withLap(through, 'f');
+    const a = applyDovetails(onPins, ok(dovetailPlan(onPins, ['f', 'l'], DEFAULTS)));
+    for (const id of ['f', 'l']) expect(dovetailsOf(part(a, id)).map((d) => d.lap)).toEqual([0.25]);
+    expect(part(a, 'l').length).toBe(part(through, 'l').length - 0.25);
+    const onTails = withLap(through, 'l');
+    const b = applyDovetails(onTails, ok(dovetailPlan(onTails, ['f', 'l'], DEFAULTS)));
+    for (const id of ['f', 'l']) expect(dovetailsOf(part(b, id)).every((d) => !('lap' in d))).toBe(true);
+    expect(part(b, 'l').length).toBe(part(through, 'l').length);
+  });
+});
+
+describe('half-blind: linked parts (spec §6)', () => {
+  it('linked mirror-twin sides: succeed, the Shape carries the lap, one cut-list row, the partition', () => {
+    const parts = drawerParts();
+    const l = parts.find((b) => b.id === 'l')!;
+    const shape: Shape = { id: 's1', ...sharedOf(l) };
+    const user = (b: Board, mirrored: boolean): ShapedBoard =>
+      ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) });
+    const doc = docOf(parts.map((b) => (b.id === 'l' ? user(b, false) : b.id === 'r' ? user(b, true) : b)) as Board[], { shapes: [shape] });
+    const out = applyDovetails(doc, ok(dovetailPlan(doc, DRAWER_IDS, HB)));
+    const shapes = out.shapes.filter((s) => out.boards.some((b) => (b as ShapedBoard).shape === s.id && (b.id === 'l' || b.id === 'r')));
+    expect(shapes).toHaveLength(1);
+    expect((shapes[0]!.dovetails ?? []).map((d) => [d.role, d.depth, d.lap])).toEqual([['tails', 0.5, 0.25], ['tails', 0.5, 0.25]]);
+    const rows = buildCutList(flatDocument(out)).groups.flatMap((g) => g.rows);
+    expect(rows.find((r) => r.names.includes('Side left'))!.names).toEqual(['Side left', 'Side right']);
+    allBuild(out);
+    for (const [fb, s, box, slab] of halfBlindCorners(0.25)) {
+      expectPartition(part(out, s), part(out, fb), box);
+      expectLapSlab(part(out, s), part(out, fb), slab);
+    }
+  });
+});
+
+describe('half-blind: the success notes (spec §4)', () => {
+  it('one shared layout; a mix of kinds takes the per-corner form', () => {
+    const doc0 = docOf(drawerParts());
+    const plan = ok(dovetailPlan(doc0, ['f', 'l', 'r'], HB));
+    expect(plan.notes[0]).toBe('Dovetailed 2 corners, half-blind: 4 tails, 1:8, 1/4" lap.');
+    // The front corners half-blind already, the back ones new (through under keep).
+    const doc = applyDovetails(doc0, plan);
+    const mixed = ok(dovetailPlan(doc, DRAWER_IDS, DEFAULTS));
+    expect(mixed.notes.slice(0, 5)).toEqual([
+      'Dovetailed 4 corners:',
+      'Front and Side left: 4 tails, 1:8, half-blind, 1/4" lap.',
+      'Front and Side right: 4 tails, 1:8, half-blind, 1/4" lap.',
+      'Back and Side left: 4 tails, 1:8.',
+      'Back and Side right: 4 tails, 1:8.',
+    ]);
+    expect(mixed.corners.map((c) => c.lap)).toEqual([0.25, 0.25, null, null]);
   });
 });
