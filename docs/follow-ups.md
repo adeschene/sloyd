@@ -7888,6 +7888,10 @@ the label size equals PartDiagram's; the full chain `p, Te, p, …` is drawn onl
 case, a 6" side, 4 tails, 1:8, draws it on TWO tiers where the mockup had one row), otherwise each distinct value once at its first span
 with the overall `H` on both figures; the pair never wraps (the figures scale with the row). Close when the user has seen it.
 **Status:** open (owed to the user: by eye).
+**Status:** CLOSED 2026-10-27 — the user saw the pair ("Yeah those look good"), from headless captures of the dev server's cut list (the
+watched browser's X display was gone): a 6" drawer side, 4 tails at 1:8 (the full chain on two tiers, the overall `6"` on the tail figure
+only) and a 10" side at Auto (7 tails; each value once, the half pin's and the first pin's `1/4"` side by side, `10"` on both figures),
+on screen and printed (Letter, nothing clipped). All three points raised were left as built.
 
 **512. Dovetails copy review (for the user).** Every new sentence, by home (the planner's calls in the plan's Global Constraints and the
 build's rulings, for the user's words):
