@@ -33,10 +33,10 @@ rectangular cut, so they need a new stored feature.
 - (G2) **The bench numbers**: on the cut list each jointed end reads as ONE line (finger count, finger width, the outer
   fingers' width, depth, which end, and whether this part has the outer fingers or the outer notches), never as a pile of
   notch lines. The part's length is already the length after jointing.
-- (G4) **Refine keeps them**: Refine works on a box-jointed project, joined or not, and keeps every box-jointed part
-  exactly (§7).
 - (G3) **Change it by running it again**: running the action on corners that are already box-jointed re-plans them
   (a new finger width, or swapped fingers) in place, as one undo entry.
+- (G4) **Refine keeps them**: Refine works on a box-jointed project, joined or not, and keeps every box-jointed part
+  exactly (§7).
 
 **Non-goals for this chunk** (each a follow-up, §12)
 - Dovetails of any kind (§11).
