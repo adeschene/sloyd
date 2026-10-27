@@ -153,6 +153,13 @@ describe('findTenons never claims a finger set (spec §3.3, why five)', () => {
     expect(findTenons(board)).toEqual([]);
   });
 
+  it('a hand-built three-segment set IS claimed by findTenons: why the minimum is five', () => {
+    const three: FingerLayout = { count: 3, width: 0.5, outer: 0.55, length: 1.6 };
+    const cuts = notchCuts(three, false, 'length', 'min', 'width', 0.5, ['a', 'b']);
+    const board = createBoard({ length: 20, width: 1.6, thickness: 0.5, cuts });
+    expect(findTenons(board)).not.toEqual([]);
+  });
+
   it('the layout refuses three fingers at 1.6 by 1/2', () => {
     expect(fingerLayout(1.6, 0.5)).toBeNull();
   });

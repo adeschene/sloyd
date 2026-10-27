@@ -1,7 +1,7 @@
 import type { Board, Cut, CutFrom, Dimension } from './types';
 import type { Units } from '../units/length';
 import { clippedRegion, cutsThatRemoveStock } from './cuts';
-import { snapStep } from './geometry';
+import { positionAxisOf, snapStep } from './geometry';
 
 /**
  * Box joints (box-joints spec): the ONE home of the finger layout (§3.3), the notch cuts it writes (§3.4) and the
@@ -48,7 +48,7 @@ export function notchCuts(
 ): Cut[] {
   // `along` is implied by `face` and `across: 'thickness'` (a cut's position axis is never stored); a caller naming any
   // other dimension has its corner's axes wrong.
-  if (along === face || along === 'thickness') throw new Error(`notchCuts: ${along} is not the position axis of ${face}`);
+  if (along !== positionAxisOf(face, 'thickness')) throw new Error(`notchCuts: ${along} is not the position axis of ${face}`);
   const out: Cut[] = [];
   for (let k = outerFingers ? 2 : 1; k <= l.count; k += 2) {
     const [lo] = segment(l, k);
@@ -82,7 +82,7 @@ export function fingerSets(board: Board): FingerSet[] {
  */
 export function fingerSetAt(board: Board, dim: Dimension, end: CutFrom): FingerSet | null {
   if (dim === 'thickness') return null;
-  const P: Dimension = dim === 'length' ? 'width' : 'length';
+  const P = positionAxisOf(dim, 'thickness');
   const D = board[dim];
   const T = board.thickness;
   const notches: { id: string; lo: number; hi: number; depth: number }[] = [];
