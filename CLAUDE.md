@@ -35,12 +35,12 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `72228cc`, bundle `index-BEpsbfAI.js`, CSS `index-BRfNHt6R.css`, SCHEMA 26** (through dovetails;
-  merge `72228cc`; deployed 2026-10-27). Owed to the user: see NEXT.
-- **Rollback:** the nearest boundary REFUSES: back to `975e418` (box joints, `index-EQnlonaA.js`, schema 25) refuses every
-  project saved at 26 — export first. Every older boundary: the table
+- **Production: `c6f60bc`, bundle `index-k4AGntBh.js`, CSS `index-BRfNHt6R.css`, SCHEMA 26** (the box joints and dovetails
+  copy review, fu 491 and 512; merge `c6f60bc`; deployed 2026-10-27). Owed to the user: see NEXT.
+- **Rollback:** back to `72228cc` (dovetails, `index-BEpsbfAI.js`, schema 26) is free; the nearest refusing boundary is
+  `975e418` (box joints, `index-EQnlonaA.js`, schema 25): it refuses every project saved at 26 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-27):** through dovetails are deployed; owed to the user (the dovetails *Amended (build)* block was approved
+- **NEXT (2026-10-27):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block was approved
   2026-10-27): the bench chain by eye (fu 511; the copy reviews 491 and 512 closed 2026-10-27), fu 496(1) and the dovetailed corner on real hardware (the paid Refine runs passed 2026-10-27). Owed
   otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
