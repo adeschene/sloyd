@@ -101,7 +101,7 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
 1. **§3.5's "my suggestion" for bodies is replaced by the round-tenon route** (square-span view curves through
    `geometryBoard`): the spec left the route to the builder; this one needs no new body, edge, mesh or UV code and puts the
    UV signature and `geometryKey` right by construction (inv 15). If Task 3's partition test shows a full-thickness square
-   span does not build, STOP and report; do not write separate body code without the controller's ruling.
+   span, or a square span through `width`, does not build, STOP and report; do not write separate body code without the controller's ruling.
 2. **Refusals on void store actions.** `addCut`, `updateCut`, `addAngleCuts`, `addCurves`, `addProfiles`, `setBands` return
    `void` today. Task 5 changes their return type to `string | null` (callers that ignore it compile unchanged) so the panel
    can show the spec's sentence.
@@ -150,7 +150,7 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
 ### Task 2: Schema 26, the layout and the faults
 
 **Files:**
-- Create: `src/document/dovetails.ts`, `src/document/dovetails.test.ts`, `src/document/dovetailText.ts`
+- Create: `src/document/dovetailModel.ts`, `src/document/dovetails.ts`, `src/document/dovetails.test.ts`, `src/document/dovetailText.ts`
 - Modify: `src/document/types.ts` (`Dovetail`, `Board.dovetails?`), `src/document/document.ts` (`CURRENT_VERSION`,
   `validateDovetails`, the v26 doc comment beside v24's at :206), `src/document/links.ts` (`LINK_FIELDS.dovetails: 'shared'`,
   `sharedOf`, `sharedPatch`, the comparison at :134), `src/document/shapes.ts:39-41`, `src/document/frames.ts:85-100`
@@ -161,7 +161,9 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
   task report.
 
 **Interfaces:**
-- Produces (`dovetails.ts`):
+- Produces (`dovetailModel.ts`, a LEAF both planner modules import, so `boxJoints.ts` and `dovetails.ts` never import each
+  other: `dovetailsOf`, `hasDovetails`, `dovetailAt`, `withDovetails`, `copyDovetail`, `sameDovetail`, `DOVETAIL_FIELDS`;
+  everything else in `dovetails.ts`):
   - `dovetailsOf(b: Pick<Board, 'dovetails'>): readonly Dovetail[]`; `hasDovetails(b): boolean`; `dovetailAt(b, dim, end): Dovetail | undefined`
   - `withDovetails<T extends Pick<Board,'dovetails'>>(b: T, list: Dovetail[]): T` (canonical order; no key when empty)
   - `copyDovetail(d: Dovetail): Dovetail`; `sameDovetail(a, b): boolean` (exact on `DOVETAIL_FIELDS`)
@@ -223,8 +225,9 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
 
 - [ ] **Step 1: Failing tests:**
   - **Partition** (spec §10): build a corner (two plain parts, run out, one tails and one pins dovetail, each in its own
-    turn), over `(H, N, s) ∈ {(6,4,8), (4,3,6), (3,1,8), (152/25.4, 4, 7)}`, metric and imperial `p`, roles swapped, and the
-    tail part turned 90° about its run axis. World bodies (`worldBodies`) clipped to the corner square: total volume ===
+    turn), over `(H, N, s) ∈ {(6,4,8), (4,3,6), (3,1,8), (152/25.4, 4, 7)}`, metric and imperial `p`, roles swapped, the
+    tail part turned 90° about its run axis, AND a corner where each part runs in along its `width` (a pins square span
+    `through: 'width'`, which round tenons never exercised). World bodies (`worldBodies`) clipped to the corner square: total volume ===
     the square's volume (1e-9 relative) and no tail-part body overlaps a pin-part body (pairwise `clipConvex` volume < 1e-12).
     Mutate (a) `Te` + 1e-6 in the tails curve only; (b) the pins' narrowing sign flipped. Each must fail.
   - `boardBodies` of a dovetailed part are all convex (every face's plane leaves every vertex on the inner side).
@@ -239,9 +242,12 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
   - Identity: the existing `diagramIdentity`, `drawingIdentity`, `bandFreeIdentity`, `mirrorFreeIdentity`,
     `hardwareFreeIdentity` and `sweptIdentity` tests pass unchanged.
 - [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement.** If the full-thickness square span does not build (Spec difference 1), STOP and report.
+- [ ] **Step 3: Implement.** If the full-thickness or the `width` square span does not build (Spec difference 1), STOP and report.
 - [ ] **Step 4: Run** the new file, `npx vitest run src/document src/viewport` and `npm run build`. Expected: PASS. Then the
   perf guards quiet (close any browser first; `uptime` < 1.5): `npx vitest run -t perf`.
+- [ ] **Step 4b: A new perf guard** (spec §10, inv 50: the minimum of 9 runs, bound lowered only, never raised): rebuilding
+  the bodies and edges of a dovetailed drawer's four parts (`boardBodies` + `boardEdges`, cache bypassed). Set the bound
+  from 3× the measured median on a quiet machine, and record the measurement in the test's comment.
 - [ ] **Step 5: Commit** `feat(dovetails): dovetails become geometry (view curves through geometryBoard)`.
 
 ### Task 4: The planner
@@ -260,10 +266,11 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
   - `applyDovetails(doc: SloydDocument, plan: DovetailPlan): SloydDocument`
 - Order: slope sentence, count sentence (before any corner work); then `planCorners` with the dovetail kind: `featureOf` in
   the copy's order (box joints' list plus `box joints` when `fingerSets(b).length > 0`); `removeAt` removes the existing
-  dovetail at that end; `planCorner` picks the tails part (rank, re-plan rule, swap), the count (typed, kept, or Auto with
+  dovetail at that end; `planCorner` picks the tails part (rank, re-plan rule, swap) — **the re-plan rule reads the existing dovetails from the
+  corner's ORIGINAL parts (`CornerEnd.part`), never the working clones, which `removeAt` has already stripped** — the count (typed, kept, or Auto with
   the lowering), refuses `too narrow`; `addAt` stores tails on one end (`depth` = the pin part's thickness) and pins on the
-  other (`depth` = the tail part's thickness, `outside` = the pin part's own thickness face on the tail part's far side,
-  judged in world then read part-locally through `endFacing`); `signature` = `[dim, Shape-local end, role, N, s, p, depth,
+  other (`depth` = the tail part's thickness, `outside` = the pin part's thickness face AWAY from the tail part's body — box joints' `far` on that axis, where the
+  tail part's end lands after the run-out — judged in world, then read part-locally through `endFacing`); `signature` = `[dim, Shape-local end, role, N, s, p, depth,
   Shape-local outside]`.
 
 - [ ] **Step 1: Failing tests** (the box joints planner fixtures: a drawer 1/2" sides, 3/4" front and back, 6" tall; a
@@ -278,7 +285,8 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
     `narrow`). A 1 1/2" tall corner of the same stock at 1:4, where `N = 1` still faults, gives `<A> and <B> are too narrow
     for 1 tails at 1:4 — try fewer tails.` (the copy is literal; copy review owns the plural).
   - Linked mirrored sides (Side right `mirrored`, its mirror along J): plan succeeds, ONE Shape, one cut-list row. Unmirrored
-    linked carcass sides at 90° and 270°: succeeds (the palindrome; spec §6). Mutate the signature to compare `outside`
+    linked carcass sides at 90° and 270°: succeeds (the palindrome; spec §6). Mirror's own pair (a `mirrored` user at the
+    inverse turn, as `mirrorLinkedPart` makes it): succeeds. Mutate the signature to compare `outside`
     un-flipped: the mirrored case must refuse.
   - One test per refusal sentence (inherited and new), each asserting the string AND `doc` unchanged (`toBe`).
   - A box-jointed part refuses with `… has box joints — dovetails work on plain stock for now.`, and `boxJointPlan` on a
@@ -340,7 +348,9 @@ two Amended sections too: §3.1's corner rules are inherited word for word. Read
 - `contactRegions(b)`, per BUILT dovetail: every cell is trimmed on `dim` to the region behind the baseline; then, per tail
   (tails part) or pin and half pin (pins part), the box INSCRIBED at its narrowest J span — a tail's baseline span, a pin's
   outside-face span — over the dovetail's full `dim` range and the full thickness, intersected with each cell, is added.
-  Dovetail-free parts take the existing path unchanged.
+  Dovetail-free parts take the existing path unchanged. (Checked while planning: `checkDesign`'s `touching` list, ~:694,
+  already reads `contactSolids` for every `realBodied` part, and grounding and support read `touching`, so the inscribed
+  boxes reach them with no other change. Overlap reads real bodies through the same `realBodied` gate, ~:664.)
 
 - [ ] **Step 1: Failing tests:**
   - A dovetailed four-sided drawer on the floor (Task 4's planner): `checkDesign(...)` is `[]`.
