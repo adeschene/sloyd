@@ -83,6 +83,17 @@ src/
 │   │                     stretcherReadout / stretcherStale (the rung's readout, formatLength with the document's units; the gap rounded UP,
 │   │                     ceilToTick, under "up to"), the
 │   │                     section's heading, fields and buttons; STRETCHER_NOT_A_STRETCHER (internal, ruling T4b)
+│   ├── boxJoints.ts      Box joints (dovetails chunk 1, inv 61), THE layout, THE recogniser and THE planner, pure, no → units edge (a TYPE-only
+│   │                     `Units`): fingerLayout (N = max(5, 2n + 1), a tie DOWN, null under 4w), segment (direct, never a running sum),
+│   │                     notchCuts (full-thickness notches, `along` asserted), fingerSets / fingerSetAt (SHAPE only; FingerSet nests `layout`),
+│   │                     defaultFingerWidth, boxJointPlan (every refusal in order, corners found by touching ends AND overlapping J
+│   │                     spans, the parts as WORLD parts, link post-condition) and applyBoxJoints (writeBackParts, keepWorld); boxJoints.test.ts
+│   ├── boxJointText.ts   THE box joints words (→ units: it produces strings), verbatim: the refusals (boxCutInTheWay … boxLinkSplit), the
+│   │                     success lines (boxJointedLines, boxLengthLine), fingerSetLine (the cut list's and the diagram's), the joinery
+│   │                     reason (boxJointedLeftAlone), Refine's (boxJointsThroughJoints, boxJointJoinChanged), the section's words
+│   ├── resizeEnd.ts      resizeEnd (joinery's resize core, moved from generate/joints/recipes.ts, `onResize` where the Tap was) and the
+│   │                     rebase helpers (refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles); recipes.ts still re-exports
+│   │                     the four for the unedited tests (fu 495)
 │   ├── levelEnds.ts      Level the ends (splayed legs §5, inv 57): levelPlan (two end miters along seamFree's face — on a SQUARE-SET
 │   │                     lean, inv 59, one compound miter per end along the larger slope, ties width, `across` the rest, its line
 │   │                     through the through centre; dirOf: a dimension's world direction signed by `reversed` —, each end's
@@ -95,7 +106,9 @@ src/
 │   │                     round tenon, hasTenons, faulted included — round tenons §9 — or a compound end cut, hasCompoundCut — inv 59),
 │   │                     whyKept (the note's reason words; `has a compound end cut` only when nothing else applies, a cleared leg),
 │   │                     keptParts (THE decision: ROOT stored parts whose resolved form keepsExactly + their
-│   │                     Shapes + flat names), leaningInAssembly ('lean-assembly'), keptNote (the USER-turn note, real bounds, why kept)
+│   │                     Shapes + flat names; box joints, inv 61: also `definitions`, `instances`, `placements` of a kept ASSEMBLY),
+│   │                     leaningInAssembly ('lean-assembly'; keptForMoreThanFingers, so box joints alone never refuse), keptAssemblyLinkRefusal,
+│   │                     keptNote (the USER-turn note, real bounds, why kept; one line per kept placement)
 │   ├── worldBounds.ts    partBounds / partsBounds, the ONE real-bounds helper (splayed legs §6.1 R2): a leaning part's
 │   │                     world box from its LEANED body vertices; lean-free = boardsBounds exactly. Every world-box reader
 │   │                     (group move, Copy in a row, section heading/span, Gizmo, framing, explode, Plans dimensions, the
@@ -107,7 +120,8 @@ src/
 │   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument; mirroredAt (assembly parity),
 │   │                     sideAt (assembly parity XOR the part's own `mirrored` flag, inv 46); treeRows carries a part's flag
 │   ├── treeEdit.ts       every write-back: applyWorldEdits (storageKey), lowerEdit,
-│   │                     translateItems, writeBackFlat (inv 46); lower/lowerCuts are the exact inverse
+│   │                     translateItems, writeBackFlat (inv 46), writeBackParts (box joints, inv 61: full after-states, keepWorld, one edit per
+│   │                     storage key, regroupShapes); lower/lowerCuts are the exact inverse
 │   │                     of a mirrored placement; postureRefusal (flat<->upright across a mirror), sameSideFirst (both by sideAt);
 │   │                     lowerOwnMirror (a mirrored user's features into its Shape's hand against withShapeFeatures, inv 44);
 │   │                     regroupShapes: exact membership through each user's own flag, flaggedKeys (inv 46, fu 432)
@@ -453,7 +467,8 @@ src/
 │   │                     the legs' container and mapWorld, a reused leg's list not written; the rung selected) and fitStretcher
 │   │                     (STRETCHER_NOT_A_STRETCHER first, refitPlan, ONE mapWorld edit; the no-change check names `length`,
 │   │                     `position`, `tenons` and throws on any other key, so a fitted rung pushes no entry); store.stretchers.test.ts;
-│   │                     copyBoard re-mints tenon ids
+│   │                     copyBoard re-mints tenon ids; box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
+│                     document; store.boxJoints.test.ts)
 │   │                     (source's Shape users keep theirs, others take the source's); store.mirrorLinks.test.ts
 │   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
 │   │                     addCurves/updateCurve/removeCurve, the same shape
@@ -470,7 +485,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage — names the project's band types
 │                     (`Edging types in this design`), KEEP_LINE names edging and edge profiles, the design sent through toWireDesign —, detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, hole, band and profile design faults included, runRefine — the result's own band types, plain and joined —, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones}.ts (pocket.ts: `pocketFor` stores its own numbers on the grid, `onGrid`, because a box arrives through world differences and reflections and the cut list compares stored cuts exactly; featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57), then `tenonRefusal` (round tenons §9: a part with any stored tenon, one sentence each; Repair and a joined Refine call it too, after the lean), then `compoundRefusal` (square-set legs §4, inv 59: a part with a compound end cut, `hasCompoundCut`, one sentence each; Repair and a joined Refine call it too, after the tenon); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones,fingerClaim}.ts (fingerClaim.ts: claimFingerSets / restoreFingerSets, the finger sets taken off before readJoints and put back after, shared by Refine's gate and Repair, inv 61; recipes.ts skips or refuses a site that would resize, trim or move a box-jointed part; pocket.ts: `pocketFor` stores its own numbers on the grid, `onGrid`, because a box arrives through world differences and reflections and the cut list compares stored cuts exactly; featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57), then `tenonRefusal` (round tenons §9: a part with any stored tenon, one sentence each; Repair and a joined Refine call it too, after the lean), then `compoundRefusal` (square-set legs §4, inv 59: a part with a compound end cut, `hasCompoundCut`, one sentence each; Repair and a joined Refine call it too, after the tenon); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -557,6 +572,8 @@ src/
 │                     `pairSignature`, ruling T5c —, Rung size, Tenon diameter, `Add stretcher`, the store's refusal as the alert)
 │                     and StretcherReadout (under Round tenons: the readout or the stale line and `Fit the stretcher again`, from
 │                     stretcherOf in a memo; the last Add's link notes, held by Properties, ruling T5a); Stretcher.test.tsx;
+│                     BoxJoints (box joints §4, inv 61): BoxJointsSection (in the multi-selection panel for two or more parts, inside its EditLock:
+│                     Finger width, Swap fingers, `Box joint the corners`, the notes held in section state); PartDiagram's fingerNotes;
 │                     CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
 │                     Hardware (the Hardware section: `+ Add hardware ▾`, a count per type, `New hardware type…`; a part, an assembly or, with
 │                     nothing selected, the project — inv 55; reads `holderHardware`, whose arrays are STORED);

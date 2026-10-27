@@ -1,6 +1,6 @@
 # Box joints (dovetails chunk 1) — design
 
-Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). Builder check taken 2026-10-27 (seven questions: five settled as my
+Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). BUILT 2026-10-27 on branch `box-joints` (not merged or deployed); the *Amended (build)* block at the end awaits the user's approval. Builder check taken 2026-10-27 (seven questions: five settled as my
 calls, two ruled by the user, §5.2 and §7; three claims the code contradicted, corrected). Feature gap §1, "Dovetails, box joints" (`docs/feature-gaps.md`); the
 user chose "Box joints, then dovetails" and asked to skip the design questions, so every decision below not quoted from the
 user is **my call** and is marked as such where it matters. Dovetails get their own spec after this chunk ships (§11).
@@ -244,8 +244,8 @@ finger-set readout or lock in that section is a follow-up.
 **Add joinery** (my call, builder check): `findSites` already skips the corner itself (the two run-out boxes
 interpenetrate). But a site at a recognised finger-set end elsewhere (a false front glued over a box-jointed drawer puts
 the sides' end grain against the front's face) could grow the jointed end and re-store its notches. So joinery SKIPS any
-site whose entering part would grow or be trimmed at a recognised finger-set end, with the reason `<part>'s box joint is
-already cut at that end`. This is decided before any mutation, as `cutIntoEnd` is (inv 41). That is the one joinery change.
+site whose entering part would grow or be trimmed at a recognised finger-set end, with the reason `<part> has box joints, so
+joinery leaves its size and place alone` (the build widened and reworded this, see *Amended (build)*). This is decided before any mutation, as `cutIntoEnd` is (inv 41). That is the one joinery change.
 
 **Refine keeps box joints** (the user's ruling, 2026-10-27: "Refine keeps box joints"). Today any cut sends Refine
 through `gateUnjoin` (`refine.ts`), and fingers are cuts no joint explains, so the whole project would refuse with
@@ -347,3 +347,45 @@ three-finger corner (teach the tenon finder to give way); pinned box joints.
 - The live-refusal plumbing in the panel (copy Add stretcher's).
 - UI wording beyond the quoted sentences (copy review is owed to the user, as for every round).
 - The invariant's full wording.
+
+## Amended (build)
+
+Rulings made while building (2026-10-27). **Awaiting the user's approval**, in plain terms (the copy is fu 491).
+
+**Spec differences**
+- **D1 — siblings.** `selectionPatch` keeps only direct children of the open assembly, so every selection is one container's siblings. The
+  per-corner container refusal stays in the planner but no selection reaches it; §6's two drawers jointed in one action is impossible: linked
+  sides in two drawer assemblies take the linked-mate refusal (`Unlink first`).
+- **D2 — the success note** is held in the section's own state, not new store state (§4); a selection change clears it, since the section remounts.
+- **D3 — linked write-back** is `writeBackParts` (`treeEdit.ts`), not §6's representative-plus-position-only-mates: `mapWorld` cannot take a
+  position-only mate beside a size change (it throws on an unmirrored one, lands a mirrored one off in a turned assembly) and misplaces any
+  part that grows at its world-MAX end. Every user gets its full after-state, one edit per storage key, `keepWorld`, `regroupShapes`; a result
+  that would split a link refuses (`boxLinkSplit`: `Box joints can't keep these linked parts linked: <parts>. Unlink them first.`). A link-split
+  refusal can reach a user with all-mirrored metric links.
+- **D4 — the tie** (my call, needs the user's sight): §3.3's `N = 2·round((H/w − 1)/2) + 1` leaves a tie (a 4" drawer side at 1/2") to `Math.round`,
+  up, to 1/4" outer fingers; the build pins a tie DOWN (3/4" outer fingers, `e = 3w/2`): thin outer fingers break off.
+- **D5 — kept assemblies** (the user's ruling, "Widen Task 6 to assemblies"): see §7's Amended paragraph; built as Task 6b.
+
+**Ruling lines from the build ledger**
+- **R-T1:** `recipes.ts` re-exports the four moved rebase helpers so unedited tests keep importing them (fu 495).
+- **R-T2a:** a recognised width or depth may be an ulp off the planned value (exact for the usual cases, 1e-9 in general); §5.1 forbids reading stored
+  fields, and no consumer compares recognised numbers across boards exactly. **R-T2b:** `FingerSet` nests `layout` (§5.1 lists flat fields); the same
+  information. **R-T2c:** `notchCuts` throws when `along` is not the cut's position axis (a programmer-error assertion). **R-T2d:** a live test that
+  a three-segment set IS a tenon to `findTenons` pins why the minimum is five. **R-T2e:** the recogniser ignores a partial-thickness cut over the
+  fingers (§5.1 as written); the planner refuses to make that case.
+- **R-T3a:** two parts meet at a corner only when their `J` spans also overlap beyond 1e-9 (a shelf beside a drawer would otherwise refuse the
+  whole selection with the heights sentence); a near-miss pair gets the ignored line instead. **R-T3b:** the corner-region rule needs `across === the
+  run dimension` AND through (§3.5 names end rabbets and tenon shoulders as refusals). **R-T3c:** a selected leaning part that would be a candidate
+  by its pre-lean box refuses with the lean plain-stock sentence before the heights sentence (inv 57 R2). **R-T3d:** the plan's "empty corners: each part 1/2" longer" was wrong (1/2" per end = 1" per part); the build's 1" stands.
+- **R-T6a (§7's "kept exactly" met by mechanism, not refusal):** (a) joinery skips or refuses any site that would resize, trim or carry a part
+  with ANY recognised finger set, whatever the axis (a pocket INTO it stays allowed); (b) a joined Refine fixes every NEW or unrecorded site touching a
+  kept part as butt, but keeps a RECORDED joint into a kept part as recorded (forcing it butt would drop the pocket the read-back took off the part);
+  (c) after the re-join, a kept part whose finger sets, size or position differ from the original comes back UNJOINED with a reason (inv 41's
+  precedent); (d) Refine refuses, in words, when the gate changed a box-jointed part's sets; (e) the `cuts` defence filters only recognised finger cut ids.
+  Cost if wrong: Add joinery skips some sites on box-jointed parts the user expected joined (a tenon into a box-jointed side's END is still skipped).
+- **R-T6b:** Repair claims finger sets too (§7's sentence had no owner), and refuses a result that breaks one.
+- **R-T6c:** the joinery reason reads `<part> has box joints, so joinery leaves its size and place alone` (§7's `already cut at that end` was
+  false when the set is elsewhere on the part); §7 above is corrected.
+- **R-T6d (6b):** a loose model part's name is compared TRIMMED against kept placement names (the gate trims, so `" Drawer 2 "` would otherwise win
+  the name over the kept placement); kept root names stay exact. **R-T6e:** the (c) sentence is `Joinery would have changed <name>, which Refine
+  keeps as it is for its box joints, so the design comes back unjoined.` (it also covers fingerless parts of a kept assembly).

@@ -7652,3 +7652,91 @@ the section. `holderOf`'s two exclusions (the rung itself, the leg itself) are u
 rung is not in the world; a stale tenon is not seated by definition; a leg's own tenons never sit in its own sockets) and stay as
 guards.
 **Status:** open (record-only).
+
+
+## From the box joints round (dovetails chunk 1) — 2026-10-27
+
+**484. Dovetails (box joints spec §11, §12).** Through dovetails, then half-blind: the tails and pins are angled cuts, so the corner is no longer
+rectangular cuts and the recogniser, the planner and the cut-list line all need an angled-notch reading (inv 48's bodies stay convex per
+notch). Box joints' own spec §11 names the next chunk.
+**Status:** open (feature-sized; needs its own spec).
+
+**485. Box joints on parts of different heights along the joint (spec §2, §12).** A corner whose two parts differ in height along the joint (a
+drawer front taller than its sides) refuses with `<A> and <B> must be the same height along the joint.`; a layout over the shared span with plain
+wood above it needs a rule for the part that sticks out.
+**Status:** open (feature-sized).
+
+**486. Box joints on featured parts (spec §2, §12).** A part with a lean, angle cut, curve, edge profile, edge band or round tenon refuses
+(`<part> has <…> — box joints work on plain stock for now.`). Joining one needs the feature zones (`featureZones.ts`) taught to judge a finger
+corner, and the recogniser to read through a feature.
+**Status:** open (feature-sized).
+
+**487. Proud fingers and glue clearance (spec §2, §12).** The model is the finished, flush joint: fingers are exactly the other part's thickness
+deep and exactly complementary. Real drawers leave fingers proud for sanding flush, and a thou of glue clearance.
+**Status:** open (feature-sized).
+
+**488. Add joinery choosing a box joint as a joint kind (spec §7, §12).** Joinery only LEAVES a box-jointed part alone. A joint kind that picks
+a corner's fingers (a width from the stock, a phase from the run axes) needs the recipe, `choose.ts` and the design form's words.
+**Status:** open (feature-sized).
+
+**489. A three-finger corner (spec §3.3, §12).** The layout's floor is five fingers because three read as a tenon to `findTenons`; teaching the
+tenon finder to give way to a claimed set (as `setupLines` already claims first) would allow a three-finger corner on a short side.
+**Status:** open (feature-sized).
+
+**490. Pinned box joints (spec §2, §12).** A dowelled or pinned box joint, and a box joint at an angle (a splayed box).
+**Status:** open (feature-sized).
+
+**491. Box joints copy review (for the user).** Every new sentence is in `boxJointText.ts` (its ONE home), quoted in the plan's Global
+Constraints as the builder's calls: (1) the planner's refusals — `These parts don't meet at a corner.`; `<A> and <B> must be the same height along the
+joint.`; `<part> meets two parts at one end.`; `<part> would be box-jointed on two different edges — that isn't supported yet.` (spec §3.1 left
+this to copy review); `<A> and <B> are too short for five fingers that wide — try narrower fingers.`; `<part> has a cut where the fingers go — remove
+it first.`; `<part> has a hole where the fingers go.`; `<part> has <a lean | an angle cut | a curve | an edge profile | edge banding | a round tenon> —
+box joints work on plain stock for now.`; `<A> and <B> must be in the same assembly.`; `Box joints can't reach a part inside a mirrored copy yet:
+<part>.`; `<part> is linked to <mate> — select <mate>'s corner too, or Unlink first.`; `These linked parts would need different box joints: <parts>.`;
+`Box joints can't keep these linked parts linked: <parts>. Unlink them first.` (the link post-condition, spec difference 3); `A finger width must be
+more than zero.`. (2) The success note: `Jointed <n> corner(s): <N> fingers, <w> wide (the outer two <e>).` (or `Jointed <n> corners:` and a line per
+corner), `<part> isn't at a corner with another selected part.`, `<part> is now <x> longer.` / `shorter.`. (3) The section `Box joints`, the field
+`Finger width`, the checkbox `Swap fingers`, the button `Box joint the corners`. (4) The cut list and diagram line: `Box joint — <N> fingers <w> wide
+(the outer two <e>), <d> deep, at the <dim> <end> end; this part has the outer fingers.` / `…the outer notches.` (5) The joinery reason `<part> has box
+joints, so joinery leaves its size and place alone` (ruling R-T6c; the old `already cut at that end` was false when the set is elsewhere). (6) Refine:
+`Refine can't keep <part>'s box joints through its other joints yet.`; the unjoined reason `Joinery would have changed <part>, which Refine keeps as
+it is for its box joints, so the design comes back unjoined.`; `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it —
+Unlink first: <part>.`; the kept note's header (`These parts lean, have angled holes or have box joints, which the design format cannot describe …`
+and the round-tenon variants), its per-placement line `"<placement>" is an assembly with box joints and is kept as is: <bounds>.`, its
+footer (unchanged wording, now also covering kept placements) and the dialog's `Kept as is (leans, angled holes, round tenons or box joints): <names>`
+and `Replaced by the kept part of the same name: <names>` (now also a loose part or placement that reused a kept PLACEMENT's name). (7) The tie
+(spec difference 4): a 4" drawer side at 1/2" fingers gets 3/4" outer fingers, not 1/4": needs the user's sight.
+**Status:** open (owed to the user: wording and the tie).
+
+**492. Widen kept assemblies to the other kept kinds (spec §7, Amended).** A box-jointed part inside an assembly keeps the WHOLE assembly; a
+leaning part, a tilted hole row, a round tenon or a compound end cut inside an assembly still refuses Refine (`lean-assembly`, fu 441's rebuild of
+every definition). The same whole-assembly keep would serve them (a splayed stool inside an assembly), with the same cost: an instruction about a
+kept assembly does nothing to it.
+**Status:** open (feature-sized).
+
+**493. A hand-cut run-out groove is never read as a joint by Refine's gate (pre-existing; found by the box joints probe, 2026-10-27).** A drawer
+bottom held by a hand-cut RUN-OUT groove (a groove through the end with the router's run-out) is never read as a joint by `gateUnjoin` (`unjoin.ts`:
+the pocket must lie inside the overlap box), so Refine refuses it with `GATE_REFUSAL`, with or without box joints. Joinery's own STOPPED dado reads
+back fine. The probe was read-only; no code changed. A fix widens `readJoints`' pocket test (inv 41: the exact re-join must still prove it).
+**Status:** open (ask first).
+
+**494. The (c) guard's floor-drop false positive (Task 6 review).** `changedBoxJointed` compares a kept part's finger sets, size and position
+before and after the re-join; joinery's uniform floor drop moves every part, so a kept drawer whose position moved by the drop reads as changed and the
+design comes back unjoined. Never silent (the reason names the part), but the join is lost when it was harmless. A fix compares positions relative
+to the floor drop, or the kept parts' world box.
+**Status:** open.
+
+**495. Box joints: deferred minors (2026-10-27, the SDD ledger and task reviews).** (1) `recipes.ts` re-exports the four moved rebase helpers for
+unedited tests (`resizeEnd.test.ts` has no turned-part case); retarget the tests' imports and drop the re-export. (2) Recognition: a partial-thickness
+cut over the fingers does not stop it (spec §5.1 as written; the planner refuses to make one); the recognised width and a max-end depth may be an ulp
+off the planned value, never a consumer's concern today (a possible fix: search a few ulps for a layout that reproduces every notch start). (3) A
+cross-end rabbet wider than the corner region passes the corner-region test (as a groove does); fingers are cut through it. (4) The `resizeEnd`
+refusal is matched by message text (pinned by a mutation test); shaped users' clone notches are minted then discarded; `nextId` is global, not
+per-cut ids. (5) The planner runs twice per click (the StretcherSection pattern); a parse-error width leaves the old notes; the panel test asserts
+only the first note line. (6) The diagram's set-loop `ensure()` is not discriminated (the re-stored-notches case); stored versus board recognition
+agreement is unasserted; the finger note reuses the curve-note CSS class; `void container`; the cut-list outer-two parenthesis is untested; Task 5's
+implementation was written before its tests (stash-verified RED). (7) Task 6b: a loose part's name is compared trimmed but a placement's exact (both safe);
+`keptParts` is computed twice and the placed builder is O(n²); the nested-refusal check fires after the taper and angle checks for kept definitions.
+(8) Task 4: the section's held-point judging has one test (the planner's `judgeHeld` call); a stale selection would give an infinite default width
+(unreachable: the selection is filtered and the section mounts with two parts).
+**Status:** open (record-only).

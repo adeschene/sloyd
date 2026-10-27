@@ -40,6 +40,8 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `447df4b` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
   `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **IN PROGRESS (2026-10-27): box joints** (dovetails chunk 1; no schema change; inv 61) are BUILT and recorded on branch `box-joints` (HEAD after the
+  records commit), NOT merged and NOT deployed; the browser check (plan Task 8), the final review and the deploy are next. Owed: the spec's *Amended (build)* block and the copy review (fu 491).
 - **NEXT (2026-10-26):** stretchers deployed; this file trimmed (59.9KB → 48.2KB; per-file rules moved to `docs/module-map.md`). The six specs' Amended blocks APPROVED 2026-10-26. Owed: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -103,9 +105,9 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 (`formatLength`, so one dimension never reads two ways on one sheet) and
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so do `designCheck.ts` (a metric violation's
 `shown` copy, fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), and the copy homes
-`bandText.ts`, `tenonText.ts` and `stretcherText.ts` (`banding.ts` and `roundTenons.ts` stay numbers-only).
+`bandText.ts`, `tenonText.ts`, `stretcherText.ts` and `boxJointText.ts` (`banding.ts` and `roundTenons.ts` stay numbers-only).
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
-`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`), nor is `gridDensity.ts`' `isMetric` (the
+`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`, `boxJoints.ts`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
@@ -153,6 +155,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | edge profiles | `profiles.ts`, `profilePath.ts`, `sweep.ts` and kin; AI `profileWorld.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
 | edge banding | `bandModel.ts`, `banding.ts`; AI `bandWorld.ts` (inv 54) |
+| box joints | `boxJoints.ts` (layout, recogniser, planner), `boxJointText.ts`, `resizeEnd.ts`; write-back `treeEdit.ts` `writeBackParts`; Refine/Repair `fingerClaim.ts` (inv 61) |
 | lean | `lean.ts`, `levelEnds.ts`, `leanContacts.ts`, `worldBounds.ts` (inv 57, 59) |
 | round tenons, the joint | `roundTenons.ts`, `tenonJoints.ts`, `tenonText.ts`; tolerances `checkTolerances.ts` (inv 58) |
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
@@ -455,8 +458,9 @@ changes.
     it**; `hardware` is SHARED (inv 45). **`holderHardware` returns STORED arrays, never `resolveBoard`'s copy** (a
     selector returning a fresh array crashes React). Hardware is typed, never derived from holes.
 56. **Refine keeps a featured part's posture and rotation by ONE decision, `keptFrame` (the prohibition below).** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` and before `linkByRole`. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop. A part whose only frame features are holes, bands and/or authored profiles that the model turned (`keptFrame`'s rank and tie rules) is `orient`ed like its plain twin, the exact swaps skipped; `turnCandidates` never turns a part with curves or carried profiles. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
-    A LEANING part, one with a TILTED hole row, a round tenon or a compound end cut is KEPT exactly (`keepsExactly`, `keptParts`;
-    invs 57–59); one inside an assembly refuses Refine, and so does a joined Refine.
+    A LEANING part, one with a TILTED hole row, a round tenon, a compound end cut or a BOX JOINT is KEPT exactly (`keepsExactly`, `keptParts`;
+    invs 57–59, 61); one inside an assembly refuses Refine (a box-jointed part's whole ASSEMBLY is kept whole instead, inv 61), and so
+    does a joined Refine (unless the only kept kind is box joints, inv 61).
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (schema 22). `Board.lean` (SHARED) stores turn-0 SLOPES (degrees only in display
     and typed input), only when non-zero (a zero lean is no lean), only on an UPRIGHT part, always seam-free. **A lean-free document is byte for byte as before.** `position` stays the
@@ -489,12 +493,27 @@ changes.
     `tenonStep`; a free row the tenon is `seatedIn` is reused; any socket fault refuses the WHOLE action. Every refusal before
     `edit()`; ONE undo entry, none for a fitted rung's Fit. Fit re-fits the CLOSURE (each stretcher sharing a used row).
 
+61. **A box joint is ORDINARY rectangular cuts; `boxJoints.ts` is the ONE layout, the ONE recogniser and the ONE planner, and they
+    are each other's inverse** (box joints; NO schema change; a box-joint-free project is byte for byte as before). A corner is
+    two parts with full-thickness notches at their ends (`across: 'thickness'`, stops 0); the recogniser (`fingerSets`) reads SHAPE,
+    never a stored field. **One layout per corner, exact complements to 1e-9** (`N = max(5, 2n + 1)` fingers, a tie DOWN, inner fingers `w`,
+    outer `e`; **at least five**, three read as a tenon); a recognised width may be an ulp off the planned value, so compare PLANNED
+    parameters. **The write-back is `writeBackParts` (`keepWorld`, one edit per storage key, Shapes regrouped), never `mapWorld`; its
+    link post-condition refuses a split link.** Every refusal before `edit()`; ONE undo entry; the run-out is exact (inv 25).
+    **Joinery leaves the size and place of any box-jointed part alone** (`<part> has box joints, so joinery leaves its size and place
+    alone`). **Refine keeps box-jointed root parts and box-jointed ASSEMBLIES whole** (definition and every placement, put back FIRST,
+    inv 56); **finger sets are claimed BEFORE the gate** (`fingerClaim.ts`), **Repair claims them too**, and a joined Refine fixes
+    every NEW site touching a kept part as BUTT (a RECORDED joint stays as recorded) and **(c)** returns the design UNJOINED when the
+    re-join would change a kept part. **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a
+    kept part butt, and do not drop the (c) guard.** The cut list prints one line per set, never a tenon or notch lines
+    (`setupLines` claims first). Full text: `docs/invariants.md`. Follow-ups 484–495.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 8889 tests across 247 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9135 tests across 254 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -509,10 +528,10 @@ This list is the triage's open set — when an entry's status changes, change it
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471.
+  364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 484–490, 492.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers); by eye — 465 (round tenons); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 491 (box joints; includes the tie ruling, spec difference 4); by eye — 465 (round tenons); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
@@ -520,7 +539,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
   holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
-  (2026-10-26): 479 (ask first); record-only 483.
+  (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
