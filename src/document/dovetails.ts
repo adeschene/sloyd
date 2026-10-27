@@ -45,27 +45,30 @@ export function autoTailCount(H: number, units: Units): number {
 export { dovetailLayout, jointLineOf, type DovetailLayout } from './dovetailModel';
 
 /** What makes a stored dovetail build nothing (spec §3.2, §3.5), in this order. */
-export type DovetailFault = 'count' | 'slope' | 'depth' | 'narrow';
+export type DovetailFault = 'count' | 'slope' | 'lap' | 'depth' | 'narrow';
 
 /** Float noise: a tail exactly as wide as a pin passes (spec §3.2, judged at 1e-9). */
 const EPS = 1e-9;
 
 /**
  * The ONE fault decider (spec §3.2), on the part's OWN sizes: `H = b[J]`; the angled extent `X` is `d.depth` for tails
- * (the baseline) and `b.thickness` for pins (across the part's own thickness). Faults, in order: `count` (not an integer
- * >= 1), `slope` (outside [4, 12]), `depth` (reaching the part's own size along `dim`, or, with the part's other dovetail
- * on the same `dim`, the two depths together reaching it to 1e-9), `narrow` (a tail at its narrowest,
- * `Te − 2·X/s`, narrower than a pin at its widest, `p + 2·X/s`, by more than 1e-9).
+ * (the baseline; on a half-blind corner already `tP − lap`) and `b.thickness − (d.lap ?? 0)` for pins (across the part's
+ * own thickness, less a half-blind lap: the sockets run from the lap plane; half-blind spec §3.2). Faults, in order:
+ * `count` (not an integer >= 1), `slope` (outside [4, 12]), `lap` (a PINS entry with a lap not strictly inside its own
+ * thickness, to 1e-9; a tails entry's lap is a record and never faults), `depth` (reaching the part's own size along `dim`,
+ * or, with the part's other dovetail on the same `dim`, the two depths together reaching it to 1e-9), `narrow` (a tail at
+ * its narrowest, `Te − 2·X/s`, narrower than a pin at its widest, `p + 2·X/s`, by more than 1e-9).
  */
 export function dovetailFaults(b: Board, d: Dovetail): DovetailFault[] {
   const out: DovetailFault[] = [];
   if (!(Number.isInteger(d.count) && d.count >= 1)) out.push('count');
   if (!(d.slope >= 4 && d.slope <= 12)) out.push('slope');
+  if (d.role === 'pins' && d.lap !== undefined && !(d.lap > EPS && d.lap < b.thickness - EPS)) out.push('lap');
   // Also when it meets or crosses the part's OTHER dovetail on the same dim (Task 4 fix ruling): the two depths together
   // reaching the part's size (to 1e-9) leave no wood between the two joints.
   const other = dovetailsOf(b).find((x) => x.dim === d.dim && x.end !== d.end);
   if (d.depth >= b[d.dim] || (other !== undefined && d.depth + other.depth >= b[d.dim] - EPS)) out.push('depth');
-  const X = d.role === 'tails' ? d.depth : b.thickness;
+  const X = d.role === 'tails' ? d.depth : b.thickness - (d.lap ?? 0);
   const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
   if (Te - (2 * X) / d.slope < d.pin + (2 * X) / d.slope - EPS) out.push('narrow');
   return out;
@@ -175,6 +178,9 @@ export function lowerDovetails(stored: Dovetail[] | undefined, draft: Pick<Board
  * - PINS: one curve per TAIL socket, through `dim` from the baseline to the end with ONE square stop at the baseline (a plain
  *   wall, as a tenon's shoulder), its outline in `uvDims(dim)` = (J, thickness): at the `outside` face the tail's
  *   outside-plane bounds, at the other face each side `thickness / s` further in (the socket narrows, the pins widen).
+ *   HALF-BLIND (a `lap`, half-blind spec §3.4): the outline starts at the LAP PLANE `vl = vo ± lap` (toward the inside face)
+ *   with the tail's outside-plane bounds, and each side moves `(thickness − lap) / s` in by the inside face; it touches the
+ *   inside face and the end face only, the lap slab uncut.
  *
  * Both describe the same prism: x runs from the outside plane (the tail part's end face = the pin part's outside face)
  * into the corner in both. Ids `dovetail/<dovetail id>/<k>` (the loader re-mints a stored id holding `/`, inv 33);
@@ -205,13 +211,15 @@ export function dovetailViewCurves(b: Pick<Board, Dimension>, d: Dovetail): View
   // (J, thickness) = `uvDims(dim)` for either run dimension.
   const T = b.thickness;
   const [vo, vi] = d.outside === 'max' ? [T, 0] : [0, T];
-  const w = T / d.slope;
+  // Half-blind (half-blind spec §3.4): the socket starts at the LAP PLANE `vl`, `lap` in from the outside face, and narrows
+  // over `T − lap` to the inside face; the lap slab in front of it is uncut wood. Through: from the outside face, over `T`.
+  const [v0, w] = d.lap === undefined ? [vo, T / d.slope] : [vo + (vi > vo ? d.lap : -d.lap), (T - d.lap) / d.slope];
   const span: CurveSpan = d.end === 'max'
     ? { lo: b[d.dim] - d.depth, hi: b[d.dim], stopLo: true, stopHi: false, square: true }
     : { lo: 0, hi: d.depth, stopLo: false, stopHi: true, square: true };
   for (let k = 0; k < N; k += 1) {
     const a = bounds[2 * k + 1]!, c = bounds[2 * k + 2]!;
-    const pts: [number, number][] = [[a, vo], [c, vo], [c - w, vi], [a + w, vi]];
+    const pts: [number, number][] = [[a, v0], [c, v0], [c - w, vi], [a + w, vi]];
     out.push({ ...base, id: `dovetail/${d.id}/${k}`, through: d.dim, span, start: pts[0]!, segments: [...pts.slice(1), pts[0]!].map(line) });
   }
   return out;
@@ -221,7 +229,8 @@ export function dovetailViewCurves(b: Pick<Board, Dimension>, d: Dovetail): View
  * A BUILT dovetail's corners at the OUTSIDE plane (dovetails spec §3.5, my call there: "tail and pin corners at the outside
  * plane are snap points, nothing in air"), board-local, from the ONE layout's bounds — every tail–pin boundary `bounds[1..2N]`:
  * - tails: on the END face (the outside plane), at both thickness faces — each tail's four end corners;
- * - pins: on the `outside` thickness face (the outside plane), at the end and at the baseline — each pin's narrow corners.
+ * - pins: on the `outside` thickness face (the outside plane), at the end and at the baseline — each pin's narrow corners;
+ *   HALF-BLIND, on the LAP PLANE instead (the sockets' narrow edges; the outside face is unbroken lap wood).
  * Each lies on wood (the edge of a tail's or a pin's outside-plane face), never in a socket.
  */
 export function dovetailCorners(b: Pick<Board, Dimension>, d: Dovetail): Record<Dimension, number>[] {
@@ -233,7 +242,9 @@ export function dovetailCorners(b: Pick<Board, Dimension>, d: Dovetail): Record<
   const pt = (run: number, j: number, t: number) => ({ [d.dim]: run, [J]: j, thickness: t }) as Record<Dimension, number>;
   if (d.role === 'tails') return edges.flatMap((j) => [pt(e, j, 0), pt(e, j, b.thickness)]);
   const vo = d.outside === 'max' ? b.thickness : 0;
-  return edges.flatMap((j) => [pt(e, j, vo), pt(r, j, vo)]);
+  // Half-blind (half-blind spec §3.4): on the LAP PLANE, never the outside face (unbroken lap wood, nothing drawn there).
+  const v = d.lap === undefined ? vo : vo + (d.outside === 'max' ? -d.lap : d.lap);
+  return edges.flatMap((j) => [pt(e, j, v), pt(r, j, v)]);
 }
 
 // ---- The planner (dovetails spec §3.1–§3.3, §6, G3): the dovetail kind over the shared corner planner ---------------

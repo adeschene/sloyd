@@ -97,6 +97,7 @@ const FAULT_REASONS: Record<DovetailFault, string> = {
   count: "the tail count isn't a whole number, 1 or more",
   slope: 'the slope is outside 1:4 to 1:12',
   depth: 'the part is too short for it',
+  lap: "the lap isn't inside the part's thickness",
 };
 export const dovetailFaultText = (f: DovetailFault) => `This dovetail no longer fits: ${FAULT_REASONS[f]}.`;
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { Board, Dimension, Dovetail, HoleRow } from './types';
 import { withDovetails } from './dovetailModel';
-import { builtDovetails, dovetailFaults, dovetailLayout, jointLineOf, pinWidth } from './dovetails';
+import { builtDovetails, dovetailCorners, dovetailFaults, dovetailLayout, jointLineOf, pinWidth } from './dovetails';
 import { geometryBoard } from './profiles';
 import { boardBodies, boardEdges, bodyVolume, clipConvex, geometryKey, partGeometry, type BodyFace } from './bodies';
 import { axisFrame, boardExtents, DIMENSION_ORDER } from './geometry';
@@ -23,6 +23,7 @@ import { stockChecks } from './holeFaults';
 import { shapedPart } from './profiles';
 import { IMPERIAL, type Units } from '../units/length';
 import type { V3 } from './angleCuts';
+import { expectLapSlab, expectPartition as expectCornerPartition, halfBlindCorner, type HalfBlindCorner } from './dovetailFixtures';
 
 /**
  * Dovetails become geometry (dovetails Task 3; spec §3.2, §3.5; Spec difference 1: round tenons' route — square-span view
@@ -448,6 +449,210 @@ describe('dovetails perf: a dovetailed drawer rebuilds inside a frame', () => {
   });
 });
 
+
+// ---- Half-blind (half-blind dovetails spec §3.4, §10; Task 1, the proof) -------------------------------------------
+
+/** A half-blind drawer's four corners (`halfBlindCorner`, by hand): tails on the sides, or on Front/Back when swapped. Each
+ *  corner is re-read off the FINAL parts (each part carries both its ends' dovetails). */
+function halfBlindDrawer(h: number, N: number, s: number, p: number, lap: number, swap = false, tFB = 0.75, tS = 0.5) {
+  let { f, b, l, r } = drawer(h, tFB, tS);
+  const raw: HalfBlindCorner[] = [];
+  const pairs = [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']] as const;
+  for (const [fbKey, sKey] of pairs) {
+    const parts = { f, b, l, r };
+    const fbPart = parts[fbKey], sPart = parts[sKey];
+    const c = swap ? halfBlindCorner(fbPart, 'length', sPart, 'length', N, s, p, lap) : halfBlindCorner(sPart, 'length', fbPart, 'length', N, s, p, lap);
+    const [nfb, ns] = swap ? [c.tails, c.pins] : [c.pins, c.tails];
+    if (fbKey === 'f') f = nfb; else b = nfb;
+    if (sKey === 'l') l = ns; else r = ns;
+    raw.push(c);
+  }
+  const final = { f, b, l, r };
+  return {
+    parts: [f, b, l, r],
+    corners: raw.map((c, i) => {
+      const [fbKey, sKey] = pairs[i]!;
+      return swap ? { ...c, tails: final[fbKey], pins: final[sKey] } : { ...c, tails: final[sKey], pins: final[fbKey] };
+    }),
+  };
+}
+/** `carcase`'s twin, half-blind: the tail part turned 90° about its run axis from the drawer's. */
+function halfBlindCarcase(H: number, N: number, s: number, p: number, lap: number, swap = false): HalfBlindCorner {
+  const tTop = 0.75, tSide = 0.625, hSide = 20;
+  const top = createBoard({ id: 'top', name: 'Top', posture: 'flat', rotation: 0, length: 18, width: H, thickness: tTop, position: [0, hSide - tTop, 0] });
+  const side = createBoard({ id: 'side', name: 'Side', posture: 'upright', rotation: 90, length: hSide, width: H, thickness: tSide, position: [0, 0, 0] });
+  return swap ? halfBlindCorner(side, 'length', top, 'length', N, s, p, lap) : halfBlindCorner(top, 'length', side, 'length', N, s, p, lap);
+}
+/** `widthCorner`'s twin, half-blind: each part runs in along its WIDTH (pins through: 'width'). */
+function halfBlindWidthCorner(H: number, N: number, s: number, p: number, lap: number, swap = false): HalfBlindCorner {
+  const tA = 0.5, tB = 0.75;
+  const a = createBoard({ id: 'a', name: 'A', posture: 'upright', rotation: 0, length: H, width: 10, thickness: tA, position: [0, 0, 0] });
+  const b = createBoard({ id: 'b', name: 'B', posture: 'upright', rotation: 90, length: H, width: 8, thickness: tB, position: [0, 0, 0] });
+  return swap ? halfBlindCorner(b, 'width', a, 'width', N, s, p, lap) : halfBlindCorner(a, 'width', b, 'width', N, s, p, lap);
+}
+const expectHalfBlind = (c: HalfBlindCorner) => {
+  expectCornerPartition(c.tails, c.pins, c.box);
+  expectLapSlab(c.tails, c.pins, c.slab);
+};
+
+const LAPS = [0.25, 3 / 16, 6 / 25.4];
+
+describe('half-blind: the partition with a lap (spec §3.4, §10)', () => {
+  for (const [H_, N_, s] of LAYOUTS) {
+    for (const lap of LAPS) {
+      for (const swap of [false, true]) {
+        const tag = `H ${H_.toFixed(4)}, ${N_} tails, 1:${s}, lap ${lap.toFixed(4)}${swap ? ', roles swapped' : ''}`;
+        it(`a drawer's four corners: ${tag}`, () => {
+          for (const c of halfBlindDrawer(H_, N_, s, P, lap, swap).corners) expectHalfBlind(c);
+        });
+        it(`a carcase corner, the tail part turned 90° about its run axis: ${tag}`, () => expectHalfBlind(halfBlindCarcase(H_, N_, s, P, lap, swap)));
+        it(`a corner run in along the WIDTH (pins through: 'width'): ${tag}`, () => {
+          const c = halfBlindWidthCorner(H_, N_, s, P, lap, swap);
+          expect(geometryBoard(c.pins).curves.filter(squareSpan).every((v) => v.through === 'width')).toBe(true);
+          expectHalfBlind(c);
+        });
+      }
+    }
+  }
+  it('the fixtures cover both ends, both outside faces, both run dimensions, a J reversed in the world, and both world sides of the shortened end', () => {
+    const all = [
+      ...halfBlindDrawer(6, 4, 8, 0.25, 0.25).corners, ...halfBlindDrawer(6, 4, 8, 0.25, 0.25, true).corners,
+      halfBlindCarcase(6, 4, 8, 0.25, 0.25), halfBlindCarcase(6, 4, 8, 0.25, 0.25, true),
+      halfBlindWidthCorner(6, 4, 8, 0.25, 0.25), halfBlindWidthCorner(6, 4, 8, 0.25, 0.25, true),
+    ];
+    const ds = all.flatMap((c) => [...c.tails.dovetails!, ...c.pins.dovetails!]);
+    expect(new Set(ds.map((d) => d.end))).toEqual(new Set(['min', 'max']));
+    expect(new Set(ds.filter((d) => d.role === 'pins').map((d) => d.outside))).toEqual(new Set(['min', 'max']));
+    expect(new Set(ds.map((d) => d.dim))).toEqual(new Set(['length', 'width']));
+    expect(ds.every((d) => d.lap === 0.25)).toBe(true);
+    // The slab lies on the world-min side of the corner box on some corners and the world-max side on others.
+    const sides = new Set(all.map((c) => {
+      const k = [0, 1, 2].find((i) => c.slab.min[i] !== c.box.min[i] || c.slab.max[i] !== c.box.max[i])!;
+      return c.slab.max[k] === c.box.min[k] ? 'min' : 'max';
+    }));
+    expect(sides).toEqual(new Set(['min', 'max']));
+  });
+});
+
+// One half-blind drawer for the rest: tails on the sides, the front and back the pins parts.
+const LAP = 0.25;
+const HB = halfBlindDrawer(H, N, S, P, LAP);
+const [hbFront, hbBack] = HB.parts as [Board, Board, Board, Board];
+
+describe('half-blind: view curves, bodies and mesh', () => {
+  it('a half-blind pins socket\'s outline runs from the lap plane to the inside face (same span and ids as through)', () => {
+    const d = hbFront.dovetails!.find((x) => x.end === 'min')!;
+    const T = hbFront.thickness;
+    const vo = d.outside === 'max' ? T : 0, vi = d.outside === 'max' ? 0 : T;
+    const vl = d.outside === 'max' ? T - LAP : LAP;
+    const curves = geometryBoard(hbFront).curves.filter((c) => c.id.startsWith(`dovetail/${d.id}/`));
+    expect(curves).toHaveLength(N);
+    for (const c of curves) {
+      const vs = new Set([c.start, ...c.segments.map((g) => g.to)].map((q) => q[1]));
+      expect(vs).toEqual(new Set([vl, vi]));
+      expect(vs.has(vo)).toBe(false);
+    }
+  });
+  it('every body of a half-blind pins part is convex', () => {
+    for (const b of [hbFront, hbBack, halfBlindCarcase(6, 4, 8, 0.25, 3 / 16).pins, halfBlindWidthCorner(6, 4, 8, 0.25, 6 / 25.4).pins, halfBlindDrawer(6, 4, 8, 0.25, 0.25, true).parts[2]!]) {
+      expect(builtDovetails(b).some((d) => d.role === 'pins' && d.lap !== undefined)).toBe(true);
+      const bodies = boardBodies(b);
+      expect(bodies.length).toBeGreaterThan(1);
+      for (const body of bodies) {
+        const verts = body.faces.flatMap((f) => f.verts);
+        for (const f of body.faces) {
+          const v0 = f.verts[0]!;
+          for (const v of verts) expect((v[0]! - v0[0]!) * f.n[0] + (v[1]! - v0[1]!) * f.n[1] + (v[2]! - v0[2]!) * f.n[2]).toBeLessThanOrEqual(1e-9);
+        }
+      }
+    }
+  });
+  it('the mesh is watertight (curvesWatertight\'s check) for half-blind pins parts and their tails partners', () => {
+    for (const b of [...HB.parts, halfBlindCarcase(6, 4, 8, 0.25, 3 / 16).pins, halfBlindWidthCorner(6, 4, 8, 0.25, 6 / 25.4).pins, halfBlindDrawer(152 / 25.4, 4, 7, 0.25, 6 / 25.4, true).parts[3]!]) {
+      const r = unmatchedEdges(b);
+      expect(r.triangles).toBeGreaterThan(0);
+      expect(r.unmatched).toBe(0);
+    }
+  });
+});
+
+describe('half-blind: section caps through the joint zone (each axis)', () => {
+  const capArea = (cap: { pieces: V3[][] } | null) => (cap ? cap.pieces.reduce((s, poly) => s + polyArea(poly), 0) : 0);
+  function bodiesSection(b: Board, k: number, at: number): number {
+    const n: V3 = [0, 0, 0]; n[k] = 1;
+    let area = 0;
+    for (const f of worldFaces(b)) {
+      for (const face of clipAll(f, [{ n, d: -at }])) if (face.verts.every((v) => Math.abs(v[k]! - at) <= 1e-9)) area += polyArea(face.verts);
+    }
+    return area;
+  }
+  const AXES: SectionAxis[] = ['side', 'top', 'front'];
+  function check(b: Board, dim: Dimension, localAt: number, expected: number) {
+    const k = axisFrame(b).findIndex((a) => a.dim === dim);
+    const probe = { length: b.length / 3, width: b.width / 3, thickness: b.thickness / 3, [dim]: localAt } as Record<Dimension, number>;
+    const at = toWorld(b, probe)[k]!;
+    const cap = sectionCaps(b, { axis: AXES[k]!, at, flip: false });
+    expect(Math.abs(capArea(cap) - expected)).toBeLessThanOrEqual(1e-9 * Math.max(1, expected));
+    expect(Math.abs(bodiesSection(b, k, at) - expected)).toBeLessThanOrEqual(1e-9 * Math.max(1, expected));
+    const air = stockProbe(geometryBoard(b));
+    for (const poly of cap!.pieces) {
+      const c = [0, 1, 2].map((i) => poly.reduce((sum, v) => sum + v[i]!, 0) / poly.length);
+      expect(air(local(b, c) as never)).toBe(true);
+    }
+  }
+  const { Te } = dovetailLayout(H, N, S, P);
+  it('the pins part: across its thickness in the lap and behind it, across its run inside the joint, across J through a tail socket', () => {
+    const d = hbFront.dovetails!.find((x) => x.end === 'min')!;
+    const T = hbFront.thickness;
+    const X = T - LAP;
+    const fromOutside = (x: number) => (d.outside === 'min' ? x : T - x);
+    // In the lap: the whole face, uncut.
+    check(hbFront, 'thickness', fromOutside(LAP / 2), hbFront.length * H);
+    // Behind the lap, y = x − lap from the lap plane: each socket Te − 2y/S wide, `depth` long, N per end, two ends.
+    const x = LAP + X / 3;
+    check(hbFront, 'thickness', fromOutside(x), hbFront.length * H - 2 * d.depth * N * (Te - (2 * (x - LAP)) / S));
+    // Across the run inside the joint: the section minus N trapezoids X deep.
+    check(hbFront, 'length', d.depth / 2, H * T - N * ((Te + (Te - (2 * X) / S)) / 2) * X);
+    // Across J at a tail's centre: the socket at each end is X thick, `depth` long.
+    check(hbFront, 'width', P + Te / 2, T * hbFront.length - 2 * d.depth * X);
+  });
+});
+
+describe('half-blind: edges and snap points (the lap is unbroken; corners on the lap plane)', () => {
+  const d = hbFront.dovetails!.find((x) => x.end === 'min')!;
+  const T = hbFront.thickness;
+  const vo = d.outside === 'max' ? T : 0;
+  const vl = d.outside === 'max' ? T - LAP : LAP;
+  const { bounds } = dovetailLayout(H, N, S, P);
+  const inZone = (q: Record<Dimension, number>) => q.length <= d.depth + 1e-9 || q.length >= hbFront.length - d.depth - 1e-9;
+  it('no edge lies on the outside face except the part\'s own outline', () => {
+    const segs = boardEdges(hbFront);
+    const onFace = segs.filter(([a, b]) => near(a.thickness, vo) && near(b.thickness, vo));
+    expect(onFace.length).toBeGreaterThan(0);
+    const onOutline = ([a, b]: (typeof segs)[number]) =>
+      (near(a.length, 0) && near(b.length, 0)) || (near(a.length, hbFront.length) && near(b.length, hbFront.length))
+      || (near(a.width, 0) && near(b.width, 0)) || (near(a.width, H) && near(b.width, H));
+    expect(onFace.filter((s) => !onOutline(s))).toEqual([]);
+    // Not vacuous: the through twin draws its sockets on that face.
+    const through = withDovetails(hbFront, hbFront.dovetails!.map(({ lap: _l, ...x }) => x));
+    expect(boardEdges(through).filter(([a, b]) => near(a.thickness, vo) && near(b.thickness, vo) && !onOutline([a, b])).length).toBeGreaterThan(0);
+  });
+  it('no snap point on the outside face inside the joint zone (off the outline); each pins corner is on the lap plane', () => {
+    const pts = boardSnapPoints(hbFront).map((q) => local(hbFront, q.at));
+    const onFace = pts.filter((q) => near(q.thickness, vo) && inZone(q));
+    for (const q of onFace) {
+      expect(bounds.slice(1, -1).some((j) => near(q.width, j))).toBe(false);
+      const interior = q.width > 1e-9 && q.width < H - 1e-9 && q.length > 1e-9 && q.length < hbFront.length - 1e-9;
+      expect(interior).toBe(false);
+    }
+    const corners = dovetailCorners(hbFront, d);
+    expect(corners).toHaveLength(2 * (2 * N));
+    for (const c of corners) expect(c.thickness).toBe(vl);
+    // Each one is offered.
+    for (const c of corners) expect(pts.some((q) => DIMS3.every((k) => near(q[k], c[k])))).toBe(true);
+  });
+});
+const DIMS3: Dimension[] = ['length', 'width', 'thickness'];
 
 // ---- Helpers -------------------------------------------------------------------------------------------------------
 
