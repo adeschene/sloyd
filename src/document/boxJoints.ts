@@ -425,7 +425,12 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
     const first = users[0]!;
     const missing = users.find((u) => endsKey(u) !== endsKey(first));
     if (missing) return boxLinkedMate(nameOf(first), nameOf(missing));
-    if (users.some((u) => JSON.stringify(sigOf(u)) !== JSON.stringify(sigOf(first)))) return boxLinkedDisagree(users.map(nameOf));
+    // Everything but the size compares exactly; the size is a world subtraction (`e.far - p0`), so the same part at
+    // another world offset can plan it an ulp off (the recognised-number ruling's class), and it compares at 1e-9. The
+    // Shape still takes the representative's size below, and the link post-condition guards the written result.
+    const sameSig = (x: ReturnType<typeof sigOf>, y: ReturnType<typeof sigOf>) => x.length === y.length && x.every((s, i) =>
+      JSON.stringify(s.slice(0, 7)) === JSON.stringify(y[i]!.slice(0, 7)) && Math.abs((s[7] as number) - (y[i]![7] as number)) <= EPS);
+    if (users.some((u) => !sameSig(sigOf(u), sigOf(first)))) return boxLinkedDisagree(users.map(nameOf));
     // The Shape's own board: a user's frame with the Shape's own features; a mirrored user's ends are flipped along
     // mirrorDim, and its world side with them (the turn is the same).
     const rep = users.find((u) => u.mirrored !== true) ?? first;

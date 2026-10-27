@@ -393,4 +393,13 @@ describe('repairDocument claims box joints (box-joints spec §7)', () => {
     expect(sets(out.doc)).toEqual(sets(doc));
     for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
   });
+
+  it('a box-joint-only drawer beside a leaning stool leg: nothing to repair (null), never the leaning refusal', () => {
+    // The joined test is decided on the CLAIMED flat, as Refine decides it: finger sets are no joint to read back, so a
+    // project cut only by them has nothing to repair, and the leaning refusal must not appear beside joinery's.
+    const leg = createBoard({ id: 'leg', name: 'Stool leg', posture: 'upright', rotation: 0, length: 18, width: 1.5, thickness: 1.5, position: [40, 0, 0] });
+    const doc = migrateDocument({ ...createDocument('Stool and drawer'), boards: [...drawerBoards(0), { ...leg, lean: { x: 0.1, z: 0, face: 'width' } }] });
+    expect(flatDocument(doc).boards.some((b) => b.lean !== undefined)).toBe(true);
+    expect(repairDocument(doc)).toBeNull();
+  });
 });

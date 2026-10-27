@@ -21,7 +21,7 @@ import { carryFromOriginal } from '../document/featureCarry';
 import { featuredNote } from '../document/carryText';
 import { keptNote } from '../document/leanKeep';
 import { isTilted } from '../document/holeTilt';
-import { claimFingerSets, firstBrokenSet, restoreFingerSets } from './joints/fingerClaim';
+import { claimThenDecide, firstBrokenSet, restoreFingerSets } from './joints/fingerClaim';
 import { boxJointsThroughJoints } from '../document/boxJointText';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
@@ -83,9 +83,8 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
   // does and keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
-    if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
-    const { flat: unclaimed, claimed } = claimFingerSets(flat);
-    if (!unclaimed.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
+    const { unclaimed, claimed, joined } = claimThenDecide(flat);
+    if (!joined) return { plain: doc, joints: null };
     // A joined design with a leaning part (splayed legs spec §8): refused up front, the same as joinery and by its ONE
     // decider (invariant 41), BEFORE the gate — whose read-back is box-based and would refuse in the wrong words.
     const leaning = leaningRefusal('refine', flat);

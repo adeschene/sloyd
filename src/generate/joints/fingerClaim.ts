@@ -23,6 +23,14 @@ export function claimFingerSets(flat: FlatDocument): { flat: FlatDocument; claim
   return { flat: claimed.size === 0 ? flat : { ...flat, boards }, claimed };
 }
 
+/** Claim, then decide (box-joints spec §7): the ONE step both Refine's gate (`plainForRefine`) and Repair
+ *  (`repairDocument`) take first. `joined` is decided on the CLAIMED flat, so a project cut only by box joints is not
+ *  joined and reaches none of the leaning, tenon or compound refusals. */
+export function claimThenDecide(flat: FlatDocument): { unclaimed: FlatDocument; claimed: Map<number, Cut[]>; joined: boolean } {
+  const { flat: unclaimed, claimed } = claimFingerSets(flat);
+  return { unclaimed, claimed, joined: unclaimed.boards.some((b) => b.cuts.length > 0) };
+}
+
 /** `boards` (index-aligned with the claimed flat) with each part's claimed cuts appended again. */
 export const restoreFingerSets = (boards: readonly Board[], claimed: ReadonlyMap<number, Cut[]>): Board[] =>
   boards.map((b, i) => (claimed.has(i) ? { ...b, cuts: [...b.cuts, ...claimed.get(i)!] } : b));

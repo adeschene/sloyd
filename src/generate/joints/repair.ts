@@ -3,7 +3,7 @@ import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/doc
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
 import { compoundRefusal, leaningRefusal, tenonRefusal } from './tapers';
-import { claimFingerSets, firstBrokenSet, restoreFingerSets } from './fingerClaim';
+import { claimThenDecide, firstBrokenSet, restoreFingerSets } from './fingerClaim';
 
 /**
  * Repairing what joinery did before a899b51 (repair-joints spec §2, follow-up 240): twin
@@ -101,19 +101,20 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
   // keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
+    // Box joints are claimed first (box-joints spec §7), as Refine's gate does, and `joined` is decided on the CLAIMED
+    // flat: the read-back judges only the other cuts, and the claimed ones go back onto their parts. A repair that would
+    // change a set is refused, never applied.
+    const { unclaimed, claimed, joined } = claimThenDecide(flat);
     // A leaning part (splayed legs spec §8): the read-back and re-join are box-based, so a project with joints to read and
     // a leaning part is refused in Repair's own words before either runs, by joinery's ONE decider (inv 41). One with no
-    // cuts has nothing to repair (null), so a leaning prototype never shows a second refusal beside joinery's.
+    // cuts left to read (box joints claimed) has nothing to repair (null), so a leaning prototype never shows a second
+    // refusal beside joinery's.
     // A part with a round tenon likewise (round tenons spec §9), after the lean, and then a part with a compound end cut
     // (square-set legs spec §4), as in `joineryRefusal`.
-    const joined = flat.boards.some((b) => b.cuts.length > 0);
     const leaning = joined
       ? leaningRefusal('repair', flat) ?? tenonRefusal('repair', flat) ?? compoundRefusal('repair', flat)
       : null;
     if (leaning) return { refused: leaning };
-    // Box joints are claimed first (box-joints spec §7), as Refine's gate does: the read-back judges only the other cuts,
-    // and the claimed ones go back onto their parts. A repair that would change a set is refused, never applied.
-    const { flat: unclaimed, claimed } = claimFingerSets(flat);
     const r = repairJoints(unclaimed, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
     const boards = restoreFingerSets(r.boards, claimed);

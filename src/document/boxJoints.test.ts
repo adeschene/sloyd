@@ -584,6 +584,33 @@ describe('boxJointPlan: linked parts (spec §6; Spec difference 3 revised)', () 
     expectRefusal(doc, doc.boards.map((x) => x.id), 'These linked parts would need different box joints: Front, Front 2.');
   });
 
+  it('linked fronts of two identical drawers at non-dyadic X offsets: every offset succeeds, one Shape (the size at 1e-9)', () => {
+    // Measured in the final review: the run-out size is a world subtraction (`e.far - p0`), so the same drawer at another
+    // X offset can plan a size an ulp off; compared exactly, 14 of 40 offsets on the 7 mm grid refused as disagreeing.
+    const mm = (v: number) => v / 25.4;
+    const dims = { t: mm(12), h: mm(100), inside: [mm(300), mm(400)] as [number, number] };
+    const offsets = [...Array.from({ length: 40 }, (_, i) => mm(7 * (i + 1) + 400)), 13.37, 20.01];
+    const refused: string[] = [];
+    for (const dx of offsets) {
+      const a = drawerParts('butt', dims);
+      const b = drawerParts('butt', dims).map((p) => ({
+        ...p, id: `${p.id}2`, name: `${p.name} 2`, position: [p.position[0] + dx, p.position[1], p.position[2]] as [number, number, number],
+      }));
+      const f = a.find((p) => p.id === 'f')!;
+      const f2 = b.find((p) => p.id === 'f2')!;
+      const shape: Shape = { id: 's4', ...sharedOf(f) };
+      const user = (p: Board): ShapedBoard => ({ id: p.id, name: p.name, position: p.position, rotation: 0, shape: 's4' });
+      const parts = [...a.filter((p) => p !== f), ...b.filter((p) => p !== f2)];
+      const doc = docOf([...parts, user(f), user(f2)] as Board[], { shapes: [shape], units: METRIC });
+      const plan = boxJointPlan(doc, doc.boards.map((x) => x.id), { width: mm(12), swap: false });
+      if (typeof plan === 'string') { refused.push(`${dx}: ${plan}`); continue; }
+      const out = applyBoxJoints(doc, plan);
+      oneShapeFor(out, ['f', 'f2']);
+      for (const [x, y] of [['f', 'l'], ['f', 'r'], ['f2', 'l2'], ['f2', 'r2']]) expectComplementary(out, x!, y!);
+    }
+    expect(refused).toEqual([]);
+  });
+
   it('every user mirrored on a non-dyadic size: the write would split the Shape, so the plan refuses (post-condition)', () => {
     // Found by search: lowering the mirrored founder's new cuts back through mirrorCut is not bit-exact here (a dado
     // across the side at 64 mm), so regroupShapes would leave the two sides on two Shapes.
