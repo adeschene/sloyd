@@ -1,5 +1,5 @@
 import type { Board, FlatDocument } from './document';
-import type { Region } from './types';
+import type { Dovetail, Region } from './types';
 import type { RejectedPart } from './generated';
 import { pocketCells } from './cuts';
 import { clipConvex } from './bodies';
@@ -13,6 +13,7 @@ import { partBounds } from './worldBounds';
 import { LEVEL_EPS, levelFaces, overlapArea, worldBodyFaces, type LevelFace } from './leanContacts';
 import { REST_AREA, TOUCH } from './checkTolerances';
 import { builtTenons, shoulderAt } from './roundTenons';
+import { builtDovetails, dovetailLayout, jointLineOf } from './dovetails';
 import { tenonJoints, tenonMeetsBore, withoutTenon, type TenonJoint } from './tenonJoints';
 import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../units/length';
 
@@ -361,9 +362,10 @@ export function worldSolids(b: Board): Box[] {
 export const isAngled = (b: Board): boolean => b.angleCuts.length > 0;
 
 /** A part the checks read on its REAL bodies: angled (fu 302, 303), or with a BUILT round tenon (round tenons spec §5.2: a
- *  box would overstate a tenon as full-section wood and give its shoulder a flat it does not have). A part whose tenons
- *  are all faulted builds none, so it checks exactly as its tenon-free twin (ruling T7h): `isAngled`. */
-export const realBodied = (b: Board): boolean => isAngled(b) || builtTenons(b).length > 0;
+ *  box would overstate a tenon as full-section wood and give its shoulder a flat it does not have), or with a BUILT dovetail
+ *  (dovetails spec §5.3, the user's ruling: a dovetailed corner's two boxes interpenetrate, its bodies partition it). A part
+ *  whose tenons or dovetails are all faulted builds none, so it checks exactly as its plain twin (ruling T7h): `isAngled`. */
+export const realBodied = (b: Board): boolean => isAngled(b) || builtTenons(b).length > 0 || builtDovetails(b).length > 0;
 
 /**
  * A part's solids AS FAR AS CONTACT CAN TRUST THEM (AI-tapers spec §3.2; AI-angles spec §2), board-local regions.
@@ -376,7 +378,12 @@ export const realBodied = (b: Board): boolean => isAngled(b) || builtTenons(b).l
  * box-valued, never over-claiming wood. A part with BUILT round tenons (round tenons spec §5.2) is trimmed to its
  * shoulders as a taper's stations are, so its contacts, its connection in the grounding walk, its floor test (`stands`)
  * and its tip footprint all read the shoulder side: a tenon's round wood and its tip are never a contact. (A leaning part
- * touches through `checkedLevelFaces`, trimmed the same way.)
+ * touches through `checkedLevelFaces`, trimmed the same way.) A part with BUILT dovetails (dovetails spec §5.3, the user's
+ * ruling 2026-10-27) last: every region is trimmed on each dovetail's `dim` to the wood behind its baseline, then each
+ * tail (tails part) or pin and half pin (pins part) adds the box INSCRIBED at its narrowest span on J — a tail's baseline
+ * span, a pin's outside-face span — over the dovetail's whole depth and the region's thickness, intersected with every
+ * region from before the trim. The angled cheeks are never contacts; a tail's flat underside meets the pin part's wood
+ * behind its baseline, and the two parts' inscribed boxes only ever touch. No new kind of support (inv 39 untouched).
  */
 export function contactRegions(b: Board): Region[] {
   const cells = pocketCells(b);
@@ -418,10 +425,55 @@ export function contactRegions(b: Board): Region[] {
     const t = touchedRegion(b, c);
     if (t) out = out.flatMap((r) => splitRegion(r, t, c));
   }
+  const dovetails = builtDovetails(b);
+  if (dovetails.length > 0) out = dovetailContacts(b, dovetails, out);
   return out;
 }
 
-/** `contactRegions` in world space; exactly `worldSolids` for a part with no angle cut and no round tenon. */
+/** `contactRegions`' dovetail step (spec §5.3): `regions` trimmed behind every baseline, plus every inscribed tail or pin box
+ *  intersected with `regions` (the untrimmed list, so one end's trim never cuts the other end's boxes). Empty pieces drop. */
+function dovetailContacts(b: Board, dovetails: readonly Dovetail[], regions: Region[]): Region[] {
+  const meet = (r: Region, q: Partial<Region>): Region | null => {
+    const out = { ...r };
+    for (const k of ['length', 'width', 'thickness'] as const) {
+      const span = q[k];
+      if (!span) continue;
+      const lo = Math.max(r[k][0], span[0]);
+      const hi = Math.min(r[k][1], span[1]);
+      if (!(lo < hi)) return null;
+      out[k] = [lo, hi];
+    }
+    return out;
+  };
+  const behind: Partial<Region> = {};
+  for (const d of dovetails) {
+    const [lo, hi] = behind[d.dim] ?? [0, b[d.dim]];
+    behind[d.dim] = d.end === 'min' ? [Math.max(lo, d.depth), hi] : [lo, Math.min(hi, b[d.dim] - d.depth)];
+  }
+  const out = regions.flatMap((r) => meet(r, behind) ?? []);
+  for (const d of dovetails) {
+    const J = jointLineOf(d.dim);
+    const { bounds, N } = dovetailLayout(b[J], d.count, d.slope, d.pin);
+    const run: [number, number] = d.end === 'min' ? [0, d.depth] : [b[d.dim] - d.depth, b[d.dim]];
+    const w = d.depth / d.slope;
+    // Tail k: [bounds[2k+1], bounds[2k+2]] at the end face, narrowest at the baseline. Pin k (half pins k = 0, N):
+    // [bounds[2k], bounds[2k+1]], narrowest on the outside face.
+    const spans: [number, number][] = d.role === 'tails'
+      ? Array.from({ length: N }, (_, k) => [bounds[2 * k + 1]! + w, bounds[2 * k + 2]! - w])
+      : Array.from({ length: N + 1 }, (_, k) => [bounds[2 * k]!, bounds[2 * k + 1]!]);
+    for (const span of spans) {
+      const box: Partial<Region> = { [d.dim]: run, [J]: span };
+      for (const r of regions) {
+        const m = meet(r, box);
+        if (m) out.push(m);
+      }
+    }
+  }
+  return out;
+}
+
+/** `contactRegions` in world space; exactly `worldSolids` for a part with no angle cut, no built round tenon and no built
+ *  dovetail. */
 export function contactSolids(b: Board): Box[] {
   if (!realBodied(b)) return worldSolids(b);
   return contactRegions(b).map((s) => worldBox(b, s));
