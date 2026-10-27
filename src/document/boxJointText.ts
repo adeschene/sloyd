@@ -75,8 +75,8 @@ export const boxJointedLeftAlone = (part: string) => `${part} has box joints, so
 
 /** Refine's refusal when reading a joined project's other joints back would change a part's box joints (spec §7). */
 export const boxJointsThroughJoints = (part: string) => `Refine can't keep ${part}'s box joints through its other joints yet.`;
-/** A joined Refine's `notJoined` reason when the re-join would change a kept box-jointed part (spec §7, inv 41). */
-export const boxJointJoinChanged = (part: string) => `Joinery would have changed a box-jointed part (${part}), so the design comes back unjoined.`;
+/** A joined Refine's `notJoined` reason when the re-join would change a kept part: a box-jointed one, or any part of a kept box-jointed assembly (spec §7, inv 41). */
+export const boxJointJoinChanged = (part: string) => `Joinery would have changed ${part}, which Refine keeps as it is for its box joints, so the design comes back unjoined.`;
 
 /** The panel section's copy (spec §4). */
 export const BOX_HEADING = 'Box joints';

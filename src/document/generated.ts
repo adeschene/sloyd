@@ -633,7 +633,8 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   // before anything converts, so the load gate's name dedupe never renames it past the drop. A kept part is a root part,
   // so only a loose part can share its flat name (an assembly part's is `Placement › Part`).
   // A kept ASSEMBLY's placement names join them (box-joints spec §7, Amended, R2): a loose part or a model placement reusing
-  // one is dropped, and an assembly left with no placement goes silently (it echoed the kept one; never `unplaced`). A loose
+  // one is dropped (a placement only against kept PLACEMENT names: one named like a kept root part is renamed by the gate,
+  // as before, R1 keeping the root part's name), and an assembly left with no placement goes silently (it echoed the kept one; never `unplaced`). A loose
   // part is compared with a kept placement in the gate's form (trimmed, blank as `Board`: `validateBoard`'s): the root's dedupe runs parts
   // BEFORE assemblies, so prepending (R1) cannot save a kept placement from a part only whitespace sets apart.
   const keptNames = new Set([...(opts.kept?.names ?? []), ...(opts.kept?.placements ?? [])]);
@@ -642,12 +643,12 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   const looseNames = design.parts.map((p) => clean(p.name));
   const looseParts = design.parts.filter((_, i) => !echoes(looseNames[i]!));
   const assembliesIn = (design.assemblies ?? []).flatMap((a) => {
-    const placements = a.placements.filter((pl) => !keptNames.has(clean(pl.name)));
+    const placements = a.placements.filter((pl) => !keptPlacementNames.has(clean(pl.name)));
     if (placements.length === a.placements.length) return [a];
     return placements.length === 0 ? [] : [{ ...a, placements }];
   });
   const replaced = [...new Set([...looseNames.filter(echoes).map((n) => (keptNames.has(n) ? n : n.trim() || 'Board')),
-    ...(design.assemblies ?? []).flatMap((a) => a.placements.map((pl) => clean(pl.name)).filter((n) => keptNames.has(n)))])];
+    ...(design.assemblies ?? []).flatMap((a) => a.placements.map((pl) => clean(pl.name)).filter((n) => keptPlacementNames.has(n)))])];
   // Every edging key the design names, minted once design-wide BEFORE any part converts (AI-bands spec §3.1, builder check
   // B4), against the catalog parseDesign judged the keys by (controller ruling 1). A part with carried curves is skipped:
   // its bands are ignored, and an edging it names must not leave an orphan type in the project's list.

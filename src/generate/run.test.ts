@@ -1670,7 +1670,7 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     if ('refused' in out) throw new Error(out.refused.message);
     expect(guard).toHaveBeenCalledWith(doc, expect.anything(), DRAWER);
     expect(out.joints).toEqual({ kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [],
-      notJoined: 'Joinery would have changed a box-jointed part (Drawer left), so the design comes back unjoined.' });
+      notJoined: 'Joinery would have changed Drawer left, which Refine keeps as it is for its box joints, so the design comes back unjoined.' });
     // Unjoined: the case's joints are not re-applied; the drawer keeps its fingers.
     for (const b of flatDocument(out.doc).boards.filter((x) => !DRAWER.includes(x.name))) expect(b.cuts, b.name).toEqual([]);
     for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
@@ -1731,7 +1731,7 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     const out = await go(client, doc);
     if ('refused' in out) throw new Error(out.refused.message);
     expect(guard).toHaveBeenCalledWith(doc, expect.anything(), ASSEMBLY_FLAT);
-    expect(out.joints!.notJoined).toBe('Joinery would have changed a box-jointed part (Drawer 2 › Bottom), so the design comes back unjoined.');
+    expect(out.joints!.notJoined).toBe('Joinery would have changed Drawer 2 › Bottom, which Refine keeps as it is for its box joints, so the design comes back unjoined.');
     expect(drawerDef(out.doc)).toEqual(drawerDef(doc));
   });
 

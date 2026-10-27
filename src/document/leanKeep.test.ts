@@ -8,7 +8,7 @@ import { designToDocument } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { linksToShapes } from './linksToShapes';
 import { isShaped } from './shapes';
-import { stoolLegs } from './stoolFixture';
+import { stoolDocument, stoolLegs } from './stoolFixture';
 
 /** A drawer, butt corners jointed at 1/2" (as `boxJoints.test.ts` builds it). */
 const drawerBoards = (): Board[] => {
@@ -165,6 +165,20 @@ describe('Refine keeps a box-jointed ASSEMBLY whole (box-joints spec §7, Amende
     expect(out.doc.instances).toEqual(doc.instances);
     expect(out.doc.boards.map((b) => b.name)).toEqual(['Table top']);
     expect(out.replaced).toEqual(['Drawer 2']);
+  });
+
+  it('lean-only (no box joints): a model placement named like a kept leg survives, renamed by the gate, as before', () => {
+    const doc = stoolDocument();
+    const kept = keptParts(doc);
+    expect(kept.names).toContain('Front right');
+    expect(kept.placements).toEqual([]);
+    const d = design(doc);
+    const out = designToDocument({ ...d, assemblies: [{ name: 'Crate', parts: [part('Slat', [0, 0, 0], [12, 4, 0.5])], placements: [{ name: 'Front right', at: { x: 60, y: 0, z: 0 } }] }] },
+      { centre: false, kept });
+    expect(out.doc.instances.map((i) => i.name)).toEqual(['Front right (1)']);
+    expect(out.doc.boards.filter((b) => b.name === 'Front right')).toEqual(kept.boards.filter((b) => b.name === 'Front right'));
+    expect(out.replaced).toEqual([]);
+    expect(out.rejected).toEqual([]);
   });
 
   it('the floor: a kept drawer at y 0 and model parts whose lowest is y 2 — nothing shifts', () => {
