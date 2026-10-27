@@ -2150,8 +2150,8 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     const out = applyJoints(doc, sites, sites.map((s) => (s === left || s === right
       ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 } : { site: s.id, joint: 'butt' as const })));
     expect(out.skipped).toEqual([
-      { site: left.id, reason: "Side left's box joint is already cut at that end" },
-      { site: right.id, reason: "Side right's box joint is already cut at that end" },
+      { site: left.id, reason: "Side left has box joints, so joinery leaves its size and place alone" },
+      { site: right.id, reason: "Side right has box joints, so joinery leaves its size and place alone" },
     ]);
     for (const s of sides) expect(board(out.doc, s.name)).toEqual(s);
     expect(board(out.doc, 'False front')).toEqual(board(doc, 'False front'));
@@ -2164,7 +2164,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     expect(left.stopEnds.length).toBeGreaterThan(0);
     for (const c of [{ joint: 'dado' as const, depth: 0.25 }, { joint: 'stopped-dado' as const, depth: 0.25, stopAt: left.stopEnds[0]!, inset: 0.5 }]) {
       const out = applyJoints(doc, sites, sites.map((s) => (s === left ? { site: s.id, ...c } : { site: s.id, joint: 'butt' as const })));
-      expect(out.skipped).toEqual([{ site: left.id, reason: "Side left's box joint is already cut at that end" }]);
+      expect(out.skipped).toEqual([{ site: left.id, reason: "Side left has box joints, so joinery leaves its size and place alone" }]);
       expect(board(out.doc, 'Side left')).toEqual(board(doc, 'Side left'));
     }
   });
@@ -2179,7 +2179,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     const site = sites.find((s) => doc.boards[s.enter]!.name === 'Rail' && doc.boards[s.receive]!.name === 'Leg')!;
     expect(axisDimensions(rail)[site.axis]).toBe('length');
     const out = applyJoints(doc, sites, sites.map((s) => (s === site ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1 } : { site: s.id, joint: 'butt' as const })));
-    expect(out.skipped).toEqual([{ site: site.id, reason: "Rail's box joint is already cut at that end" }]);
+    expect(out.skipped).toEqual([{ site: site.id, reason: "Rail has box joints, so joinery leaves its size and place alone" }]);
     expect(board(out.doc, 'Rail')).toEqual(rail);
     expect(board(out.doc, 'Leg')).toEqual(board(doc, 'Leg'));
   });
@@ -2197,7 +2197,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     expect(fingerSets(e)).toHaveLength(1);
     const site: Site = { id: 1, kind: 'crossing', enter: 1, receive: 0, axis: 1, side: -1, allowed: ['half-lap'], stopEnds: [] };
     const out = applyJoints(doc, [site], [{ site: 1, joint: 'half-lap' }]);
-    expect(out.skipped).toEqual([{ site: 1, reason: "E's box joint is already cut at that end" }]);
+    expect(out.skipped).toEqual([{ site: 1, reason: "E has box joints, so joinery leaves its size and place alone" }]);
     expect(out.doc.boards).toEqual(doc.boards);
   });
 
@@ -2230,7 +2230,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     it('a trim of a box-jointed part at its jointed end refuses, changing nothing', () => {
       const doc = build('right');
       const out = applyJoints(doc, [rightSite], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
-      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide's box joint is already cut at that end" }]);
+      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide has box joints, so joinery leaves its size and place alone" }]);
       expect(out.doc.boards).toEqual(doc.boards);
       expect(out.trimmed).toEqual([]);
       expect(out.moved).toEqual([]);
@@ -2243,7 +2243,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
       expect(fingerSets(right).map((f) => f.dim)).toEqual(['length']);
       expect(axisDimensions(right)[2]).toBe('width');
       const out = applyJoints(doc, [rightSite], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
-      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide's box joint is already cut at that end" }]);
+      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide has box joints, so joinery leaves its size and place alone" }]);
       expect(out.doc.boards).toEqual(doc.boards);
       expect(out.trimmed).toEqual([]);
     });
@@ -2254,7 +2254,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
       const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter]!.name === 'Back');
       expect(backSites).toHaveLength(2);
       const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
-      expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: "Back's box joint is already cut at that end" })));
+      expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: "Back has box joints, so joinery leaves its size and place alone" })));
       expect(out.doc.boards).toEqual(doc.boards);
       expect(out.moved).toEqual([]);
     });

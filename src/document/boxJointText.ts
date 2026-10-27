@@ -69,9 +69,9 @@ export function fingerSetLine(set: FingerSet, units: Units): string {
     + `at the ${set.dim} ${set.end} end; this part has the outer ${set.outerFingers ? 'fingers' : 'notches'}.`;
 }
 
-/** Add joinery's skip (or refusal) reason for a site whose part would grow or be trimmed at a recognised finger-set
- *  end (spec §7). */
-export const boxJointedEnd = (part: string) => `${part}'s box joint is already cut at that end`;
+/** Add joinery's skip (or refusal) reason for a site whose recipe would resize, trim or move a part with any
+ *  recognised finger set, at whatever end or axis (spec §7; a pocket INTO one stays allowed). */
+export const boxJointedLeftAlone = (part: string) => `${part} has box joints, so joinery leaves its size and place alone`;
 
 /** Refine's refusal when reading a joined project's other joints back would change a part's box joints (spec §7). */
 export const boxJointsThroughJoints = (part: string) => `Refine can't keep ${part}'s box joints through its other joints yet.`;

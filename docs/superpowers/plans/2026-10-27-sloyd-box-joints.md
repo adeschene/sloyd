@@ -70,7 +70,7 @@ because the code gives no choice, one my call, one the user's ruling; listed und
   - cut list: `Box joint — <N> fingers <w> wide (the outer two <e>), <d> deep, at the <dim> <end> end; this part has the outer fingers.`
     / `…; this part has the outer notches.` (the parenthesis is dropped when `e === w`)
   - section `Box joints`; field `Finger width`; checkbox `Swap fingers`; button `Box joint the corners`.
-  - joinery skip reason: `<part>'s box joint is already cut at that end`
+  - joinery skip reason: `<part> has box joints, so joinery leaves its size and place alone`
   - Refine, a kept assembly linked outside itself (Task 6b): `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it — Unlink first: <part>.`
   - Refine kept note: why-word `has box joints`.
 - Every refusal is decided before any mutation. The action is ONE undo entry, refused while exploded (inv 47) or gesturing.
@@ -380,7 +380,7 @@ Planner order (each step can only refuse before any mutation; work on clones):
 
 - [ ] **Step 1: Failing tests:**
   - Joinery: a box-jointed drawer whose sides' front ends face a false front's face (an end-into-face site) with
-    `mortise-tenon` chosen: the site is skipped with `Side left's box joint is already cut at that end`, and the sides are
+    `mortise-tenon` chosen: the site is skipped with `Side left has box joints, so joinery leaves its size and place alone`, and the sides are
     unchanged (`toEqual`).
   - Joinery trim: a thin back panel rabbeted into a case where the rabbet's trim would shorten a box-jointed part at its
     jointed end: refused with the box-joint reason, and that part is unchanged (`toEqual`). Mutate: drop the trim check.

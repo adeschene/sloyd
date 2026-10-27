@@ -6,7 +6,7 @@ export { refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles };
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing } from '../../document/geometry';
 import { fingerSets } from '../../document/boxJoints';
-import { boxJointedEnd } from '../../document/boxJointText';
+import { boxJointedLeftAlone } from '../../document/boxJointText';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -278,7 +278,7 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
     // throw inside rebaseCuts, so the site is skipped first.
     const grows = joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado';
     if (grows && jointed(E)) {
-      skipped.push({ site: site.id, reason: boxJointedEnd(E.name) });
+      skipped.push({ site: site.id, reason: boxJointedLeftAlone(E.name) });
       continue;
     }
     if (grows && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
@@ -411,7 +411,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
   });
 
   // A box-jointed panel or rider would move, and the panel may be trimmed (box-joints spec §7).
-  for (const i of [e, ...carried]) if (jointed(boards[i]!)) return refuse(boxJointedEnd(boards[i]!.name));
+  for (const i of [e, ...carried]) if (jointed(boards[i]!)) return refuse(boxJointedLeftAlone(boards[i]!.name));
   // The panel where it will be: its solids moved, then clipped to the final box.
   const panel = clipped(shifted(worldSolids(E), k, side * t), fin);
   // The panel's own trims to its rabbet lines, asked before anything moves:
@@ -438,7 +438,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     const depth = Math.max(...meeting.map((p) => (side === 1 ? p.max[k] - b.min[k] : b.max[k] - p.min[k])));
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
     // A box-jointed part is never trimmed (box-joints spec §7).
-    if (jointed(boards[j]!)) return refuse(boxJointedEnd(boards[j]!.name));
+    if (jointed(boards[j]!)) return refuse(boxJointedLeftAlone(boards[j]!.name));
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
     if (cutIntoEnd(boards[j], k, side === 1 ? 'min' : 'max')) {
@@ -505,7 +505,7 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const rNow = boxOf(R);
   const delta = alreadyIn ? 0 : side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
   // A box-jointed E would move off its corner (box-joints spec §7); its notch alone, already in plane, is a pocket.
-  if (!alreadyIn && Math.abs(delta) > 1e-9 && jointed(E)) return boxJointedEnd(E.name);
+  if (!alreadyIn && Math.abs(delta) > 1e-9 && jointed(E)) return boxJointedLeftAlone(E.name);
   if (!alreadyIn) {
     // Dropping E must not drive it into anything but its own lap partners
     // ANYWHERE along the drop, which can be longer than t: the volume each of
