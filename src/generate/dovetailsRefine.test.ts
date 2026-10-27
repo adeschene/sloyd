@@ -119,7 +119,7 @@ describe('runRefine keeps dovetailed parts (dovetails spec §7)', () => {
     expect(out.joints).toBeNull();
     for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
     // The dialog's kept line names dovetails, not box joints.
-    expect(out.leaning).toEqual({ kept: DRAWER, replaced: ['Drawer front'], dovetails: true });
+    expect(out.leaning).toEqual({ kept: DRAWER, why: DRAWER.map(() => 'dovetails'), replaced: ['Drawer front'] });
     const sent = JSON.stringify(seen[0]);
     expect(sent).toContain('These parts lean, have angled holes or have dovetails, which the design format cannot describe');
     expect(sent).toContain('\\"Drawer front\\" has dovetails and is kept as is: x 0 to 13, y 0 to 4, z 0 to 0.5.');
@@ -142,7 +142,7 @@ describe('runRefine keeps dovetailed parts (dovetails spec §7)', () => {
     expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
     expect(out.joints!.kept).toBeGreaterThan(0);
     expect(out.joints!.notJoined).toBeUndefined();
-    expect(out.leaning).toEqual({ kept: DRAWER, replaced: [], dovetails: true });
+    expect(out.leaning).toEqual({ kept: DRAWER, why: DRAWER.map(() => 'dovetails'), replaced: [] });
   });
 
   it('the model adds a part meeting the kept drawer: those meetings stay butt (no joinery call), the drawer exactly', async () => {
@@ -196,7 +196,7 @@ describe('runRefine keeps dovetailed parts (dovetails spec §7)', () => {
     expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
     expect(out.joints!.kept).toBeGreaterThan(0);
     expect(out.joints!.notJoined).toBeUndefined();
-    expect(out.leaning).toEqual({ kept: ['Drawer 1', 'Drawer 2'], replaced: [], dovetails: true });
+    expect(out.leaning).toEqual({ kept: ['Drawer 1', 'Drawer 2'], why: ['dovetails', 'dovetails'], replaced: [] });
     expect(out.changes).toEqual([]);
     const sent = JSON.stringify(seen[0]);
     expect(sent).toContain('These parts lean, have angled holes or have dovetails, which');
@@ -226,24 +226,24 @@ describe('the dialog\'s kept kinds: box joints and dovetails, both when both (do
     return applyBoxJoints(doc, plan).boards as Board[];
   };
 
-  it('a box-jointed drawer and a dovetailed drawer kept at the root: both flags', async () => {
+  it('a box-jointed drawer and a dovetailed drawer kept at the root: each named with its own kind', async () => {
     const doc = migrateDocument({ ...createDocument('Drawers'), boards: [...drawerBoards(), ...boxDrawer(40)] });
     // Every part is kept, so the model returns one new part (an empty design is no usable design).
     const echo = plainEcho(doc);
     const { client } = fakeClient([{ ...echo, parts: [...echo.parts, bp('Shelf', [80, 0, 0], [20, 0.75, 10])] }]);
     const out = await go(client, doc);
     if ('refused' in out) throw new Error(out.refused.message);
-    expect(out.leaning).toEqual({ kept: [...DRAWER, 'Box front', 'Box back', 'Box left', 'Box right'], replaced: [], boxJoints: true, dovetails: true });
+    expect(out.leaning).toEqual({ kept: [...DRAWER, 'Box front', 'Box back', 'Box left', 'Box right'], why: [...DRAWER.map(() => 'dovetails'), 'box joints', 'box joints', 'box joints', 'box joints'], replaced: [] });
   });
 
-  it('one kept assembly holding both: both flags', async () => {
+  it('one kept assembly holding both: both kinds in one reason', async () => {
     const doc = migrateDocument({ ...createDocument('Drawers'), boards: [createBoard({ id: 'tt', name: 'Table top', length: 40, width: 20, thickness: 0.75, posture: 'flat', position: [0, 0, 0] })],
       definitions: [{ id: 'dd', boards: [...drawerBoards(), ...boxDrawer(40)], instances: [], hardware: [] }],
       instances: [{ id: 'i1', name: 'Drawers', definition: 'dd', position: [0, 0, 30], rotation: 0 }] });
     const { client } = fakeClient([plainEcho(doc)]);
     const out = await go(client, doc);
     if ('refused' in out) throw new Error(out.refused.message);
-    expect(out.leaning).toEqual({ kept: ['Drawers'], replaced: [], boxJoints: true, dovetails: true });
+    expect(out.leaning).toEqual({ kept: ['Drawers'], why: ['box joints and dovetails'], replaced: [] });
   });
 });
 
@@ -445,7 +445,7 @@ describe('a dovetailed drawer, then its bottom joined in grooves: Refine reads a
       expect(noCutIds(board(fo, n)), n).toEqual(noCutIds(board(fd, n)));
       expect(dovetailsOf(board(fo, n)), n).toEqual(dovetailsOf(board(fd, n)));
     }
-    expect(out.leaning).toEqual({ kept: DRAWER, replaced: [], dovetails: true });
+    expect(out.leaning).toEqual({ kept: DRAWER, why: DRAWER.map(() => 'dovetails'), replaced: [] });
   });
 });
 

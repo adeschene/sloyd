@@ -512,7 +512,7 @@ describe('dovetailPlan: refusals (each leaves the document unchanged)', () => {
 
   it('a hole touching the corner region', () => {
     const row: HoleRow = { id: 'h', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: frontEnd(), station: 0.25, count: 1, pitch: 1, acrossFrom: 'min', inset: 2 };
-    refuses(docOf(sideWith({ holes: [row] })), DRAWER_IDS, 'Side left has a hole where the dovetails go.');
+    refuses(docOf(sideWith({ holes: [row] })), DRAWER_IDS, 'Side left has a hole where the dovetails go — move or remove it first.');
   });
 
   it('a part shorter than its tails are deep (a degenerate corner): too short', () => {

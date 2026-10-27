@@ -503,7 +503,7 @@ describe('boxJointPlan: equal fingers, the odd one at the bottom (spec, Amended 
   it('a 4-1/4" drawer: 9 fingers, the odd 1/4" one at the BOTTOM (world min Y) on both parts of every corner', () => {
     const doc = docOf(drawerParts('butt', { h: 4.25 }));
     const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
-    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").');
+    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 1/2" wide (one odd finger 1/4").');
     const out = applyBoxJoints(doc, plan);
     for (const id of DRAWER_IDS) {
       const b = part(out, id);
@@ -557,7 +557,7 @@ describe('boxJointPlan: equal fingers, the odd one at the bottom (spec, Amended 
     expect([boardExtents(shelf), boardExtents(back)]).toEqual([[23.5, 0.75, 11], [23.5, 11, 0.75]]);
     const doc = docOf([shelf, back]);
     const plan = ok(boxJointPlan(doc, ['s', 'k'], { width: 0.75, swap: false }));
-    expect(plan.notes[0]).toBe('Jointed 1 corner: 32 fingers, 3/4" wide (the odd one 1/4").');
+    expect(plan.notes[0]).toBe('Jointed 1 corner: 32 fingers, 3/4" wide (one odd finger 1/4").');
     const out = applyBoxJoints(doc, plan);
     for (const id of ['s', 'k']) {
       const b = part(out, id);
@@ -734,7 +734,7 @@ describe('boxJointPlan: what a part may already carry (spec §3.5)', () => {
       expect(b.cuts.filter((c) => !inSets.has(c.id)).map((c) => c.id)).toEqual(id === 'l' || id === 'r' ? [`g${id}`] : []);
     }
     for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
-    expect(plan.notes).toEqual(['Jointed 4 corners: 11 fingers, 3/8" wide (the odd one 1/4").']);
+    expect(plan.notes).toEqual(['Jointed 4 corners: 11 fingers, 3/8" wide (one odd finger 1/4").']);
   });
 });
 
@@ -914,7 +914,7 @@ describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
   });
 
   it('too short for five fingers (H = 1.9, w = 1/2)', () => {
-    refuses(docOf(drawerParts('butt', { h: 1.9 })), DRAWER_IDS, 'Front and Side left are too short for five fingers that wide — try narrower fingers.');
+    refuses(docOf(drawerParts('butt', { h: 1.9 })), DRAWER_IDS, 'Front and Side left are too narrow for five 1/2" fingers — try narrower fingers.');
   });
 
   describe('plain stock only (spec §3.5)', () => {
@@ -997,7 +997,7 @@ describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
     const e = frontEnd();
     const row: HoleRow = { id: 'h', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: e, station: 0.25, count: 1, pitch: 1, acrossFrom: 'min', inset: 2 };
     const parts = drawerParts('butt').map((b) => (b.id === 'l' ? { ...b, holes: [row] } : b));
-    refuses(docOf(parts), DRAWER_IDS, 'Side left has a hole where the fingers go.');
+    refuses(docOf(parts), DRAWER_IDS, 'Side left has a hole where the fingers go — move or remove it first.');
   });
 });
 
@@ -1026,7 +1026,7 @@ describe('boxJointPlan: notes', () => {
     expect(two.notes.slice(0, 3)).toEqual([
       'Jointed 2 corners:',
       'Front and Side left: 8 fingers, 1/2" wide.',
-      'Front 2 and Side left 2: 13 fingers, 1/2" wide (the odd one 1/4").',
+      'Front 2 and Side left 2: 13 fingers, 1/2" wide (one odd finger 1/4").',
     ]);
   });
 
@@ -1037,7 +1037,7 @@ describe('boxJointPlan: notes', () => {
     const w = defaultFingerWidth(mm(12), METRIC);
     expect(w).toBe(12 / 25.4);
     const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: w, swap: false }));
-    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 12 mm wide (the odd one 4 mm).');
+    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 12 mm wide (one odd finger 4 mm).');
     expect(plan.notes.slice(1)).toEqual(['Front is now 24 mm longer.', 'Back is now 24 mm longer.']);
     const out = applyBoxJoints(doc, plan);
     for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);

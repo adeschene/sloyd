@@ -7730,6 +7730,11 @@ and `Replaced by the kept part of the same name: <names>` (now also a loose part
 (spec difference 4): a 4" drawer side at 1/2" fingers gets 3/4" outer fingers, not 1/4": needs the user's sight. **Moot (2026-10-27):** the
 equal-fingers ruling replaced the symmetric layout (a 4" side at 1/2" is now 8 fingers, every one 1/2"), so no tie arises.
 **Status:** open (owed to the user: wording; the tie is moot).
+**Status:** CLOSED 2026-10-27 — reviewed with fu 512; the user approved all nine proposed changes ("Apply all of them"). Box joints'
+share: `<A> and <B> are too narrow for five <w> fingers — try narrower fingers.` (was "too short … that wide"); the hole sentence gains
+`— move or remove it first.`; `Refine can't yet keep box joints on a part with other joints too: <part>.`; `(one odd finger <x>)` in the
+success note and the cut-list line (was `the odd one`); the dialog's kept line (with fu 512's). The part-local edge words (`the width
+min edge`) stay, as the cut list's `min end` does. Everything else as built.
 
 **492. Widen kept assemblies to the other kept kinds (spec §7, Amended).** A box-jointed part inside an assembly keeps the WHOLE assembly; a
 leaning part, a tilted hole row, a round tenon or a compound end cut inside an assembly still refuses Refine (`lean-assembly`, fu 441's rebuild of
@@ -7917,6 +7922,14 @@ so the design comes back unjoined.`; `Refine can't keep an assembly with dovetai
 is: <bounds>.` (`with box joints and dovetails` for a mixed one); the dialog's `Kept as is (leans, angled holes, round tenons or dovetails):
 <names>` (and `…, box joints or dovetails` when both).
 **Status:** open (owed to the user: wording).
+**Status:** CLOSED 2026-10-27 — the user approved all nine proposed changes ("Apply all of them"), with fu 491. Dovetails' share: the hole
+sentence gains `— move or remove it first.`; `<part> has dovetails at that end — keep cuts and holes clear of the joint.` (was `…there —
+move it clear of the joint.`); the cut-list lines `this part has the tails, each <Te> wide at the end.` and `this part has the pins, their
+narrow ends on its thickness <min|max> face.`; the fault reason `the part is too short for it` (was `it is deeper than the part`). Both
+kinds: Refine's done view now says `Kept exactly as is: <name> (<reasons>), …`, naming only each kept name's own reasons (`keptWhy`:
+`leaning`, `angled holes`, `round tenon`, `compound end cut`, `box joints`, `dovetails`, a placement its assembly's kind), replacing the
+fixed list `Kept as is (leans, angled holes, round tenons, box joints or dovetails)`; `RefineOutcome.leaning` carries `why` in place of the
+`boxJoints`/`dovetails` flags. Everything else as built.
 
 **513. Dovetails: deferred minors (2026-10-27, the SDD ledger and task reviews).** (1) Task 1: `boxJoints.ts` recomputes `displayNames` /
 `worldParts` for its notes; `EPS` and `flipEnd` are duplicated in `boxJoints.ts` and `cornerPlan.ts`; `planCorner`'s `ops`/`doc` are unused

@@ -28,7 +28,7 @@ export const dovetailThreeWay = (part: string) => `${part} would be dovetailed o
 /** A cut in a dovetailed end's corner region that does not run through it. */
 export const dovetailCutInTheWay = (part: string) => `${part} has a cut where the dovetails go — remove it first.`;
 /** A hole row touching a dovetailed end's corner region. */
-export const dovetailHoleInTheWay = (part: string) => `${part} has a hole where the dovetails go.`;
+export const dovetailHoleInTheWay = (part: string) => `${part} has a hole where the dovetails go — move or remove it first.`;
 /** What a part may not carry yet (spec §3.6), in the order the planner tests them. */
 export type DovetailFeature = 'lean' | 'angle cut' | 'curve' | 'edge profile' | 'edge banding' | 'round tenon' | 'box joints';
 const FEATURE_WORDS: Record<DovetailFeature, string> = {
@@ -76,7 +76,7 @@ export const dovetailTailsOn = (parts: readonly string[]) => `Tails on ${parts.j
 /** Another feature added to a dovetailed part. */
 export const dovetailRemoveFirst = (part: string) => `${part} has dovetails — remove them first.`;
 /** A cut or hole reaching a dovetailed end. */
-export const dovetailMoveClear = (part: string) => `${part} has dovetails there — move it clear of the joint.`;
+export const dovetailMoveClear = (part: string) => `${part} has dovetails at that end — keep cuts and holes clear of the joint.`;
 /** Add joinery's skip (or refusal) reason for a site that would resize, trim or move a dovetailed part (spec §7). */
 export const dovetailedLeftAlone = (part: string) => `${part} has dovetails, so joinery leaves its size and place alone`;
 /** Refine's refusal when a kept assembly with dovetails (and no box joints) has a part linked outside it (spec §7; the
@@ -96,7 +96,7 @@ const FAULT_REASONS: Record<DovetailFault, string> = {
   narrow: 'a tail is narrower than a pin',
   count: "the tail count isn't a whole number, 1 or more",
   slope: 'the slope is outside 1:4 to 1:12',
-  depth: 'it is deeper than the part',
+  depth: 'the part is too short for it',
 };
 export const dovetailFaultText = (f: DovetailFault) => `This dovetail no longer fits: ${FAULT_REASONS[f]}.`;
 
@@ -120,9 +120,9 @@ export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, un
     + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
   if (d.role === 'tails') {
     const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
-    return `${head}; this part has the tails, ${formatLength(Te, units)} at the end.`;
+    return `${head}; this part has the tails, each ${formatLength(Te, units)} wide at the end.`;
   }
-  return `${head}; this part has the pins, narrow on its thickness ${d.outside} face.`;
+  return `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`;
 }
 
 /** The bench drawings' words (spec §5.2, Global Constraints; built in `dovetailBench.ts`, measured there as labels, inv 19).

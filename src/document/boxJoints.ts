@@ -230,9 +230,9 @@ function boxKind(opts: BoxJointOptions): JointKind<FingerCornerPlan, BoxFeature>
       const set = fingerSetAt(b, d, end);
       if (set) b.cuts = b.cuts.filter((c) => !set.cutIds.includes(c.id));
     },
-    planCorner({ ends: [ea, eb], J }, _ops, _doc, nameOf) {
+    planCorner({ ends: [ea, eb], J }, _ops, doc, nameOf) {
       const layout = fingerLayout(boardExtents(ea.part)[J]!, opts.width);
-      if (!layout) return boxTooShort(nameOf(ea.part), nameOf(eb.part));
+      if (!layout) return boxTooShort(nameOf(ea.part), nameOf(eb.part), opts.width, doc.units);
       // The start edge (full fingers start there, the odd one is at the other end): J's world MAX on every axis, so the
       // odd finger is at J's world MIN — the bottom for Y, the BACK for Z (+Z is the front, `drawing.ts`), the left for X
       // (ruled 2026-10-27 after review). Each part reads it in its OWN J terms (`endFacing`) and computes its segments

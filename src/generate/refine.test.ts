@@ -547,7 +547,7 @@ describe('Refine keeps box-jointed parts (box-joints spec §7)', () => {
     shelf.cuts.push(...notchCuts(l, true, 'max', 'width', endFacing(shelf, 2, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
     expect(fingerSets(shelf).map((f) => f.dim)).toEqual(['width']);
     const doc = migrateDocument(joinedFlat);
-    expect(plainForRefine(doc)).toEqual({ refused: { reason: 'joints', message: "Refine can't keep Shelf's box joints through its other joints yet." } });
+    expect(plainForRefine(doc)).toEqual({ refused: { reason: 'joints', message: "Refine can't yet keep box joints on a part with other joints too: Shelf." } });
   });
 
   it('a hand-added cut beside the fingers still gives the gate message (only recognised sets are claimed)', () => {

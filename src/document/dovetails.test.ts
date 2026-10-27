@@ -189,7 +189,7 @@ describe('dovetails: copy (Global Constraints, verbatim)', () => {
     expect(dovetailedLines([{ count: 4, slope: 8 }, { count: 3, slope: 8 }], [['A', 'B'], ['C', 'D']]))
       .toEqual(['Dovetailed 2 corners:', 'A and B: 4 tails, 1:8.', 'C and D: 3 tails, 1:8.']);
     expect(dovetailFaultText('narrow')).toBe('This dovetail no longer fits: a tail is narrower than a pin.');
-    expect(dovetailFaultText('depth')).toBe('This dovetail no longer fits: it is deeper than the part.');
+    expect(dovetailFaultText('depth')).toBe('This dovetail no longer fits: the part is too short for it.');
   });
 });
 

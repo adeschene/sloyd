@@ -1063,7 +1063,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     leaning part by `leaningRefusal` (inv 41), and — ruling T11a, because `runJoinery` re-joins the whole refined document, kept
     boards included — any part with a tilted row, BEFORE the gate (`Refine can't keep a part with angled holes in a joined project
     yet: <name>.`); joinery and Repair are unchanged by tilts. The model's note (`keptNote`) says why each is kept (it leans, has
-    angled holes, has round tenons, has box joints, or a list of them: `whyKept`). The done view says `Kept as is (leans, angled holes or round tenons): <names>` (with box joints, `…round tenons or box joints`: see the box-joint paragraph below). Kept parts count toward the result's part caps (fu 442).
+    angled holes, has round tenons, has box joints, or a list of them: `whyKept`). The done view says `Kept exactly as is: <name> (<reasons>), …` — each kept name with only its own reasons (`keptWhy`: `leaning`, `angled holes`, `round tenon`, `compound end cut`, `box joints`, `dovetails`; a placement its assembly's kind), the copy review's wording (2026-10-27; it replaced `Kept as is (leans, angled holes or round tenons): <names>` and its box-joint and dovetail variants). Kept parts count toward the result's part caps (fu 442).
     **A part with a ROUND TENON is KEPT exactly too** (round tenons spec §9, inv 58): `keepsExactly(b)` is `leans(b)`, any `isTilted`
     row, or `hasTenons(b)` — read off the STORED list, so a faulted tenon is kept verbatim too; the design form has no word for a
     tenon (the design schema is unchanged, fu 322), so none reaches the model and none comes back squared. `turnCandidates` never
@@ -1089,7 +1089,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     kinds inside an assembly keep their refusal word for word (fu 492). A kept assembly's part linked outside the kept set refuses
     (`keptAssemblyLinkRefusal`, reason `lean-assembly`). The note names it (`whyKept`: `has box joints`; one line per kept placement,
     `"<placement>" is an assembly with box joints and is kept as is: <bounds>.`; the header gains `have box joints` only when one
-    is kept) and the done view says `Kept as is (leans, angled holes, round tenons or box joints)` (`RefineOutcome.leaning.boxJoints`).
+    is kept) and the done view names the placement `(box joints)` (`RefineOutcome.leaning.why`, `keptWhy`; the copy review 2026-10-27).
     No floor shift is applied while a kept placement exists. A JOINED Refine does not refuse (unlike the tilted row): inv 61.
 
     **A part with a DOVETAIL is KEPT exactly too, and a dovetailed ASSEMBLY is kept WHOLE, exactly as a box-jointed one** (dovetails
@@ -1660,8 +1660,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       refuses a dovetailed part (`<part> has dovetails — box joints work on plain stock for now.`). On a dovetailed part the Lean,
       Angles, Curves, Profiles, Banding and Round tenons ADDS refuse (`<part> has dovetails — remove them first.`; a clear never
       does; Bore leg sockets' Tenon the legs too). **A cut or hole reaching a dovetailed end's ZONE** (`dovetailZones`: `depth` back
-      from each STORED dovetail's end, the whole section, a faulted one included) refuses on add or edit (`<part> has dovetails there
-      — move it clear of the joint.`): `addCut`/`updateCut` (`dovetailCutRefusal`), `addHoleRows`/`updateHoleRow`, Add stretcher and
+      from each STORED dovetail's end, the whole section, a faulted one included) refuses on add or edit (`<part> has dovetails at that end
+      — keep cuts and holes clear of the joint.`): `addCut`/`updateCut` (`dovetailCutRefusal`), `addHoleRows`/`updateHoleRow`, Add stretcher and
       Bore leg sockets (`holeTouchesBox`). **A cut running straight THROUGH that end along the dovetail's run is exempt**
       (`cutRunsThrough`, the corner planner's ONE predicate: a drawer bottom's groove). So `holeFaults`, `holes.ts` and `stockProbe`
       never meet dovetail waste at an authoring path (a resize moving an existing hole into a zone is fu 506; `fitStretcher` has no

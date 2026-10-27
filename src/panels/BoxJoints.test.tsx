@@ -60,7 +60,7 @@ describe('the Box joints section (box joints spec §4)', () => {
   it('a 4-1/4" drawer: the odd finger named in the success note', async () => {
     open(drawer(4.25), ...ALL);
     await userEvent.click(button());
-    expect(screen.getByText('Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").').tagName).toBe('P');
+    expect(screen.getByText('Jointed 4 corners: 9 fingers, 1/2" wide (one odd finger 1/4").').tagName).toBe('P');
   });
 
   it('committing a new width clears the notes', async () => {

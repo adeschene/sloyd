@@ -134,7 +134,7 @@ describe('the single-part Dovetails section (spec §4)', () => {
     expect(screen.getByRole('heading', { name: /^Dovetails\s*·\s*2$/ })).toBeTruthy();
     const rows = screen.getAllByRole('group', { name: /^Through dovetails/ });
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]!).getByText(/at the length min end; this part has the tails, 1-3\/16" at the end\.$/)).toBeTruthy();
+    expect(within(rows[0]!).getByText(/at the length min end; this part has the tails, each 1-3\/16" wide at the end\.$/)).toBeTruthy();
     await userEvent.click(within(rows[0]!).getByRole('button', { name: 'Remove' }));
     expect(worldParts(s().doc).find((b) => b.id === 'l')!.dovetails!.map((d) => d.end)).toEqual(['max']);
     expect(s().past.length).toBe(1);
