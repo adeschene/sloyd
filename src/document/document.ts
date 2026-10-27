@@ -1,7 +1,7 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, RoundTenon, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
   Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse, Lean,
 } from './types';
 import type { SharedField } from './links';
@@ -15,6 +15,7 @@ import { canonicalHardware, HARDWARE_COUNT_MAX, PACK_SIZE_MAX } from './hardware
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
 import { withTenons } from './roundTenons';
+import { withDovetails } from './dovetailModel';
 import { withinTiltBound } from './holeTilt';
 import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
 import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
@@ -219,8 +220,18 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * `square`, so the leg re-twists by the seam-free twist (about 33° at 8°/12°) — its level cuts no longer level, its
  * sockets point wrong; and it rebuilds each angle cut field by field and drops `across`, so a compound foot loads as a
  * single slope and rocks — both silently, and it autosaves. So a v25 file must be refused by a v24 build.
+ *
+ * v26 (dovetails spec §3.4, §8): `dovetails` on a part, absent when the part has none (never `[]`), document-level, no
+ * step. Each is `{ id, dim, end, role, count, slope, pin, depth, outside? }`, at most one per `(dim, end)`, canonical order
+ * (length min, length max, width min, width max). The loader DROPS a malformed one, never the part (not an object, `dim`
+ * not length | width, `end` not min | max, `role` not tails | pins, `count` not an integer >= 1, a non-finite or
+ * non-positive `slope`, `pin` or `depth`, a pins entry without a valid `outside`, a second one for a `(dim, end)`: the
+ * first wins), drops a tails entry's stray `outside` (the entry kept), and KEEPS a well-formed faulted one; it refuses
+ * nothing on content. Harm a v25 build would do: it rebuilds each part field by field, drops the dovetails and loads both
+ * parts of every corner as full plain stock run out to the outside faces — two boards interpenetrating at every corner —
+ * silently, and autosaves it, losing the joint. So a v26 file must be refused by a v25 build.
  */
-export const CURRENT_VERSION = 25;
+export const CURRENT_VERSION = 26;
 
 export class DocumentError extends Error {
   /**
@@ -546,6 +557,39 @@ function validateTenons(raw: unknown): RoundTenon[] | undefined {
     out.push({ id: takeId(t.id, seen), end: t.end, diameter: t.diameter, length: t.length });
   }
   return out.length ? withTenons({} as Pick<Board, 'tenons'>, out).tenons : undefined;
+}
+
+/**
+ * A part's dovetails (dovetails spec §3.4, §8), or undefined (no key: a dovetail-free part keeps its bytes). Dropped, never
+ * clamped: not an object, `dim` not length | width, `end` not min | max, `role` not tails | pins, `count` not an integer
+ * >= 1, a non-finite or non-positive `slope`, `pin` or `depth`, a pins entry without `outside` min | max, and a second one
+ * for a `(dim, end)` (the first, in RAW order, wins). A tails entry's `outside` is dropped, the entry kept. A FAULTED but
+ * well-formed dovetail (a slope of 1:20) is KEPT. Ids are scoped to this board (invariant 33), like a tenon's. Rebuilt
+ * field by field, in canonical order (`withDovetails`).
+ */
+function validateDovetails(raw: unknown): Dovetail[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const seen = new Set<string>();
+  const ends = new Set<string>();
+  const out: Dovetail[] = [];
+  const positive = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0;
+  const side = (v: unknown): v is 'min' | 'max' => v === 'min' || v === 'max';
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const d = item as Record<string, unknown>;
+    if ((d.dim !== 'length' && d.dim !== 'width') || !side(d.end) || (d.role !== 'tails' && d.role !== 'pins')) continue;
+    if (typeof d.count !== 'number' || !Number.isInteger(d.count) || d.count < 1) continue;
+    if (!positive(d.slope) || !positive(d.pin) || !positive(d.depth)) continue;
+    if (d.role === 'pins' && !side(d.outside)) continue;
+    const key = `${d.dim}|${d.end}`;
+    if (ends.has(key)) continue;
+    ends.add(key);
+    out.push({
+      id: takeId(d.id, seen), dim: d.dim, end: d.end, role: d.role, count: d.count, slope: d.slope, pin: d.pin, depth: d.depth,
+      ...(d.role === 'pins' ? { outside: d.outside as 'min' | 'max' } : {}),
+    });
+  }
+  return out.length ? withDovetails({} as Pick<Board, 'dovetails'>, out).dovetails : undefined;
 }
 
 /** A segment `type` this build cannot draw (spec §2.4): the whole document is refused, as a newer version is. */
@@ -910,6 +954,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   };
   const lean = validateLean(b.lean, fields.posture);
   const tenons = validateTenons(b.tenons);
+  const dovetails = validateDovetails(b.dovetails);
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
   // Profile runs spec §3.2/P7/P8: curves and profiles share one id scope; every curve profileOf recognises moves into
@@ -919,7 +964,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   const storedProfiles = validateProfiles(b.profiles, ids, fields);
   const curves = allCurves.filter((c) => !profileOf(c));
   const moved = allCurves.flatMap((c) => { const p = profileOf(c); return p ? [{ id: c.id, ...p }] : []; });
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds), ...(lean ? { lean } : {}), ...(tenons ? { tenons } : {}) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves, profiles: [...storedProfiles, ...moved], bands: validateBands(b.bands, bandIds), cornerRule: CORNER_RULES.includes(b.cornerRule as CornerRule) ? (b.cornerRule as CornerRule) : 'long', hardware: validateHardware(b.hardware, hardwareIds), ...(lean ? { lean } : {}), ...(tenons ? { tenons } : {}), ...(dovetails ? { dovetails } : {}) } };
 }
 
 /**

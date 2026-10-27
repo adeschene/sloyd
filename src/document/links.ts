@@ -3,6 +3,7 @@ import { CUT_GEOMETRY_KEYS } from './cuts';
 import { copyAngleCut, sameAngleCut } from './angleCuts';
 import { copyHoleRow, sameHoleRow } from './holes';
 import { copyTenon, hasTenons, sameTenon } from './roundTenons';
+import { copyDovetail, hasDovetails, sameDovetail } from './dovetailModel';
 import { copyCurve, sameCurve } from './curves';
 import { copyProfile, sameProfile } from './profiles';
 import { copyBand, sameBands } from './bandModel';
@@ -19,6 +20,7 @@ export const LINK_FIELDS = {
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared', curves: 'shared', profiles: 'shared',
   bands: 'shared', cornerRule: 'shared', hardware: 'shared', lean: 'shared', tenons: 'shared',
+  dovetails: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
 
 export type SharedField = {
@@ -41,9 +43,10 @@ void _shapeMatchesTable;
  * field needs its own comparison in `sameShared` before it can be classified.
  * `lean` (an object) is excluded here and compared by value in `sameShared` (exact `x`, `z`, `face` and `square`, schema 25;
  * absent equals absent only), copied by `sharedOf` and `sharedPatch`, and read by value in `resolveBoard` and `groupSignature`. `tenons` (a list,
- * round tenons spec §3.1) likewise: compared in order, ids included, by `sameTenon`; never stored empty.
+ * round tenons spec §3.1) likewise: compared in order, ids included, by `sameTenon`; never stored empty. `dovetails` (dovetails
+ * spec §3.4) exactly as `tenons`, by `sameDovetail`.
  */
-const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean' | 'tenons'>] extends string | number ? true : never = true;
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes' | 'curves' | 'profiles' | 'bands' | 'hardware' | 'lean' | 'tenons' | 'dovetails'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
 
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
@@ -63,13 +66,16 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     ...(b.lean ? { lean: { ...b.lean } } : {}),
     // Optional (round tenons spec §3.1): fresh copies when present, no key at all when absent or empty (never `[]`).
     ...(hasTenons(b) ? { tenons: b.tenons!.map(copyTenon) } : {}),
+    // Optional (dovetails spec §3.4), as tenons.
+    ...(hasDovetails(b) ? { dovetails: b.dovetails!.map(copyDovetail) } : {}),
   };
 }
 
 /** The shared part of a patch: what propagates to the other members. A `lean` key present with the value `undefined`
  *  is a REMOVAL and is kept as such (splayed legs spec §3.1, controller ruling 1); an absent key means untouched, as
  *  for every other field. The write-back stores a removal as a deleted key, never `lean: undefined`. `tenons` likewise
- *  (round tenons spec §3.1), a present `[]` read as the same removal: an empty list is never stored. */
+ *  (round tenons spec §3.1), a present `[]` read as the same removal: an empty list is never stored. `dovetails` likewise
+ *  (dovetails spec §3.4). */
 export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedField>> {
   const out: Partial<Pick<Board, SharedField>> = {};
   for (const k of SHARED_KEYS) if (patch[k] !== undefined) (out as Record<string, unknown>)[k] = patch[k];
@@ -83,6 +89,8 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   if (patch.hardware) out.hardware = patch.hardware.map(copyHardwareUse);
   if (hasTenons(patch)) out.tenons = patch.tenons!.map(copyTenon);
   else if ('tenons' in patch) out.tenons = undefined;
+  if (hasDovetails(patch)) out.dovetails = patch.dovetails!.map(copyDovetail);
+  else if ('dovetails' in patch) out.dovetails = undefined;
   if (patch.lean) out.lean = { ...patch.lean };
   else if ('lean' in patch && patch.lean === undefined) out.lean = undefined;
   return out;
@@ -136,6 +144,11 @@ export function sameShared(a: Board, b: Board): boolean {
       const x = a.tenons ?? [];
       const y = b.tenons ?? [];
       if (x.length !== y.length || x.some((t, i) => t.id !== y[i]!.id || !sameTenon(t, y[i]!))) return false;
+    } else if (k === 'dovetails') {
+      // As tenons (dovetails spec §3.4): in order, ids included, every field exact; absent equals absent only.
+      const x = a.dovetails ?? [];
+      const y = b.dovetails ?? [];
+      if (x.length !== y.length || x.some((d, i) => d.id !== y[i]!.id || !sameDovetail(d, y[i]!))) return false;
     } else if (k === 'lean') {
       // By value, exact, `square` included (square-set legs spec §3.1); absent equals absent only (spec §3.1).
       if (a.lean === undefined || b.lean === undefined) {

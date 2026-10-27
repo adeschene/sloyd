@@ -262,6 +262,10 @@ export interface Board {
   /** Round tenons on the part's ends (round tenons spec §3.1), at most one per end, `min` first. Absent on a part with none
    *  (never `[]`, so a tenon-free part keeps its bytes). */
   tenons?: RoundTenon[];
+  /** Through dovetails on the part's ends (dovetails spec §3.4, schema 26), at most one per `(dim, end)`, canonical order
+   *  (length min, length max, width min, width max). Absent on a part with none (never `[]`, never `undefined`), so a
+   *  dovetail-free part keeps its bytes. A shared field (inv 45). */
+  dovetails?: Dovetail[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a
@@ -284,6 +288,32 @@ export interface RoundTenon {
   end: 'min' | 'max';
   diameter: number;
   length: number;
+}
+
+/**
+ * A through dovetail on one end of a part (dovetails spec §3.4, schema 26). The layout along J (the part's non-thickness
+ * dimension other than `dim`) is `dovetails.ts`' `dovetailLayout`, from the part's own sizes: a palindrome, so a turn or a
+ * mirror along J moves nothing. Every mirror is a flag flip (inv 44): along `dim` flips `end`; along the thickness flips
+ * `outside` (pins only).
+ */
+export interface Dovetail {
+  /** Invariant 33's scope: per board (per Shape for a Shape). */
+  id: string;
+  /** The run dimension (into the corner). */
+  dim: 'length' | 'width';
+  /** Which end of `dim`. */
+  end: 'min' | 'max';
+  role: 'tails' | 'pins';
+  /** N, the tail count: an integer >= 1. */
+  count: number;
+  /** s, of the slope 1:s. */
+  slope: number;
+  /** p, the pin width at the narrow end, inches (fixed by the project's units at planning, never typed). */
+  pin: number;
+  /** Tails: the pins part's thickness (the baseline's distance from the end); pins: the tails part's thickness. */
+  depth: number;
+  /** Pins ONLY: the thickness face the pins are NARROW on (the corner's outside face). Absent on tails. */
+  outside?: 'min' | 'max';
 }
 
 /**

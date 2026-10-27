@@ -23,6 +23,7 @@ import { copyProfile, sameProfile } from '../document/profiles';
 import { copyBand, sameBands, withBands, withBandTypes } from '../document/bandModel';
 import { copyHardwareUse, HARDWARE_COUNT_MAX, sameHardware, withHardwareTypes, withHardwareUse } from '../document/hardwareModel';
 import { addedTenonFaults, copyTenon, sameTenon, tenonAt, tenonFaults, tenonsOf, withTenons } from '../document/roundTenons';
+import { copyDovetail } from '../document/dovetailModel';
 import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { HardwareTarget } from '../document/hardware';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
@@ -1037,6 +1038,8 @@ export const useStore = create<StoreState>((set, get) => {
       hardware: source.hardware.map(copyHardwareUse),
       // Optional (round tenons spec §3.1, inv 33): fresh ids when present, no key when absent.
       ...(source.tenons ? { tenons: source.tenons.map((t) => ({ ...copyTenon(t), id: nextId() })) } : {}),
+      // Optional (dovetails spec §3.4, inv 33), as tenons.
+      ...(source.dovetails ? { dovetails: source.dovetails.map((d) => ({ ...copyDovetail(d), id: nextId() })) } : {}),
     });
   };
 

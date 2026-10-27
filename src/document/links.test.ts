@@ -20,8 +20,8 @@ const leg = (over: Partial<Board> = {}): Board =>
 const cut = { id: 'c1', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.75, depth: 1, stopMin: 22, stopMax: 2 } as const;
 
 describe('LINK_FIELDS', () => {
-  it('shares exactly the spec\'s ten fields plus profiles, bands, cornerRule, hardware, lean and tenons', () => {
-    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'bands', 'cornerRule', 'curves', 'cuts', 'grain', 'hardware', 'holes', 'lean', 'length', 'material', 'posture', 'profiles', 'tenons', 'thickness', 'width']);
+  it('shares exactly the spec\'s ten fields plus profiles, bands, cornerRule, hardware, lean, tenons and dovetails', () => {
+    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'bands', 'cornerRule', 'curves', 'cuts', 'dovetails', 'grain', 'hardware', 'holes', 'lean', 'length', 'material', 'posture', 'profiles', 'tenons', 'thickness', 'width']);
     expect(LINK_FIELDS.rotation).toBe('own');
     expect(LINK_FIELDS.position).toBe('own');
     expect(LINK_FIELDS.shape).toBe('own');
