@@ -7671,7 +7671,7 @@ an asymmetric layout; fu 485 (unequal heights, the drawer-front case half-blind 
 **Status:** open (feature-sized; needs its own spec; the next session's work).
 Through dovetails were specced (`docs/superpowers/specs/2026-10-27-sloyd-dovetails-design.md`, approved 2026-10-27) and built on branch
 `dovetails` (2026-10-27: schema 26, a STORED feature `Board.dovetails`, inv 62; the shared corner planner `cornerPlan.ts`; the spec's
-*Amended (build)* block awaits the user's approval). Half-blind dovetails, and with them corners of different heights along the joint,
+*Amended (build)* block approved 2026-10-27). Half-blind dovetails, and with them corners of different heights along the joint,
 moved to fu 497 (their one home). The round's own follow-ups are 497–513.
 **Status:** through dovetails BUILT on branch `dovetails` (2026-10-27), not yet deployed — close at deploy; half-blind is fu 497.
 **Status:** CLOSED 2026-10-27 — through dovetails merged `72228cc` and DEPLOYED (`index-BEpsbfAI.js`, schema 26). Half-blind dovetails

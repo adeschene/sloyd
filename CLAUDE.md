@@ -40,8 +40,8 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** the nearest boundary REFUSES: back to `975e418` (box joints, `index-EQnlonaA.js`, schema 25) refuses every
   project saved at 26 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-27):** through dovetails are deployed; owed to the user: approval of the dovetails spec's *Amended (build)* block
-  (SD1–SD20), the copy reviews (fu 491, 512), the bench chain by eye (fu 511), fu 496 and the dovetailed corner on real hardware. Owed
+- **NEXT (2026-10-27):** through dovetails are deployed; owed to the user (the dovetails *Amended (build)* block was approved
+  2026-10-27): the copy reviews (fu 491, 512), the bench chain by eye (fu 511), fu 496 and the dovetailed corner on real hardware. Owed
   otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles

@@ -321,7 +321,7 @@ following a Remove to the partner.
 
 Rulings and differences from the build (2026-10-27, branch `dovetails`, commits `e8ca93f`..`a38f216`, the final review's fixes last;
 this record follows in its own commit; records in inv 62 and fu 497–515).
-**Status: AWAITING THE USER'S APPROVAL.** Each line says what was built and what it costs if the call is wrong.
+**Status: APPROVED by the user 2026-10-27 ("Approved, the amended build section"), after the deploy.** Each line says what was built and what it costs if the call is wrong.
 
 **Spec differences**
 - **SD1 — the body route (§3.5).** The builder's choice §3.5 left open: not "each pocket cell intersected with each kept piece" but the
