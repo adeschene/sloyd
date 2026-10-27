@@ -20,12 +20,14 @@ src/
 │                     quantity.ts (board/square feet, two decimals fixed)
 ├── document/
 │   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
-│   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`)
+│   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`);
+│   │                     Dovetail (`Board.dovetails?`, schema 26, inv 62)
 │   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
 │   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes; the curve validator holds an arc within 4 ulps
 │   │                     of its coordinates past the half-circle bound TO the bound (fu 416), drops one further past;
 │   │                     schema 21 keeps `mirrored` on a SHAPED part only when literally true (mirrorFreeIdentity.test.ts pins a
-│   │                     flag-free document byte for byte)
+│   │                     flag-free document byte for byte); CURRENT_VERSION 26 and validateDovetails (dovetails, inv 62: a malformed entry
+│   │                     dropped, the part kept; a faulted one kept; ids per board; document.v26.test.ts)
 │   ├── ids.ts            nextId, the one id minter
 │   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
 │   │                     the derived-PROJECT name ("— refined 2", fu 237)
@@ -90,11 +92,52 @@ src/
 │   │                     and `oddEnd`, part-local), fingerAtMaxOf (re-exported from the leaf
 │   │                     `fingerParity.ts`, the even-N parity, which `boxJointText.ts` imports too: no cycle),
 │   │                     defaultFingerWidth, boxJointPlan (every refusal in order, corners found by touching ends AND overlapping J
-│   │                     spans, the parts as WORLD parts, link post-condition) and applyBoxJoints (writeBackParts, keepWorld); boxJoints.test.ts
+│   │                     spans, the parts as WORLD parts, link post-condition) and applyBoxJoints (writeBackParts, keepWorld); boxJoints.test.ts.
+│   │                     Since dovetails: the box-joint KIND (`JointKind`) of cornerPlan.ts's shared planner (the corner finding, run-out,
+│   │                     region refusals and linked-Shape planning moved there unchanged); featureOf refuses a dovetailed part (`dovetails`,
+│   │                     read from the leaf dovetailModel.ts)
 │   ├── fingerParity.ts   Box joints' even-N parity (fingerAtMaxOf), a leaf importing nothing, read by boxJoints.ts and boxJointText.ts
 │   ├── boxJointText.ts   THE box joints words (→ units: it produces strings), verbatim: the refusals (boxCutInTheWay … boxLinkSplit), the
 │   │                     success lines (boxJointedLines, boxLengthLine), fingerSetLine (the cut list's and the diagram's), the joinery
-│   │                     reason (boxJointedLeftAlone), Refine's (boxJointsThroughJoints, boxJointJoinChanged), the section's words
+│   │                     reason (boxJointedLeftAlone), Refine's (boxJointsThroughJoints, boxJointJoinChanged), the section's words; since
+│   │                     dovetails the shared corner sentences are cornerText.ts', re-exported here under their old names (BOX_NO_CORNER,
+│   │                     boxIgnored, boxHeights, boxTwoCorners, boxContainers, boxLinkedMate, boxLengthLine), and BoxFeature gains `dovetails`
+│   ├── cornerPlan.ts     THE corner planner (dovetails chunk 2, factored out of boxJoints.ts unchanged; invs 61, 62), pure, a TYPE-only `Units`
+│   │                     (no → units edge: every sentence comes through the kind's CornerCopy): CornerEnd / Corner / EndOp, EndFlips
+│   │                     (`dim`, `j`, `thickness`; flipsOf — `thickness` unreachable, no posture's mirrorDim is the thickness), CornerCopy,
+│   │                     JointKind (featureOf, removeAt, planCorner, addAt, signature), RUN_RANK (Z, X, Y: who takes the leading role),
+│   │                     corner finding (touching ends AND overlapping J spans), the exact run-out (resizeEnd), the corner region,
+│   │                     cutRunsThrough (THE "runs straight through the corner" predicate, also read by dovetails' zone check), linked-Shape
+│   │                     planning (Shape-local signatures, sizes at 1e-9), planCorners and writeCorners (writeBackParts, keepWorld, the link
+│   │                     post-condition)
+│   ├── cornerText.ts     the corner planner's SHARED words (→ units: it produces strings), moved verbatim from boxJointText.ts: NO_CORNER,
+│   │                     cornerIgnored, cornerHeights, cornerTwoCorners, cornerContainers, cornerLinkedMate, cornerLengthLine
+│   ├── dovetailModel.ts  the stored dovetail's model, a LEAF (types only; so dovetails.ts, boxJoints.ts and dovetailText.ts read it with no
+│   │                     cycle): DOVETAIL_FIELDS (inv 40) / dovetailValues / sameDovetail / copyDovetail, byDovetailEnd (canonical order),
+│   │                     dovetailsOf, hasDovetails, dovetailAt, withDovetails (an empty list REMOVES the key), and THE layout:
+│   │                     dovetailLayout (bounds computed directly, the last tail's far edge `H − p`) and jointLineOf (re-exported from
+│   │                     dovetails.ts, the layout's documented home)
+│   ├── dovetails.ts      THE dovetail (schema 26, inv 62), numbers only (a TYPE-only `Units`): pinWidth (1/4", 6 mm), autoTailCount (1.5",
+│   │                     38 mm), dovetailFaults (THE fault decider: count, slope, depth — two depths meeting folded in —, narrow at 1e-9),
+│   │                     builtDovetails (THE "which build" list, memoised per board object, frozen), mirrorDovetails / lowerDovetails (inv
+│   │                     44: flag flips), dovetailViewCurves (the waste as square-span view curves, ids `dovetail/<id>/<k>`; appended by
+│   │                     profiles.ts' geometryBoard), dovetailCorners (snap corners at the outside plane), dovetailZones / dovetailZoneRefusal
+│   │                     / dovetailCutRefusal (spec §3.6: a cut or hole reaching a dovetailed end; a through groove exempt by
+│   │                     cutRunsThrough), and the dovetail KIND of cornerPlan.ts: dovetailPlan (every refusal in order; Auto, re-plan G3,
+│   │                     Swap) and applyDovetails (writeCorners); dovetails.test.ts, dovetailGeometry.test.ts, dovetailPlan.test.ts
+│   ├── dovetailText.ts   THE dovetail words (→ units: it produces strings), verbatim: the planner's refusals, the success lines
+│   │                     (dovetailedLines, dovetailTailsOn), dovetailRemoveFirst / dovetailMoveClear (spec §3.6), the joinery reason
+│   │                     (dovetailedLeftAlone), Refine's (DOVETAIL_KEPT_WHY, dovetailJoinChanged, dovetailedAssemblyLinked,
+│   │                     mixedAssemblyLinked), dovetailFaultText, the panel's words, dovetailLine (THE cut-list line; `Te` from the ONE
+│   │                     layout), slopeText, the bench drawings' words (BENCH_*, benchBaseline, benchEnd); re-exports cornerText.ts' shared
+│   │                     sentences; reads the layout from the leaf dovetailModel.ts, never dovetails.ts (whose copy table imports this)
+│   ├── dovetailBench.ts  the bench drawings' model (spec §5.2, inv 19; → units: formatLengthBare, bare mm in metric): dovetailBenches (one
+│   │                     pair per distinct FAULT-FREE tails layout, two equal ends one pair `both ends`), BenchFigure (outline, waste
+│   │                     polygons, the chain `p, Te, p, …` at each span's middle, labels by BenchLabelKind, the layout's bounds, figure A's
+│   │                     baseline); every string assembled here, never in the component
+│   ├── dovetailFixtures.ts TEST-ONLY (never import it from a module): expectPartition, the world partition of a dovetailed corner (the
+│   │                     two parts' kept pieces fill the corner square exactly, no shared volume, to 1e-9), read off the INPUT fixture's
+│   │                     outside faces (inv 23); used by dovetailPlan.test.ts
 │   ├── resizeEnd.ts      resizeEnd (joinery's resize core, moved from generate/joints/recipes.ts, `onResize` where the Tap was) and the
 │   │                     rebase helpers (refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles); recipes.ts still re-exports
 │   │                     the four for the unedited tests (fu 495)
@@ -112,13 +155,18 @@ src/
 │   │                     keptParts (THE decision: ROOT stored parts whose resolved form keepsExactly + their
 │   │                     Shapes + flat names; box joints, inv 61: also `definitions`, `instances`, `placements` of a kept ASSEMBLY),
 │   │                     leaningInAssembly ('lean-assembly'; keptForMoreThanFingers, so box joints alone never refuse), keptAssemblyLinkRefusal,
-│   │                     keptNote (the USER-turn note, real bounds, why kept; one line per kept placement)
+│   │                     keptNote (the USER-turn note, real bounds, why kept; one line per kept placement); dovetails (inv 62):
+│   │                     cornerJointed (THE corner-joint predicate — a recognised finger set OR a stored dovetail — read at every keep and
+│   │                     leave-alone site; keepsExactly = keptForMoreThanFingers || cornerJointed), CornerKind / definitionKind /
+│   │                     assemblyKind / kindHasBoxJoints / kindHasDovetails (a kept assembly's words, both kinds when both), whyKept's
+│   │                     `has dovetails`, keptAssemblyLinkRefusal worded by the holding definition's kind
 │   ├── worldBounds.ts    partBounds / partsBounds, the ONE real-bounds helper (splayed legs §6.1 R2): a leaning part's
 │   │                     world box from its LEANED body vertices; lean-free = boardsBounds exactly. Every world-box reader
 │   │                     (group move, Copy in a row, section heading/span, Gizmo, framing, explode, Plans dimensions, the
 │   │                     drawing's boardBox, the design checks' boxes, Refine's kept note) uses it
 │   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46); mirrorPart/withMirror/toLocal (mirrored frames);
-│   │                     mirrorFeatures (mirrorPart's feature half: what a mirrored user resolves through, inv 44); mirrorInPlace
+│   │                     mirrorFeatures (mirrorPart's feature half: what a mirrored user resolves through, inv 44; tenons by mirrorTenons,
+│   │                     dovetails by mirrorDovetails, no key added for a part with none); mirrorInPlace
 │   │                     (features mirrored + turn negated, box kept; the checkbox's operation at chain turn 0, used by tests)
 │   ├── mirrorCut.ts      mirrorCutAlong (moved verbatim), mirrorCut, clamp (inv 44)
 │   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument; mirroredAt (assembly parity),
@@ -128,16 +176,20 @@ src/
 │   │                     storage key, regroupShapes); lower/lowerCuts are the exact inverse
 │   │                     of a mirrored placement; postureRefusal (flat<->upright across a mirror), sameSideFirst (both by sideAt);
 │   │                     lowerOwnMirror (a mirrored user's features into its Shape's hand against withShapeFeatures, inv 44);
-│   │                     regroupShapes: exact membership through each user's own flag, flaggedKeys (inv 46, fu 432)
+│   │                     regroupShapes: exact membership through each user's own flag, flaggedKeys (inv 46, fu 432); dovetails (inv 62):
+│   │                     lower and lowerOwnMirror lower them (lowerDovetails), storedValue reads an empty or undefined `dovetails` as ABSENT,
+│   │                     groupSignature carries their sorted dovetailValues, withShapeFeatures carries `shape.dovetails`
 │   ├── treeOps.ts        group/ungroup, shareInstance, makeUniqueItem, removeItems, turnInstance;
 │   │                     setMirrored / mirroredCopy over placedBox / replaceKeepingBox (mirrored instances); Ungroup's plain
-│   │                     path strips a part's own `mirrored` (plainOf)
+│   │                     path strips a part's own `mirrored` (plainOf); every copy site copies `dovetails` (copyDovetail) when present
 │   ├── treeRepair.ts     repairTree, dropUnresolved (load repair)
 │   ├── shapes.ts         resolveBoard (THE shape reader; applies a user's own `mirrored` via mirrorFeatures), shapeUsers,
-│   │                     prune/dissolveShapes (inv 45); plainOf (strips `shape` and `mirrored`), withoutFlag (a shaped record unflagged)
+│   │                     prune/dissolveShapes (inv 45); plainOf (strips `shape` and `mirrored`), withoutFlag (a shaped record unflagged);
+│   │                     resolveBoard copies a Shape's dovetails, adding no key when it has none
 │   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45; refuses
 │   │                     a member with no occurrence on the source's side of a mirror; `mirrored` is OWN; `mirrorMate`: a user
-│   │                     of the source's Shape with the other flag is not "changing")
+│   │                     of the source's Shape with the other flag is not "changing"); `dovetails` SHARED (inv 62): sharedOf copies it only
+│   │                     when present, sharedPatch reads a present `[]` or undefined as a removal, sameShared compares it in order with ids
 │   ├── linksToShapes.ts  the v10→v11 step (and linkByRole's builder; keeps a mirror candidate's `mirrored` flag)
 │   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
@@ -341,9 +393,14 @@ src/
 │   │                     and parser), smoothJoins / runoutSilhouettes (a2); b2: a stop's run-out (`stopRunoutPieces`, after B1's) on faces tagged
 │   │                     `BodyFace.stop` (its `runout` is then the path's face-frame END); `BodyFace.overlap`; curvedEdges registers each stopped
 │   │                     swept profile in a2's `stopped` map behind an `ownEnd` guard; `sectionSeams` decides a line only where both strips
-│   │                     cover it (`coveredBothSides`) and never takes a face away from `bodyEdges`
+│   │                     cover it (`coveredBothSides`) and never takes a face away from `bodyEdges`; geometryBoard appends the JOINT views
+│   │                     (each built round tenon's, then each built dovetail's square-span view curves; one memoised view per part,
+│   │                     `jointViews`), and profileView is the view without them (`jointBases`), so judging a joint never reads its own waste
 │   ├── tenons.ts         findTenons
-│   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder; `number` (THE row number, display order) and `boardIds`
+│   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder; `number` (THE row number, display order) and `boardIds`;
+│   │                     dovetails (inv 62): setupLines prints one dovetailLine per STORED dovetail (after the finger-set lines, before the
+│   │                     square-tenon lines), rowKey appends dovetailSignature only when the part has one, and a row with a fault-free
+│   │                     tails dovetail carries `benches` (dovetailBenches; the key absent otherwise)
 │   ├── depthField.ts     buildDepthField (inv 20)
 │   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
 │   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
@@ -370,7 +427,8 @@ src/
 │   │                     inverse fromWorld (exact for an unleaned part; ~1e-15 through a lean); a leaning part's lattice is built and stockProbe-filtered pre-lean, then mapped;
 │   │                     hole centres ('face-center', entry
 │   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception); b2: each swept stop offers its
-│   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`)
+│   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`); a BUILT dovetail offers its
+│   │                     outside-plane corners as `'corner'`s (dovetailCorners, deduped against the lattice; the sockets are air to stockProbe)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
 │   ├── generated.ts      DESIGN_SCHEMA (part + direction + vec3 in `$defs`; the four angle kinds in ONE `angles` item: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
 │   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE re-exported from geometry.ts); convertPart's keptFrame (THE frame decision,
@@ -389,7 +447,7 @@ src/
 │   │                     rect cuts do not survive two mirrors exactly), each put in the representative's order (inOrderOf); a mirror
 │   │                     candidate left in no shared Shape is restored to the original part;
 │                     turnCandidates (other quarter turns keeping the world box and grain axis; every kind re-stored via taperWorld/angleWorld; none
-│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut, hole-row and profile ids; profiles matched by sameProfile in stored order); a HOLED part is turned too (re-stored via worldHoles/holeRowsFor with an exact set, inv 56), a BANDED part (re-stored on the same world edges via worldBands/bandsFor, AI-bands), and a PROFILED part (re-stored via worldProfiles/profilesFor with an exact set and `known`, AI-profiles); none for curves or carried profiles (carriesProfiles)
+│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut, hole-row and profile ids; profiles matched by sameProfile in stored order; tenon and dovetail ids when sameTenon / sameDovetail match in canonical order); a HOLED part is turned too (re-stored via worldHoles/holeRowsFor with an exact set, inv 56), a BANDED part (re-stored on the same world edges via worldBands/bandsFor, AI-bands), and a PROFILED part (re-stored via worldProfiles/profilesFor with an exact set and `known`, AI-profiles); none for curves or carried profiles (carriesProfiles)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps; hole-, band- and profile-faults keyed by message)
 │   ├── featureCarry.ts   carryFromOriginal (Refine carries curves, the profiles of a part with curves or a two-side run, a CURVED part's bands, every banded part's cornerRule and hardware onto (holes, a plain part's bands and other profiles are authored, invs 50, 54, 53; originalProfiles feeds the exact-entry map) returned parts by flat name, in the
@@ -415,7 +473,9 @@ src/
 │   │                     (`tenonJoints`: pairBodies' waiver, `joint` in groundedSet, isHeld's clause (d) with its groundedWithout guard),
 │   │                     `stands` (a tenoned part's floor test on its shoulder-trimmed wood), checkedLevelFaces (a leaning part's level
 │   │                     faces cut at its shoulders), TENON_HINT (the overlap's mismatch hint);
-│   │                     leanFreeChecks.test.ts pins lean-free results byte for byte
+│   │                     leanFreeChecks.test.ts pins lean-free results byte for byte; dovetails (§5.3, inv 62): realBodied also for a built
+│   │                     dovetail, contactRegions' last step dovetailContacts (the wood behind each baseline plus each tail's or pin's
+│   │                     INSCRIBED box at its narrowest span); designCheck.dovetails.test.ts (the drawer and the carcass top)
 │   ├── featureKeys.ts    THE feature keys (feature callouts spec §3): partFeatures (identity, owned segment tags, key line —
 │   │                     a short bench line, no positions; hole sizes through holeSizeText/holePitchText, the bench line's own home; the
 │   │                     four-corner collapse through curveLineEntries —, fault suffix, true axis/normal), featureTag, FAULT_SUFFIX; b2: every stopped
@@ -472,7 +532,14 @@ src/
 │   │                     (STRETCHER_NOT_A_STRETCHER first, refitPlan, ONE mapWorld edit; the no-change check names `length`,
 │   │                     `position`, `tenons` and throws on any other key, so a fitted rung pushes no entry); store.stretchers.test.ts;
 │   │                     copyBoard re-mints tenon ids; box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
-│                     document; store.boxJoints.test.ts)
+│                     document; store.boxJoints.test.ts); dovetails (inv 62): dovetailCorners (as boxJointCorners: dovetailPlan, ONE
+│                     edit(applyDovetails), judgeHeld), removeDovetail (that end only, through mapWorld; the last leaves no key), copyBoard
+│                     re-mints dovetail ids; spec §3.6's refusals before edit(): addAngleCuts / addCurves / addProfiles / addTenon / setBands
+│                     (adding) / setLean (a lean) on a dovetailed part (dovetailRemoveFirst), addCut / updateCut (cutZoneRefusal over
+│                     dovetailCutRefusal), addHoleRows / updateHoleRow / addStretcher / boreLegSockets (holesZoneRefusal, holeTouchesBox;
+│                     a tenon fitted to a dovetailed leg refused too) — addCut, updateCut, addAngleCuts, addCurves, addProfiles and setBands
+│                     now return `string | null` (Spec difference 2; callers that ignore it compile unchanged); store.dovetailCorners.test.ts,
+│                     store.dovetails.test.ts
 │   │                     (source's Shape users keep theirs, others take the source's); store.mirrorLinks.test.ts
 │   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
 │   │                     addCurves/updateCurve/removeCurve, the same shape
@@ -488,8 +555,8 @@ src/
 ├── generate/         prompt.ts (limitLines; SYSTEM_PROMPT teaches the wire `angles` item and the `profiles` array, AI-profiles), concepts.ts (batch planning), estimate.ts (cost ranges: measured
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage — names the project's band types
 │                     (`Edging types in this design`), KEEP_LINE names edging and edge profiles, the design sent through toWireDesign —, detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
-│                     shared by Generate and Refine, hole, band and profile design faults included, runRefine — the result's own band types, plain and joined —, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones,fingerClaim}.ts (fingerClaim.ts: claimFingerSets / restoreFingerSets, the finger sets taken off before readJoints and put back after, and `claimThenDecide`, the ONE claim-then-decide step (`joined` judged on the CLAIMED flat) shared by Refine's gate and Repair, inv 61; recipes.ts skips or refuses a site that would resize, trim or move a box-jointed part; pocket.ts: `pocketFor` stores its own numbers on the grid, `onGrid`, because a box arrives through world differences and reflections and the cut list compares stored cuts exactly; featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57), then `tenonRefusal` (round tenons §9: a part with any stored tenon, one sentence each; Repair and a joined Refine call it too, after the lean), then `compoundRefusal` (square-set legs §4, inv 59: a part with a compound end cut, `hasCompoundCut`, one sentence each; Repair and a joined Refine call it too, after the tenon); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     shared by Generate and Refine, hole, band and profile design faults included, runRefine — the result's own band types, plain and joined —, runJoinery; dovetails, inv 62: `RefineOutcome.leaning.dovetails` (keptDovetails), keptBoxJoints by kind, the (c) sentence by kind (joinChangedText), `guardedKept` through cornerJointed),
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers,featureZones,fingerClaim}.ts (fingerClaim.ts: claimFingerSets / restoreFingerSets, the finger sets taken off before readJoints and put back after, and `claimThenDecide`, the ONE claim-then-decide step (`joined` judged on the CLAIMED flat) shared by Refine's gate and Repair, inv 61; recipes.ts skips or refuses a site that would resize, trim or move a box-jointed or dovetailed part (`cornerJointed`; `leftAlone` words it by kind), and — dovetails, inv 62 — a pocket, rabbet or half-lap notch reaching a dovetailed end's zone (`intoDovetails`: a PROBE pocket judged by the store's `dovetailCutRefusal`, a through groove exempt; the tenon, dado and lap boxes read BEFORE the grow, `tenonBoxes` / `dadoBoxes` / `lapNotches`); fingerClaim.ts' `changedBoxJointed` (the (c) guard) compares a kept part's dovetails too; repair.ts' `changedDovetailed` refuses a repair that would change a dovetailed part; pocket.ts: `pocketFor` stores its own numbers on the grid, `onGrid`, because a box arrives through world differences and reflections and the cut list compares stored cuts exactly (an optional `id` for a probe that mints none); featureZones.ts: `featureAllowed` + `RuledOut`, per-site ruling-out of joint kinds by watched trials (inv 41; rabbet and half-lap units; a stopped dado per stop end, `endHits`, narrowing `stopEnds` to the ends that clear — "Offer clear ends", chunk 3; bands judged in the original frame, P9–P11, word `edge band`); recipes' `JoinWatch` (observer of cuts and resizes during a trial) and `rebaseHoles` (from `document/holeRebase.ts`) / `rebaseCurves` / `rebaseProfiles` (re-anchored on resize, undone by `resizeAt`; `sameCurves` / `sameProfiles` in the gate; featureZones judges curves and profiles in the original frame, P5, and exempts a curve or straight profile that only meets a growing end when its waste on an `END_FACE` (1e-6) slab stays out of the tenon section, `meetsOnly`, fu 415; `rebaseCurves` re-stores an arc at the half-circle bound at its new chord's bound, C1; tests: holesOracle / curvesOracle / bandsOracle (the backstops), holesRebase / curvesRebase, featureZones(.curves, .bands), joinWatch); sites.ts `rangesOf`' inset clearance (`bandClearance`, chunk 3 F2: a stop end beside a receiver band raises the smallest inset to clear its strip); `document/ruledOutText.ts` (`FeatureWord`, `profileWord` (`<kind> profile`), `ruledOutLine`: the run-summary notes, one line per ruled-out site, shown in the run's outcome notes; spec §3.5); holes.ts `holeRegion`; tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal(entry, …) — the ONE joinery refusal decider, `leaningRefusal` first (JoineryEntry 'joinery' | 'repair' | 'refine', one sentence each; Repair and a joined Refine call it directly, inv 41, 57), then `tenonRefusal` (round tenons §9: a part with any stored tenon, one sentence each; Repair and a joined Refine call it too, after the lean), then `compoundRefusal` (square-set legs §4, inv 59: a part with a compound end cut, `hasCompoundCut`, one sentence each; Repair and a joined Refine call it too, after the tenon); inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -578,6 +645,23 @@ src/
 │                     stretcherOf in a memo; the last Add's link notes, held by Properties, ruling T5a); Stretcher.test.tsx;
 │                     BoxJoints (box joints §4, inv 61): BoxJointsSection (in the multi-selection panel for two or more parts, inside its EditLock:
 │                     Finger width, Swap fingers, `Box joint the corners`, the notes held in section state); PartDiagram's fingerNotes;
+│                     Dovetails (dovetails §4, inv 62): DovetailsSection (in the multi-selection panel for two or more parts, after Box joints,
+│                     inside its EditLock: Slope — a DimensionField with the `1 :` prefix, a plain decimal parse, its range the planner's
+│                     refusal —, Tails — TailsField, blank is Auto, inv 5's draft rules —, Swap tails and pins, `Dovetail the corners`
+│                     disabled only while a field fails to parse; the store's refusal as the alert, the planner's notes held in section
+│                     state) and DovetailsPart (the single-part section after Round tenons, only on a dovetailed part: each dovetail's
+│                     cut-list line, a note per fault, Remove); DovetailBench (the bench pair on the cut list sheet, spec §5.2: figure A the
+│                     tail board's face, figure B the pin board's end grain, side by side, each FIG_SHARE of the row with a viewBox FIG_W
+│                     wide, so a label renders at PartDiagram's size; one scale; the FULL chain only when every label sits on its own span,
+│                     on one row or two tiers, else SINGLE-VALUE mode — each distinct value once at its first span, ticks at every bound,
+│                     the overall H on both figures; measured with labelWidth/packRow, never re-derived; the pair never wraps);
+│                     CutList renders a row's `benches` after its diagrams, under the same condition (a row without them renders as
+│                     before); PartDiagram exports VIEW_W (the bench sizes its figures from it); DimensionField's optional `prefix`
+│                     (text before the input, `.input-prefixed`; absent, the markup is exactly as before); the void store actions'
+│                     refusals (Spec difference 2) shown as each section's alert, belonging to the part AS IT WAS (RoundTenons' TenonEnd
+│                     pattern: any change to the part retires it) — AngleCuts' Add, Curves' Add, Profiles' Add, Banding's selects and
+│                     menu, Properties' `+ Add cut` (AddCut) and a cut row's edit (its fields remounted from the stored cut); RefineDialog's
+│                     kept line through keptKinds (box joints and/or dovetails named only when kept, the last joined by `or`);
 │                     CountField (DimensionField, whole numbers; also the hardware counts, `Enter a whole number, 1 to 999`);
 │                     Hardware (the Hardware section: `+ Add hardware ▾`, a count per type, `New hardware type…`; a part, an assembly or, with
 │                     nothing selected, the project — inv 55; reads `holderHardware`, whose arrays are STORED);
@@ -603,7 +687,8 @@ src/
 │                     Facing for asymmetric kinds (`Top: the edge` on a loop or two-side run); a fallen-back run's note by cause
 │                     (`runsStraightNote(fallbackCause(…))`); an edit refused when it ADDS a fault to ANY profile on the part, the row's own
 │                     in `PROFILE_REFUSAL` words, another's through `curveEditRefusal`)
-├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
+├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1); `.input-prefixed` (a prefixed field) and `.cutlist-bench*`
+│                     (the dovetail bench pair: no font-size on its text, inv 19; blackened and kept together in print)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal; `FEATURE_CHECK_FAILED` (the joinery
                       dialog REFUSED when checking features against joints throws, fu 244, P8)
@@ -681,7 +766,9 @@ annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invarian
 - **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. A mixed field emptied after typing is untouched (fu 210). Enter commits
   and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
   it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
-  until its own next commit or an external resync — no sibling clears it (AngleCuts' Angle fields: fu 339).
+  until its own next commit or an external resync — no sibling clears it (AngleCuts' Angle fields: fu 339). The optional
+  `prefix` (dovetails: the Slope field's `1 :`) is text BEFORE the input, never part of the typed text; with no `prefix` the
+  markup is exactly as before (the input is the same element, its handlers unchanged).
 - **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off

@@ -7669,6 +7669,11 @@ leftover at J's world min, the user's ruling after the build) does NOT decide a 
 hand-cut norm; jig-cut spacing is fixed). Box joints' known limits that will bite dovetails too: linked mirrored or opposite-turn users refuse
 an asymmetric layout; fu 485 (unequal heights, the drawer-front case half-blind dovetails exist for) and fu 486 (featured parts).
 **Status:** open (feature-sized; needs its own spec; the next session's work).
+Through dovetails were specced (`docs/superpowers/specs/2026-10-27-sloyd-dovetails-design.md`, approved 2026-10-27) and built on branch
+`dovetails` (2026-10-27: schema 26, a STORED feature `Board.dovetails`, inv 62; the shared corner planner `cornerPlan.ts`; the spec's
+*Amended (build)* block awaits the user's approval). Half-blind dovetails, and with them corners of different heights along the joint,
+moved to fu 497 (their one home). The round's own follow-ups are 497–513.
+**Status:** through dovetails BUILT on branch `dovetails` (2026-10-27), not yet deployed — close at deploy; half-blind is fu 497.
 
 **485. Box joints on parts of different heights along the joint (spec §2, §12).** A corner whose two parts differ in height along the joint (a
 drawer front taller than its sides) refuses with `<A> and <B> must be the same height along the joint.`; a layout over the shared span with plain
@@ -7731,6 +7736,15 @@ bottom held by a hand-cut RUN-OUT groove (a groove through the end with the rout
 the pocket must lie inside the overlap box), so Refine refuses it with `GATE_REFUSAL`, with or without box joints. Joinery's own STOPPED dado reads
 back fine. The probe was read-only; no code changed. A fix widens `readJoints`' pocket test (inv 41: the exact re-join must still prove it).
 **Status:** open (ask first).
+**Dovetails reproduction (2026-10-27, the dovetails round, Task 8 ruling):** the same mechanism bites the COMMON drawer workflow in one
+order. Join the drawer bottom into the front and back first (Add joinery: dados), THEN Dovetail the corners (or Box joint the corners):
+the corner planner's run-out changes the joined parts (it carries joinery's groove on past the bottom: Task 8's report and ruling), so
+`gateUnjoin`'s re-join no longer reproduces them and Refine refuses with `GATE_REFUSAL`. It comes from planning corners on a joined
+project (box joints too, and with the dovetail joinery probe off), not from the dovetails round. The other order works: dovetail the corners, THEN join the bottom —
+Refine reads and re-applies the joints with every dovetail intact (pinned, `dovetailsRefine.test.ts`, "a dovetailed drawer, then its
+bottom joined in grooves"). Not fixed in the round (§7 did not require it). Until this is done, a user who joins first and dovetails
+second cannot Refine that drawer; the workaround is to remove the bottom's joints, dovetail, then join again.
+**Status:** open (ask first; raised: it is the common drawer order — join the bottom, then cut the corners).
 
 **494. The (c) guard's floor-drop false positive (Task 6 review).** `changedBoxJointed` compares a kept part's finger sets, size and position
 before and after the re-join; joinery's uniform floor drop moves every part, so a kept drawer whose position moved by the drop reads as changed and the
@@ -7763,3 +7777,145 @@ only by the fake-client `runRefine` tests (Tasks 6, 6b). The two images in `docs
 show the OLD symmetric layout (before Task 9's equal fingers); retake them with (1) if a screenshot is wanted. Deployed 2026-10-27, so (1) can be
 done on production with a throwaway project in a private window (never the user's own production profile: per CLAUDE.md's deployment rule, its storage is their project).
 **Status:** open (owed to the user: by eye on real hardware; one paid run).
+
+## From the dovetails round (dovetails chunk 2, through dovetails) — 2026-10-27
+
+Built on branch `dovetails` (commits `e8ca93f`..`b15f6c2`, schema 26, inv 62); NOT yet deployed when these were written. Spec
+`docs/superpowers/specs/2026-10-27-sloyd-dovetails-design.md` (§11's list is 497–504; the build ledger's notes are 505–513).
+
+**497. Half-blind dovetails (spec §2, §11; fu 484's other half; with fu 485).** The drawer-front joint: the pins' part is thicker than
+the tails are long and the tails stop short of its face, and with it a corner whose parts differ in height along the joint (a drawer front
+taller than its sides), which refuses today with `<A> and <B> must be the same height along the joint.`. Needs a stopped pin socket (the
+pins part's sockets end inside its thickness: a view curve through the run with a second square stop, or a body of its own), a lap
+dimension on the feature (a schema question: argue its own harm), the layout's rule for the part that sticks out, and the bench drawing's
+third figure. The one home of half-blind work (fu 484 points here).
+**Status:** open (feature-sized; needs its own spec).
+
+**498. Dovetails on featured parts (spec §2, §3.6, §11).** A part with a lean, angle cut, curve, edge profile, edge band, round tenon or
+box joint refuses dovetails (`<part> has <…> — dovetails work on plain stock for now.`), and a dovetailed part refuses those features' ADD
+(`<part> has dovetails — remove them first.`) and any cut or hole reaching a dovetailed end's zone (`<part> has dovetails there — move it
+clear of the joint.`). Lifting either needs every reader taught the combination: `holeFaults` and `holes.ts` (a bore meeting socket air),
+`stockProbe`, `featureZones`, the tenon zone, the band strips. fu 486's twin.
+**Status:** open (feature-sized).
+
+**499. Proud tails and glue clearance (spec §2, §11; fu 487's dovetail twin).** The model is the finished, flush joint: tails and pins are
+exactly the other part's thickness deep and exactly complementary. Real joints leave the tails and pins proud for planing flush, and a
+paring allowance.
+**Status:** open (feature-sized).
+
+**500. A typed pin width, variable spacing, jig spacing, sliding dovetails, a dovetail at an angle (spec §2, §11).** The pin is fixed at
+1/4" (6 mm) by the user's ruling; spacing is the hand-cut rule only. Each of these is a new layout input (and, for a jig, a fixed pitch the
+part's height must suit) or a new joint (a sliding dovetail's housing; a splayed box's compound corner).
+**Status:** open (feature-sized).
+
+**501. Add joinery, Generate or Refine choosing a dovetail (spec §2, §7, §11; fu 488's twin).** Joinery only LEAVES a dovetailed part
+alone and Generate never authors one: the design schema and `toWireDesign` are byte for byte the same. A joint kind that picks dovetails
+needs the recipe, `choose.ts` and the design form's words (fu 322: a new design-form shape costs grammar).
+**Status:** open (feature-sized).
+
+**502. Dovetail callouts on the Plans sheet (spec §2, §11).** The joint draws on the Plans sheet as geometry, unlabelled (no feature key,
+no tag: `drawView` tags no dovetail segment). A callout would name the slope and count beside the corner.
+**Status:** open (feature-sized).
+
+**503. A box joint and a dovetail on one part (spec §3.6, §11).** A part with box joints refuses dovetails and a dovetailed part refuses Box
+joint the corners (the plain-stock sentences). A drawer whose back is box-jointed and front dovetailed would need the two planners to share
+a part's ends, and the cut list's claim order to take both.
+**Status:** open (feature-sized).
+
+**504. Following a Remove to the partner (spec §4, §9, §11).** Remove takes off that end's dovetail only; the partner keeps its own, so the
+corner reads as overlap in the design check until the user re-plans or removes the partner too (no stored partner link exists to follow;
+the corner would have to be re-found). My call in the spec; the user may want Remove to take both.
+**Status:** open (ask first).
+
+**505. `updateBoard` on a mirrored linked part throws when its patch carries `tenons` or `dovetails` (pre-existing for tenons; found in
+Task 2 of the dovetails round).** A shape-mate's patch with a `tenons` (now also `dovetails`) key reaches the write-back once through each
+user's own flip, and the edits disagree (`disagreeing edits`). `lean` is excluded from the shape-mate patch for this reason (inv 45); the
+two lists are not. No production caller passes either key to `updateBoard` (each has its own store actions; a grep of the non-test
+sources finds none), so it is latent. Fix: exclude them from the shape-mate patch as `lean` is.
+**Status:** open (latent bug).
+
+**506. A resize moving an existing hole or cut into a dovetail zone (Task 3 ruling).** Every authoring path refuses a hole or cut that
+reaches a dovetailed end's zone (spec §3.6), so `holeFaults` and `holes.ts` never meet socket air — except a later RESIZE of the part (or a
+re-plan that shortens it) that carries an existing hole into the zone: the hole wall then meshes through socket air, and no fault or note
+says so. Rare (an edited state). Fix: a zone fault on the hole row (kept, noted), or teach `holeFaults` the dovetail waste (fu 498).
+**Status:** open.
+
+**507. Same-turn mirrored linked users whose Shape takes PINS refuse (Task 4 ruling).** Spec §3.2 and §6 said the palindrome layout lets
+every linked mirror succeed; it does for a mirror along J, for unmirrored users at opposite turns and for Mirror's own pair, but a user
+mirrored at the SAME turn as its mate (a reflection through the thickness, in the world) would have its pins narrow on its INSIDE face,
+so the plan refuses with `These linked parts would need different dovetails: <parts>.`. Workarounds: Swap (the linked parts take the tails,
+which succeeds) or Unlink. A fix stores the pins' outside face per user (an OWN field) or lets the write-back split the link by rule.
+**Status:** open (ask first).
+
+**508. `fitStretcher` has no dovetail-zone check (Task 5 note).** Add stretcher and Bore leg sockets refuse a socket in a dovetailed leg's
+zone; Fit the stretcher again re-bores its rows in place without that check, so a refit could move a socket into a dovetailed end. The
+usual trigger is gone (a lean on a dovetailed part is refused), but the refit itself does not check; the guard belongs there too.
+**Status:** open (latent; small).
+
+**509. Dovetails on two different dimensions of one part (Task 6 note).** The planner refuses a three-way corner, so only a hand-edited
+file can carry dovetails on a length end AND a width end of one part. The checks' inscribed contact boxes could then over-claim wood where
+the two zones cross, and nothing faults it. A fault (`dovetailFaults`: a dovetail on the other dimension) would close it.
+**Status:** open.
+
+**510. Front and back as one cut-list row (Task 7 ruling).** A dovetailed drawer's front and back read as two rows when their pins are
+narrow on different part-local thickness faces (`outside: 'max'` vs `'min'`), though each is the other flipped over. Part-local identity is
+the cut list's rule (inv 40); grouping flip-equivalent parts would need a rule for which face the bench line names.
+**Status:** open (ask first).
+
+**511. The bench drawings by eye (for the user; Task 7 rulings).** The user judges the bench pair's look in the browser check (Task 10):
+the label size equals PartDiagram's; the full chain `p, Te, p, …` is drawn only when every label fits its own span (the spec's mockup
+case, a 6" side, 4 tails, 1:8, draws it on TWO tiers where the mockup had one row), otherwise each distinct value once at its first span
+with the overall `H` on both figures; the pair never wraps (the figures scale with the row). Close when the user has seen it.
+**Status:** open (owed to the user: by eye).
+
+**512. Dovetails copy review (for the user).** Every new sentence, by home (the planner's calls in the plan's Global Constraints and the
+build's rulings, for the user's words):
+(1) `dovetailText.ts`, the planner: `<part> would be dovetailed on two different edges — that isn't supported yet.`; `<part> has a cut where
+the dovetails go — remove it first.`; `<part> has a hole where the dovetails go.`; `<part> has <a lean | an angle cut | a curve | an edge
+profile | edge banding | a round tenon | box joints> — dovetails work on plain stock for now.`; `Dovetails can't reach a part inside a mirrored
+copy yet: <part>.`; `These linked parts would need different dovetails: <parts>.`; `Dovetails can't keep these linked parts linked: <parts>.
+Unlink them first.`; `A slope must be between 1:4 and 1:12.` (also the Slope field's parse error); `A tail count must be a whole number, 1 or
+more.` (also the Tails field's error); `<A> and <B> are too narrow for <N> tails at 1:<s> — try fewer tails.`; `<part> is too short for its
+dovetails.` (ruled 2026-10-27 for a depth or overlap fault). The shared corner sentences (`cornerText.ts`, box joints' words unchanged, now
+also dovetails'): `These parts don't meet at a corner.`, `<A> and <B> must be the same height along the joint.`, `<part> meets two parts at one
+end.`, `<A> and <B> must be in the same assembly.`, `<part> is linked to <mate> — select <mate>'s corner too, or Unlink first.`.
+(2) The success note: `Dovetailed <n> corner(s): <N> tails, 1:<s>.` (or `Dovetailed <n> corners:` and `<A> and <B>: <N> tails, 1:<s>.` per
+corner), `Tails on <parts>.`, then `<part> is now <x> longer.` / `shorter.` and `<part> isn't at a corner with another selected part.`.
+**One tail reads `1 tails`** in the success note, the too-narrow sentence and the cut-list line (`${count} tails`, no singular): a wording
+fix to decide. (3) The refusals on a dovetailed part: `<part> has dovetails — remove them first.`; `<part> has dovetails there — move it clear
+of the joint.`; box joints' `<part> has dovetails — box joints work on plain stock for now.`. (4) The fault note: `This dovetail no longer fits:
+<a tail is narrower than a pin | the tail count isn't a whole number, 1 or more | the slope is outside 1:4 to 1:12 | it is deeper than the
+part>.` (the last also covers two dovetails meeting, a build ruling). (5) The panel: the section `Dovetails`, `Slope` with the prefix `1 :`,
+`Tails` with the placeholder `Auto`, `Swap tails and pins`, `Dovetail the corners`; the single-part section `Dovetails · <n>` and `Remove`.
+(6) The cut-list lines (part-local words, as box joints'): `Through dovetails — <N> tails, 1:<s>, pins <p> at the narrow end, <depth> deep, at
+the <dim> <end> end; this part has the tails, <Te> at the end.` / `…; this part has the pins, narrow on its thickness <min|max> face.`
+(lengths print as `formatLength` gives them, `1-3/16"`). (7) The bench drawings: the captions `Dovetails — the tail board's face` and
+`Dovetails — the pin board's end grain`; the labels `outside face`, `inside face`, `baseline <depth>`, `both ends`, `<dim> <end> end` (one
+end, new in Task 7), the slope `1:<s>` and the overall `H`. (8) Joinery: `<part> has dovetails, so joinery leaves its size and place alone`.
+(9) Refine: the why-word `has dovetails`; the (c) reason `Joinery would have changed <name>, which Refine keeps as it is for its dovetails,
+so the design comes back unjoined.`; `Refine can't keep an assembly with dovetails whose parts are linked to parts outside it — Unlink first:
+<part>.` and `Refine can't keep an assembly with box joints and dovetails whose parts are linked to parts outside it — Unlink first:
+<part>.`; the kept note's header gaining `have dovetails`, its per-placement line `"<placement>" is an assembly with dovetails and is kept as
+is: <bounds>.` (`with box joints and dovetails` for a mixed one); the dialog's `Kept as is (leans, angled holes, round tenons or dovetails):
+<names>` (and `…, box joints or dovetails` when both).
+**Status:** open (owed to the user: wording).
+
+**513. Dovetails: deferred minors (2026-10-27, the SDD ledger and task reviews).** (1) Task 1: `boxJoints.ts` recomputes `displayNames` /
+`worldParts` for its notes; `EPS` and `flipEnd` are duplicated in `boxJoints.ts` and `cornerPlan.ts`; `planCorner`'s `ops`/`doc` are unused
+by box joints (its doc comment could say why); `EndFlips.thickness` is unreachable (no posture's `mirrorDim` is the thickness, pinned by a
+property test) but kept threaded — a dead parameter. (2) Task 2: `dovetailFaults` with `count ≤ 0` may also report `narrow` (unreachable
+after load: the loader drops such an entry, and `count` is reported first). (3) Task 3: `dovetailGeometry.test.ts`' "unchanged" snap test
+asserts fewer points rather than comparing to the keyless part; the pins part's snap points are asserted present, not all on stock;
+`drawing.ts` tags no dovetail segment only because every outline is straight — a future arc-bearing joint view needs the exclusion. (4) Task
+4: an import cycle `dovetails → cornerPlan/boxJoints → cuts → profiles → dovetails` (harmless today: nothing reads at load); `dovetailFixtures.ts`
+duplicates `dovetailGeometry.test.ts`' partition code (left unedited by rule); a re-plan keeps the TAILS end's count, so a hand-edited
+mismatch overwrites the pins end silently. (5) Task 5: no `removeDovetail` test on a linked part; no `updateCut` store test on a mirrored user
+(both go through `mapWorld`). (6) Task 6: `dovetailContacts`' `meet` drops zero-length regions (strict, not weak; unreachable behind §3.6's
+refusals); the test name "reports an overlap there" understates (two overlaps). (7) Task 7: the full chain's tier-0 labels lack leaders (moot
+in single-value mode); the single-mode test's expected count assumes at least five chain entries; figure B's overall label is always
+emitted and only hidden by the component in full mode (another consumer would show it). (8) Task 8: the `changedDovetailed` test lacks
+width, thickness and reorder cases; `keepsExactly`'s doc comment phrasing overlaps; `keptAssemblyLinkRefusal` names only the FIRST holder's
+kind when two kept definitions share a Shape; a kept part's re-applied pockets get new cut ids (the guard ignores ids, as for box joints);
+Repair treats a dovetailed part whose cuts are only reordered as unchanged; joinery's half-lap and rabbet zone probes are effectively
+defensive (with the corner's mate present the move is refused first).
+**Status:** open (record-only).
