@@ -104,6 +104,9 @@ describe('DovetailBench (spec §5.2)', () => {
     const { container } = render(<DovetailBench bench={benchOf(12, { count: 8 })} />);
     const ys = [...svgs(container)[0]!.querySelectorAll('text')].slice(0, 17).map((t) => t.getAttribute('y'));
     expect(new Set(ys).size).toBe(2);
+    // Still in chain order (p, Te, p, …), the DOM order of one row.
+    const texts = [...svgs(container)[0]!.querySelectorAll('text')].slice(0, 17).map((t) => t.textContent);
+    expect(texts.map((t, i) => (i % 2 === 0) === (t === '1/4"'))).toEqual(texts.map(() => true));
   });
 });
 

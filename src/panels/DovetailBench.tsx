@@ -38,11 +38,12 @@ function chainTiers(fig: BenchFigure, k: number): { tier: number; x: number; tex
   const one = packRow(items, lo, hi, GAP_X);
   const over = (i: number, x: number) => x >= PAD + fig.bounds[i]! * k - 1e-9 && x <= PAD + fig.bounds[i + 1]! * k + 1e-9;
   if (one.every((x, i) => over(i, x))) return one.map((x, i) => ({ tier: 0, x, text: fig.chain[i]!.text }));
-  const out: { tier: number; x: number; text: string }[] = [];
+  // In chain order (DOM order follows the chain, as on one row).
+  const out: { tier: number; x: number; text: string }[] = new Array(fig.chain.length);
   for (const parity of [0, 1]) {
     const idx = fig.chain.map((_, i) => i).filter((i) => i % 2 === parity);
     const xs = packRow(idx.map((i) => items[i]!), lo, hi, GAP_X);
-    idx.forEach((i, j) => out.push({ tier: parity, x: xs[j]!, text: fig.chain[i]!.text }));
+    idx.forEach((i, j) => { out[i] = { tier: parity, x: xs[j]!, text: fig.chain[i]!.text }; });
   }
   return out;
 }

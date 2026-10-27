@@ -1,7 +1,7 @@
 import type { Board, Dovetail } from './types';
 import { builtDovetails } from './dovetails';
 import { dovetailLayout, jointLineOf } from './dovetailModel';
-import { BENCH_BOTH_ENDS, BENCH_INSIDE_FACE, BENCH_OUTSIDE_FACE, benchBaseline, slopeText } from './dovetailText';
+import { BENCH_BOTH_ENDS, BENCH_INSIDE_FACE, BENCH_OUTSIDE_FACE, benchBaseline, benchEnd, slopeText } from './dovetailText';
 import { formatLengthBare, type Units } from '../units/length';
 
 /**
@@ -78,7 +78,7 @@ function figures(b: Board, d: Dovetail, ends: 'one' | 'both', units: Units): Pic
       { kind: 'baseline', at: [H, X], text: benchBaseline(f(X)) },
       { kind: 'overall', at: [H / 2, 2 * X], text: f(H) },
       { kind: 'slope', at: [0, 2 * X], text: slopeText(d.slope) },
-      { kind: 'ends', at: [0, 2 * X], text: ends === 'both' ? BENCH_BOTH_ENDS : `${d.dim} ${d.end} end` },
+      { kind: 'ends', at: [0, 2 * X], text: ends === 'both' ? BENCH_BOTH_ENDS : benchEnd(d.dim, d.end) },
     ],
   };
   const pin: BenchFigure = {

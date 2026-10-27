@@ -121,6 +121,8 @@ export const BENCH_INSIDE_FACE = 'inside face';
 export const BENCH_BOTH_ENDS = 'both ends';
 /** Figure A's dashed baseline, with the depth it sits at: `baseline 3/4"`. */
 export const benchBaseline = (depth: string) => `baseline ${depth}`;
+/** Figure A's end note for a layout on ONE end (two equal ends read `both ends`): `length max end`. New copy (Task 7). */
+export const benchEnd = (dim: Dovetail['dim'], end: Dovetail['end']) => `${dim} ${end} end`;
 /** The two figures' captions (HTML, not measured). Copy review owed with fu 491's. */
 export const BENCH_TAIL_HEADING = "Dovetails — the tail board's face";
 export const BENCH_PIN_HEADING = "Dovetails — the pin board's end grain";
