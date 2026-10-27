@@ -9,14 +9,15 @@ import { fingerAtMaxOf } from './fingerParity';
  * units (inv 52), so this module takes `units` and `boxJoints.ts` stays numbers-only (CLAUDE.md, the `→ units` edge rule).
  */
 
-/** No selected pair is a corner (spec §3.1). */
-export const BOX_NO_CORNER = "These parts don't meet at a corner.";
-/** A success note line: a selected part in no corner. */
-export const boxIgnored = (part: string) => `${part} isn't at a corner with another selected part.`;
-/** A candidate corner whose two parts span different intervals along the joint line. */
-export const boxHeights = (a: string, b: string) => `${a} and ${b} must be the same height along the joint.`;
-/** One part end in two corners. */
-export const boxTwoCorners = (part: string) => `${part} meets two parts at one end.`;
+/** The sentences box joints share with every corner joint (moved unchanged to `cornerText.ts`), under their old names:
+ *  no corner (spec §3.1), a selected part in no corner, different heights along the joint, one end in two corners,
+ *  different containers (spec §6; no selection reaches it, Spec difference 1), a Shape mate not jointed at the matching
+ *  end (spec §6), and the length line. */
+export {
+  NO_CORNER as BOX_NO_CORNER, cornerIgnored as boxIgnored, cornerHeights as boxHeights, cornerTwoCorners as boxTwoCorners,
+  cornerContainers as boxContainers, cornerLinkedMate as boxLinkedMate, cornerLengthLine as boxLengthLine,
+} from './cornerText';
+
 /** A part jointed at ends of two different dimensions (no three-way corners, spec §3.1; wording for copy review). */
 export const boxThreeWay = (part: string) => `${part} would be box-jointed on two different edges — that isn't supported yet.`;
 /** A corner shorter than five fingers of the width (`H < 4w`, spec §3.3). */
@@ -32,12 +33,8 @@ const FEATURE_WORDS: Record<BoxFeature, string> = {
   'edge banding': 'edge banding', 'round tenon': 'a round tenon',
 };
 export const boxPlainStock = (part: string, f: BoxFeature) => `${part} has ${FEATURE_WORDS[f]} — box joints work on plain stock for now.`;
-/** A corner whose parts are in different containers (spec §6; no selection reaches it, Spec difference 1). */
-export const boxContainers = (a: string, b: string) => `${a} and ${b} must be in the same assembly.`;
 /** A part reached through a mirrored instance (spec §6). */
 export const boxMirrored = (part: string) => `Box joints can't reach a part inside a mirrored copy yet: ${part}.`;
-/** A jointed part's Shape mate that is not jointed at the matching end (spec §6). */
-export const boxLinkedMate = (part: string, mate: string) => `${part} is linked to ${mate} — select ${mate}'s corner too, or Unlink first.`;
 /** The users of one Shape would need different joints (spec §6). */
 export const boxLinkedDisagree = (parts: readonly string[]) => `These linked parts would need different box joints: ${parts.join(', ')}.`;
 /** The written result would no longer keep a Shape's users on one Shape (plan Spec difference 3 revised). */
@@ -57,10 +54,6 @@ export function boxJointedLines(layouts: readonly FingerLayout[], pairs: readonl
   if (same) return [`Jointed ${n} ${n === 1 ? 'corner' : 'corners'}: ${layoutWords(layouts[0]!, units)}.`];
   return [`Jointed ${n} corners:`, ...layouts.map((l, i) => `${pairs[i]![0]} and ${pairs[i]![1]}: ${layoutWords(l, units)}.`)];
 }
-
-/** A success note line per part whose size along a run dimension changed (`delta` its signed change). */
-export const boxLengthLine = (part: string, delta: number, units: Units) =>
-  `${part} is now ${formatLength(Math.abs(delta), units)} ${delta > 0 ? 'longer' : 'shorter'}.`;
 
 /**
  * The cut list's and diagram's line for a recognised finger set (spec, Amended 2026-10-27): `Box joint — <N> fingers <w>
