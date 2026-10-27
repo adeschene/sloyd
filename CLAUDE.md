@@ -40,11 +40,10 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `447df4b` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
   `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **IN PROGRESS (2026-10-27): box joints** (dovetails chunk 1; no schema change; inv 61) are BUILT, browser-checked
-  (`docs/browser-verification-box-joints.md`) and through the final review on branch `box-joints`, NOT merged and NOT deployed;
-  awaiting the user's review, merge and deploy. Owed: the spec's *Amended (build)* block, the copy review (fu 491) and fu 496.
-- **NEXT (2026-10-27):** the user reviews the box-joints round (spec Amended block, fu 491's copy, fu 496; Task 9's equal fingers made the tie moot), then merge and
-  deploy (no schema change: rollback to `fc4302a` is free). Owed otherwise: the owed list below.
+- **MERGED, NOT DEPLOYED (2026-10-27): box joints** (dovetails chunk 1; no schema change; inv 61): built, browser-checked
+  (`docs/browser-verification-box-joints.md`), through the final review, the spec's Amended blocks approved by the user and merged to
+  master. Owed: the copy review (fu 491) and fu 496.
+- **NEXT (2026-10-27):** deploy box joints when the user asks (no schema change: rollback to `fc4302a` is free). Owed otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.

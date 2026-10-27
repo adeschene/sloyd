@@ -1,6 +1,6 @@
 # Box joints (dovetails chunk 1) — design
 
-Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). BUILT 2026-10-27 on branch `box-joints` (not merged or deployed); the *Amended (build)* block at the end awaits the user's approval. Builder check taken 2026-10-27 (seven questions: five settled as my
+Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). BUILT 2026-10-27 on branch `box-joints`; the *Amended (build)* block and the equal-fingers amendment APPROVED by the user 2026-10-27 ("Approved, merge it") and merged to master (not deployed). Builder check taken 2026-10-27 (seven questions: five settled as my
 calls, two ruled by the user, §5.2 and §7; three claims the code contradicted, corrected). Feature gap §1, "Dovetails, box joints" (`docs/feature-gaps.md`); the
 user chose "Box joints, then dovetails" and asked to skip the design questions, so every decision below not quoted from the
 user is **my call** and is marked as such where it matters. Dovetails get their own spec after this chunk ships (§11).
@@ -350,7 +350,7 @@ three-finger corner (teach the tenon finder to give way); pinned box joints.
 
 ## Amended (build)
 
-Rulings made while building (2026-10-27). **Awaiting the user's approval**, in plain terms (the copy is fu 491).
+Rulings made while building (2026-10-27). **APPROVED by the user 2026-10-27** ("Approved, merge it"); the copy is fu 491.
 
 **Spec differences**
 - **D1 — siblings.** `selectionPatch` keeps only direct children of the open assembly, so every selection is one container's siblings. The
