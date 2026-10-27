@@ -155,7 +155,7 @@ describe('a dovetailed part refuses another feature\'s ADD (spec §3.6): `<part>
     expectRefused(() => s().boxJointCorners(IDS, 0.5, false), boxPlainStock('Front', 'dovetails')));
 });
 
-describe('a cut or hole reaching a dovetailed end refuses (spec §3.6): `<part> has dovetails there — move it clear of the joint.`', () => {
+describe('a cut or hole reaching a dovetailed end refuses (spec §3.6): `<part> has dovetails at that end — keep cuts and holes clear of the joint.`', () => {
   const CLEAR = dovetailMoveClear('Side left');
 
   it('addCut: the default dado (a quarter of the way along) lands in a short part\'s zone', () => {

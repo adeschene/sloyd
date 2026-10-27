@@ -31,13 +31,12 @@ import { designValues, documentToDesign } from '../document/refineDesign';
 import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
 import { carriedSummary } from '../document/carryText';
-import { assemblyKind, cornerJointed, keptParts, kindHasBoxJoints, kindHasDovetails } from '../document/leanKeep';
+import { assemblyKind, cornerJointed, keptParts, keptWhy } from '../document/leanKeep';
 import { hasDovetails } from '../document/dovetailModel';
 import { dovetailJoinChanged } from '../document/dovetailText';
 import { fingerSets } from '../document/boxJoints';
 import { boxJointJoinChanged } from '../document/boxJointText';
 import { changedBoxJointed } from './joints/fingerClaim';
-import { resolveBoard, shapeMap } from '../document/shapes';
 import type { KeptParts } from '../document/leanKeep';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
@@ -257,27 +256,10 @@ export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; pr
   carried: { notKept: string[]; check: string[] };
   /** Present only when the original has kept parts (leaning, or with a tilted hole row) (splayed legs spec §8): their flat names, kept as stored, then the
    *  names of kept box-jointed assemblies' placements (box-joints spec §7, Amended), and the model's parts and placements
-   *  dropped because they reused one of those names. `boxJoints` is present (true) only when a kept part has box joints or
-   *  an assembly is kept (box-joints spec §7), so the dialog's kept line names them only then; `dovetails` likewise
-   *  (dovetails spec §7). */
-  leaning?: { kept: string[]; replaced: string[]; boxJoints?: true; dovetails?: true } }
+   *  dropped because they reused one of those names. `why` is each kept name's reasons, in the same order (`keptWhy`; the
+   *  copy review, 2026-10-27: the dialog names only the reasons that apply). */
+  leaning?: { kept: string[]; why: string[]; replaced: string[] } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
-
-/** Some kept part, resolved, has a recognised box joint, or some kept assembly is box-jointed (box-joints spec §7). A kept
- *  dovetailed assembly with no box joints is not (dovetails spec §7): the dialog's kept line names box joints only for them. */
-function keptBoxJoints(doc: SloydDocument, kept: KeptParts): boolean {
-  const shapes = shapeMap(doc);
-  return kept.instances.some((i) => kindHasBoxJoints(assemblyKind(doc, i))) ||
-    kept.boards.some((b) => { const r = resolveBoard(shapes, b); return r !== null && fingerSets(r).length > 0; });
-}
-
-/** Some kept part, resolved, has a stored dovetail, or some kept assembly's definition holds one (dovetails spec §7): the
- *  dialog's kept line names dovetails only then. */
-function keptDovetails(doc: SloydDocument, kept: KeptParts): boolean {
-  const shapes = shapeMap(doc);
-  return kept.instances.some((i) => kindHasDovetails(assemblyKind(doc, i))) ||
-    kept.boards.some((b) => { const r = resolveBoard(shapes, b); return r !== null && hasDovetails(r); });
-}
 
 /**
  * The (c) sentence for the kept part `name` (a flat name of `doc`) the re-join would change (dovetails spec §7): by the
@@ -411,9 +393,8 @@ export async function runRefine(
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
   return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried,
-    ...(kept.names.length + kept.placements.length > 0 ? { leaning: { kept: [...kept.names, ...kept.placements], replaced: out.replaced,
-      ...(keptBoxJoints(base.plain, kept) ? { boxJoints: true as const } : {}),
-      ...(keptDovetails(base.plain, kept) ? { dovetails: true as const } : {}) } } : {}) };
+    ...(kept.names.length + kept.placements.length > 0 ? { leaning: { kept: [...kept.names, ...kept.placements],
+      why: keptWhy(base.plain, kept), replaced: out.replaced } } : {}) };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */

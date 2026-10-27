@@ -35,8 +35,8 @@ describe('the cut list reads dovetails (spec §5.1)', () => {
   it("the drawer side's row: both ends' lines, verbatim (lengths are formatLength's, inv 52)", () => {
     const r = rowOf(dovetailed(), 'Side left');
     expect(r.setup).toEqual([
-      `${HEAD}3/4" deep, at the length min end; this part has the tails, 1-3/16" at the end.`,
-      `${HEAD}3/4" deep, at the length max end; this part has the tails, 1-3/16" at the end.`,
+      `${HEAD}3/4" deep, at the length min end; this part has the tails, each 1-3/16" wide at the end.`,
+      `${HEAD}3/4" deep, at the length max end; this part has the tails, each 1-3/16" wide at the end.`,
     ]);
   });
 
@@ -51,10 +51,10 @@ describe('the cut list reads dovetails (spec §5.1)', () => {
     const front = rowOf(doc, 'Front');
     expect(front.names).toEqual(['Front']);
     expect(front.setup).toEqual([
-      `${HEAD}1/2" deep, at the length min end; this part has the pins, narrow on its thickness max face.`,
-      `${HEAD}1/2" deep, at the length max end; this part has the pins, narrow on its thickness max face.`,
+      `${HEAD}1/2" deep, at the length min end; this part has the pins, their narrow ends on its thickness max face.`,
+      `${HEAD}1/2" deep, at the length max end; this part has the pins, their narrow ends on its thickness max face.`,
     ]);
-    expect(rowOf(doc, 'Back').setup.every((l) => l.endsWith('narrow on its thickness min face.'))).toBe(true);
+    expect(rowOf(doc, 'Back').setup.every((l) => l.endsWith('their narrow ends on its thickness min face.'))).toBe(true);
   });
 
   const d: Dovetail = { id: 'd1', dim: 'length', end: 'max', role: 'tails', count: 4, slope: 8, pin: 0.25, depth: 0.75 };

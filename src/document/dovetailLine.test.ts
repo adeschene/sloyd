@@ -36,21 +36,21 @@ describe('dovetailLine (the cut list wording, Global Constraints)', () => {
     const side = part(dovetailed(), 'l');
     const d = side.dovetails!.find((x) => x.end === 'min')!;
     expect(dovetailLine(side, d, IMPERIAL)).toBe(
-      'Through dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 3/4" deep, at the length min end; this part has the tails, 1-3/16" at the end.');
+      'Through dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 3/4" deep, at the length min end; this part has the tails, each 1-3/16" wide at the end.');
   });
 
   it('the drawer front has the pins, narrow on its outside face (on edge: the thickness max face is world front)', () => {
     const front = part(dovetailed(), 'f');
     const d = front.dovetails!.find((x) => x.end === 'max')!;
     expect(dovetailLine(front, d, IMPERIAL)).toBe(
-      'Through dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the pins, narrow on its thickness max face.');
+      'Through dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the pins, their narrow ends on its thickness max face.');
   });
 
   it('lengths through the document units; the slope printed by String(s)', () => {
     const b = createBoard({ length: 500 / 25.4, width: 150 / 25.4, thickness: 19 / 25.4 });
     const d: Dovetail = { id: 'd', dim: 'width', end: 'max', role: 'pins', count: 3, slope: 6.5, pin: 6 / 25.4, depth: 12 / 25.4, outside: 'min' };
     expect(dovetailLine(b, d, METRIC)).toBe(
-      'Through dovetails — 3 tails, 1:6.5, pins 6 mm at the narrow end, 12 mm deep, at the width max end; this part has the pins, narrow on its thickness min face.');
+      'Through dovetails — 3 tails, 1:6.5, pins 6 mm at the narrow end, 12 mm deep, at the width max end; this part has the pins, their narrow ends on its thickness min face.');
   });
 
   it('the copy table loads with the copy home first: a planner refusal still reads its sentence', () => {
@@ -130,6 +130,6 @@ describe('dovetailLine: final review fixes (2026-10-27)', () => {
     const b = createBoard({ length: 20, width: 6, thickness: 0.75 });
     const d: Dovetail = { id: 'd', dim: 'length', end: 'max', role: 'tails', count: 1, slope: 8, pin: 0.25, depth: 0.75 };
     expect(dovetailLine(b, d, IMPERIAL)).toBe(
-      'Through dovetails — 1 tail, 1:8, pins 1/4" at the narrow end, 3/4" deep, at the length max end; this part has the tails, 5-1/2" at the end.');
+      'Through dovetails — 1 tail, 1:8, pins 1/4" at the narrow end, 3/4" deep, at the length max end; this part has the tails, each 5-1/2" wide at the end.');
   });
 });

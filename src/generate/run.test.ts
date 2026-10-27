@@ -1463,7 +1463,7 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const v = checkDesign(flatDocument(out.doc), NO_LIMITS);
     expect(v.filter((x) => /^(unsupported|hangs|tips)/.test(x.kind))).toEqual([]);
     expect(flatDocument(out.doc).boards.map((b) => b.name).sort()).toEqual([...LEGS, 'Stool seat'].sort());
-    expect(out.leaning).toEqual({ kept: LEGS, replaced: ['Front right'] });
+    expect(out.leaning).toEqual({ kept: LEGS, why: LEGS.map(() => 'leaning'), replaced: ['Front right'] });
   });
 
   it('Refine floor rule with a kept leg: no part moves relative to the kept legs', async () => {
@@ -1484,7 +1484,7 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const out = await ok(client, doc);
     expect(flatDocument(out.doc).boards.map((b) => b.name).sort()).toEqual([...LEGS, 'Seat'].sort());
     for (const n of LEGS) expect(out.doc.boards.find((b) => b.name === n)).toEqual(doc.boards.find((b) => b.name === n));
-    expect(out.leaning).toEqual({ kept: LEGS, replaced: ['Back left', 'Back right'] });
+    expect(out.leaning).toEqual({ kept: LEGS, why: LEGS.map(() => 'leaning'), replaced: ['Back left', 'Back right'] });
   });
 
   it('kept parts skip linkByRole: their Shapes keep their ids while the model\'s own parts still link', async () => {
@@ -1520,7 +1520,8 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     expect(after).toEqual(before);
     after.holes.forEach((h, i) => expect(h).toEqual(before.holes[i]));
     expect(flatDocument(out.doc).boards.filter((b) => b.name === 'Seat')).toHaveLength(1);
-    expect(out.leaning).toEqual({ kept: expect.arrayContaining(['Seat', ...LEGS]), replaced: ['Seat'] });
+    expect(Object.fromEntries(out.leaning!.kept.map((n, i) => [n, out.leaning!.why[i]]))).toEqual({ Seat: 'angled holes', ...Object.fromEntries(LEGS.map((n) => [n, 'leaning'])) });
+    expect(out.leaning!.replaced).toEqual(['Seat']);
     // Nothing moved relative to the kept parts.
     expect(flatDocument(out.doc).boards.find((b) => b.name === 'Shelf')!.position).toEqual([-3, 6, -3]);
   });
@@ -1539,7 +1540,7 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const out = await ok(client, doc);
     expect(out.doc.boards[0]).toEqual(before);
     expect(out.doc.boards.filter((b) => b.name === 'Seat')).toHaveLength(1);
-    expect(out.leaning).toEqual({ kept: ['Seat'], replaced: ['Seat'] });
+    expect(out.leaning).toEqual({ kept: ['Seat'], why: ['angled holes'], replaced: ['Seat'] });
     expect(flatDocument(out.doc).boards.find((b) => b.name === 'Shelf')!.position).toEqual([-3, 6, -3]);
   });
 
@@ -1554,7 +1555,7 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     expect(out.doc.boards[0]).toEqual(before);
     expect((out.doc.boards[0] as Board).tenons).toEqual([T]);
     expect(out.doc.boards.filter((b) => b.name === 'Rung')).toHaveLength(1);
-    expect(out.leaning).toEqual({ kept: ['Rung'], replaced: ['Rung'] });
+    expect(out.leaning).toEqual({ kept: ['Rung'], why: ['round tenon'], replaced: ['Rung'] });
   });
 
   it('Refine keeps a FAULTED tenon verbatim: too wide and meeting its twin, the stored record comes back as it was', async () => {
@@ -1568,7 +1569,7 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const out = await ok(client, doc);
     expect(out.doc.boards[0]).toEqual(before);
     expect((out.doc.boards[0] as Board).tenons).toEqual(tenons);
-    expect(out.leaning).toEqual({ kept: ['Rung'], replaced: ['Rung'] });
+    expect(out.leaning).toEqual({ kept: ['Rung'], why: ['round tenon'], replaced: ['Rung'] });
   });
 
   it('Refine keeps a cleared square-set leg\'s compound end cuts verbatim (square-set legs spec §4; Review Focus 4)', async () => {
@@ -1583,7 +1584,7 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     expect(out.doc.shapes.filter((s) => doc.shapes.some((o) => o.id === s.id))).toEqual(doc.shapes);
     expect(across(out.doc)).toEqual(across(doc));
     expect(flatDocument(out.doc).boards.filter((b) => b.name === 'Front right')).toHaveLength(1);
-    expect(out.leaning).toEqual({ kept: LEGS, replaced: ['Front right'] });
+    expect(out.leaning).toEqual({ kept: LEGS, why: LEGS.map(() => 'compound end cut'), replaced: ['Front right'] });
     // designDiff reads both sides' kept part, the same stored record: no angle line for any kept leg.
     expect(out.changes.filter((c) => LEGS.includes(c.name))).toEqual([]);
   });
@@ -1637,7 +1638,7 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     const byName = (d: SloydDocument) => { const f = flatDocument(d); return { ...f, boards: [...f.boards].sort((a, b) => a.name.localeCompare(b.name)) }; };
     expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
     expect(out.joints!.kept).toBeGreaterThan(0);
-    expect(out.leaning).toEqual({ kept: DRAWER, replaced: [], boxJoints: true });
+    expect(out.leaning).toEqual({ kept: DRAWER, why: DRAWER.map(() => 'box joints'), replaced: [] });
   });
 
   it('the model adds a part meeting the kept drawer: those meetings stay butt, the drawer comes back byte for byte', async () => {
@@ -1700,7 +1701,7 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
     expect(out.joints!.kept).toBeGreaterThan(0);
     expect(out.joints!.notJoined).toBeUndefined();
-    expect(out.leaning).toEqual({ kept: ['Drawer 1', 'Drawer 2'], replaced: [], boxJoints: true });
+    expect(out.leaning).toEqual({ kept: ['Drawer 1', 'Drawer 2'], why: ['box joints', 'box joints'], replaced: [] });
     // Nothing reported changed or resized: the prepended, kept drawer reads as untouched.
     expect(out.changes).toEqual([]);
     expect(out.carried).toEqual({ notKept: [], check: [] });
@@ -1743,6 +1744,6 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     if ('refused' in out) throw new Error(out.refused.message);
     expect(out.joints).toBeNull();
     for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
-    expect(out.leaning).toEqual({ kept: DRAWER, replaced: ['Drawer front'], boxJoints: true });
+    expect(out.leaning).toEqual({ kept: DRAWER, why: DRAWER.map(() => 'box joints'), replaced: ['Drawer front'] });
   });
 });

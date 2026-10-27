@@ -21,11 +21,12 @@ export {
 /** A part jointed at ends of two different dimensions (no three-way corners, spec §3.1; wording for copy review). */
 export const boxThreeWay = (part: string) => `${part} would be box-jointed on two different edges — that isn't supported yet.`;
 /** A corner shorter than five fingers of the width (`H < 4w`, spec §3.3). */
-export const boxTooShort = (a: string, b: string) => `${a} and ${b} are too short for five fingers that wide — try narrower fingers.`;
+export const boxTooShort = (a: string, b: string, width: number, units: Units) =>
+  `${a} and ${b} are too narrow for five ${formatLength(width, units)} fingers — try narrower fingers.`;
 /** A cut in a jointed end's corner region that does not run through it (spec §3.5). */
 export const boxCutInTheWay = (part: string) => `${part} has a cut where the fingers go — remove it first.`;
 /** A hole row touching a jointed end's corner region (spec §3.5). */
-export const boxHoleInTheWay = (part: string) => `${part} has a hole where the fingers go.`;
+export const boxHoleInTheWay = (part: string) => `${part} has a hole where the fingers go — move or remove it first.`;
 /** What a part may not carry yet (spec §3.5; dovetails, dovetails spec §3.6), in the order the planner tests them. */
 export type BoxFeature = 'lean' | 'angle cut' | 'curve' | 'edge profile' | 'edge banding' | 'round tenon' | 'dovetails';
 const FEATURE_WORDS: Record<BoxFeature, string> = {
@@ -42,9 +43,9 @@ export const boxLinkSplit = (parts: readonly string[]) => `Box joints can't keep
 /** A finger width that is not more than zero. */
 export const BOX_WIDTH_POSITIVE = 'A finger width must be more than zero.';
 
-/** `<N> fingers, <w> wide (the odd one <x>)`, the parenthesis dropped when `odd === width` (a PLANNED layout: exact). */
+/** `<N> fingers, <w> wide (one odd finger <x>)`, the parenthesis dropped when `odd === width` (a PLANNED layout: exact). */
 const layoutWords = (l: FingerLayout, units: Units) =>
-  `${l.count} fingers, ${formatLength(l.width, units)} wide${l.odd === l.width ? '' : ` (the odd one ${formatLength(l.odd, units)})`}`;
+  `${l.count} fingers, ${formatLength(l.width, units)} wide${l.odd === l.width ? '' : ` (one odd finger ${formatLength(l.odd, units)})`}`;
 
 /** The success note's jointed line(s) (spec §4): one line when every corner shares one layout, else a heading and one
  *  line per corner, `pairs` naming each corner's two parts. */
@@ -57,7 +58,7 @@ export function boxJointedLines(layouts: readonly FingerLayout[], pairs: readonl
 
 /**
  * The cut list's and diagram's line for a recognised finger set (spec, Amended 2026-10-27): `Box joint — <N> fingers <w>
- * wide (the odd one <x> at the <J> <oddEnd> edge), <d> deep, at the <dim> <end> end; this part has a <finger | notch> at
+ * wide (one odd finger <x> at the <J> <oddEnd> edge), <d> deep, at the <dim> <end> end; this part has a <finger | notch> at
  * the <J> <start> edge.`, `J` the part's own joint-line dimension and the start edge the end opposite the odd finger. With
  * no odd finger the parenthesis is dropped and the start edge is `J`'s max (a part-local convention). Part-local words
  * only, never world ones (the recogniser reports nothing world-relative).
@@ -65,7 +66,7 @@ export function boxJointedLines(layouts: readonly FingerLayout[], pairs: readonl
 export function fingerSetLine(set: FingerSet, units: Units): string {
   const { count, width, odd } = set.layout;
   const J = positionAxisOf(set.dim, 'thickness');
-  const oddWords = set.oddEnd === null ? '' : ` (the odd one ${formatLength(odd, units)} at the ${J} ${set.oddEnd} edge)`;
+  const oddWords = set.oddEnd === null ? '' : ` (one odd finger ${formatLength(odd, units)} at the ${J} ${set.oddEnd} edge)`;
   const start = set.oddEnd === 'max' ? 'min' : 'max';
   const finger = start === 'min' ? set.fingerAtMin : fingerAtMaxOf(count, set.fingerAtMin);
   return `Box joint — ${count} fingers ${formatLength(width, units)} wide${oddWords}, ${formatLength(set.depth, units)} deep, `
@@ -77,7 +78,7 @@ export function fingerSetLine(set: FingerSet, units: Units): string {
 export const boxJointedLeftAlone = (part: string) => `${part} has box joints, so joinery leaves its size and place alone`;
 
 /** Refine's refusal when reading a joined project's other joints back would change a part's box joints (spec §7). */
-export const boxJointsThroughJoints = (part: string) => `Refine can't keep ${part}'s box joints through its other joints yet.`;
+export const boxJointsThroughJoints = (part: string) => `Refine can't yet keep box joints on a part with other joints too: ${part}.`;
 /** A joined Refine's `notJoined` reason when the re-join would change a kept part: a box-jointed one, or any part of a kept box-jointed assembly (spec §7, inv 41). */
 export const boxJointJoinChanged = (part: string) => `Joinery would have changed ${part}, which Refine keeps as it is for its box joints, so the design comes back unjoined.`;
 

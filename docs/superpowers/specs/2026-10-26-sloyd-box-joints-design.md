@@ -432,3 +432,9 @@ Rulings (2026-10-27): the odd finger goes at the **bottom edge**; a sliver **mer
   - Cut list: `Box joint — <N> fingers <w> wide (the odd one <x> at the <J> <oddEnd> edge), <d> deep, at the <dim> <end>
     end; this part has a <finger | notch> at the <J> <start> edge.` The parenthesis is dropped when there is no odd
     finger; the start edge is then J's max (a part-local convention).
+
+## Copy review (2026-10-27)
+
+The user approved nine wording changes across box joints and dovetails ("Apply all of them"); the sentences quoted above are the
+built wording, superseded where fu 491 lists the new text. Refine's done view now names each kept part's own reasons
+(`Kept exactly as is: Drawer (dovetails)`).

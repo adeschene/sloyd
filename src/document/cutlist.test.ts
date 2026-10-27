@@ -1082,11 +1082,11 @@ describe('box joints on the sheet (box joints spec §5.2)', () => {
     const odd = fingerLayout(4.25, 0.5)!;
     const oddCuts = notchCuts(odd, false, 'min', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd', 'e']);
     expect(buildCutList(docWith({ length: 18, width: 4.25, thickness: 0.5, cuts: oddCuts })).groups[0].rows[0].setup).toEqual([
-      'Box joint — 9 fingers 1/2" wide (the odd one 1/4" at the width min edge), 1/2" deep, at the length min end; this part has a notch at the width max edge.',
+      'Box joint — 9 fingers 1/2" wide (one odd finger 1/4" at the width min edge), 1/2" deep, at the length min end; this part has a notch at the width max edge.',
     ]);
     const atMax = notchCuts(odd, true, 'max', 'length', 'max', 'width', 0.5, ['a', 'b', 'c', 'd']);
     expect(buildCutList(docWith({ length: 18, width: 4.25, thickness: 0.5, cuts: atMax })).groups[0].rows[0].setup).toEqual([
-      'Box joint — 9 fingers 1/2" wide (the odd one 1/4" at the width max edge), 1/2" deep, at the length max end; this part has a finger at the width min edge.',
+      'Box joint — 9 fingers 1/2" wide (one odd finger 1/4" at the width max edge), 1/2" deep, at the length max end; this part has a finger at the width min edge.',
     ]);
     // 8 fingers, a finger at J's min: J's max (the start edge with no odd finger) is a notch.
     const even = notchCuts(fingerLayout(4, 0.5)!, true, 'max', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd']);

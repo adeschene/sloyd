@@ -102,36 +102,19 @@ describe('RefineDialog', () => {
     expect(screen.queryByText('Check at the new size:')).toBeNull();
   });
 
-  it('lists the parts kept as is because they lean or have angled holes, and the model\'s parts they replaced (splayed legs spec §8)', () => {
-    const run = (leaning?: { kept: string[]; replaced: string[] }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Stool — refined', costUsd: 0.07, outcome: {
+  it('lists the kept parts with each one\'s own reasons, and the model\'s parts they replaced (copy review 2026-10-27)', () => {
+    const run = (leaning?: { kept: string[]; why: string[]; replaced: string[] }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Stool — refined', costUsd: 0.07, outcome: {
       doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, ...(leaning ? { leaning } : {}) } });
-    const { unmount } = render(<RefineDialog {...base} run={run({ kept: ['Front right', 'Back left'], replaced: ['Front right'] })} />);
-    screen.getByText('Kept as is (leans, angled holes or round tenons): Front right, Back left');
+    const { unmount } = render(<RefineDialog {...base} run={run({ kept: ['Front right', 'Back left'], why: ['leaning, round tenon', 'angled holes'], replaced: ['Front right'] })} />);
+    screen.getByText('Kept exactly as is: Front right (leaning, round tenon), Back left (angled holes)');
     screen.getByText('Replaced by the kept part of the same name: Front right');
     unmount();
-    const { unmount: u2 } = render(<RefineDialog {...base} run={run({ kept: ['Leg'], replaced: [] })} />);
-    screen.getByText('Kept as is (leans, angled holes or round tenons): Leg');
+    const { unmount: u2 } = render(<RefineDialog {...base} run={run({ kept: ['Drawer front', 'Drawers'], why: ['dovetails', 'box joints and dovetails'], replaced: [] })} />);
+    screen.getByText('Kept exactly as is: Drawer front (dovetails), Drawers (box joints and dovetails)');
     expect(screen.queryByText(/^Replaced by the kept part/)).toBeNull();
     u2();
     render(<RefineDialog {...base} run={run()} />);
-    expect(screen.queryByText(/^Kept as is/)).toBeNull();
-  });
-
-  it('names box joints in the kept line only when a box-jointed part is kept (box-joints spec §7)', () => {
-    const run = (leaning: { kept: string[]; replaced: string[]; boxJoints?: true }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Drawer — refined', costUsd: 0.07, outcome: {
-      doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, leaning } });
-    render(<RefineDialog {...base} run={run({ kept: ['Front', 'Side left'], replaced: [], boxJoints: true })} />);
-    screen.getByText('Kept as is (leans, angled holes, round tenons or box joints): Front, Side left');
-  });
-
-  it('names dovetails in the kept line only when a dovetailed part is kept, and both kinds when both (dovetails spec §7)', () => {
-    const run = (leaning: { kept: string[]; replaced: string[]; boxJoints?: true; dovetails?: true }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Drawer — refined', costUsd: 0.07, outcome: {
-      doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, leaning } });
-    const { unmount } = render(<RefineDialog {...base} run={run({ kept: ['Front', 'Side left'], replaced: [], dovetails: true })} />);
-    screen.getByText('Kept as is (leans, angled holes, round tenons or dovetails): Front, Side left');
-    unmount();
-    render(<RefineDialog {...base} run={run({ kept: ['Drawer 1'], replaced: [], boxJoints: true, dovetails: true })} />);
-    screen.getByText('Kept as is (leans, angled holes, round tenons, box joints or dovetails): Drawer 1');
+    expect(screen.queryByText(/^Kept exactly as is/)).toBeNull();
   });
 
   it('shows a new issue\'s displayed copy (a metric project), not the model\'s inches (fu 355)', () => {

@@ -147,6 +147,21 @@ export function assemblyKind(doc: SloydDocument, inst: Instance): CornerKind {
   return def ? definitionKind(doc, def) : 'box joints';
 }
 
+/** Why Refine keeps each of `kept`'s names, in `[...names, ...placements]` order (the copy review, 2026-10-27: the dialog's
+ *  `Kept exactly as is: Drawer (dovetails)` names only the reasons that apply). A root part reads its own kinds, resolved, in
+ *  `keepsExactly`'s order; a placement its assembly's (`assemblyKind`). */
+export function keptWhy(doc: SloydDocument, kept: KeptParts): string[] {
+  const shapes = shapeMap(doc);
+  const part = (b: StoredBoard): string => {
+    const r = resolveBoard(shapes, b);
+    if (!r) return '';
+    return [leans(r) && 'leaning', r.holes.some(isTilted) && 'angled holes', hasTenons(r) && 'round tenon',
+      hasCompoundCut(r) && 'compound end cut', fingerSets(r).length > 0 && 'box joints', hasDovetails(r) && 'dovetails']
+      .filter((w): w is string => typeof w === 'string').join(', ');
+  };
+  return [...kept.boards.map(part), ...kept.instances.map((i) => assemblyKind(doc, i))];
+}
+
 /** The kind names box joints / dovetails (a mixed assembly names both). */
 export const kindHasBoxJoints = (k: CornerKind) => k !== 'dovetails';
 export const kindHasDovetails = (k: CornerKind) => k !== 'box joints';

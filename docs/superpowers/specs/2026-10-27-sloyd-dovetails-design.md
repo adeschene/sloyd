@@ -450,3 +450,9 @@ this record follows in its own commit; records in inv 62 and fu 497–515).
   face. *Cost:* an interface reshuffle; none happened.
 - **Pre-existing, recorded (Task 2):** `updateBoard` on a mirrored linked part throws when its patch carries `tenons`, now also
   `dovetails` (fu 505). *Cost:* none today; no production caller sends either key.
+
+## Copy review (2026-10-27)
+
+The user approved nine wording changes across box joints and dovetails ("Apply all of them"); the sentences quoted above are the
+built wording, superseded where fu 512 lists the new text. Refine's done view now names each kept part's own reasons
+(`Kept exactly as is: Drawer (dovetails)`).

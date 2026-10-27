@@ -152,6 +152,8 @@ src/
 │   ├── leanKeep.ts       Refine's keep (inv 56, 57): keepsExactly (THE predicate: leans, a tilted hole row — angled holes §9 —, a
 │   │                     round tenon, hasTenons, faulted included — round tenons §9 — or a compound end cut, hasCompoundCut — inv 59),
 │   │                     whyKept (the note's reason words; `has a compound end cut` only when nothing else applies, a cleared leg),
+│   │                     keptWhy (the done view's per-name reasons, nouns — `leaning`, `round tenon`, `dovetails`, a placement's kind —
+│   │                     `Kept exactly as is: Drawer (dovetails)`; the copy review 2026-10-27; model-facing words stay in whyKept),
 │   │                     keptParts (THE decision: ROOT stored parts whose resolved form keepsExactly + their
 │   │                     Shapes + flat names; box joints, inv 61: also `definitions`, `instances`, `placements` of a kept ASSEMBLY),
 │   │                     leaningInAssembly ('lean-assembly'; keptForMoreThanFingers, so box joints alone never refuse), keptAssemblyLinkRefusal,

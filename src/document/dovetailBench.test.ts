@@ -53,7 +53,7 @@ describe('dovetailBenches (spec §5.2)', () => {
     const s = part(dovetailed(), 'l');
     const [b] = dovetailBenches(s, IMPERIAL);
     const line = dovetailLine(s, s.dovetails![0]!, IMPERIAL);
-    expect(line.endsWith(`this part has the tails, ${b!.tail.chain[1]!.text} at the end.`)).toBe(true);
+    expect(line.endsWith(`this part has the tails, each ${b!.tail.chain[1]!.text} wide at the end.`)).toBe(true);
     expect(line).toContain(`pins ${b!.tail.chain[0]!.text} at the narrow end`);
   });
 
@@ -128,6 +128,6 @@ describe('dovetailBenches (spec §5.2)', () => {
     const [bench] = dovetailBenches(b, METRIC);
     expect(bench!.tail.chain.map((c) => c.text)).toEqual(['6', '30', '6', '30', '6', '30', '6', '30', '6']);
     expect(bench!.tail.labels.map((l) => l.text)).toEqual(['baseline 19', '150', '1:8', 'length max end']);
-    expect(dovetailLine(b, b.dovetails![0]!, METRIC)).toContain('this part has the tails, 30 mm at the end.');
+    expect(dovetailLine(b, b.dovetails![0]!, METRIC)).toContain('this part has the tails, each 30 mm wide at the end.');
   });
 });
