@@ -1,12 +1,26 @@
-import type { Board, CurveSegment, Dimension, Dovetail } from './types';
+import type { Board, CurveSegment, CutFrom, Dimension, Dovetail, SloydDocument } from './types';
 import type { CurveSpan, ViewCurve } from './curves';
 import type { Units } from '../units/length';
-import { byDovetailEnd, dovetailsOf, sameDovetail } from './dovetailModel';
+import { byDovetailEnd, dovetailAt, dovetailsOf, sameDovetail } from './dovetailModel';
+import { boardExtents, endFacing } from './geometry';
+import { leans } from './lean';
+import { hasTenons } from './roundTenons';
+import { fingerSets } from './boxJoints';
+import { nextId } from './ids';
+import { displayNames, worldParts } from './tree';
+import { RUN_RANK, planCorners, writeCorners, type CornerCopy, type JointKind } from './cornerPlan';
+import {
+  DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailContainers, dovetailCutInTheWay, dovetailedLines,
+  dovetailHeights, dovetailHoleInTheWay, dovetailIgnored, dovetailLengthLine, dovetailLinkedDisagree, dovetailLinkedMate,
+  dovetailLinkSplit, dovetailMirrored, dovetailPlainStock, dovetailTailsOn, dovetailThreeWay, dovetailTooNarrow,
+  dovetailTwoCorners, type DovetailFeature,
+} from './dovetailText';
 
 /**
- * Through dovetails (dovetails spec §3.2, §3.5): the ONE home of the layout and of the faults (`dovetailFaults`, the ONE
- * decider). Numbers only: a TYPE-only `Units` import (the pin width and the Auto pitch depend on the project's units, but
- * no text is produced here; the copy is `dovetailText.ts`).
+ * Through dovetails (dovetails spec §3.2, §3.5): the ONE home of the layout, of the faults (`dovetailFaults`, the ONE
+ * decider) and of the dovetail kind of the shared corner planner (`dovetailPlan`, spec §3.1–§3.3, §6, G3). Numbers only: a
+ * TYPE-only `Units` import (the pin width and the Auto pitch depend on the project's units, but no text is produced here;
+ * every sentence is `dovetailText.ts`'s, as box joints' are `boxJointText.ts`').
  */
 
 /** The pin width at the narrow end (spec §3.2, the user: fixed, never typed): 1/4" imperial, 6 mm metric. */
@@ -192,4 +206,150 @@ export function dovetailCorners(b: Pick<Board, Dimension>, d: Dovetail): Record<
   if (d.role === 'tails') return edges.flatMap((j) => [pt(e, j, 0), pt(e, j, b.thickness)]);
   const vo = d.outside === 'max' ? b.thickness : 0;
   return edges.flatMap((j) => [pt(e, j, vo), pt(r, j, vo)]);
+}
+
+// ---- The planner (dovetails spec §3.1–§3.3, §6, G3): the dovetail kind over the shared corner planner ---------------
+
+/** The action's inputs (spec §4): the slope `1:slope`, the typed tail count (null: Auto, or the kept count on a corner
+ *  already dovetailed, spec G3) and Swap tails and pins. */
+export interface DovetailOptions { slope: number; count: number | null; swap: boolean }
+/** The plan. `parts` maps every dovetailed WORLD part (its occurrence id) to its full new world board (another placement of
+ *  a definition and every user of a Shape follow through the write-back, inv 46); `corners` names each corner's two world
+ *  parts, the one that took the tails, and its count and slope; `notes` are the success lines in order. */
+export interface DovetailPlan {
+  parts: Map<string, Board>;
+  corners: { a: string; b: string; tails: string; N: number; s: number }[];
+  notes: string[];
+}
+
+/** One corner's dovetail plan: the count, slope and pin width; which side (0 or 1) takes the tails; and the pin side's
+ *  `outside`, part-local on the pin part's WORLD board (its thickness face where the tail part's end lands). */
+interface DovetailCornerPlan { N: number; s: number; p: number; tails: 0 | 1; outside: CutFrom }
+
+/** The first feature a part may not carry with dovetails (spec §3.6), in the copy's order, or null: box joints' list,
+ *  then box joints themselves (any recognised finger set). */
+function featureOf(b: Board): DovetailFeature | null {
+  if (leans(b)) return 'lean';
+  if (b.angleCuts.length > 0) return 'angle cut';
+  if (b.curves.length > 0) return 'curve';
+  if (b.profiles.length > 0) return 'edge profile';
+  if (b.bands.length > 0) return 'edge banding';
+  if (hasTenons(b)) return 'round tenon';
+  if (fingerSets(b).length > 0) return 'box joints';
+  return null;
+}
+
+const flipEnd = (e: CutFrom): CutFrom => (e === 'min' ? 'max' : 'min');
+
+const DOVETAIL_COPY: CornerCopy<DovetailFeature> = {
+  noCorner: DOVETAIL_NO_CORNER, mirrored: dovetailMirrored, containers: dovetailContainers, heights: dovetailHeights,
+  twoCorners: dovetailTwoCorners, threeWay: dovetailThreeWay, plainStock: dovetailPlainStock, cutInTheWay: dovetailCutInTheWay,
+  holeInTheWay: dovetailHoleInTheWay, linkedMate: dovetailLinkedMate, linkedDisagree: dovetailLinkedDisagree,
+  linkSplit: dovetailLinkSplit, ignored: dovetailIgnored, length: dovetailLengthLine,
+};
+
+/** Dovetails as a corner joint kind (`JointKind`), for the typed slope, count and Swap. */
+function dovetailKind(opts: DovetailOptions): JointKind<DovetailCornerPlan, DovetailFeature> {
+  return {
+    copy: DOVETAIL_COPY,
+    featureOf,
+    /** The existing dovetail at this end goes (a re-plan re-lays it in place); a part left with none has no key. */
+    removeAt(b, d, end) {
+      const all = dovetailsOf(b);
+      const rest = all.filter((x) => !(x.dim === d && x.end === end));
+      if (rest.length === all.length) return;
+      if (rest.length === 0) delete b.dovetails;
+      else b.dovetails = rest;
+    },
+    /**
+     * The tails side, the count and the pins' outside face (spec §3.2, §3.3, G3). The re-plan rule reads the corner's
+     * ORIGINAL parts (`CornerEnd.part`; the working clones have lost their old dovetails to `removeAt`): when both ends
+     * already carry dovetails, one tails and one pins, the current tails part keeps them and Swap flips relative to it;
+     * else the part whose run axis ranks first (`RUN_RANK`: Z, X, Y) takes them and Swap inverts. The count: a typed one
+     * (refused when it faults); else the kept count on a re-plan, or Auto (`autoTailCount`) on a new corner, lowered by
+     * one while `narrow` holds on either part; one tail still faulting refuses.
+     */
+    planCorner({ ends, J }, ops, doc, nameOf) {
+      const [ea, eb] = ends;
+      const s = opts.slope;
+      const p = pinWidth(doc.units);
+      const old = ends.map((e, i) => dovetailAt(e.part, ops[i]!.d as Dovetail['dim'], ops[i]!.end));
+      const replan = old[0] !== undefined && old[1] !== undefined && old[0].role !== old[1].role;
+      const current: 0 | 1 = replan ? (old[0]!.role === 'tails' ? 0 : 1) : RUN_RANK[ea.k]! < RUN_RANK[eb.k]! ? 0 : 1;
+      const tails: 0 | 1 = opts.swap ? (current === 0 ? 1 : 0) : current;
+      const T = ends[tails]!;
+      const P = ends[tails === 0 ? 1 : 0]!;
+      // The pin part's thickness axis is T's run axis (`reach`); T's end faces `T.side` and lands on P's face there.
+      const outside = endFacing(P.part, T.k, T.side);
+      // `narrow` judged by the ONE decider on each part as planned (its run size after this end's move).
+      const narrow = (N: number) => ends.some((e, i) => {
+        const op = ops[i]!;
+        const role = i === tails ? 'tails' : 'pins';
+        const d: Dovetail = { id: '', dim: op.d as Dovetail['dim'], end: op.end, role, count: N, slope: s, pin: p, depth: op.depth };
+        return dovetailFaults({ ...e.part, [op.d]: op.size }, d).includes('narrow');
+      });
+      const refuse = (N: number) => dovetailTooNarrow(nameOf(ea.part), nameOf(eb.part), N, s);
+      let N: number;
+      if (opts.count !== null) {
+        N = opts.count;
+        if (narrow(N)) return refuse(N);
+      } else {
+        // The kept count is the current tails end's; a stored count that is not a whole number (a kept fault) is not kept.
+        const kept = replan ? old[current]!.count : NaN;
+        N = Number.isInteger(kept) && kept >= 1 ? kept : autoTailCount(boardExtents(ea.part)[J]!, doc.units);
+        while (N > 1 && narrow(N)) N -= 1;
+        if (narrow(N)) return refuse(N);
+      }
+      return { N, s, p, tails, outside };
+    },
+    /** The side's dovetail at `end`, its id minted here: tails the other part's thickness deep; pins the other part's
+     *  thickness deep with `outside` (through the Shape's own board's `thickness` flip). */
+    addAt(b, op, end, plan, side, flips) {
+      const base = { id: nextId(), dim: op.d as Dovetail['dim'], end, count: plan.N, slope: plan.s, pin: plan.p, depth: op.depth };
+      const d: Dovetail = side === plan.tails
+        ? { ...base, role: 'tails' }
+        : { ...base, role: 'pins', outside: flips.thickness ? flipEnd(plan.outside) : plan.outside };
+      b.dovetails = [...dovetailsOf(b), d].sort(byDovetailEnd);
+    },
+    /** The role, count, slope, pin width and the pins' outside face, Shape-local (null for tails); the generic part adds
+     *  the run dimension, the Shape-local end, the depth and the final size. */
+    signature(plan, side, flips) {
+      const outside = side === plan.tails ? null : flips.thickness ? flipEnd(plan.outside) : plan.outside;
+      return [side === plan.tails ? 'tails' : 'pins', plan.N, plan.s, plan.p, outside];
+    },
+  };
+}
+
+/**
+ * Dovetail the corners among the selected world parts `ids` (dovetails spec §3, §6, G3). Every refusal is decided before
+ * any mutation, in this order:
+ * 1. `slope` outside [4, 12] (the slope sentence), then a typed `count` not a whole number 1 or more (the count sentence).
+ * 2.–4. and 6. The shared corner planner (`planCorners`, `cornerPlan.ts`): a part in a mirrored copy; the corners and their
+ *    refusals; per part end the plain-stock test (`featureOf`), the old dovetail at that end removed, the exact run-out and
+ *    the corner region; linked parts (the role, count, slope, pin, depth, Shape-local end and outside face compared) and
+ *    the link post-condition.
+ * 5. Per corner (the kind's `planCorner`): the tails side and the count (the too-narrow sentence), then each end's dovetail.
+ * Selected ids that are not world parts are skipped.
+ */
+export function dovetailPlan(doc: SloydDocument, ids: readonly string[], opts: DovetailOptions): DovetailPlan | string {
+  if (!(opts.slope >= 4 && opts.slope <= 12)) return DOVETAIL_SLOPE_RANGE;
+  if (opts.count !== null && !(Number.isInteger(opts.count) && opts.count >= 1)) return DOVETAIL_COUNT_WHOLE;
+  const planned = planCorners(doc, ids, dovetailKind(opts));
+  if (typeof planned === 'string') return planned;
+  const names = displayNames(doc);
+  const byId = new Map(worldParts(doc).map((b) => [b.id, b]));
+  const nameOf = (id: string) => names.get(id) ?? byId.get(id)!.name;
+  const corners = planned.corners.map(({ a, b, plan }) => ({ a, b, tails: plan.tails === 0 ? a : b, N: plan.N, s: plan.s }));
+  const notes = [
+    ...dovetailedLines(corners.map((c) => ({ count: c.N, slope: c.s })), corners.map((c) => [nameOf(c.a), nameOf(c.b)] as const)),
+    dovetailTailsOn([...new Set(corners.map((c) => c.tails))].map(nameOf)),
+    ...planned.lengths, ...planned.ignored,
+  ];
+  return { parts: planned.parts, corners, notes };
+}
+
+/** Write a plan: `writeCorners` (`writeBackParts`, one `{ before, after }` per planned world part, with `keepWorld`), so
+ *  every placement of a definition and every user of a Shape follows. */
+export function applyDovetails(doc: SloydDocument, plan: DovetailPlan): SloydDocument {
+  return writeCorners(doc, plan.parts);
 }

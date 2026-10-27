@@ -26,11 +26,11 @@ export const boxTooShort = (a: string, b: string) => `${a} and ${b} are too shor
 export const boxCutInTheWay = (part: string) => `${part} has a cut where the fingers go — remove it first.`;
 /** A hole row touching a jointed end's corner region (spec §3.5). */
 export const boxHoleInTheWay = (part: string) => `${part} has a hole where the fingers go.`;
-/** What a part may not carry yet (spec §3.5), in the order the planner tests them. */
-export type BoxFeature = 'lean' | 'angle cut' | 'curve' | 'edge profile' | 'edge banding' | 'round tenon';
+/** What a part may not carry yet (spec §3.5; dovetails, dovetails spec §3.6), in the order the planner tests them. */
+export type BoxFeature = 'lean' | 'angle cut' | 'curve' | 'edge profile' | 'edge banding' | 'round tenon' | 'dovetails';
 const FEATURE_WORDS: Record<BoxFeature, string> = {
   lean: 'a lean', 'angle cut': 'an angle cut', curve: 'a curve', 'edge profile': 'an edge profile',
-  'edge banding': 'edge banding', 'round tenon': 'a round tenon',
+  'edge banding': 'edge banding', 'round tenon': 'a round tenon', dovetails: 'dovetails',
 };
 export const boxPlainStock = (part: string, f: BoxFeature) => `${part} has ${FEATURE_WORDS[f]} — box joints work on plain stock for now.`;
 /** A part reached through a mirrored instance (spec §6). */

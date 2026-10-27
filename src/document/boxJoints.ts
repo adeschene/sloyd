@@ -4,6 +4,7 @@ import { clippedRegion, cutsThatRemoveStock } from './cuts';
 import { boardExtents, endFacing, positionAxisOf, snapStep } from './geometry';
 import { leans } from './lean';
 import { hasTenons } from './roundTenons';
+import { hasDovetails } from './dovetailModel';
 import { nextId } from './ids';
 import { fingerAtMaxOf } from './fingerParity';
 import { displayNames, worldParts } from './tree';
@@ -192,7 +193,8 @@ interface FingerSide { fingerAtMin: boolean; oddEnd: CutFrom }
 /** One corner's box-joint plan: the ONE layout, and each side's part-local phase and odd end (side 0, side 1). */
 interface FingerCornerPlan { layout: FingerLayout; sides: [FingerSide, FingerSide] }
 
-/** The first feature a part may not carry yet (spec §3.5), in the copy's order, or null. */
+/** The first feature a part may not carry yet (spec §3.5; dovetails spec §3.6: dovetails last), in the copy's order, or
+ *  null. */
 function featureOf(b: Board): BoxFeature | null {
   if (leans(b)) return 'lean';
   if (b.angleCuts.length > 0) return 'angle cut';
@@ -200,6 +202,7 @@ function featureOf(b: Board): BoxFeature | null {
   if (b.profiles.length > 0) return 'edge profile';
   if (b.bands.length > 0) return 'edge banding';
   if (hasTenons(b)) return 'round tenon';
+  if (hasDovetails(b)) return 'dovetails';
   return null;
 }
 
