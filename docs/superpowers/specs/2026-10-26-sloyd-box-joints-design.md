@@ -263,6 +263,23 @@ through `gateUnjoin` (`refine.ts`), and fingers are cuts no joint explains, so t
 - A box-jointed part inside an assembly follows the kept kinds' existing rule (inv 56). If that refuses, the refusal names
   the box joint.
 
+**Amended 2026-10-27 (the user's ruling: "Widen Task 6 to assemblies").** A box-jointed part inside an assembly no longer
+refuses. Refine keeps its WHOLE assembly exactly as stored: the definition (every part in it, box-jointed or not) and every
+placement of it. My call: the whole assembly is the unit kept, never one part spliced into a definition the model rebuilt.
+The model can rename an assembly, move or add placements, and change its parts; any of those would land a spliced part
+somewhere new. A box-jointed drawer is one unit anyway: its sides cannot change without re-cutting the fingers.
+- The cost, said plainly: **an instruction about a kept drawer ("make the drawer deeper") does nothing to it.** The model
+  sees the drawer as fixed, as it sees a kept root part.
+- The kept assembly is left out of the design and named in the kept note, one line per placement, with world bounds.
+  It goes back into the result FIRST, before the load gate, so the first-wins id and name repairs (invs 33, 8) keep the
+  user's names. A model assembly placement, or a loose part, reusing a kept placement's name is dropped and listed as
+  replaced, as a kept root part's name is today.
+- A part in a kept assembly linked to a part outside the kept set refuses Refine ("Unlink first"), so a kept Shape still has
+  only kept users.
+- The other kept kinds (leaning, tilted row, round tenon, compound cut) inside an assembly keep their existing refusal,
+  word for word. Widening those is a follow-up.
+- A joined project treats the kept assembly's parts as it treats kept root box-jointed parts (the rule above).
+
 Add joinery and Repair: Repair already makes no offer on unexplained notches (`repair.ts`). With finger sets claimed
 first, it ignores them. Generate never authors a box joint. The design schema is byte for byte the same. Add joinery
 choosing a box joint as a joint kind is a follow-up.

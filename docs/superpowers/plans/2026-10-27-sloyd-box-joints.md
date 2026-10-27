@@ -21,8 +21,8 @@ when read, so the cut list shows one line per jointed end and Refine keeps box-j
 **Tech Stack:** TypeScript, React, Zustand, Vitest (`npx vitest run <file>`), `npm run build` (the typecheck gate).
 
 **Spec:** `docs/superpowers/specs/2026-10-26-sloyd-box-joints-design.md` (APPROVED 2026-10-27). Read it first. Where this
-plan and the spec differ, the spec wins, and the difference is reported. The plan already makes three differences, each
-because the code gives no choice (listed under "Spec differences" below).
+plan and the spec differ, the spec wins, and the difference is reported. The plan makes five differences (three
+because the code gives no choice, one my call, one the user's ruling; listed under "Spec differences" below).
 
 ## Global Constraints
 
@@ -77,7 +77,7 @@ because the code gives no choice (listed under "Spec differences" below).
 - On the dev server: no `localStorage.clear()`; test projects stay. No paid runs are needed beyond Task 6's Refine check
   (at most 2, within the 10-per-feature allowance).
 
-## Spec differences (report them in the round's records; 1–3 the code decides, 4 is my call)
+## Spec differences (report them in the round's records; 1–3 the code decides, 4 is my call, 5 is the user's ruling)
 
 1. **Siblings.** `selectionPatch` keeps only direct children of the open assembly, so every selection is already one
    container's siblings. The per-corner container refusal stays in the planner's API, but no selection reaches it. The
@@ -98,6 +98,11 @@ because the code gives no choice (listed under "Spec differences" below).
 4. **The tie.** Spec §3.3 writes `N = 2·round((H/w − 1)/2) + 1`, which leaves a tie (`H/w` an even whole number, e.g.
    a 4" drawer side at 1/2") to `Math.round`: up, to 1/4" outer fingers. The plan pins ties DOWN (3/4" outer fingers);
    see Global Constraints. This needs the user's sight; it is named in the handoff.
+
+5. **Kept assemblies** (the user's ruling, 2026-10-27: "Widen Task 6 to assemblies"; spec §7, Amended). A box-jointed
+   part inside an assembly makes Refine keep that WHOLE assembly (definition and every placement) exactly as stored. It
+   no longer refuses. Task 6 does root parts; Task 6b does assemblies. Between the two commits, a box-jointed part in an
+   assembly reaches `documentToDesign`'s `cuts` refusal. That is acceptable for one commit only.
 
 ## Review Focus
 
@@ -353,8 +358,11 @@ Planner order (each step can only refuse before any mutation; work on clones):
     (the same objects, appended) before `writeBackFlat`.
   - `keepsExactly` gains `|| fingerSets(b).length > 0`. `whyKept` appends `has box joints` (the existing forms unchanged).
     The `keptNote` header names box joints only when a box-jointed part is kept, so a document without one is byte for
-    byte as before. `refineDesign`'s assembly refusal uses the box-joint sentence when the first kept-in-assembly part
-    is kept ONLY for box joints, and the existing sentence otherwise.
+    byte as before. `leaningInAssembly` and the `lean-assembly` refusal are NOT touched here (Task 6b).
+  - `documentToDesign`'s defence-in-depth `cuts` refusal skips the kept root boards (`keptIds`): a box-joint-only project
+    reaches it with its finger cuts in place. Without this, every box-jointed project refuses `cuts`.
+  - `RefineDialog.tsx`'s kept line names box joints only when a box-jointed part is kept, e.g. `Kept as is (leans, angled
+    holes, round tenons or box joints): …`. Its existing string is unchanged otherwise.
   - Note: the existing joined-project refusals for kept kinds (lean, round tenon, compound cut, tilted row) are NOT
     extended to box joints. A joined project with box joints must Refine (spec §7).
 
@@ -372,13 +380,85 @@ Planner order (each step can only refuse before any mutation; work on clones):
     the shelf's dado is read back as a joint.
   - `keptNote` without a box-jointed part is byte for byte the existing string (an existing test passing unchanged
     covers it).
-  - A box-jointed drawer inside an assembly: `documentToDesign` (or whichever function owns that refusal) returns the
-    box-joint sentence.
+  - `refineRefusal` on a box-joint-only project (root parts) is `null`. Mutate: restore the unfiltered `cuts` check.
+    The test must then fail with the `cuts` refusal.
 - [ ] **Step 2: Run** the test files. Expected: FAIL.
 - [ ] **Step 3: Implement.** If the joined-cabinet test cannot keep the fingers exactly, STOP and report to the user (spec §7). Do not
   refuse silently.
 - [ ] **Step 4: Run** them, then `npx vitest run src/generate src/document/leanKeep.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(box joints): joinery leaves a jointed end alone; Refine keeps box-jointed parts`.
+
+### Task 6b: Refine keeps a box-jointed ASSEMBLY whole
+
+Spec §7, Amended (the user's ruling). Its own reviewer gate. **STOP and report to the user if any of rules R1–R4 below
+cannot be held.** Do not weaken one to make a test pass.
+
+**Files:**
+- Modify: `src/document/leanKeep.ts`, `src/document/refineDesign.ts`, `src/document/generated.ts` (`designToDocument`),
+  `src/generate/run.ts`, `src/generate/evaluate*.ts` (wherever `RefineOutcome.leaning` is typed), `src/panels/RefineDialog.tsx`
+- Test: `src/document/leanKeep.test.ts`, the `documentToDesign` tests, the `designToDocument` tests, a `runRefine` test with
+  a fake client (the existing pattern in `src/generate/`)
+
+**Interfaces:**
+- Consumes: Task 6's `keepsExactly` (finger sets included) and `claimFingerSets`.
+- Produces:
+  - `KeptParts` gains `definitions: Definition[]` and `instances: Instance[]`, in document order, the SAME objects. A
+    definition is kept when any of its boards resolves to a part with `fingerSets(r).length > 0`. All its root instances
+    are kept with it. `names` stays the kept ROOT boards' names. New `placements: string[]` holds the kept instances'
+    names. `shapes` covers the Shapes of every kept board, root and definition.
+  - `leaningInAssembly(doc)` ignores a part kept ONLY for box joints (`keepsExactly` without the finger clause is false).
+    So the leaning, tilted-row, tenon and compound kinds keep the existing refusal, word for word (R5).
+  - `keptAssemblyLinkRefusal(doc): string | null` (in `leanKeep.ts`; copy beside the existing refusal copy): the first
+    Shape with a user inside the kept set and a user outside it gives `Refine can't keep a box-jointed assembly whose
+    parts are linked to parts outside it — Unlink first: <flat name of the outside user>.` `documentToDesign` returns it
+    as reason `lean-assembly`, right after the `leaningInAssembly` check.
+  - `documentToDesign`: a kept definition is left out of `assemblies`. Its boards are skipped by every pre-check (taper,
+    angle, the `cuts` defence), exactly as kept root boards are. The mirrored, turned and nested refusals still read
+    every instance, kept ones included (unchanged code).
+  - `keptNote`: after the per-part lines, one line per kept placement:
+    `"<placement>" is an assembly with box joints and is kept as is: x … to …, y … to …, z … to ….` (world bounds over
+    its parts, `partBounds`, the same number format). The header names box joints when a kept placement or a box-jointed
+    root part exists, and is otherwise unchanged.
+  - `designToDocument` with `opts.kept`:
+    - **R1 (order):** kept definitions are prepended to `definitions` and kept instances to `instances`, before the
+      load gate, as kept boards are, so the first-wins repairs (invs 33, 8) keep the user's ids and names.
+    - **R2 (echo):** `keptNames` also holds `kept.placements`. A loose model part with such a name is dropped. A model
+      assembly placement with such a name is dropped. An assembly left with no placements is dropped silently, NOT
+      rejected `unplaced`. Every dropped name goes into `replaced`.
+    - **R3 (links):** guaranteed by `keptAssemblyLinkRefusal` before any call. `linkByRole` never sees a kept board
+      (no role minted).
+    - The floor `shift` is zero when `kept.boards.length + kept.instances.length > 0`.
+  - **R4 (joined):** `plainForRefine` needs no new code. Its claimed flat already covers definition boards, because
+    `flatDocument` walks them and `writeBackFlat` lowers them. The kept assembly's finger sets come back exactly, as
+    root ones do (Task 6).
+  - `run.ts` / `RefineOutcome.leaning`: `kept` lists the root names, then the kept placement names. `RefineDialog`'s
+    kept line uses the box-joint wording when any kept placement exists.
+
+- [ ] **Step 1: Failing tests:**
+  - `keptParts` on a project with two placements of a box-jointed drawer definition (a grooved bottom inside, not
+    box-jointed) plus a plain root table: `definitions` is that one definition, `instances` both placements (same
+    objects), `placements` their names, `boards` empty.
+  - `documentToDesign` on it: no refusal, and `assemblies` does not contain the drawer.
+  - A drawer definition holding a LEANING part: the existing `lean-assembly` sentence, byte for byte (R5). Mutate: drop
+    the finger-only exemption. The box-jointed fixture must then refuse.
+  - The drawer bottom linked to a root panel: `keptAssemblyLinkRefusal` names the root panel. Mutate: return null. The
+    round trip must then fail (a kept Shape with a non-kept user after `linkByRole`).
+  - `designToDocument` round trip: a model design that echoes an assembly with a placement named like the kept drawer
+    placement (`Drawer 1`), plus a new loose part named `Drawer 2`. The result holds the kept definition and instances
+    `toEqual` the originals (ids and positions too). Both echoes are dropped and listed in `replaced`. Nothing is
+    renamed. Mutate R1: append the kept entries instead of prepending them. The kept placement must then be renamed
+    (`Drawer 1 (2)` or the gate's form), and the test fails.
+  - Floor: a kept drawer standing at y 0 and model parts whose min y is 2. Nothing shifts. Mutate: count only
+    `kept.boards`. The test must then fail.
+  - Joined: a dadoed case (an existing joinery fixture) plus the box-jointed drawer assembly. Through `plainForRefine`,
+    then a fake-client `runRefine` that echoes the design: the drawer's definition boards `toEqual` the originals,
+    `fingerSets` included.
+  - `keptNote` on the drawer project includes `"Drawer 1" is an assembly with box joints and is kept as is:` with the
+    world bounds. Without kept placements, the string is byte for byte as before (existing tests unchanged).
+- [ ] **Step 2: Run** them. Expected: FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** `npx vitest run src/generate src/document`, then `npm run build`. Expected: PASS.
+- [ ] **Step 5: Commit** `feat(box joints): Refine keeps a box-jointed assembly whole`.
 
 ### Task 7: Records
 
@@ -386,9 +466,10 @@ Planner order (each step can only refuse before any mutation; work on clones):
 - Modify: `docs/invariants.md` (new inv 61, in full), `CLAUDE.md` (inv 61 condensed; the `→ units` edge list gains
   `boxJointText.ts`; the ONE-homes table gains box joints; the test count), `docs/module-map.md` (`resizeEnd.ts`,
   `boxJoints.ts`, `boxJointText.ts`, `BoxJoints.tsx`), `docs/rounds.md`, `docs/follow-ups.md` (new entries from 484: the
-  spec's §12 list, a copy review for the user, and the three spec differences recorded), `docs/feature-gaps.md` (the row:
+  spec's §12 list, a copy review for the user, the five spec differences recorded, and widening kept assemblies to the
+  other kept kinds), `docs/feature-gaps.md` (the row:
   box joints shipped, dovetails open; refresh the header's status date), the spec (an *Amended (build)* block listing the
-  three spec differences and anything else the build changed).
+  five spec differences and anything else the build changed).
 
 - [ ] **Step 1:** Write the records. Inv 61 states: a box joint is ordinary rectangular cuts; `boxJoints.ts` is the ONE
   layout, the ONE recogniser and the ONE planner, and they round-trip; the recogniser reads SHAPE; one layout per corner,
