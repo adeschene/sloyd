@@ -35,7 +35,7 @@ function useReasons(parts: readonly Board[], types: readonly BandType[], judge: 
   return { reasons, focus: { onFocus: () => setFocused(true), onBlur: () => { setFocused(false); setJudged(null); } } };
 }
 
-function SideSelect({ parts, ids, side, types }: { parts: readonly Board[]; ids: string[]; side: ProfileSide; types: readonly BandType[] }) {
+function SideSelect({ parts, ids, side, types, onRefused }: { parts: readonly Board[]; ids: string[]; side: ProfileSide; types: readonly BandType[]; onRefused: (r: string | null) => void }) {
   const setBands = useStore((s) => s.setBands);
   const value = common(parts.map((p) => bandOn(p.bands, side)?.type ?? ''));
   const { reasons, focus } = useReasons(parts, types, () => {
@@ -53,7 +53,7 @@ function SideSelect({ parts, ids, side, types }: { parts: readonly Board[]; ids:
       <label htmlFor={id}>{cap(sideText(side))}</label>
       {/* A mixed select writes only on a CHANGE (inv 5): leaving it untouched writes nothing. */}
       <select id={id} className="input" value={value} {...focus}
-        onChange={(e) => { const v = e.target.value; if (v !== MIXED) setBands(ids, [side], v === '' ? null : v); }}>
+        onChange={(e) => { const v = e.target.value; if (v !== MIXED) onRefused(setBands(ids, [side], v === '' ? null : v)); }}>
         {value === MIXED && <option value={MIXED} disabled>Mixed</option>}
         <option value="">None</option>
         {types.map((t) => (
@@ -73,6 +73,12 @@ export function Banding({ boards, onNewBandType }: { boards: readonly Board[]; o
   const setBands = useStore((s) => s.setBands);
   const updateBoards = useStore((s) => s.updateBoards);
   const ids = boards.map((b) => b.id);
+  // The store's refusal (dovetails spec §3.6: a band added to a dovetailed part), the section's alert. It belongs to the
+  // parts AS THEY WERE: shown only while every part is the same object (a refused write leaves them untouched).
+  const [refusal, setRefusal] = useState<{ parts: readonly Board[]; text: string } | null>(null);
+  const refused = (r: string | null) => setRefusal(r === null ? null : { parts: boards, text: r });
+  const alert = refusal && sameParts(refusal.parts, boards)
+    ? <p className="field-error" role="alert">{refusal.text}</p> : null;
   // Corners reaches only the parts where a corner qualifies (`bandsMeetAtCorner`): it reads and writes those alone, so a
   // selected part its rule cannot change is neither Mixed nor stamped with a rule it then hides (final review 1).
   const reached = boards.filter((b) => bandsMeetAtCorner(b, types));
@@ -82,8 +88,8 @@ export function Banding({ boards, onNewBandType }: { boards: readonly Board[]; o
   const banded = boards.some((b) => b.bands.length > 0);
   const menu = (): PopoverItem[] => [
     ...types.flatMap((t) => MENU.map(([words, sides]) => {
-      const refused = bandEditRefusal(boards, types, sides, t.id);
-      return { label: `${t.name}: ${words}`, run: () => setBands(ids, sides, t.id), disabled: !!refused, title: refused ?? undefined };
+      const why = bandEditRefusal(boards, types, sides, t.id);
+      return { label: `${t.name}: ${words}`, run: () => refused(setBands(ids, sides, t.id)), disabled: !!why, title: why ?? undefined };
     })),
     ...(banded ? [{ label: 'Remove all bands', run: () => setBands(ids, BAND_SIDES, null) }] : []),
     ...(onNewBandType ? [{ label: 'New solid edging…', run: onNewBandType }] : []),
@@ -95,6 +101,7 @@ export function Banding({ boards, onNewBandType }: { boards: readonly Board[]; o
     <>
       {heading}
       <Popover className="add-band" label={<>+ Add banding<span aria-hidden="true"> ▾</span></>} title="Band this part's edges" items={menu} />
+      {alert}
     </>
   );
   const notes = boards.flatMap((b) => bandFaults(b, types).map((f) => ({
@@ -105,7 +112,7 @@ export function Banding({ boards, onNewBandType }: { boards: readonly Board[]; o
     <>
       {heading}
       <div className="field-grid field-grid-2">
-        {BAND_SIDES.map((side) => <SideSelect key={`${side.across}-${side.from}`} parts={boards} ids={ids} side={side} types={types} />)}
+        {BAND_SIDES.map((side) => <SideSelect key={`${side.across}-${side.from}`} parts={boards} ids={ids} side={side} types={types} onRefused={refused} />)}
         {bandsShownCorner(boards, types) && (
           <div className="field">
             <label htmlFor="band-corners">Corners</label>
@@ -119,6 +126,7 @@ export function Banding({ boards, onNewBandType }: { boards: readonly Board[]; o
       </div>
       {notes.map((n) => <p key={n.key} className="field-note">{n.text}</p>)}
       <Popover className="add-band" label={<>Band<span aria-hidden="true"> ▾</span></>} title="Band edges with a band type" items={menu} />
+      {alert}
     </>
   );
 }

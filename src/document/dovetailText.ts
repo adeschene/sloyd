@@ -1,10 +1,14 @@
 import type { DovetailFault } from './dovetails';
+import type { Board, Dovetail } from './types';
+import { dovetailLayout, jointLineOf } from './dovetailModel';
+import { formatLength, type Units } from '../units/length';
 
 /**
  * The through dovetails' copy (dovetails spec §3, §4, §6, §7; plan Global Constraints, verbatim): the ONE home of every
  * sentence the planner returns, the fault notes and the panel's labels. The sentences dovetails share with box joints
- * live in `cornerText.ts` and are re-exported here, never redefined. The cut-list line and the bench drawing's labels are
- * added with their readers (plan Tasks 5 and 7). A slope reads `1:<s>`, `s` printed by `String(s)`.
+ * live in `cornerText.ts` and are re-exported here, never redefined. The cut-list line is `dovetailLine`; the bench
+ * drawing's labels are added with their reader (plan Task 7). The layout is read from the LEAF `dovetailModel.ts`, never
+ * from `dovetails.ts` (whose copy table is built from this module at load: an import back would be a cycle). A slope reads `1:<s>`, `s` printed by `String(s)`.
  */
 
 /** The corner planner's shared sentences (`cornerText.ts`): no corner, a selected part in no corner, different heights
@@ -94,3 +98,18 @@ export const DOVETAIL_TAILS_PLACEHOLDER = 'Auto';
 export const DOVETAIL_SWAP = 'Swap tails and pins';
 export const DOVETAIL_BUTTON = 'Dovetail the corners';
 export const DOVETAIL_REMOVE = 'Remove';
+
+/**
+ * A stored dovetail's cut-list line (spec §5.1, Global Constraints, verbatim): the count, the slope `1:<s>`, the pin at the
+ * narrow end, the depth, the end; then the tails part's tail width at the end (`Te` from the ONE layout, on the part's own
+ * joint line) or the pins part's narrow thickness face. Lengths through `formatLength` with the document's units (inv 52).
+ */
+export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, units: Units): string {
+  const head = `Through dovetails — ${d.count} tails, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
+    + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
+  if (d.role === 'tails') {
+    const { Te } = dovetailLayout(b[jointLineOf(d.dim)], d.count, d.slope, d.pin);
+    return `${head}; this part has the tails, ${formatLength(Te, units)} at the end.`;
+  }
+  return `${head}; this part has the pins, narrow on its thickness ${d.outside} face.`;
+}

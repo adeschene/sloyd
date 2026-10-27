@@ -895,6 +895,9 @@ button[aria-pressed='true'] {
 .field .input { width: 100%; }
 .field input.input { font-family: var(--font-num); font-size: 12px; font-variant-numeric: tabular-nums;
   text-align: right; letter-spacing: 0.01em; }
+/* A prefixed field (DimensionField's `prefix`: a ratio's `1 :`, dovetails spec §4): the text before the input, one row. */
+.input-prefixed { display: flex; align-items: center; gap: 6px; }
+.input-prefix { font-family: var(--font-num); font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
 
 .field-grid { display: grid; gap: 6px 8px; margin-bottom: 6px; }
 .field-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

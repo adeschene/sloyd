@@ -196,6 +196,9 @@ export function Curves({ board }: { board: Board }) {
   const addCurves = useStore((s) => s.addCurves);
   const units = useStore((s) => s.doc.units);
   const bandTypes = useStore((s) => s.doc.bandTypes);
+  // The store's refusal of an Add (dovetails spec §3.6), the section's alert; retired by any change to the part (TenonEnd).
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setError(null), [board]);
   // A preset whose default would fault on this part — a curve fault, a hole it would put into the waste, or a fault it would
   // ADD to a profile on the part (profile runs b1) — is withheld, not added and refused (the AngleCuts/Holes precedent).
   // Judged once per stored part and units, not per render (a resize drag renders every frame).
@@ -216,11 +219,11 @@ export function Curves({ board }: { board: Board }) {
     const corner = one(defaultCorner(board));
     const corners = defaultCorners(board);
     return [
-      ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => addCurves(board.id, arch) }] : []),
-      ...(fits(notch) ? [{ label: 'Half-round notch', detail: `A half circle ${formatLength(2, units)} wide, centred`, run: () => addCurves(board.id, notch) }] : []),
-      ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => addCurves(board.id, bow) }] : []),
-      ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
-      ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),
+      ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => setError(addCurves(board.id, arch)) }] : []),
+      ...(fits(notch) ? [{ label: 'Half-round notch', detail: `A half circle ${formatLength(2, units)} wide, centred`, run: () => setError(addCurves(board.id, notch)) }] : []),
+      ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => setError(addCurves(board.id, bow)) }] : []),
+      ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => setError(addCurves(board.id, corner)) }] : []),
+      ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => setError(addCurves(board.id, corners)) }] : []),
     ];
   }, [board, units, addCurves, bandTypes]);
   const shown = board.curves;
@@ -231,6 +234,7 @@ export function Curves({ board }: { board: Board }) {
       {items.length > 0
         ? <Popover className="add-curve" label={<>+ Add curve<span aria-hidden="true"> ▾</span></>} title="Add a curve" items={items} />
         : <p className="field-note">No curve preset fits this part.</p>}
+      {error && <p className="field-error" role="alert">{error}</p>}
     </>
   );
 }

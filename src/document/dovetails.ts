@@ -1,7 +1,7 @@
-import type { Board, CurveSegment, CutFrom, Dimension, Dovetail, SloydDocument } from './types';
+import type { Board, CurveSegment, CutFrom, Dimension, Dovetail, Region, SloydDocument } from './types';
 import type { CurveSpan, ViewCurve } from './curves';
 import type { Units } from '../units/length';
-import { byDovetailEnd, dovetailAt, dovetailsOf, sameDovetail } from './dovetailModel';
+import { byDovetailEnd, dovetailAt, dovetailLayout, dovetailsOf, jointLineOf, sameDovetail } from './dovetailModel';
 import { boardExtents, endFacing } from './geometry';
 import { leans } from './lean';
 import { hasTenons } from './roundTenons';
@@ -12,7 +12,7 @@ import { RUN_RANK, planCorners, writeCorners, type CornerCopy, type JointKind } 
 import {
   DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailContainers, dovetailCutInTheWay, dovetailedLines,
   dovetailHeights, dovetailHoleInTheWay, dovetailIgnored, dovetailLengthLine, dovetailLinkedDisagree, dovetailLinkedMate,
-  dovetailLinkSplit, dovetailMirrored, dovetailPlainStock, dovetailTailsOn, dovetailThreeWay, dovetailTooNarrow,
+  dovetailLinkSplit, dovetailMirrored, dovetailMoveClear, dovetailPlainStock, dovetailTailsOn, dovetailThreeWay, dovetailTooNarrow,
   dovetailTooShort, dovetailTwoCorners, type DovetailFeature,
 } from './dovetailText';
 
@@ -37,29 +37,9 @@ export function autoTailCount(H: number, units: Units): number {
   return Math.max(1, Math.round(H / autoPitch(units)));
 }
 
-/** The layout at the outside plane (spec §3.2): `Te` the tail width there; `bounds` the `2N + 2` boundaries along J from
- *  J's min — `0`, each tail's two edges in order, then `H`. */
-export interface DovetailLayout { H: number; N: number; s: number; p: number; Te: number; bounds: number[] }
-
-/**
- * The ONE layout (spec §3.2, the user's rule): a half pin `p`, `N` tails of `Te = (H − (N + 1)·p) / N` separated by `N − 1`
- * pins of `p`, a half pin `p`. Every boundary is computed DIRECTLY from J's min, never as a running sum: tail `k` (0-based)
- * spans `[p + k·(Te + p), p + k·(Te + p) + Te]`, except that the last tail's far edge IS the last half pin's near edge,
- * `H − p` (one boundary, computed one way), and the last bound is `H` itself.
- */
-export function dovetailLayout(H: number, N: number, s: number, p: number): DovetailLayout {
-  const Te = (H - (N + 1) * p) / N;
-  const bounds: number[] = [0];
-  for (let k = 0; k < N; k += 1) {
-    const start = p + k * (Te + p);
-    bounds.push(start, k === N - 1 ? H - p : start + Te);
-  }
-  bounds.push(H);
-  return { H, N, s, p, Te, bounds };
-}
-
-/** A part's joint-line dimension J for a dovetail along `dim`: the non-thickness dimension other than `dim`. */
-export const jointLineOf = (dim: Dovetail['dim']): 'length' | 'width' => (dim === 'length' ? 'width' : 'length');
+/** The layout and the joint line live in the leaf `dovetailModel.ts` (so the copy home `dovetailText.ts` reads them without
+ *  an import cycle through this module's copy table); re-exported here, their documented home. */
+export { dovetailLayout, jointLineOf, type DovetailLayout } from './dovetailModel';
 
 /** What makes a stored dovetail build nothing (spec §3.2, §3.5), in this order. */
 export type DovetailFault = 'count' | 'slope' | 'depth' | 'narrow';
@@ -86,6 +66,28 @@ export function dovetailFaults(b: Board, d: Dovetail): DovetailFault[] {
   const { Te } = dovetailLayout(b[jointLineOf(d.dim)], d.count, d.slope, d.pin);
   if (Te - (2 * X) / d.slope < d.pin + (2 * X) / d.slope - EPS) out.push('narrow');
   return out;
+}
+
+/**
+ * The zone a dovetailed end keeps clear (spec §3.6, the builder check): the span `depth` back from each STORED dovetail's
+ * end (a faulted one too: it builds again once fixed), the whole section. A `region` (part-local; a cut's
+ * `clippedRegion`) meeting one by more than 1e-9 on every dimension refuses with the zone sentence naming `name`;
+ * otherwise null. Holes are judged by `holeTouchesBox` against `dovetailZones` (the store's caller).
+ */
+export function dovetailZoneRefusal(b: Board, region: Region, name: string = b.name): string | null {
+  const meets = dovetailZones(b).some((z) => DIMS.every((x) => Math.min(region[x][1], z[x][1]) - Math.max(region[x][0], z[x][0]) > EPS));
+  return meets ? dovetailMoveClear(name) : null;
+}
+const DIMS: readonly Dimension[] = ['length', 'width', 'thickness'];
+
+/** Each stored dovetail's zone (part-local): `[b[dim] − depth, b[dim]]` (max end) or `[0, depth]` (min end) on its `dim`,
+ *  the whole of the other two dimensions. */
+export function dovetailZones(b: Board): Region[] {
+  return dovetailsOf(b).map((d) => {
+    const r: Region = { length: [0, b.length], width: [0, b.width], thickness: [0, b.thickness] };
+    r[d.dim] = d.end === 'min' ? [0, d.depth] : [b[d.dim] - d.depth, b[d.dim]];
+    return r;
+  });
 }
 
 const NONE: readonly Dovetail[] = [];

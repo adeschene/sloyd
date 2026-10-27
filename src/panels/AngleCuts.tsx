@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../store/store';
 import {
   CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, defaultRaisedPanel,
@@ -239,7 +239,12 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
 
 /** The Angles section (spec §7): a single part's angle cuts. Taper, Miter, Bevel and Chamfer. */
 export function AngleCuts({ board }: { board: Board }) {
-  const addAngleCuts = useStore((s) => s.addAngleCuts);
+  const addAngleCutsAction = useStore((s) => s.addAngleCuts);
+  // The store's refusal of an Add (dovetails spec §3.6: a dovetailed part), shown as the section's alert. It belongs to the
+  // part AS IT WAS (RoundTenons' TenonEnd): any change to the part object retires it; a refused Add leaves it untouched.
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setError(null), [board]);
+  const addAngleCuts = (id: string, cuts: Parameters<typeof addAngleCutsAction>[1]) => setError(addAngleCutsAction(id, cuts));
   const units = useStore((s) => s.doc.units);
   const raised = defaultRaisedPanel(board);
   // The menu's lengths read the project's units (presets minors 3); imperial formats as written before, `1/4"`.
@@ -267,6 +272,7 @@ export function AngleCuts({ board }: { board: Board }) {
           // Withheld under 1/2" thick (presets-batch spec §3.2): the 1/4" tongue would leave too shallow a bevel.
           ...(raised ? [{ label: 'Raised panel', detail: `Bevel the four front edges, leaving a ${tongue} tongue`, run: () => addAngleCuts(board.id, raised) }] : []),
         ]} />
+      {error && <p className="field-error" role="alert">{error}</p>}
     </>
   );
 }

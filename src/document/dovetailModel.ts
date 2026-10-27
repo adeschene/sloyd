@@ -1,9 +1,10 @@
 import type { Board, Dovetail } from './types';
 
 /**
- * The stored dovetail's model (dovetails spec §3.4, schema 26): reading, ordering, copying and comparing `Board.dovetails`.
- * A LEAF module (it imports types only): `dovetails.ts` and `boxJoints.ts` both read it, so neither planner module imports
- * the other.
+ * The stored dovetail's model (dovetails spec §3.4, schema 26): reading, ordering, copying and comparing `Board.dovetails`,
+ * and the ONE layout (`dovetailLayout`, `jointLineOf`; re-exported from `dovetails.ts`). A LEAF module (it imports types
+ * only): `dovetails.ts`, `boxJoints.ts` and the copy home `dovetailText.ts` all read it, so none of them imports another
+ * through it (the copy home importing `dovetails.ts` would be a cycle: its copy table is built from the copy at load).
  */
 
 /**
@@ -62,3 +63,27 @@ export function withDovetails<T extends Pick<Board, 'dovetails'>>(b: T, list: re
   if (list.length === 0) return rest as T;
   return { ...rest, dovetails: [...list].sort(byDovetailEnd) } as T;
 }
+
+/** The layout at the outside plane (spec §3.2): `Te` the tail width there; `bounds` the `2N + 2` boundaries along J from
+ *  J's min — `0`, each tail's two edges in order, then `H`. */
+export interface DovetailLayout { H: number; N: number; s: number; p: number; Te: number; bounds: number[] }
+
+/**
+ * The ONE layout (spec §3.2, the user's rule): a half pin `p`, `N` tails of `Te = (H − (N + 1)·p) / N` separated by `N − 1`
+ * pins of `p`, a half pin `p`. Every boundary is computed DIRECTLY from J's min, never as a running sum: tail `k` (0-based)
+ * spans `[p + k·(Te + p), p + k·(Te + p) + Te]`, except that the last tail's far edge IS the last half pin's near edge,
+ * `H − p` (one boundary, computed one way), and the last bound is `H` itself.
+ */
+export function dovetailLayout(H: number, N: number, s: number, p: number): DovetailLayout {
+  const Te = (H - (N + 1) * p) / N;
+  const bounds: number[] = [0];
+  for (let k = 0; k < N; k += 1) {
+    const start = p + k * (Te + p);
+    bounds.push(start, k === N - 1 ? H - p : start + Te);
+  }
+  bounds.push(H);
+  return { H, N, s, p, Te, bounds };
+}
+
+/** A part's joint-line dimension J for a dovetail along `dim`: the non-thickness dimension other than `dim`. */
+export const jointLineOf = (dim: Dovetail['dim']): 'length' | 'width' => (dim === 'length' ? 'width' : 'length');

@@ -16,6 +16,9 @@ import { socketPlan } from '../document/legSockets';
 import { refitPlan, stretcherOf, stretcherPlan } from '../document/stretchers';
 import { STRETCHER_NOT_A_STRETCHER } from '../document/stretcherText';
 import { applyBoxJoints, boxJointPlan } from '../document/boxJoints';
+import { applyDovetails, dovetailPlan, dovetailZoneRefusal, dovetailZones } from '../document/dovetails';
+import { dovetailsOf, hasDovetails, withDovetails } from '../document/dovetailModel';
+import { dovetailMoveClear, dovetailRemoveFirst } from '../document/dovetailText';
 import { displayNames } from '../document/tree';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyCurve, sameCurve } from '../document/curves';
@@ -26,7 +29,8 @@ import { addedTenonFaults, copyTenon, sameTenon, tenonAt, tenonFaults, tenonsOf,
 import { copyDovetail } from '../document/dovetailModel';
 import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { HardwareTarget } from '../document/hardware';
-import { copyHoleRow, sameHoleRow } from '../document/holes';
+import { boardHoles, copyHoleRow, holeTouchesBox, sameHoleRow } from '../document/holes';
+import { clippedRegion } from '../document/cuts';
 import { withinTiltBound } from '../document/holeTilt';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -427,18 +431,25 @@ interface StoreState {
   gesturing: boolean;
   gestureSnapshotTaken: boolean;
 
-  addCut: (boardId: string) => void;
-  updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
+  /** Refused (dovetails spec §3.6), before `edit()`, with `dovetailMoveClear` when the cut's `clippedRegion` meets a
+   *  dovetailed end's zone (`dovetailZoneRefusal`); null otherwise (also for a stale id and while exploded). */
+  addCut: (boardId: string) => string | null;
+  /** As addCut: refused when the edited cut meets a dovetailed end's zone, a groove the planner carried through included
+   *  (any edit of it). */
+  updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => string | null;
   removeCut: (boardId: string, cutId: string) => void;
   /** Angle cuts (angle-cuts spec §7): several in one call are one undo entry. */
-  addAngleCuts: (boardId: string, cuts: Omit<AngleCut, 'id'>[]) => void;
+  /** Refused on a dovetailed part (dovetails spec §3.6: `dovetailRemoveFirst`), before `edit()`; null otherwise. */
+  addAngleCuts: (boardId: string, cuts: Omit<AngleCut, 'id'>[]) => string | null;
   updateAngleCut: (boardId: string, cutId: string, next: Omit<AngleCut, 'id'>) => void;
   removeAngleCut: (boardId: string, cutId: string) => void;
   /** Hole rows (holes spec §7): several in one call are one undo entry. */
   /** Refused, with `HOLE_TILT_PAST_BOUND`, when a row's tilt is past the bound (angled holes §3.1); null otherwise. A
-   *  leaning part takes holes like any other (angled holes §7). A zero tilt key is not stored. */
+   *  leaning part takes holes like any other (angled holes §7). A zero tilt key is not stored. Refused with
+   *  `dovetailMoveClear` when a hole of the new rows touches a dovetailed end's zone (dovetails spec §3.6). */
   addHoleRows: (boardId: string, rows: Omit<HoleRow, 'id'>[]) => string | null;
-  /** As addHoleRows: `HOLE_TILT_PAST_BOUND` past the bound, decided before any mutation; null otherwise. */
+  /** As addHoleRows: `HOLE_TILT_PAST_BOUND` past the bound, `dovetailMoveClear` for an edited row touching a dovetailed
+   *  end's zone, decided before any mutation; null otherwise. */
   updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => string | null;
   removeHoleRow: (boardId: string, rowId: string) => void;
   /**
@@ -457,16 +468,21 @@ interface StoreState {
   updateTenon: (boardId: string, tenonId: string, next: Omit<RoundTenon, 'id'>) => string | null;
   /** Removes the tenon; the last one leaves no `tenons` key (never `[]`). Never refused but while exploded or gesturing. */
   removeTenon: (boardId: string, tenonId: string) => void;
+  /** Removes that end's dovetail only (dovetails spec §4: the partner keeps its own; no stored partner link); the last one
+   *  leaves no `dovetails` key (never `[]`). As removeTenon: nothing done while exploded or gesturing, or for a stale id. */
+  removeDovetail: (boardId: string, dovetailId: string) => void;
   /** Curve cuts (curves spec §8): several in one call are one undo entry. */
-  addCurves: (boardId: string, curves: Omit<CurveCut, 'id'>[]) => void;
+  addCurves: (boardId: string, curves: Omit<CurveCut, 'id'>[]) => string | null;
   updateCurve: (boardId: string, curveId: string, next: Omit<CurveCut, 'id'>) => void;
   removeCurve: (boardId: string, curveId: string) => void;
   /** Edge profiles (profile runs a1): as curves. */
-  addProfiles: (boardId: string, profiles: Omit<ProfileCut, 'id'>[]) => void;
+  addProfiles: (boardId: string, profiles: Omit<ProfileCut, 'id'>[]) => string | null;
   updateProfile: (boardId: string, profileId: string, next: Omit<ProfileCut, 'id'>) => void;
   removeProfile: (boardId: string, profileId: string) => void;
-  /** Sets `sides` to band type `type` (null clears) on every named part, one edit, one undo entry; refused while exploded. */
-  setBands: (ids: string[], sides: readonly ProfileSide[], type: string | null) => void;
+  /** Sets `sides` to band type `type` (null clears) on every named part, one edit, one undo entry; refused while exploded.
+   *  Adding a band (`type` not null) to a dovetailed part refuses with `dovetailRemoveFirst` (dovetails spec §3.6); a
+   *  clear never refuses. */
+  setBands: (ids: string[], sides: readonly ProfileSide[], type: string | null) => string | null;
   /**
    * The Lean section's write (splayed legs spec §3.1, §3.4, §4): signed WORLD degrees — rake + is the foot toward the
    * front (+Z), splay + toward the right (+X) — for the selected placement; an absent one leaves that slope exactly as
@@ -530,6 +546,14 @@ interface StoreState {
    * stale id.
    */
   boxJointCorners: (ids: string[], width: number, swap: boolean) => string | null;
+  /**
+   * Dovetail the corners (dovetails spec §4, §6) among world parts `ids`, at slope `1:slope`, `count` tails (null: Auto per
+   * corner, or the kept count on a re-plan, G3), `swap` inverting which part takes the tails: as `boxJointCorners` —
+   * `dovetailPlan` decides every refusal before `edit()` (its sentence returned), ONE `edit` writes the plan
+   * (`applyDovetails`), then held points are re-judged on the written document (inv 24). Null on success; null and nothing
+   * done while exploded (inv 47) or gesturing, and for a stale id.
+   */
+  dovetailCorners: (ids: string[], slope: number, count: number | null, swap: boolean) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -544,6 +568,29 @@ interface StoreState {
   removeGuide: (id: string) => void;
   clearGuides: () => void;
 }
+
+// ---- Dovetails spec §3.6: what a dovetailed part refuses, decided before edit() -------------------------------------------
+
+/** A world part's name as the planners write it (`displayNames`: unique among siblings, a path where needed). */
+const nameOf = (doc: SloydDocument, b: Board): string => displayNames(doc).get(b.id) ?? b.name;
+
+/** A cut (after the edit) whose `clippedRegion` meets a dovetailed end's zone: the zone sentence; else null. */
+function cutZoneRefusal(doc: SloydDocument, b: Board, cut: Cut): string | null {
+  return hasDovetails(b) ? dovetailZoneRefusal(b, clippedRegion(b, cut), nameOf(doc, b)) : null;
+}
+
+/** A hole of `rows` (new or edited, on world part `b`) touching a dovetailed end's zone (`holeTouchesBox`): the zone
+ *  sentence; else null. */
+function holesZoneRefusal(doc: SloydDocument, b: Board, rows: readonly HoleRow[]): string | null {
+  if (!hasDovetails(b) || rows.length === 0) return null;
+  const zones = dovetailZones(b);
+  const touches = boardHoles({ ...b, holes: [...rows] }).some((h) => zones.some((z) => holeTouchesBox(h, z)));
+  return touches ? dovetailMoveClear(nameOf(doc, b)) : null;
+}
+
+/** The rows of `after` that are not in `before` as they were (by id, values exact): a planner's new or moved rows. */
+const newRows = (before: readonly HoleRow[], after: readonly HoleRow[]): HoleRow[] =>
+  after.filter((r) => !before.some((o) => o.id === r.id && sameHoleRow(o, r)));
 
 export const useStore = create<StoreState>((set, get) => {
   /**
@@ -1785,10 +1832,10 @@ export const useStore = create<StoreState>((set, get) => {
      * fraction of the board's own dimensions, so it fits whatever it lands on.
      */
     addCut: (boardId) => {
-      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
+      if (readOnly()) return null; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
-      if (!board) return;
+      if (!board) return null;
       const cut: Cut = {
         id: nextId(),
         face: 'thickness',
@@ -1803,11 +1850,15 @@ export const useStore = create<StoreState>((set, get) => {
         stopMin: 0,
         stopMax: 0,
       };
+      // Dovetails spec §3.6: a cut reaching a dovetailed end's zone refuses, before edit().
+      const zone = cutZoneRefusal(get().doc, board, cut);
+      if (zone) return zone;
       // Through mapWorld (assemblies spec §5.1). On a shaped part the cuts are
       // the shape's, so ONE cut with ONE id reaches every user (components
       // spec §4.1); no other part is touched.
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, cuts: [...b.cuts, cut] } : b))));
       judgeHeld();
+      return null;
     },
 
     // Cuts are patched here rather than through updateBoard on purpose:
@@ -1822,10 +1873,14 @@ export const useStore = create<StoreState>((set, get) => {
     // stack, so calling it on a no-op patch would leave a no-op undo entry
     // (invariant 4) and silently wipe redo.
     updateCut: (boardId, cutId, patch) => {
-      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
+      if (readOnly()) return null; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
-      if (!board || !board.cuts.some((c) => c.id === cutId)) return;
+      const cur = board?.cuts.find((c) => c.id === cutId);
+      if (!board || !cur) return null;
+      // Dovetails spec §3.6: the edited cut reaching a dovetailed end's zone refuses, before edit().
+      const zone = cutZoneRefusal(get().doc, board, { ...cur, ...patch });
+      if (zone) return zone;
       // Through mapWorld (assemblies spec §5.1); a shaped part's cuts are its
       // shape's, so every user sees the edit (components spec §4.1).
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
@@ -1833,6 +1888,7 @@ export const useStore = create<StoreState>((set, get) => {
           ? { ...b, cuts: b.cuts.map((c) => (c.id === cutId ? { ...c, ...patch } : c)) }
           : b)));
       judgeHeld();
+      return null;
     },
 
     removeCut: (boardId, cutId) => {
@@ -1850,12 +1906,14 @@ export const useStore = create<StoreState>((set, get) => {
     // shape's and every user sees the edit (invariant 45); several in one call are one undo entry
     // (Miter's "both ends", chunk 2). Held points are re-judged after, as for cuts (invariant 24).
     addAngleCuts: (boardId, cuts) => {
-      if (readOnly()) return;
+      if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
-      if (!board || cuts.length === 0) return;
+      if (!board || cuts.length === 0) return null;
+      if (hasDovetails(board)) return dovetailRemoveFirst(nameOf(get().doc, board)); // dovetails spec §3.6
       const added = cuts.map((c) => ({ ...copyAngleCut(c as AngleCut), id: nextId() }));
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, angleCuts: [...b.angleCuts, ...added] } : b))));
       judgeHeld();
+      return null;
     },
     updateAngleCut: (boardId, cutId, next) => {
       if (readOnly()) return;
@@ -1887,6 +1945,8 @@ export const useStore = create<StoreState>((set, get) => {
       // Angled holes §3.1: the loader's ONE bound, decided before edit(). A leaning part takes holes (§7).
       if (!rows.every(tiltWithin)) return HOLE_TILT_PAST_BOUND;
       const added = rows.map((r) => ({ ...storedTilt(copyHoleRow(r as HoleRow)), id: nextId() }));
+      const zone = holesZoneRefusal(get().doc, board, added); // dovetails spec §3.6
+      if (zone) return zone;
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, holes: [...b.holes, ...added] } : b))));
       judgeHeld();
       return null;
@@ -1899,6 +1959,8 @@ export const useStore = create<StoreState>((set, get) => {
       if (!tiltWithin(next)) return HOLE_TILT_PAST_BOUND;
       const after: HoleRow = { ...storedTilt(copyHoleRow(next as HoleRow)), id: rowId };
       if (sameHoleRow(cur, after)) return null; // a no-op edit pushes no undo entry (invariant 4)
+      const zone = holesZoneRefusal(get().doc, board, [after]); // dovetails spec §3.6
+      if (zone) return zone;
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         b.id === boardId ? { ...b, holes: b.holes.map((r) => (r.id === rowId ? after : r)) } : b)));
       judgeHeld();
@@ -1921,6 +1983,7 @@ export const useStore = create<StoreState>((set, get) => {
       if (readOnly() || get().gesturing) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
       if (!board) return null; // a stale id: as the hole actions (addHoleRows)
+      if (hasDovetails(board)) return dovetailRemoveFirst(nameOf(get().doc, board)); // dovetails spec §3.6
       if (tenonAt(board, end)) return TENON_END_TAKEN;
       if (!tenonSize(diameter) || !tenonSize(length)) return TENON_SIZE_POSITIVE;
       const added: RoundTenon = { id: nextId(), end, diameter, length };
@@ -1954,16 +2017,28 @@ export const useStore = create<StoreState>((set, get) => {
         b.id === boardId ? withTenons(b, tenonsOf(b).filter((t) => t.id !== tenonId)) : b)));
       judgeHeld();
     },
+    // Dovetails (spec §4): as removeTenon, through mapWorld (a Shape's dovetails are SHARED, written once, inv 45);
+    // `withDovetails` keeps canonical order and drops the key when the list empties. Held points re-judged (inv 24).
+    removeDovetail: (boardId, dovetailId) => {
+      if (readOnly() || get().gesturing) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || !dovetailsOf(board).some((d) => d.id === dovetailId)) return;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? withDovetails(b, dovetailsOf(b).filter((d) => d.id !== dovetailId)) : b)));
+      judgeHeld();
+    },
 
     // Curve cuts (curves spec §8): as hole rows, through mapWorld; held points re-judged after (invariant 24): the
     // waste is air, so a curve can swallow a grabbed lattice point.
     addCurves: (boardId, curves) => {
-      if (readOnly()) return;
+      if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
-      if (!board || curves.length === 0) return;
+      if (!board || curves.length === 0) return null;
+      if (hasDovetails(board)) return dovetailRemoveFirst(nameOf(get().doc, board)); // dovetails spec §3.6
       const added = curves.map((c) => ({ ...copyCurve(c as CurveCut), id: nextId() }));
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, curves: [...b.curves, ...added] } : b))));
       judgeHeld();
+      return null;
     },
     updateCurve: (boardId, curveId, next) => {
       if (readOnly()) return;
@@ -1986,12 +2061,14 @@ export const useStore = create<StoreState>((set, get) => {
     },
     // Edge profiles (profile runs a1): exactly as curves.
     addProfiles: (boardId, profiles) => {
-      if (readOnly()) return;
+      if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
-      if (!board || profiles.length === 0) return;
+      if (!board || profiles.length === 0) return null;
+      if (hasDovetails(board)) return dovetailRemoveFirst(nameOf(get().doc, board)); // dovetails spec §3.6
       const added = profiles.map((p) => ({ ...copyProfile(p as ProfileCut), id: nextId() }));
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, profiles: [...b.profiles, ...added] } : b))));
       judgeHeld();
+      return null;
     },
     updateProfile: (boardId, profileId, next) => {
       if (readOnly()) return;
@@ -2013,16 +2090,22 @@ export const useStore = create<StoreState>((set, get) => {
       judgeHeld();
     },
     setBands: (ids, sides, type) => {
-      if (readOnly()) return;
+      if (readOnly()) return null;
       const world = worldParts(get().doc);
+      // Dovetails spec §3.6: adding a band to a dovetailed part refuses (a clear never does), before edit().
+      if (type !== null) {
+        const dovetailed = ids.flatMap((id) => world.find((b) => b.id === id) ?? []).find(hasDovetails);
+        if (dovetailed && sides.length > 0) return dovetailRemoveFirst(nameOf(get().doc, dovetailed));
+      }
       const t = oneEditPerTarget(get().doc, ids.filter((id) => world.some((b) => b.id === id)));
-      if (t.size === 0) return;
+      if (t.size === 0) return null;
       edit((doc) => mapWorld(doc, (w) => w.map((b) => {
         if (!t.has(b.id)) return b;
         const next = withBands(b.bands, sides, type);
         return sameBands(next, b.bands) ? b : { ...b, bands: next };
       })));
       judgeHeld();
+      return null;
     },
 
     setLean: (ids, world, opts) => {
@@ -2031,6 +2114,11 @@ export const useStore = create<StoreState>((set, get) => {
       if (readOnly() || get().gesturing) return null;
       const doc0 = get().doc;
       const byId = new Map(worldParts(doc0).map((b) => [b.id, b]));
+      // Dovetails spec §3.6: a lean on a dovetailed part refuses (Clear never does), before every other refusal.
+      if (world !== null) {
+        const dovetailed = ids.flatMap((id) => byId.get(id) ?? []).find(hasDovetails);
+        if (dovetailed) return dovetailRemoveFirst(nameOf(doc0, dovetailed));
+      }
       // ONE write per Shape, through the first selected user (controller ruling 1): a Shape cannot hold "the same
       // world lean" on both sides of a mirror, and the other users follow through it, each in its own hand.
       const shapes = new Set<string>();
@@ -2148,8 +2236,18 @@ export const useStore = create<StoreState>((set, get) => {
       // Every refusal (sockets, copies, Level the ends' for a leg, tenons that disagree) is decided here, before edit().
       const plan = socketPlan(doc0, seatId, diameter, tenonLegs);
       if (typeof plan === 'string') return plan;
-      const seat = worldParts(doc0).find((b) => b.id === seatId);
+      const world0 = worldParts(doc0);
+      const seat = world0.find((b) => b.id === seatId);
       const legs = new Map((plan.legs ?? []).map((l) => [l.id, l.patch]));
+      // Dovetails spec §3.6, before edit(): a new socket in a dovetailed seat's zone, and a tenon fitted to a dovetailed leg.
+      if (seat) {
+        const zone = holesZoneRefusal(doc0, seat, newRows(seat.holes, plan.holes));
+        if (zone) return zone;
+      }
+      for (const [id, patch] of legs) {
+        const leg = world0.find((b) => b.id === id);
+        if (leg && 'tenons' in patch && hasDovetails(leg)) return dovetailRemoveFirst(nameOf(doc0, leg));
+      }
       // inv 4: every leg already has its socket (and, tenoning, its fitted tenon)
       if (!seat || (plan.holes === seat.holes && legs.size === 0)) return plan.note ?? null;
       // ONE write through this copy (levelEnds' ruling 1): the rows are shared by every copy, and socketPlan has judged
@@ -2171,6 +2269,12 @@ export const useStore = create<StoreState>((set, get) => {
       const plan = stretcherPlan(doc0, legIds, { height, size, diameter });
       if (typeof plan === 'string') return plan;
       const { rung, container, legs } = plan;
+      // Dovetails spec §3.6, before edit(): a socket in a dovetailed leg's zone.
+      for (const l of legs) {
+        const leg = world0.find((b) => b.id === l.id)!;
+        const zone = holesZoneRefusal(doc0, leg, newRows(leg.holes, l.holes));
+        if (zone) return zone;
+      }
       const at = joinPath(container, rung.id);
       // A reused row leaves its leg's list as it is: that leg is not written (a mirrored user's world rows are a fresh
       // lowering each time, so an identical list would otherwise be written back to its Shape).
@@ -2238,6 +2342,19 @@ export const useStore = create<StoreState>((set, get) => {
       if (typeof plan === 'string') return plan;
       edit((doc) => applyBoxJoints(doc, plan));
       // Inv 24: ends moved and notches were cut; judged on the written document, not on the plan's keys.
+      judgeHeld();
+      return null;
+    },
+
+    dovetailCorners: (ids, slope, count, swap) => {
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const world0 = worldParts(doc0);
+      if (!ids.every((id) => world0.some((b) => b.id === id))) return null; // a stale id: as the hole actions
+      const plan = dovetailPlan(doc0, ids, { slope, count, swap });
+      if (typeof plan === 'string') return plan;
+      edit((doc) => applyDovetails(doc, plan));
+      // Inv 24: ends moved and the joint's waste is air; judged on the written document, not on the plan's keys.
       judgeHeld();
       return null;
     },
