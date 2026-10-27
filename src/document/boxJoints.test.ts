@@ -1,9 +1,21 @@
-import { createBoard } from './document';
-import { defaultFingerWidth, fingerLayout, fingerSetAt, fingerSets, notchCuts, segment, type FingerLayout } from './boxJoints';
+import { createBoard, createDocument, flatDocument } from './document';
+import {
+  applyBoxJoints, boxJointPlan, defaultFingerWidth, fingerLayout, fingerSetAt, fingerSets, notchCuts, segment,
+  type BoxJointOptions, type BoxJointPlan, type FingerLayout,
+} from './boxJoints';
+import { BOX_NO_CORNER, BOX_WIDTH_POSITIVE } from './boxJointText';
+import { checkDesign, type DesignLimits } from './designCheck';
+import { TOUCH } from './checkTolerances';
+import { axisDimensions, boardExtents, endFacing, spanToWorldOffset } from './geometry';
+import { clippedRegion } from './cuts';
+import { worldParts } from './tree';
+import { sharedOf } from './links';
+import { buildCutList } from './cutlist';
+import { taperCut } from './angleCuts';
 import { refaceFromEnd } from './resizeEnd';
 import { findTenons } from './tenons';
 import { IMPERIAL, type Units } from '../units/length';
-import type { Board, Cut, CutFrom, Dimension } from './types';
+import type { AngleCut, Board, Cut, CutFrom, Dimension, HoleRow, Rotation, Shape, ShapedBoard, SloydDocument } from './types';
 
 const METRIC: Units = { display: 'metric-mm', precision: 1 };
 const other = (dim: Dimension): Dimension => (dim === 'length' ? 'width' : 'length');
@@ -192,5 +204,458 @@ describe('notchCuts guards its axes', () => {
     const l = fingerLayout(4.5, 0.5)!;
     expect(() => notchCuts(l, true, 'length', 'min', 'length', 0.5, ['a', 'b', 'c', 'd'])).toThrow();
     expect(() => notchCuts(l, true, 'length', 'min', 'thickness', 0.5, ['a', 'b', 'c', 'd'])).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The planner (Task 3; spec §3, §6; plan Spec difference 3 revised)
+// ---------------------------------------------------------------------------------------------------------------------
+
+const EPS = 1e-9;
+const NO_LIMITS: DesignLimits = { width: null, depth: null, height: null, maxParts: 100 };
+const T = 0.5;
+
+/** A drawer (task brief): Front, Back, Side left, Side right, 1/2" thick, `h` tall, inside 12 × 16. Front/Back are on
+ *  edge along X (thickness on Z), the sides on edge turned 90 along Z (thickness on X). `butt`: the sides run the full
+ *  depth and Front/Back sit between them; `overlap`: every part runs to the outside; `empty`: every part stops at the
+ *  inside faces. */
+type Corners = 'butt' | 'overlap' | 'empty';
+function drawerParts(kind: Corners, o: { h?: number; t?: number; inside?: [number, number] } = {}): Board[] {
+  const h = o.h ?? 4;
+  const t = o.t ?? T;
+  const [iw, id] = o.inside ?? [12, 16];
+  const fbX = kind === 'empty' || kind === 'butt' ? t : 0;
+  const fbL = kind === 'overlap' ? iw + 2 * t : iw;
+  const sZ = kind === 'empty' ? t : 0;
+  const sL = kind === 'empty' ? id : id + 2 * t;
+  const fb = (id_: string, name: string, z: number) => createBoard({
+    id: id_, name, posture: 'on-edge', rotation: 0, length: fbL, width: h, thickness: t, position: [fbX, 0, z],
+  });
+  const side = (id_: string, name: string, x: number) => createBoard({
+    id: id_, name, posture: 'on-edge', rotation: 90, length: sL, width: h, thickness: t, position: [x, 0, sZ],
+  });
+  return [fb('f', 'Front', 0), fb('b', 'Back', id + t), side('l', 'Side left', 0), side('r', 'Side right', iw + t)];
+}
+const docOf = (boards: Board[], extra: Partial<SloydDocument> = {}): SloydDocument => ({ ...createDocument('Drawer'), boards, ...extra });
+const DRAWER_IDS = ['f', 'b', 'l', 'r'];
+const ok = (p: BoxJointPlan | string): BoxJointPlan => {
+  if (typeof p === 'string') throw new Error(`refused: ${p}`);
+  return p;
+};
+const span = (b: Board, k: number): [number, number] => [b.position[k]!, b.position[k]! + boardExtents(b)[k]!];
+const part = (doc: SloydDocument, id: string) => worldParts(doc).find((b) => b.id === id)!;
+
+/** The world J-intervals of `b`'s notches at its end facing world `side` along axis `k`, sorted. */
+function notchIntervals(b: Board, k: number, side: -1 | 1, J: number): [number, number][] {
+  const d = axisDimensions(b)[k]!;
+  const set = fingerSetAt(b, d, endFacing(b, k, side));
+  if (!set) throw new Error(`${b.name}: no finger set`);
+  const jd = axisDimensions(b)[J]!;
+  return set.cutIds.map((cid) => {
+    const r = clippedRegion(b, b.cuts.find((c) => c.id === cid)!);
+    const [lo, hi] = spanToWorldOffset(b, J, r[jd]);
+    return [b.position[J]! + lo, b.position[J]! + hi] as [number, number];
+  }).sort((x, y) => x[0] - y[0]);
+}
+/** The complement of `iv` within [lo, hi]. */
+const complement = (iv: [number, number][], lo: number, hi: number): [number, number][] => {
+  const out: [number, number][] = [];
+  let at = lo;
+  for (const [a, b] of iv) { if (a > at + EPS) out.push([at, a]); at = b; }
+  if (at < hi - EPS) out.push([at, hi]);
+  return out;
+};
+const closeIv = (x: [number, number][], y: [number, number][]) =>
+  x.length === y.length && x.every((v, i) => Math.abs(v[0] - y[i]![0]) <= EPS && Math.abs(v[1] - y[i]![1]) <= EPS);
+
+/**
+ * The corner of `a` (thickness on world `ta`) and `b` (thickness on `tb`) in `doc` is exactly filled: `a`'s end along
+ * `tb` sits at `b`'s outside face and vice versa, each notch is the other's thickness deep, and `a`'s notches along J
+ * are exactly `b`'s fingers (the corner square's union, no overlap, to 1e-9).
+ */
+function expectComplementary(doc: SloydDocument, aId: string, bId: string) {
+  const a = part(doc, aId);
+  const b = part(doc, bId);
+  const ta = axisDimensions(a).indexOf('thickness');
+  const tb = axisDimensions(b).indexOf('thickness');
+  const J = 3 - ta - tb;
+  const sideOf = (p: Board, q: Board, k: number): -1 | 1 => ((span(p, k)[0] + span(p, k)[1]) / 2 < (span(q, k)[0] + span(q, k)[1]) / 2 ? 1 : -1);
+  const sa = sideOf(a, b, tb);
+  const sb = sideOf(b, a, ta);
+  // Each end at the other's outside face.
+  expect(Math.abs(span(a, tb)[sa === 1 ? 1 : 0] - span(b, tb)[sa === 1 ? 1 : 0])).toBeLessThanOrEqual(EPS);
+  expect(Math.abs(span(b, ta)[sb === 1 ? 1 : 0] - span(a, ta)[sb === 1 ? 1 : 0])).toBeLessThanOrEqual(EPS);
+  const setA = fingerSetAt(a, axisDimensions(a)[tb]!, endFacing(a, tb, sa))!;
+  const setB = fingerSetAt(b, axisDimensions(b)[ta]!, endFacing(b, ta, sb))!;
+  // RECOGNISED depths: an ulp off the planned ones on a non-dyadic size (Task 2), so at 1e-9.
+  expect(Math.abs(setA.depth - b.thickness)).toBeLessThanOrEqual(EPS);
+  expect(Math.abs(setB.depth - a.thickness)).toBeLessThanOrEqual(EPS);
+  expect(setA.outerFingers).toBe(!setB.outerFingers);
+  const [lo, hi] = span(a, J);
+  expect(closeIv(notchIntervals(a, tb, sa, J), complement(notchIntervals(b, ta, sb, J), lo, hi))).toBe(true);
+}
+
+describe('boxJointPlan (spec §3): the drawer', () => {
+  it('the fixture: Front/Back thickness on Z, the sides thickness on X', () => {
+    const [f, , l] = drawerParts('butt');
+    expect(boardExtents(f!)).toEqual([12, 4, 0.5]);
+    expect(boardExtents(l!)).toEqual([0.5, 4, 17]);
+  });
+
+  it('butt corners, all four: 4 corners, Front and Back 1" longer, the sides unchanged; complementary; checks clean', () => {
+    const doc = docOf(drawerParts('butt'));
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
+    expect(plan.corners).toHaveLength(4);
+    expect(plan.corners.every((c) => c.layout.count === 7 && c.layout.width === 0.5 && c.layout.outer === 0.75)).toBe(true);
+    const out = applyBoxJoints(doc, plan);
+    expect(['f', 'b', 'l', 'r'].map((id) => part(out, id).length)).toEqual([13, 13, 17, 17]);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+    expect(plan.notes).toEqual([
+      'Jointed 4 corners: 7 fingers, 1/2" wide (the outer two 3/4").',
+      'Front is now 1" longer.',
+      'Back is now 1" longer.',
+    ]);
+  });
+
+  it('overlapping corners: the same joints, no length changes', () => {
+    const doc = docOf(drawerParts('overlap'));
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
+    const out = applyBoxJoints(doc, plan);
+    expect(['f', 'b', 'l', 'r'].map((id) => part(out, id).length)).toEqual([13, 13, 17, 17]);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+    expect(plan.notes).toEqual(['Jointed 4 corners: 7 fingers, 1/2" wide (the outer two 3/4").']);
+  });
+
+  it('empty corners: every part grows by one thickness at each end (1" in all)', () => {
+    const doc = docOf(drawerParts('empty'));
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
+    const out = applyBoxJoints(doc, plan);
+    expect(['f', 'b', 'l', 'r'].map((id) => part(out, id).length)).toEqual([13, 13, 17, 17]);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+    expect(plan.notes.slice(1)).toEqual(['Front is now 1" longer.', 'Back is now 1" longer.', 'Side left is now 1" longer.', 'Side right is now 1" longer.']);
+  });
+
+  it('the outer fingers land on the sides (run axis Z first); Swap fingers puts them on Front/Back', () => {
+    const doc = docOf(drawerParts('butt'));
+    const outerOn = (swap: boolean) => {
+      const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap })));
+      return ['f', 'b', 'l', 'r'].map((id) => fingerSets(part(out, id)).map((s) => s.outerFingers));
+    };
+    expect(outerOn(false)).toEqual([[false, false], [false, false], [true, true], [true, true]]);
+    expect(outerOn(true)).toEqual([[true, true], [true, true], [false, false], [false, false]]);
+  });
+
+  it('the run-out is EXACT, never grid-rounded (inv 25): an odd inside width lands on the outside faces', () => {
+    const doc = docOf(drawerParts('empty', { inside: [12.3, 16.1] }));
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false })));
+    expect(span(part(out, 'f'), 0)).toEqual([0, 12.3 + 1]);
+    expect(span(part(out, 'l'), 2)[0]).toBe(0);
+    expect(Math.abs(span(part(out, 'l'), 2)[1] - 17.1)).toBeLessThanOrEqual(EPS);
+  });
+
+  it('a corner just within TOUCH of meeting is a corner; just beyond is not', () => {
+    const near = drawerParts('butt');
+    near[0] = { ...near[0]!, position: [T + TOUCH * 0.99, 0, 0], length: 12 - 2 * TOUCH * 0.99 };
+    expect(typeof boxJointPlan(docOf(near.slice(0, 1).concat(near.slice(2, 3))), ['f', 'l'], { width: 0.5, swap: false })).toBe('object');
+    const far = drawerParts('butt');
+    far[0] = { ...far[0]!, position: [T + TOUCH * 1.01, 0, 0], length: 12 - 2 * TOUCH * 1.01 };
+    expect(boxJointPlan(docOf(far.slice(0, 1).concat(far.slice(2, 3))), ['f', 'l'], { width: 0.5, swap: false })).toBe(BOX_NO_CORNER);
+  });
+});
+
+describe('boxJointPlan: what is a corner', () => {
+  it('a drawer stacked above another is not at a corner with it (the spans along J must overlap)', () => {
+    const lower = drawerParts('butt');
+    const upper = drawerParts('butt').map((b) => ({ ...b, id: `${b.id}2`, name: `${b.name} 2`, position: [b.position[0], 5, b.position[2]] as [number, number, number] }));
+    const doc = docOf([...lower, ...upper]);
+    const plan = ok(boxJointPlan(doc, [...DRAWER_IDS, ...DRAWER_IDS.map((id) => `${id}2`)], { width: 0.5, swap: false }));
+    expect(plan.corners).toHaveLength(8);
+  });
+});
+
+describe('boxJointPlan: a carcass (spec §5.3)', () => {
+  it('two upright sides and a top between them: the checks stay clean', () => {
+    const side = (id: string, name: string, x: number) => createBoard({
+      id, name, posture: 'upright', rotation: 90, length: 30, width: 11, thickness: 0.75, position: [x, 0, 0],
+    });
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 90, length: 24, width: 11, thickness: 0.75, position: [0.75, 29.25, 0] });
+    const sides = [side('l', 'Side left', 0), side('r', 'Side right', 24.75)];
+    expect(boardExtents(sides[0]!)).toEqual([0.75, 30, 11]);
+    const flatTop = { ...top, rotation: 0 as const };
+    expect(boardExtents(flatTop)).toEqual([24, 0.75, 11]);
+    const doc = docOf([...sides, flatTop]);
+    const plan = ok(boxJointPlan(doc, ['l', 'r', 't'], { width: 0.75, swap: false }));
+    expect(plan.corners).toHaveLength(2);
+    const out = applyBoxJoints(doc, plan);
+    expect(part(out, 't').length).toBe(25.5);
+    expectComplementary(out, 't', 'l');
+    expectComplementary(out, 't', 'r');
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+});
+
+describe('boxJointPlan: what a part may already carry (spec §3.5)', () => {
+  /** A bottom groove on each side: into the broad face, running along the length. */
+  const groove = (id: string): Cut => ({ id, face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
+  const grooved = (kind: Corners) => drawerParts(kind).map((b) => (b.id === 'l' || b.id === 'r' ? { ...b, cuts: [groove(`g${b.id}`)] } : b));
+
+  it.each(['butt', 'empty'] as Corners[])('a grooved drawer (%s): not refused, the grooves still run out at both ends', (kind) => {
+    const doc = docOf(grooved(kind));
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
+    for (const id of ['l', 'r']) {
+      const g = plan.parts.get(id)!.cuts.find((c) => c.id === `g${id}`)!;
+      expect([g.across, g.stopMin, g.stopMax]).toEqual(['length', 0, 0]);
+    }
+    expect(checkDesign(flatDocument(applyBoxJoints(doc, plan)), NO_LIMITS)).toEqual([]);
+  });
+
+  it('re-run with a new width: lengths unchanged, every finger set re-laid, no stray cut', () => {
+    const doc0 = docOf(grooved('butt'));
+    const doc = applyBoxJoints(doc0, ok(boxJointPlan(doc0, DRAWER_IDS, { width: 0.5, swap: false })));
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.375, swap: false }));
+    const out = applyBoxJoints(doc, plan);
+    expect(['f', 'b', 'l', 'r'].map((id) => part(out, id).length)).toEqual([13, 13, 17, 17]);
+    for (const id of ['f', 'b', 'l', 'r']) {
+      const b = part(out, id);
+      const sets = fingerSets(b);
+      expect(sets).toHaveLength(2);
+      for (const s of sets) {
+        expect(s.layout.count).toBe(11);
+        expect(Math.abs(s.layout.width - 0.375)).toBeLessThanOrEqual(EPS);
+        expect(Math.abs(s.layout.outer - 0.3125)).toBeLessThanOrEqual(EPS);
+      }
+      const inSets = new Set(sets.flatMap((s) => s.cutIds));
+      expect(b.cuts.filter((c) => !inSets.has(c.id)).map((c) => c.id)).toEqual(id === 'l' || id === 'r' ? [`g${id}`] : []);
+    }
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(plan.notes).toEqual(['Jointed 4 corners: 11 fingers, 3/8" wide (the outer two 5/16").']);
+  });
+});
+
+describe('boxJointPlan: linked parts (spec §6; Spec difference 3 revised)', () => {
+  const linkSides = (parts: Board[], opts: { rightMirrored?: boolean; leftMirrored?: boolean } = {}): SloydDocument => {
+    const l = parts.find((b) => b.id === 'l')!;
+    const r = parts.find((b) => b.id === 'r')!;
+    const shape: Shape = { id: 's1', ...sharedOf(l) };
+    const user = (b: Board, mirrored?: boolean): ShapedBoard =>
+      ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) });
+    return docOf(parts.map((b) => (b === l ? user(l, opts.leftMirrored) : b === r ? user(r, opts.rightMirrored ?? true) : b)) as Board[], { shapes: [shape] });
+  };
+  const linkFrontBack = (parts: Board[], backRotation: Rotation): SloydDocument => {
+    const f = parts.find((b) => b.id === 'f')!;
+    const shape: Shape = { id: 's2', ...sharedOf(f) };
+    const user = (b: Board, rotation: Rotation): ShapedBoard => ({ id: b.id, name: b.name, position: b.position, rotation, shape: 's2' });
+    return docOf(parts.map((b) => (b.id === 'f' ? user(b, 0) : b.id === 'b' ? user(b, backRotation) : b)) as Board[], { shapes: [shape] });
+  };
+  const oneShapeFor = (doc: SloydDocument, ids: string[]) => {
+    const shapeIds = ids.map((id) => (doc.boards.find((b) => b.id === id) as ShapedBoard).shape);
+    expect(new Set(shapeIds).size).toBe(1);
+    expect(shapeIds[0]).toBeDefined();
+  };
+  const reachesOutside = (doc: SloydDocument) => {
+    for (const id of ['f', 'b']) expect(closeIv([span(part(doc, id), 0)], [[0, 13]])).toBe(true);
+    for (const id of ['l', 'r']) expect(closeIv([span(part(doc, id), 2)], [[0, 17]])).toBe(true);
+  };
+
+  it('linked, mirrored sides: one Shape both sides resolve, one cut-list row', () => {
+    const doc = linkSides(drawerParts('butt'));
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false })));
+    oneShapeFor(out, ['l', 'r']);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    const rows = buildCutList(flatDocument(out)).groups.flatMap((g) => g.rows);
+    expect(rows.find((r) => r.names.includes('Side left'))!.names).toEqual(['Side left', 'Side right']);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+
+  it('(a) linked Front/Back on the butt drawer, Back turned 180°: both grow, both reach the outside, checks clean', () => {
+    const doc = linkFrontBack(drawerParts('butt'), 180);
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false })));
+    oneShapeFor(out, ['f', 'b']);
+    reachesOutside(out);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+
+  it('(b) linked mirrored sides on the EMPTY drawer: both grow, both reach the outside, checks clean', () => {
+    const doc = linkSides(drawerParts('empty'));
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false })));
+    oneShapeFor(out, ['l', 'r']);
+    reachesOutside(out);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+
+  it('linked sides in a drawer assembly turned 90°: lands exactly (keepWorld)', () => {
+    const inner = linkSides(drawerParts('empty'));
+    const doc: SloydDocument = {
+      ...createDocument('Turned'), shapes: inner.shapes, boards: [],
+      instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [40, 0, 40], rotation: 90 }],
+      definitions: [{ id: 'd1', boards: inner.boards, instances: [], hardware: [] }],
+    };
+    const ids = DRAWER_IDS.map((id) => `i1/${id}`);
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, ids, { width: 0.5, swap: false })));
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, `i1/${x}`, `i1/${y}`);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+
+  it('Front and Side left only, with the sides linked: the linked-mate sentence naming Side right', () => {
+    const doc = linkSides(drawerParts('butt'));
+    const p = boxJointPlan(doc, ['f', 'l'], { width: 0.5, swap: false });
+    expect(p).toBe("Side left is linked to Side right — select Side right's corner too, or Unlink first.");
+  });
+
+  it('linked fronts of two drawers that need different joints: the disagreement sentence', () => {
+    const a = drawerParts('butt');
+    const b = drawerParts('butt', { t: 0.75 }).map((p) => ({
+      ...p, id: `${p.id}2`, name: `${p.name} 2`, position: [p.position[0] + 40, p.position[1], p.position[2]] as [number, number, number],
+    }));
+    // Front 2 is a 1/2" part between 3/4" sides: the same Shape as Front.
+    const f2 = b.find((p) => p.id === 'f2')!;
+    const f = a.find((p) => p.id === 'f')!;
+    const shape: Shape = { id: 's3', ...sharedOf(f) };
+    const user = (p: Board, x: number): ShapedBoard => ({ id: p.id, name: p.name, position: [x, 0, 0], rotation: 0, shape: 's3' });
+    const parts = [...a.filter((p) => p !== f), ...b.filter((p) => p !== f2)];
+    const doc = docOf([...parts, user(f, 0.5), user(f2, 40.75)] as Board[], { shapes: [shape] });
+    const p = boxJointPlan(doc, doc.boards.map((x) => x.id), { width: 0.5, swap: false });
+    expect(p).toBe('These linked parts would need different box joints: Front, Front 2.');
+  });
+
+  it('every user mirrored on a non-dyadic size: the write would split the Shape, so the plan refuses (post-condition)', () => {
+    // Found by search: lowering the mirrored founder's new cuts back through mirrorCut is not bit-exact here (a dado
+    // across the side at 64 mm), so regroupShapes would leave the two sides on two Shapes.
+    const mm = (v: number) => v / 25.4;
+    const parts = drawerParts('empty', { t: mm(12), h: mm(100), inside: [mm(300), mm(400)] });
+    const dado: Cut = { id: 'd', face: 'thickness', from: 'max', across: 'width', offset: mm(64), width: mm(12), depth: mm(6), stopMin: 0, stopMax: 0 };
+    const withDado = parts.map((b) => (b.id === 'l' ? { ...b, cuts: [dado] } : b));
+    const doc = { ...linkSides(withDado, { leftMirrored: true, rightMirrored: true }), units: METRIC };
+    const before = JSON.stringify(doc);
+    expect(boxJointPlan(doc, DRAWER_IDS, { width: mm(12), swap: false }))
+      .toBe("Box joints can't keep these linked parts linked: Side left, Side right. Unlink them first.");
+    expect(JSON.stringify(doc)).toBe(before);
+  });
+});
+
+describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
+  const refuses = (doc: SloydDocument, ids: string[], sentence: string, opts: Partial<BoxJointOptions> = {}) => {
+    const before = JSON.stringify(doc);
+    const boards = doc.boards;
+    expect(boxJointPlan(doc, ids, { width: 0.5, swap: false, ...opts })).toBe(sentence);
+    expect(doc.boards).toBe(boards);
+    expect(JSON.stringify(doc)).toBe(before);
+  };
+
+  it('a width of zero', () => refuses(docOf(drawerParts('butt')), DRAWER_IDS, BOX_WIDTH_POSITIVE, { width: 0 }));
+
+  it('no corner at all', () => {
+    const [f, b] = drawerParts('butt');
+    refuses(docOf([f!, b!]), ['f', 'b'], BOX_NO_CORNER);
+  });
+
+  it('a part inside a mirrored copy', () => {
+    const doc: SloydDocument = {
+      ...createDocument('M'), boards: [],
+      instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0, mirrored: true }],
+      definitions: [{ id: 'd1', boards: drawerParts('butt'), instances: [], hardware: [] }],
+    };
+    refuses(doc, DRAWER_IDS.map((id) => `i1/${id}`), "Box joints can't reach a part inside a mirrored copy yet: Drawer › Front.");
+  });
+
+  it('the parts of a corner in different containers', () => {
+    const [f, , l] = drawerParts('butt');
+    const doc: SloydDocument = {
+      ...createDocument('C'), boards: [f!],
+      instances: [{ id: 'i1', name: 'Box', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd1', boards: [l!], instances: [], hardware: [] }],
+    };
+    refuses(doc, ['f', 'i1/l'], 'Front and Box › Side left must be in the same assembly.');
+  });
+
+  it('different heights along the joint', () => {
+    const parts = drawerParts('butt').map((b) => (b.id === 'l' ? { ...b, width: 5 } : b));
+    refuses(docOf(parts), DRAWER_IDS, 'Front and Side left must be the same height along the joint.');
+  });
+
+  it('one end meeting two parts', () => {
+    const parts = drawerParts('butt');
+    const l2 = { ...parts[2]!, id: 'l2', name: 'Side left 2' };
+    refuses(docOf([...parts, l2]), [...DRAWER_IDS, 'l2'], 'Front meets two parts at one end.');
+  });
+
+  it('a three-way corner (a tray: four sides and a bottom jointed along its edges)', () => {
+    const bottom = createBoard({ id: 'bt', name: 'Bottom', posture: 'flat', rotation: 0, length: 13, width: 17, thickness: T, position: [0, 0, 0] });
+    expect(boardExtents(bottom)).toEqual([13, 0.5, 17]);
+    refuses(docOf([...drawerParts('overlap'), bottom]), [...DRAWER_IDS, 'bt'],
+      'Front would be box-jointed on two different edges — that isn\'t supported yet.');
+  });
+
+  it('too short for five fingers (H = 1.9, w = 1/2)', () => {
+    refuses(docOf(drawerParts('butt', { h: 1.9 })), DRAWER_IDS, 'Front and Side left are too short for five fingers that wide — try narrower fingers.');
+  });
+
+  it('plain stock only, the first feature found in the copy order', () => {
+    const tenon = { id: 'rt', end: 'max' as const, diameter: 0.25, length: 0.5 };
+    const angle = { id: 'ac', ...taperCut({ face: 'thickness', from: 'max', end: 'min', amount: 0.125, start: 6 }) } as AngleCut;
+    const withBoth = drawerParts('butt').map((b) => (b.id === 'b' ? { ...b, tenons: [tenon], angleCuts: [angle] } : b));
+    refuses(docOf(withBoth), DRAWER_IDS, 'Back has an angle cut — box joints work on plain stock for now.');
+    const tenonOnly = drawerParts('butt').map((b) => (b.id === 'b' ? { ...b, tenons: [tenon] } : b));
+    refuses(docOf(tenonOnly), DRAWER_IDS, 'Back has a round tenon — box joints work on plain stock for now.');
+  });
+
+  /** Side left (turn 90: length along +Z from min... read through endFacing) with one cut at its end facing Front. */
+  const sideWith = (cut: Omit<Cut, 'id'>) => drawerParts('butt').map((b) => (b.id === 'l' ? { ...b, cuts: [{ id: 'x', ...cut }] } : b));
+  const frontEnd = (): CutFrom => endFacing(drawerParts('butt')[2]!, 2, -1);
+
+  it('a cut in the corner region that does not run through it', () => {
+    const e = frontEnd();
+    const L = 17;
+    const offset = e === 'min' ? 0.1 : L - 0.3;
+    refuses(docOf(sideWith({ face: 'thickness', from: 'max', across: 'width', offset, width: 0.2, depth: 0.25, stopMin: 0, stopMax: 0 })),
+      DRAWER_IDS, 'Side left has a cut where the fingers go — remove it first.');
+  });
+
+  it('a PARTIAL-thickness rabbet across the end, over the fingers (the recogniser ignores it; the planner must not)', () => {
+    const e = frontEnd();
+    const offset = e === 'min' ? 0 : 17 - T;
+    refuses(docOf(sideWith({ face: 'thickness', from: 'max', across: 'width', offset, width: T, depth: 0.25, stopMin: 0, stopMax: 0 })),
+      DRAWER_IDS, 'Side left has a cut where the fingers go — remove it first.');
+  });
+
+  it('an end-grain mortise in the jointed end (resizeEnd cannot re-face it): the cut sentence, not a throw', () => {
+    refuses(docOf(sideWith({ face: 'length', from: frontEnd(), across: 'width', offset: 0.15, width: 0.2, depth: 0.3, stopMin: 1, stopMax: 1 })),
+      DRAWER_IDS, 'Side left has a cut where the fingers go — remove it first.');
+  });
+
+  it('a hole touching the corner region', () => {
+    const e = frontEnd();
+    const row: HoleRow = { id: 'h', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'length', alongFrom: e, station: 0.25, count: 1, pitch: 1, acrossFrom: 'min', inset: 2 };
+    const parts = drawerParts('butt').map((b) => (b.id === 'l' ? { ...b, holes: [row] } : b));
+    refuses(docOf(parts), DRAWER_IDS, 'Side left has a hole where the fingers go.');
+  });
+});
+
+describe('boxJointPlan: notes', () => {
+  it('a shelf touching nothing at a corner: success, the ignored line last', () => {
+    const shelf = createBoard({ id: 's', name: 'Shelf', length: 10, width: 4, thickness: T, position: [30, 0, 0] });
+    const doc = docOf([...drawerParts('butt'), shelf]);
+    const plan = ok(boxJointPlan(doc, [...DRAWER_IDS, 's'], { width: 0.5, swap: false }));
+    expect(plan.notes.at(-1)).toBe("Shelf isn't at a corner with another selected part.");
+    expect(plan.parts.has('s')).toBe(false);
+  });
+
+  it('a metric drawer (12 mm stock): the default width is 12 mm and the notes print mm', () => {
+    const mm = (v: number) => v / 25.4;
+    const parts = drawerParts('butt', { t: mm(12), h: mm(100), inside: [mm(300), mm(400)] });
+    const doc = docOf(parts, { units: METRIC });
+    const w = defaultFingerWidth(mm(12), METRIC);
+    expect(w).toBe(12 / 25.4);
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: w, swap: false }));
+    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 12 mm wide (the outer two 8 mm).');
+    expect(plan.notes.slice(1)).toEqual(['Front is now 24 mm longer.', 'Back is now 24 mm longer.']);
+    const out = applyBoxJoints(doc, plan);
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
   });
 });
