@@ -10,6 +10,7 @@ import { axisDimensions, boardExtents, endFacing, spanToWorldOffset } from './ge
 import { clippedRegion } from './cuts';
 import { worldParts } from './tree';
 import { sharedOf } from './links';
+import { mirrorDim } from './frames';
 import { buildCutList } from './cutlist';
 import { taperCut } from './angleCuts';
 import { refaceFromEnd } from './resizeEnd';
@@ -242,6 +243,14 @@ const ok = (p: BoxJointPlan | string): BoxJointPlan => {
   if (typeof p === 'string') throw new Error(`refused: ${p}`);
   return p;
 };
+/** A refusal: the sentence, and the document untouched (the same `boards` object, the same JSON). */
+const expectRefusal = (doc: SloydDocument, ids: string[], sentence: string, opts: Partial<BoxJointOptions> = {}) => {
+  const before = JSON.stringify(doc);
+  const boards = doc.boards;
+  expect(boxJointPlan(doc, ids, { width: 0.5, swap: false, ...opts })).toBe(sentence);
+  expect(doc.boards).toBe(boards);
+  expect(JSON.stringify(doc)).toBe(before);
+};
 const span = (b: Board, k: number): [number, number] => [b.position[k]!, b.position[k]! + boardExtents(b)[k]!];
 const part = (doc: SloydDocument, id: string) => worldParts(doc).find((b) => b.id === id)!;
 
@@ -397,6 +406,57 @@ describe('boxJointPlan: a carcass (spec §5.3)', () => {
   });
 });
 
+describe('boxJointPlan: linked carcass sides (a mirrored user whose run dimension is NOT mirrorDim)', () => {
+  it.each([[false, true], [true, true]])('upright sides (mirrorDim width, run along length), mirrored %s/%s: one Shape, complementary, checks clean', (lm, rm) => {
+    const side = (id: string, name: string, x: number) => createBoard({
+      id, name, posture: 'upright', rotation: 90, length: 30, width: 11, thickness: 0.75, position: [x, 0, 0],
+    });
+    const l = side('l', 'Side left', 0);
+    const r = side('r', 'Side right', 24.75);
+    expect(mirrorDim(l)).toBe('width');
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: 11, thickness: 0.75, position: [0.75, 29.25, 0] });
+    const shape: Shape = { id: 's1', ...sharedOf(l) };
+    const user = (b: Board, mirrored: boolean): ShapedBoard =>
+      ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) });
+    // Both mirrored: the Shape's own board is planned in a MIRRORED user's frame, its sides flipped only along mirrorDim.
+    const doc = docOf([user(l, lm), user(r, rm), top] as Board[], { shapes: [shape] });
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, ['l', 'r', 't'], { width: 0.75, swap: false })));
+    const shapeIds = ['l', 'r'].map((id) => (out.boards.find((b) => b.id === id) as ShapedBoard).shape);
+    expect(shapeIds[0]).toBeDefined();
+    expect(shapeIds[1]).toBe(shapeIds[0]);
+    expectComplementary(out, 't', 'l');
+    expectComplementary(out, 't', 'r');
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+
+  it.each([[false, true], [true, true]])('sides that GROW (stopping under the top), mirrored %s/%s: a shelf dado stays put in the world', (lm, rm) => {
+    // The run-out moves each side's top end up 3/4"; the dado across each side's inside face must not move (spec §3.2).
+    const dado: Cut = { id: 'd', face: 'thickness', from: 'max', across: 'width', offset: 15, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const side = (id: string, name: string, x: number) => createBoard({
+      id, name, posture: 'upright', rotation: 90, length: 29.25, width: 11, thickness: 0.75, position: [x, 0, 0], cuts: [{ ...dado }],
+    });
+    const l = side('l', 'Side left', 0);
+    const r = side('r', 'Side right', 24.75);
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: 11, thickness: 0.75, position: [0.75, 29.25, 0] });
+    const shape: Shape = { id: 's1', ...sharedOf(l) };
+    const user = (b: Board, mirrored: boolean): ShapedBoard =>
+      ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) });
+    const doc = docOf([user(l, lm), user(r, rm), top] as Board[], { shapes: [shape] });
+    const dadoY = (d: SloydDocument, id: string) => {
+      const b = part(d, id);
+      const c = b.cuts.find((x) => x.id === 'd')!;
+      const [lo, hi] = spanToWorldOffset(b, 1, clippedRegion(b, c).length);
+      return [b.position[1] + lo, b.position[1] + hi];
+    };
+    const before = ['l', 'r'].map((id) => dadoY(doc, id));
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, ['l', 'r', 't'], { width: 0.75, swap: false })));
+    expect(['l', 'r'].map((id) => part(out, id).length)).toEqual([30, 30]);
+    expect(['l', 'r'].map((id) => dadoY(out, id))).toEqual(before);
+    expectComplementary(out, 't', 'l');
+    expectComplementary(out, 't', 'r');
+  });
+});
+
 describe('boxJointPlan: what a part may already carry (spec §3.5)', () => {
   /** A bottom groove on each side: into the broad face, running along the length. */
   const groove = (id: string): Cut => ({ id, face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
@@ -503,8 +563,7 @@ describe('boxJointPlan: linked parts (spec §6; Spec difference 3 revised)', () 
 
   it('Front and Side left only, with the sides linked: the linked-mate sentence naming Side right', () => {
     const doc = linkSides(drawerParts('butt'));
-    const p = boxJointPlan(doc, ['f', 'l'], { width: 0.5, swap: false });
-    expect(p).toBe("Side left is linked to Side right — select Side right's corner too, or Unlink first.");
+    expectRefusal(doc, ['f', 'l'], "Side left is linked to Side right — select Side right's corner too, or Unlink first.");
   });
 
   it('linked fronts of two drawers that need different joints: the disagreement sentence', () => {
@@ -519,8 +578,7 @@ describe('boxJointPlan: linked parts (spec §6; Spec difference 3 revised)', () 
     const user = (p: Board, x: number): ShapedBoard => ({ id: p.id, name: p.name, position: [x, 0, 0], rotation: 0, shape: 's3' });
     const parts = [...a.filter((p) => p !== f), ...b.filter((p) => p !== f2)];
     const doc = docOf([...parts, user(f, 0.5), user(f2, 40.75)] as Board[], { shapes: [shape] });
-    const p = boxJointPlan(doc, doc.boards.map((x) => x.id), { width: 0.5, swap: false });
-    expect(p).toBe('These linked parts would need different box joints: Front, Front 2.');
+    expectRefusal(doc, doc.boards.map((x) => x.id), 'These linked parts would need different box joints: Front, Front 2.');
   });
 
   it('every user mirrored on a non-dyadic size: the write would split the Shape, so the plan refuses (post-condition)', () => {
@@ -539,13 +597,7 @@ describe('boxJointPlan: linked parts (spec §6; Spec difference 3 revised)', () 
 });
 
 describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
-  const refuses = (doc: SloydDocument, ids: string[], sentence: string, opts: Partial<BoxJointOptions> = {}) => {
-    const before = JSON.stringify(doc);
-    const boards = doc.boards;
-    expect(boxJointPlan(doc, ids, { width: 0.5, swap: false, ...opts })).toBe(sentence);
-    expect(doc.boards).toBe(boards);
-    expect(JSON.stringify(doc)).toBe(before);
-  };
+  const refuses = expectRefusal;
 
   it('a width of zero', () => refuses(docOf(drawerParts('butt')), DRAWER_IDS, BOX_WIDTH_POSITIVE, { width: 0 }));
 
@@ -638,11 +690,31 @@ describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
 
 describe('boxJointPlan: notes', () => {
   it('a shelf touching nothing at a corner: success, the ignored line last', () => {
-    const shelf = createBoard({ id: 's', name: 'Shelf', length: 10, width: 4, thickness: T, position: [30, 0, 0] });
+    // Mid-depth and clear of the drawer: no end of it lies in any drawer part's slab, so it is no candidate under spec
+    // §3.1's two tests alone (independent of the J-overlap rule, which the stacked-drawer test pins).
+    const shelf = createBoard({ id: 's', name: 'Shelf', length: 10, width: 4, thickness: T, position: [30, 0, 6] });
     const doc = docOf([...drawerParts('butt'), shelf]);
     const plan = ok(boxJointPlan(doc, [...DRAWER_IDS, 's'], { width: 0.5, swap: false }));
     expect(plan.notes.at(-1)).toBe("Shelf isn't at a corner with another selected part.");
     expect(plan.parts.has('s')).toBe(false);
+  });
+
+  it('the jointed line: singular, every finger w (no parenthesis), and per corner when the layouts differ', () => {
+    const [f, , l] = drawerParts('butt');
+    expect(ok(boxJointPlan(docOf([f!, l!]), ['f', 'l'], { width: 0.5, swap: false })).notes)
+      .toEqual(['Jointed 1 corner: 7 fingers, 1/2" wide (the outer two 3/4").', 'Front is now 1/2" longer.']);
+    const [f45, , l45] = drawerParts('butt', { h: 4.5 });
+    expect(ok(boxJointPlan(docOf([f45!, l45!]), ['f', 'l'], { width: 0.5, swap: false })).notes[0])
+      .toBe('Jointed 1 corner: 9 fingers, 1/2" wide.');
+    const [f6, , l6] = drawerParts('butt', { h: 6 }).map((b) => ({
+      ...b, id: `${b.id}2`, name: `${b.name} 2`, position: [b.position[0] + 40, b.position[1], b.position[2]] as [number, number, number],
+    }));
+    const two = ok(boxJointPlan(docOf([f!, l!, f6!, l6!]), ['f', 'l', 'f2', 'l2'], { width: 0.5, swap: false }));
+    expect(two.notes.slice(0, 3)).toEqual([
+      'Jointed 2 corners:',
+      'Front and Side left: 7 fingers, 1/2" wide (the outer two 3/4").',
+      'Front 2 and Side left 2: 11 fingers, 1/2" wide (the outer two 3/4").',
+    ]);
   });
 
   it('a metric drawer (12 mm stock): the default width is 12 mm and the notes print mm', () => {
