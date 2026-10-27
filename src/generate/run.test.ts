@@ -36,7 +36,12 @@ import { clearedSquareStoolDocument, stoolDocument, stoolSeat } from '../documen
 import { leanMap } from '../document/lean';
 import { tenonFaults } from '../document/roundTenons';
 import { applyBoxJoints, boxJointPlan, fingerSets } from '../document/boxJoints';
+import * as fingerClaim from './joints/fingerClaim';
 
+vi.mock('./joints/fingerClaim', async (orig) => {
+  const a = await orig<typeof import('./joints/fingerClaim')>();
+  return { ...a, changedBoxJointed: vi.fn(a.changedBoxJointed) };
+});
 vi.mock('./joints/featureZones', async (orig) => {
   const a = await orig<typeof import('./joints/featureZones')>();
   return { ...a, featureAllowed: vi.fn(a.featureAllowed) };
@@ -1633,6 +1638,42 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
     expect(out.joints!.kept).toBeGreaterThan(0);
     expect(out.leaning).toEqual({ kept: DRAWER, replaced: [], boxJoints: true });
+  });
+
+  it('the model adds a part meeting the kept drawer: those meetings stay butt, the drawer comes back byte for byte', async () => {
+    const doc = migrateDocument({ ...joinedCase, boards: [...joinedCase.boards, ...drawerBoards(100)] });
+    const echo = plainEcho(doc);
+    // A stop across the drawer's back: both sides' back ends and the back's face meet it (new meetings with kept parts).
+    const stop = bp('Drawer stop', [100, 0, 17], [13, 4, 0.75]);
+    const { client } = fakeClient([{ ...echo, parts: [...echo.parts, stop] }]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    const sites = findSites(flatDocument(out.doc));
+    const f = flatDocument(out.doc);
+    const pair = (s: (typeof sites)[number]) => [f.boards[s.enter]!.name, f.boards[s.receive]!.name];
+    expect(sites.filter((s) => pair(s).includes('Drawer stop') && pair(s).some((n) => DRAWER.includes(n))).length).toBeGreaterThan(0);
+    for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
+    // Fixed butts: no joinery call, nothing skipped (without them the sides' sites go to the chooser, a paid call whose
+    // tenons joinery then skips).
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints).toMatchObject({ chosen: 0, skipped: [] });
+    expect(out.joints!.notJoined).toBeUndefined();
+    expect(out.joints!.kept).toBeGreaterThan(0);
+  });
+
+  it('a re-join that would change a kept box-jointed part comes back UNJOINED, with the reason (the guard, forced)', async () => {
+    const doc = migrateDocument({ ...joinedCase, boards: [...joinedCase.boards, ...drawerBoards(100)] });
+    const { client } = fakeClient([plainEcho(doc)]);
+    const guard = vi.mocked(fingerClaim.changedBoxJointed);
+    guard.mockImplementationOnce(() => 'Drawer left');
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(guard).toHaveBeenCalledWith(doc, expect.anything(), DRAWER);
+    expect(out.joints).toEqual({ kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [],
+      notJoined: 'Joinery would have changed a box-jointed part (Drawer left), so the design comes back unjoined.' });
+    // Unjoined: the case's joints are not re-applied; the drawer keeps its fingers.
+    for (const b of flatDocument(out.doc).boards.filter((x) => !DRAWER.includes(x.name))) expect(b.cuts, b.name).toEqual([]);
+    for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
   });
 
   it('a box-joint-only project: no joinery, the drawer back byte for byte, a model part reusing a kept name dropped', async () => {

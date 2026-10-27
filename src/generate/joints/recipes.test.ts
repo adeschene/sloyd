@@ -2169,13 +2169,45 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     }
   });
 
+  it('a tenon growing a part at a LENGTH end, its finger set at a WIDTH end: skipped, the part unchanged', () => {
+    const doc = LEG_RAIL();
+    const rail = board(doc, 'Rail');
+    const l = fingerLayout(rail.length, 0.75)!;
+    rail.cuts.push(...notchCuts(l, true, 'width', endFacing(rail, 1, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    expect(fingerSets(rail).map((f) => f.dim)).toEqual(['width']);
+    const sites = findSites(doc);
+    const site = sites.find((s) => doc.boards[s.enter]!.name === 'Rail' && doc.boards[s.receive]!.name === 'Leg')!;
+    expect(axisDimensions(rail)[site.axis]).toBe('length');
+    const out = applyJoints(doc, sites, sites.map((s) => (s === site ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1 } : { site: s.id, joint: 'butt' as const })));
+    expect(out.skipped).toEqual([{ site: site.id, reason: "Rail's box joint is already cut at that end" }]);
+    expect(board(out.doc, 'Rail')).toEqual(rail);
+    expect(board(out.doc, 'Leg')).toEqual(board(doc, 'Leg'));
+  });
+
+  it('a half-lap that would drop a box-jointed part into its partner\'s plane refuses, changing nothing', () => {
+    const doc = design(
+      { name: 'R', at: [0, 0, 9], size: [20, 0.5, 3] },
+      { name: 'E', at: [9, 0.5, 0], size: [2, 0.5, 20] },
+    );
+    const e = board(doc, 'E');
+    const dim = axisDimensions(e)[2]!;
+    const along = dim === 'length' ? 'width' : 'length';
+    const l = fingerLayout(e[along], 0.25)!;
+    e.cuts.push(...notchCuts(l, true, dim, endFacing(e, 2, 1), along, 0.5, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    expect(fingerSets(e)).toHaveLength(1);
+    const site: Site = { id: 1, kind: 'crossing', enter: 1, receive: 0, axis: 1, side: -1, allowed: ['half-lap'], stopEnds: [] };
+    const out = applyJoints(doc, [site], [{ site: 1, joint: 'half-lap' }]);
+    expect(out.skipped).toEqual([{ site: 1, reason: "E's box joint is already cut at that end" }]);
+    expect(out.doc.boards).toEqual(doc.boards);
+  });
+
   describe('a rabbet\'s trims', () => {
     // 'the trims judge solids' fixture (fingers on RightSide): RightSide is not a receiver, so the back's final box meets it as a part to trim,
     // by 1/8", at its world-z-min end (the part's width MAX end: it is turned). Fingers are cut at that end here.
-    const build = (fingers: 'right' | 'back') => {
+    const build = (fingers: 'right' | 'back' | 'right-bottom') => {
       const doc = design(
         { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
-        { name: 'RightSide', at: [20.75, 0, fingers === 'right' ? 0.125 : 0], size: [0.75, 30, 12] },
+        { name: 'RightSide', at: [20.75, 0, fingers === 'back' ? 0 : 0.125], size: [0.75, 30, 12] },
         { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
       );
       const finger = (name: string, k: number, side: -1 | 1) => {
@@ -2189,6 +2221,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
       // RightSide's back end; or (both sides receivers, as in 'a panel cut INTERIOR…' above) the Back's own left end,
       // which its rabbet line into LeftSide trims by 3/8".
       if (fingers === 'right') finger('RightSide', 2, -1);
+      else if (fingers === 'right-bottom') finger('RightSide', 1, -1);
       else finger('Back', 0, -1);
       return doc;
     };
@@ -2201,6 +2234,18 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
       expect(out.doc.boards).toEqual(doc.boards);
       expect(out.trimmed).toEqual([]);
       expect(out.moved).toEqual([]);
+    });
+
+    it('a trim ALONG a box-jointed part\'s fingers (set at its bottom end, trimmed at its back end) refuses, changing nothing', () => {
+      const doc = build('right-bottom');
+      const right = board(doc, 'RightSide');
+      // The set is at a length end; the trim shortens the width, the fingers' own dimension.
+      expect(fingerSets(right).map((f) => f.dim)).toEqual(['length']);
+      expect(axisDimensions(right)[2]).toBe('width');
+      const out = applyJoints(doc, [rightSite], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
+      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide's box joint is already cut at that end" }]);
+      expect(out.doc.boards).toEqual(doc.boards);
+      expect(out.trimmed).toEqual([]);
     });
 
     it('the panel\'s own trim at its jointed end refuses, changing nothing', () => {

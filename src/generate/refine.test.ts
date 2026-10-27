@@ -25,7 +25,7 @@ import { keepsExactly, keptParts, keptNote } from '../document/leanKeep';
 import { linkByRole } from '../document/roleLinks';
 import { socketPlan } from '../document/legSockets';
 import { partBounds } from '../document/worldBounds';
-import { applyBoxJoints, boxJointPlan, fingerSets } from '../document/boxJoints';
+import { applyBoxJoints, boxJointPlan, fingerLayout, fingerSets, notchCuts } from '../document/boxJoints';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const p = (name: string, i: number) => ({ name, role: '', material: 'pine', at: v(i * 2, 0, 0), size: v(1, 1, 1) });
@@ -530,6 +530,24 @@ describe('Refine keeps box-jointed parts (box-joints spec §7)', () => {
     expect(refineRefusal(doc, base)).toBeNull();
     expect(refineDialogInfo(doc).joined).toBe(true);
     expect(keptParts(base.plain).names).toEqual(DRAWER);
+  });
+
+  it('a part whose read-back would resize it along its fingers (a dadoed shelf, its set at a width end) refuses, naming it', () => {
+    const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'pine', at: v(...at), size: v(...size) });
+    const flat = flatDocument(designToDocument({ name: 'C', assemblies: [], parts: [
+      bp('Side', [0, 0, 0], [0.75, 30, 11.25]), bp('Shelf', [0.75, 15, 0], [20, 0.75, 11.25]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const site = sites.find((s) => flat.boards[s.enter]!.name === 'Shelf')!;
+    const joinedFlat = applyJoints(flat, sites, sites.map((s) => (s === site ? { site: s.id, joint: 'dado' as const, depth: 0.25 } : { site: s.id, joint: 'butt' as const }))).doc;
+    const shelf = joinedFlat.boards.find((b) => b.name === 'Shelf')!;
+    expect(shelf.length).toBe(20.25);
+    // Fingers at the shelf's back (width) end, read along its length: the read-back shortens that length.
+    const l = fingerLayout(shelf.length, 0.75)!;
+    shelf.cuts.push(...notchCuts(l, true, 'width', endFacing(shelf, 2, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    expect(fingerSets(shelf).map((f) => f.dim)).toEqual(['width']);
+    const doc = migrateDocument(joinedFlat);
+    expect(plainForRefine(doc)).toEqual({ refused: { reason: 'joints', message: "Refine can't keep Shelf's box joints through its other joints yet." } });
   });
 
   it('a hand-added cut beside the fingers still gives the gate message (only recognised sets are claimed)', () => {

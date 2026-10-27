@@ -13,6 +13,8 @@ import { applyJoints } from './recipes';
 import { cutBox, gateUnjoin, sameCut, sameJoined } from './unjoin';
 import type { RecordedJoint } from './unjoin';
 import { REPAIR_REFUSAL, repairDocument, repairJoints, splitCopies, storedKeys } from './repair';
+import { createBoard, createDocument } from '../../document/document';
+import { applyBoxJoints, boxJointPlan, fingerSets } from '../../document/boxJoints';
 
 type Fx = { plain: SloydDocument; choices: RecordedJoint[]; damaged: SloydDocument };
 const load = (raw: string): Fx => { const j = JSON.parse(raw); return { plain: migrateDocument(j.plain), choices: j.choices, damaged: migrateDocument(j.damaged) }; };
@@ -363,5 +365,32 @@ describe('repairDocument repairs a banded document (joinery-features chunk 3)', 
     expect(rows(out.doc, 'bands')).toEqual(rows(doc, 'bands'));
     expect(rows(out.doc, 'cornerRule')).toEqual(rows(doc, 'cornerRule'));
     expect(rows(out.doc, 'bands').flat()).not.toHaveLength(0);
+  });
+});
+
+describe('repairDocument claims box joints (box-joints spec §7)', () => {
+  /** A drawer, butt corners jointed at 1/2" (as `boxJoints.test.ts` builds it), `dx` along X. */
+  const drawerBoards = (dx: number): Board[] => {
+    const fb = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'on-edge', rotation: 0, length: 12, width: 4, thickness: 0.5, position: [dx + 0.5, 0, z] });
+    const side = (id: string, name: string, x: number) => createBoard({ id, name, posture: 'on-edge', rotation: 90, length: 17, width: 4, thickness: 0.5, position: [dx + x, 0, 0] });
+    const doc = { ...createDocument('Drawer'), boards: [fb('df', 'Drawer front', 0), fb('db', 'Drawer back', 16.5), side('dl', 'Drawer left', 0), side('dr', 'Drawer right', 12.5)] };
+    const plan = boxJointPlan(doc, ['df', 'db', 'dl', 'dr'], { width: 0.5, swap: false });
+    if (typeof plan === 'string') throw new Error(plan);
+    return applyBoxJoints(doc, plan).boards as Board[];
+  };
+  const DRAWER = ['Drawer front', 'Drawer back', 'Drawer left', 'Drawer right'];
+
+  it('a damaged fixture plus a box-jointed drawer still gets its repair offer, the drawer\'s fingers kept exactly', () => {
+    const damaged = load(f1).damaged;
+    const alone = repairDocument(damaged);
+    if (alone === null || 'refused' in alone) throw new Error('expected a repair');
+    const doc = migrateDocument({ ...damaged, boards: [...damaged.boards, ...drawerBoards(500)] });
+    const sets = (d: SloydDocument) => flatDocument(d).boards.filter((b) => DRAWER.includes(b.name)).map((b) => [b.name, fingerSets(b)]);
+    expect(sets(doc).every(([, s]) => (s as unknown[]).length > 0)).toBe(true);
+    const out = repairDocument(doc);
+    if (out === null || 'refused' in out) throw new Error(`expected a repair, got ${JSON.stringify(out)}`);
+    expect(out.dropped).toBe(alone.dropped);
+    expect(sets(out.doc)).toEqual(sets(doc));
+    for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
   });
 });

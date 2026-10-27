@@ -21,8 +21,8 @@ import { carryFromOriginal } from '../document/featureCarry';
 import { featuredNote } from '../document/carryText';
 import { keptNote } from '../document/leanKeep';
 import { isTilted } from '../document/holeTilt';
-import { fingerSets } from '../document/boxJoints';
-import type { Cut, FlatDocument } from '../document/types';
+import { claimFingerSets, firstBrokenSet, restoreFingerSets } from './joints/fingerClaim';
+import { boxJointsThroughJoints } from '../document/boxJointText';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -68,22 +68,6 @@ export function detailFor(doc: SloydDocument): Detail {
 export type RefineBase = { plain: SloydDocument; joints: RecordedJoint[] | null } | { refused: RefineRefusal };
 
 /**
- * Every recognised finger set's cuts taken off its part (box-joints spec §7), per flat index, BEFORE the joint gate: a
- * box joint is no joint `readJoints` explains, so the gate judges only the cuts that are left. Pure: a part with no set
- * keeps its object, one with a set gets a copy with a new `cuts` array (flat twins of a definition share one).
- */
-function claimFingerSets(flat: FlatDocument): { flat: FlatDocument; claimed: Map<number, Cut[]> } {
-  const claimed = new Map<number, Cut[]>();
-  const boards = flat.boards.map((b, i) => {
-    const ids = new Set(fingerSets(b).flatMap((f) => f.cutIds));
-    if (ids.size === 0) return b;
-    claimed.set(i, b.cuts.filter((c) => ids.has(c.id)));
-    return { ...b, cuts: b.cuts.filter((c) => !ids.has(c.id)) };
-  });
-  return { flat: claimed.size === 0 ? flat : { ...flat, boards }, claimed };
-}
-
-/**
  * The design Refine works on (refine-joined spec §2): unchanged when nothing is
  * cut; otherwise its joints are read back (gateUnjoin) and the plain parts are
  * written into the tree the way runJoinery writes its result back
@@ -119,7 +103,11 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     if (angled) return { refused: { reason: 'lean-joint', message: `Refine can't keep a part with angled holes in a joined project yet: ${angled.name}.` } };
     const g = gateUnjoin(unclaimed);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
-    const plainBoards = g.plain.map((b, i) => (claimed.has(i) ? { ...b, cuts: [...b.cuts, ...claimed.get(i)!] } : b));
+    const plainBoards = restoreFingerSets(g.plain, claimed);
+    // The read-back resized a box-jointed part along its fingers (it entered a joint at another end): the claimed cuts
+    // put back would no longer be its box joint, so Refine refuses rather than lose it (box-joints spec §7).
+    const broken = firstBrokenSet(flat.boards, plainBoards, claimed);
+    if (broken !== null) return { refused: { reason: 'joints', message: boxJointsThroughJoints(broken) } };
     const plain = migrateDocument(writeBackFlat(doc, flat.boards, plainBoards));
     // A joined original whose taper already runs into a joint could only come back unjoined (its re-join refuses):
     // refused before any call (AI-tapers spec §5.4, amended), by joinery's ONE refusal decider (invariant 41).

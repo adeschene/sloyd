@@ -5,7 +5,7 @@ import { resizeEnd, refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles
 export { refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles };
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing } from '../../document/geometry';
-import { fingerSetAt } from '../../document/boxJoints';
+import { fingerSets } from '../../document/boxJoints';
 import { boxJointedEnd } from '../../document/boxJointText';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
@@ -81,13 +81,12 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
 };
 
 /**
- * A recognised finger set at the end a resize along world axis k would move (box-joints spec §7). Finger notches run
- * through the thickness, so `refaceFromEnd` re-stores them and `cutIntoEnd` says false: a grow or a trim there would
- * carry them along and destroy the joint. Every `cutIntoEnd` caller asks this too, before anything changes (inv 41).
- * `end` is a WORLD end, mapped to the part's own as `cutIntoEnd` does.
+ * A part with any recognised finger set (box-joints spec §7). Joinery never resizes, trims or moves one (a tenon or dado
+ * growing it, a rabbet trimming or carrying it, a panel or a half-lap moving it), at whatever end or axis: a grow or trim
+ * along its fingers re-proportions them, one through its thickness leaves its mate's notches the wrong depth, and a move
+ * takes it off its corner. A pocket cut INTO one as a receiver stays allowed. Asked before anything changes (inv 41).
  */
-const fingerEnd = (b: Board, k: number, end: 'min' | 'max') =>
-  fingerSetAt(b, axisDimensions(b)[k], endFacing(b, k, end === 'min' ? -1 : 1)) !== null;
+const jointed = (b: Board) => fingerSets(b).length > 0;
 
 /** The slab E grows into, on its `side` face along k, `amount` deep. */
 const extension = (before: WorldBox, k: number, side: -1 | 1, amount: number): [number, number] =>
@@ -274,11 +273,11 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
       continue;
     }
-    // Tenons and dados grow E at its `side` end: a box joint cut at that end
-    // would be carried off its corner (box-joints spec §7), and a cut already
-    // into that end would throw inside rebaseCuts, so the site is skipped first.
+    // Tenons and dados grow E at its `side` end: a box-jointed part is never
+    // resized (box-joints spec §7), and a cut already into that end would
+    // throw inside rebaseCuts, so the site is skipped first.
     const grows = joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado';
-    if (grows && fingerEnd(E, k, side === 1 ? 'max' : 'min')) {
+    if (grows && jointed(E)) {
       skipped.push({ site: site.id, reason: boxJointedEnd(E.name) });
       continue;
     }
@@ -411,14 +410,14 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     return { R: boards[site.receive], box: withSpans(rb, { [k]: kSpan, [nAx]: nSpan, [q]: qSpan }) };
   });
 
+  // A box-jointed panel or rider would move, and the panel may be trimmed (box-joints spec §7).
+  for (const i of [e, ...carried]) if (jointed(boards[i]!)) return refuse(boxJointedEnd(boards[i]!.name));
   // The panel where it will be: its solids moved, then clipped to the final box.
   const panel = clipped(shifted(worldSolids(E), k, side * t), fin);
   // The panel's own trims to its rabbet lines, asked before anything moves:
   // rebaseCuts throws on a cut INTO an end being trimmed (fu 203 review).
   for (let a = 0; a < 3; a++) {
     for (const [end, trimmedHere] of [['min', fin.min[a] > movedBox.min[a]], ['max', fin.max[a] < movedBox.max[a]]] as const) {
-      // A box joint at a trimmed end would be cut short (box-joints spec §7).
-      if (trimmedHere && fingerEnd(E, a, end)) return refuse(boxJointedEnd(E.name));
       if (trimmedHere && cutIntoEnd(E, a, end)) {
         return refuse(`moving ${E.name} would trim it at an end it is already cut into`);
       }
@@ -438,8 +437,8 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (meeting.length === 0) continue;
     const depth = Math.max(...meeting.map((p) => (side === 1 ? p.max[k] - b.min[k] : b.max[k] - p.min[k])));
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
-    // A box joint at the end being trimmed would be cut short (box-joints spec §7).
-    if (fingerEnd(boards[j], k, side === 1 ? 'min' : 'max')) return refuse(boxJointedEnd(boards[j].name));
+    // A box-jointed part is never trimmed (box-joints spec §7).
+    if (jointed(boards[j]!)) return refuse(boxJointedEnd(boards[j]!.name));
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
     if (cutIntoEnd(boards[j], k, side === 1 ? 'min' : 'max')) {
@@ -505,6 +504,8 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const eNow = boxOf(E);
   const rNow = boxOf(R);
   const delta = alreadyIn ? 0 : side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
+  // A box-jointed E would move off its corner (box-joints spec §7); its notch alone, already in plane, is a pocket.
+  if (!alreadyIn && Math.abs(delta) > 1e-9 && jointed(E)) return boxJointedEnd(E.name);
   if (!alreadyIn) {
     // Dropping E must not drive it into anything but its own lap partners
     // ANYWHERE along the drop, which can be longer than t: the volume each of

@@ -3,6 +3,7 @@ import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/doc
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
 import { compoundRefusal, leaningRefusal, tenonRefusal } from './tapers';
+import { claimFingerSets, firstBrokenSet, restoreFingerSets } from './fingerClaim';
 
 /**
  * Repairing what joinery did before a899b51 (repair-joints spec §2, follow-up 240): twin
@@ -110,9 +111,14 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
       ? leaningRefusal('repair', flat) ?? tenonRefusal('repair', flat) ?? compoundRefusal('repair', flat)
       : null;
     if (leaning) return { refused: leaning };
-    const r = repairJoints(flat, storedKeys(doc));
+    // Box joints are claimed first (box-joints spec §7), as Refine's gate does: the read-back judges only the other cuts,
+    // and the claimed ones go back onto their parts. A repair that would change a set is refused, never applied.
+    const { flat: unclaimed, claimed } = claimFingerSets(flat);
+    const r = repairJoints(unclaimed, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
-    const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));
+    const boards = restoreFingerSets(r.boards, claimed);
+    if (firstBrokenSet(flat.boards, boards, claimed) !== null) return { refused: REPAIR_REFUSAL };
+    const out = migrateDocument(writeBackFlat(doc, flat.boards, boards));
     return { doc: out, dropped: r.dropped, splits: splitCopies(doc, out) };
   } catch (e) {
     console.error('Sloyd: repairing joints threw', e);

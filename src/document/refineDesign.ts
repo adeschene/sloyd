@@ -14,6 +14,7 @@ import { worldProfiles } from './profileWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, parentPath, worldParts } from './tree';
 import { keptParts, leaningInAssembly } from './leanKeep';
+import { fingerSets } from './boxJoints';
 
 /**
  * Refine's input (refine spec §2): the open design in Generate's own format —
@@ -86,14 +87,18 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   const shapes = shapeMap(doc);
   const placed = worldParts(doc).length;
   if (placed === 0) return refuse('empty', 'There is nothing to refine yet.');
-  // The kept ROOT parts (below) are never described, so their cuts are theirs: a box-jointed part reaches here with its
-  // finger cuts in place (box-joints spec §7). Root ids only: a definition's ids are another scope (inv 33).
-  const kept = keptParts(doc);
-  const keptIds = new Set(kept.boards.map((b) => b.id));
-  const stored: StoredBoard[] = [...doc.boards.filter((b) => !keptIds.has(b.id)), ...doc.definitions.flatMap((d) => d.boards)];
+  const stored: StoredBoard[] = [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
   // Defence in depth: Refine's own path never reaches this with cuts (plainForRefine's joint gate
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.
-  if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
+  // A recognised finger set's cuts are the one exception: they reach here in place (box-joints spec §7), and the part
+  // is kept, never described.
+  const unclaimedCuts = (b: StoredBoard) => {
+    const r = resolveBoard(shapes, b);
+    if (!r) return 0;
+    const ids = new Set(fingerSets(r).flatMap((f) => f.cutIds));
+    return r.cuts.filter((c) => !ids.has(c.id)).length;
+  };
+  if (stored.some((b) => unclaimedCuts(b) > 0)) {
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
   }
   // A leaning part, one with a tilted hole row or one with a round tenon is KEPT, never described (splayed legs spec §8): it is left out of the design and of every pre-check
@@ -101,6 +106,8 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   // assembly's definition is rebuilt from the model's, so such a part inside one is refused.
   const inAssembly = leaningInAssembly(doc);
   if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: ${inAssembly}.`);
+  const kept = keptParts(doc);
+  const keptIds = new Set(kept.boards.map((b) => b.id));
   const described = flatDocument(doc).boards.filter((b) => !(parentPath(b.id) === null && keptIds.has(b.id)));
   // A taper Refine cannot describe exactly is refused, never rewritten (spec §5.2). Flat names, as the person sees them.
   const odd = described.filter((b) => worldTapers(b) === null).map((b) => b.name);

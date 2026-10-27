@@ -32,6 +32,8 @@ import type { RefineRefusal } from '../document/refineDesign';
 import { carriedSummary } from '../document/carryText';
 import { keptParts } from '../document/leanKeep';
 import { fingerSets } from '../document/boxJoints';
+import { boxJointJoinChanged } from '../document/boxJointText';
+import { changedBoxJointed } from './joints/fingerClaim';
 import { resolveBoard, shapeMap } from '../document/shapes';
 import type { KeptParts } from '../document/leanKeep';
 import { diffDesigns } from '../document/designDiff';
@@ -309,6 +311,8 @@ export async function runRefine(
   let present = out.present;
   let usage = out.usage;
   let joints: JointsSummary | null = null;
+  // The kept parts with box joints, by flat name (root parts: the flat name is the stored name).
+  const boxJointedKept = flatDocument(base.plain).boards.filter((b) => kept.names.includes(b.name) && fingerSets(b).length > 0).map((b) => b.name);
   if (base.joints) {
     // A meeting the ORIGINAL plain design had but no record covers was left butt (butt leaves
     // no cut; the gate's round trip proved it): a fixed butt, never re-opened (spec §4).
@@ -319,6 +323,16 @@ export async function runRefine(
     // DROPPED = a record whose meeting no longer exists on the refined plain design;
     // a record whose meeting exists but whose choice no longer fits is open (counted in `chosen`).
     const plainFlat = flatDocument(refined);
+    // Every meeting a kept part has on the refined design that no record covers is a fixed butt (box-joints spec §7):
+    // joinery adds nothing to a kept part. A recorded joint is still re-applied as recorded, or the kept part would lose
+    // the pocket the read-back took off it.
+    const keptNames = new Set(kept.names);
+    const recorded = new Set(base.joints.map((j) => jointKey(j.enter, j.receive, j.axis, j.side)));
+    for (const s of findSites(plainFlat)) {
+      const [e, r] = [plainFlat.boards[s.enter]!.name, plainFlat.boards[s.receive]!.name];
+      const key = jointKey(e, r, s.axis, s.side);
+      if ((keptNames.has(e) || keptNames.has(r)) && !recorded.has(key)) fixed.set(key, { joint: 'butt' });
+    }
     const siteKeys = new Set(findSites(plainFlat).map((s) => jointKey(plainFlat.boards[s.enter]!.name, plainFlat.boards[s.receive]!.name, s.axis, s.side)));
     const dropped = base.joints.filter((j) => !siteKeys.has(jointKey(j.enter, j.receive, j.axis, j.side))).length;
     // The ORIGINAL joined design's named-part problems are already present (spec §4 Issues), judged
@@ -338,10 +352,17 @@ export async function runRefine(
     }
     // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with an angle-joint fault
     // left, and joinery refuses that before any call. The refined design is kept, unjoined; the fault is in `violations`.
+    // A kept box-jointed part the re-join would change (box-joints spec §7).
+    const changed = 'result' in jo ? changedBoxJointed(doc, jo.result.doc, boxJointedKept) : null;
     if ('refused' in jo) {
       joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], notJoined: jo.refused };
     } else if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [] };
+    } else if (changed !== null) {
+      // The refined design comes back UNJOINED with the reason (inv 41), never with the fingers lost. The joinery call,
+      // if one was made, is still paid for.
+      usage = addUsage(usage, jo.usage);
+      joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [], notJoined: boxJointJoinChanged(changed) };
     } else {
       // The joined result's own band types (the refined design's, through joinery), never the original's (AI-bands spec §3.1).
       refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: jo.result.doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
