@@ -208,3 +208,17 @@ describe('the other sections on a dovetailed part show the store\'s refusal as t
     expect(s().past.length).toBe(0);
   });
 });
+
+describe('the Tails field bound (final review, 2026-10-27)', () => {
+  it('more than DOVETAIL_COUNT_MAX (101) is the field\'s error and disables the button; 100 is accepted', async () => {
+    const user = userEvent.setup();
+    open(drawer(), ...ALL);
+    const tails = screen.getByLabelText('Tails');
+    await user.type(tails, '101{Enter}');
+    expect(screen.getByRole('alert').textContent).toBe(DOVETAIL_COUNT_WHOLE);
+    expect((button() as HTMLButtonElement).disabled).toBe(true);
+    await user.clear(tails); await user.type(tails, '100{Enter}');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect((button() as HTMLButtonElement).disabled).toBe(false);
+  });
+});

@@ -117,3 +117,19 @@ describe('dovetailCutRefusal (spec §3.6; fix round 1: the corner planner\'s ONE
     expect(dovetailCutRefusal(b, cut({ across: 'width', offset: 9.5, width: 0.25, depth: 0 }))).toBeNull();
   });
 });
+
+describe('dovetailLine: final review fixes (2026-10-27)', () => {
+  it('a count of 1e9 answers at once (no layout array is built)', () => {
+    const b = createBoard({ length: 20, width: 6, thickness: 0.75 });
+    const d: Dovetail = { id: 'd', dim: 'length', end: 'max', role: 'tails', count: 1e9, slope: 8, pin: 0.25, depth: 0.75 };
+    const t0 = performance.now();
+    expect(dovetailLine(b, d, IMPERIAL)).toMatch(/^Through dovetails — 1000000000 tails, 1:8,/);
+    expect(performance.now() - t0).toBeLessThan(50);
+  });
+  it('one tail reads "1 tail"', () => {
+    const b = createBoard({ length: 20, width: 6, thickness: 0.75 });
+    const d: Dovetail = { id: 'd', dim: 'length', end: 'max', role: 'tails', count: 1, slope: 8, pin: 0.25, depth: 0.75 };
+    expect(dovetailLine(b, d, IMPERIAL)).toBe(
+      'Through dovetails — 1 tail, 1:8, pins 1/4" at the narrow end, 3/4" deep, at the length max end; this part has the tails, 5-1/2" at the end.');
+  });
+});

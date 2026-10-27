@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CURRENT_VERSION, createDocument, migrateDocument } from './document';
 import type { Board } from './types';
+import { DOVETAIL_COUNT_MAX } from './dovetailModel';
 
 const BEFORE = '{"version":25,"name":"T","units":{"display":"imperial-fractional","precision":16},"stock":{"kerf":0.125},"guides":[],"boards":[{"id":"b1","name":"Side","position":[0,0,0],"rotation":0,"length":20,"width":6,"thickness":0.75,"posture":"flat","grain":"length","material":"oak","cuts":[],"angleCuts":[],"holes":[],"curves":[],"profiles":[],"bands":[],"cornerRule":"long","hardware":[]}],"instances":[],"definitions":[],"shapes":[],"materials":[],"bandTypes":[{"name":"Iron-on veneer","thickness":0,"lengthAllowance":0.5,"id":"band-iron-on","kind":"tape","tapeWidth":0.875,"pricePerFoot":null}],"hardwareTypes":[],"hardware":[]}';
 
@@ -49,6 +50,15 @@ describe('schema 26: the stored dovetail (dovetails spec §8)', () => {
     }
     // A bad entry beside a good one drops only itself.
     expect(dovetailsOf(at(26, [{ ...pins, pin: 0 }, tails]))).toEqual([tails]);
+  });
+
+  it('a count over DOVETAIL_COUNT_MAX (100) is dropped, the part kept; 100 itself is kept (final review)', () => {
+    expect(DOVETAIL_COUNT_MAX).toBe(100);
+    const over = at(26, [{ ...tails, count: 101 }]);
+    expect(over.boards).toHaveLength(1);
+    expect('dovetails' in over.boards[0]!).toBe(false);
+    expect(dovetailsOf(at(26, [{ ...tails, count: 100 }]))).toEqual([{ ...tails, count: 100 }]);
+    expect(dovetailsOf(at(26, [{ ...tails, count: 1e9 }, pins]))).toEqual([pins]);
   });
 
   it('a second entry for one (dim, end): the first wins', () => {

@@ -15,7 +15,7 @@ import { canonicalHardware, HARDWARE_COUNT_MAX, PACK_SIZE_MAX } from './hardware
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
 import { withTenons } from './roundTenons';
-import { withDovetails } from './dovetailModel';
+import { DOVETAIL_COUNT_MAX, withDovetails } from './dovetailModel';
 import { withinTiltBound } from './holeTilt';
 import { PROFILE_KINDS, profileOf, profileAsymmetric, canonicalRun } from './profiles';
 import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
@@ -224,7 +224,7 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * v26 (dovetails spec §3.4, §8): `dovetails` on a part, absent when the part has none (never `[]`), document-level, no
  * step. Each is `{ id, dim, end, role, count, slope, pin, depth, outside? }`, at most one per `(dim, end)`, canonical order
  * (length min, length max, width min, width max). The loader DROPS a malformed one, never the part (not an object, `dim`
- * not length | width, `end` not min | max, `role` not tails | pins, `count` not an integer >= 1, a non-finite or
+ * not length | width, `end` not min | max, `role` not tails | pins, `count` not an integer from 1 to DOVETAIL_COUNT_MAX (100), a non-finite or
  * non-positive `slope`, `pin` or `depth`, a pins entry without a valid `outside`, a second one for a `(dim, end)`: the
  * first wins), drops a tails entry's stray `outside` (the entry kept), and KEEPS a well-formed faulted one; it refuses
  * nothing on content. Harm a v25 build would do: it rebuilds each part field by field, drops the dovetails and loads both
@@ -562,7 +562,7 @@ function validateTenons(raw: unknown): RoundTenon[] | undefined {
 /**
  * A part's dovetails (dovetails spec §3.4, §8), or undefined (no key: a dovetail-free part keeps its bytes). Dropped, never
  * clamped: not an object, `dim` not length | width, `end` not min | max, `role` not tails | pins, `count` not an integer
- * >= 1, a non-finite or non-positive `slope`, `pin` or `depth`, a pins entry without `outside` min | max, and a second one
+ * from 1 to DOVETAIL_COUNT_MAX (100: would freeze the view, as HOLE_COUNT_MAX), a non-finite or non-positive `slope`, `pin` or `depth`, a pins entry without `outside` min | max, and a second one
  * for a `(dim, end)` (the first, in RAW order, wins). A tails entry's `outside` is dropped, the entry kept. A FAULTED but
  * well-formed dovetail (a slope of 1:20) is KEPT. Ids are scoped to this board (invariant 33), like a tenon's. Rebuilt
  * field by field, in canonical order (`withDovetails`).
@@ -578,7 +578,7 @@ function validateDovetails(raw: unknown): Dovetail[] | undefined {
     if (typeof item !== 'object' || item === null) continue;
     const d = item as Record<string, unknown>;
     if ((d.dim !== 'length' && d.dim !== 'width') || !side(d.end) || (d.role !== 'tails' && d.role !== 'pins')) continue;
-    if (typeof d.count !== 'number' || !Number.isInteger(d.count) || d.count < 1) continue;
+    if (typeof d.count !== 'number' || !Number.isInteger(d.count) || d.count < 1 || d.count > DOVETAIL_COUNT_MAX) continue;
     if (!positive(d.slope) || !positive(d.pin) || !positive(d.depth)) continue;
     if (d.role === 'pins' && !side(d.outside)) continue;
     const key = `${d.dim}|${d.end}`;

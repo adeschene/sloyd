@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import type { Board } from '../document/document';
 import { dovetailFaults, dovetailPlan } from '../document/dovetails';
-import { dovetailsOf } from '../document/dovetailModel';
+import { DOVETAIL_COUNT_MAX, dovetailsOf } from '../document/dovetailModel';
 import {
   DOVETAIL_BUTTON, DOVETAIL_COUNT_WHOLE, DOVETAIL_FIELD_SLOPE, DOVETAIL_FIELD_TAILS, DOVETAIL_HEADING, DOVETAIL_REMOVE,
   DOVETAIL_SLOPE_PREFIX, DOVETAIL_SLOPE_RANGE, DOVETAIL_SWAP, DOVETAIL_TAILS_PLACEHOLDER, dovetailFaultText, dovetailLine,
@@ -17,7 +17,7 @@ const DEFAULT_SLOPE = 8;
 const parseSlope = (text: string): number | null => (/^\s*\d+(\.\d+)?\s*$/.test(text) ? Number(text.trim()) : null);
 
 /**
- * The Tails field (spec §4): blank is Auto (null), else a whole number 1 or more. Inv 5's draft rules, as DimensionField's
+ * The Tails field (spec §4): blank is Auto (null), else a whole number from 1 to DOVETAIL_COUNT_MAX (more is a parse error). Inv 5's draft rules, as DimensionField's
  * (which cannot hold "blank"): the draft commits on blur or Enter only when it was typed in; an untouched blur resyncs from
  * `value` and commits nothing; Escape reverts; a refused entry keeps focus and the typed text, and shows the count sentence
  * as the field's own error (`onErrorChange` tells the section, which disables its button, as Box joints' width).
@@ -34,7 +34,7 @@ function TailsField({ value, onCommit, onErrorChange }: {
   useEffect(() => { onErrorChange(error !== null); }, [error]); // eslint-disable-line react-hooks/exhaustive-deps
   const commit = (): boolean => {
     const t = text.trim();
-    const n = t === '' ? null : /^\d+$/.test(t) && Number(t) >= 1 ? Number(t) : NaN;
+    const n = t === '' ? null : /^\d+$/.test(t) && Number(t) >= 1 && Number(t) <= DOVETAIL_COUNT_MAX ? Number(t) : NaN;
     if (Number.isNaN(n)) {
       setError(DOVETAIL_COUNT_WHOLE);
       return false;

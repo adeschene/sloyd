@@ -448,3 +448,25 @@ describe('a dovetailed drawer, then its bottom joined in grooves: Refine reads a
     expect(out.leaning).toEqual({ kept: DRAWER, replaced: [], dovetails: true });
   });
 });
+
+describe('the Repair guard (`changedDovetailed`): every clause (final review, 2026-10-27)', () => {
+  const drawer = drawerBoards();
+  const parts = () => structuredClone(drawer);
+  const at = (f: (b: Board) => Board) => parts().map((b) => (b.name === 'Drawer left' ? f(b) : b));
+  const cut = (id: string, offset: number) =>
+    ({ id, face: 'thickness' as const, from: 'min' as const, across: 'length' as const, offset, width: 0.25, depth: 0.125, stopMin: 0, stopMax: 0 });
+  it('a width or a thickness change is named', () => {
+    expect(changedDovetailed(parts(), at((b) => ({ ...b, width: b.width + 0.125 })))).toBe('Drawer left');
+    expect(changedDovetailed(parts(), at((b) => ({ ...b, thickness: b.thickness + 0.125 })))).toBe('Drawer left');
+  });
+  it('the same cuts in another order (ids differing): null; a different cut set: named', () => {
+    const before = at((b) => ({ ...b, cuts: [cut('a', 1), cut('b', 2)] }));
+    expect(changedDovetailed(before, at((b) => ({ ...b, cuts: [cut('y', 2), cut('z', 1)] })))).toBeNull();
+    expect(changedDovetailed(before, at((b) => ({ ...b, cuts: [cut('y', 2), cut('z', 1.5)] })))).toBe('Drawer left');
+  });
+  it('a dovetailed part missing from `after` is named; a plain part may change', () => {
+    expect(changedDovetailed(parts(), parts().slice(0, 2))).toBe(parts()[2]!.name);
+    const plain = createBoard({ id: 'p', name: 'Plain', length: 5, width: 4, thickness: 0.5 });
+    expect(changedDovetailed([...parts(), plain], [...parts(), { ...plain, length: 6 }])).toBeNull();
+  });
+});

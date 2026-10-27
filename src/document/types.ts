@@ -304,7 +304,7 @@ export interface Dovetail {
   /** Which end of `dim`. */
   end: 'min' | 'max';
   role: 'tails' | 'pins';
-  /** N, the tail count: an integer >= 1. */
+  /** N, the tail count: an integer from 1 to DOVETAIL_COUNT_MAX (100; load drops more). */
   count: number;
   /** s, of the slope 1:s. */
   slope: number;

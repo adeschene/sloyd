@@ -1,6 +1,6 @@
 import type { DovetailFault } from './dovetails';
 import type { Board, Dovetail } from './types';
-import { dovetailLayout, jointLineOf } from './dovetailModel';
+import { DOVETAIL_COUNT_MAX, dovetailTailWidth, jointLineOf } from './dovetailModel';
 import { formatLength, type Units } from '../units/length';
 
 /**
@@ -44,11 +44,15 @@ export const dovetailLinkedDisagree = (parts: readonly string[]) => `These linke
 export const dovetailLinkSplit = (parts: readonly string[]) => `Dovetails can't keep these linked parts linked: ${parts.join(', ')}. Unlink them first.`;
 /** A typed slope outside 1:4 to 1:12. */
 export const DOVETAIL_SLOPE_RANGE = 'A slope must be between 1:4 and 1:12.';
-/** A typed tail count that is not a whole number, 1 or more. */
-export const DOVETAIL_COUNT_WHOLE = 'A tail count must be a whole number, 1 or more.';
-/** A corner whose `count` tails (the count that failed) fault on either part (spec §3.2). */
-export const dovetailTooNarrow = (a: string, b: string, count: number, slope: number) =>
-  `${a} and ${b} are too narrow for ${count} tails at ${slopeText(slope)} — try fewer tails.`;
+/** A typed tail count that is not a whole number from 1 to DOVETAIL_COUNT_MAX (the bound: final review, 2026-10-27). */
+export const DOVETAIL_COUNT_WHOLE = `A tail count must be a whole number from 1 to ${DOVETAIL_COUNT_MAX}.`;
+/** The word after a count of tails: `1 tail`, `2 tails` (final review, 2026-10-27: every printed count reads through it). */
+export const tailWord = (n: number) => (n === 1 ? 'tail' : 'tails');
+/** A corner whose `count` tails (the count that failed) fault on either part (spec §3.2). At one tail (Auto bottomed out,
+ *  or a typed 1) fewer is no advice: the even-one-tail sentence (final review, 2026-10-27). */
+export const dovetailTooNarrow = (a: string, b: string, count: number, slope: number) => (count === 1
+  ? `${a} and ${b} are too narrow for even one tail at ${slopeText(slope)} — try a shallower slope or a wider part.`
+  : `${a} and ${b} are too narrow for ${count} ${tailWord(count)} at ${slopeText(slope)} — try fewer tails.`);
 
 /** A planned dovetail that would fault anything but `narrow` (the count handles that): the part is too short along its run
  *  for its dovetails (one deeper than the part, or two meeting). Wording ruled 2026-10-27 (Task 4 fix). */
@@ -56,7 +60,7 @@ export const dovetailTooShort = (part: string) => `${part} is too short for its 
 
 /** One corner's planned numbers, as the success note reads them. */
 export interface DovetailedLayout { count: number; slope: number }
-const layoutWords = (l: DovetailedLayout) => `${l.count} tails, ${slopeText(l.slope)}`;
+const layoutWords = (l: DovetailedLayout) => `${l.count} ${tailWord(l.count)}, ${slopeText(l.slope)}`;
 
 /** The success note's dovetailed line(s) (spec §4): one line when every corner shares one layout, else a heading and one
  *  line per corner, `pairs` naming each corner's two parts. */
@@ -112,10 +116,10 @@ export const DOVETAIL_REMOVE = 'Remove';
  * joint line) or the pins part's narrow thickness face. Lengths through `formatLength` with the document's units (inv 52).
  */
 export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, units: Units): string {
-  const head = `Through dovetails — ${d.count} tails, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
+  const head = `Through dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
     + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
   if (d.role === 'tails') {
-    const { Te } = dovetailLayout(b[jointLineOf(d.dim)], d.count, d.slope, d.pin);
+    const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
     return `${head}; this part has the tails, ${formatLength(Te, units)} at the end.`;
   }
   return `${head}; this part has the pins, narrow on its thickness ${d.outside} face.`;

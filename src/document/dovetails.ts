@@ -1,7 +1,9 @@
 import type { Board, CurveSegment, Cut, CutFrom, Dimension, Dovetail, Region, SloydDocument } from './types';
 import type { CurveSpan, ViewCurve } from './curves';
 import type { Units } from '../units/length';
-import { byDovetailEnd, dovetailAt, dovetailLayout, dovetailsOf, hasDovetails, jointLineOf, sameDovetail } from './dovetailModel';
+import {
+  DOVETAIL_COUNT_MAX, byDovetailEnd, dovetailAt, dovetailLayout, dovetailsOf, dovetailTailWidth, hasDovetails, jointLineOf, sameDovetail,
+} from './dovetailModel';
 import { clippedRegion, cutsThatRemoveStock } from './cuts';
 import { boardExtents, endFacing } from './geometry';
 import { leans } from './lean';
@@ -64,7 +66,7 @@ export function dovetailFaults(b: Board, d: Dovetail): DovetailFault[] {
   const other = dovetailsOf(b).find((x) => x.dim === d.dim && x.end !== d.end);
   if (d.depth >= b[d.dim] || (other !== undefined && d.depth + other.depth >= b[d.dim] - EPS)) out.push('depth');
   const X = d.role === 'tails' ? d.depth : b.thickness;
-  const { Te } = dovetailLayout(b[jointLineOf(d.dim)], d.count, d.slope, d.pin);
+  const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
   if (Te - (2 * X) / d.slope < d.pin + (2 * X) / d.slope - EPS) out.push('narrow');
   return out;
 }
@@ -292,16 +294,19 @@ function dovetailKind(opts: DovetailOptions): JointKind<DovetailCornerPlan, Dove
      * ORIGINAL parts (`CornerEnd.part`; the working clones have lost their old dovetails to `removeAt`): when both ends
      * already carry dovetails, one tails and one pins, the current tails part keeps them and Swap flips relative to it;
      * else the part whose run axis ranks first (`RUN_RANK`: Z, X, Y) takes them and Swap inverts. The count: a typed one
-     * (refused when it faults); else the kept count on a re-plan, or Auto (`autoTailCount`) on a new corner, lowered by
-     * one while `narrow` holds on either part; one tail still faulting refuses.
+     * (refused when it faults); else the kept count on a re-plan, or Auto (`autoTailCount`, at most DOVETAIL_COUNT_MAX) on a
+     * new corner, lowered by one while `narrow` holds on either part; one tail still faulting refuses. The pin width: the
+     * kept one on a re-plan, else `pinWidth(doc.units)`.
      */
     planCorner({ ends, J }, ops, doc, nameOf) {
       const [ea, eb] = ends;
       const s = opts.slope;
-      const p = pinWidth(doc.units);
       const old = ends.map((e, i) => dovetailAt(e.part, ops[i]!.d as Dovetail['dim'], ops[i]!.end));
       const replan = old[0] !== undefined && old[1] !== undefined && old[0].role !== old[1].role;
       const current: 0 | 1 = replan ? (old[0]!.role === 'tails' ? 0 : 1) : RUN_RANK[ea.k]! < RUN_RANK[eb.k]! ? 0 : 1;
+      // The pin width (G3: change only what is asked; final review, 2026-10-27): a re-plan keeps the current tails end's
+      // stored pin, as it keeps the count, so a units switch alone never changes a joint; a new corner takes the units'.
+      const p = replan ? old[current]!.pin : pinWidth(doc.units);
       const tails: 0 | 1 = opts.swap ? (current === 0 ? 1 : 0) : current;
       const T = ends[tails]!;
       const P = ends[tails === 0 ? 1 : 0]!;
@@ -322,7 +327,8 @@ function dovetailKind(opts: DovetailOptions): JointKind<DovetailCornerPlan, Dove
       } else {
         // The kept count is the current tails end's; a stored count that is not a whole number (a kept fault) is not kept.
         const kept = replan ? old[current]!.count : NaN;
-        N = Number.isInteger(kept) && kept >= 1 ? kept : autoTailCount(boardExtents(ea.part)[J]!, doc.units);
+        // Auto starts at most at DOVETAIL_COUNT_MAX (load drops more); a kept count is a loaded one, already within it.
+        N = Number.isInteger(kept) && kept >= 1 ? kept : Math.min(DOVETAIL_COUNT_MAX, autoTailCount(boardExtents(ea.part)[J]!, doc.units));
         while (N > 1 && narrow(N)) N -= 1;
         if (narrow(N)) return refuse(N);
       }
@@ -349,7 +355,8 @@ function dovetailKind(opts: DovetailOptions): JointKind<DovetailCornerPlan, Dove
 /**
  * Dovetail the corners among the selected world parts `ids` (dovetails spec §3, §6, G3). Every refusal is decided before
  * any mutation, in this order:
- * 1. `slope` outside [4, 12] (the slope sentence), then a typed `count` not a whole number 1 or more (the count sentence).
+ * 1. `slope` outside [4, 12] (the slope sentence), then a typed `count` not a whole number from 1 to DOVETAIL_COUNT_MAX
+ *    (the count sentence; load drops more, so the planner never writes what a reload would lose).
  * 2.–4. and 6. The shared corner planner (`planCorners`, `cornerPlan.ts`): a part in a mirrored copy; the corners and their
  *    refusals; per part end the plain-stock test (`featureOf`), the old dovetail at that end removed, the exact run-out and
  *    the corner region; linked parts (the role, count, slope, pin, depth, Shape-local end and outside face compared) and
@@ -360,7 +367,7 @@ function dovetailKind(opts: DovetailOptions): JointKind<DovetailCornerPlan, Dove
  */
 export function dovetailPlan(doc: SloydDocument, ids: readonly string[], opts: DovetailOptions): DovetailPlan | string {
   if (!(opts.slope >= 4 && opts.slope <= 12)) return DOVETAIL_SLOPE_RANGE;
-  if (opts.count !== null && !(Number.isInteger(opts.count) && opts.count >= 1)) return DOVETAIL_COUNT_WHOLE;
+  if (opts.count !== null && !(Number.isInteger(opts.count) && opts.count >= 1 && opts.count <= DOVETAIL_COUNT_MAX)) return DOVETAIL_COUNT_WHOLE;
   const planned = planCorners(doc, ids, dovetailKind(opts));
   if (typeof planned === 'string') return planned;
   const names = displayNames(doc);

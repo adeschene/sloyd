@@ -4,7 +4,7 @@ import type { Board, Dimension, Dovetail } from './types';
 import { IMPERIAL, type Units } from '../units/length';
 import { chiralPart } from './turnFixtures';
 import {
-  DOVETAIL_FIELDS, copyDovetail, dovetailAt, dovetailsOf, hasDovetails, sameDovetail, withDovetails,
+  DOVETAIL_FIELDS, copyDovetail, dovetailAt, dovetailsOf, dovetailTailWidth, hasDovetails, sameDovetail, withDovetails,
 } from './dovetailModel';
 import {
   autoTailCount, builtDovetails, dovetailFaults, dovetailLayout, lowerDovetails, mirrorDovetails, pinWidth,
@@ -213,5 +213,18 @@ describe('dovetails: overlapping depths on one part fault `depth` (Task 4 fix ru
   it('a dovetail on the other dimension does not count', () => {
     const b = side({ length: 1.5, dovetails: [tails({ id: 'a', end: 'max', depth: 0.75 }), tails({ id: 'w', dim: 'width', end: 'min', count: 1, depth: 0.75 })] });
     expect(b.dovetails!.map((d) => dovetailFaults(b, d))).toEqual([[], []]);
+  });
+});
+
+describe('dovetails: the tail count is bounded (final review, 2026-10-27)', () => {
+  it('Te has one home, O(1): dovetailTailWidth is the layout\'s Te, byte for byte', () => {
+    for (const [H, N, p] of [[6, 4, 0.25], [150 / 25.4, 3, 6 / 25.4], [5.3, 7, 0.25], [1.5, 1, 0.25]] as const) {
+      expect(dovetailTailWidth(H, N, p)).toBe(dovetailLayout(H, N, 8, p).Te);
+    }
+  });
+  it('dovetailFaults on a count of 1e9 answers at once (no layout array is built): narrow', () => {
+    const t0 = performance.now();
+    expect(dovetailFaults(side(), tails({ count: 1e9 }))).toEqual(['narrow']);
+    expect(performance.now() - t0).toBeLessThan(50);
   });
 });

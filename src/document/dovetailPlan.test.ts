@@ -4,7 +4,7 @@ import { applyDovetails, autoTailCount, dovetailFaults, dovetailPlan, type Dovet
 import {
   DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE,
 } from './dovetailText';
-import { dovetailsOf } from './dovetailModel';
+import { DOVETAIL_COUNT_MAX, dovetailsOf } from './dovetailModel';
 import { builtDovetails } from './dovetails';
 import { applyBoxJoints, boxJointPlan, fingerSets } from './boxJoints';
 import { expectPartition, type WorldBox } from './dovetailFixtures';
@@ -192,7 +192,7 @@ describe('dovetailPlan: the count (spec §3.2)', () => {
 
   it('a 1-1/2" corner of the same stock at 1:4: even one tail faults, so it refuses (the count that failed)', () => {
     const [f, , l] = drawerParts({ h: 1.5, tS: 1.5, tFB: 1.5 });
-    expectRefusal(docOf([f!, l!]), ['f', 'l'], 'Front and Side left are too narrow for 1 tails at 1:4 — try fewer tails.', { slope: 4 });
+    expectRefusal(docOf([f!, l!]), ['f', 'l'], 'Front and Side left are too narrow for even one tail at 1:4 — try a shallower slope or a wider part.', { slope: 4 });
   });
 
   it('a typed count applies to every corner, and refuses a corner it faults', () => {
@@ -561,3 +561,50 @@ describe('box joints on a dovetailed part (spec §3.6)', () => {
   });
 });
 
+
+describe('final review fixes (2026-10-27): the count bound, one tail, the kept pin', () => {
+  it('a typed count over DOVETAIL_COUNT_MAX refuses with the count sentence (load would drop it); the max itself plans', () => {
+    expect(DOVETAIL_COUNT_MAX).toBe(100);
+    // A part wide enough that 100 and 101 tails both build: the refusal is the bound's, not a fault's.
+    const doc = docOf(drawerParts({ h: 160 }));
+    expectRefusal(doc, DRAWER_IDS, DOVETAIL_COUNT_WHOLE, { count: DOVETAIL_COUNT_MAX + 1 });
+    expect(ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, count: DOVETAIL_COUNT_MAX })).corners.map((c) => c.N))
+      .toEqual([100, 100, 100, 100]);
+  });
+
+  it('Auto starts at most at DOVETAIL_COUNT_MAX (a 160" joint: round(160 / 1.5) = 107 → 100)', () => {
+    expect(autoTailCount(160, IMPERIAL)).toBe(107);
+    const plan = ok(dovetailPlan(docOf(drawerParts({ h: 160 })), DRAWER_IDS, DEFAULTS));
+    expect(plan.corners.map((c) => c.N)).toEqual([100, 100, 100, 100]);
+  });
+
+  it('Auto bottoming out at one tail: the even-one-tail sentence', () => {
+    const [f, , l] = drawerParts({ h: 1.5, tS: 1.5, tFB: 1.5 });
+    expectRefusal(docOf([f!, l!]), ['f', 'l'],
+      'Front and Side left are too narrow for even one tail at 1:4 — try a shallower slope or a wider part.', { slope: 4 });
+  });
+
+  it('a typed count of one that faults reads the same; a typed 2 or more keeps "try fewer tails"', () => {
+    const [f, , l] = drawerParts({ h: 1.5, tS: 1.5, tFB: 1.5 });
+    expectRefusal(docOf([f!, l!]), ['f', 'l'],
+      'Front and Side left are too narrow for even one tail at 1:4 — try a shallower slope or a wider part.', { slope: 4, count: 1 });
+    expectRefusal(docOf([f!, l!]), ['f', 'l'], 'Front and Side left are too narrow for 2 tails at 1:4 — try fewer tails.', { slope: 4, count: 2 });
+  });
+
+  it('one tail: the success note reads "1 tail"', () => {
+    const doc = docOf(drawerParts());
+    expect(ok(dovetailPlan(doc, DRAWER_IDS, { ...DEFAULTS, count: 1 })).notes[0]).toBe('Dovetailed 4 corners: 1 tail, 1:8.');
+  });
+
+  it('a re-plan keeps the stored pin width (G3): imperial dovetails, units switched to metric, Swap only → pin stays 1/4"', () => {
+    const doc0 = docOf(drawerParts());
+    const doc = applyDovetails(doc0, ok(dovetailPlan(doc0, DRAWER_IDS, DEFAULTS)));
+    const metric = { ...doc, units: METRIC };
+    const out = applyDovetails(metric, ok(dovetailPlan(metric, DRAWER_IDS, { ...DEFAULTS, swap: true })));
+    for (const id of DRAWER_IDS) expect(dovetailsOf(part(out, id)).map((d) => d.pin)).toEqual([0.25, 0.25]);
+    // The swap happened (the re-plan ran), and a NEW corner in the metric project takes 6 mm.
+    expect(dovetailsOf(part(out, 'f')).map((d) => d.role)).toEqual(['tails', 'tails']);
+    const fresh = applyDovetails({ ...doc0, units: METRIC }, ok(dovetailPlan({ ...doc0, units: METRIC }, DRAWER_IDS, DEFAULTS)));
+    for (const id of DRAWER_IDS) expect(dovetailsOf(part(fresh, id)).map((d) => d.pin)).toEqual([6 / 25.4, 6 / 25.4]);
+  });
+});

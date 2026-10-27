@@ -64,6 +64,17 @@ export function withDovetails<T extends Pick<Board, 'dovetails'>>(b: T, list: re
   return { ...rest, dovetails: [...list].sort(byDovetailEnd) } as T;
 }
 
+/** The most tails a stored dovetail may have (final review, 2026-10-27; as `HOLE_COUNT_MAX`): load DROPS an entry with
+ *  more, the planner refuses a typed count over it and starts Auto at most at it, and the Tails field reads more as a parse
+ *  error. Bounds every per-tail loop (the layout's `bounds`, the view curves, the bench chain). */
+export const DOVETAIL_COUNT_MAX = 100;
+
+/** The tail width at the outside plane (spec §3.2), `Te = (H − (N + 1)·p) / N`: its ONE home, O(1) for any count (the
+ *  fault decider and the cut-list line read it without building a layout); `dovetailLayout` reads it too. */
+export function dovetailTailWidth(H: number, N: number, p: number): number {
+  return (H - (N + 1) * p) / N;
+}
+
 /** The layout at the outside plane (spec §3.2): `Te` the tail width there; `bounds` the `2N + 2` boundaries along J from
  *  J's min — `0`, each tail's two edges in order, then `H`. */
 export interface DovetailLayout { H: number; N: number; s: number; p: number; Te: number; bounds: number[] }
@@ -75,7 +86,7 @@ export interface DovetailLayout { H: number; N: number; s: number; p: number; Te
  * `H − p` (one boundary, computed one way), and the last bound is `H` itself.
  */
 export function dovetailLayout(H: number, N: number, s: number, p: number): DovetailLayout {
-  const Te = (H - (N + 1) * p) / N;
+  const Te = dovetailTailWidth(H, N, p);
   const bounds: number[] = [0];
   for (let k = 0; k < N; k += 1) {
     const start = p + k * (Te + p);
