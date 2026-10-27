@@ -7840,10 +7840,12 @@ re-plan that shortens it) that carries an existing hole into the zone: the hole 
 says so. Rare (an edited state). Fix: a zone fault on the hole row (kept, noted), or teach `holeFaults` the dovetail waste (fu 498).
 **Status:** open.
 
-**507. Same-turn mirrored linked users whose Shape takes PINS refuse (Task 4 ruling).** Spec §3.2 and §6 said the palindrome layout lets
-every linked mirror succeed; it does for a mirror along J, for unmirrored users at opposite turns and for Mirror's own pair, but a user
-mirrored at the SAME turn as its mate (a reflection through the thickness, in the world) would have its pins narrow on its INSIDE face,
-so the plan refuses with `These linked parts would need different dovetails: <parts>.`. Workarounds: Swap (the linked parts take the tails,
+**507. A linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (Task 4 ruling).** Spec §3.2 and §6 said
+linked users mirrored along J succeed. In the build's carcass cases (`dovetailPlan.test.ts`: two upright sides linked to one Shape, J
+their width, a flat top between them) Side right mirrored along J at Side left's turn SUCCEEDS when the sides take the tails (Swap), and
+unmirrored sides at 90°/270° and Mirror's own pair succeed taking the pins; but Side right mirrored along J at the SAME turn taking the
+PINS (the default, tails on the top) would have its pins narrow on its INSIDE face (the reflection keeps the narrow face on the same world
+side), so the plan refuses with `These linked parts would need different dovetails: <parts>.`. Workarounds: Swap (the linked parts take the tails,
 which succeeds) or Unlink. A fix stores the pins' outside face per user (an OWN field) or lets the write-back split the link by rule.
 **Status:** open (ask first).
 

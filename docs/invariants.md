@@ -1643,10 +1643,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       and one pins dovetail (read off the ORIGINAL parts), a null count KEEPS the stored count (lowered as Auto only when the new
       slope faults it), the current tails part keeps the tails, and Swap flips relative to it. **Linked users**: the Shape-local
       signature (role, count, slope, pin, the pins' `outside` through the user's thickness flip, plus the generic run dimension,
-      Shape-local end, depth and size) is compared exactly (sizes at 1e-9, inv 61's R-F1); users mirrored along J and unmirrored users
-      at opposite turns SUCCEED (the palindrome), as does Mirror's own pair; **same-turn mirrored linked users whose Shape takes PINS
-      refuse** with the disagreement sentence (the pins' outside face would land inside on one of them; a build ruling, fu 507) — Swap
-      or Unlink. Write-back is `writeBackParts` (`keepWorld`), the link post-condition refuses a split link.
+      Shape-local end, depth and size) is compared exactly (sizes at 1e-9, inv 61's R-F1); a user mirrored along J at the SAME turn as
+      its mate SUCCEEDS when the Shape takes the TAILS (the palindrome), unmirrored users at opposite turns and Mirror's own pair (a
+      mirrored user at the inverse turn) succeed taking the PINS; **a user mirrored along J at the SAME turn whose Shape takes the PINS
+      refuses** with the disagreement sentence (its pins would be narrow on its INSIDE face; a build ruling, fu 507;
+      `dovetailPlan.test.ts`' carcass cases) — Swap (the linked parts take the tails) or Unlink. Write-back is `writeBackParts` (`keepWorld`), the link post-condition refuses a split link.
     - **What a dovetailed part may carry** (spec §3.6): plain stock only — a lean, angle cut, curve, edge profile, edge band, round
       tenon or box joint refuses dovetails (`<part> has <…> — dovetails work on plain stock for now.`), and Box joint the corners
       refuses a dovetailed part (`<part> has dovetails — box joints work on plain stock for now.`). On a dovetailed part the Lean,

@@ -533,7 +533,7 @@ changes.
     a dovetailed part refuses dovetails on featured stock and every other feature's ADD (`<part> has dovetails — remove them first.`),
     and any cut or hole reaching a dovetailed end's ZONE (`depth` back, whole section) on add or edit, EXCEPT a cut running straight
     through along the run (`cutRunsThrough`); the checks read it as `realBodied` with inscribed contact boxes (inv 38; no new kind of
-    support). Re-plan keeps the stored count and tail side (G3); same-turn mirrored linked users taking PINS refuse (fu 507). Joinery
+    support). Re-plan keeps the stored count and tail side (G3); a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (fu 507). Joinery
     leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it (and its assembly) whole, Repair never
     changes it (`cornerJointed`, `changedDovetailed`). The cut list: one line per stored dovetail; the bench drawings on the TAIL
     part's row only (`dovetailBench.ts` builds every string, inv 19). Full text: `docs/invariants.md`. Follow-ups 497–513.
@@ -559,7 +559,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485–490, 492;
-  dovetails 484 (through dovetails built on branch, not yet deployed; half-blind is 497), 497–503.
+  dovetails 497–503.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
   153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 491 (box joints; the tie, spec difference 4, is moot since Task 9), 512 (dovetails); by eye — 465 (round tenons), 511 (dovetails' bench chain); real hardware and ONE paid Refine run — 496 (box joints: the jointed corner by eye; a box-jointed drawer assembly plus a root part, not run because no API key is stored on the dev origins); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
@@ -571,7 +571,8 @@ This list is the triage's open set — when an entry's status changes, change it
   holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
-  (2026-10-27, not yet deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509; record-only 513.
+  (2026-10-27, not yet deployed): 484 (through dovetails built; close at deploy), 504, 507 and 510 (ask first), 505, 506, 508, 509;
+  record-only 513.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

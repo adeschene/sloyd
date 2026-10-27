@@ -345,11 +345,18 @@ Rulings and differences from the build (2026-10-27, branch `dovetails`, commits 
   corner planner's ONE predicate), in the store and in joinery (Task 5 and Task 8 rulings). Refusing every edit of a drawer bottom's
   groove would have been a usability regression. *Cost if wrong:* a user can cut a new through groove across a dovetailed end, which a
   hand-cut drawer also allows.
-- **SD7 — same-turn mirrored linked users whose Shape takes PINS refuse (§3.2, §6).** §3.2 says the palindrome removes the
-  asymmetric-layout refusals, and §6 says linked mirrors succeed. They do for a user mirrored along J, for unmirrored users at opposite
-  turns, and for Mirror's own pair (all pinned). But a user mirrored at the SAME turn as its mate would have its pins narrow on its INSIDE
-  face, so the plan refuses with the disagreement sentence (Task 4 ruling; fu 507). It succeeds with Swap, when the linked parts take the
-  tails. *Cost if wrong:* a user with same-turn mirrored linked carcass sides must Swap or Unlink.
+- **SD7 — a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (§3.2, §6).** §3.2 says the
+  palindrome removes the asymmetric-layout refusals, and §6 says linked users mirrored along J succeed. The build's carcass cases
+  (`dovetailPlan.test.ts`: two upright sides linked to one Shape, J their width, Side right mirrored along J, and a flat top between them)
+  show where that holds:
+  - Side right mirrored along J at the SAME turn as Side left (90°), with the sides taking the TAILS (Swap): succeeds.
+  - Unmirrored sides at 90° and 270°, taking the pins: succeeds.
+  - Mirror's own pair (Side right mirrored at the inverse turn, 270°), taking the pins: succeeds.
+  - **Side right mirrored along J at the SAME turn, taking the PINS (the default, tails on the top): REFUSED** with the disagreement
+    sentence. Its pins would be narrow on its INSIDE face: the reflection keeps the narrow face on the same world side, which on the
+    right side is the inside (Task 4 ruling; fu 507).
+  So §6's "mirrored along J SUCCEED" holds only when the Shape takes the tails. *Cost if wrong:* a user with same-turn mirrored linked
+  carcass sides must Swap or Unlink.
 - **SD8 — the bench pair never wraps (§5.2 said it wraps on a narrow sheet).**
   - Each figure takes a fixed share of the row (`FIG_SHARE`) with a viewBox `FIG_W` wide, so its labels render at PartDiagram's size on
     any sheet, and two always fit side by side.
