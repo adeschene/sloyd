@@ -1,4 +1,5 @@
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
+import { parentPath } from '../document/tree';
 import type { FlatDocument, SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign, toWireDesign } from '../document/generated';
 import { builtInCatalog, catalogOf, pruneMaterials } from '../document/materials';
@@ -252,9 +253,10 @@ export interface JointsSummary {
 export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null;
   /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
   carried: { notKept: string[]; check: string[] };
-  /** Present only when the original has kept parts (leaning, or with a tilted hole row) (splayed legs spec §8): their flat names, kept as stored, and the
-   *  model's parts dropped because they reused one of those names. `boxJoints` is present (true) only when a kept part has
-   *  box joints (box-joints spec §7), so the dialog's kept line names them only then. */
+  /** Present only when the original has kept parts (leaning, or with a tilted hole row) (splayed legs spec §8): their flat names, kept as stored, then the
+   *  names of kept box-jointed assemblies' placements (box-joints spec §7, Amended), and the model's parts and placements
+   *  dropped because they reused one of those names. `boxJoints` is present (true) only when a kept part has box joints or
+   *  an assembly is kept (box-joints spec §7), so the dialog's kept line names them only then. */
   leaning?: { kept: string[]; replaced: string[]; boxJoints?: true } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
 
@@ -311,8 +313,15 @@ export async function runRefine(
   let present = out.present;
   let usage = out.usage;
   let joints: JointsSummary | null = null;
-  // The kept parts with box joints, by flat name (root parts: the flat name is the stored name).
-  const boxJointedKept = flatDocument(base.plain).boards.filter((b) => kept.names.includes(b.name) && fingerSets(b).length > 0).map((b) => b.name);
+  // The kept parts by flat name: the kept root parts (the flat name is the stored name) and every part of a kept assembly's
+  // placements (`Placement › Part`; box-joints spec §7, Amended). The whole assembly is the kept unit, so (b) and (c) below
+  // cover its parts with no finger set too.
+  const keptPlacements = new Set(kept.instances.map((i) => i.id));
+  const keptFlat = flatDocument(base.plain).boards.filter((b) => {
+    const at = parentPath(b.id);
+    return at === null ? kept.names.includes(b.name) : keptPlacements.has(at);
+  });
+  const guardedKept = keptFlat.filter((b) => parentPath(b.id) !== null || fingerSets(b).length > 0).map((b) => b.name);
   if (base.joints) {
     // A meeting the ORIGINAL plain design had but no record covers was left butt (butt leaves
     // no cut; the gate's round trip proved it): a fixed butt, never re-opened (spec §4).
@@ -326,7 +335,7 @@ export async function runRefine(
     // Every meeting a kept part has on the refined design that no record covers is a fixed butt (box-joints spec §7):
     // joinery adds nothing to a kept part. A recorded joint is still re-applied as recorded, or the kept part would lose
     // the pocket the read-back took off it.
-    const keptNames = new Set(kept.names);
+    const keptNames = new Set(keptFlat.map((b) => b.name));
     const recorded = new Set(base.joints.map((j) => jointKey(j.enter, j.receive, j.axis, j.side)));
     for (const s of findSites(plainFlat)) {
       const [e, r] = [plainFlat.boards[s.enter]!.name, plainFlat.boards[s.receive]!.name];
@@ -352,8 +361,8 @@ export async function runRefine(
     }
     // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with an angle-joint fault
     // left, and joinery refuses that before any call. The refined design is kept, unjoined; the fault is in `violations`.
-    // A kept box-jointed part the re-join would change (box-joints spec §7).
-    const changed = 'result' in jo ? changedBoxJointed(doc, jo.result.doc, boxJointedKept) : null;
+    // A kept box-jointed part, or any part of a kept assembly, the re-join would change (box-joints spec §7).
+    const changed = 'result' in jo ? changedBoxJointed(doc, jo.result.doc, guardedKept) : null;
     if ('refused' in jo) {
       joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notes: [], notJoined: jo.refused };
     } else if ('noSites' in jo) {
@@ -375,7 +384,8 @@ export async function runRefine(
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
   return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried,
-    ...(kept.names.length > 0 ? { leaning: { kept: kept.names, replaced: out.replaced, ...(keptBoxJoints(base.plain, kept) ? { boxJoints: true as const } : {}) } } : {}) };
+    ...(kept.names.length + kept.placements.length > 0 ? { leaning: { kept: [...kept.names, ...kept.placements], replaced: out.replaced,
+      ...(kept.placements.length > 0 || keptBoxJoints(base.plain, kept) ? { boxJoints: true as const } : {}) } } : {}) };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */

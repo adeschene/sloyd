@@ -1676,6 +1676,65 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
   });
 
+  /** The jointed drawer as ONE definition (four jointed sides and an uncut bottom) placed twice beside the joined case
+   *  (box-joints spec §7, Amended): two placements, so the definition's flat twins go through the claim and the write-back. */
+  const withDrawerAssembly = (base: SloydDocument) => migrateDocument({ ...base,
+    definitions: [...base.definitions, { id: 'dd', boards: [...drawerBoards(), createBoard({ id: 'bt', name: 'Bottom', length: 12, width: 16, thickness: 0.25, posture: 'flat', position: [0.5, 0.5, 0.5] })], instances: [], hardware: [] }],
+    instances: [...base.instances, { id: 'i1', name: 'Drawer 1', definition: 'dd', position: [100, 0, 0], rotation: 0 }, { id: 'i2', name: 'Drawer 2', definition: 'dd', position: [120, 0, 0], rotation: 0 }] });
+  const drawerDef = (d: SloydDocument) => d.definitions.find((x) => x.boards.some((b) => b.name === 'Drawer front'));
+  const ASSEMBLY_FLAT = ['Drawer 1', 'Drawer 2'].flatMap((p) => [...DRAWER, 'Bottom'].map((n) => `${p} › ${n}`));
+
+  it('a JOINED cabinet plus a kept drawer ASSEMBLY, refined unchanged: the definition and placements back exactly, fingers included', async () => {
+    const doc = withDrawerAssembly(joinedCase);
+    const def = drawerDef(doc)!;
+    const setsAt = (d: SloydDocument, n: string) => fingerSets(flatDocument(d).boards.find((b) => b.name === n)!);
+    for (const n of ASSEMBLY_FLAT.filter((x) => !x.endsWith('Bottom'))) expect(setsAt(doc, n).length, n).toBeGreaterThan(0);
+    const { client } = fakeClient([plainEcho(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(drawerDef(out.doc)).toEqual(def);
+    for (const n of ASSEMBLY_FLAT) expect(setsAt(out.doc, n), n).toEqual(setsAt(doc, n));
+    expect(out.doc.instances.filter((i) => i.definition === def.id)).toEqual(doc.instances.filter((i) => i.definition === def.id));
+    const byName = (d: SloydDocument) => { const f = flatDocument(d); return { ...f, boards: [...f.boards].sort((a, b) => a.name.localeCompare(b.name)) }; };
+    expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.joints!.notJoined).toBeUndefined();
+    expect(out.leaning).toEqual({ kept: ['Drawer 1', 'Drawer 2'], replaced: [], boxJoints: true });
+    // Nothing reported changed or resized: the prepended, kept drawer reads as untouched.
+    expect(out.changes).toEqual([]);
+    expect(out.carried).toEqual({ notKept: [], check: [] });
+  });
+
+  it('the model adds a part meeting a kept ASSEMBLY\'s parts: those meetings stay butt, the assembly comes back exactly', async () => {
+    const doc = withDrawerAssembly(joinedCase);
+    const echo = plainEcho(doc);
+    // A stop across Drawer 1's back: its sides' back ends and its back's face meet it, under their flat names.
+    const { client } = fakeClient([{ ...echo, parts: [...echo.parts, bp('Drawer stop', [100, 0, 17], [13, 4, 0.75])] }]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    const f = flatDocument(out.doc);
+    const sites = findSites(f);
+    const pair = (s: (typeof sites)[number]) => [f.boards[s.enter]!.name, f.boards[s.receive]!.name];
+    expect(sites.filter((s) => pair(s).includes('Drawer stop') && pair(s).some((n) => ASSEMBLY_FLAT.includes(n))).length).toBeGreaterThan(0);
+    expect(drawerDef(out.doc)).toEqual(drawerDef(doc));
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints).toMatchObject({ chosen: 0, skipped: [] });
+    expect(out.joints!.notJoined).toBeUndefined();
+  });
+
+  it('the re-join guard covers every part of a kept assembly, under its flat name', async () => {
+    const doc = withDrawerAssembly(joinedCase);
+    const { client } = fakeClient([plainEcho(doc)]);
+    const guard = vi.mocked(fingerClaim.changedBoxJointed);
+    guard.mockImplementationOnce(() => 'Drawer 2 › Bottom');
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(guard).toHaveBeenCalledWith(doc, expect.anything(), ASSEMBLY_FLAT);
+    expect(out.joints!.notJoined).toBe('Joinery would have changed a box-jointed part (Drawer 2 › Bottom), so the design comes back unjoined.');
+    expect(drawerDef(out.doc)).toEqual(drawerDef(doc));
+  });
+
   it('a box-joint-only project: no joinery, the drawer back byte for byte, a model part reusing a kept name dropped', async () => {
     const doc = migrateDocument({ ...createDocument('Drawer'), boards: drawerBoards() });
     const echo = plainEcho(doc);

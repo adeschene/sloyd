@@ -13,7 +13,7 @@ import { worldBands } from './bandWorld';
 import { worldProfiles } from './profileWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, parentPath, worldParts } from './tree';
-import { keptParts, leaningInAssembly } from './leanKeep';
+import { keptAssemblyLinkRefusal, keptParts, leaningInAssembly } from './leanKeep';
 import { fingerSets } from './boxJoints';
 
 /**
@@ -106,9 +106,18 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   // assembly's definition is rebuilt from the model's, so such a part inside one is refused.
   const inAssembly = leaningInAssembly(doc);
   if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: ${inAssembly}.`);
+  // A box-jointed part inside an assembly keeps the WHOLE assembly (box-joints spec §7, Amended): its definition and every
+  // root placement are left out of the design and of the pre-checks below, as a kept root part is. Its Shapes go back as
+  // stored, so none may have a user outside the kept set (R3).
+  const linked = keptAssemblyLinkRefusal(doc);
+  if (linked !== null) return refuse('lean-assembly', linked);
   const kept = keptParts(doc);
   const keptIds = new Set(kept.boards.map((b) => b.id));
-  const described = flatDocument(doc).boards.filter((b) => !(parentPath(b.id) === null && keptIds.has(b.id)));
+  const keptPlacements = new Set(kept.instances.map((i) => i.id));
+  const keptDefs = new Set(kept.definitions.map((d) => d.id));
+  // A kept placement's parts sit one level down (a nested one is refused below, unchanged), so the path's parent is its id.
+  const isKept = (b: Board) => { const at = parentPath(b.id); return at === null ? keptIds.has(b.id) : keptPlacements.has(at); };
+  const described = flatDocument(doc).boards.filter((b) => !isKept(b));
   // A taper Refine cannot describe exactly is refused, never rewritten (spec §5.2). Flat names, as the person sees them.
   const odd = described.filter((b) => worldTapers(b) === null).map((b) => b.name);
   if (odd.length === 1) return refuse('taper-form', `${odd[0]}'s taper can't be described to Refine — edit it in Properties first.`);
@@ -181,7 +190,7 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     return r ? [box(r, b.name, roleOf(b), shift)] : [];
   });
   const parts = boxes(doc.boards.filter((b) => !keptIds.has(b.id)));
-  const assemblies: GeneratedAssembly[] = doc.definitions.flatMap((d) => {
+  const assemblies: GeneratedAssembly[] = doc.definitions.filter((d) => !keptDefs.has(d.id)).flatMap((d) => {
     // Normalised: the assembly's parts start at 0 and each placement is the
     // world position of that corner (origin + corner), so what the model sees
     // does not depend on how Group happened to split origin from local (spec §4).
