@@ -533,17 +533,17 @@ changes.
     a dovetailed part refuses dovetails on featured stock and every other feature's ADD (`<part> has dovetails — remove them first.`),
     and any cut or hole reaching a dovetailed end's ZONE (`depth` back, whole section) on add or edit, EXCEPT a cut running straight
     through along the run (`cutRunsThrough`); the checks read it as `realBodied` with inscribed contact boxes (inv 38; no new kind of
-    support). Re-plan keeps the stored count and tail side (G3); a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (fu 507). Joinery
+    support). Re-plan keeps the stored count, pin width and tail side (G3); `N` ≤ `DOVETAIL_COUNT_MAX` (100: load drops more, `Te` O(1) in `dovetailTailWidth`); a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (fu 507). Joinery
     leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it (and its assembly) whole, Repair never
     changes it (`cornerJointed`, `changedDovetailed`). The cut list: one line per stored dovetail; the bench drawings on the TAIL
-    part's row only (`dovetailBench.ts` builds every string, inv 19). Full text: `docs/invariants.md`. Follow-ups 497–513.
+    part's row only (`dovetailBench.ts` builds every string, inv 19). Full text: `docs/invariants.md`. Follow-ups 497–515.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9698 tests across 270 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9715 tests across 271 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -552,7 +552,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–513). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–515). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -571,8 +571,8 @@ This list is the triage's open set — when an entry's status changes, change it
   holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
-  (2026-10-27, not yet deployed): 484 (through dovetails built; close at deploy), 504, 507 and 510 (ask first), 505, 506, 508, 509;
-  record-only 513.
+  (2026-10-27, not yet deployed): 484 (through dovetails built; close at deploy), 504, 507 and 510 (ask first), 505, 506, 508, 509,
+  514, 515; record-only 513.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

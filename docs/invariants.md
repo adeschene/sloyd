@@ -1588,8 +1588,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       except that the last tail's far edge IS the last half pin's near edge, `H − p` (one boundary, computed one way: a build
       ruling), and the last bound is `H` itself. Moving inward by `x`, every tail–pin boundary moves INTO its tail by `x / s`. **The
       layout is a palindrome along J**, so a turn or a mirror along J moves nothing. Every reader of a boundary (the view curves,
-      the snap corners, the inscribed contact boxes, the cut-list line's `Te`, the bench drawings) takes it from `dovetailLayout`,
-      never recomputed.
+      the snap corners, the inscribed contact boxes, the bench drawings) takes it from `dovetailLayout`, never recomputed. **`Te`
+      has ONE home, `dovetailTailWidth(H, N, p)`** (O(1), in the leaf), read by `dovetailLayout`, `dovetailFaults` and the cut-list
+      line, so judging or printing a dovetail never builds its bounds array (final review, 2026-10-27). **The count is bounded:
+      `DOVETAIL_COUNT_MAX` = 100** (as `HOLE_COUNT_MAX`): load drops more, the planner refuses a typed count over it and starts Auto at
+      most at it, and the Tails field reads more as a parse error.
     - **`dovetailFaults(b, d)` is the ONE fault decider**, on the part's own sizes, faults in this order: `count` (not an integer
       ≥ 1), `slope` (outside [4, 12]), `depth` (`depth ≥ b[dim]`, OR with the part's other dovetail on the same `dim` the two depths
       together reach `b[dim]` to 1e-9: the overlap is folded into `depth`, a build ruling), `narrow` (a tail at its narrowest,
@@ -1617,7 +1620,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       corners on the end face at both thickness faces, a pin's narrow corners on its `outside` face at the end and at the baseline —
       on wood by construction; the sockets are air to `stockProbe`, so nothing is offered in one.
     - **Load** (v26, `docs/versioning.md`): `validateDovetails` DROPS a malformed entry, never the part (not an object, `dim` not
-      length | width, `end` not min | max, `role` not tails | pins, `count` not an integer ≥ 1, a non-finite or non-positive
+      length | width, `end` not min | max, `role` not tails | pins, `count` not an integer from 1 to `DOVETAIL_COUNT_MAX` (100), a non-finite or non-positive
       `slope`, `pin` or `depth`, a pins entry without `outside` min | max, a second one for a `(dim, end)`: the first in RAW order
       wins), drops a tails entry's stray `outside` (the entry kept), and KEEPS a well-formed faulted one (a slope of 1:20); ids per
       board (per Shape for a Shape) by `takeId`, a `/` re-minted. Copies (`copyBoard`, Duplicate, copy in a row) re-mint ids. A
@@ -1638,10 +1641,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       disagreement, the link post-condition); then any other fault of a NEW dovetail (too short). ONE undo entry; none while exploded (inv
       47) or gesturing; held points judged on the written document (`judgeHeld`, inv 24). **Which part takes the tails**: box
       joints' `RUN_RANK` (the part whose run axis ranks first in Z, X, Y; a drawer's sides), Swap inverts. **Auto**: `N =
-      max(1, round(H / 1.5"))` (38 mm metric), lowered by one while `narrow` holds on either part; `N = 1` still faulting refuses
-      (the count that failed). **Re-plan (spec G3, change only what is asked)**: on a corner whose two ends already carry one tails
+      min(DOVETAIL_COUNT_MAX, max(1, round(H / 1.5")))` (38 mm metric), lowered by one while `narrow` holds on either part; `N = 1`
+      still faulting refuses (`… too narrow for even one tail at 1:<s> — try a shallower slope or a wider part.`; a count of 2 or more
+      that faults: `… too narrow for <N> tails at 1:<s> — try fewer tails.`; every printed count reads `1 tail` / `<N> tails` through
+      `tailWord`). **Re-plan (spec G3, change only what is asked)**: on a corner whose two ends already carry one tails
       and one pins dovetail (read off the ORIGINAL parts), a null count KEEPS the stored count (lowered as Auto only when the new
-      slope faults it), the current tails part keeps the tails, and Swap flips relative to it. **Linked users**: the Shape-local
+      slope faults it), the corner KEEPS its stored pin width (the current tails end's: a units switch alone never changes a joint;
+      a new corner takes `pinWidth(doc.units)`; final review, 2026-10-27), the current tails part keeps the tails, and Swap flips
+      relative to it. **Linked users**: the Shape-local
       signature (role, count, slope, pin, the pins' `outside` through the user's thickness flip, plus the generic run dimension,
       Shape-local end, depth and size) is compared exactly (sizes at 1e-9, inv 61's R-F1); a user mirrored along J at the SAME turn as
       its mate SUCCEEDS when the Shape takes the TAILS (the palindrome), unmirrored users at opposite turns and Mirror's own pair (a

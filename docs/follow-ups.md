@@ -7780,8 +7780,9 @@ done on production with a throwaway project in a private window (never the user'
 
 ## From the dovetails round (dovetails chunk 2, through dovetails) — 2026-10-27
 
-Built on branch `dovetails` (commits `e8ca93f`..`b15f6c2`, schema 26, inv 62); NOT yet deployed when these were written. Spec
-`docs/superpowers/specs/2026-10-27-sloyd-dovetails-design.md` (§11's list is 497–504; the build ledger's notes are 505–513).
+Built on branch `dovetails` (commits `e8ca93f`..`a38f216`, schema 26, inv 62); NOT yet deployed when these were written. Spec
+`docs/superpowers/specs/2026-10-27-sloyd-dovetails-design.md` (§11's list is 497–504; the build ledger's notes are 505–513; the final
+review's are 514–515).
 
 **497. Half-blind dovetails (spec §2, §11; fu 484's other half; with fu 485).** The drawer-front joint: the pins' part is thicker than
 the tails are long and the tails stop short of its face, and with it a corner whose parts differ in height along the joint (a drawer front
@@ -7876,15 +7877,17 @@ build's rulings, for the user's words):
 the dovetails go — remove it first.`; `<part> has a hole where the dovetails go.`; `<part> has <a lean | an angle cut | a curve | an edge
 profile | edge banding | a round tenon | box joints> — dovetails work on plain stock for now.`; `Dovetails can't reach a part inside a mirrored
 copy yet: <part>.`; `These linked parts would need different dovetails: <parts>.`; `Dovetails can't keep these linked parts linked: <parts>.
-Unlink them first.`; `A slope must be between 1:4 and 1:12.` (also the Slope field's parse error); `A tail count must be a whole number, 1 or
-more.` (also the Tails field's error); `<A> and <B> are too narrow for <N> tails at 1:<s> — try fewer tails.`; `<part> is too short for its
+Unlink them first.`; `A slope must be between 1:4 and 1:12.` (also the Slope field's parse error); `A tail count must be a whole number from 1
+to 100.` (also the Tails field's error, for a non-whole entry and for more than 100; final review); `<A> and <B> are too narrow for <N> tails at
+1:<s> — try fewer tails.` (a count of 2 or more) and `<A> and <B> are too narrow for even one tail at 1:<s> — try a shallower slope or a wider
+part.` (one tail; final review); `<part> is too short for its
 dovetails.` (ruled 2026-10-27 for a depth or overlap fault). The shared corner sentences (`cornerText.ts`, box joints' words unchanged, now
 also dovetails'): `These parts don't meet at a corner.`, `<A> and <B> must be the same height along the joint.`, `<part> meets two parts at one
 end.`, `<A> and <B> must be in the same assembly.`, `<part> is linked to <mate> — select <mate>'s corner too, or Unlink first.`.
 (2) The success note: `Dovetailed <n> corner(s): <N> tails, 1:<s>.` (or `Dovetailed <n> corners:` and `<A> and <B>: <N> tails, 1:<s>.` per
 corner), `Tails on <parts>.`, then `<part> is now <x> longer.` / `shorter.` and `<part> isn't at a corner with another selected part.`.
-**One tail reads `1 tails`** in the success note, the too-narrow sentence and the cut-list line (`${count} tails`, no singular): a wording
-fix to decide. (3) The refusals on a dovetailed part: `<part> has dovetails — remove them first.`; `<part> has dovetails there — move it clear
+One tail reads `1 tail` in the success note, the too-narrow sentence and the cut-list line (`tailWord`; final review, 2026-10-27: was
+`1 tails`). (3) The refusals on a dovetailed part: `<part> has dovetails — remove them first.`; `<part> has dovetails there — move it clear
 of the joint.`; box joints' `<part> has dovetails — box joints work on plain stock for now.`. (4) The fault note: `This dovetail no longer fits:
 <a tail is narrower than a pin | the tail count isn't a whole number, 1 or more | the slope is outside 1:4 to 1:12 | it is deeper than the
 part>.` (the last also covers two dovetails meeting, a build ruling). (5) The panel: the section `Dovetails`, `Slope` with the prefix `1 :`,
@@ -7915,9 +7918,25 @@ mismatch overwrites the pins end silently. (5) Task 5: no `removeDovetail` test 
 (both go through `mapWorld`). (6) Task 6: `dovetailContacts`' `meet` drops zero-length regions (strict, not weak; unreachable behind §3.6's
 refusals); the test name "reports an overlap there" understates (two overlaps). (7) Task 7: the full chain's tier-0 labels lack leaders (moot
 in single-value mode); the single-mode test's expected count assumes at least five chain entries; figure B's overall label is always
-emitted and only hidden by the component in full mode (another consumer would show it). (8) Task 8: the `changedDovetailed` test lacks
-width, thickness and reorder cases; `keepsExactly`'s doc comment phrasing overlaps; `keptAssemblyLinkRefusal` names only the FIRST holder's
+emitted and only hidden by the component in full mode (another consumer would show it). (8) Task 8: the `changedDovetailed` test lacked
+width, thickness and reorder cases (added by the final review, 2026-10-27, each clause mutated); `keepsExactly`'s doc comment phrasing overlaps; `keptAssemblyLinkRefusal` names only the FIRST holder's
 kind when two kept definitions share a Shape; a kept part's re-applied pockets get new cut ids (the guard ignores ids, as for box joints);
 Repair treats a dovetailed part whose cuts are only reordered as unchanged; joinery's half-lap and rabbet zone probes are effectively
 defensive (with the corner's mate present the move is refused first).
 **Status:** open (record-only).
+
+**514. Dovetails: a misfit GAP is not reported, and the tails' depth goes stale (final review, 2026-10-27; spec Amended SD20).** A
+dovetail's `depth` is stored at planning (the partner's thickness). When the pins part is later THINNED (or the tails part's partner
+otherwise changes), the tails stick out past it or fall short: an overshoot is not overlap (the pins part's wood is gone), so the design
+check reports nothing, and the tails part's cut-list line and bench drawing keep the OLD depth until the corner is dovetailed again. §3.5's
+"reports the mismatch with the partner as overlap or a gap" holds only for overlap. Options: a gap check (a new check kind, needs the
+user's approval as §5.3 did), or a partner-thickness note on the tails part's Dovetails section and cut-list line (find the partner as the
+re-plan does, compare its thickness with `depth`). Escalated to the user.
+**Status:** open (ask first: which remedy).
+
+**515. Dovetails: metric bench chain values may not sum to `H` after rounding (final review, 2026-10-27).** The metric bench chain prints
+each span (half pin, tail, pin) as bare whole mm (Task 7 ruling, inv 52); each value is rounded on its own, so the printed spans can add up
+to a millimetre or two more or less than the printed overall `H` (e.g. 4 tails of 30.2 mm print as 30 each). A shop reader laying out from
+the chain accumulates the error. Remedy: cumulative stations (each boundary from J's min, rounded once) instead of or beside the spans, the
+way `dovetailLayout` computes every bound directly. Not fixed in the round.
+**Status:** open (small; changes the bench drawing's look, so the user judges it with fu 511).

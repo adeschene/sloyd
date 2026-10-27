@@ -319,7 +319,8 @@ following a Remove to the partner.
 
 ## Amended (build)
 
-Rulings and differences from the build (2026-10-27, branch `dovetails`, commits `e8ca93f`..`b15f6c2`; records in inv 62 and fu 497–513).
+Rulings and differences from the build (2026-10-27, branch `dovetails`, commits `e8ca93f`..`a38f216`, the final review's fixes last;
+this record follows in its own commit; records in inv 62 and fu 497–515).
 **Status: AWAITING THE USER'S APPROVAL.** Each line says what was built and what it costs if the call is wrong.
 
 **Spec differences**
@@ -398,6 +399,28 @@ Rulings and differences from the build (2026-10-27, branch `dovetails`, commits 
     shapes were the implementer's, box joints byte for byte unchanged).
   - The layout lives in the leaf `dovetailModel.ts`, re-exported from `dovetails.ts`, to avoid an import cycle with the copy home.
   - *Cost if wrong:* none found.
+
+**Final review rulings (2026-10-27, commit `a38f216`)**
+- **SD16 — the tail count is bounded.** `DOVETAIL_COUNT_MAX` = 100 (as `HOLE_COUNT_MAX`; §3.4 set no bound): load DROPS an entry with
+  more (the part kept), the planner refuses a typed count over it with the count sentence (now `A tail count must be a whole number from
+  1 to 100.`) and starts Auto at most at it, and the Tails field reads more as a parse error (button disabled). `Te` has ONE O(1) home,
+  `dovetailTailWidth`, read by `dovetailFaults`, `dovetailLine` and `dovetailLayout`: a stored count of 1e9 had allocated a ~16 GB bounds
+  array just to read `Te`. *Cost if wrong:* a 101-tail joint can't be typed.
+- **SD17 — one tail reads `1 tail`.** Every printed count (the success note, its per-corner lines, the too-narrow sentence, the cut-list
+  line) goes through `tailWord`. At one tail (Auto bottoming out, or a typed 1) the refusal is `<A> and <B> are too narrow for even one
+  tail at 1:<s> — try a shallower slope or a wider part.`; a typed count of 2 or more that faults keeps `… too narrow for <N> tails at
+  1:<s> — try fewer tails.` *Cost if wrong:* copy (fu 512).
+- **SD18 — a re-plan keeps the stored pin width (G3: change only what is asked)**, as it keeps the count: the current tails end's `pin`;
+  only a new corner takes `pinWidth(doc.units)`. *Cost if wrong:* an old imperial pin survives a units switch until the user removes and
+  re-adds the joint.
+- **SD19 — the perf guard includes the mesh.** `src/viewport/dovetailsPerf.test.ts` times the dovetailed drawer's `partGeometry` (bodies,
+  edges) AND `partMesh`, the minimum of 9, bound 41 ms (3 × the 13.45 ms median measured quiet); the document guard (23 ms, bodies and
+  edges) is unchanged beside it. *Cost if wrong:* none (a guard).
+- **SD20 — a misfit GAP is NOT reported (§3.5 holds only for overlap).** §3.5 says the design check reports a misfit with the partner
+  "as overlap or a gap". Only overlap is reported: the checks have no gap kind, so a pins part THINNED after dovetailing (its partner's
+  tails now longer than it is thick) leaves a gap the check passes, and the tails part's cut-list line and bench drawing keep the OLD
+  depth (the stored `depth`, set at planning) until the corner is dovetailed again. Escalated to the user; fu 514. *Cost if wrong:* a
+  stale depth on the shop sheet until re-run.
 
 **Ruling lines from the build ledger, each with its cost if wrong**
 - **Task 2:**
