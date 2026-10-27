@@ -30,7 +30,10 @@ because the code gives no choice (listed under "Spec differences" below).
   before: every existing test passes UNCHANGED (cut list, diagrams, drawings, joinery, Refine, the identity tests).
 - Layer order: `document` imports nothing from `store`, `generate`, `panels` or `viewport`.
 - Layout (spec §3.3), all comparisons at `1e-9` unless stated:
-  - `N = max(5, 2·round((H/w − 1)/2) + 1)`; inner fingers exactly `w`; outer `e = (H − (N − 2)·w) / 2`; refuse when `H < 4w`.
+  - `N = max(5, 2n + 1)` with `n` the integer nearest `q = (H/w − 1)/2`, and a TIE (`q − ⌊q⌋` within 1e-9 of 0.5)
+    going DOWN (my call, after review: of the two odd counts a tie sits between, the fewer fingers give the wider outer
+    pair, `e = 3w/4` instead of `w/4`; thin outer fingers break off). Inner fingers exactly `w`; outer
+    `e = (H − (N − 2)·w) / 2`; refuse when `H < 4w`.
   - Segment `k` (1-based, part-local along the part's `J` dimension from its own min): `s1 = [0, e]`,
     `sk = [e + (k − 2)·w, e + (k − 1)·w]` for `2 ≤ k ≤ N − 1`, `sN = [e + (N − 2)·w, H]`. Computed directly, never as a
     running sum.
@@ -83,9 +86,14 @@ because the code gives no choice (listed under "Spec differences" below).
 2. **Success note.** It is held in the section's own state (the selection does not change after the action), not in new
    store state. That is simpler than the spec's §4, and the note is still cleared on a selection change, because
    GroupProperties remounts the section.
-3. **Linked write-back.** Each storage target is written through ONE representative world part: a non-mirrored user when
-   there is one, else the first. Its mates are returned unchanged (the same object), as `addStretcher` does with reused rows.
-   This is how "planned once per Shape, never lowered through `mirrorCut` twice" is realised with `mapWorld`.
+3. **Linked write-back.** The SHARED fields of each storage target (`length`/`width`, `cuts`) are written through ONE
+   representative world part: a non-mirrored user when there is one, else the first. Every OTHER user is passed to
+   `mapWorld` with ONLY its own `position` changed (to its planned world min corner), its shared fields left exactly as
+   currently resolved, so nothing is re-lowered through `mirrorCut`. The position matters because `position` is own while
+   `length` is shared: a mate left as the same object would grow from its stored min corner and land off at a min-end
+   run-out. Before building this, read how `applyWorldEdits` lowers an own position delta and skips unchanged shared
+   fields (`treeEdit.ts`). If it cannot take a position-only mate next to a representative's size change, STOP and report
+   it. Do not work around it.
 
 ## Review Focus
 
@@ -154,9 +162,9 @@ because the code gives no choice (listed under "Spec differences" below).
 
 - [ ] **Step 1: Failing tests:**
   - `fingerLayout(4.5, 0.5)` → `{ count: 9, width: 0.5, outer: 0.5, length: 4.5 }` (every finger equal).
-    `fingerLayout(5.25, 0.5)` → count 11, outer 0.375. `fingerLayout(5, 0.5)` → count 11, outer 0.25 (`H/w` = 10 is a
-    tie between 9 and 11; `Math.round` takes 11). `fingerLayout(1.9, 0.5)` → null. `fingerLayout(2, 0.5)` → count 5,
-    outer 0.25.
+    `fingerLayout(5.25, 0.5)` → count 11, outer 0.375. Ties go down: `fingerLayout(5, 0.5)` → count 9, outer 0.75, and
+    `fingerLayout(4, 0.5)` → count 7, outer 0.75. `fingerLayout(1.9, 0.5)` → null. `fingerLayout(2, 0.5)` → count 5
+    (the minimum), outer 0.25. Mutate the tie to go up: the two tie cases must fail.
   - For every `(H, w)` in `{(3,0.5),(4.75,0.5),(6,0.75),(100/25.4, 6/25.4)}`, both phases, both ends, `dim` length and
     width: `fingerSets` of a plain board carrying `notchCuts(...)` returns exactly one set, `toEqual` the planned
     `{ layout, depth, outerFingers, cutIds }`. This is the round trip.
@@ -230,6 +238,10 @@ Planner order (each step can only refuse before any mutation; work on clones):
     and the planned sides' grooves still run out at both ends.
   - Linked, mirrored sides (Side right `mirrored` user of Side left's Shape): the plan succeeds; `applyBoxJoints` leaves
     ONE Shape whose cuts both sides resolve; the cut list (`buildCutList`) groups the sides as one row.
+  - Linked parts that CHANGE length (the review's case; the butt-corner drawer's sides do not). (a) Linked Front/Back on
+    the butt-corner drawer, Back turned 180°. (b) Linked mirrored sides on the EMPTY-corner drawer. For both, after
+    `applyBoxJoints`: every part's world box reaches both outside faces of its corners (to 1e-9) and `checkDesign` is `[]`.
+    Mutate: return the mates as the same object. Then (a) or (b) must fail.
   - Selecting Front and Side left only, with the sides linked: the linked-mate sentence naming Side right.
   - Re-run on the jointed drawer with `width: 0.375`: lengths unchanged; every finger set has the new layout; no cut
     outside the finger sets except the grooves.
@@ -269,8 +281,8 @@ Planner order (each step can only refuse before any mutation; work on clones):
     a document `toEqual` the before. A refusal pushes nothing. While exploded (`setExplode(0.5)`), it returns null and
     changes nothing.
   - Panel: selecting the four drawer parts shows `Box joints`. Clicking `Box joint the corners` shows
-    `Jointed 4 corners: 9 fingers, 1/2" wide (the outer two 1/4").` (4" tall at 1/2": `fingerLayout(4, 0.5)` is count 9,
-    outer 0.25; the test also asserts that layout, so the sentence and the arithmetic cannot drift apart). Selecting two parts that make no corner and clicking shows
+    `Jointed 4 corners: 7 fingers, 1/2" wide (the outer two 3/4").` (4" tall at 1/2": `fingerLayout(4, 0.5)` is count 7,
+    outer 0.75, a tie gone down; the test also asserts that layout, so the sentence and the arithmetic cannot drift apart). Selecting two parts that make no corner and clicking shows
     `These parts don't meet at a corner.` as an alert.
 - [ ] **Step 2: Run** `npx vitest run src/panels/BoxJoints.test.tsx` and the store test file. Expected: FAIL.
 - [ ] **Step 3: Implement.**
@@ -322,9 +334,14 @@ Planner order (each step can only refuse before any mutation; work on clones):
 **Interfaces:**
 - Consumes: `fingerSetAt`, `fingerSets`.
 - Produces:
-  - In `applyJoints`, just before the existing `cutIntoEnd` grow skip: when `joint` grows E (`mortise-tenon`, `dado`,
-    `stopped-dado`) and `fingerSetAt(E, axisDimensions(E)[k], endFacing(E, k, side))` is not null, skip the site with the
-    box-joint reason.
+  - A private `fingerEnd(b: Board, k: number, end: 'min' | 'max'): boolean` in `recipes.ts`:
+    `fingerSetAt(b, axisDimensions(b)[k], endFacing(b, k, end === 'min' ? -1 : 1)) !== null`. Finger notches run through
+    the thickness, so `refaceFromEnd` re-stores them and `cutIntoEnd` says false. Every `cutIntoEnd` caller needs this
+    check too:
+    - the GROW skip (`mortise-tenon`, `dado`, `stopped-dado`), just before the existing `cutIntoEnd` one: skip the site with
+      the box-joint reason;
+    - the rabbet recipe's two TRIM refusals (the panel's own trims, and the `trims` loop over butting parts): refuse with
+      the box-joint reason naming the trimmed part, in the recipe's own refusal path.
   - `claimFingerSets(flat: FlatDocument): { flat: FlatDocument; claimed: Map<number, Cut[]> }` (in `refine.ts`, private):
     every recognised finger set's cuts removed per board index.
   - `plainForRefine`: if every cut in the project is claimed, return `{ plain: doc, joints: null }`. Otherwise run the
@@ -341,6 +358,9 @@ Planner order (each step can only refuse before any mutation; work on clones):
   - Joinery: a box-jointed drawer whose sides' front ends face a false front's face (an end-into-face site) with
     `mortise-tenon` chosen: the site is skipped with `Side left's box joint is already cut at that end`, and the sides are
     unchanged (`toEqual`).
+  - Joinery trim: a thin back panel rabbeted into a case where the rabbet's trim would shorten a box-jointed part at its
+    jointed end: refused with the box-joint reason, and that part is unchanged (`toEqual`). Mutate: drop the trim check.
+    The fingers must then be destroyed (the test fails).
   - `plainForRefine` on a box-joint-only project (root parts): returns `joints: null`, and `keptParts` holds the four
     drawer parts.
   - `plainForRefine` on a joined cabinet (a case with a dadoed shelf, from an existing joinery fixture) plus a root-level
