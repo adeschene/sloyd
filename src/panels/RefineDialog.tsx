@@ -28,6 +28,13 @@ interface Props {
 
 export const CHANGES_SHOWN = 12;
 
+/** The kept line's kinds (splayed legs spec §8): box joints and dovetails named only when kept (box-joints spec §7,
+ *  dovetails spec §7), both when both, the last joined by `or`. */
+function keptKinds(l: { boxJoints?: true; dovetails?: true }): string {
+  const kinds = ['leans', 'angled holes', 'round tenons', ...(l.boxJoints ? ['box joints'] : []), ...(l.dovetails ? ['dovetails'] : [])];
+  return `${kinds.slice(0, -1).join(', ')} or ${kinds[kinds.length - 1]}`;
+}
+
 function statusText(r: RefineRun): string {
   switch (r.status) {
     case 'designing': return 'Refining…';
@@ -141,7 +148,7 @@ export function RefineDialog(p: Props) {
             {/* Splayed legs spec §8, angled holes §9, round tenons §9, box joints §7: kept (leaning, angled-hole, round-tenon,
                 box-jointed) parts come back exactly as they were; a model part reusing one's name was dropped. Box joints are
                 named only when a box-jointed part is kept, so the line is otherwise as before. */}
-            {out.leaning && out.leaning.kept.length > 0 && <p>{`Kept as is (leans, angled holes${out.leaning.boxJoints ? ', round tenons or box joints' : ' or round tenons'}): ${out.leaning.kept.join(', ')}`}</p>}
+            {out.leaning && out.leaning.kept.length > 0 && <p>{`Kept as is (${keptKinds(out.leaning)}): ${out.leaning.kept.join(', ')}`}</p>}
             {out.leaning && out.leaning.replaced.length > 0 && <p>{`Replaced by the kept part of the same name: ${out.leaning.replaced.join(', ')}`}</p>}
             {out.changes.length === 0 ? <p>No changes.</p> : (
               <ul className="generate-runs">

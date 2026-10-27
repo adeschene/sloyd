@@ -1,7 +1,8 @@
 import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, parentPath, PATH_SEPARATOR, worldParts, writeBackFlat } from '../../document/document';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
-import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
+import { cutBox, gateUnjoin, readJoints, rejoin, sameCut, sameCutSet } from './unjoin';
+import { dovetailsOf, hasDovetails } from '../../document/dovetailModel';
 import { compoundRefusal, leaningRefusal, tenonRefusal } from './tapers';
 import { claimThenDecide, firstBrokenSet, restoreFingerSets } from './fingerClaim';
 
@@ -93,6 +94,22 @@ export function repairJoints(flat: FlatDocument, stored: readonly string[]): nul
   return { boards, dropped };
 }
 
+/**
+ * The name of the first dovetailed part of `before` that `after` (index-aligned) does not have exactly as it was, or null
+ * (dovetails spec §7: Repair never changes a dovetailed part), judged as the re-join guard judges a kept part
+ * (`changedBoxJointed`): its dovetails, size and position exactly, its cuts as a set (ids ignored; only the re-join's
+ * ORDER of its cuts may differ).
+ */
+export function changedDovetailed(before: readonly Board[], after: readonly Board[]): string | null {
+  for (const [i, p] of before.entries()) {
+    if (!hasDovetails(p)) continue;
+    const q = after[i];
+    if (!q || JSON.stringify(dovetailsOf(p)) !== JSON.stringify(dovetailsOf(q)) || p.length !== q.length || p.width !== q.width ||
+      p.thickness !== q.thickness || p.position.some((v, k) => v !== q.position[k]) || !sameCutSet(p.cuts, q.cuts)) return p.name;
+  }
+  return null;
+}
+
 export type RepairCheck = null | { refused: string } | { doc: SloydDocument; dropped: number; splits: string[][] };
 
 /** The repair written back into the tree (invariant 46), with the placements it un-shared. */
@@ -119,6 +136,8 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
     if (r === null || 'refused' in r) return r;
     const boards = restoreFingerSets(r.boards, claimed);
     if (firstBrokenSet(flat.boards, boards, claimed) !== null) return { refused: REPAIR_REFUSAL };
+    // Repair never changes a dovetailed part (dovetails spec §7): a result that would refuses the whole repair.
+    if (changedDovetailed(flat.boards, boards) !== null) return { refused: REPAIR_REFUSAL };
     const out = migrateDocument(writeBackFlat(doc, flat.boards, boards));
     return { doc: out, dropped: r.dropped, splits: splitCopies(doc, out) };
   } catch (e) {

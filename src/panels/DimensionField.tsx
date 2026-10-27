@@ -49,11 +49,14 @@ interface Props {
   format?: (v: number) => string;
   /** The message for unparseable text. Default is the length wording. */
   invalid?: string;
+  /** Text shown before the input (a ratio's `1 :`, dovetails spec §4); not part of the typed text. Absent: the markup is
+   *  exactly as before. */
+  prefix?: string;
 }
 
 export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
   label, value, onCommit, allowNegative = false, min, max, units,
-  commitUnchanged = false, onErrorChange, parse, format, invalid,
+  commitUnchanged = false, onErrorChange, parse, format, invalid, prefix,
 }: Props, forwardedRef) {
   // parse/format generalise this field to non-length values (AngleField);
   // every rule here — the dirty guard, Enter/Escape, refusal never clamps — is
@@ -148,68 +151,72 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
     return true;
   };
 
+  const input = (
+    <input
+      id={id}
+      ref={inputRef}
+      value={text}
+      placeholder={value === null ? 'mixed' : undefined}
+      aria-invalid={error ? 'true' : 'false'}
+      className={error ? 'input invalid' : 'input'}
+      onFocus={() => { editing.current = true; }}
+      onChange={(e) => { dirty.current = true; setText(e.target.value); }}
+      onBlur={() => {
+        editing.current = false;
+        // A blur triggered by the Escape or Enter handler below: the edit
+        // is already settled. Escape restored the last good value, and
+        // re-running commit() against the stale text in this closure would
+        // re-set the error it just cleared. Enter committed; resyncing from
+        // this render's `value`, which predates the commit, would show the
+        // old number until the adopt effect caught up.
+        if (blurHandled.current) { blurHandled.current = false; return; }
+        // Untouched field: nothing to commit, and committing here would
+        // silently rewrite the document with the display-rounded value
+        // (e.g. 0.7" -> 11/16") and push a no-op undo entry. But an
+        // external change (gizmo drag, undo) may have landed while this
+        // field was focused — the adopt-external-changes effect above
+        // skips while editing, and its deps don't fire again once
+        // editing.current goes false, so nothing else will ever resync
+        // the display. Do that here, without committing.
+        // A MIXED field typed into and then emptied is back where it started (fu 210): it stays mixed, writes nothing
+        // and shows no error. A field with a value, emptied, is still refused below — empty is not a length.
+        if (!dirty.current || clearedMixed()) {
+          dirty.current = false;
+          setText(display(value));
+          setError(null);
+          return;
+        }
+        commit();
+      }}
+      onKeyDown={(e) => {
+        // Enter commits and leaves the field (follow-up 212): the commit is
+        // visible, and the next Ctrl+Z reaches the app's undo, not the
+        // input's. A refused entry keeps focus so it can be fixed. An
+        // untouched Enter just blurs, through the ordinary untouched path.
+        if (e.key === 'Enter') {
+          if (dirty.current && !clearedMixed()) {
+            if (!commit()) return;
+            blurHandled.current = true;
+          }
+          (e.target as HTMLInputElement).blur();
+          return;
+        }
+        if (e.key === 'Escape') {
+          blurHandled.current = true;
+          dirty.current = false;
+          setError(null);
+          setText(display(value));
+          editing.current = false;
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        ref={inputRef}
-        value={text}
-        placeholder={value === null ? 'mixed' : undefined}
-        aria-invalid={error ? 'true' : 'false'}
-        className={error ? 'input invalid' : 'input'}
-        onFocus={() => { editing.current = true; }}
-        onChange={(e) => { dirty.current = true; setText(e.target.value); }}
-        onBlur={() => {
-          editing.current = false;
-          // A blur triggered by the Escape or Enter handler below: the edit
-          // is already settled. Escape restored the last good value, and
-          // re-running commit() against the stale text in this closure would
-          // re-set the error it just cleared. Enter committed; resyncing from
-          // this render's `value`, which predates the commit, would show the
-          // old number until the adopt effect caught up.
-          if (blurHandled.current) { blurHandled.current = false; return; }
-          // Untouched field: nothing to commit, and committing here would
-          // silently rewrite the document with the display-rounded value
-          // (e.g. 0.7" -> 11/16") and push a no-op undo entry. But an
-          // external change (gizmo drag, undo) may have landed while this
-          // field was focused — the adopt-external-changes effect above
-          // skips while editing, and its deps don't fire again once
-          // editing.current goes false, so nothing else will ever resync
-          // the display. Do that here, without committing.
-          // A MIXED field typed into and then emptied is back where it started (fu 210): it stays mixed, writes nothing
-          // and shows no error. A field with a value, emptied, is still refused below — empty is not a length.
-          if (!dirty.current || clearedMixed()) {
-            dirty.current = false;
-            setText(display(value));
-            setError(null);
-            return;
-          }
-          commit();
-        }}
-        onKeyDown={(e) => {
-          // Enter commits and leaves the field (follow-up 212): the commit is
-          // visible, and the next Ctrl+Z reaches the app's undo, not the
-          // input's. A refused entry keeps focus so it can be fixed. An
-          // untouched Enter just blurs, through the ordinary untouched path.
-          if (e.key === 'Enter') {
-            if (dirty.current && !clearedMixed()) {
-              if (!commit()) return;
-              blurHandled.current = true;
-            }
-            (e.target as HTMLInputElement).blur();
-            return;
-          }
-          if (e.key === 'Escape') {
-            blurHandled.current = true;
-            dirty.current = false;
-            setError(null);
-            setText(display(value));
-            editing.current = false;
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-      />
+      {prefix === undefined ? input : <div className="input-prefixed"><span className="input-prefix">{prefix}</span>{input}</div>}
       {error && <span role="alert" className="field-error">{error}</span>}
     </div>
   );

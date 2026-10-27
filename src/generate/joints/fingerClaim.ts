@@ -1,4 +1,5 @@
 import { fingerSets } from '../../document/boxJoints';
+import { dovetailsOf } from '../../document/dovetailModel';
 import { flatDocument } from '../../document/document';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { sameCutSet } from './unjoin';
@@ -36,6 +37,8 @@ export const restoreFingerSets = (boards: readonly Board[], claimed: ReadonlyMap
   boards.map((b, i) => (claimed.has(i) ? { ...b, cuts: [...b.cuts, ...claimed.get(i)!] } : b));
 
 const setsKey = (b: Board) => JSON.stringify(fingerSets(b));
+/** A part's stored dovetails, exactly (dovetails spec §7): `[]` for none. */
+const dovetailsKey = (b: Board) => JSON.stringify(dovetailsOf(b));
 
 /** The name of the first claimed part whose recognised finger sets are not what they were (`before`, index-aligned),
  *  or null: the read-back resized a part along its fingers, and putting the claimed cuts back cannot keep them. */
@@ -45,8 +48,9 @@ export function firstBrokenSet(before: readonly Board[], after: readonly Board[]
 }
 
 /**
- * The first of `names` (flat names of kept box-jointed parts) that `joined` no longer has exactly as `original` had it:
- * its recognised finger sets, its size, its world position or its cuts (as a set, ids ignored) differ, or it is gone.
+ * The first of `names` (flat names of kept box-jointed or dovetailed parts) that `joined` no longer has exactly as
+ * `original` had it: its recognised finger sets, its dovetails, its size, its world position or its cuts (as a set, ids
+ * ignored) differ, or it is gone.
  * Null when every one is kept. A joined Refine checks its re-join with this (box-joints spec §7, inv 41: a conflicting
  * result comes back UNJOINED).
  */
@@ -57,7 +61,7 @@ export function changedBoxJointed(original: SloydDocument, joined: SloydDocument
     const p = a.get(n);
     const q = b.get(n);
     if (!p) continue;
-    if (!q || setsKey(p) !== setsKey(q) || p.length !== q.length || p.width !== q.width || p.thickness !== q.thickness ||
+    if (!q || setsKey(p) !== setsKey(q) || dovetailsKey(p) !== dovetailsKey(q) || p.length !== q.length || p.width !== q.width || p.thickness !== q.thickness ||
       p.position.some((v, k) => v !== q.position[k]) || !sameCutSet(p.cuts, q.cuts)) return n;
   }
   return null;

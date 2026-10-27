@@ -316,3 +316,137 @@ following a Remove to the partner.
 - The bench drawing's scale, layout and styling within inv 19 and §5.2.
 - Live-refusal plumbing (copy Box joints'), exact UI wording beyond the quoted sentences (copy review owed), the invariant's
   full wording.
+
+## Amended (build)
+
+Rulings and differences from the build (2026-10-27, branch `dovetails`, commits `e8ca93f`..`a38f216`, the final review's fixes last;
+this record follows in its own commit; records in inv 62 and fu 497–515).
+**Status: AWAITING THE USER'S APPROVAL.** Each line says what was built and what it costs if the call is wrong.
+
+**Spec differences**
+- **SD1 — the body route (§3.5).** The builder's choice §3.5 left open: not "each pocket cell intersected with each kept piece" but the
+  round-tenon route. `geometryBoard` appends each built dovetail's waste as square-span VIEW curves (`dovetailViewCurves`), so no new body,
+  edge, mesh or UV code was written. The pins' sockets, which §3.5 said "need body code of their own", go through the same path: a view
+  curve through the run dimension with one square stop at the baseline. The partition test (48 cases, mutated) and the watertight mesh
+  test hold, and the perf guard for a dovetailed drawer passes (23 ms bound). *Cost if wrong:* the joint geometry would need its own body
+  code if a later feature cannot ride view curves (half-blind's stopped sockets, fu 497).
+- **SD2 — refusals on void store actions (§3.6).** `addCut`, `updateCut`, `addAngleCuts`, `addCurves`, `addProfiles` and `setBands` now
+  return `string | null`; each panel shows the sentence as its alert. *Cost if wrong:* none found; callers that ignore the result
+  compile unchanged.
+- **SD3 — the last tail's far edge is `H − p`** (§3.2 gives every tail as `p + k·(Te + p) + Te`). There is one boundary, computed one
+  way, so the layout closes at exactly `H`. Every reader takes bounds only from `dovetailLayout` (Task 2 ruling). *Cost if wrong:* an ulp
+  in the last tail's width.
+- **SD4 — the `depth` fault also covers two dovetails meeting (§3.2).** A part's two dovetails on one dimension whose depths together
+  reach its size (to 1e-9) both fault `depth` (Task 4 ruling). *Cost if wrong:* that fault's note reads `it is deeper than the part` for
+  an overlap.
+- **SD5 — authoring refuses ANY fault, with a new sentence (§3.5).** A planned dovetail that would fault anything but `narrow` refuses
+  with `<part> is too short for its dovetails.` (Task 4 rulings: the wording, and refusing every fault). *Cost if wrong:* one string.
+- **SD6 — the zone exemption is any cut running straight THROUGH (§3.6).** §3.6 exempted only grooves carried through at planning
+  time. The build also exempts a NEW or edited cut that runs straight through a dovetailed end along its run (`cutRunsThrough`, the
+  corner planner's ONE predicate), in the store and in joinery (Task 5 and Task 8 rulings). Refusing every edit of a drawer bottom's
+  groove would have been a usability regression. *Cost if wrong:* a user can cut a new through groove across a dovetailed end, which a
+  hand-cut drawer also allows.
+- **SD7 — a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (§3.2, §6).** §3.2 says the
+  palindrome removes the asymmetric-layout refusals, and §6 says linked users mirrored along J succeed. The build's carcass cases
+  (`dovetailPlan.test.ts`: two upright sides linked to one Shape, J their width, Side right mirrored along J, and a flat top between them)
+  show where that holds:
+  - Side right mirrored along J at the SAME turn as Side left (90°), with the sides taking the TAILS (Swap): succeeds.
+  - Unmirrored sides at 90° and 270°, taking the pins: succeeds.
+  - Mirror's own pair (Side right mirrored at the inverse turn, 270°), taking the pins: succeeds.
+  - **Side right mirrored along J at the SAME turn, taking the PINS (the default, tails on the top): REFUSED** with the disagreement
+    sentence. Its pins would be narrow on its INSIDE face: the reflection keeps the narrow face on the same world side, which on the
+    right side is the inside (Task 4 ruling; fu 507).
+  So §6's "mirrored along J SUCCEED" holds only when the Shape takes the tails. *Cost if wrong:* a user with same-turn mirrored linked
+  carcass sides must Swap or Unlink.
+- **SD8 — the bench pair never wraps (§5.2 said it wraps on a narrow sheet).**
+  - Each figure takes a fixed share of the row (`FIG_SHARE`) with a viewBox `FIG_W` wide, so its labels render at PartDiagram's size on
+    any sheet, and two always fit side by side.
+  - The chain is drawn in full (on one row, or two tiers) only when every label fits on its own span. Otherwise it labels each
+    distinct value once at its first span and prints the overall `H` on BOTH figures.
+  - These are the Task 7 rulings: keep the user's "side by side" and PartDiagram's label size.
+  - The spec's mockup case (6", 4 tails, 1:8) draws the full chain on two tiers, where the mockup had one row.
+  - *Cost if wrong:* a reworked label layout after the user sees it (fu 511).
+- **SD9 — bench words (§5.2).**
+  - The baseline label reads `baseline <depth>`.
+  - A layout on one end carries a new note, `<dim> <end> end`.
+  - The captions are `Dovetails — the tail board's face` and `Dovetails — the pin board's end grain`.
+  - The labels are ASCII only, so no glyph needed measuring in a browser (§5.2's `·` is not used).
+  - *Cost if wrong:* copy (fu 512).
+- **SD10 — lengths print as `formatLength` gives them (§5.1).** `1-3/16"`, not the draft's `1 3/16"`: inv 52 governs (Task 5 ruling).
+  The metric bench chain prints bare mm under the sheet's `Dimensions in mm` note (Task 7 ruling). *Cost if wrong:* none (one home).
+- **SD11 — joinery's dovetail reason, and pockets into a dovetailed part (§3.6, §7).**
+  - A site whose pocket, rabbet or half-lap notch would reach a dovetailed end's zone is skipped or refused with the DOVETAIL sentence
+    (`<part> has dovetails, so joinery leaves its size and place alone`), not box joints' reason.
+  - The site is judged by a probe pocket through the store's `dovetailCutRefusal`, so a through groove joins (Task 8 ruling).
+  - Unlike box joints, a pocket INTO a dovetailed part is not always allowed.
+  - *Cost if wrong:* Add joinery skips some sites near a dovetailed end that the user expected joined.
+- **SD12 — more refusals than §3.6 listed.**
+  - Bore leg sockets with Tenon the legs refuses to fit a round tenon to a dovetailed leg (Task 5).
+  - Add stretcher and Bore leg sockets refuse a socket in a zone, as §3.6 named.
+  - Fit the stretcher again has no zone check (fu 508).
+  - *Cost if wrong:* none found; each is a refusal before any change.
+- **SD13 — Refine's words name dovetails (§7 said "as box joints").**
+  - The why-word is `has dovetails`.
+  - A kept assembly's note line, the header and the dialog's kept line name `dovetails`, and name both kinds when an assembly holds both.
+  - `keptAssemblyLinkRefusal` is worded by the holding definition's kind: two new sentences.
+  - The (c) reason has a dovetail form.
+  - These are Task 8's rulings, including "both when both" reaching `keptNote`.
+  - *Cost if wrong:* copy (fu 512), and a longer model note for a mixed assembly.
+- **SD14 — one keep predicate.** Every keep and leave-alone site reads `cornerJointed` (a finger set or a stored dovetail). The finger
+  claim sites stay finger-only: a dovetail is not a cut, and `gateUnjoin` never sees one (pinned). *Cost if wrong:* none found.
+- **SD15 — module homes (§12, left to the builder).**
+  - The shared corner planner is `cornerPlan.ts` and the shared words are `cornerText.ts` (Task 1 R1: the `JointKind` interface
+    shapes were the implementer's, box joints byte for byte unchanged).
+  - The layout lives in the leaf `dovetailModel.ts`, re-exported from `dovetails.ts`, to avoid an import cycle with the copy home.
+  - *Cost if wrong:* none found.
+
+**Final review rulings (2026-10-27, commit `a38f216`)**
+- **SD16 — the tail count is bounded.** `DOVETAIL_COUNT_MAX` = 100 (as `HOLE_COUNT_MAX`; §3.4 set no bound): load DROPS an entry with
+  more (the part kept), the planner refuses a typed count over it with the count sentence (now `A tail count must be a whole number from
+  1 to 100.`) and starts Auto at most at it, and the Tails field reads more as a parse error (button disabled). `Te` has ONE O(1) home,
+  `dovetailTailWidth`, read by `dovetailFaults`, `dovetailLine` and `dovetailLayout`: a stored count of 1e9 had allocated a ~16 GB bounds
+  array just to read `Te`. *Cost if wrong:* a 101-tail joint can't be typed.
+- **SD17 — one tail reads `1 tail`.** Every printed count (the success note, its per-corner lines, the too-narrow sentence, the cut-list
+  line) goes through `tailWord`. At one tail (Auto bottoming out, or a typed 1) the refusal is `<A> and <B> are too narrow for even one
+  tail at 1:<s> — try a shallower slope or a wider part.`; a typed count of 2 or more that faults keeps `… too narrow for <N> tails at
+  1:<s> — try fewer tails.` *Cost if wrong:* copy (fu 512).
+- **SD18 — a re-plan keeps the stored pin width (G3: change only what is asked)**, as it keeps the count: the current tails end's `pin`;
+  only a new corner takes `pinWidth(doc.units)`. *Cost if wrong:* an old imperial pin survives a units switch until the user removes and
+  re-adds the joint.
+- **SD19 — the perf guard includes the mesh.** `src/viewport/dovetailsPerf.test.ts` times the dovetailed drawer's `partGeometry` (bodies,
+  edges) AND `partMesh`, the minimum of 9, bound 41 ms (3 × the 13.45 ms median measured quiet); the document guard (23 ms, bodies and
+  edges) is unchanged beside it. *Cost if wrong:* none (a guard).
+- **SD20 — a misfit GAP is NOT reported (§3.5 holds only for overlap).** §3.5 says the design check reports a misfit with the partner
+  "as overlap or a gap". Only overlap is reported: the checks have no gap kind, so a pins part THINNED after dovetailing (its partner's
+  tails now longer than it is thick) leaves a gap the check passes, and the tails part's cut-list line and bench drawing keep the OLD
+  depth (the stored `depth`, set at planning) until the corner is dovetailed again. Escalated to the user; fu 514. *Cost if wrong:* a
+  stale depth on the shop sheet until re-run.
+
+**Ruling lines from the build ledger, each with its cost if wrong**
+- **Task 2:**
+  - The fault boundary's mutation is the slack's sign (−1e-9 → +1e-9), not the plan's `<` → `<=`, which is equivalent at the 1e-9 slack.
+    *Cost:* none; the boundary is pinned either way.
+  - `links.test.ts` and `shapes.test.ts` were edited beyond version numbers: they list the shared fields, so the new SHARED field had to
+    appear. *Cost:* a field-list test that changed with the code it pins.
+- **Task 3:**
+  - `drawing.ts` is unchanged: dovetail outlines are straight, so no segment is curve-tagged. *Cost:* a future arc-bearing joint view
+    would need the exclusion.
+  - A hole inside a dovetail socket is not a hole fault: the zone refusals keep holes out at every authoring path. *Cost:* a hole wall
+    meshed through socket air in a rare edited state (fu 506).
+- **Task 4:**
+  - `EndFlips.thickness` is unreachable but kept threaded. *Cost:* a dead parameter.
+  - G3's "the note says what changed" is met by the success note (N, slope, `Tails on …`), with no extra line. *Cost:* copy review may
+    add one.
+- **Task 7:**
+  - Front and back stay separate cut-list rows when their pins are narrow on different part-local faces (inv 40's part-local identity).
+    *Cost:* a dovetailed drawer's front and back read as two rows (fu 510).
+  - The bench label size and chain modes: see SD8.
+- **Task 8:**
+  - Joinery's pocket check is `dovetailCutRefusal` (through grooves exempt), matching the store: see SD6 and SD11.
+  - Joining the drawer bottom FIRST, then dovetailing (or box-jointing) the corners, makes Refine refuse with `GATE_REFUSAL`. This is
+    pre-existing (fu 493's mechanism) and was not fixed here. The other order works (pinned). *Cost:* users who join first hit
+    `GATE_REFUSAL` until fu 493 is done; fu 493 now names this as the common drawer workflow.
+- **Pre-flight R1:** `JointKind`'s `addAt` and `signature` shapes were the implementer's, and Task 4 extended them for the pins' outside
+  face. *Cost:* an interface reshuffle; none happened.
+- **Pre-existing, recorded (Task 2):** `updateBoard` on a mirrored linked part throws when its patch carries `tenons`, now also
+  `dovetails` (fu 505). *Cost:* none today; no production caller sends either key.

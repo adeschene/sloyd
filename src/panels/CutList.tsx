@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { buildCutList, flatDocument } from '../document/document';
 import { isMetric } from '../units/length';
 import { PartDiagram } from './PartDiagram';
+import { DovetailBench } from './DovetailBench';
 import { SheetLayout } from './SheetLayout';
 import { DimensionField } from './DimensionField';
 import { hardwareTotals, hardwareUseText } from '../document/hardware';
@@ -170,6 +171,10 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                       row.diagrams.map((view) => (
                         <PartDiagram key={view.key} view={view} />
                       ))}
+                    {/* The dovetail bench drawings (dovetails spec §5.2), after the diagrams under the same condition; a row
+                        without a tails dovetail has no `benches` and renders exactly as before. */}
+                    {(diagrams === 'all' || (diagrams === 'joinery' && row.setup.length > 0)) &&
+                      row.benches?.map((bench) => <DovetailBench key={bench.key} bench={bench} />)}
                   </li>
                 ))}
               </ul>

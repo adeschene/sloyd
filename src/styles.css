@@ -895,6 +895,9 @@ button[aria-pressed='true'] {
 .field .input { width: 100%; }
 .field input.input { font-family: var(--font-num); font-size: 12px; font-variant-numeric: tabular-nums;
   text-align: right; letter-spacing: 0.01em; }
+/* A prefixed field (DimensionField's `prefix`: a ratio's `1 :`, dovetails spec §4): the text before the input, one row. */
+.input-prefixed { display: flex; align-items: center; gap: 6px; }
+.input-prefix { font-family: var(--font-num); font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
 
 .field-grid { display: grid; gap: 6px 8px; margin-bottom: 6px; }
 .field-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1191,6 +1194,45 @@ select.input { cursor: pointer; }
 .cutlist-diagram-leader line {
   stroke: currentColor;
   stroke-width: 1.5;
+}
+
+/* The dovetail bench drawings (dovetails spec §5.2): figures A and B side by side, each FIG_SHARE of the row wide (an
+   inline width from DovetailBench.tsx, so a label renders at PartDiagram's size at any sheet width; fix round 1). The two
+   always fit, so they never wrap. Their text is `.cutlist-diagram-leader text` (--font-num, no font-size here: LABEL_SIZE's
+   home is the <svg>, inv 19). */
+.cutlist-bench {
+  grid-column: 3 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin: 10px 0 0;
+}
+
+.cutlist-bench-figure {
+  flex: none;
+  min-width: 0;
+  margin: 0;
+}
+
+.cutlist-bench-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ink);
+  overflow: visible;
+}
+
+.cutlist-bench-waste {
+  fill: currentColor;
+  fill-opacity: 0.22;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.cutlist-bench-baseline {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 8 6;
 }
 
 .cutlist-diagram-angle {
@@ -1544,6 +1586,10 @@ select.input { cursor: pointer; }
      already set on .cutlist-row; keeping the figure intact as well stops a
      leader stack being orphaned from its outline. */
   .cutlist-diagram { break-inside: avoid; }
+  /* The dovetail bench drawings (spec §5.2): blackened like a diagram (the waste is an SVG fill, foreground content), and
+     the pair kept together. */
+  .cutlist-bench-figure svg { color: #000; }
+  .cutlist-bench { break-inside: avoid; }
 }
 
 @media (prefers-reduced-motion: reduce) {

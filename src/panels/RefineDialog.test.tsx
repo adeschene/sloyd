@@ -124,6 +124,16 @@ describe('RefineDialog', () => {
     screen.getByText('Kept as is (leans, angled holes, round tenons or box joints): Front, Side left');
   });
 
+  it('names dovetails in the kept line only when a dovetailed part is kept, and both kinds when both (dovetails spec §7)', () => {
+    const run = (leaning: { kept: string[]; replaced: string[]; boxJoints?: true; dovetails?: true }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Drawer — refined', costUsd: 0.07, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, leaning } });
+    const { unmount } = render(<RefineDialog {...base} run={run({ kept: ['Front', 'Side left'], replaced: [], dovetails: true })} />);
+    screen.getByText('Kept as is (leans, angled holes, round tenons or dovetails): Front, Side left');
+    unmount();
+    render(<RefineDialog {...base} run={run({ kept: ['Drawer 1'], replaced: [], boxJoints: true, dovetails: true })} />);
+    screen.getByText('Kept as is (leans, angled holes, round tenons, box joints or dovetails): Drawer 1');
+  });
+
   it('shows a new issue\'s displayed copy (a metric project), not the model\'s inches (fu 355)', () => {
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
       doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], joints: null, present: [],

@@ -13,6 +13,7 @@ import { Holes } from './Holes';
 import { RoundTenons } from './RoundTenons';
 import { Lean } from './Lean';
 import { BoxJointsSection } from './BoxJoints';
+import { DovetailsPart, DovetailsSection } from './Dovetails';
 import { StretcherReadout, StretcherSection } from './Stretcher';
 import type { AddedStretcher } from './Stretcher';
 import { Curves } from './Curves';
@@ -124,8 +125,15 @@ function CutRow({ board, cut, units, solids }: { board: Board; cut: Cut; units: 
       setAttempt((n) => n + 1);
       return;
     }
+    // The store's own refusal (dovetails spec §3.6: a cut reaching a dovetailed end), shown as this row's error and the
+    // fields remounted from the stored cut, as the two refusals above.
+    const refused = updateCut(board.id, cut.id, patch);
+    if (refused) {
+      setError(refused);
+      setAttempt((n) => n + 1);
+      return;
+    }
     setError(null);
-    updateCut(board.id, cut.id, patch);
   };
 
   /**
@@ -413,6 +421,20 @@ function MaterialSelect({ ids, value, library, onNewMaterial }: {
   );
 }
 
+/** `+ Add cut` and the store's refusal of it (dovetails spec §3.6: the default cut would reach a dovetailed end), shown as
+ *  an alert that belongs to the part AS IT WAS (RoundTenons' TenonEnd): any change to the part object retires it. */
+function AddCut({ board }: { board: Board }) {
+  const addCut = useStore((s) => s.addCut);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setError(null), [board]);
+  return (
+    <>
+      <button className="add-cut" onClick={() => setError(addCut(board.id))}>+ Add cut</button>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </>
+  );
+}
+
 function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdded }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler; onNewBandType?: () => void; onStretcherAdded: (added: AddedStretcher) => void }) {
   const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
@@ -501,6 +523,8 @@ function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdd
       )}
       {/* Box-joints spec §4: two or more parts (all parts, no assemblies). */}
       {boards.length >= 2 && <BoxJointsSection ids={selectedIds} />}
+      {/* Dovetails spec §4: beside Box joints, two or more parts. */}
+      {boards.length >= 2 && <DovetailsSection ids={selectedIds} />}
       <Banding boards={boards} onNewBandType={onNewBandType} />
       </>}
       </EditLock>
@@ -594,7 +618,6 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
   const deleteBoard = useStore((s) => s.deleteBoard);
   const duplicateBoard = useStore((s) => s.duplicateBoard);
   const hideUnselected = useStore((s) => s.hideUnselected);
-  const addCut = useStore((s) => s.addCut);
   const unlinkBoards = useStore((s) => s.unlinkBoards);
   const selectLinked = useStore((s) => s.selectLinked);
   // OTHER parts using this one's shape (its link); a number, so it re-renders only when the count moves.
@@ -768,11 +791,12 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
       {board.cuts.map((cut) => (
         <CutRow key={cut.id} board={board} cut={cut} units={units} solids={solids} />
       ))}
-      <button className="add-cut" onClick={() => addCut(board.id)}>+ Add cut</button>
+      <AddCut board={board} />
 
       <AngleCuts board={board} />
       <Holes board={board} />
       <RoundTenons board={board} />
+      <DovetailsPart board={board} />
       <StretcherReadout board={board} notes={addedNotes} />
       <Curves board={board} />
       <Profiles board={board} />

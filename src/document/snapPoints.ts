@@ -2,6 +2,7 @@ import { keptHalfSpace } from './angleCuts';
 import { partGeometry } from './bodies';
 import { localSegments, spanOf, squareSpan, uvDims } from './curves';
 import { builtTenons, onTenonSurface, shoulderAt } from './roundTenons';
+import { builtDovetails, dovetailCorners } from './dovetails';
 import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
@@ -254,6 +255,15 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
     for (const length of [shoulder, t.end === 'max' ? shoulder + t.length : shoulder - t.length]) {
       const at = placed(board, { length, width: board.width / 2, thickness: board.thickness / 2 });
       if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind: 'face-center', at, owner });
+    }
+  }
+  // A dovetail's corners at the outside plane (dovetails spec §3.5), 'corner': each tail's end corners (tails) and each pin's
+  // narrow corners (pins), on wood by construction (`dovetailCorners`); the sockets are air to `stockProbe`, so the lattice
+  // above offers nothing in one. Only a dovetail that builds. Deduped against the lattice.
+  for (const d of builtDovetails(stored)) {
+    for (const p of dovetailCorners(board, d)) {
+      const at = placed(board, p);
+      if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind: 'corner', at, owner });
     }
   }
   if (board.angleCuts.length === 0) return lattice;

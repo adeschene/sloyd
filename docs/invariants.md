@@ -25,6 +25,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `tenons` is absent too (round tenons, schema 24, inv 58): a tenon moves no min corner and never changes the part's length, so it
     has its own store actions (`addTenon`, `updateTenon`, `removeTenon`). Bore leg sockets' Tenon the legs grows or shortens a leg on
     purpose, and its plan carries the leg's `length` AND `position` in one patch (Level the ends' shape, `levelPlan`).
+    `dovetails` is absent too (dovetails, schema 26, inv 62): a dovetail moves no min corner, and it has its own store actions
+    (`dovetailCorners`, `removeDovetail`). Dovetail the corners runs parts out on purpose, and writes each part's full after-state,
+    size AND position, through `writeBackParts` with `keepWorld` (inv 61's write-back).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -98,6 +101,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     A ROUND TENON (inv 58) draws its shoulder ring, its tip's outline and, in drawings, its silhouettes — never a seam or facet
     line on its round side (its two view curves meet only at smooth outline vertices, inv 48). Its shoulder ring's centre is a snap
     point though it sits in the tenon's WOOD (not put to `touchesStock`): the hole-centre exception, for the centre of a drawn ring.
+    A DOVETAIL (inv 62) draws its sockets' straight outlines (every vertex sharp, so each is a real edge, no facet line); its snap
+    points are only its corners at the OUTSIDE plane (`dovetailCorners`: a tail's end corners, a pin's narrow corners), each on
+    wood; the sockets are air to `stockProbe`, so no lattice point is offered in one. No exception to "on a drawn feature".
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -173,7 +179,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes: part and instance ids per
     container; definition and shape ids per document; cut ids per board (per shape for a
-    shape), and so angle-cut, hole, curve and round-tenon ids (schema 24, inv 58); profile ids share the part's CURVE scope (curves validated first), so the
+    shape), and so angle-cut, hole, curve, round-tenon (schema 24, inv 58) and dovetail ids (schema 26, inv 62); profile ids share the part's CURVE scope (curves validated first), so the
     geometry view never holds two curves with one id. Band type ids per document (one `seen` set; the built-in's id fixed);
     bands carry no id (keyed by side). `/` in an id is re-minted. A guide with no id is dropped. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
@@ -236,6 +242,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     part with a built tenon); a leaning part reads `checkedLevelFaces` (its leaned bodies cut at every shoulder, then `levelFaces`'
     rule). `levelFaces` itself keeps the tips (Bore leg sockets finds legs by them). So a part standing only on a foot tenon's tip is
     not on the floor. One scan (`anyTenon`): a document with no built tenon takes every path above unchanged.
+    **A part with a BUILT DOVETAIL is measured on its real bodies too** (dovetails spec §5.3, the user's ruling 2026-10-27, inv 62):
+    `realBodied` = `isAngled(b) || builtTenons(b).length > 0 || builtDovetails(b).length > 0`, so a dovetailed corner's two
+    interpenetrating boxes never read as overlap (its bodies partition the corner). Its contacts (`contactRegions`' last step,
+    `dovetailContacts`) are the wood behind each baseline plus, per tail or pin and half pin, the box INSCRIBED at its narrowest J
+    span (a tail's baseline span, a pin's outside-face span) over the dovetail's depth — never over-claiming wood: the angled cheeks
+    are never a contact, the two parts' inscribed boxes only touch, and a tail's flat underside rests on the pin part's wood behind
+    its baseline. Its floor test stays the box's (`stands` is a tenon rule). A part whose dovetails are all faulted builds none and
+    checks exactly as its dovetail-free twin; a dovetail-free document's results are unchanged. No new kind of support (inv 39).
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -287,6 +301,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     appended to `rowKey` only when the part has one); `sameShared` compares in order, ids included (Task 1 review I1); `alignedTo`
     adopts the representative's tenon ids only when `sameTenon` matches end for end (canonical order). `geometryKey` reads a built
     tenon through its view curves (`geometryBoard`, inv 48).
+    Dovetails (schema 26, inv 62) have `DOVETAIL_FIELDS` (`dovetailModel.ts`, `satisfies`: every field but `id` — `dim`, `end`,
+    `role`, `count`, `slope`, `pin`, `depth`, `outside`), exact (`dovetailValues`, `-0` told apart from 0, an absent `outside` never
+    equal to a present one): `sameDovetail`; the cut list keys by `dovetailSignature` (exact, order-independent, ids ignored, over
+    the STORED dovetails, appended to `rowKey` only when the part has one), exactly as tenons; `sameShared` compares in order, ids
+    included; `alignedTo` adopts the representative's ids only when `sameDovetail` matches in canonical order. `geometryKey` reads a
+    built dovetail through its view curves.
     A compound miter's `across` (square-set legs, schema 25, inv 59) is `ANGLE_CUT_FIELDS`' LAST entry: `angleCutValues` flattens it
     to `[rise, from]` as it does `points` (pushed raw, an object would compare by identity), and an absent one adds NOTHING, so a
     single-slope cut's values — the cut list's row key, `geometryKey`, the UV signature, `groupSignature` — are byte for byte as
@@ -416,6 +436,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     stored array; a draft with none adds no key). `mirrorFeatures` applies it (a part's own mirror and a mirrored instance's step);
     `lower` and `lowerOwnMirror` lower it. Pinned with a chiral leg (a tenon on one end only) inside a mirrored instance: the legs are
     still seated in the world.
+    **A dovetail reflects by a FLAG FLIP too** (dovetails spec §3.4, inv 62: `mirrorDovetails`): along its own `dim` its `end` swaps,
+    along the thickness a pins entry's `outside` swaps, along J nothing (the layout is a palindrome); when no entry moves the SAME
+    array comes back, else it is re-sorted into canonical order. Its own inverse; `lowerDovetails` lowers through one mirror (an
+    untouched entry maps back to the stored object, an untouched list to the stored array; a draft with none adds no key).
+    `mirrorFeatures`, `lower` and `lowerOwnMirror` apply it as they do tenons.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -459,6 +484,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     never turns a tenoned part (through `keepsExactly`, inv 56): its tenons name ends of the STORED length, so a turn that reverses the
     length in the world would carry each to the other world end. Bore leg sockets' Tenon the legs writes a Shape's tenons, length,
     angle cuts and holes ONCE, through the group's first leg, and each other storage target only its own position (`fitLegs`).
+    **`dovetails` is SHARED** (dovetails spec §3.4, inv 62; an optional list, excluded from `_sharedPrimitives` as `tenons` is), with
+    every rule above for `tenons` word for word: `copyDovetail`, never stored empty, a present `[]` or `undefined` a REMOVAL,
+    `sameShared` in order with ids (`sameDovetail`), `resolveBoard` copies it, `groupSignature` carries its sorted `dovetailValues`.
+    `turnCandidates` never turns a dovetailed part (through `keepsExactly`, inv 56): its dovetails name ends of the STORED dimensions.
+    Dovetail the corners writes linked users through `writeBackParts` (inv 61); its link post-condition refuses a split Shape.
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -508,7 +538,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - **A lean is lowered exactly through every turn and mirror on the path** (splayed legs §3.4, inv 57): `lowerLean` applies
       `leanFlip` once per mirror (each mirrored instance, plus the part's own flag in `lowerOwnMirror`); `withShapeFeatures` carries
       `shape.lean`. **Removing a lean:** a patch whose `lean` key is present with value `undefined` deletes the stored key everywhere
-      (`storedValue` reads it ABSENT, the Shape path included); scoped to `lean` — any other key set to `undefined` is still a write.
+      (`storedValue` reads it ABSENT, the Shape path included); scoped to `lean`, and to `tenons` and `dovetails` (`storedValue`, inv 45, 62) — any other key set to `undefined` is still a write.
       A leaning part's resize lowers a position delta alongside the size (`pivotKeptPosition`, inv 57): a third case beside the two
       write-back rules, per user for a shared size. Level the ends writes the shared length and cuts once and each storage target's
       own position (`oneEditPerTarget`).
@@ -567,7 +597,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     stored 0 comes back −0). Lean-free drawings are byte for byte unchanged (`drawingIdentity`). The Lean section sits inside
     `EditLock`; `setLean` and `levelEnds` return null and change nothing while exploded or gesturing (no copy).
 
-48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
+48. **`boardBodies` is the ONE place angle cuts become geometry (and curves, profiles, round tenons and dovetails, below); `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
     describes or joins rectangular cuts (`cutShape`, joinery, the cut list's pocket lines) stays on `pocketCells`. A body no
     angle cut clips keeps the box path byte-for-byte (`body.box`). Joinery and Repair stay box-based and accept
@@ -631,6 +661,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `shapedFeatures` reads `profileView`, never `geometryBoard`, so a tenon is never a feature of itself. A tenon's view curves are
     not curves to the user: the cut list's curve signature, bench lines, feature keys, drawing tags, the diagram's curve layers and
     snap points all skip `squareSpan` curves; the tenon draws and keys itself (inv 58).
+    **A DOVETAIL's waste is built through the same path** (dovetails spec §3.5, Spec difference 1, inv 62): `geometryBoard` appends
+    each BUILT dovetail's square-span VIEW curves (`dovetailViewCurves`: one straight-sided outline per socket, a tails part's
+    through the thickness, a pins part's through its run dimension with one square stop at the baseline; ids
+    `dovetail/<id>/<k>`) AFTER the round tenons' — the JOINT views (`jointViews`; `profileView` returns the view without them, so
+    judging a joint never reads its own waste). The rules above for a tenon's view curves hold for a dovetail's word for word
+    (VIEW-ONLY, `squareSpan` first, never a curve to the user, `builtDovetails` memoised and frozen); a dovetail draws its own
+    edges (straight outlines: every vertex sharp, so the edges are drawn and no segment is curve-tagged) and offers its own snap
+    corners (`dovetailCorners`, inv 16). A dovetail-free part's geometry view is unchanged.
     **A COMPOUND miter is one plane through the same path** (square-set legs spec §4, inv 59): `keptHalfSpace` adds the across term
     (`n[through] = −rise · sign(across.from)`, the offset less `rise · (ct − T/2)`, normalised by `hypot(1, k, rise)`; the
     single-slope path is textually unchanged), so bodies stay convex and every plane reader — bodies, `stockProbe`, snapping's
@@ -1053,6 +1091,16 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `"<placement>" is an assembly with box joints and is kept as is: <bounds>.`; the header gains `have box joints` only when one
     is kept) and the done view says `Kept as is (leans, angled holes, round tenons or box joints)` (`RefineOutcome.leaning.boxJoints`).
     No floor shift is applied while a kept placement exists. A JOINED Refine does not refuse (unlike the tilted row): inv 61.
+
+    **A part with a DOVETAIL is KEPT exactly too, and a dovetailed ASSEMBLY is kept WHOLE, exactly as a box-jointed one** (dovetails
+    spec §7, inv 62): `keepsExactly(b)` = `keptForMoreThanFingers(b) || cornerJointed(b)`, and `cornerJointed(b)` (a recognised finger
+    set OR a stored dovetail, faulted or not) is THE predicate every keep and leave-alone site reads (`keptParts`' kept definitions,
+    joinery's size-and-place rule, the re-join guard's `guardedKept`). Everything in the box-joint paragraph above holds for it; the
+    words name the kind: `whyKept` appends `has dovetails`; a kept placement's line says `an assembly with dovetails` (both kinds named,
+    `box joints and dovetails`, when its definition holds both: `definitionKind` / `assemblyKind`); `keptNote`'s header gains `have
+    dovetails` only when one is kept; `keptAssemblyLinkRefusal` words its sentence by the holding definition's kind; the done view's
+    kept line names `box joints` and/or `dovetails` only when kept (`RefineOutcome.leaning.dovetails`, `keptKinds`). A dovetail-free
+    document's notes and dialog are byte for byte as before.
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
     `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face, square? }`, a SHARED
@@ -1509,3 +1557,141 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       diagram opens the set's view, skips its cuts and notes the set (`fingerNotes`). Copy lives only in `boxJointText.ts`, which imports
       `units` (the edge rule); `boxJoints.ts` takes a TYPE-only `Units`. The design schema is byte for byte the same (Generate never
       authors a box joint). Follow-ups 484–496.
+    - **Since dovetails (inv 62) the corner planner is shared and the keep is wider** (no box-joint behaviour changed; every box-joint
+      test passes unedited): corner finding, the run-out, the corner-region refusals, linked-Shape planning and the write-back moved
+      unchanged to `cornerPlan.ts` (`planCorners`, `writeCorners`, `cutRunsThrough`; the shared sentences to `cornerText.ts`,
+      re-exported from `boxJointText.ts` under their old names), and box joints is one `JointKind` of it. Every KEEP and LEAVE-ALONE
+      site above reads `cornerJointed` (a finger set OR a stored dovetail); the finger CLAIM sites stay finger-only, so the
+      PROHIBITION above is unchanged. A dovetailed part refuses Box joint the corners with the plain-stock sentence (`dovetails`).
+
+62. **A dovetail is a STORED parametric feature of a part's end (schema 26), and `dovetails.ts` is its ONE fault decider, ONE
+    view-curve source and ONE planner; the ONE layout is `dovetailLayout` in the leaf `dovetailModel.ts`** (dovetails chunk 2,
+    through dovetails; spec `2026-10-27-sloyd-dovetails-design.md` and its *Amended (build)* block). `dovetails.ts` re-exports the
+    layout as its documented home; the leaf exists so the copy home `dovetailText.ts` and `boxJoints.ts` read it without an import
+    cycle. `Board.dovetails?: Dovetail[]`, `Dovetail = { id, dim: 'length' | 'width', end: 'min' | 'max', role: 'tails' | 'pins',
+    count, slope, pin, depth, outside? }` (inches; `outside` on pins ONLY: the thickness face the pins are narrow on, the corner's
+    outside face), at most one per `(dim, end)`, canonical order length min, length max, width min, width max (`withDovetails`).
+    The user's numbers are stored, never the outline: the slope `1:s` and the count `N` typed (or Auto), the pin `p` fixed by the
+    project's units at planning (1/4", 6 mm: `pinWidth`, never typed), `depth` the OTHER part's thickness. Each part's geometry
+    derives from its own feature and its own sizes only, so a part is self-describing.
+    - **A dovetail-free document is byte for byte as before**: no `dovetails` key on any part or Shape — never `[]`, never
+      `undefined` (`withDovetails` drops the key on an empty list; the loader, `sharedOf`, `sharedPatch`, `resolveBoard`, every copy
+      site and the write-back's `storedValue` keep it so). `geometryBoard` reads a dovetail-free part exactly as before (the part
+      itself, or its profile view),
+      `rowKey` appends `dovetailSignature` only when the part has one, a row without a tails dovetail has no `benches` key (never
+      `[]`), and every reader, check, drawing, mesh and cut-list line is unchanged (`CutList.dovetailIdentity.test.tsx`, and every
+      existing identity test passes unedited).
+    - **The layout** (`dovetailLayout(H, N, s, p)`, spec §3.2, the user's rule: hand-cut, half pins at both edges): `H` is the part's
+      own J size (`jointLineOf(dim)`: the non-thickness dimension other than `dim`); `Te = (H − (N + 1)·p) / N`; along J from J's
+      min at the OUTSIDE plane (the tail part's end face = the pin part's outside face): a half pin `p`, `N` tails `Te` separated by
+      `N − 1` pins `p`, a half pin `p`. Every boundary is computed DIRECTLY (`p + k·(Te + p)` for tail `k`, never a running sum),
+      except that the last tail's far edge IS the last half pin's near edge, `H − p` (one boundary, computed one way: a build
+      ruling), and the last bound is `H` itself. Moving inward by `x`, every tail–pin boundary moves INTO its tail by `x / s`. **The
+      layout is a palindrome along J**, so a turn or a mirror along J moves nothing. Every reader of a boundary (the view curves,
+      the snap corners, the inscribed contact boxes, the bench drawings) takes it from `dovetailLayout`, never recomputed. **`Te`
+      has ONE home, `dovetailTailWidth(H, N, p)`** (O(1), in the leaf), read by `dovetailLayout`, `dovetailFaults` and the cut-list
+      line, so judging or printing a dovetail never builds its bounds array (final review, 2026-10-27). **The count is bounded:
+      `DOVETAIL_COUNT_MAX` = 100** (as `HOLE_COUNT_MAX`): load drops more, the planner refuses a typed count over it and starts Auto at
+      most at it, and the Tails field reads more as a parse error.
+    - **`dovetailFaults(b, d)` is the ONE fault decider**, on the part's own sizes, faults in this order: `count` (not an integer
+      ≥ 1), `slope` (outside [4, 12]), `depth` (`depth ≥ b[dim]`, OR with the part's other dovetail on the same `dim` the two depths
+      together reach `b[dim]` to 1e-9: the overlap is folded into `depth`, a build ruling), `narrow` (a tail at its narrowest,
+      `Te − 2·X/s`, narrower than a pin at its widest, `p + 2·X/s`, by more than 1e-9; `X` = `depth` for tails, the part's own
+      `thickness` for pins; exactly equal passes). Copy lives only in `dovetailText.ts` (`dovetailFaultText`). **Authoring refuses
+      ANY fault** (the planner: `narrow` through the count, anything else `<part> is too short for its dovetails.`); a fault a later
+      edit causes (a resize, a thickness change) is KEPT and noted in the part's Dovetails section, never clamped. **A faulted
+      dovetail builds NOTHING** (`builtDovetails`, the ONE "which dovetails build" list, memoised per board OBJECT and frozen): the
+      part reads as plain stock at that end — no geometry, snap corner, contact box or bench drawing — and only its cut-list line
+      (every STORED dovetail is printed) and its fault note remain; the design check reports the misfit with the partner as overlap.
+    - **Geometry is inv 48's path** (Spec difference 1: the round-tenon route, not new body code): `geometryBoard` appends each BUILT
+      dovetail's waste as SQUARE-span VIEW curves (`dovetailViewCurves`, `CurveSpan.square`) after the round tenons'; ids
+      `dovetail/<dovetail id>/<k>` (no loaded id holds `/`, inv 33). Tails: one curve per pin socket (half pins included), through
+      the THICKNESS, widening by `depth / s` each side at the baseline; a half pin's board edge stays square. Pins: one curve per tail
+      socket, through `dim` from the baseline to the end with ONE square stop at the baseline, narrowing by `thickness / s` each
+      side from the `outside` face to the other. Both describe the same prism. So bodies stay convex, the mesh is WATERTIGHT
+      (`dovetailGeometry.test.ts`), `geometryKey` and `boardUVSignature` read the dovetail (inv 15), and every `squareSpan` reader
+      skips it as a curve (the cut list's curve lines and signature, the diagram's curve layers, feature keys, `holeFaults`'
+      `intoCurve`); the drawings tag no dovetail segment as a curve because every outline is straight (drawing.ts unchanged, a build
+      ruling: a future arc-bearing joint view would need the exclusion). **One layout per corner, an exact partition**: the two parts'
+      world kept pieces inside the corner square fill it exactly and share no volume (to 1e-9: `dovetailGeometry.test.ts`
+      across H, N, s, metric and imperial `p`, turned parts, swapped roles and both run dimensions, mutated; the planner's tests through
+      the test-only `dovetailFixtures.ts` `expectPartition`).
+    - **Snap points** (inv 16): a built dovetail offers its corners at the OUTSIDE plane only (`dovetailCorners`): a tail's end
+      corners on the end face at both thickness faces, a pin's narrow corners on its `outside` face at the end and at the baseline —
+      on wood by construction; the sockets are air to `stockProbe`, so nothing is offered in one.
+    - **Load** (v26, `docs/versioning.md`): `validateDovetails` DROPS a malformed entry, never the part (not an object, `dim` not
+      length | width, `end` not min | max, `role` not tails | pins, `count` not an integer from 1 to `DOVETAIL_COUNT_MAX` (100), a non-finite or non-positive
+      `slope`, `pin` or `depth`, a pins entry without `outside` min | max, a second one for a `(dim, end)`: the first in RAW order
+      wins), drops a tails entry's stray `outside` (the entry kept), and KEEPS a well-formed faulted one (a slope of 1:20); ids per
+      board (per Shape for a Shape) by `takeId`, a `/` re-minted. Copies (`copyBoard`, Duplicate, copy in a row) re-mint ids. A
+      schema-25 build refuses a 26 file. No upgrade step (absent means none).
+    - **Shared and mirrored**: `dovetails` is SHARED in `LINK_FIELDS` (inv 45), exactly as `tenons`: stored once on the Shape, a fresh
+      copy per user (`copyDovetail`), `sameShared` in order with ids, `groupSignature` its sorted `dovetailValues`, `alignedTo` adopts
+      the representative's ids only when `sameDovetail` matches in canonical order; a key present as `[]` or `undefined` is a REMOVAL
+      (inv 46). Every mirror is a FLAG FLIP (inv 44, `mirrorDovetails`, its own inverse; `lowerDovetails` lowers through one mirror,
+      an untouched entry back to the stored object): along `dim` the `end` swaps, along the thickness a pins entry's `outside`
+      swaps, along J nothing (the SAME array). `DOVETAIL_FIELDS` (inv 40, every field but `id`, `satisfies`) is "same dovetail":
+      `sameDovetail`, the cut list's `dovetailSignature` (exact, order-independent, ids ignored, over the STORED dovetails).
+    - **The planner is the dovetail kind of the shared corner planner** (`dovetailPlan`, `applyDovetails`, the store's
+      `dovetailCorners`; `cornerPlan.ts` holds box joints' corner finding, run-out, corner-region refusals, linked-Shape planning and
+      `writeCorners`, factored out unchanged, inv 61; the kind supplies `featureOf`, `removeAt`, `planCorner`, `addAt`, `signature`).
+      Every refusal before any mutation, in order (`dovetailPlan`'s doc comment): the slope, then a typed count; then the shared
+      planner's (a part in a mirrored copy; the corners and their refusals; per part end the plain-stock test, the run-out and the
+      corner region's cut and hole), with each corner's too-narrow sentence (`planCorner`) before the linked checks (mate,
+      disagreement, the link post-condition); then any other fault of a NEW dovetail (too short). ONE undo entry; none while exploded (inv
+      47) or gesturing; held points judged on the written document (`judgeHeld`, inv 24). **Which part takes the tails**: box
+      joints' `RUN_RANK` (the part whose run axis ranks first in Z, X, Y; a drawer's sides), Swap inverts. **Auto**: `N =
+      min(DOVETAIL_COUNT_MAX, max(1, round(H / 1.5")))` (38 mm metric), lowered by one while `narrow` holds on either part; `N = 1`
+      still faulting refuses (`… too narrow for even one tail at 1:<s> — try a shallower slope or a wider part.`; a count of 2 or more
+      that faults: `… too narrow for <N> tails at 1:<s> — try fewer tails.`; every printed count reads `1 tail` / `<N> tails` through
+      `tailWord`). **Re-plan (spec G3, change only what is asked)**: on a corner whose two ends already carry one tails
+      and one pins dovetail (read off the ORIGINAL parts), a null count KEEPS the stored count (lowered as Auto only when the new
+      slope faults it), the corner KEEPS its stored pin width (the current tails end's: a units switch alone never changes a joint;
+      a new corner takes `pinWidth(doc.units)`; final review, 2026-10-27), the current tails part keeps the tails, and Swap flips
+      relative to it. **Linked users**: the Shape-local
+      signature (role, count, slope, pin, the pins' `outside` through the user's thickness flip, plus the generic run dimension,
+      Shape-local end, depth and size) is compared exactly (sizes at 1e-9, inv 61's R-F1); a user mirrored along J at the SAME turn as
+      its mate SUCCEEDS when the Shape takes the TAILS (the palindrome), unmirrored users at opposite turns and Mirror's own pair (a
+      mirrored user at the inverse turn) succeed taking the PINS; **a user mirrored along J at the SAME turn whose Shape takes the PINS
+      refuses** with the disagreement sentence (its pins would be narrow on its INSIDE face; a build ruling, fu 507;
+      `dovetailPlan.test.ts`' carcass cases) — Swap (the linked parts take the tails) or Unlink. Write-back is `writeBackParts` (`keepWorld`), the link post-condition refuses a split link.
+    - **What a dovetailed part may carry** (spec §3.6): plain stock only — a lean, angle cut, curve, edge profile, edge band, round
+      tenon or box joint refuses dovetails (`<part> has <…> — dovetails work on plain stock for now.`), and Box joint the corners
+      refuses a dovetailed part (`<part> has dovetails — box joints work on plain stock for now.`). On a dovetailed part the Lean,
+      Angles, Curves, Profiles, Banding and Round tenons ADDS refuse (`<part> has dovetails — remove them first.`; a clear never
+      does; Bore leg sockets' Tenon the legs too). **A cut or hole reaching a dovetailed end's ZONE** (`dovetailZones`: `depth` back
+      from each STORED dovetail's end, the whole section, a faulted one included) refuses on add or edit (`<part> has dovetails there
+      — move it clear of the joint.`): `addCut`/`updateCut` (`dovetailCutRefusal`), `addHoleRows`/`updateHoleRow`, Add stretcher and
+      Bore leg sockets (`holeTouchesBox`). **A cut running straight THROUGH that end along the dovetail's run is exempt**
+      (`cutRunsThrough`, the corner planner's ONE predicate: a drawer bottom's groove). So `holeFaults`, `holes.ts` and `stockProbe`
+      never meet dovetail waste at an authoring path (a resize moving an existing hole into a zone is fu 506; `fitStretcher` has no
+      zone check, fu 508). The void store actions that refuse now return `string | null` (Spec difference 2) and each panel shows
+      the sentence as its alert.
+    - **The checks** (spec §5.3, the user's ruling; inv 38, 39): a part with a BUILT dovetail is `realBodied`, so overlap and
+      `partMass` read its real bodies; `contactRegions` trims every region to the wood behind each baseline, then adds per tail (at
+      its baseline span) or per pin and half pin (at its outside-face span) the box INSCRIBED at its narrowest J span over the
+      dovetail's whole depth, intersected with the untrimmed regions. The angled cheeks are never contacts; the two parts'
+      inscribed boxes only ever touch; a tail's flat underside rests on the pin part's wood behind its baseline. **No new kind of
+      support** (inv 39 untouched): a dovetailed drawer on the floor and a carcass whose top takes the tails onto two sides check
+      clean (`designCheck.dovetails.test.ts`). A part whose dovetails are all faulted checks exactly as its dovetail-free twin.
+    - **Joinery, Refine and Repair** read ONE predicate, `cornerJointed(b)` (`leanKeep.ts`: a recognised finger set OR a stored
+      dovetail, faulted or not), at every KEEP and LEAVE-ALONE site; the finger CLAIM sites (`fingerClaim.ts`, `refineDesign.ts`,
+      `cutlist.ts`) stay finger-only — a dovetail is not a cut, so `gateUnjoin` never sees it and there is nothing to claim (pinned,
+      `dovetailsRefine.test.ts`). **Joinery leaves a dovetailed part's size and place alone** (`<part> has dovetails, so joinery
+      leaves its size and place alone`, decided before any mutation); **unlike box joints, a pocket INTO a dovetailed part is skipped
+      or refused when it reaches a dovetailed end's zone** (`intoDovetails`, a PROBE pocket judged by the store's `dovetailCutRefusal`,
+      so a groove running through the end joins), and a half-lap notch likewise. **Refine keeps dovetailed parts and dovetailed
+      ASSEMBLIES whole** exactly as box-jointed ones (`keepsExactly`, `keptParts`, inv 56, 61), the words by kind (`has dovetails`,
+      `"<placement>" is an assembly with dovetails …`, both kinds named when both); a joined Refine fixes new sites touching a kept
+      part as butt, keeps a recorded joint as recorded, and the (c) guard (`changedBoxJointed`, `fingerClaim.ts`, which compares the dovetails too)
+      returns the design UNJOINED with `Joinery would have changed <name>, which Refine keeps as it is for its dovetails, so the
+      design comes back unjoined.` **Repair never changes a dovetailed part** (`changedDovetailed`: a result that would refuses the
+      whole repair). Generate never authors a dovetail; the design schema and `toWireDesign` are byte for byte the same.
+    - **The cut list** prints one line per STORED dovetail (`dovetailLine`, `dovetailText.ts`, after the finger-set lines and before
+      the square-tenon lines; a faulted one still printed), and on the TAIL part's row only, beside its diagrams, the bench drawings
+      (`dovetailBenches`, `dovetailBench.ts`: one pair per distinct fault-free tails layout, two equal ends one pair noted `both
+      ends`; figure A the tail board's face, figure B the pin board's end grain, side by side at one scale, rendered by
+      `DovetailBench.tsx`). Every string is assembled in `dovetailBench.ts` (inv 19), lengths through `formatLengthBare` (inv 52:
+      bare mm in metric); the label size is PartDiagram's (each figure `FIG_W / VIEW_W` of the row); the chain is drawn in full only
+      when every label fits its own span, else each distinct value once at its first span with the overall `H` on both figures.
+      The pin part's row carries its line only. Follow-ups 497–513.

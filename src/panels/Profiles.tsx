@@ -396,6 +396,9 @@ export function Profiles({ board: stored }: { board: Board }) {
   const addProfiles = useStore((s) => s.addProfiles);
   const board = geometryBoard(stored);
   const units = useStore((s) => s.doc.units);
+  // The store's refusal of an Add (dovetails spec §3.6), the section's alert; retired by any change to the part (TenonEnd).
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setError(null), [stored]);
   const f = (n: number) => formatLength(n, units);
   // A preset whose default would fault on this part — a curve fault, an overlap, or a hole it would put into the waste — is withheld,
   // not added and refused (the Curves precedent).
@@ -422,7 +425,7 @@ export function Profiles({ board: stored }: { board: Board }) {
         : kind === 'bead' ? `${f(d.size)} radius, ${f(d.fillet!)} quirk`
         : `${f(d.size)} radius`;
       const where = `${FACE_LABEL[edge.vFrom]} · ${sideLabel(sideOfEdge(edge))}`;
-      return [{ label: KIND_LABEL[kind], detail: `${size}, ${where}`, run: () => addProfiles(stored.id, [profileOf(c)!]) }];
+      return [{ label: KIND_LABEL[kind], detail: `${size}, ${where}`, run: () => setError(addProfiles(stored.id, [profileOf(c)!])) }];
     }
     return [];
   }), [stored, units, addProfiles]); // eslint-disable-line react-hooks/exhaustive-deps -- board, f and fits derive from stored and units
@@ -433,6 +436,7 @@ export function Profiles({ board: stored }: { board: Board }) {
       {items.length > 0
         ? <Popover className="add-profile" label={<>+ Add profile<span aria-hidden="true"> ▾</span></>} title="Add an edge profile" items={items} />
         : <p className="field-note">No profile preset fits this part.</p>}
+      {error && <p className="field-error" role="alert">{error}</p>}
     </>
   );
 }

@@ -12,6 +12,7 @@ import { angleCutsFor, angleRatiosOf, worldAngles } from './angleWorld';
 import { holeRowsFor, sortHoleRows, worldHoles } from './holeWorld';
 import { sameHoleRow } from './holes';
 import { hasTenons, sameTenon } from './roundTenons';
+import { hasDovetails, sameDovetail } from './dovetailModel';
 import { BUILT_IN_BAND_ID } from './bandModel';
 import { bandsFor, worldBands } from './bandWorld';
 import { profilesFor, sortProfiles, worldProfiles } from './profileWorld';
@@ -123,7 +124,7 @@ function inOrderOf(rep: Board, c: Board): Board {
  * as it is: the same object, so plain linking is unchanged.
  */
 export function alignedTo(rep: Board, b: Board): Board | null {
-  if (b.angleCuts.length === 0 && b.holes.length === 0 && b.profiles.length === 0 && !hasTenons(b)) return sameShared(rep, b) ? b : null;
+  if (b.angleCuts.length === 0 && b.holes.length === 0 && b.profiles.length === 0 && !hasTenons(b) && !hasDovetails(b)) return sameShared(rep, b) ? b : null;
   if (b.angleCuts.length !== rep.angleCuts.length || !b.angleCuts.every((c, i) => sameAngleCut(c, rep.angleCuts[i]!))) return null;
   if (b.holes.length !== rep.holes.length || !b.holes.every((r, i) => sameHoleRow(r, rep.holes[i]!))) return null;
   if (b.profiles.length !== rep.profiles.length || !b.profiles.every((p, i) => sameProfile(p, rep.profiles[i]!))) return null;
@@ -131,7 +132,11 @@ export function alignedTo(rep: Board, b: Board): Board | null {
   const bt = b.tenons ?? [];
   const rt = rep.tenons ?? [];
   if (bt.length !== rt.length || !bt.every((t, i) => sameTenon(t, rt[i]!))) return null;
-  const a: Board = { ...b, ...(bt.length > 0 ? { tenons: bt.map((t, i) => ({ ...t, id: rt[i]!.id })) } : {}), profiles: b.profiles.map((p, i) => ({ ...p, id: rep.profiles[i]!.id })), angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
+  // Dovetails (dovetails spec §3.4) likewise: canonical order, so index pairing is (dim, end) pairing.
+  const bd = b.dovetails ?? [];
+  const rd = rep.dovetails ?? [];
+  if (bd.length !== rd.length || !bd.every((d, i) => sameDovetail(d, rd[i]!))) return null;
+  const a: Board = { ...b, ...(bt.length > 0 ? { tenons: bt.map((t, i) => ({ ...t, id: rt[i]!.id })) } : {}), ...(bd.length > 0 ? { dovetails: bd.map((d, i) => ({ ...d, id: rd[i]!.id })) } : {}), profiles: b.profiles.map((p, i) => ({ ...p, id: rep.profiles[i]!.id })), angleCuts: b.angleCuts.map((c, i) => ({ ...c, id: rep.angleCuts[i]!.id })),
     holes: b.holes.map((r, i) => ({ ...r, id: rep.holes[i]!.id })) };
   return sameShared(rep, a) ? a : null;
 }
