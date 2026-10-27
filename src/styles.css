@@ -1196,6 +1196,44 @@ select.input { cursor: pointer; }
   stroke-width: 1.5;
 }
 
+/* The dovetail bench drawings (dovetails spec §5.2): figures A and B side by side at equal widths, wrapping under each other
+   on a narrow sheet. Equal widths and ONE shared viewBox width (DovetailBench.tsx) keep the two at the same scale. Their
+   text is `.cutlist-diagram-leader text` (--font-num, no font-size here: LABEL_SIZE's home is the <svg>, inv 19). */
+.cutlist-bench {
+  grid-column: 3 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 10px 0 0;
+}
+
+.cutlist-bench-figure {
+  flex: 1 1 280px;
+  min-width: 0;
+  margin: 0;
+}
+
+.cutlist-bench-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ink);
+  overflow: visible;
+}
+
+.cutlist-bench-waste {
+  fill: currentColor;
+  fill-opacity: 0.22;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
+.cutlist-bench-baseline {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 8 6;
+}
+
 .cutlist-diagram-angle {
   stroke: currentColor;
   stroke-width: 1;
@@ -1547,6 +1585,10 @@ select.input { cursor: pointer; }
      already set on .cutlist-row; keeping the figure intact as well stops a
      leader stack being orphaned from its outline. */
   .cutlist-diagram { break-inside: avoid; }
+  /* The dovetail bench drawings (spec §5.2): blackened like a diagram (the waste is an SVG fill, foreground content), and
+     the pair kept together. */
+  .cutlist-bench-figure svg { color: #000; }
+  .cutlist-bench { break-inside: avoid; }
 }
 
 @media (prefers-reduced-motion: reduce) {

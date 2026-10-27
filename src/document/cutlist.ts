@@ -27,6 +27,10 @@ import { bandLine } from './bandText';
 import { tenonLine as roundTenonLine } from './tenonText';
 import { hasTenons, tenonsOf, tenonValues } from './roundTenons';
 import { squareSpan } from './curves';
+import { dovetailLine } from './dovetailText';
+import { dovetailsOf, dovetailValues, hasDovetails } from './dovetailModel';
+import { dovetailBenches } from './dovetailBench';
+import type { DovetailBench } from './dovetailBench';
 
 /**
  * One row of the cut list: every part that is cut from the same stock, in the
@@ -79,6 +83,12 @@ export interface CutListRow {
    * word.
    */
   diagrams: DiagramView[];
+  /**
+   * The dovetail bench drawings (dovetails spec §5.2): present ONLY on a row whose representative has a fault-free TAILS
+   * dovetail (`dovetailBenches`), absent — never `[]` — otherwise, so a dovetail-free row keeps its shape byte for byte.
+   * Representative, as `setup` is: the row key carries every dovetail exactly (`dovetailSignature`).
+   */
+  benches?: DovetailBench[];
   /**
    * Raw accumulated inches of stock this row consumes: CUBIC inches for solid
    * lumber, SQUARE inches for sheet goods. Quantity is already included.
@@ -224,8 +234,10 @@ function stripSetup(s: Strip): string {
 /** A strip row's identity tail: its ends, exact (a square and a mitred strip of one cut size are two setups). */
 const endsKey = (s: Strip) => s.ends.map((e) => (e.mitre === null ? 'sq' : String(e.mitre))).join(',');
 
-/** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged; then one per ROUND tenon
- *  (round tenons spec §8, every stored one), before the angle-cut lines; the band line last. */
+/** Setup lines: one per finger set, then one per DOVETAIL (dovetails spec §5.1, every stored one, faulted or not, in canonical
+ *  order: after the finger sets, before the square tenons — a corner joint's lines together, the controller's call); one per
+ *  tenon (where its first cut stood), the rest one per cut, unchanged; then one per ROUND tenon (round tenons spec §8, every
+ *  stored one), before the angle-cut lines; the band line last. */
 function setupLines(board: Board, units: Units, types: readonly BandType[]): string[] {
   // Box joints (spec §5.2): finger sets are claimed FIRST, so no notch of one reaches the tenon finder or the per-cut loop;
   // one line per set, before the tenon lines. A board with none is untouched (`fingerSets` is empty, `board` the same object).
@@ -236,6 +248,8 @@ function setupLines(board: Board, units: Units, types: readonly BandType[]): str
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
   const done = new Set<Tenon>();
   const lines: string[] = sets.map((s) => fingerSetLine(s, units));
+  // Dovetails: a dovetail-free board adds nothing (`dovetailsOf` is empty).
+  for (const d of dovetailsOf(board)) lines.push(dovetailLine(board, d, units));
   const solids = pocketCells(board);
   for (const cut of cutsThatRemoveStock(rest)) {
     const t = owner.get(cut.id);
@@ -278,6 +292,12 @@ function curveSignature(board: Board): string {
  *  holeSignature joins), since it and the band signature are both optional trailing fields of a `|`-joined key. */
 function tenonSignature(board: Board): string {
   return `tenons:${tenonsOf(board).map((t) => tenonValues(t).split('|').join(':')).sort().join(';')}`;
+}
+
+/** The dovetail half of a row's identity (dovetails spec §5.1): EXACT and order-independent over the STORED dovetails
+ *  (`DOVETAIL_FIELDS`, ids ignored; a faulted one is kept and still printed), self-identifying like `tenonSignature`. */
+function dovetailSignature(board: Board): string {
+  return `dovetails:${dovetailsOf(board).map((d) => dovetailValues(d).split('|').join(':')).sort().join(';')}`;
 }
 
 /**
@@ -330,6 +350,8 @@ function rowKey(board: Board, units: Units, types: readonly BandType[]): string 
     ...(bands === '' ? [] : [bands]),
     // Round tenons: appended only when the part has one, so a tenon-free key is byte for byte what it was.
     ...(hasTenons(board) ? [tenonSignature(board)] : []),
+    // Dovetails: the same rule, so a dovetail-free key is byte for byte what it was.
+    ...(hasDovetails(board) ? [dovetailSignature(board)] : []),
   ].join('|');
 }
 
@@ -371,7 +393,7 @@ export function buildCutList(doc: FlatDocument): CutList {
    * (the part at its CORE size, the same object when it has no bands; a strip is its own cut). A row is made from its
    * FIRST visit's `make()`.
    */
-  const visit = (board: Board, cut: Board, key: string, make: () => Pick<CutListRow, 'setup' | 'diagrams'>, strip: boolean) => {
+  const visit = (board: Board, cut: Board, key: string, make: () => Pick<CutListRow, 'setup' | 'diagrams' | 'benches'>, strip: boolean) => {
     const groupKey = groupFields(board, units).join('|');
     let group = groups.get(groupKey);
     if (!group) {
@@ -445,7 +467,15 @@ export function buildCutList(doc: FlatDocument): CutList {
   const cutParts = cutStock(doc).slice(0, doc.boards.length);
   doc.boards.forEach((board, i) => {
     visit(board, cutParts[i]!, rowKey(board, units, doc.bandTypes),
-      () => ({ setup: setupLines(board, units, doc.bandTypes), diagrams: buildDiagrams(board, units, doc.bandTypes) }), false);
+      () => {
+        // The bench drawings (dovetails spec §5.2): on the TAIL part's row only, the key absent otherwise.
+        const benches = dovetailBenches(board, units);
+        return {
+          setup: setupLines(board, units, doc.bandTypes),
+          diagrams: buildDiagrams(board, units, doc.bandTypes),
+          ...(benches.length > 0 ? { benches } : {}),
+        };
+      }, false);
   });
   // Strip rows (edge banding spec §4.2): in the group of the edging material and the strip's thickness, collapsed by cut
   // size, material and ends. "After its parts" is the SORT's job below: strip rows last in a group, strip-only groups

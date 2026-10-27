@@ -7,7 +7,7 @@ import { formatLength, type Units } from '../units/length';
  * The through dovetails' copy (dovetails spec §3, §4, §6, §7; plan Global Constraints, verbatim): the ONE home of every
  * sentence the planner returns, the fault notes and the panel's labels. The sentences dovetails share with box joints
  * live in `cornerText.ts` and are re-exported here, never redefined. The cut-list line is `dovetailLine`; the bench
- * drawing's labels are added with their reader (plan Task 7). The layout is read from the LEAF `dovetailModel.ts`, never
+ * drawing's words are the `BENCH_` constants at the end (Task 7). The layout is read from the LEAF `dovetailModel.ts`, never
  * from `dovetails.ts` (whose copy table is built from this module at load: an import back would be a cycle). A slope reads `1:<s>`, `s` printed by `String(s)`.
  */
 
@@ -113,3 +113,14 @@ export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, un
   }
   return `${head}; this part has the pins, narrow on its thickness ${d.outside} face.`;
 }
+
+/** The bench drawings' words (spec §5.2, Global Constraints; built in `dovetailBench.ts`, measured there as labels, inv 19).
+ *  ASCII only, so `labelWidth`'s monospace arithmetic holds without a browser measurement. */
+export const BENCH_OUTSIDE_FACE = 'outside face';
+export const BENCH_INSIDE_FACE = 'inside face';
+export const BENCH_BOTH_ENDS = 'both ends';
+/** Figure A's dashed baseline, with the depth it sits at: `baseline 3/4"`. */
+export const benchBaseline = (depth: string) => `baseline ${depth}`;
+/** The two figures' captions (HTML, not measured). Copy review owed with fu 491's. */
+export const BENCH_TAIL_HEADING = "Dovetails — the tail board's face";
+export const BENCH_PIN_HEADING = "Dovetails — the pin board's end grain";
