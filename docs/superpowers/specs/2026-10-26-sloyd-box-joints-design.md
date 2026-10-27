@@ -1,6 +1,6 @@
 # Box joints (dovetails chunk 1) — design
 
-Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). BUILT 2026-10-27 on branch `box-joints`; the *Amended (build)* block and the equal-fingers amendment APPROVED by the user 2026-10-27 ("Approved, merge it") and merged to master (not deployed). Builder check taken 2026-10-27 (seven questions: five settled as my
+Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). BUILT 2026-10-27 on branch `box-joints`; the *Amended (build)* block and the equal-fingers amendment APPROVED by the user 2026-10-27 ("Approved, merge it"), merged to master as `975e418` and DEPLOYED 2026-10-27 (`index-EQnlonaA.js`). Builder check taken 2026-10-27 (seven questions: five settled as my
 calls, two ruled by the user, §5.2 and §7; three claims the code contradicted, corrected). Feature gap §1, "Dovetails, box joints" (`docs/feature-gaps.md`); the
 user chose "Box joints, then dovetails" and asked to skip the design questions, so every decision below not quoted from the
 user is **my call** and is marked as such where it matters. Dovetails get their own spec after this chunk ships (§11).

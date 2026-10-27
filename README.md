@@ -39,6 +39,9 @@ built around hand woodworking.
   stopped dado, rabbet or half-lap joints. It then cuts and resizes the parts. The result is
   saved as a new project, and the original is never changed. Tapered, mitered, beveled and chamfered parts are
   accepted; an angle cut running into a joint refuses. **Repair joints** fixes projects damaged by an older build.
+- **Box joint the corners**: select the parts of a box or drawer and every corner gets equal interlocking fingers (any
+  leftover goes in one odd finger at the bottom). The parts run out to the outside faces, and the cut list gives one line
+  per joint.
 
 **Linked parts, assemblies and components**
 - **Link** parts so they share size, material, grain, posture and cuts. Edit one and every

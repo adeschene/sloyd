@@ -7659,7 +7659,16 @@ guards.
 **484. Dovetails (box joints spec §11, §12).** Through dovetails, then half-blind: the tails and pins are angled cuts, so the corner is no longer
 rectangular cuts and the recogniser, the planner and the cut-list line all need an angled-notch reading (inv 48's bodies stay convex per
 notch). Box joints' own spec §11 names the next chunk.
-**Status:** open (feature-sized; needs its own spec).
+Starting points (2026-10-27, box joints deployed as `975e418`): spec §11 argues the pins' end-face trapezoid has no stored feature today (a curve
+cut runs through the whole part, a rectangular cut has square walls), so dovetails likely need a new stored feature and a SCHEMA BUMP (the
+first since 25; argue its own harm, CLAUDE.md Versioning). What carries over from box joints (inv 61): the planner shape (select parts, find
+corners in pairs, one layout per corner, run out, recognise on read; `boxJointPlan`'s corner finding and run-out), `writeBackParts` (keepWorld,
+link post-condition), the claim-before-the-gate machinery in `fingerClaim.ts` (Refine keeps, Repair claims, joined Refine's butt fixing and (c)
+guard), joinery's "leaves its size and place alone" rule and the one-line-per-set cut list. Box joints' layout rule (every finger `w`, one odd
+leftover at J's world min, the user's ruling after the build) does NOT decide a dovetail's spacing: ask the user (half pins at both edges is the
+hand-cut norm; jig-cut spacing is fixed). Box joints' known limits that will bite dovetails too: linked mirrored or opposite-turn users refuse
+an asymmetric layout; fu 485 (unequal heights, the drawer-front case half-blind dovetails exist for) and fu 486 (featured parts).
+**Status:** open (feature-sized; needs its own spec; the next session's work).
 
 **485. Box joints on parts of different heights along the joint (spec §2, §12).** A corner whose two parts differ in height along the joint (a
 drawer front taller than its sides) refuses with `<A> and <B> must be the same height along the joint.`; a layout over the shared span with plain
@@ -7750,5 +7759,7 @@ jointed corner in the viewport (fingers' end grain alternating up both faces, fl
 (`docs/browser-verification-box-joints.md` §5) saw it in software GL only, which hides shader behaviour (fu 26a). (2) ONE paid Refine run on a
 project with a box-jointed drawer ASSEMBLY plus a plain root part: the assembly comes back kept whole, the root part refined. Not done in the
 browser check because no API key is stored on either dev origin and the key never goes through chat; the kept-assembly round trip is covered
-only by the fake-client `runRefine` tests (Tasks 6, 6b).
+only by the fake-client `runRefine` tests (Tasks 6, 6b). The two images in `docs/img/` (`box-joints-corner.png`, `box-joints-diagram.png`)
+show the OLD symmetric layout (before Task 9's equal fingers); retake them with (1) if a screenshot is wanted. Deployed 2026-10-27, so (1) can be
+done on production with a throwaway project in a private window (never the user's own production profile: per CLAUDE.md's deployment rule, its storage is their project).
 **Status:** open (owed to the user: by eye on real hardware; one paid run).

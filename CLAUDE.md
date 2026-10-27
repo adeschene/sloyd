@@ -41,7 +41,8 @@ What it does today is listed round by round in `docs/rounds.md`.
   `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-27):** box joints are deployed; owed to the user: the copy review (fu 491) and fu 496 (the jointed corner by eye on real
-  hardware, one paid Refine run). Owed otherwise: the owed list below.
+  hardware, one paid Refine run). The next session starts dovetails (fu 484: its own spec, read fu 484's starting points first). Owed
+  otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -509,7 +510,7 @@ changes.
     every NEW site touching a kept part as BUTT (a RECORDED joint stays as recorded) and **(c)** returns the design UNJOINED when the
     re-join would change a kept part. **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a
     kept part butt, and do not drop the (c) guard.** The cut list prints one line per set, never a tenon or notch lines
-    (`setupLines` claims first). Full text: `docs/invariants.md`. Follow-ups 484–495.
+    (`setupLines` claims first). Full text: `docs/invariants.md`. Follow-ups 484–496.
 
 ## Commands
 

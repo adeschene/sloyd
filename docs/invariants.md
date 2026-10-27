@@ -1508,4 +1508,4 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       FIRST (one line per set, `fingerSetLine`), and `findTenons` and the per-cut lines run on the board without those cuts; the
       diagram opens the set's view, skips its cuts and notes the set (`fingerNotes`). Copy lives only in `boxJointText.ts`, which imports
       `units` (the edge rule); `boxJoints.ts` takes a TYPE-only `Units`. The design schema is byte for byte the same (Generate never
-      authors a box joint). Follow-ups 484–495.
+      authors a box joint). Follow-ups 484–496.
