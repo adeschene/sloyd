@@ -35,15 +35,13 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `fc4302a`, bundle `index-D-XnmIBh.js`, CSS `index-BvtLBoRl.css`, SCHEMA 25** (stretchers, splayed legs chunk 3,
-  fu 438; merge `fc4302a`; deployed 2026-10-26). Owed to the user: see NEXT.
-- **Rollback:** back to `447df4b` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
+- **Production: `975e418`, bundle `index-EQnlonaA.js`, CSS `index-BvtLBoRl.css`, SCHEMA 25** (box joints, dovetails chunk 1;
+  merge `975e418`; deployed 2026-10-27). Owed to the user: see NEXT.
+- **Rollback:** back to `fc4302a` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
   `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **MERGED, NOT DEPLOYED (2026-10-27): box joints** (dovetails chunk 1; no schema change; inv 61): built, browser-checked
-  (`docs/browser-verification-box-joints.md`), through the final review, the spec's Amended blocks approved by the user and merged to
-  master. Owed: the copy review (fu 491) and fu 496.
-- **NEXT (2026-10-27):** deploy box joints when the user asks (no schema change: rollback to `fc4302a` is free). Owed otherwise: the owed list below.
+- **NEXT (2026-10-27):** box joints are deployed; owed to the user: the copy review (fu 491) and fu 496 (the jointed corner by eye on real
+  hardware, one paid Refine run). Owed otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
