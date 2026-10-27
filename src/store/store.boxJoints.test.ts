@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from './store';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, snapPointsFor, worldParts } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
+import { applyBoxJoints, boxJointPlan } from '../document/boxJoints';
 import { BOX_NO_CORNER, BOX_WIDTH_POSITIVE } from '../document/boxJointText';
 
 /**
@@ -35,6 +36,20 @@ describe('boxJointCorners (box joints spec §6)', () => {
     s().undo();
     expect(s().doc).toEqual(before);
     expect(s().past.length).toBe(0);
+  });
+
+  it('a held tape point on a Front end the joint moves is dropped (inv 24: judgeHeld runs after the edit)', () => {
+    const front = worldParts(s().doc).find((b) => b.id === 'f')!;
+    // A point of the Front that the finished joint no longer offers (a notch swallows it), found on a trial copy.
+    const plan = boxJointPlan(s().doc, IDS, { width: 0.5, swap: false });
+    if (typeof plan === 'string') throw new Error(plan);
+    const after = worldParts(applyBoxJoints(s().doc, plan)).find((b) => b.id === 'f')!;
+    const afterPoints = snapPointsFor(after);
+    const gone = snapPointsFor(front).find((q) => !afterPoints.some((r) => r.kind === q.kind && r.at.every((v, i) => Math.abs(v - q.at[i]!) <= 1e-9)));
+    expect(gone).toBeDefined();
+    useStore.setState({ tapeAnchor: gone! });
+    expect(s().boxJointCorners(IDS, 0.5, false)).toBeNull();
+    expect(s().tapeAnchor).toBeNull();
   });
 
   it('a refusal returns the planner sentence and pushes nothing', () => {

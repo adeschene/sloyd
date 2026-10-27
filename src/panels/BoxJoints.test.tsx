@@ -56,6 +56,16 @@ describe('the Box joints section (box joints spec §4)', () => {
     expect(screen.queryByText(/Jointed 4 corners/)).toBeNull();
   });
 
+  it('committing a new width clears the notes', async () => {
+    open(drawer(), ...ALL);
+    await userEvent.click(button());
+    expect(screen.queryByText(/Jointed 4 corners/)).not.toBeNull();
+    const field = screen.getByLabelText('Finger width') as HTMLInputElement;
+    await userEvent.clear(field);
+    await userEvent.type(field, '3/8{Enter}');
+    expect(screen.queryByText(/Jointed 4 corners/)).toBeNull();
+  });
+
   it('two parts that make no corner: the planner refusal as an alert, nothing done', async () => {
     open(drawer(), 'Front', 'Back');
     await userEvent.click(button());
