@@ -1,4 +1,4 @@
-import type { Board, CutFrom, Dimension, Region, Shape, SloydDocument, StoredBoard } from './types';
+import type { Board, Cut, CutFrom, Dimension, Region, Shape, SloydDocument, StoredBoard } from './types';
 import type { Units } from '../units/length';
 import { clippedRegion, cutsThatRemoveStock } from './cuts';
 import { axisDimensions, boardExtents, endFacing, positionAxisOf } from './geometry';
@@ -184,17 +184,28 @@ function cornerRegion(b: Board, op: EndOp): Region {
  */
 function cutInTheWay(b: Board, op: EndOp): boolean {
   const R = cornerRegion(b, op);
-  const L = b[op.d];
   return cutsThatRemoveStock(b).some((c) => {
     const r = clippedRegion(b, c);
     const meets = (['length', 'width', 'thickness'] as Dimension[])
       .every((x) => Math.min(r[x][1], R[x][1]) - Math.max(r[x][0], R[x][0]) > EPS);
     if (!meets) return false;
-    const through = c.across === op.d && (op.end === 'min'
-      ? r[op.d][0] <= EPS && r[op.d][1] > op.depth + EPS
-      : r[op.d][1] >= L - EPS && r[op.d][0] < L - op.depth - EPS);
-    return !through;
+    return !cutRunsThrough(b, c, op.d, op.end, op.depth);
   });
+}
+
+/**
+ * The ONE "runs straight through the corner" predicate (box-joints spec §3.5, dovetails spec §3.6): cut `c` on part `b`
+ * runs along the run dimension `d` (`across === d`) and its clipped region reaches from the `end` face (within 1e-9) to
+ * past the corner region's inner face, `depth` back from it (by more than 1e-9) — a drawer bottom's groove. The corner
+ * planner (`cutInTheWay`) and the dovetail zone check (`dovetailCutRefusal`) both read it.
+ */
+export function cutRunsThrough(b: Board, c: Cut, d: Dimension, end: CutFrom, depth: number): boolean {
+  if (c.across !== d) return false;
+  const r = clippedRegion(b, c);
+  const L = b[d];
+  return end === 'min'
+    ? r[d][0] <= EPS && r[d][1] > depth + EPS
+    : r[d][1] >= L - EPS && r[d][0] < L - depth - EPS;
 }
 
 /** The stored part at a world occurrence (its Shape reference and own flag). */

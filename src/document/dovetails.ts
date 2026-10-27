@@ -1,14 +1,15 @@
-import type { Board, CurveSegment, CutFrom, Dimension, Dovetail, Region, SloydDocument } from './types';
+import type { Board, CurveSegment, Cut, CutFrom, Dimension, Dovetail, Region, SloydDocument } from './types';
 import type { CurveSpan, ViewCurve } from './curves';
 import type { Units } from '../units/length';
-import { byDovetailEnd, dovetailAt, dovetailLayout, dovetailsOf, jointLineOf, sameDovetail } from './dovetailModel';
+import { byDovetailEnd, dovetailAt, dovetailLayout, dovetailsOf, hasDovetails, jointLineOf, sameDovetail } from './dovetailModel';
+import { clippedRegion, cutsThatRemoveStock } from './cuts';
 import { boardExtents, endFacing } from './geometry';
 import { leans } from './lean';
 import { hasTenons } from './roundTenons';
 import { fingerSets } from './boxJoints';
 import { nextId } from './ids';
 import { displayNames, worldParts } from './tree';
-import { RUN_RANK, planCorners, writeCorners, type CornerCopy, type JointKind } from './cornerPlan';
+import { RUN_RANK, cutRunsThrough, planCorners, writeCorners, type CornerCopy, type JointKind } from './cornerPlan';
 import {
   DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailContainers, dovetailCutInTheWay, dovetailedLines,
   dovetailHeights, dovetailHoleInTheWay, dovetailIgnored, dovetailLengthLine, dovetailLinkedDisagree, dovetailLinkedMate,
@@ -79,6 +80,25 @@ export function dovetailZoneRefusal(b: Board, region: Region, name: string = b.n
   return meets ? dovetailMoveClear(name) : null;
 }
 const DIMS: readonly Dimension[] = ['length', 'width', 'thickness'];
+
+/**
+ * A cut (as it would be stored on `b`) reaching a dovetailed end's zone (spec §3.6): the zone sentence naming `name`, else
+ * null. Judged as the corner planner judges a corner region: only a cut that removes stock (`cutsThatRemoveStock`), and one
+ * running straight THROUGH that end along the dovetail's `dim` (`cutRunsThrough`, the ONE predicate: a drawer bottom's
+ * groove) is exempt. Any other cut whose `clippedRegion` meets a zone by more than 1e-9 refuses.
+ */
+export function dovetailCutRefusal(b: Board, cut: Cut, name: string = b.name): string | null {
+  if (!hasDovetails(b)) return null;
+  const probe = { ...b, cuts: [cut] };
+  if (cutsThatRemoveStock(probe).length === 0) return null;
+  const r = clippedRegion(probe, cut);
+  const meets = dovetailsOf(b).some((d, i) => {
+    const z = dovetailZones(b)[i]!;
+    if (!DIMS.every((x) => Math.min(r[x][1], z[x][1]) - Math.max(r[x][0], z[x][0]) > EPS)) return false;
+    return !cutRunsThrough(probe, cut, d.dim, d.end, d.depth);
+  });
+  return meets ? dovetailMoveClear(name) : null;
+}
 
 /** Each stored dovetail's zone (part-local): `[b[dim] − depth, b[dim]]` (max end) or `[0, depth]` (min end) on its `dim`,
  *  the whole of the other two dimensions. */

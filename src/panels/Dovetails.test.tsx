@@ -115,8 +115,13 @@ describe('the Dovetails section (spec §4)', () => {
     const user = userEvent.setup();
     open(drawer(), ...ALL);
     const slope = screen.getByLabelText('Slope') as HTMLInputElement;
+    // Observable: the success notes are cleared by any committed field change, so an untouched blur must leave them.
+    await user.click(button());
+    expect(screen.getByText('Dovetailed 4 corners: 4 tails, 1:8.')).toBeTruthy();
     await user.click(slope); await user.tab();
     expect(slope.value).toBe('8');
+    expect(screen.getByText('Dovetailed 4 corners: 4 tails, 1:8.')).toBeTruthy();
+    act(() => s().undo());
     await user.clear(slope); await user.type(slope, 'abc{Enter}');
     expect(screen.getByRole('alert').textContent).toBe(DOVETAIL_SLOPE_RANGE);
     expect((button() as HTMLButtonElement).disabled).toBe(true);

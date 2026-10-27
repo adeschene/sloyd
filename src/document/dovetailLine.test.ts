@@ -3,10 +3,10 @@
 import { dovetailLine, dovetailMoveClear, DOVETAIL_NO_CORNER, dovetailPlainStock } from './dovetailText';
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument } from './document';
-import { applyDovetails, dovetailPlan, dovetailZoneRefusal } from './dovetails';
+import { applyDovetails, dovetailCutRefusal, dovetailPlan, dovetailZoneRefusal } from './dovetails';
 import { worldParts } from './tree';
 import { IMPERIAL, type Units } from '../units/length';
-import type { Board, Dovetail, Region, SloydDocument } from './types';
+import type { Board, Cut, Dovetail, Region, SloydDocument } from './types';
 
 /**
  * Dovetails Task 5: the cut-list line (`dovetailLine`, Global Constraints' wording; Task 7's `setupLines` calls it) and
@@ -96,5 +96,24 @@ describe('dovetailZoneRefusal (spec §3.6: the span `depth` back from a dovetail
   it('a faulted (stored) dovetail still keeps its zone', () => {
     const f = { ...b, dovetails: [{ ...tails, slope: 20 }] };
     expect(dovetailZoneRefusal(f, region([9.9, 10]))).toBe(dovetailMoveClear('Side'));
+  });
+});
+
+describe('dovetailCutRefusal (spec §3.6; fix round 1: the corner planner\'s ONE through predicate)', () => {
+  const tails: Dovetail = { id: 'd1', dim: 'length', end: 'max', role: 'tails', count: 2, slope: 8, pin: 0.25, depth: 0.75 };
+  const b: Board = createBoard({ name: 'Side', length: 10, width: 4, thickness: 0.5, dovetails: [tails] });
+  const cut = (over: Partial<Cut>): Cut => ({ id: 'c', face: 'thickness', from: 'max', across: 'length', offset: 0.5, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0, ...over });
+
+  it('a groove running straight through the dovetailed end along its run is exempt', () => {
+    expect(dovetailCutRefusal(b, cut({}))).toBeNull();
+    expect(dovetailCutRefusal(b, cut({ stopMin: 5 }))).toBeNull();   // stopped at the far (undovetailed) end
+  });
+  it('stopped short of the dovetailed end face, or ending inside the zone, it refuses', () => {
+    expect(dovetailCutRefusal(b, cut({ stopMax: 0.25 }))).toBe(dovetailMoveClear('Side'));
+    expect(dovetailCutRefusal(b, cut({ stopMin: 9.5 }))).toBe(dovetailMoveClear('Side'));
+  });
+  it('a cut across the run meeting the zone refuses; one that removes no stock is never judged', () => {
+    expect(dovetailCutRefusal(b, cut({ across: 'width', offset: 9.5, width: 0.25, stopMin: 0 }))).toBe(dovetailMoveClear('Side'));
+    expect(dovetailCutRefusal(b, cut({ across: 'width', offset: 9.5, width: 0.25, depth: 0 }))).toBeNull();
   });
 });

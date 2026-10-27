@@ -46,6 +46,14 @@ function expectRefused(run: () => string | null, sentence: string) {
   expect(JSON.stringify(s().doc)).toBe(json);
   expect(s().past.length).toBe(0);
 }
+/** As expectRefused, after earlier accepted edits in the same test (the undo stack is not empty). */
+function expectRefusedAfter(run: () => string | null, sentence: string) {
+  const before = s().doc;
+  const n = s().past.length;
+  expect(run()).toBe(sentence);
+  expect(s().doc).toBe(before);
+  expect(s().past.length).toBe(n);
+}
 const dado = (offset: number, over: Partial<Cut> = {}): Cut => ({
   id: 'c1', face: 'thickness', from: 'max', across: 'width', offset, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
 });
@@ -169,8 +177,8 @@ describe('a cut or hole reaching a dovetailed end refuses (spec §3.6): `<part> 
     expect(part('l').cuts[0]!.offset).toBe(16.25);
   });
 
-  it('updateCut: a groove carried through the corner at planning time — any edit of it refuses (it meets the zone)', () => {
-    // The drawer bottom's groove: along the side's length, end to end (the planner carries it through, spec §3.6).
+  /** The drawer with Side left's bottom groove (along its length, end to end) carried through by the planner. */
+  const grooved = () => {
     const groove = dado(0.5, { across: 'length', width: 0.25, depth: 0.25 });
     const doc0 = drawer();
     const doc1 = { ...doc0, boards: doc0.boards.map((b) => (b.id === 'l' ? { ...b, cuts: [groove] } : b)) };
@@ -178,7 +186,30 @@ describe('a cut or hole reaching a dovetailed end refuses (spec §3.6): `<part> 
     if (typeof plan === 'string') throw new Error(plan);
     setup(applyDovetails(doc1, plan));
     expect(part('l').cuts).toHaveLength(1);
-    expectRefused(() => s().updateCut('l', 'c1', { depth: 0.3 }), CLEAR);
+  };
+
+  // Fix round 1 (controller ruling): flipped from "any edit of it refuses" — a groove running straight THROUGH the end is
+  // exempt (spec §3.6; the corner planner's ONE predicate, `cutRunsThrough`).
+  it('updateCut: a depth edit of the carried groove is taken', () => {
+    grooved();
+    expect(s().updateCut('l', 'c1', { depth: 0.3 })).toBeNull();
+    expect(part('l').cuts[0]!.depth).toBe(0.3);
+    expect(s().past.length).toBe(1);
+  });
+
+  it('updateCut: an edit that stops the groove short inside the zone refuses', () => {
+    grooved();
+    expectRefused(() => s().updateCut('l', 'c1', { stopMin: 0.5 }), CLEAR);
+    expectRefused(() => s().updateCut('l', 'c1', { stopMax: 0.25 }), CLEAR);
+  });
+
+  it('updateCut: a new through groove is accepted; a cut across the dovetail\'s run is not exempt', () => {
+    const doc = dovetailed();
+    setup({ ...doc, boards: doc.boards.map((b) => (b.id === 'l' ? { ...b, cuts: [dado(8)] } : b)) });
+    expect(s().updateCut('l', 'c1', { across: 'length', offset: 0.5, width: 0.25 })).toBeNull();
+    expect(part('l').cuts[0]!.across).toBe('length');
+    // A dado across the width at the very end (a rabbet) meets the zone and does not run along the length: refused.
+    expectRefusedAfter(() => s().updateCut('l', 'c1', { across: 'width', offset: 0, width: 0.5 }), CLEAR);
   });
 
   it('addHoleRows: a row whose hole touches the zone refuses; one clear of it is added', () => {

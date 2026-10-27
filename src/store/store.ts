@@ -16,7 +16,7 @@ import { socketPlan } from '../document/legSockets';
 import { refitPlan, stretcherOf, stretcherPlan } from '../document/stretchers';
 import { STRETCHER_NOT_A_STRETCHER } from '../document/stretcherText';
 import { applyBoxJoints, boxJointPlan } from '../document/boxJoints';
-import { applyDovetails, dovetailPlan, dovetailZoneRefusal, dovetailZones } from '../document/dovetails';
+import { applyDovetails, dovetailCutRefusal, dovetailPlan, dovetailZones } from '../document/dovetails';
 import { dovetailsOf, hasDovetails, withDovetails } from '../document/dovetailModel';
 import { dovetailMoveClear, dovetailRemoveFirst } from '../document/dovetailText';
 import { displayNames } from '../document/tree';
@@ -30,7 +30,6 @@ import { copyDovetail } from '../document/dovetailModel';
 import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { HardwareTarget } from '../document/hardware';
 import { boardHoles, copyHoleRow, holeTouchesBox, sameHoleRow } from '../document/holes';
-import { clippedRegion } from '../document/cuts';
 import { withinTiltBound } from '../document/holeTilt';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -432,10 +431,11 @@ interface StoreState {
   gestureSnapshotTaken: boolean;
 
   /** Refused (dovetails spec §3.6), before `edit()`, with `dovetailMoveClear` when the cut's `clippedRegion` meets a
-   *  dovetailed end's zone (`dovetailZoneRefusal`); null otherwise (also for a stale id and while exploded). */
+   *  dovetailed end's zone and does not run straight through it (`dovetailCutRefusal`); null otherwise (also for a stale
+   *  id and while exploded). */
   addCut: (boardId: string) => string | null;
-  /** As addCut: refused when the edited cut meets a dovetailed end's zone, a groove the planner carried through included
-   *  (any edit of it). */
+  /** As addCut: refused when the edited cut meets a dovetailed end's zone, except one running straight through that end
+   *  along the dovetail's run (a drawer bottom's groove: `cutRunsThrough`, the corner planner's ONE predicate). */
   updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => string | null;
   removeCut: (boardId: string, cutId: string) => void;
   /** Angle cuts (angle-cuts spec §7): several in one call are one undo entry. */
@@ -574,9 +574,10 @@ interface StoreState {
 /** A world part's name as the planners write it (`displayNames`: unique among siblings, a path where needed). */
 const nameOf = (doc: SloydDocument, b: Board): string => displayNames(doc).get(b.id) ?? b.name;
 
-/** A cut (after the edit) whose `clippedRegion` meets a dovetailed end's zone: the zone sentence; else null. */
+/** A cut (after the edit) reaching a dovetailed end's zone, a groove running straight through exempt
+ *  (`dovetailCutRefusal`): the zone sentence; else null. */
 function cutZoneRefusal(doc: SloydDocument, b: Board, cut: Cut): string | null {
-  return hasDovetails(b) ? dovetailZoneRefusal(b, clippedRegion(b, cut), nameOf(doc, b)) : null;
+  return hasDovetails(b) ? dovetailCutRefusal(b, cut, nameOf(doc, b)) : null;
 }
 
 /** A hole of `rows` (new or edited, on world part `b`) touching a dovetailed end's zone (`holeTouchesBox`): the zone
