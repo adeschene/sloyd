@@ -87,9 +87,11 @@ src/
 │   │                     `Units`): fingerLayout (equal fingers `w`, ONE odd finger `odd`, a sliver under w/4 merged; null when N < 5),
 │   │                     segment (direct from the start edge, the odd one at `oddEnd`, never a running sum), notchCuts (full-thickness
 │   │                     notches, `along` asserted), fingerSets / fingerSetAt (SHAPE only; FingerSet nests `layout`, reports `fingerAtMin`
-│   │                     and `oddEnd`, part-local), fingerAtMaxOf (the even-N parity),
+│   │                     and `oddEnd`, part-local), fingerAtMaxOf (re-exported from the leaf
+│   │                     `fingerParity.ts`, the even-N parity, which `boxJointText.ts` imports too: no cycle),
 │   │                     defaultFingerWidth, boxJointPlan (every refusal in order, corners found by touching ends AND overlapping J
 │   │                     spans, the parts as WORLD parts, link post-condition) and applyBoxJoints (writeBackParts, keepWorld); boxJoints.test.ts
+│   ├── fingerParity.ts   Box joints' even-N parity (fingerAtMaxOf), a leaf importing nothing, read by boxJoints.ts and boxJointText.ts
 │   ├── boxJointText.ts   THE box joints words (→ units: it produces strings), verbatim: the refusals (boxCutInTheWay … boxLinkSplit), the
 │   │                     success lines (boxJointedLines, boxLengthLine), fingerSetLine (the cut list's and the diagram's), the joinery
 │   │                     reason (boxJointedLeftAlone), Refine's (boxJointsThroughJoints, boxJointJoinChanged), the section's words

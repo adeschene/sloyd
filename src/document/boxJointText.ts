@@ -1,6 +1,7 @@
 import { formatLength, type Units } from '../units/length';
 import type { FingerLayout, FingerSet } from './boxJoints';
 import { positionAxisOf } from './geometry';
+import { fingerAtMaxOf } from './fingerParity';
 
 /**
  * The box joints' copy (box-joints spec §3, §4, §5.2, §6; plan Global Constraints, verbatim): the ONE home of every
@@ -73,8 +74,7 @@ export function fingerSetLine(set: FingerSet, units: Units): string {
   const J = positionAxisOf(set.dim, 'thickness');
   const oddWords = set.oddEnd === null ? '' : ` (the odd one ${formatLength(odd, units)} at the ${J} ${set.oddEnd} edge)`;
   const start = set.oddEnd === 'max' ? 'min' : 'max';
-  // `boxJoints.ts`' `fingerAtMaxOf`, restated: a value import from there would make a runtime import cycle.
-  const finger = start === 'min' ? set.fingerAtMin : count % 2 === 1 ? set.fingerAtMin : !set.fingerAtMin;
+  const finger = start === 'min' ? set.fingerAtMin : fingerAtMaxOf(count, set.fingerAtMin);
   return `Box joint — ${count} fingers ${formatLength(width, units)} wide${oddWords}, ${formatLength(set.depth, units)} deep, `
     + `at the ${set.dim} ${set.end} end; this part has a ${finger ? 'finger' : 'notch'} at the ${J} ${start} edge.`;
 }

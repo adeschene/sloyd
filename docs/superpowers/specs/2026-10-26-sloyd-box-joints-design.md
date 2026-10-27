@@ -405,15 +405,23 @@ Rulings (2026-10-27): the odd finger goes at the **bottom edge**; a sliver **mer
 
 - **Layout.** `k = floor(H/w)` (to 1e-9: an `H` within 1e-9 of a multiple counts as that multiple), `r = H − k·w`.
   - `r ≤ 1e-9`: `N = k`, every finger exactly `w`.
-  - `0 < r < w/4`: `N = k`, the odd finger is `w + r` (the sliver merged into its neighbour).
+  - `0 < r < w/4`: `N = k`, the odd finger is `w + r` (the sliver merged into its neighbour). The `w/4` bound is judged at
+    1e-9 (an `r` within 1e-9 of `w/4` is `w/4`, not a sliver; build `r < w/4 − 1e-9`), so the `<`/`<=` mutation is equivalent;
+    the real tests move the bound to or past `w/4` (Task 9's M1b and M1c), which `(4.125, 0.5)` catches.
   - `r ≥ w/4`: `N = k + 1`, the odd finger is `r`.
   - Refuse when `N < 5` (the five-segment floor stays: fewer read as a tenon). `N` may be even.
-- **Where the odd finger goes.** Full-width fingers start at the **top** edge and the odd one is at the **bottom**: when
-  the joint line `J` is world Y, full fingers start at J's world max. When `J` is horizontal, full fingers start at J's
-  world min and the odd one is at the far end. Each part's segments are computed DIRECTLY in its own part-local terms,
+- **Where the odd finger goes.** The odd finger is at J's world min on every axis — the bottom for Y, the back for Z (+Z is
+  the front), the left for X — ruled 2026-10-27 after review (full fingers start at J's world max; this replaces "when `J` is
+  horizontal, full fingers start at J's world min and the odd one is at the far end", which put it at the visible front).
+  Each part's segments are computed DIRECTLY in its own part-local terms,
   from whichever of its own J ends is the start edge (never by world conversion of offsets).
 - **Phase.** The part whose run axis comes first in Z, X, Y takes a FINGER in the start-edge segment; the other takes a
   notch there. Swap fingers inverts it. With an even `N` each part has one finger at one edge and a notch at the other.
+- **Linked parts (ruled 2026-10-27 after review).** One Shape cannot put an asymmetric layout (an odd finger, or an even
+  `N`) at the same world edge on two users that see its J reversed, so both cases REFUSE with the disagreement sentence
+  (`These linked parts would need different box joints: <parts>.`): a user mirrored along J at the SAME turn as its mate, and
+  UNMIRRORED users at opposite turns (carcass sides at 90° and 270°). A symmetric layout (odd `N`, no odd finger) succeeds in
+  both; Mirror's own pair (a mirrored user at the inverse turn) succeeds always.
 - **Recogniser (§5.1).** Read part-locally, at least 5 alternating segments: every segment exactly the same width `w`
   (1e-9), except at most ONE end segment, which may be any width in `(0, 1.25w)` (to 1e-9). A set with two differing end
   segments is not recognised. It reports `fingerAtMin` (does J's min segment carry a finger on this part) and `oddEnd`

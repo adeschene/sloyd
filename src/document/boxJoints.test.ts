@@ -532,21 +532,41 @@ describe('boxJointPlan: equal fingers, the odd one at the bottom (spec, Amended 
     return docOf([side('l', 'Side left', 0), side('r', 'Side right', 24.75), top]);
   };
 
-  it('a horizontal J (a carcass\'s corners, J along Z): full fingers start at J\'s world min, the odd one at its world max', () => {
+  it('a horizontal J (a carcass\'s corners, J along Z): full fingers start at the FRONT (world max Z), the odd one at the BACK', () => {
+    // Ruled 2026-10-27 after review: the odd finger is at J's world MIN on every axis (+Z is the front, drawing.ts).
     // 11" at 3/4": 15 fingers, the odd one 1/2".
     const out = applyBoxJoints(carcass(0, 11), ok(boxJointPlan(carcass(0, 11), ['l', 'r', 't'], { width: 0.75, swap: false })));
     for (const id of ['l', 'r', 't']) {
       const b = part(out, id);
       for (const s of fingerSets(b)) {
         expect([s.layout.count, s.layout.odd]).toEqual([15, 0.5]);
-        expect(oddWorldSide(b, s, 2)).toBe(1);
+        expect(oddWorldSide(b, s, 2)).toBe(-1);
       }
     }
     const t = part(out, 't');
     const segs = worldSegments(t, 0, 1, 2);
-    expect(closeIv([segs[0]!, segs.at(-1)!], [[0, 0.75], [10.5, 11]])).toBe(true);
+    expect(closeIv([segs[0]!, segs[1]!, segs.at(-1)!], [[0, 0.5], [0.5, 1.25], [10.25, 11]])).toBe(true);
     expectComplementary(out, 't', 'l');
     expectComplementary(out, 't', 'r');
+  });
+
+  it('J along X (a shelf meeting a back along its length): the odd finger at the LEFT (world min X)', () => {
+    // 23-1/2" at 3/4": 31 full fingers and a 1/4" leftover (≥ w/4): 32 fingers, the odd one 1/4".
+    const shelf = createBoard({ id: 's', name: 'Shelf', posture: 'flat', rotation: 90, length: 11, width: 23.5, thickness: 0.75, position: [0, 0, 0] });
+    const back = createBoard({ id: 'k', name: 'Back', posture: 'on-edge', rotation: 0, length: 23.5, width: 11, thickness: 0.75, position: [0, 0, -0.75] });
+    expect([boardExtents(shelf), boardExtents(back)]).toEqual([[23.5, 0.75, 11], [23.5, 11, 0.75]]);
+    const doc = docOf([shelf, back]);
+    const plan = ok(boxJointPlan(doc, ['s', 'k'], { width: 0.75, swap: false }));
+    expect(plan.notes[0]).toBe('Jointed 1 corner: 32 fingers, 3/4" wide (the odd one 1/4").');
+    const out = applyBoxJoints(doc, plan);
+    for (const id of ['s', 'k']) {
+      const b = part(out, id);
+      const [set] = fingerSets(b);
+      expect(set!.layout.count).toBe(32);
+      expect(oddWorldSide(b, set!, 0)).toBe(-1);
+    }
+    expectComplementary(out, 's', 'k');
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
   });
 
   it('a part turned 180° (its local J reversed) still puts the odd finger at the same world end', () => {
@@ -556,9 +576,9 @@ describe('boxJointPlan: equal fingers, the odd one at the bottom (spec, Amended 
     const turned = applyBoxJoints(carcass(180, 11), ok(boxJointPlan(carcass(180, 11), ['l', 'r', 't'], { width: 0.75, swap: false })));
     const [s0, s180] = [plain, turned].map((d) => fingerSets(part(d, 't')));
     // The local odd end really differs: the part-local J is reversed.
-    expect(s0!.map((s) => s.oddEnd)).toEqual(['max', 'max']);
-    expect(s180!.map((s) => s.oddEnd)).toEqual(['min', 'min']);
-    for (const s of s180!) expect(oddWorldSide(part(turned, 't'), s, 2)).toBe(1);
+    expect(s0!.map((s) => s.oddEnd)).toEqual(['min', 'min']);
+    expect(s180!.map((s) => s.oddEnd)).toEqual(['max', 'max']);
+    for (const s of s180!) expect(oddWorldSide(part(turned, 't'), s, 2)).toBe(-1);
     expectComplementary(turned, 't', 'l');
     expectComplementary(turned, 't', 'r');
     expect(checkDesign(flatDocument(turned), NO_LIMITS)).toEqual([]);
@@ -640,6 +660,24 @@ describe('boxJointPlan: linked carcass sides (a mirrored user whose run dimensio
     // odd finger would sit at the Shape's other J end from the left side's. 10-1/2": 14 fingers, no odd one, but an even
     // count, so through the flag the finger at J's min becomes a notch. One Shape cannot carry both.
     expectRefusal(carcass(false, true, 90, h), ['l', 'r', 't'], 'These linked parts would need different box joints: Side left, Side right.', { width: 0.75 });
+  });
+
+  it.each([11, 10.5])('UNMIRRORED users at opposite turns (90 and 270), %s" along J: the odd finger cannot be at one world edge on both, so it refuses', (h) => {
+    // The coordinator's ruling (2026-10-27): with an asymmetric layout (an odd finger at 11", an even count at 10-1/2") one
+    // Shape read at two opposite turns puts its odd end (or its phase) at opposite world edges. The same sentence as the
+    // mirrored case.
+    expectRefusal(carcass(false, false, 270, h), ['l', 'r', 't'], 'These linked parts would need different box joints: Side left, Side right.', { width: 0.75 });
+  });
+
+  it('UNMIRRORED users at opposite turns with a symmetric layout (11-1/4": 15 fingers, no odd one): one Shape, complementary', () => {
+    const doc = carcass(false, false, 270, 11.25);
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, ['l', 'r', 't'], { width: 0.75, swap: false })));
+    const shapeIds = ['l', 'r'].map((id) => (out.boards.find((b) => b.id === id) as ShapedBoard).shape);
+    expect(shapeIds[0]).toBeDefined();
+    expect(shapeIds[1]).toBe(shapeIds[0]);
+    expectComplementary(out, 't', 'l');
+    expectComplementary(out, 't', 'r');
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
   });
 
   it.each(SUCCEEDS)('sides that GROW (stopping under the top), mirrored %s/%s, right turned %s, %s" along J: a shelf dado stays put in the world', (lm, rm, rRot, h) => {

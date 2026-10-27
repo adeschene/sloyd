@@ -1447,7 +1447,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       directly from `w`, `odd` and `H`, never as a running sum, from the part-local J min with the odd segment at `oddEnd` (with no
       odd finger one formula, so both ends give the same bytes). A part with a finger at J's min is notched at EVEN `k`, the other at
       ODD `k`; each notch is the other part's thickness deep, exactly. **Where the odd finger goes:** full fingers start at the
-      START edge — J's world MAX when J is world Y (so the odd finger is at the BOTTOM), J's world min when J is horizontal — and
+      START edge — J's world MAX on every axis, so the odd finger is at J's world MIN: the BOTTOM for Y, the BACK for Z (+Z is the
+      front, `drawing.ts`), the LEFT for X (ruled 2026-10-27 after review; the amendment's first reading put it at the visible
+      front for Z) — and
       each part reads that edge in its OWN J terms (`endFacing`) and computes its segments directly from it, never by converting
       offsets through the world. **One layout per corner, exact complements** (to 1e-9): the two parts of a corner are cut from
       the ONE planned layout over the one shared J span, so they never overlap and leave no gap. Phase: the part whose run axis
@@ -1478,8 +1480,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       different layouts refuse (`boxLinkedDisagree`). The linked signature carries the phase and the odd end SHAPE-LOCAL: through
       a user's `mirrored` flag when `mirrorDim` is J (the finger at J's min becomes the one at J's max, by parity; the odd end flips;
       no odd finger compares as null), and the Shape's own board is notched with the same flipped values when its representative
-      is mirrored. So a mirrored user at Mirror's own inverse turn agrees, and one at the SAME turn (a reflection along J) agrees
-      only when the layout is symmetric along J (odd `N`, no odd finger); otherwise it refuses. A linked mate not selected refuses (`boxLinkedMate`); a part inside a mirrored
+      is mirrored. So a mirrored user at Mirror's own inverse turn agrees. **Two linked cases REFUSE with an asymmetric layout**
+      (an odd finger, or an even `N`), with the disagreement sentence, by ruling (2026-10-27): **a user mirrored along J at the
+      SAME turn as its mate** (a reflection along J), and **UNMIRRORED users at opposite turns** (carcass sides linked at 90° and
+      270°: each sees the Shape's J reversed). Both succeed when the layout is symmetric along J (odd `N`, no odd finger). A linked mate not selected refuses (`boxLinkedMate`); a part inside a mirrored
       copy refuses; a selection is always one container's siblings (`selectionPatch`), so the container refusal is
       defensive only.
     - **Joinery leaves the size and place of any box-jointed part alone** (`recipes.ts`): a site that would resize, trim, move or

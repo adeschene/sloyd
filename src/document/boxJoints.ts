@@ -8,6 +8,7 @@ import { hasTenons } from './roundTenons';
 import { boardHoles, holeTouchesBox } from './holes';
 import { TOUCH } from './checkTolerances';
 import { nextId } from './ids';
+import { fingerAtMaxOf } from './fingerParity';
 import { mirrorDim } from './frames';
 import { SHARED_KEYS, sharedOf } from './links';
 import { resolveBoard } from './shapes';
@@ -63,8 +64,7 @@ export function segment(l: FingerLayout, k: number, oddEnd: CutFrom): [number, n
   return [odd + (k - 2) * w, k === N ? H : odd + (k - 1) * w];
 }
 
-/** Does segment `N` (J's max) carry a finger, given segment 1's kind: the same kind when `N` is odd. */
-export const fingerAtMaxOf = (count: number, fingerAtMin: boolean): boolean => (count % 2 === 1 ? fingerAtMin : !fingerAtMin);
+export { fingerAtMaxOf };
 
 /**
  * The notches one part of a corner carries (§3.4): one `Cut` per notch in segment order, ids taken in order. A part with
@@ -336,8 +336,8 @@ function withShapeFields(world: Board, stored: StoredBoard, shape: Shape): Board
  * 4. Per jointed part, then per end: a feature it may not carry yet (`featureOf`); then that end's finger set is removed
  *    (`fingerSetAt`), the end moved exactly to the other part's outside face (`resizeEnd`), and the corner region judged:
  *    a cut not running through it, then a hole touching it.
- * 5. Per corner, `fingerLayout` on the shared `H` (too short refuses); the start edge (J's world max when J is Y, else
- *    its world min; the odd finger at the other end); the phase (Z, X, Y take a finger at the start edge; `swap` inverts);
+ * 5. Per corner, `fingerLayout` on the shared `H` (too short refuses); the start edge (J's world max on every axis; the
+ *    odd finger at J's world min); the phase (Z, X, Y take a finger at the start edge; `swap` inverts);
  *    the notches.
  * 6. Linked parts: every user of a jointed part's Shape must be jointed at the same Shape-local ends (through its own
  *    `mirrored` flag along `mirrorDim`), with the same layout, phase and odd end (Shape-local: through the flag when
@@ -419,10 +419,11 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
   for (const { ends: [ea, eb], J } of corners) {
     const layout = fingerLayout(boardExtents(ea.part)[J]!, opts.width);
     if (!layout) return boxTooShort(nameOf(ea.part), nameOf(eb.part));
-    // The start edge (full fingers start there, the odd one is at the other end): J's world MAX when J is world Y (the
-    // odd finger at the bottom), else J's world min. Each part reads it in its OWN J terms (`endFacing`) and computes
-    // its segments directly from there; the two parts share J's world span, so their notches are exact complements.
-    const startSide: -1 | 1 = J === 1 ? 1 : -1;
+    // The start edge (full fingers start there, the odd one is at the other end): J's world MAX on every axis, so the
+    // odd finger is at J's world MIN — the bottom for Y, the BACK for Z (+Z is the front, `drawing.ts`), the left for X
+    // (ruled 2026-10-27 after review). Each part reads it in its OWN J terms (`endFacing`) and computes its segments
+    // directly from there; the two parts share J's world span, so their notches are exact complements.
+    const startSide: -1 | 1 = 1;
     const aStartFinger = (RUN_RANK[ea.k]! < RUN_RANK[eb.k]!) !== opts.swap;
     for (const [e, startFinger] of [[ea, aStartFinger], [eb, !aStartFinger]] as const) {
       const op = ops.get(e)!;

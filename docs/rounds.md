@@ -161,10 +161,10 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   assemblies" (the kept assembly, spec difference 5). Full suite at the records commit: 9135 tests across 254 files; 9130 passed and the 5 that failed were curve perf guards under load (a browser's GPU process held the load average near 8; the guards pass alone, one run 34/34, and fail at random under that load on the pre-branch tree `ec6a363` too), so no regression. `npm run build` clean. Browser check done
   (0eb465d, `docs/browser-verification-box-joints.md`; the paid Refine run NOT done, no API key on the dev origins) and the final review's fixes
   taken (linked sizes at 1e-9, R-F1; Repair claims, then decides). **Task 9 (2026-10-27, the user's ruling after seeing the build, spec "Amended 2026-10-27 … equal fingers"):** every finger
-  the same width, the leftover one odd finger at the BOTTOM edge (J's world max starts when J is Y, else J's world min), a sliver under w/4
+  the same width, the leftover one odd finger at J's world MIN on every axis (bottom for Y, back for Z, left for X; fix round 1's ruling), a sliver under w/4
   merged into its neighbour, `N` may be even; the recogniser takes one odd END segment in `(0, 1.25w)` and reports part-local `fingerAtMin`/
-  `oddEnd`; the linked signature compares them Shape-locally (a mirrored user at the SAME turn now refuses unless the layout is symmetric
-  along J); new copy (fu 491); spec difference 4 (the tie) moot. The browser verification above predates it (its sentences are the old
+  `oddEnd`; the linked signature compares them Shape-locally (a user mirrored along J at the SAME turn, and unmirrored users at opposite
+  turns, now refuse unless the layout is symmetric along J: the coordinator's ruling); new copy (fu 491); spec difference 4 (the tie) moot. The browser verification above predates it (its sentences are the old
   layout's). Owed: the Amended (build) approval, the copy review (fu 491; the tie is moot), fu 496 (the corner by eye on real hardware, one paid Refine run), the merge and the deploy. Invariant 61 new; 56 extended; follow-ups
   484–496 new.
 - **Stretchers, splayed legs chunk 3 (fu 438; 2026-10-26; MERGED `fc4302a`, DEPLOYED 2026-10-26 as `index-D-XnmIBh.js`; NO schema change —
