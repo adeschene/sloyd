@@ -85,7 +85,7 @@ describe('writeBackParts (box-joints Spec difference 3, revised)', () => {
     expect(worldParts(out).map((p) => p.length)).toEqual([13, 12]);
   });
 
-  it('one edit per storage key:a second placement of the definition follows the first', () => {
+  it('one edit per storage key: a second placement of the definition follows the first', () => {
     const doc: SloydDocument = {
       ...createDocument('p'), boards: [],
       instances: [

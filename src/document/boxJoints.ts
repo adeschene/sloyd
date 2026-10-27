@@ -263,9 +263,10 @@ function cornerRegion(b: Board, op: EndOp): Region {
 }
 
 /**
- * A cut that may stay in a corner region (spec §3.5): one running straight THROUGH the corner along the run dimension,
- * from the end face to past the region's inner face (a drawer bottom's groove). Anything else meeting the region beyond
- * 1e-9 refuses, a cut the recogniser ignores (a rabbet across the end, partial thickness) included.
+ * A cut that may stay in a corner region (spec §3.5): one running straight THROUGH the corner along the run dimension
+ * (`across` = the run dimension, as §3.5 words it: a drawer bottom's groove), from the end face to past the region's
+ * inner face. Anything else meeting the region beyond 1e-9 refuses: a rabbet across the end (any width, any depth; the
+ * recogniser ignores a partial-thickness one), a tenon's cheeks, a hand-made notch.
  */
 function cutInTheWay(b: Board, op: EndOp): boolean {
   const R = cornerRegion(b, op);
@@ -275,9 +276,9 @@ function cutInTheWay(b: Board, op: EndOp): boolean {
     const meets = (['length', 'width', 'thickness'] as Dimension[])
       .every((x) => Math.min(r[x][1], R[x][1]) - Math.max(r[x][0], R[x][0]) > EPS);
     if (!meets) return false;
-    const through = op.end === 'min'
+    const through = c.across === op.d && (op.end === 'min'
       ? r[op.d][0] <= EPS && r[op.d][1] > op.depth + EPS
-      : r[op.d][1] >= L - EPS && r[op.d][0] < L - op.depth - EPS;
+      : r[op.d][1] >= L - EPS && r[op.d][0] < L - op.depth - EPS);
     return !through;
   });
 }
@@ -340,6 +341,12 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
     }
   }
   if (corners.length === 0) return BOX_NO_CORNER;
+  // A LEANING candidate was found by its pre-lean box (inv 57 R2: never its extent); §3.1 premises unleaned parts, so
+  // it refuses with the plain-stock lean sentence before any test that reads that box further.
+  for (const { ends } of corners) {
+    const leaning = ends.find((e) => leans(e.part));
+    if (leaning) return boxPlainStock(nameOf(leaning.part), 'lean');
+  }
   for (const { ends: [ea, eb], J } of corners) {
     if (parentPath(ea.part.id) !== parentPath(eb.part.id)) return boxContainers(nameOf(ea.part), nameOf(eb.part));
     const [sa, sb] = [spanOn(ea.part, J), spanOn(eb.part, J)];

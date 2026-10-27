@@ -13,10 +13,13 @@ import { sharedOf } from './links';
 import { mirrorDim } from './frames';
 import { buildCutList } from './cutlist';
 import { taperCut } from './angleCuts';
+import { archCurve } from './curves';
+import { BUILT_IN_BAND_ID, withBands } from './bandModel';
+import { leans } from './lean';
 import { refaceFromEnd } from './resizeEnd';
 import { findTenons } from './tenons';
 import { IMPERIAL, type Units } from '../units/length';
-import type { AngleCut, Board, Cut, CutFrom, Dimension, HoleRow, Rotation, Shape, ShapedBoard, SloydDocument } from './types';
+import type { AngleCut, Board, Cut, CurveCut, CutFrom, Dimension, HoleRow, Lean, ProfileCut, Rotation, Shape, ShapedBoard, SloydDocument } from './types';
 
 const METRIC: Units = { display: 'metric-mm', precision: 1 };
 const other = (dim: Dimension): Dimension => (dim === 'length' ? 'width' : 'length');
@@ -647,13 +650,41 @@ describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
     refuses(docOf(drawerParts('butt', { h: 1.9 })), DRAWER_IDS, 'Front and Side left are too short for five fingers that wide — try narrower fingers.');
   });
 
-  it('plain stock only, the first feature found in the copy order', () => {
+  describe('plain stock only (spec §3.5)', () => {
     const tenon = { id: 'rt', end: 'max' as const, diameter: 0.25, length: 0.5 };
     const angle = { id: 'ac', ...taperCut({ face: 'thickness', from: 'max', end: 'min', amount: 0.125, start: 6 }) } as AngleCut;
-    const withBoth = drawerParts('butt').map((b) => (b.id === 'b' ? { ...b, tenons: [tenon], angleCuts: [angle] } : b));
-    refuses(docOf(withBoth), DRAWER_IDS, 'Back has an angle cut — box joints work on plain stock for now.');
-    const tenonOnly = drawerParts('butt').map((b) => (b.id === 'b' ? { ...b, tenons: [tenon] } : b));
-    refuses(docOf(tenonOnly), DRAWER_IDS, 'Back has a round tenon — box joints work on plain stock for now.');
+    const curve = { id: 'cv', ...archCurve({ through: 'thickness', along: 'length', side: 'max', from: 'min', start: 4, span: 4, rise: 0.5 }) } as CurveCut;
+    const profile: ProfileCut = { id: 'pf', face: 'max', kind: 'roundover', size: 0.125, facing: 'face',
+      run: { start: { side: { across: 'width', from: 'max' }, from: 'min', at: 2 }, end: { side: { across: 'width', from: 'max' }, from: 'min', at: 8 } } };
+    const bands = withBands([], [{ across: 'width', from: 'max' }], BUILT_IN_BAND_ID);
+    const onBack = (patch: Partial<Board>) => drawerParts('butt').map((b) => (b.id === 'b' ? { ...b, ...patch } : b));
+    it.each([
+      ['an angle cut', { angleCuts: [angle] }],
+      ['a curve', { curves: [curve] }],
+      ['an edge profile', { profiles: [profile] }],
+      ['edge banding', { bands }],
+      ['a round tenon', { tenons: [tenon] }],
+    ] as [string, Partial<Board>][])('%s', (word, patch) => {
+      refuses(docOf(onBack(patch)), DRAWER_IDS, `Back has ${word} — box joints work on plain stock for now.`);
+    });
+    it('the copy order: a part with two features gets the earlier word', () => {
+      refuses(docOf(onBack({ tenons: [tenon], angleCuts: [angle] })), DRAWER_IDS, 'Back has an angle cut — box joints work on plain stock for now.');
+      refuses(docOf(onBack({ bands, curves: [curve] })), DRAWER_IDS, 'Back has a curve — box joints work on plain stock for now.');
+    });
+    it('a LEANING candidate (judged on its pre-lean box): the lean sentence, before the heights test', () => {
+      // Side left leans and is also a different height from the top along the joint: the lean is decided first.
+      const side = (id: string, name: string, x: number, width: number, lean?: Lean) => createBoard({
+        id, name, posture: 'upright', rotation: 90, length: 30, width, thickness: 0.75, position: [x, 0, 0], ...(lean ? { lean } : {}),
+      });
+      const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: 11, thickness: 0.75, position: [0.75, 29.25, 0] });
+      const l = side('l', 'Side left', 0, 10, { x: 0.05, z: 0, face: 'thickness' });
+      expect(leans(l)).toBe(true);
+      const doc = docOf([l, side('r', 'Side right', 24.75, 11), top]);
+      refuses(doc, ['l', 'r', 't'], 'Side left has a lean — box joints work on plain stock for now.');
+      // Unleaned, the same selection takes the heights sentence: the order is what the test above pins.
+      const plain = docOf([side('l', 'Side left', 0, 10), side('r', 'Side right', 24.75, 11), top]);
+      refuses(plain, ['l', 'r', 't'], 'Side left and Top must be the same height along the joint.');
+    });
   });
 
   /** Side left (turn 90: length along +Z from min... read through endFacing) with one cut at its end facing Front. */
@@ -678,6 +709,21 @@ describe('boxJointPlan: refusals (each leaves the document unchanged)', () => {
   it('an end-grain mortise in the jointed end (resizeEnd cannot re-face it): the cut sentence, not a throw', () => {
     refuses(docOf(sideWith({ face: 'length', from: frontEnd(), across: 'width', offset: 0.15, width: 0.2, depth: 0.3, stopMin: 1, stopMax: 1 })),
       DRAWER_IDS, 'Side left has a cut where the fingers go — remove it first.');
+  });
+
+  it('an end rabbet WIDER than the other part\'s thickness (it runs past the region, but across J, not along the run)', () => {
+    const offset = frontEnd() === 'min' ? 0 : 17 - 0.75;
+    refuses(docOf(sideWith({ face: 'thickness', from: 'max', across: 'width', offset, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 })),
+      DRAWER_IDS, 'Side left has a cut where the fingers go — remove it first.');
+  });
+
+  it('a rectangular tenon\'s cheeks, longer than the other part\'s thickness, on an end that does not move', () => {
+    // The butt drawer's sides do not move; two cheeks 3/4" long (the front is 1/2" thick) leave a centred tenon.
+    const e = frontEnd();
+    const offset = e === 'min' ? 0 : 17 - 0.75;
+    const cheek = (id: string, from: CutFrom): Cut => ({ id, face: 'thickness', from, across: 'width', offset, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 });
+    const parts = drawerParts('butt').map((b) => (b.id === 'l' ? { ...b, cuts: [cheek('c1', 'min'), cheek('c2', 'max')] } : b));
+    refuses(docOf(parts), DRAWER_IDS, 'Side left has a cut where the fingers go — remove it first.');
   });
 
   it('a hole touching the corner region', () => {
