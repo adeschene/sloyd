@@ -132,6 +132,14 @@ export const DOVETAIL_SLOPE_PREFIX = '1 :';
 export const DOVETAIL_FIELD_TAILS = 'Tails';
 export const DOVETAIL_TAILS_PLACEHOLDER = 'Auto';
 export const DOVETAIL_SWAP = 'Swap tails and pins';
+export const DOVETAIL_FIELD_JOINT = 'Joint';
+export const DOVETAIL_JOINT_KEEP = 'As they are';
+export const DOVETAIL_JOINT_THROUGH = 'Through';
+export const DOVETAIL_JOINT_HALF_BLIND = 'Half-blind';
+export const DOVETAIL_FIELD_LAP = 'Lap';
+/** A typed lap that is not a length more than 0 (half-blind spec §4): the Lap field's parse error, and the planner's answer
+ *  to a typed lap of 0, below 0 or NaN (a lap at or past the pin part's thickness is `dovetailTooThin`). */
+export const DOVETAIL_LAP_PARSE = 'A lap must be a length more than 0.';
 export const DOVETAIL_BUTTON = 'Dovetail the corners';
 export const DOVETAIL_REMOVE = 'Remove';
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, flatDocument } from './document';
 import { applyDovetails, autoLap, autoTailCount, dovetailFaults, dovetailPlan, type DovetailOptions, type DovetailPlan } from './dovetails';
 import {
-  DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE,
+  DOVETAIL_COUNT_WHOLE, DOVETAIL_LAP_PARSE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE,
 } from './dovetailText';
 import { DOVETAIL_COUNT_MAX, dovetailsOf } from './dovetailModel';
 import { builtDovetails } from './dovetails';
@@ -706,8 +706,14 @@ describe('half-blind: the lap (spec §3.2, Global Constraints)', () => {
     allBuild(applyDovetails(doc, plan));
   });
 
-  it('a typed lap not inside the pin part (0, NaN, the thickness) refuses with the lap sentence, naming it', () => {
-    for (const lap of [0, -0.1, Number.NaN, 0.75, 1]) {
+  it('a typed lap that is not more than 0 (0, negative, NaN) refuses with the Lap field\'s parse sentence', () => {
+    for (const lap of [0, -0.1, Number.NaN]) {
+      expectRefusal(docOf(drawerParts()), DRAWER_IDS, DOVETAIL_LAP_PARSE, { joint: 'half-blind', lap });
+    }
+  });
+
+  it('a typed lap at or past the pin part\'s thickness refuses with the lap sentence, naming it', () => {
+    for (const lap of [0.75, 1]) {
       expectRefusal(docOf(drawerParts()), DRAWER_IDS, `Front is too thin for a ${formatLength(lap, IMPERIAL)} lap.`, { joint: 'half-blind', lap });
     }
   });

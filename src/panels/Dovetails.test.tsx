@@ -5,7 +5,7 @@ import { createBoard, createDocument, worldParts } from '../document/document';
 import type { Board, Dovetail, SloydDocument } from '../document/document';
 import { applyDovetails, dovetailPlan } from '../document/dovetails';
 import {
-  DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailMoveClear, dovetailRemoveFirst,
+  DOVETAIL_COUNT_WHOLE, DOVETAIL_LAP_PARSE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailMoveClear, dovetailRemoveFirst,
 } from '../document/dovetailText';
 import { Properties } from './Properties';
 
@@ -49,6 +49,30 @@ describe('the Dovetails section (spec §4)', () => {
     expect(tails.placeholder).toBe('Auto');
     expect((screen.getByRole('checkbox', { name: 'Swap tails and pins' }) as HTMLInputElement).checked).toBe(false);
     expect((button() as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('Joint (three options) and Lap (placeholder Auto); Through disables Lap; a lap of 0 is the parse error and disables the button; a half-blind run notes it', async () => {
+    const user = userEvent.setup();
+    open(drawer(), ...ALL);
+    const joint = screen.getByLabelText('Joint') as HTMLSelectElement;
+    expect(joint.value).toBe('keep');
+    expect([...joint.options].map((o) => o.textContent)).toEqual(['As they are', 'Through', 'Half-blind']);
+    const lap = screen.getByLabelText('Lap') as HTMLInputElement;
+    expect(lap.placeholder).toBe('Auto');
+    await user.selectOptions(joint, 'through');
+    expect(lap.disabled).toBe(true);
+    await user.selectOptions(joint, 'half-blind');
+    expect(lap.disabled).toBe(false);
+    await user.type(lap, '0');
+    await user.tab();
+    expect(screen.getByRole('alert').textContent).toBe(DOVETAIL_LAP_PARSE);
+    expect((button() as HTMLButtonElement).disabled).toBe(true);
+    await user.clear(lap);
+    await user.tab();
+    expect((button() as HTMLButtonElement).disabled).toBe(false);
+    await user.click(button());
+    expect(screen.getByText(/^Dovetailed 4 corners, half-blind: /).tagName).toBe('P');
+    expect(s().past.length).toBe(1);
   });
 
   it('is not shown for a single part', () => {

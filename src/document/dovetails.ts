@@ -16,7 +16,7 @@ import {
   DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailContainers, dovetailCutInTheWay, dovetailedLines,
   dovetailHeights, dovetailHoleInTheWay, dovetailIgnored, dovetailLengthLine, dovetailLinkedDisagree, dovetailLinkedMate,
   dovetailLinkSplit, dovetailMirrored, dovetailMoveClear, dovetailPlainStock, dovetailTailsOn, dovetailThreeWay, dovetailTooNarrow,
-  dovetailTooShort, dovetailTooThin, dovetailTwoCorners, type DovetailFeature,
+  DOVETAIL_LAP_PARSE, dovetailTooShort, dovetailTooThin, dovetailTwoCorners, type DovetailFeature,
 } from './dovetailText';
 
 /**
@@ -341,7 +341,8 @@ export function dovetailCornerStyle(
   const lap = typed !== null ? typed
     : current !== null && current === tails && storedLap !== undefined ? storedLap
       : autoLap(P.thickness, doc.units);
-  if (!(lap > EPS && lap < P.thickness - EPS)) return dovetailTooThin(nameOf(P), lap, doc.units);
+  if (!(lap > EPS)) return DOVETAIL_LAP_PARSE;
+  if (!(lap < P.thickness - EPS)) return dovetailTooThin(nameOf(P), lap, doc.units);
   return { tails, lap };
 }
 
