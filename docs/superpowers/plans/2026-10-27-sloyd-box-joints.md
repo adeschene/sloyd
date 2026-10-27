@@ -77,7 +77,7 @@ because the code gives no choice (listed under "Spec differences" below).
 - On the dev server: no `localStorage.clear()`; test projects stay. No paid runs are needed beyond Task 6's Refine check
   (at most 2, within the 10-per-feature allowance).
 
-## Spec differences (the code decides; report them in the round's records)
+## Spec differences (report them in the round's records; 1–3 the code decides, 4 is my call)
 
 1. **Siblings.** `selectionPatch` keeps only direct children of the open assembly, so every selection is already one
    container's siblings. The per-corner container refusal stays in the planner's API, but no selection reaches it. The
@@ -94,6 +94,10 @@ because the code gives no choice (listed under "Spec differences" below).
    run-out. Before building this, read how `applyWorldEdits` lowers an own position delta and skips unchanged shared
    fields (`treeEdit.ts`). If it cannot take a position-only mate next to a representative's size change, STOP and report
    it. Do not work around it.
+
+4. **The tie.** Spec §3.3 writes `N = 2·round((H/w − 1)/2) + 1`, which leaves a tie (`H/w` an even whole number, e.g.
+   a 4" drawer side at 1/2") to `Math.round`: up, to 1/4" outer fingers. The plan pins ties DOWN (3/4" outer fingers);
+   see Global Constraints. This needs the user's sight; it is named in the handoff.
 
 ## Review Focus
 
