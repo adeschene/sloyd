@@ -617,7 +617,8 @@ function restoreProfiles(board: Board, made: readonly Omit<ProfileCut, 'id'>[], 
  * `opts.bandTypes` / `opts.hardwareTypes`, Refine: the project's, so carried bands and hardware survive the gate; the
  * band types are first widened by `mintBandTypes` over every `edging` the design names, AI-bands spec §3.1; `opts.kept`,
  * Refine: the original's leaning parts and their Shapes, put in as stored, with no floor shift, and a model part reusing
- * one's flat name dropped and listed in `replaced`, splayed legs spec §8) —
+ * one's flat name dropped and listed in `replaced`, splayed legs spec §8; and its box-jointed assemblies, definition and
+ * placements, the same way, a model placement or loose part reusing a kept placement's name dropped too, box-joints spec §7) —
  * then migrateDocument, the same gate an imported file passes, which dedupes names (inv 8), checks ids (inv 33) and
  * prunes a custom material no part uses.
  *
@@ -631,13 +632,27 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   // Refine's kept parts (splayed legs spec §8, constraint (e)): a model part reusing a kept part's flat name is DROPPED
   // before anything converts, so the load gate's name dedupe never renames it past the drop. A kept part is a root part,
   // so only a loose part can share its flat name (an assembly part's is `Placement › Part`).
-  const keptNames = new Set(opts.kept?.names ?? []);
-  const replaced = [...new Set(design.parts.map((p) => clean(p.name)).filter((n) => keptNames.has(n)))];
-  const looseParts = design.parts.filter((p) => !keptNames.has(clean(p.name)));
+  // A kept ASSEMBLY's placement names join them (box-joints spec §7, Amended, R2): a loose part or a model placement reusing
+  // one is dropped (a placement only against kept PLACEMENT names: one named like a kept root part is renamed by the gate,
+  // as before, R1 keeping the root part's name), and an assembly left with no placement goes silently (it echoed the kept one; never `unplaced`). A loose
+  // part is compared with a kept placement in the gate's form (trimmed, blank as `Board`: `validateBoard`'s): the root's dedupe runs parts
+  // BEFORE assemblies, so prepending (R1) cannot save a kept placement from a part only whitespace sets apart.
+  const keptNames = new Set([...(opts.kept?.names ?? []), ...(opts.kept?.placements ?? [])]);
+  const keptPlacementNames = new Set(opts.kept?.placements ?? []);
+  const echoes = (n: string) => keptNames.has(n) || keptPlacementNames.has(n.trim() || 'Board');
+  const looseNames = design.parts.map((p) => clean(p.name));
+  const looseParts = design.parts.filter((_, i) => !echoes(looseNames[i]!));
+  const assembliesIn = (design.assemblies ?? []).flatMap((a) => {
+    const placements = a.placements.filter((pl) => !keptPlacementNames.has(clean(pl.name)));
+    if (placements.length === a.placements.length) return [a];
+    return placements.length === 0 ? [] : [{ ...a, placements }];
+  });
+  const replaced = [...new Set([...looseNames.filter(echoes).map((n) => (keptNames.has(n) ? n : n.trim() || 'Board')),
+    ...(design.assemblies ?? []).flatMap((a) => a.placements.map((pl) => clean(pl.name)).filter((n) => keptPlacementNames.has(n)))])];
   // Every edging key the design names, minted once design-wide BEFORE any part converts (AI-bands spec §3.1, builder check
   // B4), against the catalog parseDesign judged the keys by (controller ruling 1). A part with carried curves is skipped:
   // its bands are ignored, and an edging it names must not leave an orphan type in the project's list.
-  const keys = [...looseParts, ...(design.assemblies ?? []).flatMap((a) => a.parts)]
+  const keys = [...looseParts, ...assembliesIn.flatMap((a) => a.parts)]
     .filter((p) => !carriesCurves(p)).flatMap((p) => (p.bands ?? []).map((b) => b.edging));
   const minted = mintBandTypes(keys, opts.bandTypes ?? [BUILT_IN_BAND], catalogOf({ materials: opts.materials ?? [] }));
   const roles = new Map<string, string>();
@@ -657,7 +672,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   const instances: Instance[] = [];
   const labelOf = new Map<string, string>(); // definition id → assembly label
   const taken: { id: string; name: string }[] = [];
-  for (const a of design.assemblies ?? []) {
+  for (const a of assembliesIn) {
     // Assembly names are the model's handle in feedback, so they are unique
     // among themselves (they are not stored: a Definition has no name).
     const label = uniqueName(clean(a.name).trim() || 'Assembly', taken);
@@ -694,10 +709,11 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     const max = [0, 1, 2].map((k) => Math.max(...placed.map(([p, e]) => p[k] + e[k])));
     // Refine passes centre: false, so untouched parts keep the original's
     // coordinates (refine spec §4); the floor rule holds either way — except around KEPT parts (splayed legs spec §8,
-    // constraint (b)): they hold their world pose exactly, where the original stood them, so nothing is shifted at all.
+    // constraint (b)): they hold their world pose exactly, where the original stood them, so nothing is shifted at all; a
+    // kept assembly's placements count as kept parts (box-joints spec §7, Amended).
     // The model's parts never move away from them, nor they from the model's (a part the model put below the floor
     // stays there, for the checks to report).
-    const shift = (opts.kept?.boards.length ?? 0) > 0 ? [0, 0, 0]
+    const shift = (opts.kept?.boards.length ?? 0) + (opts.kept?.instances.length ?? 0) > 0 ? [0, 0, 0]
       : opts.centre === false
         ? [0, -min[1], 0]
         : [snap(-(min[0] + max[0]) / 2), -min[1], snap(-(min[2] + max[2]) / 2)];
@@ -712,10 +728,12 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   // absent (Generate), createDocument's default stands.
   // Kept parts go in as stored, with their Shapes, BEFORE the load gate and linkByRole (splayed legs spec §8, constraints
   // (c), (d); inv 56's ordering): FIRST, so the gate's first-wins id and name repairs (invs 33, 8) keep theirs, and with
-  // no role, so linkByRole never judges them (their Shapes survive with their ids).
+  // no role, so linkByRole never judges them (their Shapes survive with their ids). A kept assembly's definition and
+  // placements likewise go first (box-joints spec §7, Amended, R1).
   const kept = opts.kept;
   const doc = linkByRole(migrateDocument({
-    ...createDocument(name), boards: [...(kept?.boards ?? []), ...loose], instances, definitions, materials: [...(opts.materials ?? [])],
+    ...createDocument(name), boards: [...(kept?.boards ?? []), ...loose], instances: [...(kept?.instances ?? []), ...instances],
+    definitions: [...(kept?.definitions ?? []), ...definitions], materials: [...(opts.materials ?? [])],
     ...(kept && kept.shapes.length > 0 ? { shapes: kept.shapes } : {}),
     bandTypes: minted.types.map((t) => ({ ...t })),
     ...(opts.hardwareTypes ? { hardwareTypes: opts.hardwareTypes.map((t) => ({ ...t })) } : {}),

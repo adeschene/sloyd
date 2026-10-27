@@ -9,7 +9,8 @@ import { sameAngleCut } from '../../document/angleCuts';
 import { axisDimensions, axisFrame, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
 import type { Site } from './sites';
-import { applyJoints, rebaseAngleCuts, rebaseCurves, rebaseProfiles } from './recipes';
+import { applyJoints } from './recipes';
+import { rebaseAngleCuts, rebaseCurves, rebaseProfiles } from '../../document/resizeEnd';
 import { rebaseHoles } from '../../document/holeRebase';
 import type { JointChoice } from './recipes';
 import { boxOf } from './pocket';
@@ -325,7 +326,7 @@ export function sameProfiles(a: readonly ProfileCut[], b: readonly ProfileCut[])
 }
 
 /** The same cuts in any order: equal length, each of a matched to a distinct cut of b by sameCut (order is not geometry). */
-function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
+export function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
   if (a.length !== b.length) return false;
   const free = [...b];
   return a.every((c) => {

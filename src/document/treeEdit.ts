@@ -829,12 +829,31 @@ export function writeBackFlat(doc: SloydDocument, flatBefore: readonly Board[], 
     results.set(before.id, next as unknown as Board);
   }
   const split = splitAssemblies(plain, results);
+  return regroupShapes(applyWorldEdits(split, oncePerKey(split, edits), { keepWorld: true }), flaggedKeys(split));
+}
+
+/** The first edit given for each storage key (`storageKey`), in order; an edit whose occurrence does not resolve is
+ *  dropped. writeBackFlat's and writeBackParts' step 2. */
+function oncePerKey(doc: SloydDocument, edits: readonly WorldEdit[]): WorldEdit[] {
   const seen = new Set<string>();
-  const once = edits.filter(({ before }) => {
-    const key = storageKey(split, before.id);
+  return edits.filter(({ before }) => {
+    const key = storageKey(doc, before.id);
     if (key === null || seen.has(key)) return false;
     seen.add(key);
     return true;
   });
-  return regroupShapes(applyWorldEdits(split, once, { keepWorld: true }), flaggedKeys(split));
+}
+
+/**
+ * Box joints' way back (box-joints plan, Spec difference 3 revised; spec §6): writeBackFlat's steps 2 and 3 without
+ * step 1's assembly split. Each edit is a world part's FULL after-state (`id` its occurrence id). Shaped parts are made
+ * plain (marked), ONE edit per storage key (the first given) is lowered with `keepWorld` (a grown part keeps its world
+ * box, whatever its assembly's turn, inv 46), and each Shape's users are regrouped (`regroupShapes`): users whose new
+ * shared fields are one Shape read through their own flags stay one Shape. Editing one occurrence of a definition edits
+ * the definition, so every placement follows (inv 46's default). A caller that needs a Shape kept whole checks the
+ * result (the box-joint planner's link post-condition).
+ */
+export function writeBackParts(doc: SloydDocument, edits: readonly WorldEdit[]): SloydDocument {
+  const plain = plainWithMarkers(doc);
+  return regroupShapes(applyWorldEdits(plain, oncePerKey(plain, edits), { keepWorld: true }), flaggedKeys(plain));
 }

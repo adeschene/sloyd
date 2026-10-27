@@ -581,6 +581,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       {view.curveNotes.map((n) => (
         <p className="cutlist-diagram-curve-note" key={n.key}>{n.text}</p>
       ))}
+      {(view.fingerNotes ?? []).map((n) => (
+        <p className="cutlist-diagram-curve-note" key={n.key}>{n.text}</p>
+      ))}
       {(view.bandNotes ?? []).map((text, i) => (
         <p className="cutlist-diagram-band-note" key={i}>{text}</p>
       ))}

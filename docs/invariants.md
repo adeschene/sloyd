@@ -1021,11 +1021,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     applied while any part is kept** (spec §8(b)'s second option): the result moves to the kept parts, never the reverse; a model
     part left below the floor stays there and the design checks report it. A kept part inside an assembly refuses Refine up
     front (`'lean-assembly'`, `leaningInAssembly`: `Refine can't keep a leaning part, a part with angled holes or a part with a round
-    tenon inside an assembly yet — Ungroup it first: <name>.`, widened by ruling T10a; Refine rebuilds every definition, fu 441), and a joined Refine refuses (`'lean-joint'`): a
+    tenon inside an assembly yet — Ungroup it first: <name>.`, widened by ruling T10a; Refine rebuilds every definition, fu 441; a box-jointed part is the exception: its WHOLE assembly is kept instead, see the box-joint paragraph below), and a joined Refine refuses (`'lean-joint'`; box joints are claimed first and refuse nothing, see the same paragraph): a
     leaning part by `leaningRefusal` (inv 41), and — ruling T11a, because `runJoinery` re-joins the whole refined document, kept
     boards included — any part with a tilted row, BEFORE the gate (`Refine can't keep a part with angled holes in a joined project
     yet: <name>.`); joinery and Repair are unchanged by tilts. The model's note (`keptNote`) says why each is kept (it leans, has
-    angled holes, has round tenons, or a list of them: `whyKept`). The done view says `Kept as is (leans, angled holes or round tenons): <names>`. Kept parts count toward the result's part caps (fu 442).
+    angled holes, has round tenons, has box joints, or a list of them: `whyKept`). The done view says `Kept as is (leans, angled holes or round tenons): <names>` (with box joints, `…round tenons or box joints`: see the box-joint paragraph below). Kept parts count toward the result's part caps (fu 442).
     **A part with a ROUND TENON is KEPT exactly too** (round tenons spec §9, inv 58): `keepsExactly(b)` is `leans(b)`, any `isTilted`
     row, or `hasTenons(b)` — read off the STORED list, so a faulted tenon is kept verbatim too; the design form has no word for a
     tenon (the design schema is unchanged, fu 322), so none reaches the model and none comes back squared. `turnCandidates` never
@@ -1040,6 +1040,19 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     kept list, the done view and the assembly sentence keep their wording; `whyKept` names `has a compound end cut` only for a part
     kept for nothing else (a cleared leg), so a leaning leg's line is byte for byte as before; `keptNote`'s header is unchanged
     (fu 473). A joined Refine refuses one (`compoundRefusal`, inv 41, after the tenon and BEFORE the tilted-row check).
+
+    **A part with a BOX JOINT is KEPT exactly too, and a box-jointed ASSEMBLY is kept WHOLE rather than refused** (box joints spec §7 and
+    its Amended block, inv 61): `keepsExactly(b)` also holds when `fingerSets(b)` is non-empty (a private `keptForMoreThanFingers` is
+    the other four kinds). A box-jointed root part is kept as a root part is; a definition with any such part is kept with every
+    part in it, and every root placement of it, exactly as stored, put back FIRST (`designToDocument`, before the load gate; `names`
+    stays root-only, `placements` holds the kept placements' names), and a loose part or a placement reusing a kept name is dropped
+    and listed as replaced (a loose part's name compared TRIMMED against placement names, because the gate trims). A part kept ONLY for
+    box joints inside an assembly does not hit `lean-assembly` (`leaningInAssembly` reads `keptForMoreThanFingers`); the other four
+    kinds inside an assembly keep their refusal word for word (fu 492). A kept assembly's part linked outside the kept set refuses
+    (`keptAssemblyLinkRefusal`, reason `lean-assembly`). The note names it (`whyKept`: `has box joints`; one line per kept placement,
+    `"<placement>" is an assembly with box joints and is kept as is: <bounds>.`; the header gains `have box joints` only when one
+    is kept) and the done view says `Kept as is (leans, angled holes, round tenons or box joints)` (`RefineOutcome.leaning.boxJoints`).
+    No floor shift is applied while a kept placement exists. A JOINED Refine does not refuse (unlike the tilted row): inv 61.
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
     `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face, square? }`, a SHARED
@@ -1416,3 +1429,83 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       `stretcherText.ts`, carry no length).
     - Joinery, Repair and Refine are unchanged (a tenoned part refuses or is kept, inv 41, 56); the design schema is byte for byte
       the same. Follow-ups 475–483.
+
+61. **A box joint is ORDINARY rectangular cuts; `boxJoints.ts` is the ONE layout, the ONE recogniser and the ONE planner, and they are
+    each other's inverse** (box joints, dovetails chunk 1; NO schema change; spec `2026-10-26-sloyd-box-joints-design.md` and its
+    *Amended (build)* block). Nothing is stored that says "box joint": a corner is two parts whose ends carry full-thickness
+    notches (`Cut`: `face` the dimension running into the corner, `from` that end, `across: 'thickness'`, `stopMin: 0`,
+    `stopMax: 0`, `offset`/`width` the segment along the part's `J` dimension), so an older build reads the same file as plain
+    cuts. **A box-joint-free project is byte for byte as before**: no reader, check, drawing, loader or cut-list line changes for it
+    (`CURRENT_VERSION` stays 25; every existing test passes unchanged).
+    - **The layout** (`fingerLayout(H, w)`; spec, *Amended 2026-10-27*, the user's ruling after the build: equal fingers): `k = ⌊H/w⌋`
+      (an `H` within 1e-9 of a multiple counts as that multiple), `r = H − k·w`; `r ≤ 1e-9`: `N = k`, every finger exactly `w`
+      (`odd === width`); `r < w/4` (judged to 1e-9: an `r` within 1e-9 of `w/4` is `w/4`, not a sliver): `N = k`, the odd finger `w + r`
+      (the sliver merged into its neighbour); else `N = k + 1`, the odd finger `r`. The odd finger is always `H − (N − 1)·w`, computed
+      directly. `N` may be even. Null when `w` is not more than zero or `N < 5`. **At least five fingers**: three read as a tenon to
+      `findTenons` (`boxJoints.test.ts` pins that a three-segment set IS claimed as one, so the floor cannot be mutated away silently).
+      (The symmetric layout and its tie rule, spec difference 4, are gone: no tie arises.) `segment(l, k, oddEnd)` is computed
+      directly from `w`, `odd` and `H`, never as a running sum, from the part-local J min with the odd segment at `oddEnd` (with no
+      odd finger one formula, so both ends give the same bytes). A part with a finger at J's min is notched at EVEN `k`, the other at
+      ODD `k`; each notch is the other part's thickness deep, exactly. **Where the odd finger goes:** full fingers start at the
+      START edge — J's world MAX on every axis, so the odd finger is at J's world MIN: the BOTTOM for Y, the BACK for Z (+Z is the
+      front, `drawing.ts`), the LEFT for X (ruled 2026-10-27 after review; the amendment's first reading put it at the visible
+      front for Z) — and
+      each part reads that edge in its OWN J terms (`endFacing`) and computes its segments directly from it, never by converting
+      offsets through the world. **One layout per corner, exact complements** (to 1e-9): the two parts of a corner are cut from
+      the ONE planned layout over the one shared J span, so they never overlap and leave no gap. Phase: the part whose run axis
+      comes first in Z, X, Y takes a FINGER in the start-edge segment (with an even `N` it then has a notch at the other edge;
+      `fingerAtMaxOf` is the parity); **Swap fingers** inverts it for every corner.
+    - **The recogniser reads SHAPE, never stored fields** (`fingerSets(board)`, `fingerSetAt`): per length/width end, the
+      stock-removing cuts open at that end and spanning the thickness, all the same depth, sorted along `P` with no overlap or gap,
+      `N ≥ 5` alternating segments, every one the same width `w` (1e-9) except at most ONE END segment, any width in `(0, 1.25w)`
+      (to 1e-9; two differing end segments are no set). It reports `fingerAtMin` (J's min segment carries a finger) and `oddEnd`
+      (`'min' | 'max' | null`, null when every segment is `w`, and then `odd === width`), never anything world-relative. Re-stored notches (a resize
+      re-faces a notch to the thickness face, `refaceFromEnd`) read back as the same set. A recognised width/depth may be an ulp off
+      the planned value (exact for the usual cases, 1e-9 in general: Task 2's ruling), so nothing compares recognised numbers
+      across boards exactly; the planner compares PLANNED parameters. A partial-thickness cut over the fingers does not stop
+      recognition (the planner refuses to make that case, §3.5).
+    - **The planner** (`boxJointPlan(doc, ids, { width, swap })`, `applyBoxJoints`, the store's `boxJointCorners`): finds every
+      corner the selection makes in pairs (two parts meet when their end boxes interpenetrate along the run axis AND their `J` spans
+      overlap beyond 1e-9), refuses before any mutation (`boxJointText.ts`, the ONE home of the words), runs both parts of a corner out
+      to the other's OUTSIDE face (the run-out is exact, never grid-rounded, inv 25; `resizeEnd.ts` is the moved resize core,
+      shared with joinery) and cuts the notches. Re-running re-plans in place: the old set is removed by cut ids, the new one added,
+      ONE undo entry, none while exploded (inv 47) or gesturing, held points judged on the WRITTEN document (`judgeHeld`, inv 24).
+      Plain stock only: a lean, angle cut, curve, profile, band or round tenon refuses; a cut or hole in the corner region refuses
+      (a groove or dado outside it is kept; a cross-end cut counts as in the way only when it runs across the run dimension, through).
+    - **The write-back is `writeBackParts` (`treeEdit.ts`) with `keepWorld`**, never `mapWorld`: `mapWorld` misplaces a part that
+      grows at its world-MAX end inside a turned assembly (inv 46's two write-back rules; a new caller picks one) and cannot
+      take a position-only linked mate beside a representative's size change. Every selected world part goes in with its FULL
+      after-state, ONE edit per storage key, Shapes made plain (marked) and regrouped by `regroupShapes`; the planner's
+      **link post-condition** refuses (`boxLinkSplit`) any result that would split a Shape's users, and linked parts that would need
+      different layouts refuse (`boxLinkedDisagree`). The linked signature carries the phase and the odd end SHAPE-LOCAL: through
+      a user's `mirrored` flag when `mirrorDim` is J (the finger at J's min becomes the one at J's max, by parity; the odd end flips;
+      no odd finger compares as null), and the Shape's own board is notched with the same flipped values when its representative
+      is mirrored. So a mirrored user at Mirror's own inverse turn agrees. **Two linked cases REFUSE with an asymmetric layout**
+      (an odd finger, or an even `N`), with the disagreement sentence, by ruling (2026-10-27): **a user mirrored along J at the
+      SAME turn as its mate** (a reflection along J), and **UNMIRRORED users at opposite turns** (carcass sides linked at 90° and
+      270°: each sees the Shape's J reversed). Both succeed when the layout is symmetric along J (odd `N`, no odd finger). A linked mate not selected refuses (`boxLinkedMate`); a part inside a mirrored
+      copy refuses; a selection is always one container's siblings (`selectionPatch`), so the container refusal is
+      defensive only.
+    - **Joinery leaves the size and place of any box-jointed part alone** (`recipes.ts`): a site that would resize, trim, move or
+      carry (a rabbet rider) a part with ANY recognised finger set, on whatever axis, is skipped, or its unit refused, with
+      `<part> has box joints, so joinery leaves its size and place alone`, decided before any mutation (inv 41); a pocket INTO such
+      a part stays allowed. A skipped site is never a loss of the fingers.
+    - **Refine keeps box-jointed parts and box-jointed ASSEMBLIES whole** (`keepsExactly`, `keptParts`; inv 56): the part (root) or
+      the whole assembly, its definition (every part, jointed or not) and every placement, comes back exactly as stored,
+      FIRST, before the load gate (so the first-wins repairs, invs 33 and 8, keep the user's names); a model loose part or
+      placement reusing a kept name is dropped and listed as replaced. A kept Shape has only kept users: a kept assembly with a part
+      linked to a part outside the kept set refuses (`keptAssemblyLinkRefusal`, `Unlink first`). The other kept kinds inside an
+      assembly keep their refusal (fu 492). **Finger sets are claimed BEFORE the gate** (`fingerClaim.ts` `claimFingerSets`,
+      `restoreFingerSets`): `gateUnjoin` and `readJoints` judge only the cuts left, and the claimed cuts (the same objects) go
+      back after; **Repair claims them too** and refuses a result that breaks a set. A **joined** Refine still works: every
+      NEW or unrecorded site touching a kept part is fixed as BUTT; a RECORDED joint into a kept part is kept as recorded (forcing it
+      butt would drop the pocket the read-back took off the part); **(c) the guard**: after the re-join, a kept part (or any part of a kept
+      assembly) whose finger sets, size or position differ from the original comes back UNJOINED with a `notJoined` reason
+      (`boxJointJoinChanged`, inv 41's precedent), never joined over it; the gate changing a box-jointed part's sets refuses in words
+      (`boxJointsThroughJoints`). **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a kept part
+      butt, and do not drop the (c) guard.**
+    - **The cut list and drawing never call a finger "a tenon" or print one notch per line**: `setupLines` claims each recognised set
+      FIRST (one line per set, `fingerSetLine`), and `findTenons` and the per-cut lines run on the board without those cuts; the
+      diagram opens the set's view, skips its cuts and notes the set (`fingerNotes`). Copy lives only in `boxJointText.ts`, which imports
+      `units` (the edge rule); `boxJoints.ts` takes a TYPE-only `Units`. The design schema is byte for byte the same (Generate never
+      authors a box joint). Follow-ups 484–495.

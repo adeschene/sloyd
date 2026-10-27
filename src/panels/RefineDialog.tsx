@@ -138,8 +138,10 @@ export function RefineDialog(p: Props) {
               .map((v, i) => <p key={`v${i}`} className="field-error">{shownText(v)}</p>)}
             {out.carried.notKept.length > 0 && (<><p>Not kept:</p><ul>{out.carried.notKept.map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
             {out.carried.check.length > 0 && (<><p>Check at the new size:</p><ul>{out.carried.check.map((t, i) => <li key={i}>{t}</li>)}</ul></>)}
-            {/* Splayed legs spec §8, angled holes §9, round tenons §9: kept (leaning, angled-hole, round-tenon) parts come back exactly as they were; a model part reusing one's name was dropped. */}
-            {out.leaning && out.leaning.kept.length > 0 && <p>{`Kept as is (leans, angled holes or round tenons): ${out.leaning.kept.join(', ')}`}</p>}
+            {/* Splayed legs spec §8, angled holes §9, round tenons §9, box joints §7: kept (leaning, angled-hole, round-tenon,
+                box-jointed) parts come back exactly as they were; a model part reusing one's name was dropped. Box joints are
+                named only when a box-jointed part is kept, so the line is otherwise as before. */}
+            {out.leaning && out.leaning.kept.length > 0 && <p>{`Kept as is (leans, angled holes${out.leaning.boxJoints ? ', round tenons or box joints' : ' or round tenons'}): ${out.leaning.kept.join(', ')}`}</p>}
             {out.leaning && out.leaning.replaced.length > 0 && <p>{`Replaced by the kept part of the same name: ${out.leaning.replaced.join(', ')}`}</p>}
             {out.changes.length === 0 ? <p>No changes.</p> : (
               <ul className="generate-runs">

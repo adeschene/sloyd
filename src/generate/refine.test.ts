@@ -25,6 +25,7 @@ import { keepsExactly, keptParts, keptNote } from '../document/leanKeep';
 import { linkByRole } from '../document/roleLinks';
 import { socketPlan } from '../document/legSockets';
 import { partBounds } from '../document/worldBounds';
+import { applyBoxJoints, boxJointPlan, fingerLayout, fingerSets, notchCuts } from '../document/boxJoints';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const p = (name: string, i: number) => ({ name, role: '', material: 'pine', at: v(i * 2, 0, 0), size: v(1, 1, 1) });
@@ -468,5 +469,92 @@ describe('Refine and compound end cuts (square-set legs spec §4)', () => {
     const cleared = clearedSquareStoolDocument();
     const rung = { ...createBoard({ name: 'Rung', length: 18, width: 1.5, thickness: 1.25, posture: 'flat', position: [40, 0, 0] }), tenons: [{ ...T }] };
     expect(refineRefusal(withCut(migrateDocument({ ...cleared, boards: [...cleared.boards, rung] })))).toBe("Refine can't keep joints with a part with a round tenon yet: Rung.");
+  });
+});
+
+describe('Refine keeps box-jointed parts (box-joints spec §7)', () => {
+  /** A drawer, butt corners jointed at 1/2" (as `boxJoints.test.ts` builds it), `dx` along X. */
+  const drawerBoards = (dx = 0): Board[] => {
+    const fb = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'on-edge', rotation: 0, length: 12, width: 4, thickness: 0.5, position: [dx + 0.5, 0, z] });
+    const side = (id: string, name: string, x: number) => createBoard({ id, name, posture: 'on-edge', rotation: 90, length: 17, width: 4, thickness: 0.5, position: [dx + x, 0, 0] });
+    const doc = { ...createDocument('Drawer'), boards: [fb('df', 'Drawer front', 0), fb('db', 'Drawer back', 16.5), side('dl', 'Drawer left', 0), side('dr', 'Drawer right', 12.5)] };
+    const plan = boxJointPlan(doc, ['df', 'db', 'dl', 'dr'], { width: 0.5, swap: false });
+    if (typeof plan === 'string') throw new Error(plan);
+    return applyBoxJoints(doc, plan).boards as Board[];
+  };
+  const DRAWER = ['Drawer front', 'Drawer back', 'Drawer left', 'Drawer right'];
+  const setsOf = (doc: SloydDocument) => new Map(flatDocument(doc).boards.map((b) => [b.name, fingerSets(b)]));
+
+  it('a box-joint-only project: no joints read, the four drawer parts kept, not refused', () => {
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards: drawerBoards() });
+    for (const n of DRAWER) expect(setsOf(doc).get(n)!.length).toBeGreaterThan(0);
+    const base = plainForRefine(doc);
+    expect(base).toEqual({ plain: doc, joints: null });
+    expect('plain' in base && base.plain).toBe(doc);
+    expect(keptParts(doc).names).toEqual(DRAWER);
+    expect(refineRefusal(doc)).toBeNull();
+    expect(refineDialogInfo(doc).joined).toBe(false);
+  });
+
+  it('documentToDesign leaves the kept box-jointed parts out; the note says why', () => {
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards: [...drawerBoards(), createBoard({ id: 'sh', name: 'Shelf', length: 20, width: 10, thickness: 0.75, posture: 'flat', position: [30, 0, 0] })] });
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.parts.map((q) => q.name)).toEqual(['Shelf']);
+    const note = keptNote(doc)!;
+    expect(note.split('\n')[0]).toBe('These parts lean, have angled holes or have box joints, which the design format cannot describe, so they are not in the design above. Sloyd keeps each exactly where it is; the bounds are world inches:');
+    expect(note).toContain('"Drawer front" has box joints and is kept as is: x 0 to 13, y 0 to 4, z 0 to 0.5.');
+    for (const n of DRAWER) expect(note).toContain(`"${n}" has box joints and is kept as is:`);
+  });
+
+  it('a JOINED cabinet plus a root box-jointed drawer: not refused, every finger set kept exactly, the shelf\'s dado read back', () => {
+    const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'pine', at: v(...at), size: v(...size) });
+    const caseFlat = flatDocument(designToDocument({ name: 'Case', assemblies: [], parts: [
+      bp('Left side', [0, 0, 0], [0.75, 30, 11.25]), bp('Right side', [20.75, 0, 0], [0.75, 30, 11.25]),
+      bp('Bottom', [0.75, 0, 0], [20, 0.75, 11.25]), bp('Top', [0.75, 29.25, 0], [20, 0.75, 11.25]), bp('Shelf', [0.75, 15, 0], [20, 0.75, 11.25]),
+    ] }).doc);
+    const sites = findSites(caseFlat);
+    const choice = (s: (typeof sites)[number]) => (caseFlat.boards[s.enter]!.name === 'Shelf' && s.allowed.includes('dado')
+      ? { site: s.id, joint: 'dado' as const, depth: 0.25 } : defaultChoice(s, caseFlat, sites));
+    const joinedCase = migrateDocument(applyJoints(caseFlat, sites, sites.map(choice)).doc);
+    const doc = migrateDocument({ ...joinedCase, boards: [...joinedCase.boards, ...drawerBoards(100)] });
+    const before = setsOf(doc);
+    for (const n of DRAWER) expect(before.get(n)!.length).toBeGreaterThan(0);
+    const base = plainForRefine(doc);
+    if ('refused' in base) throw new Error(base.refused.message);
+    expect(base.joints!.filter((j) => j.enter === 'Shelf').map((j) => j.choice.joint)).toEqual(['dado', 'dado']);
+    // The plain case has no cuts left; the drawer keeps every finger set exactly.
+    const after = setsOf(base.plain);
+    for (const b of flatDocument(base.plain).boards.filter((x) => !DRAWER.includes(x.name))) expect(b.cuts, b.name).toEqual([]);
+    for (const n of DRAWER) expect(after.get(n), n).toEqual(before.get(n));
+    expect(refineRefusal(doc, base)).toBeNull();
+    expect(refineDialogInfo(doc).joined).toBe(true);
+    expect(keptParts(base.plain).names).toEqual(DRAWER);
+  });
+
+  it('a part whose read-back would resize it along its fingers (a dadoed shelf, its set at a width end) refuses, naming it', () => {
+    const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'pine', at: v(...at), size: v(...size) });
+    const flat = flatDocument(designToDocument({ name: 'C', assemblies: [], parts: [
+      bp('Side', [0, 0, 0], [0.75, 30, 11.25]), bp('Shelf', [0.75, 15, 0], [20, 0.75, 11.25]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const site = sites.find((s) => flat.boards[s.enter]!.name === 'Shelf')!;
+    const joinedFlat = applyJoints(flat, sites, sites.map((s) => (s === site ? { site: s.id, joint: 'dado' as const, depth: 0.25 } : { site: s.id, joint: 'butt' as const }))).doc;
+    const shelf = joinedFlat.boards.find((b) => b.name === 'Shelf')!;
+    expect(shelf.length).toBe(20.25);
+    // Fingers at the shelf's back (width) end, read along its length: the read-back shortens that length.
+    const l = fingerLayout(shelf.length, 0.75)!;
+    shelf.cuts.push(...notchCuts(l, true, 'max', 'width', endFacing(shelf, 2, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    expect(fingerSets(shelf).map((f) => f.dim)).toEqual(['width']);
+    const doc = migrateDocument(joinedFlat);
+    expect(plainForRefine(doc)).toEqual({ refused: { reason: 'joints', message: "Refine can't keep Shelf's box joints through its other joints yet." } });
+  });
+
+  it('a hand-added cut beside the fingers still gives the gate message (only recognised sets are claimed)', () => {
+    const boards = drawerBoards();
+    const front = boards.find((b) => b.name === 'Drawer front')!;
+    front.cuts.push({ id: 'h', face: 'thickness', from: 'min', across: 'width', offset: 5, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 });
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards });
+    expect(plainForRefine(doc)).toEqual({ refused: { reason: 'joints', message: GATE_REFUSAL } });
   });
 });

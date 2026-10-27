@@ -1,12 +1,12 @@
-import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
+import { CURRENT_VERSION, migrateDocument, flatDocument, worldParts } from '../../document/document';
 import type { Board, Cut, CutFrom, Dimension, FlatDocument, SloydDocument } from '../../document/document';
-import { pocketCells, cutRegion } from '../../document/cuts';
-import { rebaseHoles } from '../../document/holeRebase';
-import { uvDims } from '../../document/curves';
-import { runDim } from '../../document/profiles';
-import type { ProfileEnd } from '../../document/document';
+import { resizeEnd, refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles } from '../../document/resizeEnd';
+// Re-exported for the existing joinery tests, which import them from here.
+export { refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles };
 import { TOUCH, worldSolids } from '../../document/designCheck';
-import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
+import { SNAP_INCHES, axisDimensions, endFacing } from '../../document/geometry';
+import { fingerSets } from '../../document/boxJoints';
+import { boxJointedLeftAlone } from '../../document/boxJointText';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -59,54 +59,7 @@ const span = (b: WorldBox, k: number): [number, number] => [b.min[k], b.max[k]];
 
 /** Grow (or, negative, shrink) a part along world axis k on its `side` face. */
 function resize(b: Board, k: number, side: -1 | 1, amount: number, tap?: Tap) {
-  const d = axisDimensions(b)[k];
-  tap?.watch.resize(tap.index.get(b)!, b, d, endFacing(b, k, side), amount);
-  // The old dimension is passed on rather than recovered as `b[d] - amount`,
-  // which can be an ulp off for decimal sizes.
-  const was = b[d];
-  b[d] = was + amount;
-  if (side === -1) b.position[k] -= amount;
-  // The part end facing the world `side`: a turn may reverse axis k.
-  rebaseCuts(b, d, endFacing(b, k, side), amount, was);
-  rebaseAngleCuts(b, d, endFacing(b, k, side), amount);
-  rebaseHoles(b, d, endFacing(b, k, side), amount);
-  rebaseCurves(b, d, endFacing(b, k, side), amount);
-  rebaseProfiles(b, d, endFacing(b, k, side), amount);
-}
-
-/**
- * Follow-up 205: a cut STORED into `d` from one end (`face === d`) re-stored to
- * enter from another face its box reaches, with `d` as its POSITION axis, so
- * rebaseCuts' rule keeps it in place while the part grows past it or a trim clips
- * it. A corner notch can be stored either way and storedAsShape keeps whichever
- * form it was given, so without this the answer depended on storage. Null when
- * the box reaches no other face (an end-grain mortise) or the re-store would not
- * remove exactly the same box (within 1e-9, rebaseCuts' tolerance).
- */
-export function refaceFromEnd(b: Board, c: Cut, d: Dimension): Cut | null {
-  const EPS = 1e-9;
-  const r = cutRegion(b, c);
-  const order: Dimension[] = ['thickness', 'width', 'length'];
-  type Option = { f: Dimension; from: 'min' | 'max'; span: number };
-  // Tie-break: thickness, width, length. pocketFor (pocket.ts) breaks ties differently ON PURPOSE: both
-  // remove the same box, so do not unify them.
-  const options = order.filter((f) => f !== d).flatMap((f): Option[] => {
-    const span = r[f][1] - r[f][0];
-    if (r[f][0] <= EPS) return [{ f, from: 'min' as const, span }];
-    if (r[f][1] >= b[f] - EPS) return [{ f, from: 'max' as const, span }];
-    return [];
-  }).sort((x, y) => x.span - y.span); // stable: ties keep thickness, width, length
-  for (const { f, from, span } of options) {
-    const g = order.find((x) => x !== d && x !== f)!;
-    const candidate: Cut = {
-      id: c.id, face: f, from, across: g,
-      offset: r[d][0], width: r[d][1] - r[d][0], depth: span,
-      stopMin: r[g][0], stopMax: b[g] - r[g][1],
-    };
-    const a = cutRegion(b, candidate);
-    if (order.every((k) => Math.abs(a[k][0] - r[k][0]) <= EPS && Math.abs(a[k][1] - r[k][1]) <= EPS)) return candidate;
-  }
-  return null;
+  resizeEnd(b, k, side, amount, tap ? (d, end, a) => tap.watch.resize(tap.index.get(b)!, b, d, end, a) : undefined);
 }
 
 /**
@@ -128,158 +81,12 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
 };
 
 /**
- * The ONE place a part's EXISTING cuts follow a resize (spec §4.7, final
- * review C1). A cut is measured from the board's ends, so growing or shrinking
- * dimension `d` at one end would otherwise slide every cut already on the
- * board: a rail tenoned at its far end and then at its near end had its first
- * tenon moved by the second's length.
- *
- * - The MIN end moving shifts everything measured from min: the offset when
- *   `d` is the position axis, `stopMin` when `d` is `across`.
- * - The MAX end moving changes only `stopMax` (when `d` is `across`); offsets
- *   are measured from min and do not move.
- * - EXCEPT on growth, a cut whose `across` axis is `d` and whose stop at the
- *   moving end is 0 keeps running out (the stop stays 0). Without this,
- *   ordering rabbets before dados turned every bookcase bottom's rabbet into a
- *   notch stopped 1/4in short of each end, and the back drove into it. A cut
- *   POSITIONED flush with the end is NOT extended: it stays where it is.
- * - A cut INTO `d` from the moving end is re-faced from another face its box
- *   reaches (fu 205) and then stays put; only one that cannot be throws.
- *
- * A cut stored INTO the moving end is first re-faced (above), BEFORE the shape pass
- * below, so a re-faced cut that spans all of `d` can still be re-stored as running.
- * Each cut is then re-stored the way it runs where the sheet accepts it
- * (`storedAsShape`'s guard; a refused cut keeps its stored form and the old
- * rule), so the rule above reads the cut's shape: a cut that RUNS along `d` to the moving end keeps
- * running out; one POSITIONED at that end stays (follow-up 199).
- *
- * Then the cut is CLIPPED to the board (an addition to the ruling): a shrink
- * can leave a negative offset or stop, and validateCuts clamps a negative
- * offset to 0 WITHOUT shortening the width, which would move the cut. A cut
- * the shrink removes entirely is dropped.
+ * A part with any recognised finger set (box-joints spec §7). Joinery never resizes, trims or moves one (a tenon or dado
+ * growing it, a rabbet trimming or carrying it, a panel or a half-lap moving it), at whatever end or axis: a grow or trim
+ * along its fingers re-proportions them, one through its thickness leaves its mate's notches the wrong depth, and a move
+ * takes it off its corner. A pocket cut INTO one as a receiver stays allowed. Asked before anything changes (inv 41).
  */
-function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, was: number) {
-  // Follow-up 199: decide by the cut's SHAPE, not by which of two equivalent
-  // forms it happens to be stored in. storedAsShape keeps the same stock, returns
-  // an already-aligned cut as the same object, and refuses a re-store the sheet
-  // would read differently. `resize` has already changed `b[d]`, but a cut's
-  // shape is read against the board it was cut IN, so the board is put back
-  // for the read (a cut spanning all of the old length is not full-length on
-  // the grown one).
-  const before: Board = { ...b, [d]: was };
-  // Follow-up 205: a cut stored INTO the moving end is re-faced first when its box
-  // reaches another face; it then stays put (positioned along d). Only a cut that
-  // cannot be re-faced still reaches the throw below (cutIntoEnd refuses it first).
-  // This runs BEFORE the shape pass: a re-faced full-length cut has d as its position
-  // axis, and only storedAsShape can re-store it as RUNNING along d (so it runs out on
-  // growth). Afterwards it would be left positioned and stop short of the grown end.
-  // Follow-up 245: a cut stored into the OTHER end reaches the moving end too when its depth spans all
-  // of d, so it is re-faced the same way (a partial one sits at the far end and stays there).
-  const reachesMovingEnd = (c: Cut) => c.face === d && (c.from === end || c.depth >= was - 1e-9);
-  b.cuts = b.cuts.map((c) => (reachesMovingEnd(c) ? refaceFromEnd(before, c, d) ?? c : c));
-  const solids = pocketCells(before);
-  b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
-  b.cuts = b.cuts.filter((c) => {
-    if (c.face === d) {
-      if (c.from === end) throw new Error(`applyJoints: ${b.name} grows at an end it is already cut into`);
-      c.depth = Math.min(c.depth, b[d]);
-      return true;
-    }
-    const pos = positionAxisOf(c.face, c.across);
-    // Along its `across` axis a cut that RUNS OUT at the moving end keeps
-    // running out when the part grows (below). Along its POSITION axis it does
-    // not: a housing flush with the end holds a part sitting AT that end, which
-    // has not moved, so the cut stays where it is and becomes a dado. Extending
-    // it would make the geometry depend on document order and leave a void no
-    // part fills.
-    if (pos === d && end === 'min') c.offset += amount;
-    if (c.across === d) {
-      const stop = end === 'min' ? 'stopMin' : 'stopMax';
-      if (!(amount > 0 && c[stop] <= 1e-9)) c[stop] += amount;
-    }
-    if (c.offset < 0) { c.width += c.offset; c.offset = 0; }
-    c.width = Math.min(c.width, b[pos] - c.offset);
-    c.stopMin = Math.max(0, c.stopMin);
-    c.stopMax = Math.max(0, c.stopMax);
-    return c.width > 1e-9 && c.stopMin + c.stopMax < b[c.across] - 1e-9;
-  });
-}
-
-/**
- * AI-angles spec §4 (fu 307): `b` grew (or, negative, was trimmed) by `amount` at `end` of dimension `d`, so every
- * angle-cut number MEASURED FROM that end — a station when `along` is `d`, a depth when `face` is `d` — shifts by
- * `amount`, and the cut's wood stays exactly where it was. One addition per number, no trigonometry; a cut measured
- * from the other end, or across another dimension, is the same object. `readJoints` (`unjoin.ts`) calls it with the
- * opposite amount, its exact inverse. A grown part's cut measured along or into the growth that removes wood at the
- * moving end is refused before any mutation, however small (`angleConflicts`, final review I2); a TRIM (a rabbet's, possibly on a part no site names) only removes wood, and the cut's plane stays put.
- */
-export function rebaseAngleCuts(b: Board, d: Dimension, end: CutFrom, amount: number): void {
-  b.angleCuts = b.angleCuts.map((c) => {
-    const s = c.along === d && c.alongFrom === end ? amount : 0;
-    const q = c.face === d && c.from === end ? amount : 0;
-    if (s === 0 && q === 0) return c;
-    return { ...c, points: [[c.points[0][0] + s, c.points[0][1] + q], [c.points[1][0] + s, c.points[1][1] + q]] };
-  });
-}
-
-/**
- * Joinery-curves spec §4.2: `b` grew (or, negative, was trimmed) by `amount` at `end` of dimension `d`, so every curve
- * coordinate MEASURED FROM that end (u when `uvDims(through)[0]` is `d` and `uFrom` is `end`; v likewise) shifts by
- * `amount` and the curve's waste stays exactly where it was. One addition per number; `side` and `through` are untouched,
- * and a curve measured from the other end (or through `d`) is the same object. Entries are REPLACED, never mutated: flat
- * twins share them. `readJoints` calls it with the opposite amount, its inverse to the last bit.
- *
- * `rise` and `radius` are untouched too, with ONE exception (final review C1): two separate additions do not preserve a
- * difference, so a shifted chord can come back an ulp short or long. An arc stored exactly AT the half-circle bound
- * (`rise === chord / 2`, the Half-round notch; or `radius === chord / 2`), judged the loader's way (`validateCurveCuts`:
- * `Math.hypot` of the stored endpoints), is re-stored at the bound of its NEW chord, so it stays a notch to
- * `curveKindChoice`; any other shifted arc the loader would now drop (`rise > chord / 2`, `radius < chord / 2`) is
- * clamped to that bound. Without this the closing `migrateDocument` drops the whole curve with no note. Either way the
- * number moves by an ulp, well within GATE_TOLERANCE.
- */
-export function rebaseCurves(b: Board, d: Dimension, end: CutFrom, amount: number): void {
-  const chord = (p: readonly [number, number], q: readonly [number, number]) => Math.hypot(q[0] - p[0], q[1] - p[1]);
-  b.curves = b.curves.map((c) => {
-    const [u, v] = uvDims(c.through);
-    const s = u === d && c.uFrom === end ? amount : 0;
-    const q = v === d && c.vFrom === end ? amount : 0;
-    if (s === 0 && q === 0) return c;
-    const start: [number, number] = [c.start[0] + s, c.start[1] + q];
-    let was: readonly [number, number] = c.start;
-    let at: readonly [number, number] = start;
-    const segments = c.segments.map((g) => {
-      const to: [number, number] = [g.to[0] + s, g.to[1] + q];
-      let out = { ...g, to } as typeof g;
-      if (g.type === 'arc') {
-        const old = chord(was, g.to) / 2;
-        const half = chord(at, to) / 2;
-        if (g.rise !== undefined && (g.rise === old || g.rise > half)) out = { ...g, to, rise: half };
-        else if (g.radius !== undefined && (g.radius === old || g.radius < half)) out = { ...g, to, radius: half };
-      }
-      was = g.to;
-      at = to;
-      return out;
-    });
-    return { ...c, start, segments };
-  });
-}
-
-/**
- * Joinery-curves spec §4.3: a profile station `{ side, from, at }` measured from the moved end of the dimension its
- * side runs along shifts by `amount`. `through` ends, `loop` runs and every other field are untouched; changed entries
- * are replaced, never mutated. `readJoints` calls it with the opposite amount, its exact inverse.
- */
-export function rebaseProfiles(b: Board, d: Dimension, end: CutFrom, amount: number): void {
-  const shift = (e: ProfileEnd): ProfileEnd =>
-    'through' in e || runDim(e.side) !== d || e.from !== end ? e : { ...e, at: e.at + amount };
-  b.profiles = b.profiles.map((p) => {
-    if ('loop' in p.run) return p;
-    const start = shift(p.run.start);
-    const e2 = shift(p.run.end);
-    if (start === p.run.start && e2 === p.run.end) return p;
-    return { ...p, run: { start, end: e2 } };
-  });
-}
+const jointed = (b: Board) => fingerSets(b).length > 0;
 
 /** The slab E grows into, on its `side` face along k, `amount` deep. */
 const extension = (before: WorldBox, k: number, side: -1 | 1, amount: number): [number, number] =>
@@ -466,9 +273,15 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
       continue;
     }
-    // Tenons and dados grow E at its `side` end: a cut already into that end
-    // would throw inside rebaseCuts, so the site is skipped first.
-    if ((joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado') && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
+    // Tenons and dados grow E at its `side` end: a box-jointed part is never
+    // resized (box-joints spec §7), and a cut already into that end would
+    // throw inside rebaseCuts, so the site is skipped first.
+    const grows = joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado';
+    if (grows && jointed(E)) {
+      skipped.push({ site: site.id, reason: boxJointedLeftAlone(E.name) });
+      continue;
+    }
+    if (grows && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
       skipped.push({ site: site.id, reason: `${E.name} is already cut at the end that would grow into ${R.name}` });
       continue;
     }
@@ -597,6 +410,8 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     return { R: boards[site.receive], box: withSpans(rb, { [k]: kSpan, [nAx]: nSpan, [q]: qSpan }) };
   });
 
+  // A box-jointed panel or rider would move, and the panel may be trimmed (box-joints spec §7).
+  for (const i of [e, ...carried]) if (jointed(boards[i]!)) return refuse(boxJointedLeftAlone(boards[i]!.name));
   // The panel where it will be: its solids moved, then clipped to the final box.
   const panel = clipped(shifted(worldSolids(E), k, side * t), fin);
   // The panel's own trims to its rabbet lines, asked before anything moves:
@@ -622,6 +437,8 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (meeting.length === 0) continue;
     const depth = Math.max(...meeting.map((p) => (side === 1 ? p.max[k] - b.min[k] : b.max[k] - p.min[k])));
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
+    // A box-jointed part is never trimmed (box-joints spec §7).
+    if (jointed(boards[j]!)) return refuse(boxJointedLeftAlone(boards[j]!.name));
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
     if (cutIntoEnd(boards[j], k, side === 1 ? 'min' : 'max')) {
@@ -687,6 +504,8 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const eNow = boxOf(E);
   const rNow = boxOf(R);
   const delta = alreadyIn ? 0 : side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
+  // A box-jointed E would move off its corner (box-joints spec §7); its notch alone, already in plane, is a pocket.
+  if (!alreadyIn && Math.abs(delta) > 1e-9 && jointed(E)) return boxJointedLeftAlone(E.name);
   if (!alreadyIn) {
     // Dropping E must not drive it into anything but its own lap partners
     // ANYWHERE along the drop, which can be longer than t: the volume each of

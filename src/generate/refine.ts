@@ -21,6 +21,8 @@ import { carryFromOriginal } from '../document/featureCarry';
 import { featuredNote } from '../document/carryText';
 import { keptNote } from '../document/leanKeep';
 import { isTilted } from '../document/holeTilt';
+import { claimThenDecide, firstBrokenSet, restoreFingerSets } from './joints/fingerClaim';
+import { boxJointsThroughJoints } from '../document/boxJointText';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -70,13 +72,19 @@ export type RefineBase = { plain: SloydDocument; joints: RecordedJoint[] | null 
  * cut; otherwise its joints are read back (gateUnjoin) and the plain parts are
  * written into the tree the way runJoinery writes its result back
  * (invariant 46), so copies that come out identical stay shared.
+ *
+ * Box joints (box-joints spec §7) are claimed first and never reach the gate:
+ * a project cut only by them is unchanged, and in a joined one each part's
+ * claimed cuts (the same objects) go back onto its plain part, so the plain
+ * design keeps every finger set and Refine keeps the part (`keepsExactly`).
  */
 export function plainForRefine(doc: SloydDocument): RefineBase {
   // Runs inside the Refine dialog's memo: a throw would break its render, so it refuses as the gate
   // does and keeps the cause on the console (follow-up 244).
   try {
     const flat = flatDocument(doc);
-    if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
+    const { unclaimed, claimed, joined } = claimThenDecide(flat);
+    if (!joined) return { plain: doc, joints: null };
     // A joined design with a leaning part (splayed legs spec §8): refused up front, the same as joinery and by its ONE
     // decider (invariant 41), BEFORE the gate — whose read-back is box-based and would refuse in the wrong words.
     const leaning = leaningRefusal('refine', flat);
@@ -92,9 +100,14 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     // runJoinery would re-join the whole refined document, kept boards included, so "kept exactly" could not hold.
     const angled = flat.boards.find((b) => b.holes.some(isTilted));
     if (angled) return { refused: { reason: 'lean-joint', message: `Refine can't keep a part with angled holes in a joined project yet: ${angled.name}.` } };
-    const g = gateUnjoin(flat);
+    const g = gateUnjoin(unclaimed);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
-    const plain = migrateDocument(writeBackFlat(doc, flat.boards, g.plain));
+    const plainBoards = restoreFingerSets(g.plain, claimed);
+    // The read-back resized a box-jointed part along its fingers (it entered a joint at another end): the claimed cuts
+    // put back would no longer be its box joint, so Refine refuses rather than lose it (box-joints spec §7).
+    const broken = firstBrokenSet(flat.boards, plainBoards, claimed);
+    if (broken !== null) return { refused: { reason: 'joints', message: boxJointsThroughJoints(broken) } };
+    const plain = migrateDocument(writeBackFlat(doc, flat.boards, plainBoards));
     // A joined original whose taper already runs into a joint could only come back unjoined (its re-join refuses):
     // refused before any call (AI-tapers spec §5.4, amended), by joinery's ONE refusal decider (invariant 41).
     const pf = flatDocument(plain);

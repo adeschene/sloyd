@@ -12,6 +12,9 @@ import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/doc
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { applyJoints, refaceFromEnd, tenonSection } from './recipes';
+import { createBoard, createDocument } from '../../document/document';
+import { applyBoxJoints, boxJointPlan, fingerLayout, fingerSets, notchCuts } from '../../document/boxJoints';
+import { endFacing } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
 import type { Site } from './sites';
 
@@ -2118,4 +2121,142 @@ describe('a cut at the end a joint resizes follows the part, in any storage form
       }
     });
   }
+});
+
+describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
+  /** A drawer, butt corners jointed (as `boxJoints.test.ts` builds it): the sides run the full depth z [0, 17], Front and
+   *  Back grow 1" to the sides' outside faces. Plus a false front over the drawer's front face. */
+  const drawer = (): FlatDocument => {
+    const fb = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'on-edge', rotation: 0, length: 12, width: 4, thickness: 0.5, position: [0.5, 0, z] });
+    const side = (id: string, name: string, x: number) => createBoard({ id, name, posture: 'on-edge', rotation: 90, length: 17, width: 4, thickness: 0.5, position: [x, 0, 0] });
+    const doc = { ...createDocument('Drawer'), boards: [fb('f', 'Front', 0), fb('b', 'Back', 16.5), side('l', 'Side left', 0), side('r', 'Side right', 12.5)] };
+    const plan = boxJointPlan(doc, ['f', 'b', 'l', 'r'], { width: 0.5, swap: false });
+    if (typeof plan === 'string') throw new Error(plan);
+    const jointed = applyBoxJoints(doc, plan);
+    const falseFront = createBoard({ id: 'ff', name: 'False front', posture: 'on-edge', rotation: 0, length: 15, width: 4.5, thickness: 0.75, position: [-1, 0, -0.75] });
+    return flatDocument(migrateDocument({ ...jointed, boards: [...jointed.boards, falseFront] }));
+  };
+
+  it('a tenon into the false front would grow each side\'s jointed front end: skipped with the box-joint reason, the sides unchanged', () => {
+    const doc = drawer();
+    const sides = ['Side left', 'Side right'].map((n) => board(doc, n));
+    for (const s of sides) expect(fingerSets(s).map((f) => [f.dim, f.end])).toEqual([['length', 'min'], ['length', 'max']]);
+    const sites = findSites(doc);
+    const into = (n: string) => sites.find((s) => s.kind === 'end-into-face' && doc.boards[s.enter]!.name === n && doc.boards[s.receive]!.name === 'False front');
+    const left = into('Side left')!;
+    const right = into('Side right')!;
+    expect(left).toBeDefined();
+    expect(right).toBeDefined();
+    const out = applyJoints(doc, sites, sites.map((s) => (s === left || s === right
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 } : { site: s.id, joint: 'butt' as const })));
+    expect(out.skipped).toEqual([
+      { site: left.id, reason: "Side left has box joints, so joinery leaves its size and place alone" },
+      { site: right.id, reason: "Side right has box joints, so joinery leaves its size and place alone" },
+    ]);
+    for (const s of sides) expect(board(out.doc, s.name)).toEqual(s);
+    expect(board(out.doc, 'False front')).toEqual(board(doc, 'False front'));
+  });
+
+  it('a dado or stopped dado is skipped the same way', () => {
+    const doc = drawer();
+    const sites = findSites(doc);
+    const left = sites.find((s) => s.kind === 'end-into-face' && doc.boards[s.enter]!.name === 'Side left' && doc.boards[s.receive]!.name === 'False front')!;
+    expect(left.stopEnds.length).toBeGreaterThan(0);
+    for (const c of [{ joint: 'dado' as const, depth: 0.25 }, { joint: 'stopped-dado' as const, depth: 0.25, stopAt: left.stopEnds[0]!, inset: 0.5 }]) {
+      const out = applyJoints(doc, sites, sites.map((s) => (s === left ? { site: s.id, ...c } : { site: s.id, joint: 'butt' as const })));
+      expect(out.skipped).toEqual([{ site: left.id, reason: "Side left has box joints, so joinery leaves its size and place alone" }]);
+      expect(board(out.doc, 'Side left')).toEqual(board(doc, 'Side left'));
+    }
+  });
+
+  it('a tenon growing a part at a LENGTH end, its finger set at a WIDTH end: skipped, the part unchanged', () => {
+    const doc = LEG_RAIL();
+    const rail = board(doc, 'Rail');
+    const l = fingerLayout(rail.length, 0.75)!;
+    rail.cuts.push(...notchCuts(l, true, 'max', 'width', endFacing(rail, 1, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    expect(fingerSets(rail).map((f) => f.dim)).toEqual(['width']);
+    const sites = findSites(doc);
+    const site = sites.find((s) => doc.boards[s.enter]!.name === 'Rail' && doc.boards[s.receive]!.name === 'Leg')!;
+    expect(axisDimensions(rail)[site.axis]).toBe('length');
+    const out = applyJoints(doc, sites, sites.map((s) => (s === site ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1 } : { site: s.id, joint: 'butt' as const })));
+    expect(out.skipped).toEqual([{ site: site.id, reason: "Rail has box joints, so joinery leaves its size and place alone" }]);
+    expect(board(out.doc, 'Rail')).toEqual(rail);
+    expect(board(out.doc, 'Leg')).toEqual(board(doc, 'Leg'));
+  });
+
+  it('a half-lap that would drop a box-jointed part into its partner\'s plane refuses, changing nothing', () => {
+    const doc = design(
+      { name: 'R', at: [0, 0, 9], size: [20, 0.5, 3] },
+      { name: 'E', at: [9, 0.5, 0], size: [2, 0.5, 20] },
+    );
+    const e = board(doc, 'E');
+    const dim = axisDimensions(e)[2]!;
+    const along = dim === 'length' ? 'width' : 'length';
+    const l = fingerLayout(e[along], 0.25)!;
+    e.cuts.push(...notchCuts(l, true, 'max', dim, endFacing(e, 2, 1), along, 0.5, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    expect(fingerSets(e)).toHaveLength(1);
+    const site: Site = { id: 1, kind: 'crossing', enter: 1, receive: 0, axis: 1, side: -1, allowed: ['half-lap'], stopEnds: [] };
+    const out = applyJoints(doc, [site], [{ site: 1, joint: 'half-lap' }]);
+    expect(out.skipped).toEqual([{ site: 1, reason: "E has box joints, so joinery leaves its size and place alone" }]);
+    expect(out.doc.boards).toEqual(doc.boards);
+  });
+
+  describe('a rabbet\'s trims', () => {
+    // 'the trims judge solids' fixture (fingers on RightSide): RightSide is not a receiver, so the back's final box meets it as a part to trim,
+    // by 1/8", at its world-z-min end (the part's width MAX end: it is turned). Fingers are cut at that end here.
+    const build = (fingers: 'right' | 'back' | 'right-bottom') => {
+      const doc = design(
+        { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+        { name: 'RightSide', at: [20.75, 0, fingers === 'back' ? 0 : 0.125], size: [0.75, 30, 12] },
+        { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+      );
+      const finger = (name: string, k: number, side: -1 | 1) => {
+        const b = board(doc, name);
+        const dim = axisDimensions(b)[k]!;
+        const along = dim === 'length' ? 'width' : 'length';
+        const l = fingerLayout(b[along], 0.75)!;
+        b.cuts.push(...notchCuts(l, true, 'max', dim, endFacing(b, k, side), along, 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+        expect(fingerSets(b)).toHaveLength(1);
+      };
+      // RightSide's back end; or (both sides receivers, as in 'a panel cut INTERIOR…' above) the Back's own left end,
+      // which its rabbet line into LeftSide trims by 3/8".
+      if (fingers === 'right') finger('RightSide', 2, -1);
+      else if (fingers === 'right-bottom') finger('RightSide', 1, -1);
+      else finger('Back', 0, -1);
+      return doc;
+    };
+    const rightSite: Site = { id: 1, kind: 'face-against-edge', enter: 2, receive: 0, axis: 2, side: 1, allowed: ['rabbet'], stopEnds: [] };
+
+    it('a trim of a box-jointed part at its jointed end refuses, changing nothing', () => {
+      const doc = build('right');
+      const out = applyJoints(doc, [rightSite], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
+      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide has box joints, so joinery leaves its size and place alone" }]);
+      expect(out.doc.boards).toEqual(doc.boards);
+      expect(out.trimmed).toEqual([]);
+      expect(out.moved).toEqual([]);
+    });
+
+    it('a trim ALONG a box-jointed part\'s fingers (set at its bottom end, trimmed at its back end) refuses, changing nothing', () => {
+      const doc = build('right-bottom');
+      const right = board(doc, 'RightSide');
+      // The set is at a length end; the trim shortens the width, the fingers' own dimension.
+      expect(fingerSets(right).map((f) => f.dim)).toEqual(['length']);
+      expect(axisDimensions(right)[2]).toBe('width');
+      const out = applyJoints(doc, [rightSite], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
+      expect(out.skipped).toEqual([{ site: 1, reason: "RightSide has box joints, so joinery leaves its size and place alone" }]);
+      expect(out.doc.boards).toEqual(doc.boards);
+      expect(out.trimmed).toEqual([]);
+    });
+
+    it('the panel\'s own trim at its jointed end refuses, changing nothing', () => {
+      const doc = build('back');
+      const sites = findSites(doc);
+      const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter]!.name === 'Back');
+      expect(backSites).toHaveLength(2);
+      const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+      expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: "Back has box joints, so joinery leaves its size and place alone" })));
+      expect(out.doc.boards).toEqual(doc.boards);
+      expect(out.moved).toEqual([]);
+    });
+  });
 });

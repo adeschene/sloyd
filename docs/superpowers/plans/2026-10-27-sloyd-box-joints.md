@@ -32,7 +32,7 @@ because the code gives no choice, one my call, one the user's ruling; listed und
 - Layout (spec §3.3), all comparisons at `1e-9` unless stated:
   - `N = max(5, 2n + 1)` with `n` the integer nearest `q = (H/w − 1)/2`, and a TIE (`q − ⌊q⌋` within 1e-9 of 0.5)
     going DOWN (my call, after review: of the two odd counts a tie sits between, the fewer fingers give the wider outer
-    pair, `e = 3w/4` instead of `w/4`; thin outer fingers break off). Inner fingers exactly `w`; outer
+    pair, `e = 3w/2` instead of `w/2`; thin outer fingers break off). Inner fingers exactly `w`; outer
     `e = (H − (N − 2)·w) / 2`; refuse when `H < 4w`.
   - Segment `k` (1-based, part-local along the part's `J` dimension from its own min): `s1 = [0, e]`,
     `sk = [e + (k − 2)·w, e + (k − 1)·w]` for `2 ≤ k ≤ N − 1`, `sN = [e + (N − 2)·w, H]`. Computed directly, never as a
@@ -70,8 +70,8 @@ because the code gives no choice, one my call, one the user's ruling; listed und
   - cut list: `Box joint — <N> fingers <w> wide (the outer two <e>), <d> deep, at the <dim> <end> end; this part has the outer fingers.`
     / `…; this part has the outer notches.` (the parenthesis is dropped when `e === w`)
   - section `Box joints`; field `Finger width`; checkbox `Swap fingers`; button `Box joint the corners`.
-  - joinery skip reason: `<part>'s box joint is already cut at that end`
-  - Refine, in an assembly (a part kept ONLY for box joints): `Refine can't keep a box-jointed part inside an assembly yet — Ungroup it first: <part>.`
+  - joinery skip reason: `<part> has box joints, so joinery leaves its size and place alone`
+  - Refine, a kept assembly linked outside itself (Task 6b): `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it — Unlink first: <part>.`
   - Refine kept note: why-word `has box joints`.
 - Every refusal is decided before any mutation. The action is ONE undo entry, refused while exploded (inv 47) or gesturing.
 - On the dev server: no `localStorage.clear()`; test projects stay. No paid runs are needed beyond Task 6's Refine check
@@ -86,14 +86,25 @@ because the code gives no choice, one my call, one the user's ruling; listed und
 2. **Success note.** It is held in the section's own state (the selection does not change after the action), not in new
    store state. That is simpler than the spec's §4, and the note is still cleared on a selection change, because
    GroupProperties remounts the section.
-3. **Linked write-back.** The SHARED fields of each storage target (`length`/`width`, `cuts`) are written through ONE
-   representative world part: a non-mirrored user when there is one, else the first. Every OTHER user is passed to
-   `mapWorld` with ONLY its own `position` changed (to its planned world min corner), its shared fields left exactly as
-   currently resolved, so nothing is re-lowered through `mirrorCut`. The position matters because `position` is own while
-   `length` is shared: a mate left as the same object would grow from its stored min corner and land off at a min-end
-   run-out. Before building this, read how `applyWorldEdits` lowers an own position delta and skips unchanged shared
-   fields (`treeEdit.ts`). If it cannot take a position-only mate next to a representative's size change, STOP and report
-   it. Do not work around it.
+3. **Linked write-back (REVISED 2026-10-27 after Task 3's STOP; controller ruling).** The first draft, mates passed to
+   `mapWorld` with only `position` changed, does not work. Three failures were measured: an unmirrored mate throws
+   `disagreeing edits` (`resolveBoard` copies cuts); a mirrored mate in a turned assembly lands off by the size change; and
+   `mapWorld` (no `keepWorld`) misplaces even a plain part grown at its world-max end in a turned assembly. Spec §6 already
+   says the write-back keeps the world position, as joinery's `keepWorld` does. So:
+   - A new additive export in `treeEdit.ts`, `writeBackParts(doc, edits: readonly WorldEdit[]): SloydDocument`. It is
+     `writeBackFlat`'s steps 2 and 3 without step 1's assembly split: `plainWithMarkers` → `applyWorldEdits(…,
+     { keepWorld: true })` with ONE edit per storage key (the first given) → `regroupShapes(…, flaggedKeys(…))`. It
+     reuses those private helpers unchanged. Editing one occurrence of a definition edits the definition, so every copy
+     follows (inv 46's default).
+   - The planner gives EVERY jointed world part its full after-state, not a representative only. Plan the Shape's new
+     shared fields ONCE, Shape-local, from one user. Then each user's after is `resolveBoard` of that new Shape through
+     the user's own record (its `mirrored` flag), with `position` = its planned world min corner. So `regroupShapes`'
+     `resolvesTo` is exact by construction.
+   - Post-condition (decided before any store mutation, on the computed document): every Shape that had 2+ users before
+     still has all of them as users of one Shape after. If not (e.g. every user mirrored and `mirrorCut` is not bit-exact
+     on a non-dyadic size), refuse with `Box joints can't keep these linked parts linked: <names>. Unlink them first.`
+     (added to the copy). Mutate: skip the check on a fixture that splits. Then the split must go through silently and
+     the test fails.
 
 4. **The tie.** Spec §3.3 writes `N = 2·round((H/w − 1)/2) + 1`, which leaves a tie (`H/w` an even whole number, e.g.
    a 4" drawer side at 1/2") to `Math.round`: up, to 1/4" outer fingers. The plan pins ties DOWN (3/4" outer fingers);
@@ -205,11 +216,12 @@ because the code gives no choice, one my call, one the user's ruling; listed und
   - `interface BoxJointOptions { width: number; swap: boolean }`
   - `interface BoxJointCorner { a: string; b: string; layout: FingerLayout }` (world ids)
   - `interface BoxJointPlan { parts: Map<string, Board>; corners: BoxJointCorner[]; notes: string[] }`: `parts` maps
-    each REPRESENTATIVE world id to its new world board (Spec difference 3). `notes` holds the success lines in order:
+    EVERY changed world id to its new world board (Spec difference 3, revised). `notes` holds the success lines in order:
     the jointed line(s), then the length lines, then the ignored lines.
   - `boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: BoxJointOptions): BoxJointPlan | string`
-  - `applyBoxJoints(doc: SloydDocument, plan: BoxJointPlan): SloydDocument`: `mapWorld`, replacing exactly the planned
-    representatives.
+  - `applyBoxJoints(doc: SloydDocument, plan: BoxJointPlan): SloydDocument`: `writeBackParts` (new in `treeEdit.ts`,
+    Spec difference 3 revised) with one `{ before, after }` per planned world part. `boxJointPlan` runs it on the input
+    to check the link post-condition before returning the plan.
 
 Planner order (each step can only refuse before any mutation; work on clones):
 1. `width > 0`, else the width sentence.
@@ -368,7 +380,7 @@ Planner order (each step can only refuse before any mutation; work on clones):
 
 - [ ] **Step 1: Failing tests:**
   - Joinery: a box-jointed drawer whose sides' front ends face a false front's face (an end-into-face site) with
-    `mortise-tenon` chosen: the site is skipped with `Side left's box joint is already cut at that end`, and the sides are
+    `mortise-tenon` chosen: the site is skipped with `Side left has box joints, so joinery leaves its size and place alone`, and the sides are
     unchanged (`toEqual`).
   - Joinery trim: a thin back panel rabbeted into a case where the rabbet's trim would shorten a box-jointed part at its
     jointed end: refused with the box-joint reason, and that part is unchanged (`toEqual`). Mutate: drop the trim check.
@@ -491,4 +503,47 @@ cannot be held.** Do not weaken one to make a test pass.
 - [ ] **Step 3:** Undo restores the butt corners. Redo, change the width to 3/8", run again: the fingers are replaced.
   Toggle Swap fingers and run again.
 - [ ] **Step 4:** Run the design check from the UI: clean. Leave the test project in place (dev-profile rule).
+- [ ] **Step 4b:** Group the drawer into an assembly, add a plain root part (a shelf), and Refine once with an
+  instruction about the shelf (one paid run of the two allowed). The drawer comes back exactly: same fingers, same
+  position, the kept line names it. Leave the project in place.
 - [ ] **Step 5: Commit** `docs(box joints): browser verification`.
+
+
+### Task 9: Equal fingers (the user's ruling after the build; spec "Amended 2026-10-27 … equal fingers")
+
+**Files:** `src/document/boxJoints.ts`, `src/document/boxJointText.ts`, and their tests; every test that pins the old layout
+or copy (`boxJoints.test.ts`, `cutlist.test.ts`, `diagram.test.ts`, `PartDiagram.test.tsx`, `BoxJoints.test.tsx`,
+`store.boxJoints.test.ts`, the Refine/joinery tests that build box-jointed fixtures); records (CLAUDE.md inv 61 condensed,
+`docs/invariants.md` inv 61, fu 491's copy list, the spec's spec-difference 4 note, `docs/rounds.md`).
+
+**Interfaces (replace Task 2's):**
+- `interface FingerLayout { count: number; width: number; odd: number; length: number }`; `odd === width` when there is
+  no odd finger.
+- `fingerLayout(H, w): FingerLayout | null`, per the amendment (null when `w <= 0` or `N < 5`).
+- `segment(l, k, oddEnd: CutFrom): [number, number]`: segment `k` (1-based from the part-local J MIN), with the odd
+  segment at `oddEnd`. Computed directly: odd at max → `[(k−1)w, kw]`, last `[(N−1)w, H]`; odd at min → first `[0, odd]`,
+  then `[odd + (k−2)w, odd + (k−1)w]`, last ending exactly at `H`.
+- `notchCuts(l, fingerAtMin: boolean, oddEnd: CutFrom, face, from, along, depth, ids)`.
+- `FingerSet { dim, end, layout, depth, fingerAtMin: boolean, oddEnd: CutFrom | null, cutIds }` (replaces `outerFingers`).
+- Planner: per part, `oddEnd` from the world rule (J world Y → start at world max; else start at world min) through
+  `endFacing`; phase by the run-axis rule on the START-edge segment. The linked-agreement signature carries `fingerAtMin`
+  and `oddEnd` in Shape-local terms (through the mirror flag when `mirrorDim` is J).
+
+**Tests (replace the layout examples):**
+- `fingerLayout(4, 0.5)` → 8, odd 0.5. `(4.25, 0.5)` → 9, odd 0.25. `(4.1, 0.5)` → 8, odd 0.6 (sliver merged).
+  `(4.125, 0.5)` → 9, odd 0.125 (exactly w/4 is not a sliver). `(2.25, 0.5)` → 5, odd 0.25. `(2, 0.5)` → null (4 < 5).
+  `(100/25.4, 6/25.4)` → the formula's count. Mutate: the sliver bound `<=` instead of `<`; the `(4.125, 0.5)` case fails.
+- Round trip, both `oddEnd`s, both phases, length and width ends: `fingerSets` returns exactly the planned set (the
+  layout numbers at 1e-9; ints and flags exact).
+- Recogniser rejects: two differing end segments; an odd segment ≥ 1.25w; any inner segment off by 1e-6; fewer than 5.
+- Planner: a 4"-tall drawer at 1/2" gives 8 fingers, every one 1/2", and each corner's world notches exact complements.
+  A 4-1/4" drawer: 9 fingers, the odd 1/4" finger at the BOTTOM (world min Y) on both parts. A horizontal J (a tray's
+  corners, J along X or Z): the odd finger at J's world max. A part turned 180° (its local J reversed) still puts the odd
+  finger at the world bottom. Mutate the start-edge rule to world min for J = Y: the bottom test fails.
+- Panel: the 4" drawer's sentence `Jointed 4 corners: 8 fingers, 1/2" wide.`; a 4-1/4" drawer's
+  `Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").`
+- Cut list: the new line, pinned literally for both a part with an odd finger and one without.
+- Every existing box-joint test is updated to the new layout, never deleted to make it pass; joinery/Refine tests keep
+  their assertions (sets equal before and after).
+
+**Commit** `feat(box joints): equal fingers, the odd one at the bottom (the user's ruling)`.

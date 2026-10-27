@@ -11,6 +11,8 @@ import { curveOutline, spanOf, squareSpan, twiceArea, uvDims } from './curves';
 import { builtTenons, endCutOf, shoulderAt } from './roundTenons';
 import { curveLineEntries } from './curveText';
 import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
+import { fingerSets } from './boxJoints';
+import { fingerSetLine } from './boxJointText';
 import { geometryBoard } from './profiles';
 import { builtSwept, sweptInnerLine } from './sweep';
 import { bandFaults, sameSide, stripBoard, type Strip } from './banding';
@@ -207,6 +209,9 @@ export interface DiagramView {
   curveLines: DiagramCurveLine[];
   /** Bench lines of the curves drawn here (inv 19, Q6): built in curveText.ts. */
   curveNotes: { key: string; text: string }[];
+  /** One bench line per box-joint finger set at this view's end (box joints §5.2), the cut list's own line; the notches
+   *  carry no leaders. Present only on a view that has one, so every other part's views are byte for byte as they were. */
+  fingerNotes?: { key: string; text: string }[];
   /** Swept profiles' inner lines (profile runs b1, Q8): the path offset by the reach, in this face's (h, v), board inches.
    *  Present only on a view that draws one, so every other part's views are byte for byte as they were. */
   sweeps?: { id: string; pts: [number, number][]; closed: boolean }[];
@@ -365,6 +370,11 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
   };
 
   const solids = pocketCells(board);
+  // Box joints (spec §5.2): a finger-set notch still opens its view and still draws (`view.cells` comes from the board), but
+  // is never a `view.cuts` entry, so it has no leaders and no labels; the set is one note, the cut list's own line.
+  const fingers = fingerSets(stored);
+  const fingerCut = new Set(fingers.flatMap((s) => s.cutIds));
+  for (const set of fingers) (ensure(set.dim, set.end).fingerNotes ??= []).push({ key: set.cutIds[0]!, text: fingerSetLine(set, u) });
   for (const cut of board.cuts) {
     // A cut a board edit has left removing nothing is not drawn: there is no
     // stock for it to remove, and the 3D view already shows none (fu 178).
@@ -376,6 +386,7 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
     if (cut.face === cut.across) continue;
 
     const view = ensure(cut.face, cut.from);
+    if (fingerCut.has(cut.id)) continue;
     const region = clippedRegion(board, cut);
     const s = cutShape(board, cut, solids);
     view.cuts.push({

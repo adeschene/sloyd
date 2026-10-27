@@ -3,8 +3,8 @@
 Researched 2026-10-11 against SketchUp and its woodworking extensions (OpenCutList,
 CutList Bridge, CabinetSense, Fredo Round Corner, the rake-and-splay tool), Fusion 360,
 Shapr3D, SketchList 3D, CutList Plus fx and Mozaik. Each gap was checked against the code
-and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-24
-(production `f3fced0`, schema 22); `docs/follow-ups.md` wins on any follow-up's status.
+and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-27
+(production `fc4302a`, schema 25; box joints built on branch `box-joints`, not deployed); `docs/follow-ups.md` wins on any follow-up's status.
 
 **This is a candidate list, not a roadmap.** Nothing here is chosen until the user picks it.
 Excluded on purpose: CSV/clipboard export and name run-collapsing (`Leg 1..4`), both
@@ -27,7 +27,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Curves | Arched aprons, curved stretchers, rounded tops, bandsawn parts | chunk 1 shipped 2026-10-15 (schema 17: Arch, Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, section, snap, cut list), deployed 2026-10-15; chunk 2 (drawings: finer arcs, silhouettes, part diagrams; fu 361) deployed 2026-10-15 (no schema change); Add joinery and Repair accept curved parts (joinery-features chunk 2, deployed 2026-10-22) and Refine carries curves (refine-features, deployed 2026-10-23); Generate/Refine authoring curves and design checks reading curved bodies still open (fu 363) |
 | Edge profiles | Chamfers, roundovers, eased edges; mostly visual, but expected | chamfers shipped 2026-10-12 (angle cuts chunk 3); roundovers and other profiles shipped 2026-10-17 to 10-19 (edge profiles chunk 1, profile runs a1–c2; deployed `index-Cqf9kRT7.js` and later); Add joinery and Repair accept them (joinery-features chunk 2, deployed 2026-10-22); Generate and Refine author them (AI profiles, fu 430 chunk 2, deployed 2026-10-23) |
 | Holes | Dowels, shelf-pin rows, hardware bores | shipped 2026-10-14: chunk 1 (schema 16: bores and shelf-pin rows, cut list) and chunk 2 (drawings, Hinge cup), both deployed 2026-10-14; Add joinery and Repair accept holed parts (joinery-features chunk 1, deployed 2026-10-22; fu 328); Generate and Refine author hole rows (AI holes, deployed 2026-10-23; fu 329) |
-| Dovetails, box joints | Joinery generator is rectangular joints only | open |
+| Dovetails, box joints | Joinery generator is rectangular joints only | box joints BUILT 2026-10-27 (Box joint the corners, `boxJoints.ts`, inv 61; on branch `box-joints`, not yet merged or deployed); dovetails open (fu 484) |
 | Claude features on angled parts | Generate/Refine/Add joinery refused angle cuts after they shipped | tapers shipped 2026-10-13 (AI tapers chunks 1–2, turned links); miters, bevels and chamfers shipped 2026-10-13/14 (AI angles chunks 1–2); splined/biscuited miter joints still open (fu 276) |
 
 ## 2. Drawings and views — fit the current model
