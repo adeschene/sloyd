@@ -46,6 +46,10 @@ export const DOVETAIL_COUNT_WHOLE = 'A tail count must be a whole number, 1 or m
 export const dovetailTooNarrow = (a: string, b: string, count: number, slope: number) =>
   `${a} and ${b} are too narrow for ${count} tails at ${slopeText(slope)} — try fewer tails.`;
 
+/** A planned dovetail that would fault anything but `narrow` (the count handles that): the part is too short along its run
+ *  for its dovetails (one deeper than the part, or two meeting). Wording ruled 2026-10-27 (Task 4 fix). */
+export const dovetailTooShort = (part: string) => `${part} is too short for its dovetails.`;
+
 /** One corner's planned numbers, as the success note reads them. */
 export interface DovetailedLayout { count: number; slope: number }
 const layoutWords = (l: DovetailedLayout) => `${l.count} tails, ${slopeText(l.slope)}`;

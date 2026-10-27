@@ -192,3 +192,26 @@ describe('dovetails: copy (Global Constraints, verbatim)', () => {
     expect(dovetailFaultText('depth')).toBe('This dovetail no longer fits: it is deeper than the part.');
   });
 });
+
+describe('dovetails: overlapping depths on one part fault `depth` (Task 4 fix ruling)', () => {
+  // A part 1.5 long with tails at both length ends: the two depths may not meet or cross.
+  const both = (dMin: number, dMax: number, length = 1.5) =>
+    side({ length, dovetails: [tails({ id: 'a', end: 'min', depth: dMin }), tails({ id: 'b', end: 'max', depth: dMax })] });
+  it('depths summing to exactly the length fault `depth` on both', () => {
+    const b = both(0.75, 0.75);
+    expect(b.dovetails!.map((d) => dovetailFaults(b, d))).toEqual([['depth'], ['depth']]);
+    expect(builtDovetails(b)).toEqual([]);
+  });
+  it('a sum 1/64" short of the length passes', () => {
+    const b = both(0.75, 0.75 - 1 / 64);
+    expect(b.dovetails!.map((d) => dovetailFaults(b, d))).toEqual([[], []]);
+  });
+  it('within 1e-9 of the length is the length', () => {
+    const b = both(0.75, 0.75 - 1e-12);
+    expect(b.dovetails!.map((d) => dovetailFaults(b, d))).toEqual([['depth'], ['depth']]);
+  });
+  it('a dovetail on the other dimension does not count', () => {
+    const b = side({ length: 1.5, dovetails: [tails({ id: 'a', end: 'max', depth: 0.75 }), tails({ id: 'w', dim: 'width', end: 'min', count: 1, depth: 0.75 })] });
+    expect(b.dovetails!.map((d) => dovetailFaults(b, d))).toEqual([[], []]);
+  });
+});

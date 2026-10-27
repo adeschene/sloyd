@@ -157,6 +157,25 @@ describe('dovetailPlan (spec §3): the drawer, defaults', () => {
   });
 });
 
+describe('dovetailPlan: a run along the WIDTH', () => {
+  it('a flat top jointed across its width into an upright side: dim width, the partition', () => {
+    // Top: flat turned 90 (width along X, thickness Y [10, 10.75], length 6 along Z = J). Side: upright turned 90
+    // (thickness X [0, 3/4], length up Y to 10.75, width 6 along Z). Corner square X [0, 3/4], Y [10, 10.75], Z [0, 6].
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 90, length: 6, width: 10, thickness: 0.75, position: [0, 10, 0] });
+    const side = createBoard({ id: 's', name: 'Side', posture: 'upright', rotation: 90, length: 10.75, width: 6, thickness: 0.75, position: [0, 0, 0] });
+    expect(boardExtents(top)).toEqual([10, 0.75, 6]);
+    expect(boardExtents(side)).toEqual([0.75, 10.75, 6]);
+    const doc = docOf([top, side]);
+    const plan = ok(dovetailPlan(doc, ['t', 's'], DEFAULTS));
+    expect(plan.corners.map((c) => [c.tails, c.N])).toEqual([['t', 4]]);
+    const out = applyDovetails(doc, plan);
+    expect(dovetailsOf(part(out, 't')).map((d) => [d.dim, d.role])).toEqual([['width', 'tails']]);
+    expect(dovetailsOf(part(out, 's')).map((d) => [d.dim, d.role])).toEqual([['length', 'pins']]);
+    allBuild(out);
+    expectPartition(part(out, 't'), part(out, 's'), { min: [0, 10, 0], max: [0.75, 10.75, 6] });
+  });
+});
+
 describe('dovetailPlan: the count (spec §3.2)', () => {
   it('Auto lowering: a 6" corner of two 1-1/2" parts at 1:4 starts at 4 and lowers to 2 (4 and 3 fault narrow)', () => {
     const [f, , l] = drawerParts({ tS: 1.5, tFB: 1.5 });
@@ -496,6 +515,24 @@ describe('dovetailPlan: refusals (each leaves the document unchanged)', () => {
     refuses(docOf(sideWith({ holes: [row] })), DRAWER_IDS, 'Side left has a hole where the dovetails go.');
   });
 
+  it('a part shorter than its tails are deep (a degenerate corner): too short', () => {
+    // P (0.3 long, its end in Q's 3/4" slab) runs out to 0.65 and would take tails 0.75 deep.
+    const q = createBoard({ id: 'q', name: 'Q', posture: 'on-edge', rotation: 0, length: 7.8, width: 3, thickness: 0.75, position: [2.2, 0, 0] });
+    const p = createBoard({ id: 'p', name: 'P', posture: 'on-edge', rotation: 90, length: 0.3, width: 3, thickness: 0.5, position: [2, 0, 0.1] });
+    refuses(docOf([q, p]), ['q', 'p'], 'P is too short for its dovetails.');
+  });
+
+  it('a short part between two corners whose two tails would meet: too short', () => {
+    // P runs along Z between A (slab Z [0, 3/4]) and B (slab Z [3/4, 1-1/2]): it runs out to 1-1/2, exactly its two tails'
+    // depths together.
+    const P = createBoard({ id: 'p', name: 'P', posture: 'on-edge', rotation: 90, length: 0.9, width: 3, thickness: 0.5, position: [0, 0, 0.3] });
+    const ab = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'on-edge', rotation: 0, length: 9.5, width: 3, thickness: 0.75, position: [0.5, 0, z] });
+    refuses(docOf([P, ab('a', 'A', 0), ab('b', 'B', 0.75)]), ['p', 'a', 'b'], 'P is too short for its dovetails.');
+    // 1/64" more room between A and B: it plans.
+    const doc = docOf([P, ab('a', 'A', 0), ab('b', 'B', 0.75 + 1 / 64)]);
+    allBuild(applyDovetails(doc, ok(dovetailPlan(doc, ['p', 'a', 'b'], DEFAULTS))));
+  });
+
   it('a bottom groove running through the corner is carried (not refused)', () => {
     const groove = (id: string): Cut => ({ id, face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
     const doc = docOf(drawerParts().map((b) => (b.id === 'l' || b.id === 'r' ? { ...b, cuts: [groove(`g${b.id}`)] } : b)));
@@ -509,7 +546,9 @@ describe('box joints on a dovetailed part (spec §3.6)', () => {
     const doc0 = docOf(drawerParts());
     const doc = applyDovetails(doc0, ok(dovetailPlan(doc0, DRAWER_IDS, DEFAULTS)));
     const before = JSON.stringify(doc);
+    const boards = doc.boards;
     expect(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false })).toBe('Front has dovetails — box joints work on plain stock for now.');
+    expect(doc.boards).toBe(boards);
     expect(JSON.stringify(doc)).toBe(before);
   });
 

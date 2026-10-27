@@ -13,7 +13,7 @@ import {
   DOVETAIL_COUNT_WHOLE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE, dovetailContainers, dovetailCutInTheWay, dovetailedLines,
   dovetailHeights, dovetailHoleInTheWay, dovetailIgnored, dovetailLengthLine, dovetailLinkedDisagree, dovetailLinkedMate,
   dovetailLinkSplit, dovetailMirrored, dovetailPlainStock, dovetailTailsOn, dovetailThreeWay, dovetailTooNarrow,
-  dovetailTwoCorners, type DovetailFeature,
+  dovetailTooShort, dovetailTwoCorners, type DovetailFeature,
 } from './dovetailText';
 
 /**
@@ -70,14 +70,18 @@ const EPS = 1e-9;
 /**
  * The ONE fault decider (spec §3.2), on the part's OWN sizes: `H = b[J]`; the angled extent `X` is `d.depth` for tails
  * (the baseline) and `b.thickness` for pins (across the part's own thickness). Faults, in order: `count` (not an integer
- * >= 1), `slope` (outside [4, 12]), `depth` (reaching the part's own size along `dim`), `narrow` (a tail at its narrowest,
+ * >= 1), `slope` (outside [4, 12]), `depth` (reaching the part's own size along `dim`, or, with the part's other dovetail
+ * on the same `dim`, the two depths together reaching it to 1e-9), `narrow` (a tail at its narrowest,
  * `Te − 2·X/s`, narrower than a pin at its widest, `p + 2·X/s`, by more than 1e-9).
  */
 export function dovetailFaults(b: Board, d: Dovetail): DovetailFault[] {
   const out: DovetailFault[] = [];
   if (!(Number.isInteger(d.count) && d.count >= 1)) out.push('count');
   if (!(d.slope >= 4 && d.slope <= 12)) out.push('slope');
-  if (d.depth >= b[d.dim]) out.push('depth');
+  // Also when it meets or crosses the part's OTHER dovetail on the same dim (Task 4 fix ruling): the two depths together
+  // reaching the part's size (to 1e-9) leave no wood between the two joints.
+  const other = dovetailsOf(b).find((x) => x.dim === d.dim && x.end !== d.end);
+  if (d.depth >= b[d.dim] || (other !== undefined && d.depth + other.depth >= b[d.dim] - EPS)) out.push('depth');
   const X = d.role === 'tails' ? d.depth : b.thickness;
   const { Te } = dovetailLayout(b[jointLineOf(d.dim)], d.count, d.slope, d.pin);
   if (Te - (2 * X) / d.slope < d.pin + (2 * X) / d.slope - EPS) out.push('narrow');
@@ -329,6 +333,7 @@ function dovetailKind(opts: DovetailOptions): JointKind<DovetailCornerPlan, Dove
  *    the corner region; linked parts (the role, count, slope, pin, depth, Shape-local end and outside face compared) and
  *    the link post-condition.
  * 5. Per corner (the kind's `planCorner`): the tails side and the count (the too-narrow sentence), then each end's dovetail.
+ * 7. Any other fault of a new dovetail on a planned part (`depth`): the too-short sentence naming the part.
  * Selected ids that are not world parts are skipped.
  */
 export function dovetailPlan(doc: SloydDocument, ids: readonly string[], opts: DovetailOptions): DovetailPlan | string {
@@ -339,6 +344,13 @@ export function dovetailPlan(doc: SloydDocument, ids: readonly string[], opts: D
   const names = displayNames(doc);
   const byId = new Map(worldParts(doc).map((b) => [b.id, b]));
   const nameOf = (id: string) => names.get(id) ?? byId.get(id)!.name;
+  // Authoring refuses ANY fault (spec §3.5). `narrow` is settled per corner by the count; what is left (`depth`: deeper than
+  // the part, or meeting the part's other dovetail) is judged on each part as planned, NEW dovetails only (ids minted by
+  // this plan), so a fault an untouched end already carries is kept, never a reason to refuse.
+  for (const [id, after] of planned.parts) {
+    const old = new Set(dovetailsOf(byId.get(id)!).map((d) => d.id));
+    if (dovetailsOf(after).some((d) => !old.has(d.id) && dovetailFaults(after, d).length > 0)) return dovetailTooShort(nameOf(id));
+  }
   const corners = planned.corners.map(({ a, b, plan }) => ({ a, b, tails: plan.tails === 0 ? a : b, N: plan.N, s: plan.s }));
   const notes = [
     ...dovetailedLines(corners.map((c) => ({ count: c.N, slope: c.s })), corners.map((c) => [nameOf(c.a), nameOf(c.b)] as const)),
