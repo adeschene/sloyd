@@ -1099,8 +1099,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     words name the kind: `whyKept` appends `has dovetails`; a kept placement's line says `an assembly with dovetails` (both kinds named,
     `box joints and dovetails`, when its definition holds both: `definitionKind` / `assemblyKind`); `keptNote`'s header gains `have
     dovetails` only when one is kept; `keptAssemblyLinkRefusal` words its sentence by the holding definition's kind; the done view's
-    kept line names `box joints` and/or `dovetails` only when kept (`RefineOutcome.leaning.dovetails`, `keptKinds`). A dovetail-free
-    document's notes and dialog are byte for byte as before.
+    kept line names each kept part's own reasons, `dovetails` among them (`RefineOutcome.leaning.why`, `keptWhy`; the copy review,
+    2026-10-27, replaced the fixed list and its `dovetails` flag). A dovetail-free document's notes are byte for byte as before.
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
     `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face, square? }`, a SHARED

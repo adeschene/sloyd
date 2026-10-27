@@ -169,7 +169,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   (`docs/browser-verification-dovetails.md`). Verified at deploy: `200` on `/` and a deep route in-network and at the edge; `index-BEpsbfAI.js`
   at both, sha256 matching `dist/`; the old `index-EQnlonaA.js` 404s in-network; CSP at the edge; the edge bundle carries `Dovetail the corners`
   and `too short for its dovetails`; a real-browser load: the new bundle, 0 errors, "Add board"; storage read empty first from the CSS asset
-  page, the load's two keys removed there, read back empty after 3s; browser left on about:blank. Owed: fu 511, 512, real hardware.
+  page, the load's two keys removed there, read back empty after 3s; browser left on about:blank. Owed then: fu 511, 512, real hardware (511 and 512 closed 2026-10-27; real hardware, fu 496 (1), still owed).
 - **Box joints, dovetails chunk 1 (2026-10-26/27; BUILT on branch `box-joints`, commits `b35dd8b..88e7181` + the records; MERGED `975e418` 2026-10-27 after the user approved ("Approved, merge it"), DEPLOYED 2026-10-27 as `index-EQnlonaA.js` (9406/9406 on merged master, load 0.8); NO
   schema change, so rolling back is free, no rollback-table row)**: spec `docs/superpowers/specs/2026-10-26-sloyd-box-joints-design.md` (its
   *Amended (build)* block — spec differences 1–5 and the build rulings — and the equal-fingers amendment APPROVED 2026-10-27), plan
@@ -186,7 +186,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   merged into its neighbour, `N` may be even; the recogniser takes one odd END segment in `(0, 1.25w)` and reports part-local `fingerAtMin`/
   `oddEnd`; the linked signature compares them Shape-locally (a user mirrored along J at the SAME turn, and unmirrored users at opposite
   turns, now refuse unless the layout is symmetric along J: the coordinator's ruling); new copy (fu 491); spec difference 4 (the tie) moot. The browser verification above predates it (its sentences are the old
-  layout's). Owed: the Amended (build) approval, the copy review (fu 491; the tie is moot), fu 496 (the corner by eye on real hardware, one paid Refine run), the merge and the deploy. Invariant 61 new; 56 extended; follow-ups
+  layout's). Owed (closed 2026-10-27 unless noted: the approval, fu 491, fu 496 (2)'s paid run; fu 496 (1) still owed): the Amended (build) approval, the copy review (fu 491; the tie is moot), fu 496 (the corner by eye on real hardware, one paid Refine run), the merge and the deploy. Invariant 61 new; 56 extended; follow-ups
   484–496 new.
 - **Stretchers, splayed legs chunk 3 (fu 438; 2026-10-26; MERGED `fc4302a`, DEPLOYED 2026-10-26 as `index-D-XnmIBh.js`; NO schema change —
   rolling back to `447df4b` is free)**: spec `docs/superpowers/specs/2026-10-25-sloyd-stretchers-design.md`
@@ -593,9 +593,9 @@ chiefly T3e the closure joining through every used row where §6.3 said "moves",
 R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-10-23; Rulings 10/16 individually the same day.)
 
 **Approved 2026-10-27 ("Approved, merge it"):** the box joints spec's *Amended (build)* block (spec differences D1–D5, chiefly D3 `writeBackParts`, D4 the tie (moot since the equal-fingers ruling, Task 9), D5 kept
-assemblies; rulings R-T1 to R-T6e, chiefly R-T6a Refine's mechanism for "kept exactly" and R-T6c the joinery reason) and the equal-fingers amendment. Still owed: its copy (fu 491).
+assemblies; rulings R-T1 to R-T6e, chiefly R-T6a Refine's mechanism for "kept exactly" and R-T6c the joinery reason) and the equal-fingers amendment. Its copy (fu 491) was reviewed and changed 2026-10-27.
 
 **Approved 2026-10-27 ("Approved, the amended build section"), after the deploy:** the dovetails spec's *Amended (build)* block (spec
-differences SD1–SD20 and every build ruling recorded under it). Still owed: its copy (fu 512) and the bench chain by eye (fu 511).
+differences SD1–SD20 and every build ruling recorded under it). Its copy (fu 512) was reviewed and changed, and the bench chain seen by eye (fu 511), both 2026-10-27.
 
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).
