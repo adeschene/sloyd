@@ -1,6 +1,6 @@
 # Box joints (dovetails chunk 1) — design
 
-Status: DRAFT 2026-10-27, for the user's approval. Builder check taken 2026-10-27 (seven questions: five settled as my
+Status: APPROVED by the user 2026-10-27 ("Approved, write the plan"). Builder check taken 2026-10-27 (seven questions: five settled as my
 calls, two ruled by the user, §5.2 and §7; three claims the code contradicted, corrected). Feature gap §1, "Dovetails, box joints" (`docs/feature-gaps.md`); the
 user chose "Box joints, then dovetails" and asked to skip the design questions, so every decision below not quoted from the
 user is **my call** and is marked as such where it matters. Dovetails get their own spec after this chunk ships (§11).
