@@ -5,7 +5,7 @@ import { hasTenons } from './roundTenons';
 import { hasCompoundCut } from './angleCuts';
 import { fingerSets } from './boxJoints';
 import { hasDovetails } from './dovetailModel';
-import { DOVETAIL_KEPT_WHY } from './dovetailText';
+import { DOVETAIL_KEPT_WHY, dovetailedAssemblyLinked, mixedAssemblyLinked } from './dovetailText';
 import { partBounds } from './worldBounds';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, instancesOn, lastSegment, parentPath } from './tree';
@@ -42,8 +42,9 @@ export interface KeptParts {
 }
 
 /** A part Refine keeps as stored: it leans, has a tilted hole row, has a round tenon, has a compound end cut or has a
- *  recognised box joint (the ONE predicate; angled holes spec §9, round tenons spec §9, square-set legs spec §4,
- *  box-joints spec §7: the design format has no word for fingers, and a box-jointed part is one unit with its mates).
+ *  corner joint, a recognised box joint or a stored dovetail (`cornerJointed`) (the ONE predicate; angled holes spec §9,
+ *  round tenons spec §9, square-set legs spec §4, box-joints spec §7, dovetails spec §7: the design format has no word for
+ *  fingers or dovetails, and a corner-jointed part is one unit with its mates).
  *  A tenon is read off the stored list, faulted or not: a faulted one is kept verbatim too. A compound cut is kept so no world-word converter (`worldAngles`,
  *  `angleCutsFor`) ever reads it as a single-slope miter and drops its `across`; it exists only on a leg that leans, or did
  *  (Clear lean keeps it), so the leaning wording of the kept list and the assembly refusal stands. */
@@ -86,9 +87,12 @@ export function leaningInAssembly(doc: SloydDocument): string | null {
   return flatDocument(doc).boards.find((b) => parentPath(b.id) !== null && keptForMoreThanFingers(b))?.name ?? null;
 }
 
-/** A kept assembly linked outside itself (box-joints spec §7, Amended; context copy). */
-const keptAssemblyLinked = (part: string) =>
-  `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it — Unlink first: ${part}.`;
+/** A kept assembly linked outside itself (box-joints spec §7, Amended; context copy), by the kind of the kept definition
+ *  holding the linked part (dovetails spec §7: the other two sentences live in `dovetailText.ts`). */
+const keptAssemblyLinked = (kind: CornerKind, part: string) =>
+  kind === 'dovetails' ? dovetailedAssemblyLinked(part)
+    : kind === 'box joints and dovetails' ? mixedAssemblyLinked(part)
+      : `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it — Unlink first: ${part}.`;
 
 /**
  * The refusal when a kept assembly's part shares a Shape with a placed part outside the kept set, or null (box-joints spec
@@ -117,17 +121,35 @@ export function keptAssemblyLinkRefusal(doc: SloydDocument): string | null {
   for (const s of doc.shapes) {
     if (!inside.has(s.id)) continue;
     const out = placed.find((p) => !p.kept && isShaped(p.stored) && p.stored.shape === s.id);
-    if (out) return keptAssemblyLinked(out.name);
+    if (!out) continue;
+    const holder = kept.definitions.find((d) => d.boards.some((b) => isShaped(b) && b.shape === s.id))!;
+    return keptAssemblyLinked(definitionKind(doc, holder), out.name);
   }
   return null;
 }
 
-/** A kept assembly's corner-joint word (dovetails spec §7): `dovetails` when its definition's parts have dovetails and no
- *  box joints, else `box joints` (as before: a kept assembly was box-jointed). The flat parts placed under `inst`. */
-export function assemblyKind(doc: SloydDocument, inst: Instance): 'box joints' | 'dovetails' {
-  const own = flatDocument(doc).boards.filter((b) => parentPath(b.id) === inst.id);
-  return !own.some((b) => fingerSets(b).length > 0) && own.some(hasDovetails) ? 'dovetails' : 'box joints';
+/** A kept assembly's corner-joint words (dovetails spec §7; "both when both"). */
+export type CornerKind = 'box joints' | 'dovetails' | 'box joints and dovetails';
+
+/** A definition's corner-joint words, read off its own parts resolved (as `keptParts` decides it): `dovetails` with
+ *  dovetails and no box joints, both with both, else `box joints` (as before: a kept assembly was box-jointed). */
+export function definitionKind(doc: SloydDocument, def: Definition): CornerKind {
+  const shapes = shapeMap(doc);
+  const own = def.boards.map((b) => resolveBoard(shapes, b)).filter((b): b is Board => b !== null);
+  const box = own.some((b) => fingerSets(b).length > 0);
+  if (!own.some(hasDovetails)) return 'box joints';
+  return box ? 'box joints and dovetails' : 'dovetails';
 }
+
+/** A kept placement's corner-joint words: its definition's (`definitionKind`). */
+export function assemblyKind(doc: SloydDocument, inst: Instance): CornerKind {
+  const def = doc.definitions.find((d) => d.id === inst.definition);
+  return def ? definitionKind(doc, def) : 'box joints';
+}
+
+/** The kind names box joints / dovetails (a mixed assembly names both). */
+export const kindHasBoxJoints = (k: CornerKind) => k !== 'dovetails';
+export const kindHasDovetails = (k: CornerKind) => k !== 'box joints';
 
 /** Why a kept part is kept, in the note's words: the existing two-reason forms unchanged, a round tenon and then box
  *  joints appended (box-joints spec §7). A compound end cut is named only on a part kept for nothing else (a leg whose
@@ -169,11 +191,12 @@ export function keptNote(doc: SloydDocument): string | null {
   }
   // The header names round tenons only when one is kept, and box joints only when a box-jointed part or assembly is kept
   // (box-joints spec §7), so a document with neither has its message byte for byte as before.
-  // Dovetails likewise (dovetails spec §7): a kept assembly counts as box joints unless it has dovetails and no box joints.
+  // Dovetails likewise (dovetails spec §7): a kept assembly counts as box joints unless it has dovetails and no box joints;
+  // a mixed one names both.
   const asmKinds = keptAll.instances.map((i) => assemblyKind(doc, i));
   const kinds = ['lean', 'have angled holes', ...(keptBoards.some(hasTenons) ? ['have round tenons'] : []),
-    ...(keptBoards.some((b) => fingerSets(b).length > 0) || asmKinds.includes('box joints') ? ['have box joints'] : []),
-    ...(keptBoards.some(hasDovetails) || asmKinds.includes('dovetails') ? ['have dovetails'] : [])];
+    ...(keptBoards.some((b) => fingerSets(b).length > 0) || asmKinds.some(kindHasBoxJoints) ? ['have box joints'] : []),
+    ...(keptBoards.some(hasDovetails) || asmKinds.some(kindHasDovetails) ? ['have dovetails'] : [])];
   return [
     `These parts ${kinds.slice(0, -1).join(', ')} or ${kinds[kinds.length - 1]}, which the design format cannot describe, so they are not in the design above. Sloyd keeps each exactly where it is; the bounds are world inches:`,
     ...lines,

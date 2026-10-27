@@ -75,6 +75,13 @@ export const dovetailRemoveFirst = (part: string) => `${part} has dovetails — 
 export const dovetailMoveClear = (part: string) => `${part} has dovetails there — move it clear of the joint.`;
 /** Add joinery's skip (or refusal) reason for a site that would resize, trim or move a dovetailed part (spec §7). */
 export const dovetailedLeftAlone = (part: string) => `${part} has dovetails, so joinery leaves its size and place alone`;
+/** Refine's refusal when a kept assembly with dovetails (and no box joints) has a part linked outside it (spec §7; the
+ *  box-joint sentence stays beside its decider, `leanKeep.ts`). */
+export const dovetailedAssemblyLinked = (part: string) =>
+  `Refine can't keep an assembly with dovetails whose parts are linked to parts outside it — Unlink first: ${part}.`;
+/** The same for a kept assembly with box joints AND dovetails. */
+export const mixedAssemblyLinked = (part: string) =>
+  `Refine can't keep an assembly with box joints and dovetails whose parts are linked to parts outside it — Unlink first: ${part}.`;
 /** Refine's kept why-word (spec §7). */
 export const DOVETAIL_KEPT_WHY = 'has dovetails';
 /** A joined Refine's `notJoined` reason when the re-join would change a kept part whose only kept kind is dovetails. */
