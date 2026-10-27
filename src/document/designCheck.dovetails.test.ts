@@ -159,3 +159,73 @@ describe('the design check reads dovetails (spec §5.3)', () => {
     expect(contactRegions(all)).toEqual([{ length: [0, all.length], width: [0, all.width], thickness: [0, all.thickness] }]);
   });
 });
+
+describe('the design check reads the lap (half-blind spec §3.4, §10)', () => {
+  const HB = { slope: 8, count: null, swap: false, joint: 'half-blind' as const };
+  const rawDrawer = (): SloydDocument => {
+    const h = 6, tS = 0.5, tFB = 0.75, iw = 12, id = 16;
+    const fb = (id_: string, name: string, z: number) => createBoard({
+      id: id_, name, posture: 'on-edge', rotation: 0, length: iw, width: h, thickness: tFB, position: [tS, 0, z],
+    });
+    const side = (id_: string, name: string, x: number) => createBoard({
+      id: id_, name, posture: 'on-edge', rotation: 90, length: id + 2 * tFB, width: h, thickness: tS, position: [x, 0, 0],
+    });
+    return docOf([fb('f', 'Front', 0), fb('b', 'Back', id + tFB), side('l', 'Side left', 0), side('r', 'Side right', iw + tS)]);
+  };
+  /** A half-blind front, a through back, the sides as tails at both. */
+  function hbFrontDrawer(): SloydDocument {
+    const doc = rawDrawer();
+    const a = applyDovetails(doc, ok(dovetailPlan(doc, ['f', 'l', 'r'], HB)));
+    return applyDovetails(a, ok(dovetailPlan(a, ['b', 'l', 'r'], { slope: 8, count: null, swap: false, joint: 'through' })));
+  }
+  function hbCarcass(): SloydDocument {
+    const side = (id: string, name: string, x: number) => createBoard({
+      id, name, posture: 'upright', rotation: 90, length: 30, width: 11, thickness: 0.75, position: [x, 0, 0],
+    });
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: 11, thickness: 0.75, position: [0, 29.25, 0] });
+    const doc = docOf([side('l', 'Side left', 0), side('r', 'Side right', 23.25), top]);
+    return applyDovetails(doc, ok(dovetailPlan(doc, ['l', 'r', 't'], HB)));
+  }
+  const lapOf = (b: Board) => dovetailsOf(b).filter((d) => d.role === 'pins' && d.lap !== undefined);
+  /** Regions that are exactly a lap slab: the dovetail's run along dim, full J, thickness [outside .. lap plane]. */
+  const slabs = (b: Board) => lapOf(b).flatMap((d) => {
+    const J = d.dim === 'length' ? 'width' : 'length';
+    const run = d.end === 'min' ? [0, d.depth] : [b[d.dim] - d.depth, b[d.dim]];
+    const th = d.outside === 'max' ? [b.thickness - d.lap!, b.thickness] : [0, d.lap!];
+    return contactRegions(b).filter((r) => r[d.dim][0] === run[0] && r[d.dim][1] === run[1] && r.thickness[0] === th[0]
+      && r.thickness[1] === th[1] && r[J][0] === 0 && r[J][1] === b[J]);
+  });
+
+  it('a drawer with a half-blind front and a through back checks clean', () => {
+    const doc = hbFrontDrawer();
+    expect(lapOf(part(doc, 'f')).length).toBe(2);
+    expect(lapOf(part(doc, 'b')).length).toBe(0);
+    expect(checkDesign(flat(doc), NO_LIMITS)).toEqual([]);
+  });
+
+  it('a carcass with half-blind corners (top off the floor) checks clean', () => {
+    const doc = hbCarcass();
+    expect(dovetailsOf(part(doc, 'l')).some((d) => d.lap !== undefined) || dovetailsOf(part(doc, 't')).some((d) => d.lap !== undefined)).toBe(true);
+    expect(checkDesign(flat(doc), NO_LIMITS)).toEqual([]);
+  });
+
+  it('the lap slab box is in contactRegions for a half-blind pins part, absent for a through one', () => {
+    const doc = hbFrontDrawer();
+    expect(slabs(part(doc, 'f')).length).toBe(2);
+    const through = drawer();
+    expect(lapOf(part(through, 'f')).length).toBe(0);
+    expect(slabs(part(doc, 'b')).length).toBe(0);
+  });
+
+  it('a faulted half-blind front (lap >= thickness) checks as its plain twin', () => {
+    const doc = withPart(hbFrontDrawer(), 'f', (b) => ({
+      ...b, dovetails: b.dovetails!.map((d) => ({ ...d, lap: b.thickness })),
+    }));
+    const f = part(doc, 'f');
+    expect(dovetailFaults(f, dovetailsOf(f)[0]!)).toContain('lap');
+    expect(builtDovetails(f).length).toBe(0);
+    expect(slabs(f).length).toBe(0);
+    expect(contactRegions(f)).toEqual(contactRegions({ ...f, dovetails: undefined } as Board));
+  });
+});
+

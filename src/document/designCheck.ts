@@ -468,6 +468,18 @@ function dovetailContacts(b: Board, dovetails: readonly Dovetail[], regions: Reg
         if (m) out.push(m);
       }
     }
+    // Half-blind (half-blind spec §3.4): a pins entry with a lap also keeps its LAP SLAB, solid across all of J from the outside
+    // face to the lap plane. A faulted dovetail never reaches here (builtDovetails), so the lap is inside the thickness.
+    if (d.role === 'pins' && d.lap !== undefined) {
+      const slab: Partial<Region> = {
+        [d.dim]: run,
+        thickness: d.outside === 'max' ? [b.thickness - d.lap, b.thickness] : [0, d.lap],
+      };
+      for (const r of regions) {
+        const m = meet(r, slab);
+        if (m) out.push(m);
+      }
+    }
   }
   return out;
 }
