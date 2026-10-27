@@ -86,14 +86,25 @@ because the code gives no choice, one my call, one the user's ruling; listed und
 2. **Success note.** It is held in the section's own state (the selection does not change after the action), not in new
    store state. That is simpler than the spec's §4, and the note is still cleared on a selection change, because
    GroupProperties remounts the section.
-3. **Linked write-back.** The SHARED fields of each storage target (`length`/`width`, `cuts`) are written through ONE
-   representative world part: a non-mirrored user when there is one, else the first. Every OTHER user is passed to
-   `mapWorld` with ONLY its own `position` changed (to its planned world min corner), its shared fields left exactly as
-   currently resolved, so nothing is re-lowered through `mirrorCut`. The position matters because `position` is own while
-   `length` is shared: a mate left as the same object would grow from its stored min corner and land off at a min-end
-   run-out. Before building this, read how `applyWorldEdits` lowers an own position delta and skips unchanged shared
-   fields (`treeEdit.ts`). If it cannot take a position-only mate next to a representative's size change, STOP and report
-   it. Do not work around it.
+3. **Linked write-back (REVISED 2026-10-27 after Task 3's STOP; controller ruling).** The first draft, mates passed to
+   `mapWorld` with only `position` changed, does not work. Three failures were measured: an unmirrored mate throws
+   `disagreeing edits` (`resolveBoard` copies cuts); a mirrored mate in a turned assembly lands off by the size change; and
+   `mapWorld` (no `keepWorld`) misplaces even a plain part grown at its world-max end in a turned assembly. Spec §6 already
+   says the write-back keeps the world position, as joinery's `keepWorld` does. So:
+   - A new additive export in `treeEdit.ts`, `writeBackParts(doc, edits: readonly WorldEdit[]): SloydDocument`. It is
+     `writeBackFlat`'s steps 2 and 3 without step 1's assembly split: `plainWithMarkers` → `applyWorldEdits(…,
+     { keepWorld: true })` with ONE edit per storage key (the first given) → `regroupShapes(…, flaggedKeys(…))`. It
+     reuses those private helpers unchanged. Editing one occurrence of a definition edits the definition, so every copy
+     follows (inv 46's default).
+   - The planner gives EVERY jointed world part its full after-state, not a representative only. Plan the Shape's new
+     shared fields ONCE, Shape-local, from one user. Then each user's after is `resolveBoard` of that new Shape through
+     the user's own record (its `mirrored` flag), with `position` = its planned world min corner. So `regroupShapes`'
+     `resolvesTo` is exact by construction.
+   - Post-condition (decided before any store mutation, on the computed document): every Shape that had 2+ users before
+     still has all of them as users of one Shape after. If not (e.g. every user mirrored and `mirrorCut` is not bit-exact
+     on a non-dyadic size), refuse with `Box joints can't keep these linked parts linked: <names>. Unlink them first.`
+     (added to the copy). Mutate: skip the check on a fixture that splits. Then the split must go through silently and
+     the test fails.
 
 4. **The tie.** Spec §3.3 writes `N = 2·round((H/w − 1)/2) + 1`, which leaves a tie (`H/w` an even whole number, e.g.
    a 4" drawer side at 1/2") to `Math.round`: up, to 1/4" outer fingers. The plan pins ties DOWN (3/4" outer fingers);
@@ -205,11 +216,12 @@ because the code gives no choice, one my call, one the user's ruling; listed und
   - `interface BoxJointOptions { width: number; swap: boolean }`
   - `interface BoxJointCorner { a: string; b: string; layout: FingerLayout }` (world ids)
   - `interface BoxJointPlan { parts: Map<string, Board>; corners: BoxJointCorner[]; notes: string[] }`: `parts` maps
-    each REPRESENTATIVE world id to its new world board (Spec difference 3). `notes` holds the success lines in order:
+    EVERY changed world id to its new world board (Spec difference 3, revised). `notes` holds the success lines in order:
     the jointed line(s), then the length lines, then the ignored lines.
   - `boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: BoxJointOptions): BoxJointPlan | string`
-  - `applyBoxJoints(doc: SloydDocument, plan: BoxJointPlan): SloydDocument`: `mapWorld`, replacing exactly the planned
-    representatives.
+  - `applyBoxJoints(doc: SloydDocument, plan: BoxJointPlan): SloydDocument`: `writeBackParts` (new in `treeEdit.ts`,
+    Spec difference 3 revised) with one `{ before, after }` per planned world part. `boxJointPlan` runs it on the input
+    to check the link post-condition before returning the plan.
 
 Planner order (each step can only refuse before any mutation; work on clones):
 1. `width > 0`, else the width sentence.
