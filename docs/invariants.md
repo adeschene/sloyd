@@ -1021,11 +1021,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     applied while any part is kept** (spec §8(b)'s second option): the result moves to the kept parts, never the reverse; a model
     part left below the floor stays there and the design checks report it. A kept part inside an assembly refuses Refine up
     front (`'lean-assembly'`, `leaningInAssembly`: `Refine can't keep a leaning part, a part with angled holes or a part with a round
-    tenon inside an assembly yet — Ungroup it first: <name>.`, widened by ruling T10a; Refine rebuilds every definition, fu 441), and a joined Refine refuses (`'lean-joint'`): a
+    tenon inside an assembly yet — Ungroup it first: <name>.`, widened by ruling T10a; Refine rebuilds every definition, fu 441; a box-jointed part is the exception: its WHOLE assembly is kept instead, see the box-joint paragraph below), and a joined Refine refuses (`'lean-joint'`; box joints are claimed first and refuse nothing, see the same paragraph): a
     leaning part by `leaningRefusal` (inv 41), and — ruling T11a, because `runJoinery` re-joins the whole refined document, kept
     boards included — any part with a tilted row, BEFORE the gate (`Refine can't keep a part with angled holes in a joined project
     yet: <name>.`); joinery and Repair are unchanged by tilts. The model's note (`keptNote`) says why each is kept (it leans, has
-    angled holes, has round tenons, has box joints, or a list of them: `whyKept`). The done view says `Kept as is (leans, angled holes or round tenons): <names>`. Kept parts count toward the result's part caps (fu 442).
+    angled holes, has round tenons, has box joints, or a list of them: `whyKept`). The done view says `Kept as is (leans, angled holes or round tenons): <names>` (with box joints, `…round tenons or box joints`: see the box-joint paragraph below). Kept parts count toward the result's part caps (fu 442).
     **A part with a ROUND TENON is KEPT exactly too** (round tenons spec §9, inv 58): `keepsExactly(b)` is `leans(b)`, any `isTilted`
     row, or `hasTenons(b)` — read off the STORED list, so a faulted tenon is kept verbatim too; the design form has no word for a
     tenon (the design schema is unchanged, fu 322), so none reaches the model and none comes back squared. `turnCandidates` never

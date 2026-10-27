@@ -389,3 +389,7 @@ Rulings made while building (2026-10-27). **Awaiting the user's approval**, in p
 - **R-T6d (6b):** a loose model part's name is compared TRIMMED against kept placement names (the gate trims, so `" Drawer 2 "` would otherwise win
   the name over the kept placement); kept root names stay exact. **R-T6e:** the (c) sentence is `Joinery would have changed <name>, which Refine
   keeps as it is for its box joints, so the design comes back unjoined.` (it also covers fingerless parts of a kept assembly).
+- **R-F1 (final review):** linked users' planned run-out SIZES compare at 1e-9, everything else in the signature exactly. The size is a world
+  subtraction (`e.far - p0`), so the same drawer at another X offset can plan it an ulp off (14 of 40 offsets on a 7 mm grid refused as
+  disagreeing); this is the same class as R-T2a's recognised-number ulp ruling. The Shape still takes the representative's size, and the link
+  post-condition still guards the written result.

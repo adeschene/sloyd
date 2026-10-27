@@ -7738,5 +7738,14 @@ agreement is unasserted; the finger note reuses the curve-note CSS class; `void 
 implementation was written before its tests (stash-verified RED). (7) Task 6b: a loose part's name is compared trimmed but a placement's exact (both safe);
 `keptParts` is computed twice and the placed builder is O(n²); the nested-refusal check fires after the taper and angle checks for kept definitions.
 (8) Task 4: the section's held-point judging has one test (the planner's `judgeHeld` call); a stale selection would give an infinite default width
-(unreachable: the selection is filtered and the section mounts with two parts).
+(unreachable: the selection is filtered and the section mounts with two parts). (9) The panel's success notes stay visible after an undo:
+the selection does not change, so the section does not remount and its held notes are not cleared (final review, 2026-10-27). Cosmetic.
 **Status:** open (record-only).
+
+**496. Box joints on real hardware and a paid Refine run (for the user; final review, 2026-10-27).** (1) By eye on real hardware: the
+jointed corner in the viewport (fingers' end grain alternating up both faces, flush faces, no z-fighting). The browser check
+(`docs/browser-verification-box-joints.md` §5) saw it in software GL only, which hides shader behaviour (fu 26a). (2) ONE paid Refine run on a
+project with a box-jointed drawer ASSEMBLY plus a plain root part: the assembly comes back kept whole, the root part refined. Not done in the
+browser check because no API key is stored on either dev origin and the key never goes through chat; the kept-assembly round trip is covered
+only by the fake-client `runRefine` tests (Tasks 6, 6b).
+**Status:** open (owed to the user: by eye on real hardware; one paid run).

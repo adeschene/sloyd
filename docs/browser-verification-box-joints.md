@@ -38,8 +38,8 @@ inch mark (`3/4"`); at the screenshot's scale it is hard to see.
 ## 5. Viewport (screenshot `docs/img/box-joints-corner.png`)
 
 The near corner, close up in perspective: the end grain of the fingers alternates up both faces of the corner (seven
-fingers), the faces meet flush, and there is no z-fighting. Software GL; the user's own look on real hardware is owed (in
-the copy and by-eye review, fu 491).
+fingers), the faces meet flush, and there is no z-fighting. Software GL; the user's own look on real hardware is owed
+(fu 496; the copy review is fu 491).
 
 ## 6. Undo, redo, re-run, Swap
 
@@ -58,4 +58,4 @@ the copy and by-eye review, fu 491).
   API-key prompt), so a box-jointed assembly no longer blocks Refine (Task 6b).
 - **The paid Refine run (plan Step 4b) was NOT done:** no API key is stored on either dev origin
   (`127.0.0.1:5180`, `localhost:5180`), and the key never goes through chat. The kept-assembly round trip is covered by
-  the fake-client `runRefine` tests (Tasks 6, 6b). One real Refine on a project like this one is owed (fu 491).
+  the fake-client `runRefine` tests (Tasks 6, 6b). One real Refine on a project like this one is owed (fu 496).

@@ -40,9 +40,11 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `447df4b` (schema 25) is free; the nearest refusing boundary is `0699965` (round tenons,
   `index-ObjqEMR0.js`, schema 24): it REFUSES every project saved at 25 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **IN PROGRESS (2026-10-27): box joints** (dovetails chunk 1; no schema change; inv 61) are BUILT and recorded on branch `box-joints` (HEAD after the
-  records commit), NOT merged and NOT deployed; the browser check (plan Task 8), the final review and the deploy are next. Owed: the spec's *Amended (build)* block and the copy review (fu 491).
-- **NEXT (2026-10-26):** stretchers deployed; this file trimmed (59.9KB → 48.2KB; per-file rules moved to `docs/module-map.md`). The six specs' Amended blocks APPROVED 2026-10-26. Owed: the owed list below.
+- **IN PROGRESS (2026-10-27): box joints** (dovetails chunk 1; no schema change; inv 61) are BUILT, browser-checked
+  (`docs/browser-verification-box-joints.md`) and through the final review on branch `box-joints`, NOT merged and NOT deployed;
+  awaiting the user's review, merge and deploy. Owed: the spec's *Amended (build)* block, the copy review (fu 491) and fu 496.
+- **NEXT (2026-10-27):** the user reviews the box-joints round (spec Amended block, fu 491's copy and tie, fu 496), then merge and
+  deploy (no schema change: rollback to `fc4302a` is free). Owed otherwise: the owed list below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -522,7 +524,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–483). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–496). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -531,7 +533,7 @@ This list is the triage's open set — when an entry's status changes, change it
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 484–490, 492.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 491 (box joints; includes the tie ruling, spec difference 4); by eye — 465 (round tenons); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 491 (box joints; includes the tie ruling, spec difference 4); by eye — 465 (round tenons); real hardware and ONE paid Refine run — 496 (box joints: the jointed corner by eye; a box-jointed drawer assembly plus a root part, not run because no API key is stored on the dev origins); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
