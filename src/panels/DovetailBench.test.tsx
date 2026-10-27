@@ -6,6 +6,7 @@ import { dovetailBenches } from '../document/dovetailBench';
 import { IMPERIAL, type Units } from '../units/length';
 import { DovetailBench } from './DovetailBench';
 import { CutList } from './CutList';
+import { VIEW_W } from './PartDiagram';
 import { labelWidth, LABEL_ASCENT, LABEL_BOX_H, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
 
 /**
@@ -58,40 +59,69 @@ const benchOf = (width: number, d: Partial<Dovetail> = {}, units: Units = IMPERI
 const svgs = (c: HTMLElement) => [...c.querySelectorAll('svg')] as SVGSVGElement[];
 
 describe('DovetailBench (spec §5.2)', () => {
-  it('draws figure A and figure B side by side, at one viewBox width (one scale)', () => {
+  it('side by side at PartDiagram\'s label size: each figure\'s CSS share of the row over its viewBox width is PartDiagram\'s', () => {
+    // A PartDiagram spans the row with a viewBox VIEW_W wide: a 20-unit label renders at rowWidth * 20 / VIEW_W. A figure
+    // `share` of the row wide with a viewBox `w` wide renders it at rowWidth * share * 20 / w: equal when share / w = 1 / VIEW_W.
+    const { container } = render(<DovetailBench bench={benchOf(6)} />);
+    const figs = [...container.querySelectorAll<HTMLElement>('.cutlist-bench-figure')];
+    expect(figs).toHaveLength(2);
+    let total = 0;
+    for (const f of figs) {
+      const share = parseFloat(f.style.width) / 100;
+      const w = Number(f.querySelector('svg')!.getAttribute('viewBox')!.split(' ')[2]);
+      expect((share * VIEW_W) / w).toBeCloseTo(1, 12);
+      // The label size's one home is the <svg> attribute (inv 19).
+      expect(f.querySelector('svg')!.getAttribute('font-size')).toBe(String(LABEL_SIZE));
+      total += share;
+    }
+    // Both fit on the row (side by side, the user's ruling), with room for a gap.
+    expect(total).toBeLessThan(1);
+  });
+
+  it('A carries 5 pin sockets and the dashed baseline; B 4 tail sockets and none', () => {
     const { container } = render(<DovetailBench bench={benchOf(6)} />);
     const [a, b] = svgs(container);
-    expect(svgs(container)).toHaveLength(2);
-    expect(container.querySelector('.cutlist-bench')!.children).toHaveLength(2);
-    expect(a!.getAttribute('viewBox')!.split(' ')[2]).toBe(b!.getAttribute('viewBox')!.split(' ')[2]);
-    // The label size's one home is the <svg> attribute (inv 19).
-    for (const s of [a!, b!]) expect(s.getAttribute('font-size')).toBe(String(LABEL_SIZE));
-    // A: 5 pin sockets, the dashed baseline; B: 4 tail sockets, no baseline.
     expect(a!.querySelectorAll('.cutlist-bench-waste')).toHaveLength(5);
     expect(a!.querySelectorAll('.cutlist-bench-baseline')).toHaveLength(1);
     expect(b!.querySelectorAll('.cutlist-bench-waste')).toHaveLength(4);
     expect(b!.querySelectorAll('.cutlist-bench-baseline')).toHaveLength(0);
   });
 
-  it('every label is drawn: the chain, baseline, overall, slope and ends on A; the chain and both faces on B', () => {
+  const CHAIN6 = ['1/4"', '1-3/16"', '1/4"', '1-3/16"', '1/4"', '1-3/16"', '1/4"', '1-3/16"', '1/4"'];
+  const texts = (s: SVGSVGElement) => [...s.querySelectorAll('text')].map((t) => t.textContent);
+
+  it('the 6"/4/1:8 mockup corner draws the FULL chain (two tiers), in chain order; B has no overall H', () => {
     const { container } = render(<DovetailBench bench={benchOf(6, {}, IMPERIAL, true)} />);
+    expect(container.querySelector('.cutlist-bench')!.getAttribute('data-mode')).toBe('full');
     const [a, b] = svgs(container);
-    const texts = (s: SVGSVGElement) => [...s.querySelectorAll('text')].map((t) => t.textContent);
-    const chain = ['1/4"', '1-3/16"', '1/4"', '1-3/16"', '1/4"', '1-3/16"', '1/4"', '1-3/16"', '1/4"'];
-    expect(texts(a!)).toEqual([...chain, 'baseline 3/4"', '6"', '1:8', 'both ends']);
-    expect(texts(b!)).toEqual(['outside face', ...chain, 'inside face']);
+    expect(texts(a!)).toEqual([...CHAIN6, 'baseline 3/4"', '6"', '1:8', 'both ends']);
+    expect(texts(b!)).toEqual(['outside face', ...CHAIN6, 'inside face']);
+    const ys = [...a!.querySelectorAll('text')].slice(0, 9).map((t) => t.getAttribute('y'));
+    expect(new Set(ys).size).toBe(2);
   });
 
-  it('the 6"/4/1:8 chain sits on ONE row (the mockup), every mark over its own span', () => {
-    const { container } = render(<DovetailBench bench={benchOf(6)} />);
-    const ys = [...svgs(container)[0]!.querySelectorAll('text')].slice(0, 9).map((t) => t.getAttribute('y'));
-    expect(new Set(ys).size).toBe(1);
+  it('single-value mode (18", 12 tails): each value once at its first span, and the overall H on BOTH figures', () => {
+    const { container } = render(<DovetailBench bench={benchOf(18, { count: 12 })} />);
+    expect(container.querySelector('.cutlist-bench')!.getAttribute('data-mode')).toBe('single');
+    const [a, b] = svgs(container);
+    const chainOf = (s: SVGSVGElement) => [...s.querySelectorAll('text[data-span]')].map((t) => [t.getAttribute('data-span'), t.textContent]);
+    const once = [['0', '1/4"'], ['1', '1-1/4"'], ['2', '1/4"']];
+    expect(chainOf(a!)).toEqual(once);
+    expect(chainOf(b!)).toEqual(once);
+    expect(texts(a!)).toContain('18"');
+    expect(texts(b!)).toContain('18"');
+    // Ticks at EVERY bound still: 2N + 2.
+    expect(a!.querySelectorAll('.cutlist-bench-tick')).toHaveLength(26);
+    expect(b!.querySelectorAll('.cutlist-bench-tick')).toHaveLength(26);
   });
 
   const cases: [string, number, Partial<Dovetail>, Units?][] = [
     ['the 6"/4/1:8 drawer side', 6, {}],
-    ['a crowded chain (12", 8 tails): two tiers', 12, { count: 8 }],
-    ['a wide carcass side (30", 20 tails): a thin figure', 30, { count: 20 }],
+    ['9", 6 tails', 9, { count: 6 }],
+    ['12", 8 tails', 12, { count: 8 }],
+    ['18", 12 tails', 18, { count: 12 }],
+    ['a wide carcass side (30", 20 tails)', 30, { count: 20 }],
+    ['3", 2 tails', 3, { count: 2 }],
     ['a single tail on a narrow part (1-1/2")', 1.5, { count: 1, depth: 0.25 }],
     ['metric (150 mm, 4 tails, 6 mm pins)', 150 / 25.4, { pin: 6 / 25.4, depth: 19 / 25.4 }, { display: 'metric-mm', precision: 1 }],
   ];
@@ -100,13 +130,21 @@ describe('DovetailBench (spec §5.2)', () => {
     for (const s of svgs(container)) check(s);
   });
 
-  it('a crowded chain does fall back to two tiers (so the case above exercises it)', () => {
-    const { container } = render(<DovetailBench bench={benchOf(12, { count: 8 })} />);
-    const ys = [...svgs(container)[0]!.querySelectorAll('text')].slice(0, 17).map((t) => t.getAttribute('y'));
-    expect(new Set(ys).size).toBe(2);
-    // Still in chain order (p, Te, p, …), the DOM order of one row.
-    const texts = [...svgs(container)[0]!.querySelectorAll('text')].slice(0, 17).map((t) => t.textContent);
-    expect(texts.map((t, i) => (i % 2 === 0) === (t === '1/4"'))).toEqual(texts.map(() => true));
+  it.each(cases)('every chain label sits inside its own span\'s ticks (at most two tiers when full): %s', (_n, width, d, units) => {
+    const { container } = render(<DovetailBench bench={benchOf(width, d, units ?? IMPERIAL, true)} />);
+    const full = container.querySelector('.cutlist-bench')!.getAttribute('data-mode') === 'full';
+    for (const s of svgs(container)) {
+      const ticks = [...s.querySelectorAll('.cutlist-bench-tick')].map((t) => Number(t.getAttribute('x1')));
+      const marks = [...s.querySelectorAll('text[data-span]')];
+      expect(marks.length).toBe(full ? ticks.length - 1 : Math.min(3, ticks.length - 1));
+      for (const m of marks) {
+        const i = Number(m.getAttribute('data-span'));
+        const x = Number(m.getAttribute('x'));
+        expect(x, `"${m.textContent}" (span ${i}) off its span`).toBeGreaterThanOrEqual(ticks[i]! - 1e-9);
+        expect(x, `"${m.textContent}" (span ${i}) off its span`).toBeLessThanOrEqual(ticks[i + 1]! + 1e-9);
+      }
+      if (full) expect(new Set(marks.map((m) => m.getAttribute('y'))).size).toBeLessThanOrEqual(2);
+    }
   });
 });
 

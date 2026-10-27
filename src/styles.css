@@ -1196,19 +1196,20 @@ select.input { cursor: pointer; }
   stroke-width: 1.5;
 }
 
-/* The dovetail bench drawings (dovetails spec §5.2): figures A and B side by side at equal widths, wrapping under each other
-   on a narrow sheet. Equal widths and ONE shared viewBox width (DovetailBench.tsx) keep the two at the same scale. Their
-   text is `.cutlist-diagram-leader text` (--font-num, no font-size here: LABEL_SIZE's home is the <svg>, inv 19). */
+/* The dovetail bench drawings (dovetails spec §5.2): figures A and B side by side, each FIG_SHARE of the row wide (an
+   inline width from DovetailBench.tsx, so a label renders at PartDiagram's size at any sheet width; fix round 1). The two
+   always fit, so they never wrap. Their text is `.cutlist-diagram-leader text` (--font-num, no font-size here: LABEL_SIZE's
+   home is the <svg>, inv 19). */
 .cutlist-bench {
   grid-column: 3 / -1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 24px;
+  justify-content: space-between;
+  align-items: flex-start;
   margin: 10px 0 0;
 }
 
 .cutlist-bench-figure {
-  flex: 1 1 280px;
+  flex: none;
   min-width: 0;
   margin: 0;
 }

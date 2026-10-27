@@ -92,7 +92,7 @@ describe('dovetailBenches (spec §5.2)', () => {
     expect(w0[2]![0]).toBeCloseTo(1.4375 - run, 12);
     expect(w0[3]![0]).toBeCloseTo(0.25 + run, 12);
     expect(B.chain.every((c) => c.at[1] === 0)).toBe(true);   // along the outside face
-    expect(B.labels.map((l) => l.text)).toEqual([BENCH_OUTSIDE_FACE, BENCH_INSIDE_FACE]);
+    expect(B.labels.map((l) => l.text)).toEqual([BENCH_OUTSIDE_FACE, BENCH_INSIDE_FACE, '6"']);
   });
 
   it('a chain mark sits at the middle of its span, from J\'s min', () => {

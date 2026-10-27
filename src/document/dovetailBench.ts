@@ -86,6 +86,9 @@ function figures(b: Board, d: Dovetail, ends: 'one' | 'both', units: Units): Pic
     labels: [
       { kind: 'outside', at: [0, 0], text: BENCH_OUTSIDE_FACE },
       { kind: 'inside', at: [0, X], text: BENCH_INSIDE_FACE },
+      // Fix round 1 (the controller's ruling): the overall H on figure B too, drawn when the chain is labelled once per value
+      // (the component's single-value mode), so the chain's sum can be checked on either figure.
+      { kind: 'overall', at: [H / 2, X], text: f(H) },
     ],
   };
   return { tail, pin };

@@ -46,7 +46,8 @@ export const TILT_ELLIPSE_POINTS = 64;
  */
 const COL = labelHeight() + 2 * TICK + COL_GAP;
 /** The full drawable interval — the viewBox, not the outline. */
-const VIEW_W = DRAW_WIDTH + RIGHT;
+/** The full-width diagram's base viewBox width across the row (the dovetail bench sizes its figures from it). */
+export const VIEW_W = DRAW_WIDTH + RIGHT;
 
 /**
  * One measured run beside the outline. A cut's POSITION leader (offset run,
