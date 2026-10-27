@@ -31,6 +31,8 @@ import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
 import { carriedSummary } from '../document/carryText';
 import { keptParts } from '../document/leanKeep';
+import { fingerSets } from '../document/boxJoints';
+import { resolveBoard, shapeMap } from '../document/shapes';
 import type { KeptParts } from '../document/leanKeep';
 import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
@@ -249,9 +251,16 @@ export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; pr
   /** Features not kept, and returned parts to check at their new size (refine-features spec §5); judged plain to plain. */
   carried: { notKept: string[]; check: string[] };
   /** Present only when the original has kept parts (leaning, or with a tilted hole row) (splayed legs spec §8): their flat names, kept as stored, and the
-   *  model's parts dropped because they reused one of those names. */
-  leaning?: { kept: string[]; replaced: string[] } }
+   *  model's parts dropped because they reused one of those names. `boxJoints` is present (true) only when a kept part has
+   *  box joints (box-joints spec §7), so the dialog's kept line names them only then. */
+  leaning?: { kept: string[]; replaced: string[]; boxJoints?: true } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
+
+/** Some kept part, resolved, has a recognised box joint (box-joints spec §7). */
+function keptBoxJoints(doc: SloydDocument, kept: KeptParts): boolean {
+  const shapes = shapeMap(doc);
+  return kept.boards.some((b) => { const r = resolveBoard(shapes, b); return r !== null && fingerSets(r).length > 0; });
+}
 
 /**
  * Refine by instruction (refine spec §3): the open design in Generate's format
@@ -345,7 +354,7 @@ export async function runRefine(
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
   return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried,
-    ...(kept.names.length > 0 ? { leaning: { kept: kept.names, replaced: out.replaced } } : {}) };
+    ...(kept.names.length > 0 ? { leaning: { kept: kept.names, replaced: out.replaced, ...(keptBoxJoints(base.plain, kept) ? { boxJoints: true as const } : {}) } } : {}) };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */

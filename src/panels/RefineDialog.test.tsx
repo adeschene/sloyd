@@ -117,6 +117,13 @@ describe('RefineDialog', () => {
     expect(screen.queryByText(/^Kept as is/)).toBeNull();
   });
 
+  it('names box joints in the kept line only when a box-jointed part is kept (box-joints spec §7)', () => {
+    const run = (leaning: { kept: string[]; replaced: string[]; boxJoints?: true }): RefineRun => ({ status: 'ready', projectId: 'p1', projectName: 'Drawer — refined', costUsd: 0.07, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], joints: null, violations: [], present: [], carried: { notKept: [], check: [] }, leaning } });
+    render(<RefineDialog {...base} run={run({ kept: ['Front', 'Side left'], replaced: [], boxJoints: true })} />);
+    screen.getByText('Kept as is (leans, angled holes, round tenons or box joints): Front, Side left');
+  });
+
   it('shows a new issue\'s displayed copy (a metric project), not the model\'s inches (fu 355)', () => {
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
       doc: {} as never, usage: {} as never, carried: { notKept: [], check: [] }, changes: [], joints: null, present: [],

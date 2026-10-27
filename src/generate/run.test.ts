@@ -35,6 +35,7 @@ import { axisDimensions } from '../document/geometry';
 import { clearedSquareStoolDocument, stoolDocument, stoolSeat } from '../document/stoolFixture';
 import { leanMap } from '../document/lean';
 import { tenonFaults } from '../document/roundTenons';
+import { applyBoxJoints, boxJointPlan, fingerSets } from '../document/boxJoints';
 
 vi.mock('./joints/featureZones', async (orig) => {
   const a = await orig<typeof import('./joints/featureZones')>();
@@ -1587,5 +1588,61 @@ describe('runRefine keeps leaning parts (splayed legs spec §8)', () => {
     const { client } = fakeClient([{ name: 'T', parts: [bx('Seat', [-7, 0, -7], [14, 1.5, 14])], assemblies: [] }]);
     const out = await ok(client, doc);
     expect(out.leaning).toBeUndefined();
+  });
+});
+
+describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
+  const RS = { instruction: 'change it', width: null, depth: null, height: null, detail: 'moderate' as const };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const plainEcho = (d: SloydDocument) => {
+    const p = plainForRefine(d); if ('refused' in p) throw new Error(p.refused.message);
+    const r = documentToDesign(p.plain, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message);
+    return r.design;
+  };
+  /** A drawer, butt corners jointed at 1/2" (as `boxJoints.test.ts` builds it), `dx` along X. */
+  const drawerBoards = (dx = 0): Board[] => {
+    const fb = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'on-edge', rotation: 0, length: 12, width: 4, thickness: 0.5, position: [dx + 0.5, 0, z] });
+    const side = (id: string, name: string, x: number) => createBoard({ id, name, posture: 'on-edge', rotation: 90, length: 17, width: 4, thickness: 0.5, position: [dx + x, 0, 0] });
+    const doc = { ...createDocument('Drawer'), boards: [fb('df', 'Drawer front', 0), fb('db', 'Drawer back', 16.5), side('dl', 'Drawer left', 0), side('dr', 'Drawer right', 12.5)] };
+    const plan = boxJointPlan(doc, ['df', 'db', 'dl', 'dr'], { width: 0.5, swap: false });
+    if (typeof plan === 'string') throw new Error(plan);
+    return applyBoxJoints(doc, plan).boards as Board[];
+  };
+  const DRAWER = ['Drawer front', 'Drawer back', 'Drawer left', 'Drawer right'];
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const caseFlat = flatDocument(designToDocument({ name: 'Case', assemblies: [], parts: [
+    bp('Left side', [0, 0, 0], [0.75, 30, 11.25]), bp('Right side', [20.75, 0, 0], [0.75, 30, 11.25]),
+    bp('Bottom', [0.75, 0, 0], [20, 0.75, 11.25]), bp('Top', [0.75, 29.25, 0], [20, 0.75, 11.25]), bp('Shelf', [0.75, 15, 0], [20, 0.75, 11.25]),
+  ] }).doc);
+  const caseSites = findSites(caseFlat);
+  const joinedCase = migrateDocument(applyJoints(caseFlat, caseSites, caseSites.map((s) => defaultChoice(s, caseFlat, caseSites))).doc);
+
+  it('a JOINED cabinet plus a box-jointed drawer, refined unchanged: one call, the joints re-applied, the drawer back byte for byte', async () => {
+    const doc = migrateDocument({ ...joinedCase, boards: [...joinedCase.boards, ...drawerBoards(100)] });
+    const { client } = fakeClient([plainEcho(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    for (const n of DRAWER) {
+      expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
+      expect(fingerSets(flatDocument(out.doc).boards.find((b) => b.name === n)!).length).toBeGreaterThan(0);
+    }
+    // The kept drawer goes back first (designToDocument), so the case is compared by name.
+    const byName = (d: SloydDocument) => { const f = flatDocument(d); return { ...f, boards: [...f.boards].sort((a, b) => a.name.localeCompare(b.name)) }; };
+    expect(sameJoined(byName(out.doc), byName(doc))).toBe(true);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.leaning).toEqual({ kept: DRAWER, replaced: [], boxJoints: true });
+  });
+
+  it('a box-joint-only project: no joinery, the drawer back byte for byte, a model part reusing a kept name dropped', async () => {
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards: drawerBoards() });
+    const echo = plainEcho(doc);
+    const { client } = fakeClient([{ ...echo, parts: [...echo.parts, bp('Drawer front', [0, 0, 0], [12, 4, 0.5]), bp('Shelf', [30, 0, 0], [20, 0.75, 10])] }]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints).toBeNull();
+    for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
+    expect(out.leaning).toEqual({ kept: DRAWER, replaced: ['Drawer front'], boxJoints: true });
   });
 });

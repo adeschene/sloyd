@@ -3,6 +3,7 @@ import { leans } from './lean';
 import { isTilted } from './holeTilt';
 import { hasTenons } from './roundTenons';
 import { hasCompoundCut } from './angleCuts';
+import { fingerSets } from './boxJoints';
 import { partBounds } from './worldBounds';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { flatDocument, parentPath } from './tree';
@@ -27,12 +28,14 @@ export interface KeptParts {
   names: string[];
 }
 
-/** A part Refine keeps as stored: it leans, has a tilted hole row, has a round tenon or has a compound end cut (the ONE
- *  predicate; angled holes spec §9, round tenons spec §9, square-set legs spec §4). A tenon is read off the stored list,
- *  faulted or not: a faulted one is kept verbatim too. A compound cut is kept so no world-word converter (`worldAngles`,
+/** A part Refine keeps as stored: it leans, has a tilted hole row, has a round tenon, has a compound end cut or has a
+ *  recognised box joint (the ONE predicate; angled holes spec §9, round tenons spec §9, square-set legs spec §4,
+ *  box-joints spec §7: the design format has no word for fingers, and a box-jointed part is one unit with its mates).
+ *  A tenon is read off the stored list, faulted or not: a faulted one is kept verbatim too. A compound cut is kept so no world-word converter (`worldAngles`,
  *  `angleCutsFor`) ever reads it as a single-slope miter and drops its `across`; it exists only on a leg that leans, or did
  *  (Clear lean keeps it), so the leaning wording of the kept list and the assembly refusal stands. */
-export const keepsExactly = (b: Board): boolean => leans(b) || b.holes.some(isTilted) || hasTenons(b) || hasCompoundCut(b);
+export const keepsExactly = (b: Board): boolean =>
+  leans(b) || b.holes.some(isTilted) || hasTenons(b) || hasCompoundCut(b) || fingerSets(b).length > 0;
 
 /** The ONE decision of what Refine keeps (splayed legs spec §8; angled holes §9; round tenons §9): every root part whose resolved form leans, has a tilted row or has a round tenon. */
 export function keptParts(doc: SloydDocument): KeptParts {
@@ -50,11 +53,12 @@ export function leaningInAssembly(doc: SloydDocument): string | null {
   return flatDocument(doc).boards.find((b) => parentPath(b.id) !== null && keepsExactly(b))?.name ?? null;
 }
 
-/** Why a kept part is kept, in the note's words: the existing two-reason forms unchanged, a round tenon appended. A
- *  compound end cut is named only on a part kept for nothing else (a leg whose lean was cleared), so a leaning leg's line
- *  is byte for byte as before. */
+/** Why a kept part is kept, in the note's words: the existing two-reason forms unchanged, a round tenon and then box
+ *  joints appended (box-joints spec §7). A compound end cut is named only on a part kept for nothing else (a leg whose
+ *  lean was cleared), so a leaning leg's line is byte for byte as before. */
 function whyKept(b: Board): string {
-  const why = [leans(b) && 'leans', b.holes.some(isTilted) && 'has angled holes', hasTenons(b) && 'has round tenons'].filter((w): w is string => w !== false);
+  const why = [leans(b) && 'leans', b.holes.some(isTilted) && 'has angled holes', hasTenons(b) && 'has round tenons',
+    fingerSets(b).length > 0 && 'has box joints'].filter((w): w is string => w !== false);
   if (why.length === 0) return 'has a compound end cut';
   if (why.length === 1) return why[0]!;
   return `${why.slice(0, -1).join(', ')} and ${why[why.length - 1]},`;
@@ -75,10 +79,13 @@ export function keptNote(doc: SloydDocument): string | null {
     const why = whyKept(b);
     return `"${b.name}" ${why} and is kept as is: x ${n(min[0])} to ${n(max[0])}, y ${n(min[1])} to ${n(max[1])}, z ${n(min[2])} to ${n(max[2])}.`;
   });
-  // The header names round tenons only when one is kept, so a tenon-free document's message is byte for byte as before.
-  const tenoned = flatDocument(doc).boards.some((b) => kept.has(b.name) && hasTenons(b));
+  // The header names round tenons only when one is kept, and box joints only when a box-jointed part is kept (box-joints
+  // spec §7), so a document with neither has its message byte for byte as before.
+  const keptBoards = flatDocument(doc).boards.filter((b) => kept.has(b.name));
+  const kinds = ['lean', 'have angled holes', ...(keptBoards.some(hasTenons) ? ['have round tenons'] : []),
+    ...(keptBoards.some((b) => fingerSets(b).length > 0) ? ['have box joints'] : [])];
   return [
-    `${tenoned ? 'These parts lean, have angled holes or have round tenons' : 'These parts lean or have angled holes'}, which the design format cannot describe, so they are not in the design above. Sloyd keeps each exactly where it is; the bounds are world inches:`,
+    `These parts ${kinds.slice(0, -1).join(', ')} or ${kinds[kinds.length - 1]}, which the design format cannot describe, so they are not in the design above. Sloyd keeps each exactly where it is; the bounds are world inches:`,
     ...lines,
     'Fit the rest of the design to them, and do not return a part with any of these names: one would be dropped.',
   ].join('\n');

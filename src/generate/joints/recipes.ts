@@ -5,6 +5,8 @@ import { resizeEnd, refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles
 export { refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles };
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing } from '../../document/geometry';
+import { fingerSetAt } from '../../document/boxJoints';
+import { boxJointedEnd } from '../../document/boxJointText';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -77,6 +79,15 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
   const d = axisDimensions(b)[k];
   return b.cuts.some((c) => c.face === d && c.from === local && refaceFromEnd(b, c, d) === null);
 };
+
+/**
+ * A recognised finger set at the end a resize along world axis k would move (box-joints spec §7). Finger notches run
+ * through the thickness, so `refaceFromEnd` re-stores them and `cutIntoEnd` says false: a grow or a trim there would
+ * carry them along and destroy the joint. Every `cutIntoEnd` caller asks this too, before anything changes (inv 41).
+ * `end` is a WORLD end, mapped to the part's own as `cutIntoEnd` does.
+ */
+const fingerEnd = (b: Board, k: number, end: 'min' | 'max') =>
+  fingerSetAt(b, axisDimensions(b)[k], endFacing(b, k, end === 'min' ? -1 : 1)) !== null;
 
 /** The slab E grows into, on its `side` face along k, `amount` deep. */
 const extension = (before: WorldBox, k: number, side: -1 | 1, amount: number): [number, number] =>
@@ -263,9 +274,15 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
       continue;
     }
-    // Tenons and dados grow E at its `side` end: a cut already into that end
-    // would throw inside rebaseCuts, so the site is skipped first.
-    if ((joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado') && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
+    // Tenons and dados grow E at its `side` end: a box joint cut at that end
+    // would be carried off its corner (box-joints spec §7), and a cut already
+    // into that end would throw inside rebaseCuts, so the site is skipped first.
+    const grows = joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado';
+    if (grows && fingerEnd(E, k, side === 1 ? 'max' : 'min')) {
+      skipped.push({ site: site.id, reason: boxJointedEnd(E.name) });
+      continue;
+    }
+    if (grows && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
       skipped.push({ site: site.id, reason: `${E.name} is already cut at the end that would grow into ${R.name}` });
       continue;
     }
@@ -400,6 +417,8 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
   // rebaseCuts throws on a cut INTO an end being trimmed (fu 203 review).
   for (let a = 0; a < 3; a++) {
     for (const [end, trimmedHere] of [['min', fin.min[a] > movedBox.min[a]], ['max', fin.max[a] < movedBox.max[a]]] as const) {
+      // A box joint at a trimmed end would be cut short (box-joints spec §7).
+      if (trimmedHere && fingerEnd(E, a, end)) return refuse(boxJointedEnd(E.name));
       if (trimmedHere && cutIntoEnd(E, a, end)) {
         return refuse(`moving ${E.name} would trim it at an end it is already cut into`);
       }
@@ -419,6 +438,8 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (meeting.length === 0) continue;
     const depth = Math.max(...meeting.map((p) => (side === 1 ? p.max[k] - b.min[k] : b.max[k] - p.min[k])));
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
+    // A box joint at the end being trimmed would be cut short (box-joints spec §7).
+    if (fingerEnd(boards[j], k, side === 1 ? 'min' : 'max')) return refuse(boxJointedEnd(boards[j].name));
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
     if (cutIntoEnd(boards[j], k, side === 1 ? 'min' : 'max')) {

@@ -86,7 +86,11 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   const shapes = shapeMap(doc);
   const placed = worldParts(doc).length;
   if (placed === 0) return refuse('empty', 'There is nothing to refine yet.');
-  const stored: StoredBoard[] = [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
+  // The kept ROOT parts (below) are never described, so their cuts are theirs: a box-jointed part reaches here with its
+  // finger cuts in place (box-joints spec §7). Root ids only: a definition's ids are another scope (inv 33).
+  const kept = keptParts(doc);
+  const keptIds = new Set(kept.boards.map((b) => b.id));
+  const stored: StoredBoard[] = [...doc.boards.filter((b) => !keptIds.has(b.id)), ...doc.definitions.flatMap((d) => d.boards)];
   // Defence in depth: Refine's own path never reaches this with cuts (plainForRefine's joint gate
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.
   if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
@@ -97,8 +101,6 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   // assembly's definition is rebuilt from the model's, so such a part inside one is refused.
   const inAssembly = leaningInAssembly(doc);
   if (inAssembly !== null) return refuse('lean-assembly', `Refine can't keep a leaning part, a part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: ${inAssembly}.`);
-  const kept = keptParts(doc);
-  const keptIds = new Set(kept.boards.map((b) => b.id));
   const described = flatDocument(doc).boards.filter((b) => !(parentPath(b.id) === null && keptIds.has(b.id)));
   // A taper Refine cannot describe exactly is refused, never rewritten (spec §5.2). Flat names, as the person sees them.
   const odd = described.filter((b) => worldTapers(b) === null).map((b) => b.name);
