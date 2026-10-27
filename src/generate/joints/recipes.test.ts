@@ -2173,7 +2173,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     const doc = LEG_RAIL();
     const rail = board(doc, 'Rail');
     const l = fingerLayout(rail.length, 0.75)!;
-    rail.cuts.push(...notchCuts(l, true, 'width', endFacing(rail, 1, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    rail.cuts.push(...notchCuts(l, true, 'max', 'width', endFacing(rail, 1, 1), 'length', 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
     expect(fingerSets(rail).map((f) => f.dim)).toEqual(['width']);
     const sites = findSites(doc);
     const site = sites.find((s) => doc.boards[s.enter]!.name === 'Rail' && doc.boards[s.receive]!.name === 'Leg')!;
@@ -2193,7 +2193,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
     const dim = axisDimensions(e)[2]!;
     const along = dim === 'length' ? 'width' : 'length';
     const l = fingerLayout(e[along], 0.25)!;
-    e.cuts.push(...notchCuts(l, true, dim, endFacing(e, 2, 1), along, 0.5, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+    e.cuts.push(...notchCuts(l, true, 'max', dim, endFacing(e, 2, 1), along, 0.5, Array.from({ length: l.count }, (_, i) => `n${i}`)));
     expect(fingerSets(e)).toHaveLength(1);
     const site: Site = { id: 1, kind: 'crossing', enter: 1, receive: 0, axis: 1, side: -1, allowed: ['half-lap'], stopEnds: [] };
     const out = applyJoints(doc, [site], [{ site: 1, joint: 'half-lap' }]);
@@ -2215,7 +2215,7 @@ describe('joinery leaves a box-jointed end alone (box-joints spec §7)', () => {
         const dim = axisDimensions(b)[k]!;
         const along = dim === 'length' ? 'width' : 'length';
         const l = fingerLayout(b[along], 0.75)!;
-        b.cuts.push(...notchCuts(l, true, dim, endFacing(b, k, side), along, 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
+        b.cuts.push(...notchCuts(l, true, 'max', dim, endFacing(b, k, side), along, 0.75, Array.from({ length: l.count }, (_, i) => `n${i}`)));
         expect(fingerSets(b)).toHaveLength(1);
       };
       // RightSide's back end; or (both sides receivers, as in 'a panel cut INTERIOR…' above) the Back's own left end,

@@ -364,6 +364,7 @@ Rulings made while building (2026-10-27). **Awaiting the user's approval**, in p
   refusal can reach a user with all-mirrored metric links.
 - **D4 — the tie** (my call, needs the user's sight): §3.3's `N = 2·round((H/w − 1)/2) + 1` leaves a tie (a 4" drawer side at 1/2") to `Math.round`,
   up, to 1/4" outer fingers; the build pins a tie DOWN (3/4" outer fingers, `e = 3w/2`): thin outer fingers break off.
+  **Moot since 2026-10-27:** the equal-fingers ruling (the last Amended section) replaced the symmetric layout, so no tie arises (Task 9).
 - **D5 — kept assemblies** (the user's ruling, "Widen Task 6 to assemblies"): see §7's Amended paragraph; built as Task 6b.
 
 **Ruling lines from the build ledger**

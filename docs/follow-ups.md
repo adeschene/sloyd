@@ -7694,10 +7694,12 @@ it first.`; `<part> has a hole where the fingers go.`; `<part> has <a lean | an 
 box joints work on plain stock for now.`; `<A> and <B> must be in the same assembly.`; `Box joints can't reach a part inside a mirrored copy yet:
 <part>.`; `<part> is linked to <mate> — select <mate>'s corner too, or Unlink first.`; `These linked parts would need different box joints: <parts>.`;
 `Box joints can't keep these linked parts linked: <parts>. Unlink them first.` (the link post-condition, spec difference 3); `A finger width must be
-more than zero.`. (2) The success note: `Jointed <n> corner(s): <N> fingers, <w> wide (the outer two <e>).` (or `Jointed <n> corners:` and a line per
-corner), `<part> isn't at a corner with another selected part.`, `<part> is now <x> longer.` / `shorter.`. (3) The section `Box joints`, the field
-`Finger width`, the checkbox `Swap fingers`, the button `Box joint the corners`. (4) The cut list and diagram line: `Box joint — <N> fingers <w> wide
-(the outer two <e>), <d> deep, at the <dim> <end> end; this part has the outer fingers.` / `…the outer notches.` (5) The joinery reason `<part> has box
+more than zero.`. (2) The success note: `Jointed <n> corner(s): <N> fingers, <w> wide (the odd one <x>).` (the parenthesis dropped when every finger is
+`w`; or `Jointed <n> corners:` and a line per corner; Task 9, the equal-fingers ruling, replaced `(the outer two <e>)`), `<part> isn't at a corner with another selected part.`, `<part> is now <x> longer.` / `shorter.`. (3) The section `Box joints`, the field
+`Finger width`, the checkbox `Swap fingers`, the button `Box joint the corners`. (4) The cut list and diagram line (Task 9): `Box joint — <N> fingers <w> wide
+(the odd one <x> at the <J> <oddEnd> edge), <d> deep, at the <dim> <end> end; this part has a <finger | notch> at the <J> <start> edge.`, the
+parenthesis dropped when every finger is `w` (the start edge is then J's max), `<J>` the part's own joint-line dimension (e.g. `width`), so the
+words are part-local (`…the width min edge`), never world ones like "bottom" — a wording question for the review (5) The joinery reason `<part> has box
 joints, so joinery leaves its size and place alone` (ruling R-T6c; the old `already cut at that end` was false when the set is elsewhere). (6) Refine:
 `Refine can't keep <part>'s box joints through its other joints yet.`; the unjoined reason `Joinery would have changed <part>, which Refine keeps as
 it is for its box joints, so the design comes back unjoined.`; `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it —
@@ -7705,8 +7707,9 @@ Unlink first: <part>.`; the kept note's header (`These parts lean, have angled h
 and the round-tenon variants), its per-placement line `"<placement>" is an assembly with box joints and is kept as is: <bounds>.`, its
 footer (unchanged wording, now also covering kept placements) and the dialog's `Kept as is (leans, angled holes, round tenons or box joints): <names>`
 and `Replaced by the kept part of the same name: <names>` (now also a loose part or placement that reused a kept PLACEMENT's name). (7) The tie
-(spec difference 4): a 4" drawer side at 1/2" fingers gets 3/4" outer fingers, not 1/4": needs the user's sight.
-**Status:** open (owed to the user: wording and the tie).
+(spec difference 4): a 4" drawer side at 1/2" fingers gets 3/4" outer fingers, not 1/4": needs the user's sight. **Moot (2026-10-27):** the
+equal-fingers ruling replaced the symmetric layout (a 4" side at 1/2" is now 8 fingers, every one 1/2"), so no tie arises.
+**Status:** open (owed to the user: wording; the tie is moot).
 
 **492. Widen kept assemblies to the other kept kinds (spec §7, Amended).** A box-jointed part inside an assembly keeps the WHOLE assembly; a
 leaning part, a tilted hole row, a round tenon or a compound end cut inside an assembly still refuses Refine (`lean-assembly`, fu 441's rebuild of

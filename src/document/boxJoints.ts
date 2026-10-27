@@ -27,58 +27,75 @@ import {
 
 const EPS = 1e-9;
 
-/** One corner's fingers along the shared span: `count` (odd, ≥ 5) segments, the inner ones exactly `width`, the two
- *  outer ones `outer` each, over `length` (`H`). */
-export interface FingerLayout { count: number; width: number; outer: number; length: number }
+/** One corner's fingers along the shared span (spec, Amended 2026-10-27: equal fingers): `count` (≥ 5, odd or even)
+ *  segments over `length` (`H`), every one exactly `width` except at most ONE, the odd finger, `odd` wide; `odd === width`
+ *  when there is none. Which end of the span the odd one sits at is the caller's (`segment`'s `oddEnd`). */
+export interface FingerLayout { count: number; width: number; odd: number; length: number }
 
 /**
- * Spec §3.3: `N = max(5, 2n + 1)` with `n` the integer nearest `q = (H/w − 1)/2`, a TIE going DOWN (the fewer fingers
- * give the wider outer pair; thin outer fingers break off). Inner fingers are exactly `w`; the outer two share the rest,
- * `e = (H − (N − 2)·w) / 2`. Null when `w <= 0` or the span is too short for five fingers (`H < 4w`); the caller words it.
+ * The layout (spec, Amended 2026-10-27, the user's ruling: equal fingers, the leftover one odd finger, a sliver merged):
+ * `k = ⌊H/w⌋` (an `H` within 1e-9 of a multiple counts as that multiple), `r = H − k·w`. `r ≤ 1e-9`: `k` fingers, every
+ * one `w`. `r < w/4`: `k` fingers, the odd one `w + r` (the sliver merged into its neighbour). Else `k + 1` fingers, the
+ * odd one `r`. The odd finger is always `H − (N − 1)·w`, computed directly. The `w/4` bound is judged to 1e-9 too (an `r`
+ * within 1e-9 of `w/4` is `w/4`, which is not a sliver), so a metric span meant as exactly a quarter finger over does not
+ * fall either side by float noise. Null when `w <= 0` or `N < 5` (fewer read as a tenon); the caller words it.
  */
 export function fingerLayout(H: number, w: number): FingerLayout | null {
-  if (!(w > 0) || H < 4 * w) return null;
-  const q = (H / w - 1) / 2;
-  const f = Math.floor(q);
-  const n = Math.abs(q - f - 0.5) <= EPS ? f : Math.round(q);
-  const count = Math.max(5, 2 * n + 1);
-  return { count, width: w, outer: (H - (count - 2) * w) / 2, length: H };
-}
-
-/** Segment `k` (1-based) along the span, part-local from its min. Computed directly, never as a running sum (§3.4). */
-export function segment(l: FingerLayout, k: number): [number, number] {
-  const { count: N, width: w, outer: e, length: H } = l;
-  if (k === 1) return [0, e];
-  if (k === N) return [e + (N - 2) * w, H];
-  return [e + (k - 2) * w, e + (k - 1) * w];
+  if (!(w > 0) || !(H > 0)) return null;
+  let k = Math.floor(H / w);
+  if ((k + 1) * w - H <= EPS) k += 1;
+  const r = H - k * w;
+  const count = r <= EPS ? k : r < w / 4 - EPS ? k : k + 1;
+  if (count < 5) return null;
+  return { count, width: w, odd: r <= EPS ? w : H - (count - 1) * w, length: H };
 }
 
 /**
- * The notches one part of a corner carries (§3.4): one `Cut` per notch in segment order, ids taken in order. The
- * outer-fingers part is notched at EVEN `k`, the outer-notches part at ODD `k`. `face`/`from` name the end running into
- * the corner, `along` the part's `J` dimension; offsets are segment starts from that dimension's min (part-local). An
- * inner notch is exactly `width` wide and the last outer one `H −` its start.
+ * Segment `k` (1-based from the part-local `J` min), the odd segment at `oddEnd`. Computed directly, never as a running
+ * sum: odd at max, `[(k − 1)w, kw]` and the last `[(N − 1)w, H]`; odd at min, the first `[0, odd]`, then
+ * `[odd + (k − 2)w, odd + (k − 1)w]`, the last ending exactly at `H`.
+ */
+export function segment(l: FingerLayout, k: number, oddEnd: CutFrom): [number, number] {
+  const { count: N, width: w, odd, length: H } = l;
+  // With no odd finger the end does not matter: one formula, so both ends give the same bytes.
+  if (oddEnd === 'max' || odd === w) return k === N ? [(N - 1) * w, H] : [(k - 1) * w, k * w];
+  if (k === 1) return [0, odd];
+  return [odd + (k - 2) * w, k === N ? H : odd + (k - 1) * w];
+}
+
+/** Does segment `N` (J's max) carry a finger, given segment 1's kind: the same kind when `N` is odd. */
+export const fingerAtMaxOf = (count: number, fingerAtMin: boolean): boolean => (count % 2 === 1 ? fingerAtMin : !fingerAtMin);
+
+/**
+ * The notches one part of a corner carries (§3.4): one `Cut` per notch in segment order, ids taken in order. A part with
+ * a finger at `J`'s min is notched at EVEN `k`, the other at ODD `k`. `face`/`from` name the end running into the corner,
+ * `along` the part's `J` dimension; offsets are segment starts from that dimension's min (part-local). A full notch is
+ * exactly `width` wide, the odd one exactly `odd`, and the last one `H −` its start.
  */
 export function notchCuts(
-  l: FingerLayout, outerFingers: boolean, face: Dimension, from: CutFrom, along: Dimension, depth: number, ids: string[],
+  l: FingerLayout, fingerAtMin: boolean, oddEnd: CutFrom, face: Dimension, from: CutFrom, along: Dimension, depth: number,
+  ids: string[],
 ): Cut[] {
   // `along` is implied by `face` and `across: 'thickness'` (a cut's position axis is never stored); a caller naming any
   // other dimension has its corner's axes wrong.
   if (along !== positionAxisOf(face, 'thickness')) throw new Error(`notchCuts: ${along} is not the position axis of ${face}`);
   const out: Cut[] = [];
-  for (let k = outerFingers ? 2 : 1; k <= l.count; k += 2) {
-    const [lo] = segment(l, k);
-    // Not `hi − lo`: an inner notch is exactly `width` wide (its end may then sit an ulp off the next segment's start,
+  for (let k = fingerAtMin ? 2 : 1; k <= l.count; k += 2) {
+    const [lo] = segment(l, k, oddEnd);
+    // Not `hi − lo`: a full notch is exactly `width` wide (its end may then sit an ulp off the next segment's start,
     // which every reader takes at 1e-9).
-    const width = k === 1 ? l.outer : k === l.count ? l.length - lo : l.width;
+    const width = k === l.count ? l.length - lo : k === 1 && oddEnd === 'min' && l.odd !== l.width ? l.odd : l.width;
     out.push({ id: ids[out.length], face, from, across: 'thickness', offset: lo, width, depth, stopMin: 0, stopMax: 0 });
   }
   return out;
 }
 
-/** A recognised box joint at one end of one dimension (§5.1). `layout` is rebuilt from what was read. */
+/** A recognised box joint at one end of one dimension (§5.1). `layout` is rebuilt from what was read; `fingerAtMin`
+ *  says whether `J`'s min segment carries a finger on this part, `oddEnd` which end of `J` the odd finger is at (null
+ *  when every segment is `width`). Never anything world-relative. */
 export interface FingerSet {
-  dim: Dimension; end: CutFrom; layout: FingerLayout; depth: number; outerFingers: boolean; cutIds: string[];
+  dim: Dimension; end: CutFrom; layout: FingerLayout; depth: number; fingerAtMin: boolean; oddEnd: CutFrom | null;
+  cutIds: string[];
 }
 
 const ENDS: [Dimension, CutFrom][] = [['length', 'min'], ['length', 'max'], ['width', 'min'], ['width', 'max']];
@@ -93,8 +110,9 @@ export function fingerSets(board: Board): FingerSet[] {
  * as a thickness-face pocket (`refaceFromEnd`), and it must still be seen. The stock-removing cuts whose clipped region
  * is open at that end face of `dim` and spans the whole thickness must ALL reach one depth into `dim` (a different one
  * means no set). Read along the other face dimension, those notches and the fingers between them alternate across all
- * of it, starting and ending with the same kind, in `N ≥ 5` segments, every inner one equal and the two outer equal
- * (all to 1e-9).
+ * of it in `N ≥ 5` segments (spec, Amended 2026-10-27): every segment the same width `w`, except at most ONE END segment,
+ * which may be any width in `(0, 1.25w)` (a width within 1e-9 of `w` is `w`, one within 1e-9 of `1.25w` is not under it).
+ * Two differing end segments are not a set. `N` may be even (a finger at one edge, a notch at the other).
  */
 export function fingerSetAt(board: Board, dim: Dimension, end: CutFrom): FingerSet | null {
   if (dim === 'thickness') return null;
@@ -128,14 +146,18 @@ export function fingerSetAt(board: Board, dim: Dimension, end: CutFrom): FingerS
   else if (at > H + EPS) return null;
 
   const N = segs.length;
-  if (N < 5 || segs[0][2] !== segs[N - 1][2]) return null;
+  if (N < 5) return null;
   const len = (s: [number, number, boolean]) => s[1] - s[0];
-  const outer = len(segs[0]);
   const width = len(segs[1]);
-  if (Math.abs(len(segs[N - 1]) - outer) > EPS) return null;
   if (segs.slice(1, N - 1).some((s) => Math.abs(len(s) - width) > EPS)) return null;
+  const offMin = Math.abs(len(segs[0]) - width) > EPS;
+  const offMax = Math.abs(len(segs[N - 1]) - width) > EPS;
+  if (offMin && offMax) return null;
+  const oddEnd: CutFrom | null = offMin ? 'min' : offMax ? 'max' : null;
+  const odd = oddEnd === null ? width : len(segs[oddEnd === 'min' ? 0 : N - 1]);
+  if (odd >= 1.25 * width - EPS) return null;
   return {
-    dim, end, layout: { count: N, width, outer, length: H }, depth, outerFingers: !segs[0][2],
+    dim, end, layout: { count: N, width, odd, length: H }, depth, fingerAtMin: !segs[0][2], oddEnd,
     cutIds: notches.map((n) => n.id),
   };
 }
@@ -167,7 +189,8 @@ export interface BoxJointCorner { a: string; b: string; layout: FingerLayout }
  */
 export interface BoxJointPlan { parts: Map<string, Board>; corners: BoxJointCorner[]; notes: string[] }
 
-/** The phase order (spec §3.3): the outer fingers go on the part whose run axis comes first in Z, X, Y. */
+/** The phase order (spec, Amended 2026-10-27): the part whose run axis comes first in Z, X, Y takes a FINGER in the
+ *  start-edge segment. */
 const RUN_RANK = [1, 2, 0];
 
 /** One part end in one corner: the world axis `k` it runs along into the corner, the world side its end faces, the
@@ -219,10 +242,11 @@ function featureOf(b: Board): BoxFeature | null {
 }
 
 /** One jointed end's work, in part terms: the run dimension `d` and its end, the move (`k`, `side`, the new size), and
- *  the notches (`layout`, phase, depth). Replayed on a Shape's own board for a linked part. */
+ *  the notches (`layout`, the phase `fingerAtMin`, the odd finger's end `oddEnd`, both part-local on `J`, and the depth).
+ *  Replayed on a Shape's own board for a linked part. */
 interface EndOp {
   k: number; side: -1 | 1; d: Dimension; end: CutFrom; size: number;
-  layout?: FingerLayout; outerFingers?: boolean; depth: number; far: number;
+  layout?: FingerLayout; fingerAtMin?: boolean; oddEnd?: CutFrom; depth: number; far: number;
 }
 
 /** Remove the finger set at `op`'s end and move that end (spec §3.2, §3.5): the exact new size, never grid-rounded
@@ -246,12 +270,15 @@ function moveEnd(b: Board, op: EndOp, end: CutFrom, side: -1 | 1, exact: boolean
   return true;
 }
 
-/** Add `op`'s notches at `end` (spec §3.4), ids minted here. */
-function addNotches(b: Board, op: EndOp, end: CutFrom): void {
+/** Add `op`'s notches at `end` (spec §3.4), ids minted here; `fingerAtMin`/`oddEnd` are in `b`'s own `J` terms (a
+ *  Shape's own board passes them through a mirrored representative's flag). */
+function addNotches(b: Board, op: EndOp, end: CutFrom, fingerAtMin: boolean, oddEnd: CutFrom): void {
   const along = positionAxisOf(op.d, 'thickness');
   const ids = Array.from({ length: op.layout!.count }, () => nextId());
-  b.cuts = [...b.cuts, ...notchCuts(op.layout!, op.outerFingers!, op.d, end, along, op.depth, ids)];
+  b.cuts = [...b.cuts, ...notchCuts(op.layout!, fingerAtMin, oddEnd, op.d, end, along, op.depth, ids)];
 }
+
+const flipEnd = (e: CutFrom): CutFrom => (e === 'min' ? 'max' : 'min');
 
 /** The corner region of a moved end (spec §3.5, task brief step 4): the last `depth` of the run dimension at that end,
  *  full thickness, full `J` dimension. */
@@ -309,10 +336,12 @@ function withShapeFields(world: Board, stored: StoredBoard, shape: Shape): Board
  * 4. Per jointed part, then per end: a feature it may not carry yet (`featureOf`); then that end's finger set is removed
  *    (`fingerSetAt`), the end moved exactly to the other part's outside face (`resizeEnd`), and the corner region judged:
  *    a cut not running through it, then a hole touching it.
- * 5. Per corner, `fingerLayout` on the shared `H` (too short refuses); the phase (Z, X, Y; `swap` inverts); the notches.
+ * 5. Per corner, `fingerLayout` on the shared `H` (too short refuses); the start edge (J's world max when J is Y, else
+ *    its world min; the odd finger at the other end); the phase (Z, X, Y take a finger at the start edge; `swap` inverts);
+ *    the notches.
  * 6. Linked parts: every user of a jointed part's Shape must be jointed at the same Shape-local ends (through its own
- *    `mirrored` flag along `mirrorDim`), with the same layout, phase, depth and new size; else the mate or disagreement
- *    sentence. The Shape's new shared fields are planned ONCE on the Shape's own board (a non-mirrored user's frame, the
+ *    `mirrored` flag along `mirrorDim`), with the same layout, phase and odd end (Shape-local: through the flag when
+ *    `mirrorDim` is `J`), depth and new size; else the mate or disagreement sentence. The Shape's new shared fields are planned ONCE on the Shape's own board (a non-mirrored user's frame, the
  *    ends flipped for a mirrored one; ids minted once), and every user's world after-state reads them through its flag.
  * Last, the link post-condition: the plan is written (`applyBoxJoints`) and every Shape with two or more users must still
  * hold them all; else `boxLinkSplit`.
@@ -390,12 +419,18 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
   for (const { ends: [ea, eb], J } of corners) {
     const layout = fingerLayout(boardExtents(ea.part)[J]!, opts.width);
     if (!layout) return boxTooShort(nameOf(ea.part), nameOf(eb.part));
-    const aOuter = (RUN_RANK[ea.k]! < RUN_RANK[eb.k]!) !== opts.swap;
-    for (const [e, outerFingers] of [[ea, aOuter], [eb, !aOuter]] as const) {
+    // The start edge (full fingers start there, the odd one is at the other end): J's world MAX when J is world Y (the
+    // odd finger at the bottom), else J's world min. Each part reads it in its OWN J terms (`endFacing`) and computes
+    // its segments directly from there; the two parts share J's world span, so their notches are exact complements.
+    const startSide: -1 | 1 = J === 1 ? 1 : -1;
+    const aStartFinger = (RUN_RANK[ea.k]! < RUN_RANK[eb.k]!) !== opts.swap;
+    for (const [e, startFinger] of [[ea, aStartFinger], [eb, !aStartFinger]] as const) {
       const op = ops.get(e)!;
+      const start = endFacing(e.part, J, startSide);
       op.layout = layout;
-      op.outerFingers = outerFingers;
-      addNotches(planned.get(e.part.id)!, op, op.end);
+      op.oddEnd = flipEnd(start);
+      op.fingerAtMin = start === 'min' ? startFinger : fingerAtMaxOf(layout.count, startFinger);
+      addNotches(planned.get(e.part.id)!, op, op.end, op.fingerAtMin, op.oddEnd);
     }
     out.push({ a: ea.part.id, b: eb.part.id, layout });
   }
@@ -415,11 +450,18 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
     const mate = keyedUsers(sid).find((w) => !jointedKeys.has(storageKey(doc, w.id)));
     if (mate) return boxLinkedMate(nameOf(users[0]!), nameOf(mate));
     const localEnd = (u: Board, op: EndOp): CutFrom =>
-      (u.mirrored === true && op.d === mirrorDim(u) ? (op.end === 'min' ? 'max' : 'min') : op.end);
+      (u.mirrored === true && op.d === mirrorDim(u) ? flipEnd(op.end) : op.end);
+    // The phase and the odd finger's end, Shape-local: a mirrored user's are flipped when its mirror runs along J (the
+    // finger at J's min becomes the one at J's max). With no odd finger its end is no part of the layout (null).
+    const jFlip = (u: Board, op: EndOp) => u.mirrored === true && positionAxisOf(op.d, 'thickness') === mirrorDim(u);
+    const localFingerAtMin = (u: Board, op: EndOp): boolean =>
+      (jFlip(u, op) ? fingerAtMaxOf(op.layout!.count, op.fingerAtMin!) : op.fingerAtMin!);
+    const localOddEnd = (u: Board, op: EndOp): CutFrom => (jFlip(u, op) ? flipEnd(op.oddEnd!) : op.oddEnd!);
     // Per Shape-local end: the layout, phase and depth, and the run dimension's FINAL size (an op's own `size` is the
     // size after that end's move, which depends on the order the ends were planned in).
     const sigOf = (u: Board) => endsOf.get(u.id)!.map((e) => ops.get(e)!)
-      .map((op) => [op.d, localEnd(u, op), op.layout!.count, op.layout!.width, op.layout!.outer, op.outerFingers, op.depth, planned.get(u.id)![op.d]])
+      .map((op) => [op.d, localEnd(u, op), op.layout!.count, op.layout!.width, op.layout!.odd, localFingerAtMin(u, op),
+        op.layout!.odd === op.layout!.width ? null : localOddEnd(u, op), op.depth, planned.get(u.id)![op.d]])
       .sort((x, y) => (`${x[0]}${x[1]}` < `${y[0]}${y[1]}` ? -1 : 1));
     const endsKey = (u: Board) => JSON.stringify(sigOf(u).map((s) => [s[0], s[1]]));
     const first = users[0]!;
@@ -429,10 +471,10 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
     // another world offset can plan it an ulp off (the recognised-number ruling's class), and it compares at 1e-9. The
     // Shape still takes the representative's size below, and the link post-condition guards the written result.
     const sameSig = (x: ReturnType<typeof sigOf>, y: ReturnType<typeof sigOf>) => x.length === y.length && x.every((s, i) =>
-      JSON.stringify(s.slice(0, 7)) === JSON.stringify(y[i]!.slice(0, 7)) && Math.abs((s[7] as number) - (y[i]![7] as number)) <= EPS);
+      JSON.stringify(s.slice(0, 8)) === JSON.stringify(y[i]!.slice(0, 8)) && Math.abs((s[8] as number) - (y[i]![8] as number)) <= EPS);
     if (users.some((u) => !sameSig(sigOf(u), sigOf(first)))) return boxLinkedDisagree(users.map(nameOf));
     // The Shape's own board: a user's frame with the Shape's own features; a mirrored user's ends are flipped along
-    // mirrorDim, and its world side with them (the turn is the same).
+    // mirrorDim, and its world side with them (the turn is the same); so are its phase and odd end when mirrorDim is J.
     const rep = users.find((u) => u.mirrored !== true) ?? first;
     const shape = shapes.get(sid)!;
     const own: Board = structuredClone({ ...rep, ...shapeFields(shape) });
@@ -441,7 +483,7 @@ export function boxJointPlan(doc: SloydDocument, ids: readonly string[], opts: B
     for (const op of repOps) {
       if (!moveEnd(own, op, localEnd(rep, op), flip(op) ? (op.side === 1 ? -1 : 1) : op.side, false)) return boxCutInTheWay(nameOf(rep));
     }
-    for (const op of repOps) addNotches(own, op, localEnd(rep, op));
+    for (const op of repOps) addNotches(own, op, localEnd(rep, op), localFingerAtMin(rep, op), localOddEnd(rep, op));
     const next: Shape = { id: sid, ...sharedOf(own) };
     for (const u of users) parts.set(u.id, withShapeFields(planned.get(u.id)!, storedOf(doc, u.id), next));
   }

@@ -1036,12 +1036,12 @@ describe('round tenons on the cut list (round tenons spec §8)', () => {
 
 describe('box joints on the sheet (box joints spec §5.2)', () => {
   const layout = fingerLayout(4.5, 0.5)!;
-  const notches = (outerFingers: boolean, end: 'min' | 'max', p: string): Cut[] =>
-    notchCuts(layout, outerFingers, 'length', end, 'width', 0.5, Array.from({ length: outerFingers ? 4 : 5 }, (_, i) => `${p}${i}`));
+  const notches = (fingerAtMin: boolean, end: 'min' | 'max', p: string): Cut[] =>
+    notchCuts(layout, fingerAtMin, 'max', 'length', end, 'width', 0.5, Array.from({ length: fingerAtMin ? 4 : 5 }, (_, i) => `${p}${i}`));
   const cheek = (id: string, from: 'min' | 'max', end: 'min' | 'max'): Cut =>
     ({ id, face: 'thickness', from, across: 'width', offset: end === 'min' ? 0 : 17.5, width: 0.5, depth: 0.125, stopMin: 0, stopMax: 0 });
   const setupOf = (b: Partial<Board>) => buildCutList(docWith({ length: 18, width: 4.5, thickness: 0.5, ...b })).groups[0].rows[0].setup;
-  const LINE = (who: string, end: string) => `Box joint — 9 fingers 1/2" wide, 1/2" deep, at the length ${end} end; this part has the outer ${who}.`;
+  const LINE = (who: string, end: string) => `Box joint — 9 fingers 1/2" wide, 1/2" deep, at the length ${end} end; this part has a ${who} at the width max edge.`;
 
   it('a planned drawer side: one Box joint line per jointed end, no notch, dado or rabbet line, the groove still listed', () => {
     const mk = (id: string, name: string, rotation: 0 | 90, length: number, pos: [number, number, number]) =>
@@ -1065,7 +1065,7 @@ describe('box joints on the sheet (box joints spec §5.2)', () => {
 
   it('prints the line before the tenon lines; a hand-made tenon at the other end is still printed', () => {
     expect(setupOf({ cuts: [...notches(true, 'min', 'n'), cheek('c1', 'min', 'max'), cheek('c2', 'max', 'max')] })).toEqual([
-      LINE('fingers', 'min'),
+      LINE('finger', 'min'),
       '1/2" tenon, 1/4" thick × 4-1/2" wide — at the length max end',
     ]);
   });
@@ -1073,8 +1073,25 @@ describe('box joints on the sheet (box joints spec §5.2)', () => {
   it('claims its notches BEFORE the tenon finder and the per-cut loop: cheeks at the finger end still make their own tenon', () => {
     // The cheeks alone are a tenon (ell 1/2); with the full-thickness notches in the finder's input they are not.
     expect(setupOf({ cuts: [...notches(false, 'min', 'n'), cheek('c1', 'min', 'min'), cheek('c2', 'max', 'min')] })).toEqual([
-      LINE('notches', 'min'),
+      LINE('notch', 'min'),
       '1/2" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+    ]);
+  });
+
+  it('the line, literally: with an odd finger (named with its J edge), and an even count (the start edge read by parity)', () => {
+    const odd = fingerLayout(4.25, 0.5)!;
+    const oddCuts = notchCuts(odd, false, 'min', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd', 'e']);
+    expect(buildCutList(docWith({ length: 18, width: 4.25, thickness: 0.5, cuts: oddCuts })).groups[0].rows[0].setup).toEqual([
+      'Box joint — 9 fingers 1/2" wide (the odd one 1/4" at the width min edge), 1/2" deep, at the length min end; this part has a notch at the width max edge.',
+    ]);
+    const atMax = notchCuts(odd, true, 'max', 'length', 'max', 'width', 0.5, ['a', 'b', 'c', 'd']);
+    expect(buildCutList(docWith({ length: 18, width: 4.25, thickness: 0.5, cuts: atMax })).groups[0].rows[0].setup).toEqual([
+      'Box joint — 9 fingers 1/2" wide (the odd one 1/4" at the width max edge), 1/2" deep, at the length max end; this part has a finger at the width min edge.',
+    ]);
+    // 8 fingers, a finger at J's min: J's max (the start edge with no odd finger) is a notch.
+    const even = notchCuts(fingerLayout(4, 0.5)!, true, 'max', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd']);
+    expect(buildCutList(docWith({ length: 18, width: 4, thickness: 0.5, cuts: even })).groups[0].rows[0].setup).toEqual([
+      'Box joint — 8 fingers 1/2" wide, 1/2" deep, at the length min end; this part has a notch at the width max edge.',
     ]);
   });
 

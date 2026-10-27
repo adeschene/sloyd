@@ -1437,18 +1437,27 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `stopMax: 0`, `offset`/`width` the segment along the part's `J` dimension), so an older build reads the same file as plain
     cuts. **A box-joint-free project is byte for byte as before**: no reader, check, drawing, loader or cut-list line changes for it
     (`CURRENT_VERSION` stays 25; every existing test passes unchanged).
-    - **The layout** (`fingerLayout(H, w)`, spec §3.3): `N = max(5, 2n + 1)` fingers, `n` the integer nearest `q = (H/w − 1)/2`, a TIE
-      (`q − ⌊q⌋` within 1e-9 of 0.5) going DOWN (spec difference 4: the wider outer pair, `3w/2` rather than `w/2`; thin outer
-      fingers break off); inner fingers exactly `w`, outer `e = (H − (N − 2)·w)/2`; null when `w` is not more than zero or
-      `H < 4w`. **At least five fingers**: three read as a tenon to `findTenons` (`boxJoints.test.ts` pins that a three-segment set
-      IS claimed as one, so the floor cannot be mutated away silently). `segment(l, k)` is computed directly from `e`, `w` and `H`,
-      never as a running sum. The outer-fingers part is notched at EVEN `k`, the outer-notches part at ODD `k`; each notch is
-      the other part's thickness deep, exactly. **One layout per corner, exact complements** (to 1e-9): the two parts of a corner
-      are cut from the ONE planned layout, so they never overlap and leave no gap. Phase: the outer fingers go to the part
-      whose run axis comes first in Z, X, Y; **Swap fingers** inverts it for every corner.
+    - **The layout** (`fingerLayout(H, w)`; spec, *Amended 2026-10-27*, the user's ruling after the build: equal fingers): `k = ⌊H/w⌋`
+      (an `H` within 1e-9 of a multiple counts as that multiple), `r = H − k·w`; `r ≤ 1e-9`: `N = k`, every finger exactly `w`
+      (`odd === width`); `r < w/4` (judged to 1e-9: an `r` within 1e-9 of `w/4` is `w/4`, not a sliver): `N = k`, the odd finger `w + r`
+      (the sliver merged into its neighbour); else `N = k + 1`, the odd finger `r`. The odd finger is always `H − (N − 1)·w`, computed
+      directly. `N` may be even. Null when `w` is not more than zero or `N < 5`. **At least five fingers**: three read as a tenon to
+      `findTenons` (`boxJoints.test.ts` pins that a three-segment set IS claimed as one, so the floor cannot be mutated away silently).
+      (The symmetric layout and its tie rule, spec difference 4, are gone: no tie arises.) `segment(l, k, oddEnd)` is computed
+      directly from `w`, `odd` and `H`, never as a running sum, from the part-local J min with the odd segment at `oddEnd` (with no
+      odd finger one formula, so both ends give the same bytes). A part with a finger at J's min is notched at EVEN `k`, the other at
+      ODD `k`; each notch is the other part's thickness deep, exactly. **Where the odd finger goes:** full fingers start at the
+      START edge — J's world MAX when J is world Y (so the odd finger is at the BOTTOM), J's world min when J is horizontal — and
+      each part reads that edge in its OWN J terms (`endFacing`) and computes its segments directly from it, never by converting
+      offsets through the world. **One layout per corner, exact complements** (to 1e-9): the two parts of a corner are cut from
+      the ONE planned layout over the one shared J span, so they never overlap and leave no gap. Phase: the part whose run axis
+      comes first in Z, X, Y takes a FINGER in the start-edge segment (with an even `N` it then has a notch at the other edge;
+      `fingerAtMaxOf` is the parity); **Swap fingers** inverts it for every corner.
     - **The recogniser reads SHAPE, never stored fields** (`fingerSets(board)`, `fingerSetAt`): per length/width end, the
       stock-removing cuts open at that end and spanning the thickness, all the same depth, sorted along `P` with no overlap or gap,
-      first and last segments the same kind, `N ≥ 5`, the outer two equal and every inner one equal. Re-stored notches (a resize
+      `N ≥ 5` alternating segments, every one the same width `w` (1e-9) except at most ONE END segment, any width in `(0, 1.25w)`
+      (to 1e-9; two differing end segments are no set). It reports `fingerAtMin` (J's min segment carries a finger) and `oddEnd`
+      (`'min' | 'max' | null`, null when every segment is `w`, and then `odd === width`), never anything world-relative. Re-stored notches (a resize
       re-faces a notch to the thickness face, `refaceFromEnd`) read back as the same set. A recognised width/depth may be an ulp off
       the planned value (exact for the usual cases, 1e-9 in general: Task 2's ruling), so nothing compares recognised numbers
       across boards exactly; the planner compares PLANNED parameters. A partial-thickness cut over the fingers does not stop
@@ -1466,7 +1475,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       take a position-only linked mate beside a representative's size change. Every selected world part goes in with its FULL
       after-state, ONE edit per storage key, Shapes made plain (marked) and regrouped by `regroupShapes`; the planner's
       **link post-condition** refuses (`boxLinkSplit`) any result that would split a Shape's users, and linked parts that would need
-      different layouts refuse (`boxLinkedDisagree`). A linked mate not selected refuses (`boxLinkedMate`); a part inside a mirrored
+      different layouts refuse (`boxLinkedDisagree`). The linked signature carries the phase and the odd end SHAPE-LOCAL: through
+      a user's `mirrored` flag when `mirrorDim` is J (the finger at J's min becomes the one at J's max, by parity; the odd end flips;
+      no odd finger compares as null), and the Shape's own board is notched with the same flipped values when its representative
+      is mirrored. So a mirrored user at Mirror's own inverse turn agrees, and one at the SAME turn (a reflection along J) agrees
+      only when the layout is symmetric along J (odd `N`, no odd finger); otherwise it refuses. A linked mate not selected refuses (`boxLinkedMate`); a part inside a mirrored
       copy refuses; a selection is always one container's siblings (`selectionPatch`), so the container refusal is
       defensive only.
     - **Joinery leaves the size and place of any box-jointed part alone** (`recipes.ts`): a site that would resize, trim, move or

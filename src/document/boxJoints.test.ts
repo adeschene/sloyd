@@ -1,7 +1,7 @@
 import { createBoard, createDocument, flatDocument } from './document';
 import {
   applyBoxJoints, boxJointPlan, defaultFingerWidth, fingerLayout, fingerSetAt, fingerSets, notchCuts, segment,
-  type BoxJointOptions, type BoxJointPlan, type FingerLayout,
+  type BoxJointOptions, type BoxJointPlan, type FingerLayout, type FingerSet,
 } from './boxJoints';
 import { BOX_NO_CORNER, BOX_WIDTH_POSITIVE } from './boxJointText';
 import { checkDesign, type DesignLimits } from './designCheck';
@@ -24,23 +24,31 @@ import type { AngleCut, Board, Cut, CurveCut, CutFrom, Dimension, HoleRow, Lean,
 const METRIC: Units = { display: 'metric-mm', precision: 1 };
 const other = (dim: Dimension): Dimension => (dim === 'length' ? 'width' : 'length');
 
-describe('fingerLayout (spec §3.3)', () => {
-  it('an odd multiple of w: every finger equal', () => {
-    expect(fingerLayout(4.5, 0.5)).toEqual({ count: 9, width: 0.5, outer: 0.5, length: 4.5 });
+describe('fingerLayout (spec, Amended 2026-10-27: equal fingers)', () => {
+  it('an exact multiple of w: every finger w, no odd one (N may be even)', () => {
+    expect(fingerLayout(4, 0.5)).toEqual({ count: 8, width: 0.5, odd: 0.5, length: 4 });
+    expect(fingerLayout(4.5, 0.5)).toEqual({ count: 9, width: 0.5, odd: 0.5, length: 4.5 });
   });
 
-  it('the nearest odd count, the slack shared by the outer two', () => {
-    expect(fingerLayout(5.25, 0.5)).toEqual({ count: 11, width: 0.5, outer: 0.375, length: 5.25 });
+  it('a leftover of w/4 or more is one more, odd, finger', () => {
+    expect(fingerLayout(4.25, 0.5)).toEqual({ count: 9, width: 0.5, odd: 0.25, length: 4.25 });
+    expect(fingerLayout(2.25, 0.5)).toEqual({ count: 5, width: 0.5, odd: 0.25, length: 2.25 });
   });
 
-  it('a tie goes DOWN, to the wider outer pair', () => {
-    expect(fingerLayout(5, 0.5)).toEqual({ count: 9, width: 0.5, outer: 0.75, length: 5 });
-    expect(fingerLayout(4, 0.5)).toEqual({ count: 7, width: 0.5, outer: 0.75, length: 4 });
+  it('a sliver (under w/4) merges into its neighbour', () => {
+    // 4.1 − 7·0.5 in floats is 0.5999999999999996, not 0.6: the odd finger is computed directly as H − (N − 1)·w.
+    expect(fingerLayout(4.1, 0.5)).toEqual({ count: 8, width: 0.5, odd: 4.1 - 7 * 0.5, length: 4.1 });
+    expect(Math.abs(fingerLayout(4.1, 0.5)!.odd - 0.6)).toBeLessThanOrEqual(1e-12);
   });
 
-  it('at least five fingers; shorter than 4w refuses', () => {
-    expect(fingerLayout(1.9, 0.5)).toBeNull();
-    expect(fingerLayout(2, 0.5)).toEqual({ count: 5, width: 0.5, outer: 0.25, length: 2 });
+  it('exactly w/4 is not a sliver', () => {
+    expect(fingerLayout(4.125, 0.5)).toEqual({ count: 9, width: 0.5, odd: 0.125, length: 4.125 });
+  });
+
+  it('at least five fingers', () => {
+    expect(fingerLayout(2, 0.5)).toBeNull();
+    expect(fingerLayout(2.1, 0.5)).toBeNull(); // 4 fingers, the sliver merged
+    expect(fingerLayout(2.5, 0.5)).toEqual({ count: 5, width: 0.5, odd: 0.5, length: 2.5 });
   });
 
   it('a width of zero or less refuses', () => {
@@ -48,45 +56,91 @@ describe('fingerLayout (spec §3.3)', () => {
     expect(fingerLayout(4, -0.5)).toBeNull();
   });
 
-  it('segments are computed directly, cover [0, H] and alternate in width', () => {
-    const l = fingerLayout(5.25, 0.5)!;
-    expect(segment(l, 1)).toEqual([0, 0.375]);
-    expect(segment(l, 2)).toEqual([0.375, 0.875]);
-    expect(segment(l, 10)).toEqual([0.375 + 8 * 0.5, 0.375 + 9 * 0.5]);
-    expect(segment(l, 11)).toEqual([0.375 + 9 * 0.5, 5.25]);
+  it('metric: 100 mm at 6 mm is 17 fingers, the odd one 4 mm (by the formula)', () => {
+    const H = 100 / 25.4;
+    const w = 6 / 25.4;
+    const k = Math.floor(H / w);
+    expect(k).toBe(16);
+    expect(fingerLayout(H, w)).toEqual({ count: 17, width: w, odd: H - 16 * w, length: H });
+    expect(Math.abs(fingerLayout(H, w)!.odd * 25.4 - 4)).toBeLessThanOrEqual(1e-9);
+  });
+
+  it('an H a hair under (or over) a multiple counts as that multiple: no odd finger', () => {
+    const w = 12 / 25.4;
+    expect(fingerLayout(8 * w - 1e-12, w)).toEqual({ count: 8, width: w, odd: w, length: 8 * w - 1e-12 });
+    expect(fingerLayout(8 * w + 1e-12, w)).toEqual({ count: 8, width: w, odd: w, length: 8 * w + 1e-12 });
+  });
+
+  it('a leftover within 1e-9 of w/4 is w/4: not a sliver', () => {
+    const w = 8 / 25.4;
+    expect(fingerLayout(6 * w + w / 4 - 1e-12, w)!.count).toBe(7);
+  });
+
+  it('segments are computed directly, cover [0, H], the odd one at the named end', () => {
+    const l = fingerLayout(4.25, 0.5)!;
+    expect(segment(l, 1, 'max')).toEqual([0, 0.5]);
+    expect(segment(l, 8, 'max')).toEqual([3.5, 4]);
+    expect(segment(l, 9, 'max')).toEqual([4, 4.25]);
+    expect(segment(l, 1, 'min')).toEqual([0, 0.25]);
+    expect(segment(l, 2, 'min')).toEqual([0.25, 0.75]);
+    expect(segment(l, 9, 'min')).toEqual([3.75, 4.25]);
+  });
+
+  it('with no odd finger both ends give the same segments', () => {
+    const l = fingerLayout(100 / 25.4, 12.5 / 25.4)!;
+    expect(l.odd).toBe(l.width);
+    for (let k = 1; k <= l.count; k += 1) expect(segment(l, k, 'min')).toEqual(segment(l, k, 'max'));
   });
 });
 
 /** A plain board whose `dim` end `end` carries the planned notches: `dim` is `D` long, the other face dimension `H`. */
-function planned(l: FingerLayout, outerFingers: boolean, dim: Dimension, end: CutFrom, depth: number, D: number) {
-  const n = outerFingers ? (l.count - 1) / 2 : (l.count + 1) / 2;
+function planned(l: FingerLayout, fingerAtMin: boolean, oddEnd: CutFrom, dim: Dimension, end: CutFrom, depth: number, D: number) {
+  const n = fingerAtMin ? Math.floor(l.count / 2) : Math.ceil(l.count / 2);
   const ids = Array.from({ length: n }, (_, i) => `n${i}`);
-  const cuts = notchCuts(l, outerFingers, dim, end, other(dim), depth, ids);
+  const cuts = notchCuts(l, fingerAtMin, oddEnd, dim, end, other(dim), depth, ids);
   const board = createBoard({ [dim]: D, [other(dim)]: l.length, thickness: 0.5, cuts } as Partial<Board>);
   return { board, cuts, ids };
 }
 
-const CASES: [number, number][] = [[3, 0.5], [4.75, 0.5], [6, 0.75], [100 / 25.4, 6 / 25.4]];
-const EVERY = CASES.flatMap(([H, w]) => [true, false].flatMap((outerFingers) =>
-  (['length', 'width'] as const).flatMap((dim) => (['min', 'max'] as const).map((end) => ({ H, w, outerFingers, dim, end })))));
+/** Odd counts and even, with and without an odd finger, a merged sliver, metric. */
+const CASES: [number, number][] = [[3, 0.5], [4.75, 0.5], [4.25, 0.5], [4.1, 0.5], [6, 0.75], [4, 0.5], [100 / 25.4, 6 / 25.4]];
+const EVERY = CASES.flatMap(([H, w]) => [true, false].flatMap((fingerAtMin) => (['min', 'max'] as const).flatMap((oddEnd) =>
+  (['length', 'width'] as const).flatMap((dim) => (['min', 'max'] as const).map((end) => ({ H, w, fingerAtMin, oddEnd, dim, end }))))));
+/** What the recogniser reports for the odd finger's end: null when every finger is `w`. */
+const oddEndOf = (l: FingerLayout, oddEnd: CutFrom) => (l.odd === l.width ? null : oddEnd);
 
 describe('notchCuts (spec §3.4)', () => {
-  it('one cut per notch in segment order: the outer-fingers part at EVEN k, the other at ODD k', () => {
+  it('one cut per notch in segment order: a finger at J min means notches at EVEN k, else at ODD k', () => {
     const l = fingerLayout(4.5, 0.5)!;
-    const a = notchCuts(l, true, 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd']);
+    const a = notchCuts(l, true, 'max', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd']);
     expect(a.map((c) => [c.offset, c.width])).toEqual([[0.5, 0.5], [1.5, 0.5], [2.5, 0.5], [3.5, 0.5]]);
-    const b = notchCuts(l, false, 'width', 'max', 'length', 0.75, ['a', 'b', 'c', 'd', 'e']);
+    const b = notchCuts(l, false, 'max', 'width', 'max', 'length', 0.75, ['a', 'b', 'c', 'd', 'e']);
     expect(b.map((c) => c.offset)).toEqual([0, 1, 2, 3, 4]);
     expect(b[0]).toEqual({ id: 'a', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.75, stopMin: 0, stopMax: 0 });
+  });
+
+  it('the odd notch is exactly `odd` wide at either end', () => {
+    const l = fingerLayout(4.25, 0.5)!;
+    expect(notchCuts(l, false, 'min', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd', 'e']).map((c) => [c.offset, c.width]))
+      .toEqual([[0, 0.25], [0.75, 0.5], [1.75, 0.5], [2.75, 0.5], [3.75, 0.5]]);
+    expect(notchCuts(l, false, 'max', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd', 'e']).map((c) => [c.offset, c.width]))
+      .toEqual([[0, 0.5], [1, 0.5], [2, 0.5], [3, 0.5], [4, 0.25]]);
   });
 });
 
 describe('fingerSets (spec §5.1): the round trip', () => {
-  it.each(EVERY)('$H at $w, outer fingers $outerFingers, $dim $end', ({ H, w, outerFingers, dim, end }) => {
+  it.each(EVERY)('$H at $w, finger at min $fingerAtMin, odd at $oddEnd, $dim $end', ({ H, w, fingerAtMin, oddEnd, dim, end }) => {
     const l = fingerLayout(H, w)!;
-    const { board, ids } = planned(l, outerFingers, dim, end, 0.5, 20);
+    const { board, ids } = planned(l, fingerAtMin, oddEnd, dim, end, 0.5, 20);
     const sets = fingerSets(board);
-    expect(sets).toEqual([{ dim, end, layout: l, depth: 0.5, outerFingers, cutIds: ids }]);
+    expect(sets).toHaveLength(1);
+    const [set] = sets;
+    // Ints and flags exact; the layout numbers at 1e-9 (recognised, so possibly an ulp off).
+    expect({ ...set, layout: undefined }).toEqual({ dim, end, layout: undefined, depth: 0.5, fingerAtMin, oddEnd: oddEndOf(l, oddEnd), cutIds: ids });
+    expect(set.layout.count).toBe(l.count);
+    expect(set.layout.length).toBe(l.length);
+    for (const key of ['width', 'odd'] as const) expect(Math.abs(set.layout[key] - l[key])).toBeLessThanOrEqual(1e-9);
+    if (set.oddEnd === null) expect(set.layout.odd).toBe(set.layout.width);
     expect(fingerSetAt(board, dim, end)).toEqual(sets[0]);
     expect(fingerSetAt(board, dim, end === 'min' ? 'max' : 'min')).toBeNull();
     expect(fingerSetAt(board, other(dim), end)).toBeNull();
@@ -94,97 +148,122 @@ describe('fingerSets (spec §5.1): the round trip', () => {
 
   it('a metric depth at a MAX end reads back to 1e-9, not exactly (D − (D − depth) is not depth)', () => {
     const l = fingerLayout(100 / 25.4, 6 / 25.4)!;
-    const { board } = planned(l, true, 'length', 'max', 12 / 25.4, 300 / 25.4);
+    const { board } = planned(l, true, 'max', 'length', 'max', 12 / 25.4, 300 / 25.4);
     const [set] = fingerSets(board);
-    expect(set.layout).toEqual(l);
+    expect(set.layout.count).toBe(l.count);
+    expect(Math.abs(set.layout.odd - l.odd)).toBeLessThanOrEqual(1e-9);
     expect(Math.abs(set.depth - 12 / 25.4)).toBeLessThanOrEqual(1e-9);
   });
 
   it('sets on both length ends are reported min then max', () => {
     const l = fingerLayout(4.5, 0.5)!;
-    const lo = notchCuts(l, true, 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd']);
-    const hi = notchCuts(l, false, 'length', 'max', 'width', 0.5, ['e', 'f', 'g', 'h', 'i']);
+    const lo = notchCuts(l, true, 'max', 'length', 'min', 'width', 0.5, ['a', 'b', 'c', 'd']);
+    const hi = notchCuts(l, false, 'max', 'length', 'max', 'width', 0.5, ['e', 'f', 'g', 'h', 'i']);
     const board = createBoard({ length: 20, width: 4.5, thickness: 0.5, cuts: [...hi, ...lo] });
-    expect(fingerSets(board).map((s) => [s.end, s.outerFingers, s.cutIds])).toEqual([
+    expect(fingerSets(board).map((s) => [s.end, s.fingerAtMin, s.cutIds])).toEqual([
       ['min', true, ['a', 'b', 'c', 'd']], ['max', false, ['e', 'f', 'g', 'h', 'i']],
     ]);
   });
 
   describe('mutations recognise nothing', () => {
     const l = fingerLayout(4.75, 0.5)!;
-    const mutate = (outerFingers: boolean, f: (cuts: Cut[]) => Cut[]) => {
-      const { board } = planned(l, outerFingers, 'length', 'min', 0.5, 20);
+    const mutate = (fingerAtMin: boolean, f: (cuts: Cut[]) => Cut[]) => {
+      const { board } = planned(l, fingerAtMin, 'max', 'length', 'min', 0.5, 20);
       return fingerSets({ ...board, cuts: f(board.cuts.map((c) => ({ ...c }))) });
     };
-    it.each([true, false])('drop one notch (outer fingers %s)', (o) => {
+    const cut = (id: string, offset: number, width: number): Cut => ({
+      id, face: 'length', from: 'min', across: 'thickness', offset, width, depth: 0.5, stopMin: 0, stopMax: 0,
+    });
+    it.each([true, false])('drop one notch (finger at min %s)', (o) => {
       expect(mutate(o, (cs) => cs.filter((_, i) => i !== 1))).toEqual([]);
     });
-    it.each([true, false])('shift one notch by 1e-6 (outer fingers %s)', (o) => {
+    it.each([true, false])('shift one inner notch by 1e-6 (finger at min %s)', (o) => {
       expect(mutate(o, (cs) => { cs[1].offset += 1e-6; return cs; })).toEqual([]);
     });
-    it.each([true, false])('deepen one notch by 1e-6 (outer fingers %s)', (o) => {
+    it.each([true, false])('widen one inner notch by 1e-6 (finger at min %s)', (o) => {
+      expect(mutate(o, (cs) => { cs[2].width += 1e-6; return cs; })).toEqual([]);
+    });
+    it.each([true, false])('deepen one notch by 1e-6 (finger at min %s)', (o) => {
       expect(mutate(o, (cs) => { cs[1].depth += 1e-6; return cs; })).toEqual([]);
     });
-    it.each([true, false])('stop one short of the thickness (outer fingers %s)', (o) => {
+    it.each([true, false])('stop one short of the thickness (finger at min %s)', (o) => {
       expect(mutate(o, (cs) => { cs[1].stopMin = 0.01; return cs; })).toEqual([]);
     });
-    it('an even count (a notch at one edge, a finger at the other) is not a set', () => {
-      // notch, finger, notch, finger, notch, finger, all 1/2: every inner equal, the outer two equal, N = 6.
-      const cut = (id: string, offset: number): Cut => ({
-        id, face: 'length', from: 'min', across: 'thickness', offset, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0,
-      });
-      const cuts = [cut('a', 0), cut('b', 1), cut('c', 2)];
-      expect(fingerSets(createBoard({ length: 20, width: 3, thickness: 0.5, cuts }))).toEqual([]);
+    it('two differing end segments are not a set', () => {
+      // notch 1/4, finger, notch, finger, notch, finger 3/8: inner all 1/2, both ends off w (and off each other).
+      const cuts = [cut('a', 0, 0.25), cut('b', 0.75, 0.5), cut('c', 1.75, 0.5)];
+      expect(fingerSets(createBoard({ length: 20, width: 2.625, thickness: 0.5, cuts }))).toEqual([]);
+      // The same with the far end exactly w: a set, the odd one at min.
+      const ok = fingerSets(createBoard({ length: 20, width: 2.75, thickness: 0.5, cuts }));
+      expect(ok.map((s) => [s.layout.count, s.oddEnd, s.layout.odd])).toEqual([[6, 'min', 0.25]]);
+    });
+    it('an odd end segment of 1.25w or more is not a set; just under is', () => {
+      const at = (odd: number) => fingerSets(createBoard({
+        length: 20, width: odd + 2, thickness: 0.5, cuts: [cut('a', 0, odd), cut('b', odd + 0.5, 0.5), cut('c', odd + 1.5, 0.5)],
+      }));
+      expect(at(0.625)).toEqual([]);
+      expect(at(0.7)).toEqual([]);
+      expect(at(0.625 - 1e-6).map((s) => [s.layout.count, s.oddEnd])).toEqual([[5, 'min']]);
+    });
+    it('an even count (a notch at one edge, a finger at the other) IS a set: no odd finger', () => {
+      // notch, finger, notch, finger, notch, finger, all 1/2: N = 6 (before the ruling this was refused).
+      const cuts = [cut('a', 0, 0.5), cut('b', 1, 0.5), cut('c', 2, 0.5)];
+      const sets = fingerSets(createBoard({ length: 20, width: 3, thickness: 0.5, cuts }));
+      expect(sets.map((s) => [s.layout, s.fingerAtMin, s.oddEnd])).toEqual([[{ count: 6, width: 0.5, odd: 0.5, length: 3 }, false, null]]);
+    });
+    it('four segments are not a set', () => {
+      const cuts = [cut('a', 0, 0.5), cut('b', 1, 0.5)];
+      expect(fingerSets(createBoard({ length: 20, width: 2, thickness: 0.5, cuts }))).toEqual([]);
     });
     it('three segments (two edge notches: the tenon shape) are not a set', () => {
-      const three: FingerLayout = { count: 3, width: 0.5, outer: 0.55, length: 1.6 };
-      const cuts = notchCuts(three, false, 'length', 'min', 'width', 0.5, ['a', 'b']);
-      expect(fingerSets(createBoard({ length: 20, width: 1.6, thickness: 0.5, cuts }))).toEqual([]);
+      const three: FingerLayout = { count: 3, width: 0.5, odd: 0.5, length: 1.5 };
+      const cuts = notchCuts(three, false, 'max', 'length', 'min', 'width', 0.5, ['a', 'b']);
+      expect(fingerSets(createBoard({ length: 20, width: 1.5, thickness: 0.5, cuts }))).toEqual([]);
     });
     it('an edge notch shifted off the edge', () => {
       expect(mutate(false, (cs) => { cs[0].offset += 1e-6; cs[0].width -= 1e-6; return cs; })).toEqual([]);
     });
   });
 
-  it.each(EVERY)('re-stored by refaceFromEnd (as a resize stores them): $H at $w, outer fingers $outerFingers, $dim $end',
-    ({ H, w, outerFingers, dim, end }) => {
+  it.each(EVERY)('re-stored by refaceFromEnd (as a resize stores them): $H at $w, finger at min $fingerAtMin, odd at $oddEnd, $dim $end',
+    ({ H, w, fingerAtMin, oddEnd, dim, end }) => {
       const l = fingerLayout(H, w)!;
-      const { board, ids } = planned(l, outerFingers, dim, end, 0.5, 20);
+      const { board, ids } = planned(l, fingerAtMin, oddEnd, dim, end, 0.5, 20);
       const restored = { ...board, cuts: board.cuts.map((c) => refaceFromEnd(board, c, dim)!) };
       // The re-store really changed the stored fields: no notch is stored INTO `dim` any more.
       expect(restored.cuts.every((c) => c && c.face !== dim)).toBe(true);
       const [set, ...rest] = fingerSets(restored);
       expect(rest).toEqual([]);
-      expect({ ...set, layout: undefined }).toEqual({ dim, end, layout: undefined, depth: 0.5, outerFingers, cutIds: ids });
+      expect({ ...set, layout: undefined }).toEqual({ dim, end, layout: undefined, depth: 0.5, fingerAtMin, oddEnd: oddEndOf(l, oddEnd), cutIds: ids });
       expect(set.layout.count).toBe(l.count);
       expect(set.layout.length).toBe(l.length);
       expect(Math.abs(set.layout.width - l.width)).toBeLessThanOrEqual(1e-9);
-      expect(Math.abs(set.layout.outer - l.outer)).toBeLessThanOrEqual(1e-9);
+      expect(Math.abs(set.layout.odd - l.odd)).toBeLessThanOrEqual(1e-9);
     });
 });
 
 describe('findTenons never claims a finger set (spec §3.3, why five)', () => {
-  it.each(EVERY)('$H at $w, outer fingers $outerFingers, $dim $end', ({ H, w, outerFingers, dim, end }) => {
-    const { board } = planned(fingerLayout(H, w)!, outerFingers, dim, end, 0.5, 20);
+  it.each(EVERY)('$H at $w, finger at min $fingerAtMin, odd at $oddEnd, $dim $end', ({ H, w, fingerAtMin, oddEnd, dim, end }) => {
+    const { board } = planned(fingerLayout(H, w)!, fingerAtMin, oddEnd, dim, end, 0.5, 20);
     expect(findTenons(board)).toEqual([]);
   });
 
   it('a hand-built three-segment set IS claimed by findTenons: why the minimum is five', () => {
-    const three: FingerLayout = { count: 3, width: 0.5, outer: 0.55, length: 1.6 };
-    const cuts = notchCuts(three, false, 'length', 'min', 'width', 0.5, ['a', 'b']);
-    const board = createBoard({ length: 20, width: 1.6, thickness: 0.5, cuts });
+    const three: FingerLayout = { count: 3, width: 0.5, odd: 0.5, length: 1.5 };
+    const cuts = notchCuts(three, false, 'max', 'length', 'min', 'width', 0.5, ['a', 'b']);
+    const board = createBoard({ length: 20, width: 1.5, thickness: 0.5, cuts });
     expect(findTenons(board)).not.toEqual([]);
   });
 
-  it('the layout refuses three fingers at 1.6 by 1/2', () => {
-    expect(fingerLayout(1.6, 0.5)).toBeNull();
+  it('the layout refuses three fingers at 1.5 by 1/2', () => {
+    expect(fingerLayout(1.5, 0.5)).toBeNull();
   });
 
   it('three fingers would read as a tenon, which is why the layout refuses them', () => {
-    // Asserts only when the layout's minimum is mutated down to three (N = 3); the task-2 report records that run
-    // failing HERE, on the findTenons line.
-    const l = fingerLayout(1.6, 0.5);
-    if (l) expect(findTenons(planned(l, false, 'length', 'min', 0.5, 20).board)).toEqual([]);
+    // Asserts only when the layout's minimum is mutated down to three (N = 3); the task-2 and task-9 reports record that
+    // run failing HERE, on the findTenons line.
+    const l = fingerLayout(1.5, 0.5);
+    if (l) expect(findTenons(planned(l, false, 'max', 'length', 'min', 0.5, 20).board)).toEqual([]);
   });
 });
 
@@ -206,8 +285,8 @@ describe('defaultFingerWidth (spec §3.3)', () => {
 describe('notchCuts guards its axes', () => {
   it('throws when `along` is not the cut\'s position axis', () => {
     const l = fingerLayout(4.5, 0.5)!;
-    expect(() => notchCuts(l, true, 'length', 'min', 'length', 0.5, ['a', 'b', 'c', 'd'])).toThrow();
-    expect(() => notchCuts(l, true, 'length', 'min', 'thickness', 0.5, ['a', 'b', 'c', 'd'])).toThrow();
+    expect(() => notchCuts(l, true, 'max', 'length', 'min', 'length', 0.5, ['a', 'b', 'c', 'd'])).toThrow();
+    expect(() => notchCuts(l, true, 'max', 'length', 'min', 'thickness', 0.5, ['a', 'b', 'c', 'd'])).toThrow();
   });
 });
 
@@ -280,6 +359,16 @@ const complement = (iv: [number, number][], lo: number, hi: number): [number, nu
 const closeIv = (x: [number, number][], y: [number, number][]) =>
   x.length === y.length && x.every((v, i) => Math.abs(v[0] - y[i]![0]) <= EPS && Math.abs(v[1] - y[i]![1]) <= EPS);
 
+/** Does `b`'s set at its end facing world `side` along `k` carry a finger at J's world `jSide` edge: read off the WORLD
+ *  notch intervals, never through the recogniser's flags or `boxJoints.ts`' parity helper (it would mutate with them). */
+const fingerAtWorld = (b: Board, k: number, side: -1 | 1, J: number, jSide: -1 | 1): boolean => {
+  const at = jSide === -1 ? 0 : 1;
+  return !notchIntervals(b, k, side, J).some((iv) => Math.abs(iv[at] - span(b, J)[at]) <= EPS);
+};
+/** The world side of J the odd finger is at, or null. */
+const oddWorldSide = (b: Board, set: FingerSet, J: number): -1 | 1 | null =>
+  (set.oddEnd === null ? null : endFacing(b, J, -1) === set.oddEnd ? -1 : 1);
+
 /**
  * The corner of `a` (thickness on world `ta`) and `b` (thickness on `tb`) in `doc` is exactly filled: `a`'s end along
  * `tb` sits at `b`'s outside face and vice versa, each notch is the other's thickness deep, and `a`'s notches along J
@@ -302,7 +391,11 @@ function expectComplementary(doc: SloydDocument, aId: string, bId: string) {
   // RECOGNISED depths: an ulp off the planned ones on a non-dyadic size (Task 2), so at 1e-9.
   expect(Math.abs(setA.depth - b.thickness)).toBeLessThanOrEqual(EPS);
   expect(Math.abs(setB.depth - a.thickness)).toBeLessThanOrEqual(EPS);
-  expect(setA.outerFingers).toBe(!setB.outerFingers);
+  // World terms (the two parts' J frames may differ): exactly one has a finger at J's world min, and the odd finger
+  // (if any) is at the same world end on both, one layout.
+  expect(fingerAtWorld(a, tb, sa, J, -1)).toBe(!fingerAtWorld(b, ta, sb, J, -1));
+  expect(oddWorldSide(a, setA, J)).toBe(oddWorldSide(b, setB, J));
+  expect(setA.layout.count).toBe(setB.layout.count);
   const [lo, hi] = span(a, J);
   expect(closeIv(notchIntervals(a, tb, sa, J), complement(notchIntervals(b, ta, sb, J), lo, hi))).toBe(true);
 }
@@ -318,13 +411,13 @@ describe('boxJointPlan (spec §3): the drawer', () => {
     const doc = docOf(drawerParts('butt'));
     const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
     expect(plan.corners).toHaveLength(4);
-    expect(plan.corners.every((c) => c.layout.count === 7 && c.layout.width === 0.5 && c.layout.outer === 0.75)).toBe(true);
+    expect(plan.corners.every((c) => c.layout.count === 8 && c.layout.width === 0.5 && c.layout.odd === 0.5)).toBe(true);
     const out = applyBoxJoints(doc, plan);
     expect(['f', 'b', 'l', 'r'].map((id) => part(out, id).length)).toEqual([13, 13, 17, 17]);
     for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
     expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
     expect(plan.notes).toEqual([
-      'Jointed 4 corners: 7 fingers, 1/2" wide (the outer two 3/4").',
+      'Jointed 4 corners: 8 fingers, 1/2" wide.',
       'Front is now 1" longer.',
       'Back is now 1" longer.',
     ]);
@@ -337,7 +430,7 @@ describe('boxJointPlan (spec §3): the drawer', () => {
     expect(['f', 'b', 'l', 'r'].map((id) => part(out, id).length)).toEqual([13, 13, 17, 17]);
     for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
     expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
-    expect(plan.notes).toEqual(['Jointed 4 corners: 7 fingers, 1/2" wide (the outer two 3/4").']);
+    expect(plan.notes).toEqual(['Jointed 4 corners: 8 fingers, 1/2" wide.']);
   });
 
   it('empty corners: every part grows by one thickness at each end (1" in all)', () => {
@@ -350,14 +443,18 @@ describe('boxJointPlan (spec §3): the drawer', () => {
     expect(plan.notes.slice(1)).toEqual(['Front is now 1" longer.', 'Back is now 1" longer.', 'Side left is now 1" longer.', 'Side right is now 1" longer.']);
   });
 
-  it('the outer fingers land on the sides (run axis Z first); Swap fingers puts them on Front/Back', () => {
+  it('the start-edge (top) finger lands on the sides (run axis Z first); Swap fingers puts it on Front/Back', () => {
     const doc = docOf(drawerParts('butt'));
-    const outerOn = (swap: boolean) => {
+    const topFingerOn = (swap: boolean) => {
       const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap })));
-      return ['f', 'b', 'l', 'r'].map((id) => fingerSets(part(out, id)).map((s) => s.outerFingers));
+      return ['f', 'b', 'l', 'r'].map((id) => {
+        const b = part(out, id);
+        const k = axisDimensions(b).indexOf('length');
+        return ([-1, 1] as const).map((side) => fingerAtWorld(b, k, side, 1, 1));
+      });
     };
-    expect(outerOn(false)).toEqual([[false, false], [false, false], [true, true], [true, true]]);
-    expect(outerOn(true)).toEqual([[true, true], [true, true], [false, false], [false, false]]);
+    expect(topFingerOn(false)).toEqual([[false, false], [false, false], [true, true], [true, true]]);
+    expect(topFingerOn(true)).toEqual([[true, true], [true, true], [false, false], [false, false]]);
   });
 
   it('the run-out is EXACT, never grid-rounded (inv 25): an odd inside width lands on the outside faces', () => {
@@ -375,6 +472,96 @@ describe('boxJointPlan (spec §3): the drawer', () => {
     const far = drawerParts('butt');
     far[0] = { ...far[0]!, position: [T + TOUCH * 1.01, 0, 0], length: 12 - 2 * TOUCH * 1.01 };
     expect(boxJointPlan(docOf(far.slice(0, 1).concat(far.slice(2, 3))), ['f', 'l'], { width: 0.5, swap: false })).toBe(BOX_NO_CORNER);
+  });
+});
+
+describe('boxJointPlan: equal fingers, the odd one at the bottom (spec, Amended 2026-10-27)', () => {
+  /** Every recognised segment's world J interval on `b`'s set facing `side` along `k`: the notches and the fingers. */
+  const worldSegments = (b: Board, k: number, side: -1 | 1, J: number) => {
+    const notches = notchIntervals(b, k, side, J);
+    const [lo, hi] = span(b, J);
+    return [...notches, ...complement(notches, lo, hi)].sort((x, y) => x[0] - y[0]);
+  };
+
+  it('a 4"-tall drawer at 1/2": 8 fingers, every one 1/2", each corner exact complements', () => {
+    const doc = docOf(drawerParts('butt'));
+    const out = applyBoxJoints(doc, ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false })));
+    for (const id of DRAWER_IDS) {
+      const b = part(out, id);
+      const sets = fingerSets(b);
+      expect(sets.map((s) => [s.layout.count, s.oddEnd])).toEqual([[8, null], [8, null]]);
+      const k = axisDimensions(b).indexOf('length');
+      for (const side of [-1, 1] as const) {
+        const segs = worldSegments(b, k, side, 1);
+        expect(segs).toHaveLength(8);
+        for (const [a, z] of segs) expect(Math.abs(z - a - 0.5)).toBeLessThanOrEqual(EPS);
+      }
+    }
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+  });
+
+  it('a 4-1/4" drawer: 9 fingers, the odd 1/4" one at the BOTTOM (world min Y) on both parts of every corner', () => {
+    const doc = docOf(drawerParts('butt', { h: 4.25 }));
+    const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: 0.5, swap: false }));
+    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").');
+    const out = applyBoxJoints(doc, plan);
+    for (const id of DRAWER_IDS) {
+      const b = part(out, id);
+      const k = axisDimensions(b).indexOf('length');
+      for (const s of fingerSets(b)) {
+        expect(s.layout.count).toBe(9);
+        expect(oddWorldSide(b, s, 1)).toBe(-1);
+      }
+      for (const side of [-1, 1] as const) {
+        const segs = worldSegments(b, k, side, 1);
+        expect(closeIv([segs[0]!], [[0, 0.25]])).toBe(true);
+        for (const [a, z] of segs.slice(1)) expect(Math.abs(z - a - 0.5)).toBeLessThanOrEqual(EPS);
+      }
+    }
+    for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
+    expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
+  });
+
+  /** Two upright sides and a top between them (J = world Z, horizontal), the top turned `topRot`, `h` along J. */
+  const carcass = (topRot: Rotation, h: number) => {
+    const side = (id: string, name: string, x: number) => createBoard({
+      id, name, posture: 'upright', rotation: 90, length: 30, width: h, thickness: 0.75, position: [x, 0, 0],
+    });
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: topRot, length: 24, width: h, thickness: 0.75, position: [0.75, 29.25, 0] });
+    expect(boardExtents(top)).toEqual([24, 0.75, h]);
+    return docOf([side('l', 'Side left', 0), side('r', 'Side right', 24.75), top]);
+  };
+
+  it('a horizontal J (a carcass\'s corners, J along Z): full fingers start at J\'s world min, the odd one at its world max', () => {
+    // 11" at 3/4": 15 fingers, the odd one 1/2".
+    const out = applyBoxJoints(carcass(0, 11), ok(boxJointPlan(carcass(0, 11), ['l', 'r', 't'], { width: 0.75, swap: false })));
+    for (const id of ['l', 'r', 't']) {
+      const b = part(out, id);
+      for (const s of fingerSets(b)) {
+        expect([s.layout.count, s.layout.odd]).toEqual([15, 0.5]);
+        expect(oddWorldSide(b, s, 2)).toBe(1);
+      }
+    }
+    const t = part(out, 't');
+    const segs = worldSegments(t, 0, 1, 2);
+    expect(closeIv([segs[0]!, segs.at(-1)!], [[0, 0.75], [10.5, 11]])).toBe(true);
+    expectComplementary(out, 't', 'l');
+    expectComplementary(out, 't', 'r');
+  });
+
+  it('a part turned 180° (its local J reversed) still puts the odd finger at the same world end', () => {
+    // J = Y is never reversed by a turn (turns are about Y), so the 180° case is pinned on a horizontal J: the top's
+    // width runs along world Z, reversed at 180°.
+    const plain = applyBoxJoints(carcass(0, 11), ok(boxJointPlan(carcass(0, 11), ['l', 'r', 't'], { width: 0.75, swap: false })));
+    const turned = applyBoxJoints(carcass(180, 11), ok(boxJointPlan(carcass(180, 11), ['l', 'r', 't'], { width: 0.75, swap: false })));
+    const [s0, s180] = [plain, turned].map((d) => fingerSets(part(d, 't')));
+    // The local odd end really differs: the part-local J is reversed.
+    expect(s0!.map((s) => s.oddEnd)).toEqual(['max', 'max']);
+    expect(s180!.map((s) => s.oddEnd)).toEqual(['min', 'min']);
+    for (const s of s180!) expect(oddWorldSide(part(turned, 't'), s, 2)).toBe(1);
+    expectComplementary(turned, 't', 'l');
+    expectComplementary(turned, 't', 'r');
+    expect(checkDesign(flatDocument(turned), NO_LIMITS)).toEqual([]);
   });
 });
 
@@ -410,19 +597,35 @@ describe('boxJointPlan: a carcass (spec §5.3)', () => {
 });
 
 describe('boxJointPlan: linked carcass sides (a mirrored user whose run dimension is NOT mirrorDim)', () => {
-  it.each([[false, true], [true, true]])('upright sides (mirrorDim width, run along length), mirrored %s/%s: one Shape, complementary, checks clean', (lm, rm) => {
-    const side = (id: string, name: string, x: number) => createBoard({
-      id, name, posture: 'upright', rotation: 90, length: 30, width: 11, thickness: 0.75, position: [x, 0, 0],
+  /** Two upright sides (mirrorDim width, on world Z = the corner's J; run along length) linked to one Shape, and a top
+   *  between them; `h` the sides' and top's width along J, `rRot` the right side's turn. */
+  const carcass = (lm: boolean, rm: boolean, rRot: Rotation, h: number, o: { length?: number; cuts?: Cut[] } = {}) => {
+    const side = (id: string, name: string, x: number, rotation: Rotation) => createBoard({
+      id, name, posture: 'upright', rotation, length: o.length ?? 30, width: h, thickness: 0.75, position: [x, 0, 0],
+      cuts: (o.cuts ?? []).map((c) => ({ ...c })),
     });
-    const l = side('l', 'Side left', 0);
-    const r = side('r', 'Side right', 24.75);
+    const l = side('l', 'Side left', 0, 90);
+    const r = side('r', 'Side right', 24.75, rRot);
     expect(mirrorDim(l)).toBe('width');
-    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: 11, thickness: 0.75, position: [0.75, 29.25, 0] });
+    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: h, thickness: 0.75, position: [0.75, 29.25, 0] });
     const shape: Shape = { id: 's1', ...sharedOf(l) };
     const user = (b: Board, mirrored: boolean): ShapedBoard =>
       ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) });
-    // Both mirrored: the Shape's own board is planned in a MIRRORED user's frame, its sides flipped only along mirrorDim.
-    const doc = docOf([user(l, lm), user(r, rm), top] as Board[], { shapes: [shape] });
+    return docOf([user(l, lm), user(r, rm), top] as Board[], { shapes: [shape] });
+  };
+  // [left mirrored, right mirrored, right's turn, height along J]. Mirror's own result (a mirrored user at the inverse
+  // turn, 270) is a true mirror image; both mirrored at one turn are the same part twice; and a mirrored user at the
+  // SAME turn (90) is a Z-reflection of the other, which an equal-finger layout survives only when it is symmetric
+  // along J: an odd count with no odd finger (11-1/4" at 3/4", 15 fingers).
+  // 10-1/2" is 14 fingers, an EVEN count with no odd one: through the flag the phase itself flips.
+  const SUCCEEDS: [boolean, boolean, Rotation, number][] = [
+    [false, true, 270, 11], [true, true, 90, 11], [false, true, 90, 11.25], [false, true, 270, 10.5], [true, true, 90, 10.5],
+  ];
+
+  it.each(SUCCEEDS)('upright sides, mirrored %s/%s, right turned %s, %s" along J: one Shape, complementary, checks clean', (lm, rm, rRot, h) => {
+    // Both mirrored: the Shape's own board is planned in a MIRRORED user's frame, its sides flipped only along mirrorDim
+    // (and its phase and odd end flipped with them, mirrorDim being J).
+    const doc = carcass(lm, rm, rRot, h);
     const out = applyBoxJoints(doc, ok(boxJointPlan(doc, ['l', 'r', 't'], { width: 0.75, swap: false })));
     const shapeIds = ['l', 'r'].map((id) => (out.boards.find((b) => b.id === id) as ShapedBoard).shape);
     expect(shapeIds[0]).toBeDefined();
@@ -432,19 +635,17 @@ describe('boxJointPlan: linked carcass sides (a mirrored user whose run dimensio
     expect(checkDesign(flatDocument(out), NO_LIMITS)).toEqual([]);
   });
 
-  it.each([[false, true], [true, true]])('sides that GROW (stopping under the top), mirrored %s/%s: a shelf dado stays put in the world', (lm, rm) => {
+  it.each([11, 10.5])('a mirrored user at the SAME turn, %s" along J: the Z-reflected sides would need different joints, so it refuses', (h) => {
+    // 11" at 3/4": 15 fingers, the odd one 1/2" at J's world max (Z max) on every part; through the right side's flag its
+    // odd finger would sit at the Shape's other J end from the left side's. 10-1/2": 14 fingers, no odd one, but an even
+    // count, so through the flag the finger at J's min becomes a notch. One Shape cannot carry both.
+    expectRefusal(carcass(false, true, 90, h), ['l', 'r', 't'], 'These linked parts would need different box joints: Side left, Side right.', { width: 0.75 });
+  });
+
+  it.each(SUCCEEDS)('sides that GROW (stopping under the top), mirrored %s/%s, right turned %s, %s" along J: a shelf dado stays put in the world', (lm, rm, rRot, h) => {
     // The run-out moves each side's top end up 3/4"; the dado across each side's inside face must not move (spec §3.2).
     const dado: Cut = { id: 'd', face: 'thickness', from: 'max', across: 'width', offset: 15, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const side = (id: string, name: string, x: number) => createBoard({
-      id, name, posture: 'upright', rotation: 90, length: 29.25, width: 11, thickness: 0.75, position: [x, 0, 0], cuts: [{ ...dado }],
-    });
-    const l = side('l', 'Side left', 0);
-    const r = side('r', 'Side right', 24.75);
-    const top = createBoard({ id: 't', name: 'Top', posture: 'flat', rotation: 0, length: 24, width: 11, thickness: 0.75, position: [0.75, 29.25, 0] });
-    const shape: Shape = { id: 's1', ...sharedOf(l) };
-    const user = (b: Board, mirrored: boolean): ShapedBoard =>
-      ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}) });
-    const doc = docOf([user(l, lm), user(r, rm), top] as Board[], { shapes: [shape] });
+    const doc = carcass(lm, rm, rRot, h, { length: 29.25, cuts: [dado] });
     const dadoY = (d: SloydDocument, id: string) => {
       const b = part(d, id);
       const c = b.cuts.find((x) => x.id === 'd')!;
@@ -488,13 +689,14 @@ describe('boxJointPlan: what a part may already carry (spec §3.5)', () => {
       for (const s of sets) {
         expect(s.layout.count).toBe(11);
         expect(Math.abs(s.layout.width - 0.375)).toBeLessThanOrEqual(EPS);
-        expect(Math.abs(s.layout.outer - 0.3125)).toBeLessThanOrEqual(EPS);
+        expect(Math.abs(s.layout.odd - 0.25)).toBeLessThanOrEqual(EPS);
+        expect(oddWorldSide(b, s, 1)).toBe(-1);
       }
       const inSets = new Set(sets.flatMap((s) => s.cutIds));
       expect(b.cuts.filter((c) => !inSets.has(c.id)).map((c) => c.id)).toEqual(id === 'l' || id === 'r' ? [`g${id}`] : []);
     }
     for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);
-    expect(plan.notes).toEqual(['Jointed 4 corners: 11 fingers, 3/8" wide (the outer two 5/16").']);
+    expect(plan.notes).toEqual(['Jointed 4 corners: 11 fingers, 3/8" wide (the odd one 1/4").']);
   });
 });
 
@@ -775,18 +977,18 @@ describe('boxJointPlan: notes', () => {
   it('the jointed line: singular, every finger w (no parenthesis), and per corner when the layouts differ', () => {
     const [f, , l] = drawerParts('butt');
     expect(ok(boxJointPlan(docOf([f!, l!]), ['f', 'l'], { width: 0.5, swap: false })).notes)
-      .toEqual(['Jointed 1 corner: 7 fingers, 1/2" wide (the outer two 3/4").', 'Front is now 1/2" longer.']);
+      .toEqual(['Jointed 1 corner: 8 fingers, 1/2" wide.', 'Front is now 1/2" longer.']);
     const [f45, , l45] = drawerParts('butt', { h: 4.5 });
     expect(ok(boxJointPlan(docOf([f45!, l45!]), ['f', 'l'], { width: 0.5, swap: false })).notes[0])
       .toBe('Jointed 1 corner: 9 fingers, 1/2" wide.');
-    const [f6, , l6] = drawerParts('butt', { h: 6 }).map((b) => ({
+    const [f6, , l6] = drawerParts('butt', { h: 6.25 }).map((b) => ({
       ...b, id: `${b.id}2`, name: `${b.name} 2`, position: [b.position[0] + 40, b.position[1], b.position[2]] as [number, number, number],
     }));
     const two = ok(boxJointPlan(docOf([f!, l!, f6!, l6!]), ['f', 'l', 'f2', 'l2'], { width: 0.5, swap: false }));
     expect(two.notes.slice(0, 3)).toEqual([
       'Jointed 2 corners:',
-      'Front and Side left: 7 fingers, 1/2" wide (the outer two 3/4").',
-      'Front 2 and Side left 2: 11 fingers, 1/2" wide (the outer two 3/4").',
+      'Front and Side left: 8 fingers, 1/2" wide.',
+      'Front 2 and Side left 2: 13 fingers, 1/2" wide (the odd one 1/4").',
     ]);
   });
 
@@ -797,7 +999,7 @@ describe('boxJointPlan: notes', () => {
     const w = defaultFingerWidth(mm(12), METRIC);
     expect(w).toBe(12 / 25.4);
     const plan = ok(boxJointPlan(doc, DRAWER_IDS, { width: w, swap: false }));
-    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 12 mm wide (the outer two 8 mm).');
+    expect(plan.notes[0]).toBe('Jointed 4 corners: 9 fingers, 12 mm wide (the odd one 4 mm).');
     expect(plan.notes.slice(1)).toEqual(['Front is now 24 mm longer.', 'Back is now 24 mm longer.']);
     const out = applyBoxJoints(doc, plan);
     for (const [x, y] of [['f', 'l'], ['f', 'r'], ['b', 'l'], ['b', 'r']]) expectComplementary(out, x!, y!);

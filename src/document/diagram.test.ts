@@ -865,7 +865,7 @@ describe('box joint finger sets (box joints spec §5.2)', () => {
   const layout = fingerLayout(4.5, 0.5)!;
   const sided = () => createBoard({
     length: 18, width: 4.5, thickness: 0.5,
-    cuts: notchCuts(layout, true, 'length', 'min', 'width', 0.5, ['n0', 'n1', 'n2', 'n3']),
+    cuts: notchCuts(layout, true, 'max', 'length', 'min', 'width', 0.5, ['n0', 'n1', 'n2', 'n3']),
   });
 
   it('the end view carries ONE note, the cut list line, and no cut entries; its notches still draw', () => {

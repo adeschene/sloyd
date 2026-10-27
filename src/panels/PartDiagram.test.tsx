@@ -1284,7 +1284,7 @@ describe('PartDiagram round tenons (round tenons spec §8)', () => {
 describe('PartDiagram: box joint note', () => {
   it('renders the finger set note text, and none on a plain part', () => {
     const l = fingerLayout(4.5, 0.5)!;
-    const b = createBoard({ length: 18, width: 4.5, thickness: 0.5, cuts: notchCuts(l, true, 'length', 'min', 'width', 0.5, ['n0', 'n1', 'n2', 'n3']) });
+    const b = createBoard({ length: 18, width: 4.5, thickness: 0.5, cuts: notchCuts(l, true, 'max', 'length', 'min', 'width', 0.5, ['n0', 'n1', 'n2', 'n3']) });
     const v = buildDiagrams(b, IMPERIAL).find((x) => x.key === 'length|min')!;
     const { container } = render(<PartDiagram view={v} />);
     const text = v.fingerNotes![0]!.text;

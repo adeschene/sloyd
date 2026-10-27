@@ -498,9 +498,11 @@ changes.
 61. **A box joint is ORDINARY rectangular cuts; `boxJoints.ts` is the ONE layout, the ONE recogniser and the ONE planner, and they
     are each other's inverse** (box joints; NO schema change; a box-joint-free project is byte for byte as before). A corner is
     two parts with full-thickness notches at their ends (`across: 'thickness'`, stops 0); the recogniser (`fingerSets`) reads SHAPE,
-    never a stored field. **One layout per corner, exact complements to 1e-9** (`N = max(5, 2n + 1)` fingers, a tie DOWN, inner fingers `w`,
-    outer `e`; **at least five**, three read as a tenon); a recognised width may be an ulp off the planned value, so compare PLANNED
-    parameters. **The write-back is `writeBackParts` (`keepWorld`, one edit per storage key, Shapes regrouped), never `mapWorld`; its
+    never a stored field. **One layout per corner, exact complements to 1e-9** (the user's ruling 2026-10-27: every finger `w`, the
+    leftover ONE odd finger at the BOTTOM edge — J's world max starts when J is Y, else J's world min — a sliver under `w/4` merged into its
+    neighbour; `N` may be even; **at least five**, three read as a tenon); each part's segments are computed DIRECTLY in its own J terms,
+    and the recogniser reports only part-local `fingerAtMin`/`oddEnd`; a linked mirror along J compares them through the flag. A recognised
+    width may be an ulp off the planned value, so compare PLANNED parameters. **The write-back is `writeBackParts` (`keepWorld`, one edit per storage key, Shapes regrouped), never `mapWorld`; its
     link post-condition refuses a split link.** Every refusal before `edit()`; ONE undo entry; the run-out is exact (inv 25).
     **Joinery leaves the size and place of any box-jointed part alone** (`<part> has box joints, so joinery leaves its size and place
     alone`). **Refine keeps box-jointed root parts and box-jointed ASSEMBLIES whole** (definition and every placement, put back FIRST,

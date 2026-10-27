@@ -84,8 +84,10 @@ src/
 │   │                     ceilToTick, under "up to"), the
 │   │                     section's heading, fields and buttons; STRETCHER_NOT_A_STRETCHER (internal, ruling T4b)
 │   ├── boxJoints.ts      Box joints (dovetails chunk 1, inv 61), THE layout, THE recogniser and THE planner, pure, no → units edge (a TYPE-only
-│   │                     `Units`): fingerLayout (N = max(5, 2n + 1), a tie DOWN, null under 4w), segment (direct, never a running sum),
-│   │                     notchCuts (full-thickness notches, `along` asserted), fingerSets / fingerSetAt (SHAPE only; FingerSet nests `layout`),
+│   │                     `Units`): fingerLayout (equal fingers `w`, ONE odd finger `odd`, a sliver under w/4 merged; null when N < 5),
+│   │                     segment (direct from the start edge, the odd one at `oddEnd`, never a running sum), notchCuts (full-thickness
+│   │                     notches, `along` asserted), fingerSets / fingerSetAt (SHAPE only; FingerSet nests `layout`, reports `fingerAtMin`
+│   │                     and `oddEnd`, part-local), fingerAtMaxOf (the even-N parity),
 │   │                     defaultFingerWidth, boxJointPlan (every refusal in order, corners found by touching ends AND overlapping J
 │   │                     spans, the parts as WORLD parts, link post-condition) and applyBoxJoints (writeBackParts, keepWorld); boxJoints.test.ts
 │   ├── boxJointText.ts   THE box joints words (→ units: it produces strings), verbatim: the refusals (boxCutInTheWay … boxLinkSplit), the

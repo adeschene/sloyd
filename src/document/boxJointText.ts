@@ -1,5 +1,6 @@
 import { formatLength, type Units } from '../units/length';
 import type { FingerLayout, FingerSet } from './boxJoints';
+import { positionAxisOf } from './geometry';
 
 /**
  * The box joints' copy (box-joints spec §3, §4, §5.2, §6; plan Global Constraints, verbatim): the ONE home of every
@@ -43,15 +44,15 @@ export const boxLinkSplit = (parts: readonly string[]) => `Box joints can't keep
 /** A finger width that is not more than zero. */
 export const BOX_WIDTH_POSITIVE = 'A finger width must be more than zero.';
 
-/** `<N> fingers, <w> wide (the outer two <e>)`, the parenthesis dropped when `e === w` (a PLANNED layout: exact). */
+/** `<N> fingers, <w> wide (the odd one <x>)`, the parenthesis dropped when `odd === width` (a PLANNED layout: exact). */
 const layoutWords = (l: FingerLayout, units: Units) =>
-  `${l.count} fingers, ${formatLength(l.width, units)} wide${l.outer === l.width ? '' : ` (the outer two ${formatLength(l.outer, units)})`}`;
+  `${l.count} fingers, ${formatLength(l.width, units)} wide${l.odd === l.width ? '' : ` (the odd one ${formatLength(l.odd, units)})`}`;
 
 /** The success note's jointed line(s) (spec §4): one line when every corner shares one layout, else a heading and one
  *  line per corner, `pairs` naming each corner's two parts. */
 export function boxJointedLines(layouts: readonly FingerLayout[], pairs: readonly (readonly [string, string])[], units: Units): string[] {
   const n = layouts.length;
-  const same = layouts.every((l) => l.count === layouts[0]!.count && l.width === layouts[0]!.width && l.outer === layouts[0]!.outer);
+  const same = layouts.every((l) => l.count === layouts[0]!.count && l.width === layouts[0]!.width && l.odd === layouts[0]!.odd);
   if (same) return [`Jointed ${n} ${n === 1 ? 'corner' : 'corners'}: ${layoutWords(layouts[0]!, units)}.`];
   return [`Jointed ${n} corners:`, ...layouts.map((l, i) => `${pairs[i]![0]} and ${pairs[i]![1]}: ${layoutWords(l, units)}.`)];
 }
@@ -60,13 +61,22 @@ export function boxJointedLines(layouts: readonly FingerLayout[], pairs: readonl
 export const boxLengthLine = (part: string, delta: number, units: Units) =>
   `${part} is now ${formatLength(Math.abs(delta), units)} ${delta > 0 ? 'longer' : 'shorter'}.`;
 
-/** The cut list's line for a recognised finger set (spec §5.2; Task 5). A RECOGNISED layout may be an ulp off the planned
- *  one (Task 2), so "every finger is `w`" is judged at 1e-9 here. */
+/**
+ * The cut list's and diagram's line for a recognised finger set (spec, Amended 2026-10-27): `Box joint — <N> fingers <w>
+ * wide (the odd one <x> at the <J> <oddEnd> edge), <d> deep, at the <dim> <end> end; this part has a <finger | notch> at
+ * the <J> <start> edge.`, `J` the part's own joint-line dimension and the start edge the end opposite the odd finger. With
+ * no odd finger the parenthesis is dropped and the start edge is `J`'s max (a part-local convention). Part-local words
+ * only, never world ones (the recogniser reports nothing world-relative).
+ */
 export function fingerSetLine(set: FingerSet, units: Units): string {
-  const { count, width, outer } = set.layout;
-  const outerWords = Math.abs(outer - width) <= 1e-9 ? '' : ` (the outer two ${formatLength(outer, units)})`;
-  return `Box joint — ${count} fingers ${formatLength(width, units)} wide${outerWords}, ${formatLength(set.depth, units)} deep, `
-    + `at the ${set.dim} ${set.end} end; this part has the outer ${set.outerFingers ? 'fingers' : 'notches'}.`;
+  const { count, width, odd } = set.layout;
+  const J = positionAxisOf(set.dim, 'thickness');
+  const oddWords = set.oddEnd === null ? '' : ` (the odd one ${formatLength(odd, units)} at the ${J} ${set.oddEnd} edge)`;
+  const start = set.oddEnd === 'max' ? 'min' : 'max';
+  // `boxJoints.ts`' `fingerAtMaxOf`, restated: a value import from there would make a runtime import cycle.
+  const finger = start === 'min' ? set.fingerAtMin : count % 2 === 1 ? set.fingerAtMin : !set.fingerAtMin;
+  return `Box joint — ${count} fingers ${formatLength(width, units)} wide${oddWords}, ${formatLength(set.depth, units)} deep, `
+    + `at the ${set.dim} ${set.end} end; this part has a ${finger ? 'finger' : 'notch'} at the ${J} ${start} edge.`;
 }
 
 /** Add joinery's skip (or refusal) reason for a site whose recipe would resize, trim or move a part with any

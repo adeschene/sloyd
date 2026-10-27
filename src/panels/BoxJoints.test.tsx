@@ -11,8 +11,8 @@ import { Properties } from './Properties';
 const s = () => useStore.getState();
 const id = (name: string) => worldParts(s().doc).find((b) => b.name === name)!.id;
 
-function drawerParts(): Board[] {
-  const t = 0.5, h = 4, iw = 12, d = 16;
+function drawerParts(h = 4): Board[] {
+  const t = 0.5, iw = 12, d = 16;
   const fb = (i: string, name: string, z: number) => createBoard({ id: i, name, posture: 'on-edge', rotation: 0, length: iw, width: h, thickness: t, position: [t, 0, z] });
   const side = (i: string, name: string, x: number) => createBoard({ id: i, name, posture: 'on-edge', rotation: 90, length: d + 2 * t, width: h, thickness: t, position: [x, 0, 0] });
   return [fb('f', 'Front', 0), fb('b', 'Back', d + t), side('l', 'Side left', 0), side('r', 'Side right', iw + t)];
@@ -23,14 +23,15 @@ const open = (doc: SloydDocument, ...names: string[]) => {
   for (const n of names.slice(1)) s().toggleSelected(id(n));
   render(<Properties />);
 };
-const drawer = (): SloydDocument => ({ ...createDocument('Drawer'), boards: drawerParts() });
+const drawer = (h = 4): SloydDocument => ({ ...createDocument('Drawer'), boards: drawerParts(h) });
 const ALL = ['Front', 'Back', 'Side left', 'Side right'];
 const button = () => screen.getByRole('button', { name: 'Box joint the corners' });
 afterEach(() => { act(() => s().setExplode(0)); });
 
 describe('the Box joints section (box joints spec §4)', () => {
   it('the layout the sentence names is the layout of a 4" part at 1/2"', () => {
-    expect(fingerLayout(4, 0.5)).toEqual({ count: 7, width: 0.5, outer: 0.75, length: 4 });
+    expect(fingerLayout(4, 0.5)).toEqual({ count: 8, width: 0.5, odd: 0.5, length: 4 });
+    expect(fingerLayout(4.25, 0.5)).toEqual({ count: 9, width: 0.5, odd: 0.25, length: 4.25 });
   });
 
   it('shows for two or more parts, with the default width of the thinnest part', () => {
@@ -50,10 +51,16 @@ describe('the Box joints section (box joints spec §4)', () => {
   it('the drawer: the success note, one <p>; a field change clears it', async () => {
     open(drawer(), ...ALL);
     await userEvent.click(button());
-    expect(screen.getByText('Jointed 4 corners: 7 fingers, 1/2" wide (the outer two 3/4").').tagName).toBe('P');
+    expect(screen.getByText('Jointed 4 corners: 8 fingers, 1/2" wide.').tagName).toBe('P');
     expect(s().past.length).toBe(1);
     await userEvent.click(screen.getByRole('checkbox', { name: 'Swap fingers' }));
     expect(screen.queryByText(/Jointed 4 corners/)).toBeNull();
+  });
+
+  it('a 4-1/4" drawer: the odd finger named in the success note', async () => {
+    open(drawer(4.25), ...ALL);
+    await userEvent.click(button());
+    expect(screen.getByText('Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").').tagName).toBe('P');
   });
 
   it('committing a new width clears the notes', async () => {
