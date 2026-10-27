@@ -71,7 +71,7 @@ because the code gives no choice, one my call, one the user's ruling; listed und
     / `…; this part has the outer notches.` (the parenthesis is dropped when `e === w`)
   - section `Box joints`; field `Finger width`; checkbox `Swap fingers`; button `Box joint the corners`.
   - joinery skip reason: `<part>'s box joint is already cut at that end`
-  - Refine, in an assembly (a part kept ONLY for box joints): `Refine can't keep a box-jointed part inside an assembly yet — Ungroup it first: <part>.`
+  - Refine, a kept assembly linked outside itself (Task 6b): `Refine can't keep a box-jointed assembly whose parts are linked to parts outside it — Unlink first: <part>.`
   - Refine kept note: why-word `has box joints`.
 - Every refusal is decided before any mutation. The action is ONE undo entry, refused while exploded (inv 47) or gesturing.
 - On the dev server: no `localStorage.clear()`; test projects stay. No paid runs are needed beyond Task 6's Refine check
@@ -491,4 +491,7 @@ cannot be held.** Do not weaken one to make a test pass.
 - [ ] **Step 3:** Undo restores the butt corners. Redo, change the width to 3/8", run again: the fingers are replaced.
   Toggle Swap fingers and run again.
 - [ ] **Step 4:** Run the design check from the UI: clean. Leave the test project in place (dev-profile rule).
+- [ ] **Step 4b:** Group the drawer into an assembly, add a plain root part (a shelf), and Refine once with an
+  instruction about the shelf (one paid run of the two allowed). The drawer comes back exactly: same fingers, same
+  position, the kept line names it. Leave the project in place.
 - [ ] **Step 5: Commit** `docs(box joints): browser verification`.
