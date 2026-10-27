@@ -116,3 +116,11 @@ ReadPixels` driver note around screenshots.
 **Owed to the user's eye:** the bench drawings' look, on screen and printed (fu 511: the two-tier chain at 6" measured
 above; `dovetails-cutlist-bench.png`, `dovetails-cutlist-print-p2.png`); the copy review (fu 512); the jointed corner on
 real hardware (software GL here; `dovetails-corner.png` is only a preview).
+
+## Live Refine run (2026-10-27, after the deploy; paid)
+
+With the user's key typed into the watched dev browser (Opus 5.5): a nightstand case (plain root parts) with a dovetailed drawer
+ASSEMBLY inside, Refine "Make the nightstand case 4 inches taller (the sides 24 inches) and keep the drawer where it is." ≈ $0.01,
+0 new issues, `Kept as is (leans, angled holes, round tenons or dovetails): Drawer`, the sides 20" → 24", the top moved Y +4". The saved
+project's drawer definition and placement are byte for byte the original's: every part keeps its two dovetails (role, count 3, 1:8).
+The box-jointed twin of the same run passed too (fu 496 (2)).

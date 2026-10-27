@@ -5613,6 +5613,10 @@ lighting on sloped faces and grain continuity across a slope need the user's eye
 **283. Add joinery with an API key present on an angled project was not seen live** (no key in the dev profile). The
 refusal is pinned by tests (no mutation, no paid call). **Status:** open, needs a key.
 **Status:** open (owed to the user, not code): needs the user's key (a refusal, so no paid call). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-27 — seen live with the user's key stored on the dev origin: a leg with two rails, Rail X mitered at the end
+that meets the leg; Add joinery's dialog opened with `Rail X's miter runs into its joint with Leg — add joinery before cutting it, or
+remove it.` and its Add joinery button disabled; the browser's requests to `api.anthropic.com` were the same three before and after
+(no call).
 
 **284. Test-coverage gaps (record-only).** No bodies test with two or more angle cuts on one part (a cap clipped by a
 second cut); the mortise + taper test does not overlap the two regions; the drift check loops only `d1` entries (add a
@@ -7779,6 +7783,13 @@ only by the fake-client `runRefine` tests (Tasks 6, 6b). The two images in `docs
 show the OLD symmetric layout (before Task 9's equal fingers); retake them with (1) if a screenshot is wanted. Deployed 2026-10-27, so (1) can be
 done on production with a throwaway project in a private window (never the user's own production profile: per CLAUDE.md's deployment rule, its storage is their project).
 **Status:** open (owed to the user: by eye on real hardware; one paid run).
+(2) DONE 2026-10-27 (the user's key typed into the watched dev browser; Opus 5.5, ≈ $0.04): a nightstand case (two sides, top, bottom,
+plain root parts) with a box-jointed drawer ASSEMBLY inside, "Make the nightstand case 4 inches taller (the sides 24 inches) and keep the
+drawer where it is.": 0 new issues, `Kept as is (… box joints): Drawer`, the sides 20" → 24", the top moved Y +4"; the saved project's
+drawer definition and placement byte for byte the original's (every part's 8 finger cuts). The same run on a DOVETAILED drawer (≈ $0.01):
+the same changes, `Kept as is (… dovetails): Drawer`, the definition and placement byte for byte (every dovetail's role, count 3, 1:8).
+The model swapped the plain top's and bottom's length and width (the same world box; allowed for a plain part).
+**Status:** open (owed to the user: (1) by eye on real hardware only).
 
 ## From the dovetails round (dovetails chunk 2, through dovetails) — 2026-10-27
 

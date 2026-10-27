@@ -562,7 +562,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 497–503.
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 491 (box joints; the tie, spec difference 4, is moot since Task 9), 512 (dovetails); by eye — 465 (round tenons), 511 (dovetails' bench chain); real hardware and ONE paid Refine run — 496 (box joints: the jointed corner by eye; a box-jointed drawer assembly plus a root part, not run because no API key is stored on the dev origins); paid runs 172, 177, 283. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 491 (box joints; the tie, spec difference 4, is moot since Task 9), 512 (dovetails); by eye — 465 (round tenons), 511 (dovetails' bench chain); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
