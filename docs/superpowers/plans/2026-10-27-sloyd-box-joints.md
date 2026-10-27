@@ -32,7 +32,7 @@ because the code gives no choice, one my call, one the user's ruling; listed und
 - Layout (spec §3.3), all comparisons at `1e-9` unless stated:
   - `N = max(5, 2n + 1)` with `n` the integer nearest `q = (H/w − 1)/2`, and a TIE (`q − ⌊q⌋` within 1e-9 of 0.5)
     going DOWN (my call, after review: of the two odd counts a tie sits between, the fewer fingers give the wider outer
-    pair, `e = 3w/4` instead of `w/4`; thin outer fingers break off). Inner fingers exactly `w`; outer
+    pair, `e = 3w/2` instead of `w/2`; thin outer fingers break off). Inner fingers exactly `w`; outer
     `e = (H − (N − 2)·w) / 2`; refuse when `H < 4w`.
   - Segment `k` (1-based, part-local along the part's `J` dimension from its own min): `s1 = [0, e]`,
     `sk = [e + (k − 2)·w, e + (k − 1)·w]` for `2 ≤ k ≤ N − 1`, `sN = [e + (N − 2)·w, H]`. Computed directly, never as a
