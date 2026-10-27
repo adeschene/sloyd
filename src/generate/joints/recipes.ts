@@ -7,6 +7,10 @@ import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing } from '../../document/geometry';
 import { fingerSets } from '../../document/boxJoints';
 import { boxJointedLeftAlone } from '../../document/boxJointText';
+import { cornerJointed } from '../../document/leanKeep';
+import { hasDovetails } from '../../document/dovetailModel';
+import { dovetailCutRefusal } from '../../document/dovetails';
+import { dovetailedLeftAlone } from '../../document/dovetailText';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -81,12 +85,25 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
 };
 
 /**
- * A part with any recognised finger set (box-joints spec §7). Joinery never resizes, trims or moves one (a tenon or dado
- * growing it, a rabbet trimming or carrying it, a panel or a half-lap moving it), at whatever end or axis: a grow or trim
- * along its fingers re-proportions them, one through its thickness leaves its mate's notches the wrong depth, and a move
- * takes it off its corner. A pocket cut INTO one as a receiver stays allowed. Asked before anything changes (inv 41).
+ * A part with any recognised finger set (box-joints spec §7) or a stored dovetail (dovetails spec §7): `cornerJointed`,
+ * the ONE predicate. Joinery never resizes, trims or moves one (a tenon or dado growing it, a rabbet trimming or carrying
+ * it, a panel or a half-lap moving it), at whatever end or axis: a grow or trim along its fingers re-proportions them, one
+ * through its thickness leaves its mate's notches the wrong depth, and a move takes it off its corner. A pocket cut INTO
+ * one as a receiver stays allowed, unless it reaches a dovetailed end (`intoDovetails`). Asked before anything changes (inv 41).
  */
-const jointed = (b: Board) => fingerSets(b).length > 0;
+const jointed = cornerJointed;
+
+/** Why joinery leaves `b` alone: the box-joint sentence when it has box joints, else the dovetail sentence (dovetails spec §7). */
+const leftAlone = (b: Board) => (fingerSets(b).length > 0 ? boxJointedLeftAlone(b.name) : dovetailedLeftAlone(b.name));
+
+/**
+ * A pocket about to be cut into `b` (the world `box`, as the recipe will cut it) that reaches a dovetailed end's zone
+ * (dovetails spec §7): the joinery sentence, else null. Judged by the store's ONE cut rule (`dovetailCutRefusal`: the
+ * zone, a cut running straight through the end exempt, as a drawer bottom's groove), on a PROBE pocket that mints no id.
+ * A part with no dovetail is never probed. Asked before anything changes (inv 41).
+ */
+const intoDovetails = (b: Board, box: WorldBox): string | null =>
+  hasDovetails(b) && dovetailCutRefusal(b, pocketFor(b, box, 'probe')) !== null ? dovetailedLeftAlone(b.name) : null;
 
 /** The slab E grows into, on its `side` face along k, `amount` deep. */
 const extension = (before: WorldBox, k: number, side: -1 | 1, amount: number): [number, number] =>
@@ -148,41 +165,59 @@ function lapStillMeets(E: Board, R: Board, k: number, side: -1 | 1, alreadyIn: b
   return side === -1 ? r.max[k] <= e.min[k] + TOUCH : r.min[k] >= e.max[k] - TOUCH;
 }
 
-function mortiseTenon(E: Board, R: Board, k: number, side: -1 | 1, L: number, tap?: Tap) {
+/** A tenon's world boxes, read off E BEFORE it grows by L (a probe asks first, dovetails spec §7): the cheek and shoulder
+ *  wastes on E and the mortise in its receiver. The section is E's as it will be (`resizeEnd` writes `was + amount`). */
+function tenonBoxes(E: Board, k: number, side: -1 | 1, L: number): { wastes: WorldBox[]; mortise: WorldBox } {
   const before = boxOf(E);
-  resize(E, k, side, L, tap);
   const ext = extension(before, k, side, L);
   const dims = axisDimensions(E);
   const tAx = dims.indexOf('thickness');
   const wAx = dims.indexOf('width');
-  const { cheek: c, shoulder: sh } = tenonSection(E.thickness, E.width);
+  const grown = (d: Dimension) => (dims[k] === d ? E[d] + L : E[d]);
+  const { cheek: c, shoulder: sh } = tenonSection(grown('thickness'), grown('width'));
   const [t0, t1] = span(before, tAx);
   const [w0, w1] = span(before, wAx);
   const box = (t: [number, number], w: [number, number]) => withSpans(before, { [k]: ext, [tAx]: t, [wAx]: w });
-  for (const waste of [box([t0, t0 + c], [w0, w1]), box([t1 - c, t1], [w0, w1]), box([t0, t1], [w0, w0 + sh]), box([t0, t1], [w1 - sh, w1])]) {
+  return {
+    wastes: [box([t0, t0 + c], [w0, w1]), box([t1 - c, t1], [w0, w1]), box([t0, t1], [w0, w0 + sh]), box([t0, t1], [w1 - sh, w1])],
+    mortise: box([t0 + c, t1 - c], [w0 + sh, w1 - sh]),
+  };
+}
+
+function mortiseTenon(E: Board, R: Board, k: number, side: -1 | 1, L: number, tap?: Tap) {
+  const { wastes, mortise: hole } = tenonBoxes(E, k, side, L);
+  resize(E, k, side, L, tap);
+  for (const waste of wastes) {
     if (positive(waste)) { const cut = pocketFor(E, waste); tapCut(tap, E, cut); E.cuts.push(cut); }
   }
-  const mortise = pocketFor(R, box([t0 + c, t1 - c], [w0 + sh, w1 - sh]));
+  const mortise = pocketFor(R, hole);
   tapCut(tap, R, mortise);
   R.cuts.push(mortise);
 }
 
-function dado(E: Board, R: Board, k: number, side: -1 | 1, d: number, stop?: { at: StopEnd; inset: number }, tap?: Tap) {
+/** A dado's world boxes, read off E BEFORE it grows by d (a probe asks first, dovetails spec §7): the groove in the
+ *  receiver and, stopped, the notch on E. */
+function dadoBoxes(E: Board, k: number, side: -1 | 1, d: number, stop?: { at: StopEnd; inset: number }): { groove: WorldBox; notch?: WorldBox } {
   const before = boxOf(E);
-  resize(E, k, side, d, tap);
   const ext = extension(before, k, side, d);
-  let pocket = withSpans(before, { [k]: ext });
-  if (stop) {
-    const p = stop.at.axis;
-    const [lo, hi] = span(before, p);
-    const keep: [number, number] = stop.at.end === 'min' ? [lo + stop.inset, hi] : [lo, hi - stop.inset];
-    const strip: [number, number] = stop.at.end === 'min' ? [lo, lo + stop.inset] : [hi - stop.inset, hi];
-    pocket = withSpans(pocket, { [p]: keep });
-    const notch = pocketFor(E, withSpans(before, { [k]: ext, [p]: strip }));
+  const pocket = withSpans(before, { [k]: ext });
+  if (!stop) return { groove: pocket };
+  const p = stop.at.axis;
+  const [lo, hi] = span(before, p);
+  const keep: [number, number] = stop.at.end === 'min' ? [lo + stop.inset, hi] : [lo, hi - stop.inset];
+  const strip: [number, number] = stop.at.end === 'min' ? [lo, lo + stop.inset] : [hi - stop.inset, hi];
+  return { groove: withSpans(pocket, { [p]: keep }), notch: withSpans(before, { [k]: ext, [p]: strip }) };
+}
+
+function dado(E: Board, R: Board, k: number, side: -1 | 1, d: number, stop?: { at: StopEnd; inset: number }, tap?: Tap) {
+  const boxes = dadoBoxes(E, k, side, d, stop);
+  resize(E, k, side, d, tap);
+  if (boxes.notch) {
+    const notch = pocketFor(E, boxes.notch);
     tapCut(tap, E, notch);
     E.cuts.push(notch);
   }
-  const groove = pocketFor(R, pocket);
+  const groove = pocketFor(R, boxes.groove);
   tapCut(tap, R, groove);
   R.cuts.push(groove);
 }
@@ -278,8 +313,14 @@ export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoi
     // throw inside rebaseCuts, so the site is skipped first.
     const grows = joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado';
     if (grows && jointed(E)) {
-      skipped.push({ site: site.id, reason: boxJointedLeftAlone(E.name) });
+      skipped.push({ site: site.id, reason: leftAlone(E) });
       continue;
+    }
+    // Its pocket into a dovetailed receiver reaching a dovetailed end (dovetails spec §7), probed before E grows.
+    if (grows && hasDovetails(R)) {
+      const stop = joint === 'stopped-dado' ? { at: c!.stopAt!, inset: c!.inset! } : undefined;
+      const into = intoDovetails(R, joint === 'mortise-tenon' ? tenonBoxes(E, k, side, c!.tenonLength!).mortise : dadoBoxes(E, k, side, c!.depth!, stop).groove);
+      if (into) { skipped.push({ site: site.id, reason: into }); continue; }
     }
     if (grows && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
       skipped.push({ site: site.id, reason: `${E.name} is already cut at the end that would grow into ${R.name}` });
@@ -411,7 +452,9 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
   });
 
   // A box-jointed panel or rider would move, and the panel may be trimmed (box-joints spec §7).
-  for (const i of [e, ...carried]) if (jointed(boards[i]!)) return refuse(boxJointedLeftAlone(boards[i]!.name));
+  for (const i of [e, ...carried]) if (jointed(boards[i]!)) return refuse(leftAlone(boards[i]!));
+  // A receiver's rabbet reaching a dovetailed end (dovetails spec §7).
+  for (const { R, box } of pockets) { const into = intoDovetails(R, box); if (into) return refuse(into); }
   // The panel where it will be: its solids moved, then clipped to the final box.
   const panel = clipped(shifted(worldSolids(E), k, side * t), fin);
   // The panel's own trims to its rabbet lines, asked before anything moves:
@@ -438,7 +481,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     const depth = Math.max(...meeting.map((p) => (side === 1 ? p.max[k] - b.min[k] : b.max[k] - p.min[k])));
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
     // A box-jointed part is never trimmed (box-joints spec §7).
-    if (jointed(boards[j]!)) return refuse(boxJointedLeftAlone(boards[j]!.name));
+    if (jointed(boards[j]!)) return refuse(leftAlone(boards[j]!));
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
     if (cutIntoEnd(boards[j], k, side === 1 ? 'min' : 'max')) {
@@ -505,7 +548,7 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const rNow = boxOf(R);
   const delta = alreadyIn ? 0 : side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
   // A box-jointed E would move off its corner (box-joints spec §7); its notch alone, already in plane, is a pocket.
-  if (!alreadyIn && Math.abs(delta) > 1e-9 && jointed(E)) return boxJointedLeftAlone(E.name);
+  if (!alreadyIn && Math.abs(delta) > 1e-9 && jointed(E)) return leftAlone(E);
   if (!alreadyIn) {
     // Dropping E must not drive it into anything but its own lap partners
     // ANYWHERE along the drop, which can be longer than t: the volume each of
@@ -526,24 +569,36 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   if (Math.abs(eNow.min[k] + delta - rNow.min[k]) > TOUCH || Math.abs(eNow.max[k] + delta - rNow.max[k]) > TOUCH) {
     return `${E.name} no longer lies in ${R.name}'s plane after an earlier half-lap`;
   }
+  // A notch reaching a dovetailed end (dovetails spec §7), probed on E where it will be, before it moves.
+  if (hasDovetails(E) || hasDovetails(R)) {
+    const there = alreadyIn ? E : { ...E, position: E.position.map((v, i) => (i === k ? v + delta : v)) as Board['position'] };
+    const n = lapNotches(boxOf(there), rNow, k, side);
+    const into = intoDovetails(there, n.e) ?? intoDovetails(R, n.r);
+    if (into) return into;
+  }
   if (!alreadyIn) {
     E.position[k] += delta;
     state.moved.add(E.name);
     state.movedFace.set(`${site.enter}|${k}`, side);
   }
-  const eb = boxOf(E);
-  const rb = boxOf(R);
+  const n = lapNotches(boxOf(E), boxOf(R), k, side);
+  const notchE = pocketFor(E, n.e);
+  tapCut(state.tap, E, notchE);
+  E.cuts.push(notchE);
+  const notchR = pocketFor(R, n.r);
+  tapCut(state.tap, R, notchR);
+  R.cuts.push(notchR);
+  return null;
+}
+
+/** A half-lap's two notches (world), from E's box where it lands (`eb`) and R's (`rb`): each by half where they cross, E
+ *  on R's original side. */
+function lapNotches(eb: WorldBox, rb: WorldBox, k: number, side: -1 | 1): { e: WorldBox; r: WorldBox } {
   const mid = (rb.min[k] + rb.max[k]) / 2;
   const lower: [number, number] = [rb.min[k], mid];
   const upper: [number, number] = [mid, rb.max[k]];
   const cross = (a: number): [number, number] => [Math.max(eb.min[a], rb.min[a]), Math.min(eb.max[a], rb.max[a])];
   const [p, q] = [0, 1, 2].filter((a) => a !== k);
   const crossing = { [p]: cross(p), [q]: cross(q) };
-  const notchE = pocketFor(E, withSpans(eb, { ...crossing, [k]: side === -1 ? lower : upper }));
-  tapCut(state.tap, E, notchE);
-  E.cuts.push(notchE);
-  const notchR = pocketFor(R, withSpans(rb, { ...crossing, [k]: side === -1 ? upper : lower }));
-  tapCut(state.tap, R, notchR);
-  R.cuts.push(notchR);
-  return null;
+  return { e: withSpans(eb, { ...crossing, [k]: side === -1 ? lower : upper }), r: withSpans(rb, { ...crossing, [k]: side === -1 ? upper : lower }) };
 }

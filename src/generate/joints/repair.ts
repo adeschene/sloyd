@@ -1,7 +1,8 @@
 import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, parentPath, PATH_SEPARATOR, worldParts, writeBackFlat } from '../../document/document';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
-import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
+import { cutBox, gateUnjoin, readJoints, rejoin, sameCut, sameCutSet } from './unjoin';
+import { hasDovetails } from '../../document/dovetailModel';
 import { compoundRefusal, leaningRefusal, tenonRefusal } from './tapers';
 import { claimThenDecide, firstBrokenSet, restoreFingerSets } from './fingerClaim';
 
@@ -119,6 +120,9 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
     if (r === null || 'refused' in r) return r;
     const boards = restoreFingerSets(r.boards, claimed);
     if (firstBrokenSet(flat.boards, boards, claimed) !== null) return { refused: REPAIR_REFUSAL };
+    // Repair never changes a dovetailed part (dovetails spec §7): one whose cuts the repair would change (a doubled or a
+    // phantom pocket dropped) refuses the whole repair. Only the order of its cuts may differ (the re-join's order).
+    if (flat.boards.some((b, i) => hasDovetails(b) && !sameCutSet(b.cuts, boards[i]!.cuts))) return { refused: REPAIR_REFUSAL };
     const out = migrateDocument(writeBackFlat(doc, flat.boards, boards));
     return { doc: out, dropped: r.dropped, splits: splitCopies(doc, out) };
   } catch (e) {

@@ -31,7 +31,9 @@ import { designValues, documentToDesign } from '../document/refineDesign';
 import { carryFromOriginal, featureTurned } from '../document/featureCarry';
 import type { RefineRefusal } from '../document/refineDesign';
 import { carriedSummary } from '../document/carryText';
-import { keptParts } from '../document/leanKeep';
+import { assemblyKind, cornerJointed, keptParts } from '../document/leanKeep';
+import { hasDovetails } from '../document/dovetailModel';
+import { dovetailJoinChanged } from '../document/dovetailText';
 import { fingerSets } from '../document/boxJoints';
 import { boxJointJoinChanged } from '../document/boxJointText';
 import { changedBoxJointed } from './joints/fingerClaim';
@@ -260,10 +262,26 @@ export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; pr
   leaning?: { kept: string[]; replaced: string[]; boxJoints?: true } }
 export type RefineProgress = RunProgress & { stage?: 'join' };
 
-/** Some kept part, resolved, has a recognised box joint (box-joints spec §7). */
+/** Some kept part, resolved, has a recognised box joint, or some kept assembly is box-jointed (box-joints spec §7). A kept
+ *  dovetailed assembly with no box joints is not (dovetails spec §7): the dialog's kept line names box joints only for them. */
 function keptBoxJoints(doc: SloydDocument, kept: KeptParts): boolean {
   const shapes = shapeMap(doc);
-  return kept.boards.some((b) => { const r = resolveBoard(shapes, b); return r !== null && fingerSets(r).length > 0; });
+  return kept.instances.some((i) => assemblyKind(doc, i) === 'box joints') ||
+    kept.boards.some((b) => { const r = resolveBoard(shapes, b); return r !== null && fingerSets(r).length > 0; });
+}
+
+/**
+ * The (c) sentence for the kept part `name` (a flat name of `doc`) the re-join would change (dovetails spec §7): by the
+ * part's own corner joint, box joints first; a kept assembly's part with neither (a drawer's bottom) by its assembly's
+ * (`assemblyKind`). Box joints otherwise, as before.
+ */
+function joinChangedText(doc: SloydDocument, kept: KeptParts, name: string): string {
+  const b = flatDocument(doc).boards.find((x) => x.name === name);
+  const at = b ? parentPath(b.id) : null;
+  const inst = at === null ? undefined : kept.instances.find((i) => i.id === at);
+  const dovetails = b !== undefined && fingerSets(b).length === 0 &&
+    (hasDovetails(b) || (inst !== undefined && assemblyKind(doc, inst) === 'dovetails'));
+  return dovetails ? dovetailJoinChanged(name) : boxJointJoinChanged(name);
 }
 
 /**
@@ -321,7 +339,7 @@ export async function runRefine(
     const at = parentPath(b.id);
     return at === null ? kept.names.includes(b.name) : keptPlacements.has(at);
   });
-  const guardedKept = keptFlat.filter((b) => parentPath(b.id) !== null || fingerSets(b).length > 0).map((b) => b.name);
+  const guardedKept = keptFlat.filter((b) => parentPath(b.id) !== null || cornerJointed(b)).map((b) => b.name);
   if (base.joints) {
     // A meeting the ORIGINAL plain design had but no record covers was left butt (butt leaves
     // no cut; the gate's round trip proved it): a fixed butt, never re-opened (spec §4).
@@ -371,7 +389,7 @@ export async function runRefine(
       // The refined design comes back UNJOINED with the reason (inv 41), never with the fingers lost. The joinery call,
       // if one was made, is still paid for.
       usage = addUsage(usage, jo.usage);
-      joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [], notJoined: boxJointJoinChanged(changed) };
+      joints = { kept: 0, chosen: 0, dropped, skipped: [], notes: [], notJoined: joinChangedText(base.plain, kept, changed) };
     } else {
       // The joined result's own band types (the refined design's, through joinery), never the original's (AI-bands spec §3.1).
       refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials, bandTypes: jo.result.doc.bandTypes, hardwareTypes: doc.hardwareTypes, hardware: doc.hardware });
@@ -385,7 +403,7 @@ export async function runRefine(
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
   return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints, carried,
     ...(kept.names.length + kept.placements.length > 0 ? { leaning: { kept: [...kept.names, ...kept.placements], replaced: out.replaced,
-      ...(kept.placements.length > 0 || keptBoxJoints(base.plain, kept) ? { boxJoints: true as const } : {}) } } : {}) };
+      ...(keptBoxJoints(base.plain, kept) ? { boxJoints: true as const } : {}) } } : {}) };
 }
 
 /** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */

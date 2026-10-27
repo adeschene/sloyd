@@ -42,8 +42,11 @@ export function boxOf(b: Board): WorldBox {
  *
  * A box touching no face is an enclosed void, which no cut can make. That is
  * a recipe bug, so this THROWS rather than returning something wrong.
+ *
+ * `id`: given only by a PROBE (a pocket judged before it is cut, dovetails spec §7), so it mints no id and a
+ * run's ids are as before; every real pocket mints one.
  */
-export function pocketFor(board: Board, box: WorldBox): Cut {
+export function pocketFor(board: Board, box: WorldBox, id?: string): Cut {
   const local = {} as Record<Dimension, [number, number]>;
   // Clamp in world-offset space, then convert: a turn may reverse an axis, so
   // the box's world span maps to the part's span reflected there.
@@ -81,7 +84,7 @@ export function pocketFor(board: Board, box: WorldBox): Cut {
   const across = contacts(others[1]) > contacts(others[0]) ? others[1] : others[0];
   const pos = others.find((d) => d !== across)!;
   const cut: Cut = {
-    id: nextId(),
+    id: id ?? nextId(),
     face, from, across,
     offset: onGrid(local[pos][0]),
     width: onGrid(local[pos][1] - local[pos][0]),
