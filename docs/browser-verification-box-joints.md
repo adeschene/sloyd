@@ -59,3 +59,22 @@ fingers), the faces meet flush, and there is no z-fighting. Software GL; the use
 - **The paid Refine run (plan Step 4b) was NOT done:** no API key is stored on either dev origin
   (`127.0.0.1:5180`, `localhost:5180`), and the key never goes through chat. The kept-assembly round trip is covered by
   the fake-client `runRefine` tests (Tasks 6, 6b). One real Refine on a project like this one is owed (fu 496).
+
+## 8. Re-check after the equal-fingers ruling (Task 9, branch tip 17e1fba)
+
+The layout changed after sections 2–6 were recorded (spec "Amended 2026-10-27 … equal fingers": every finger `w`, the odd
+one at J's world min, slivers under w/4 merged). Sections 2–6 and the two images show the OLD symmetric layout. Re-checked
+on the same dev project by DOM readout:
+
+- A second drawer, 4-1/4" tall (Front 2, Back 2, Side left 2, Side right 2, butt corners), all four selected: Finger
+  width defaulted to `1/2"`; the note read `Jointed 4 corners: 9 fingers, 1/2" wide (the odd one 1/4").`, then
+  `Side left 2 is now 1" longer.` and `Side right 2 is now 1" longer.`
+- Cut list, `2 × 17" × 4-1/4"` (the sides): `Box joint — 9 fingers 1/2" wide (the odd one 1/4" at the width min edge),
+  1/2" deep, at the length min end; this part has a finger at the width max edge.` (and the max end the same).
+  `2 × 13" × 4-1/4"` (Front 2, Back 2): the same with `this part has a notch at the width max edge.` So the odd finger is
+  at the bottom (width min of an On-edge part is world min Y) and the two parts are complementary at the top.
+- The first drawer (inside `Assembly 1`) was jointed with the OLD layout (3/8", symmetric 5/16" outer fingers). Its notches
+  are no longer recognised as a finger set, so its row shows no `Box joint` line. That is dev-only data from unreleased
+  code; no deployed project carries the old layout.
+- Screenshots could not be retaken: Playwright's `page.screenshot` hung at "waiting for fonts" three times, including
+  after a reload. A by-eye look at the new fingers on real hardware is owed (fu 496).
