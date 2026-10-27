@@ -1,5 +1,6 @@
-import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide, RoundTenon } from './types';
+import type { Board, CurveCut, CurveSegment, CutFrom, Dimension, Dovetail, ProfileCut, ProfileEnd, ProfileKind, ProfileRun, ProfileSide, RoundTenon } from './types';
 import { builtTenons, tenonViewCurves } from './roundTenons';
+import { builtDovetails, dovetailViewCurves } from './dovetails';
 import { curveFaults, sameCurve, spanOf, uvDims, type CurveSpan, type ViewCurve } from './curves';
 import { faceOutline, isSwept, profilePath, sideStretch, stationPoint, throughConsistent, type FaceOutline, type OutlineChord, type Opts as PathOpts } from './profilePath';
 import { BEARING } from './runout';
@@ -616,44 +617,49 @@ function fallsBack(board: FaultBoard & Pick<Board, 'curves'>, p: ProfileCut, cac
  * THE geometry view (profile runs spec P4, Q1). Every reader that turns a part into geometry, words or faults reads this:
  * the part's curves, then each STRAIGHT profile as the CurveCut chunk 1 stored; its `profiles` holds exactly the SWEPT
  * ones (`isSwept`, judged on the stored part), in stored order, each the view's own copy. The SAME object when the part
- * has no profiles and no round tenons; else one memoised object per part, memoised to itself, so a second call returns it
- * unchanged. A part with no swept profile has `profiles: []`, exactly as a1/a2 built it. A fault-free round tenon appends
- * its view curves (`tenonViewCurves`) after everything else (round tenons spec §7).
+ * has no profiles, no round tenons and no dovetails; else one memoised object per part, memoised to itself, so a second call
+ * returns it unchanged. A part with no swept profile has `profiles: []`, exactly as a1/a2 built it. The JOINT views come
+ * after everything else: each fault-free round tenon's view curves (`tenonViewCurves`, round tenons spec §7), then each
+ * fault-free dovetail's (`dovetailViewCurves`, dovetails spec §3.5).
  */
 export function geometryBoard<T extends Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] }>(b: T): T {
-  const tenons = (b as { tenons?: readonly RoundTenon[] }).tenons;
-  if (!tenons || tenons.length === 0) return profileView(b);
-  const hit = tenonViews.get(b);
+  const joints = b as { tenons?: readonly RoundTenon[]; dovetails?: readonly Dovetail[] };
+  if ((!joints.tenons || joints.tenons.length === 0) && (!joints.dovetails || joints.dovetails.length === 0)) return profileView(b);
+  const hit = jointViews.get(b);
   if (hit) return hit as T;
-  // Round tenons (spec §7): the profile view, then each FAULT-FREE tenon's view curves (a faulted tenon builds nothing, the
-  // swept-profile rule Q6). Judged on the stored part, whose features `tenonFaults` reads through `profileView` (never this
-  // view: a tenon is not a feature of itself). All faulted and no profiles: the part itself, as a tenon-free part's.
+  // Round tenons (spec §7) and dovetails (dovetails spec §3.5): the profile view, then each FAULT-FREE joint's view curves
+  // (a faulted one builds nothing, the swept-profile rule Q6). Judged on the stored part, whose features `tenonFaults` reads
+  // through `profileView` (never this view: a joint is not a feature of itself). All faulted and no profiles: the part
+  // itself, as a joint-free part's.
   const pv = profileView(b);
   const board = b as unknown as Board;
-  const extra = builtTenons(board).flatMap((t) => tenonViewCurves(board, t));
+  const extra = [
+    ...builtTenons(board).flatMap((t) => tenonViewCurves(board, t)),
+    ...builtDovetails(board).flatMap((d) => dovetailViewCurves(board, d)),
+  ];
   const view = extra.length === 0 ? pv : { ...pv, curves: [...pv.curves, ...extra] } as T;
-  tenonViews.set(b, view);
-  tenonViews.set(view, view);
+  jointViews.set(b, view);
+  jointViews.set(view, view);
   if (view !== pv) {
-    tenonBases.set(view, pv);
+    jointBases.set(view, pv);
     views.set(view, view);
   }
-  // The profile view carries the same tenons: its geometry view is this one (never a second, equal object).
-  if (pv !== b) tenonViews.set(pv, view);
+  // The profile view carries the same joints: its geometry view is this one (never a second, equal object).
+  if (pv !== b) jointViews.set(pv, view);
   return view;
 }
-/** A tenoned part's geometry view (and the view itself) → that view (`geometryBoard`). */
-const tenonViews = new WeakMap<object, object>();
-/** A tenoned part's geometry view → its profile view (`profileView` of the view). */
-const tenonBases = new WeakMap<object, object>();
+/** A jointed (round-tenoned or dovetailed) part's geometry view (and the view itself) → that view (`geometryBoard`). */
+const jointViews = new WeakMap<object, object>();
+/** A jointed part's geometry view → its profile view (`profileView` of the view). */
+const jointBases = new WeakMap<object, object>();
 
 /**
- * The geometry view WITHOUT the round tenons' view curves: the curves and profiles as `geometryBoard` reads them for a part
- * with no tenons — the SAME object for a part with neither tenons nor profiles. The features a tenon is judged against
- * (`shapedFeatures`, `tenonFaults`) read this, so judging a tenon never reads its own waste.
+ * The geometry view WITHOUT the joints' view curves (round tenons', dovetails'): the curves and profiles as `geometryBoard`
+ * reads them for a part with no joints — the SAME object for a part with neither joints nor profiles. The features a tenon
+ * is judged against (`shapedFeatures`, `tenonFaults`) read this, so judging a joint never reads its own waste.
  */
 export function profileView<T extends Pick<Board, Dimension | 'curves'> & { profiles?: readonly ProfileCut[] }>(b: T): T {
-  const base = tenonBases.get(b);
+  const base = jointBases.get(b);
   if (base) return base as T;
   if (!b.profiles || b.profiles.length === 0) return b;
   const hit = views.get(b);

@@ -1,4 +1,5 @@
-import type { Board, Dimension, Dovetail } from './types';
+import type { Board, CurveSegment, Dimension, Dovetail } from './types';
+import type { CurveSpan, ViewCurve } from './curves';
 import type { Units } from '../units/length';
 import { byDovetailEnd, dovetailsOf, sameDovetail } from './dovetailModel';
 
@@ -115,4 +116,80 @@ export function lowerDovetails(stored: Dovetail[] | undefined, draft: Pick<Board
     return s && sameDovetail(s, d) ? s : d;
   });
   return { dovetails: stored && out.length === stored.length && out.every((d, i) => d === stored[i]) ? stored : out };
+}
+
+// ---- Geometry: a dovetail's waste as view curves (dovetails spec §3.5; Spec difference 1: round tenons' route) -----
+
+/**
+ * A BUILT dovetail's waste as SQUARE-span view curves (`CurveSpan.square`, `squareSpan`), so `boardBodies` stays the ONE place
+ * it becomes geometry and bodies stay convex (inv 48): `geometryBoard` appends them after the round tenons' for each
+ * fault-free dovetail. VIEW-ONLY: never stored, never validated. Every boundary is `dovetailLayout(...).bounds` (the ruling:
+ * never recomputed here); the slope moves each one by `x / s` at distance `x` from the outside plane.
+ *
+ * - TAILS: one curve per PIN socket (each half pin and pin), through the THICKNESS over its whole extent (a span with no
+ *   stop), its outline in `uvDims('thickness')` = (length, width): at the end face the socket's outside-plane bounds, at
+ *   `depth` back each side `depth / s` further out (the socket widens, the tails narrow); a half pin's outer side stays on
+ *   the J face. Traced along the end face (and the J face for a half pin) where it lies on them.
+ * - PINS: one curve per TAIL socket, through `dim` from the baseline to the end with ONE square stop at the baseline (a plain
+ *   wall, as a tenon's shoulder), its outline in `uvDims(dim)` = (J, thickness): at the `outside` face the tail's
+ *   outside-plane bounds, at the other face each side `thickness / s` further in (the socket narrows, the pins widen).
+ *
+ * Both describe the same prism: x runs from the outside plane (the tail part's end face = the pin part's outside face)
+ * into the corner in both. Ids `dovetail/<dovetail id>/<k>` (the loader re-mints a stored id holding `/`, inv 33);
+ * `uFrom`/`vFrom` 'min'.
+ */
+export function dovetailViewCurves(b: Pick<Board, Dimension>, d: Dovetail): ViewCurve[] {
+  const J = jointLineOf(d.dim);
+  const { bounds } = dovetailLayout(b[J], d.count, d.slope, d.pin);
+  const N = d.count;
+  const line = (to: [number, number]): CurveSegment => ({ type: 'line', to });
+  const base = { uFrom: 'min' as const, vFrom: 'min' as const };
+  const out: ViewCurve[] = [];
+  if (d.role === 'tails') {
+    // (dim, J) → (u, v) of `uvDims('thickness')` = (length, width).
+    const at = (r: number, j: number): [number, number] => (d.dim === 'length' ? [r, j] : [j, r]);
+    const e = d.end === 'max' ? b[d.dim] : 0;
+    const r = d.end === 'max' ? e - d.depth : d.depth;
+    const w = d.depth / d.slope;
+    const span: CurveSpan = { lo: 0, hi: b.thickness, stopLo: false, stopHi: false, square: true };
+    for (let k = 0; k <= N; k += 1) {
+      const a = bounds[2 * k]!, c = bounds[2 * k + 1]!;
+      const a1 = k === 0 ? a : a - w, c1 = k === N ? c : c + w;
+      const pts: [number, number][] = [at(e, a), at(e, c), at(r, c1), at(r, a1)];
+      out.push({ ...base, id: `dovetail/${d.id}/${k}`, through: 'thickness', span, start: pts[0]!, segments: [...pts.slice(1), pts[0]!].map(line) });
+    }
+    return out;
+  }
+  // (J, thickness) = `uvDims(dim)` for either run dimension.
+  const T = b.thickness;
+  const [vo, vi] = d.outside === 'max' ? [T, 0] : [0, T];
+  const w = T / d.slope;
+  const span: CurveSpan = d.end === 'max'
+    ? { lo: b[d.dim] - d.depth, hi: b[d.dim], stopLo: true, stopHi: false, square: true }
+    : { lo: 0, hi: d.depth, stopLo: false, stopHi: true, square: true };
+  for (let k = 0; k < N; k += 1) {
+    const a = bounds[2 * k + 1]!, c = bounds[2 * k + 2]!;
+    const pts: [number, number][] = [[a, vo], [c, vo], [c - w, vi], [a + w, vi]];
+    out.push({ ...base, id: `dovetail/${d.id}/${k}`, through: d.dim, span, start: pts[0]!, segments: [...pts.slice(1), pts[0]!].map(line) });
+  }
+  return out;
+}
+
+/**
+ * A BUILT dovetail's corners at the OUTSIDE plane (dovetails spec §3.5, my call there: "tail and pin corners at the outside
+ * plane are snap points, nothing in air"), board-local, from the ONE layout's bounds — every tail–pin boundary `bounds[1..2N]`:
+ * - tails: on the END face (the outside plane), at both thickness faces — each tail's four end corners;
+ * - pins: on the `outside` thickness face (the outside plane), at the end and at the baseline — each pin's narrow corners.
+ * Each lies on wood (the edge of a tail's or a pin's outside-plane face), never in a socket.
+ */
+export function dovetailCorners(b: Pick<Board, Dimension>, d: Dovetail): Record<Dimension, number>[] {
+  const J = jointLineOf(d.dim);
+  const { bounds } = dovetailLayout(b[J], d.count, d.slope, d.pin);
+  const edges = bounds.slice(1, -1);
+  const e = d.end === 'max' ? b[d.dim] : 0;
+  const r = d.end === 'max' ? e - d.depth : d.depth;
+  const pt = (run: number, j: number, t: number) => ({ [d.dim]: run, [J]: j, thickness: t }) as Record<Dimension, number>;
+  if (d.role === 'tails') return edges.flatMap((j) => [pt(e, j, 0), pt(e, j, b.thickness)]);
+  const vo = d.outside === 'max' ? b.thickness : 0;
+  return edges.flatMap((j) => [pt(e, j, vo), pt(r, j, vo)]);
 }
