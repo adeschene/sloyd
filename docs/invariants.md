@@ -1782,7 +1782,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     FLAT document (every Definition copy; hidden parts too, inv 43); `selectionWeight` weighs the named flat parts and their own
     strips. **The cut list sums a group's weight in the SAME visit as `stockInches`** — a part visit adds its core to its group, a
     strip visit its box to the strip's (the band material's) group — so the project total is EXACTLY the sum of the groups. **A
-    material with no density makes every total say it is partial and name what it left out** (`· no density`, `…, not counting Ash
+    material with no density makes every total say it is partial and name what it left out** (`no density` under a group's stock, `…, not counting Ash
     (no density)`, Properties' `…, not counting Ash`), and nothing weighed at all reads `not known` — never a silent undercount,
     never `about 0 lb`. `weight.ts` imports nothing from `units`; the strings are `cutlist.ts`' (`weightSentence`, the project
     line) and `units/quantity.ts`' (`formatWeight`: one decimal while under 10, whole from 10; `formatDensity`, `parseDensity`).

@@ -19,7 +19,7 @@ it('identity: a dovetail-free sheet (a dado row drawn, a plain row) renders byte
   expect(container.querySelector('.cutlist-diagram')).not.toBeNull();
   // The weight round's additions (weight spec §5.1): asserted, then removed, so the rest is the same bytes as before.
   const added = [...container.querySelectorAll('.cutlist-weight, .cutlist-weight-total')];
-  expect(added.map((e) => e.textContent)).toEqual(['· 8.2 lb', 'Weight: about 8.2 lb']);
+  expect(added.map((e) => e.textContent)).toEqual(['8.2 lb', 'Weight: about 8.2 lb']);
   for (const e of added) e.remove();
   expect(createHash('sha256').update(container.innerHTML).digest('hex'))
     .toBe('d836a5529336a8811555e6359a128c48980f0f25e6c3167791aa96fc3770c3e6');

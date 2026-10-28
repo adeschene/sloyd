@@ -174,8 +174,9 @@ table, the stool) before and after; perf guards are lowered only, never raised (
 
 ### 5.1 Cut list
 
-- **Each group's subtotal** gains the group's weight after its stock: `Pine — 3/4": 4.20 bd ft · 12 lb`. A group of an
-  unweighed material prints `· no density`.
+- **Each group's subtotal** gains the group's weight under its stock, in the stock's right-aligned column: `12 lb`, or `no density`
+  for an unweighed material. *(Amended in the build's browser check: inline, after the stock as `· 12 lb`, it pushed the stock out of
+  line with the rows' stock column.)*
 - **A project line** under the groups, before Hardware: `Weight: about 47 lb`. When something is unweighed:
   `Weight: about 40 lb, not counting Ash (no density)` (labels joined `, ` and `and`).
 - Strip rows sit in their band material's group already; their weight lands there.

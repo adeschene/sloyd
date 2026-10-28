@@ -1117,9 +1117,9 @@ select.input { cursor: pointer; }
 
 .cutlist-subtotal {
   display: grid;
-  /* label, stock, weight (weight spec §5.1) */
-  grid-template-columns: 1fr 7.5em 7em;
+  grid-template-columns: 1fr 7.5em;
   gap: 12px;
+  row-gap: 2px; /* the weight's second line sits close under its stock (weight spec §5.1) */
   margin: 8px 0 0;
   padding-top: 8px;
   font-variant-numeric: tabular-nums;
@@ -1136,8 +1136,11 @@ select.input { cursor: pointer; }
   color: var(--accent);
 }
 
-/* The group's weight, an estimate: dimmer than the stock it follows (weight spec §5.1). */
+/* The group's weight, an estimate (weight spec §5.1): on a second line under the stock, in the stock's own column, so the
+   column of totals still aligns with the rows' stock; dimmer than the stock. */
 .cutlist-weight {
+  grid-column: 2;
+  text-align: right;
   font-family: var(--font-num);
   color: var(--ink-dim);
   white-space: nowrap;

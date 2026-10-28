@@ -139,7 +139,7 @@ export interface CutListGroup {
    * from each board's own wood; null when the group's material has no density (a group is one material: all or nothing).
    */
   pounds: number | null;
-  /** `· 12 lb` or `· no density`, printed after `stock`. */
+  /** `12 lb` or `no density`, printed under `stock` in the same right-aligned column. */
   weight: string;
   /**
    * How this group's parts lay out on full sheets — present exactly when
@@ -517,7 +517,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     const format = isSheetGood(group.material) ? formatSquareFeet : formatBoardFeet;
     group.stock = format(group.stockInches);
     for (const row of group.rows) row.stock = format(row.stockInches);
-    group.weight = group.pounds === null ? '· no density' : `· ${formatWeight(group.pounds, units)}`;
+    group.weight = group.pounds === null ? 'no density' : formatWeight(group.pounds, units);
 
     // One nesting per group, because a group IS the packing partition: one
     // material (so one sheet size and one rotation policy) and one thickness

@@ -16,13 +16,13 @@ describe('the cut list prints weight (weight spec §5.1)', () => {
   const top = createBoard({ id: 't', name: 'Top', material: 'oak', length: 36, width: 20, thickness: 1 });
   const leg = createBoard({ id: 'l', name: 'Leg', material: 'pine', length: 28, width: 1.5, thickness: 1.5 });
 
-  it('each group carries its pounds and `· <weight>`; the project line is the sum of the groups', () => {
+  it('each group carries its pounds and its weight; the project line is the sum of the groups', () => {
     const list = buildCutList(flat([top, leg]));
     const oak = list.groups.find((g) => g.material === 'oak')!;
     const pine = list.groups.find((g) => g.material === 'pine')!;
     expect(oak.pounds).toBeCloseTo(lb(top, 44), 12);
-    expect(oak.weight).toBe(`· ${formatWeight(lb(top, 44), IMPERIAL)}`);
-    expect(pine.weight).toBe(`· ${formatWeight(lb(leg, 28), IMPERIAL)}`);
+    expect(oak.weight).toBe(formatWeight(lb(top, 44), IMPERIAL));
+    expect(pine.weight).toBe(formatWeight(lb(leg, 28), IMPERIAL));
     expect(list.pounds).toBe(list.groups.reduce((s, g) => s + g.pounds!, 0));
     expect(list.weight).toBe(`Weight: about ${formatWeight(lb(top, 44) + lb(leg, 28), IMPERIAL)}`);
   });
@@ -43,7 +43,7 @@ describe('the cut list prints weight (weight spec §5.1)', () => {
   it('an unweighed material: its group says so and the project line names it', () => {
     const a = createBoard({ id: 'a', name: 'Rail', material: ash.id });
     const list = buildCutList(flat([top, a], { materials: [ash] }));
-    expect(list.groups.find((g) => g.material === ash.id)!.weight).toBe('· no density');
+    expect(list.groups.find((g) => g.material === ash.id)!.weight).toBe('no density');
     expect(list.groups.find((g) => g.material === ash.id)!.pounds).toBeNull();
     expect(list.weight).toBe(`Weight: about ${formatWeight(lb(top, 44), IMPERIAL)}, not counting Ash (no density)`);
   });

@@ -8085,8 +8085,8 @@ puts the centre of mass lower than the check reckons. Using the catalog's densit
 held-and-stable spec §8 left it out of scope and the weight round kept it out (the checks byte for byte).
 **Status:** open (ask first).
 
-**526. Weight: the copy, and two calls, for the user (weight, 2026-10-28).** The strings — `· 12 lb` / `· no density` on a group's
-subtotal; `Weight: about 47 lb`, `…, not counting Ash (no density)`, `Weight: not known (Ash has no density)`; Properties' `about 6.2 lb`,
+**526. Weight: the copy, and two calls, for the user (weight, 2026-10-28).** The strings — `12 lb` / `no density` under a group's
+subtotal stock; `Weight: about 47 lb`, `…, not counting Ash (no density)`, `Weight: not known (Ash has no density)`; Properties' `about 6.2 lb`,
 `…, not counting Ash`, `not known`; the dialog's `Density (lb/ft³)`, placeholder `Unknown`, the built-ins' `Density 44 lb/ft³` and the
 refusal `Density must be a number more than 0 and at most 150 lb/ft³, or left empty.` (2402 kg/m³ in metric: the limit is rounded DOWN
 so the stated limit is itself accepted). Two calls to confirm: density follows the project's units in Materials & prices while sizes stay
