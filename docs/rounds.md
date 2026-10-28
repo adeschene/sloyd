@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `5395a21` (weight) | `index-DawoF3J5.js` (CSS `index-iD0ojmiF.css`) | 28 | current |
+| `582ce1e` (part labels) | `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`) | 28 | current |
+| `5395a21` (weight) | `index-DawoF3J5.js` (CSS `index-iD0ojmiF.css`) | 28 | free (no schema change); Labels… is gone |
 | `fbe4bd2` (half-blind copy review, fu 518, 520) | `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) | 27 | **REFUSES every project saved at 28** (a custom material's density) — export first |
 | `33de29a` (half-blind dovetails) | `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`) | 27 | free (no schema change); the old pins line, fault reason and tinted lap band come back |
 | `c6f60bc` (copy review, fu 491, 512) | `index-k4AGntBh.js` (CSS `index-BRfNHt6R.css`) | 26 | **REFUSES every project saved at 27** (a half-blind lap) — export first |
@@ -164,7 +165,13 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   review).** Spec `2026-10-28-sloyd-part-labels-design.md`, plan `2026-10-28-sloyd-part-labels.md`. The PDF print geometry measured exact
   (`docs/browser-verification-labels.md`). Final review: no Critical or Important as graded; one Minor regraded and fixed test-first (a
   long material name truncated the grain away: the grain is now its own span, measured inside the sticker in a browser); minors
-  deferred (fu 533). Owed: fu 532 (a real sheet, by eye).
+  deferred (fu 533). MERGED `582ce1e` (identical to the branch head `3e66ff1`; 9942/9942 on the merged tree), DEPLOYED 2026-10-28 as
+  `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`). Verified: `200` on `/` and a deep route in-network and at the edge; the bundle and CSS
+  at both, sha256 matching `dist/`; the old `index-DawoF3J5.js` 404s in-network; CSP at the edge; the edge bundle carries `Labels…`,
+  `Enter a label number from 1 to`, `Avery 5160 / 8160` and `grain along length`, the edge CSS `@page labels-letter`; a HEADLESS
+  real-browser load (DISPLAY unset, a throwaway profile): the new bundle, 0 errors, Add board; storage read empty first from the CSS
+  asset page, the load's two keys removed there, read back empty after 3s; the profile deleted. Rollback to `5395a21` is free.
+  Owed: fu 532 (a real sheet, by eye).
 
 - **Weight (2026-10-28; BUILT on branch `weight` from master `f824f89`; schema 28; inline execution, one whole-branch review).** Spec
   `2026-10-28-sloyd-weight-design.md` (option A, approved), plan `2026-10-28-sloyd-weight.md`. Final review: no Critical; two Important fixed test-first (I1 edging weighed at its FINISHED size, allowances never;

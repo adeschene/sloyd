@@ -35,14 +35,15 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `5395a21`, bundle `index-DawoF3J5.js`, CSS `index-iD0ojmiF.css`, SCHEMA 28** (weight, feature-gaps §3: a density
-  on every material, the cut list's group and project weights, Properties' Weight; merge `5395a21`, deployed 2026-10-28). Owed: see NEXT.
-- **Rollback:** back to `fbe4bd2` (half-blind copy review, `index-BBLukTqT.js`, schema 27) REFUSES every project saved at 28 — export
-  first; `33de29a` is the same boundary. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-28):** weight is deployed. Owed to the user: fu 526 (the weight copy, density in the project's units in Materials &
-  prices, the rounding) and a look by eye (the browser check ran headless, nobody watched); fu 496(1) and a dovetailed corner on real
-  hardware; the owed list below. Next feature: the user picks from `docs/feature-gaps.md` (open: views — X-ray, saved views; part
-  labels; parametric resize; align/distribute; and the residue follow-ups each row names).
+- **Production: `582ce1e`, bundle `index-CvkZOxnI.js`, CSS `index-BS0G1u8z.css`, SCHEMA 28** (printable part labels, feature-gaps
+  §3, merge `582ce1e`, deployed 2026-10-28; weight, merge `5395a21`, deployed the same day). Owed: see NEXT.
+- **Rollback:** back to `5395a21` (weight, `index-DawoF3J5.js`, schema 28) is free (no schema change: Labels… is gone); the nearest
+  refusing boundary is `fbe4bd2` (`index-BBLukTqT.js`, schema 27): it refuses every project saved at 28 — export first. Every older
+  boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (2026-10-28):** weight and part labels are deployed. Owed to the user: fu 532 (a printed sheet on real sticker stock; the
+  Labels sheet by eye), fu 526 (the weight copy and two calls), and a look at both by eye (both checks ran headless, nobody watched);
+  fu 496(1) and a dovetailed corner on real hardware; the owed list below. Next feature: the user picks from `docs/feature-gaps.md`
+  (open: views — X-ray, saved views; parametric resize; align/distribute; and the residue follow-ups each row names).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
