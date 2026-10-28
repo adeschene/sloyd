@@ -1,6 +1,6 @@
 # Sloyd — printable part labels
 
-**Date:** 2026-10-28 · **Status:** draft, awaiting the user's approval.
+**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-part-labels.md`.
 
 **Origin:** `docs/feature-gaps.md` §3, "Printable part labels" ("OpenCutList-style stickers; distinct from the diagram label
 layout"). The user picked it on 2026-10-28 and asked for the spec without the brainstorm questions, so every choice below is
