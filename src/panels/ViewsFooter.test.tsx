@@ -48,6 +48,19 @@ describe('ViewsFooter (saved views spec §6)', () => {
     expect(st().doc.views).toHaveLength(1);
   });
 
+  it('Save view focuses and selects the new view name field', async () => {
+    mount();
+    await userEvent.click(toggle());
+    await userEvent.click(saveBtn());
+    const input = screen.getByRole('textbox', { name: 'View name' }) as HTMLInputElement;
+    expect(input).toHaveValue('View 1');
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 6]);
+    const before = st().doc.views;
+    await userEvent.tab();
+    expect(st().doc.views).toBe(before); // untouched blur commits nothing (inv 5)
+  });
+
   it('clicking a view name calls onGoTo(id)', async () => {
     mount();
     act(() => { st().saveView(cam); });

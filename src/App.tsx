@@ -1034,6 +1034,7 @@ export default function App() {
               baseline, so opening a project with guides leaves it closed.
             */}
             <GuidesFooter key={activeId} />
+            {/* Not `key={activeId}`: sibling keys must differ, or React merges the two footers. */}
             <ViewsFooter key={`views-${activeId}`} getCamera={() => viewportRef.current?.getCamera() ?? null} onGoTo={goToSavedView} />
           </aside>
         </main>

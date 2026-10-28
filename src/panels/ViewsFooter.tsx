@@ -16,6 +16,8 @@ export function ViewsFooter({ getCamera, onGoTo }: {
   const saveView = useStore((s) => s.saveView);
   const updateView = useStore((s) => s.updateView);
   const [open, setOpen] = useState(false);
+  // The view Save view just made: its row mounts with its name field focused and selected (spec §6).
+  const [focusId, setFocusId] = useState<string | null>(null);
   const last = useRef(count);
   useEffect(() => {
     if (count > last.current) setOpen(true);
@@ -33,10 +35,10 @@ export function ViewsFooter({ getCamera, onGoTo }: {
       </h2>
       {open && (
         <div id="views-body" className="guides-body views-body">
-          <button className="guides-clear views-save" onClick={() => { const c = getCamera(); if (c) saveView(c); }}>
+          <button className="guides-clear views-save" onClick={() => { const c = getCamera(); if (c) setFocusId(saveView(c)); }}>
             Save view
           </button>
-          <ViewsList onGoTo={onGoTo} onUpdate={(id) => { const c = getCamera(); if (c) updateView(id, c); }} />
+          <ViewsList focusId={focusId} onGoTo={onGoTo} onUpdate={(id) => { const c = getCamera(); if (c) updateView(id, c); }} />
         </div>
       )}
     </section>
