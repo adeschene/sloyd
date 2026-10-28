@@ -128,9 +128,14 @@ analytic volume (a frustum for a taper, segment area × thickness for an arch, a
 The model is the FINISHED size and bodies are untouched by bands, so a plain body sum would weigh walnut edging as the
 plywood core. Split it:
 
-- each SOLID strip (`strips(part, types)`, as a board via `stripBoard`) weighs `woodVolume(stripBoard(s))` at the BAND
-  TYPE's material's density;
-- the core weighs `woodVolume(part) − Σ strips` at the part's density;
+- each SOLID strip (`strips(part, types)`, as a board via `stripBoard` — a plain box, no features) weighs its box volume
+  at the BAND TYPE's material's density;
+- the core weighs `woodVolume(part) − Σ strip boxes` at the part's density, `woodVolume` taken on the FINISHED stored
+  part. **Never on `cutStock`'s core-sized board**: that keeps the finished part's features at their stored stations on a
+  smaller blank, so its bodies are not the core's wood;
+- so core + strips = `woodVolume(part)` exactly, by construction: the total wood is always the finished model's. Only the
+  split between two densities is approximate (a mitred corner's square is in both strip boxes, so the strips carry it
+  twice and the core gives it up twice — a corner's volume times the density difference);
 - tape is weighed as core (its thickness, about 0.5 mm, is inside the finished size). Negligible; recorded.
 
 A profile cut into an edging strip leaves the strip's box counted as strip and the core short by the same volume: a
@@ -151,8 +156,13 @@ interface WeightSummary {
 ```
 
 and `selectionWeight(flat, ids, catalog)` for Properties: the same sum over the parts (and their strips) the ids name.
-A cut-list group's weight is summed inside `buildCutList` from the group's own BOARDS (never its representative rows,
-like `stockInches`), through a per-board `partWeight` export, so no group key is invented here.
+A cut-list group's weight is summed inside `buildCutList`'s `visit`, beside `stockInches` and in the same visit (never from
+representative rows): a PART visit adds `coreWeight(part)` — the core only, at the part's density — to the part's group; a
+STRIP visit adds that strip's box at its band material's density to the strip's group (the band material's). So the
+edging's weight lands in the edging's group, never twice, and **the project total is exactly the sum of the group
+weights** (`weightOf` and the cut list agree by test). A selection's weight is each selected part's core plus its own
+strips. Properties' selection ids are mapped to flat parts the way the existing selection readers do (through
+`worldParts` / `flatDocument` ids; an assembly selection means its parts).
 
 ### 4.4 Performance
 
@@ -218,7 +228,12 @@ Weight and density are not lengths, so they sit beside `formatBoardFeet` and `fo
 ## 9. Tests (beyond §4.1's partition test)
 
 - Hand numbers: an oak 3/4 × 6 × 24 board weighs 0.75·6·24/1728·44 = 1.375 lb.
-- A banded plywood shelf with walnut edging: core and strip weighed at their own densities, against a hand number.
+- A banded plywood shelf with walnut edging: core and strip weighed at their own densities, against a hand number; the
+  walnut group's weight is non-zero, the plywood group's excludes the edging, core + strips = `woodVolume` of the finished
+  shelf, and the project total equals the sum of the groups.
+- Identity guards (`bandFreeIdentity`, `hardwareFreeIdentity`, `CutList.dovetailIdentity` and kin) break by design on the
+  new subtotal text. They are updated to assert the OLD output with only the weight text added, never regenerated
+  wholesale — so nothing else can change unnoticed.
 - Unweighed: a custom material with no density gives `unweighed` and the partial sentence; adding the density completes it.
 - Definitions: an assembly placed twice weighs twice. A mirrored instance weighs the same as its source.
 - Metric: the same project in metric prints kg; a density typed in kg/m³ stores lb/ft³ and reads back the same whole kg/m³.
