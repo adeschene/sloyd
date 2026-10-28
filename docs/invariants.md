@@ -689,7 +689,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
     `isSheetGood`, `grainFamily`, `hasGrain` and shop validation read it off the id with no catalog; a stored `kind` that
     disagrees with its id drops the entry, and nothing may change a stored material's kind (only an UNSAVED new dialog row
-    has a kind select). Label, colour and sheet size come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global
+    has a kind select). Label, colour, sheet size and DENSITY (weight, schema 28: lb/ft³, fixed on a built-in, optional on a custom material — a
+    malformed stored density drops the FIELD, never the material, so no part turns pine) come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global
     registry: a background Refine or joinery run reads its own document's. **A document carries exactly the custom
     materials its parts, shapes and band types use** (a solid band type's material is kept, inv 54): `pruneMaterials` runs at the end of the load and inside `edit()` (same object
     when nothing goes, inv 4); a part change that adopts a library material does it in the SAME edit
@@ -1768,3 +1769,22 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       `formatLengthBare`) shares the outside face's label row; figure A is unchanged in form (its baseline at `tP − lap`); a through
       figure has no `lap` key. No third figure (spec §5.2; fu 517). Follow-ups 497–515 (fu 497 closed for the joint, its heights half
       in fu 485) and 516–521 (half-blind).
+
+63. **`weight.ts` is the ONE place weight is computed** (weight, schema 28 for the density; spec `2026-10-28-sloyd-weight-design.md`).
+    A part's weight is the wood the MODEL keeps: the volume of `boardBodies` (read through `partGeometry`; a box body by its spans,
+    any other by `bodyVolume`), memoised on the cached `PartGeometry` object (keyed by `geometryKey`, inv 15/50 — never a
+    hand-written field list), times its material's density from the catalog (inv 49). **Holes are ignored** (`boardBodies` is
+    hole-free, inv 50); a lean moves wood and never changes it. **Solid edging is weighed at its BAND's density** (inv 54: the model
+    is the finished size and bodies are untouched by bands): a part's CORE is `woodVolume(finished part) − Σ solid strip boxes`, each
+    strip its box (`stripBoard` is a plain box), so core + strips is the finished wood exactly; only the split between densities is
+    approximate (a mitred corner's square is in both strip boxes); tape is weighed as core. The core is NEVER weighed on `cutStock`'s
+    core-sized board (it keeps the finished part's features at their stored stations on a smaller blank). `weightOf` runs on the
+    FLAT document (every Definition copy; hidden parts too, inv 43); `selectionWeight` weighs the named flat parts and their own
+    strips. **The cut list sums a group's weight in the SAME visit as `stockInches`** — a part visit adds its core to its group, a
+    strip visit its box to the strip's (the band material's) group — so the project total is EXACTLY the sum of the groups. **A
+    material with no density makes every total say it is partial and name what it left out** (`· no density`, `…, not counting Ash
+    (no density)`, Properties' `…, not counting Ash`), and nothing weighed at all reads `not known` — never a silent undercount,
+    never `about 0 lb`. `weight.ts` imports nothing from `units`; the strings are `cutlist.ts`' (`weightSentence`, the project
+    line) and `units/quantity.ts`' (`formatWeight`: one decimal while under 10, whole from 10; `formatDensity`, `parseDensity`).
+    **`partMass` (the tip check) and every design check never read density**: they are byte for byte as before. Generate's schema
+    stays byte-identical (pinned by hash in `document.v28.test.ts`).

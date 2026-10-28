@@ -17,7 +17,7 @@ src/
 ├── units/            length.ts (Units; parseLength/formatLength(…, units)/canBeginLength; capture set {0-9 . -}; formatMm,
 │                     formatLengthBare, formatSize, floorToTick, ceilToTick; inv 52), nominal.ts
 │                     (NOMINAL_SECTIONS, nominalName — EXACT at 1e-9, either order —, stockLengthText: whole feet `8′`),
-│                     quantity.ts (board/square feet, two decimals fixed)
+│                     quantity.ts (board/square feet, two decimals fixed; weight and density text: formatWeight, formatDensity, densityText, parseDensity, densityLimitText — weight, inv 63)
 ├── document/
 │   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
 │   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`);
@@ -439,6 +439,8 @@ src/
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
+│   ├── weight.ts         THE weight home (inv 63): woodVolume (boardBodies volumes, memoised on PartGeometry), stripVolume, coreWeight,
+│   │                     stripWeight, weightOf / selectionWeight (WeightSummary); numbers only (no → units)
 │   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses (band
 │   │                     types' solid materials included, inv 54),
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
