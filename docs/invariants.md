@@ -250,6 +250,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     are never a contact, the two parts' inscribed boxes only touch, and a tail's flat underside rests on the pin part's wood behind
     its baseline. Its floor test stays the box's (`stands` is a tenon rule). A part whose dovetails are all faulted builds none and
     checks exactly as its dovetail-free twin; a dovetail-free document's results are unchanged. No new kind of support (inv 39).
+    **Half-blind (schema 27, inv 62):** a half-blind pin part's pin boxes are the through ones (each pin's narrowest J span — at the
+    lap plane, the same bounds as the outside plane — over the whole thickness: the part in front of the lap plane is lap wood, so
+    nothing is over-claimed), and it gains ONE contact box for the lap slab (the whole J span, the run `depth`, the
+    thickness from the outside face to the lap plane), where the tails' end faces rest; no tested verdict depends on that box
+    (removing it fails only its own presence test; kept as the spec asks, it never over-claims). A half-blind drawer on the floor and a carcass with a
+    half-blind top check clean.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -1564,13 +1570,15 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       site above reads `cornerJointed` (a finger set OR a stored dovetail); the finger CLAIM sites stay finger-only, so the
       PROHIBITION above is unchanged. A dovetailed part refuses Box joint the corners with the plain-stock sentence (`dovetails`).
 
-62. **A dovetail is a STORED parametric feature of a part's end (schema 26), and `dovetails.ts` is its ONE fault decider, ONE
+62. **A dovetail is a STORED parametric feature of a part's end (schema 26; half-blind's `lap`, schema 27), and `dovetails.ts` is its ONE fault decider, ONE
     view-curve source and ONE planner; the ONE layout is `dovetailLayout` in the leaf `dovetailModel.ts`** (dovetails chunk 2,
-    through dovetails; spec `2026-10-27-sloyd-dovetails-design.md` and its *Amended (build)* block). `dovetails.ts` re-exports the
+    through dovetails; spec `2026-10-27-sloyd-dovetails-design.md` and its *Amended (build)* block; half-blind dovetails, chunk 3, spec
+    `2026-10-27-sloyd-half-blind-dovetails-design.md` and its *Amended (build)* block). `dovetails.ts` re-exports the
     layout as its documented home; the leaf exists so the copy home `dovetailText.ts` and `boxJoints.ts` read it without an import
     cycle. `Board.dovetails?: Dovetail[]`, `Dovetail = { id, dim: 'length' | 'width', end: 'min' | 'max', role: 'tails' | 'pins',
-    count, slope, pin, depth, outside? }` (inches; `outside` on pins ONLY: the thickness face the pins are narrow on, the corner's
-    outside face), at most one per `(dim, end)`, canonical order length min, length max, width min, width max (`withDovetails`).
+    count, slope, pin, depth, outside?, lap? }` (inches; `outside` on pins ONLY: the thickness face the pins are narrow on, the corner's
+    outside face; `lap` half-blind ONLY, on BOTH entries of the corner, the same value, absent on a through one — never `0`, never
+    `undefined`: below), at most one per `(dim, end)`, canonical order length min, length max, width min, width max (`withDovetails`).
     The user's numbers are stored, never the outline: the slope `1:s` and the count `N` typed (or Auto), the pin `p` fixed by the
     project's units at planning (1/4", 6 mm: `pinWidth`, never typed), `depth` the OTHER part's thickness. Each part's geometry
     derives from its own feature and its own sizes only, so a part is self-describing.
@@ -1594,11 +1602,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       `DOVETAIL_COUNT_MAX` = 100** (as `HOLE_COUNT_MAX`): load drops more, the planner refuses a typed count over it and starts Auto at
       most at it, and the Tails field reads more as a parse error.
     - **`dovetailFaults(b, d)` is the ONE fault decider**, on the part's own sizes, faults in this order: `count` (not an integer
-      ≥ 1), `slope` (outside [4, 12]), `depth` (`depth ≥ b[dim]`, OR with the part's other dovetail on the same `dim` the two depths
+      ≥ 1), `slope` (outside [4, 12]), `lap` (half-blind, schema 27: a PINS entry with a `lap` not strictly inside its own thickness,
+      `!(lap > 1e-9 && lap < thickness − 1e-9)`, NaN included; a tails entry's `lap` is a record only and never faults), `depth` (`depth ≥ b[dim]`, OR with the part's other dovetail on the same `dim` the two depths
       together reach `b[dim]` to 1e-9: the overlap is folded into `depth`, a build ruling), `narrow` (a tail at its narrowest,
       `Te − 2·X/s`, narrower than a pin at its widest, `p + 2·X/s`, by more than 1e-9; `X` = `depth` for tails, the part's own
-      `thickness` for pins; exactly equal passes). Copy lives only in `dovetailText.ts` (`dovetailFaultText`). **Authoring refuses
-      ANY fault** (the planner: `narrow` through the count, anything else `<part> is too short for its dovetails.`); a fault a later
+      `thickness − (lap ?? 0)` for pins — on a half-blind corner both are `tP − lap`; exactly equal passes). Copy lives only in `dovetailText.ts` (`dovetailFaultText`). **Authoring refuses
+      ANY fault** (the planner: `narrow` through the count, a `lap` earlier at step 3a with the lap sentences, anything else `<part> is
+      too short for its dovetails.`); a fault a later
       edit causes (a resize, a thickness change) is KEPT and noted in the part's Dovetails section, never clamped. **A faulted
       dovetail builds NOTHING** (`builtDovetails`, the ONE "which dovetails build" list, memoised per board OBJECT and frozen): the
       part reads as plain stock at that end — no geometry, snap corner, contact box or bench drawing — and only its cut-list line
@@ -1608,36 +1618,50 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       `dovetail/<dovetail id>/<k>` (no loaded id holds `/`, inv 33). Tails: one curve per pin socket (half pins included), through
       the THICKNESS, widening by `depth / s` each side at the baseline; a half pin's board edge stays square. Pins: one curve per tail
       socket, through `dim` from the baseline to the end with ONE square stop at the baseline, narrowing by `thickness / s` each
-      side from the `outside` face to the other. Both describe the same prism. So bodies stay convex, the mesh is WATERTIGHT
+      side from the `outside` face to the other; **half-blind (the STOPPED socket):** the same prism, its outline in (J, thickness)
+      running from the LAP PLANE (`lap` in from the `outside` face, at the tail's outside-plane bounds) to the inside face, narrowing
+      by `(thickness − lap) / s` each side — it touches the inside face and the end face only, and the lap slab is uncut wood (Task 1,
+      the proof: no fallback was needed). Both describe the same prism. So bodies stay convex, the mesh is WATERTIGHT
       (`dovetailGeometry.test.ts`), `geometryKey` and `boardUVSignature` read the dovetail (inv 15), and every `squareSpan` reader
       skips it as a curve (the cut list's curve lines and signature, the diagram's curve layers, feature keys, `holeFaults`'
       `intoCurve`); the drawings tag no dovetail segment as a curve because every outline is straight (drawing.ts unchanged, a build
       ruling: a future arc-bearing joint view would need the exclusion). **One layout per corner, an exact partition**: the two parts'
       world kept pieces inside the corner square fill it exactly and share no volume (to 1e-9: `dovetailGeometry.test.ts`
-      across H, N, s, metric and imperial `p`, turned parts, swapped roles and both run dimensions, mutated; the planner's tests through
+      across H, N, s, metric and imperial `p`, turned parts, swapped roles and both run dimensions, mutated; half-blind across laps
+      too, with the lap slab the pin part's alone, `expectLapSlab`; the planner's tests through
       the test-only `dovetailFixtures.ts` `expectPartition`).
     - **Snap points** (inv 16): a built dovetail offers its corners at the OUTSIDE plane only (`dovetailCorners`): a tail's end
       corners on the end face at both thickness faces, a pin's narrow corners on its `outside` face at the end and at the baseline —
-      on wood by construction; the sockets are air to `stockProbe`, so nothing is offered in one.
+      on wood by construction; the sockets are air to `stockProbe`, so nothing is offered in one. **A half-blind pin's corners sit on
+      the LAP PLANE** (at the end face and at the baseline), never on the outside face, which is unbroken lap wood (its own outline
+      corners stay offered: they are real wood; Task 1 ruling).
     - **Load** (v26, `docs/versioning.md`): `validateDovetails` DROPS a malformed entry, never the part (not an object, `dim` not
       length | width, `end` not min | max, `role` not tails | pins, `count` not an integer from 1 to `DOVETAIL_COUNT_MAX` (100), a non-finite or non-positive
       `slope`, `pin` or `depth`, a pins entry without `outside` min | max, a second one for a `(dim, end)`: the first in RAW order
       wins), drops a tails entry's stray `outside` (the entry kept), and KEEPS a well-formed faulted one (a slope of 1:20); ids per
       board (per Shape for a Shape) by `takeId`, a `/` re-minted. Copies (`copyBoard`, Duplicate, copy in a row) re-mint ids. A
-      schema-25 build refuses a 26 file. No upgrade step (absent means none).
+      schema-25 build refuses a 26 file. No upgrade step (absent means none). **v27 (`lap`):** a present `lap` that is not finite and
+      > 0 DROPS the ENTRY (the part kept); a valid one is copied as is on EITHER role, an absent one stores no key; a well-formed
+      FAULTED lap (at or past the thickness) is KEPT and noted; a schema-26 build refuses a 27 file (it would rebuild each entry
+      field by field, drop `lap` and load every half-blind corner as through). No upgrade step (absent means through).
     - **Shared and mirrored**: `dovetails` is SHARED in `LINK_FIELDS` (inv 45), exactly as `tenons`: stored once on the Shape, a fresh
       copy per user (`copyDovetail`), `sameShared` in order with ids, `groupSignature` its sorted `dovetailValues`, `alignedTo` adopts
       the representative's ids only when `sameDovetail` matches in canonical order; a key present as `[]` or `undefined` is a REMOVAL
       (inv 46). Every mirror is a FLAG FLIP (inv 44, `mirrorDovetails`, its own inverse; `lowerDovetails` lowers through one mirror,
       an untouched entry back to the stored object): along `dim` the `end` swaps, along the thickness a pins entry's `outside`
       swaps, along J nothing (the SAME array). `DOVETAIL_FIELDS` (inv 40, every field but `id`, `satisfies`) is "same dovetail":
-      `sameDovetail`, the cut list's `dovetailSignature` (exact, order-independent, ids ignored, over the STORED dovetails).
+      `sameDovetail`, the cut list's `dovetailSignature` (exact, order-independent, ids ignored, over the STORED dovetails). **`lap`
+      is in `DOVETAIL_FIELDS`** (after `outside`; a half-blind side and a through side are different rows, and so are two laps), and
+      **`dovetailValues` OMITS an absent `lap`** (a present one appends `|lap=<v>`), so every through row's key is byte for byte as
+      before (pinned by literals). **`lap` flips under nothing** (a distance from `outside`, which already flips): `mirrorOne` is
+      unchanged.
     - **The planner is the dovetail kind of the shared corner planner** (`dovetailPlan`, `applyDovetails`, the store's
       `dovetailCorners`; `cornerPlan.ts` holds box joints' corner finding, run-out, corner-region refusals, linked-Shape planning and
       `writeCorners`, factored out unchanged, inv 61; the kind supplies `featureOf`, `removeAt`, `planCorner`, `addAt`, `signature`).
       Every refusal before any mutation, in order (`dovetailPlan`'s doc comment): the slope, then a typed count; then the shared
-      planner's (a part in a mirrored copy; the corners and their refusals; per part end the plain-stock test, the run-out and the
-      corner region's cut and hole), with each corner's too-narrow sentence (`planCorner`) before the linked checks (mate,
+      planner's (a part in a mirrored copy; the corners and their refusals; then, step 3a, before any end moves, per corner a
+      half-blind lap not strictly inside the pin part — `DOVETAIL_LAP_PARSE` or `dovetailTooThin`, below; per part end the plain-stock
+      test, the run-out and the corner region's cut and hole), with each corner's too-narrow sentence (`planCorner`) before the linked checks (mate,
       disagreement, the link post-condition); then any other fault of a NEW dovetail (too short). ONE undo entry; none while exploded (inv
       47) or gesturing; held points judged on the written document (`judgeHeld`, inv 24). **Which part takes the tails**: box
       joints' `RUN_RANK` (the part whose run axis ranks first in Z, X, Y; a drawer's sides), Swap inverts. **Auto**: `N =
@@ -1655,6 +1679,40 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       mirrored user at the inverse turn) succeed taking the PINS; **a user mirrored along J at the SAME turn whose Shape takes the PINS
       refuses** with the disagreement sentence (its pins would be narrow on its INSIDE face; a build ruling, fu 507;
       `dovetailPlan.test.ts`' carcass cases) — Swap (the linked parts take the tails) or Unlink. Write-back is `writeBackParts` (`keepWorld`), the link post-condition refuses a split link.
+    - **Half-blind (dovetails chunk 3, schema 27; half-blind spec §3, §4).** The drawer-front joint: the pin part P keeps a LAP of
+      solid wood in front of its sockets, measured from its outside face; the tail part T runs out to the LAP PLANE (`lap` inside P's
+      outside face), not to that face. Both ends of a corner always carry the same kind (one `lap`, on both entries).
+      - **The inset hook (`cornerPlan.ts`):** `JointKind.inset?(c, side, doc, nameOf)` is the ONE optional hook (box joints do not
+        implement it, so their plans are byte for byte as before). **Step 3a** of `planCorners`: per corner, side 0 then side 1,
+        BEFORE any end moves, the kind gives the inset `L` (a string refuses; only `L > 0` is kept). Step 4 builds an inset end's
+        `EndOp` with **`far` moved `L` back into the other part** (`far = e.far − e.side·L`: `moveEnd` lands a moving MIN face exactly
+        on `far`, so moving only `size` would be wrong on the min side — mutated), the size computed from that `far` exactly as
+        before, and `depth = e.depth − L`; an end with no inset takes the original three expressions. Every downstream reader (the
+        exact run-out, inv 25; the corner region; the stored `depth`; the linked Shape's replay, which reuses the ops; the signature)
+        reads those numbers. Consequence of the order: a lap refusal shows before step 4's plain-stock refusal on another part.
+      - **`dovetailCornerStyle(c, doc, opts, nameOf)` is the ONE tails-side and lap decision** (exported; `inset` and `planCorner` both
+        call it, so both read one answer): the tails side (the re-plan's current tails part, else `RUN_RANK`, then Swap); the kind
+        from the `joint` option (`'keep'` default | `'through'` | `'half-blind'`; under `keep` a corner already dovetailed keeps its
+        kind and **the PINS entry's `lap` decides** — present means half-blind, even when the tails entry disagrees; a new corner is
+        through); the lap: a typed `lap` as typed (stored EXACTLY, inv 25), else a re-plan whose pins part is unchanged keeps the
+        stored pins `lap`, else **`autoLap(P.thickness, units)`** = a third of the thickness rounded to 1/16" (whole mm metric), at
+        least 1/8" (3 mm) — 3/4" → 1/4", 18 mm → 6 mm. So Swap on a half-blind corner re-chooses a blank lap by Auto against the NEW
+        pin part. A typed lap ≤ 1e-9 or NaN refuses with `A lap must be a length more than 0.` (`DOVETAIL_LAP_PARSE`, also the Lap
+        field's parse error); a lap ≥ `P.thickness − 1e-9` with `<part> is too thin for a <lap> lap.` (`dovetailTooThin`): the
+        `lap` fault's own bounds, decided at step 3a, before any mutation. A lap typed while every corner ends up through is ignored
+        (no key, the note silent on it).
+      - **The planner reads the true extent:** `planCorner`'s `narrow` probe builds each side's trial `Dovetail` WITH the lap, so
+        Auto counts and refuses on `X = tP − lap` (a 1-1/2" front at 1:4 takes 3 tails half-blind, 2 through). `addAt` spreads
+        `lap` onto BOTH entries only when non-null (a through entry never gets the key); the kind's `signature` appends the lap, so
+        linked users must agree on it; `DovetailPlan.corners[]` carries `lap: number | null`. A re-plan to `Through` moves each tail
+        end back out by exactly `lap` (a side with two half-blind ends grows `2·lap`), and to `Half-blind` shortens it the same way.
+      - **The words** (`dovetailText.ts`): the success note names the kind and the lap — one shared layout `Dovetailed <n> corners,
+        half-blind: <N> tails, 1:<s>, <lap> lap.`, else per corner `<A> and <B>: <N> tails, 1:<s>, half-blind, <lap> lap.` (a mix of
+        kinds or laps takes the per-corner form; a through corner's lines are byte for byte as before). `dovetailedLines`' `units`
+        and `lap` are optional, and a layout with a lap and no units THROWS (no silent imperial default; a build ruling). The panel
+        (`Dovetails.tsx`): a `Joint` select (`As they are` / `Through` / `Half-blind`) and a `Lap` field (blank is Auto, a length in
+        the document's units, inv 5's draft rules; disabled for Through; a parse error disables the button unless Through). The
+        store's `dovetailCorners(ids, slope, count, swap, joint = 'keep', lap = null)`: ONE undo entry, refused while exploded.
     - **What a dovetailed part may carry** (spec §3.6): plain stock only — a lean, angle cut, curve, edge profile, edge band, round
       tenon or box joint refuses dovetails (`<part> has <…> — dovetails work on plain stock for now.`), and Box joint the corners
       refuses a dovetailed part (`<part> has dovetails — box joints work on plain stock for now.`). On a dovetailed part the Lean,
@@ -1663,7 +1721,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       from each STORED dovetail's end, the whole section, a faulted one included) refuses on add or edit (`<part> has dovetails at that end
       — keep cuts and holes clear of the joint.`): `addCut`/`updateCut` (`dovetailCutRefusal`), `addHoleRows`/`updateHoleRow`, Add stretcher and
       Bore leg sockets (`holeTouchesBox`). **A cut running straight THROUGH that end along the dovetail's run is exempt**
-      (`cutRunsThrough`, the corner planner's ONE predicate: a drawer bottom's groove). So `holeFaults`, `holes.ts` and `stockProbe`
+      (`cutRunsThrough`, the corner planner's ONE predicate: a drawer bottom's groove). Half-blind changes neither: the zone is
+      `depth` back, whole section, so a pins part's zone includes its lap, and the through-groove exemption holds on a half-blind
+      pins part too (a build ruling: a groove deeper than `tP − lap` would breach the lap unrefused). So `holeFaults`, `holes.ts` and `stockProbe`
       never meet dovetail waste at an authoring path (a resize moving an existing hole into a zone is fu 506; `fitStretcher` has no
       zone check, fu 508). The void store actions that refuse now return `string | null` (Spec difference 2) and each panel shows
       the sentence as its alert.
@@ -1674,6 +1734,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       inscribed boxes only ever touch; a tail's flat underside rests on the pin part's wood behind its baseline. **No new kind of
       support** (inv 39 untouched): a dovetailed drawer on the floor and a carcass whose top takes the tails onto two sides check
       clean (`designCheck.dovetails.test.ts`). A part whose dovetails are all faulted checks exactly as its dovetail-free twin.
+      **Half-blind:** the pins' inscribed boxes are unchanged (their narrowest span over the whole thickness; in front of the lap
+      plane that is lap wood), plus ONE lap-slab box per built half-blind
+      pins dovetail (whole J, run `depth`, outside face to lap plane; inv 38); a half-blind drawer (half-blind front, through back)
+      and the carcass with a half-blind top check clean; a faulted half-blind front checks as its plain twin.
     - **Joinery, Refine and Repair** read ONE predicate, `cornerJointed(b)` (`leanKeep.ts`: a recognised finger set OR a stored
       dovetail, faulted or not), at every KEEP and LEAVE-ALONE site; the finger CLAIM sites (`fingerClaim.ts`, `refineDesign.ts`,
       `cutlist.ts`) stay finger-only — a dovetail is not a cut, so `gateUnjoin` never sees it and there is nothing to claim (pinned,
@@ -1694,4 +1758,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       `DovetailBench.tsx`). Every string is assembled in `dovetailBench.ts` (inv 19), lengths through `formatLengthBare` (inv 52:
       bare mm in metric); the label size is PartDiagram's (each figure `FIG_W / VIEW_W` of the row); the chain is drawn in full only
       when every label fits its own span, else each distinct value once at its first span with the overall `H` on both figures.
-      The pin part's row carries its line only. Follow-ups 497–513.
+      The pin part's row carries its line only. **Half-blind lines** (copy review owed, fu 518): tails `Half-blind dovetails — <N>
+      <tail|tails>, 1:<s>, pins <p> at the narrow end, <depth> deep, at the <dim> <end> end; this part has the tails, each <Te> wide at
+      the end.`; pins `…; this part has the pins, their narrow ends <lap> in from its thickness <outside> face (the lap).` — ONE
+      template for both kinds (only the head word and the pins clause branch), a through line byte for byte as before. **Half-blind
+      bench:** the bench's `layoutKey` includes the lap (a through and a half-blind tail end of one depth are two benches); figure B's
+      pin-board thickness is `depth + lap`, its sockets run from the lap plane to the inside face, the chain sits at the lap plane, the
+      ticks run down to it, a `.cutlist-bench-lap` band is drawn over `[0, lap]`, and a `lap <x>` label (`benchLap`,
+      `formatLengthBare`) shares the outside face's label row; figure A is unchanged in form (its baseline at `tP − lap`); a through
+      figure has no `lap` key. No third figure (spec §5.2; fu 517). Follow-ups 497–515 (fu 497 closed for the joint, its heights half
+      in fu 485) and 516–521 (half-blind).

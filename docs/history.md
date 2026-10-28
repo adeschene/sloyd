@@ -520,6 +520,35 @@ and 79.
 
 ## What each round did
 
+**What half-blind dovetails did (2026-10-27/28)** (dovetails chunk 3; fu 497's joint half; spec
+`2026-10-27-sloyd-half-blind-dovetails-design.md`, approved with all five §9 items as proposed; plan `2026-10-27-sloyd-half-blind-dovetails.md`;
+branch `half-blind` from master `48d2f92`; **schema 27**; subagent-driven, seven build tasks each task-reviewed, one fix round; NOT merged or
+deployed when written). The user said "you pick, just start"; Claude picked the gap (feature-gaps §1). The scope split was Claude's call:
+a front TALLER than its sides (fu 497's other half) touches the shared heights refusal in `planCorners`, so it moved to fu 485, re-worded
+for box joints and both dovetail kinds together.
+1. `5c5e9c9` — the proof first (the dovetails spec's SD1 named stopped sockets as the place view curves might not hold): `Dovetail.lap`,
+   the pins' view curves from the LAP PLANE to the inside face, the `lap` fault before `depth`, the pins' `X = thickness − lap`, snap
+   corners on the lap plane, `dovetailValues` omitting an absent lap (the builder check had found the `|undefined` suffix that would have
+   changed every through row's key). 72 partition cases across layouts, laps, swaps, the drawer, a carcase and a width run, mutated; the
+   mesh watertight, caps hand-derived. No fallback (the lap-slab split) was needed. The pre-flight scan had caught the plan's own narrow
+   example not faulting as through; replaced with numbers that do.
+2. `c319c67` — schema 27: `validateDovetails` drops an entry with a bad `lap`, copies a valid one on either role; seven tests' version
+   numbers edited.
+3. `5f29f04` — the planner: `JointKind.inset` and step 3a in `cornerPlan.ts` (`far` moved, not only `size`: the spec review's correction,
+   mutated on the min side), `dovetailCornerStyle` the one tails-side and lap decision, `autoLap`, the narrow probe on the true extent (a
+   1-1/2" front at 1:4 takes 3 tails half-blind, 2 through), the success lines. Rulings: `dovetailedLines` throws on a lap without units;
+   the 3a-before-plain-stock order.
+4. `78d1b6c` — the Joint select and the Lap field; a typed lap of 0 or less reads the field's parse sentence from the planner too (it had
+   read `too thin for a 0" lap`).
+5. `a6ef54c` — the checks: one lap-slab contact box; the half-blind drawer and carcass check clean. No verdict depends on the box.
+6. `df2dc46`, `0a2a830` — the cut-list lines and the bench's lap (figure B `depth + lap` thick, the chain at the lap plane, the band and
+   `lap <x>`; the bench key gains the lap). The review's one Important: one `dovetailLine` template for both kinds. The named risk (mirror
+   twins in a mixed drawer) proved pre-existing for through drawers with unequal front and back (fu 519).
+7. `7e6beae` — joinery, Refine and Repair pinned on a half-blind drawer (test only). Ruling: the through-groove exemption kept on the
+   lapped pin part.
+Then these records (inv 62 and inv 38's clause, versioning, module map, fu 485/497 and 516–521, the spec's *Amended (build)* block).
+9867 tests across 272 files.
+
 **What joinery features chunk 3 (bands) did (2026-10-22)** (fu 398's joinery and Repair half; spec
 `2026-10-21-sloyd-joinery-features-design.md` §3.3, §3.4, §4.4, §5, §7; plan `2026-10-22-sloyd-joinery-bands.md`; branch `joinery-bands`
 from `ae6dc58`; **no schema change** (20); subagent-driven, six tasks plus a final review and one fix wave; merged `1d39344` and deployed

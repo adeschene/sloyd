@@ -7685,6 +7685,13 @@ remain open as fu 497.
 drawer front taller than its sides) refuses with `<A> and <B> must be the same height along the joint.`; a layout over the shared span with plain
 wood above it needs a rule for the part that sticks out.
 **Status:** open (feature-sized).
+**Re-worded 2026-10-28 (half-blind dovetails round; spec `2026-10-27-sloyd-half-blind-dovetails-design.md` §2, §11): corners of different
+heights along the joint, for box joints AND both dovetail kinds (through and half-blind).** The heights refusal lives in the SHARED corner
+finding (`cornerPlan.ts` `planCorners`, `cornerHeights`), which every kind reads, so lifting it is one round for all three: each kind needs
+its rule for the wood that sticks out past the shared span (box joints' fingers over the shared span only; a dovetail layout's half pins
+at the shared span's edges, with the taller part's extra height plain), and the run-out, corner region and linked signature taught the
+unequal spans. The drawer front taller than its sides is the case half-blind fronts most often meet (fu 497's heights half moved here).
+**Status:** open (feature-sized; box joints and both dovetail kinds together).
 
 **486. Box joints on featured parts (spec §2, §12).** A part with a lean, angle cut, curve, edge profile, edge band or round tenon refuses
 (`<part> has <…> — box joints work on plain stock for now.`). Joining one needs the feature zones (`featureZones.ts`) taught to judge a finger
@@ -7809,6 +7816,11 @@ pins part's sockets end inside its thickness: a view curve through the run with 
 dimension on the feature (a schema question: argue its own harm), the layout's rule for the part that sticks out, and the bench drawing's
 third figure. The one home of half-blind work (fu 484 points here).
 **Status:** open (feature-sized; needs its own spec).
+**Status:** CLOSED for the joint 2026-10-28 — half-blind dovetails BUILT on branch `half-blind` (commits `48d2f92..7e6beae` + the
+records; schema 27, the `lap` on both entries; spec `2026-10-27-sloyd-half-blind-dovetails-design.md`, inv 62), NOT yet merged or
+deployed (confirm at deploy). The stopped pin socket rides the view-curve path (no body code); the bench pair carries the lap on figure B,
+with no third figure (spec §5.2, my call; fu 517). The HEIGHTS half (a front taller than its sides) moved to fu 485, re-worded for box
+joints and both dovetail kinds. New follow-ups 516–521.
 
 **498. Dovetails on featured parts (spec §2, §3.6, §11).** A part with a lean, angle cut, curve, edge profile, edge band, round tenon or
 box joint refuses dovetails (`<part> has <…> — dovetails work on plain stock for now.`), and a dovetailed part refuses those features' ADD
@@ -7970,3 +7982,74 @@ to a millimetre or two more or less than the printed overall `H` (e.g. 4 tails o
 the chain accumulates the error. Remedy: cumulative stations (each boundary from J's min, rounded once) instead of or beside the spans, the
 way `dovetailLayout` computes every bound directly. Not fixed in the round.
 **Status:** open (small; changes the bench drawing's look, so the user judges it with fu 511).
+
+## From the half-blind dovetails round (dovetails chunk 3) — 2026-10-28
+
+Built on branch `half-blind` (commits `48d2f92..7e6beae`, branched from master `48d2f92`, schema 27, inv 62 extended); NOT merged or deployed
+when these were written. Spec `docs/superpowers/specs/2026-10-27-sloyd-half-blind-dovetails-design.md` (§2 and §11 name 516–517; the
+build ledger's notes are 518–521).
+
+**516. Rabbeted (lipped) and overlay drawer fronts (spec §2, §11).** A half-blind front is flush: its ends meet the sides' outside faces.
+A rabbeted (lipped) front sticks out past the sides on its ends and top, with the rabbet's wall as the lap's inside; an overlay front is a
+separate false front over a box. Each needs the corner finding taught a front that does not end on the sides' outside faces (the run-out
+lands on a rabbet's shoulder, not the outside plane), the lap measured from the rabbet, and a cut-list line that names it. Shares the
+"part that sticks out" question with fu 485.
+**Status:** open (feature-sized).
+
+**517. A third bench figure for half-blind dovetails (spec §5.2, §11; my call in the spec).** fu 497 anticipated a third figure: the pin
+board's inside face, showing the socket depth `tT`. The build keeps the pair (A the tail board's face, B the pin board's end grain with the
+lap band and `lap <x>`): the socket depth is already in the cut-list line (`… deep`), and the pair's width share (SD8) is set for two
+figures. A third figure would need its own share of the row, or a second row.
+**Status:** open (ask first: only if the user wants it after seeing the pair, fu 520).
+
+**518. Half-blind dovetails copy review (for the user).** Every new sentence, by home, as built (drafts in the spec, verbatim in the plan's
+Global Constraints; ruled lines marked):
+(1) The success note (`dovetailText.ts` `dovetailedLines`): one shared layout `Dovetailed <n> corners, half-blind: <N> tails, 1:<s>, <lap>
+lap.` (e.g. `Dovetailed 2 corners, half-blind: 4 tails, 1:8, 1/4" lap.`); per corner `<A> and <B>: <N> tails, 1:<s>, half-blind, <lap>
+lap.` (when the corners differ in count, slope, kind or lap; a through corner's line is as before). `1 tail` through `tailWord`.
+(2) The cut-list lines (`dovetailLine`; one template for both kinds): tails `Half-blind dovetails — <N> tails, 1:<s>, pins <p> at the
+narrow end, <depth> deep, at the <dim> <end> end; this part has the tails, each <Te> wide at the end.`; pins `Half-blind dovetails — <N>
+tails, 1:<s>, pins <p> at the narrow end, <depth> deep, at the <dim> <end> end; this part has the pins, their narrow ends <lap> in from its
+thickness <min|max> face (the lap).` (e.g. `… their narrow ends 1/4" in from its thickness max face (the lap).`).
+(3) The lap refusal (`dovetailTooThin`): `<part> is too thin for a <lap> lap.` (a lap at or past the pin part's thickness: typed, kept, or
+Auto on a thin part).
+(4) The Lap parse sentence (`DOVETAIL_LAP_PARSE`): `A lap must be a length more than 0.` — the Lap field's parse error, AND (a Task 3
+ruling) the planner's answer to a typed lap of 0, below 0 or NaN (it had read `Front is too thin for a 0" lap.`).
+(5) The fault reason (`FAULT_REASONS.lap`), inside `This dovetail no longer fits: <reason>.`: `the lap isn't inside the part's thickness`.
+(6) The panel (`Dovetails.tsx`): the select `Joint` with `As they are` (default) / `Through` / `Half-blind`; the field `Lap`, placeholder
+`Auto` (it reuses the Tails field's placeholder constant, fu 521).
+(7) The bench (`benchLap`): figure B's label `lap <x>` (bare mm in metric, `lap 6`).
+**Status:** open (owed to the user: wording).
+
+**519. Mirror-twin sides in a MIXED drawer: half-blind front, through back (Task 6 named-risk finding; pre-existing).** With the sides
+linked as mirror twins: (a) Side right mirrored at the SAME turn — the half-blind front's corners refuse (the mate sentence when only the
+front's corners are selected; planning all four corners half-blind with a 1/2" back gives different laps at the two ends and the mirror
+refuses with the disagreement sentence); (b) Mirror's own pair (mirrored at the inverse turn, 270°) plans, but the cut list shows the
+sides as TWO rows, because the row key compares part-local ends and the mirror swaps them. Both are PRE-EXISTING: a THROUGH drawer with a
+3/4" front and a 1/2" back on the same pairs refuses and splits the same way (the mirror runs along the sides' length, swapping the
+Shape's ends; inv 40's part-local identity, fu 510's class). Linked UNMIRRORED sides at the same turn work (one row, two benches; pinned
+in `cutlist.dovetails.test.ts`), and so do mirror twins in an all-half-blind drawer (one row). Making row identity ignore an end flip that
+is a congruence, or the linked signature compare ends through the mirror, is a human decision and not half-blind specific.
+**Status:** open (ask first).
+
+**520. The half-blind bench's lap band and label by eye (for the user; Task 6 review, Task 9's browser check).** Figure B draws the lap as a
+`.cutlist-bench-lap` band at fill-opacity 0.06 with a 1.5 stroke along the lap plane (the spec said "a solid band"; the waste fill is 0.22,
+so a heavier band could read as waste), and its `lap <x>` label sits on the outside face's label row as free text, without a dimension
+tick of its own. The user judges both in the browser check; close when seen.
+**Status:** open (owed to the user: by eye).
+
+**521. Half-blind dovetails: deferred minors (2026-10-28, the SDD ledger and task reviews).** (1) Task 1: `dovetailGeometry.test.ts` has
+a second section-cap helper duplicating the one inside its describe closure (left so the existing block stays untouched); the module-level
+half-blind fixture runs at collection (a `beforeAll` would localise it); the edges test lacks a positive check (socket lines on the end and
+inside faces, no facet lines); `DIMS3` is declared after its describe. (2) Task 2: stale test titles (`a v27 file is refused` now tests 28,
+`above 28` should read `above 27`) in `document.test.ts` (×4) and `squareSet.test.ts`; `document.v27.test.ts`' first test's
+`at(26)`/`at(27)` `toEqual` is near-tautological (`not.toContain('lap')` carries it). (3) Task 3: `dovetailCornerStyle` is called three
+times per corner (pure, cheap). (4) Task 4: `LapField` is a near-verbatim copy of `TailsField`'s draft logic (a shared blank-is-Auto field
+would serve both); it reuses `DOVETAIL_TAILS_PLACEHOLDER` (a lap placeholder constant would be clearer); its text is not re-formatted on a
+units change while mounted. (5) Task 5: the "absent for a through one" assertion is partly vacuous (the through drawer is never
+slab-checked; the back's check covers it); the carcass guard uses `||` over parts. (6) Task 7: the "no joints → null" Repair test is weak;
+the brief's mutation (`cornerJointed` ignoring a lap) reaches only Refine — the joinery and Repair twins assert directly and read
+`hasDovetails` / stored fields. (7) Task 7 ruling: `cutRunsThrough`'s through-groove exemption is kept on a half-blind PINS part (the groove
+runs on the inside face and leaves through end grain the side covers); a groove deeper than `tP − lap` would breach the lap with no
+refusal — an ordinary visible cut, the user may want it refused when the entry has a lap (ask first if raised).
+**Status:** open (record-only).
