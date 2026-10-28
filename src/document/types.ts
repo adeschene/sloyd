@@ -1,6 +1,7 @@
 // Type-only: links.ts's table classifies Board's fields, and Shape/ShapedBoard derive from it.
 import type { OwnField, SharedField } from './links';
 import type { Units } from '../units/length';
+import type { Section } from './section';
 
 /** Degrees about the vertical axis, counter-clockwise seen from above, applied after posture. */
 export type Rotation = 0 | 90 | 180 | 270;
@@ -335,6 +336,24 @@ export interface GuidePoint {
   at: [number, number, number];
 }
 
+/** A saved view's camera (saved views spec §2). `height` is the visible world height in inches, ortho only. */
+export interface SavedViewCamera {
+  ortho: boolean;
+  position: [number, number, number];
+  target: [number, number, number];
+  height?: number;
+}
+
+/** A named camera + section + explode + hidden set (saved views spec §2). View state kept in the document. */
+export interface SavedView {
+  id: string;
+  name: string;
+  camera: SavedViewCamera;
+  section: Section | null;
+  explode: number;
+  hidden: string[];
+}
+
 /**
  * An assembly placed in its parent (assemblies spec §2). `position` is the
  * frame's ORIGIN in the parent's frame, NOT a min corner: invariant 2 is a
@@ -408,6 +427,8 @@ export interface SloydDocument {
    * migration step has no rawBoards.map — see document.ts.
    */
   guides: GuidePoint[];
+  /** Saved views (schema 29), in the order the user sees. */
+  views: SavedView[];
   boards: StoredBoard[];
   /** The root's assemblies. The root is an implicit definition (spec §2). */
   instances: Instance[];

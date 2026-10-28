@@ -11,9 +11,9 @@ import workbenchRaw from './fixtures/simple-workbench.sloyd?raw';
 /**
  * Mirrored links (fu 432, Global Constraints: byte for byte). A document with no mirrored part loads, re-saves and
  * resolves exactly as it did at schema 20. Every hash below was captured on the tree BEFORE schema 21 (the
- * `bandFreeIdentity` pattern); `version` is the only key dropped. Never re-capture a literal to make this pass.
+ * `bandFreeIdentity` pattern); `version` and an empty `views` (schema 29) are the only keys dropped. Never re-capture a literal to make this pass.
  */
-const noVersion = (k: string, v: unknown) => (k === 'version' ? undefined : v);
+const noVersion = (k: string, v: unknown) => (k === 'version' || (k === 'views' && Array.isArray(v) && v.length === 0) ? undefined : v);
 /** Minted ids carry `Date.now()` (ids.ts), so each is renamed by first appearance; their relations are kept (bandFreeIdentity). */
 function canonical(json: string): string {
   const seen = new Map<string, string>();

@@ -11,7 +11,7 @@ describe('schema 28: CustomMaterial.density (weight spec §3)', () => {
   const part = (material: string) => ({ id: 'b1', name: 'Side', length: 20, width: 6, thickness: 0.75, position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length', material, cuts: [], angleCuts: [], holes: [] });
   const at = (version: number, m: object) => migrateDocument({ ...createDocument('T'), version, materials: [m], boards: [part((m as { id: string }).id)] });
 
-  it('this build writes 28', () => expect(CURRENT_VERSION).toBe(28));
+  it('this build writes 29', () => expect(CURRENT_VERSION).toBe(29));
 
   it('a v27 document loads as its v27 self: no density key anywhere', () => {
     const doc = at(27, ash);
@@ -34,7 +34,7 @@ describe('schema 28: CustomMaterial.density (weight spec §3)', () => {
   });
 
   it('refuses a v29 file', () => {
-    expect(() => migrateDocument({ ...createDocument('T'), version: 29 })).toThrow(/newer version/);
+    expect(() => migrateDocument({ ...createDocument('T'), version: 30 })).toThrow(/newer version/);
   });
 
   it("Generate's design schema and the material keys and labels are byte-identical (inv 49)", () => {

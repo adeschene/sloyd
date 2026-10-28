@@ -808,6 +808,14 @@ describe('project CRUD', () => {
     expect(copy!.name).toBe('Bench copy');
   });
 
+  it('duplicateProject carries saved views (saved views spec §7)', async () => {
+    const { adapter, activeId } = await boot();
+    const view = { id: 'v-keep', name: 'Joint', camera: { ortho: true, position: [10, 20, 30] as [number, number, number], target: [0, 1, 2] as [number, number, number], height: 40 }, section: { axis: 'side' as const, at: 3, flip: true }, explode: 0.5, hidden: ['p-gone', 'p-other'] };
+    await adapter.autoSave(activeId, { ...docWithBoard(), views: [view] });
+    const copyId = await adapter.duplicateProject(activeId);
+    expect((await adapter.loadProject(copyId!))!.views).toEqual([view]);
+  });
+
   it('duplicating a copy counts instead of stacking (fu 237)', async () => {
     const { adapter, activeId } = await boot();
     await adapter.autoSave(activeId, docWithBoard());

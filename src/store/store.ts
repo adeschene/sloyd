@@ -7,7 +7,7 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { SavedView, SavedViewCamera, BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
@@ -35,6 +35,7 @@ import { withinTiltBound } from '../document/holeTilt';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
+import { rekeyViews } from '../document/views';
 
 const HISTORY_LIMIT = 50;
 
@@ -583,6 +584,14 @@ interface StoreState {
   selectLinked: (id: string) => void;
 
   addGuide: (at: [number, number, number]) => void;
+  /** Saved views (spec §3): each is one undo entry, allowed while exploded (inv 47 carve-out), refused mid-gesture. */
+  saveView: (camera: SavedViewCamera) => string | null;
+  updateView: (id: string, camera: SavedViewCamera) => void;
+  /** Returns the stored name: the old name when emptied, `''` for an unknown id. */
+  renameView: (id: string, typed: string) => string;
+  deleteView: (id: string) => void;
+  /** Restores a view's explode, section and hidden set (its own undo entry when the hidden set changes); returns the view whose camera the caller applies, or null when refused (mid-gesture) or unknown. */
+  goToView: (id: string) => SavedView | null;
   removeGuide: (id: string) => void;
   clearGuides: () => void;
 }
@@ -665,8 +674,11 @@ export const useStore = create<StoreState>((set, get) => {
   const edit = (
     fn: (doc: SloydDocument) => SloydDocument,
     selection?: (doc: SloydDocument) => string[],
+    opts?: { viewsOnly?: true },
   ) => {
-    if (get().explode > 0) return; // read-only while exploded (plans-sheet spec §4.2)
+    // Read-only while exploded (plans-sheet spec §4.2). The inv 47 carve-out (saved-views spec §3): ONLY `editViews`
+    // passes `viewsOnly`, and it writes only `views` — no part moves, so the exploded gate has nothing to protect.
+    if (get().explode > 0 && !opts?.viewsOnly) return;
     const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
     // Custom materials (spec §2.3): a document carries exactly what it uses. The SAME object when nothing
     // was unused, so the no-op test below still sees an unchanged document.
@@ -718,6 +730,13 @@ export const useStore = create<StoreState>((set, get) => {
       ...(takeSnapshot ? { gestureSnapshotTaken: true } : {}),
       ...(selection ? selectionPatch(selection(next)) : {}),
     });
+  };
+
+  /** The ONE writer of `doc.views` (saved-views spec §3): refused mid-gesture, allowed while exploded; `fn` returns the SAME array for a no-op. */
+  const editViews = (fn: (views: SavedView[]) => SavedView[]): boolean => {
+    if (get().gesturing) return false;
+    edit((d) => { const v = fn(d.views); return v === d.views ? d : { ...d, views: v }; }, undefined, { viewsOnly: true });
+    return true;
   };
 
   /** The undo entry the current run of eye toggles pushed, held by identity (see applyHidden). */
@@ -890,7 +909,7 @@ export const useStore = create<StoreState>((set, get) => {
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey, lift);
     const pastBefore = get().past;
-    edit(fn, selection);
+    edit((d) => rekeyViews(fn(d), rekey, lift), selection); // views follow in the SAME entry (saved views spec §2)
     const past = get().past;
     // A no-op edit pushes nothing (fu 231); rewriting the top then would clobber
     // an OLDER entry (perhaps a hide run's) or invent one on an empty history.
@@ -2546,6 +2565,62 @@ export const useStore = create<StoreState>((set, get) => {
     addGuide: (at) => {
       const guide = createGuide(at);
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
+    },
+
+    saveView: (camera) => {
+      const { section, explode, hiddenIds } = get();
+      const id = nextId();
+      let saved = false;
+      const ok = editViews((views) => {
+        saved = true;
+        const name = uniqueName(`View ${views.length + 1}`, views);
+        return [...views, { id, name, camera, section: section ? { ...section } : null, explode, hidden: [...hiddenIds] }];
+      });
+      return ok && saved ? id : null;
+    },
+
+    // Inv 43 amendment: going to a view is a fifth user action through applyHidden. It ends any hide run
+    // (hideRunEntry = null), so its hide is never merged into a preceding toggle's entry.
+    goToView: (id) => {
+      if (get().gesturing) return null;
+      const view = get().doc.views.find((v) => v.id === id);
+      if (!view) return null;
+      get().setExplode(view.explode);
+      get().setSection(view.section ? { ...view.section } : null);
+      hideRunEntry = null;
+      applyHidden(view.hidden);
+      return view;
+    },
+
+    updateView: (id, camera) => {
+      const { section, explode, hiddenIds } = get();
+      editViews((views) => {
+        const i = views.findIndex((v) => v.id === id);
+        if (i < 0) return views;
+        const v = views[i]!;
+        const next = { ...v, camera, section: section ? { ...section } : null, explode, hidden: [...hiddenIds] };
+        if (JSON.stringify(next) === JSON.stringify(v)) return views;
+        return views.map((x, j) => (j === i ? next : x));
+      });
+    },
+
+    renameView: (id, typed) => {
+      const current = get().doc.views.find((v) => v.id === id);
+      if (!current) return '';
+      const cleaned = cleanName(typed.trim());
+      if (!cleaned) return current.name;
+      let stored = current.name;
+      editViews((views) => {
+        const name = uniqueName(cleaned, views, id);
+        stored = name;
+        if (name === current.name) return views;
+        return views.map((v) => (v.id === id ? { ...v, name } : v));
+      });
+      return stored;
+    },
+
+    deleteView: (id) => {
+      editViews((views) => (views.some((v) => v.id === id) ? views.filter((v) => v.id !== id) : views));
     },
 
     removeGuide: (id) => {

@@ -25,6 +25,8 @@ import { orthoDistance, orthoZoom, perspectiveDistance, subsetBounds, viewDirect
 import type { StandardView } from './framing';
 import type { Vec3 } from '../document/frames';
 import { isTextEntry } from '../textEntry';
+import type { SavedViewCamera } from '../document/types';
+import { orthoHeight, orthoZoomFor, pendingPoseReady } from './viewCamera';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#ebe3d4';
@@ -75,9 +77,18 @@ function ClickPairs() {
  * `f` while reading a printable sheet would re-frame the camera invisibly and
  * hand the user back a moved view when they close it.
  */
-function CameraKeys({ suspended, viewRef }: {
+/** Saved views' camera access (spec §5), filled by CameraKeys: the camera and controls live inside the Canvas. */
+interface CameraAccess {
+  get(): SavedViewCamera | null;
+  /** Apply `pendingPose` now if the live camera is ready for it; otherwise the swap effect applies it later. */
+  apply(): void;
+}
+
+function CameraKeys({ suspended, viewRef, pendingPose, cameraRef }: {
   suspended: boolean;
   viewRef: { current: ((v: StandardView) => void) | null };
+  pendingPose: { current: SavedViewCamera | null };
+  cameraRef: { current: CameraAccess | null };
 }) {
   const boards = useStore((s) => worldParts(s.doc));
   const hiddenIds = useStore((s) => s.hiddenIds);
@@ -164,8 +175,36 @@ function CameraKeys({ suspended, viewRef }: {
   // targeting the origin, then turn the new camera to face it: zoomed for the
   // model but looking beside it. Measured live: the old controls took the
   // framed target and the new ones came up at [0, 0, 0].
+  //
+  // A saved view's restore (saved views spec §5) is the one swap that must NOT re-frame: App switches the
+  // projection and hands over the saved pose as `pendingPose`, and re-framing would throw that pose away (the
+  // spec's §1 anti-goal). So while a pose is pending this effect applies it — once the new camera and its
+  // controls exist — and marks the camera framed, instead of framing; until then it does nothing. An
+  // ordinary toggle has no pending pose and re-frames exactly as before.
   const framedCamera = useRef<THREE.Camera | null>(null);
+  const applyPending = useCallback(() => {
+    const pending = pendingPose.current;
+    const isOrtho = camera instanceof THREE.OrthographicCamera;
+    if (!pendingPoseReady(pending, isOrtho, controls !== null && controls.object === camera)) return;
+    if (!pending || !controls) return;
+    camera.position.set(...pending.position);
+    // The camera's `up` is never written (spec §2).
+    if (camera instanceof THREE.OrthographicCamera && pending.height !== undefined) {
+      camera.zoom = orthoZoomFor(camera.top, camera.bottom, pending.height);
+    }
+    camera.updateProjectionMatrix();
+    controls.target.set(...pending.target);
+    controls.update();
+    pendingPose.current = null;
+    framedCamera.current = camera;
+  }, [camera, controls, pendingPose]);
+
   useEffect(() => {
+    if (pendingPose.current) {
+      if (framedCamera.current === null) framedCamera.current = camera;
+      applyPending();
+      return;
+    }
     if (framedCamera.current === null) {
       framedCamera.current = camera;
       return;
@@ -178,7 +217,30 @@ function CameraKeys({ suspended, viewRef }: {
     // board edit.
     const s = useStore.getState();
     frame(visibleBoards(worldParts(s.doc), s.hiddenIds));
-  }, [camera, controls, frame]);
+  }, [camera, controls, frame, applyPending, pendingPose]);
+
+  // Saved views (spec §5): read the live pose; apply a pending one now when the camera is already right (same
+  // projection), else the swap effect above applies it once the new camera's controls exist.
+  useEffect(() => {
+    cameraRef.current = {
+      get: () => {
+        if (!controls || controls.object !== camera) return null;
+        const p = camera.position;
+        const t = controls.target;
+        if (camera instanceof THREE.OrthographicCamera) {
+          return {
+            ortho: true,
+            position: [p.x, p.y, p.z],
+            target: [t.x, t.y, t.z],
+            height: orthoHeight(camera.top, camera.bottom, camera.zoom),
+          };
+        }
+        return { ortho: false, position: [p.x, p.y, p.z], target: [t.x, t.y, t.z] };
+      },
+      apply: applyPending,
+    };
+    return () => { cameraRef.current = null; };
+  }, [camera, controls, applyPending, cameraRef]);
 
   // The standard views (spec §2.2): everything visible — Home's subset — from the view's direction.
   // Read imperatively: a view is an event, not a subscription.
@@ -358,6 +420,13 @@ export interface ViewportHandle {
   showView(view: StandardView): void;
   /** Render one clean frame and return it as a PNG, or null if the canvas gave none (spec §3). */
   capture(): Promise<Blob | null>;
+  /** The live camera pose for a saved view (saved views spec §5); null until the camera and controls exist. */
+  getCamera(): SavedViewCamera | null;
+  /**
+   * Put the camera at a saved pose (spec §5). App switches the projection FIRST when the view's differs; the
+   * pose then waits for the new camera and its controls and replaces that swap's re-frame.
+   */
+  setCamera(c: SavedViewCamera): void;
 }
 
 export function Viewport({
@@ -390,11 +459,18 @@ export function Viewport({
   const [clean, setClean] = useState(false);
   const viewRef = useRef<((v: StandardView) => void) | null>(null);
   const captureRef = useRef<(() => Promise<Blob | null>) | null>(null);
+  const pendingPose = useRef<SavedViewCamera | null>(null);
+  const cameraRef = useRef<CameraAccess | null>(null);
   useEffect(() => {
     if (!handleRef) return;
     handleRef.current = {
       showView: (v) => viewRef.current?.(v),
       capture: () => captureRef.current?.() ?? Promise.resolve(null),
+      getCamera: () => cameraRef.current?.get() ?? null,
+      setCamera: (c) => {
+        pendingPose.current = c;
+        cameraRef.current?.apply();
+      },
     };
     return () => { handleRef.current = null; };
   }, [handleRef]);
@@ -527,7 +603,7 @@ export function Viewport({
       {tool === 'select' && explode === 0 && <Gizmo hidden={clean} />}
       <MoveTool showGuides={showGuides} hidden={clean} />
       <TapeTool showGuides={showGuides} hidden={clean} />
-      <CameraKeys suspended={shortcutsSuspended} viewRef={viewRef} />
+      <CameraKeys suspended={shortcutsSuspended} viewRef={viewRef} pendingPose={pendingPose} cameraRef={cameraRef} />
       <Capture clean={clean} setClean={setClean} captureRef={captureRef} />
       <ClickPairs />
       {/*

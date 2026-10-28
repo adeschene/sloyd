@@ -810,3 +810,27 @@ describe('runJoinery with bands (joinery-features chunk 3)', () => {
     expect(out.notes).toEqual(["Shelf → Side: left as a butt — Shelf's edge band is in the way of every joint."]);
   });
 });
+
+describe('runJoinery keeps saved views (saved views spec §7)', () => {
+  it('the joined result of a tree document carries the original views unchanged', async () => {
+    const view = { id: 'v-keep', name: 'Joint', camera: { ortho: true, position: [10, 20, 30] as [number, number, number], target: [0, 1, 2] as [number, number, number], height: 40 }, section: { axis: 'side' as const, at: 3, flip: true }, explode: 0.5, hidden: ['p-gone', 'p-other'] };
+    const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{
+      name: 'Frame',
+      parts: [
+        { name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+        { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 } },
+      ],
+      placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }],
+    }] }).doc;
+    const out = await run(client(short), { ...tree, views: [view] });
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a join');
+    expect(worldParts(out.result.doc).some((b) => b.cuts.length > 0)).toBe(true);
+    expect(out.result.doc.views).toEqual([view]);
+  });
+  it('a flat document too', async () => {
+    const view = { id: 'v-keep', name: 'Joint', camera: { ortho: true, position: [10, 20, 30] as [number, number, number], target: [0, 1, 2] as [number, number, number], height: 40 }, section: { axis: 'side' as const, at: 3, flip: true }, explode: 0.5, hidden: ['p-gone', 'p-other'] };
+    const out = await run(client(short), { ...CORNER, views: [view] });
+    if ('noSites' in out || 'refused' in out) throw new Error('expected a join');
+    expect(out.result.doc.views).toEqual([view]);
+  });
+});

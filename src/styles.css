@@ -867,6 +867,13 @@ button[aria-pressed='true'] {
   color: var(--alert-bright);
 }
 
+.guides.views li { gap: 6px; }
+.guides.views .view-go { flex: none; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 2px 6px; }
+.guides.views .input.name { flex: 1; min-width: 0; }
+.view-update { flex: none; padding: 2px 6px; }
+.views-save { margin: 0 0 6px; }
+
 .guides-clear {
   display: block;
   width: 100%;

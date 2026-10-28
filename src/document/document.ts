@@ -1,10 +1,11 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint, SavedView, SavedViewCamera,
   Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse, Lean,
 } from './types';
 import type { SharedField } from './links';
+import type { Section } from './section';
 import type { LengthDisplay } from '../units/length';
 import { dissolveShapes, pruneShapes, isShaped } from './shapes';
 import { linksToShapes } from './linksToShapes';
@@ -60,7 +61,7 @@ export type { HoleFault, HoleFaultKind, StockChecks } from './holeFaults';
 export { jointRefusal, taperJointRefusal } from './angledRefusal';
 export type { AngleConflict, TaperConflict } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
-import { cleanName, dedupeNames } from './names';
+import { cleanName, dedupeNames, uniqueName } from './names';
 export type { Named } from './names';
 export { pocketEdges, pocketCells, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
@@ -245,8 +246,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * stores no key. `validateCustomMaterial` keeps a density in (0, DENSITY_MAX] on any kind and drops a malformed one — the
  * FIELD, never the material. Harm a v27 build would do: it rebuilds each material field by field, drops `density`, and the
  * next autosave writes the project without it — silent loss on round trip. So a v28 file must be refused by a v27 build.
+ *
+ * v29 (saved views spec §2): `views: SavedView[]` on the document. No step: an absent field loads as `[]`; `validateViews`
+ * drops a malformed entry and repairs ids and names. Harm a v28 build would do: it rebuilds the document field by field,
+ * ignores `views`, and the next autosave writes the project without them — every saved view silently lost. So a v29 file
+ * must be refused by a v28 build.
  */
-export const CURRENT_VERSION = 28;
+export const CURRENT_VERSION = 29;
 
 export class DocumentError extends Error {
   /**
@@ -353,6 +359,7 @@ export function createDocument(name = 'Untitled'): FlatDocument {
     units: { display: 'imperial-fractional', precision: 16 },
     stock: { kerf: DEFAULT_KERF },
     guides: [],
+    views: [],
     boards: [],
     instances: [],
     definitions: [],
@@ -911,6 +918,52 @@ export function validateGuides(raw: unknown): GuidePoint[] {
   return guides;
 }
 
+const SECTION_AXES = ['front', 'side', 'top'];
+const finite3 = (v: unknown): [number, number, number] | null => validPosition(v);
+
+/**
+ * Saved views (schema 29, spec §2). Drops an entry that is malformed (not an object, a blank or non-string name, a bad camera,
+ * an ortho camera without a positive height, a non-finite explode, an invalid section); repairs the rest: explode clamped to
+ * [0, 1], a perspective `height` dropped, `hidden` filtered to unique strings, names trimmed and made unique in order, ids by
+ * `takeId`. `hidden` is a hint, never a reference (inv 33).
+ */
+export function validateViews(raw: unknown): SavedView[] {
+  if (!Array.isArray(raw)) return [];
+  const views: SavedView[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const v = item as Record<string, unknown>;
+    if (typeof v.name !== 'string' || !v.name.trim()) continue;
+    const c = v.camera as Record<string, unknown> | null | undefined;
+    if (typeof c !== 'object' || c === null || typeof c.ortho !== 'boolean') continue;
+    const position = finite3(c.position);
+    const target = finite3(c.target);
+    if (!position || !target) continue;
+    if (c.ortho && !(typeof c.height === 'number' && Number.isFinite(c.height) && c.height > 0)) continue;
+    if (typeof v.explode !== 'number' || !Number.isFinite(v.explode)) continue;
+    let section: Section | null = null;
+    if (v.section !== null && v.section !== undefined) {
+      const s = v.section as Record<string, unknown>;
+      if (typeof s !== 'object' || !SECTION_AXES.includes(s.axis as string) || typeof s.at !== 'number' || !Number.isFinite(s.at) || typeof s.flip !== 'boolean') continue;
+      section = { axis: s.axis as Section['axis'], at: s.at, flip: s.flip };
+    } else if (v.section === undefined) continue;
+    const hidden = Array.isArray(v.hidden) ? [...new Set(v.hidden.filter((h): h is string => typeof h === 'string'))] : [];
+    const camera: SavedViewCamera = c.ortho
+      ? { ortho: true, position, target, height: c.height as number }
+      : { ortho: false, position, target };
+    views.push({
+      id: takeId(v.id, seen),
+      name: uniqueName(v.name, views),
+      camera,
+      section,
+      explode: Math.min(1, Math.max(0, v.explode)),
+      hidden,
+    });
+  }
+  return views;
+}
+
 /** A raw position, or null when it is not three finite numbers. */
 function validPosition(pos: unknown): [number, number, number] | null {
   if (!Array.isArray(pos) || pos.length !== 3 || !pos.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
@@ -1303,6 +1356,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
     units: { display, precision },
     stock: { kerf },
     guides,
+    views: validateViews(d.views),
     boards,
     instances,
     definitions,

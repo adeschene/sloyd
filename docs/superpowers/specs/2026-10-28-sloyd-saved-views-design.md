@@ -1,6 +1,6 @@
 # Sloyd — saved views
 
-**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-saved-views.md`.
+**Date:** 2026-10-28 · **Status:** implemented 2026-10-28 (merged, schema 29); approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-saved-views.md`.
 
 **Origin:** `docs/feature-gaps.md` §2, "X-ray / transparency; saved views ("scenes")" — the half left after X-ray. The user picked it
 on 2026-10-28 and asked to skip the brainstorm questions, so **every choice below is Claude's call**; §10 lists them for checking.
@@ -62,7 +62,7 @@ SloydDocument.views: SavedView[]   // `[]` in a new document; order = the order 
   are skipped on restore (`applyHidden` already filters to existing item paths). A part re-minted by that repair simply drops out of a
   view.
 - **`hidden` DURING EDITING is re-keyed like the live `hiddenIds`** (Claude's call after the builder check): every edit that changes
-  item paths — Group, Ungroup, Make component and the definition-edit paths, i.e. everything that goes through `editRekeyed` /
+  item paths — Group, Ungroup (including inside a shared definition, every placement), i.e. everything that goes through `editRekeyed` /
   `rekeyHeld` and `rekeyEverywhere` — applies the same `rekey` (and `lift`: a dissolved assembly's hidden-ness passes to its children,
   fu 229) to every `doc.views[i].hidden`, inside the SAME `edit()`, so undo restores both together. Otherwise a view that hid "Top"
   would silently stop hiding it the moment the top was grouped. A deleted part's id is left in place (skipped on restore; undo of the
@@ -155,7 +155,7 @@ No confirmation on delete or update: both are one undo entry (Ctrl+Z, once not e
 - `goToView`: sets explode, section and hidden; skips missing ids; writes nothing to `doc`; refused mid-gesture; its hide is its own
   entry after an eye-toggle run (Ctrl+Z returns to the run's end, not its start), none when already matching; go to A, go to B,
   Ctrl+Z → A's hidden set.
-- Re-keying: Group, Ungroup (incl. the `lift` of a hidden assembly) and Make component re-key every view's `hidden` in the same undo
+- Re-keying: Group and Ungroup (incl. the `lift` of a hidden assembly) re-key every view's `hidden` in the same undo
   entry; undo restores the old ids.
 - Ortho height ↔ zoom conversion as a pure helper with tests (different canvas heights give the same visible height).
 - Views footer: save, go, rename (blur/Enter, emptied reverts), update, delete, empty text, works while exploded.
@@ -177,7 +177,7 @@ the feature-gaps status, rollback table at ship.
 5. Ortho extent stored as a visible height, so window size does not change what a view shows.
 6. The UI is a `Views · N` footer beside Guides; Save / go / rename / Update / ×; default names `View N`; no delete confirmation.
 7. Refine and Generate start with no views.
-8. A view's hidden parts follow Group / Ungroup / Make component (re-keyed in the same edit); load does not repair them.
+8. A view's hidden parts follow Group / Ungroup (Make unique changes no paths; re-keyed in the same edit); load does not repair them.
 9. Each go-to-view that changes what is hidden is its own undo step.
 
 ## 11. Follow-ups to record when this ships

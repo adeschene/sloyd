@@ -8,6 +8,10 @@ interface Props {
    * which may differ from what was typed because names are deduplicated.
    */
   onCommit: (name: string) => string;
+  /** The accessible name; defaults to the part-name wording. */
+  label?: string;
+  /** Focus and select the text on mount (a freshly saved view's name). Off by default. */
+  focusOnMount?: boolean;
 }
 
 /**
@@ -26,7 +30,12 @@ interface Props {
  * instead would miss the case where dedup maps the typed name back onto this
  * board's current name — `value` never changes, so no re-render arrives.
  */
-export function NameField({ value, onCommit }: Props) {
+export function NameField({ value, onCommit, label = 'Part name', focusOnMount = false }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusOnMount) { inputRef.current?.focus(); inputRef.current?.select(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only
+  }, []);
   const [text, setText] = useState(value);
   const editing = useRef(false);
   // Set by a keydown that has already settled the edit (Escape reverted it,
@@ -63,8 +72,9 @@ export function NameField({ value, onCommit }: Props) {
 
   return (
     <input
+      ref={inputRef}
       className="input name"
-      aria-label="Part name"
+      aria-label={label}
       value={text}
       onFocus={() => { editing.current = true; }}
       onChange={(e) => { dirty.current = true; setText(e.target.value); }}

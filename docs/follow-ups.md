@@ -8199,3 +8199,17 @@ faded part in front first, so a tenon seen inside a faded leg cannot be clicked 
 Tape snap to the leg's outside face. Letting a solid (selected) part win the ray over a faded one in front of it touches `BoardMesh`'s
 raycast and the snap probes, and needs the spec's anti-goal reworded (a faded part stays clickable where nothing solid is behind it).
 **Status:** open (ask first).
+
+**540. Saved views: remember the selection and X-ray (saved views, 2026-10-28).** A view holds the camera, section, explode and hidden
+parts only (spec non-goals). Adding the selection and X-ray (X-ray without its selection means nothing) widens `SavedView`, so another
+schema bump and a say in `goToView` about selecting parts that may be hidden or gone.
+**Status:** open (ask first).
+
+**541. Saved views: Plans sheet and Save image per view (saved views, 2026-10-28).** Views are not read by the Plans sheet, Save image,
+drawings or the cut list. A batch of Save images, or a plan sheet figure, per saved view would read `views` from `PlansSheet` and
+`capture`.
+**Status:** open (ask first).
+
+**542. Saved views: smooth camera transitions and per-view shortcuts (saved views, 2026-10-28).** Going to a view jumps the camera;
+there is no animated move and no keyboard shortcut per view (every shortcut lives in `App`'s one keydown effect, inv 27).
+**Status:** open (ask first).
