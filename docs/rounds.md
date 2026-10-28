@@ -159,8 +159,9 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 ## Status log (to 2026-10-28)
 
 - **Weight (2026-10-28; BUILT on branch `weight` from master `f824f89`; schema 28; inline execution, one whole-branch review).** Spec
-  `2026-10-28-sloyd-weight-design.md` (option A, approved), plan `2026-10-28-sloyd-weight.md`. Not yet merged or deployed. Rollback past it
-  refuses every project saved at 28 — export first. Owed: fu 526 (copy and two calls).
+  `2026-10-28-sloyd-weight-design.md` (option A, approved), plan `2026-10-28-sloyd-weight.md`. Final review: no Critical; two Important fixed test-first (I1 edging weighed at its FINISHED size, allowances never;
+  I2 Use library version writes the library's exact density back); seven minors deferred (fu 527). Full suite 9919/9919, build clean.
+  Not yet merged or deployed. Rollback past it refuses every project saved at 28 — export first. Owed: fu 526 (copy and two calls).
 
 - **Half-blind dovetails, dovetails chunk 3 (2026-10-27/28; BUILT on branch `half-blind` from master `48d2f92`, commits `48d2f92..22a66f2`;
   MERGED `33de29a`, DEPLOYED 2026-10-28 as `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`); 9867/9867 across 272 files, build clean; SCHEMA 27:

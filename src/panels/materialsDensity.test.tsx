@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MaterialsDialog } from './MaterialsDialog';
 import { defaultShop, type ShopSettings } from '../document/purchase';
-import { initialRows, newRow, planSave, rowRefusal, type Row, type SavePlan } from './materialsDraft';
+import { initialRows, newRow, planSave, rowNotes, rowRefusal, useLibraryVersion, type Row, type SavePlan } from './materialsDraft';
 import { fromDraft } from './materialsDraft';
 import type { CustomMaterial } from '../document/types';
 import { IMPERIAL, type Units } from '../units/length';
@@ -45,6 +45,27 @@ describe('the density draft', () => {
     const [r] = initialRows([ash], [], IMPERIAL);
     const out = plan([edit(r!, { density: '41' })]);
     expect('project' in out && out.project[0]!.density).toBe(41);
+  });
+});
+
+describe('Use library version keeps the library density EXACTLY (final review I2)', () => {
+  const lib: CustomMaterial = { ...ash, color: '#112233', density: 44 };        // typed in an imperial project
+  const project: CustomMaterial = { ...ash, density: 40 };
+  for (const units of [METRIC, IMPERIAL]) {
+    it(`${units.display}: the library's 44 is written back as 44, not as its rounded display, and the note clears`, () => {
+      const rows = initialRows([project], [lib], units);
+      const used = useLibraryVersion(rows[0]!, [lib]);
+      expect(fromDraft(used)!.density).toBe(44);
+      expect(rowNotes(used, [used], [lib]).differs).toBe(false);
+      const out = planSave({ rows: [used], library: [lib], libraryWritable: true, assignIds: null, locked: false });
+      expect('project' in out && out.project[0]!.density).toBe(44);
+      expect('library' in out && out.library).toBeNull();
+    });
+  }
+  it('a metric-typed library value (44.0118…) is kept exactly in an imperial project too', () => {
+    const odd = { ...lib, density: 705 / 16.018463 };
+    const used = useLibraryVersion(initialRows([project], [odd], IMPERIAL)[0]!, [odd]);
+    expect(fromDraft(used)!.density).toBe(705 / 16.018463);
   });
 });
 

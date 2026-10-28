@@ -108,12 +108,28 @@ describe('edging at its own density (weight spec §4.2)', () => {
   const cat = catalogOf(doc);
   it('the core at plywood, the strip at walnut; core + strip is the finished wood exactly', () => {
     const [s] = strips(shelf, doc.bandTypes);
-    const sv = s!.length * s!.width * s!.thickness;
-    expect(sv).toBeGreaterThan(0);
+    // The FINISHED strip (final review I1): its finished run × the band's thickness × the part's thickness — never the cut
+    // blank, whose length and thickness carry the allowances that are trimmed off.
+    const sv = s!.finished * s!.width * shelf.thickness;
+    expect(sv).toBe(30 * 0.25 * 0.75);
     expect(coreWeight(shelf, doc.bandTypes, cat)).toBeCloseTo(((30 * 12 * 0.75 - sv) / 1728) * 36, 12);
     expect(stripWeight(s!, cat)).toBeCloseTo((sv / 1728) * 38, 12);
     expect((30 * 12 * 0.75 - sv) + sv).toBe(woodVolume(shelf));
     expect(weightOf(doc).pounds).toBeCloseTo(((30 * 12 * 0.75 - sv) / 1728) * 36 + (sv / 1728) * 38, 12);
+  });
+});
+
+describe('edging allowances are trimmed off, never weighed (final review I1)', () => {
+  it('a small block banded all round with a 2" length allowance keeps a positive core equal to its finished wood less its edging', () => {
+    const fat: BandType = { id: 'f', name: 'Fat edging', kind: 'solid', thickness: 0.25, lengthAllowance: 2, material: 'walnut', widthAllowance: 0.5 };
+    const sides = [['width', 'min'], ['width', 'max'], ['length', 'min'], ['length', 'max']] as const;
+    const block = createBoard({ name: 'Block', length: 3, width: 1, thickness: 0.75, material: 'oak', bands: sides.map(([across, from]) => ({ side: { across, from }, type: 'f' })) });
+    const doc = flat([block], { bandTypes: [fat] });
+    const cat = catalogOf(doc);
+    const core = coreWeight(block, doc.bandTypes, cat)!;
+    expect(core).toBeGreaterThan(0);
+    const finishedEdging = strips(block, doc.bandTypes).reduce((a, s) => a + s.finished * s.width * block.thickness, 0);
+    expect(core).toBeCloseTo(((3 * 1 * 0.75 - finishedEdging) / 1728) * 44, 12);
   });
 });
 

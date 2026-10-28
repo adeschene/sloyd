@@ -34,7 +34,7 @@ describe('the cut list prints weight (weight spec §5.1)', () => {
     const w = list.groups.find((g) => g.material === 'walnut')!;
     const p = list.groups.find((g) => g.material === 'plywood')!;
     const [st] = strips(shelf, [walnut]);
-    const sv = st!.length * st!.width * st!.thickness;
+    const sv = st!.finished * st!.width * shelf.thickness; // the finished strip (final review I1)
     expect(w.pounds).toBeCloseTo((sv / 1728) * 38, 12);
     expect(p.pounds).toBeCloseTo(((30 * 12 * 0.75 - sv) / 1728) * 36, 12);
     expect(list.pounds).toBeCloseTo(w.pounds! + p.pounds!, 12);

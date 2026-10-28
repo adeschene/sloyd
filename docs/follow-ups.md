@@ -8093,3 +8093,13 @@ so the stated limit is itself accepted). Two calls to confirm: density follows t
 imperial (ruling P1 kept for sizes), and the rounding (one decimal under 10, whole from 10).
 **Status:** open (owed to the user: copy).
 
+**527. Weight: deferred minors (2026-10-28, the final whole-branch review).** (1) Spec §4.3's "`weightOf` and the cut list agree by
+test" has no direct test (each is tested against hand values; `weightOf` has no production caller). (2) No through-dovetail volume
+fixture (the half-blind corner covers the dovetail path; the through builder is test-local in `dovetailGeometry.test.ts`). (3)
+Properties' `SelectionWeight` runs `flatDocument` on every document change, drag frames included (the cached `worldParts` would do).
+(4) A weighed but tiny selection (a 3/8" dowel) reads `about 0.0 lb`; (5) an empty assembly reads `about 0.0 lb` (copy: fu 526). (6) A
+"differs from library" note can show for a pair whose densities differ below display precision (44 vs 44.0118 lb/ft³ both read `44`).
+(7) The cut list sorts an unknown material id FIRST in its unweighed list (`indexOf` −1) where `weight.ts`' `rank` sorts it last;
+unreachable after load validation.
+**Status:** open (record-only).
+

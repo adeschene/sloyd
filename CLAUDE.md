@@ -549,7 +549,7 @@ changes.
 
 63. **`weight.ts` is the ONE place weight is computed** (schema 28 for `CustomMaterial.density`, lb/ft³): the wood the MODEL keeps —
     `boardBodies` volumes through `partGeometry`, memoised on the cached geometry — times the catalog's density; holes ignored, a lean
-    changes no volume. **Solid edging at its BAND's density**: core = finished part's wood − solid strip boxes (never `cutStock`'s
+    changes no volume. **Solid edging at its BAND's density**: core = finished part's wood − solid strips at their FINISHED size, allowances never weighed (never `cutStock`'s
     core-sized board), so core + strips is the finished wood exactly; tape weighed as core. Flat document: every copy and hidden part
     counts. The cut list sums a group's weight in the SAME visit as `stockInches` (edging in the edging's group), so the total is
     exactly the sum of the groups. **A material with no density makes every total say it is partial and name it; nothing weighed reads
@@ -560,7 +560,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9915 tests across 278 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9919 tests across 278 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -569,7 +569,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–526). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–527). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -589,7 +589,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

@@ -12,7 +12,7 @@ import { catalogOf, type MaterialCatalog } from './materials';
  *   density spread.
  * - A lean moves wood, never changes it: volume is the part's own.
  * - Solid edging is weighed at its BAND's density (inv 54: the model is the finished size, bodies untouched by bands): the
- *   core is the finished part's wood less each solid strip's box, so core + strips is the finished wood exactly. Tape is
+ *   core is the finished part's wood less each solid strip's FINISHED box (allowances trimmed off), so core + strips is the finished wood exactly. Tape is
  *   weighed as core.
  * - `partMass` (the tip check) never reads density and is untouched: the checks are byte for byte as before.
  */
@@ -37,8 +37,13 @@ export function woodVolume(b: Board): number {
   return v;
 }
 
-/** Cubic inches of one solid strip: its box (a strip is cut as a plain box, `stripBoard`). */
-export const stripVolume = (s: Strip): number => s.length * s.width * s.thickness;
+/**
+ * Cubic inches of one solid strip AS FINISHED: its finished run × the band's thickness × the part's thickness. Never the cut
+ * blank (`stripBoard`): its `length` and `thickness` carry the length and width allowances, which are trimmed off — weighing
+ * them made edging heavy and could drive a small part's core negative (final review I1). The part's thickness is the strip's
+ * cut thickness less its width allowance.
+ */
+export const stripVolume = (s: Strip): number => s.finished * s.width * (s.thickness - s.type.widthAllowance);
 
 const pounds = (cubicInches: number, density: number) => (cubicInches / CUBIC_INCHES_PER_FOOT) * density;
 

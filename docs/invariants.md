@@ -1775,8 +1775,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     any other by `bodyVolume`), memoised on the cached `PartGeometry` object (keyed by `geometryKey`, inv 15/50 — never a
     hand-written field list), times its material's density from the catalog (inv 49). **Holes are ignored** (`boardBodies` is
     hole-free, inv 50); a lean moves wood and never changes it. **Solid edging is weighed at its BAND's density** (inv 54: the model
-    is the finished size and bodies are untouched by bands): a part's CORE is `woodVolume(finished part) − Σ solid strip boxes`, each
-    strip its box (`stripBoard` is a plain box), so core + strips is the finished wood exactly; only the split between densities is
+    is the finished size and bodies are untouched by bands): a part's CORE is `woodVolume(finished part) − Σ solid strips`, each
+    strip its FINISHED box (`finished` × band thickness × part thickness — never the cut blank `stripBoard`, whose allowances are trimmed off), so core + strips is the finished wood exactly; only the split between densities is
     approximate (a mitred corner's square is in both strip boxes); tape is weighed as core. The core is NEVER weighed on `cutStock`'s
     core-sized board (it keeps the finished part's features at their stored stations on a smaller blank). `weightOf` runs on the
     FLAT document (every Definition copy; hidden parts too, inv 43); `selectionWeight` weighs the named flat parts and their own

@@ -18,6 +18,11 @@ export interface Row {
   deleted: boolean;
   /** The project's units, which the density draft is typed in (weight spec §5.3). Fixed while the (modal) dialog is open. */
   units: Units;
+  /**
+   * The exact stored density the density draft's text was made from: the row's original, or the library version after Use
+   * library version (final review I2). An untouched field writes THIS back, never its rounded display (inv 5).
+   */
+  densityFrom?: number;
 }
 /** What `planSave` decides: the material rows' share of a Save. */
 export interface MaterialsPlan { project: CustomMaterial[]; library: CustomMaterial[] | null; assign: { ids: string[]; material: string } | null }
@@ -33,7 +38,7 @@ const toDraft = (m: CustomMaterial, units: Units): DefDraft => ({
   density: m.density !== undefined ? densityText(m.density, units) : '',
 });
 const row = (m: CustomMaterial, source: RowSource, units: Units): Row =>
-  ({ id: m.id, kind: m.kind, source, original: m, draft: toDraft(m, units), addToLibrary: false, deleted: false, units });
+  ({ id: m.id, kind: m.kind, source, original: m, draft: toDraft(m, units), addToLibrary: false, deleted: false, units, densityFrom: m.density });
 
 export function initialRows(project: readonly CustomMaterial[], library: readonly CustomMaterial[], units: Units = IMPERIAL): Row[] {
   const ids = new Set(project.map((m) => m.id));
@@ -62,7 +67,7 @@ export const labelTyped = (r: Row) => r.original === null || labelKey(r.draft.la
 
 export function useLibraryVersion(r: Row, library: readonly CustomMaterial[]): Row {
   const lib = library.find((m) => m.id === r.id);
-  return lib ? { ...r, draft: toDraft(lib, r.units) } : r;
+  return lib ? { ...r, draft: toDraft(lib, r.units), densityFrom: lib.density } : r;
 }
 
 // Ruling P1: a sheet size is typed as inches, as `lengthText` shows it.
@@ -75,7 +80,7 @@ const positiveLength = (t: string) => { const v = parseLength(t, IMPERIAL); retu
 function draftDensity(r: Row): number | null | undefined {
   const text = r.draft.density.trim();
   if (text === '') return null;
-  const stored = r.original?.density;
+  const stored = r.densityFrom;
   if (stored !== undefined && text === densityText(stored, r.units)) return stored;
   const v = parseDensity(text, r.units);
   return v !== null && v <= DENSITY_MAX ? v : undefined;

@@ -128,8 +128,9 @@ analytic volume (a frustum for a taper, segment area × thickness for an arch, a
 The model is the FINISHED size and bodies are untouched by bands, so a plain body sum would weigh walnut edging as the
 plywood core. Split it:
 
-- each SOLID strip (`strips(part, types)`, as a board via `stripBoard` — a plain box, no features) weighs its box volume
-  at the BAND TYPE's material's density;
+- each SOLID strip (`strips(part, types)`) weighs its FINISHED box — its finished run × the band's thickness × the part's
+  thickness — at the BAND TYPE's material's density *(amended at the final review, I1: `stripBoard`'s box is the cut blank, whose
+  length and width allowances are trimmed off; weighing them made edging heavy and could drive a small part's core negative)*;
 - the core weighs `woodVolume(part) − Σ strip boxes` at the part's density, `woodVolume` taken on the FINISHED stored
   part. **Never on `cutStock`'s core-sized board**: that keeps the finished part's features at their stored stations on a
   smaller blank, so its bodies are not the core's wood;
