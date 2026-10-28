@@ -148,6 +148,59 @@ describe('DovetailBench (spec §5.2)', () => {
   });
 });
 
+describe('DovetailBench: half-blind (half-blind spec §5.2)', () => {
+  // Figure B of a half-blind bench: the lap band, the sockets from the lap plane, the chain along it, the `lap <x>` label.
+  const hbCases: [string, number, Partial<Dovetail>, Units?][] = [
+    ['the 6"/4/1:8 drawer side, a 1/4" lap', 6, { depth: 0.5, lap: 0.25 }],
+    ['18", 12 tails (single-value mode)', 18, { count: 12, depth: 0.5, lap: 0.25 }],
+    ['a single tail on a narrow part (1-1/2")', 1.5, { count: 1, depth: 0.25, lap: 0.125 }],
+    ['a thin 1/16" lap', 6, { depth: 0.6875, lap: 0.0625 }],
+    ['a deep lap (1/2" of a 3/4" front)', 6, { depth: 0.25, lap: 0.5 }],
+    ['metric (150 mm, 6 mm pins, 12 mm deep, 6 mm lap)', 150 / 25.4, { pin: 6 / 25.4, depth: 12 / 25.4, lap: 6 / 25.4 }, { display: 'metric-mm', precision: 1 }],
+  ];
+  const texts = (s: SVGSVGElement) => [...s.querySelectorAll('text')].map((t) => t.textContent);
+
+  it.each(hbCases)('no label overlaps another or leaves its viewBox: %s', (_n, width, d, units) => {
+    const { container } = render(<DovetailBench bench={benchOf(width, d, units ?? IMPERIAL, true)} />);
+    for (const s of svgs(container)) check(s);
+  });
+
+  it.each(hbCases)('every chain label sits inside its own span\'s ticks: %s', (_n, width, d, units) => {
+    const { container } = render(<DovetailBench bench={benchOf(width, d, units ?? IMPERIAL, true)} />);
+    const full = container.querySelector('.cutlist-bench')!.getAttribute('data-mode') === 'full';
+    for (const s of svgs(container)) {
+      const ticks = [...s.querySelectorAll('.cutlist-bench-tick')].map((t) => Number(t.getAttribute('x1')));
+      const marks = [...s.querySelectorAll('text[data-span]')];
+      expect(marks.length).toBe(full ? ticks.length - 1 : Math.min(3, ticks.length - 1));
+      for (const m of marks) {
+        const i = Number(m.getAttribute('data-span'));
+        const x = Number(m.getAttribute('x'));
+        expect(x).toBeGreaterThanOrEqual(ticks[i]! - 1e-9);
+        expect(x).toBeLessThanOrEqual(ticks[i + 1]! + 1e-9);
+      }
+    }
+  });
+
+  it('figure B draws ONE lap band and labels it `lap 1/4"` on the outside face\'s row; figure A and a through B draw none', () => {
+    const { container } = render(<DovetailBench bench={benchOf(6, { depth: 0.5, lap: 0.25 }, IMPERIAL, true)} />);
+    const [a, b] = svgs(container);
+    expect(a!.querySelectorAll('.cutlist-bench-lap')).toHaveLength(0);
+    expect(b!.querySelectorAll('.cutlist-bench-lap')).toHaveLength(1);
+    expect(texts(a!)).not.toContain('lap 1/4"');
+    expect(texts(b!)[0]).toBe('outside face');
+    expect(texts(b!)[1]).toBe('lap 1/4"');
+    const row = (t: string) => [...b!.querySelectorAll('text')].find((x) => x.textContent === t)!.getAttribute('y');
+    expect(row('lap 1/4"')).toBe(row('outside face'));
+    // The ticks reach the lap plane: below the outline's top edge (the outside face).
+    const top = Math.min(...b!.querySelector('.cutlist-diagram-outline')!.getAttribute('points')!.split(' ').map((p) => Number(p.split(',')[1])));
+    const lapY = Math.max(...b!.querySelector('.cutlist-bench-lap')!.getAttribute('points')!.split(' ').map((p) => Number(p.split(',')[1])));
+    expect(lapY).toBeGreaterThan(top);
+    for (const t of b!.querySelectorAll('.cutlist-bench-tick')) expect(Number(t.getAttribute('y2'))).toBeCloseTo(lapY, 9);
+    const { container: c2 } = render(<DovetailBench bench={benchOf(6)} />);
+    for (const s of svgs(c2)) expect(s.querySelectorAll('.cutlist-bench-lap')).toHaveLength(0);
+  });
+});
+
 describe('the cut list sheet shows the benches on the tail row only', () => {
   const load = (doc: SloydDocument) => useStore.getState().replaceDocument(doc);
 

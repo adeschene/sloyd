@@ -149,6 +149,7 @@ export const DOVETAIL_REMOVE = 'Remove';
  * joint line) or the pins part's narrow thickness face. Lengths through `formatLength` with the document's units (inv 52).
  */
 export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, units: Units): string {
+  if (d.lap !== undefined) return halfBlindLine(b, d, d.lap, units);
   const head = `Through dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
     + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
   if (d.role === 'tails') {
@@ -156,6 +157,21 @@ export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, un
     return `${head}; this part has the tails, each ${formatLength(Te, units)} wide at the end.`;
   }
   return `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`;
+}
+
+/**
+ * A half-blind dovetail's cut-list line (half-blind spec §5.1, Global Constraints, verbatim; copy review owed): the through
+ * line's numbers under the `Half-blind` head; the pins part's tail names the lap, its narrow ends `lap` in from its outside
+ * face. A through line never comes here (`dovetailLine` branches on a present `lap`), so it stays byte for byte as it was.
+ */
+function halfBlindLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, lap: number, units: Units): string {
+  const head = `Half-blind dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
+    + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
+  if (d.role === 'tails') {
+    const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
+    return `${head}; this part has the tails, each ${formatLength(Te, units)} wide at the end.`;
+  }
+  return `${head}; this part has the pins, their narrow ends ${formatLength(lap, units)} in from its thickness ${d.outside} face (the lap).`;
 }
 
 /** The bench drawings' words (spec §5.2, Global Constraints; built in `dovetailBench.ts`, measured there as labels, inv 19).
@@ -167,6 +183,8 @@ export const BENCH_BOTH_ENDS = 'both ends';
 export const benchBaseline = (depth: string) => `baseline ${depth}`;
 /** Figure A's end note for a layout on ONE end (two equal ends read `both ends`): `length max end`. New copy (Task 7). */
 export const benchEnd = (dim: Dovetail['dim'], end: Dovetail['end']) => `${dim} ${end} end`;
+/** Figure B's lap on a half-blind bench (half-blind spec §5.2, Global Constraints): `lap 1/4"`. */
+export const benchLap = (lap: string) => `lap ${lap}`;
 /** The two figures' captions (HTML, not measured). Copy review owed with fu 491's. */
 export const BENCH_TAIL_HEADING = "Dovetails — the tail board's face";
 export const BENCH_PIN_HEADING = "Dovetails — the pin board's end grain";

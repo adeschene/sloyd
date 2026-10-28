@@ -2,10 +2,11 @@
 import { dovetailLine } from './dovetailText';
 import { describe, expect, it } from 'vitest';
 import { buildCutList, createBoard, createDocument, flatDocument } from './document';
-import { applyDovetails, dovetailPlan } from './dovetails';
+import { applyDovetails, dovetailPlan, type DovetailOptions } from './dovetails';
+import { sharedOf } from './links';
 import { IMPERIAL } from '../units/length';
 import { tenonLine } from './tenonText';
-import type { Board, Dovetail, SloydDocument } from './types';
+import type { Board, Dovetail, Shape, ShapedBoard, SloydDocument } from './types';
 import type { CutListRow } from './cutlist';
 
 /**
@@ -115,5 +116,61 @@ describe('the bench drawings ride on the TAIL part\'s row (spec §5.2)', () => {
     });
     expect(all.length).toBeGreaterThan(1);
     for (const r of all) expect('benches' in r).toBe(false);
+  });
+});
+
+describe('half-blind on the cut list (half-blind spec §5, Review Focus 3)', () => {
+  /** A drawer with a 3/4" front and a `tB` back, the sides running the full depth and linked to ONE Shape (Side right
+   *  `mirrored` when asked, at its mate's turn `rRot`). */
+  function linkedDrawer(tB: number, mirrored: boolean): SloydDocument {
+    const h = 6, tS = 0.5, tF = 0.75, iw = 12, id = 16;
+    const fb = (i: string, name: string, t: number, z: number) => createBoard({ id: i, name, posture: 'on-edge', rotation: 0, length: iw, width: h, thickness: t, position: [tS, 0, z] });
+    const side = (i: string, name: string, x: number) => createBoard({ id: i, name, posture: 'on-edge', rotation: 90, length: id + tF + tB, width: h, thickness: tS, position: [x, 0, 0] });
+    const l = side('l', 'Side left', 0);
+    const r = side('r', 'Side right', iw + tS);
+    const shape: Shape = { id: 's1', ...sharedOf(l) };
+    const user = (b: Board, m: boolean): ShapedBoard =>
+      ({ id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 's1', ...(m ? { mirrored: true as const } : {}) });
+    return { ...createDocument('Drawer'), boards: [fb('f', 'Front', tF, 0), fb('b', 'Back', tB, id + tF), user(l, false), user(r, mirrored)] as Board[], shapes: [shape] };
+  }
+  const plan = (doc: SloydDocument, ids: string[], opts: Partial<DovetailOptions>) => {
+    const p = dovetailPlan(doc, ids, { slope: 8, count: null, swap: false, ...opts });
+    if (typeof p === 'string') throw new Error(p);
+    return applyDovetails(doc, p);
+  };
+  const HB = 'Half-blind dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, ';
+
+  it('a real drawer: a half-blind front, a through 1/2" back; the linked sides ONE row with TWO benches (one per kind)', () => {
+    // The front corners half-blind (Auto lap: 3/4 / 3 = 1/4"), then the back corners new under `keep` (through). The side's
+    // front end (its length max: on edge turned 90°) stops at the lap plane, depth 3/4 − 1/4 = 1/2"; its back end is the
+    // 1/2" back's thickness deep, 1/2" too: the SAME depth, told apart by the lap alone.
+    const doc = plan(plan(linkedDrawer(0.5, false), ['f', 'l', 'r'], { joint: 'half-blind' }), ['f', 'b', 'l', 'r'], {});
+    const sides = rowOf(doc, 'Side left');
+    expect(sides.names).toEqual(['Side left', 'Side right']);
+    expect(sides.setup).toEqual([
+      `${HEAD}1/2" deep, at the length min end; this part has the tails, each 1-3/16" wide at the end.`,
+      `${HB}1/2" deep, at the length max end; this part has the tails, each 1-3/16" wide at the end.`,
+    ]);
+    const benches = sides.benches!;
+    expect(benches.map((b) => b.ends)).toEqual(['one', 'one']);
+    // Figure B's height is the pin board's thickness: the back's 1/2" (through: its depth), the front's 3/4" (1/2 + 1/4).
+    expect(benches.map((b) => b.pin.height)).toEqual([0.5, 0.75]);
+    expect(benches.map((b) => b.pin.lap)).toEqual([undefined, 0.25]);
+    expect(rowOf(doc, 'Front').setup).toEqual([
+      `${HB}1/2" deep, at the length min end; this part has the pins, their narrow ends 1/4" in from its thickness max face (the lap).`,
+      `${HB}1/2" deep, at the length max end; this part has the pins, their narrow ends 1/4" in from its thickness max face (the lap).`,
+    ]);
+    expect(rowOf(doc, 'Back').setup.every((l) => l.startsWith(HEAD) && l.endsWith('their narrow ends on its thickness min face.'))).toBe(true);
+  });
+
+  it('linked mirror-twin sides (Side right mirrored along its run), half-blind at all four corners: one row, one `both ends` bench', () => {
+    const doc = plan(linkedDrawer(0.75, true), ['f', 'b', 'l', 'r'], { joint: 'half-blind' });
+    const sides = rowOf(doc, 'Side left');
+    expect(sides.names).toEqual(['Side left', 'Side right']);
+    expect(sides.setup).toEqual([
+      `${HB}1/2" deep, at the length min end; this part has the tails, each 1-3/16" wide at the end.`,
+      `${HB}1/2" deep, at the length max end; this part has the tails, each 1-3/16" wide at the end.`,
+    ]);
+    expect(sides.benches!.map((b) => [b.ends, b.pin.height, b.pin.lap])).toEqual([['both', 0.75, 0.25]]);
   });
 });

@@ -1229,6 +1229,15 @@ select.input { cursor: pointer; }
   stroke-width: 1.5;
 }
 
+/* A half-blind figure B's lap (half-blind spec §5.2): the solid wood the sockets stop at, so NOT the waste's shading — a
+   light hatch-free tint under a solid line along the lap plane (the polygon's stroke). Styling owed to the browser check. */
+.cutlist-bench-lap {
+  fill: currentColor;
+  fill-opacity: 0.06;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
 .cutlist-bench-baseline {
   stroke: currentColor;
   stroke-width: 1.5;
