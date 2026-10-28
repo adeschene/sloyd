@@ -343,6 +343,14 @@ interface StoreState {
    */
   section: Section | null;
   setSection: (next: Section | null) => void;
+  /**
+   * X-ray (x-ray spec §2): the selection draws solid and every other part faded (`viewport/xray.ts` `fadedFor`). View state,
+   * like `section`: never in the document, never autosaved, no undo entry. `setXray` is its ONE writer and refuses nothing —
+   * it moves and edits nothing, so it works exploded and mid-gesture. Reset only where `explode` is (the initial state and
+   * `replaceDocument`).
+   */
+  xray: boolean;
+  setXray: (on: boolean) => void;
   duplicateBoard: (id: string) => void;
   /**
    * Copy every named part in place, as ONE undo entry, and select the copies.
@@ -1137,6 +1145,8 @@ export const useStore = create<StoreState>((set, get) => {
     hiddenIds: [],
     explode: 0,
     section: null,
+    xray: false,
+    setXray: (on) => set({ xray: on }),
     setSection: (next) => {
       if (next !== null && !Number.isFinite(next.at)) return;
       set({ section: next });
@@ -1818,6 +1828,7 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAxis: null,
         explode: 0,
         section: null,
+        xray: false,
         // Fu 3: a focus request for the replaced document's new part.
         pendingLengthFocus: false,
         // Follow-up 148. NOT the same reason as the held points above: those
