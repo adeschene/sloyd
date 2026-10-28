@@ -1,4 +1,4 @@
-import { materialKind, type Board, type Cut, type Dimension, type Region, type Span } from './types';
+import { materialKind, type Board, type Cut, type CutFrom, type Dimension, type Region, type Span } from './types';
 import { boardHoles, insideHole } from './holes';
 import { CURVE_EPS, isAir, spanOf, uvDims, type ViewCurve } from './curves';
 import { profileAirTester } from './runout';
@@ -80,6 +80,43 @@ export function cutRegion(board: Board, cut: Cut): Region {
     ? [0, cut.depth]
     : [faceDim - cut.depth, faceDim];
   return region;
+}
+
+/**
+ * A rectangular cut across a stretch line (parametric-resize spec §5, `cuts` row). `band` is the
+ * line's part-local span on `d` ([u, u] on a grow, the removed wood on a shrink); `far` is the
+ * part end that moves. A cut wholly on the fixed side keeps its distance to the fixed end (the
+ * numbers measured from `far` gain `delta`); one wholly toward `far` keeps its distance to the
+ * moving end (the numbers measured from the fixed end gain `delta`). A CROSSING cut changes its
+ * one length on `d` (`width`, or `depth`; `across === d` has only end-measured stops, which the
+ * growing part carries). On a shrink a crossing cut must cover the whole band, else `'crosses'`.
+ * One addition per number; the SAME object when nothing changes.
+ */
+export function stretchCut(
+  b: Board, c: Cut, d: Dimension, band: [number, number], far: CutFrom, delta: number,
+): Cut | 'crosses' {
+  const EPS = 1e-9;
+  const [lo, hi] = cutRegion(b, c)[d];
+  const beyondMin = hi <= band[0] + EPS; // wholly on the band's min side
+  const beyondMax = lo >= band[1] - EPS; // wholly on the band's max side
+  const nearSide = far === 'max' ? beyondMin : beyondMax;
+  const farSide = far === 'max' ? beyondMax : beyondMin;
+  const patch: Partial<Cut> = {};
+  if (nearSide || farSide) {
+    // Numbers measured from `end` gain delta: `far` for a near cut, the fixed end for a far one.
+    const end: CutFrom = nearSide ? far : far === 'max' ? 'min' : 'max';
+    if (positionAxisOf(c.face, c.across) === d && end === 'min') patch.offset = c.offset + delta;
+    if (c.across === d) {
+      if (end === 'min') patch.stopMin = c.stopMin + delta;
+      else patch.stopMax = c.stopMax + delta;
+    }
+    if (c.face === d && c.from === end) patch.depth = c.depth + delta;
+  } else {
+    if (delta < 0 && !(lo <= band[0] + EPS && hi >= band[1] - EPS)) return 'crosses';
+    if (positionAxisOf(c.face, c.across) === d) patch.width = c.width + delta;
+    else if (c.face === d) patch.depth = c.depth + delta;
+  }
+  return Object.keys(patch).length === 0 ? c : { ...c, ...patch };
 }
 
 /** The cut's box clipped to the board: what it actually removes (fu 197). `cutRegion` stays
