@@ -170,6 +170,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
 | weight | `weight.ts` (`woodVolume`, `coreWeight`, `weightOf`); density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
+| X-ray view | store `xray`/`setXray` (view state, like `section`), `viewport/xray.ts` `fadedFor`; button in `ViewportControls.tsx`, R in `App`'s keydown |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `generate/` (inv 41) |
 | state | `store/store.ts` (inv 4, 24, 34, 42–47), `visibility.ts` (inv 43) |
 | persistence | `storage/` only, through `storage/index.ts` (invs 7, 29–31) |
@@ -572,7 +573,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–538). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–539). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -594,7 +595,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527. Part labels (2026-10-28): 528, 529 and 531 (ask first); record-only 530, 533. Align (2026-10-28): 534–536 and 537's gesture (ask first); record-only 538.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527. Part labels (2026-10-28): 528, 529 and 531 (ask first); record-only 530, 533. Align (2026-10-28): 534–536 and 537's gesture (ask first); record-only 538. X-ray (2026-10-28): 539 (ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

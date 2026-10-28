@@ -605,6 +605,8 @@ src/
 │                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard);
 │                     a tilted bore: elliptical rings on the face planes, ringDisc (its conservative disc for the clearance
 │                     tests, fu 451), the far ring at `reach` or the bottom disc square to the bit (holeBottom); watertight
+│                     xray.ts (pure, TESTED: fadedFor — THE decision of a part's faded look: outside the open assembly (gated on
+│                     `clean`) OR X-ray on and not covered by a non-empty selection (not gated on `clean`); x-ray spec §3)
 │                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap (a leaning part: its group gets the lean as ONE derived transform, the `leaned` memo, and its cap is drawn as a sibling at identity, inv 57); sectionPerf.test.ts
 │                     grainTiling's drawsAsBox (THE BoxGeometry-or-bodyMesh routing: a box no hole reaches,
 │                     on a part WITHOUT curves), bodyMesh's radial normals on chord faces and curvedPart (seams dropped, welded,

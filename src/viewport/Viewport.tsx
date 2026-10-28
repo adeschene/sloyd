@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
 import { catalogOf, isCovered, worldParts } from '../document/document';
+import { fadedFor } from './xray';
 import type { Board } from '../document/document';
 import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
 import { BoardMesh } from './BoardMesh';
@@ -383,6 +384,7 @@ export function Viewport({
   const shown = useMemo(() => visibleBoards(boards, hiddenIds), [boards, hiddenIds]);
   const selectedIds = useStore((s) => s.selectedIds);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const xray = useStore((s) => s.xray);
   const tool = useStore((s) => s.tool);
 
   const [clean, setClean] = useState(false);
@@ -507,7 +509,8 @@ export function Viewport({
           selected={!clean && isCovered(board.id, selectedSet)}
           // Faded, but still clickable: a click outside the open assembly
           // closes it (assemblies spec §3.3). Never pass selectable={false} for this.
-          faded={!clean && openPath !== null && !board.id.startsWith(`${openPath}/`)}
+          // X-ray fades every part the selection does not cover (x-ray spec §3).
+          faded={fadedFor(board.id, { clean, openPath, xray, selected: selectedSet })}
           onOpen={(id) => useStore.getState().openPart(id)}
           onSelect={selectByClick}
           selectable={tool === 'select'}
