@@ -383,6 +383,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Hidden parts are still in the cut list, joinery, checks, export and autosave.
     Consecutive hide/show toggles share ONE undo entry (the run is the top of `past`, by identity;
     any edit, gesture snapshot, undo or redo ends it; a run back at its start leaves no entry).
+    **Going to a saved view (`goToView`) is a fifth user action through `applyHidden`; it ends any hide run first, so it is its own undo entry** (none when the
+    hidden set already matches).
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
     (`toWorldOffset`, `fromWorldOffset`, `spanToWorldOffset`, `spanFromWorldOffset`,
     `endFacing`). **Never `board[dim] - u` at a call site.** Nothing branches on
@@ -551,7 +553,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       write-back rules, per user for a shared size. Level the ends writes the shared length and cuts once and each storage target's
       own position (`oneEditPerTarget`).
 47. **Exploded is read-only.** `explode > 0` means the model cannot change: `edit()`, `undo` and `redo` are the
-    gate; any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
+    gate; **a saved-view write (`saveView`, `updateView`, `renameView`, `deleteView`) is the one document write allowed while exploded; it goes through
+    `editViews` (`edit`'s `viewsOnly`) and touches only `views`; undo and redo stay refused while exploded;** any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
     Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
     stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent), placed by `EditLock`

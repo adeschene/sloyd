@@ -444,6 +444,8 @@ src/
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
 │   ├── align.ts          align and space evenly (align spec): AlignItem, alignDeltas (to the item selected first), distributeDeltas
 │   │                     (equal gaps, outer two fixed, inner placed from the first), itemExtents (partsBounds, leaned); alignText.ts the copy
+│   ├── views.ts          saved views (saved views spec §2): `rekeyViews(doc, rekey, lift)` applies an edit's item-path re-key (and a dissolved
+│   │                     assembly's `lift`) to every view's `hidden`, in the SAME edit as the live `hiddenIds`; `validateViews` is in document.ts (schema 29)
 │   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,
 │   │                     stockCells, cellBox, labelsOf (one PartLabel per piece, from buildCutList), pagesOf (startAt) (→ units)
 │   ├── weight.ts         THE weight home (inv 63): woodVolume (boardBodies volumes, memoised on PartGeometry), stripVolume, coreWeight,
@@ -596,7 +598,8 @@ src/
 ├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers,
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
-│                     framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
+│                     viewCamera.ts (pure, TESTED: `orthoHeight` / `orthoZoomFor`, an ortho zoom stored as a visible HEIGHT so a window resize keeps the extent;
+│                     `pendingPoseReady`, the condition a saved-view pose waits on), framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
 │                     with explode offsets, zoom/distance); Viewport's `ViewportHandle` (showView, capture — the clean
 │                     frame hides Gizmo/MoveTool/TapeTool by a `hidden` prop, NEVER by unmounting them)
 │                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent;
@@ -621,7 +624,7 @@ src/
 │                     tangent point); `runoutFor` falls back to `runoutOf` for every view-curve id; b2: a `stop` face takes its cutter from the
 │                     stop frames only (`stopRunoutNormals`), any other run-out face from `sweptRunouts` only; a vertex ON a stop plane takes the
 │                     band's normal (`stopJunctions`); stopNormals.test.ts
-├── panels/           DimensionField/NameField (invs 5, 9), Properties (the Mirrored checkbox on a linked part), CopyInRow,
+├── panels/           DimensionField/NameField (invs 5, 9; optional `label` (aria-label, default `Part name`) and `focusOnMount` (focus and select once on mount) for the Views rows), Properties (the Mirrored checkbox on a linked part), CopyInRow,
 │                     PartsList (a mirrored part's ⇋ badge, `role="img"` "Mirrored"),
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu (its per-file rule below, in full: a row click closes the
 │                     menu at once; `onOpen` resolves null or why the project cannot be opened (`storage.readProject`, asked only
@@ -645,7 +648,7 @@ src/
 │                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
 │                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
-│                     trash), GuidesFooter (opens itself when the guide count goes up), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), LabelsSheet (part labels: true-size
+│                     trash), GuidesFooter (opens itself when the guide count goes up), ViewsFooter / ViewsList (saved views spec §6: `Views · N`, Save view, one row per view with go-to, a `NameField` rename, Update, ×; NOT inside EditLock, inv 47 carve-out; Save view focuses the new row's name once), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), LabelsSheet (part labels: true-size
 │                     sticker pages, Stock, Start at; opened from the cut list in its place), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
 │                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
@@ -806,7 +809,8 @@ annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invarian
 - **`BoardMesh.tsx`**: its `stopPropagation` is load-bearing (a toggle reaching two solids
   is a no-op); `selectable` is required so Move's commit click cannot select its target.
 - **`Viewport.tsx`**: the projection swap re-frames only once `controls.object === camera`,
-  or it aims the new camera at the origin.
+  or it aims the new camera at the origin. A pending saved-view pose (`setCamera`) REPLACES that projection swap's re-frame
+  (a swap a view restore caused must not re-frame over the saved pose); `up` is never written.
 - **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. A mixed field emptied after typing is untouched (fu 210). Enter commits
   and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
   it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
