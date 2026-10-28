@@ -1,6 +1,6 @@
 # Sloyd — saved views
 
-**Date:** 2026-10-28 · **Status:** implemented 2026-10-28 (merged, schema 29); approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-saved-views.md`.
+**Date:** 2026-10-28 · **Status:** deployed 2026-10-28 (`ee43d69`, `index-CaZZjZyz.js`, schema 29); approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-saved-views.md`.
 
 **Origin:** `docs/feature-gaps.md` §2, "X-ray / transparency; saved views ("scenes")" — the half left after X-ray. The user picked it
 on 2026-10-28 and asked to skip the brainstorm questions, so **every choice below is Claude's call**; §10 lists them for checking.

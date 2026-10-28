@@ -1,6 +1,6 @@
 # Sloyd — X-ray
 
-**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-xray.md`.
+**Date:** 2026-10-28 · **Status:** deployed 2026-10-28 (`c0d3b30`, `index-DQJDNnyg.js`); approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-xray.md`.
 
 **Origin:** `docs/feature-gaps.md` §2, "X-ray / transparency; saved views". The user picked X-ray on 2026-10-28 (saved views are
 NOT part of this round). Choices marked *the user's* were made in the brainstorm; everything else is Claude's call, listed in §8

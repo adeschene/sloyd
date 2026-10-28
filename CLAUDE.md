@@ -40,7 +40,7 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** the nearest refusing boundary is `c0d3b30` (`index-DQJDNnyg.js`, schema 28): it refuses every project saved at 29 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-28, session close):** weight, part labels, align, section caps (fu 347), X-ray and saved views are deployed; the
-  first real-hardware pass closed 21 owed looks. Nothing from these rounds is owed. Owed to the user: the list below (a phone, touch,
+  first real-hardware pass closed 21 owed looks. Owed from them: X-ray's and saved views' by-eye items (below). Owed to the user: the list below (a phone, touch,
   a real print, paid runs, a few by-eye items). Next: the user picks from `docs/feature-gaps.md` (open: parametric resize; the residue
   follow-ups each row names).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
@@ -66,7 +66,7 @@ rather than assumed. On the DEV server, test projects a check creates are LEFT i
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (27)
+**Rollback cost is a schema question.** A build understanding less than the file's version (29)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -564,7 +564,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9968 tests across 284 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10055 tests across 290 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -573,7 +573,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–542). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–544). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -595,7 +595,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first). Saved views: 540–542 (ask first).
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask first); record-only 544.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

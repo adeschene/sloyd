@@ -8213,3 +8213,21 @@ drawings or the cut list. A batch of Save images, or a plan sheet figure, per sa
 **542. Saved views: smooth camera transitions and per-view shortcuts (saved views, 2026-10-28).** Going to a view jumps the camera;
 there is no animated move and no keyboard shortcut per view (every shortcut lives in `App`'s one keydown effect, inv 27).
 **Status:** open (ask first).
+
+**543. X-ray: deferred minors (2026-10-28, the final whole-branch review).** (1) `BoardMesh.tsx`'s `faded` prop comment still names only the
+assembly fade; `fadedFor` (`viewport/xray.ts`) is the decider. (2) `store.xray.test.ts` asserts the document is unchanged but has no
+explicit no-autosave test. (3) `docs/module-map.md`'s `xray.ts` entry sits after a pre-existing line ending in a dangling "watertight".
+**Status:** open (record-only).
+
+**544. Saved views: deferred minors (2026-10-28, per-task and final reviews).** Tests: stale "28" titles on tests asserting 29
+(`document.test` ~1709, `bandingLoad`, `document.v26`, `document.v27`, `hardwareLoad`, `squareSet`); untested drops (a missing `section`
+key, a non-number `explode`, an id with `/`); `goToView`'s mid-gesture test uses a view with explode 0 and no section (cannot show those
+refused); the Group test asserts `endsWith`, not the exact path; `pendingPoseReady(persp, false, false)` unpaired; the footer's
+`fieldset[disabled]` test mounts outside App (the browser covered it); the Refine/Generate `[]` tests were never seen red. Code: `SECTION_AXES`
+is an untyped `string[]` (tie it to `SectionAxis`); `finite3` aliases `validPosition`; comments wanted at `applyPending`'s TS-only narrowing,
+the ortho `height` guard, and `views.ts`' same-doc return (the reason is `editRekeyed`'s identity no-op, fu 231, not inv 4). Behaviour:
+`updateView`'s no-op test is `JSON.stringify` (key-order dependent) and a go-to's `controls.update()` may drift a float, so Update can push a
+spurious entry (never data loss); Save view / Update do nothing for a frame while the controls rebuild after a projection toggle; undoing a
+view write clears a held tape point (as every other document undo does).
+**Status:** open (record-only).
+

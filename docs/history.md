@@ -520,6 +520,21 @@ and 79.
 
 ## What each round did
 
+**Saved views (2026-10-28, deployed `ee43d69`, schema 29).** The other half of the views gap. The user skipped the brainstorm questions,
+so the spec was all Claude's calls: views stored in the document (a bump, since a 28 build would drop them on round trip), holding the
+camera (ortho as a visible world height, so a window size does not change what a view shows), section, explode and hidden ids. A fresh
+builder check raised two points Claude settled: hidden ids re-key with Group/Ungroup in the same edit, and each go-to-view is its own
+hide entry. Built subagent-driven, six tasks. The reviews earned their keep: a regression test that could not fail (it used `addBoard`,
+which refuses before `edit`), a spec line the brief dropped (Save view focusing the new name), the fix's own bug (the focus re-grabbed on
+every reopen), a missing accessible name per row, and three invariants' full text silent on views. The camera timing was traced against
+drei's source: a restore that switches projection holds its pose through the one render where the camera has changed but the controls
+have not. Seen in the user's Chrome; the window resize and export/import stay owed by eye. CLAUDE.md hit its 60KB budget this round.
+
+**X-ray (2026-10-28, deployed `c0d3b30`, no schema change).** Picked by the user ("seeing joints hidden inside the parts"). A throwaway
+spike in the user's Chrome reused the assembly fade for every part the selection does not cover; the user approved the look as is
+("That looks good to me"). A builder check raised clicking through a faded part (the user ruled draw-only; fu 539) and assemblies'
+click rules (kept). Built inline (`fadedFor` the one decision, a button and R); an opus review found nothing blocking.
+
 **The first real-hardware pass, and its fixes (2026-10-28, after the three rounds).** Until now every browser check ran on the VPS's
 software GL (llvmpipe/SwiftShader), and the X11-forwarded headed Chrome took ~312% of the four cores and timed out on clicks. The user
 set up a MobaXterm tunnel (their port 5199 → the VPS dev server; SSH port 2222, key auth) and the claude-in-chrome extension, so their
