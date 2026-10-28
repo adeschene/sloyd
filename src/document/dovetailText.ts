@@ -149,29 +149,19 @@ export const DOVETAIL_REMOVE = 'Remove';
  * joint line) or the pins part's narrow thickness face. Lengths through `formatLength` with the document's units (inv 52).
  */
 export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, units: Units): string {
-  if (d.lap !== undefined) return halfBlindLine(b, d, d.lap, units);
-  const head = `Through dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
+  // Half-blind (half-blind spec §5.1, Global Constraints, verbatim; copy review owed): the same numbers under the
+  // `Half-blind` head, and the pins part's clause names the lap. One head, one tails clause for both kinds; an absent `lap`
+  // (through) reads byte for byte as before.
+  const kind = d.lap === undefined ? 'Through' : 'Half-blind';
+  const head = `${kind} dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
     + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
   if (d.role === 'tails') {
     const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
     return `${head}; this part has the tails, each ${formatLength(Te, units)} wide at the end.`;
   }
-  return `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`;
-}
-
-/**
- * A half-blind dovetail's cut-list line (half-blind spec §5.1, Global Constraints, verbatim; copy review owed): the through
- * line's numbers under the `Half-blind` head; the pins part's tail names the lap, its narrow ends `lap` in from its outside
- * face. A through line never comes here (`dovetailLine` branches on a present `lap`), so it stays byte for byte as it was.
- */
-function halfBlindLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, lap: number, units: Units): string {
-  const head = `Half-blind dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
-    + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
-  if (d.role === 'tails') {
-    const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
-    return `${head}; this part has the tails, each ${formatLength(Te, units)} wide at the end.`;
-  }
-  return `${head}; this part has the pins, their narrow ends ${formatLength(lap, units)} in from its thickness ${d.outside} face (the lap).`;
+  return d.lap === undefined
+    ? `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`
+    : `${head}; this part has the pins, their narrow ends ${formatLength(d.lap, units)} in from its thickness ${d.outside} face (the lap).`;
 }
 
 /** The bench drawings' words (spec §5.2, Global Constraints; built in `dovetailBench.ts`, measured there as labels, inv 19).
