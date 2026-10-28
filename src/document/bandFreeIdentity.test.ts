@@ -17,7 +17,9 @@ import { loop, topCorners } from './sweepFixtures';
  * `sweptIdentity` pattern); the replacer drops only the keys banding adds (`stripIds`, `notes`, `banding`). Never
  * re-capture a literal to make this pass.
  */
-const DROPPED = new Set(['stripIds', 'banding']); // Purchase.hardware (hardware round, Task 6) is null here: dropped below ONLY when null
+// `pounds` and `weight` are the weight round's additions to the cut list (weight spec §5.1; asserted in cutlistWeight.test.ts):
+// dropped so everything else stays pinned to the same literals.
+const DROPPED = new Set(['stripIds', 'banding', 'pounds', 'weight']); // Purchase.hardware (hardware round, Task 6) is null here: dropped below ONLY when null
 /** Drops what banding adds: `stripIds` and `banding` anywhere, and `notes` ONLY on the CutList itself — Buying's own
  *  `PurchaseEntry.notes` (plane, fits-no-stock, end grain, the fu 273 smaller-size note) stay pinned (fix round 1). */
 function strip(this: unknown, k: string, v: unknown) {
