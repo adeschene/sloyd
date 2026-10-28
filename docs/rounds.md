@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `74b6289` (section caps, fu 347) | `index-COyw6_WQ.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `c0d3b30` (X-ray) | `index-DQJDNnyg.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `74b6289` (section caps, fu 347) | `index-COyw6_WQ.js` (CSS `index-Cag10lzx.css`) | 28 | free (no schema change); the X-ray button and R are gone |
 | `97b7b1e` (tiny weights read `under 0.1`) | `index-JKBrNQAt.js` (CSS `index-Cag10lzx.css`) | 28 | free; the speckled caps and hidden cap outlines come back |
 | `cf911cc` (align / space evenly) | `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`) | 28 | free; a tiny weight reads `0.0` again |
 | `582ce1e` (part labels) | `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`) | 28 | free (no schema change); the Align section is gone |
@@ -162,9 +163,18 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | part labels | 10-28 | — | **Labels…** in the cut list opens a Labels sheet in its place: one sticker per piece the cut list asks for (strips and every copy included) with the cut list's row number, the name, the cut size, material, grain (words; none on MDF), the project and `k of n`; four sticker sheets (Avery 5160/5163 Letter, L7160/L7163 A4) drawn and printed at true size (named `@page`s at margin 0), a Start at for a part-used sheet. `labels.ts` the ONE home. No schema change |
 | weight | 10-28 | 28 | Every material has a DENSITY (lb/ft³; the built-ins fixed — pine 28, oak 44, maple 44, walnut 38, cherry 35, plywood 36, MDF 48 — and a custom material's typed in Materials & prices, kg/m³ in a metric project; `CustomMaterial.density`, schema 28). The cut list prints each group's weight under its stock (`12 lb`) and a project line (`Weight: about 47 lb`); Properties a Weight line for the selection. The weight is of the wood the model keeps (`weight.ts`, inv 63), solid edging at its own species; a material with no density is named, never silently left out. Checks, geometry, Generate unchanged |
 | half-blind dovetails (dovetails chunk 3) | 10-27/28 | 27 | **Half-blind**: the Dovetails section gains a Joint select (`As they are`, the default, keeps each corner's stored kind and a new corner through; `Through`; `Half-blind`) and a Lap field (blank is Auto: a third of the pin part's thickness to 1/16" or 1 mm, at least 1/8" or 3 mm; or the stored lap on a re-plan whose pins part is unchanged); a half-blind corner stores `lap` on BOTH dovetails, the pin part's sockets STOP at the lap plane (the view-curve path, no body code; watertight, an exact partition with the lap slab the pin part's alone) and the tail part runs out to that plane through `cornerPlan.ts`' new optional `inset` hook (step 3a; box joints untouched); `dovetailCornerStyle` the ONE tails-side and lap decision; a `lap` fault before `depth`; snap corners on the lap plane; the checks add a lap-slab contact box; the cut list reads `Half-blind dovetails` and names the lap; figure B of the bench draws the lap band and `lap <x>`; joinery, Refine and Repair leave it alone (pinned). A through-dovetailed or dovetail-free project is byte for byte as before (inv 62 extended, inv 38 clause; fu 497 closed for the joint, 485 re-worded, 516–521). **Merged `33de29a`, DEPLOYED 2026-10-28** (`index-aWJcbSuP.js`) — rolling back past it (to `c6f60bc` or earlier) refuses every project saved at 27 |
+| X-ray | 10-28 | — | An **X-ray** button after Section, and **R**: the selection draws solid and every other part in the existing faded look, so its joints show through (round tenons inside legs, fingers and tails at a corner). View state (`xray`, ONE writer `setXray`, reset where `section` is); `viewport/xray.ts` `fadedFor` the ONE faded decision; draw-only — picking and snapping unchanged (fu 539). **Deployed `c0d3b30`, `index-DQJDNnyg.js`** |
 
 ## Status log (to 2026-10-28)
 
+- **X-ray (2026-10-28; branch `xray`).** Picked from `docs/feature-gaps.md` §2 by the user; brainstormed with a throwaway spike in the
+  user's Chrome ("the focused part solid, everything else faded"; "That looks good to me"). Spec and plan approved. An X-ray button and R
+  fade every part the selection does not cover; nothing selected fades nothing; draw-only by the user's ruling (fu 539 records
+  click-through). Checked in the user's Chrome (`docs/browser-verification-xray.md`). No schema change. MERGED `c0d3b30` (9988/9988),
+  DEPLOYED as `index-DQJDNnyg.js` (CSS unchanged). Verified: `200` on `/` and a deep route in-network and at the edge; the bundle at both,
+  sha256 matching `dist/`, carrying the button's title; the old `index-COyw6_WQ.js` 404s in-network; CSP at the edge; a headless
+  throwaway-profile load: the new bundle, 0 errors, one X-ray button, storage cleared and read back empty, the profile deleted. Owed to
+  the user: Save image with X-ray on, and walking joints inside an opened assembly, by eye.
 - **Section caps on real hardware (fu 347, 2026-10-28; branch `section-caps`).** The first real-hardware pass (the user's own Chrome over a
   MobaXterm tunnel, Claude driving) found the caps speckled and a tenon or tail inside its socket illegible. Fixed at the two root causes:
   the cap casts from its back side (no self-shadowing), and its outline is lifted 0.01" toward the viewer and drawn lighter on a dark cap

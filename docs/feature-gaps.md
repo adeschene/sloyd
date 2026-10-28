@@ -38,7 +38,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Exploded view | SketchUp scenes / OpenCutList; also shows joinery | shipped (plans-sheet round, deployed 2026-10-12) |
 | Section cut | Clipping plane to see inside a joint | shipped 2026-10-15 (section cut: Front/Side/Top plane, exact caps with bores, viewport only), deployed 2026-10-15 |
 | Standard views | One-click top/front/side; only a perspective/orthographic toggle exists | merged 2026-10-13 (standard views + image export: Front/Side/Top/Iso), deployed 2026-10-13 |
-| X-ray / transparency; saved views ("scenes") | | X-ray merged 2026-10-28 (no schema change: an `X-ray` button and R draw the selection solid and every other part faded, to see joints inside; draw-only — clicking through a faded part is fu 539); saved views open |
+| X-ray / transparency; saved views ("scenes") | | X-ray DEPLOYED 2026-10-28 (`c0d3b30`, `index-DQJDNnyg.js`) (no schema change: an `X-ray` button and R draw the selection solid and every other part faded, to see joints inside; draw-only — clicking through a faded part is fu 539); saved views open |
 | Image export | PNG of the viewport; no export path exists | merged 2026-10-13 (Save image: a clean PNG of the view), deployed 2026-10-13 |
 
 ## 3. Materials and buying — fit, mostly in the cut list
