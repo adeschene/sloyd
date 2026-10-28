@@ -35,9 +35,9 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `97b7b1e`, bundle `index-JKBrNQAt.js`, CSS `index-Cag10lzx.css`, SCHEMA 28** (the tiny-weight wording `under 0.1`,
-  merge `97b7b1e`, deployed 2026-10-28; align `cf911cc`, part labels `582ce1e` and weight `5395a21` the same day). Owed: see NEXT.
-- **Rollback:** back to `cf911cc` (align, `index-5OtJpPqw.js`), `582ce1e` (part labels) or `5395a21` (weight) is free (schema 28, no change since); the
+- **Production: `74b6289`, bundle `index-COyw6_WQ.js`, CSS `index-Cag10lzx.css`, SCHEMA 28** (section caps on real hardware, fu 347,
+  merge `74b6289`, deployed 2026-10-28; tiny weights `97b7b1e`, align `cf911cc`, part labels `582ce1e`, weight `5395a21` the same day).
+- **Rollback:** back to `97b7b1e` (`index-JKBrNQAt.js`), `cf911cc`, `582ce1e` or `5395a21` (weight) is free (schema 28, no change since); the
   nearest refusing boundary is `fbe4bd2` (`index-BBLukTqT.js`, schema 27): it refuses every project saved at 28 — export first. Every
   older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-28):** weight, part labels and align/space evenly are deployed, and the user saw all three in their own Chrome

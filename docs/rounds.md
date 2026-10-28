@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `97b7b1e` (tiny weights read `under 0.1`) | `index-JKBrNQAt.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `74b6289` (section caps, fu 347) | `index-COyw6_WQ.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `97b7b1e` (tiny weights read `under 0.1`) | `index-JKBrNQAt.js` (CSS `index-Cag10lzx.css`) | 28 | free; the speckled caps and hidden cap outlines come back |
 | `cf911cc` (align / space evenly) | `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`) | 28 | free; a tiny weight reads `0.0` again |
 | `582ce1e` (part labels) | `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`) | 28 | free (no schema change); the Align section is gone |
 | `5395a21` (weight) | `index-DawoF3J5.js` (CSS `index-iD0ojmiF.css`) | 28 | free (no schema change); Labels… is gone |
@@ -167,7 +168,10 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 - **Section caps on real hardware (fu 347, 2026-10-28; branch `section-caps`).** The first real-hardware pass (the user's own Chrome over a
   MobaXterm tunnel, Claude driving) found the caps speckled and a tenon or tail inside its socket illegible. Fixed at the two root causes:
   the cap casts from its back side (no self-shadowing), and its outline is lifted 0.01" toward the viewer and drawn lighter on a dark cap
-  (`viewport/capOutline.ts`). Seen fixed in the user's Chrome on pine and cherry. No schema change.
+  (`viewport/capOutline.ts`). Seen fixed in the user's Chrome on pine and cherry. No schema change. MERGED `74b6289` (9968/9968),
+  DEPLOYED as `index-COyw6_WQ.js` (CSS unchanged). Verified: `200` on `/` and a deep route in-network and at the edge; the bundle at
+  both, sha256 matching `dist/`; the old `index-JKBrNQAt.js` 404s in-network; CSP at the edge; a headless throwaway-profile load: 0
+  errors, storage cleared and read back empty, the profile deleted.
 
 - **Tiny weights (2026-10-28; the user's ruling after watching weight in their own Chrome): a weight that would print `0.0` reads
   `under 0.1 lb|kg`, never `about under` (`approxWeight`).** Branch `weight-small`, MERGED `97b7b1e` (9966/9966), DEPLOYED as
