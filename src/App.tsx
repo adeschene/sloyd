@@ -6,6 +6,7 @@ import { ViewportControls } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesFooter } from './panels/GuidesFooter';
+import { ViewsFooter } from './panels/ViewsFooter';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
@@ -71,8 +72,6 @@ export default function App() {
     if (v.camera.ortho !== orthographic) setOrthographic(v.camera.ortho);
     viewportRef.current?.setCamera(v.camera);
   }, [orthographic]);
-  // TEMPORARY (saved views Task 4 → 5): read here only so noUnusedLocals passes until ViewsFooter's onGoTo takes it.
-  void goToSavedView;
   // View state, deliberately not part of the document: whether the grid and
   // the origin axes are drawn is a property of how you're looking at a
   // project, not of the project, so neither saves nor lands on the undo stack.
@@ -1035,6 +1034,7 @@ export default function App() {
               baseline, so opening a project with guides leaves it closed.
             */}
             <GuidesFooter key={activeId} />
+            <ViewsFooter key={`views-${activeId}`} getCamera={() => viewportRef.current?.getCamera() ?? null} onGoTo={goToSavedView} />
           </aside>
         </main>
       </div>

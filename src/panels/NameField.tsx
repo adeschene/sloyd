@@ -8,6 +8,8 @@ interface Props {
    * which may differ from what was typed because names are deduplicated.
    */
   onCommit: (name: string) => string;
+  /** The accessible name; defaults to the part-name wording. */
+  label?: string;
 }
 
 /**
@@ -26,7 +28,7 @@ interface Props {
  * instead would miss the case where dedup maps the typed name back onto this
  * board's current name — `value` never changes, so no re-render arrives.
  */
-export function NameField({ value, onCommit }: Props) {
+export function NameField({ value, onCommit, label = 'Part name' }: Props) {
   const [text, setText] = useState(value);
   const editing = useRef(false);
   // Set by a keydown that has already settled the edit (Escape reverted it,
@@ -64,7 +66,7 @@ export function NameField({ value, onCommit }: Props) {
   return (
     <input
       className="input name"
-      aria-label="Part name"
+      aria-label={label}
       value={text}
       onFocus={() => { editing.current = true; }}
       onChange={(e) => { dirty.current = true; setText(e.target.value); }}
