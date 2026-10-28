@@ -164,6 +164,11 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Status log (to 2026-10-28)
 
+- **Section caps on real hardware (fu 347, 2026-10-28; branch `section-caps`).** The first real-hardware pass (the user's own Chrome over a
+  MobaXterm tunnel, Claude driving) found the caps speckled and a tenon or tail inside its socket illegible. Fixed at the two root causes:
+  the cap casts from its back side (no self-shadowing), and its outline is lifted 0.01" toward the viewer and drawn lighter on a dark cap
+  (`viewport/capOutline.ts`). Seen fixed in the user's Chrome on pine and cherry. No schema change.
+
 - **Tiny weights (2026-10-28; the user's ruling after watching weight in their own Chrome): a weight that would print `0.0` reads
   `under 0.1 lb|kg`, never `about under` (`approxWeight`).** Branch `weight-small`, MERGED `97b7b1e` (9966/9966), DEPLOYED as
   `index-JKBrNQAt.js` (CSS unchanged). Verified: `200` on `/` and a deep route in-network and at the edge; the bundle at both, sha256

@@ -608,7 +608,8 @@ src/
 │                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap (a leaning part: its group gets the lean as ONE derived transform, the `leaned` memo, and its cap is drawn as a sibling at identity, inv 57); sectionPerf.test.ts
 │                     grainTiling's drawsAsBox (THE BoxGeometry-or-bodyMesh routing: a box no hole reaches,
 │                     on a part WITHOUT curves), bodyMesh's radial normals on chord faces and curvedPart (seams dropped, welded,
-│                     conformed); conform.ts (insertOnEdges, centroidFan, welder, CONFORM_EPS 1e-7); capFill.ts (THE cap fan,
+│                     conformed); conform.ts (insertOnEdges, centroidFan, welder, CONFORM_EPS 1e-7); capOutline.ts (CAP_DARKEN, EDGE_DARKEN, capOutlineColor: a cap's outline legible on
+│                     a dark cap; fu 347); capFill.ts (THE cap fan,
 │                     moved out of BoardMesh; conformed for a curved part); curvesPerf.test.ts (the guard),
 │                     curvesWatertight.test.ts (every directed edge matched), bodyMeshIdentity.test.ts (holed, uncurved: master's bytes)
 │                     bandFaces.ts (edge banding chunk 2): bandLooks, bandViewSignature (BoardMesh's memo key), bandedMesh (THE band paint:

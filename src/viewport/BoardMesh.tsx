@@ -1,6 +1,7 @@
 import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { CAP_DARKEN, EDGE_DARKEN, capOutlineColor } from './capOutline';
 import {
   boardCenter, boardExtents, holeRims, keptBySection, leanMap, partGeometry, pointToLocalXYZ, sectionCaps,
   sectionPlaneOf, stockChecks, solidWorldBox, wholeBoard,
@@ -20,19 +21,12 @@ import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 import { NO_PLANES, SECTION_PLANES } from './sectionPlane';
 
+/** Inches a section cap's outline sits in front of the cut plane, toward the viewer: above the depth precision at viewing distance
+ *  (about 1.5e-3" at 50" with near 0.1), far below anything visible. */
+const CAP_LINE_LIFT = 0.01;
+
 /** Oak — the one live colour in the app. */
 const SELECTED = '#c8955a';
-
-/**
- * How dark an edge line is relative to the stock it outlines. A single flat
- * edge colour reads on pine and vanishes on walnut; deriving it from the wood
- * keeps every joint visible whatever the species.
- */
-const EDGE_DARKEN = 0.3;
-
-/** The section cap's shade relative to the stock: the cut face reads as end grain, darker than every face (invariant
- *  51). A real-hardware look is owed (fu 347). */
-const CAP_DARKEN = 0.62;
 
 /** Drops hits on the section's removed side, so a click passes through to what is drawn (invariant 51). */
 function sectionRaycast(s: Section) {
@@ -326,8 +320,13 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
       normals[k] = capN[0]; normals[k + 1] = capN[1]; normals[k + 2] = capN[2];
     }
     fillGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    // The outline is lifted CAP_LINE_LIFT toward the viewer (fu 347, the real-hardware pass): the fill is pulled forward by its
+    // polygonOffset and a line cannot take one, so an outline ON the plane lost the depth test to its own fill and a tenon or
+    // tail inside its socket could not be seen.
+    const lift = capN.map((v) => v * CAP_LINE_LIFT);
     const lineGeo = new THREE.BufferGeometry();
-    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(c.outline.flatMap(([a, b]) => [...a, ...b]), 3));
+    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(
+      c.outline.flatMap(([a, b]) => [a[0] + lift[0]!, a[1] + lift[1]!, a[2] + lift[2]!, b[0] + lift[0]!, b[1] + lift[1]!, b[2] + lift[2]!]), 3));
     return { fillGeo, lineGeo };
   }, [section, offset?.[0], offset?.[1], offset?.[2], board.position[0], board.position[1], board.position[2],
     board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board),
@@ -338,6 +337,8 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     () => (faded ? fadedColor : new THREE.Color(color)).clone().multiplyScalar(CAP_DARKEN),
     [faded, fadedColor, color],
   );
+  // Fu 347: the cap's outline stands out from the cap (a tenon or tail inside its socket is legible); unchanged on a light cap.
+  const capOutline = useMemo(() => capOutlineColor(color), [color]);
   // Every part and edge material clips by the ONE shared plane while a section is on; three recompiles on a
   // plane-count change by itself, so `clip` keys nothing.
   const clip = section ? SECTION_PLANES : NO_PLANES;
@@ -389,12 +390,13 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
         {/* Keyed on `faded`, as the grain materials are: three bakes `transparent` into the program (the OPAQUE
             define) and a prop change alone does not recompile it, so a cap drawn opaque would stay opaque. */}
         <meshStandardMaterial key={`cap-${faded}`} color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
+          shadowSide={THREE.BackSide}
           emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
           transparent={faded} opacity={faded ? FADED_OPACITY : 1}
           polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
       </mesh>
       <lineSegments geometry={cap.lineGeo}>
-        <lineBasicMaterial color={selected ? SELECTED : faded ? fadedEdgeColor : edgeColor}
+        <lineBasicMaterial color={selected ? SELECTED : faded ? fadedEdgeColor : capOutline}
           transparent opacity={faded ? FADED_EDGE_OPACITY : selected ? 1 : 0.8} />
       </lineSegments>
     </>
