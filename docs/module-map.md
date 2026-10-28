@@ -442,6 +442,8 @@ src/
 │   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses (band
 │   │                     types' solid materials included, inv 54),
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
+│   ├── align.ts          align and space evenly (align spec): AlignItem, alignDeltas (to the item selected first), distributeDeltas
+│   │                     (equal gaps, outer two fixed, inner placed from the first), itemExtents (partsBounds, leaned); alignText.ts the copy
 │   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,
 │   │                     stockCells, cellBox, labelsOf (one PartLabel per piece, from buildCutList), pagesOf (startAt) (→ units)
 │   ├── weight.ts         THE weight home (inv 63): woodVolume (boardBodies volumes, memoised on PartGeometry), stripVolume, coreWeight,
@@ -640,7 +642,7 @@ src/
 │                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
 │                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
-│                     trash), GuidesFooter (opens itself when the guide count goes up), LabelsSheet (part labels: true-size
+│                     trash), GuidesFooter (opens itself when the guide count goes up), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), LabelsSheet (part labels: true-size
 │                     sticker pages, Stock, Start at; opened from the cut list in its place), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
 │                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous

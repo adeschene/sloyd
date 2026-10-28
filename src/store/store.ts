@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
 import {
   partsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
@@ -356,6 +357,13 @@ interface StoreState {
    * non-finite step, a sign other than +1/-1, or no known ids.
    */
   copyInRow: (ids: string[], count: number, axis: 0 | 1 | 2, sign: 1 | -1, step: number) => void;
+  /**
+   * Align the selection along a world axis to the item selected FIRST, which never moves (align spec §3, §5): exact, one
+   * undo entry, held points re-judged. Returns null (applied, a no-op, or refused at entry: exploded, gesturing, under 2).
+   */
+  alignItems: (axis: 0 | 1 | 2, edge: 'min' | 'centre' | 'max') => string | null;
+  /** Equal gaps along a world axis, the two outermost items fixed (align spec §4, §5): its refusal sentence, else null. */
+  distributeItems: (axis: 0 | 1 | 2) => string | null;
   selectBoard: (id: string | null) => void;
   toggleSelected: (id: string) => void;
   selectAll: () => void;
@@ -1027,6 +1035,19 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   /**
+   * Align and space evenly's write (align spec §5): every item's own exact world delta, folded through `translateItems` in
+   * ONE edit (one undo entry), never rounded (inv 25) and never through `moveGroupTo` (inv 42); then held points are re-judged
+   * (inv 24). Every delta zero writes nothing.
+   */
+  const applyDeltas = (items: readonly AlignItem[], deltas: readonly (readonly number[])[]): null => {
+    const moving = items.map((it, i) => ({ id: it.id, d: deltas[i]! })).filter(({ d }) => d.some((v) => v !== 0));
+    if (moving.length === 0) return null;
+    edit((doc) => moving.reduce((acc, { id, d }) => translateItems(acc, [id], d), doc));
+    judgeHeld();
+    return null;
+  };
+
+  /**
    * Add one delta to every named board's position, as one edit, then run
    * invariant 24's point-precise survival test for each of them. The ONE
    * translate both group moves use (the Move tool's commit and the gizmo).
@@ -1302,6 +1323,22 @@ export const useStore = create<StoreState>((set, get) => {
         ] as const;
       if (delta[0] === 0 && delta[1] === 0 && delta[2] === 0) return;
       translateBoards(new Set([...wanted].filter((id) => paths.has(id))), delta);
+    },
+
+    alignItems: (axis, edge) => {
+      if (readOnly() || get().gesturing) return null; // exploded (inv 47) or mid-gesture: refused at entry
+      const items = itemExtents(get().doc, get().selectedIds);
+      if (items.length < 2) return null;
+      return applyDeltas(items, alignDeltas(items, axis, edge));
+    },
+
+    distributeItems: (axis) => {
+      if (readOnly() || get().gesturing) return null;
+      const items = itemExtents(get().doc, get().selectedIds);
+      if (items.length < 3) return null;
+      const deltas = distributeDeltas(items, axis);
+      if ('refused' in deltas) return deltas.refused;
+      return applyDeltas(items, deltas);
     },
 
     addBoard: () => {

@@ -520,6 +520,15 @@ and 79.
 
 ## What each round did
 
+**What align and space evenly did (2026-10-28)** (feature-gaps §4; spec `2026-10-28-sloyd-align-distribute-design.md`, the user skipped
+the brainstorm questions and approved the draft; plan `2026-10-28-sloyd-align-distribute.md`; branch `align` from `844a2a5`; inline
+execution, then one whole-branch review). Three build tasks, test-first: the pure decisions (`align.ts`) — the plan's drift test, a
+1e-12 equal-gap check, could NOT catch a running-sum placement (ulp drift ~1e-16: the mutant survived), so spec §4's formula was pinned
+exactly per item and the mutant then failed; the store actions (one `edit` folding `translateItems`, `judgeHeld` after; the snap
+mutation caught by a metric off-grid test); the Align section. Several hand fixtures were wrong (a flat part's Y extent is its
+thickness; a refusal fixture that actually fit) — the code was right each time. The browser check spaced three shelves in a carcase
+at 6.5625" gaps and aligned their fronts to a side, and two undos restored them.
+
 **What part labels did (2026-10-28)** (feature-gaps §3; spec `2026-10-28-sloyd-part-labels-design.md`, the user skipped the
 brainstorm questions and approved the draft as written; plan `2026-10-28-sloyd-part-labels.md`; branch `labels` from `dcfe2ec`;
 inline execution, then one whole-branch review). Three build tasks, test-first: `labels.ts` (four sticker presets whose page fill is

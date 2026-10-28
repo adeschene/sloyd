@@ -141,8 +141,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       same point-precise path a resize takes (`updateBoards`), because a leaning part's snap points are its lean-mapped lattice. No
       board-precise tape clause was added for it.
 25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide,
-    ray-typed guide, axis-placed guide and copy in a row (copy k = original + k·step·sign,
-    never from the previous copy). Round what a free drag produced, nothing else.
+    ray-typed guide, axis-placed guide, copy in a row (copy k = original + k·step·sign,
+    never from the previous copy), and align and space evenly (align spec: each item's own exact world delta, one edit, never
+    through `moveGroupTo`; an inner item placed from the FIRST item's max, never a running position). Round what a free drag
+    produced, nothing else.
     **A free drag of a LEANING part rounds the drag DELTA, never a corner** (`dragTarget`, Gizmo.tsx; splayed legs §6.2, inv 57): its
     pre-lean corner is off-grid after Level the ends, and its real-bounds corner would move the seat joint. A snap onto a leaning
     part's point moves the moving part by an exact world delta, unrounded, as before.
