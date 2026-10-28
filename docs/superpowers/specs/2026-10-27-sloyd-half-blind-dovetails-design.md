@@ -320,3 +320,10 @@ commit; records in inv 62 (and inv 38's clause) and fu 485, 497, 516–521).
 - **HB-R10 (Task 7) — `cutRunsThrough`'s through-groove exemption kept on a half-blind PINS part**: the groove runs on the inside face
   along the run and leaves through end grain the side covers; the lap's face is untouched unless the groove is deeper than `tP − lap`,
   which is an ordinary visible cut. *Cost if wrong:* a user can cut a groove that breaches the lap without a refusal (fu 521 (7)).
+
+## Copy review (2026-10-28)
+
+The user asked Claude to review the copy and labels and make any needed updates (fu 518, 520). Changed: the pins cut-list line reads
+`this part has the pins, their narrow ends behind a <lap> lap on its thickness <face> face.`; the fault reason reads `the lap is too thick
+for the part`; figure B leaves the lap unshaded and draws the lap plane dashed, as figure A's baseline (§5.2's "solid band" is now
+"unshaded wood behind a dashed line"). Everything else as built.

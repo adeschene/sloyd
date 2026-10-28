@@ -181,7 +181,7 @@ describe('DovetailBench: half-blind (half-blind spec §5.2)', () => {
     }
   });
 
-  it('figure B draws ONE lap band and labels it `lap 1/4"` on the outside face\'s row; figure A and a through B draw none', () => {
+  it('figure B draws ONE dashed lap line and labels it `lap 1/4"` on the outside face\'s row; figure A and a through B draw none', () => {
     const { container } = render(<DovetailBench bench={benchOf(6, { depth: 0.5, lap: 0.25 }, IMPERIAL, true)} />);
     const [a, b] = svgs(container);
     expect(a!.querySelectorAll('.cutlist-bench-lap')).toHaveLength(0);
@@ -193,7 +193,9 @@ describe('DovetailBench: half-blind (half-blind spec §5.2)', () => {
     expect(row('lap 1/4"')).toBe(row('outside face'));
     // The ticks reach the lap plane: below the outline's top edge (the outside face).
     const top = Math.min(...b!.querySelector('.cutlist-diagram-outline')!.getAttribute('points')!.split(' ').map((p) => Number(p.split(',')[1])));
-    const lapY = Math.max(...b!.querySelector('.cutlist-bench-lap')!.getAttribute('points')!.split(' ').map((p) => Number(p.split(',')[1])));
+    const lapLine = b!.querySelector('line.cutlist-bench-lap')!;
+    expect(lapLine.getAttribute('y2')).toBe(lapLine.getAttribute('y1'));
+    const lapY = Number(lapLine.getAttribute('y1'));
     expect(lapY).toBeGreaterThan(top);
     for (const t of b!.querySelectorAll('.cutlist-bench-tick')) expect(Number(t.getAttribute('y2'))).toBeCloseTo(lapY, 9);
     const { container: c2 } = render(<DovetailBench bench={benchOf(6)} />);

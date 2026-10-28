@@ -198,7 +198,7 @@ describe('dovetailBenches: half-blind (half-blind spec §5.2)', () => {
     expect(tailsLine).toContain(`pins ${b!.pin.chain[0]!.text} at the narrow end`);
     expect(tailsLine.endsWith(`this part has the tails, each ${b!.pin.chain[1]!.text} wide at the end.`)).toBe(true);
     const pinsLine = dovetailLine(f, f.dovetails![0]!, IMPERIAL);
-    expect(pinsLine).toContain(`their narrow ends ${formatLengthBare(lap, IMPERIAL)} in from`);
+    expect(pinsLine).toContain(`their narrow ends behind a ${formatLengthBare(lap, IMPERIAL)} lap`);
   });
 
   it('metric: the lap label in bare whole mm', () => {

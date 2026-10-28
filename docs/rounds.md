@@ -608,7 +608,9 @@ R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-1
 assemblies; rulings R-T1 to R-T6e, chiefly R-T6a Refine's mechanism for "kept exactly" and R-T6c the joinery reason) and the equal-fingers amendment. Its copy (fu 491) was reviewed and changed 2026-10-27.
 
 **Approved 2026-10-28 ("Approved, the amended build section"), after the deploy:** the half-blind dovetails spec's *Amended (build)* block
-(spec differences HB-SD1–SD4 and build rulings HB-R1–R10). Its copy (fu 518) and the lap band's look (fu 520) are still owed.
+(spec differences HB-SD1–SD4 and build rulings HB-R1–R10). Its copy (fu 518) and the lap's look (fu 520) were reviewed by Claude at the user's request 2026-10-28: the pins line names the lap
+(`their narrow ends behind a <lap> lap on …`), the fault reads `the lap is too thick for the part`, and figure B draws the lap plane
+as a dashed line over unshaded wood (branch `half-blind-copy`).
 
 **Approved 2026-10-27 ("Approved, the amended build section"), after the deploy:** the dovetails spec's *Amended (build)* block (spec
 differences SD1–SD20 and every build ruling recorded under it). Its copy (fu 512) was reviewed and changed, and the bench chain seen by eye (fu 511), both 2026-10-27.
