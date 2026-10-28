@@ -269,3 +269,54 @@ dovetail kinds. New follow-ups: rabbeted (lipped) and overlay fronts; a third be
 - Factoring the tails-side rule into one function both calls read.
 - The bench figure B's lap band styling, within inv 19 and SD8.
 - Live-refusal plumbing for the Lap field, copying the Tails field's.
+
+## Amended (build)
+
+Rulings and differences from the build (2026-10-27/28, branch `half-blind`, commits `48d2f92..7e6beae`; this record follows in its own
+commit; records in inv 62 (and inv 38's clause) and fu 485, 497, 516–521).
+**Status: awaiting the user's approval.** Each line says what was built and what it costs if the call is wrong.
+
+**Spec differences**
+- **HB-SD1 — a typed lap of 0 or less reads the parse sentence, not the lap sentence (§3.2).** §3.2 says a typed lap outside (0, `tP`)
+  "refuses with the lap sentence". The build splits it: a typed lap ≤ 1e-9 or NaN refuses with the Lap field's parse sentence `A lap must
+  be a length more than 0.` (from the planner too, `DOVETAIL_LAP_PARSE`), and only a lap at or past the pin part's thickness reads `<part>
+  is too thin for a <lap> lap.` (Task 3 ruling, made in Task 4; the alternative read `Front is too thin for a 0" lap.`). *Cost if wrong:*
+  one string.
+- **HB-SD2 — Through lengthens each END by `lap`, so a side with two half-blind ends grows `2·lap` (§10).** §10's "the sides lengthened by
+  exactly `lap`" is per end; the tests assert each end's span (Task 3). *Cost if wrong:* none (the spec's wording; the geometry is the
+  spec's §3.1).
+- **HB-SD3 — the pins' contact boxes are the through ones (§3.4).** §3.4 says P's pin boxes "span the thickness from the lap plane to the
+  inside face". The build keeps each pin's inscribed box over the WHOLE thickness (its narrowest J span, which at the lap plane has the
+  outside plane's bounds) and adds the lap-slab box: in front of the lap plane that wood is lap, so nothing is over-claimed (Task 5).
+  *Cost if wrong:* none found; a stricter box would change no verdict (no tested verdict depends even on the slab box, HB-R8).
+- **HB-SD4 — the lap band is light, and its label has no tick (§5.2).** §5.2 asks for "a solid band along the outside face, with a
+  dimension `lap <x>`". The build draws a `.cutlist-bench-lap` band at fill-opacity 0.06 with a 1.5 stroke along the lap plane (the waste
+  fill is 0.22, so a heavier band could read as waste), and puts `lap <x>` on the outside face's label row as free text, without a
+  dimension tick (Task 6 review; deferred to the browser check). *Cost if wrong:* a restyle after the user sees it (fu 520).
+
+**Build rulings (the ledger's `Ruling:` lines)**
+- **HB-R1 (pre-flight) — the plan's narrow example replaced.** (H=3, N=2, s=6, p=1/4, t=3/4) does not fault as through (Te 1.125; through
+  X = .75 gives .875 ≥ .5); replaced by (H=2, N=2, s=4, p=1/4, t=3/4): through faults (.25 < .625), lap 1/2 (X = .25) passes (.5 ≥ .375),
+  checked by hand. *Cost if wrong:* none (test numbers only).
+- **HB-R2 (Task 1) — one existing test edited:** `dovetails.test.ts`' DOVETAIL_FIELDS list gains `'lap'` (the plan mandates the field, the
+  test pins the exact list, as the links/shapes tests in the dovetails round). *Cost if wrong:* none.
+- **HB-R3 (Task 1) — `FAULT_REASONS.lap` added in `dovetailText.ts`**, outside the brief's files: `Record<DovetailFault, …>` forces it,
+  and inv 62 makes `dovetailText.ts` the copy home. *Cost if wrong:* none.
+- **HB-R4 (Task 1) — "no snap point on the outside face" excludes the part's own outline corners**, which are real wood; the test forbids
+  points at the inner layout bounds and strictly inside the face. *Cost if wrong:* none.
+- **HB-R5 (Task 3) — `dovetailedLines`' `units` and `lap` are optional, and a layout with a lap and no units THROWS.** Required parameters
+  would have edited an existing copy test; a throw beats a silent imperial default. *Cost if wrong:* a future caller without units throws
+  (loudly).
+- **HB-R6 (Task 3) — a typed lap ≤ 0 or NaN never reads "too thin for a 0" lap"**: the planner returns the Lap field's parse sentence
+  (HB-SD1; Task 4 owns the sentence). *Cost if wrong:* one string.
+- **HB-R7 (Task 3) — the inset refusal (step 3a) runs before step 4's plain-stock test**, as the plan ordered (pinned: a round tenon on
+  Back still gives the lap sentence). *Cost if wrong:* a lap refusal shows ahead of a feature refusal on another part.
+- **HB-R8 (Task 5) — the lap-slab contact box is kept though no verdict depends on it**: §3.4 asks for it, and it never over-claims;
+  removing it fails only its own presence test. *Cost if wrong:* none.
+- **HB-R9 (Task 6) — Review Focus 3's "linked mirror twins" replaced by linked UNMIRRORED sides for the mixed drawer.** Mirror-twin sides in
+  a half-blind-front, through-back drawer refuse at the same turn and split into two cut-list rows as Mirror's own pair; both are
+  pre-existing for a through drawer with unequal front and back (inv 40's part-local identity, fu 510's class), so they went to fu 519,
+  ask first. *Cost if wrong:* a user's mirrored sides in a mixed drawer read as two rows (or refuse).
+- **HB-R10 (Task 7) — `cutRunsThrough`'s through-groove exemption kept on a half-blind PINS part**: the groove runs on the inside face
+  along the run and leaves through end grain the side covers; the lap's face is untouched unless the groove is deeper than `tP − lap`,
+  which is an ordinary visible cut. *Cost if wrong:* a user can cut a groove that breaches the lap without a refusal (fu 521 (7)).

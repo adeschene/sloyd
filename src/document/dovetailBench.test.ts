@@ -5,7 +5,7 @@ import { createBoard, createDocument } from './document';
 import { applyDovetails, dovetailPlan } from './dovetails';
 import { dovetailBenches } from './dovetailBench';
 import { worldParts } from './tree';
-import { IMPERIAL, type Units } from '../units/length';
+import { IMPERIAL, formatLengthBare, type Units } from '../units/length';
 import type { Board, Dovetail, SloydDocument } from './types';
 
 /**
@@ -129,5 +129,82 @@ describe('dovetailBenches (spec §5.2)', () => {
     expect(bench!.tail.chain.map((c) => c.text)).toEqual(['6', '30', '6', '30', '6', '30', '6', '30', '6']);
     expect(bench!.tail.labels.map((l) => l.text)).toEqual(['baseline 19', '150', '1:8', 'length max end']);
     expect(dovetailLine(b, b.dovetails![0]!, METRIC)).toContain('this part has the tails, each 30 mm wide at the end.');
+  });
+});
+
+describe('dovetailBenches: half-blind (half-blind spec §5.2)', () => {
+  // A side with a half-blind front end (min: the 3/4" front, lap 1/4", so depth 3/4 − 1/4 = 1/2") and a through back end
+  // (max: a 1/2" back, depth 1/2"): the SAME depth at both ends, so only the lap tells them apart (the builder check).
+  const hb = tails({ id: 'h', end: 'min', depth: 0.5, lap: 0.25 });
+  const th = tails({ id: 't', end: 'max', depth: 0.5 });
+
+  it('a half-blind end and a through end of the same depth are TWO benches (`layoutKey` reads the lap)', () => {
+    const benches = dovetailBenches(side([hb, th]), IMPERIAL);
+    expect(benches.map((b) => b.ends)).toEqual(['one', 'one']);
+    expect(new Set(benches.map((b) => b.key)).size).toBe(2);
+    // Figure B is the pin board's end grain, its thickness tall: depth + lap = 3/4" half-blind; the depth, 1/2", through.
+    expect(benches.map((b) => b.pin.height)).toEqual([0.75, 0.5]);
+    expect(benches.map((b) => b.tail.labels.find((l) => l.kind === 'ends')!.text)).toEqual(['length min end', 'length max end']);
+  });
+
+  it('figure B, half-blind: H by tP, the lap band [0, lap], the sockets from the lap plane narrowing to the inside face', () => {
+    const [b] = dovetailBenches(side([hb]), IMPERIAL);
+    const B = b!.pin;
+    expect([B.width, B.height, B.lap]).toEqual([6, 0.75, 0.25]);
+    expect(B.outline).toEqual([[0, 0], [6, 0], [6, 0.75], [0, 0.75]]);
+    expect(B.waste).toHaveLength(4);
+    const run = (0.75 - 0.25) / 8;   // (tP − lap) / s
+    const w0 = B.waste[0]!;
+    expect(w0[0]).toEqual([0.25, 0.25]);
+    expect(w0[1]![0]).toBeCloseTo(1.4375, 12);
+    expect(w0[1]![1]).toBe(0.25);
+    expect(w0[2]![0]).toBeCloseTo(1.4375 - run, 12);
+    expect(w0[2]![1]).toBe(0.75);
+    expect(w0[3]![0]).toBeCloseTo(0.25 + run, 12);
+    expect(w0[3]![1]).toBe(0.75);
+    // The chain runs along the lap plane, where the pins' narrow ends are; its words are the through chain's.
+    expect(B.chain.every((c) => c.at[1] === 0.25)).toBe(true);
+    expect(B.chain.map((c) => c.text)).toEqual(CHAIN);
+    expect(B.labels.map((l) => [l.kind, l.text])).toEqual([
+      ['outside', BENCH_OUTSIDE_FACE], ['inside', BENCH_INSIDE_FACE], ['overall', '6"'], ['lap', 'lap 1/4"']]);
+    expect(B.labels.find((l) => l.kind === 'inside')!.at).toEqual([0, 0.75]);
+  });
+
+  it('figure A is unchanged in form (the baseline at its depth); only figure B carries `lap`; a through B has no `lap` key', () => {
+    const [h, t] = dovetailBenches(side([hb, th]), IMPERIAL);
+    expect([h!.tail.width, h!.tail.height, h!.tail.baseline]).toEqual([6, 1, 0.5]);
+    expect('lap' in h!.tail).toBe(false);
+    // The two figure A's differ only in their end note (min, max): the same depth draws the same face.
+    const { labels: hl, ...hA } = h!.tail;
+    const { labels: tl, ...tA } = t!.tail;
+    expect(hA).toEqual(tA);
+    expect(hl.map((l) => l.text)).toEqual(['baseline 1/2"', '6"', '1:8', 'length min end']);
+    expect(tl.map((l) => l.text)).toEqual(['baseline 1/2"', '6"', '1:8', 'length max end']);
+    expect('lap' in t!.pin).toBe(false);
+    expect(t!.pin.labels.map((l) => l.kind)).toEqual(['outside', 'inside', 'overall']);
+  });
+
+  it("the lap label is formatLengthBare's; the chain at the lap plane is the cut-list lines' numbers (the planned drawer)", () => {
+    const doc = drawer();
+    const plan = dovetailPlan(doc, ['f', 'b', 'l', 'r'], { slope: 8, count: null, swap: false, joint: 'half-blind' });
+    if (typeof plan === 'string') throw new Error(plan);
+    const out = applyDovetails(doc, plan);
+    const s = part(out, 'l');
+    const f = part(out, 'f');
+    const [b] = dovetailBenches(s, IMPERIAL);
+    const lap = s.dovetails![0]!.lap!;
+    expect(b!.pin.labels.find((l) => l.kind === 'lap')!.text).toBe(`lap ${formatLengthBare(lap, IMPERIAL)}`);
+    const tailsLine = dovetailLine(s, s.dovetails![0]!, IMPERIAL);
+    expect(tailsLine).toContain(`pins ${b!.pin.chain[0]!.text} at the narrow end`);
+    expect(tailsLine.endsWith(`this part has the tails, each ${b!.pin.chain[1]!.text} wide at the end.`)).toBe(true);
+    const pinsLine = dovetailLine(f, f.dovetails![0]!, IMPERIAL);
+    expect(pinsLine).toContain(`their narrow ends ${formatLengthBare(lap, IMPERIAL)} in from`);
+  });
+
+  it('metric: the lap label in bare whole mm', () => {
+    const b = side([tails({ pin: 6 / 25.4, depth: 12 / 25.4, lap: 6 / 25.4 })], { width: 150 / 25.4 });
+    const [bench] = dovetailBenches(b, METRIC);
+    expect(bench!.pin.labels.find((l) => l.kind === 'lap')!.text).toBe('lap 6');
+    expect(bench!.pin.chain.map((c) => c.text)).toEqual(['6', '30', '6', '30', '6', '30', '6', '30', '6']);
   });
 });

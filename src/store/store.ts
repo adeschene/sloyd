@@ -553,7 +553,9 @@ interface StoreState {
    * (`applyDovetails`), then held points are re-judged on the written document (inv 24). Null on success; null and nothing
    * done while exploded (inv 47) or gesturing, and for a stale id.
    */
-  dovetailCorners: (ids: string[], slope: number, count: number | null, swap: boolean) => string | null;
+  dovetailCorners: (
+    ids: string[], slope: number, count: number | null, swap: boolean, joint?: 'keep' | 'through' | 'half-blind', lap?: number | null,
+  ) => string | null;
   /** Hardware spec §4: set (or, `null`, remove) `count` of hardware `type` on a part, an assembly's definition or the project. Refused while exploded, for an unknown type, or a count not whole in 1..HARDWARE_COUNT_MAX. */
   setHardware: (target: HardwareTarget, type: string, count: number | null) => void;
 
@@ -2347,12 +2349,12 @@ export const useStore = create<StoreState>((set, get) => {
       return null;
     },
 
-    dovetailCorners: (ids, slope, count, swap) => {
+    dovetailCorners: (ids, slope, count, swap, joint = 'keep', lap = null) => {
       if (readOnly() || get().gesturing) return null;
       const doc0 = get().doc;
       const world0 = worldParts(doc0);
       if (!ids.every((id) => world0.some((b) => b.id === id))) return null; // a stale id: as the hole actions
-      const plan = dovetailPlan(doc0, ids, { slope, count, swap });
+      const plan = dovetailPlan(doc0, ids, { slope, count, swap, joint, lap });
       if (typeof plan === 'string') return plan;
       edit((doc) => applyDovetails(doc, plan));
       // Inv 24: ends moved and the joint's waste is air; judged on the written document, not on the plan's keys.

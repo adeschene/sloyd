@@ -133,3 +133,57 @@ describe('dovetailLine: final review fixes (2026-10-27)', () => {
       'Through dovetails — 1 tail, 1:8, pins 1/4" at the narrow end, 3/4" deep, at the length max end; this part has the tails, each 5-1/2" wide at the end.');
   });
 });
+
+describe('dovetailLine: half-blind (half-blind spec §5.1, Global Constraints, verbatim)', () => {
+  /** The drawer above, half-blind at all four corners (Auto lap: a third of the 3/4" front, 1/4"). */
+  const halfBlind = (doc: SloydDocument = drawer()): SloydDocument => {
+    const plan = dovetailPlan(doc, ['f', 'b', 'l', 'r'], { slope: 8, count: null, swap: false, joint: 'half-blind' });
+    if (typeof plan === 'string') throw new Error(plan);
+    return applyDovetails(doc, plan);
+  };
+
+  // By hand (inv 23): N = round(6 / 1.5) = 4; Te = (6 − 5 × 1/4) / 4 = 1-3/16"; the side's tails reach the lap plane, so its
+  // depth is tP − lap = 3/4 − 1/4 = 1/2"; the front's pins are the side's thickness deep, 1/2"; the lap 3/4 / 3 = 1/4".
+  it('the side has the tails: the half-blind head, the tails tail', () => {
+    const side = part(halfBlind(), 'l');
+    const d = side.dovetails!.find((x) => x.end === 'max')!;
+    expect(d.lap).toBe(0.25);
+    expect(dovetailLine(side, d, IMPERIAL)).toBe(
+      'Half-blind dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the tails, each 1-3/16" wide at the end.');
+  });
+
+  it('the front has the pins: their narrow ends the lap in from its outside face', () => {
+    const front = part(halfBlind(), 'f');
+    const d = front.dovetails!.find((x) => x.end === 'max')!;
+    expect(dovetailLine(front, d, IMPERIAL)).toBe(
+      'Half-blind dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the pins, their narrow ends 1/4" in from its thickness max face (the lap).');
+  });
+
+  it('a through entry beside it is unchanged: the same fields without `lap` read the through line, byte for byte', () => {
+    const front = part(halfBlind(), 'f');
+    const { lap: _lap, ...through } = front.dovetails!.find((x) => x.end === 'max')!;
+    expect(dovetailLine(front, through, IMPERIAL)).toBe(
+      'Through dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the pins, their narrow ends on its thickness max face.');
+  });
+
+  it('metric (Review Focus 2): an 18 mm front prints a 6 mm lap', () => {
+    // A metric drawer by hand: 150 mm tall, 12 mm sides, 18 mm front and back. Pins 6 mm (a fresh metric corner); the lap
+    // 18 / 3 = 6 mm; the side's depth 18 − 6 = 12 mm; the front's pins its 12 mm deep. N = round(150 / pitch): read off
+    // A = 38 mm: round(150 / 38) = 4 tails (no narrow fault: the tails' narrowest 30 − 2 × 12 / 8 = 27 mm against pins of
+    // 6 + 2 × 12 / 8 = 9 mm); Te = (150 − 5 × 6) / 4 = 30 mm.
+    const mm = (v: number) => v / 25.4;
+    const h = mm(150), tS = mm(12), tFB = mm(18), iw = mm(300), id = mm(400);
+    const fb = (i: string, name: string, z: number) => createBoard({ id: i, name, posture: 'on-edge', rotation: 0, length: iw, width: h, thickness: tFB, position: [tS, 0, z] });
+    const side = (i: string, name: string, x: number) => createBoard({ id: i, name, posture: 'on-edge', rotation: 90, length: id + 2 * tFB, width: h, thickness: tS, position: [x, 0, 0] });
+    const doc = halfBlind({ ...createDocument('Drawer'), units: METRIC, boards: [fb('f', 'Front', 0), fb('b', 'Back', id + tFB), side('l', 'Side left', 0), side('r', 'Side right', iw + tS)] });
+    const front = part(doc, 'f');
+    const d = front.dovetails!.find((x) => x.end === 'max')!;
+    expect(d.lap).toBe(6 / 25.4);
+    expect(d.count).toBe(4);
+    expect(dovetailLine(front, d, METRIC)).toBe(
+      'Half-blind dovetails — 4 tails, 1:8, pins 6 mm at the narrow end, 12 mm deep, at the length max end; this part has the pins, their narrow ends 6 mm in from its thickness max face (the lap).');
+    const s = part(doc, 'l');
+    expect(dovetailLine(s, s.dovetails!.find((x) => x.end === 'max')!, METRIC)).toBe(
+      'Half-blind dovetails — 4 tails, 1:8, pins 6 mm at the narrow end, 12 mm deep, at the length max end; this part has the tails, each 30 mm wide at the end.');
+  });
+});

@@ -40,9 +40,10 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `72228cc` (dovetails, `index-BEpsbfAI.js`, schema 26) is free; the nearest refusing boundary is
   `975e418` (box joints, `index-EQnlonaA.js`, schema 25): it refuses every project saved at 26 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-27):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block, the copy reviews 491 and 512 and
+- **NEXT (2026-10-28):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block, the copy reviews 491 and 512 and
   the bench drawings, fu 511, all closed 2026-10-27): fu 496(1) and the dovetailed corner on real hardware (the paid Refine runs passed 2026-10-27). Owed
-  otherwise: the owed list below.
+  otherwise: the owed list below. **Half-blind dovetails (schema 27): built on branch `half-blind`, not yet merged or deployed** — the
+  browser check (fu 520), the spec's *Amended (build)* block and the copy review (fu 518) await the user (`docs/rounds.md`).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -119,7 +120,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **26** (dovetails; merged `72228cc` and deployed 2026-10-27). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **27** (half-blind dovetails' `lap`; built on branch `half-blind`, not yet merged or deployed; 26, dovetails, deployed 2026-10-27). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -158,7 +159,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | edge banding | `bandModel.ts`, `banding.ts`; AI `bandWorld.ts` (inv 54) |
 | box joints | `boxJoints.ts` (layout, recogniser, planner), `boxJointText.ts`, `resizeEnd.ts`; write-back `treeEdit.ts` `writeBackParts`; Refine/Repair `fingerClaim.ts` (inv 61) |
 | corner joints (shared) | `cornerPlan.ts` (corner finding, run-out, corner region, linked Shapes, `writeCorners`), `cornerText.ts`; keep predicate `leanKeep.ts` `cornerJointed` (inv 61, 62) |
-| dovetails | `dovetails.ts` (faults, view curves, zones, planner), layout `dovetailModel.ts`, `dovetailText.ts`, `dovetailBench.ts`, `cornerPlan.ts` (inv 62) |
+| dovetails | `dovetails.ts` (faults, view curves, zones, planner; half-blind's `dovetailCornerStyle`, `autoLap`), layout `dovetailModel.ts`, `dovetailText.ts`, `dovetailBench.ts`, `cornerPlan.ts` (step 3a's `inset`) (inv 62) |
 | lean | `lean.ts`, `levelEnds.ts`, `leanContacts.ts`, `worldBounds.ts` (inv 57, 59) |
 | round tenons, the joint | `roundTenons.ts`, `tenonJoints.ts`, `tenonText.ts`; tolerances `checkTolerances.ts` (inv 58) |
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
@@ -329,7 +330,7 @@ changes.
     byte-for-byte unchanged. Do not raise `TOUCH` to make joints pass; do not drop the check. **Holes are ignored** by every
     check: a hole never decides support — THE ONE EXCEPTION: a bore a SEATED tenon fills makes a joint (inv 58). **A built tenon's wood, tip included, is
     never a contact** (`stands`, `checkedLevelFaces`). A part with a BUILT dovetail is `realBodied` too; its contacts are the wood behind each
-    baseline plus each tail's or pin's INSCRIBED box at its narrowest span (`dovetailContacts`; angled cheeks never a contact; inv 62). A LEANING part's only contacts are its LEVEL faces (±Y within 1e-9).
+    baseline plus each tail's or pin's INSCRIBED box at its narrowest span, plus a half-blind pin part's LAP-slab box (`dovetailContacts`; angled cheeks never a contact; inv 62). A LEANING part's only contacts are its LEVEL faces (±Y within 1e-9).
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -518,32 +519,39 @@ changes.
     (`setupLines` claims first). Since dovetails the corner planner is `cornerPlan.ts` (box joints one `JointKind` of it, unchanged)
     and every keep/leave-alone site reads `cornerJointed`; the claim sites stay finger-only. Full text: `docs/invariants.md`. Follow-ups 484–496.
 
-62. **A dovetail is a STORED parametric feature of a part's end (schema 26); `dovetails.ts` is the ONE fault decider (`dovetailFaults`),
+62. **A dovetail is a STORED parametric feature of a part's end (schema 26; `lap` 27); `dovetails.ts` is the ONE fault decider (`dovetailFaults`),
     the ONE view-curve source and the ONE planner (the dovetail kind of `cornerPlan.ts`); the ONE layout is `dovetailLayout` in the
     leaf `dovetailModel.ts`** (re-exported from `dovetails.ts`). `Board.dovetails?` `{ id, dim, end, role, count, slope, pin, depth,
-    outside? }` (pins only: the outside face), one per `(dim, end)`, canonical order; SHARED (inv 45), mirrors by FLAG FLIPS (inv 44:
-    `end` along `dim`, `outside` along the thickness, nothing along J — the layout is a PALINDROME); `DOVETAIL_FIELDS` (inv 40).
+    outside?, lap? }` (pins only: the outside face; `lap`: half-blind, on BOTH entries, absent on through — never `0` or `undefined`), one per `(dim, end)`, canonical order; SHARED (inv 45), mirrors by FLAG FLIPS (inv 44:
+    `end` along `dim`, `outside` along the thickness, nothing along J — the layout is a PALINDROME; `lap` flips under nothing); `DOVETAIL_FIELDS` (inv 40, `lap` in it; `dovetailValues` omits an absent `lap`, so through row keys are unchanged).
     **A dovetail-free document is byte for byte as before: no `dovetails` key — never `[]`, never `undefined`.** The layout: half
     pin `p`, `N` tails `Te = (H − (N + 1)·p) / N`, pins `p`, half pin `p`, every bound computed DIRECTLY from J's min, the last tail's
     far edge `H − p`; every reader takes its bounds from it. **One layout per corner, an exact partition** (to 1e-9). Faults in order
-    `count`, `slope` (1:4–1:12), `depth` (past the part, or two depths meeting), `narrow` (narrowest tail < widest pin by > 1e-9;
-    equal passes). **Authoring refuses ANY fault; a later one is KEPT and noted; a faulted dovetail builds NOTHING** (`builtDovetails`).
+    `count`, `slope` (1:4–1:12), `lap` (a pins entry's lap not strictly inside its thickness), `depth` (past the part, or two depths meeting), `narrow` (narrowest tail < widest pin by > 1e-9;
+    equal passes; `X` = tails `depth`, pins `thickness − (lap ?? 0)`). **Authoring refuses ANY fault; a later one is KEPT and noted; a faulted dovetail builds NOTHING** (`builtDovetails`).
     Geometry is inv 48's path: square-span VIEW curves through `geometryBoard`, after the tenons' (bodies convex, mesh watertight,
-    `geometryKey`/UVs read it, never a curve to the user); snap corners only at the outside plane. **Every reader is correct or refuses:**
+    `geometryKey`/UVs read it, never a curve to the user); snap corners only at the outside plane (a half-blind pin's on the LAP PLANE). **Every reader is correct or refuses:**
     a dovetailed part refuses dovetails on featured stock and every other feature's ADD (`<part> has dovetails — remove them first.`),
     and any cut or hole reaching a dovetailed end's ZONE (`depth` back, whole section) on add or edit, EXCEPT a cut running straight
     through along the run (`cutRunsThrough`); the checks read it as `realBodied` with inscribed contact boxes (inv 38; no new kind of
     support). Re-plan keeps the stored count, pin width and tail side (G3); `N` ≤ `DOVETAIL_COUNT_MAX` (100: load drops more, `Te` O(1) in `dovetailTailWidth`); a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (fu 507). Joinery
     leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it (and its assembly) whole, Repair never
     changes it (`cornerJointed`, `changedDovetailed`). The cut list: one line per stored dovetail; the bench drawings on the TAIL
-    part's row only (`dovetailBench.ts` builds every string, inv 19). Full text: `docs/invariants.md`. Follow-ups 497–515.
+    part's row only (`dovetailBench.ts` builds every string, inv 19). **Half-blind** (the pin part keeps a LAP in front of stopped sockets; the
+    tail part runs out to the lap plane): `cornerPlan.ts`' ONE optional hook `JointKind.inset`, **step 3a** (before any end moves) — an inset
+    end's `far` moves `L` back into the other part, its size from that `far`, `depth − L` (box joints have none: unchanged);
+    **`dovetailCornerStyle` is the ONE tails-side and lap decision** (`joint` `keep` | `through` | `half-blind`; under keep the PINS entry's
+    `lap` decides; lap typed (exact), else kept when the pins part is unchanged, else `autoLap` = t/3 to 1/16" or 1 mm, min 1/8" or 3 mm);
+    the `narrow` probe carries the lap; a lap not inside the pin part refuses before any mutation (`A lap must be a length more than 0.` /
+    `<part> is too thin for a <lap> lap.`); the checks add one lap-slab contact box; the cut list says `Half-blind dovetails` and the lap; the
+    bench keys on the lap and draws it on figure B. Full text: `docs/invariants.md`. Follow-ups 497–521.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9713 tests across 271 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9867 tests across 272 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -552,17 +560,17 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–515). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–521). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
-  364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485–490, 492;
-  dovetails 497–503.
+  364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts).
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 518 (half-blind dovetails); by eye — 465 (round tenons), 520 (half-blind's lap band and label, the browser check); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
@@ -572,7 +580,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, on branch `half-blind`): 517 and 519 (ask first); record-only 521.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

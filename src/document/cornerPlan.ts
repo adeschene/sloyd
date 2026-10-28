@@ -89,6 +89,11 @@ export interface CornerCopy<F extends string> {
  *   (`flipsOf`); the kind applies `j`/`thickness` to anything it reads on those axes. Ids are minted here.
  * - `signature`: the kind's part of one end's Shape-local signature, compared EXACTLY between linked users (after the
  *   generic run dimension and Shape-local end, before the depth and the final size).
+ * - `inset` (optional; half-blind dovetails spec §3.1): how far end `side` of corner `c` stops short of the other part's
+ *   outside face, or a refusal sentence. Called for every corner end after step 3's refusals and before step 4 (before ANY
+ *   end moves), so it reads the corner's ORIGINAL parts (`CornerEnd.part`). A number `L > 0` builds that end's `EndOp` with
+ *   `far = e.far − e.side·L` (moved `L` back into the other part), the size from that `far`, and `depth = e.depth − L`;
+ *   absent, or 0, leaves the `EndOp` exactly as without the hook (box joints do not implement it).
  */
 export interface JointKind<P, F extends string = string> {
   copy: CornerCopy<F>;
@@ -97,6 +102,7 @@ export interface JointKind<P, F extends string = string> {
   planCorner(c: Corner, ops: [EndOp, EndOp], doc: SloydDocument, nameOf: (b: Board) => string): P | string;
   addAt(b: Board, op: EndOp, end: CutFrom, plan: P, side: 0 | 1, flips: EndFlips): void;
   signature(plan: P, side: 0 | 1, flips: EndFlips): unknown[];
+  inset?(c: Corner, side: 0 | 1, doc: SloydDocument, nameOf: (b: Board) => string): number | string;
 }
 
 /** The planned corners. `parts` maps every jointed WORLD part (its occurrence id) to its full new world board; another
@@ -238,9 +244,10 @@ function shapeFields(s: Shape): Omit<Shape, 'id'> {
  *    refuses. A leaning candidate refuses with the plain-stock lean sentence. Per candidate: its parts in different
  *    containers, then a different span along `J` (1e-9). Then one end in two corners, then a part jointed at ends of two
  *    different dimensions (no three-way corners).
+ * 3a. Per corner, then per side (0, 1), the kind's `inset` when it has one (a string refuses), before any end moves.
  * 4. Per jointed part, then per end: a feature it may not carry (`kind.featureOf`); then that end's old joint is removed
- *    (`kind.removeAt`), the end moved exactly to the other part's outside face (`resizeEnd`), and the corner region
- *    judged: a cut not running through it, then a hole touching it.
+ *    (`kind.removeAt`), the end moved exactly to the other part's outside face (`resizeEnd`), or to `inset` short of it,
+ *    and the corner region judged: a cut not running through it, then a hole touching it.
  * 5. Per corner, `kind.planCorner` (a string refuses), then `kind.addAt` for each side.
  * 6. Linked parts: every user of a jointed part's Shape must be jointed at the same Shape-local ends (through its own
  *    `mirrored` flag along `mirrorDim`), with the same `kind.signature` (through its flips), depth and new size (the
@@ -298,6 +305,18 @@ export function planCorners<P, F extends string>(
     if (new Set(endsOf.get(b.id)!.map((e) => e.k)).size > 1) return copy.threeWay(nameOf(b));
   }
 
+  // 3a. The kind's insets (half-blind spec §3.1), decided before any end moves; only a non-zero one is kept.
+  const insets = new Map<CornerEnd, number>();
+  if (kind.inset) {
+    for (const c of corners) {
+      for (const side of [0, 1] as const) {
+        const L = kind.inset(c, side, doc, nameOf);
+        if (typeof L === 'string') return L;
+        if (L > 0) insets.set(c.ends[side], L);
+      }
+    }
+  }
+
   // 4. Per part end: plain stock, the old joint removed, the move, the corner region.
   const ops = new Map<CornerEnd, EndOp>();
   const planned = new Map<string, Board>();   // world id -> working clone
@@ -309,8 +328,12 @@ export function planCorners<P, F extends string>(
       const d = axisDimensions(b)[e.k]!;
       const end = endFacing(b, e.k, e.side);
       const [p0, p1] = spanOn(clone, e.k);
-      const size = e.side === 1 ? e.far - p0 : p1 - e.far;
-      const op: EndOp = { k: e.k, side: e.side, d, end, size, depth: e.depth, far: e.far };
+      // An inset end stops `L` short of the other part's outside face: `far` moves `L` back into it (so a moving MIN face
+      // lands exactly there, `moveEnd`), the size is computed from that `far`, and the depth is `L` less.
+      const L = insets.get(e);
+      const far = L === undefined ? e.far : e.far - e.side * L;
+      const size = e.side === 1 ? far - p0 : p1 - far;
+      const op: EndOp = { k: e.k, side: e.side, d, end, size, depth: L === undefined ? e.depth : e.depth - L, far };
       if (!moveEnd(kind, clone, op, end, e.side, true)) return copy.cutInTheWay(nameOf(b));
       if (cutInTheWay(clone, op)) return copy.cutInTheWay(nameOf(b));
       const R = cornerRegion(clone, op);

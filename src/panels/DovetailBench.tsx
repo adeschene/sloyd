@@ -89,7 +89,13 @@ function layout(fig: BenchFigure, mode: Mode, side: number, k: number): Layout {
   const label = (kd: BenchLabelKind) => fig.labels.find((l) => l.kind === kd);
   let y = PAD;
   const outside = label('outside');
-  if (outside) { texts.push({ x: PAD, y: y + LABEL_ASCENT, text: outside.text, anchor: 'start' }); y += ROW + GAP_Y; }
+  if (outside) {
+    texts.push({ x: PAD, y: y + LABEL_ASCENT, text: outside.text, anchor: 'start' });
+    // Half-blind (half-blind spec §5.2): the lap sits against the outside face, so its label shares the outside face's row.
+    const lap = label('lap');
+    if (lap) texts.push({ x: PAD + labelWidth(outside.text) + 3 * GAP_X, y: y + LABEL_ASCENT, text: lap.text, anchor: 'start' });
+    y += ROW + GAP_Y;
+  }
   const chain = (mode === 'full' ? fullChain(fig, side, k) : null) ?? singleChain(fig, side, k);
   const tiers = Math.max(...chain.map((c) => c.tier)) + 1;
   for (const c of chain) texts.push({ x: c.x, y: y + ROW * c.tier + LABEL_ASCENT, text: c.text, anchor: 'middle', span: c.span });
@@ -134,13 +140,19 @@ function Figure({ fig, l, heading }: { fig: BenchFigure; l: Layout; heading: str
       <figcaption className="cutlist-diagram-head">{heading}</figcaption>
       <svg viewBox={`0 0 ${FIG_W} ${l.height}`} fontSize={LABEL_SIZE} role="img" aria-label={heading}>
         {fig.waste.map((w, i) => <polygon key={i} className="cutlist-bench-waste" points={pts(w)} />)}
+        {fig.lap !== undefined && (
+          <polygon className="cutlist-bench-lap" points={pts([[0, 0], [fig.width, 0], [fig.width, fig.lap], [0, fig.lap]])} />
+        )}
         <polygon className="cutlist-diagram-outline" points={pts(fig.outline)} />
         {fig.baseline !== undefined && (
           <line className="cutlist-bench-baseline" x1={X(0)} y1={Y(fig.baseline)} x2={X(fig.width)} y2={Y(fig.baseline)} />
         )}
         <g className="cutlist-diagram-leader">
           <line x1={X(0)} y1={l.chainY} x2={X(fig.width)} y2={l.chainY} />
-          {fig.bounds.map((b, i) => <line key={i} className="cutlist-bench-tick" x1={X(b)} y1={l.chainY - TICK} x2={X(b)} y2={l.y0} />)}
+          {/* A half-blind figure B's ticks reach down through the lap band to the lap plane, where its chain runs. */}
+          {fig.bounds.map((b, i) => (
+            <line key={i} className="cutlist-bench-tick" x1={X(b)} y1={l.chainY - TICK} x2={X(b)} y2={fig.lap === undefined ? l.y0 : Y(fig.lap)} />
+          ))}
           {l.dimY !== undefined && (
             <>
               <line x1={X(0)} y1={l.dimY} x2={X(fig.width)} y2={l.dimY} />

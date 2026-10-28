@@ -470,3 +470,125 @@ describe('the Repair guard (`changedDovetailed`): every clause (final review, 20
     expect(changedDovetailed([...parts(), plain], [...parts(), { ...plain, length: 6 }])).toBeNull();
   });
 });
+
+// ---- Half-blind twins (half-blind spec §7): the same keep and leave-alone rules, on a drawer whose front/back take PINS
+// with a lap. They lean on `cornerJointed` alone; nothing here is half-blind specific code.
+const HALF_BLIND = { slope: 8, count: null, swap: false, joint: 'half-blind' as const, lap: null };
+const hbDrawerBoards = (dx = 0): Board[] => {
+  const fb = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'on-edge', rotation: 0, length: 12, width: 4, thickness: 0.5, position: [dx + 0.5, 0, z] });
+  const side = (id: string, name: string, x: number) => createBoard({ id, name, posture: 'on-edge', rotation: 90, length: 17, width: 4, thickness: 0.5, position: [dx + x, 0, 0] });
+  const doc = { ...createDocument('Drawer'), boards: [fb('df', 'Drawer front', 0), fb('db', 'Drawer back', 16.5), side('dl', 'Drawer left', 0), side('dr', 'Drawer right', 12.5)] };
+  const plan = dovetailPlan(doc, ['df', 'db', 'dl', 'dr'], HALF_BLIND);
+  if (typeof plan === 'string') throw new Error(plan);
+  return applyDovetails(doc, plan).boards as Board[];
+};
+const lapped = (b: Board) => dovetailsOf(b).some((d) => d.lap !== undefined);
+
+describe('half-blind drawer: the keep predicate and Refine', () => {
+  it('the fixture: a lap on the pin parts, every part cornerJointed, no cuts', () => {
+    const bs = hbDrawerBoards();
+    expect(bs.filter(lapped).length).toBeGreaterThan(0);
+    for (const b of bs) { expect(cornerJointed(b), b.name).toBe(true); expect(b.cuts, b.name).toEqual([]); }
+  });
+
+  it('a dovetail-only half-blind project: every part kept exactly, lap included', async () => {
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards: hbDrawerBoards() });
+    const echo = plainEcho(doc);
+    const { client } = fakeClient([{ ...echo, parts: [...echo.parts, bp('Shelf', [30, 0, 0], [20, 0.75, 10])] }]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
+    expect(out.leaning).toMatchObject({ kept: DRAWER });
+  });
+
+  it('a JOINED cabinet plus a half-blind ROOT drawer: the drawer exactly, joints re-applied', async () => {
+    const doc = migrateDocument({ ...joinedCase, boards: [...joinedCase.boards, ...hbDrawerBoards(100)] });
+    const { client } = fakeClient([plainEcho(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    for (const n of DRAWER) expect(out.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
+    expect(out.joints!.notJoined).toBeUndefined();
+  });
+
+  it('(c) the guard is called with the half-blind parts and forced to fire: unjoined with the dovetail sentence', async () => {
+    const doc = migrateDocument({ ...joinedCase, boards: [...joinedCase.boards, ...hbDrawerBoards(100)] });
+    const { client } = fakeClient([plainEcho(doc)]);
+    const guard = vi.mocked(fingerClaim.changedBoxJointed);
+    guard.mockImplementationOnce(() => 'Drawer left');
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(guard).toHaveBeenCalledWith(doc, expect.anything(), DRAWER);
+    expect(out.joints!.notJoined).toBe('Joinery would have changed Drawer left, which Refine keeps as it is for its dovetails, so the design comes back unjoined.');
+  });
+
+  it('the re-join guard names a part whose lap differs', () => {
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards: hbDrawerBoards() });
+    const actual = vi.mocked(fingerClaim.changedBoxJointed);
+    const changed = { ...doc, boards: doc.boards.map((b) => (lapped(b as Board)
+      ? { ...b, dovetails: dovetailsOf(b as Board).map((d): Dovetail => ({ ...d, lap: (d.lap ?? 0.1) + 0.0625 })) } : b)) };
+    expect(actual(doc, changed, DRAWER)).toEqual(expect.any(String));
+  });
+});
+
+describe('half-blind drawer: Repair', () => {
+  it('the Repair guard names a half-blind part whose lap differs, and not an unchanged one', () => {
+    const drawer = hbDrawerBoards();
+    expect(changedDovetailed(structuredClone(drawer), structuredClone(drawer))).toBeNull();
+    const after = structuredClone(drawer).map((b) => (lapped(b)
+      ? { ...b, dovetails: dovetailsOf(b).map((d) => ({ ...d, lap: (d.lap ?? 0.1) + 0.0625 })) } : b));
+    expect(changedDovetailed(drawer, after)).toEqual(expect.any(String));
+  });
+
+  it('a half-blind drawer beside the damage: the repair stands, the drawer exactly as it was', () => {
+    const doc0 = migrateDocument(JSON.parse(f1).damaged);
+    const doc = migrateDocument({ ...doc0, boards: [...doc0.boards, ...hbDrawerBoards(200)] });
+    const r = repairDocument(doc);
+    if (r === null || 'refused' in r) throw new Error(`expected a repair, got ${JSON.stringify(r)}`);
+    for (const n of DRAWER) expect(r.doc.boards.filter((b) => b.name === n), n).toEqual(doc.boards.filter((b) => b.name === n));
+  });
+
+  it('a half-blind drawer with no joints: nothing to repair', () => {
+    expect(repairDocument(migrateDocument({ ...createDocument('Drawer'), boards: hbDrawerBoards() }))).toBeNull();
+  });
+});
+
+describe('joinery leaves a half-blind drawer alone', () => {
+  const LEFT_ALONE = (n: string) => `${n} has dovetails, so joinery leaves its size and place alone`;
+  /** Two brackets on the right side's outside face: one over the dovetailed front end, one well clear of it. */
+  const withBrackets = () => {
+    const bracket = (id: string, name: string, z: number) => createBoard({ id, name, posture: 'flat', rotation: 0, length: 3, width: 2, thickness: 0.5, position: [13, 1, z] });
+    return flatDocument(migrateDocument({ ...createDocument('D'), boards: [...hbDrawerBoards(), bracket('bn', 'Near bracket', 0.25), bracket('bf', 'Far bracket', 8)] }));
+  };
+  it('a pocket reaching a half-blind end is skipped with the dovetail sentence; one clear of it joins; the drawer is untouched', () => {
+    const doc = withBrackets();
+    const sites = findSites(doc);
+    const at = (e: string) => sites.find((s) => doc.boards[s.enter]!.name === e && doc.boards[s.receive]!.name === 'Drawer right')!;
+    const [near, far] = [at('Near bracket'), at('Far bracket')];
+    expect(near).toBeDefined();
+    expect(far).toBeDefined();
+    const c = { joint: 'dado' as const, depth: 0.25 };
+    const choices = sites.map((s) => ({ site: s.id, ...(s === near || s === far ? c : { joint: 'butt' as const }) }));
+    const out = applyJoints(doc, sites, choices);
+    expect(out.skipped).toEqual([{ site: near.id, reason: LEFT_ALONE('Drawer right') }]);
+    expect(out.applied).toContainEqual({ site: far.id, joint: 'dado' });
+    for (const n of ['Drawer front', 'Drawer back', 'Drawer left']) expect(board(out.doc, n), n).toEqual(board(doc, n));
+    expect(dovetailsOf(board(out.doc, 'Drawer right'))).toEqual(dovetailsOf(board(doc, 'Drawer right')));
+    expect(board(out.doc, 'Drawer right').length).toBe(board(doc, 'Drawer right').length);
+  });
+
+  it('the same on the lapped PIN part: a plate over the front\'s dovetailed end is skipped, one clear of it joins', () => {
+    const plate = (id: string, name: string, x: number) => createBoard({ id, name, posture: 'flat', rotation: 90, length: 3, width: 2, thickness: 0.5, position: [x, 1, -3] });
+    const doc = flatDocument(migrateDocument({ ...createDocument('D'), boards: [...hbDrawerBoards(), plate('pn', 'Near plate', 0.25), plate('pf', 'Far plate', 6)] }));
+    expect(lapped(board(doc, 'Drawer front'))).toBe(true);
+    const sites = findSites(doc);
+    const at = (e: string) => sites.find((s) => doc.boards[s.enter]!.name === e && doc.boards[s.receive]!.name === 'Drawer front')!;
+    const [near, far] = [at('Near plate'), at('Far plate')];
+    expect(near).toBeDefined();
+    expect(far).toBeDefined();
+    const out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, ...(s === near || s === far ? { joint: 'dado' as const, depth: 0.125 } : { joint: 'butt' as const }) })));
+    expect(out.skipped).toEqual([{ site: near.id, reason: LEFT_ALONE('Drawer front') }]);
+    expect(out.applied).toContainEqual({ site: far.id, joint: 'dado' });
+    expect(dovetailsOf(board(out.doc, 'Drawer front'))).toEqual(dovetailsOf(board(doc, 'Drawer front')));
+    expect(board(out.doc, 'Drawer front').length).toBe(board(doc, 'Drawer front').length);
+  });
+});

@@ -230,8 +230,17 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * nothing on content. Harm a v25 build would do: it rebuilds each part field by field, drops the dovetails and loads both
  * parts of every corner as full plain stock run out to the outside faces — two boards interpenetrating at every corner —
  * silently, and autosaves it, losing the joint. So a v26 file must be refused by a v25 build.
+ *
+ * v27 (half-blind dovetails spec §8): `lap?: number` on a dovetail, the wood left standing over the sockets on the pin part's
+ * outside face (pins entries only; absent = a through dovetail), document-level, no step. The loader keeps `lap` on either
+ * role when it is finite and > 0 and DROPS the ENTRY, never the part, when it is present and is not (0, negative, NaN, a
+ * string); an absent `lap` adds no key; a well-formed faulted lap (past the part) is KEPT. It refuses nothing on content.
+ * Harm a v26 build would do: it rebuilds each dovetail field by field and drops `lap`, so the half-blind corner loads as a
+ * THROUGH dovetail — the pin part's sockets cut clean out to its outside face, the lap wood gone and the tail part's
+ * end no longer shortened to match, the tails standing proud — silently, and it autosaves it, losing the hidden joint.
+ * So a v27 file must be refused by a v26 build.
  */
-export const CURRENT_VERSION = 26;
+export const CURRENT_VERSION = 27;
 
 export class DocumentError extends Error {
   /**
@@ -562,7 +571,7 @@ function validateTenons(raw: unknown): RoundTenon[] | undefined {
 /**
  * A part's dovetails (dovetails spec §3.4, §8), or undefined (no key: a dovetail-free part keeps its bytes). Dropped, never
  * clamped: not an object, `dim` not length | width, `end` not min | max, `role` not tails | pins, `count` not an integer
- * from 1 to DOVETAIL_COUNT_MAX (100: would freeze the view, as HOLE_COUNT_MAX), a non-finite or non-positive `slope`, `pin` or `depth`, a pins entry without `outside` min | max, and a second one
+ * from 1 to DOVETAIL_COUNT_MAX (100: would freeze the view, as HOLE_COUNT_MAX), a non-finite or non-positive `slope`, `pin` or `depth`, a pins entry without `outside` min | max, a present `lap` that is not finite and > 0 (v27), and a second one
  * for a `(dim, end)` (the first, in RAW order, wins). A tails entry's `outside` is dropped, the entry kept. A FAULTED but
  * well-formed dovetail (a slope of 1:20) is KEPT. Ids are scoped to this board (invariant 33), like a tenon's. Rebuilt
  * field by field, in canonical order (`withDovetails`).
@@ -581,12 +590,14 @@ function validateDovetails(raw: unknown): Dovetail[] | undefined {
     if (typeof d.count !== 'number' || !Number.isInteger(d.count) || d.count < 1 || d.count > DOVETAIL_COUNT_MAX) continue;
     if (!positive(d.slope) || !positive(d.pin) || !positive(d.depth)) continue;
     if (d.role === 'pins' && !side(d.outside)) continue;
+    if (d.lap !== undefined && !positive(d.lap)) continue;
     const key = `${d.dim}|${d.end}`;
     if (ends.has(key)) continue;
     ends.add(key);
     out.push({
       id: takeId(d.id, seen), dim: d.dim, end: d.end, role: d.role, count: d.count, slope: d.slope, pin: d.pin, depth: d.depth,
       ...(d.role === 'pins' ? { outside: d.outside as 'min' | 'max' } : {}),
+      ...(d.lap !== undefined ? { lap: d.lap as number } : {}),
     });
   }
   return out.length ? withDovetails({} as Pick<Board, 'dovetails'>, out).dovetails : undefined;

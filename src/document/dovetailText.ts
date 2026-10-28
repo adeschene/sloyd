@@ -54,21 +54,45 @@ export const dovetailTooNarrow = (a: string, b: string, count: number, slope: nu
   ? `${a} and ${b} are too narrow for even one tail at ${slopeText(slope)} — try a shallower slope or a wider part.`
   : `${a} and ${b} are too narrow for ${count} ${tailWord(count)} at ${slopeText(slope)} — try fewer tails.`);
 
+/** A half-blind corner whose lap (typed, kept or Auto) is not strictly inside the pin part's thickness (half-blind spec §3.2,
+ *  §4): refused before any end moves, naming the pin part. */
+export const dovetailTooThin = (part: string, lap: number, units: Units) => `${part} is too thin for a ${formatLength(lap, units)} lap.`;
+
 /** A planned dovetail that would fault anything but `narrow` (the count handles that): the part is too short along its run
  *  for its dovetails (one deeper than the part, or two meeting). Wording ruled 2026-10-27 (Task 4 fix). */
 export const dovetailTooShort = (part: string) => `${part} is too short for its dovetails.`;
 
-/** One corner's planned numbers, as the success note reads them. */
-export interface DovetailedLayout { count: number; slope: number }
+/** One corner's planned numbers, as the success note reads them: the count, the slope and, on a half-blind corner, the lap
+ *  (absent or null: through). */
+export interface DovetailedLayout { count: number; slope: number; lap?: number | null }
 const layoutWords = (l: DovetailedLayout) => `${l.count} ${tailWord(l.count)}, ${slopeText(l.slope)}`;
+const lapOf = (l: DovetailedLayout) => l.lap ?? null;
 
-/** The success note's dovetailed line(s) (spec §4): one line when every corner shares one layout, else a heading and one
- *  line per corner, `pairs` naming each corner's two parts. */
-export function dovetailedLines(layouts: readonly DovetailedLayout[], pairs: readonly (readonly [string, string])[]): string[] {
+/** The success note's dovetailed line(s) (spec §4; half-blind spec §4): one line when every corner shares one layout (count,
+ *  slope and lap), else a heading and one line per corner, `pairs` naming each corner's two parts. A through layout reads
+ *  as before, byte for byte; a half-blind one names the kind and the lap (`formatLength` with `units`, which a layout with a
+ *  lap requires: there is no default to fall back on). */
+export function dovetailedLines(
+  layouts: readonly DovetailedLayout[], pairs: readonly (readonly [string, string])[], units?: Units,
+): string[] {
+  const lapText = (lap: number) => {
+    if (units === undefined) throw new Error('dovetailedLines: a half-blind layout needs the units');
+    return `${formatLength(lap, units)} lap`;
+  };
   const n = layouts.length;
-  const same = layouts.every((l) => l.count === layouts[0]!.count && l.slope === layouts[0]!.slope);
-  if (same) return [`Dovetailed ${n} ${n === 1 ? 'corner' : 'corners'}: ${layoutWords(layouts[0]!)}.`];
-  return [`Dovetailed ${n} corners:`, ...layouts.map((l, i) => `${pairs[i]![0]} and ${pairs[i]![1]}: ${layoutWords(l)}.`)];
+  const first = layouts[0]!;
+  const same = layouts.every((l) => l.count === first.count && l.slope === first.slope && lapOf(l) === lapOf(first));
+  if (same) {
+    const lap = lapOf(first);
+    const corners = `${n} ${n === 1 ? 'corner' : 'corners'}`;
+    return [lap === null
+      ? `Dovetailed ${corners}: ${layoutWords(first)}.`
+      : `Dovetailed ${corners}, half-blind: ${layoutWords(first)}, ${lapText(lap)}.`];
+  }
+  return [`Dovetailed ${n} corners:`, ...layouts.map((l, i) => {
+    const lap = lapOf(l);
+    return `${pairs[i]![0]} and ${pairs[i]![1]}: ${layoutWords(l)}${lap === null ? '' : `, half-blind, ${lapText(lap)}`}.`;
+  })];
 }
 /** The success note's line naming the parts that took the tails (spec §3.3). */
 export const dovetailTailsOn = (parts: readonly string[]) => `Tails on ${parts.join(', ')}.`;
@@ -97,6 +121,7 @@ const FAULT_REASONS: Record<DovetailFault, string> = {
   count: "the tail count isn't a whole number, 1 or more",
   slope: 'the slope is outside 1:4 to 1:12',
   depth: 'the part is too short for it',
+  lap: "the lap isn't inside the part's thickness",
 };
 export const dovetailFaultText = (f: DovetailFault) => `This dovetail no longer fits: ${FAULT_REASONS[f]}.`;
 
@@ -107,6 +132,14 @@ export const DOVETAIL_SLOPE_PREFIX = '1 :';
 export const DOVETAIL_FIELD_TAILS = 'Tails';
 export const DOVETAIL_TAILS_PLACEHOLDER = 'Auto';
 export const DOVETAIL_SWAP = 'Swap tails and pins';
+export const DOVETAIL_FIELD_JOINT = 'Joint';
+export const DOVETAIL_JOINT_KEEP = 'As they are';
+export const DOVETAIL_JOINT_THROUGH = 'Through';
+export const DOVETAIL_JOINT_HALF_BLIND = 'Half-blind';
+export const DOVETAIL_FIELD_LAP = 'Lap';
+/** A typed lap that is not a length more than 0 (half-blind spec §4): the Lap field's parse error, and the planner's answer
+ *  to a typed lap of 0, below 0 or NaN (a lap at or past the pin part's thickness is `dovetailTooThin`). */
+export const DOVETAIL_LAP_PARSE = 'A lap must be a length more than 0.';
 export const DOVETAIL_BUTTON = 'Dovetail the corners';
 export const DOVETAIL_REMOVE = 'Remove';
 
@@ -116,13 +149,19 @@ export const DOVETAIL_REMOVE = 'Remove';
  * joint line) or the pins part's narrow thickness face. Lengths through `formatLength` with the document's units (inv 52).
  */
 export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, units: Units): string {
-  const head = `Through dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
+  // Half-blind (half-blind spec §5.1, Global Constraints, verbatim; copy review owed): the same numbers under the
+  // `Half-blind` head, and the pins part's clause names the lap. One head, one tails clause for both kinds; an absent `lap`
+  // (through) reads byte for byte as before.
+  const kind = d.lap === undefined ? 'Through' : 'Half-blind';
+  const head = `${kind} dovetails — ${d.count} ${tailWord(d.count)}, ${slopeText(d.slope)}, pins ${formatLength(d.pin, units)} at the narrow end, `
     + `${formatLength(d.depth, units)} deep, at the ${d.dim} ${d.end} end`;
   if (d.role === 'tails') {
     const Te = dovetailTailWidth(b[jointLineOf(d.dim)], d.count, d.pin);
     return `${head}; this part has the tails, each ${formatLength(Te, units)} wide at the end.`;
   }
-  return `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`;
+  return d.lap === undefined
+    ? `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`
+    : `${head}; this part has the pins, their narrow ends ${formatLength(d.lap, units)} in from its thickness ${d.outside} face (the lap).`;
 }
 
 /** The bench drawings' words (spec §5.2, Global Constraints; built in `dovetailBench.ts`, measured there as labels, inv 19).
@@ -134,6 +173,8 @@ export const BENCH_BOTH_ENDS = 'both ends';
 export const benchBaseline = (depth: string) => `baseline ${depth}`;
 /** Figure A's end note for a layout on ONE end (two equal ends read `both ends`): `length max end`. New copy (Task 7). */
 export const benchEnd = (dim: Dovetail['dim'], end: Dovetail['end']) => `${dim} ${end} end`;
+/** Figure B's lap on a half-blind bench (half-blind spec §5.2, Global Constraints): `lap 1/4"`. */
+export const benchLap = (lap: string) => `lap ${lap}`;
 /** The two figures' captions (HTML, not measured). Copy review owed with fu 491's. */
 export const BENCH_TAIL_HEADING = "Dovetails — the tail board's face";
 export const BENCH_PIN_HEADING = "Dovetails — the pin board's end grain";

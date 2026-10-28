@@ -124,4 +124,17 @@ describe('dovetails across a mirrored link (inv 44, 46): written back in the Sha
     const out = mapWorld(doc, (w) => w.map((x) => (x.id === 'b' ? { ...x, dovetails: undefined } : x)));
     expect('dovetails' in out.shapes[0]!).toBe(false);
   });
+
+  it('half-blind (schema 27): linkBoards keeps lap on the Shape; Duplicate keeps lap with fresh ids', () => {
+    const lapPins: Dovetail = { ...pins, lap: 0.25 };
+    setup({ ...createDocument('T'), boards: [side({ dovetails: [lapPins, { ...tails, lap: 0.25 }] }), side({ id: 'b', name: 'Side 2', position: [0, 0, 10] })] });
+    s().duplicateBoards(['a']);
+    const copy = (s().doc.boards as Board[]).find((b) => b.id !== 'a' && b.id !== 'b')!;
+    expect(copy.dovetails!.map((d) => d.lap)).toEqual([0.25, 0.25]);
+    expect(copy.dovetails!.some((d) => d.id === 'd1' || d.id === 'd2')).toBe(false);
+    s().linkBoards(['a', 'b']);
+    const doc = s().doc;
+    expect(doc.shapes[0]!.dovetails!.map((d) => d.lap)).toEqual([0.25, 0.25]);
+    expect(worldParts(doc).filter((u) => u.name === 'Side' || u.name === 'Side 2').map((u) => u.dovetails!.map((d) => d.lap)).slice(0, 2)).toEqual([[0.25, 0.25], [0.25, 0.25]]);
+  });
 });

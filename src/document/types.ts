@@ -314,6 +314,10 @@ export interface Dovetail {
   depth: number;
   /** Pins ONLY: the thickness face the pins are NARROW on (the corner's outside face). Absent on tails. */
   outside?: 'min' | 'max';
+  /** Half-blind only (half-blind dovetails spec §3.3, schema 27), on BOTH entries of the corner, the same value: the pin
+   *  part's lap, inches, > 0 — the solid wood kept in front of its sockets, from its `outside` face. ABSENT on a through
+   *  dovetail (never 0, never undefined). Pins: read by the geometry and the fault (`X = thickness − lap`); tails: a record. */
+  lap?: number;
 }
 
 /**

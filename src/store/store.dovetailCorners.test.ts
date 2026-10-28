@@ -3,7 +3,7 @@ import { useStore } from './store';
 import { createBoard, createDocument, migrateDocument, snapPointsFor, worldParts } from '../document/document';
 import type { Board, Cut, Dovetail, HoleRow, SloydDocument } from '../document/document';
 import { applyDovetails, dovetailPlan } from '../document/dovetails';
-import { dovetailMoveClear, dovetailRemoveFirst, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE } from '../document/dovetailText';
+import { dovetailMoveClear, dovetailRemoveFirst, DOVETAIL_LAP_PARSE, DOVETAIL_NO_CORNER, DOVETAIL_SLOPE_RANGE } from '../document/dovetailText';
 import { boxPlainStock } from '../document/boxJointText';
 import { defaultMiter } from '../document/angleCuts';
 import { archCurve } from '../document/curves';
@@ -104,6 +104,34 @@ describe('dovetailCorners (dovetails spec §4, §6)', () => {
     useStore.setState({ tapeAnchor: gone! });
     expect(s().dovetailCorners(IDS, 8, null, false)).toBeNull();
     expect(s().tapeAnchor).toBeNull();
+  });
+});
+
+describe('dovetailCorners, half-blind (half-blind spec §4)', () => {
+  beforeEach(() => setup(drawer()));
+  const snap = () => JSON.stringify(worldParts(s().doc).map((b) => ({ id: b.id, position: b.position, length: b.length, width: b.width, thickness: b.thickness, dovetails: b.dovetails })));
+
+  it('is ONE undo entry; Undo restores every part exactly, Redo re-applies it', () => {
+    const before = snap();
+    expect(s().dovetailCorners(IDS, 8, null, false, 'half-blind', 0.25)).toBeNull();
+    expect(s().past.length).toBe(1);
+    expect(part('f').dovetails!.every((d) => d.lap === 0.25)).toBe(true);
+    const after = snap();
+    expect(after).not.toBe(before);
+    s().undo();
+    expect(snap()).toBe(before);
+    expect(JSON.stringify(worldParts(s().doc).map((b) => b.dovetails))).toBe(JSON.stringify(worldParts(drawer()).map((b) => b.dovetails)));
+    s().redo();
+    expect(snap()).toBe(after);
+  });
+
+  it('refuses a lap that is not more than 0 with the parse sentence, and while exploded', () => {
+    expectRefused(() => s().dovetailCorners(IDS, 8, null, false, 'half-blind', 0), DOVETAIL_LAP_PARSE);
+    s().setExplode(1);
+    const before = s().doc;
+    expect(s().dovetailCorners(IDS, 8, null, false, 'half-blind', 0.25)).toBeNull();
+    expect(s().doc).toBe(before);
+    s().setExplode(0);
   });
 });
 

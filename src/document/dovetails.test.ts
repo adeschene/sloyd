@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createBoard } from './document';
+import { createBoard, createDocument, flatDocument } from './document';
+import { buildCutList } from './cutlist';
 import type { Board, Dimension, Dovetail } from './types';
 import { IMPERIAL, type Units } from '../units/length';
 import { chiralPart } from './turnFixtures';
 import {
-  DOVETAIL_FIELDS, copyDovetail, dovetailAt, dovetailsOf, dovetailTailWidth, hasDovetails, sameDovetail, withDovetails,
+  DOVETAIL_FIELDS, copyDovetail, dovetailAt, dovetailsOf, dovetailTailWidth, dovetailValues, hasDovetails, sameDovetail, withDovetails,
 } from './dovetailModel';
 import {
   autoTailCount, builtDovetails, dovetailFaults, dovetailLayout, lowerDovetails, mirrorDovetails, pinWidth,
@@ -121,7 +122,7 @@ describe('dovetails: dovetailFaults (spec §3.2, the ONE decider)', () => {
 
 describe('dovetails: the stored model (spec §3.4)', () => {
   it('DOVETAIL_FIELDS is every field but id', () => {
-    expect(Object.keys(DOVETAIL_FIELDS).sort()).toEqual(['count', 'depth', 'dim', 'end', 'outside', 'pin', 'role', 'slope']);
+    expect(Object.keys(DOVETAIL_FIELDS).sort()).toEqual(['count', 'depth', 'dim', 'end', 'lap', 'outside', 'pin', 'role', 'slope']);
   });
   it('sameDovetail is exact on every field, ids ignored; outside present vs absent differs', () => {
     expect(sameDovetail(tails(), tails({ id: 'x' }))).toBe(true);
@@ -226,5 +227,61 @@ describe('dovetails: the tail count is bounded (final review, 2026-10-27)', () =
     const t0 = performance.now();
     expect(dovetailFaults(side(), tails({ count: 1e9 }))).toEqual(['narrow']);
     expect(performance.now() - t0).toBeLessThan(50);
+  });
+});
+
+describe('half-blind: the lap fault and the angled extent (half-blind spec §3.2)', () => {
+  it('a pins entry\'s lap must be strictly inside its thickness (1e-9): 0, 1e-9 and t fault `lap`; 1/4 does not', () => {
+    expect(dovetailFaults(side(), pins({ lap: 0 }))[0]).toBe('lap');
+    expect(dovetailFaults(side(), pins({ lap: 1e-9 }))).toContain('lap');
+    expect(dovetailFaults(side(), pins({ lap: 0.75 }))).toContain('lap');
+    expect(dovetailFaults(side(), pins({ lap: 0.75 - 1e-9 }))).toContain('lap');
+    expect(dovetailFaults(side(), pins({ lap: 0.25 }))).toEqual([]);
+    // Just inside each bound.
+    expect(dovetailFaults(side(), pins({ lap: 2e-9 }))).toEqual([]);
+    expect(dovetailFaults(side(), pins({ lap: 0.75 - 2e-9 }))).toEqual([]);
+    expect(dovetailFaults(side(), pins({ lap: NaN }))).toContain('lap');
+  });
+  it('a tails entry\'s lap is a record only: it never faults', () => {
+    expect(dovetailFaults(side(), tails({ lap: 5 }))).toEqual([]);
+    expect(dovetailFaults(side(), tails({ lap: 0 }))).toEqual([]);
+  });
+  it('`narrow` is judged on t − lap: H 2, 2 tails, 1:4, pins 1/4 on a 3/4 part faults as through and passes with a 1/2 lap', () => {
+    const b = side({ width: 2 });
+    // Te = (2 − 3/4)/2 = 5/8. Through, X = 3/4: 5/8 − 3/8 = 1/4 < 1/4 + 3/8. Lap 1/2, X = 1/4: 5/8 − 1/8 = 1/2 >= 1/4 + 1/8.
+    expect(dovetailTailWidth(2, 2, 0.25)).toBe(0.625);
+    expect(dovetailFaults(b, pins({ count: 2, slope: 4 }))).toEqual(['narrow']);
+    expect(dovetailFaults(b, pins({ count: 2, slope: 4, lap: 0.5 }))).toEqual([]);
+  });
+  it('the order is count, slope, lap, depth, narrow', () => {
+    expect(dovetailFaults(side({ length: 1, width: 2 }), pins({ count: 2, slope: 2, depth: 1, lap: 0 }))).toEqual(['slope', 'lap', 'depth', 'narrow']);
+    expect(dovetailFaults(side({ length: 1, width: 2 }), pins({ count: 0, depth: 1, lap: 0.75 }))).toEqual(['count', 'lap', 'depth']);
+  });
+});
+
+describe('half-blind: the stored model (half-blind spec §3.3)', () => {
+  it('a through entry\'s values are byte for byte the strings they were (captured before lap existed)', () => {
+    expect(dovetailValues({ dim: 'length', end: 'max', role: 'tails', count: 4, slope: 8, pin: 0.25, depth: 0.75 }))
+      .toBe('length|max|tails|4|8|0.25|0.75|undefined');
+    expect(dovetailValues({ dim: 'width', end: 'min', role: 'pins', count: 3, slope: 6, pin: 6 / 25.4, depth: 0.5, outside: 'max' }))
+      .toBe('width|min|pins|3|6|0.2362204724409449|0.5|max');
+  });
+  it('a through cut-list row key is byte for byte what it was', () => {
+    const b = createBoard({ id: 's', name: 'Side', length: 20, width: 6, thickness: 0.75, dovetails: [
+      { id: 'a', dim: 'length', end: 'min', role: 'pins', count: 4, slope: 8, pin: 0.25, depth: 0.5, outside: 'min' },
+      { id: 'b', dim: 'length', end: 'max', role: 'tails', count: 4, slope: 8, pin: 0.25, depth: 0.75 }] });
+    const rows = buildCutList(flatDocument({ ...createDocument('X'), boards: [b] })).groups.flatMap((g) => g.rows);
+    expect(rows.map((r) => r.key)).toEqual(['pine|3/4"|20"|6"|length|||||dovetails:length:max:tails:4:8:0.25:0.75:undefined;length:min:pins:4:8:0.25:0.5:min']);
+  });
+  it('a present lap appends `|lap=<value>`; a lap tells two entries apart, and two laps differ', () => {
+    expect(dovetailValues(tails({ lap: 0.25 }))).toBe('length|max|tails|4|8|0.25|0.75|undefined|lap=0.25');
+    expect(dovetailValues(pins({ lap: -0 }))).toBe('length|min|pins|4|8|0.25|0.75|min|lap=-0');
+    expect(sameDovetail(pins(), pins({ lap: 0.25 }))).toBe(false);
+    expect(sameDovetail(pins({ lap: 0.25 }), pins({ lap: 3 / 16 }))).toBe(false);
+    expect(sameDovetail(pins({ lap: 0.25 }), pins({ id: 'z', lap: 0.25 }))).toBe(true);
+  });
+  it('mirrors leave the lap alone (it flips under nothing)', () => {
+    const d = pins({ lap: 0.25 });
+    for (const m of ['length', 'width', 'thickness'] as Dimension[]) expect(mirrorDovetails([d], m)[0]!.lap).toBe(0.25);
   });
 });

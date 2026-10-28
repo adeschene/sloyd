@@ -1,7 +1,7 @@
 import type { Board, Dovetail } from './types';
 import { builtDovetails } from './dovetails';
 import { dovetailLayout, jointLineOf } from './dovetailModel';
-import { BENCH_BOTH_ENDS, BENCH_INSIDE_FACE, BENCH_OUTSIDE_FACE, benchBaseline, benchEnd, slopeText } from './dovetailText';
+import { BENCH_BOTH_ENDS, BENCH_INSIDE_FACE, BENCH_OUTSIDE_FACE, benchBaseline, benchEnd, benchLap, slopeText } from './dovetailText';
 import { formatLengthBare, type Units } from '../units/length';
 
 /**
@@ -20,7 +20,7 @@ import { formatLengthBare, type Units } from '../units/length';
  */
 
 /** What a label says about the drawing, so the component knows where it goes (an addition to the brief's interface). */
-export type BenchLabelKind = 'baseline' | 'overall' | 'slope' | 'ends' | 'outside' | 'inside';
+export type BenchLabelKind = 'baseline' | 'overall' | 'slope' | 'ends' | 'outside' | 'inside' | 'lap';
 
 export interface BenchFigure {
   /** The drawn region, inches: `H` along J, and the depth shown. */
@@ -37,14 +37,19 @@ export interface BenchFigure {
   bounds: number[];
   /** Figure A only: the dashed baseline's depth from the end face. */
   baseline?: number;
+  /** Figure B of a HALF-BLIND bench only (half-blind spec §5.2): the lap, the band `[0, lap]` from the outside face that
+   *  the sockets stop at. Absent — never `undefined` — on figure A and on a through figure B. */
+  lap?: number;
 }
 
 export interface DovetailBench { key: string; ends: 'one' | 'both'; tail: BenchFigure; pin: BenchFigure }
 
 /** A tails dovetail's layout identity on its part: everything that shapes the drawing, exact (inv 18), ids ignored. `dim`
- *  is in it (it decides H), `end` is not (two equal ends are one drawing). */
+ *  is in it (it decides H), `end` is not (two equal ends are one drawing). A half-blind end's `lap` is in it (half-blind
+ *  spec §5.2's builder check: else a through and a half-blind end of one depth would merge into one `both ends` bench); a
+ *  through end adds nothing. */
 const layoutKey = (b: Board, d: Dovetail) =>
-  [d.dim, b[jointLineOf(d.dim)], d.count, d.slope, d.pin, d.depth].map(String).join('|');
+  [d.dim, b[jointLineOf(d.dim)], d.count, d.slope, d.pin, d.depth, ...(d.lap === undefined ? [] : [`lap=${d.lap}`])].map(String).join('|');
 
 function figures(b: Board, d: Dovetail, ends: 'one' | 'both', units: Units): Pick<DovetailBench, 'tail' | 'pin'> {
   const f = (n: number) => formatLengthBare(n, units);
@@ -65,11 +70,16 @@ function figures(b: Board, d: Dovetail, ends: 'one' | 'both', units: Units): Pic
     const R = bounds[2 * i + 1]!;
     return [[L, 0], [R, 0], [i === N ? H : R + run, X], [i === 0 ? 0 : L - run, X]];
   });
-  // B: the tail sockets (N), full `Te` at the outside face, narrowing by `run` each side at the inside face.
+  // B: the tail sockets (N), full `Te` at the outside face, narrowing by `run` each side at the inside face. Half-blind
+  // (half-blind spec §5.2): the pin board is `tP = depth + lap` thick, the band `[0, lap]` stays, and the sockets run from
+  // the lap plane (full `Te`, where the tails' ends land) to the inside face, narrowing by `(tP − lap) / s` = `run`.
+  const lap = d.lap;
+  const y0 = lap ?? 0;
+  const tP = X + y0;
   const pinWaste = Array.from({ length: N }, (_, k): [number, number][] => {
     const L = bounds[2 * k + 1]!;
     const R = bounds[2 * k + 2]!;
-    return [[L, 0], [R, 0], [R - run, X], [L + run, X]];
+    return [[L, y0], [R, y0], [R - run, tP], [L + run, tP]];
   });
 
   const tail: BenchFigure = {
@@ -81,15 +91,18 @@ function figures(b: Board, d: Dovetail, ends: 'one' | 'both', units: Units): Pic
       { kind: 'ends', at: [0, 2 * X], text: ends === 'both' ? BENCH_BOTH_ENDS : benchEnd(d.dim, d.end) },
     ],
   };
+  // The chain runs along the outside face, or a half-blind board's lap plane (where the pins' narrow ends are).
   const pin: BenchFigure = {
-    width: H, height: X, outline: box(X), waste: pinWaste, chain: chain.map((c) => ({ ...c, at: [...c.at] })), bounds,
+    width: H, height: tP, outline: box(tP), waste: pinWaste, chain: chain.map((c) => ({ ...c, at: [c.at[0], y0] })), bounds,
     labels: [
       { kind: 'outside', at: [0, 0], text: BENCH_OUTSIDE_FACE },
-      { kind: 'inside', at: [0, X], text: BENCH_INSIDE_FACE },
+      { kind: 'inside', at: [0, tP], text: BENCH_INSIDE_FACE },
       // Fix round 1 (the controller's ruling): the overall H on figure B too, drawn when the chain is labelled once per value
       // (the component's single-value mode), so the chain's sum can be checked on either figure.
-      { kind: 'overall', at: [H / 2, X], text: f(H) },
+      { kind: 'overall', at: [H / 2, tP], text: f(H) },
+      ...(lap === undefined ? [] : [{ kind: 'lap' as const, at: [0, lap] as [number, number], text: benchLap(f(lap)) }]),
     ],
+    ...(lap === undefined ? {} : { lap }),
   };
   return { tail, pin };
 }

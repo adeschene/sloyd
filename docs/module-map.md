@@ -21,13 +21,14 @@ src/
 ├── document/
 │   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
 │   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`);
-│   │                     Dovetail (`Board.dovetails?`, schema 26, inv 62)
+│   │                     Dovetail (`Board.dovetails?`, schema 26, inv 62; `lap?` after `outside`, schema 27, half-blind only, on both entries)
 │   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
 │   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes; the curve validator holds an arc within 4 ulps
 │   │                     of its coordinates past the half-circle bound TO the bound (fu 416), drops one further past;
 │   │                     schema 21 keeps `mirrored` on a SHAPED part only when literally true (mirrorFreeIdentity.test.ts pins a
-│   │                     flag-free document byte for byte); CURRENT_VERSION 26 and validateDovetails (dovetails, inv 62: a malformed entry
-│   │                     dropped, the part kept; a faulted one kept; ids per board; document.v26.test.ts)
+│   │                     flag-free document byte for byte); CURRENT_VERSION 27 and validateDovetails (dovetails, inv 62: a malformed entry
+│   │                     dropped, the part kept; a faulted one kept; ids per board; document.v26.test.ts; v27: a present `lap` not
+│   │                     finite and > 0 drops the entry, a valid one copied on either role, no key when absent; document.v27.test.ts)
 │   ├── ids.ts            nextId, the one id minter
 │   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
 │   │                     the derived-PROJECT name ("— refined 2", fu 237)
@@ -105,7 +106,11 @@ src/
 │   ├── cornerPlan.ts     THE corner planner (dovetails chunk 2, factored out of boxJoints.ts unchanged; invs 61, 62), pure, a TYPE-only `Units`
 │   │                     (no → units edge: every sentence comes through the kind's CornerCopy): CornerEnd / Corner / EndOp, EndFlips
 │   │                     (`dim`, `j`, `thickness`; flipsOf — `thickness` unreachable, no posture's mirrorDim is the thickness), CornerCopy,
-│   │                     JointKind (featureOf, removeAt, planCorner, addAt, signature), RUN_RANK (Z, X, Y: who takes the leading role),
+│   │                     JointKind (featureOf, removeAt, planCorner, addAt, signature, and the ONE optional hook `inset` — half-blind:
+│   │                     how far an end stops short of the other part's outside face; box joints do not implement it), RUN_RANK (Z, X,
+│   │                     Y: who takes the leading role), planCorners' STEP 3a (every corner's insets, side 0 then 1, before any end moves;
+│   │                     a string refuses) and step 4's inset EndOp (`far` moved `L` back into the other part, the size from that `far`,
+│   │                     `depth − L`; an end with no inset takes the original expressions),
 │   │                     corner finding (touching ends AND overlapping J spans), the exact run-out (resizeEnd), the corner region,
 │   │                     cutRunsThrough (THE "runs straight through the corner" predicate, also read by dovetails' zone check), linked-Shape
 │   │                     planning (Shape-local signatures, sizes at 1e-9), planCorners and writeCorners (writeBackParts, keepWorld, the link
@@ -114,30 +119,46 @@ src/
 │   │                     cornerIgnored, cornerHeights, cornerTwoCorners, cornerContainers, cornerLinkedMate, cornerLengthLine
 │   ├── dovetailModel.ts  the stored dovetail's model, a LEAF (types only; so dovetails.ts, boxJoints.ts and dovetailText.ts read it with no
 │   │                     cycle): DOVETAIL_FIELDS (inv 40) / dovetailValues / sameDovetail / copyDovetail, byDovetailEnd (canonical order),
-│   │                     dovetailsOf, hasDovetails, dovetailAt, withDovetails (an empty list REMOVES the key), and THE layout:
+│   │                     dovetailsOf, hasDovetails, dovetailAt, withDovetails (an empty list REMOVES the key; `lap` in DOVETAIL_FIELDS,
+│   │                     and dovetailValues OMITS an absent lap — a present one appends `|lap=<v>` — so through keys are unchanged), and THE layout:
 │   │                     dovetailLayout (bounds computed directly, the last tail's far edge `H − p`) and jointLineOf (re-exported from
 │   │                     dovetails.ts, the layout's documented home)
-│   ├── dovetails.ts      THE dovetail (schema 26, inv 62), numbers only (a TYPE-only `Units`): pinWidth (1/4", 6 mm), autoTailCount (1.5",
-│   │                     38 mm), dovetailFaults (THE fault decider: count, slope, depth — two depths meeting folded in —, narrow at 1e-9),
+│   ├── dovetails.ts      THE dovetail (schema 26, inv 62; half-blind's lap, 27), numbers only (a TYPE-only `Units`): pinWidth (1/4", 6 mm), autoTailCount (1.5",
+│   │                     38 mm), autoLap (half-blind: t/3 to 1/16" or 1 mm, at least 1/8" or 3 mm; branches on `units.display`),
+│   │                     dovetailFaults (THE fault decider: count, slope, lap — a PINS entry's lap not strictly inside its thickness —,
+│   │                     depth — two depths meeting folded in —, narrow at 1e-9, the pins' X = thickness − (lap ?? 0)),
 │   │                     builtDovetails (THE "which build" list, memoised per board object, frozen), mirrorDovetails / lowerDovetails (inv
 │   │                     44: flag flips), dovetailViewCurves (the waste as square-span view curves, ids `dovetail/<id>/<k>`; appended by
-│   │                     profiles.ts' geometryBoard), dovetailCorners (snap corners at the outside plane), dovetailZones / dovetailZoneRefusal
+│   │                     profiles.ts' geometryBoard; a half-blind pins outline runs from the LAP PLANE to the inside face), dovetailCorners (snap corners at
+│   │                     the outside plane; a half-blind pin's on the lap plane), dovetailZones / dovetailZoneRefusal
 │   │                     / dovetailCutRefusal (spec §3.6: a cut or hole reaching a dovetailed end; a through groove exempt by
 │   │                     cutRunsThrough), and the dovetail KIND of cornerPlan.ts: dovetailPlan (every refusal in order; Auto, re-plan G3,
-│   │                     Swap) and applyDovetails (writeCorners); dovetails.test.ts, dovetailGeometry.test.ts, dovetailPlan.test.ts
+│   │                     Swap; DovetailOptions `joint` 'keep' | 'through' | 'half-blind' and `lap`, both optional; `corners[].lap`) and
+│   │                     applyDovetails (writeCorners); dovetailCornerStyle (exported, THE tails-side and lap decision — the re-plan's
+│   │                     current tails part else RUN_RANK, then Swap; the kind by `joint`, under keep the PINS entry's lap; the lap typed,
+│   │                     else kept when the pins part is unchanged, else autoLap; a lap outside the pin part refuses — read by the kind's
+│   │                     `inset` and by planCorner, so both see one answer; planCorner's narrow probe carries the lap, addAt spreads it on
+│   │                     both entries only when non-null, the signature appends it); dovetails.test.ts, dovetailGeometry.test.ts, dovetailPlan.test.ts
 │   ├── dovetailText.ts   THE dovetail words (→ units: it produces strings), verbatim: the planner's refusals, the success lines
 │   │                     (dovetailedLines, dovetailTailsOn), dovetailRemoveFirst / dovetailMoveClear (spec §3.6), the joinery reason
 │   │                     (dovetailedLeftAlone), Refine's (DOVETAIL_KEPT_WHY, dovetailJoinChanged, dovetailedAssemblyLinked,
 │   │                     mixedAssemblyLinked), dovetailFaultText, the panel's words, dovetailLine (THE cut-list line; `Te` from the ONE
-│   │                     layout), slopeText, the bench drawings' words (BENCH_*, benchBaseline, benchEnd); re-exports cornerText.ts' shared
+│   │                     layout; ONE template for both kinds: `Half-blind` head and the pins clause's lap when `lap` is present), slopeText,
+│   │                     the bench drawings' words (BENCH_*, benchBaseline, benchEnd, benchLap); half-blind: dovetailTooThin, DOVETAIL_LAP_PARSE
+│   │                     (the Lap field's parse error and the planner's answer to a lap ≤ 0), the Joint select's and Lap field's words,
+│   │                     FAULT_REASONS.lap, dovetailedLines' half-blind forms (`units`/`lap` optional; a lap without units throws); re-exports cornerText.ts' shared
 │   │                     sentences; reads the layout from the leaf dovetailModel.ts, never dovetails.ts (whose copy table imports this)
 │   ├── dovetailBench.ts  the bench drawings' model (spec §5.2, inv 19; → units: formatLengthBare, bare mm in metric): dovetailBenches (one
 │   │                     pair per distinct FAULT-FREE tails layout, two equal ends one pair `both ends`), BenchFigure (outline, waste
 │   │                     polygons, the chain `p, Te, p, …` at each span's middle, labels by BenchLabelKind, the layout's bounds, figure A's
-│   │                     baseline); every string assembled here, never in the component
+│   │                     baseline; half-blind: figure B's `lap`, its height `depth + lap`, sockets from the lap plane, the chain at the lap
+│   │                     plane, a `lap <x>` label kind; layoutKey appends the lap only when present); every string assembled here, never in
+│   │                     the component
 │   ├── dovetailFixtures.ts TEST-ONLY (never import it from a module): expectPartition, the world partition of a dovetailed corner (the
 │   │                     two parts' kept pieces fill the corner square exactly, no shared volume, to 1e-9), read off the INPUT fixture's
-│   │                     outside faces (inv 23); used by dovetailPlan.test.ts
+│   │                     outside faces (inv 23); used by dovetailPlan.test.ts; half-blind: halfBlindCorner (a through corner with the tail
+│   │                     part shortened by the lap, its numbers asserted off the INPUT parts) and expectLapSlab (the slab is the pin part's
+│   │                     wood alone); expectPartition finds the tails entry by `depth === thickness − (lap ?? 0)`
 │   ├── resizeEnd.ts      resizeEnd (joinery's resize core, moved from generate/joints/recipes.ts, `onResize` where the Tap was) and the
 │   │                     rebase helpers (refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles); recipes.ts still re-exports
 │   │                     the four for the unedited tests (fu 495)
@@ -430,7 +451,8 @@ src/
 │   │                     hole centres ('face-center', entry
 │   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception); b2: each swept stop offers its
 │   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`); a BUILT dovetail offers its
-│   │                     outside-plane corners as `'corner'`s (dovetailCorners, deduped against the lattice; the sockets are air to stockProbe)
+│   │                     outside-plane corners as `'corner'`s (dovetailCorners, deduped against the lattice; the sockets are air to stockProbe; a
+│   │                     half-blind pin's corners on its LAP PLANE, nothing on its unbroken outside face)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
 │   ├── generated.ts      DESIGN_SCHEMA (part + direction + vec3 in `$defs`; the four angle kinds in ONE `angles` item: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
 │   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE re-exported from geometry.ts); convertPart's keptFrame (THE frame decision,
@@ -477,7 +499,8 @@ src/
 │   │                     faces cut at its shoulders), TENON_HINT (the overlap's mismatch hint);
 │   │                     leanFreeChecks.test.ts pins lean-free results byte for byte; dovetails (§5.3, inv 62): realBodied also for a built
 │   │                     dovetail, contactRegions' last step dovetailContacts (the wood behind each baseline plus each tail's or pin's
-│   │                     INSCRIBED box at its narrowest span); designCheck.dovetails.test.ts (the drawer and the carcass top)
+│   │                     INSCRIBED box at its narrowest span; half-blind: one LAP-slab box per built pins dovetail with a lap); designCheck.dovetails.test.ts
+│   │                     (the drawer and the carcass top; the half-blind drawer and carcass)
 │   ├── featureKeys.ts    THE feature keys (feature callouts spec §3): partFeatures (identity, owned segment tags, key line —
 │   │                     a short bench line, no positions; hole sizes through holeSizeText/holePitchText, the bench line's own home; the
 │   │                     four-corner collapse through curveLineEntries —, fault suffix, true axis/normal), featureTag, FAULT_SUFFIX; b2: every stopped
@@ -535,7 +558,7 @@ src/
 │   │                     `position`, `tenons` and throws on any other key, so a fitted rung pushes no entry); store.stretchers.test.ts;
 │   │                     copyBoard re-mints tenon ids; box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
 │                     document; store.boxJoints.test.ts); dovetails (inv 62): dovetailCorners (as boxJointCorners: dovetailPlan, ONE
-│                     edit(applyDovetails), judgeHeld), removeDovetail (that end only, through mapWorld; the last leaves no key), copyBoard
+│                     edit(applyDovetails), judgeHeld; `joint = 'keep'`, `lap = null` positional after swap, half-blind), removeDovetail (that end only, through mapWorld; the last leaves no key), copyBoard
 │                     re-mints dovetail ids; spec §3.6's refusals before edit(): addAngleCuts / addCurves / addProfiles / addTenon / setBands
 │                     (adding) / setLean (a lean) on a dovetailed part (dovetailRemoveFirst), addCut / updateCut (cutZoneRefusal over
 │                     dovetailCutRefusal), addHoleRows / updateHoleRow / addStretcher / boreLegSockets (holesZoneRefusal, holeTouchesBox;
@@ -649,14 +672,18 @@ src/
 │                     Finger width, Swap fingers, `Box joint the corners`, the notes held in section state); PartDiagram's fingerNotes;
 │                     Dovetails (dovetails §4, inv 62): DovetailsSection (in the multi-selection panel for two or more parts, after Box joints,
 │                     inside its EditLock: Slope — a DimensionField with the `1 :` prefix, a plain decimal parse, its range the planner's
-│                     refusal —, Tails — TailsField, blank is Auto, inv 5's draft rules —, Swap tails and pins, `Dovetail the corners`
-│                     disabled only while a field fails to parse; the store's refusal as the alert, the planner's notes held in section
+│                     refusal —, Tails — TailsField, blank is Auto, inv 5's draft rules —, Swap tails and pins, the Joint select (`As
+│                     they are` / `Through` / `Half-blind`, default keep) and LapField (half-blind: blank is Auto, a length in the
+│                     document's units, more than 0, disabled for Through), `Dovetail the corners`
+│                     disabled only while a field fails to parse (the Lap field only unless Through); the store's refusal as the alert, the planner's notes held in section
 │                     state) and DovetailsPart (the single-part section after Round tenons, only on a dovetailed part: each dovetail's
 │                     cut-list line, a note per fault, Remove); DovetailBench (the bench pair on the cut list sheet, spec §5.2: figure A the
 │                     tail board's face, figure B the pin board's end grain, side by side, each FIG_SHARE of the row with a viewBox FIG_W
 │                     wide, so a label renders at PartDiagram's size; one scale; the FULL chain only when every label sits on its own span,
 │                     on one row or two tiers, else SINGLE-VALUE mode — each distinct value once at its first span, ticks at every bound,
-│                     the overall H on both figures; measured with labelWidth/packRow, never re-derived; the pair never wraps);
+│                     the overall H on both figures; measured with labelWidth/packRow, never re-derived; the pair never wraps; a
+│                     half-blind figure B draws a `.cutlist-bench-lap` band over [0, lap], its ticks run to the lap plane and its `lap`
+│                     label sits on the outside face's row);
 │                     CutList renders a row's `benches` after its diagrams, under the same condition (a row without them renders as
 │                     before); PartDiagram exports VIEW_W (the bench sizes its figures from it); DimensionField's optional `prefix`
 │                     (text before the input, `.input-prefixed`; absent, the markup is exactly as before); the void store actions'
@@ -690,7 +717,8 @@ src/
 │                     (`runsStraightNote(fallbackCause(…))`); an edit refused when it ADDS a fault to ANY profile on the part, the row's own
 │                     in `PROFILE_REFUSAL` words, another's through `curveEditRefusal`)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1); `.input-prefixed` (a prefixed field) and `.cutlist-bench*`
-│                     (the dovetail bench pair: no font-size on its text, inv 19; blackened and kept together in print)
+│                     (the dovetail bench pair: no font-size on its text, inv 19; blackened and kept together in print;
+│                     `.cutlist-bench-lap`, half-blind's lap band: currentColor at fill-opacity 0.06, a 1.5 stroke — its look is fu 520)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal; `FEATURE_CHECK_FAILED` (the joinery
                       dialog REFUSED when checking features against joints throws, fu 244, P8)

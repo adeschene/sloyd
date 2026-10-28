@@ -12,18 +12,21 @@ import type { Board, Dovetail } from './types';
  * (invariant 40's pattern): a new `Dovetail` field fails `tsc` here until it is listed.
  */
 export const DOVETAIL_FIELDS = {
-  dim: true, end: true, role: true, count: true, slope: true, pin: true, depth: true, outside: true,
+  dim: true, end: true, role: true, count: true, slope: true, pin: true, depth: true, outside: true, lap: true,
 } as const satisfies Record<Exclude<keyof Dovetail, 'id'>, true>;
 
-const DOVETAIL_KEYS = Object.keys(DOVETAIL_FIELDS) as (keyof typeof DOVETAIL_FIELDS)[];
+/** Every field but `lap`, which `dovetailValues` writes only when present (half-blind spec §3.3, the builder check). */
+const DOVETAIL_KEYS = (Object.keys(DOVETAIL_FIELDS) as (keyof typeof DOVETAIL_FIELDS)[]).filter((k) => k !== 'lap');
+
+const valueText = (v: unknown): string => (typeof v === 'number' && Object.is(v, -0) ? '-0' : String(v));
 
 /** One dovetail's comparable values as a string, exact: `String()` round-trips a double, `-0` is told apart from 0, and
- *  an absent `outside` (tails) reads `undefined`, never equal to a present one. */
+ *  an absent `outside` (tails) reads `undefined`, never equal to a present one. An absent `lap` (a through dovetail) writes
+ *  NOTHING, so a through entry's string (and every cut-list row key built from it) is byte for byte what it was before
+ *  half-blind; a present one appends `|lap=<value>`. */
 export function dovetailValues(d: Omit<Dovetail, 'id'>): string {
-  return DOVETAIL_KEYS.map((k) => {
-    const v = d[k];
-    return typeof v === 'number' && Object.is(v, -0) ? '-0' : String(v);
-  }).join('|');
+  const base = DOVETAIL_KEYS.map((k) => valueText(d[k])).join('|');
+  return d.lap === undefined ? base : `${base}|lap=${valueText(d.lap)}`;
 }
 
 /** Exact equality on every DOVETAIL_FIELDS field (stored values, invariant 18). */
