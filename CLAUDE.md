@@ -40,9 +40,10 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `582ce1e` (part labels, `index-CvkZOxnI.js`) or `5395a21` (weight) is free (schema 28, no change since); the
   nearest refusing boundary is `fbe4bd2` (`index-BBLukTqT.js`, schema 27): it refuses every project saved at 28 — export first. Every
   older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-28):** weight, part labels and align/space evenly are deployed. Owed to the user: fu 537 (align copy, by eye), fu 532
-  (a printed sheet on real sticker stock), fu 526 (the weight copy and two calls) — all three checked headless, nobody watched; fu
-  496(1) and a dovetailed corner on real hardware; the owed list below. Next feature: the user picks from `docs/feature-gaps.md` (open:
+- **NEXT (2026-10-28):** weight, part labels and align/space evenly are deployed, and the user saw all three in their own Chrome
+  (fu 526, 532, 537 closed; the tiny-weight `under 0.1` wording ruled). **Browser checks now run in the USER's Chrome** (a MobaXterm
+  tunnel to the VPS dev server, Claude driving through claude-in-chrome; see the browser memory). Owed: fu 496(1) and a dovetailed
+  corner on real hardware; the owed list below. Next feature: the user picks from `docs/feature-gaps.md` (open:
   views — X-ray, saved views; parametric resize; and the residue follow-ups each row names).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -562,7 +563,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9964 tests across 283 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9966 tests across 283 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -581,7 +582,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight).
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 526 (weight: copy and two calls), 532 (part labels: a real sheet of stickers, by eye), 537 (align: copy, by eye); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
@@ -591,7 +592,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527. Part labels (2026-10-28): 528, 529 and 531 (ask first); record-only 530, 533. Align (2026-10-28): 534–536 (ask first); record-only 538.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527. Part labels (2026-10-28): 528, 529 and 531 (ask first); record-only 530, 533. Align (2026-10-28): 534–536 and 537's gesture (ask first); record-only 538.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

@@ -8092,6 +8092,10 @@ refusal `Density must be a number more than 0 and at most 150 lb/ft³, or left e
 so the stated limit is itself accepted). Two calls to confirm: density follows the project's units in Materials & prices while sizes stay
 imperial (ruling P1 kept for sizes), and the rounding (one decimal under 10, whole from 10).
 **Status:** open (owed to the user: copy).
+**Status:** CLOSED 2026-10-28 — seen by the user in their own Chrome (the MobaXterm tunnel, Claude driving through claude-in-chrome):
+both calls kept by ruling ("keep both": density in the project's units in Materials & prices; one decimal under 10, whole from 10);
+the copy accepted; one change ruled — a weight that would print `0.0` reads `under 0.1 lb` / `under 0.1 kg`, and a sentence never
+says `about under` (`approxWeight`).
 
 **527. Weight: deferred minors (2026-10-28, the final whole-branch review).** (1) Spec §4.3's "`weightOf` and the cut list agree by
 test" has no direct test (each is tested against hand values; `weightOf` has no production caller). (2) No through-dovetail volume
@@ -8123,6 +8127,8 @@ from the PDF (first and last cells within 0.0001" of each preset); one real shee
 (the check ran headless). Includes the copy: `Labels…`, `Start at`, `Enter a label number from 1 to <n>`, `<n> labels on <m> sheets`,
 the print note, and the label lines.
 **Status:** open (owed to the user: real hardware and by eye).
+**Status:** CLOSED 2026-10-28 by the user's ruling ("close the rest"), after watching the Labels sheet in their own Chrome (5160 and
+5163, Start at 3). A print on real sticker stock was not made; the PDF geometry (exact to 0.0001") stands as the record.
 
 **533. Part labels: deferred minors (2026-10-28, the final whole-branch review).** (1) `LabelsSheet` builds three strings (the count
 line, the Start at refusal, the ` · ` before the grain) that spec §6 puts in `labels.ts`. (2) A long name is truncated from the END,
@@ -8149,6 +8155,8 @@ follow-up.
 `to <name> (selected first)`, the nine button words, `Space evenly` / `Along X`, the refusal) and the panel by eye are owed to the user
 (the browser check ran headless).
 **Status:** open (owed to the user: copy and by eye; the gesture ask first).
+**Status:** copy and look CLOSED 2026-10-28 (the user watched Space evenly and Align front in their own Chrome: "close the rest");
+the viewport gesture stays open (ask first).
 
 **538. Align: deferred minors (2026-10-28, the final whole-branch review).** (1) An item with no extent (an EMPTY assembly, reachable only
 from an imported or opened file, `dropEmptied`) is dropped silently by `itemExtents`: selected first, the Align section disappears;
