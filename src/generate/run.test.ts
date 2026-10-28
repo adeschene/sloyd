@@ -1747,3 +1747,21 @@ describe('runRefine keeps box-jointed parts (box-joints spec §7)', () => {
     expect(out.leaning).toEqual({ kept: DRAWER, why: DRAWER.map(() => 'box joints'), replaced: ['Drawer front'] });
   });
 });
+
+describe('Generate and Refine start with no saved views (saved views spec §7)', () => {
+  const view = { id: 'v-keep', name: 'Joint', camera: { ortho: true, position: [10, 20, 30] as [number, number, number], target: [0, 1, 2] as [number, number, number], height: 40 }, section: { axis: 'side' as const, at: 3, flip: true }, explode: 0.5, hidden: ['p-gone', 'p-other'] };
+  it('a generated project has views: []', async () => {
+    const { client } = fakeClient([GOOD]);
+    expect((await run(client)).doc.views).toEqual([]);
+  });
+  it('a refined project has views: [] even when the original had views', async () => {
+    const bp = (name: string, y: number) => ({ name, role: '', miters: [], bevels: [], chamfers: [], holes: [], bands: [], tapers: [], material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 } });
+    const base = designToDocument({ name: 'Box', parts: [bp('Base', 0), bp('Top', 1)], assemblies: [] }).doc;
+    const doc = { ...base, views: [view] };
+    const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused');
+    const { client } = fakeClient([r.design]);
+    const out = await runRefine(client, doc, { instruction: 'x', width: null, depth: null, height: null, detail: 'simple' as const }, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error('refused');
+    expect(out.doc.views).toEqual([]);
+  });
+});

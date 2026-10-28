@@ -403,3 +403,13 @@ describe('repairDocument claims box joints (box-joints spec §7)', () => {
     expect(repairDocument(doc)).toBeNull();
   });
 });
+
+describe('repairDocument keeps saved views (saved views spec §7)', () => {
+  it('a repaired document carries the original views unchanged', () => {
+    const fx = load(f1);
+    const view = { id: 'v-keep', name: 'Joint', camera: { ortho: true, position: [10, 20, 30] as [number, number, number], target: [0, 1, 2] as [number, number, number], height: 40 }, section: { axis: 'side' as const, at: 3, flip: true }, explode: 0.5, hidden: ['p-gone', 'p-other'] };
+    const out = repairDocument({ ...fx.damaged, views: [view] });
+    if (out === null || 'refused' in out) throw new Error('expected a repair');
+    expect(out.doc.views).toEqual([view]);
+  });
+});
