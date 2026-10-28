@@ -18,6 +18,8 @@ export function ViewsFooter({ getCamera, onGoTo }: {
   const [open, setOpen] = useState(false);
   // The view Save view just made: its row mounts with its name field focused and selected (spec §6).
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Once per Save view: the row's mount effect (a child, so it runs first) takes focus, then the intent is spent.
+  useEffect(() => { if (focusId) setFocusId(null); }, [focusId]);
   const last = useRef(count);
   useEffect(() => {
     if (count > last.current) setOpen(true);

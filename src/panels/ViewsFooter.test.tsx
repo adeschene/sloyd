@@ -61,6 +61,16 @@ describe('ViewsFooter (saved views spec §6)', () => {
     expect(st().doc.views).toBe(before); // untouched blur commits nothing (inv 5)
   });
 
+  it('reopening the footer does not steal focus again', async () => {
+    mount();
+    await userEvent.click(toggle());
+    await userEvent.click(saveBtn());
+    await userEvent.click(toggle());
+    await userEvent.click(toggle());
+    const input = screen.getByRole('textbox', { name: 'View name' });
+    expect(document.activeElement).not.toBe(input);
+  });
+
   it('clicking a view name calls onGoTo(id)', async () => {
     mount();
     act(() => { st().saveView(cam); });
