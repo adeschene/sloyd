@@ -839,7 +839,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     of the union (built as the unbored pieces' union plus each ring when every bore the plane meets is cut across its axis,
     inside one piece, clear of the others — fu 348; else the union of the bored pieces). World cap pieces wind clockwise as the viewer sees them (board frames are improper): the cap fan rewinds
     each by its Newell normal before fanning, or a DoubleSide cap is lit from behind (in `viewport/capFill.ts`, which for a curved part also inserts the other pieces' vertices on each piece's
-    edges and fans from the centroid — no specks; a part without curves fans byte-for-byte as before). The cap material takes no clipping plane and
+    edges and fans from the centroid — no specks; a part without curves fans byte-for-byte as before). **Since the real-hardware pass
+    (fu 347, 2026-10-28):** the cap material casts with `shadowSide = BackSide` (a zero-thickness DoubleSide caster otherwise writes its
+    own depth and self-shadows into speckle — invisible on software GL); the outline is lifted `CAP_LINE_LIFT` (0.01") toward the
+    viewer, because the fill's polygonOffset pulls it forward and a line takes none (an outline ON the plane lost to its own fill); and
+    its colour is `capOutlineColor` (`viewport/capOutline.ts`): the edge colour on a light cap, the cap lifted toward white on a dark one
+    (sRGB lightness under 0.4: cherry, walnut). The cap material takes no clipping plane and
     is keyed on `faded`. **Picking and snapping read only `keptBySection`** (a raycast wrapper on part meshes; Move/Tape
     candidates), guide points exempt — guides are drawn unclipped. The per-part local-cap cache is hit only on the same
     `geometryKey` and the exact local plane coordinate; never hand out its arrays.

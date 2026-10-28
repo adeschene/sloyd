@@ -563,7 +563,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9966 tests across 283 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9968 tests across 284 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -580,10 +580,10 @@ This list is the triage's open set — when an entry's status changes, change it
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight).
-- **Owed to the user, not code:** real hardware — 347 (section caps: CONFIRMED 2026-10-28, being fixed); by eye — 142, 272 (a phone),
+- **Owed to the user, not code:** by eye — 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. The first real-hardware
-  pass (2026-10-28, `docs/browser-verification-real-hardware-2026-10-28.md`) closed 21, 26a, 28, 34, 39, 255, 319, 337, 350, 370,
+  pass (2026-10-28, `docs/browser-verification-real-hardware-2026-10-28.md`) closed 21, 26a, 347 (fixed: caps' speckle and outlines), 28, 34, 39, 255, 319, 337, 350, 370,
   380(1), 387(1), 392(2), 402(1), 454, 464, 465(1), 468, 473, 482, 496(1).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,

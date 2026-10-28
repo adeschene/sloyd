@@ -6143,6 +6143,13 @@ mortise cannot be told apart on screen. Also owed (fu 26a, software GL only here
 clipped face, the clipped half casting no shadow (`clipShadows`), a cap receiving another part's shadow.
 **Status:** open — for the user's eye on real hardware; retune `CAP_DARKEN` and the cap outline colour together.
 **Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 — confirmed on real hardware in the first real-hardware pass and FIXED (branch `section-caps`): two
+root causes, each tested alone in the user's Chrome. (1) The speckle: the cap is a zero-thickness DoubleSide shadow caster that also
+receives, so it self-shadowed; it now casts from its back side (`shadowSide = BackSide`), as solids do — smooth caps on pine and cherry.
+(2) The illegible tenon or tail: the outline lay ON the plane behind its own fill (the fill's polygonOffset pulls it forward; a line takes
+none); it is now lifted 0.01" toward the viewer, and on a dark cap drawn lighter than the cap (`capOutlineColor`, unit-tested; a light
+cap's outline unchanged). Seen in the user's Chrome: the stool's round tenons outlined through the pine seat's cap; the cherry
+drawer's three half-blind tails outlined in the front's cap.
 
 **348. Cap cost on drilled parts.** `sectionCaps` on a 42-pin cabinet side cut ACROSS its bores takes 13–14 ms (min of 9;
 the round's target was 10 ms): ~8 ms in `minusPrism` splitting the cap into ~2000 wedge pieces, ~5 ms in `unionOutline`.
