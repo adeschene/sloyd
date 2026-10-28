@@ -1324,6 +1324,52 @@ describe('App select all, and Delete on the whole selection', () => {
     await user.keyboard('{Control>}z{/Control}');
     expect(useStore.getState().hiddenIds).toEqual([]);
   });
+
+  // X-ray spec §5: R in App's ONE keydown effect, shaped like M and T.
+  describe('the X-ray key', () => {
+    afterEach(() => { act(() => useStore.getState().setXray(false)); });
+
+    it('R toggles X-ray', async () => {
+      const { user } = await mountWithThreeBoards();
+      await user.keyboard('r');
+      expect(useStore.getState().xray).toBe(true);
+      await user.keyboard('r');
+      expect(useStore.getState().xray).toBe(false);
+    });
+
+    it('Shift+R toggles too', async () => {
+      const { user } = await mountWithThreeBoards();
+      await user.keyboard('{Shift>}R{/Shift}');
+      expect(useStore.getState().xray).toBe(true);
+    });
+
+    it('Ctrl+R, Meta+R and Alt+R are left to the browser', async () => {
+      await mountWithThreeBoards();
+      expect(fireEvent.keyDown(document.body, { key: 'r', code: 'KeyR', ctrlKey: true })).toBe(true);
+      expect(fireEvent.keyDown(document.body, { key: 'r', code: 'KeyR', metaKey: true })).toBe(true);
+      expect(fireEvent.keyDown(document.body, { key: 'r', code: 'KeyR', altKey: true })).toBe(true);
+      expect(useStore.getState().xray).toBe(false);
+    });
+
+    it('R does nothing in a text field', async () => {
+      await mountWithThreeBoards();
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      act(() => input.focus());
+      fireEvent.keyDown(input, { key: 'r', code: 'KeyR' });
+      expect(useStore.getState().xray).toBe(false);
+      act(() => input.blur());
+      input.remove();
+    });
+
+    it('R does nothing while the cut list is open', async () => {
+      const { user } = await mountWithThreeBoards();
+      await user.click(screen.getByRole('button', { name: 'Cut list' }));
+      fireEvent.keyDown(document.body, { key: 'r', code: 'KeyR' });
+      expect(useStore.getState().xray).toBe(false);
+      await user.keyboard('{Escape}');
+    });
+  });
 });
 
 // The Tape tool's type-anywhere capture. The MARKER and the preview are r3f and

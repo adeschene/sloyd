@@ -713,6 +713,16 @@ export default function App() {
         return;
       }
 
+      // R toggles X-ray (x-ray spec §5), the same shape as M and T. Modifier
+      // chords are left alone — Ctrl+R and Cmd+R reload the page.
+      if (e.key === 'r' || e.key === 'R') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        const { xray, setXray } = useStore.getState();
+        setXray(!xray);
+        return;
+      }
+
       // H hides the selection, Shift+H everything else, Alt+H shows all
       // (hide/unhide spec §4.3). Alt+H matches the PHYSICAL key: on a Mac,
       // Option+H types '˙', so matching e.key would make it dead there (the
