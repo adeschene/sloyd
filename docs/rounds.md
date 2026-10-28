@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `582ce1e` (part labels) | `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`) | 28 | current |
+| `cf911cc` (align / space evenly) | `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `582ce1e` (part labels) | `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`) | 28 | free (no schema change); the Align section is gone |
 | `5395a21` (weight) | `index-DawoF3J5.js` (CSS `index-iD0ojmiF.css`) | 28 | free (no schema change); Labels… is gone |
 | `fbe4bd2` (half-blind copy review, fu 518, 520) | `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) | 27 | **REFUSES every project saved at 28** (a custom material's density) — export first |
 | `33de29a` (half-blind dovetails) | `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`) | 27 | free (no schema change); the old pins line, fault reason and tinted lap band come back |
@@ -165,8 +166,12 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 - **Align / space evenly (2026-10-28; BUILT on branch `align` from master `844a2a5`; no schema change; inline execution, one
   whole-branch review).** Spec `2026-10-28-sloyd-align-distribute-design.md`, plan `2026-10-28-sloyd-align-distribute.md`; browser
   check `docs/browser-verification-align.md`. Final review: no Critical; one Important fixed test-first (a repeat click moved parts by
-  1e-15 and pushed an empty undo entry: a delta within 1e-9 is now no move, spec §3 amended); minors deferred (fu 538). Owed: fu 537
-  (copy, by eye).
+  1e-15 and pushed an empty undo entry: a delta within 1e-9 is now no move, spec §3 amended); minors deferred (fu 538). MERGED `cf911cc`
+  (identical to `95736e4`, 9964/9964), DEPLOYED 2026-10-28 as `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`). Verified: `200` on `/` and a
+  deep route in-network and at the edge; the bundle and CSS at both, sha256 matching `dist/`; the old `index-CvkZOxnI.js` 404s in-network;
+  CSP at the edge; the edge bundle carries `selected first`, `Space evenly along` and `fit between`, the edge CSS `.align-row`; a HEADLESS
+  real-browser load (a throwaway profile): the new bundle, 0 errors, Add board; storage read empty first, the load's two keys removed,
+  read back empty after 3s; the profile deleted. Rollback to `582ce1e` is free. Owed: fu 537 (copy, by eye).
 
 - **Part labels (2026-10-28; BUILT on branch `labels` from master `dcfe2ec`; no schema change; inline execution, one whole-branch
   review).** Spec `2026-10-28-sloyd-part-labels-design.md`, plan `2026-10-28-sloyd-part-labels.md`. The PDF print geometry measured exact

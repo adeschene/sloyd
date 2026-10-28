@@ -60,7 +60,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Gap | Notes | Status |
 |---|---|---|
 | Parametric resize | Fusion users praise resizing a piece and having parts follow | open |
-| Align / distribute | Equal shelf spacing etc.; copy in a row covers part of it | built 2026-10-28 (no schema change: the multi-selection panel's Align section — align left/centre/right, bottom/middle/top, back/centre/front to the part selected first; Space evenly along X/Y/Z with the outer two fixed; exact, one undo entry); residue fu 534–537 |
+| Align / distribute | Equal shelf spacing etc.; copy in a row covers part of it | DEPLOYED 2026-10-28 (`cf911cc`, `index-5OtJpPqw.js`) (no schema change: the multi-selection panel's Align section — align left/centre/right, bottom/middle/top, back/centre/front to the part selected first; Space evenly along X/Y/Z with the outer two fixed; exact, one undo entry); residue fu 534–537 |
 | Construction lines | fu 130 — ask before assuming it's wanted; needs real hardware (26a) | open |
 
 ## Sources
