@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useStore } from '../store/store';
-import { apronTable } from '../document/stretchFixtures';
+import { apronTable, framedTable } from '../document/stretchFixtures';
 import { StretchSection } from './StretchSection';
 import { EditLock } from './EditLock';
 
@@ -117,5 +117,41 @@ describe('StretchSection', () => {
     act(() => useStore.getState().setExplode(0.5));
     view();
     expect(screen.getByLabelText('Width (X)')).toBeDisabled();
+  });
+
+  it('editing the size of the armed axis keeps the line and the guide', () => {
+    load('all');
+    view();
+    type('Width (X)', '54"');
+    type('Stretch at', '10"');
+    type('Width (X)', '56"');
+    expect(screen.getByLabelText('Stretch at')).toHaveValue('10"');
+    expect(useStore.getState().stretchGuide).toEqual({ axis: 0, at: 10 });
+  });
+
+  it('a stale refusal from Stretch clears on the next edit', () => {
+    load('all');
+    view();
+    type('Width (X)', '54"');
+    const real = useStore.getState().stretchItems;
+    act(() => useStore.setState({ stretchItems: () => 'Refused by the store.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stretch' }));
+    expect(screen.getByRole('status')).toHaveTextContent('Refused by the store.');
+    type('Stretch at', '12"');
+    expect(screen.queryByRole('status')).toBeNull();
+    act(() => useStore.setState({ stretchItems: real }));
+  });
+
+  it("the preview names a part inside an assembly by its own name, not a path name", () => {
+    act(() => {
+      const doc = framedTable();
+      useStore.getState().replaceDocument(doc);
+      useStore.setState({ selectedIds: [...doc.boards.map((b) => b.id), ...doc.instances.map((i) => i.id)] });
+    });
+    view();
+    type('Depth (Z)', '30"');
+    // Z 0-24, line at 12: End apron (z 1.75-22.25, in both frames) and Top span; the front leg, front apron move.
+    expect(screen.getByText('24" → 30": grows Top, End apron, End apron · moves 3 · 3 stay')).toBeInTheDocument();
+    expect(screen.queryByText(/›/)).toBeNull();
   });
 });

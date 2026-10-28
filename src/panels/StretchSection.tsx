@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../store/store';
-import { worldParts } from '../document/document';
-import { instanceAt } from '../document/tree';
+import { instanceAt, partAt } from '../document/tree';
 import { itemExtents } from '../document/align';
 import { stretchPlan } from '../document/stretch';
 import { formatLength, parseLength } from '../units/length';
@@ -47,8 +46,8 @@ export function StretchSection() {
   );
   const grownNames = useMemo(() => {
     if (!plan || 'refused' in plan) return [];
-    const parts = worldParts(doc);
-    return plan.grows.map((id) => parts.find((p) => p.id === id)?.name ?? id);
+    // The part's OWN stored name (partAt), never a flattened path name (Ruling 6).
+    return plan.grows.map((occ) => partAt(doc, occ)?.name ?? occ);
   }, [plan, doc]);
 
   // The guide plane follows the armed line; it is view state (never in the document).
@@ -59,7 +58,11 @@ export function StretchSection() {
 
   if (!extent) return null;
   const half = (k: Axis) => (extent.max[k]! - extent.min[k]!) / 2;
-  const arm = (k: Axis, text: string) => { setFailed(null); setArmed({ axis: k, sizeText: text, lineText: formatLength(half(k), doc.units) }); };
+  const arm = (k: Axis, text: string) => {
+    setFailed(null);
+    // The line resets to the middle only when the axis changes or nothing is armed.
+    setArmed((a) => ({ axis: k, sizeText: text, lineText: a && a.axis === k ? a.lineText : formatLength(half(k), doc.units) }));
+  };
   const cancel = () => { setArmed(null); setFailed(null); setStretchGuide(null); };
   const refusal = plan && 'refused' in plan ? plan.refused : failed;
   const ok = plan !== null && !('refused' in plan);
@@ -82,11 +85,11 @@ export function StretchSection() {
             <div className="field">
               <label htmlFor="stretch-at">{STRETCH_AT}</label>
               <input id="stretch-at" className="input" value={armed.lineText}
-                onChange={(e) => setArmed({ ...armed, lineText: e.target.value })} />
+                onChange={(e) => { setFailed(null); setArmed({ ...armed, lineText: e.target.value }); }} />
             </div>
             <div className="stretch-from">
               <span>{FROM_WORD[armed.axis]}</span>
-              <button type="button" onClick={() => setArmed({ ...armed, lineText: formatLength(half(armed.axis), doc.units) })}>{STRETCH_MIDDLE}</button>
+              <button type="button" onClick={() => { setFailed(null); setArmed({ ...armed, lineText: formatLength(half(armed.axis), doc.units) }); }}>{STRETCH_MIDDLE}</button>
             </div>
           </div>
           {ok && <p className="field-note stretch-preview">{previewText(plan, grownNames, doc.units)}</p>}
