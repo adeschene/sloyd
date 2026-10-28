@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `33de29a` (half-blind dovetails) | `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`) | 27 | current |
+| `fbe4bd2` (half-blind copy review, fu 518, 520) | `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) | 27 | current |
+| `33de29a` (half-blind dovetails) | `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`) | 27 | free (no schema change); the old pins line, fault reason and tinted lap band come back |
 | `c6f60bc` (copy review, fu 491, 512) | `index-k4AGntBh.js` (CSS `index-BRfNHt6R.css`) | 26 | **REFUSES every project saved at 27** (a half-blind lap) — export first |
 | `72228cc` (dovetails) | `index-BEpsbfAI.js` (CSS `index-BRfNHt6R.css`) | 26 | free (no schema change); the old box-joint and dovetail wording and the fixed kept list come back |
 | `975e418` (box joints) | `index-EQnlonaA.js` (CSS `index-BvtLBoRl.css`) | 25 | REFUSES every project saved at 26 — export first; dovetails stop |
@@ -610,7 +611,8 @@ assemblies; rulings R-T1 to R-T6e, chiefly R-T6a Refine's mechanism for "kept ex
 **Approved 2026-10-28 ("Approved, the amended build section"), after the deploy:** the half-blind dovetails spec's *Amended (build)* block
 (spec differences HB-SD1–SD4 and build rulings HB-R1–R10). Its copy (fu 518) and the lap's look (fu 520) were reviewed by Claude at the user's request 2026-10-28: the pins line names the lap
 (`their narrow ends behind a <lap> lap on …`), the fault reads `the lap is too thick for the part`, and figure B draws the lap plane
-as a dashed line over unshaded wood (branch `half-blind-copy`).
+as a dashed line over unshaded wood (branch `half-blind-copy`, MERGED `fbe4bd2`, DEPLOYED 2026-10-28 as `index-BBLukTqT.js`; no
+schema change). Verified at deploy: `200` on `/` and a deep route in-network and at the edge; `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) at both, sha256 matching `dist/`; the old `index-aWJcbSuP.js` 404s in-network; CSP at the edge; the edge bundle carries `lap on its thickness` and `the lap is too thick for the part`, the edge CSS the dashed `.cutlist-bench-lap`; a HEADLESS real-browser load (DISPLAY unset, a throwaway profile): the new bundle, 0 errors; storage read empty first from the CSS asset page, the load's two keys removed there, read back empty after 3s; the profile deleted.
 
 **Approved 2026-10-27 ("Approved, the amended build section"), after the deploy:** the dovetails spec's *Amended (build)* block (spec
 differences SD1–SD20 and every build ruling recorded under it). Its copy (fu 512) was reviewed and changed, and the bench chain seen by eye (fu 511), both 2026-10-27.

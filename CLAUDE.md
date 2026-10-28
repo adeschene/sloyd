@@ -35,9 +35,9 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `33de29a`, bundle `index-aWJcbSuP.js`, CSS `index-BPZZhioK.css`, SCHEMA 27** (half-blind dovetails, fu 497;
-  merge `33de29a`; deployed 2026-10-28). Owed to the user: see NEXT.
-- **Rollback:** the nearest refusing boundary is `c6f60bc` (the copy review, `index-k4AGntBh.js`, schema 26): it refuses every
+- **Production: `fbe4bd2`, bundle `index-BBLukTqT.js`, CSS `index-BxxVIKzR.css`, SCHEMA 27** (half-blind dovetails, fu 497,
+  merge `33de29a`, and their copy and label review, fu 518 and 520, merge `fbe4bd2`; deployed 2026-10-28). Owed to the user: see NEXT.
+- **Rollback:** back to `33de29a` (half-blind dovetails, `index-aWJcbSuP.js`, schema 27) is free; the nearest refusing boundary is `c6f60bc` (the copy review, `index-k4AGntBh.js`, schema 26): it refuses every
   project saved at 27 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-28):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block, the copy reviews 491 and 512 and
