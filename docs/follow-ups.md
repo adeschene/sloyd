@@ -8194,3 +8194,8 @@ document order (the name shown is right). (3) No store-level end-to-end test of 
 instance (the reviewer's harness ran 400 trials × every turn, flush to 7e-15).
 **Status:** open (record-only).
 
+**539. X-ray: click and snap through a faded part (x-ray, 2026-10-28).** X-ray is draw-only (the user's ruling): a ray still hits the
+faded part in front first, so a tenon seen inside a faded leg cannot be clicked or measured — clicking it selects the leg, and Move and
+Tape snap to the leg's outside face. Letting a solid (selected) part win the ray over a faded one in front of it touches `BoardMesh`'s
+raycast and the snap probes, and needs the spec's anti-goal reworded (a faded part stays clickable where nothing solid is behind it).
+**Status:** open (ask first).
