@@ -1,9 +1,11 @@
-// TEST-ONLY. The parametric-resize (stretch) fixtures: a 48 × 30 × 24 apron table and the same table with its end frames as
-// two placements of one definition. Every number is dyadic, so a stretch's arithmetic is exact and hand-computable. Never
-// import a test module instead; never import this from production code.
+// TEST-ONLY. The parametric-resize (stretch) fixtures: a 48 × 30 × 24 apron table, the same table with its end frames as
+// two placements of one definition, the table as ONE placement turned 90° or mirrored, a 24 × 36 × 12 bookcase (shelf-pin
+// rows, dadoed fixed shelves, a plywood back) and a dovetailed drawer box. Every number is dyadic, so a stretch's arithmetic
+// is exact and hand-computable. Never import a test module instead; never import this from production code.
 import { createBoard, createDocument, migrateDocument } from './document';
-import type { Board, Cut, SloydDocument } from './types';
+import type { Board, Cut, HoleRow, SloydDocument } from './types';
 import { linkByRole } from './roleLinks';
+import { applyDovetails, dovetailPlan } from './dovetails';
 
 /** A leg mortise for an apron 24.5–28.5 high: face width, across thickness, at length u 25–28 (stored from the MIN end). */
 const mortiseFromMin = (id: string, from: 'min' | 'max'): Cut => ({
@@ -82,4 +84,80 @@ export function linkedApronTable(): SloydDocument {
   const doc = apronTable();
   const aprons = doc.boards.filter((b) => b.name === 'Front apron' || b.name === 'Back apron');
   return linkByRole(doc, new Map(aprons.map((b) => [b.id, 'apron'])));
+}
+
+/** The apron table as the ONE placement `Table` (id `i`) of a definition `t` holding its nine parts: at rotation 90 (local X
+ *  runs toward world −Z, so the long aprons' u 0 ends sit at the world FRONT), or mirrored (across local X, so their u 0
+ *  ends sit at the world RIGHT). */
+export function placedTable(o: { rotation: 90 } | { mirrored: true }): SloydDocument {
+  const t = apronTable();
+  return migrateDocument({
+    ...createDocument('Placed table'),
+    definitions: [{ id: 't', boards: t.boards, instances: [], hardware: [] }],
+    instances: [{ id: 'i', name: 'Table', definition: 't', position: [0, 0, 0], rotation: 0, ...o }],
+  });
+}
+
+/** Shelf-pin rows on a bookcase side's inner face (drilled along the thickness from `from`), 1/4" bores 3/8" deep, two rows
+ *  1.5 in from the front and back edges, centres at length `first`, `first + 2`, … (`count` of them). */
+const pinRows = (from: 'min' | 'max', first: number, count: number, tag: string): HoleRow[] =>
+  (['min', 'max'] as const).map((acrossFrom) => ({
+    id: `${tag}-${acrossFrom}`, face: 'thickness', from, diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
+    station: first, count, pitch: 2, acrossFrom, inset: 1.5,
+  }));
+/** A fixed shelf's dado on a side's inner face: across the width, at length u `at`–`at + 0.75`, 3/8" deep. */
+const dado = (id: string, from: 'min' | 'max', at: number): Cut => ({
+  id, face: 'thickness', from, across: 'width', offset: at, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0,
+});
+
+/**
+ * The bookcase, all root parts: x 0–24, y 0–36, z −0.25–12. Board order: Left side, Right side, Lower shelf, Upper shelf, Top,
+ * Bottom, Back. The sides are upright turned 90 (Y their length 36, X their thickness 0.75, Z their width 12): Left at x 0
+ * (inner face its thickness MAX), Right at x 23.25 (inner face its thickness MIN). Each side has dados at u 12–12.75 and
+ * 24–24.75 and pin rows: `full` — centres 3, 5, …, 33 (16 holes; bores span u 2.875–33.125, clear of both dados); otherwise
+ * two short groups, 3–9 and 27–33 (4 holes each; bores 2.875–9.125 and 26.875–33.125). The fixed shelves (flat, X their length
+ * 23.25, x 0.375–23.625 into the dados; Y their thickness) at y 12–12.75 and 24–24.75. Top and bottom (flat, x 0.75–23.25) at
+ * y 35.25–36 and 0–0.75. The back: plywood, upright (X its width 24, Y its length 36), 1/4" thick at z −0.25–0.
+ */
+export function bookcase(o: { full?: boolean } = {}): SloydDocument {
+  const rows = (from: 'min' | 'max', tag: string) => (o.full
+    ? pinRows(from, 3, 16, tag)
+    : [...pinRows(from, 3, 4, `${tag}-low`), ...pinRows(from, 27, 4, `${tag}-high`)]);
+  const side = (name: string, x: number, inner: 'min' | 'max') => createBoard({
+    name, length: 36, width: 12, thickness: 0.75, posture: 'upright', rotation: 90, position: [x, 0, 0],
+    cuts: [dado('lower', inner, 12), dado('upper', inner, 24)], holes: rows(inner, inner),
+  });
+  const flat = (name: string, x: number, y: number, length: number) =>
+    createBoard({ name, length, width: 12, thickness: 0.75, posture: 'flat', position: [x, y, 0] });
+  return migrateDocument({ ...createDocument('Bookcase'), boards: [
+    side('Left side', 0, 'max'),
+    side('Right side', 23.25, 'min'),
+    flat('Lower shelf', 0.375, 12, 23.25),
+    flat('Upper shelf', 0.375, 24, 23.25),
+    flat('Top', 0.75, 35.25, 22.5),
+    flat('Bottom', 0.75, 0, 22.5),
+    createBoard({ name: 'Back', length: 36, width: 24, thickness: 0.25, posture: 'upright', position: [0, 0, -0.25], material: 'plywood' }),
+  ] });
+}
+
+/**
+ * A through-dovetailed drawer box (the dovetail planner's drawer, `dovetailPlan.test.ts`, at its defaults: 6 tall, sides
+ * 1/2", front and back 3/4", inside 12 × 16), dovetailed by `dovetailPlan` at slope 8 (tails on the sides). Board order:
+ * Front (`f`), Back (`b`), Side left (`l`), Side right (`r`). Front and back are on edge along X (X their length, 13 after
+ * the plan: x 0–13; Y their width; Z their thickness), at z 0–0.75 and 16.75–17.5. The sides are on edge turned 90 (Z their
+ * length 17.5, reversed; X their thickness), at x 0–0.5 and 12.5–13. Every dovetail's `dim` is the length; J is the width (Y).
+ * The corner squares: X [0, 0.5] or [12.5, 13], Y [0, 6], Z [0, 0.75] or [16.75, 17.5].
+ */
+export function dovetailedDrawer(): SloydDocument {
+  const fb = (id: string, name: string, z: number) => createBoard({
+    id, name, posture: 'on-edge', rotation: 0, length: 12, width: 6, thickness: 0.75, position: [0.5, 0, z],
+  });
+  const side = (id: string, name: string, x: number) => createBoard({
+    id, name, posture: 'on-edge', rotation: 90, length: 17.5, width: 6, thickness: 0.5, position: [x, 0, 0],
+  });
+  const doc: SloydDocument = { ...createDocument('Drawer'),
+    boards: [fb('f', 'Front', 0), fb('b', 'Back', 16.75), side('l', 'Side left', 0), side('r', 'Side right', 12.5)] };
+  const plan = dovetailPlan(doc, ['f', 'b', 'l', 'r'], { slope: 8, count: null, swap: false });
+  if (typeof plan === 'string') throw new Error(plan);
+  return applyDovetails(doc, plan);
 }

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Board, Cut, SloydDocument } from './types';
 import { stretchPlan, type StretchPlan } from './stretch';
-import { apronTable, framedTable, linkedApronTable } from './stretchFixtures';
+import { apronTable, bookcase, dovetailedDrawer, framedTable, linkedApronTable, placedTable } from './stretchFixtures';
+import { stoolDocument } from './stoolFixture';
+import { expectPartition, type WorldBox } from './dovetailFixtures';
+import { cutRegion } from './cuts';
+import { toWorld } from './snapPoints';
 import { squareStoolDocument } from './stoolFixture';
 import { stretcherPlan, type StretcherPlan } from './stretchers';
 import { seatedIn, tenonJoints } from './tenonJoints';
@@ -9,7 +13,9 @@ import { builtTenons } from './roundTenons';
 import { itemExtents } from './align';
 import { flatDocument, partAt, worldParts } from './tree';
 import { mapWorld } from './treeEdit';
-import { copiesDiffer, inRemovedBand, linkDiffers, STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE } from './stretchText';
+import {
+  copiesDiffer, crosses, dovetailsAcross, inRemovedBand, leansText, linkDiffers, STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE, thicker,
+} from './stretchText';
 
 // Every expectation is computed by hand off the fixtures' input numbers (stretchFixtures.ts), never by the code under test.
 
@@ -291,5 +297,196 @@ describe('stretchPlan: a shrink never moves a node that starts inside the remove
     expect(byName(p.doc, 'Front apron').position).toEqual([0.25, 24.5, 22.75]);
     expect(byName(p.doc, 'Back apron').position).toEqual([0.25, 24.5, 0.5]);
     expect(byName(p.doc, 'Top').length).toBe(46.5);
+  });
+});
+
+describe('stretchPlan: the apron table lowered on Y by 2 at the middle (the raise-by-2 mirrored, spec §10)', () => {
+  const doc = apronTable();
+  const p = ok(stretchPlan(doc, rootIds(doc), 1, 28, 15));
+
+  it('the legs shrink 2 (28.5 → 26.5); the aprons and the top move down 2', () => {
+    expect(p.delta).toBe(-2);
+    expect(p.grows).toEqual(idsOf(doc, 'Left back leg', 'Left front leg', 'Right back leg', 'Right front leg'));
+    expect(p.moves).toEqual(idsOf(doc, 'Front apron', 'Back apron', 'Left apron', 'Right apron', 'Top'));
+    expect(p.stays).toEqual([]);
+    for (const n of ['Left back leg', 'Left front leg', 'Right back leg', 'Right front leg']) {
+      expect(byName(p.doc, n).length).toBe(26.5);
+      expect(byName(p.doc, n).position[1]).toBe(0);
+    }
+    for (const n of ['Front apron', 'Back apron', 'Left apron', 'Right apron']) expect(byName(p.doc, n).position[1]).toBe(22.5);
+    expect(byName(p.doc, 'Top').position[1]).toBe(26.5);
+  });
+  it('the mortise stored from MIN: offset 25 → 23 (world y 23–26); from MAX: stopMin 25 → 23, stopMax 0.5 kept', () => {
+    const a = byName(p.doc, 'Left back leg').cuts[0]!;
+    expect([a.offset, a.width, a.stopMin, a.stopMax]).toEqual([23, 3, 0.5, 0.5]);
+    const b = byName(p.doc, 'Right back leg').cuts[0]!;
+    expect([b.stopMin, b.stopMax, b.offset, b.width]).toEqual([23, 0.5, 0.5, 0.75]);
+    expect(byName(p.doc, 'Right back leg').length - b.stopMax).toBe(26);
+  });
+});
+
+describe('stretchPlan: a dovetailed drawer box (spec §10)', () => {
+  const box = (x: [number, number], z: [number, number]): WorldBox => ({ min: [x[0], 0, z[0]], max: [x[1], 6, z[1]] });
+  const partition = (doc: SloydDocument, X: { l: [number, number]; r: [number, number] }, Z: { f: [number, number]; b: [number, number] }) => {
+    for (const fb of ['f', 'b'] as const) for (const sd of ['l', 'r'] as const) {
+      const w = (id: string) => worldParts(doc).find((b) => b.id === id)!;
+      expectPartition(w(sd), w(fb), box(X[sd], Z[fb]));
+    }
+  };
+  const doc = dovetailedDrawer();
+  const ids = ['f', 'b', 'l', 'r'];
+
+  it('the fixture: the planned drawer partitions at its four corners', () => {
+    expect(byName(doc, 'Front').length).toBe(13);
+    partition(doc, { l: [0, 0.5], r: [12.5, 13] }, { f: [0, 0.75], b: [16.75, 17.5] });
+  });
+  it('deepened on Z (the sides\' dovetail dim) by 4 at z 8.75, clear of every zone: the sides grow, Back moves, the partition holds', () => {
+    const p = ok(stretchPlan(doc, ids, 2, 21.5, 8.75));
+    expect(p.delta).toBe(4);
+    expect(p.grows).toEqual(['l', 'r']);
+    expect(p.moves).toEqual(['b']);
+    expect(p.stays).toEqual(['f']);
+    expect(byName(p.doc, 'Side left').length).toBe(21.5);
+    partition(p.doc, { l: [0, 0.5], r: [12.5, 13] }, { f: [0, 0.75], b: [20.75, 21.5] });
+  });
+  it('widened on X (Front and Back\'s dovetail dim) by 4 at x 6.5: Front and Back grow, Side right moves, the partition holds', () => {
+    const p = ok(stretchPlan(doc, ids, 0, 17, 6.5));
+    expect(p.grows).toEqual(['f', 'b']);
+    expect(p.moves).toEqual(['r']);
+    expect(p.stays).toEqual(['l']);
+    partition(p.doc, { l: [0, 0.5], r: [16.5, 17] }, { f: [0, 0.75], b: [16.75, 17.5] });
+  });
+  it('heightened on Y (the corners\' J): the dovetails sentence, naming Front (first in tree order)', () => {
+    const before = structuredClone(doc);
+    expect(refusal(stretchPlan(doc, ids, 1, 8, 3))).toBe(dovetailsAcross('Front'));
+    expect(doc).toEqual(before);
+  });
+});
+
+/** Every cut's WORLD box (its `cutRegion` corners through `toWorld`), by cut id. */
+function worldCutBoxes(b: Board): Map<string, { min: number[]; max: number[] }> {
+  const out = new Map<string, { min: number[]; max: number[] }>();
+  for (const c of b.cuts) {
+    const r = cutRegion(b, c);
+    const pts = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => toWorld(b, {
+      length: r.length[i & 1]!, width: r.width[(i >> 1) & 1]!, thickness: r.thickness[(i >> 2) & 1]!,
+    }));
+    out.set(c.id, { min: [0, 1, 2].map((k) => Math.min(...pts.map((q) => q[k]!))), max: [0, 1, 2].map((k) => Math.max(...pts.map((q) => q[k]!))) });
+  }
+  return out;
+}
+
+describe('stretchPlan: a turned and a mirrored placement — features follow their WORLD side (spec §10, inv 44)', () => {
+  // The table as one placement. Its long aprons' cheeks: `near` stored at u 0–1, `far` at u 43.5–44.5. Turned 90, local X runs
+  // toward world −Z, so `near` is at the world FRONT (+Z) and `far` at the back; mirrored across local X, `near` is at the
+  // world RIGHT (+X). Either way the stretch at the middle must shift `near` (now past the line) by exactly δ in the WORLD,
+  // and leave `far` where it was.
+  const cases = [
+    { tag: 'turned 90°, deepened on Z by 6', o: { rotation: 90 } as const, axis: 2 as const },
+    { tag: 'mirrored, widened on X by 6', o: { mirrored: true } as const, axis: 0 as const },
+  ];
+  for (const { tag, o, axis } of cases) {
+    it(tag, () => {
+      const doc = placedTable(o);
+      const ext = itemExtents(doc, ['i'])[0]!;
+      expect(ext.max[axis]! - ext.min[axis]!).toBe(48);
+      const line = (ext.min[axis]! + ext.max[axis]!) / 2;
+      const p = ok(stretchPlan(doc, ['i'], axis, 54, line));
+      expect(p.delta).toBe(6);
+      for (const n of ['Front apron', 'Back apron']) {
+        const was = worldCutBoxes(byName(doc, n));
+        const now = worldCutBoxes(byName(p.doc, n));
+        // Hand-picked: `near` is the world-far cheek here, past the line.
+        expect(was.get('near')!.min[axis]!).toBeGreaterThan(line);
+        expect(was.get('far')!.max[axis]!).toBeLessThan(line);
+        const shifted = { min: [...was.get('near')!.min], max: [...was.get('near')!.max] };
+        shifted.min[axis] = shifted.min[axis]! + 6;
+        shifted.max[axis] = shifted.max[axis]! + 6;
+        expect(closeTo(now.get('near'), shifted)).toBeNull();
+        expect(closeTo(now.get('far'), was.get('far'))).toBeNull();
+        expect(byName(p.doc, n).length).toBe(50.5);
+      }
+      // The legs: the two on the world-far side (Left legs, local x 0, under either transform) move 6 with their mortises.
+      for (const n of ['Left back leg', 'Left front leg', 'Right back leg', 'Right front leg']) {
+        const was = worldCutBoxes(byName(doc, n)).get('m')!;
+        const now = worldCutBoxes(byName(p.doc, n)).get('m')!;
+        const d = n.startsWith('Left') ? 6 : 0;
+        expect(now.min[axis]! - was.min[axis]!).toBe(d);
+        expect(now.max[axis]! - was.max[axis]!).toBe(d);
+      }
+      // And shrunk back at the same line (the removed band on the part's far end, which the transform makes its MIN end
+      // here): every world part as it was, to 1e-9.
+      const back = ok(stretchPlan(p.doc, ['i'], axis, 48, line));
+      expect(back.delta).toBe(-6);
+      expect(closeTo(worldParts(back.doc), worldParts(doc))).toBeNull();
+    });
+  }
+});
+
+describe('stretchPlan: a bookcase (spec §10)', () => {
+  it('a line through a shelf\'s thickness: the thickness sentence (the sides pass first: the dado grows, no pin row crosses)', () => {
+    const doc = bookcase();
+    const before = structuredClone(doc);
+    expect(refusal(stretchPlan(doc, rootIds(doc), 1, 40, 12.375))).toBe(thicker('Lower shelf'));
+    expect(doc).toEqual(before);
+  });
+  it('heightened with full-height pin rows: the hole-row sentence, wherever the line goes', () => {
+    const doc = bookcase({ full: true });
+    for (const line of [6, 18, 30]) expect(refusal(stretchPlan(doc, rootIds(doc), 1, 40, line))).toBe(crosses('Left side', 'hole row'));
+  });
+  it('pin rows that stop short, the line at y 18 between their ends: passes; the upper rows and dado shift 4, the lower ones keep', () => {
+    const doc = bookcase();
+    const p = ok(stretchPlan(doc, rootIds(doc), 1, 40, 18));
+    expect(p.grows).toEqual(idsOf(doc, 'Left side', 'Right side', 'Back'));
+    expect(p.moves).toEqual(idsOf(doc, 'Upper shelf', 'Top'));
+    expect(p.stays).toEqual(idsOf(doc, 'Lower shelf', 'Bottom'));
+    for (const n of ['Left side', 'Right side']) {
+      const was = partAt(doc, idOf(doc, n)) as Board;
+      const now = partAt(p.doc, idOf(doc, n)) as Board;
+      expect(now.length).toBe(40);
+      expect(now.cuts[0]).toBe(was.cuts[0]);
+      expect(now.cuts[1]!.offset).toBe(28);
+      expect(now.holes.map((r) => r.station)).toEqual([3, 3, 31, 31]);
+      expect(now.holes[0]).toBe(was.holes[0]);
+    }
+    expect(byName(p.doc, 'Upper shelf').position[1]).toBe(28);
+    expect(byName(p.doc, 'Top').position[1]).toBe(39.25);
+    expect(byName(p.doc, 'Back').length).toBe(40);
+  });
+  it('a shrink whose band hits a pin row refuses: 36 → 34 at y 25.5 (band 25.5–27.5; the upper bores start at 26.875)', () => {
+    const doc = bookcase();
+    const before = structuredClone(doc);
+    expect(refusal(stretchPlan(doc, rootIds(doc), 1, 34, 25.5))).toBe(crosses('Left side', 'hole row'));
+    expect(doc).toEqual(before);
+  });
+});
+
+describe('stretchPlan: leaning legs (the staked stool, spec §10, inv 57)', () => {
+  it('a spanning leaning leg refuses: Y at 8, naming Front right (first in tree order)', () => {
+    const doc = stoolDocument();
+    const before = structuredClone(doc);
+    expect(refusal(stretchPlan(doc, rootIds(doc), 1, 20, 8))).toBe(leansText('Front right'));
+    expect(doc).toEqual(before);
+  });
+  it('legs that move whole pass: X by 2 at x 0, the right legs\' lean unchanged, position and pivot moved by exactly δ', () => {
+    const doc = stoolDocument();
+    const ext = itemExtents(doc, rootIds(doc));
+    const from = Math.max(...ext.map((e) => e.max[0]!)) - Math.min(...ext.map((e) => e.min[0]!));
+    const p = ok(stretchPlan(doc, rootIds(doc), 0, from + 2, 0));
+    expect(Math.abs(p.delta - 2)).toBeLessThanOrEqual(1e-12);
+    expect(p.moves).toEqual(idsOf(doc, 'Front right', 'Back right'));
+    expect(p.stays).toEqual(idsOf(doc, 'Front left', 'Back left'));
+    expect(p.grows).toEqual(idsOf(doc, 'Seat'));
+    for (const n of ['Front right', 'Back right']) {
+      const was = byName(doc, n);
+      const now = byName(p.doc, n);
+      expect(now.lean).toEqual(was.lean);
+      expect(now.position).toEqual([was.position[0] + p.delta, was.position[1], was.position[2]]);
+      // The pivot: the top's centre (inv 57), fixed by the lean, so its world point is the pre-lean one.
+      const top = (b: Board) => toWorld(b, { length: b.length, width: b.width / 2, thickness: b.thickness / 2 });
+      const [a, z] = [top(was), top(now)];
+      expect(Math.abs(z[0] - a[0] - p.delta)).toBeLessThanOrEqual(1e-12);
+      expect(Math.abs(z[1] - a[1]) + Math.abs(z[2] - a[2])).toBeLessThanOrEqual(1e-12);
+    }
   });
 });
