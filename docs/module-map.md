@@ -41,7 +41,7 @@ src/
 │   │                     leans (the cheap predicate), pivotKeptPosition (a resize keeps the pivot), withinBound (inv 57); square-set legs (schema 25,
 │   │                     inv 59): leanMap is m = T for a square-set lean (`square: true`), T · Ry(τ) otherwise; leanTwist (the τ a TURNED
 │   │                     lean would apply, through twistOf: the store's Set gate); leanFlip keeps `square`
-│   ├── holeRebase.ts     rebaseHoles (joinery's resize re-anchor, moved from generate/joints/recipes.ts) and levelEndHoles
+│   ├── holeRebase.ts     rebaseHoles (joinery's resize re-anchor, moved from generate/joints/recipes.ts; stretchPart calls it one row at a time, inv 64) and levelEndHoles
 │   │                     (Level the ends' end-face rule: rows follow the wood, a tilted row's mouth slides along its bit;
 │   │                     angled holes §7), storableRow (the loader's keep test for a re-anchored row)
 │   ├── legSockets.ts     Bore leg sockets (angled holes §5), the ONE decider, pure: legsUnder(world, seat, units) (leaning parts whose
@@ -161,7 +161,8 @@ src/
 │   │                     wood alone); expectPartition finds the tails entry by `depth === thickness − (lap ?? 0)`
 │   ├── resizeEnd.ts      resizeEnd (joinery's resize core, moved from generate/joints/recipes.ts, `onResize` where the Tap was) and the
 │   │                     rebase helpers (refaceFromEnd, rebaseAngleCuts, rebaseCurves, rebaseProfiles); recipes.ts still re-exports
-│   │                     the four for the unedited tests (fu 495)
+│   │                     the four for the unedited tests (fu 495); stretchPart calls the last three ONE FEATURE AT A TIME on a one-feature
+│   │                     copy (near → the far end, far → the fixed end, inv 64) — never `resizeEnd` itself (inv 64's prohibition)
 │   ├── levelEnds.ts      Level the ends (splayed legs §5, inv 57): levelPlan (two end miters along seamFree's face — on a SQUARE-SET
 │   │                     lean, inv 59, one compound miter per end along the larger slope, ties width, `across` the rest, its line
 │   │                     through the through centre; dirOf: a dimension's world direction signed by `reversed` —, each end's
@@ -216,7 +217,9 @@ src/
 │   ├── linksToShapes.ts  the v10→v11 step (and linkByRole's builder; keeps a mirror candidate's `mirrored` flag)
 │   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
-│   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
+│   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40); stretchCut (inv 64: a rectangular cut
+│   │                     across a stretch line — near keeps its distance to the fixed end, far to the moving end, a crossing cut grows its
+│   │                     one length on `d`; on a shrink it must cover the removed band, else `'crosses'`; the SAME object when unchanged)
 │   ├── angleCuts.ts      AngleCut model (inv 48): ANGLE_CUT_FIELDS (inv 40), keptHalfSpace, depthAt/zeroStation, depthAtCross /
 │   │                     deepestCorner (a compound miter's full depth, schema 25, inv 59: every corner or disc-edge reader; deepestCorner all
 │   │                     four corners), hasCompoundCut (THE predicate: joinery's compoundRefusal, Refine's keepsExactly), touchedRegion
@@ -444,6 +447,24 @@ src/
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
 │   ├── align.ts          align and space evenly (align spec): AlignItem, alignDeltas (to the item selected first), distributeDeltas
 │   │                     (equal gaps, outer two fixed, inner placed from the first), itemExtents (partsBounds, leaned); alignText.ts the copy
+│   ├── stretch.ts        THE stretch decider (inv 64): stretchPlan(doc, ids, axis, size, line) → StretchPlan | { refused } | null (the
+│   │                     size, the line strictly inside, the no-op; the top-down walk: stays / moves whole / spans, a spanning assembly
+│   │                     descended, a spanning part through stretchPart per occurrence; writeBackParts keepWorld, then ONE translateItems
+│   │                     over the moved paths deduped by itemKey — `moves` counts occurrences, Ruling 4; the copies post-condition over
+│   │                     every worldParts occurrence within 1e-9, then cornerPlan's link post-condition); nearlyEqual; the preview and the
+│   │                     store both call it. No → units edge
+│   ├── stretchPart.ts    THE spanning-part stretch (inv 64): stretchPart(b, k, s, δ, units) → Board | { refused } — `d` from axisDimensions,
+│   │                     the far end endFacing(b, k, 1), the band [u, u] (grow) or the removed wood (shrink); refusals in order: thickness,
+│   │                     lean, compound, too short, finger sets, dovetails (Ruling 1: corner joints first), cuts (stretchCut), angle cuts,
+│   │                     holes, curves, curves-and-profiles, profiles (per station), round tenons; prisms along `d` (throughOf === d,
+│   │                     curve through === d) pass unchanged (Ruling 2); near / far features through rebaseAngleCuts / rebaseHoles /
+│   │                     rebaseCurves / rebaseProfiles, one feature at a time. A TYPE-only `Units` (no → units edge)
+│   ├── stretchText.ts    THE stretch words (→ units: it prints lengths): the refusals (STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE, thicker,
+│   │                     leansText, compoundText, crosses, boxJointsAcross, dovetailsAcross, tenonCentred, curvesAndProfiles, tooShort,
+│   │                     copiesDiffer, linkDiffers), the panel's words (STRETCH_HEADING, STRETCH_AT, AXIS_LABEL, FROM_WORD, STRETCH_MIDDLE,
+│   │                     STRETCH_GO, STRETCH_CANCEL) and previewText (`<from> → <to>: grows <names> · moves <n> · <m> stay`)
+│   ├── stretchFixtures.ts TEST-ONLY (never import it from a module): the 48 × 30 × 24 apron table (mortises stored from either end, tenon
+│   │                     cheeks) and the same table with its end frames as two placements of one definition; every number dyadic
 │   ├── views.ts          saved views (saved views spec §2): `rekeyViews(doc, rekey, lift)` applies an edit's item-path re-key (and a dissolved
 │   │                     assembly's `lift`) to every view's `hidden`, in the SAME edit as the live `hiddenIds`; `validateViews` is in document.ts (schema 29)
 │   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,
@@ -572,7 +593,10 @@ src/
 │                     dovetailCutRefusal), addHoleRows / updateHoleRow / addStretcher / boreLegSockets (holesZoneRefusal, holeTouchesBox;
 │                     a tenon fitted to a dovetailed leg refused too) — addCut, updateCut, addAngleCuts, addCurves, addProfiles and setBands
 │                     now return `string | null` (Spec difference 2; callers that ignore it compile unchanged); store.dovetailCorners.test.ts,
-│                     store.dovetails.test.ts
+│                     store.dovetails.test.ts; stretch (inv 64): stretchItems(axis, size, line) (refused at entry exploded, gesturing or
+│                     nothing selected; stretchPlan, then ONE edit, judgeHeld, the guide cleared; store.stretch.test.ts) and stretchGuide /
+│                     setStretchGuide (view state, ONE writer; cleared by a stretch, by selectionPatch when the selection CHANGES —
+│                     an undo or redo included, Ruling 5 —, by setExplode above 0 and by replaceDocument)
 │   │                     (source's Shape users keep theirs, others take the source's); store.mirrorLinks.test.ts
 │   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after);
 │   │                     addCurves/updateCurve/removeCurve, the same shape
@@ -595,7 +619,8 @@ src/
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
 │                     and its twin the same stored part; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
 ├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
-├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
+├── viewport/         NO unit tests by design. Viewport (its StretchGuide: the stretch line's translucent plane, inv 64 — no raycast, no depth
+│                     write, no clipping plane), BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers,
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
 │                     viewCamera.ts (pure, TESTED: `orthoHeight` / `orthoZoomFor`, an ortho zoom stored as a visible HEIGHT so a window resize keeps the extent;
@@ -648,7 +673,7 @@ src/
 │                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
 │                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
-│                     trash), GuidesFooter (opens itself when the guide count goes up), ViewsFooter / ViewsList (saved views spec §6: `Views · N`, Save view, one row per view with go-to, a `NameField` rename, Update, ×; NOT inside EditLock, inv 47 carve-out; Save view focuses the new row's name once), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), LabelsSheet (part labels: true-size
+│                     trash), GuidesFooter (opens itself when the guide count goes up), ViewsFooter / ViewsList (saved views spec §6: `Views · N`, Save view, one row per view with go-to, a `NameField` rename, Update, ×; NOT inside EditLock, inv 47 carve-out; Save view focuses the new row's name once), AlignSection (the multi-selection panel's Align: nine buttons, Space evenly with 3+, the anchor named), StretchSection (inv 64: Overall size in the assembly and multi-selection panels, inside EditLock: three extent fields, typing arms one axis (nothing on blur), Stretch at from the min face with Middle, the stretchPlan preview or its refusal as a field-error, Stretch / Cancel; sets the stretch guide), LabelsSheet (part labels: true-size
 │                     sticker pages, Stock, Start at; opened from the cut list in its place), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
 │                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
