@@ -155,8 +155,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Status log (to 2026-10-28)
 
-- **Half-blind dovetails, dovetails chunk 3 (2026-10-27/28; BUILT on branch `half-blind` from master `48d2f92`, commits `48d2f92..7e6beae` +
-  the records; NOT merged or deployed; 9867/9867 across 272 files, build clean; SCHEMA 27: once deployed, rolling back to `c6f60bc` or
+- **Half-blind dovetails, dovetails chunk 3 (2026-10-27/28; BUILT on branch `half-blind` from master `48d2f92`, commits `48d2f92..22a66f2`;
+  MERGED `33de29a` 2026-10-28, not yet deployed; 9867/9867 across 272 files, build clean; SCHEMA 27: once deployed, rolling back to `c6f60bc` or
   earlier refuses every project saved at 27 — export first)**: spec `docs/superpowers/specs/2026-10-27-sloyd-half-blind-dovetails-design.md`
   (approved 2026-10-27, all five §9 items as proposed; its *Amended (build)* block awaits the user's approval), plan
   `docs/superpowers/plans/2026-10-27-sloyd-half-blind-dovetails.md`. Subagent-driven, seven build tasks each task-reviewed (one fix round:

@@ -42,7 +42,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-28):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block, the copy reviews 491 and 512 and
   the bench drawings, fu 511, all closed 2026-10-27): fu 496(1) and the dovetailed corner on real hardware (the paid Refine runs passed 2026-10-27). Owed
-  otherwise: the owed list below. **Half-blind dovetails (schema 27): built on branch `half-blind`, not yet merged or deployed** — the
+  otherwise: the owed list below. **Half-blind dovetails (schema 27): merged `33de29a`, not yet deployed** — the
   browser check (fu 520), the spec's *Amended (build)* block and the copy review (fu 518) await the user (`docs/rounds.md`).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -120,7 +120,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **27** (half-blind dovetails' `lap`; built on branch `half-blind`, not yet merged or deployed; 26, dovetails, deployed 2026-10-27). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **27** (half-blind dovetails' `lap`; merged `33de29a` 2026-10-28, not yet deployed; 26, dovetails, deployed 2026-10-27). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -580,7 +580,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, on branch `half-blind`): 517 and 519 (ask first); record-only 521.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, merged `33de29a`): 517 and 519 (ask first); record-only 521.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
