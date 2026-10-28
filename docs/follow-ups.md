@@ -7816,9 +7816,9 @@ pins part's sockets end inside its thickness: a view curve through the run with 
 dimension on the feature (a schema question: argue its own harm), the layout's rule for the part that sticks out, and the bench drawing's
 third figure. The one home of half-blind work (fu 484 points here).
 **Status:** open (feature-sized; needs its own spec).
-**Status:** CLOSED for the joint 2026-10-28 — half-blind dovetails MERGED `33de29a` 2026-10-28 (commits `48d2f92..22a66f2`;
-schema 27, the `lap` on both entries; spec `2026-10-27-sloyd-half-blind-dovetails-design.md`, inv 62), not yet
-deployed (confirm at deploy). The stopped pin socket rides the view-curve path (no body code); the bench pair carries the lap on figure B,
+**Status:** CLOSED for the joint 2026-10-28 — half-blind dovetails MERGED `33de29a` and DEPLOYED 2026-10-28 (`index-aWJcbSuP.js`; commits `48d2f92..22a66f2`;
+schema 27, the `lap` on both entries; spec `2026-10-27-sloyd-half-blind-dovetails-design.md`, inv 62), deployed
+(confirmed at deploy). The stopped pin socket rides the view-curve path (no body code); the bench pair carries the lap on figure B,
 with no third figure (spec §5.2, my call; fu 517). The HEIGHTS half (a front taller than its sides) moved to fu 485, re-worded for box
 joints and both dovetail kinds. New follow-ups 516–521.
 
