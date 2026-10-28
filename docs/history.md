@@ -520,6 +520,20 @@ and 79.
 
 ## What each round did
 
+**The first real-hardware pass, and its fixes (2026-10-28, after the three rounds).** Until now every browser check ran on the VPS's
+software GL (llvmpipe/SwiftShader), and the X11-forwarded headed Chrome took ~312% of the four cores and timed out on clicks. The user
+set up a MobaXterm tunnel (their port 5199 → the VPS dev server; SSH port 2222, key auth) and the claude-in-chrome extension, so their
+own Chrome, on their own GPU, became the check browser at full speed, with Claude driving and the user watching. A note learned on the
+way: after a source edit, Vite serves the app's modules with `?t=` stamps, so a script must import the store at the URL the page itself
+loaded (`performance.getEntriesByType('resource')`), or it drives a second store. Two consequences. (1) The three rounds' owed looks
+(fu 526, 532, 537) were seen and closed; the user ruled the tiny-weight wording (`under 0.1 lb|kg`, never `about under`; `97b7b1e`).
+(2) A sweep of every owed real-hardware and by-eye item that needed no phone, print or paid run
+(`docs/browser-verification-real-hardware-2026-10-28.md`) closed 21 follow-ups and confirmed one bug, fu 347: section caps speckled and
+a tenon or tail inside its socket unreadable. Two root causes, each proven by a one-line change watched in the user's Chrome: the cap,
+a zero-thickness DoubleSide shadow caster that also receives, self-shadowed (now `shadowSide = BackSide`); and its outline lay ON the
+plane behind its own polygon-offset fill (now lifted 0.01" toward the viewer, and lighter on a dark cap, `capOutlineColor`). Deployed
+`74b6289`.
+
 **What align and space evenly did (2026-10-28)** (feature-gaps §4; spec `2026-10-28-sloyd-align-distribute-design.md`, the user skipped
 the brainstorm questions and approved the draft; plan `2026-10-28-sloyd-align-distribute.md`; branch `align` from `844a2a5`; inline
 execution, then one whole-branch review). Three build tasks, test-first: the pure decisions (`align.ts`) — the plan's drift test, a

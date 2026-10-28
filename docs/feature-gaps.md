@@ -4,7 +4,7 @@ Researched 2026-10-11 against SketchUp and its woodworking extensions (OpenCutLi
 CutList Bridge, CabinetSense, Fredo Round Corner, the rake-and-splay tool), Fusion 360,
 Shapr3D, SketchList 3D, CutList Plus fx and Mozaik. Each gap was checked against the code
 and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-28
-(production `fbe4bd2`, schema 27, half-blind dovetails deployed); `docs/follow-ups.md` wins on any follow-up's status.
+(production `74b6289`, schema 28: weight, part labels and align/space evenly deployed); `docs/follow-ups.md` wins on any follow-up's status.
 
 **This is a candidate list, not a roadmap.** Nothing here is chosen until the user picks it.
 Excluded on purpose: CSV/clipboard export and name run-collapsing (`Leg 1..4`), both

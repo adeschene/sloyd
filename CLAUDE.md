@@ -40,11 +40,10 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `97b7b1e` (`index-JKBrNQAt.js`), `cf911cc`, `582ce1e` or `5395a21` (weight) is free (schema 28, no change since); the
   nearest refusing boundary is `fbe4bd2` (`index-BBLukTqT.js`, schema 27): it refuses every project saved at 28 — export first. Every
   older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-28):** weight, part labels and align/space evenly are deployed, and the user saw all three in their own Chrome
-  (fu 526, 532, 537 closed; the tiny-weight `under 0.1` wording ruled). **Browser checks now run in the USER's Chrome** (a MobaXterm
-  tunnel to the VPS dev server, Claude driving through claude-in-chrome; see the browser memory). Owed: fu 496(1) and a dovetailed
-  corner on real hardware; the owed list below. Next feature: the user picks from `docs/feature-gaps.md` (open:
-  views — X-ray, saved views; parametric resize; and the residue follow-ups each row names).
+- **NEXT (2026-10-28, session close):** weight, part labels, align/space evenly and the section-cap fix (fu 347) are deployed; the
+  first real-hardware pass closed 21 owed looks. Nothing from these rounds is owed. Owed to the user: the list below (a phone, touch,
+  a real print, paid runs, a few by-eye items). Next feature: the user picks from `docs/feature-gaps.md` (open: views — X-ray, saved
+  views; parametric resize; and the residue follow-ups each row names).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -59,7 +58,8 @@ What it does today is listed round by round in `docs/rounds.md`.
 **Production is verified by loading the page only.** Sloyd has no server-side state:
 `localStorage` in the user's browser *is* their project, and exercising a feature against
 production would overwrite it with nothing to restore from. So new behaviour is verified
-against the **dev server** (Claude drives the Playwright browser; the user can watch), and
+against the **dev server** in the USER's own Chrome (a MobaXterm tunnel to `localhost:5199`, Claude driving through
+claude-in-chrome, the user watching on real hardware; the browser memory has the setup), and
 the deploy is confirmed by **bundle hash** at the edge and in-network, plus the edge's
 **CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server does
 not send. On PRODUCTION, `localStorage` is confirmed cleared in the verifying browser afterward, checked
