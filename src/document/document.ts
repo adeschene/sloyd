@@ -68,6 +68,7 @@ export { BODY_EPS, SMOOTH_EPS, boardBodies, boardEdges, bodyEdges, bodyVerts, bo
 export type { PartGeometry } from './bodies';
 export type { Body, BodyFace } from './bodies';
 export { buildCutList } from './cutlist';
+export { selectionWeight, weightOf, type WeightSummary } from './weight';
 export { findTenons } from './tenons';
 export type { Tenon } from './tenons';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
