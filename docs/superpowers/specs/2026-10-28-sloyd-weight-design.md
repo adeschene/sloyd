@@ -1,6 +1,6 @@
 # Sloyd — weight
 
-**Date:** 2026-10-28 · **Status:** draft, awaiting the user's approval (one open decision, §2).
+**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28 (option A, §2); plan `docs/superpowers/plans/2026-10-28-sloyd-weight.md`.
 
 **Origin:** `docs/feature-gaps.md` §3, "Weight" ("OpenCutList reports cost and weight together"). The user picked it
 2026-10-28 and asked for the spec without the brainstorm questions, so every choice below not marked *the user's* is
