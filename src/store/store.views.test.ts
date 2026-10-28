@@ -120,7 +120,7 @@ describe('saved views store actions', () => {
 
   it('edit() still refuses part edits while exploded', () => {
     s().setExplode(0.5);
-    s().addBoard();
-    expect(s().doc.boards).toHaveLength(0);
+    s().addGuide([0, 0, 0]); // calls edit() directly, with no readOnly() check of its own
+    expect(s().doc.guides).toHaveLength(0);
   });
 });
