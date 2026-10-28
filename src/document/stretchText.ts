@@ -38,3 +38,21 @@ export const copiesDiffer = (assembly: string) =>
 /** The links post-condition (spec §6): two users of one Shape would be lowered differently. */
 export const linkDiffers = (part: string, other: string) =>
   `${part} is linked to ${other}, which this stretch changes differently — Unlink first.`;
+
+/** The panel's words (Task 5; Global Constraints, verbatim). */
+export const STRETCH_HEADING = 'Overall size';
+export const STRETCH_AT = 'Stretch at';
+export const AXIS_LABEL: Record<0 | 1 | 2, string> = { 0: 'Width (X)', 1: 'Height (Y)', 2: 'Depth (Z)' };
+export const FROM_WORD: Record<0 | 1 | 2, string> = { 0: 'from the left', 1: 'from the bottom', 2: 'from the back' };
+export const STRETCH_MIDDLE = 'Middle';
+export const STRETCH_GO = 'Stretch';
+export const STRETCH_CANCEL = 'Cancel';
+
+/** The preview line: `<from> → <to>: grows <names> · moves <n> · <m> stay`. `names` are the grown parts' names in plan
+ *  order: the first 4, then ` +N`; none reads `grows nothing`. `moves` counts occurrences (the plan's list, undeduped). */
+export function previewText(
+  plan: { from: number; to: number; moves: readonly string[]; stays: readonly string[] }, names: string[], units: Units,
+): string {
+  const grown = names.length === 0 ? 'nothing' : names.slice(0, 4).join(', ') + (names.length > 4 ? ` +${names.length - 4}` : '');
+  return `${formatLength(plan.from, units)} → ${formatLength(plan.to, units)}: grows ${grown} · moves ${plan.moves.length} · ${plan.stays.length} stay`;
+}
