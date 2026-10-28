@@ -8150,3 +8150,11 @@ follow-up.
 (the browser check ran headless).
 **Status:** open (owed to the user: copy and by eye; the gesture ask first).
 
+**538. Align: deferred minors (2026-10-28, the final whole-branch review).** (1) An item with no extent (an EMPTY assembly, reachable only
+from an imported or opened file, `dropEmptied`) is dropped silently by `itemExtents`: selected first, the Align section disappears;
+otherwise Space evenly can show for 3 selected while only 2 items count, and a click does nothing. Base the panel's thresholds and anchor
+on `itemExtents`, or refuse with a sentence. (2) `(selected first)` reads oddly after Select all or a marquee, where the anchor is first in
+document order (the name shown is right). (3) No store-level end-to-end test of a leaning leg aligned inside a turned or mirrored open
+instance (the reviewer's harness ran 400 trials × every turn, flush to 7e-15).
+**Status:** open (record-only).
+

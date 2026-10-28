@@ -92,4 +92,32 @@ describe('alignItems / distributeItems (align spec §5)', () => {
     expect(qs.map((b) => b.position[1])).toEqual([0, 0]);
     expect(qs.map((b) => b.position[0])).toEqual([2, 42]);
   });
+
+  it('a second click on an already-aligned selection is a no-op: no ulp move, no empty undo entry (final review I1)', () => {
+    // Align right / centre land within an ulp of the target, not on it (pos + (target − max) + size); the next click's delta is ~1e-15.
+    const P = (id: string, x: number, length: number) => createBoard({ id, name: id, length, width: 2, thickness: 1, position: [x, 0, 0] });
+    for (const edge of ['max', 'centre'] as const) {
+      setup({ ...createDocument('T'), boards: [P('a', 0, 0.15), P('b', 0.3, 0.4)] }, ['a', 'b']);
+      s().alignItems(0, edge);
+      const after = s().doc;
+      s().alignItems(0, edge);
+      expect(s().past, edge).toHaveLength(1);
+      expect(s().doc, edge).toBe(after);
+    }
+    // Metric sizes: A 300 mm at 0, B 395 mm at 52 mm.
+    setup({ ...createDocument('T'), units: { display: 'metric-mm', precision: 16 }, boards: [P('a', 0, 300 / 25.4), P('b', 52 / 25.4, 395 / 25.4)] }, ['a', 'b']);
+    s().alignItems(0, 'max');
+    s().alignItems(0, 'max');
+    expect(s().past).toHaveLength(1);
+  });
+
+  it('a second Space evenly is a no-op too', () => {
+    const P = (id: string, x: number, length: number) => createBoard({ id, name: id, length, width: 2, thickness: 1, position: [x, 0, 0] });
+    setup({ ...createDocument('T'), boards: [P('a', 0, 0.1), P('b', 0.37, 0.13), P('c', 0.71, 0.17), P('d', 1.3, 0.1)] }, ['a', 'b', 'c', 'd']);
+    s().distributeItems(0);
+    const after = s().doc;
+    for (let k = 0; k < 3; k += 1) s().distributeItems(0);
+    expect(s().past).toHaveLength(1);
+    expect(s().doc).toBe(after);
+  });
 });

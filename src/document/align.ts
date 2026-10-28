@@ -14,9 +14,15 @@ export type Axis = 0 | 1 | 2;
 export type Edge = 'min' | 'centre' | 'max';
 type V3 = [number, number, number];
 
+/**
+ * Inches. A move this small is "already there": a result lands within an ulp of its target, not on it (`pos + (target − max)
+ * + size` rounds), so without this a second click would push an undo entry that moves a part by 1e-15 (final review I1; inv 4).
+ * The same tolerance as space evenly's refusal; far below anything a check or a reader sees.
+ */
+export const ALIGN_EPS = 1e-9;
 const along = (axis: Axis, v: number): V3 => {
   const d: V3 = [0, 0, 0];
-  d[axis] = v;
+  if (Math.abs(v) > ALIGN_EPS) d[axis] = v;
   return d;
 };
 const at = (it: AlignItem, axis: Axis, edge: Edge) =>

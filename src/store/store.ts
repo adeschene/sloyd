@@ -1035,12 +1035,6 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   /**
-   * Add one delta to every named board's position, as one edit, then run
-   * invariant 24's point-precise survival test for each of them. The ONE
-   * translate both group moves use (the Move tool's commit and the gizmo).
-   * The delta is computed once by the caller; nothing here rounds.
-   */
-  /**
    * Align and space evenly's write (align spec §5): every item's own exact world delta, folded through `translateItems` in
    * ONE edit (one undo entry), never rounded (inv 25) and never through `moveGroupTo` (inv 42); then held points are re-judged
    * (inv 24). Every delta zero writes nothing.
@@ -1053,6 +1047,12 @@ export const useStore = create<StoreState>((set, get) => {
     return null;
   };
 
+  /**
+   * Add one delta to every named board's position, as one edit, then run
+   * invariant 24's point-precise survival test for each of them. The ONE
+   * translate both group moves use (the Move tool's commit and the gizmo).
+   * The delta is computed once by the caller; nothing here rounds.
+   */
   const translateBoards = (ids: ReadonlySet<string>, delta: readonly [number, number, number]) => {
     if (readOnly()) return;
     // A world delta, rotated into each item's container frame and added

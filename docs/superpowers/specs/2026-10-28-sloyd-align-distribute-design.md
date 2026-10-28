@@ -62,7 +62,9 @@ For `edge` ∈ `min` | `centre` | `max` on axis `a`:
 - each other item's delta along `a` is `target − (its min[a] | its centre | its max[a])`, and its delta on the other two axes is
   exactly 0.
 
-A delta of exactly 0 moves nothing. When every delta is 0, the action is a no-op: no edit, no undo entry.
+A delta within 1e-9 of 0 moves nothing. When every delta is that small, the action is a no-op: no edit, no undo entry. *(Amended
+at the final review, I1: "exactly 0" was unreachable — a result lands within an ulp of its target, so a second click moved a part
+by 1e-15 and pushed an empty undo entry.)*
 
 ## 4. Space evenly — the decision
 

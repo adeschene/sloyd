@@ -164,7 +164,9 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 - **Align / space evenly (2026-10-28; BUILT on branch `align` from master `844a2a5`; no schema change; inline execution, one
   whole-branch review).** Spec `2026-10-28-sloyd-align-distribute-design.md`, plan `2026-10-28-sloyd-align-distribute.md`; browser
-  check `docs/browser-verification-align.md`. Owed: fu 537 (copy, by eye).
+  check `docs/browser-verification-align.md`. Final review: no Critical; one Important fixed test-first (a repeat click moved parts by
+  1e-15 and pushed an empty undo entry: a delta within 1e-9 is now no move, spec §3 amended); minors deferred (fu 538). Owed: fu 537
+  (copy, by eye).
 
 - **Part labels (2026-10-28; BUILT on branch `labels` from master `dcfe2ec`; no schema change; inline execution, one whole-branch
   review).** Spec `2026-10-28-sloyd-part-labels-design.md`, plan `2026-10-28-sloyd-part-labels.md`. The PDF print geometry measured exact
