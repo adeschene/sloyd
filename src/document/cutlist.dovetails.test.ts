@@ -157,8 +157,8 @@ describe('half-blind on the cut list (half-blind spec §5, Review Focus 3)', () 
     expect(benches.map((b) => b.pin.height)).toEqual([0.5, 0.75]);
     expect(benches.map((b) => b.pin.lap)).toEqual([undefined, 0.25]);
     expect(rowOf(doc, 'Front').setup).toEqual([
-      `${HB}1/2" deep, at the length min end; this part has the pins, their narrow ends 1/4" in from its thickness max face (the lap).`,
-      `${HB}1/2" deep, at the length max end; this part has the pins, their narrow ends 1/4" in from its thickness max face (the lap).`,
+      `${HB}1/2" deep, at the length min end; this part has the pins, their narrow ends behind a 1/4" lap on its thickness max face.`,
+      `${HB}1/2" deep, at the length max end; this part has the pins, their narrow ends behind a 1/4" lap on its thickness max face.`,
     ]);
     expect(rowOf(doc, 'Back').setup.every((l) => l.startsWith(HEAD) && l.endsWith('their narrow ends on its thickness min face.'))).toBe(true);
   });

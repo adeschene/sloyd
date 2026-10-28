@@ -121,7 +121,7 @@ const FAULT_REASONS: Record<DovetailFault, string> = {
   count: "the tail count isn't a whole number, 1 or more",
   slope: 'the slope is outside 1:4 to 1:12',
   depth: 'the part is too short for it',
-  lap: "the lap isn't inside the part's thickness",
+  lap: 'the lap is too thick for the part',
 };
 export const dovetailFaultText = (f: DovetailFault) => `This dovetail no longer fits: ${FAULT_REASONS[f]}.`;
 
@@ -161,7 +161,7 @@ export function dovetailLine(b: Pick<Board, 'length' | 'width'>, d: Dovetail, un
   }
   return d.lap === undefined
     ? `${head}; this part has the pins, their narrow ends on its thickness ${d.outside} face.`
-    : `${head}; this part has the pins, their narrow ends ${formatLength(d.lap, units)} in from its thickness ${d.outside} face (the lap).`;
+    : `${head}; this part has the pins, their narrow ends behind a ${formatLength(d.lap, units)} lap on its thickness ${d.outside} face.`;
 }
 
 /** The bench drawings' words (spec §5.2, Global Constraints; built in `dovetailBench.ts`, measured there as labels, inv 19).

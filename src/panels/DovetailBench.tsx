@@ -140,16 +140,18 @@ function Figure({ fig, l, heading }: { fig: BenchFigure; l: Layout; heading: str
       <figcaption className="cutlist-diagram-head">{heading}</figcaption>
       <svg viewBox={`0 0 ${FIG_W} ${l.height}`} fontSize={LABEL_SIZE} role="img" aria-label={heading}>
         {fig.waste.map((w, i) => <polygon key={i} className="cutlist-bench-waste" points={pts(w)} />)}
-        {fig.lap !== undefined && (
-          <polygon className="cutlist-bench-lap" points={pts([[0, 0], [fig.width, 0], [fig.width, fig.lap], [0, fig.lap]])} />
-        )}
         <polygon className="cutlist-diagram-outline" points={pts(fig.outline)} />
+        {/* A half-blind figure B's lap plane, dashed as figure A's baseline (copy review, 2026-10-28): the lap between it and
+            the outside face is wood, so it is left unshaded, as the pins are. */}
+        {fig.lap !== undefined && (
+          <line className="cutlist-bench-lap" x1={X(0)} y1={Y(fig.lap)} x2={X(fig.width)} y2={Y(fig.lap)} />
+        )}
         {fig.baseline !== undefined && (
           <line className="cutlist-bench-baseline" x1={X(0)} y1={Y(fig.baseline)} x2={X(fig.width)} y2={Y(fig.baseline)} />
         )}
         <g className="cutlist-diagram-leader">
           <line x1={X(0)} y1={l.chainY} x2={X(fig.width)} y2={l.chainY} />
-          {/* A half-blind figure B's ticks reach down through the lap band to the lap plane, where its chain runs. */}
+          {/* A half-blind figure B's ticks reach down through the lap to the lap plane, where its chain runs. */}
           {fig.bounds.map((b, i) => (
             <line key={i} className="cutlist-bench-tick" x1={X(b)} y1={l.chainY - TICK} x2={X(b)} y2={fig.lap === undefined ? l.y0 : Y(fig.lap)} />
           ))}

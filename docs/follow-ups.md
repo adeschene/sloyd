@@ -8020,6 +8020,12 @@ ruling) the planner's answer to a typed lap of 0, below 0 or NaN (it had read `F
 `Auto` (it reuses the Tails field's placeholder constant, fu 521).
 (7) The bench (`benchLap`): figure B's label `lap <x>` (bare mm in metric, `lap 6`).
 **Status:** open (owed to the user: wording).
+**Status:** CLOSED 2026-10-28 — the user asked Claude to review the copy and labels and make any needed updates. Two changes: the pins
+line now reads `this part has the pins, their narrow ends behind a <lap> lap on its thickness <min|max> face.` (was `… their narrow ends
+<lap> in from its thickness <face> face (the lap).`: the lap is the wood in front of the pins, so it is named as such); the fault reason
+reads `the lap is too thick for the part` (was `the lap isn't inside the part's thickness`; the loader drops a lap ≤ 0, so a stored lap
+faults only by reaching the thickness; it parallels `the part is too short for it`). Everything else kept as built: the success lines,
+`<part> is too thin for a <lap> lap.`, `A lap must be a length more than 0.`, the panel's words and `lap <x>`.
 
 **519. Mirror-twin sides in a MIXED drawer: half-blind front, through back (Task 6 named-risk finding; pre-existing).** With the sides
 linked as mirror twins: (a) Side right mirrored at the SAME turn — the half-blind front's corners refuse (the mate sentence when only the
@@ -8037,6 +8043,11 @@ is a congruence, or the linked signature compare ends through the mirror, is a h
 so a heavier band could read as waste), and its `lap <x>` label sits on the outside face's label row as free text, without a dimension
 tick of its own. The user judges both in the browser check; close when seen.
 **Status:** open (owed to the user: by eye).
+**Status:** CLOSED 2026-10-28 — Claude judged it at the user's request, from a headless capture of the dev server's cut list: the tinted
+band read as neither wood nor waste. Figure B now leaves the lap UNSHADED (it is wood, as the pins are) and draws the lap plane as a
+DASHED line (`.cutlist-bench-lap`, styled as figure A's baseline), so the two figures share one convention: a dashed line where the
+joint stops. The `lap <x>` label stays on the outside face's row (it reads beside `outside face` as `baseline <x>` does on figure A); no
+dimension tick added.
 
 **521. Half-blind dovetails: deferred minors (2026-10-28, the SDD ledger and task reviews).** (1) Task 1: `dovetailGeometry.test.ts` has
 a second section-cap helper duplicating the one inside its describe closure (left so the existing block stays untouched); the module-level

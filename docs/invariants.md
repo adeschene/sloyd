@@ -1760,7 +1760,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       when every label fits its own span, else each distinct value once at its first span with the overall `H` on both figures.
       The pin part's row carries its line only. **Half-blind lines** (copy review owed, fu 518): tails `Half-blind dovetails — <N>
       <tail|tails>, 1:<s>, pins <p> at the narrow end, <depth> deep, at the <dim> <end> end; this part has the tails, each <Te> wide at
-      the end.`; pins `…; this part has the pins, their narrow ends <lap> in from its thickness <outside> face (the lap).` — ONE
+      the end.`; pins `…; this part has the pins, their narrow ends behind a <lap> lap on its thickness <outside> face.` — ONE
       template for both kinds (only the head word and the pins clause branch), a through line byte for byte as before. **Half-blind
       bench:** the bench's `layoutKey` includes the lap (a through and a half-blind tail end of one depth are two benches); figure B's
       pin-board thickness is `depth + lap`, its sockets run from the lap plane to the inside face, the chain sits at the lap plane, the

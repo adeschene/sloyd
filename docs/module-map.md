@@ -718,7 +718,7 @@ src/
 │                     in `PROFILE_REFUSAL` words, another's through `curveEditRefusal`)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1); `.input-prefixed` (a prefixed field) and `.cutlist-bench*`
 │                     (the dovetail bench pair: no font-size on its text, inv 19; blackened and kept together in print;
-│                     `.cutlist-bench-lap`, half-blind's lap band: currentColor at fill-opacity 0.06, a 1.5 stroke — its look is fu 520)
+│                     `.cutlist-bench-lap`, half-blind's lap plane: a dashed line as the baseline, the lap unshaded wood — fu 520)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal; `FEATURE_CHECK_FAILED` (the joinery
                       dialog REFUSED when checking features against joints throws, fu 244, P8)

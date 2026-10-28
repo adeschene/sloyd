@@ -152,11 +152,11 @@ describe('dovetailLine: half-blind (half-blind spec §5.1, Global Constraints, v
       'Half-blind dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the tails, each 1-3/16" wide at the end.');
   });
 
-  it('the front has the pins: their narrow ends the lap in from its outside face', () => {
+  it('the front has the pins: their narrow ends behind the lap on its outside face', () => {
     const front = part(halfBlind(), 'f');
     const d = front.dovetails!.find((x) => x.end === 'max')!;
     expect(dovetailLine(front, d, IMPERIAL)).toBe(
-      'Half-blind dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the pins, their narrow ends 1/4" in from its thickness max face (the lap).');
+      'Half-blind dovetails — 4 tails, 1:8, pins 1/4" at the narrow end, 1/2" deep, at the length max end; this part has the pins, their narrow ends behind a 1/4" lap on its thickness max face.');
   });
 
   it('a through entry beside it is unchanged: the same fields without `lap` read the through line, byte for byte', () => {
@@ -181,7 +181,7 @@ describe('dovetailLine: half-blind (half-blind spec §5.1, Global Constraints, v
     expect(d.lap).toBe(6 / 25.4);
     expect(d.count).toBe(4);
     expect(dovetailLine(front, d, METRIC)).toBe(
-      'Half-blind dovetails — 4 tails, 1:8, pins 6 mm at the narrow end, 12 mm deep, at the length max end; this part has the pins, their narrow ends 6 mm in from its thickness max face (the lap).');
+      'Half-blind dovetails — 4 tails, 1:8, pins 6 mm at the narrow end, 12 mm deep, at the length max end; this part has the pins, their narrow ends behind a 6 mm lap on its thickness max face.');
     const s = part(doc, 'l');
     expect(dovetailLine(s, s.dovetails!.find((x) => x.end === 'max')!, METRIC)).toBe(
       'Half-blind dovetails — 4 tails, 1:8, pins 6 mm at the narrow end, 12 mm deep, at the length max end; this part has the tails, each 30 mm wide at the end.');
