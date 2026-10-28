@@ -8037,6 +8037,7 @@ Shape's ends; inv 40's part-local identity, fu 510's class). Linked UNMIRRORED s
 in `cutlist.dovetails.test.ts`), and so do mirror twins in an all-half-blind drawer (one row). Making row identity ignore an end flip that
 is a congruence, or the linked signature compare ends through the mirror, is a human decision and not half-blind specific.
 **Status:** open (ask first).
+**Status:** open by decision — the user ruled 2026-10-28 to leave it as is ("Leave fu 519 as is"); do not re-open unasked.
 
 **520. The half-blind bench's lap band and label by eye (for the user; Task 6 review, Task 9's browser check).** Figure B draws the lap as a
 `.cutlist-bench-lap` band at fill-opacity 0.06 with a 1.5 stroke along the lap plane (the spec said "a solid band"; the waste fill is 0.22,
