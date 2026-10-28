@@ -35,6 +35,7 @@ import { withinTiltBound } from '../document/holeTilt';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
+import { rekeyViews } from '../document/views';
 
 const HISTORY_LIMIT = 50;
 
@@ -589,6 +590,8 @@ interface StoreState {
   /** Returns the stored name: the old name when emptied, `''` for an unknown id. */
   renameView: (id: string, typed: string) => string;
   deleteView: (id: string) => void;
+  /** Restores a view's explode, section and hidden set (its own undo entry when the hidden set changes); returns the view whose camera the caller applies, or null when refused (mid-gesture) or unknown. */
+  goToView: (id: string) => SavedView | null;
   removeGuide: (id: string) => void;
   clearGuides: () => void;
 }
@@ -906,7 +909,7 @@ export const useStore = create<StoreState>((set, get) => {
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey, lift);
     const pastBefore = get().past;
-    edit(fn, selection);
+    edit((d) => rekeyViews(fn(d), rekey, lift), selection); // views follow in the SAME entry (saved views spec §2)
     const past = get().past;
     // A no-op edit pushes nothing (fu 231); rewriting the top then would clobber
     // an OLDER entry (perhaps a hide run's) or invent one on an empty history.
@@ -2574,6 +2577,19 @@ export const useStore = create<StoreState>((set, get) => {
         return [...views, { id, name, camera, section: section ? { ...section } : null, explode, hidden: [...hiddenIds] }];
       });
       return ok && saved ? id : null;
+    },
+
+    // Inv 43 amendment: going to a view is a fifth user action through applyHidden. It ends any hide run
+    // (hideRunEntry = null), so its hide is never merged into a preceding toggle's entry.
+    goToView: (id) => {
+      if (get().gesturing) return null;
+      const view = get().doc.views.find((v) => v.id === id);
+      if (!view) return null;
+      get().setExplode(view.explode);
+      get().setSection(view.section ? { ...view.section } : null);
+      hideRunEntry = null;
+      applyHidden(view.hidden);
+      return view;
     },
 
     updateView: (id, camera) => {

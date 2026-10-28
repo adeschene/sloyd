@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CURRENT_VERSION, createDocument, migrateDocument, validateViews } from './document';
 import type { SavedView } from './types';
+import { rekeyViews } from './views';
 
 /** Schema 29 (saved views spec §2): `views` on the document. */
 const good = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
@@ -86,5 +87,21 @@ describe('schema 29: SavedView (saved views spec §2)', () => {
       expect(load('nope')).toEqual([]);
       expect(load(undefined)).toEqual([]);
     });
+  });
+});
+
+describe('rekeyViews (saved views spec §2)', () => {
+  const withHidden = (hidden: string[]) => ({ ...createDocument('T'), views: [good({ hidden }) as unknown as SavedView] });
+  it('maps ids through rekey', () => {
+    const out = rekeyViews(withHidden(['a', 'b']), (p) => (p === 'a' ? 'g/a' : p));
+    expect(out.views[0]!.hidden).toEqual(['g/a', 'b']);
+  });
+  it('lifts a dissolved assembly to its children, deduplicated', () => {
+    const out = rekeyViews(withHidden(['g', 'a']), (p) => p, (p) => (p === 'g' ? ['a', 'b'] : null));
+    expect(out.views[0]!.hidden).toEqual(['a', 'b']);
+  });
+  it('returns the same doc when nothing changes', () => {
+    const d = withHidden(['a']);
+    expect(rekeyViews(d, (p) => p)).toBe(d);
   });
 });

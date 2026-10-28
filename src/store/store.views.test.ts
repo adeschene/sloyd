@@ -123,4 +123,120 @@ describe('saved views store actions', () => {
     s().addGuide([0, 0, 0]); // calls edit() directly, with no readOnly() check of its own
     expect(s().doc.guides).toHaveLength(0);
   });
+
+  describe('goToView and Group/Ungroup', () => {
+    const twoBoards = () => { s().addBoard(); s().addBoard(); return s().doc.boards.map((b) => b.id); };
+
+    it('goToView sets explode, section and hidden, and writes no doc', () => {
+      const [a] = twoBoards();
+      s().setSection({ axis: 'front', at: 2, flip: false });
+      s().setHidden(a!, true);
+      s().setExplode(0.5);
+      const id = s().saveView(cam)!;
+      s().setExplode(0);
+      s().setSection(null);
+      s().setHidden(a!, false);
+      const doc = s().doc;
+      const v = s().goToView(id);
+      expect(v).toBe(s().doc.views[0]);
+      expect(s().explode).toBe(0.5);
+      expect(s().section).toEqual({ axis: 'front', at: 2, flip: false });
+      expect(s().hiddenIds).toEqual([a]);
+      expect(s().doc).toBe(doc);
+    });
+
+    it('skips a deleted part', () => {
+      const [, b] = twoBoards();
+      s().setHidden(b!, true);
+      const id = s().saveView(cam)!;
+      s().setHidden(b!, false);
+      s().deleteBoard(b!);
+      s().goToView(id);
+      expect(s().hiddenIds).toEqual([]);
+      s().undo();
+      s().goToView(id);
+      expect(s().hiddenIds).toEqual([b]);
+    });
+
+    it('its hide is its own entry', () => {
+      const [a, b] = twoBoards();
+      s().setHidden(b!, true);
+      const id = s().saveView(cam)!;
+      s().setHidden(b!, false);
+      s().setHidden(a!, true);
+      const past = s().past.length;
+      s().goToView(id);
+      expect(s().hiddenIds).toEqual([b]);
+      expect(s().past.length).toBe(past + 1);
+      s().undo();
+      expect(s().hiddenIds).toEqual([a]);
+    });
+
+    it('go to A, go to B, undo gives A hidden set', () => {
+      const [a, b] = twoBoards();
+      s().setHidden(a!, true);
+      const va = s().saveView(cam)!;
+      s().setHidden(a!, false);
+      s().setHidden(b!, true);
+      const vb = s().saveView(cam)!;
+      s().goToView(va);
+      s().goToView(vb);
+      expect(s().hiddenIds).toEqual([b]);
+      s().undo();
+      expect(s().hiddenIds).toEqual([a]);
+    });
+
+    it('no entry when the hidden set already matches', () => {
+      twoBoards();
+      const id = s().saveView(cam)!;
+      const past = s().past.length;
+      s().goToView(id);
+      expect(s().past.length).toBe(past);
+    });
+
+    it('refused mid-gesture', () => {
+      const [a] = twoBoards();
+      s().setHidden(a!, true);
+      const id = s().saveView(cam)!;
+      s().setHidden(a!, false);
+      s().setExplode(0);
+      s().beginGesture();
+      expect(s().goToView(id)).toBeNull();
+      expect(s().hiddenIds).toEqual([]);
+      s().endGesture();
+      expect(s().goToView('nope')).toBeNull();
+    });
+
+    it('Group re-keys every views hidden in the same entry', () => {
+      const [a] = twoBoards();
+      s().setHidden(a!, true);
+      s().saveView(cam);
+      s().setHidden(a!, false);
+      s().selectAll();
+      const past = s().past.length;
+      s().groupSelected();
+      expect(s().past.length).toBe(past + 1);
+      const now = s().doc.views[0]!.hidden;
+      expect(now).toHaveLength(1);
+      expect(now[0]).not.toBe(a);
+      expect(now[0]!.endsWith(a!)).toBe(true);
+      s().undo();
+      expect(s().doc.views[0]!.hidden).toEqual([a]);
+    });
+
+    it('Ungroup of a hidden assembly lifts it in views', () => {
+      const [a, b] = twoBoards();
+      s().selectAll();
+      s().groupSelected();
+      const asm = s().selectedIds[0]!;
+      s().setHidden(asm, true);
+      s().saveView(cam);
+      expect(s().doc.views[0]!.hidden).toEqual([asm]);
+      s().selectBoard(asm);
+      s().setHidden(asm, false);
+      s().selectBoard(asm);
+      s().ungroupSelected();
+      expect(s().doc.views[0]!.hidden.sort()).toEqual([a, b].sort());
+    });
+  });
 });
