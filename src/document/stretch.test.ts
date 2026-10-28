@@ -9,7 +9,7 @@ import { builtTenons } from './roundTenons';
 import { itemExtents } from './align';
 import { flatDocument, partAt, worldParts } from './tree';
 import { mapWorld } from './treeEdit';
-import { copiesDiffer, linkDiffers, STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE } from './stretchText';
+import { copiesDiffer, inRemovedBand, linkDiffers, STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE } from './stretchText';
 
 // Every expectation is computed by hand off the fixtures' input numbers (stretchFixtures.ts), never by the code under test.
 
@@ -265,8 +265,31 @@ describe('stretchPlan: line, size, no-op, no mutation', () => {
   });
   it('a refused walk (a shrink too short for the long aprons) leaves the document untouched', () => {
     const before = structuredClone(doc);
-    // Shrink 46 at x 24: the long aprons end at 46.25 < 24 + 46.
-    expect(refusal(stretchPlan(doc, rootIds(doc), 0, 2, 24))).toBe('Front apron is too short to shrink by 46" at this line.');
+    // Shrink 46 at x 24 over Front apron and Top (extent 0–48): the apron ends at 46.25 < 24 + 46. Only spanning parts are
+    // selected: with the whole table, Right back leg (x 46.25, inside the band 24–70) would refuse first (Ruling 7).
+    const ids = idsOf(doc, 'Front apron', 'Top');
+    expect(refusal(stretchPlan(doc, ids, 0, 2, 24))).toBe('Front apron is too short to shrink by 46" at this line.');
     expect(doc).toEqual(before);
+  });
+});
+
+describe('stretchPlan: a shrink never moves a node that starts inside the removed band (Ruling 7)', () => {
+  const doc = apronTable();
+  const ids = idsOf(doc, 'Front apron', 'Back apron', 'Top');
+
+  it('the repro: aprons at x 1.75, shrink 48 → 46 at x 1.5 (band 1.5–3.5): refused, naming Front apron (first in tree order)', () => {
+    const before = structuredClone(doc);
+    expect(refusal(stretchPlan(doc, ids, 0, 46, 1.5))).toBe(inRemovedBand('Front apron'));
+    expect(inRemovedBand('Front apron')).toBe('Front apron sits in the wood this shrink removes — move the line or shrink less.');
+    expect(doc).toEqual(before);
+  });
+  it('the boundary: shrink 48 → 46.5 at x 0.25 (band 0.25–1.75): the aprons start exactly at 1.75 = s + |δ|, so they pass and land at 0.25', () => {
+    const p = ok(stretchPlan(doc, ids, 0, 46.5, 0.25));
+    expect(p.delta).toBe(-1.5);
+    expect(p.moves).toEqual(idsOf(doc, 'Front apron', 'Back apron'));
+    expect(p.grows).toEqual(idsOf(doc, 'Top'));
+    expect(byName(p.doc, 'Front apron').position).toEqual([0.25, 24.5, 22.75]);
+    expect(byName(p.doc, 'Back apron').position).toEqual([0.25, 24.5, 0.5]);
+    expect(byName(p.doc, 'Top').length).toBe(46.5);
   });
 });

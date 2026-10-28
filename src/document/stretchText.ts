@@ -32,6 +32,8 @@ export const curvesAndProfiles = (part: string) =>
 /** A shrink by `amount` (either sign; its size is printed) would remove past the part's far end. */
 export const tooShort = (part: string, amount: number, units: Units) =>
   `${part} is too short to shrink by ${formatLength(Math.abs(amount), units)} at this line.`;
+/** A shrink (δ < 0) would move a node that starts INSIDE the removed band back past the line (Ruling 7). */
+export const inRemovedBand = (node: string) => `${node} sits in the wood this shrink removes — move the line or shrink less.`;
 /** The copies post-condition (spec §6): two placements of one definition would be lowered differently. */
 export const copiesDiffer = (assembly: string) =>
   `${assembly} has copies this stretch would change differently — Make Unique first.`;

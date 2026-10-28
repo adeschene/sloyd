@@ -4,7 +4,7 @@ import { itemExtents } from './align';
 import { partsBounds } from './worldBounds';
 import { itemKey, storageKey, translateItems, writeBackParts } from './treeEdit';
 import { stretchPart } from './stretchPart';
-import { STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE, copiesDiffer, linkDiffers } from './stretchText';
+import { STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE, copiesDiffer, inRemovedBand, linkDiffers } from './stretchText';
 
 /**
  * A stretch's full result (parametric-resize spec §4): the after-document, and the node paths it grows, moves whole and
@@ -57,8 +57,8 @@ export function nearlyEqual(a: unknown, b: unknown, eps: number, top = true): bo
  * is never mutated, and a refusal leaves it as it was. The panel's preview and the store action both call it.
  *
  * Refusal order (Global Constraints): the size; the line (strictly inside the items' extent, 1e-9); the no-op
- * (`|δ| ≤ 1e-9` returns null); the walk in tree order, each spanning part's refusals being `stretchPart`'s own; the
- * copies post-condition; the links post-condition.
+ * (`|δ| ≤ 1e-9` returns null); the walk in tree order — a shrink's moving node starting inside the removed band (Ruling
+ * 7), each spanning part's refusals being `stretchPart`'s own; the copies post-condition; the links post-condition.
  *
  * The walk is top-down (spec §4): a node whose extent (`partsBounds` over the world parts it covers, leaned boxes, inv
  * 57 R2) ends at the line STAYS, one starting at it MOVES whole, and anything else SPANS. A spanning assembly is
@@ -67,8 +67,10 @@ export function nearlyEqual(a: unknown, b: unknown, eps: number, top = true): bo
  *
  * The after-document is `writeBackParts` over the grown parts (keepWorld, inv 46; one edit per storage key), then ONE
  * `translateItems` over the moved paths, deduped by STORAGE target (`itemKey`) first: two placements of one definition
- * both moving the same inner node would otherwise shift the definition's record twice. A moved node is never inside a
- * grown part, so the two writes touch disjoint records. Exact (inv 25): `δ` is computed once and added; nothing rounds.
+ * both moving the same inner node would otherwise shift the definition's record twice. Within one placement a moved node is
+ * never inside a grown part, but across placements the grow and move writes can reach the SAME stored record (one
+ * definition, grown through one placement and moved through another): the copies post-condition below catches that, and
+ * refuses. Exact (inv 25): `δ` is computed once and added; nothing rounds.
  *
  * Copies and links refuse, never split (spec §6): every occurrence of `worldParts(after)` must equal its expected world
  * part (a grown one its `stretchPart` result, one under a moved node its `before` with `position[k] + δ`, any other its
@@ -104,7 +106,17 @@ export function stretchPlan(
     for (const path of paths) {
       const box = extentOf(path);
       if (!box || box.max[k]! <= line + EPS) { stays.push(path); continue; }
-      if (box.min[k]! >= line - EPS) { moves.push(path); continue; }
+      if (box.min[k]! >= line - EPS) {
+        // Ruling 7: on a shrink, a node starting strictly INSIDE the removed band `(s, s + |δ|)` would land back past the line
+        // (its min below `s`), so the result would not be the typed size. Refused, naming the node. The boundary is fine:
+        // a node whose min is exactly `s + |δ|` (within 1e-9) lands exactly on the line, and one whose min is at `s` (within
+        // 1e-9) is outside the band and moves as any other.
+        if (delta < 0 && box.min[k]! > line + EPS && box.min[k]! < line - delta - EPS) {
+          return inRemovedBand((partAt(doc, path) ?? instanceAt(doc, path))!.name);
+        }
+        moves.push(path);
+        continue;
+      }
       const part = byId.get(path);
       if (!part) {
         const refused = walk(childrenOf(doc, path));
