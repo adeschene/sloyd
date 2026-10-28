@@ -89,7 +89,11 @@ function LabelBody({ label }: { label: PartLabel }) {
         <span className="labels-name">{label.name}</span>
       </div>
       <div className="labels-size">{label.size}</div>
-      <div className="labels-material">{label.grain ? `${label.material} · ${label.grain}` : label.material}</div>
+      {/* The grain is its own non-shrinking span: a long material name truncates, the grain never does (final review). */}
+      <div className="labels-material">
+        <span className="labels-matname">{label.material}</span>
+        {label.grain && <><span className="labels-sep"> · </span><span className="labels-grain">{label.grain}</span></>}
+      </div>
       <div className="labels-foot">
         <span className="labels-project">{label.project}</span>
         {label.copy && <span className="labels-copy">{label.copy}</span>}

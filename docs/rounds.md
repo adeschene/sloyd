@@ -162,7 +162,9 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 - **Part labels (2026-10-28; BUILT on branch `labels` from master `dcfe2ec`; no schema change; inline execution, one whole-branch
   review).** Spec `2026-10-28-sloyd-part-labels-design.md`, plan `2026-10-28-sloyd-part-labels.md`. The PDF print geometry measured exact
-  (`docs/browser-verification-labels.md`). Owed: fu 532 (a real sheet, by eye).
+  (`docs/browser-verification-labels.md`). Final review: no Critical or Important as graded; one Minor regraded and fixed test-first (a
+  long material name truncated the grain away: the grain is now its own span, measured inside the sticker in a browser); minors
+  deferred (fu 533). Owed: fu 532 (a real sheet, by eye).
 
 - **Weight (2026-10-28; BUILT on branch `weight` from master `f824f89`; schema 28; inline execution, one whole-branch review).** Spec
   `2026-10-28-sloyd-weight-design.md` (option A, approved), plan `2026-10-28-sloyd-weight.md`. Final review: no Critical; two Important fixed test-first (I1 edging weighed at its FINISHED size, allowances never;

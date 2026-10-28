@@ -30,6 +30,15 @@ describe('LabelsSheet', () => {
     expect(first.textContent).toContain('Oak · grain along length');
   });
 
+  it('the grain is its own element, so a long material name can never truncate it away (final review)', () => {
+    act(() => useStore.getState().replaceDocument({ ...four(), materials: [{ id: 'm-s-long0001', label: 'Quartersawn white oak, air-dried, select and better', color: '#c8a878', kind: 'solid' }],
+      boards: [createBoard({ id: 'q', name: 'Rail', material: 'm-s-long0001', length: 20, width: 3, thickness: 0.75 })] }));
+    const { container } = render(<LabelsSheet onClose={() => {}} />);
+    const cell = container.querySelector('.labels-cell:not(.labels-empty):not(.labels-skip)')!;
+    expect(cell.querySelector('.labels-grain')!.textContent).toBe('grain along length');
+    expect(cell.querySelector('.labels-matname')!.textContent).toBe('Quartersawn white oak, air-dried, select and better');
+  });
+
   it('another stock, and a start part-way down the sheet', () => {
     const { container } = render(<LabelsSheet onClose={() => {}} />);
     fireEvent.change(screen.getByRole('combobox', { name: 'Stock' }), { target: { value: 'avery-5163' } });

@@ -1522,7 +1522,9 @@ select.input { cursor: pointer; }
 }
 .labels-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .labels-size { font-family: var(--font-num); white-space: nowrap; }
-.labels-material { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.labels-material { display: flex; white-space: pre; min-width: 0; }
+.labels-matname { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.labels-sep, .labels-grain { flex: none; }
 .labels-foot { display: flex; justify-content: space-between; gap: 0.5em; white-space: nowrap; }
 .labels-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .labels-copy { flex: none; }

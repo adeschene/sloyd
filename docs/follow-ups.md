@@ -8124,3 +8124,13 @@ from the PDF (first and last cells within 0.0001" of each preset); one real shee
 the print note, and the label lines.
 **Status:** open (owed to the user: real hardware and by eye).
 
+**533. Part labels: deferred minors (2026-10-28, the final whole-branch review).** (1) `LabelsSheet` builds three strings (the count
+line, the Start at refusal, the ` · ` before the grain) that spec §6 puts in `labels.ts`. (2) A long name is truncated from the END,
+so a nested path or a strip name loses its most identifying suffix (copies on one row are identical pieces, so no two different
+pieces read alike). Options: wrap to two lines on the larger stock, or truncate from the left. (3) Escape in the Start at field reverts
+it AND closes the sheet (as every dialog does today; DimensionField does not stop the event). (4) Closing Labels focuses the cut-list
+sheet, not its `Labels…` button. (5) A Start at past `Number.MAX_SAFE_INTEGER` shows DimensionField's own `Must be at most …`. (6) No
+test that a stock change resets Start at, no App-level Escape test, and no hidden part in the `labelsOf` fixture (hidden-ness is store
+state, so it holds by construction).
+**Status:** open (record-only).
+
