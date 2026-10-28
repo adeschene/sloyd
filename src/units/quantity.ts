@@ -69,9 +69,20 @@ const DENSITY_RE = /^(?:\d+\.?\d*|\.\d+)$/;
 /** One decimal while the value, so rounded, is under 10; whole from 10 up — a ±15% material does not deserve `47.3`. */
 const estimate = (v: number) => (Number(v.toFixed(1)) < 10 ? v.toFixed(1) : String(Math.round(v)));
 
-/** A weight, printed: `6.2 lb` / `47 lb`, or kg in a metric project. Takes POUNDS. The word `about` is the caller's. */
+/**
+ * A weight, printed: `6.2 lb` / `47 lb`, or kg in a metric project. Takes POUNDS. One that would print `0.0` reads `under 0.1 lb`
+ * instead (the user's ruling 2026-10-28): a weighed part never reads as weightless. The word `about` is `approxWeight`'s.
+ */
 export function formatWeight(pounds: number, units: Units): string {
-  return isMetric(units) ? `${estimate(pounds * KG_PER_LB)} kg` : `${estimate(pounds)} lb`;
+  const unit = isMetric(units) ? 'kg' : 'lb';
+  const text = estimate(isMetric(units) ? pounds * KG_PER_LB : pounds);
+  return text === '0.0' ? `under 0.1 ${unit}` : `${text} ${unit}`;
+}
+
+/** A weight in a sentence: `about 6.2 lb`, or `under 0.1 lb` alone (never `about under 0.1 lb`). */
+export function approxWeight(pounds: number, units: Units): string {
+  const text = formatWeight(pounds, units);
+  return text.startsWith('under ') ? text : `about ${text}`;
 }
 
 export const DENSITY_UNIT = (units: Units): 'lb/ft³' | 'kg/m³' => (isMetric(units) ? 'kg/m³' : 'lb/ft³');

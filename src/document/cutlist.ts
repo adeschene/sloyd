@@ -19,7 +19,7 @@ import { buildNesting } from './nesting';
 import type { Nesting } from './nesting';
 import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
-import { formatBoardFeet, formatSquareFeet, formatWeight } from '../units/quantity';
+import { approxWeight, formatBoardFeet, formatSquareFeet, formatWeight } from '../units/quantity';
 import { coreWeight, stripWeight, type WeightSummary } from './weight';
 import { geometryBoard, profileValues, sweptProfiles } from './profiles';
 import { bandSignature, coreSize, cutStock, stripBoard, strips } from './banding';
@@ -559,13 +559,13 @@ const nothingWeighed = (s: WeightSummary) => s.unweighed.length > 0 && s.pounds 
 /** The cut list's project line (weight spec §5.1): every string built here (inv 19). */
 function projectWeightLine(s: WeightSummary, catalog: MaterialCatalog, units: Units): string {
   if (nothingWeighed(s)) return `Weight: not known (${joinLabels(s.unweighed, catalog)} ${s.unweighed.length === 1 ? 'has' : 'have'} no density)`;
-  const about = `Weight: about ${formatWeight(s.pounds, units)}`;
+  const about = `Weight: ${approxWeight(s.pounds, units)}`;
   return s.unweighed.length === 0 ? about : `${about}, not counting ${joinLabels(s.unweighed, catalog)} (no density)`;
 }
 
 /** Properties' Weight value (weight spec §5.2): `about 6.2 lb`, `about 6.2 lb, not counting Ash`, or `not known`. */
 export function weightSentence(s: WeightSummary, catalog: MaterialCatalog, units: Units): string {
   if (nothingWeighed(s)) return 'not known';
-  const about = `about ${formatWeight(s.pounds, units)}`;
+  const about = approxWeight(s.pounds, units);
   return s.unweighed.length === 0 ? about : `${about}, not counting ${joinLabels(s.unweighed, catalog)}`;
 }

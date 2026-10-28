@@ -63,6 +63,17 @@ describe('the cut list prints weight (weight spec §5.1)', () => {
   });
 });
 
+describe('a tiny weight (the user\'s ruling 2026-10-28)', () => {
+  it('a group, the project line and Properties read "under 0.1", never "about under"', () => {
+    const peg = createBoard({ id: 'p', name: 'Peg', material: 'walnut', length: 1, width: 0.25, thickness: 0.25 }); // 0.0014 lb
+    const list = buildCutList(flat([peg]));
+    expect(list.groups[0]!.weight).toBe('under 0.1 lb');
+    expect(list.weight).toBe('Weight: under 0.1 lb');
+    expect(weightSentence({ pounds: 0.01, unweighed: [] }, catalogOf(flat([])), IMPERIAL)).toBe('under 0.1 lb');
+    expect(weightSentence({ pounds: 0.01, unweighed: [ash.id] }, catalogOf(flat([], { materials: [ash] })), IMPERIAL)).toBe('under 0.1 lb, not counting Ash');
+  });
+});
+
 describe('weightSentence (Properties, weight spec §5.2)', () => {
   const doc = flat([], { materials: [ash, elm] });
   const cat = catalogOf(doc);

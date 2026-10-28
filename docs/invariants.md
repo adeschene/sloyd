@@ -1787,6 +1787,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     material with no density makes every total say it is partial and name what it left out** (`no density` under a group's stock, `…, not counting Ash
     (no density)`, Properties' `…, not counting Ash`), and nothing weighed at all reads `not known` — never a silent undercount,
     never `about 0 lb`. `weight.ts` imports nothing from `units`; the strings are `cutlist.ts`' (`weightSentence`, the project
-    line) and `units/quantity.ts`' (`formatWeight`: one decimal while under 10, whole from 10; `formatDensity`, `parseDensity`).
+    line) and `units/quantity.ts`' (`formatWeight`: one decimal while under 10, whole from 10, `under 0.1 lb|kg` for what would print
+    `0.0`; `approxWeight` the sentence form; `formatDensity`, `parseDensity`).
     **`partMass` (the tip check) and every design check never read density**: they are byte for byte as before. Generate's schema
     stays byte-identical (pinned by hash in `document.v28.test.ts`).

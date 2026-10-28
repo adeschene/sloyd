@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DENSITY_UNIT, densityText, formatDensity, formatWeight, parseDensity } from './quantity';
+import { DENSITY_UNIT, approxWeight, densityText, formatDensity, formatWeight, parseDensity } from './quantity';
 import { IMPERIAL, type Units } from './length';
 
 const METRIC: Units = { display: 'metric-mm', precision: 16 };
@@ -10,7 +10,13 @@ describe('formatWeight (weight spec §6)', () => {
     expect(formatWeight(9.9, IMPERIAL)).toBe('9.9 lb');
     expect(formatWeight(9.96, IMPERIAL)).toBe('10 lb');
     expect(formatWeight(47.3, IMPERIAL)).toBe('47 lb');
-    expect(formatWeight(0.04, IMPERIAL)).toBe('0.0 lb');
+    expect(formatWeight(0.04, IMPERIAL)).toBe('under 0.1 lb');
+  });
+  it('a weight that would round to 0.0 reads "under 0.1" (the user\'s ruling 2026-10-28): never a weighed part as weightless', () => {
+    expect(formatWeight(0.06, IMPERIAL)).toBe('0.1 lb');
+    expect(formatWeight(0.09, METRIC)).toBe('under 0.1 kg'); // 0.041 kg
+    expect(approxWeight(0.04, IMPERIAL)).toBe('under 0.1 lb');
+    expect(approxWeight(6.2, IMPERIAL)).toBe('about 6.2 lb');
   });
   it('a metric project prints kg', () => {
     expect(formatWeight(22.0462, METRIC)).toBe('10 kg');

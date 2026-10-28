@@ -203,7 +203,9 @@ Weight and density are not lengths, so they sit beside `formatBoardFeet` and `fo
 `Units` (`isMetric`):
 
 - `formatWeight(pounds, units)`: imperial `lb`, metric `kg` (`× 0.45359237`). Under 10 one decimal (`6.2 lb`), at 10 and
-  over whole (`47 lb`). *Claude's call* — a ±15% material does not deserve `47.3`.
+  over whole (`47 lb`). *Claude's call* — a ±15% material does not deserve `47.3`. *(Amended 2026-10-28, the user's ruling: a
+  weight that would print `0.0` reads `under 0.1 lb` / `under 0.1 kg`; in a sentence `approxWeight` gives `about 6.2 lb` or
+  `under 0.1 lb`, never `about under`.)*
 - The word `about` is added by the caller's sentence, not the formatter.
 - `formatDensity(lbPerFt3, units)`: imperial whole lb/ft³ (one decimal under 10), metric whole kg/m³; `parseDensity(text,
   units)` the inverse. A metric value round-trips to the same whole kg/m³.
