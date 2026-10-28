@@ -106,7 +106,7 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so do `designCheck.ts` (a metric violation's
 `shown` copy, fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), `dovetailBench.ts` (the
 bench drawings' strings, `formatLengthBare`), and the copy homes `bandText.ts`, `tenonText.ts`, `stretcherText.ts`, `boxJointText.ts`,
-`cornerText.ts` and `dovetailText.ts` (`banding.ts` and `roundTenons.ts` stay numbers-only).
+`cornerText.ts` and `dovetailText.ts`, and `labels.ts` (part labels' strings) (`banding.ts` and `roundTenons.ts` stay numbers-only).
 `snapPoints.ts`, `row.ts` and `weight.ts` (numbers only; its strings are `cutlist.ts`' and `quantity.ts`') deliberately do not. Do not generalise to "everything under
 `document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`, `boxJoints.ts`, `cornerPlan.ts`, `dovetails.ts`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
@@ -164,6 +164,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Repair; Refine's carry | `featureCarry.ts` (inv 56), `joints/featureZones.ts`, `featureRegions.ts`, `joints/tapers.ts` `joineryRefusal` |
 | cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts`, `materials.ts` (inv 18, 19, 22, 23, 49) |
+| part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
 | weight | `weight.ts` (`woodVolume`, `coreWeight`, `weightOf`); density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `generate/` (inv 41) |
@@ -181,7 +182,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 editing it** (`snapPoints.ts`, `cutlist.ts`/`diagram.ts`, `bodies.ts`, `angleCuts.ts`, `AngleCuts.tsx`, `nesting.ts`,
 `SheetLayout.tsx`, `plans.ts`, `featureKeys.ts`/`planKeys.ts`, `pocket.ts`, `prompt.ts`/`concepts.ts`, `SettingsDialog.tsx`,
 `useGenerations.ts`, `store.ts`, `MoveTool`, `TapeTool.tsx`, `BoardMesh.tsx`, `Viewport.tsx`, `DimensionField.tsx`,
-`ProjectMenu.tsx`, `GuidesList.tsx`, `Popover.tsx`, `styles.css`, `App.tsx` keys). A new per-file rule goes there, and
+`ProjectMenu.tsx`, `GuidesList.tsx`, `Popover.tsx`, `styles.css`, `App.tsx` keys, `labels.ts`/`LabelsSheet.tsx`). A new per-file rule goes there, and
 its file's name here.
 
 ## Invariants — break these and things fail in confusing ways
@@ -559,7 +560,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9919 tests across 278 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9941 tests across 280 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -568,7 +569,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–527). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–532). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -578,7 +579,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight).
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 526 (weight: copy and two calls); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 526 (weight: copy and two calls), 532 (part labels: a real sheet of stickers, by eye); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
@@ -588,7 +589,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527. Part labels (2026-10-28): 528, 529 and 531 (ask first); record-only 530.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

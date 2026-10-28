@@ -8103,3 +8103,24 @@ Properties' `SelectionWeight` runs `flatDocument` on every document change, drag
 unreachable after load validation.
 **Status:** open (record-only).
 
+**528. Part labels: more sticker stock and custom geometry (2026-10-28).** v1 has four presets (Avery 5160, 5163, L7160, L7163).
+Other common sheets, or a typed geometry (page, columns, rows, sizes, margins, pitches), would extend `LABEL_STOCKS`.
+**Status:** open (ask first).
+
+**529. Part labels: remember the chosen stock (2026-10-28).** The stock and Start at are view state, reset each opening (spec §4.3).
+Remembering the stock needs a `StorageAdapter` key (fu 8: nothing else touches `localStorage`).
+**Status:** open (ask first).
+
+**530. Part labels: a QR code or barcode (2026-10-28).** Out of scope in v1.
+**Status:** open (record-only).
+
+**531. Part labels: hardware labels, and a finished-size line on a banded part's label (2026-10-28).** v1 labels the pieces the cut
+list asks you to cut, at their CUT size (a banded part's core).
+**Status:** open (ask first).
+
+**532. Part labels: a printed sheet against real stock, and the look (for the user, 2026-10-28).** The print geometry was measured
+from the PDF (first and last cells within 0.0001" of each preset); one real sheet of stickers is owed, and the on-screen sheet by eye
+(the check ran headless). Includes the copy: `Labels…`, `Start at`, `Enter a label number from 1 to <n>`, `<n> labels on <m> sheets`,
+the print note, and the label lines.
+**Status:** open (owed to the user: real hardware and by eye).
+
