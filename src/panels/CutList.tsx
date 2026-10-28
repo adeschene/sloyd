@@ -34,12 +34,14 @@ type DiagramMode = 'none' | 'joinery' | 'all';
  * arrangement is taking focus on mount, since focus is otherwise left on a
  * button that has just become unfocusable.
  */
-export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended = false }: {
+export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, onOpenLabels, suspended = false }: {
   onClose: () => void;
   /** The browser-level lumber and price settings (lumber yield and cost spec §2); App reads them. */
   shop?: ShopSettings;
   /** Opens the Materials & prices dialog above this sheet; the button is absent without it. */
   onOpenPrices?: () => void;
+  /** Opens the Labels sheet in this sheet's place (part labels spec §4.1); the button is absent without it. */
+  onOpenLabels?: () => void;
   /** True while a dialog is open above the sheet: Escape belongs to it, and the sheet is inert. */
   suspended?: boolean;
 }) {
@@ -117,6 +119,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
               Layouts
             </label>
             {onOpenPrices && <button onClick={onOpenPrices}>Materials &amp; prices…</button>}
+            {onOpenLabels && <button onClick={onOpenLabels}>Labels…</button>}
             <button onClick={() => window.print()}>Print</button>
             <button onClick={onClose} aria-label="Close cut list">✕</button>
           </div>

@@ -1484,6 +1484,59 @@ select.input { cursor: pointer; }
   @top-right { content: "Dimensions in mm"; font: 9pt system-ui, sans-serif; color: #000; }
 }
 
+/* Part labels (part labels spec §4): each page drawn at TRUE size, every cell where its sticker is. Black on white, no fill. */
+/* The sheet fits a true-size Letter page (the wider paper) and scrolls sideways on a narrower screen; print resets it below. */
+.labels-sheet { width: min(calc(8.5in + 56px), 100%); overflow-x: auto; }
+.labels-page {
+  position: relative;
+  margin: 16px auto;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+}
+.labels-page-letter { width: 8.5in; height: 11in; }
+.labels-page-a4 { width: 210mm; height: 297mm; }
+.labels-cell {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 0.06in;
+  overflow: hidden;
+  outline: 1px solid #ccc;
+  border-radius: 0.06in;
+  font: 7pt/1.2 system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.labels-skip { outline: 1px dashed #bbb; background: repeating-linear-gradient(45deg, transparent 0 6px, #f2f2f2 6px 12px); }
+.labels-empty { outline: 1px solid #eee; }
+.labels-top { display: flex; align-items: baseline; gap: 0.5em; min-width: 0; }
+.labels-num {
+  flex: none;
+  min-width: 1.6em;
+  padding: 0 0.3em;
+  border: 1px solid #000;
+  border-radius: 1em;
+  text-align: center;
+  font-weight: 700;
+}
+.labels-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.labels-size { font-family: var(--font-num); white-space: nowrap; }
+.labels-material { display: flex; white-space: pre; min-width: 0; }
+.labels-matname { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.labels-sep, .labels-grain { flex: none; }
+.labels-foot { display: flex; justify-content: space-between; gap: 0.5em; white-space: nowrap; }
+.labels-project { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.labels-copy { flex: none; }
+/* Larger stickers, larger type. */
+.labels-avery-5163 .labels-cell { font-size: 10pt; padding: 0.1in; }
+.labels-l7160 .labels-cell { font-size: 8pt; }
+.labels-l7163 .labels-cell { font-size: 8.5pt; }
+
+/* Each paper its own named page with no margin: the cells carry the sticker sheet's own geometry (spec §4.4). */
+@page labels-letter { size: 8.5in 11in; margin: 0; }
+@page labels-a4 { size: 210mm 297mm; margin: 0; }
+
 @media print {
   /* The overlay is a direct child of `.app` — see CutList.tsx. */
   .app > *:not(.cutlist-overlay) { display: none !important; }
@@ -1509,6 +1562,15 @@ select.input { cursor: pointer; }
   }
 
   .cutlist-actions { display: none; }
+
+  /* Labels (spec §4.4): only the pages print, one per sheet of stickers, nothing drawn round the cells. */
+  .labels-head { display: none; }
+  .labels-sheet { overflow: visible; }
+  .labels-page { margin: 0; box-shadow: none; break-after: page; }
+  .labels-page:last-child { break-after: auto; }
+  .labels-page-letter { page: labels-letter; }
+  .labels-page-a4 { page: labels-a4; }
+  .labels-cell, .labels-skip, .labels-empty { outline: none; background: none; }
 
   /* One drawing set per page where it fits; never split a figure. */
   .plans-section { break-inside: avoid; }

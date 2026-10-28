@@ -520,6 +520,16 @@ and 79.
 
 ## What each round did
 
+**What part labels did (2026-10-28)** (feature-gaps §3; spec `2026-10-28-sloyd-part-labels-design.md`, the user skipped the
+brainstorm questions and approved the draft as written; plan `2026-10-28-sloyd-part-labels.md`; branch `labels` from `dcfe2ec`;
+inline execution, then one whole-branch review). Three build tasks, test-first: `labels.ts` (four sticker presets whose page fill is
+tested by hand; one label per piece; `pagesOf` with Start at) — its metric test caught the spec's own size template printing
+`508 × 89 mm × 19 mm` (a metric `row.dims` already carries its unit), so the size became ONE `formatSize`; the Labels sheet
+(a mutation of the skip off-by-one survived because it is an equivalent mutant — the cell at Start at always holds the first label —
+and was recorded as such, after first being logged as caught by mistake); the wiring (Labels opens in the cut list's place). The
+browser check measured the printed PDF: one page per preset, Letter exactly and A4 within 0.32 pt, the first and last stickers within
+0.0001", the page at the paper's corner; and found the true-size page overhanging the sheet on screen (fixed).
+
 **What weight did (2026-10-28)** (feature-gaps §3 "Weight"; spec `2026-10-28-sloyd-weight-design.md`, the user picked option A —
 density on the material, schema 28 — and skipped the brainstorm questions; plan `2026-10-28-sloyd-weight.md`; branch `weight` from master
 `f824f89`; inline execution, then one whole-branch review). Six build tasks, each test-first with a mutation: the weight and density text

@@ -10,6 +10,7 @@ import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { PlansSheet } from './panels/PlansSheet';
+import { LabelsSheet } from './panels/LabelsSheet';
 import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
@@ -73,6 +74,8 @@ export default function App() {
   // stack: the cut list is a way of looking at a project, not part of one.
   const [cutListOpen, setCutListOpen] = useState(false);
   const [plansOpen, setPlansOpen] = useState(false);
+  // The Labels sheet (part labels spec §4.1): opened from the cut list IN ITS PLACE, and closing it reopens the cut list.
+  const [labelsOpen, setLabelsOpen] = useState(false);
   // Which dialog is open. View state like `cutListOpen`, and it joins that
   // flag as a reason the shell is inert and every window shortcut is
   // suspended (invariant 27). Not because of typing in the description —
@@ -111,7 +114,7 @@ export default function App() {
   // derived value rather than `cutListOpen || plansOpen || dialog !== null` spelled out at
   // each site, so a third modal joins in one place and no consumer can be
   // left reading only the old flag.
-  const modalOpen = cutListOpen || plansOpen || dialog !== null;
+  const modalOpen = cutListOpen || plansOpen || labelsOpen || dialog !== null;
   const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
   // Over the NARROWED sites, so only the sites still sent to Claude are counted; null when every one is left butt.
   const joineryEstimate = useMemo(
@@ -1023,9 +1026,14 @@ export default function App() {
             pricesOpener.current = document.activeElement as HTMLElement | null;
             setDialog('prices');
           }}
+          onOpenLabels={() => {
+            setCutListOpen(false);
+            setLabelsOpen(true);
+          }}
         />
       )}
       {plansOpen && <PlansSheet onClose={() => setPlansOpen(false)} />}
+      {labelsOpen && <LabelsSheet onClose={() => { setLabelsOpen(false); setCutListOpen(true); }} />}
       {/*
         The two dialogs sit beside CutList, outside `.app-shell`, for the same
         reasons it does: the shell goes `inert` behind them, and the print rule

@@ -439,11 +439,13 @@ src/
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
-│   ├── weight.ts         THE weight home (inv 63): woodVolume (boardBodies volumes, memoised on PartGeometry), stripVolume, coreWeight,
-│   │                     stripWeight, weightOf / selectionWeight (WeightSummary); numbers only (no → units)
 │   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses (band
 │   │                     types' solid materials included, inv 54),
 │   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
+│   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,
+│   │                     stockCells, cellBox, labelsOf (one PartLabel per piece, from buildCutList), pagesOf (startAt) (→ units)
+│   ├── weight.ts         THE weight home (inv 63): woodVolume (boardBodies volumes, memoised on PartGeometry), stripVolume, coreWeight,
+│   │                     stripWeight, weightOf / selectionWeight (WeightSummary); numbers only (no → units)
 │   ├── purchase.ts       (by the piece: the cheapest of a plan per preferred opener when priced, fu 269) ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
 │   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
 │                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
@@ -638,7 +640,8 @@ src/
 │                     writes nothing untouched; one `setBands`, one undo entry) on bandingRefusal.ts (bandEditRefusal: an ADDED band
 │                     fault on any selected part; bandsShownCorner),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
-│                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
+│                     trash), GuidesFooter (opens itself when the guide count goes up), LabelsSheet (part labels: true-size
+│                     sticker pages, Stock, Start at; opened from the cut list in its place), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
 │                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
 │                     end AND it is the same part, so a hidden rim dashes continuously); PartDiagram draws hole ellipses
@@ -731,6 +734,10 @@ src/
 Moved from `CLAUDE.md` on 2026-10-26, verbatim except that its pointers to this file now read "the tree" (the
 annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invariants are in `docs/invariants.md`).
 
+- **`labels.ts` / `LabelsSheet.tsx`** (part labels spec §6): `labels.ts` is the ONE home of label strings and sticker-sheet
+  geometry. A label's number is `CutListRow.number`, never recounted; its size is ONE `formatSize` over the row's cut length and
+  width and the group's thickness (never `row.dims` plus a thickness: a metric `row.dims` already carries ` mm`). The sheet formats
+  nothing; each paper is a named `@page` at margin 0, and the cells carry the stock's own geometry in its own unit.
 - **`snapPoints.ts`**: local→world is `position[axis] + toWorldOffset(board, axis,
   local[axisFrame(board)[axis].dim])`, then `leanMap(board).apply` for a leaning part (`fromWorld` inverts it — exactly only for an unleaned part). `pointToLocalXYZ` and `solidWorldBox` are
   CENTRE-relative and both look like they do this — using either puts every point off by
