@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `fbe4bd2` (half-blind copy review, fu 518, 520) | `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) | 27 | current |
+| `5395a21` (weight) | `index-DawoF3J5.js` (CSS `index-iD0ojmiF.css`) | 28 | current |
+| `fbe4bd2` (half-blind copy review, fu 518, 520) | `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) | 27 | **REFUSES every project saved at 28** (a custom material's density) — export first |
 | `33de29a` (half-blind dovetails) | `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`) | 27 | free (no schema change); the old pins line, fault reason and tinted lap band come back |
 | `c6f60bc` (copy review, fu 491, 512) | `index-k4AGntBh.js` (CSS `index-BRfNHt6R.css`) | 26 | **REFUSES every project saved at 27** (a half-blind lap) — export first |
 | `72228cc` (dovetails) | `index-BEpsbfAI.js` (CSS `index-BRfNHt6R.css`) | 26 | free (no schema change); the old box-joint and dovetail wording and the fixed kept list come back |
@@ -161,7 +162,13 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 - **Weight (2026-10-28; BUILT on branch `weight` from master `f824f89`; schema 28; inline execution, one whole-branch review).** Spec
   `2026-10-28-sloyd-weight-design.md` (option A, approved), plan `2026-10-28-sloyd-weight.md`. Final review: no Critical; two Important fixed test-first (I1 edging weighed at its FINISHED size, allowances never;
   I2 Use library version writes the library's exact density back); seven minors deferred (fu 527). Full suite 9919/9919, build clean.
-  Not yet merged or deployed. Rollback past it refuses every project saved at 28 — export first. Owed: fu 526 (copy and two calls).
+  MERGED `5395a21` (the merged tree identical to the verified branch head `dbbe762`), DEPLOYED 2026-10-28 as `index-DawoF3J5.js` (CSS
+  `index-iD0ojmiF.css`). Verified at deploy: `200` on `/` and a deep route in-network and at the edge; the bundle and CSS at both, sha256
+  matching `dist/`; the old `index-BBLukTqT.js` 404s in-network; CSP at the edge; the edge bundle carries `not counting`, `no density`,
+  `Density must be a number more than 0` and `Weight: not known`, the edge CSS `.cutlist-weight`; a HEADLESS real-browser load (DISPLAY
+  unset, a throwaway profile): the new bundle, 0 errors, Add board; storage read empty first from the CSS asset page, the load's two keys
+  removed there, read back empty after 3s; the profile deleted. Rollback to `fbe4bd2` refuses every project saved at 28 — export first.
+  Owed: fu 526 (copy and two calls).
 
 - **Half-blind dovetails, dovetails chunk 3 (2026-10-27/28; BUILT on branch `half-blind` from master `48d2f92`, commits `48d2f92..22a66f2`;
   MERGED `33de29a`, DEPLOYED 2026-10-28 as `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`); 9867/9867 across 272 files, build clean; SCHEMA 27:
