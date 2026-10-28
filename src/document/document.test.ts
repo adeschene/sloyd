@@ -1194,7 +1194,7 @@ describe('v9: linked parts', () => {
   const doc = (version: number, boards: unknown[]) => ({ version, name: 'D', units: { display: 'imperial-fractional', precision: 16 }, stock: { kerf: 0.125 }, guides: [], boards });
   const raw = (over: Record<string, unknown>) => ({ ...createBoard({ length: 10, width: 2, thickness: 1 }), ...over });
 
-  it('CURRENT_VERSION is 27; a v8 file loads with no links; a version above 28 is refused', () => {
+  it('CURRENT_VERSION is 27; a v8 file loads with no links; a version above 27 is refused', () => {
     expect(CURRENT_VERSION).toBe(27);
     const d = migrateDocument(doc(8, [raw({ id: 'a' }), raw({ id: 'b' })]));
     expect(worldParts(d).every((b) => !('link' in b))).toBe(true);
@@ -1377,7 +1377,7 @@ describe('v13: mirrored instances (mirrored-instances spec §2)', () => {
       expect('mirrored' in i, String(bad)).toBe(false);
     }
   });
-  it('a v12 file loads unmirrored; a v27 file is refused', () => {
+  it('a v12 file loads unmirrored; a v28 file is refused', () => {
     const v12 = { ...raw(undefined), version: 12 };
     expect('mirrored' in migrateDocument(JSON.parse(JSON.stringify(v12))).instances[0]!).toBe(false);
     expect(() => migrateDocument({ ...raw(true), version: 28 })).toThrow(DocumentError);
@@ -1750,7 +1750,7 @@ describe('schema 21: a mirrored shaped part (mirrored links, fu 432, spec §3)',
     expect(d.boards.some((b) => 'mirrored' in b)).toBe(false);
   });
 
-  it('a v27 file is refused', () => {
+  it('a v28 file is refused', () => {
     expect(() => migrateDocument(raw([user('a'), user('b', true)], 28))).toThrow(/newer version of Sloyd/);
   });
 });
@@ -1913,7 +1913,7 @@ describe('schema 24: the stored round tenon (round tenons spec §3)', () => {
     expect(out[0]!.tenons).toEqual([min]);
     expect('tenons' in out[1]!).toBe(false);
   });
-  it('this build\'s ceiling: a version above 28 is refused', () => {
+  it('this build\'s ceiling: a version above 27 is refused', () => {
     expect(() => at(28)).toThrow(DocumentError);
   });
 });

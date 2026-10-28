@@ -99,7 +99,7 @@ describe('schema 25: square-set leans and the across slope (square-set legs spec
     expect(part(at(25, { lean: { x: 0, z: 0.2, face: 'width', square: true } })).lean).toStrictEqual({ x: 0, z: 0.2, face: 'thickness', square: true });
   });
 
-  it('a v27 file is refused', () => {
+  it('a v28 file is refused', () => {
     expect(() => at(28)).toThrow(DocumentError);
   });
 });

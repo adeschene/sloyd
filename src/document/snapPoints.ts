@@ -257,7 +257,7 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
       if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind: 'face-center', at, owner });
     }
   }
-  // A dovetail's corners at the outside plane (dovetails spec §3.5), 'corner': each tail's end corners (tails) and each pin's
+  // A dovetail's corners at the outside plane (a half-blind pin's sit on the lap plane; dovetails spec §3.5), 'corner': each tail's end corners (tails) and each pin's
   // narrow corners (pins), on wood by construction (`dovetailCorners`); the sockets are air to `stockProbe`, so the lattice
   // above offers nothing in one. Only a dovetail that builds. Deduped against the lattice.
   for (const d of builtDovetails(stored)) {

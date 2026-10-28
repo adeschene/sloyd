@@ -8052,4 +8052,5 @@ the brief's mutation (`cornerJointed` ignoring a lap) reaches only Refine — th
 `hasDovetails` / stored fields. (7) Task 7 ruling: `cutRunsThrough`'s through-groove exemption is kept on a half-blind PINS part (the groove
 runs on the inside face and leaves through end grain the side covers); a groove deeper than `tP − lap` would breach the lap with no
 refusal — an ordinary visible cut, the user may want it refused when the entry has a lap (ask first if raised).
+(8) Final review: the bench (`dovetailBench.ts`) and the tails part's cut-list line (`dovetailText.ts`) read the TAILS entry's `lap`, while geometry reads the PINS entry's; spec §8 rules the pins entry decides; the planner always writes both equal, so they disagree only in a hand-edited file (figure B on the tail part's row would then show a lap the pin part does not have). (9) A lap typed under `As they are` on a new (through) corner is silently ignored (spec §4's rule; the success note shows no "half-blind"). (10) Building the classic drawer (half-blind front, through back) takes two actions.
 **Status:** open (record-only).
