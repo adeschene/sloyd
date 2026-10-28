@@ -548,6 +548,13 @@ for box joints and both dovetail kinds together.
    lapped pin part.
 Then these records (inv 62 and inv 38's clause, versioning, module map, fu 485/497 and 516–521, the spec's *Amended (build)* block).
 9867 tests across 272 files.
+After the build (2026-10-28): Task 9's browser check passed headless (the X display was gone; a stale `DISPLAY` had to be unset for
+WebGL); the final whole-branch review found nothing blocking, and its fix wave (`22a66f2`) retitled stale version tests, fixed a snap
+comment and added three record-only notes to fu 521. Merged `33de29a` and DEPLOYED (`index-aWJcbSuP.js`, schema 27). The user approved
+the *Amended (build)* block, then asked Claude to do the copy and label review itself (fu 518, 520): the pins line now names the lap
+(`their narrow ends behind a <lap> lap on …`), the fault reads `the lap is too thick for the part`, and figure B draws the lap plane
+dashed over unshaded wood (the tinted band read as neither wood nor waste); merged `fbe4bd2`, DEPLOYED (`index-BBLukTqT.js`, no schema
+change). The user left fu 519 (mirror-twin sides in a mixed drawer) as is.
 
 **What joinery features chunk 3 (bands) did (2026-10-22)** (fu 398's joinery and Repair half; spec
 `2026-10-21-sloyd-joinery-features-design.md` §3.3, §3.4, §4.4, §5, §7; plan `2026-10-22-sloyd-joinery-bands.md`; branch `joinery-bands`

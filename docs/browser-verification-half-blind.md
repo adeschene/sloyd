@@ -22,7 +22,7 @@ so the steps were repeated on a fresh import. Both copies sit in the SCRATCH pro
 (`/tmp/claude-1000/-home-alec-docker-sloyd/hb9/profile`), **not in the user's dev browser profile**. Both are left in place,
 and `localStorage` was not cleared. Both read `version: 27`. The second import is the one every step below reads.
 
-Screenshots are under `.superpowers/sdd/2026-10-27-sloyd-half-blind-dovetails/img/` (gitignored, **not durable**). The prose
+Screenshots were under `.superpowers/sdd/2026-10-27-sloyd-half-blind-dovetails/img/` (gitignored; **deleted** with the workspace at the round's close, 2026-10-28; figure B's lap was since redrawn dashed, fu 520). The prose
 below, with its measured values, is the record.
 
 | # | Check | Result |

@@ -40,11 +40,10 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** back to `33de29a` (half-blind dovetails, `index-aWJcbSuP.js`, schema 27) is free; the nearest refusing boundary is `c6f60bc` (the copy review, `index-k4AGntBh.js`, schema 26): it refuses every
   project saved at 27 — export first. Every older boundary: the table
   in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-28):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block, the copy reviews 491 and 512 and
-  the bench drawings, fu 511, all closed 2026-10-27): fu 496(1) and the dovetailed corner on real hardware (the paid Refine runs passed 2026-10-27). Owed
-  otherwise: the owed list below. **Half-blind dovetails (schema 27) are DEPLOYED (2026-10-28)** — the
-  *Amended (build)* block approved 2026-10-28; its copy review (fu 518) and the lap's look (fu 520) were done by Claude at the user's
-  request 2026-10-28 (`docs/rounds.md`).
+- **NEXT (2026-10-28):** half-blind dovetails and their copy review are deployed; nothing from the round is owed (the *Amended
+  (build)* block approved; fu 518 and 520 closed by Claude at the user's request; fu 519 left as is). Owed to the user: fu 496(1) and a
+  dovetailed corner on real hardware, and the owed list below. Next feature: the user picks from `docs/feature-gaps.md` (open: views —
+  X-ray, saved views; weight; part labels; parametric resize; align/distribute; and the residue follow-ups each row names).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -67,7 +66,7 @@ rather than assumed. On the DEV server, test projects a check creates are LEFT i
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (25)
+**Rollback cost is a schema question.** A build understanding less than the file's version (27)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
