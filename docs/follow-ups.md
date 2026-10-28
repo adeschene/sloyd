@@ -8134,3 +8134,19 @@ test that a stock change resets Start at, no App-level Escape test, and no hidde
 state, so it holds by construction).
 **Status:** open (record-only).
 
+**534. Align to a guide or the floor (align, 2026-10-28).** v1 aligns to the item selected first; a guide, the floor (y 0) or a typed
+coordinate as the target is a follow-up.
+**Status:** open (ask first).
+
+**535. Space evenly by equal centres (pitch) (align, 2026-10-28).** v1 makes equal GAPS; equal centres suits parts of different sizes.
+**Status:** open (ask first).
+
+**536. Space existing parts at a typed gap or pitch (align, 2026-10-28).** Copy in a row does it for new parts; for existing ones it is a
+follow-up.
+**Status:** open (ask first).
+
+**537. Align and space evenly: a viewport gesture, and the copy (align, 2026-10-28).** No handle or drag in v1. The copy (`Align`,
+`to <name> (selected first)`, the nine button words, `Space evenly` / `Along X`, the refusal) and the panel by eye are owed to the user
+(the browser check ran headless).
+**Status:** open (owed to the user: copy and by eye; the gesture ask first).
+
