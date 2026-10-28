@@ -274,7 +274,7 @@ dovetail kinds. New follow-ups: rabbeted (lipped) and overlay fronts; a third be
 
 Rulings and differences from the build (2026-10-27/28, branch `half-blind`, commits `48d2f92..7e6beae`; this record follows in its own
 commit; records in inv 62 (and inv 38's clause) and fu 485, 497, 516–521).
-**Status: awaiting the user's approval.** Each line says what was built and what it costs if the call is wrong.
+**Status: APPROVED by the user 2026-10-28 ("Approved, the amended build section"), after the deploy.** Each line says what was built and what it costs if the call is wrong.
 
 **Spec differences**
 - **HB-SD1 — a typed lap of 0 or less reads the parse sentence, not the lap sentence (§3.2).** §3.2 says a typed lap outside (0, `tP`)

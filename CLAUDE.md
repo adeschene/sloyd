@@ -43,7 +43,7 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **NEXT (2026-10-28):** through dovetails and their copy review are deployed; owed to the user (the dovetails *Amended (build)* block, the copy reviews 491 and 512 and
   the bench drawings, fu 511, all closed 2026-10-27): fu 496(1) and the dovetailed corner on real hardware (the paid Refine runs passed 2026-10-27). Owed
   otherwise: the owed list below. **Half-blind dovetails (schema 27) are DEPLOYED (2026-10-28)** — the
-  browser check (fu 520), the spec's *Amended (build)* block and the copy review (fu 518) await the user (`docs/rounds.md`).
+  browser check (fu 520) and the copy review (fu 518) await the user; its *Amended (build)* block was approved 2026-10-28 (`docs/rounds.md`).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.

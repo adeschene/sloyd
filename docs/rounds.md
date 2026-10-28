@@ -159,7 +159,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 - **Half-blind dovetails, dovetails chunk 3 (2026-10-27/28; BUILT on branch `half-blind` from master `48d2f92`, commits `48d2f92..22a66f2`;
   MERGED `33de29a`, DEPLOYED 2026-10-28 as `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`); 9867/9867 across 272 files, build clean; SCHEMA 27:
   rolling back to `c6f60bc` or earlier refuses every project saved at 27 — export first. Verified at deploy: `200` on `/` and a deep route in-network and at the edge; `index-aWJcbSuP.js` (CSS `index-BPZZhioK.css`) at both, sha256 matching `dist/`; the old `index-k4AGntBh.js` 404s in-network; CSP at the edge; the edge bundle carries `Half-blind`, `is too thin for a` and `A lap must be a length more than 0`; a HEADLESS real-browser load (a throwaway profile): the new bundle, 0 errors, "Add board"; storage read empty first from the CSS asset page, the load's two keys removed there, read back empty after 3s; the profile deleted.)**: spec `docs/superpowers/specs/2026-10-27-sloyd-half-blind-dovetails-design.md`
-  (approved 2026-10-27, all five §9 items as proposed; its *Amended (build)* block awaits the user's approval), plan
+  (approved 2026-10-27, all five §9 items as proposed; its *Amended (build)* block APPROVED 2026-10-28, after the deploy), plan
   `docs/superpowers/plans/2026-10-27-sloyd-half-blind-dovetails.md`. Subagent-driven, seven build tasks each task-reviewed (one fix round:
   Task 6, one `dovetailLine` template for both kinds), then these records. Task 1 was the proof the spec asked for first: the stopped pin
   sockets ride the view-curve path (no fallback). Owed to the user before merge: the browser check (Task 9; fu 520, the lap band and label
@@ -606,6 +606,9 @@ R6.3 dropping §4.2's done-view line — was APPROVED in bulk by the user 2026-1
 
 **Approved 2026-10-27 ("Approved, merge it"):** the box joints spec's *Amended (build)* block (spec differences D1–D5, chiefly D3 `writeBackParts`, D4 the tie (moot since the equal-fingers ruling, Task 9), D5 kept
 assemblies; rulings R-T1 to R-T6e, chiefly R-T6a Refine's mechanism for "kept exactly" and R-T6c the joinery reason) and the equal-fingers amendment. Its copy (fu 491) was reviewed and changed 2026-10-27.
+
+**Approved 2026-10-28 ("Approved, the amended build section"), after the deploy:** the half-blind dovetails spec's *Amended (build)* block
+(spec differences HB-SD1–SD4 and build rulings HB-R1–R10). Its copy (fu 518) and the lap band's look (fu 520) are still owed.
 
 **Approved 2026-10-27 ("Approved, the amended build section"), after the deploy:** the dovetails spec's *Amended (build)* block (spec
 differences SD1–SD20 and every build ruling recorded under it). Its copy (fu 512) was reviewed and changed, and the bench chain seen by eye (fu 511), both 2026-10-27.
