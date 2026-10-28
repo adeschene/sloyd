@@ -7,6 +7,7 @@ import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
 import { catalogOf, isCovered, worldParts } from '../document/document';
 import { fadedFor } from './xray';
+import { itemExtents } from '../document/align';
 import type { Board } from '../document/document';
 import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
 import { BoardMesh } from './BoardMesh';
@@ -326,6 +327,57 @@ function Capture({ clean, setClean, captureRef }: {
  *
  * A metric project uses the 10 mm / 100 mm / 1 m ladder instead (gridDensity.ts).
  */
+/**
+ * The stretch line (spec §8): a translucent plane at the armed axis's WORLD position, spanning the selection's other two
+ * axes plus 1" a side. View state only. No raycast, no depth write, and no clipping plane (the section cut's plane is
+ * never put on this material), so it neither steals a click or a snap nor is cut away.
+ */
+function StretchGuide() {
+  const guide = useStore((s) => s.stretchGuide);
+  const doc = useStore((s) => s.doc);
+  const selectedIds = useStore((s) => s.selectedIds);
+  const box = useMemo(() => {
+    if (!guide) return null;
+    const items = itemExtents(doc, selectedIds);
+    if (items.length === 0) return null;
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (const it of items) for (let a = 0; a < 3; a++) {
+      min[a] = Math.min(min[a], it.min[a]);
+      max[a] = Math.max(max[a], it.max[a]);
+    }
+    return { min, max };
+  }, [guide, doc, selectedIds]);
+  if (!guide || !box) return null;
+  // The plane's own axes: u, v are the two axes other than the guide's, in order.
+  const [u, v] = [0, 1, 2].filter((a) => a !== guide.axis);
+  const pad = 1;
+  const wu = box.max[u] - box.min[u] + 2 * pad;
+  const wv = box.max[v] - box.min[v] + 2 * pad;
+  const pos: [number, number, number] = [0, 0, 0];
+  pos[guide.axis] = guide.at;
+  pos[u] = (box.min[u] + box.max[u]) / 2;
+  pos[v] = (box.min[v] + box.max[v]) / 2;
+  // PlaneGeometry spans local X and Y and faces +Z: turn it onto the guide's axis (the plane is double-sided).
+  const rotation: [number, number, number] =
+    guide.axis === 0 ? [0, Math.PI / 2, 0] : guide.axis === 1 ? [-Math.PI / 2, 0, 0] : [0, 0, 0];
+  // Local X/Y after the turn: axis 0 -> (Z, Y); axis 1 -> (X, Z); axis 2 -> (X, Y). Map the sizes accordingly.
+  const [sx, sy] = guide.axis === 0 ? [wv, wu] : [wu, wv];
+  return (
+    <mesh position={pos} rotation={rotation} renderOrder={5} raycast={() => null}>
+      <planeGeometry args={[sx, sy]} />
+      <meshBasicMaterial
+        color="#c8955a"
+        transparent
+        opacity={0.25}
+        depthWrite={false}
+        side={THREE.DoubleSide}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
 function AdaptiveGrid() {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -576,6 +628,7 @@ export function Viewport({
       {/* Guide markers are world positions; while exploded they would sit away from the
           parts they belong to (invariant 16). */}
       {showGuides && explode === 0 && <GuideMarkers />}
+      <StretchGuide />
 
       {shown.map((board) => (
         <BoardMesh
