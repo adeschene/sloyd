@@ -239,8 +239,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * THROUGH dovetail — the pin part's sockets cut clean out to its outside face, the lap wood gone and the tail part's
  * end no longer shortened to match, the tails standing proud — silently, and it autosaves it, losing the hidden joint.
  * So a v27 file must be refused by a v26 build.
+ *
+ * v28 (weight spec §3.3–3.4): `density?: number` (lb/ft³) on a custom material. No step: an absent density is unweighed and
+ * stores no key. `validateCustomMaterial` keeps a density in (0, DENSITY_MAX] on any kind and drops a malformed one — the
+ * FIELD, never the material. Harm a v27 build would do: it rebuilds each material field by field, drops `density`, and the
+ * next autosave writes the project without it — silent loss on round trip. So a v28 file must be refused by a v27 build.
  */
-export const CURRENT_VERSION = 27;
+export const CURRENT_VERSION = 28;
 
 export class DocumentError extends Error {
   /**

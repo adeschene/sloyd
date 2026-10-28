@@ -461,18 +461,28 @@ export interface SheetStock {
   rotate: 'grain' | 'free';
 }
 
-export const MATERIALS: Record<string, { label: string; color: string; nominal?: true; sheet?: SheetStock }> = {
+/**
+ * `density`: lb/ft³, air-dry (about 12% moisture), from the USDA Wood Handbook and the Wood Database's averages (weight spec
+ * §3.2). Pine is construction pine (ponderosa / SPF; eastern white is 25, southern yellow 36–42); oak is red oak (white is
+ * 47); maple is hard maple. A built-in's density is fixed: white oak is a custom material.
+ */
+export const MATERIALS: Record<string, { label: string; color: string; density: number; nominal?: true; sheet?: SheetStock }> = {
   // Sold in nominal sizes (spec §5): a ¾ × 3½ pine part is a 1×4.
-  pine:    { label: 'Pine',     color: '#d9b98a', nominal: true },
-  oak:     { label: 'Oak',      color: '#c69c6d' },
-  maple:   { label: 'Maple',    color: '#e6d2b5' },
-  walnut:  { label: 'Walnut',   color: '#6b4630' },
-  cherry:  { label: 'Cherry',   color: '#a4552f' },
-  plywood: { label: 'Plywood',  color: '#cbb391',
+  pine:    { label: 'Pine',     color: '#d9b98a', density: 28, nominal: true },
+  oak:     { label: 'Oak',      color: '#c69c6d', density: 44 },
+  maple:   { label: 'Maple',    color: '#e6d2b5', density: 44 },
+  walnut:  { label: 'Walnut',   color: '#6b4630', density: 38 },
+  cherry:  { label: 'Cherry',   color: '#a4552f', density: 35 },
+  // A 3/4" 4×8 sheet weighs about 70–75 lb (2 ft³).
+  plywood: { label: 'Plywood',  color: '#cbb391', density: 36,
              sheet: { length: 96, width: 48, rotate: 'grain' } },
-  mdf:     { label: 'MDF',      color: '#a89a86',
+  // A 3/4" 4×8 sheet weighs about 95–100 lb.
+  mdf:     { label: 'MDF',      color: '#a89a86', density: 48,
              sheet: { length: 96, width: 48, rotate: 'free' } },
 };
+
+/** lb/ft³: the most a stored density may be (weight spec §3.3; the densest commercial wood, lignum vitae, is about 80). */
+export const DENSITY_MAX = 150;
 
 export const DEFAULT_MATERIAL = 'pine';
 
@@ -496,6 +506,8 @@ export interface CustomMaterial {
   nominal?: true;
   /** Inches. Present exactly when `kind` is a sheet kind. */
   sheet?: { length: number; width: number };
+  /** lb/ft³, in (0, DENSITY_MAX] (weight spec §3.3). Any kind; stored only when known — never null, 0 or undefined. */
+  density?: number;
 }
 
 /** `m-` + kind letter + `-` + 4–32 of [a-z0-9]: never a built-in key, never a `/`. */

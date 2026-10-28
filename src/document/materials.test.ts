@@ -129,3 +129,30 @@ describe('uses, pruning and upserts', () => {
 it('pine is the one nominal built-in', () => {
   expect(builtInCatalog().ids.filter((id) => builtInCatalog().get(id)!.nominal)).toEqual(['pine']);
 });
+
+describe('density (weight spec §3.2–3.3)', () => {
+  it('every built-in carries its density through the catalog', () => {
+    const want: Record<string, number> = { pine: 28, oak: 44, maple: 44, walnut: 38, cherry: 35, plywood: 36, mdf: 48 };
+    for (const [id, d] of Object.entries(want)) expect(builtInCatalog().get(id)!.density, id).toBe(d);
+  });
+  it('a custom material carries its own, or none', () => {
+    const doc = { ...createDocument('T'), materials: [ash, { ...birch, density: 42 }] };
+    expect(catalogOf(doc).get(ash.id)!.density).toBeUndefined();
+    expect(catalogOf(doc).get(birch.id)!.density).toBe(42);
+  });
+  it('validateCustomMaterial keeps a legal density on every kind, drops a bad one and keeps the entry', () => {
+    expect(validateCustomMaterial({ ...hardboard, density: 60 })!.density).toBe(60);
+    expect(validateCustomMaterial({ ...ash, density: 150 })!.density).toBe(150);
+    const bad = validateCustomMaterial({ ...ash, density: 0 })!;
+    expect(bad).toEqual(ash);
+    expect('density' in bad).toBe(false);
+  });
+  it('a density-only edit is a different material, and upsert writes it', () => {
+    expect(sameMaterial(ash, { ...ash, density: 40 })).toBe(false);
+    expect(sameMaterial({ ...ash, density: 40 }, { ...ash, density: 40 })).toBe(true);
+    const doc = { ...createDocument('T'), materials: [ash] };
+    const next = upsertMaterials(doc, [{ ...ash, density: 40 }]);
+    expect(next).not.toBe(doc);
+    expect(next.materials[0]!.density).toBe(40);
+  });
+});

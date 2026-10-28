@@ -1,5 +1,5 @@
 import {
-  DEFAULT_MATERIAL, MATERIALS, isCustomMaterialId, materialKind,
+  DEFAULT_MATERIAL, DENSITY_MAX, MATERIALS, isCustomMaterialId, materialKind,
   type Board, type BandType, type CustomMaterial, type MaterialKind, type SheetStock, type SloydDocument, type StoredBoard,
 } from './types';
 
@@ -14,6 +14,8 @@ export interface MaterialInfo {
   kind: MaterialKind;
   nominal: boolean;
   sheet?: SheetStock;
+  /** lb/ft³; always present on a built-in, absent on a custom material whose density is not known (weight spec §3). */
+  density?: number;
   builtIn: boolean;
 }
 
@@ -57,8 +59,11 @@ export function validateCustomMaterial(raw: unknown): CustomMaterial | null {
   if (!label) return null;
   if (typeof m.color !== 'string' || !COLOR.test(m.color)) return null;
   const out: CustomMaterial = { id: m.id, label, color: m.color.toLowerCase(), kind };
+  // A malformed density drops the FIELD, never the material: a dropped material would turn its parts pine (weight spec §3.3).
+  const density = positive(m.density) && m.density <= DENSITY_MAX ? m.density : undefined;
   if (kind === 'solid') {
     if (m.nominal === true) out.nominal = true;
+    if (density !== undefined) out.density = density;
     return out;
   }
   const s = m.sheet;
@@ -66,6 +71,7 @@ export function validateCustomMaterial(raw: unknown): CustomMaterial | null {
   const { length, width } = s as Record<string, unknown>;
   if (!positive(length) || !positive(width)) return null;
   out.sheet = { length, width };
+  if (density !== undefined) out.density = density;
   return out;
 }
 
@@ -86,16 +92,17 @@ export function validateCustomMaterials(raw: unknown): CustomMaterial[] {
 export function sameMaterial(a: CustomMaterial, b: CustomMaterial): boolean {
   return a.id === b.id && a.label === b.label && a.color === b.color && a.kind === b.kind &&
     (a.nominal === true) === (b.nominal === true) &&
-    a.sheet?.length === b.sheet?.length && a.sheet?.width === b.sheet?.width;
+    a.sheet?.length === b.sheet?.length && a.sheet?.width === b.sheet?.width && a.density === b.density;
 }
 
 const builtInInfo = (id: string): MaterialInfo => {
   const m = MATERIALS[id]!;
-  return { id, label: m.label, color: m.color, kind: materialKind(id), nominal: m.nominal === true, ...(m.sheet ? { sheet: m.sheet } : {}), builtIn: true };
+  return { id, label: m.label, color: m.color, kind: materialKind(id), nominal: m.nominal === true, ...(m.sheet ? { sheet: m.sheet } : {}), density: m.density, builtIn: true };
 };
 const customInfo = (m: CustomMaterial): MaterialInfo => ({
   id: m.id, label: m.label, color: m.color, kind: m.kind, nominal: m.nominal === true, builtIn: false,
   ...(m.sheet ? { sheet: { length: m.sheet.length, width: m.sheet.width, rotate: m.kind === 'sheet-plain' ? 'free' : 'grain' } } : {}),
+  ...(m.density !== undefined ? { density: m.density } : {}),
 });
 
 function makeCatalog(customs: readonly CustomMaterial[]): MaterialCatalog {
