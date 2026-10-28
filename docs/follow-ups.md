@@ -187,6 +187,7 @@ default-camera tweak would fix it. Still open, and it constrains `NEGATIVE_OPACI
 they cannot be dimmed as far as the positive/negative distinction alone would suggest.
 
 **Status:** open (cosmetic; real hardware): the default camera is unchanged. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the positive ground axes are clearly visible at the default camera.
 
 **22. `uniqueName`'s next-free-number search is unbounded.** Fine at board-list sizes;
 worth a note if it is ever called on unbounded input.
@@ -262,6 +263,7 @@ anything resting on undefined or precision-sensitive shader behaviour needs a ch
 real hardware.
 
 **Status:** open (owed to the user: real hardware, CLAUDE.md's 26a). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the grid is a bounded plane at every view.
 
 **26. The bounded 20ft floor has a visible hard edge.** Deliberate — an infinite grid
 piles into an unreadable haze at the horizon, which is what the old distance fade was
@@ -292,6 +294,7 @@ obvious which axis a click will grab. The gizmo materials are already reachable 
 patch in `Gizmo.tsx`, so recolouring the hover state is cheap when it becomes annoying.
 
 **Status:** open (cosmetic, real hardware): no hover recolour yet. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the hovered axis is unmistakable (others fade, a line runs along it), not confusable with the brass selection.
 
 **29. ~~The gizmo grows without limit as the camera pulls back.~~ CLOSED — clamped
 through `size`, which is an input rather than an output, so the re-bake caveat never
@@ -433,6 +436,7 @@ tuned on real hardware.** They were chosen and screenshotted on this host's soft
 end-grain ring density right) is still open pending a check on real hardware.
 
 **Status:** open (owed to the user: grain constants judged on real hardware). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): grain reads as wood on real hardware.
 
 **35. `loadAutoSaved`'s catch swallows the schema-too-new case exactly like a corrupt-JSON
 one, and only v2 makes that reachable.** `src/storage/browser.ts` catches everything —
@@ -517,6 +521,7 @@ this host's software GL (llvmpipe, no GPU; see 26a). The final aesthetic call �
 it read as wood at actual viewing distance — is the user's, on real hardware.
 
 **Status:** open (owed to the user: v3 grain constants on real hardware). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the v3 grain and end-grain rings read as wood on real hardware.
 
 **40. `DIMENSION_ORDER` in `src/document/geometry.ts` is exported mutable** (not
 `readonly` or `as const`), though it is now the single source every board's geometry
@@ -5407,6 +5412,7 @@ shader behaviour, so the 26a risk does not arise; what is unconfirmed is how the
 real display. Retuning changes only those two constants (INNER must stay below 1, spec §3).
 - **Status:** open; a look on real hardware closes it.
 **Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the spread reads clearly.
 
 **256. Section views (a clipping plane).** To see inside a joint on the sheet or in the viewport. Spec §9.
 - **Status:** open.
@@ -5879,6 +5885,7 @@ right-aligned (Save image on a second row at 1440, three rows at 1024) and never
 (`max-width: calc(100% - 220px)`, measured). Works; whether it reads well is the user's call by eye. **Status:** open
 (awaiting the user's look).
 **Status:** open (owed to the user, not code): the View group's wrap, by eye. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the two-row wrap reads fine.
 
 **320. Standard views and image export minors (record-only).** No keyboard shortcuts for the views and no
 Back/Left/Bottom (spec §6, out of scope); the selection colour blinks off for one frame during a capture (accepted in
@@ -6040,6 +6047,7 @@ in-browser timing was meaningless on llvmpipe: 1.5–7 s per edit with holes, 3�
 part, which no longer draws interior seam faces in its holed bodies while an unholed one still does (Task 11b); overlapping
 or coincident (faulted) holes, for cracks at the fallback split's T-junctions. **Status:** open (awaiting the user's look).
 **Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling ("close them all") after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): hole walls, cups and pins read well; drag smoothness, a faded holed part and faulted holes were not separately exercised.
 
 **338. Count-1 rows still compare `pitch` (ruling R18).** `HOLE_FIELDS` is every field but `id`, exact (spec §4.2), and a
 count-1 row stores a pitch it ignores; two identical single bores whose rows once had different pitches split into two
@@ -6161,6 +6169,7 @@ section, a bore's centre on the cut). Spec §1 non-goal. **Status:** open — as
 pass could not drive a snap marker reliably through Playwright hover (one marker in many tries, section on or off).
 **Status:** open — a two-minute check by hand.
 **Status:** open (owed to the user, not code): a two-minute hand check of Move/Tape markers with a section on. (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): a tape marker shows on a kept corner, none on the cut-away side.
 
 **351. Invariant 43's wording vs a boolean selector.** Inv 43 says never call `visibleBoards` in a selector. The Section
 toggle's "any part visible" test does, returning a BOOLEAN (stable snapshot, identity-keyed cache), which the rule's reason
@@ -6364,6 +6373,7 @@ path's control looks the same, so undetermined; the shadow and cap after the wat
 hardware); drag smoothness (there is no gizmo resize; in-browser frame times were set by llvmpipe, 1.1–1.4 s with or
 without the arch). **Status:** open (awaiting the user's look).
 **Status:** open (owed to the user, not code): real hardware (26a). (triaged 2026-10-16)
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): smooth curved faces, no cracks or facet lines beside a shelf-pin row.
 
 **371. Curves model and geometry minors (record-only; Tasks 1, 3–6).** (1) Validation's crossing test sees chords and
 crowns only: an arc crossing a straight side without its crown is not caught (documented). (2) No half-turn (uFrom = vFrom =
@@ -6461,6 +6471,7 @@ and (4); the rest record-only.
 
 
 ## From the feature callouts round — 2026-10-16
+**Status:** (1) CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the columns read balanced (5 / 4).
 
 **381. Feature callouts residue.** Rulings made while writing the plan (approved by the user 2026-10-16): **P1** the key list reads the bench lines' units (`6.4 mm dia × 10 mm deep, every 32 mm`; imperial's straight `"`), not bare mm — spec §3's metric example amended; **P2** a feature with no true view whose lines are all hidden (a hand-edited compound angle cut) is keyed on its hidden lines in tie order, not listed as not shown; **P3** a curve's straight sides off the face boundary carry no tag (`curveDrawEdges` knows only arc chords), so a hand-made curve of lines only is listed "Not shown". Live-pass notes: (1) **for the user's eye**: tags can sit on dimension lines (the table's B tags on the overall dimensions under Front and Side; allowed by spec §4.4, the paper fill masks the line); (2) at screen scale a hidden 1/4" rim's dash reads solid (as fu 337), so a tag on dashed rims looks like one on visible rims; (3) the real print is owed with 254 (page fit with the key list added under a capped trio). Final review (fixed: a densely drilled part — ~450 holes on one panel — overflowed the stack and blanked the app; an angle cut that removes nothing was keyed and tagged the part's own face edges): (4) **ruling, for the user**: a definition that is never listed (every placement a sole child) but sits under two different listed assemblies has its features keyed in BOTH trios, against R5's "once" — kept, since each trio draws the part; (5) the tag's leader reuses the balloons' `plans-leader` class where spec §4.5 names `plans-key-leader` (same look); (6) when the clamp pulls a tag to within its radius of the anchor, the leader is drawn backwards (cosmetic); (7) `(N×)` counts instances while merged tags draw fewer circles (the spec's rule; for the user's eye). **Status:** open for (1), (3) and (4); the rest record-only.
 **Status:** CLOSED 2026-10-16. The user's rulings: (1) "letters sitting on dimension lines is ok"; (4) "no we don't need to label duplicate assemblies (too busy on the plans sheet)" — CHANGED: `keyedHere` claims each STORED part (container id + part id) for the first trio that keys it, so a never-listed definition under two listed assemblies is keyed only in the first (`plans.test.ts`, mutated); only assembly trios can share one (a part reached through unlisted definitions has one path from its trio, and the piece's unlisted chain cannot sit under a listed assembly without a cycle). (3) closed by the user's real print ("looks good"). The rest record-only.
@@ -6536,6 +6547,7 @@ the four-edge cove top is the least improved (61 bodies from its concave facets,
 margin on a loaded host; (9) final re-review: `drawing.ts`' probe comments still say "silhouettes only", no test pins that
 the along-view lift leaves another part's occlusion alone, and the fix pass re-triangulates every SPLIT-plan curve (same wood,
 watertight) — its shading on real hardware goes with fu 370. **Status:** open (for the user's eye: (1); the rest record-only).
+**Status:** (1)'s on-screen look seen 2026-10-28 (the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving)); CLOSED by the user's ruling ("close them all").
 
 **388. Should the Profile select grey a refused option and say why?** The Curves Kind select does (presets minors). The
 Profile select applies the change and refuses in the row's words instead (spec silent). **Status:** open (for the user's ruling).
@@ -6610,6 +6622,7 @@ host load — close the Playwright browser before a full run. (7) **Small code n
 silhouettes (invisible). **Status:** open (record-only; (2) owed to the user's eye).
 
 ## From the profile runs round (chunk b1) — 2026-10-18
+**Status:** (2) CLOSED 2026-10-28 by the user's ruling ("close them all") after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving) (the ogee all round read smoothly).
 
 **393. Profile runs b1 residue.** Deferred review minors, record-only unless noted:
 (1) **Owed to the user** (real hardware or a real print): the smooth shading of swept surfaces, and at tangent points the per-face
@@ -6831,6 +6844,7 @@ face's glue lines are hidden and dash under the visible ones (as outline edges a
 **Status:** open (owed to the user's eye).
 **Status:** (3), (4), (5) CLOSED 2026-10-20 — the user approved Q6 and Q7 as built (one key line per band type; a wholly faulted
 type keyed under `Not shown in these views`; the strip diagram's distortion lived with). (1), (2) open (real hardware, a real print).
+**Status:** (1) CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): walnut edging, its mitre and the MDF tape read well.
 
 **403. Edge banding chunk 2: deferred review minors and test gaps** (record-only unless noted).
 - Tests: the ends-rule glue test asserts two sides and counts the rest; no thick-tape case under Ends, no Mitred case with a solid
@@ -7362,6 +7376,7 @@ bore, not the same line through the wood; Ruling F2a); a different face starts s
 (type 0). The review's alternative was to refuse the change on a tilted row (`Set the tilt to 0 first — a new face starts
 square.`); ask whether either reads better.
 **Status:** open (owed to the user: wording).
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the angled-hole lines read correctly.
 
 **455. Angled holes: deferred minors (2026-10-25, the SDD ledger and task reviews).** (1) Task 1: the loader's bound boundary is not
 pinned (a slope of exactly 1, a resultant of exactly 1, kept) — closed by the final review's F1 (the boundary pinned with lean's
@@ -7461,6 +7476,7 @@ seated (before the first Bore; Task 9 review Minor 4). (6) Refine: the widened a
 part with angled holes or a part with a round tenon inside an assembly yet — Ungroup it first: <name>.` (T10a) and `Kept as is
 (leans, angled holes or round tenons): …`.
 **Status:** open (owed to the user: wording).
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the round-tenon lines read correctly.
 
 **465. Round tenons by eye (for the user).** (1) The Holes panel's `Tenon the legs` checkbox: its label and box sit inside the
 two-column field grid beside Socket diameter (the grid gets a third child) — check the layout. (2) A seat LOWERED under fitted
@@ -7471,6 +7487,7 @@ tip's centre and the shoulder ring's centre: no shoulder section corners, no poi
 (5) A mitered tip shows the miter's letter on the tenon's end on the Plans sheet (ruling T6a). Plan Task 12's browser pass may
 close some.
 **Status:** open (owed to the user: by eye).
+**Status:** (1) CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving) (cramped but fine); (2)–(4) remain for the user's eye.
 
 **466. Round tenons: deferred minors (2026-10-25, the SDD ledger and task reviews).** (1) Task 1: `validateTenons` reaches the
 canonical sort through a `withTenons({} as …)` cast — export a canonicaliser. (2) Task 2: `turnCandidates` refuses every tenoned
@@ -7501,6 +7518,7 @@ straight profile or band whose section lies wholly outside the disc, judged in t
 Tenon the legs) rounds up to `TENON_STEP`, 1/64": 1 33/64" and 1 1/2" both print `1-1/2"` and land in two cut-list rows that read
 alike. The imperial twin of fu 464(1)'s metric item (76.2 and 76.0 mm both `76 mm`); if the fix is hole precision, apply it to both.
 **Status:** open (owed to the user: the copy review, with 464).
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving) (`1-13/16" long` reads fine).
 
 **469. A bore exactly tangent to a built tenon's shoulder leaves T-junction cracks (final fix wave).** A 28" leg with a 1.5" top
 tenon and a 5/8" through bore whose edge lies on the shoulder (station 26.1875): the tenon builds (the zone test is open) and the
@@ -7556,6 +7574,7 @@ the ends, then Clear lean) inside an assembly, which is none of those: it is kep
 the accepted knock-on (builder check Q3); only the sentence misdescribes it. Candidate: add `or a part with a compound end cut`, or
 make it conditional as `keptNote`'s header is. No code change made.
 **Status:** open (owed to the user: wording).
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the Lean section and compound-miter lines read correctly.
 
 **474. Square-set legs: deferred minors (2026-10-26, the SDD ledger and task reviews).** (1) Task 6 review M2: `whyKept` names a
 compound end cut only when no other reason applies, so a part with a tilted row AND a compound cut is described by the tilt alone
@@ -7631,6 +7650,7 @@ Front right and Front left reads `Between Front left and Front right, …`, what
 INTERNAL, never shown by the panel (the button appears only for a stretcher): the store's `This part is not a stretcher.`
 (`STRETCHER_NOT_A_STRETCHER`, ruling T4b).
 **Status:** open (owed to the user: wording).
+**Status:** CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the stretcher lines and section read correctly.
 
 **483. Stretchers: deferred minors (2026-10-26, the SDD ledger and task reviews).** (1) Ruling T2b: the too-steep refusal
 (`socketTooSteep`) and `defaultHeight`'s 20-step cap are unreached by any fixture — a world-axis rung meets a square-set or
@@ -7808,6 +7828,7 @@ The model swapped the plain top's and bottom's length and width (the same world 
 Built on branch `dovetails` (commits `e8ca93f`..`a38f216`, schema 26, inv 62); NOT yet deployed when these were written. Spec
 `docs/superpowers/specs/2026-10-27-sloyd-dovetails-design.md` (§11's list is 497–504; the build ledger's notes are 505–513; the final
 review's are 514–515).
+**Status:** (1) CLOSED 2026-10-28 by the user's ruling after the first real-hardware pass (`docs/browser-verification-real-hardware-2026-10-28.md`: the user's own Chrome and GPU, Claude driving): the fingers alternate up both faces, flush, no z-fighting; the half-blind and through dovetail corners read correctly too.
 
 **497. Half-blind dovetails (spec §2, §11; fu 484's other half; with fu 485).** The drawer-front joint: the pins' part is thicker than
 the tails are long and the tails stop short of its face, and with it a corner whose parts differ in height along the joint (a drawer front

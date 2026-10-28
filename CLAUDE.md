@@ -580,9 +580,11 @@ This list is the triage's open set — when an entry's status changes, change it
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight).
-- **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
-  142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
+- **Owed to the user, not code:** real hardware — 347 (section caps: CONFIRMED 2026-10-28, being fixed); by eye — 142, 272 (a phone),
+  384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. The first real-hardware
+  pass (2026-10-28, `docs/browser-verification-real-hardware-2026-10-28.md`) closed 21, 26a, 28, 34, 39, 255, 319, 337, 350, 370,
+  380(1), 387(1), 392(2), 402(1), 454, 464, 465(1), 468, 473, 482, 496(1).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
