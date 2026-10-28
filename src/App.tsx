@@ -62,6 +62,17 @@ export default function App() {
     if (!png) throw new Error('The viewport gave no image.');
     await storage.exportImage(name, png);
   }, []);
+  // Go to a saved view (saved views spec §4–§5): the store applies explode, section and hidden; the camera is
+  // the viewport's. A view in the other projection switches it FIRST — the viewport holds the pose until the new
+  // camera's controls exist and applies it instead of that swap's re-frame.
+  const goToSavedView = useCallback((id: string) => {
+    const v = useStore.getState().goToView(id);
+    if (!v) return;
+    if (v.camera.ortho !== orthographic) setOrthographic(v.camera.ortho);
+    viewportRef.current?.setCamera(v.camera);
+  }, [orthographic]);
+  // TEMPORARY (saved views Task 4 → 5): read here only so noUnusedLocals passes until ViewsFooter's onGoTo takes it.
+  void goToSavedView;
   // View state, deliberately not part of the document: whether the grid and
   // the origin axes are drawn is a property of how you're looking at a
   // project, not of the project, so neither saves nor lands on the undo stack.
