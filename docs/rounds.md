@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `cf911cc` (align / space evenly) | `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `97b7b1e` (tiny weights read `under 0.1`) | `index-JKBrNQAt.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `cf911cc` (align / space evenly) | `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`) | 28 | free; a tiny weight reads `0.0` again |
 | `582ce1e` (part labels) | `index-CvkZOxnI.js` (CSS `index-BS0G1u8z.css`) | 28 | free (no schema change); the Align section is gone |
 | `5395a21` (weight) | `index-DawoF3J5.js` (CSS `index-iD0ojmiF.css`) | 28 | free (no schema change); Labels… is gone |
 | `fbe4bd2` (half-blind copy review, fu 518, 520) | `index-BBLukTqT.js` (CSS `index-BxxVIKzR.css`) | 27 | **REFUSES every project saved at 28** (a custom material's density) — export first |
@@ -162,6 +163,12 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | half-blind dovetails (dovetails chunk 3) | 10-27/28 | 27 | **Half-blind**: the Dovetails section gains a Joint select (`As they are`, the default, keeps each corner's stored kind and a new corner through; `Through`; `Half-blind`) and a Lap field (blank is Auto: a third of the pin part's thickness to 1/16" or 1 mm, at least 1/8" or 3 mm; or the stored lap on a re-plan whose pins part is unchanged); a half-blind corner stores `lap` on BOTH dovetails, the pin part's sockets STOP at the lap plane (the view-curve path, no body code; watertight, an exact partition with the lap slab the pin part's alone) and the tail part runs out to that plane through `cornerPlan.ts`' new optional `inset` hook (step 3a; box joints untouched); `dovetailCornerStyle` the ONE tails-side and lap decision; a `lap` fault before `depth`; snap corners on the lap plane; the checks add a lap-slab contact box; the cut list reads `Half-blind dovetails` and names the lap; figure B of the bench draws the lap band and `lap <x>`; joinery, Refine and Repair leave it alone (pinned). A through-dovetailed or dovetail-free project is byte for byte as before (inv 62 extended, inv 38 clause; fu 497 closed for the joint, 485 re-worded, 516–521). **Merged `33de29a`, DEPLOYED 2026-10-28** (`index-aWJcbSuP.js`) — rolling back past it (to `c6f60bc` or earlier) refuses every project saved at 27 |
 
 ## Status log (to 2026-10-28)
+
+- **Tiny weights (2026-10-28; the user's ruling after watching weight in their own Chrome): a weight that would print `0.0` reads
+  `under 0.1 lb|kg`, never `about under` (`approxWeight`).** Branch `weight-small`, MERGED `97b7b1e` (9966/9966), DEPLOYED as
+  `index-JKBrNQAt.js` (CSS unchanged). Verified: `200` on `/` and a deep route in-network and at the edge; the bundle at both, sha256
+  matching `dist/`; the old `index-5OtJpPqw.js` 404s in-network; CSP at the edge; the edge bundle carries `under 0.1`; a headless
+  throwaway-profile load: 0 errors, storage cleared and read back empty, the profile deleted. fu 526, 532, 537 closed by the user.
 
 - **Align / space evenly (2026-10-28; BUILT on branch `align` from master `844a2a5`; no schema change; inline execution, one
   whole-branch review).** Spec `2026-10-28-sloyd-align-distribute-design.md`, plan `2026-10-28-sloyd-align-distribute.md`; browser
