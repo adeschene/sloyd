@@ -1,6 +1,6 @@
 # Sloyd — parametric resize (stretch)
 
-**Date:** 2026-10-28 · **Status:** PROPOSED, awaiting the user's approval. No plan yet.
+**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-parametric-resize.md`.
 
 **Origin:** `docs/feature-gaps.md`, "Parametric resize" ("Fusion users praise resizing a piece and having parts follow"). The user
 picked it on 2026-10-28 and asked for a design without the brainstorm questions. Every choice below is Claude's call unless it is
@@ -131,8 +131,9 @@ Each feature is judged in the part's own terms on `d`, at the line's station `t 
 
 - **"Wholly past" is strictly past.** The feature's min on `d` is `≥ t` (`> t − 1e-9`). "Wholly before" means max `≤ t`. A feature
   that touches the line counts as being on the side its body is on.
-- **The arithmetic lives in each kind's home**, as a `stretch…At(…, d, t, δ)` beside the existing `rebase…` helpers (`resizeEnd.ts`,
-  `holeRebase.ts`). **`resizeEnd`'s rebase is NOT the stretch rule.** It keeps cuts fixed in the WORLD while an end moves, which is
+- **The arithmetic lives in each kind's home.** *(Amended in planning:* each kind's EXISTING `rebase…` helper is called once per
+  feature: on the near end's numbers for a feature before the line, on the far end's for one past it. Only rectangular cuts get a new
+  helper, `stretchCut` in `cuts.ts`, because their rebase is private to joinery and refaces cuts.*)* **`resizeEnd`'s rebase is NOT the stretch rule.** It keeps cuts fixed in the WORLD while an end moves, which is
   the opposite of what a stretch needs. A stored station measured from the min end shifts when its feature is past the line. One
   measured from the max end shifts when its feature is BEFORE the line. Each kind's helper settles both by the feature's place, not
   its storage.
