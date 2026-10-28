@@ -227,7 +227,7 @@ Weight and density are not lengths, so they sit beside `formatBoardFeet` and `fo
 
 ## 9. Tests (beyond §4.1's partition test)
 
-- Hand numbers: an oak 3/4 × 6 × 24 board weighs 0.75·6·24/1728·44 = 1.375 lb.
+- Hand numbers: an oak 3/4 × 6 × 24 board weighs 0.75·6·24/1728·44 = 2.75 lb.
 - A banded plywood shelf with walnut edging: core and strip weighed at their own densities, against a hand number; the
   walnut group's weight is non-zero, the plywood group's excludes the edging, core + strips = `woodVolume` of the finished
   shelf, and the project total equals the sum of the groups.

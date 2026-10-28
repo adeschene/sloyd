@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, catalogOf, pickerLibrary, materialKind, instanceAt, parentPath, placementsOf, instanceRefs, containerAt, partAt, isShaped } from '../document/document';
+import { isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, catalogOf, pickerLibrary, materialKind, instanceAt, parentPath, placementsOf, instanceRefs, containerAt, partAt, isShaped, flatDocument, selectionWeight } from '../document/document';
+import { weightSentence } from '../document/cutlist';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
@@ -435,6 +436,22 @@ function AddCut({ board }: { board: Board }) {
   );
 }
 
+/**
+ * The selection's weight (weight spec §5.2): read-only, one line. The selector returns the document and the ids — never an
+ * array built from them (inv 43) — and the memo maps the selection to flat parts: a part's own id, or every part under a
+ * selected assembly's path.
+ */
+function SelectionWeight() {
+  const doc = useStore((s) => s.doc);
+  const selectedIds = useStore((s) => s.selectedIds);
+  const text = useMemo(() => {
+    const flat = flatDocument(doc);
+    const ids = new Set(flat.boards.filter((b) => selectedIds.some((id) => b.id === id || b.id.startsWith(`${id}/`))).map((b) => b.id));
+    return weightSentence(selectionWeight(flat, ids), catalogOf(doc), doc.units);
+  }, [doc, selectedIds]);
+  return <p className="props-weight">Weight <span aria-label="Weight">{text}</span></p>;
+}
+
 function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdded }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler; onNewBandType?: () => void; onStretcherAdded: (added: AddedStretcher) => void }) {
   const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
@@ -478,6 +495,7 @@ function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdd
         ]}
         onDelete={() => deleteBoards(selectedIds)}
       />
+      <SelectionWeight />
       <EditLock>
       {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
       {plan && !('refused' in plan) && plan.changing.length > 0 && (
@@ -571,6 +589,7 @@ function InstanceProperties({ path, onNewHardwareType }: { path: string; onNewHa
         ]}
         onDelete={() => deleteBoards([path])}
       />
+      <SelectionWeight />
       <EditLock>
       <p className="assembly-note">Double-click it in the view to edit its parts.</p>
       {copies >= 2 && <p className="link-note">Shared by {copies} copies: edits inside change all of them.</p>}
@@ -705,6 +724,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
         ]}
         onDelete={() => deleteBoard(board.id)}
       />
+      <SelectionWeight />
       {linkedCount > 0 && (
         <div className="link-block">
           <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: every edit but name, position, turn and Mirrored changes all {linkedCount + 1}.</p>
