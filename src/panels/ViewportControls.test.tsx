@@ -276,3 +276,30 @@ describe('ViewportControls section', () => {
     expect(useStore.getState().section!.axis).toBe('front');
   });
 });
+
+describe('ViewportControls X-ray', () => {
+  afterEach(() => { act(() => { useStore.getState().setXray(false); useStore.getState().setExplode(0); }); });
+
+  it('the X-ray button toggles the store and shows its state', async () => {
+    renderControls();
+    expect(btn('X-ray')).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(btn('X-ray'));
+    expect(useStore.getState().xray).toBe(true);
+    expect(btn('X-ray')).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(btn('X-ray'));
+    expect(useStore.getState().xray).toBe(false);
+  });
+
+  it('it reflects a change made elsewhere', () => {
+    renderControls();
+    act(() => useStore.getState().setXray(true));
+    expect(btn('X-ray')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('it carries the title and is enabled while exploded', () => {
+    renderControls();
+    expect(btn('X-ray')).toHaveAttribute('title', 'Fade every part but the selection, to see the joints inside');
+    act(() => useStore.getState().setExplode(0.5));
+    expect(btn('X-ray')).not.toBeDisabled();
+  });
+});

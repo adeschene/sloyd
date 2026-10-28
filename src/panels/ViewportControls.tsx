@@ -76,6 +76,8 @@ export function ViewportControls({
   const hasSelection = useStore((s) => s.selectedIds.length > 0);
   const section = useStore((s) => s.section);
   const setSection = useStore((s) => s.setSection);
+  const xray = useStore((s) => s.xray);
+  const setXray = useStore((s) => s.setXray);
   // Off, the controls need only "is any part drawn" (a boolean, so a gizmo drag's per-frame `doc` does not re-render
   // them); on, the spans, so `doc` and `hiddenIds` are subscribed only while a section is on.
   const anyShown = useStore(anyPartShown);
@@ -146,6 +148,9 @@ export function ViewportControls({
         <button aria-pressed={section !== null} onClick={toggleSection}
           disabled={section === null && !anyShown}
           title="Cut the model with a plane to see inside joints and holes">Section</button>
+        {/* Never disabled (x-ray spec §4): with nothing selected the state is on, it just has nothing to act on yet. */}
+        <button aria-pressed={xray} onClick={() => setXray(!xray)}
+          title="Fade every part but the selection, to see the joints inside">X-ray</button>
         <div className="viewport-explode">
           <label
             title="Explode the parts apart to see how they go together; editing pauses until it is back at 0">
