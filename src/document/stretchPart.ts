@@ -3,7 +3,7 @@ import type { Units } from '../units/length';
 import { stretchCut } from './cuts';
 import { rebaseAngleCuts, rebaseCurves, rebaseProfiles } from './resizeEnd';
 import { rebaseHoles } from './holeRebase';
-import { hasCompoundCut, touchedRegion } from './angleCuts';
+import { hasCompoundCut, throughOf, touchedRegion } from './angleCuts';
 import { holeInstances, holeRegion } from './holes';
 import { curveOutline, uvDims } from './curves';
 import { endPos, runDim } from './profiles';
@@ -89,12 +89,15 @@ export function stretchPart(b: Board, k: 0 | 1 | 2, s: number, delta: number, un
   if (cutCrosses) return refuse(crosses(name, 'cut'));
 
   // Angle cuts: a crossing one would change its angle. One that removes nothing (`touchedRegion` null) has no span and
-  // is kept as it is.
+  // is kept as it is. One running straight THROUGH `d` (an edge chamfer or bevel along the length) is a PRISM along `d`:
+  // it has no number on `d`, so the stretch only lengthens it — unchanged, never crossing (controller Ruling 2).
   for (const a of b.angleCuts) {
+    if (throughOf(a) === d) continue;
     const r = touchedRegion(b, a);
     if (r && side(r[d]) === 'crosses') return refuse(crosses(name, a.kind));
   }
   const angleCuts = sameList(b.angleCuts, (a) => {
+    if (throughOf(a) === d) return a;
     const r = touchedRegion(b, a);
     if (!r) return a;
     const tmp = { ...b, angleCuts: [a] };
@@ -121,10 +124,11 @@ export function stretchPart(b: Board, k: 0 | 1 | 2, s: number, delta: number, un
     return tmp.holes[0]!;
   });
 
-  // Curves: an arc can't stretch. A curve through `d` runs the whole of it, so it always crosses; otherwise its span is
-  // its outline's (chord vertices on the true arc, `curveOutline`) on whichever of u, v is `d`.
+  // Curves: an arc can't stretch. A curve THROUGH `d` is a prism along it (its outline has no number on `d`): the stretch
+  // only lengthens the extrusion, so it passes unchanged (controller Ruling 2). Otherwise its span is its outline's
+  // (chord vertices on the true arc, `curveOutline`) on whichever of u, v is `d`.
   const curveSide = b.curves.map((c) => {
-    if (c.through === d) return 'crosses' as const;
+    if (c.through === d) return 'prism' as const;
     const i = uvDims(c.through)[0] === d ? 0 : 1;
     let lo = Infinity;
     let hi = -Infinity;
@@ -135,6 +139,7 @@ export function stretchPart(b: Board, k: 0 | 1 | 2, s: number, delta: number, un
   // A profile on a curved part follows the outline (`carriesProfiles`), which a stretch can't re-trace: refused whole.
   if (b.curves.length > 0 && b.profiles.length > 0) return refuse(curvesAndProfiles(name));
   const curves = sameList(b.curves, (c, i) => {
+    if (curveSide[i] === 'prism') return c;
     const tmp = { ...b, curves: [c] };
     rebaseCurves(tmp, d, endFor(curveSide[i] as 'near' | 'far'), delta);
     return tmp.curves[0]!;

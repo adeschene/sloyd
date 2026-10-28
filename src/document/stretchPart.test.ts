@@ -86,6 +86,14 @@ describe('stretchPart: refusals', () => {
   });
 });
 
+describe('stretchPart: cuts', () => {
+  it('a shrink whose band partly overlaps a plain mortise: the cut sentence', () => {
+    // Mortise u [12, 16]; line 10, shrink 4: band [10, 14] covers only part of it.
+    const m = cut({ face: 'thickness', from: 'max', across: 'width', offset: 12, width: 4, depth: 0.25, stopMin: 1, stopMax: 1 });
+    expect(refused(run(rail({ cuts: [m] }), 0, 10, -4))).toBe("Rail's cut crosses the stretch line — move the line.");
+  });
+});
+
 describe('stretchPart: holes', () => {
   it('near row (station 3): the same object', () => {
     const h = row({ station: 3 });
@@ -153,6 +161,12 @@ describe('stretchPart: angle cuts', () => {
     const a = angle({ alongFrom: 'max', points: [[0, 0.75], [2, 0]] }); // u [28, 30]
     expect(ok(run(rail({ angleCuts: [a] }), 0, 10, 6)).angleCuts[0]).toBe(a);
   });
+  it('a full-length edge chamfer through d is a prism along it: the same object, the part grows (Ruling 2)', () => {
+    const ch = angle({ kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', points: [[0, 0.25], [0.25, 0]] });
+    const r = ok(run(rail({ angleCuts: [ch] }), 0, 10, 6));
+    expect(r.angleCuts[0]).toBe(ch);
+    expect(r.length).toBe(36);
+  });
   it('a full-length taper crosses', () => {
     const t = angle({ kind: 'taper', from: 'max', points: [[0, 0], [30, 1]] });
     expect(refused(run(rail({ angleCuts: [t] }), 0, 10, 6))).toBe("Rail's taper crosses the stretch line — move the line.");
@@ -179,9 +193,11 @@ describe('stretchPart: curves', () => {
   it('an arch spanning the line crosses', () => {
     expect(refused(run(rail({ curves: [arch('min', 8, 4)] }), 0, 10, 6))).toBe("Rail's curve crosses the stretch line — move the line.");
   });
-  it('a curve through d crosses', () => {
+  it('a curve through d is a prism along it: the same object, the part grows (Ruling 2)', () => {
     const c = { id: 'cc', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'min', radius: 0.25 }) };
-    expect(refused(run(rail({ curves: [c] }), 0, 10, 6))).toBe("Rail's curve crosses the stretch line — move the line.");
+    const r = ok(run(rail({ curves: [c] }), 0, 10, 6));
+    expect(r.curves[0]).toBe(c);
+    expect(r.length).toBe(36);
   });
 });
 
