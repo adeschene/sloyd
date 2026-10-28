@@ -1485,6 +1485,8 @@ select.input { cursor: pointer; }
 }
 
 /* Part labels (part labels spec §4): each page drawn at TRUE size, every cell where its sticker is. Black on white, no fill. */
+/* The sheet fits a true-size Letter page (the wider paper) and scrolls sideways on a narrower screen; print resets it below. */
+.labels-sheet { width: min(calc(8.5in + 56px), 100%); overflow-x: auto; }
 .labels-page {
   position: relative;
   margin: 16px auto;
@@ -1561,6 +1563,7 @@ select.input { cursor: pointer; }
 
   /* Labels (spec §4.4): only the pages print, one per sheet of stickers, nothing drawn round the cells. */
   .labels-head { display: none; }
+  .labels-sheet { overflow: visible; }
   .labels-page { margin: 0; box-shadow: none; break-after: page; }
   .labels-page:last-child { break-after: auto; }
   .labels-page-letter { page: labels-letter; }
