@@ -1,6 +1,7 @@
 import type { Ref } from 'react';
 import type { MaterialKind } from '../document/types';
 import type { Row, DefDraft } from './materialsDraft';
+import { DENSITY_UNIT } from '../units/quantity';
 
 export const KIND_TEXT: Record<MaterialKind, string> = {
   solid: 'Solid wood', 'sheet-veneered': 'Veneered sheet (plywood)', 'sheet-plain': 'Plain sheet (MDF, hardboard)',
@@ -60,6 +61,11 @@ export function MaterialDefinition({ row, name, disabled, disabledTitle, onChang
           </label>
         </>
       )}
+      {/* Weight spec §5.3: any kind; in the project's units; empty = unknown (the weight then says so). */}
+      <label>Density ({DENSITY_UNIT(row.units)})
+        <input className="input" aria-label={`${name}: density`} value={d.density} placeholder="Unknown" disabled={disabled} title={disabledTitle}
+          onChange={(e) => onChange({ density: e.target.value })} />
+      </label>
     </div>
   );
 }

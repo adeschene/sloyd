@@ -63,7 +63,7 @@ export function formatMoney(dollars: number): string {
 /** Pounds to the kilogram: the exact international pound (weight spec §6). */
 const KG_PER_LB = 0.45359237;
 /** kg/m³ in one lb/ft³. Stored density is lb/ft³, as stored lengths are inches (weight spec §3.1). */
-const KG_M3_PER_LB_FT3 = 16.018463;
+export const KG_M3_PER_LB_FT3 = 16.018463;
 const DENSITY_RE = /^(?:\d+\.?\d*|\.\d+)$/;
 
 /** One decimal while the value, so rounded, is under 10; whole from 10 up — a ±15% material does not deserve `47.3`. */
@@ -83,6 +83,11 @@ export function densityText(lbPerFt3: number, units: Units): string {
 
 /** e.g. `44 lb/ft³`, `705 kg/m³`. */
 export const formatDensity = (lbPerFt3: number, units: Units) => `${densityText(lbPerFt3, units)} ${DENSITY_UNIT(units)}`;
+
+/** The most a typed density may be, said in the project's unit: rounded DOWN, so the stated limit is itself accepted. */
+export function densityLimitText(lbPerFt3: number, units: Units): string {
+  return isMetric(units) ? `${Math.floor(lbPerFt3 * KG_M3_PER_LB_FT3)} kg/m³` : `${Math.floor(lbPerFt3)} lb/ft³`;
+}
 
 /** A typed density, in the project's unit, as lb/ft³; null unless a plain decimal number above 0. Never throws. */
 export function parseDensity(text: string, units: Units): number | null {

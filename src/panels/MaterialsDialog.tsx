@@ -6,7 +6,8 @@ import {
   defaultBuying, DEFAULT_WASTE_FACTOR, WASTE_FACTOR_MAX, WASTE_FACTOR_MIN,
   type MaterialBuying, type ShopSettings,
 } from '../document/purchase';
-import { IMPERIAL, formatLength, imperialAt, parseLength } from '../units/length';
+import { IMPERIAL, formatLength, imperialAt, parseLength, type Units } from '../units/length';
+import { formatDensity } from '../units/quantity';
 import {
   initialRows, newRow, planSave, rebaseRows, rowNotes, rowRefusal, setRowKind,
   // Not a React hook, whatever its name says: a pure row transform, called from a click handler.
@@ -51,6 +52,8 @@ interface Props {
   hardwareTypes?: HardwareType[];
   /** How many placed holders use a type, read off the STORED document: a type in use cannot be deleted. */
   hardwareUsedBy?: (id: string) => number;
+  /** The project's units: densities are shown and typed in lb/ft³ or kg/m³ (weight spec §5.3); sizes stay imperial (ruling P1). */
+  units?: Units;
   /** Resolves null on success, else the message to show (the dialog then stays open). */
   onSave: (out: { shop: ShopSettings; plan: SavePlan }) => Promise<string | null>;
   onClose: () => void;
@@ -126,7 +129,7 @@ function fromDraft(d: Draft): MaterialBuying | undefined {
 export function MaterialsDialog({
   shop, readFailed, project, library, libraryReadFailed, locked, newFor, newBand = null, onSave, onClose,
   bandTypes = DEFAULT_BAND_TYPES, parts = NO_PARTS, solids = BUILT_IN_SOLIDS,
-  newHardware = false, hardwareTypes = NO_HARDWARE, hardwareUsedBy = NOT_USED,
+  newHardware = false, hardwareTypes = NO_HARDWARE, hardwareUsedBy = NOT_USED, units = IMPERIAL,
 }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const newName = useRef<HTMLInputElement>(null);
@@ -134,8 +137,8 @@ export function MaterialsDialog({
   const newHardwareName = useRef<HTMLInputElement>(null);
   const builtIns = Object.keys(MATERIALS);
   const [rows, setRows] = useState<Row[]>(() => {
-    const r = initialRows(project, library);
-    return newFor ? [...r, newRow(newFor.kind, r)] : r;
+    const r = initialRows(project, library, units);
+    return newFor ? [...r, newRow(newFor.kind, r, undefined, units)] : r;
   });
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries([...builtIns, ...rows.map((r) => r.id)].map((m) => [m, toDraft(shop.materials[m] ?? defaultBuying(m, nominalIn(rows, m)))])));
@@ -236,7 +239,7 @@ export function MaterialsDialog({
     }
   };
   const addMaterial = () => {
-    const r = newRow('solid', rows);
+    const r = newRow('solid', rows, undefined, units);
     setRows([...rows, r]);
     set(r.id, toDraft(defaultBuying(r.id, r.draft.nominal)));
   };
@@ -479,6 +482,8 @@ export function MaterialsDialog({
         {builtIns.map((m) => (
           <fieldset className="lumber-material" key={m}>
             <legend>{MATERIALS[m]!.label}</legend>
+            {/* Weight spec §5.3: a built-in's density is fixed, shown read-only. */}
+            <p className="material-density" aria-label={`${MATERIALS[m]!.label}: density`}>Density {formatDensity(MATERIALS[m]!.density, units)}</p>
             {prices(m, MATERIALS[m]!.label)}
           </fieldset>
         ))}

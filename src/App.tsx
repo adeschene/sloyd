@@ -1067,6 +1067,7 @@ export default function App() {
           newHardware={newHardware}
           hardwareTypes={doc.hardwareTypes}
           hardwareUsedBy={(id) => hardwareUsedBy(doc, id)}
+          units={doc.units}
           parts={worldParts(doc)}
           // Amended (planning) P4: a solid band type names a built-in solid or a custom solid already in this project.
           solids={[...Object.keys(MATERIALS).filter((m) => !isSheetGood(m)), ...doc.materials.filter((m) => m.kind === 'solid').map((m) => m.id)]}

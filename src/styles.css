@@ -1142,6 +1142,7 @@ select.input { cursor: pointer; }
   color: var(--ink-dim);
   white-space: nowrap;
 }
+.material-density { margin: 0 0 6px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .props-weight { margin: 4px 0 8px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .props-weight span { font-family: var(--font-num); color: var(--ink); }
 .cutlist-weight-total { margin: 16px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
