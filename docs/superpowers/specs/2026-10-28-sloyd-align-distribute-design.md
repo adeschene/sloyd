@@ -1,6 +1,6 @@
 # Sloyd — align and distribute
 
-**Date:** 2026-10-28 · **Status:** draft, awaiting the user's approval.
+**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-align-distribute.md`.
 
 **Origin:** `docs/feature-gaps.md` §4, "Align / distribute" ("Equal shelf spacing etc.; copy in a row covers part of it"). The user
 picked it on 2026-10-28 and asked for the spec without the brainstorm questions, so every choice below is Claude's call unless it is
