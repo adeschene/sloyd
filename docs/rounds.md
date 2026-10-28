@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `c0d3b30` (X-ray) | `index-DQJDNnyg.js` (CSS `index-Cag10lzx.css`) | 28 | current |
+| `ee43d69` (saved views) | `index-CaZZjZyz.js` (CSS `index-xLh3I_zO.css`) | 29 | current |
+| `c0d3b30` (X-ray) | `index-DQJDNnyg.js` (CSS `index-Cag10lzx.css`) | 28 | REFUSES every project saved at 29 — export first; saved views are gone |
 | `74b6289` (section caps, fu 347) | `index-COyw6_WQ.js` (CSS `index-Cag10lzx.css`) | 28 | free (no schema change); the X-ray button and R are gone |
 | `97b7b1e` (tiny weights read `under 0.1`) | `index-JKBrNQAt.js` (CSS `index-Cag10lzx.css`) | 28 | free; the speckled caps and hidden cap outlines come back |
 | `cf911cc` (align / space evenly) | `index-5OtJpPqw.js` (CSS `index-Cag10lzx.css`) | 28 | free; a tiny weight reads `0.0` again |
@@ -164,9 +165,18 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | weight | 10-28 | 28 | Every material has a DENSITY (lb/ft³; the built-ins fixed — pine 28, oak 44, maple 44, walnut 38, cherry 35, plywood 36, MDF 48 — and a custom material's typed in Materials & prices, kg/m³ in a metric project; `CustomMaterial.density`, schema 28). The cut list prints each group's weight under its stock (`12 lb`) and a project line (`Weight: about 47 lb`); Properties a Weight line for the selection. The weight is of the wood the model keeps (`weight.ts`, inv 63), solid edging at its own species; a material with no density is named, never silently left out. Checks, geometry, Generate unchanged |
 | half-blind dovetails (dovetails chunk 3) | 10-27/28 | 27 | **Half-blind**: the Dovetails section gains a Joint select (`As they are`, the default, keeps each corner's stored kind and a new corner through; `Through`; `Half-blind`) and a Lap field (blank is Auto: a third of the pin part's thickness to 1/16" or 1 mm, at least 1/8" or 3 mm; or the stored lap on a re-plan whose pins part is unchanged); a half-blind corner stores `lap` on BOTH dovetails, the pin part's sockets STOP at the lap plane (the view-curve path, no body code; watertight, an exact partition with the lap slab the pin part's alone) and the tail part runs out to that plane through `cornerPlan.ts`' new optional `inset` hook (step 3a; box joints untouched); `dovetailCornerStyle` the ONE tails-side and lap decision; a `lap` fault before `depth`; snap corners on the lap plane; the checks add a lap-slab contact box; the cut list reads `Half-blind dovetails` and names the lap; figure B of the bench draws the lap band and `lap <x>`; joinery, Refine and Repair leave it alone (pinned). A through-dovetailed or dovetail-free project is byte for byte as before (inv 62 extended, inv 38 clause; fu 497 closed for the joint, 485 re-worded, 516–521). **Merged `33de29a`, DEPLOYED 2026-10-28** (`index-aWJcbSuP.js`) — rolling back past it (to `c6f60bc` or earlier) refuses every project saved at 27 |
 | X-ray | 10-28 | — | An **X-ray** button after Section, and **R**: the selection draws solid and every other part in the existing faded look, so its joints show through (round tenons inside legs, fingers and tails at a corner). View state (`xray`, ONE writer `setXray`, reset where `section` is); `viewport/xray.ts` `fadedFor` the ONE faded decision; draw-only — picking and snapping unchanged (fu 539). **Deployed `c0d3b30`, `index-DQJDNnyg.js`** |
+| saved views | 10-28 | 29 | `SloydDocument.views` (`validateViews`; camera with ortho stored as visible height, section, explode, hidden ids — a hint, re-keyed by Group/Ungroup in the same edit); a `Views · N` footer: Save view (name field focused), go to, rename, Update, ×; the four writes are the one document write allowed while exploded (inv 47, `editViews`); going to a view is its own hide entry (inv 43); a restore's projection swap applies the saved pose instead of re-framing (`viewCamera.ts`). Joinery/Repair/Duplicate keep views; Generate/Refine start with none (fu 540–542). **Deployed `ee43d69`, `index-CaZZjZyz.js`** |
 
 ## Status log (to 2026-10-28)
 
+- **Saved views (2026-10-28; branch `saved-views`).** Picked from `docs/feature-gaps.md` §2; the user skipped the brainstorm questions, so
+  every choice was Claude's (spec §10), then approved. Built subagent-driven (six tasks, a review each, an opus whole-branch review: 0
+  Critical/Important; one fix wave: docs for invs 33/43/51, per-row accessible names, a shared-definition Ungroup test). Checked in the user's
+  Chrome (`docs/browser-verification-saved-views.md`). **SCHEMA 29.** MERGED `ee43d69` (10055/10055), DEPLOYED as `index-CaZZjZyz.js`
+  (CSS `index-xLh3I_zO.css`). Verified: `200` on `/` and a deep route in-network and at the edge; the bundle at both, sha256 matching
+  `dist/`, carrying the footer's copy; the old `index-DQJDNnyg.js` 404s in-network; CSP at the edge; a headless throwaway-profile load: the
+  new bundle, 0 errors, the Views footer present, storage cleared and read back empty, the profile deleted. Owed by eye: a resized window,
+  export/import, the rows' look, the sidebar fit.
 - **X-ray (2026-10-28; branch `xray`).** Picked from `docs/feature-gaps.md` §2 by the user; brainstormed with a throwaway spike in the
   user's Chrome ("the focused part solid, everything else faded"; "That looks good to me"). Spec and plan approved. An X-ray button and R
   fade every part the selection does not cover; nothing selected fades nothing; draw-only by the user's ruling (fu 539 records

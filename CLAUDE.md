@@ -35,12 +35,11 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `c0d3b30`, bundle `index-DQJDNnyg.js`, CSS `index-Cag10lzx.css`, SCHEMA 28** (X-ray, merge `c0d3b30`, deployed
-  2026-10-28; section caps `74b6289`, tiny weights `97b7b1e`, align `cf911cc`, part labels `582ce1e`, weight `5395a21` the same day).
-- **Rollback:** back to `74b6289` (`index-COyw6_WQ.js`), `97b7b1e`, `cf911cc`, `582ce1e` or `5395a21` (weight) is free (schema 28, no
-  change since); the nearest refusing boundary is `fbe4bd2` (`index-BBLukTqT.js`, schema 27): it refuses every project saved at 28 — export
-  first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-28, session close):** weight, part labels, align/space evenly, the section-cap fix (fu 347) and X-ray are deployed; the
+- **Production: `ee43d69`, bundle `index-CaZZjZyz.js`, CSS `index-xLh3I_zO.css`, SCHEMA 29** (saved views, deployed 2026-10-28;
+  X-ray `c0d3b30`, section caps `74b6289`, align `cf911cc`, labels `582ce1e`, weight `5395a21` the same day).
+- **Rollback:** the nearest refusing boundary is `c0d3b30` (`index-DQJDNnyg.js`, schema 28): it refuses every project saved at 29 —
+  export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **NEXT (2026-10-28, session close):** weight, part labels, align, section caps (fu 347), X-ray and saved views are deployed; the
   first real-hardware pass closed 21 owed looks. Nothing from these rounds is owed. Owed to the user: the list below (a phone, touch,
   a real print, paid runs, a few by-eye items). Next: the user picks from `docs/feature-gaps.md` (open: parametric resize; the residue
   follow-ups each row names).
@@ -584,7 +583,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight).
 - **Owed to the user, not code:** by eye — 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). The first real-hardware
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. The first real-hardware
   pass (2026-10-28, `docs/browser-verification-real-hardware-2026-10-28.md`) closed 21, 26a, 347 (fixed: caps' speckle and outlines), 28, 34, 39, 255, 319, 337, 350, 370,
   380(1), 387(1), 392(2), 402(1), 454, 464, 465(1), 468, 473, 482, 496(1).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
