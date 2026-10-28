@@ -1169,6 +1169,19 @@ describe('App keyboard delete', () => {
     expect(document.activeElement).toBe(open);
   });
 
+  it('Labels… in the cut list swaps it for the Labels sheet, and closing Labels brings the cut list back (part labels spec §4.1)', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.click(screen.getByRole('button', { name: 'Labels…' }));
+    expect(screen.getByRole('dialog', { name: 'Labels' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Cut list' })).toBeNull();
+    expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Close labels' }));
+    expect(screen.queryByRole('dialog', { name: 'Labels' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Cut list' })).toBeInTheDocument();
+  });
+
   it('does not steal Backspace from the Length field', async () => {
     // Regression test: Backspace must be blocked when editing dimensions,
     // not just for arbitrary text inputs. If a bypass for testing artifacts

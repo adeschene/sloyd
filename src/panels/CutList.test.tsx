@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { buildCutList, createBoard, createDocument, flatDocument } from '../document/document';
@@ -436,5 +436,18 @@ describe('Hardware (hardware spec §4)', () => {
     first.unmount();
     const again = render(<CutList onClose={() => {}} />);
     expect(again.container.querySelector('.cutlist-hardware')!.textContent).toBe(before);
+  });
+});
+
+describe('Labels… (part labels spec §4.1)', () => {
+  it('calls onOpenLabels, and is absent without it', () => {
+    useStore.getState().replaceDocument(createDocument('L'));
+    const onOpenLabels = vi.fn();
+    const first = render(<CutList onClose={() => {}} onOpenLabels={onOpenLabels} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Labels…' }));
+    expect(onOpenLabels).toHaveBeenCalledOnce();
+    first.unmount();
+    render(<CutList onClose={() => {}} />);
+    expect(screen.queryByRole('button', { name: 'Labels…' })).toBeNull();
   });
 });
