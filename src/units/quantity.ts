@@ -1,3 +1,5 @@
+import { isMetric, type Units } from './length';
+
 /**
  * How much stock a part consumes, printed.
  *
@@ -56,4 +58,42 @@ export function formatSquareFeet(squareInches: number): string {
  */
 export function formatMoney(dollars: number): string {
   return `$${dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Pounds to the kilogram: the exact international pound (weight spec §6). */
+const KG_PER_LB = 0.45359237;
+/** kg/m³ in one lb/ft³. Stored density is lb/ft³, as stored lengths are inches (weight spec §3.1). */
+export const KG_M3_PER_LB_FT3 = 16.018463;
+const DENSITY_RE = /^(?:\d+\.?\d*|\.\d+)$/;
+
+/** One decimal while the value, so rounded, is under 10; whole from 10 up — a ±15% material does not deserve `47.3`. */
+const estimate = (v: number) => (Number(v.toFixed(1)) < 10 ? v.toFixed(1) : String(Math.round(v)));
+
+/** A weight, printed: `6.2 lb` / `47 lb`, or kg in a metric project. Takes POUNDS. The word `about` is the caller's. */
+export function formatWeight(pounds: number, units: Units): string {
+  return isMetric(units) ? `${estimate(pounds * KG_PER_LB)} kg` : `${estimate(pounds)} lb`;
+}
+
+export const DENSITY_UNIT = (units: Units): 'lb/ft³' | 'kg/m³' => (isMetric(units) ? 'kg/m³' : 'lb/ft³');
+
+/** A density's bare number in the project's unit (the Density field's text): whole kg/m³; whole lb/ft³, one decimal under 10. */
+export function densityText(lbPerFt3: number, units: Units): string {
+  return isMetric(units) ? String(Math.round(lbPerFt3 * KG_M3_PER_LB_FT3)) : estimate(lbPerFt3);
+}
+
+/** e.g. `44 lb/ft³`, `705 kg/m³`. */
+export const formatDensity = (lbPerFt3: number, units: Units) => `${densityText(lbPerFt3, units)} ${DENSITY_UNIT(units)}`;
+
+/** The most a typed density may be, said in the project's unit: rounded DOWN, so the stated limit is itself accepted. */
+export function densityLimitText(lbPerFt3: number, units: Units): string {
+  return isMetric(units) ? `${Math.floor(lbPerFt3 * KG_M3_PER_LB_FT3)} kg/m³` : `${Math.floor(lbPerFt3)} lb/ft³`;
+}
+
+/** A typed density, in the project's unit, as lb/ft³; null unless a plain decimal number above 0. Never throws. */
+export function parseDensity(text: string, units: Units): number | null {
+  const t = text.trim();
+  if (!DENSITY_RE.test(t)) return null;
+  const v = Number(t);
+  if (!(v > 0)) return null;
+  return isMetric(units) ? v / KG_M3_PER_LB_FT3 : v;
 }

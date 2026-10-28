@@ -63,7 +63,8 @@ describe('I2 (the controller\'s ruling): a station run claims only its straight 
 // ── I1 (the user's ruling, "Fall back to straight") ─────────────────────────────────────────────────────────────────────
 
 const sha = (x: unknown) => createHash('sha256').update(JSON.stringify(x)).digest('hex').slice(0, 16);
-const BAND_KEYS = new Set(['stripIds', 'notes', 'banding']);
+// `pounds` and `weight`: the weight round's cut-list additions (weight spec §5.1), dropped so the a2/b1 hashes stay pinned.
+const BAND_KEYS = new Set(['stripIds', 'notes', 'banding', 'pounds', 'weight']);
 const shaBandFree = (x: unknown) => createHash('sha256').update(JSON.stringify(x, (k, v) => (BAND_KEYS.has(k) ? undefined : v))).digest('hex').slice(0, 16);
 function meshHash(board: Board): string {
   const { bodies, holes } = partGeometry(board);

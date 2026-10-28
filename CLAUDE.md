@@ -108,7 +108,7 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 `shown` copy, fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), `dovetailBench.ts` (the
 bench drawings' strings, `formatLengthBare`), and the copy homes `bandText.ts`, `tenonText.ts`, `stretcherText.ts`, `boxJointText.ts`,
 `cornerText.ts` and `dovetailText.ts` (`banding.ts` and `roundTenons.ts` stay numbers-only).
-`snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
+`snapPoints.ts`, `row.ts` and `weight.ts` (numbers only; its strings are `cutlist.ts`' and `quantity.ts`') deliberately do not. Do not generalise to "everything under
 `document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`, `boxJoints.ts`, `cornerPlan.ts`, `dovetails.ts`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
 
@@ -120,7 +120,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **27** (half-blind dovetails' `lap`; deployed 2026-10-28; 26, dovetails, deployed 2026-10-27). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **28** (weight: a custom material's `density`; 27, half-blind dovetails' `lap`, deployed 2026-10-28). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -165,6 +165,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Repair; Refine's carry | `featureCarry.ts` (inv 56), `joints/featureZones.ts`, `featureRegions.ts`, `joints/tapers.ts` `joineryRefusal` |
 | cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts`, `materials.ts` (inv 18, 19, 22, 23, 49) |
+| weight | `weight.ts` (`woodVolume`, `coreWeight`, `weightOf`); density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `generate/` (inv 41) |
 | state | `store/store.ts` (inv 4, 24, 34, 42–47), `visibility.ts` (inv 43) |
@@ -414,8 +415,8 @@ changes.
     an existing item shape where it can — each new SHAPE costs grammar (fu 322).** The wire form is not the
     internal form (`toWireDesign`).
 49. **A custom material's KIND is in its id** (`m-s-…`, `m-v-…`, `m-p-…`); a stored `kind` that
-    disagrees drops the entry, and nothing may change a stored material's kind. Label, colour and
-    sheet size come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global registry. **A
+    disagrees drops the entry, and nothing may change a stored material's kind. Label, colour,
+    sheet size and density (schema 28; a malformed stored density drops the field, never the material) come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global registry. **A
     document carries exactly the custom materials its parts, shapes and band types use**
     (`pruneMaterials` on load and in `edit()`); every path that makes a project from another carries them.
     Generate's schema stays byte-identical. Nominal names only on an EXACT section match (metric: the same whole mm); drawings keep
@@ -546,12 +547,20 @@ changes.
     `<part> is too thin for a <lap> lap.`); the checks add one lap-slab contact box; the cut list says `Half-blind dovetails` and the lap; the
     bench keys on the lap and draws it on figure B. Full text: `docs/invariants.md`. Follow-ups 497–521.
 
+63. **`weight.ts` is the ONE place weight is computed** (schema 28 for `CustomMaterial.density`, lb/ft³): the wood the MODEL keeps —
+    `boardBodies` volumes through `partGeometry`, memoised on the cached geometry — times the catalog's density; holes ignored, a lean
+    changes no volume. **Solid edging at its BAND's density**: core = finished part's wood − solid strips at their FINISHED size, allowances never weighed (never `cutStock`'s
+    core-sized board), so core + strips is the finished wood exactly; tape weighed as core. Flat document: every copy and hidden part
+    counts. The cut list sums a group's weight in the SAME visit as `stockInches` (edging in the edging's group), so the total is
+    exactly the sum of the groups. **A material with no density makes every total say it is partial and name it; nothing weighed reads
+    `not known` — never a silent undercount.** `partMass` and every check never read density. Full text: `docs/invariants.md`.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 9867 tests across 272 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 9919 tests across 278 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -560,17 +569,17 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–521). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–527). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight).
 - **Owed to the user, not code:** real hardware — 26a, 21, 28, 34, 39, 255, 337, 347, 370 (369's pinholes), 402(1); by eye —
   142, 272, 319, 380(1), 384(2), 387(1), 392(2), 393, 394 (`docs/rounds.md`); 350 (section markers by hand); 106 (touch/pen);
-  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
+  153 (a browser at quota); a real print — 357 (Brave, metric margin), 402(2); copy — 454 (angled holes), 464 and 468 (round tenons), 473 (square-set legs), 482 (stretchers), 526 (weight: copy and two calls); by eye — 465 (round tenons); real hardware — 496(1) (box joints: the jointed corner by eye; its paid Refine run passed 2026-10-27); paid runs 172, 177. 336's grain seam waits for a texture/shader session.
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
@@ -580,7 +589,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

@@ -8066,3 +8066,40 @@ runs on the inside face and leaves through end grain the side covers); a groove 
 refusal — an ordinary visible cut, the user may want it refused when the entry has a lap (ask first if raised).
 (8) Final review: the bench (`dovetailBench.ts`) and the tails part's cut-list line (`dovetailText.ts`) read the TAILS entry's `lap`, while geometry reads the PINS entry's; spec §8 rules the pins entry decides; the planner always writes both equal, so they disagree only in a hand-edited file (figure B on the tail part's row would then show a lap the pin part does not have). (9) A lap typed under `As they are` on a new (through) corner is silently ignored (spec §4's rule; the success note shows no "half-blind"). (10) Building the classic drawer (half-blind front, through back) takes two actions.
 **Status:** open (record-only).
+
+**522. Weight: hardware (weight, 2026-10-28).** Hardware types carry no weight, so a cabinet's hinges, slides and pulls are not in the
+piece's weight. A per-type weight (per piece) would join the total and Properties; Buying would not change.
+**Status:** open (feature-sized, small; ask first).
+
+**523. Weight: holes subtracted (weight, 2026-10-28).** `woodVolume` ignores holes (`boardBodies` is hole-free, inv 50): four 35 mm hinge
+cups are about 0.06 lb of oak against a ±15% density spread. Subtracting each row analytically (count × π r² × depth, clipped; tilted rows
+longer) is possible if a real project shows the difference.
+**Status:** open (record-only; only when a real project needs it).
+
+**524. Weight on the Plans sheet and in Buying (weight, 2026-10-28).** v1 prints weight in the cut list (each group and the project) and
+Properties only (spec §1 non-goals).
+**Status:** open (ask first).
+
+**525. Density in the tip check (weight, 2026-10-28).** `partMass` (fu 303) weighs every part at one density, so an oak top on a pine base
+puts the centre of mass lower than the check reckons. Using the catalog's density would change check results and Generate's repair loop;
+held-and-stable spec §8 left it out of scope and the weight round kept it out (the checks byte for byte).
+**Status:** open (ask first).
+
+**526. Weight: the copy, and two calls, for the user (weight, 2026-10-28).** The strings — `12 lb` / `no density` under a group's
+subtotal stock; `Weight: about 47 lb`, `…, not counting Ash (no density)`, `Weight: not known (Ash has no density)`; Properties' `about 6.2 lb`,
+`…, not counting Ash`, `not known`; the dialog's `Density (lb/ft³)`, placeholder `Unknown`, the built-ins' `Density 44 lb/ft³` and the
+refusal `Density must be a number more than 0 and at most 150 lb/ft³, or left empty.` (2402 kg/m³ in metric: the limit is rounded DOWN
+so the stated limit is itself accepted). Two calls to confirm: density follows the project's units in Materials & prices while sizes stay
+imperial (ruling P1 kept for sizes), and the rounding (one decimal under 10, whole from 10).
+**Status:** open (owed to the user: copy).
+
+**527. Weight: deferred minors (2026-10-28, the final whole-branch review).** (1) Spec §4.3's "`weightOf` and the cut list agree by
+test" has no direct test (each is tested against hand values; `weightOf` has no production caller). (2) No through-dovetail volume
+fixture (the half-blind corner covers the dovetail path; the through builder is test-local in `dovetailGeometry.test.ts`). (3)
+Properties' `SelectionWeight` runs `flatDocument` on every document change, drag frames included (the cached `worldParts` would do).
+(4) A weighed but tiny selection (a 3/8" dowel) reads `about 0.0 lb`; (5) an empty assembly reads `about 0.0 lb` (copy: fu 526). (6) A
+"differs from library" note can show for a pair whose densities differ below display precision (44 vs 44.0118 lb/ft³ both read `44`).
+(7) The cut list sorts an unknown material id FIRST in its unweighed list (`indexOf` −1) where `weight.ts`' `rank` sorts it last;
+unreachable after load validation.
+**Status:** open (record-only).
+

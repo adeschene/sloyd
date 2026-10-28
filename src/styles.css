@@ -1119,6 +1119,7 @@ select.input { cursor: pointer; }
   display: grid;
   grid-template-columns: 1fr 7.5em;
   gap: 12px;
+  row-gap: 2px; /* the weight's second line sits close under its stock (weight spec §5.1) */
   margin: 8px 0 0;
   padding-top: 8px;
   font-variant-numeric: tabular-nums;
@@ -1134,6 +1135,20 @@ select.input { cursor: pointer; }
 .cutlist-subtotal .cutlist-stock {
   color: var(--accent);
 }
+
+/* The group's weight, an estimate (weight spec §5.1): on a second line under the stock, in the stock's own column, so the
+   column of totals still aligns with the rows' stock; dimmer than the stock. */
+.cutlist-weight {
+  grid-column: 2;
+  text-align: right;
+  font-family: var(--font-num);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.material-density { margin: 0 0 6px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.props-weight { margin: 4px 0 8px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.props-weight span { font-family: var(--font-num); color: var(--ink); }
+.cutlist-weight-total { margin: 16px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .cutlist-setup {
   grid-column: 3 / -1;
@@ -1512,6 +1527,8 @@ select.input { cursor: pointer; }
   .cutlist-names,
   .cutlist-nominal,
   .cutlist-stock,
+  .cutlist-weight,
+  .cutlist-weight-total,
   .cutlist-subtotal-label,
   /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
      walnut, and grey on white is the one line on an otherwise blank page. */

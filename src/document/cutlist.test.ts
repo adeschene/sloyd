@@ -35,7 +35,7 @@ describe('buildCutList', () => {
   });
 
   it('returns no groups for an empty document', () => {
-    expect(buildCutList(createDocument('Test'))).toEqual({ groups: [], notes: [] });
+    expect(buildCutList(createDocument('Test'))).toEqual({ groups: [], notes: [], pounds: 0, weight: null });
   });
 
   it('collapses two identical boards into one row of quantity 2', () => {

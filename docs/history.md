@@ -520,6 +520,18 @@ and 79.
 
 ## What each round did
 
+**What weight did (2026-10-28)** (feature-gaps §3 "Weight"; spec `2026-10-28-sloyd-weight-design.md`, the user picked option A —
+density on the material, schema 28 — and skipped the brainstorm questions; plan `2026-10-28-sloyd-weight.md`; branch `weight` from master
+`f824f89`; inline execution, then one whole-branch review). Six build tasks, each test-first with a mutation: the weight and density text
+(`units/quantity.ts`); `MATERIALS[*].density` and `CustomMaterial.density` (a malformed one drops the field, never the material, so no part
+turns pine), schema 28 and the version pins it moved; `weight.ts` (inv 63) — the volume of `boardBodies` through the existing
+`bodyVolume`, so `partMass` and every check stayed untouched by construction instead of being refactored onto a shared helper as the plan
+said, and the partition proven by a pairwise body-overlap test plus hand volumes for every feature kind; the cut list's group and project
+weights (the edging mutation SURVIVED the first test, which asserted only "> 0", and was tightened to hand values); Properties' Weight line
+(the spec's own hand number was wrong — 0.75·6·24/1728·44 is 2.75 lb, not 1.375 — the code was right); the Density field (each dialog row
+carries its units, and the refusal's limit is rounded down so 2402 kg/m³, not 2403, is the one stated). The cut list got about 0.1 ms slower
+on the fixtures (partGeometry's key per part), accepted: it is a modal sheet.
+
 **What half-blind dovetails did (2026-10-27/28)** (dovetails chunk 3; fu 497's joint half; spec
 `2026-10-27-sloyd-half-blind-dovetails-design.md`, approved with all five §9 items as proposed; plan `2026-10-27-sloyd-half-blind-dovetails.md`;
 branch `half-blind` from master `48d2f92`; **schema 27**; subagent-driven, seven build tasks each task-reviewed, one fix round; NOT merged or

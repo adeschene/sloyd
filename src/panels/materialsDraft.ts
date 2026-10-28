@@ -1,10 +1,12 @@
-import { MATERIALS, type BandType, type CustomMaterial, type HardwareType, type MaterialKind } from '../document/types';
+import { DENSITY_MAX, MATERIALS, type BandType, type CustomMaterial, type HardwareType, type MaterialKind } from '../document/types';
 import { labelKey, mintMaterialId, sameMaterial, validateCustomMaterial } from '../document/materials';
-import { IMPERIAL, formatLength, imperialAt, parseLength } from '../units/length';
+import { IMPERIAL, formatLength, imperialAt, parseLength, type Units } from '../units/length';
+import { densityLimitText, densityText, parseDensity } from '../units/quantity';
 
 export type RowSource = 'project' | 'library' | 'new';
 /** Text drafts: a field may hold text that does not parse yet; Save stays off until every row does. */
-export interface DefDraft { label: string; color: string; sheetLength: string; sheetWidth: string; nominal: boolean }
+/** `density` is text in the row's `units` (weight spec §5.3): lb/ft³, or kg/m³ in a metric project; empty = unknown. */
+export interface DefDraft { label: string; color: string; sheetLength: string; sheetWidth: string; nominal: boolean; density: string }
 export interface Row {
   id: string;
   kind: MaterialKind;
@@ -14,6 +16,13 @@ export interface Row {
   draft: DefDraft;
   addToLibrary: boolean;
   deleted: boolean;
+  /** The project's units, which the density draft is typed in (weight spec §5.3). Fixed while the (modal) dialog is open. */
+  units: Units;
+  /**
+   * The exact stored density the density draft's text was made from: the row's original, or the library version after Use
+   * library version (final review I2). An untouched field writes THIS back, never its rounded display (inv 5).
+   */
+  densityFrom?: number;
 }
 /** What `planSave` decides: the material rows' share of a Save. */
 export interface MaterialsPlan { project: CustomMaterial[]; library: CustomMaterial[] | null; assign: { ids: string[]; material: string } | null }
@@ -23,32 +32,34 @@ export interface SavePlan extends MaterialsPlan { bandTypes: BandType[] | null; 
 
 // Ruling P1 (metric display): stock and sheet sizes in the Materials dialog stay imperial.
 const lengthText = (v: number) => formatLength(v, imperialAt(64));
-const toDraft = (m: CustomMaterial): DefDraft => ({
+const toDraft = (m: CustomMaterial, units: Units): DefDraft => ({
   label: m.label, color: m.color, nominal: m.nominal === true,
   sheetLength: m.sheet ? lengthText(m.sheet.length) : '', sheetWidth: m.sheet ? lengthText(m.sheet.width) : '',
+  density: m.density !== undefined ? densityText(m.density, units) : '',
 });
-const row = (m: CustomMaterial, source: RowSource): Row =>
-  ({ id: m.id, kind: m.kind, source, original: m, draft: toDraft(m), addToLibrary: false, deleted: false });
+const row = (m: CustomMaterial, source: RowSource, units: Units): Row =>
+  ({ id: m.id, kind: m.kind, source, original: m, draft: toDraft(m, units), addToLibrary: false, deleted: false, units, densityFrom: m.density });
 
-export function initialRows(project: readonly CustomMaterial[], library: readonly CustomMaterial[]): Row[] {
+export function initialRows(project: readonly CustomMaterial[], library: readonly CustomMaterial[], units: Units = IMPERIAL): Row[] {
   const ids = new Set(project.map((m) => m.id));
-  return [...project.map((m) => row(m, 'project')), ...library.filter((m) => !ids.has(m.id)).map((m) => row(m, 'library'))];
+  return [...project.map((m) => row(m, 'project', units)), ...library.filter((m) => !ids.has(m.id)).map((m) => row(m, 'library', units))];
 }
 
 const DEFAULT_SHEET: Record<MaterialKind, [string, string]> = { solid: ['', ''], 'sheet-veneered': ['96', '48'], 'sheet-plain': ['96', '48'] };
-export function newRow(kind: MaterialKind, rows: readonly Row[], random?: () => number): Row {
+export function newRow(kind: MaterialKind, rows: readonly Row[], random?: () => number, units: Units = IMPERIAL): Row {
   const [sheetLength, sheetWidth] = DEFAULT_SHEET[kind];
   return {
     id: mintMaterialId(kind, new Set(rows.map((r) => r.id)), random), kind, source: 'new', original: null,
-    draft: { label: '', color: '#c8a878', sheetLength, sheetWidth, nominal: false }, addToLibrary: false, deleted: false,
+    draft: { label: '', color: '#c8a878', sheetLength, sheetWidth, nominal: false, density: '' }, addToLibrary: false, deleted: false,
+    units,
   };
 }
 
 /** Kind is fixed once stored (spec §4.1); an unsaved new row may still change it, which re-mints its id. */
 export function setRowKind(r: Row, kind: MaterialKind, rows: readonly Row[], random?: () => number): Row {
   if (r.source !== 'new' || r.kind === kind) return r;
-  const fresh = newRow(kind, rows, random);
-  return { ...fresh, draft: { ...fresh.draft, label: r.draft.label, color: r.draft.color } };
+  const fresh = newRow(kind, rows, random, r.units);
+  return { ...fresh, draft: { ...fresh.draft, label: r.draft.label, color: r.draft.color, density: r.draft.density } };
 }
 
 /** The label was typed: a new row, or one whose label (trimmed, case-insensitive) moved off the stored one. */
@@ -56,11 +67,24 @@ export const labelTyped = (r: Row) => r.original === null || labelKey(r.draft.la
 
 export function useLibraryVersion(r: Row, library: readonly CustomMaterial[]): Row {
   const lib = library.find((m) => m.id === r.id);
-  return lib ? { ...r, draft: toDraft(lib) } : r;
+  return lib ? { ...r, draft: toDraft(lib, r.units), densityFrom: lib.density } : r;
 }
 
 // Ruling P1: a sheet size is typed as inches, as `lengthText` shows it.
 const positiveLength = (t: string) => { const v = parseLength(t, IMPERIAL); return v !== null && v > 0 ? v : undefined; };
+
+/**
+ * The density a row's draft stores (weight spec §5.3): `null` for an empty field (unknown: no key), `undefined` while refused.
+ * An untouched field keeps its stored value EXACTLY (inv 5: display rounds; stored is exact).
+ */
+function draftDensity(r: Row): number | null | undefined {
+  const text = r.draft.density.trim();
+  if (text === '') return null;
+  const stored = r.densityFrom;
+  if (stored !== undefined && text === densityText(stored, r.units)) return stored;
+  const v = parseDensity(text, r.units);
+  return v !== null && v <= DENSITY_MAX ? v : undefined;
+}
 
 /** The material a row's draft describes, or undefined while any field is refused. */
 export function fromDraft(r: Row): CustomMaterial | undefined {
@@ -71,10 +95,13 @@ export function fromDraft(r: Row): CustomMaterial | undefined {
   const sheet = r.kind === 'solid' ? undefined
     : { length: keep(r.draft.sheetLength, o?.length), width: keep(r.draft.sheetWidth, o?.width) };
   if (sheet && (sheet.length === undefined || sheet.width === undefined)) return undefined;
+  const density = draftDensity(r);
+  if (density === undefined) return undefined;
   return validateCustomMaterial({
     id: r.id, kind: r.kind, label: r.draft.label, color: r.draft.color,
     ...(r.kind === 'solid' && r.draft.nominal ? { nominal: true } : {}),
     ...(sheet ? { sheet } : {}),
+    ...(density !== null ? { density } : {}),
   }) ?? undefined;
 }
 
@@ -86,6 +113,9 @@ export function rowRefusal(r: Row, rows: readonly Row[]): string | null {
   if (!key) return 'Give the material a name.';
   if (r.kind !== 'solid' && (positiveLength(r.draft.sheetLength) === undefined || positiveLength(r.draft.sheetWidth) === undefined)) {
     return 'Sheet sizes must be positive lengths.';
+  }
+  if (draftDensity(r) === undefined) {
+    return `Density must be a number more than 0 and at most ${densityLimitText(DENSITY_MAX, r.units)}, or left empty.`;
   }
   const builtIn = BUILT_IN_LABELS.get(key);
   if (builtIn !== undefined && labelTyped(r)) return `Another material is already called "${builtIn}".`;

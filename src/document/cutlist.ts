@@ -1,5 +1,5 @@
 import { isSheetGood, type SheetStock } from './types';
-import { catalogOf } from './materials';
+import { catalogOf, type MaterialCatalog } from './materials';
 import type { BandType, Board, Cut, Grain, Region, FlatDocument } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
@@ -19,7 +19,8 @@ import { buildNesting } from './nesting';
 import type { Nesting } from './nesting';
 import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
-import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
+import { formatBoardFeet, formatSquareFeet, formatWeight } from '../units/quantity';
+import { coreWeight, stripWeight, type WeightSummary } from './weight';
 import { geometryBoard, profileValues, sweptProfiles } from './profiles';
 import { bandSignature, coreSize, cutStock, stripBoard, strips } from './banding';
 import type { Strip } from './banding';
@@ -134,6 +135,13 @@ export interface CutListGroup {
   /** `stockInches` formatted with its unit, e.g. `2.05 bd ft`. */
   stock: string;
   /**
+   * Pounds of the wood this group's parts and strips keep (weight spec §5.1), summed in the same visits as `stockInches`,
+   * from each board's own wood; null when the group's material has no density (a group is one material: all or nothing).
+   */
+  pounds: number | null;
+  /** `12 lb` or `no density`, printed under `stock` in the same right-aligned column. */
+  weight: string;
+  /**
    * How this group's parts lay out on full sheets — present exactly when
    * `isSheetGood(material)`, absent otherwise, so the panel's existing
    * is-this-sheet-goods branch is the only condition it needs.
@@ -149,6 +157,10 @@ export interface CutListGroup {
 
 export interface CutList {
   groups: CutListGroup[];
+  /** The piece's weighed pounds: exactly the sum of the groups' non-null `pounds` (weight spec §4.3). */
+  pounds: number;
+  /** `Weight: about 47 lb`, partial or not known (weight spec §5.1); null when the document has no parts. */
+  weight: string | null;
   /** Sheet notes (edge banding spec §4.1); [] when nothing is banded. */
   notes: string[];
 }
@@ -393,7 +405,7 @@ export function buildCutList(doc: FlatDocument): CutList {
    * (the part at its CORE size, the same object when it has no bands; a strip is its own cut). A row is made from its
    * FIRST visit's `make()`.
    */
-  const visit = (board: Board, cut: Board, key: string, make: () => Pick<CutListRow, 'setup' | 'diagrams' | 'benches'>, strip: boolean) => {
+  const visit = (board: Board, cut: Board, key: string, make: () => Pick<CutListRow, 'setup' | 'diagrams' | 'benches'>, strip: Strip | null) => {
     const groupKey = groupFields(board, units).join('|');
     let group = groups.get(groupKey);
     if (!group) {
@@ -404,6 +416,8 @@ export function buildCutList(doc: FlatDocument): CutList {
         rows: [],
         stockInches: 0,
         stock: '',
+        pounds: 0,
+        weight: '',
       };
       groups.set(groupKey, group);
       groupBoards.set(group, []);
@@ -449,7 +463,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     row.qty += 1;
     row.names.push(board.name);
     // A strip row draws no part (edge banding spec §4.2): its ids are strip ids, never board ids.
-    (strip ? row.stripIds : row.boardIds).push(board.id);
+    (strip !== null ? row.stripIds : row.boardIds).push(board.id);
 
     // Accumulated HERE, in the same visit that increments `qty`, and from this
     // board's own exact dimensions — see stockInches' doc comment. Adding to
@@ -460,6 +474,10 @@ export function buildCutList(doc: FlatDocument): CutList {
     row.stockInches += stock;
     group.stockInches += stock;
     groupBoards.get(group)!.push(cut);
+    // Weight (weight spec §4.3): a part adds its CORE at its own density (weighed on the FINISHED part, never `cut`), a strip
+    // its box at its band material's density, so edging lands in the edging's group; an unweighed material nulls its group.
+    const w = strip !== null ? stripWeight(strip, catalog) : coreWeight(board, doc.bandTypes, catalog);
+    group.pounds = w === null || group.pounds === null ? null : group.pounds + w;
   };
 
   // What is cut from stock (banding.ts): every part at its core size, index for index with `doc.boards`. Nesting reads
@@ -475,7 +493,7 @@ export function buildCutList(doc: FlatDocument): CutList {
           diagrams: buildDiagrams(board, units, doc.bandTypes),
           ...(benches.length > 0 ? { benches } : {}),
         };
-      }, false);
+      }, null);
   });
   // Strip rows (edge banding spec §4.2): in the group of the edging material and the strip's thickness, collapsed by cut
   // size, material and ends. "After its parts" is the SORT's job below: strip rows last in a group, strip-only groups
@@ -484,7 +502,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     for (const s of strips(part, doc.bandTypes)) {
       const sb = stripBoard(s);
       visit(sb, sb, `${rowKey(sb, units, doc.bandTypes)}|strip|${endsKey(s)}`,
-        () => ({ setup: [stripSetup(s)], diagrams: stripDiagrams(s, units) }), true);
+        () => ({ setup: [stripSetup(s)], diagrams: stripDiagrams(s, units) }), s);
     }
   }
 
@@ -499,6 +517,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     const format = isSheetGood(group.material) ? formatSquareFeet : formatBoardFeet;
     group.stock = format(group.stockInches);
     for (const row of group.rows) row.stock = format(row.stockInches);
+    group.weight = group.pounds === null ? 'no density' : formatWeight(group.pounds, units);
 
     // One nesting per group, because a group IS the packing partition: one
     // material (so one sheet size and one rotation policy) and one thickness
@@ -522,5 +541,31 @@ export function buildCutList(doc: FlatDocument): CutList {
   const notes = doc.boards.some((b) => b.bands.length > 0)
     ? ['Cut sizes are before banding; band before machining — every cut, hole and curve is measured on the banded part.']
     : [];
-  return { groups: out, notes };
+  const unweighed = [...new Set(out.filter((g) => g.pounds === null).map((g) => g.material))]
+    .sort((a, b) => catalog.ids.indexOf(a) - catalog.ids.indexOf(b));
+  const pounds = out.reduce((s, g) => s + (g.pounds ?? 0), 0);
+  const weight = doc.boards.length === 0 ? null : projectWeightLine({ pounds, unweighed }, catalog, units);
+  return { groups: out, notes, pounds, weight };
+}
+
+/** `A`, `A and B`, `A, B and C` (weight spec §5.1). */
+const joinLabels = (ids: readonly string[], catalog: MaterialCatalog) => {
+  const labels = ids.map((id) => catalog.label(id));
+  return labels.length <= 1 ? labels.join('') : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+};
+/** Nothing weighed at all: the piece's weight is not known (never `about 0 lb`). */
+const nothingWeighed = (s: WeightSummary) => s.unweighed.length > 0 && s.pounds === 0;
+
+/** The cut list's project line (weight spec §5.1): every string built here (inv 19). */
+function projectWeightLine(s: WeightSummary, catalog: MaterialCatalog, units: Units): string {
+  if (nothingWeighed(s)) return `Weight: not known (${joinLabels(s.unweighed, catalog)} ${s.unweighed.length === 1 ? 'has' : 'have'} no density)`;
+  const about = `Weight: about ${formatWeight(s.pounds, units)}`;
+  return s.unweighed.length === 0 ? about : `${about}, not counting ${joinLabels(s.unweighed, catalog)} (no density)`;
+}
+
+/** Properties' Weight value (weight spec §5.2): `about 6.2 lb`, `about 6.2 lb, not counting Ash`, or `not known`. */
+export function weightSentence(s: WeightSummary, catalog: MaterialCatalog, units: Units): string {
+  if (nothingWeighed(s)) return 'not known';
+  const about = `about ${formatWeight(s.pounds, units)}`;
+  return s.unweighed.length === 0 ? about : `${about}, not counting ${joinLabels(s.unweighed, catalog)}`;
 }

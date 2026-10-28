@@ -325,7 +325,10 @@ describe('printed page breaks (fu 383)', () => {
     const groups = [...container.querySelectorAll('.cutlist-group')];
     expect(groups).toHaveLength(3);
     for (const g of groups.slice(1)) expect(g.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
-    expect(container.querySelector('.cutlist-buying')?.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
+    // The weight round's project line (weight spec §5.1) sits under the groups, before Buying; the groups stay siblings.
+    const total = container.querySelector('.cutlist-buying')?.previousElementSibling;
+    expect(total?.classList.contains('cutlist-weight-total')).toBe(true);
+    expect(total?.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
   });
 
   it('a by-the-piece board layout labels each strip with its strip row\'s number (edge banding spec §4.4)', () => {
@@ -368,7 +371,9 @@ describe('Hardware (hardware spec §4)', () => {
     const row = within(section).getByText('Euro hinge, 35 mm').closest('tr')!;
     expect(within(row).getByText('4')).toBeInTheDocument();
     expect(within(row).getByText('Base cabinet › Left door: 2 × 2')).toBeInTheDocument();
-    expect(section.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
+    // Under the groups, the weight round's project line first (weight spec §5.1), then Hardware.
+    expect(section.previousElementSibling?.classList.contains('cutlist-weight-total')).toBe(true);
+    expect(section.previousElementSibling?.previousElementSibling?.classList.contains('cutlist-group')).toBe(true);
     expect(section.nextElementSibling?.classList.contains('cutlist-buying')).toBe(true);
     expect(container.querySelectorAll('.cutlist-hardware')).toHaveLength(1);
   });

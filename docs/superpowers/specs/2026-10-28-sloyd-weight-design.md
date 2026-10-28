@@ -128,8 +128,9 @@ analytic volume (a frustum for a taper, segment area × thickness for an arch, a
 The model is the FINISHED size and bodies are untouched by bands, so a plain body sum would weigh walnut edging as the
 plywood core. Split it:
 
-- each SOLID strip (`strips(part, types)`, as a board via `stripBoard` — a plain box, no features) weighs its box volume
-  at the BAND TYPE's material's density;
+- each SOLID strip (`strips(part, types)`) weighs its FINISHED box — its finished run × the band's thickness × the part's
+  thickness — at the BAND TYPE's material's density *(amended at the final review, I1: `stripBoard`'s box is the cut blank, whose
+  length and width allowances are trimmed off; weighing them made edging heavy and could drive a small part's core negative)*;
 - the core weighs `woodVolume(part) − Σ strip boxes` at the part's density, `woodVolume` taken on the FINISHED stored
   part. **Never on `cutStock`'s core-sized board**: that keeps the finished part's features at their stored stations on a
   smaller blank, so its bodies are not the core's wood;
@@ -174,8 +175,9 @@ table, the stool) before and after; perf guards are lowered only, never raised (
 
 ### 5.1 Cut list
 
-- **Each group's subtotal** gains the group's weight after its stock: `Pine — 3/4": 4.20 bd ft · 12 lb`. A group of an
-  unweighed material prints `· no density`.
+- **Each group's subtotal** gains the group's weight under its stock, in the stock's right-aligned column: `12 lb`, or `no density`
+  for an unweighed material. *(Amended in the build's browser check: inline, after the stock as `· 12 lb`, it pushed the stock out of
+  line with the rows' stock column.)*
 - **A project line** under the groups, before Hardware: `Weight: about 47 lb`. When something is unweighed:
   `Weight: about 40 lb, not counting Ash (no density)` (labels joined `, ` and `and`).
 - Strip rows sit in their band material's group already; their weight lands there.
@@ -227,7 +229,7 @@ Weight and density are not lengths, so they sit beside `formatBoardFeet` and `fo
 
 ## 9. Tests (beyond §4.1's partition test)
 
-- Hand numbers: an oak 3/4 × 6 × 24 board weighs 0.75·6·24/1728·44 = 1.375 lb.
+- Hand numbers: an oak 3/4 × 6 × 24 board weighs 0.75·6·24/1728·44 = 2.75 lb.
 - A banded plywood shelf with walnut edging: core and strip weighed at their own densities, against a hand number; the
   walnut group's weight is non-zero, the plywood group's excludes the edging, core + strips = `woodVolume` of the finished
   shelf, and the project total equals the sum of the groups.

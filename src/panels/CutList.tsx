@@ -181,6 +181,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
               <p className="cutlist-subtotal">
                 <span className="cutlist-subtotal-label">{group.label}:</span>
                 <span className="cutlist-stock">{group.stock}</span>
+                <span className="cutlist-weight">{group.weight}</span>
               </p>
               {layouts && group.nesting && group.nesting.sheets.length > 0 && (
                 <SheetLayout nesting={group.nesting} stock={group.sheet!} numbers={rowNumbers} />
@@ -188,6 +189,8 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
             </section>
           ))
         )}
+
+        {list.weight !== null && <p className="cutlist-weight-total">{list.weight}</p>}
 
         {hardware.length > 0 && (
           <section className="cutlist-hardware" aria-label="Hardware">
