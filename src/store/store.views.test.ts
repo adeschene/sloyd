@@ -1,5 +1,6 @@
 import { useStore } from './store';
 import { createDocument } from '../document/document';
+import { cabinetsDoc } from '../document/treeFixtures';
 import type { SavedViewCamera } from '../document/document';
 
 const s = () => useStore.getState();
@@ -235,8 +236,35 @@ describe('saved views store actions', () => {
       s().selectBoard(asm);
       s().setHidden(asm, false);
       s().selectBoard(asm);
+      const past = s().past.length;
       s().ungroupSelected();
+      expect(s().past.length).toBe(past + 1);
       expect(s().doc.views[0]!.hidden.sort()).toEqual([a, b].sort());
+      s().undo();
+      expect(s().doc.views[0]!.hidden).toEqual([asm]);
+    });
+
+    it('Ungroup of an assembly inside a shared definition re-keys and lifts views in every placement, in ONE undo entry', () => {
+      s().replaceDocument(cabinetsDoc());
+      // view 1 hides the whole drawer in c1 and c3; view 2 hides one part inside the drawer in c2
+      s().setHidden('c1/dr', true);
+      s().setHidden('c3/dr', true);
+      s().saveView(cam);
+      s().setHidden('c1/dr', false);
+      s().setHidden('c3/dr', false);
+      s().setHidden('c2/dr/front', true);
+      s().saveView(cam);
+      s().setHidden('c2/dr/front', false);
+      const before = s().doc.views.map((v) => [...v.hidden]);
+      expect(before).toEqual([['c1/dr', 'c3/dr'], ['c2/dr/front']]);
+      s().openAssembly('c1');
+      s().selectBoard('c1/dr');
+      const past = s().past.length;
+      s().ungroupSelected();
+      expect(s().past.length).toBe(past + 1);
+      expect(s().doc.views.map((v) => v.hidden)).toEqual([['c1/front', 'c3/front'], ['c2/front']]);
+      s().undo();
+      expect(s().doc.views.map((v) => v.hidden)).toEqual(before);
     });
   });
 });

@@ -52,7 +52,7 @@ describe('ViewsFooter (saved views spec §6)', () => {
     mount();
     await userEvent.click(toggle());
     await userEvent.click(saveBtn());
-    const input = screen.getByRole('textbox', { name: 'View name' }) as HTMLInputElement;
+    const input = screen.getByRole('textbox', { name: /^Rename view/ }) as HTMLInputElement;
     expect(input).toHaveValue('View 1');
     expect(document.activeElement).toBe(input);
     expect([input.selectionStart, input.selectionEnd]).toEqual([0, 6]);
@@ -67,7 +67,7 @@ describe('ViewsFooter (saved views spec §6)', () => {
     await userEvent.click(saveBtn());
     await userEvent.click(toggle());
     await userEvent.click(toggle());
-    const input = screen.getByRole('textbox', { name: 'View name' });
+    const input = screen.getByRole('textbox', { name: /^Rename view/ });
     expect(document.activeElement).not.toBe(input);
   });
 
@@ -82,7 +82,7 @@ describe('ViewsFooter (saved views spec §6)', () => {
   it('rename commits on Enter and blur; emptied reverts', async () => {
     mount();
     act(() => { st().saveView(cam); });
-    const input = () => screen.getByRole('textbox', { name: 'View name' });
+    const input = () => screen.getByRole('textbox', { name: /^Rename view/ });
     await userEvent.clear(input());
     await userEvent.type(input(), 'Front{Enter}');
     expect(st().doc.views[0]!.name).toBe('Front');
@@ -100,7 +100,7 @@ describe('ViewsFooter (saved views spec §6)', () => {
     mount();
     act(() => { st().saveView(cam); });
     act(() => st().setSection({ axis: 'front', at: 5, flip: false }));
-    await userEvent.click(screen.getByTitle('Replace this view with the current view'));
+    await userEvent.click(screen.getByRole('button', { name: 'Update view View 1' }));
     expect(st().doc.views[0]!.section).toEqual(st().section);
     expect(st().doc.views[0]!.section).not.toBeNull();
   });
@@ -119,9 +119,9 @@ describe('ViewsFooter (saved views spec §6)', () => {
     await userEvent.click(saveBtn());
     expect(st().doc.views).toHaveLength(2);
     expect(saveBtn().closest('fieldset[disabled]')).toBeNull();
-    await userEvent.click(screen.getAllByTitle('Replace this view with the current view')[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Update view View 1' }));
     expect(st().doc.views[0]!.explode).toBe(0.5);
-    const input = screen.getAllByRole('textbox', { name: 'View name' })[0]!;
+    const input = screen.getAllByRole('textbox', { name: /^Rename view/ })[0]!;
     await userEvent.clear(input);
     await userEvent.type(input, 'Zed{Enter}');
     expect(st().doc.views[0]!.name).toBe('Zed');

@@ -42,8 +42,8 @@ What it does today is listed round by round in `docs/rounds.md`.
   first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-28, session close):** weight, part labels, align/space evenly, the section-cap fix (fu 347) and X-ray are deployed; the
   first real-hardware pass closed 21 owed looks. Nothing from these rounds is owed. Owed to the user: the list below (a phone, touch,
-  a real print, paid runs, a few by-eye items). Next feature: the user picks from `docs/feature-gaps.md` (open: views — saved
-  views; parametric resize; and the residue follow-ups each row names).
+  a real print, paid runs, a few by-eye items). Next: the user picks from `docs/feature-gaps.md` (open: parametric resize; the residue
+  follow-ups each row names).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -82,7 +82,7 @@ user's own key, stored only in `sloyd.llm.v1`; the CSP's
 
 **The plain-JSON document is the source of truth; the Three.js scene is derived from it
 and is never authoritative.** A document is
-`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes, hardwareTypes, hardware }`.
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials, bandTypes, hardwareTypes, hardware, views }`.
 Dragging computes a number, writes it to the document, and the scene re-renders — never
 the reverse. That keeps undo, save/load and export simple. **A board's `position` is its
 min corner**, not its centre (inv 2).
@@ -121,7 +121,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **29** (saved views: `views`; 28, weight: a custom material's `density`; 27, half-blind dovetails' `lap`, deployed 2026-10-28). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **29** (saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -168,7 +168,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts`, `materials.ts` (inv 18, 19, 22, 23, 49) |
 | align / space evenly | `align.ts`, `alignText.ts`; store `alignItems`, `distributeItems`; `panels/AlignSection.tsx` (inv 25) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
-| saved views | `document/views.ts`, `viewport/viewCamera.ts`, `panels/ViewsFooter.tsx` (invs 43, 47) |
+| saved views | `document/views.ts`, `viewCamera.ts`, `ViewsFooter.tsx` (invs 43, 47) |
 | weight | `weight.ts` (`woodVolume`, `coreWeight`, `weightOf`); density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
 | X-ray view | store `xray`/`setXray` (view state, like `section`), `viewport/xray.ts` `fadedFor`; button in `ViewportControls.tsx`, R in `App`'s keydown |
@@ -316,7 +316,7 @@ changes.
     `docs/invariants.md`. `/` in an id is re-minted. A guide with no id is dropped.
     References (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the
     duplicate or the dangling part, never by re-minting. A future field pointing at a board by id
-    breaks the single-pass repair.
+    breaks the single-pass repair — except `views[].hidden`, a hint never repaired (skipped when missing; Group/Ungroup re-key it).
 34. **`gesturing`/`gestureSnapshotTaken` are store state so `replaceDocument` can reset
     them — the only reset.** **PROHIBITION: they must not join `restore`'s clear list, and
     no component may read either.** A test of this asserts an undo entry, never a flag.
@@ -370,7 +370,7 @@ changes.
     refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
     `tapeHover`.** Never return `visibleBoards`' array (or anything built from it) from a
     selector — filter in a memo or handler; a selector may reduce it to a PRIMITIVE. Hidden parts are still in the cut list, joinery,
-    checks, export and autosave. Consecutive hide/show toggles share ONE undo entry. Going to a saved view (`goToView`) is a fifth user action through `applyHidden`; it ends any hide run first, so it is its own undo entry.
+    checks, export and autosave. Consecutive hide/show toggles share ONE undo entry. `goToView` is a fifth action through `applyHidden`, its own undo entry; a saved view stores a copy.
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
     (`toWorldOffset`, `fromWorldOffset`, `spanToWorldOffset`, `spanFromWorldOffset`,
     `endFacing`). **Never `board[dim] - u` at a call site.** Nothing branches on
@@ -401,7 +401,7 @@ changes.
       through two parities in one edit (`sameSideFirst`). **A side is chain parity XOR the part's own flag (`sideAt`)**;
       joinery's regroup joins a user only when the Shape resolves EXACTLY to it through its own flag.
     - A `lean`, `tenons` or `dovetails` key present as `undefined` REMOVES it (never stored).
-47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; a saved-view write (`saveView`, `updateView`, `renameView`, `deleteView`) is the one document write allowed while exploded (via `editViews`; only `views`; undo and redo stay refused); actions
+47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; a saved-view write (`saveView`, `updateView`, `renameView`, `deleteView`; via `editViews`, only `views`) is the one document write allowed while exploded (undo and redo stay refused); actions
     with side effects outside `edit()` refuse at entry (`readOnly()`); `setTool` refuses all but
     Select; `setExplode` is the one writer. The UI lock is `EditLock`'s disabled `<fieldset>` around
     EDITING regions only; the explode offset is a render-time translation, never written back. **Drawings:**
@@ -438,7 +438,7 @@ changes.
     guards are the MINIMUM of 9, lowered only, never raised; `sweptIdentity.test.ts` pins swept parts byte for byte.
     Within-part path chaining on paper is intended — do not undo it.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
-    autosave**; reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
+    autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
     rebuild). **Caps come only from `sectionCaps`** (board-local; bores subtracted). **Picking and snapping read only `keptBySection`**,
     guides exempt. Never hand out the local-cap cache's arrays. On the Plans sheet the section drawing comes
     only from `drawView`'s `section` option, always of the ASSEMBLED piece; a sheet with no section is byte-for-byte unchanged.
@@ -596,7 +596,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight (2026-10-28): 524 and 525 (ask first); record-only 523, 527. Part labels (2026-10-28): 528, 529 and 531 (ask first); record-only 530, 533. Align (2026-10-28): 534–536 and 537's gesture (ask first); record-only 538. X-ray (2026-10-28): 539 (ask first). Saved views (2026-10-28): 540–542 (ask first).
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first). Saved views: 540–542 (ask first).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

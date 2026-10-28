@@ -17,8 +17,8 @@ export function ViewsList({ onGoTo, onUpdate, focusId }: { focusId?: string | nu
       {views.map((v) => (
         <li key={v.id}>
           <button className="view-go" title="Go to this view" onClick={() => onGoTo(v.id)}>{v.name}</button>
-          <NameField focusOnMount={v.id === focusId} label="View name" value={v.name} onCommit={(typed) => renameView(v.id, typed)} />
-          <button className="view-update" title="Replace this view with the current view"
+          <NameField focusOnMount={v.id === focusId} label={`Rename view ${v.name}`} value={v.name} onCommit={(typed) => renameView(v.id, typed)} />
+          <button className="view-update" title="Replace this view with the current view" aria-label={`Update view ${v.name}`}
             onClick={() => onUpdate(v.id)}>Update</button>
           <button className="guide-remove" aria-label={`Delete view ${v.name}`} onClick={() => deleteView(v.id)}>×</button>
         </li>

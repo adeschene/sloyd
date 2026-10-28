@@ -17,4 +17,4 @@ No paid call; production not touched.
 
 Not run here: **a window resize between save and go** — the window is maximized and would not resize from the extension; the
 height ↔ zoom conversion is pinned by `viewCamera.test.ts` (two canvas heights, one visible height). Owed to the user by eye, with the
-rows' look (each row shows the name twice: the go button and the rename field) and the sidebar's fit with Guides and Views both open.
+rows' look (each row shows the name twice: the go button and the rename field) and the sidebar's fit with Guides and Views both open. Also not run in the browser: **export/import** of a project with views (owed; the unit round trip and the Duplicate storage test cover the code).

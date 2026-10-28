@@ -183,10 +183,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     container; definition and shape ids per document; cut ids per board (per shape for a
     shape), and so angle-cut, hole, curve, round-tenon (schema 24, inv 58) and dovetail ids (schema 26, inv 62); profile ids share the part's CURVE scope (curves validated first), so the
     geometry view never holds two curves with one id. Band type ids per document (one `seen` set; the built-in's id fixed);
-    bands carry no id (keyed by side). `/` in an id is re-minted. A guide with no id is dropped. References
+    bands carry no id (keyed by side); saved-view ids per document (one `seen` set, `validateViews`). `/` in an id is re-minted. A guide with no id is dropped. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
-    at a board by id breaks the single-pass repair.
+    at a board by id breaks the single-pass repair. **`views[].hidden` is exempt: it is a hint, never a reference** — load never
+    repairs it, a missing id is skipped on restore, and Group/Ungroup re-key it in the same edit (saved views spec §2).
 34. **`gesturing`/`gestureSnapshotTaken` are store state so `replaceDocument` can reset
     them — the only reset.** **PROHIBITION: they must not join `restore`'s clear list, and
     no component may read either.** A test of this asserts an undo entry, never a flag.
@@ -383,6 +384,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Hidden parts are still in the cut list, joinery, checks, export and autosave.
     Consecutive hide/show toggles share ONE undo entry (the run is the top of `past`, by identity;
     any edit, gesture snapshot, undo or redo ends it; a run back at its start leaves no entry).
+    A saved view STORES a copy of the hidden set in `doc.views`; the live hidden set stays view state.
     **Going to a saved view (`goToView`) is a fifth user action through `applyHidden`; it ends any hide run first, so it is its own undo entry** (none when the
     hidden set already matches).
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
@@ -832,7 +834,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     THROWS for a line that misses the face or a tip short of the mouth: its caller refuses first (ruling T1a).
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
-    where `explode` is (initial state, `replaceDocument`).** One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
+    where `explode` is (initial state, `replaceDocument`).** A saved view STORES a copy of the section in `doc.views`; the live section stays view state. One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
     every part material (`clipShadows` too) and edge line on the GPU, so a slider move changes one uniform and rebuilds no
     part geometry. **Caps come only from `sectionCaps` (`document/section.ts`)**: board-local — a placed part's cut is one
     of its own axis planes (quarter turns, mirroring resolved by the composition; inv 44) — each convex body clipped by
