@@ -21,6 +21,7 @@ import { Curves } from './Curves';
 import { Profiles } from './Profiles';
 import { Banding } from './Banding';
 import { Hardware } from './Hardware';
+import { AlignSection } from './AlignSection';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const NO_NOTES: readonly string[] = [];
@@ -496,6 +497,8 @@ function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdd
         onDelete={() => deleteBoards(selectedIds)}
       />
       <SelectionWeight />
+      {/* Align and space evenly (align spec §6): disabled while exploded, as every editing region is (inv 47). */}
+      <EditLock><AlignSection /></EditLock>
       <EditLock>
       {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
       {plan && !('refused' in plan) && plan.changing.length > 0 && (

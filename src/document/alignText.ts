@@ -11,6 +11,10 @@ export const AXIS_WORDS: Record<Axis, { min: string; centre: string; max: string
 export const alignLabel = (axis: Axis, edge: Edge) => `Align ${AXIS_WORDS[axis][edge].toLowerCase()} (${AXIS_WORDS[axis].letter})`;
 /** `Space evenly along Y`. */
 export const spaceLabel = (axis: Axis) => `Space evenly along ${AXIS_WORDS[axis].letter}`;
+/** The section's words: its heading, the space-evenly row's label and its buttons (`Along X`). */
+export const ALIGN_HEADING = 'Align';
+export const SPACE_EVENLY = 'Space evenly';
+export const alongWord = (axis: Axis) => `Along ${AXIS_WORDS[axis].letter}`;
 /** `to Left side (selected first)`. */
 export const anchorNote = (name: string) => `to ${name} (selected first)`;
 /** The refusal: the inner items do not fit between the outer two. */
