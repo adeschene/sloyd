@@ -343,7 +343,38 @@ export interface GuidePoint {
   id: string;
   /** World position, inches. */
   at: [number, number, number];
+  /** Never present on a point. Typed `undefined` so a GuideLine is NOT assignable to a GuidePoint (construction-lines spec §2.3). */
+  axis?: undefined;
 }
+
+/**
+ * A world axis the tape can lock its typed offset to.
+ *
+ * WORLD, not board-local, and that is the round's central decision rather than
+ * a default. `axisDimensions` maps a board's length/width/thickness onto the
+ * world axes, and by construction it is always a PERMUTATION of [X, Y, Z] —
+ * `posture` names which dimension is up and `rotation` is one of four quarter
+ * turns about Y (any horizontal axis possibly reversed, which flips a
+ * direction but never makes one oblique), so each dimension lands on exactly
+ * one axis and no two share one. There is no
+ * oblique case the document can express. So board-local axes would reach the
+ * same six directions and buy a LABEL, not a capability — and they would be
+ * unreachable from a guide-owned anchor, which owns no board. See design §2.
+ */
+export type TapeAxis = 'x' | 'y' | 'z';
+
+/** A construction line (construction-lines spec §2): parallel to `axis` through `at`. */
+export interface GuideLine {
+  id: string;
+  /** World position, inches; the coordinate ON `axis` is always 0 (canonical, spec §2.2). */
+  at: [number, number, number];
+  axis: TapeAxis;
+}
+
+export type Guide = GuidePoint | GuideLine;
+
+export const isGuideLine = (g: Guide): g is GuideLine => g.axis !== undefined;
+export const isGuidePoint = (g: Guide): g is GuidePoint => g.axis === undefined;
 
 /** A saved view's camera (saved views spec §2). `height` is the visible world height in inches, ortho only. */
 export interface SavedViewCamera {
@@ -435,7 +466,7 @@ export interface SloydDocument {
    * Tape-measure guide points. Document-level like `stock`, so the v5 -> v6
    * migration step has no rawBoards.map — see document.ts.
    */
-  guides: GuidePoint[];
+  guides: Guide[];
   /** Saved views (schema 29), in the order the user sees. */
   views: SavedView[];
   boards: StoredBoard[];

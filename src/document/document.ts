@@ -1,7 +1,7 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint, SavedView, SavedViewCamera,
+  Board, Instance, Definition, Cut, AngleCut, RoundTenon, Dovetail, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, Guide, GuidePoint, SavedView, SavedViewCamera,
   Shape, StoredBoard, ProfileCut, ProfileEnd, ProfileKind, ProfileSide, BandType, Band, CornerRule, HardwareType, HardwareUse, Lean,
 } from './types';
 import type { SharedField } from './links';
@@ -256,8 +256,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * plain bore. The loader carries every present head key to `headProblem` and DROPS the row, never the part, when it says the head is malformed, not wider than the bore, too deep for a blind row, or on a tilted row. Harm a v29 build would
  * do: it rebuilds each row field by field, drops the head and drills the plain bore — silently, and autosaves it. So a v30
  * file must be refused by a v29 build.
+ *
+ * v31 (construction-lines spec §2): a guide may carry `axis` (a construction line; its `at[axis]` is stored 0). No step: an absent
+ * `axis` is a point. The loader drops an entry whose `axis` is present and not x/y/z, and zeroes a line's along-axis coordinate.
+ * Harm a v30 build would do: it rebuilds each guide as `{ id, at }`, so every line silently becomes a point at its stored
+ * position and the next autosave writes that — the lines are lost. So a v31 file must be refused by a v30 build.
  */
-export const CURRENT_VERSION = 30;
+export const CURRENT_VERSION = 31;
 
 export class DocumentError extends Error {
   /**
@@ -915,9 +920,9 @@ function validateBands(raw: unknown, typeIds: ReadonlySet<string>): Band[] {
  * keeps it and later ones are re-minted (follow-ups 97 and 131, closed
  * together because closing either alone was the inconsistent half-measure).
  */
-export function validateGuides(raw: unknown): GuidePoint[] {
+export function validateGuides(raw: unknown): Guide[] {
   if (!Array.isArray(raw)) return [];
-  const guides: GuidePoint[] = [];
+  const guides: Guide[] = [];
   const seen = new Set<string>();
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue;
@@ -930,7 +935,16 @@ export function validateGuides(raw: unknown): GuidePoint[] {
     const at = g.at;
     if (!Array.isArray(at) || at.length !== 3) continue;
     if (!at.every((n) => typeof n === 'number' && Number.isFinite(n))) continue;
-    guides.push({ id: takeId(g.id, seen), at: [at[0] as number, at[1] as number, at[2] as number] });
+    const xyz: [number, number, number] = [at[0] as number, at[1] as number, at[2] as number];
+    if ('axis' in g && g.axis !== undefined) {
+      // A line: any other axis value is malformed, and a malformed guide is dropped. The along-axis coordinate is
+      // canonically 0 (spec §2.2), so a stray value is normalised, never a reason to drop.
+      if (g.axis !== 'x' && g.axis !== 'y' && g.axis !== 'z') continue;
+      xyz[g.axis === 'x' ? 0 : g.axis === 'y' ? 1 : 2] = 0;
+      guides.push({ id: takeId(g.id, seen), at: xyz, axis: g.axis });
+      continue;
+    }
+    guides.push({ id: takeId(g.id, seen), at: xyz });
   }
   return guides;
 }

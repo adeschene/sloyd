@@ -1,5 +1,5 @@
 import { guideSnapPoints, isCovered, sharesStorageWith, snapPointsFor } from '../document/document';
-import type { Board, GuidePoint, SnapPoint } from '../document/document';
+import type { Board, Guide, SnapPoint } from '../document/document';
 import { visibleBoards } from '../store/visibility';
 
 /**
@@ -36,7 +36,7 @@ import { visibleBoards } from '../store/visibility';
  */
 export function moveCandidates(
   boards: readonly Board[],
-  guides: GuidePoint[],
+  guides: Guide[],
   selectedIds: readonly string[],
   hiddenIds: readonly string[],
   grabbing: boolean,

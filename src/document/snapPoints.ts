@@ -7,7 +7,8 @@ import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
-import type { Board, Cut, GuidePoint } from './types';
+import type { Board, Cut, Guide, TapeAxis } from './types';
+import { isGuidePoint } from './types';
 import { geometryBoard, shapedPart } from './profiles';
 import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
 import { sectionFrame } from './runout';
@@ -474,8 +475,8 @@ export function snapPointsFor(board: Board): BoardSnapPoint[] {
  * The whole of what the guide-points round needed from this module. Boards
  * offer 26 derived points; a guide offers the one position it is.
  */
-export function guideSnapPoints(guides: GuidePoint[]): SnapPoint[] {
-  return guides.map((g) => ({
+export function guideSnapPoints(guides: Guide[]): SnapPoint[] {
+  return guides.filter(isGuidePoint).map((g) => ({
     kind: 'guide' as const,
     at: [g.at[0], g.at[1], g.at[2]] as [number, number, number],
     owner: { type: 'guide' as const, id: g.id },
@@ -519,21 +520,7 @@ export function offsetPoint(
   return [anchor[0] + dx * k, anchor[1] + dy * k, anchor[2] + dz * k];
 }
 
-/**
- * A world axis the tape can lock its typed offset to.
- *
- * WORLD, not board-local, and that is the round's central decision rather than
- * a default. `axisDimensions` maps a board's length/width/thickness onto the
- * world axes, and by construction it is always a PERMUTATION of [X, Y, Z] —
- * `posture` names which dimension is up and `rotation` is one of four quarter
- * turns about Y (any horizontal axis possibly reversed, which flips a
- * direction but never makes one oblique), so each dimension lands on exactly
- * one axis and no two share one. There is no
- * oblique case the document can express. So board-local axes would reach the
- * same six directions and buy a LABEL, not a capability — and they would be
- * unreachable from a guide-owned anchor, which owns no board. See design §2.
- */
-export type TapeAxis = 'x' | 'y' | 'z';
+export type { TapeAxis };
 
 const AXIS_INDEX: Record<TapeAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 
