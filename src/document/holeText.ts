@@ -87,11 +87,25 @@ export function holeLine(board: Board, r: HoleRow, units: Units): string {
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
-/** A hole's size as the bench line prints it (`1/4" dia × 3/8" deep`; imperial with the mm aside): ONE home, read by the
- *  bench line and the Plans sheet's key lines (feature callouts spec §3). */
+/** A hole's diameter as a hole is specified, with the imperial mm aside: the bore's and the head's share it. */
+const diameterText = (v: number, units: Units) => `${holeLengthText(v, units, 'diameter')}${isMetric(units) ? '' : mm(v)}`;
+
+/** A row's counterbore or countersink in words (`3/8" counterbore × 3/8" deep`, `3/8" countersink at 82°`): ONE home
+ *  (invariant 19), null for a headless row so its text is byte for byte as before. The diameter reads as the bore's does,
+ *  the counterbore's depth as the bore's depth does (a countersink's depth is derived, so it is not printed). */
+export function holeHeadText(r: HoleRow, units: Units): string | null {
+  if (!r.head || r.headDiameter === undefined) return null;
+  const dia = diameterText(r.headDiameter, units);
+  if (r.head === 'countersink') return `${dia} countersink at ${r.headAngle}°`;
+  return `${dia} counterbore × ${formatLength(r.headDepth ?? 0, units)} deep`;
+}
+
+/** A hole's size as the bench line prints it (`1/4" dia × 3/8" deep`; imperial with the mm aside; a head appended after a
+ *  comma): ONE home, read by the bench line and the Plans sheet's key lines (feature callouts spec §3). */
 export function holeSizeText(r: HoleRow, units: Units): string {
-  const dia = `${holeLengthText(r.diameter, units, 'diameter')}${isMetric(units) ? '' : mm(r.diameter)}`;
-  return `${dia} dia × ${r.depth === 'through' ? 'through' : `${formatLength(r.depth, units)} deep`}`;
+  const size = `${diameterText(r.diameter, units)} dia × ${r.depth === 'through' ? 'through' : `${formatLength(r.depth, units)} deep`}`;
+  const head = holeHeadText(r, units);
+  return head ? `${size}, ${head}` : size;
 }
 
 /** A row's pitch as the bench line prints it (1/64 at least; imperial with the mm aside). */

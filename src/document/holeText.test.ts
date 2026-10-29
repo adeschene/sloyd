@@ -2,7 +2,7 @@ import { IMPERIAL } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard, defaultProfile } from './document';
 import type { ProfileKind } from './document';
-import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeLengthText, holeLine } from './holeText';
+import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeHeadText, holeLengthText, holeLine } from './holeText';
 import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
 import { ARCH } from './curveFixtures';
@@ -147,5 +147,30 @@ describe('a tilted row\'s bench line (angled holes, Task 8)', () => {
   });
   it('a zero or absent tilt leaves the line untouched', () => {
     expect(holeLine(side, { ...cup, tiltAlong: 0 }, IMPERIAL)).toBe(holeLine(side, cup, IMPERIAL));
+  });
+});
+
+describe('the head on the bench line (counterbores, Task 7)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  const bore: HoleRow = { ...cup, diameter: 3 / 16, depth: 'through' };
+  const cb: HoleRow = { ...bore, head: 'counterbore', headDiameter: 0.375, headDepth: 0.375 };
+  const cs: HoleRow = { ...bore, head: 'countersink', headDiameter: 0.375, headAngle: 82 };
+  const tail = 'in the thickness face (max side), 3" from the length min end, 7/8" in from the width min side';
+  it('a counterbore', () => {
+    expect(holeLine(side, cb, IMPERIAL)).toBe(`Hole 3/16" dia × through, 3/8" counterbore × 3/8" deep ${tail}`);
+  });
+  it('a countersink', () => {
+    expect(holeLine(side, cs, IMPERIAL)).toBe(`Hole 3/16" dia × through, 3/8" countersink at 82° ${tail}`);
+  });
+  it('a whole-mm head diameter prints its mm aside in imperial', () => {
+    expect(holeHeadText({ ...cs, headDiameter: 35 / 25.4 }, IMPERIAL)).toBe('1-3/8" (35 mm) countersink at 82°');
+  });
+  it('metric', () => {
+    const m: HoleRow = { ...cs, diameter: 4.5 / 25.4, headDiameter: 9 / 25.4, headAngle: 90 };
+    expect(holeLine(side, m, MM)).toContain('Hole 4.5 mm dia × through, 9 mm countersink at 90° in ');
+  });
+  it('a headless row is unchanged and has no head text', () => {
+    expect(holeHeadText(bore, IMPERIAL)).toBeNull();
+    expect(holeLine(side, bore, IMPERIAL)).toBe(`Hole 3/16" dia × through ${tail}`);
   });
 });
