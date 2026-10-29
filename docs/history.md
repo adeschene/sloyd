@@ -520,6 +520,15 @@ and 79.
 
 ## What each round did
 
+**Parametric resize (2026-10-28/29, deployed `e09003b`, no schema change).** The last open feature gap the user picked. They skipped the
+brainstorm questions, so the spec took the SketchUp reading of "parametric" — a stretch at a line, nothing stored — over Fusion's stored
+constraints, and every call was Claude's, then approved. Built subagent-driven, eight tasks with a review each. The reviews mattered: a
+full-length chamfer or curve along the stretch was refused until ruled a prism that simply lengthens (Ruling 2); the panel reset the line
+on every keystroke of the size; and the opus whole-branch review, with a 7k-plan fuzz, found that a shrink could push a part starting in
+the removed wood past the fixed side, so the result was wider than typed. The first fix (Ruling 7) used a strict bound and missed a part
+exactly ON the line; the re-review caught it and the user approved the inclusive band (Ruling 9). Seen in the user's Chrome: widen, raise,
+shrink back, both refusals, undo. CLAUDE.md was then trimmed to 55KB, and a review put back seven rule clauses the trim had moved out.
+
 **Saved views (2026-10-28, deployed `ee43d69`, schema 29).** The other half of the views gap. The user skipped the brainstorm questions,
 so the spec was all Claude's calls: views stored in the document (a bump, since a 28 build would drop them on round trip), holding the
 camera (ortho as a visible world height, so a window size does not change what a view shows), section, explode and hidden ids. A fresh

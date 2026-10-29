@@ -25,6 +25,12 @@ built around hand woodworking.
   and take shared size, grain and material edits together.
 - **Copy in a row…**: N copies along ±X/Y/Z by gap, centre-to-centre pitch, or fit across a
   distance.
+- **Align** two or more parts to the one selected first (left, centre, right; bottom, middle, top; back, centre,
+  front), and **Space evenly** between the outer two.
+- **Overall size**: select an assembly or several parts, type a new width, height or depth, and place a stretch line
+  (the middle by default). Everything past the line moves, and parts crossing it get longer, with their joints, holes
+  and cuts following their side. A preview says what grows, moves and stays; anything that can't follow refuses with
+  a sentence.
 - **Hide/unhide**: an eye on every row; H hides the selection, Shift+H hides the rest, and
   Alt+H shows everything. A hidden part still counts in the cut list.
 
@@ -54,6 +60,8 @@ built around hand woodworking.
 - **Box joint the corners**: select the parts of a box or drawer and every corner gets equal interlocking fingers (any
   leftover goes in one odd finger at the bottom). The parts run out to the outside faces, and the cut list gives one line
   per joint.
+- **Dovetail the corners**: through or half-blind dovetails with a typed slope and tail count, half pins at both edges.
+  The cut list gives one line per joint and bench drawings on the tail part's row.
 
 **Linked parts, assemblies and components**
 - **Link** parts so they share size, material, grain, posture and cuts. Edit one and every
@@ -71,13 +79,15 @@ built around hand woodworking.
 - **Tape** tool (T): measure point to point and drop guide points by typing a distance.
   X, Y or Z locks the direction to an axis.
 - **Section**: slice the viewport along a Front, Side or Top plane to see inside the piece, with solid caps on the cut.
+- **X-ray** (R): the selection draws solid and every other part faded, so the joints inside show through.
 
 **At the bench**
 - **Cut list**: a printable sheet that groups identical parts. Every part is named by its
   path (`Cabinet › Drawer › Side`). It shows each part's joinery as a drawing with its setup
   lines, board feet for solid wood and square feet for sheet goods. A **Buying** section turns it into a shopping
   list: board feet with a waste factor, boards bought by the piece packed onto the cheapest sizes, sheets, and a cost
-  from the prices you set.
+  from the prices you set. Every group and the project carry a **weight**, from each material's density.
+- **Labels…**: one sticker per piece on Avery 5160/5163 or L7160/L7163 label sheets, printed at true size.
 - **Hardware**: hinges, slides, screws and the like as typed items with a pack size and price, counted on parts,
   assemblies or the project and multiplied with copies. The cut list has a Hardware section, and Buying counts packs.
 - **Plans**: a printable sheet of dimensioned third-angle elevations (front, plan, side) of the piece and of
@@ -85,6 +95,7 @@ built around hand woodworking.
   section view when the viewport has a section. The viewport has an **Explode** slider; the model is read-only while it
   is spread.
 - **Views**: Front, Side, Top and Iso buttons over the viewport; **Save image** downloads a clean PNG of the view.
+  **Saved views** keep a camera, section, explode and hidden parts in the project.
 - **Sheet layout**: plywood and MDF parts are nested onto 4×8 sheets in guillotine-cuttable
   rows, accounting for the saw kerf.
 

@@ -560,7 +560,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first).
 - **Owed to the user, not code:** by eye — 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye.
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only

@@ -1,6 +1,6 @@
 # Sloyd — parametric resize (stretch)
 
-**Date:** 2026-10-28 · **Status:** approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-parametric-resize.md`.
+**Date:** 2026-10-28 · **Status:** deployed 2026-10-29 (`e09003b`, `index-B7bX5cuX.js`, no schema change); approved by the user 2026-10-28; plan `docs/superpowers/plans/2026-10-28-sloyd-parametric-resize.md`.
 
 **Origin:** `docs/feature-gaps.md`, "Parametric resize" ("Fusion users praise resizing a piece and having parts follow"). The user
 picked it on 2026-10-28 and asked for a design without the brainstorm questions. Every choice below is Claude's call unless it is
