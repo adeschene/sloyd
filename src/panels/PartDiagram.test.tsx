@@ -1072,6 +1072,30 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
   });
 });
 
+describe('PartDiagram headed holes (counterbores spec §8)', () => {
+  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
+  const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const draw = (extra: object) => {
+    const views = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, cuts: [rabbet], holes: [{ ...row, ...extra }] }), IMPERIAL);
+    return { top: render(<PartDiagram view={views.find((v) => v.key === 'thickness|max')!} />), side: render(<PartDiagram view={views.find((v) => v.key === 'width|min')!} />) };
+  };
+  it('draws the head circle concentric with the bore, and none for a headless hole', () => {
+    expect(draw({}).top.container.querySelectorAll('ellipse.cutlist-diagram-hole')).toHaveLength(1);
+    cleanup();
+    const e = draw({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 }).top.container.querySelectorAll('ellipse.cutlist-diagram-hole');
+    expect(e).toHaveLength(2);
+    expect(e[0]!.getAttribute('cx')).toBe(e[1]!.getAttribute('cx'));
+    expect(Number(e[1]!.getAttribute('rx'))).toBeCloseTo(2 * Number(e[0]!.getAttribute('rx')), 9);
+  });
+  it('the side view is stepped (6 lines with the bottom) or coned (4 + bottom)', () => {
+    expect(draw({}).side.container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(3);
+    cleanup();
+    expect(draw({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 }).side.container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(7);
+    cleanup();
+    expect(draw({ head: 'countersink', headDiameter: 0.5, headAngle: 90 }).side.container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(5);
+  });
+});
+
 describe('PartDiagram curves (curves spec §5.2)', () => {
   const arch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 }) };
   const rabbet = { id: 'r', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };

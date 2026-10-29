@@ -2,7 +2,7 @@ import type { Board } from './types';
 import type { V3 } from './angleCuts';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry } from './bodies';
-import { holeBottom, holeRing, tiltedHole, type Hole } from './holes';
+import { holeBottom, holePieces, holeRing, tiltedHole, type Hole } from './holes';
 import { holeInStock, stockChecks } from './holeFaults';
 import { toWorld } from './snapPoints';
 
@@ -40,8 +40,10 @@ export function holeDrawingTagged(b: Board, toward: readonly number[], visibleOn
   const inside = (h: (typeof holes)[number]) => checks !== null && holeInStock(b, h, checks);
   const P = (p: readonly number[]): Vec3 => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   // Per hole: its rims, then its wall silhouettes; the sheet takes every hole's rims first, then every wall.
-  const lines = holes.map((h): { rims: Line[]; walls: Line[] } =>
-    tiltedHole(h) ? tiltedLines(h, P, toward, inside(h)) : squareLines(h, P, toward, inside(h)));
+  const lines = holes.map((h): { rims: Line[]; walls: Line[] } => {
+    if (tiltedHole(h)) return tiltedLines(h, P, toward, inside(h));
+    return h.head ? headedLines(h, P, toward, inside(h)) : squareLines(h, P, toward, inside(h));
+  });
   return [...lines.flatMap((l) => l.rims), ...lines.flatMap((l) => l.walls)];
 }
 
@@ -51,28 +53,14 @@ type ToWorld = (p: readonly number[]) => Vec3;
 /** A square hole's lines, as they always were (drawingIdentity): its world frame from mapped points only — centre C,
  *  axis A (entry to far rim), silhouette radial r (null when the view looks down the axis), and whether the rim's plane
  *  is edge-on to the view. */
-function squareLines(h: Hole, P: ToWorld, toward: readonly number[], clean: boolean): { rims: Line[]; walls: Line[] } {
+function squareLines(h: Hole, P: ToWorld, toward: readonly number[], clean: boolean, mouth = true): { rims: Line[]; walls: Line[] } {
   const rims: Line[] = [];
   const walls: Line[] = [];
-  const a = DIMENSION_ORDER.indexOf(h.axis);
-  const [u, v] = [0, 1, 2].filter((i) => i !== a) as [number, number];
-  const at = (du: number, dv: number, t: number): Vec3 => {
-    const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
-    p[u] += du; p[v] += dv; p[a] += h.dir * t;
-    return P(p);
-  };
-  const C = at(0, 0, 0);
-  const U = at(h.radius, 0, 0).map((x, i) => x - C[i]!);
-  const V = at(0, h.radius, 0).map((x, i) => x - C[i]!);
-  const A = at(0, 0, h.depth).map((x, i) => x - C[i]!);
-  const tu = dot(U, toward);
-  const tv = dot(V, toward);
-  const n = Math.hypot(tu, tv);
-  // Looking down the axis: the rim covers the wall, no silhouettes.
-  const r = n <= 1e-9 * h.radius ? null : [0, 1, 2].map((i) => (tv * U[i]! - tu * V[i]!) / n);
-  const edgeOn = Math.abs(dot(A, toward)) <= 1e-9 * Math.hypot(A[0]!, A[1]!, A[2]!);
+  const f = frameLines(h, P, toward);
+  const { C, A, r, edgeOn } = f;
   for (const t of [0, h.depth]) {
     if (clean && !h.through && t === h.depth) continue;   // visibleOnly: a clean blind bottom is always hidden
+    if (clean && !mouth && t === 0) continue;             // visibleOnly: a headed bore's mouth is the step, inside the stock
     if (edgeOn && r) {
       // Edge-on, the rim projects to exactly the diameter across r (ruling R2): ONE segment, not 96 chords folded back
       // along one line, so a hidden rim reads dashed on the sheet.
@@ -95,6 +83,70 @@ function squareLines(h: Hole, P: ToWorld, toward: readonly number[], clean: bool
     }
   }
   return { rims, walls };
+}
+
+/** A headed hole's lines (counterbores spec §8), piece by piece: a cylinder piece through `squareLines` unchanged, a frustum
+ *  through `coneLines`. A counterbore draws the mouth rim R, the step's outer rim R and inner rim r, the bore's far rim r,
+ *  with R walls over the head and r walls past it; a countersink the mouth rim R and the bore's mouth (the cone's far rim,
+ *  drawn once, by the bore). A bore with no depth (a through counterbore deeper than the part: faulted) is skipped. */
+function headedLines(h: Hole, P: ToWorld, toward: readonly number[], clean: boolean): { rims: Line[]; walls: Line[] } {
+  const rims: Line[] = [];
+  const walls: Line[] = [];
+  for (const [i, p] of holePieces(h).entries()) {
+    if (p.depth <= 0) continue;
+    const l = p.tip !== undefined ? coneLines(p, P, toward, clean) : squareLines(p, P, toward, clean, i === 0);
+    rims.push(...l.rims);
+    walls.push(...l.walls);
+  }
+  return { rims, walls };
+}
+
+/** A countersink's cone piece: its MOUTH rim (the far rim is the bore's mouth, drawn by the bore) and two silhouette lines
+ *  from radius R at the mouth to r at `reach`, along the same generators a cylinder's walls use (r̂ scaled to each end). */
+function coneLines(h: Hole, P: ToWorld, toward: readonly number[], clean: boolean): { rims: Line[]; walls: Line[] } {
+  const rims: Line[] = [];
+  const walls: Line[] = [];
+  const { C, A, r, edgeOn } = frameLines(h, P, toward);
+  if (edgeOn && r) {
+    rims.push({ A: [C[0] - r[0]!, C[1] - r[1]!, C[2] - r[2]!], E: [C[0] + r[0]!, C[1] + r[1]!, C[2] + r[2]!], row: h.row });
+  } else {
+    const ring = holeRing(h, 0, DRAWING_HOLE_SEGMENTS).map(P);
+    for (let i = 0; i < ring.length; i += 1) rims.push({ A: ring[i]!, E: ring[(i + 1) % ring.length]!, row: h.row });
+  }
+  if (r && !clean) {
+    const k = h.tip! / h.radius;
+    for (const s of [1, -1]) {
+      walls.push({
+        A: [C[0] + s * r[0]!, C[1] + s * r[1]!, C[2] + s * r[2]!],
+        E: [C[0] + A[0]! + s * k * r[0]!, C[1] + A[1]! + s * k * r[1]!, C[2] + A[2]! + s * k * r[2]!],
+        row: h.row,
+      });
+    }
+  }
+  return { rims, walls };
+}
+
+/** A square piece's world frame from mapped points only: centre C, axis A (mouth to far rim), the silhouette radial r (length
+ *  `radius`; null when the view looks down the axis) and whether the rim's plane is edge-on to the view. */
+function frameLines(h: Hole, P: ToWorld, toward: readonly number[]): { C: Vec3; A: number[]; r: number[] | null; edgeOn: boolean } {
+  const a = DIMENSION_ORDER.indexOf(h.axis);
+  const [u, v] = [0, 1, 2].filter((i) => i !== a) as [number, number];
+  const at = (du: number, dv: number, t: number): Vec3 => {
+    const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
+    p[u] += du; p[v] += dv; p[a] += h.dir * t;
+    return P(p);
+  };
+  const C = at(0, 0, 0);
+  const U = at(h.radius, 0, 0).map((x, i) => x - C[i]!);
+  const V = at(0, h.radius, 0).map((x, i) => x - C[i]!);
+  const A = at(0, 0, h.depth).map((x, i) => x - C[i]!);
+  const tu = dot(U, toward);
+  const tv = dot(V, toward);
+  const n = Math.hypot(tu, tv);
+  // Looking down the axis: the rim covers the wall, no silhouettes.
+  const r = n <= 1e-9 * h.radius ? null : [0, 1, 2].map((i) => (tv * U[i]! - tu * V[i]!) / n);
+  const edgeOn = Math.abs(dot(A, toward)) <= 1e-9 * Math.hypot(A[0]!, A[1]!, A[2]!);
+  return { C, A, r, edgeOn };
 }
 
 /**

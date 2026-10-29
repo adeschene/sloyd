@@ -434,6 +434,20 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
     ]);
     expect(v.holeNotes).toEqual([{ row: pins.id, text: expect.stringMatching(/^Row of 3 holes 1\/4" dia × 3\/8" deep/) }]);
   });
+  it('a headed row carries headR on its entry circle and a head box on its side view; a headless one has no such key', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const headed = (r: Partial<HoleRow>) => buildDiagrams(side({ cuts: [rabbet], holes: [{ ...pins, count: 1, depth: 0.5, ...r } as HoleRow] }), IMPERIAL);
+    const plain = headed({});
+    expect('headR' in plain.find((v) => v.key === 'thickness|max')!.holes[0]!).toBe(false);
+    expect('head' in plain.find((v) => v.key === 'width|min')!.holeSides[0]!).toBe(false);
+    const cb = headed({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 });
+    expect(cb.find((v) => v.key === 'thickness|max')!.holes[0]).toMatchObject({ r: pins.diameter / 2, headR: 0.25 });
+    const s = cb.find((v) => v.key === 'width|min')!.holeSides[0]!;
+    expect(s.head).toMatchObject({ cone: false, v: [0.5, 0.75] });   // from the mouth (3/4) over the head's 1/4
+    expect(s.head!.h[1]! - s.head!.h[0]!).toBeCloseTo(0.5, 12);
+    const cs = headed({ head: 'countersink', headDiameter: 0.5, headAngle: 90 });
+    expect(cs.find((v) => v.key === 'width|min')!.holeSides[0]!.head).toMatchObject({ cone: true, v: [0.625, 0.75] });
+  });
   it('a hole into an end opens the length view', () => {
     const dowel = { ...pins, id: 'd', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, station: 2, count: 1, acrossFrom: 'min' as const, inset: 0.375 };
     const views = buildDiagrams(side({ holes: [dowel] }), IMPERIAL);
