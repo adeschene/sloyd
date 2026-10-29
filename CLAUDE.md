@@ -564,7 +564,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10055 tests across 290 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10177 tests across 295 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
