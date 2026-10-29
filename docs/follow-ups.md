@@ -5530,6 +5530,9 @@ stays open, feature-sized, for its own spec. Residue: 395–401.
 **268. Glue-ups from narrow stock.** A part wider than every stock board is "too wide"; edge-gluing narrower boards is
 not modelled. **Status:** open.
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** closed — the glue-ups round (2026-10-29, option A: derived in Buying, no schema change; spec
+`docs/superpowers/specs/2026-10-29-sloyd-glue-ups-design.md`). A by-the-piece part no listed stock is wide enough for is bought as N
+equal strips (`gluePlan`); residue fu 556–567.
 
 **269. The by-the-piece packer is a heuristic.** Largest-first then swap-down is not an optimum; a mix of sizes that
 needs a different split across boards is not searched. **Status:** open; measure before reaching for an optimiser
@@ -8305,3 +8308,55 @@ extent fields show the extent ROUNDED to display precision, so retyping the disp
 stretch the preview reads as `48" → 48"`).
 **Status:** open (record-only).
 
+## From the glue-ups round (fu 268) — 2026-10-29
+
+**556. Glue-ups: a stored glue-up on the part (spec §2, option B; ask first).** `Board.glueUp?: { strips: number }`, SHARED, set in
+Properties for any solid long-grain part, so the cut list prints the strips (a setup line) for board-foot hardwood too, and Buying packs
+the user's strips instead of deriving them. Costs schema 30 (a build at 29 drops the key and autosaves the loss).
+**Status:** open (ask first).
+
+**557. Glue-ups: typed allowances (spec §9).** `GLUE_WIDTH_ALLOWANCE` (1/8") and `GLUE_LENGTH_ALLOWANCE` (1") are constants; a shop
+setting or the document's `stock` would make them typed (a metric shop may want 3 mm and 25 mm).
+**Status:** open.
+
+**558. Glue-ups: choosing N, or gluing in place of planing, by price (spec §9).** N is the fewest strips the widest long-enough size
+at the thinnest thickness allows; a glue-up never replaces a board a part fits today, even where gluing narrow stock would be cheaper.
+**Status:** open.
+
+**559. Face lamination for a part too thick for every stock (spec §9).** `too thick` stays a refusal.
+**Status:** open.
+
+**560. Scarf or finger-jointed length for a part too long for every stock (spec §9).** `too long` stays a refusal.
+**Status:** open.
+
+**561. End-grain glue-ups (cutting boards; spec §9).** An end-grain part is still refused in by-the-piece Buying.
+**Status:** open.
+
+**562. Glue lines on a glued-up panel in the viewport and on the Plans sheet (spec §9).** Needs option B (fu 556) to know the strips
+from the document.
+**Status:** open.
+
+**563. A Labels-sheet sticker per glue strip (spec §9).** Labels are built from the document, one per part.
+**Status:** open.
+
+**564. Glue-ups: no bound on N, and the thickness rule (final whole-branch review, M1; ask first).** `gluePlan` takes the THINNEST
+thickness with any long-enough size wider than 1/8", then that thickness's widest. With 3/4" sizes 1-1/2 × 96 and 11-1/4 × 72 and a
+1-1/2 × 11-1/4 × 96, a 3/4 × 22 × 80 top is 16 strips of 1×2 where two planed strips of the thick board would do; a 1/4" bead size in
+the list makes it 176. A stored stock width just over 1/8" (only through stored shop JSON) would build thousands of strips and stall
+the cut list. Both follow the approved spec (§4 step 2, §10 call 4: uncapped); a bound (skip a thickness whose N exceeds some limit, or
+prefer the thickness needing fewest strips) is the user's call.
+**Status:** open (ask first).
+
+**565. Glue-ups: an id containing `#glue:` is trusted (final review, M2).** `CutList`'s layout numbers map any placed id with the tag to
+the part before it, even an id that has its own row; and a stored part `a#glue:1` would share an id with glued `a`'s first strip in the
+packer's `byId`. Reachable only with hand-crafted ids (`#` is not re-minted, inv 33). Cheap half: skip an id `rowNumbers` already has.
+**Status:** open (record-only).
+
+**566. Glue-ups: two tests narrower than they read (final review, M3, M6).** The anti-goal guard checks lines, notes, unplaceable,
+layout ids and the total, not cost or positions (the identity hashes carry the rest); the swap-down test's A is priced, so the price
+search alone would find the $12 board.
+**Status:** open (record-only).
+
+**567. Glue-ups: the note names the across-grain width (final review, M5).** A part grained across its width (3/4 × 30 × 8, grain
+`width`) reads `… — no pine stock is 8" wide`, correct but odd beside its `30"`.
+**Status:** open (record-only).

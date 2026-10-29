@@ -157,7 +157,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | round tenons, the joint | `roundTenons.ts`, `tenonJoints.ts`, `tenonText.ts`; tolerances `checkTolerances.ts` (inv 58) |
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Repair; Refine's carry | `featureCarry.ts` (inv 56), `joints/featureZones.ts`, `featureRegions.ts`, `joints/tapers.ts` `joineryRefusal` |
-| cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts`, `materials.ts` (inv 18, 19, 22, 23, 49) |
+| cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts` (glue-ups: `gluePlan`, only where `too wide`), `materials.ts` (inv 18, 19, 22, 23, 49) |
 | align / space evenly | `align.ts`, `alignText.ts`; store `alignItems`, `distributeItems`; `panels/AlignSection.tsx` (inv 25) |
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; store `stretchItems`, `stretchGuide`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
@@ -541,7 +541,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10179 tests across 295 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10197 tests across 295 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -557,7 +557,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 30; ask first), 557–563.
 - **Owed to the user, not code:** by eye — 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
@@ -572,7 +572,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: 564 (ask first); record-only 565–567.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

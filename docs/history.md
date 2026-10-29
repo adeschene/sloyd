@@ -520,6 +520,16 @@ and 79.
 
 ## What each round did
 
+**Glue-ups from narrow stock (2026-10-29, no schema change; fu 268).** The user picked it from the feature gaps' residue and skipped the
+questions. Claude's spec put the one real decision to them — derive the glue-up in Buying from the shop's stock list (A) or store a strip
+count on the part (B, schema 30, so the cut list could show it for hardwood too) — and they took A. The governing rule is that a glue-up
+runs ONLY where Buying said `too wide`, so every other part buys byte for byte as before. Built inline: the review of the plan's own
+mutations found three tests that could not fail (a metric case a raw `<=` passed, a too-long guard no glue-up could reach, and the plan's
+band fixture banding an end), each replaced by a case that does; a fifth too-wide test the plan missed and one identity hash changed
+by design, diffed before re-capture. The opus whole-branch review found nothing above Minor; its first Minor — the spec's uncapped strip
+count can produce an absurd plan from an odd stock list — went back to the user as fu 564. Seen in the user's Chrome: a 22" pine top
+bought as two strips on one 1×12 × 8′.
+
 **Parametric resize (2026-10-28/29, deployed `e09003b`, no schema change).** The last open feature gap the user picked. They skipped the
 brainstorm questions, so the spec took the SketchUp reading of "parametric" — a stretch at a line, nothing stored — over Fusion's stored
 constraints, and every call was Claude's, then approved. Built subagent-driven, eight tasks with a review each. The reviews mattered: a
