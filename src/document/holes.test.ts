@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRegion, holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
+  holeRegion, holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, headReach, headProblem, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
 } from './holes';
 import { parseLength, IMPERIAL } from '../units/length';
 import snapshotRaw from './holesSquare.snapshot.json?raw';
@@ -25,6 +25,7 @@ describe('hole rows (holes spec §2)', () => {
     const changed: Record<string, unknown> = {
       face: 'width', from: 'min', diameter: 0.3, depth: 'through', along: 'width', alongFrom: 'max',
       station: 2.5, count: 20, pitch: 1.25, acrossFrom: 'max', inset: 1, tiltAlong: 0.25, tiltAcross: 0.25,
+      head: 'counterbore', headDiameter: 0.5, headDepth: 0.125, headAngle: 82,
     };
     for (const k of HOLE_KEYS) expect(sameHoleRow(PIN, { ...PIN, [k]: changed[k] } as HoleRow), k).toBe(false);
   });
@@ -494,6 +495,53 @@ describe('the tilted bore (angled holes spec §6.1)', () => {
         want[i] = -want[i]!;
         expect(bitVector(mirrorHoleRow(r, d))).toEqual(want);
       }
+    }
+  });
+});
+
+describe('the stored head (counterbores, schema 30)', () => {
+  const { id: _id, ...sq } = PIN;
+  const through = { ...sq, depth: 'through' as const, diameter: 0.1875 };
+  it('holeRowValues of a headless row is unchanged', () => {
+    const b = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
+    const h = defaultHole(b)!;
+    expect(holeRowValues(h)).toEqual([h.face, h.from, h.diameter, h.depth, h.along, h.alongFrom, h.station, h.count, 0, h.acrossFrom, h.inset]);
+  });
+  it('holeRowValues appends a head key name then its value', () => {
+    const v = holeRowValues({ ...through, head: 'counterbore', headDiameter: 0.375, headDepth: 0.25 });
+    expect(v.slice(-6)).toEqual(['head', 'counterbore', 'headDiameter', 0.375, 'headDepth', 0.25]);
+  });
+  it('sameHoleRow tells heads apart', () => {
+    const cb = { ...through, head: 'counterbore' as const, headDiameter: 0.375, headDepth: 0.25 };
+    const cs = { ...through, head: 'countersink' as const, headDiameter: 0.375, headAngle: 82 as const };
+    expect(sameHoleRow(cb, cs)).toBe(false);
+    expect(sameHoleRow(through, cb)).toBe(false);
+    expect(sameHoleRow(cb, { ...cb })).toBe(true);
+  });
+  it('headReach', () => {
+    const base = { diameter: 0.1875, headDiameter: 0.375 };
+    expect(headReach({ ...base, head: 'counterbore', headDepth: 0.25 })).toBe(0.25);
+    expect(headReach({ ...base, head: 'countersink', headAngle: 82 })).toBeCloseTo(0.09375 / Math.tan(41 * Math.PI / 180), 15);
+    expect(headReach({ ...base, head: 'countersink', headAngle: 90 })).toBe(0.09375);
+    expect(headReach({ diameter: 0.1875 })).toBeNull();
+  });
+  it('headProblem names each failure', () => {
+    const cb = { ...through, head: 'counterbore' as const, headDiameter: 0.375, headDepth: 0.25 };
+    expect(headProblem(through)).toBeNull();
+    expect(headProblem(cb)).toBeNull();
+    expect(headProblem({ ...cb, headAngle: 82 })).toBe('malformed');
+    expect(headProblem({ ...cb, headDiameter: 20000 })).toBe('malformed');
+    expect(headProblem({ ...cb, headDiameter: 0.1875 })).toBe('not-wider');
+    expect(headProblem({ ...cb, depth: 0.25 })).toBe('too-deep');
+    expect(headProblem({ ...cb, depth: 0.26 })).toBeNull();
+    expect(headProblem({ ...cb, tiltAcross: 0.1 })).toBe('tilted');
+  });
+  it('mirrorHoleRow carries a head unchanged', () => {
+    const row: HoleRow = { ...PIN, depth: 'through', diameter: 0.1875, head: 'countersink', headDiameter: 0.375, headAngle: 90 };
+    for (const d of ['length', 'width', 'thickness'] as const) {
+      const m = mirrorHoleRow(row, d);
+      for (const k of ['head', 'headDiameter', 'headDepth', 'headAngle'] as const) expect(m[k]).toBe(row[k]);
+      expect(mirrorHoleRow(m, d)).toEqual(row);
     }
   });
 });

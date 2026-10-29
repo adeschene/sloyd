@@ -1,6 +1,6 @@
 import type { Board, CutFrom, Dimension, HoleRow, Region } from './types';
 import type { V3 } from './angleCuts';
-import { DIMENSION_ORDER } from './geometry';
+import { DIMENSION_ORDER, MAX_MAGNITUDE } from './geometry';
 import { acrossOf, bitVector, isTilted } from './holeTilt';
 
 export { acrossOf };
@@ -12,6 +12,7 @@ export { acrossOf };
 export const HOLE_FIELDS = {
   face: true, from: true, diameter: true, depth: true, along: true, alongFrom: true,
   station: true, count: true, pitch: true, acrossFrom: true, inset: true, tiltAlong: true, tiltAcross: true,
+  head: true, headDiameter: true, headDepth: true, headAngle: true,
 } as const satisfies Record<Exclude<keyof HoleRow, 'id'>, true>;
 
 export const HOLE_KEYS = Object.keys(HOLE_FIELDS) as (keyof typeof HOLE_FIELDS)[];
@@ -23,16 +24,62 @@ export const HOLE_COUNT_MAX = 500;
  *  places nothing, so two single bores that once had different pitches are the same row (fu 338, the user's ruling) —
  *  on the cut list, in a link, as a no-op edit. Every other value exact. A tilt (schema 23) is appended as its key NAME then
  *  its value, only when present: a square row's array is exactly as before, and a tiltAlong-only row can never equal a
- *  tiltAcross-only one of the same value. */
+ *  tiltAcross-only one of the same value. A head (schema 30) is appended the same way, key NAME then value, so a headless row's
+ *  array is exactly as before and a counterbore never equals a countersink of the same `headDiameter`. */
 export function holeRowValues(r: Omit<HoleRow, 'id'>): (string | number)[] {
   const out: (string | number)[] = [];
   for (const k of HOLE_KEYS) {
     const v = r[k];
     if (v === undefined) continue;
-    if (k === 'tiltAlong' || k === 'tiltAcross') out.push(k);
+    if (k === 'tiltAlong' || k === 'tiltAcross' || k === 'head' || k === 'headDiameter' || k === 'headDepth' || k === 'headAngle') out.push(k);
     out.push(k === 'pitch' && r.count === 1 ? 0 : v);
   }
   return out;
+}
+
+export type HeadKind = 'counterbore' | 'countersink';
+/** A countersink's legal included angles, degrees (counterbores spec §3.1). */
+export const HEAD_ANGLES = [82, 90] as const;
+
+export function hasHead(r: Pick<HoleRow, 'head'>): boolean {
+  return r.head !== undefined;
+}
+
+/** The head's AXIAL depth from the face, or null for a headless row: a counterbore's `headDepth`; a countersink's is
+ *  DERIVED, `(headDiameter - diameter) / 2 / tan(headAngle / 2)`, never stored. The ONE home of that formula. */
+export function headReach(
+  r: Pick<HoleRow, 'diameter' | 'head' | 'headDiameter' | 'headDepth' | 'headAngle'>,
+): number | null {
+  if (r.head === 'counterbore') return r.headDepth ?? null;
+  if (r.head === 'countersink' && r.headDiameter !== undefined && r.headAngle !== undefined) {
+    const half = (r.headDiameter - r.diameter) / 2;
+    return r.headAngle === 90 ? half : half / Math.tan((r.headAngle / 2) * Math.PI / 180);
+  }
+  return null;
+}
+
+/** THE legality decider for a row's head (counterbores spec §3.2), shared by the loader and the store. `malformed`: the
+ *  keys disagree with the kind (a counterbore with an angle or without a depth, a countersink with a depth or without an
+ *  angle, any head key without `head`), a number that is not finite, positive and within MAX_MAGNITUDE, or an angle outside
+ *  HEAD_ANGLES. Then `not-wider`, `too-deep` (a blind row only: the head must stop short of the bottom) and `tilted`.
+ *  Null when legal, and for a headless row. */
+export function headProblem(r: Omit<HoleRow, 'id'>): 'malformed' | 'not-wider' | 'too-deep' | 'tilted' | null {
+  const ok = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= MAX_MAGNITUDE;
+  if (r.head === undefined) {
+    return r.headDiameter !== undefined || r.headDepth !== undefined || r.headAngle !== undefined ? 'malformed' : null;
+  }
+  if (r.head !== 'counterbore' && r.head !== 'countersink') return 'malformed';
+  if (!ok(r.headDiameter)) return 'malformed';
+  if (r.head === 'counterbore') {
+    if (r.headAngle !== undefined || !ok(r.headDepth)) return 'malformed';
+  } else if (r.headDepth !== undefined || !(HEAD_ANGLES as readonly unknown[]).includes(r.headAngle)) {
+    return 'malformed';
+  }
+  if (!(r.headDiameter > r.diameter)) return 'not-wider';
+  const reach = headReach(r);
+  if (r.depth !== 'through' && (reach === null || !(reach < r.depth))) return 'too-deep';
+  if (isTilted(r)) return 'tilted';
+  return null;
 }
 
 /** Exact equality on every HOLE_FIELDS field (stored values, invariant 18), a single bore's pitch aside (fu 338). */
