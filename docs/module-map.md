@@ -464,7 +464,9 @@ src/
 │   │                     copiesDiffer, linkDiffers), the panel's words (STRETCH_HEADING, STRETCH_AT, AXIS_LABEL, FROM_WORD, STRETCH_MIDDLE,
 │   │                     STRETCH_GO, STRETCH_CANCEL) and previewText (`<from> → <to>: grows <names> · moves <n> · <m> stay`)
 │   ├── stretchFixtures.ts TEST-ONLY (never import it from a module): the 48 × 30 × 24 apron table (mortises stored from either end, tenon
-│   │                     cheeks) and the same table with its end frames as two placements of one definition; every number dyadic
+│   │                     cheeks), the same table with its end frames as two placements of one definition, `placedTable` (the table as
+│   │                     ONE placement, turned 90 or mirrored), `bookcase` (pin rows full-height or short, dadoed shelves, plywood back)
+│   │                     and `dovetailedDrawer` (dovetailPlan's drawer, planned); every number dyadic
 │   ├── views.ts          saved views (saved views spec §2): `rekeyViews(doc, rekey, lift)` applies an edit's item-path re-key (and a dissolved
 │   │                     assembly's `lift`) to every view's `hidden`, in the SAME edit as the live `hiddenIds`; `validateViews` is in document.ts (schema 29)
 │   ├── labels.ts         THE part-label home (part labels): LABEL_STOCKS (Avery 5160/5163, L7160/L7163, exact geometry), defaultStock,

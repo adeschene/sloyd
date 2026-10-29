@@ -8261,6 +8261,11 @@ both curves and profiles refuses (`<part> has curves and profiles, so it can't b
 curve and profile sits on one side of the line, or the curve is a prism along `d` (which alone would pass, Ruling 2). A profile on a
 curved part follows the outline (`carriesProfiles`), which `stretchPart` does not re-trace.
 **Status:** open (record-only).
+Re-filed at the final review (2026-10-28, Ruling 8): a top with radiused corners (curves) and a `loop` roundover is a very common part,
+and it can never be stretched today, wherever the line goes. Proposed narrow pass: let the part through when every profile is a `loop`
+run, or `through` at both ends (so no station sits on `d` to re-trace), and no curve crosses the line (each curve near, far or a prism,
+as for a curve alone); the curves follow by `rebaseCurves` as today and the profiles need nothing. Anything else keeps the refusal.
+**Status:** open (ask first).
 
 **551. Stretch: curve spans come from chord vertices (parametric resize, 2026-10-28; Task 2 review).** `stretchPart` reads a curve's span
 on `d` from `curveOutline`'s chord vertices, which lie up to `CURVE_TOLERANCE` (0.005") inside the true arc, so a curve whose arc bulges
@@ -8278,6 +8283,25 @@ counted); `stretch.ts`' doc comment calls the grow and move writes "disjoint rec
 post-condition catches it); the links check keys plain parts by `storageKey` (cornerPlan uses the id; accepted, more correct); the store
 does not validate axis, size or line (`stretchPlan`'s `!(size > 0)` covers a NaN size). Panel and viewport: the guide effect sets null on
 mount (could clobber another writer); the default line rounds through `formatLength`; `StretchGuide` sits between `AdaptiveGrid`'s doc
-comment and its function, subscribes to `doc` while idle, and hardcodes its accent hex.
+comment and its function, subscribes to `doc` while idle, and hardcodes its accent hex. Fixed at the final review (2026-10-28): the
+"disjoint records" comment (reworded: across placements the two writes can reach one stored record, and the copies post-condition
+refuses), and `StretchGuide`'s place (moved above `AdaptiveGrid`'s doc comment). The rest stands.
+**Status:** open (record-only).
+
+**553. Stretch: `stretchPlan` throws inside the panel's `useMemo`, with no ErrorBoundary (2026-10-28, the final whole-branch review,
+M4).** `stretchPlan` throws on an internal contradiction (a part count changed, an occurrence appeared, a shaped part lowered with its
+links intact) rather than returning a refusal. The panel calls it in a `useMemo` for the live preview, and nothing above it catches,
+so a throw would take the app down. No repro in about 7,200 fuzz runs, and the other planners do the same.
+**Status:** open (record-only).
+
+**554. Stretch: the guide plane does not come back after explode and un-explode while armed (2026-10-28, the final whole-branch
+review, M5).** `setExplode` above 0 clears `stretchGuide` (inv 64), but the panel keeps its armed state; after un-exploding, the panel
+still shows the axis and line armed while the viewport draws no plane until the user re-arms or edits the line.
+**Status:** open (record-only).
+
+**555. Stretch: the panel's size text — an unparseable entry says nothing, and a retyped rounded value arms a tiny δ (2026-10-28,
+the final whole-branch review, M6).** Text the panel cannot parse as a length shows no message (Stretch just stays disabled). The
+extent fields show the extent ROUNDED to display precision, so retyping the displayed number can arm a δ below display precision (a
+stretch the preview reads as `48" → 48"`).
 **Status:** open (record-only).
 

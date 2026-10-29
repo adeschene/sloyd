@@ -1808,14 +1808,17 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     call it on the SAME three numbers (axis, size, line), so they cannot disagree. **Nothing is stored and there is no schema
     change**: a stretch is one geometric edit, and a document no stretch touched is byte for byte as before. Rollback is free.
     - **The min side is fixed, and everything past the line moves `+δ` exactly.** The items are `selectedIds` at one level (as
-      Align's, `itemExtents`: leaned boxes, inv 57 R2; hidden parts inside a selected assembly included, inv 43). The line `s` must be
-      STRICTLY inside the items' extent on world axis `k` (1e-9; else `The stretch line must be inside the selection.`); a size not
-      more than 0 refuses (`The size must be more than 0.`); `δ = size − extent`, computed ONCE, and `|δ| ≤ 1e-9` is a no-op (null:
-      no edit, no undo entry). Exact (inv 25): `δ` is added, never rounded to the drag grid, imperial or metric.
+      Align's, `itemExtents`: leaned boxes, inv 57 R2; hidden parts inside a selected assembly included, inv 43). A size not more
+      than 0 refuses first (`The size must be more than 0.`); then the line `s` must be STRICTLY inside the items' extent on world
+      axis `k` (1e-9; else `The stretch line must be inside the selection.`); `δ = size − extent`, computed ONCE, and `|δ| ≤ 1e-9` is
+      a no-op (null: no edit, no undo entry). Exact (inv 25): `δ` is added, never rounded to the drag grid, imperial or metric.
     - **A placement wholly on one side moves as a placement.** The walk is top-down in tree order (`itemPaths`): a node whose extent
       ends at the line (`max ≤ s + 1e-9`) STAYS, one starting at it (`min ≥ s − 1e-9`) MOVES whole, anything else SPANS. A spanning
       assembly is descended into (`childrenOf`); a spanning part goes to `stretchPart`, every OCCURRENCE separately. A moved assembly
-      is ONE placement change; its definition is not edited, so its other copies are untouched. The plan's `moves` list counts
+      is ONE placement change; its definition is not edited, so its other copies are untouched. **On a shrink, a node that would
+      MOVE but starts strictly inside the removed band** (`s + 1e-9 < min < s + |δ| − 1e-9`) refuses in the walk, in tree order
+      (`<name> sits in the wood this shrink removes — move the line or shrink less.`, Ruling 7: it would land back past the line,
+      off the typed size); one starting exactly at `s + |δ|` lands on the line. The plan's `moves` list counts
       OCCURRENCES (the preview's `moves N`, the user sees each copy move: Ruling 4); the paths are deduped by STORAGE target
       (`itemKey`) before the ONE `translateItems`, so two placements of one definition moving the same inner node shift its record
       once.
@@ -1880,4 +1883,4 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       rule). `stretchPart.ts` and `stretch.ts` import no `units` value (`stretchPart.ts`' `Units` is TYPE-only).
     **PROHIBITION: do not stretch a feature with `resizeEnd`'s rebase (it keeps far features in the world, which breaks every joint
     past the line), and do not let `writeBackParts` split a definition or a Shape silently.**
-    Follow-ups 545–552.
+    Follow-ups 545–555.

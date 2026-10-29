@@ -552,10 +552,10 @@ changes.
 
 64. **`stretch.ts` `stretchPlan` is the ONE stretch decider**, for both the preview and the action. Nothing stored, and no schema
     change. The min side is fixed, and everything past the line moves `+δ` exactly. A placement wholly on one side moves as a
-    placement. A spanning part grows on `d` and never on its thickness (`stretchPart`). Features follow their side by the per-side
-    rule, through each kind's own rebase helper (`resizeEnd.ts`' per-feature helpers, never `resizeEnd`'s whole-list rebase), or refuse: one feature at a time, NEAR `rebaseX(tmp, d, far, δ)`, FAR
+    placement; on a shrink, one starting strictly inside the removed band refuses (Ruling 7). A spanning part grows on `d` and never on its thickness (`stretchPart`). Features follow their side by the per-side
+    rule, through each kind's own rebase helper (`resizeEnd.ts`' and `holeRebase.ts`' per-feature helpers, never `resizeEnd`'s whole-list rebase), or refuse: one feature at a time, NEAR `rebaseX(tmp, d, far, δ)`, FAR
     `rebaseX(tmp, d, opposite(far), δ)`; rectangular cuts `stretchCut`; prisms along `d` pass unchanged; corner joints are judged
-    before the other features. Every refusal before `edit()`, and ONE undo entry. Copies and links refuse; they are never split. Write-back is keepWorld.
+    before the per-feature lists. Every refusal before `edit()`, and ONE undo entry. Copies and links refuse; they are never split. Write-back is keepWorld.
     **PROHIBITION: do not stretch a feature with `resizeEnd`'s rebase (it keeps far features in the world, which breaks every joint
     past the line), and do not let `writeBackParts` split a definition or a Shape silently.** Full text: `docs/invariants.md`.
 
@@ -573,7 +573,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–552). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–555). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -593,7 +593,7 @@ This list is the triage's open set — when an entry's status changes, change it
   (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
   (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
   (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask first); record-only 544. Stretch (2026-10-28, not deployed): record-only 550–552.
+  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask first); record-only 544. Stretch (2026-10-28, not deployed): 550 (ask first); record-only 551–555.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).
