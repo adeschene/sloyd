@@ -61,10 +61,8 @@ applied with a real click.
 ## Owed to the user (by eye)
 
 - The panel with an ASSEMBLY selected (`InstanceProperties`): it is only exercised by tests.
-
 - The plane's colour and opacity, and how it reads from below and edge-on.
 - A metric project.
-- The residual Ruling 9 case: a shrink with the line exactly on an apron's end face (see the ledger and follow-ups).
 
 Screenshots, in the session's Chrome screenshot directory (not committed; this prose is the record):
 - `/tmp/claude-chrome-screenshots-fVqADP/screenshot-1793232792215-13.png` (the panel and preview);
