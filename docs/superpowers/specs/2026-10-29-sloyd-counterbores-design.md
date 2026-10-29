@@ -1,6 +1,6 @@
 # Sloyd — counterbores and countersinks: design
 
-Status: DRAFT 2026-10-29, awaiting the user's approval. Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
+Status: DRAFT 2026-10-29, awaiting the user's approval; builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
 is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the tilt (schema 23) is
 `docs/superpowers/specs/2026-10-24-sloyd-angled-holes-design.md`, whose layout this follows.
 
@@ -117,8 +117,9 @@ Add stretcher write headless rows, so they are untouched. Wording is the builder
 
 In the Holes section each row gets a **Head** select below Through/Depth: `None` / `Counterbore` / `Countersink` (my
 call). Choosing one shows its fields; `None` removes all four keys in one edit.
-- **Counterbore:** `Head dia` and `Head depth` (`DimensionField`s, holes' 0.1 mm metric precision through
-  `holeLengthText`).
+- **Counterbore:** `Head dia` and `Head depth` (`DimensionField`s, each formatted as its bore twin is today: `Head dia`
+  as Diameter, through `holeLengthText(…, 'diameter')` at 0.1 mm metric; `Head depth` as Depth, plain `formatLength`,
+  whole mm metric — builder check: only diameter and pitch read 0.1 mm today).
 - **Countersink:** `Head dia` and an `Angle` select, `82°` / `90°`; a read-only note gives the derived depth.
 - **Defaults when a head is first chosen** (my call): counterbore `headDiameter = 2 × diameter`, `headDepth` = the smaller
   of `diameter` and half the blind depth (half the part's face dimension for a through row); countersink `headDiameter =
@@ -144,8 +145,9 @@ calls, sized for a #8 wood screw (the common cabinet screw) in an imperial proje
 | Countersunk screw | 3/16" through, countersink 3/8" at 82° | 4.5 mm through, countersink 9 mm at 90° |
 | Counterbored screw | 3/16" through, counterbore 3/8" × 3/8" deep (takes a 3/8" plug) | 4.5 mm through, counterbore 10 mm × 10 mm deep |
 
-"Through" follows `defaultHole`'s rule only where the part is thin enough; on thicker stock (over 1½") the bore is blind
-at 1¼" (my call: a screw clearance hole through a thick leg is not what anyone means). Withheld when its default faults,
+The bore is through when the face dimension is 1½" or less, and blind at 1¼" on thicker stock (my call, settled after
+the builder check: NOT `defaultHole`'s ½" rule, which would give ¾" stock a ½"-deep clearance hole; a screw clearance hole
+through a thick leg is not what anyone means). Withheld when its default faults,
 as every preset (`fits`). The existing presets are unchanged.
 
 ## 5. Bores that are joints
@@ -217,7 +219,7 @@ ONE home.
 
 - **Bench line** (`holeText.ts`, the ONE home): `holeSizeText` gains a head clause through one new helper, `holeHeadText`,
   e.g. `Hole 3/16" dia × through, 3/8" counterbore × 3/8" deep in the …` and `…, 3/8" countersink at 82° in the …` (the
-  builder's wording; metric at 0.1 mm as every hole size). The cut list (`holeLine`) and Plans keys (`featureKeys.ts`)
+  builder's wording; the head's diameter formatted as the bore's diameter, its depth as the bore's depth). The cut list (`holeLine`) and Plans keys (`featureKeys.ts`)
   read it. Headless lines are byte for byte unchanged.
 - **Cut-list grouping** reads `holeRowValues`, so a headed row never groups with a headless one (inv 40).
 - **Drawings** (`holeDrawing.ts`): the entry view draws the head rim (`R`) and, below it, the step or cone-to-bore rim
@@ -230,13 +232,21 @@ ONE home.
 ## 9. AI paths, joinery and Refine
 
 - **Generate:** unchanged. The design schema is byte for byte the same (fu 322's grammar budget is not spent).
-- **Refine keeps a part with a headed row exactly** (`leanKeep.ts` `keepsExactly`, inv 56), as it keeps a tilted one: put in
-  first, verbatim; a model part reusing its name is dropped; one inside an assembly refuses Refine. The kept-list wording
-  names it. So no head reaches the model, and none comes back plain.
-- **A joined Refine refuses up front** when any part has a headed row (angled-holes Ruling T11a's reason: `runJoinery`
-  re-joins kept boards, which cannot promise "exactly"). **Cost, stated plainly:** a joined project with countersunk screw
-  holes cannot be Refined until AI heads exist (new follow-up). My call, following the tilt precedent; the user may prefer
-  otherwise (§13).
+- **Refine keeps a headed part exactly, and its ASSEMBLY whole — the box-joint/dovetail route, NOT the tilt route** (the
+  user's ruling 2026-10-29, "Keep assembly whole", chosen over refusing as angled holes do and over carrying heads through
+  the model). A headed part joins `keepsExactly` through the corner-joint side (`cornerJointed`'s keep behaviour), never
+  through `keptForMoreThanFingers`: a headed root part is put in first, verbatim (a model part reusing its name dropped);
+  a headed part inside an assembly keeps that assembly whole instead of refusing Refine; a joined Refine is ALLOWED when
+  only corner-jointed and/or headed parts are kept, under inv 61's guards (a NEW site touching a kept part is fixed as
+  BUTT, a recorded joint stays as recorded, and **(c)** the design comes back UNJOINED when the re-join would change a kept
+  part). The kept-list wording names it (`has counterbores or countersinks`). So no head reaches the model, and none comes
+  back plain.
+- **The boundary (my call):** the head clause is added ONLY at Refine's keep sites (the predicate behind `keepsExactly`,
+  the assembly-kept test, the joined-Refine allowance and the kept-list words). It does NOT join `cornerJointed` itself,
+  whose other readers — joinery leaving a part's size and place alone, Repair's `changedDovetailed`, the finger-set claim
+  sites — keep their meaning: joinery may still resize a headed part, its rows keeping their stations (faults kept and
+  noted, inv 50), as for any holed part. The builder names the predicate (e.g. `keptWhole`) and states where each site
+  reads it.
 - **Links' turn candidates** (`roleLinks.ts` `turnCandidates`) re-store hole rows through `worldHoles` → `holeRowsFor`,
   which carry no head. They already return none for `keepsExactly` parts, so adding the head clause there covers this path
   with the same predicate as the tilt (the survey's flagged risk is closed by construction; a test pins a headed part's
@@ -260,11 +270,11 @@ cut-list signature, links, `lowerHoles`, legSockets' `canonical`, stretchers' `r
 ## 11. Records
 
 - `docs/invariants.md` and CLAUDE.md: inv 50 (the head: two convex pieces, per-piece faults, the countersink's
-  conservative clause, tilt and head refused together), inv 40 (`HOLE_FIELDS` with the head), inv 56 (`keepsExactly`), inv
+  conservative clause, tilt and head refused together), inv 40 (`HOLE_FIELDS` with the head), inv 56 (`keepsExactly`: a headed part and its assembly kept whole, the corner-joint route), inv 61 (the joined-Refine allowance widened to headed parts), inv
   58 (a headed bore seats nothing); the Versioning line (30).
 - `docs/versioning.md`, `docs/rounds.md` (rollback table: schema 30), `docs/module-map.md`.
-- `docs/follow-ups.md`: 330 narrowed to cam-and-bolt (or closed with a new entry for it); new entries for a head on a
-  tilted row (pocket screws), AI authoring a head, a head at a through bore's exit, plugs as parts.
+- `docs/follow-ups.md`: 330 narrowed to cam-and-bolt (or closed with a new entry for it); new entries for AI authoring a head (so Refine can change a headed part), a head on a
+  tilted row (pocket screws), a head at a through bore's exit, plugs as parts.
 - `docs/feature-gaps.md`: a row (Holes' residue).
 - Browser verification on the dev server: both presets added, seen, sectioned and drawn; a head edited and refused; a
   metric project's presets.
