@@ -6008,6 +6008,7 @@ open (spec §11).
 **330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
 refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
+**Status:** narrowed 2026-10-29: counterbores and countersinks are chunk 1 (branch `counterbores`, schema 30; built, not deployed); what remains of 330 is **cam-and-bolt (its chunk 2), now fu 568**.
 
 **331. Half-holes and holes breaking out of an edge.** `breaks-out` refuses them; they would need a hole to cross body
 edges (inv 50's convex bodies stay). **Status:** open (spec §11).
@@ -8364,4 +8365,55 @@ search alone would find the $12 board.
 
 **567. Glue-ups: the note names the across-grain width (final review, M5).** A part grained across its width (3/4 × 30 × 8, grain
 `width`) reads `… — no pine stock is 8" wide`, correct but odd beside its `30"`.
+**Status:** open (record-only).
+
+**568. Cam-and-bolt (fu 330's chunk 2; feature-sized, needs its own spec).** A cam bore in a panel's face meeting a bolt bore from its edge,
+and the dowel or bolt bore in the mating part: a `meets-hole` exemption for a recognised pair (perpendicular, the edge bore's axis through the
+face bore), its own preset and bench line, and possibly hardware counted from it (fu 404). Counterbores spec §12.
+**Status:** open (feature; needs a spec).
+
+**569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
+both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every
+tilted branch doubles. A pocket screw is a counterbore at about 15 degrees.
+**Status:** open (feature; ask first).
+
+**570. The exploded iso keeps only a headed hole's mouth rim (build ruling, Task 6; cost if wrong: small).** `holeDrawing`'s `visibleOnly`
+(the exploded isometric) has no hidden-line pass, and a clean headless hole already omits its walls and bottom there, so a clean headed hole keeps
+only its mouth rim: a counterbore reads like a plain hole of radius R. Spec §8 says visibility comes from the one hidden-line pass; this follows
+the existing clean-hole rule instead. Adding the step rims needs a visibility test the exploded iso does not have.
+**Status:** open (by decision; unapproved build ruling, see the spec's *Amended (build)* block).
+
+**571. AI authoring a head (feature-sized; a `DESIGN_SCHEMA` change, one live compile, fu 322; ask first).** Generate and Refine do not carry a
+head: Refine keeps a headed part exactly and its assembly whole (inv 56), so Refine cannot change a headed part, and Generate cannot make one.
+Authoring through `holeWorld.ts` would be the route (the ONE converter, inv 50).
+**Status:** open (feature; ask first).
+
+**572. A head at a through bore's exit (counterboring from both faces).** One head, at the mouth only; a through bore with a head at each end
+is a second head on the row (or a second row) and a `meets-hole` rule for same-axis rows. Counterbores spec non-goals.
+**Status:** open (feature; needs a spec).
+
+**573. Plugs as parts.** A counterbore sized for a plug has no plug part and no plug line on the cut list. Counterbores spec non-goals.
+**Status:** open (feature; needs a spec).
+
+**574. Oblique cone silhouettes (Task 6 minor).** In the isometric a countersink's silhouette joins the ends of the two mouth and junction
+ellipses' major axes, not the true tangents; exact in the entry and side views. Wants the closed form for two coaxial circles' oblique tangents.
+**Status:** open (record-only; cosmetic, iso only).
+
+**575. No faulted headed perf case (Task 4 minor; final review to triage).** Spec §6.1 names a faulted headed row at 100 ms; `holesPerf.test.ts`
+has headed cases for healthy rows only, so the faulted (clipped) path of a headed part has no wall-clock guard. A faulted-gate "whole holes"
+mutant also survives (Task 4 review): the report's equivalence claim is false in general (a faulted head breaking out into a plane a clean hole
+opens into), so add a fixture or keep this as the recorded gap.
+**Status:** open (record-only).
+
+**576. Counterbores: the build's deferred minors.** Task 1: `validateHoleRows` builds a row twice (the `headProblem` probe and the push), the
+v30 comment in `document.ts` is one long line. Task 2: `frustumPrismOf` duplicates `prismOf`'s caps and box block, `piecesOf` assumes headed
+implies square (no assert), `headedRegion` recomputes the pieces' boxes per call. Task 3: `meets()` rebuilds envelopes per pair. Task 4:
+`cuttingPieces` allocates per face; the too-deep through-counterbore test does not assert the exit face. Task 6: `PartDiagram` infers the
+mouth side by float equality (a faulted head-outruns-part draws the mouth at the min end; carry it explicitly), no positional test of
+`mouthMin`, the through branch is untested, `visibleOnly` is tested on blind rows only. Task 7: `holeHeadText` of a malformed head prints
+garbage (unreachable: the loader drops it). Task 8: `seatedIn`/`isSocketOf` comments do not enumerate the head condition, `holes.test.ts:150`
+is a `toBeDefined` no-op, `HEAD_MALFORMED` is missing from the copy test, preset order is untested, the preset bodies duplicate the bore rule,
+`DimensionField` gets `?? null` on Head dia/depth, the countersink note reads `Depth ...`. Task 9: `CornerKind` is `string`, `headJoinChanged`
+sits in `leanKeep.ts`, a plain part in a heads-only assembly's (c) branch is untested, stale comments at `leanKeep.ts:333` and `run.ts:376`,
+`changedBoxJointed` does not compare holes (sound today).
 **Status:** open (record-only).

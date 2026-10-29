@@ -7562,3 +7562,22 @@ retired: users of one shape cannot differ, by construction.
 Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
 (implementation), `docs/history.md` (what shipped and why).
 
+
+
+## Counterbores and countersinks (2026-10-29, branch `counterbores`, schema 30; built, not deployed)
+
+Follow-up 330 asked for counterbores, countersinks and cam-and-bolt; the user skipped the design questions ("just write the spec from the
+code") and the spec split cam-and-bolt out as a different problem (fu 568). A hole row gained four optional scalars (`head`, `headDiameter`,
+`headDepth`, `headAngle`), stored flat so `copyHoleRow`'s spread and `unjoin`'s `===` keep working. The bump to 30 exists for the refusal gate:
+a 29 build rebuilds each row field by field, would drop the head silently and drill the plain bore, then autosave it.
+
+The geometry is the union of two coaxial convex pieces (`holePieces`), so the clip maths (`clipPlan`, `minusPrism`, `clipPolygon`) were reused
+and only the mesh normals and the ring radii are new; a countersink's frustum is still one convex polytope. Faults are judged per piece over
+`holeEnvelope`, exact for a counterbore and conservative for a countersink. Building it showed a cone's far ring and the bore's mouth ring
+must be the same points to the ulp, so `radiusAt` is exact at both ends (the plain lerp was one ulp off for 5/32" under 5/8" at 82 degrees).
+
+Refine's route was the user's call ("Keep assembly whole"): a headed part and its assembly are kept verbatim, the box-joint/dovetail route
+rather than the tilt route, with `keptWhole` read only at Refine's keep sites so joinery and Repair keep their meaning. The joined-Refine
+risk (a recorded tenon on a headed rail) was run first and held. Tilt and head are refused together (a pocket screw is fu 569). The build's
+unapproved rulings (the exploded iso keeps only the mouth rim, the Head select's place, the `headJoinChanged` sentence, metric text `9 mm`)
+are in the spec's *Amended (build)* block.
