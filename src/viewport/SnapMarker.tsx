@@ -41,6 +41,11 @@ export const SNAP_COLORS: Record<SnapKind, string> = {
   // it as one would tell the user something false about what they are about
   // to snap to — the marker's only job. Also the tape's colour (TapeTool).
   guide: '#5469a6',
+  // The guide family: a line crossing is a guide-owned point, a lighter and
+  // a darker blue than the point guide so the three stay apart. Task 9 shows
+  // them to the user.
+  line: '#4a86b8',
+  'line-cross': '#3a4a8c',
 };
 
 /**

@@ -39,3 +39,77 @@ describe('schema 31: construction lines (construction-lines spec §2)', () => {
     expect([isGuidePoint(p), isGuideLine(p), isGuidePoint(l), isGuideLine(l)]).toEqual([true, false, false, true]);
   });
 });
+
+import { lineCrossings, guideCandidates, sameSnapPoint, tapeLineFor, ownedByGuide } from './document';
+import type { Guide } from './document';
+
+const L = (id: string, at: [number, number, number], axis: 'x' | 'y' | 'z'): Guide => ({ id, at, axis });
+
+describe('lineCrossings (construction-lines spec §3)', () => {
+  it('gives one crossing for an X and a Z line sharing y', () => {
+    expect(lineCrossings([L('a', [0, 5, 2], 'x'), L('b', [3, 5, 0], 'z')], 120)).toEqual([
+      { kind: 'line-cross', at: [3, 5, 2], owner: { type: 'guide', id: 'a', cross: 'b' } },
+    ]);
+  });
+  it('misses by an ulp-scale gap', () => {
+    expect(lineCrossings([L('a', [0, 5, 2], 'x'), L('b', [3, 5 + Number.EPSILON * 8, 0], 'z')], 120)).toEqual([]);
+  });
+  it('never crosses parallel lines', () => {
+    expect(lineCrossings([L('a', [0, 5, 2], 'x'), L('b', [0, 5, 2], 'x')], 120)).toEqual([]);
+  });
+  it('ignores points', () => {
+    expect(lineCrossings([{ id: 'p', at: [3, 5, 2] }, L('b', [3, 5, 0], 'z')], 120)).toEqual([]);
+  });
+  it('does not offer a crossing beyond the extent', () => {
+    expect(lineCrossings([L('a', [0, 5, 2], 'x'), L('b', [121, 5, 0], 'z')], 120)).toEqual([]);
+  });
+  it('gives each pair once for three mutually crossing lines', () => {
+    const c = lineCrossings([L('x', [0, 1, 2], 'x'), L('y', [3, 0, 2], 'y'), L('z', [3, 1, 0], 'z')], 120);
+    expect(c).toHaveLength(3);
+    expect(c.every((p) => p.at.join() === '3,1,2')).toBe(true);
+    expect(c.map((p) => p.owner)).toEqual([
+      { type: 'guide', id: 'x', cross: 'y' },
+      { type: 'guide', id: 'x', cross: 'z' },
+      { type: 'guide', id: 'y', cross: 'z' },
+    ]);
+  });
+  it('guideCandidates lists points then crossings', () => {
+    const c = guideCandidates([{ id: 'p', at: [1, 1, 1] }, L('a', [0, 5, 2], 'x'), L('b', [3, 5, 0], 'z')], 120);
+    expect(c.map((p) => p.kind)).toEqual(['guide', 'line-cross']);
+  });
+});
+
+describe('sameSnapPoint with crossings', () => {
+  it('distinguishes crossings differing only in cross', () => {
+    const mk = (cross: string) => ({ kind: 'line-cross' as const, at: [1, 2, 3] as [number, number, number], owner: { type: 'guide' as const, id: 'a', cross } });
+    expect(sameSnapPoint(mk('b'), mk('c'))).toBe(false);
+    expect(sameSnapPoint(mk('b'), mk('b'))).toBe(true);
+  });
+});
+
+describe('tapeLineFor', () => {
+  it('is null without an anchor, an axis, or with a typed distance', () => {
+    expect(tapeLineFor(null, 'y', '')).toBeNull();
+    expect(tapeLineFor([1, 2, 3], null, '')).toBeNull();
+    expect(tapeLineFor([1, 2, 3], 'y', '3')).toBeNull();
+  });
+  it('counts whitespace as empty and zeroes the axis without mutating the anchor', () => {
+    const anchor: [number, number, number] = [4, 5, 6];
+    expect(tapeLineFor(anchor, 'y', '')).toEqual({ at: [4, 0, 6], axis: 'y' });
+    expect(tapeLineFor(anchor, 'y', '  ')).toEqual({ at: [4, 0, 6], axis: 'y' });
+    expect(anchor).toEqual([4, 5, 6]);
+  });
+});
+
+describe('ownedByGuide', () => {
+  const cross = { kind: 'line-cross' as const, at: [0, 0, 0] as [number, number, number], owner: { type: 'guide' as const, id: 'a', cross: 'b' } };
+  it('matches id and cross, not others', () => {
+    expect(ownedByGuide(cross, 'a')).toBe(true);
+    expect(ownedByGuide(cross, 'b')).toBe(true);
+    expect(ownedByGuide(cross, 'c')).toBe(false);
+  });
+  it('is false for a board-owned point and null', () => {
+    expect(ownedByGuide({ kind: 'corner', at: [0, 0, 0], owner: { type: 'board', id: 'a' } }, 'a')).toBe(false);
+    expect(ownedByGuide(null, 'a')).toBe(false);
+  });
+});
