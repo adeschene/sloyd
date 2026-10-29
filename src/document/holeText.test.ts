@@ -48,6 +48,12 @@ describe('holeLine (spec §4.1, as amended)', () => {
     expect(holeFaultText({ index: 0, kind: 'meets-hole', other: { row: 'zz', index: 0 } }, pins)).toBe('hole 1 meets a hole of another row');
     expect(holeFaultText({ index: 0, kind: 'too-deep' }, pins)).toBe('the holes are deeper than the thickness');
   });
+  it('too-deep on a through headed row reads the head\'s words; a blind one keeps the old words', () => {
+    const through: HoleRow = { ...pins, depth: 'through', head: 'counterbore', headDiameter: 0.5, headDepth: 0.75 };
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, through)).toBe('the counterbore runs through the thickness');
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, { ...through, head: 'countersink', headAngle: 90 })).toBe('the countersink runs through the thickness');
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, { ...pins, head: 'counterbore', headDiameter: 0.5, headDepth: 0.1 })).toBe('the holes are deeper than the thickness');
+  });
   it('an exact-1/64 whole-mm value does not print its mm (5" is 127 mm)', () => {
     expect(holeLine(side, { ...pins, pitch: 5, count: 2 }, IMPERIAL)).toContain('every 5", last at 7"');
   });

@@ -26,7 +26,7 @@ export function holeFaultText(f: HoleFault, r: HoleRow): string {
     case 'breaks-out': return f.curve ? `hole ${n} runs into ${curveWord(f.curve)}` : `hole ${n} runs past ${edgeName(f.edge!)}`;
     case 'off-flat': return `hole ${n} sits where a cut has removed the wood`;
     case 'meets-hole': return `hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}`;
-    case 'too-deep': return `the holes are deeper than the ${r.face}`;
+    case 'too-deep': return r.head && r.depth === 'through' ? `the ${r.head} runs through the ${r.face}` : `the holes are deeper than the ${r.face}`;
     case 'too-shallow': return 'too shallow for its angle';
   }
 }
