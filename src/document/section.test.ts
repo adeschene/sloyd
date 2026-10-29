@@ -193,7 +193,6 @@ describe('sectionCaps: headed bores (counterbores spec §6.2)', () => {
   };
   it('a section through a counterbore\'s head is cut at R, below it at r', () => {
     const want = 2 * R * 0.25 + 2 * r * (T - 0.25);
-    expect(removed({ head: 'counterbore', headDiameter: 0.75, headDepth: 0.25 })).toBeCloseTo(want, 1);
     expect(Math.abs(removed({ head: 'counterbore', headDiameter: 0.75, headDepth: 0.25 }) / want - 1)).toBeLessThan(0.01);
   });
   it('a countersink\'s cap follows the cone', () => {
@@ -216,7 +215,7 @@ describe('sectionCaps: headed bores (counterbores spec §6.2)', () => {
     expect(totalArea(sectionCaps(part, { axis: 'top', at: 0.3, flip: false })!.pieces as P3[][])).toBeCloseTo(120 - gon * r * r, 6);
   });
   it('a through counterbore deeper than the part is still capped (its dead bore piece is skipped)', () => {
-    expect(removed({ head: 'counterbore', headDiameter: 0.75, headDepth: 1 })).toBeGreaterThan(0);
+    expect(Math.abs(removed({ head: 'counterbore', headDiameter: 0.75, headDepth: 1 }) / (2 * R * T) - 1)).toBeLessThan(0.01);
   });
 });
 

@@ -198,7 +198,7 @@ function preLeanSnapPoints(board: Board): BoardSnapPoint[] {
   // A counterbore's FLOOR centre (counterbores spec §6.2): on the axis at `headDepth` (= its head's reach), beside the mouth
   // centre; the rim of the step is drawn, so the centre is a drawn ring's, in air. A countersink adds nothing.
   for (const h of geometry.holes) {
-    if (h.head?.kind !== 'counterbore' || tiltedHole(h)) continue;
+    if (h.head?.kind !== 'counterbore' || tiltedHole(h) || h.head.reach >= h.depth) continue;   // no floor past the far face
     const c = [...h.centre];
     c[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * h.head.reach;
     const at = placed(board, { length: c[0]!, width: c[1]!, thickness: c[2]! });

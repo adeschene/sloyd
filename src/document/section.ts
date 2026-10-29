@@ -183,8 +183,9 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
   for (const hole of holes) {
     if (!rings) break;
     if (hole.head || tiltedHole(hole)) {
-      // A headed bore's outline is the union of its cut pieces (counterbores spec §6.2). A tilted bore's slice is an ellipse, or meets a slanted wall, a tilted bottom or a mouth off the plane: the
-      // pieces' own union decides its outline (angled holes spec §6.2). The plane passes beside it only outside its box.
+      // A headed bore's outline is the union of its cut pieces (counterbores spec §6.2). A tilted bore's slice is an
+      // ellipse, or meets a slanted wall, a tilted bottom or a mouth off the plane: the pieces' own union decides its
+      // outline (angled holes spec §6.2). The plane passes beside it only outside its box.
       const [lo, hi] = holeRegion(hole)[DIMENSION_ORDER[li]!];
       if (u < lo - 1e-6 || u > hi + 1e-6) continue;
       rings = null; break;
@@ -236,11 +237,11 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
   return { pieces, outline: [...unionOutline(base, li), ...rings.flatMap((r) => r.map((p, k) => [p, r[(k + 1) % r.length]!] as [V3, V3]))] };
 }
 
-/** Twice the signed area of a polygon projected along index `li` (Newell's component `li`). */
 /** The pieces whose prisms a section subtracts (counterbores spec §6.2): a headless hole is itself; a headed one's head and
  *  bore, each a convex prism, skipping a piece with no depth (a through counterbore deeper than the part: legal, faulted). */
 const boredPieces = (h: Hole): readonly Hole[] => holePieces(h).filter((p) => p.depth > 0);
 
+/** Twice the signed area of a polygon projected along index `li` (Newell's component `li`). */
 function newellAlong(poly: readonly V3[], li: number): number {
   const [i, j] = [(li + 1) % 3, (li + 2) % 3] as const;
   let a = 0;

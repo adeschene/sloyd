@@ -932,6 +932,10 @@ describe('a counterbore\'s floor centre (counterbores spec §6.2)', () => {
     expect(f[0]!.owner).toEqual({ type: 'board', id: 'p' });
     expect(near(pts, [12, 0.75, 2.75])).toHaveLength(1);   // the mouth centre stays
   });
+  it('a head as deep as the part has no floor to mark', () => {
+    const plain = boardSnapPoints(mk({}));
+    for (const headDepth of [0.75, 0.8]) expect(boardSnapPoints(mk({ head: 'counterbore', headDiameter: 0.5, headDepth }))).toEqual(plain);
+  });
   it('a countersink and a headless hole yield the same points', () => {
     const plain = boardSnapPoints(mk({}));
     expect(boardSnapPoints(mk({ head: 'countersink', headDiameter: 0.5, headAngle: 90 }))).toEqual(plain);
