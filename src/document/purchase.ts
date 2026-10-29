@@ -179,11 +179,62 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
   return best;
 }
 
-function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean): PurchaseEntry {
+/** Glue-ups (glue-ups spec §4): added to each strip's width (jointing both glue edges, the final rip) and length (trimming
+ *  both ends square after clamping), inches. Fixed constants, not settings. */
+export const GLUE_WIDTH_ALLOWANCE = 1 / 8;
+export const GLUE_LENGTH_ALLOWANCE = 1;
+
+/** One part bought as a glue-up: the stock thickness the strips come from, the width across the grain they make up, and the
+ *  N equal strips — plain solid parts, never stored. */
+export interface GluePlan { thickness: number; across: number; strips: Board[] }
+
+const GLUE_TAG = '#glue:';
+
+/**
+ * A part no listed size is wide enough for, as N equal strips (glue-ups spec §4). The caller has already decided it is a
+ * candidate (§3: today's reason is `too wide`). The thickness is the thinnest at least as thick as the part with a size long
+ * enough for a strip; N is the fewest (≥ 2) whose strip fits that thickness's widest such size, by `fitsStock` (whole mm in a
+ * metric project). Null when no thickness has a size long enough. Exact: nothing is rounded (inv 18).
+ */
+export function gluePlan(part: Board, stock: readonly StockBoard[], units: Units): GluePlan | null {
+  const f = grainFootprint(part);
+  const along = f.w + GLUE_LENGTH_ALLOWANCE;
+  const across = f.h;
+  const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b).filter((t) => thickEnough(t, part.thickness, units));
+  for (const t of thicknesses) {
+    const sizes = stock.filter((s) => Math.abs(s.thickness - t) <= EPS && fitsStock(along, s.length, units) && s.width > GLUE_WIDTH_ALLOWANCE);
+    if (sizes.length === 0) continue;
+    const widest = Math.max(...sizes.map((s) => s.width));
+    let n = 2;
+    while (!fitsStock(across / n + GLUE_WIDTH_ALLOWANCE, widest, units)) n += 1;
+    const width = across / n + GLUE_WIDTH_ALLOWANCE;
+    const strips = Array.from({ length: n }, (_, i): Board => ({
+      id: `${part.id}${GLUE_TAG}${i + 1}`, name: `${part.name} strip ${i + 1} of ${n}`,
+      length: along, width, thickness: part.thickness, position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+      material: part.material, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [],
+    }));
+    return { thickness: t, across, strips };
+  }
+  return null;
+}
+
+/** The part a glue strip's id belongs to (the id before its LAST tag), or null for any other id. */
+export function glueStripPart(id: string): string | null {
+  const i = id.lastIndexOf(GLUE_TAG);
+  return i < 0 ? null : id.slice(0, i);
+}
+
+function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean, edging: ReadonlySet<string>): PurchaseEntry {
   const notes: string[] = [];
   let unplaceable = 0;
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
   const groups = new Map<number, Board[]>();
+  // Stock and part that READ the same leave nothing to plane to say: a 19 mm part from 3/4" stock (the same whole mm),
+  // or a 0.748" part from 3/4" stock (both 3/4" at display precision; fu 359, the user's ruling — imperial too).
+  const planeNote = (part: Board, t: number) => {
+    const same = formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
+    if (t > part.thickness + EPS && !same) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
+  };
   for (const part of parts) {
     // End grain (grain through the thickness) cannot come out of a board along its length; pricing it as long
     // grain would buy stock that cannot yield it. Refused with its reason until it is modelled (final review).
@@ -201,14 +252,26 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       const reason = stock.length === 0 ? `no ${label.toLowerCase()} sizes listed`
         : thick.length === 0 ? 'too thick'
         : stock.some((s) => thickEnough(s.thickness, part.thickness, units) && fitsStock(f.h, s.width, units)) ? 'too long' : 'too wide';
-      notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${reason}`);
+      // Glue-ups (glue-ups spec §3): ONLY where the answer is `too wide`, and never an edging strip, so every part that gets a
+      // board today gets exactly the same board. End grain was refused above.
+      const glue = reason === 'too wide' && !edging.has(part.id) ? gluePlan(part, stock, units) : null;
+      if (glue) {
+        const n = glue.strips.length;
+        const strip = glue.strips[0]!;
+        notes.push(`${part.name} (${partDims(part, units)}): glue up from ${n} strips, ${formatSize([strip.thickness, strip.width, strip.length], units)}`
+          + ` — no ${label.toLowerCase()} stock is ${formatLength(glue.across, units)} wide`);
+        planeNote(part, glue.thickness);
+        groups.set(glue.thickness, [...(groups.get(glue.thickness) ?? []), ...glue.strips]);
+        continue;
+      }
+      const why = reason === 'too wide' && !edging.has(part.id)
+        ? `too wide, and too long to glue up (strips need ${formatLength(GLUE_LENGTH_ALLOWANCE, units)} to trim)`
+        : reason;
+      notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${why}`);
       unplaceable += 1;
       continue;
     }
-    // Stock and part that READ the same leave nothing to plane to say: a 19 mm part from 3/4" stock (the same whole mm),
-    // or a 0.748" part from 3/4" stock (both 3/4" at display precision; fu 359, the user's ruling — imperial too).
-    const same = formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
-    if (t > part.thickness + EPS && !same) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
+    planeNote(part, t);
     groups.set(t, [...(groups.get(t) ?? []), part]);
   }
 
@@ -349,6 +412,8 @@ function hardwareToBuy(hardware: readonly HardwareTotal[]): { hardware: Purchase
 export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings, hardwareList: readonly HardwareTotal[] = []): Purchase {
   const catalog = catalogOf(doc);
   const stock = cutStock(doc);
+  // Edging strips follow the parts in `cutStock`; they are never glued up (glue-ups spec §3).
+  const edging = new Set(stock.slice(doc.boards.length).map((b) => b.id));
   const materials = [...new Set(list.groups.map((g) => g.material))];
   const entries: PurchaseEntry[] = materials.map((m) => {
     const label = catalog.label(m);
@@ -356,7 +421,7 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
     const buying = shop.materials[m] ?? defaultBuying(m, nominal);
     const groups = list.groups.filter((g) => g.material === m);
     if (buying.mode === 'piece' && !isSheetGood(m)) {
-      return byThePiece(m, label, stock.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal);
+      return byThePiece(m, label, stock.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal, edging);
     }
     if (buying.mode === 'board-foot' && !isSheetGood(m)) {
       const price = buying.pricePerBoardFoot;

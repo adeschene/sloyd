@@ -110,10 +110,14 @@ const CASES: [string, () => FlatDocument, ShopSettings][] = [
 // the first replacer dropped `notes` at every depth and so left Buying's own PurchaseEntry.notes unpinned; the by-the-piece
 // shop also gained an unpriced 4' size so its Buying carries the fu 273 note beside its fits-no-stock note. purchase.ts was
 // still untouched since master then, so these are still today's Buying bytes.
+// The by-the-piece Buying hash was RE-CAPTURED once more in the glue-ups round (2026-10-29, fu 268), and only that one: its
+// `Top` (3/4 × 20 × 36 against stock at most 7-1/4 wide) was `too wide` and is now glued up from 3 strips by design (glue-ups
+// spec §3). Diffed before re-capturing: the Top's note, its strips on the layouts, the buy line and the total changed, and
+// nothing else (the fu 273 note left with the old packing). The cut-list hash is unchanged.
 const PINNED: Record<string, [string, string]> = {
   'shaker table': ['2fd0edc02a046a21', '4fd16a9b34e7bb78'],
   'sheet goods': ['465fd867e3bb167e', 'c77f0e028fe8b2ce'],
-  'by the piece': ['460c41c5b698657d', 'e8695353ca0f459d'],
+  'by the piece': ['460c41c5b698657d', '7ae050d1bc8bd91b'],
   'sheet goods, metric': ['5721bb7e74c90ef4', '8f53656cbbabb8ef'],
 };
 

@@ -477,7 +477,9 @@ src/
 │   ├── purchase.ts       (by the piece: the cheapest of a plan per preferred opener when priced, fu 269) ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
 │   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
 │                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
-│                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
+│                         that still holds them — a heuristic, sheets × price), every string built here (→ units);
+│                         glue-ups (fu 268): gluePlan (N equal strips, GLUE_WIDTH_/GLUE_LENGTH_ALLOWANCE) ONLY where a part's
+│                         reason is `too wide` and it is not an edging strip; glueStripPart (the `#glue:` id → its part)
 │   ├── snapPoints.ts     board/cut/guide snap points (and sameSnapPoint, here because the store needs it), towardFor, offsetPoint (inv 26); toWorld (then the lean) and its
 │   │                     inverse fromWorld (exact for an unleaned part; ~1e-15 through a lean); a leaning part's lattice is built and stockProbe-filtered pre-lean, then mapped;
 │   │                     hole centres ('face-center', entry

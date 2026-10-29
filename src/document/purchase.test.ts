@@ -1,7 +1,7 @@
 import { createBoard, createDocument, buildCutList } from './document';
 import { packOnto } from './nesting';
 import type { Board, CustomMaterial, FlatDocument } from './types';
-import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
+import { buildPurchase, defaultBuying, defaultShop, gluePlan, glueStripPart, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
 import { nominalName } from '../units/nominal';
 import { IMPERIAL, type Units } from '../units/length';
 
@@ -198,16 +198,27 @@ describe('buildPurchase — by the piece', () => {
     expect(p.entries[0]!.notes).toEqual(['wide: plane 1" stock to 3/4"']);
   });
 
-  it('lists a part no stock holds, never drops it, and counts it in the total', () => {
+  it('lists a part no stock holds, never drops it, and counts it in the total; a too-wide part is glued up (glue-ups spec §5)', () => {
+    // wide 3/4 × 8 × 30 → 2 strips 4-1/8 × 31 (8/2 + 1/8 ≤ 5-1/2). One A holds both and ok: 31 + 1/8 + 31 + 1/8 + 30 = 92.25 ≤ 96.
     const shop = shopWith({ pine: { mode: 'piece', stock: [A] } });
     const p = purchase([pine('wide', 30, 8), pine('long', 100, 3), pine('fat', 30, 3, 2), pine('ok', 30, 3)], shop);
     expect(p.entries[0]!.notes).toEqual([
-      'wide (3/4" × 8" × 30") fits no pine stock — too wide',
+      'wide (3/4" × 8" × 30"): glue up from 2 strips, 3/4" × 4-1/8" × 31" — no pine stock is 8" wide',
       'long (3/4" × 3" × 100") fits no pine stock — too long',
       'fat (2" × 3" × 30") fits no pine stock — too thick',
     ]);
-    expect(p.entries[0]!.unplaceable).toBe(3);
-    expect(p.totalLabel).toBe('Estimated materials: $12.00 (3 parts not placed)');
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′ · $12.00']);
+    expect(p.entries[0]!.unplaceable).toBe(2);
+    expect(p.totalLabel).toBe('Estimated materials: $12.00 (2 parts not placed)');
+  });
+
+  it('a project with no too-wide part buys exactly what it did (glue-ups spec §1, anti-goal)', () => {
+    const p = purchase([pine('long', 100, 3), pine('fat', 30, 3, 2), pine('ok', 30, 3)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′ · $12.00']);
+    expect(p.entries[0]!.notes).toEqual(['long (3/4" × 3" × 100") fits no pine stock — too long', 'fat (2" × 3" × 30") fits no pine stock — too thick']);
+    expect(p.entries[0]!.unplaceable).toBe(2);
+    expect(p.entries[0]!.layouts.flatMap((l) => l.nesting.sheets.flatMap((sh) => sh.parts.map((q) => q.boardId)))).toEqual(['ok']);
+    expect(p.totalLabel).toBe('Estimated materials: $12.00 (2 parts not placed)');
   });
 });
 
@@ -431,8 +442,10 @@ describe('Buying in a metric project (metric display chunk 2)', () => {
   it('a nominal stock line keeps its name, adds mm; a part note reads mm', () => {
     const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
     const p = metric([pine('stud', 24, 3.5, 1.5), pine('wide', inch(600), inch(300), 1.5)], shop);
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 2×4 × 8\u2032 (38 × 89 × 2438 mm) \u00b7 $8.00']);
-    expect(p.entries[0]!.notes).toEqual(['wide (38 × 300 × 600 mm) fits no pine stock \u2014 too wide']);
+    // wide → 4 strips 38 × 78 × 625 mm (300/3 + 3.2 = 103 > 89; 300/4 + 3.2 = 78). Board 1: stud and two strips (73.49"; a
+    // third makes 98.24" > 96"); board 2: the other two.
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 2×4 × 8\u2032 (38 × 89 × 2438 mm) \u00b7 $16.00']);
+    expect(p.entries[0]!.notes).toEqual(['wide (38 × 300 × 600 mm): glue up from 4 strips, 38 × 78 × 625 mm \u2014 no pine stock is 300 mm wide']);
   });
   it('plane note: trade stock with mm, part in mm', () => {
     const p = metric([pine('half', 20, 3, 0.5)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
@@ -470,17 +483,24 @@ describe('metric parts fit the stock they read the same as (fu 354)', () => {
     expect(p.entries[0]!.unplaceable).toBe(0);
     expect(p.entries[0]!.lines[0]).toContain('2×4 × 8′ (38 × 89 × 2438 mm)');
   });
-  it('a 286 mm shelf is bought as 1×12; 287 mm is too wide', () => {
+  it('a 286 mm shelf is bought as 1×12; 287 mm is glued up from two (glue-ups spec §4)', () => {
     const E = size('E', 0.75, 11.25, 96, 30);
     const shop = shopWith({ pine: { mode: 'piece', stock: [E] } });
-    expect(metric([pine('shelf', mm(600), mm(286), mm(19))], shop).entries[0]!.unplaceable).toBe(0);
-    expect(metric([pine('shelf', mm(600), mm(287), mm(19))], shop).entries[0]!.unplaceable).toBe(1);
+    const fits = metric([pine('shelf', mm(600), mm(286), mm(19))], shop).entries[0]!;
+    expect(fits.unplaceable).toBe(0);
+    expect(fits.notes.join(' ')).not.toContain('glue up');
+    // 287/2 + 3.2 = 147 mm ≤ 286.
+    const glued = metric([pine('shelf', mm(600), mm(287), mm(19))], shop).entries[0]!;
+    expect(glued.unplaceable).toBe(0);
+    expect(glued.notes[0]).toContain('glue up from 2 strips');
   });
-  it('decimal mm: what is NAMED a 2×4 is BOUGHT as one (89.45 reads 89); 89.5 reads 90 and is too wide', () => {
+  it('decimal mm: what is NAMED a 2×4 is BOUGHT as one (89.45 reads 89); 89.5 reads 90 and is glued up from two', () => {
     const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
     expect(nominalName(mm(38), mm(89.45), MM)).toBe('2×4');
     expect(metric([pine('stud', mm(600), mm(89.45), mm(38))], shop).entries[0]!.unplaceable).toBe(0);
-    expect(metric([pine('stud', mm(600), mm(89.5), mm(38))], shop).entries[0]!.unplaceable).toBe(1);
+    const glued = metric([pine('stud', mm(600), mm(89.5), mm(38))], shop).entries[0]!;
+    expect(glued.unplaceable).toBe(0);
+    expect(glued.notes[0]).toContain('glue up from 2 strips');
   });
   it('a part reading thicker than the stock is not bought from it: 19.5 mm (reads 20) skips 3/4" stock', () => {
     const shop = shopWith({ pine: { mode: 'piece', stock: [A, size('F', 1, 5.5, 96, 20)] } });
@@ -498,8 +518,126 @@ describe('metric parts fit the stock they read the same as (fu 354)', () => {
     const p = metric([pine('a', mm(1219), mm(89), mm(38)), pine('b', mm(1219), mm(89), mm(38))], shop);
     expect(p.entries[0]!.lines[0]).toContain('Buy 2 ×');
   });
-  it('imperial stays exact: a 3.504" part fits no 2×4', () => {
+  it('imperial stays exact: a 3.504" part fits no 2×4 — it is glued up from two (glue-ups spec §4), never bought as one', () => {
     const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
-    expect(purchase([pine('stud', 24, mm(89), 1.5)], shop).entries[0]!.unplaceable).toBe(1);
+    const e = purchase([pine('stud', 24, mm(89), 1.5)], shop).entries[0]!;
+    expect(e.notes[0]).toContain('glue up from 2 strips');
+    expect(e.unplaceable).toBe(0);
+  });
+});
+
+describe('gluePlan (glue-ups spec §4)', () => {
+  const pineStock = (defaultBuying('pine') as { stock: StockBoard[] }).stock;
+  it('splits the worked example into two strips 1/8" wider than half and 1" longer', () => {
+    // Default pine: widest 3/4" × 11-1/4" (72 and 96 long). 22/2 + 1/8 = 11.125 ≤ 11.25.
+    const g = gluePlan(pine('Top', 40, 22), pineStock, IMPERIAL)!;
+    expect(g.thickness).toBe(0.75);
+    expect(g.across).toBe(22);
+    expect(g.strips.map((s) => [s.id, s.name, s.length, s.width, s.thickness, s.grain]))
+      .toEqual([['Top#glue:1', 'Top strip 1 of 2', 41, 11.125, 0.75, 'length'], ['Top#glue:2', 'Top strip 2 of 2', 41, 11.125, 0.75, 'length']]);
+  });
+  it('22-1/4" is still two strips (an exact fit); 22-1/2" is three', () => {
+    expect(gluePlan(pine('T', 40, 22.25), pineStock, IMPERIAL)!.strips).toHaveLength(2);
+    expect(gluePlan(pine('T', 40, 22.5), pineStock, IMPERIAL)!.strips.map((s) => s.width)).toEqual([7.625, 7.625, 7.625]);
+  });
+  it('reads the grain footprint: a part grained across its width splits along its length', () => {
+    // length 8, width 30, grain 'width' → along 30, across 8 → with A: 2 strips 4.125 × 31.
+    const gw = gluePlan(createBoard({ id: 'w', name: 'w', material: 'pine', length: 8, width: 30, thickness: 0.75, grain: 'width' }), [A], IMPERIAL)!;
+    expect(gw.across).toBe(8);
+    expect(gw.strips.map((s) => [s.length, s.width, s.grain])).toEqual([[31, 4.125, 'length'], [31, 4.125, 'length']]);
+  });
+  it('has no cap: 48" from 1-1/2" stock is 35 strips (48/N + 1/8 ≤ 1.5 → N ≥ 34.9)', () => {
+    expect(gluePlan(pine('B', 40, 48), [size('X', 0.75, 1.5, 96, null)], IMPERIAL)!.strips).toHaveLength(35);
+  });
+  it('takes the thinnest thickness with a size long enough for the strips', () => {
+    // C (3/4" × 5-1/2" × 72") is shorter than Ls = 81; F (1" × 5-1/2" × 96") is not.
+    expect(gluePlan(pine('wide', 80, 8), [C, size('F', 1, 5.5, 96, 20)], IMPERIAL)!.thickness).toBe(1);
+  });
+  it('returns null when no size is long enough for the strips (Ls = 96.5 > 96)', () => {
+    expect(gluePlan(pine('p', 95.5, 20), [size('G', 0.75, 11.25, 96, null)], IMPERIAL)).toBeNull();
+  });
+  it('fits a metric strip in whole mm: 300 mm across from 89 mm stock is 4 strips (78 mm), not 3 (103 mm)', () => {
+    expect(gluePlan(pine('m', 600 / 25.4, 300 / 25.4, 1.5), [D], { display: 'metric-mm', precision: 16 })!.strips).toHaveLength(4);
+    // A strip reading the stock's own whole mm fits: 172.05/2 + 3.175 = 89.2 mm reads 89, as D's 88.9 mm does → 2 strips (a raw
+    // comparison would say 89.2 > 88.9 and take 3).
+    expect(gluePlan(pine('m2', 600 / 25.4, 172.05 / 25.4, 1.5), [D], { display: 'metric-mm', precision: 16 })!.strips).toHaveLength(2);
+  });
+  it('glueStripPart parses the part id before the LAST tag', () => {
+    expect(glueStripPart('a/b#glue:3')).toBe('a/b');
+    expect(glueStripPart('x#glue:1#glue:2')).toBe('x#glue:1');
+    expect(glueStripPart('Shelf#band:length-min')).toBeNull();
+  });
+});
+
+describe('byThePiece glues up a too-wide part, and only that (glue-ups spec §3–§5)', () => {
+  it('the worked example: a 22" pine top is two strips on one 1×12 × 8′', () => {
+    // 22/2 + 1/8 = 11.125 ≤ 11.25; 41 + 1/8 + 41 = 82.125 > 72, so the 96" board stays after the swap-down.
+    const p = purchase([pine('Top', 40, 22)], defaultShop());
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×12 × 8′ · no price']);
+    expect(p.entries[0]!.notes).toEqual(['Top (3/4" × 22" × 40"): glue up from 2 strips, 3/4" × 11-1/8" × 41" — no pine stock is 22" wide']);
+    expect(p.entries[0]!.unplaceable).toBe(0);
+    expect(p.entries[0]!.layouts.flatMap((l) => l.nesting.sheets.flatMap((sh) => sh.parts.map((q) => q.name)))).toEqual(['Top strip 1 of 2', 'Top strip 2 of 2']);
+  });
+
+  it('glues up at the thinnest thickness long enough, with the planing note after the glue note', () => {
+    // C (72") is shorter than the 81" strips; F (1" × 5-1/2" × 96"): 81 + 1/8 + 81 > 96 and a second shelf 8.375 > 5.5 → 2 F.
+    const F = size('F', 1, 5.5, 96, 20);
+    const p = purchase([pine('wide', 80, 8)], shopWith({ pine: { mode: 'piece', stock: [C, F] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 1" × 5-1/2" × 96" · $40.00']);
+    expect(p.entries[0]!.notes).toEqual(['wide (3/4" × 8" × 80"): glue up from 2 strips, 3/4" × 4-1/8" × 81" — no pine stock is 8" wide', 'wide: plane 1" stock to 3/4"']);
+  });
+
+  it('keeps the refusal when no stock is long enough for the strips, and says why', () => {
+    const p = purchase([pine('p', 95.5, 20)], shopWith({ pine: { mode: 'piece', stock: [size('G', 0.75, 11.25, 96, null)] } }));
+    expect(p.entries[0]!.notes).toEqual(['p (3/4" × 20" × 95-1/2") fits no pine stock — too wide, and too long to glue up (strips need 1" to trim)']);
+    expect(p.entries[0]!.unplaceable).toBe(1);
+  });
+
+  it('swaps the strips down to a cheaper, narrower size that still holds them', () => {
+    // Widest 9-1/4 (I) → 2 strips 5-1/8 × 41; both fit one I (82.125); the cheapest holder is A (5-1/2 ≥ 5-1/8), $12.
+    const I = size('I', 0.75, 9.25, 96, 30);
+    const p = purchase([pine('t', 40, 10)], shopWith({ pine: { mode: 'piece', stock: [A, B, I] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′ · $12.00']);
+  });
+
+  it('two identical tops each get their own strips (glue-ups Review Focus 2)', () => {
+    // 4 strips 4-1/8 × 31: one A's shelf holds three (93.25 ≤ 96); the fourth needs a second shelf (8.375 > 5.5) → a second A.
+    const p = purchase([pine('t1', 30, 8), pine('t2', 30, 8)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 1×6 × 8′ · $24.00']);
+    expect(p.entries[0]!.layouts.flatMap((l) => l.nesting.sheets.flatMap((sh) => sh.parts.map((q) => q.boardId))).sort())
+      .toEqual(['t1#glue:1', 't1#glue:2', 't2#glue:1', 't2#glue:2']);
+    expect(p.entries[0]!.notes.filter((n) => n.includes('glue up from 2 strips'))).toHaveLength(2);
+  });
+
+  it('never glues up a too-long part, even where narrow long stock could make it (glue-ups spec §3)', () => {
+    // X (3/4 × 8 × 48) holds the 6" width but is short → `too long`. Y (3/4 × 3 × 96) could make 3 strips 2-1/8 × 81; not done.
+    const p = purchase([pine('rail', 80, 6)], shopWith({ pine: { mode: 'piece', stock: [size('X', 0.75, 8, 48, 10), size('Y', 0.75, 3, 96, 5)] } }));
+    expect(p.entries[0]!.notes).toEqual(['rail (3/4" × 6" × 80") fits no pine stock — too long']);
+    expect(p.entries[0]!.unplaceable).toBe(1);
+    expect(p.entries[0]!.lines).toEqual([]);
+  });
+
+  it('never glues up an end-grain part', () => {
+    const eg = createBoard({ id: 'eg', name: 'eg', material: 'pine', length: 20, width: 8, thickness: 0.75, grain: 'thickness' });
+    const p = purchase([eg], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.notes).toEqual(['eg (3/4" × 8" × 20") has end grain — not priced as pine stock']);
+    expect(p.entries[0]!.unplaceable).toBe(1);
+  });
+
+  it('glues up a banded panel\'s CORE, and never glues its edging strip', () => {
+    // A 1/4" band on one long edge: core 22-3/8 − 1/4 = 22-1/8 → 2 strips 11-3/16 (the full 22-3/8 would need 3: 11.3125 > 11.25).
+    const band = { id: 'wb', name: 'Walnut edging', kind: 'solid' as const, thickness: 0.25, lengthAllowance: 0.5, material: 'walnut', widthAllowance: 0.0625 };
+    const top = createBoard({ id: 'Top', name: 'Top', material: 'pine', length: 40, width: 22.375, thickness: 0.75,
+      bands: [{ side: { across: 'width', from: 'min' }, type: 'wb' }] });
+    // Walnut by the piece, too narrow for the strip's 1/4" + allowance: the strip is "too wide", which must stay a refusal.
+    const shop = shopWith({ walnut: { mode: 'piece', stock: [size('W', 1, 0.2, 96, null)] } });
+    const doc = { ...docOf([top]), bandTypes: [band] };
+    const p = buildPurchase(doc, buildCutList(doc), shop);
+    const pineEntry = p.entries.find((e) => e.material === 'pine')!;
+    expect(pineEntry.notes).toEqual(['Top (3/4" × 22-1/8" × 40"): glue up from 2 strips, 3/4" × 11-3/16" × 41" — no pine stock is 22-1/8" wide']);
+    const walnut = p.entries.find((e) => e.material === 'walnut')!;
+    expect(walnut.notes).toHaveLength(1);
+    expect(walnut.notes[0]).toMatch(/fits no walnut stock — too wide$/);
+    expect(walnut.unplaceable).toBe(1);
   });
 });

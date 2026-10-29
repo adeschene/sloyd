@@ -7,7 +7,7 @@ import { DovetailBench } from './DovetailBench';
 import { SheetLayout } from './SheetLayout';
 import { DimensionField } from './DimensionField';
 import { hardwareTotals, hardwareUseText } from '../document/hardware';
-import { buildPurchase, defaultShop, type ShopSettings } from '../document/purchase';
+import { buildPurchase, defaultShop, glueStripPart, type ShopSettings } from '../document/purchase';
 
 const DEFAULT_SHOP = defaultShop();
 
@@ -55,6 +55,13 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, onOpenLabe
   // Hardware (spec §4): totals read the STORED doc (flat has no definitions); not part of the numbered series or the balloons.
   const hardware = hardwareTotals(doc);
   const purchase = buildPurchase(flat, list, shop, hardware);
+  // Buying's layouts also number each glue strip with its PART's row (glue-ups spec §5), as two parts of one row share one.
+  const boardNumbers = new Map(rowNumbers);
+  for (const e of purchase.entries) for (const l of e.layouts) for (const sheet of l.nesting.sheets) for (const p of sheet.parts) {
+    const part = glueStripPart(p.boardId);
+    const n = part === null ? undefined : rowNumbers.get(part);
+    if (n !== undefined) boardNumbers.set(p.boardId, n);
+  }
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
   /**
@@ -220,7 +227,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, onOpenLabe
                 <h4>{e.label}</h4>
                 {e.lines.map((line, i) => <p className="cutlist-buying-line" key={`l${i}`}>{line}</p>)}
                 {e.notes.map((note, i) => <p className="cutlist-buying-note" key={`n${i}`}>{note}</p>)}
-                {layouts && e.layouts.map((l) => <SheetLayout key={l.key} nesting={l.nesting} stock={l.stock} noun={l.title} numbers={rowNumbers} />)}
+                {layouts && e.layouts.map((l) => <SheetLayout key={l.key} nesting={l.nesting} stock={l.stock} noun={l.title} numbers={boardNumbers} />)}
               </div>
             ))}
             {purchase.banding && (
