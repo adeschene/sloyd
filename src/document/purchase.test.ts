@@ -1,7 +1,7 @@
 import { createBoard, createDocument, buildCutList } from './document';
 import { packOnto } from './nesting';
 import type { Board, CustomMaterial, FlatDocument } from './types';
-import { buildPurchase, defaultBuying, defaultShop, gluePlan, glueStripPart, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
+import { buildPurchase, defaultBuying, defaultShop, GLUE_MAX_STRIPS, gluePlan, glueStripPart, validateShop, type GluePlan, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
 import { nominalName } from '../units/nominal';
 import { IMPERIAL, type Units } from '../units/length';
 
@@ -530,37 +530,56 @@ describe('gluePlan (glue-ups spec §4)', () => {
   const pineStock = (defaultBuying('pine') as { stock: StockBoard[] }).stock;
   it('splits the worked example into two strips 1/8" wider than half and 1" longer', () => {
     // Default pine: widest 3/4" × 11-1/4" (72 and 96 long). 22/2 + 1/8 = 11.125 ≤ 11.25.
-    const g = gluePlan(pine('Top', 40, 22), pineStock, IMPERIAL)!;
+    const g = gluePlan(pine('Top', 40, 22), pineStock, IMPERIAL) as GluePlan;
     expect(g.thickness).toBe(0.75);
     expect(g.across).toBe(22);
     expect(g.strips.map((s) => [s.id, s.name, s.length, s.width, s.thickness, s.grain]))
       .toEqual([['Top#glue:1', 'Top strip 1 of 2', 41, 11.125, 0.75, 'length'], ['Top#glue:2', 'Top strip 2 of 2', 41, 11.125, 0.75, 'length']]);
   });
   it('22-1/4" is still two strips (an exact fit); 22-1/2" is three', () => {
-    expect(gluePlan(pine('T', 40, 22.25), pineStock, IMPERIAL)!.strips).toHaveLength(2);
-    expect(gluePlan(pine('T', 40, 22.5), pineStock, IMPERIAL)!.strips.map((s) => s.width)).toEqual([7.625, 7.625, 7.625]);
+    expect((gluePlan(pine('T', 40, 22.25), pineStock, IMPERIAL) as GluePlan).strips).toHaveLength(2);
+    expect((gluePlan(pine('T', 40, 22.5), pineStock, IMPERIAL) as GluePlan).strips.map((s) => s.width)).toEqual([7.625, 7.625, 7.625]);
   });
   it('reads the grain footprint: a part grained across its width splits along its length', () => {
     // length 8, width 30, grain 'width' → along 30, across 8 → with A: 2 strips 4.125 × 31.
-    const gw = gluePlan(createBoard({ id: 'w', name: 'w', material: 'pine', length: 8, width: 30, thickness: 0.75, grain: 'width' }), [A], IMPERIAL)!;
+    const gw = gluePlan(createBoard({ id: 'w', name: 'w', material: 'pine', length: 8, width: 30, thickness: 0.75, grain: 'width' }), [A], IMPERIAL) as GluePlan;
     expect(gw.across).toBe(8);
     expect(gw.strips.map((s) => [s.length, s.width, s.grain])).toEqual([[31, 4.125, 'length'], [31, 4.125, 'length']]);
   });
-  it('has no cap: 48" from 1-1/2" stock is 35 strips (48/N + 1/8 ≤ 1.5 → N ≥ 34.9)', () => {
-    expect(gluePlan(pine('B', 40, 48), [size('X', 0.75, 1.5, 96, null)], IMPERIAL)!.strips).toHaveLength(35);
+  it('caps the strip count at GLUE_MAX_STRIPS (fu 564): 33" from 1-1/2" stock is 24 strips; 33.1" would be 25, refused', () => {
+    // 33/24 + 1/8 = 1.5, an exact fit; 33.1/24 + 1/8 = 1.504 > 1.5. (Uncapped, 48" was 35 strips.)
+    expect(GLUE_MAX_STRIPS).toBe(24);
+    expect((gluePlan(pine('B', 40, 33), [size('X', 0.75, 1.5, 96, null)], IMPERIAL) as GluePlan).strips).toHaveLength(24);
+    expect(gluePlan(pine('B', 40, 33.1), [size('X', 0.75, 1.5, 96, null)], IMPERIAL)).toBe('too many');
+  });
+  it('stops counting at the cap: a size barely wider than the allowance refuses at once (fu 564, the review\'s stall)', () => {
+    // Uncapped, 22" from a 1/8" + 1e-9 width would count to ~1e10 strips and stall the cut list.
+    const t0 = performance.now();
+    expect(gluePlan(pine('p', 40, 22), [size('N', 0.75, 0.125 + 1e-9, 96, null)], IMPERIAL)).toBe('too many');
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+  it('fewest strips wins across thicknesses (fu 564): 16 strips of 3/4" × 1-1/2" lose to 2 from 1-1/2" × 11-1/4"', () => {
+    // Strips need 81": at 3/4" only S (1-1/2 × 96) is long enough → 22/16 + 1/8 = 1.5 → 16; at 1-1/2", T → 2.
+    const g = gluePlan(pine('p', 80, 22), [size('S', 0.75, 1.5, 96, null), size('W', 0.75, 11.25, 72, null), size('T', 1.5, 11.25, 96, null)], IMPERIAL) as GluePlan;
+    expect(g.thickness).toBe(1.5);
+    expect(g.strips).toHaveLength(2);
+  });
+  it('a tie in strip count goes to the thinner stock (less to plane)', () => {
+    const g = gluePlan(pine('p', 40, 22), [size('P', 0.75, 11.25, 96, null), size('Q', 1, 11.25, 96, null)], IMPERIAL) as GluePlan;
+    expect([g.thickness, g.strips.length]).toEqual([0.75, 2]);
   });
   it('takes the thinnest thickness with a size long enough for the strips', () => {
     // C (3/4" × 5-1/2" × 72") is shorter than Ls = 81; F (1" × 5-1/2" × 96") is not.
-    expect(gluePlan(pine('wide', 80, 8), [C, size('F', 1, 5.5, 96, 20)], IMPERIAL)!.thickness).toBe(1);
+    expect((gluePlan(pine('wide', 80, 8), [C, size('F', 1, 5.5, 96, 20)], IMPERIAL) as GluePlan).thickness).toBe(1);
   });
-  it('returns null when no size is long enough for the strips (Ls = 96.5 > 96)', () => {
-    expect(gluePlan(pine('p', 95.5, 20), [size('G', 0.75, 11.25, 96, null)], IMPERIAL)).toBeNull();
+  it('refuses `too long` when no size is long enough for the strips (Ls = 96.5 > 96)', () => {
+    expect(gluePlan(pine('p', 95.5, 20), [size('G', 0.75, 11.25, 96, null)], IMPERIAL)).toBe('too long');
   });
   it('fits a metric strip in whole mm: 300 mm across from 89 mm stock is 4 strips (78 mm), not 3 (103 mm)', () => {
-    expect(gluePlan(pine('m', 600 / 25.4, 300 / 25.4, 1.5), [D], { display: 'metric-mm', precision: 16 })!.strips).toHaveLength(4);
+    expect((gluePlan(pine('m', 600 / 25.4, 300 / 25.4, 1.5), [D], { display: 'metric-mm', precision: 16 }) as GluePlan).strips).toHaveLength(4);
     // A strip reading the stock's own whole mm fits: 172.05/2 + 3.175 = 89.2 mm reads 89, as D's 88.9 mm does → 2 strips (a raw
     // comparison would say 89.2 > 88.9 and take 3).
-    expect(gluePlan(pine('m2', 600 / 25.4, 172.05 / 25.4, 1.5), [D], { display: 'metric-mm', precision: 16 })!.strips).toHaveLength(2);
+    expect((gluePlan(pine('m2', 600 / 25.4, 172.05 / 25.4, 1.5), [D], { display: 'metric-mm', precision: 16 }) as GluePlan).strips).toHaveLength(2);
   });
   it('glueStripPart parses the part id before the LAST tag', () => {
     expect(glueStripPart('a/b#glue:3')).toBe('a/b');
@@ -615,6 +634,19 @@ describe('byThePiece glues up a too-wide part, and only that (glue-ups spec §3�
     expect(p.entries[0]!.notes).toEqual(['rail (3/4" × 6" × 80") fits no pine stock — too long']);
     expect(p.entries[0]!.unplaceable).toBe(1);
     expect(p.entries[0]!.lines).toEqual([]);
+  });
+
+  it('refuses a part that would take more than 24 strips, and says so (fu 564)', () => {
+    const p = purchase([pine('p', 40, 33.1)], shopWith({ pine: { mode: 'piece', stock: [size('X', 0.75, 1.5, 96, null)] } }));
+    expect(p.entries[0]!.notes).toEqual(['p (3/4" × 33-1/8" × 40") fits no pine stock — too wide, and it would take more than 24 strips to glue up']);
+    expect(p.entries[0]!.unplaceable).toBe(1);
+  });
+
+  it('glues up from thicker stock when it takes fewer strips, with the planing note (fu 564)', () => {
+    // 16 strips of 3/4" × 1-1/2" lose to 2 from 1-1/2" × 11-1/4" × 96 (each 11-1/8 × 81; two shelves 22.375 > 11.25 → 2 boards).
+    const p = purchase([pine('p', 80, 22)], shopWith({ pine: { mode: 'piece', stock: [size('S', 0.75, 1.5, 96, null), size('W', 0.75, 11.25, 72, null), size('T', 1.5, 11.25, 96, null)] } }));
+    expect(p.entries[0]!.notes).toEqual(['p (3/4" × 22" × 80"): glue up from 2 strips, 3/4" × 11-1/8" × 81" — no pine stock is 22" wide', 'p: plane 1-1/2" stock to 3/4"']);
+    expect(p.entries[0]!.layouts.flatMap((l) => l.nesting.sheets)).toHaveLength(2);
   });
 
   it('never glues up an end-grain part', () => {

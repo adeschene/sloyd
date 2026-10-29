@@ -8346,6 +8346,9 @@ the list makes it 176. A stored stock width just over 1/8" (only through stored 
 the cut list. Both follow the approved spec (§4 step 2, §10 call 4: uncapped); a bound (skip a thickness whose N exceeds some limit, or
 prefer the thickness needing fewest strips) is the user's call.
 **Status:** open (ask first).
+**Status:** closed 2026-10-29 — the user's ruling "cap the strip count, fewest strips wins": `GLUE_MAX_STRIPS = 24` (the count stops
+there, so the stall cannot happen), the thickness needing the fewest strips wins, a tie goes to the thinner; over the cap the part reads
+`too wide, and it would take more than 24 strips to glue up`. Spec §4 amended.
 
 **565. Glue-ups: an id containing `#glue:` is trusted (final review, M2).** `CutList`'s layout numbers map any placed id with the tag to
 the part before it, even an id that has its own row; and a stored part `a#glue:1` would share an id with glued `a`'s first strip in the

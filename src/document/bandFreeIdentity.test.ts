@@ -114,10 +114,13 @@ const CASES: [string, () => FlatDocument, ShopSettings][] = [
 // `Top` (3/4 × 20 × 36 against stock at most 7-1/4 wide) was `too wide` and is now glued up from 3 strips by design (glue-ups
 // spec §3). Diffed before re-capturing: the Top's note, its strips on the layouts, the buy line and the total changed, and
 // nothing else (the fu 273 note left with the old packing). The cut-list hash is unchanged.
+// And once more for fu 564 (2026-10-29, the user's ruling: cap the strip count, fewest strips wins): the Top now takes 2 strips
+// planed from the 1-1/2" × 12" size instead of 3 of 3/4" stock. Diffed: only the Top's note, its planing note, its strips' board,
+// the buy line and total ($45 → $48: fewest strips does not weigh price, fu 558) changed; the fu 273 note is back.
 const PINNED: Record<string, [string, string]> = {
   'shaker table': ['2fd0edc02a046a21', '4fd16a9b34e7bb78'],
   'sheet goods': ['465fd867e3bb167e', 'c77f0e028fe8b2ce'],
-  'by the piece': ['460c41c5b698657d', '7ae050d1bc8bd91b'],
+  'by the piece': ['460c41c5b698657d', '8558efc80dab54ff'],
   'sheet goods, metric': ['5721bb7e74c90ef4', '8f53656cbbabb8ef'],
 };
 

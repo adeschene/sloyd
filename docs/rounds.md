@@ -172,6 +172,12 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 ## Status log (to 2026-10-29)
 
+- **Glue-ups: cap the strip count, fewest strips wins (2026-10-29; fu 564, the user's ruling on the review's M1).** `GLUE_MAX_STRIPS
+  = 24` bounds the count (and the stall a stored near-1/8" width could cause); the thickness needing the fewest strips wins, a tie to
+  the thinner; over the cap the part is refused with its own reason. The band-free identity's by-the-piece Buying hash re-captured
+  (its Top: 2 strips planed from 1-1/2" stock instead of 3 of 3/4"; $45 → $48, price not weighed, fu 558). Every mutation killed (the
+  loop bound by a stall test). No schema change.
+
 - **Glue-ups from narrow stock (2026-10-29; branch `glue-ups`; fu 268).** Picked from `docs/feature-gaps.md`'s residue by the user,
   who skipped the brainstorm questions and approved option A (derived in Buying, no schema change). Built inline (three code tasks,
   TDD, every plan test mutated; seven rulings, three of them added mutation-killing cases), then an opus whole-branch review: no

@@ -39,7 +39,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   deployed 2026-10-29; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `c0d3b30` (`index-DQJDNnyg.js`, schema 28): it refuses every project saved at 29 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-29):** glue-ups (fu 268) are deployed; fu 564 (a bound on the strip count) awaits the user's call. Owed to the
+- **NEXT (2026-10-29):** glue-ups (fu 268) are deployed; fu 564 (cap 24 strips, fewest wins) merged on master. Owed to the
   user: the list below. Next: the user picks from `docs/feature-gaps.md`'s residue.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -157,7 +157,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | round tenons, the joint | `roundTenons.ts`, `tenonJoints.ts`, `tenonText.ts`; tolerances `checkTolerances.ts` (inv 58) |
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
 | refusals of joinery/Repair; Refine's carry | `featureCarry.ts` (inv 56), `joints/featureZones.ts`, `featureRegions.ts`, `joints/tapers.ts` `joineryRefusal` |
-| cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts` (glue-ups: `gluePlan`, only where `too wide`), `materials.ts` (inv 18, 19, 22, 23, 49) |
+| cut list, nesting, Buying | `cutlist.ts`, `nesting.ts`, `purchase.ts` (glue-ups: `gluePlan`, only where `too wide`; fewest strips, at most `GLUE_MAX_STRIPS`), `materials.ts` (inv 18, 19, 22, 23, 49) |
 | align / space evenly | `align.ts`, `alignText.ts`; store `alignItems`, `distributeItems`; `panels/AlignSection.tsx` (inv 25) |
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; store `stretchItems`, `stretchGuide`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
@@ -572,7 +572,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: 564 (ask first); record-only 565–567.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

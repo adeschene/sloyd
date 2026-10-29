@@ -183,39 +183,52 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
  *  both ends square after clamping), inches. Fixed constants, not settings. */
 export const GLUE_WIDTH_ALLOWANCE = 1 / 8;
 export const GLUE_LENGTH_ALLOWANCE = 1;
+/** The most strips one glue-up may take (fu 564, the user's ruling 2026-10-29: cap the count, fewest strips wins). It also bounds
+ *  the work: a stored stock width just over the width allowance would otherwise ask for thousands. */
+export const GLUE_MAX_STRIPS = 24;
 
 /** One part bought as a glue-up: the stock thickness the strips come from, the width across the grain they make up, and the
  *  N equal strips — plain solid parts, never stored. */
 export interface GluePlan { thickness: number; across: number; strips: Board[] }
+/** Why a candidate is not glued up: no size is long enough for a strip, or every thickness needs more than `GLUE_MAX_STRIPS`. */
+export type GlueRefusal = 'too long' | 'too many';
 
 const GLUE_TAG = '#glue:';
 
 /**
  * A part no listed size is wide enough for, as N equal strips (glue-ups spec §4). The caller has already decided it is a
- * candidate (§3: today's reason is `too wide`). The thickness is the thinnest at least as thick as the part with a size long
- * enough for a strip; N is the fewest (≥ 2) whose strip fits that thickness's widest such size, by `fitsStock` (whole mm in a
- * metric project). Null when no thickness has a size long enough. Exact: nothing is rounded (inv 18).
+ * candidate (§3: today's reason is `too wide`). At each thickness at least as thick as the part with a size long enough for a
+ * strip, N is the fewest (≥ 2) whose strip fits that thickness's widest such size, by `fitsStock` (whole mm in a metric project),
+ * up to `GLUE_MAX_STRIPS`; the thickness needing the FEWEST strips wins, a tie going to the thinner (fu 564, the user's ruling).
+ * `too long` when no thickness has a size long enough; `too many` when each that has one needs more than the cap. Exact: nothing
+ * is rounded (inv 18).
  */
-export function gluePlan(part: Board, stock: readonly StockBoard[], units: Units): GluePlan | null {
+export function gluePlan(part: Board, stock: readonly StockBoard[], units: Units): GluePlan | GlueRefusal {
   const f = grainFootprint(part);
   const along = f.w + GLUE_LENGTH_ALLOWANCE;
   const across = f.h;
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b).filter((t) => thickEnough(t, part.thickness, units));
+  let long = false;
+  let best: { t: number; n: number } | null = null;
   for (const t of thicknesses) {
     const sizes = stock.filter((s) => Math.abs(s.thickness - t) <= EPS && fitsStock(along, s.length, units) && s.width > GLUE_WIDTH_ALLOWANCE);
     if (sizes.length === 0) continue;
+    long = true;
     const widest = Math.max(...sizes.map((s) => s.width));
     let n = 2;
-    while (!fitsStock(across / n + GLUE_WIDTH_ALLOWANCE, widest, units)) n += 1;
-    const width = across / n + GLUE_WIDTH_ALLOWANCE;
-    const strips = Array.from({ length: n }, (_, i): Board => ({
-      id: `${part.id}${GLUE_TAG}${i + 1}`, name: `${part.name} strip ${i + 1} of ${n}`,
-      length: along, width, thickness: part.thickness, position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
-      material: part.material, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [],
-    }));
-    return { thickness: t, across, strips };
+    while (n <= GLUE_MAX_STRIPS && !fitsStock(across / n + GLUE_WIDTH_ALLOWANCE, widest, units)) n += 1;
+    // Strictly fewer only: thicknesses ascend, so a tie keeps the thinner (less to plane).
+    if (n <= GLUE_MAX_STRIPS && (best === null || n < best.n)) best = { t, n };
   }
-  return null;
+  if (best === null) return long ? 'too many' : 'too long';
+  const { t, n } = best;
+  const width = across / n + GLUE_WIDTH_ALLOWANCE;
+  const strips = Array.from({ length: n }, (_, i): Board => ({
+    id: `${part.id}${GLUE_TAG}${i + 1}`, name: `${part.name} strip ${i + 1} of ${n}`,
+    length: along, width, thickness: part.thickness, position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+    material: part.material, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [],
+  }));
+  return { thickness: t, across, strips };
 }
 
 /** The part a glue strip's id belongs to (the id before its LAST tag), or null for any other id. */
@@ -255,7 +268,7 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       // Glue-ups (glue-ups spec §3): ONLY where the answer is `too wide`, and never an edging strip, so every part that gets a
       // board today gets exactly the same board. End grain was refused above.
       const glue = reason === 'too wide' && !edging.has(part.id) ? gluePlan(part, stock, units) : null;
-      if (glue) {
+      if (glue !== null && typeof glue !== 'string') {
         const n = glue.strips.length;
         const strip = glue.strips[0]!;
         notes.push(`${part.name} (${partDims(part, units)}): glue up from ${n} strips, ${formatSize([strip.thickness, strip.width, strip.length], units)}`
@@ -264,8 +277,8 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
         groups.set(glue.thickness, [...(groups.get(glue.thickness) ?? []), ...glue.strips]);
         continue;
       }
-      const why = reason === 'too wide' && !edging.has(part.id)
-        ? `too wide, and too long to glue up (strips need ${formatLength(GLUE_LENGTH_ALLOWANCE, units)} to trim)`
+      const why = glue === 'too long' ? `too wide, and too long to glue up (strips need ${formatLength(GLUE_LENGTH_ALLOWANCE, units)} to trim)`
+        : glue === 'too many' ? `too wide, and it would take more than ${GLUE_MAX_STRIPS} strips to glue up`
         : reason;
       notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${why}`);
       unplaceable += 1;

@@ -137,6 +137,13 @@ Boundaries:
 - A 22½" top is N = 3: `11.25 + 0.125 > 11.25`. Without the allowance it would be N = 2; this is the allowance's
   mutation test.
 
+**Amended 2026-10-29 after deploy (fu 564, the user's ruling: "cap the strip count, fewest strips wins").** Steps 2 and 3 are
+replaced: at EVERY qualifying thickness with a size long enough for `Ls` (and wider than the width allowance), N is the fewest strips
+that fit that thickness's widest such size, counted only up to `GLUE_MAX_STRIPS = 24` (Claude's call for the number). The thickness
+needing the FEWEST strips wins; a tie goes to the thinner (less to plane; Claude's call). Over the cap at every such thickness, the
+part is refused: `… — too wide, and it would take more than 24 strips to glue up`. Fewest strips does not weigh price (fu 558): it can
+choose planed thicker stock that costs more. §10 call 4 ("N uncapped") is withdrawn.
+
 ## 5. What Buying prints
 
 - **The note**, one per glued part, in the parts' order among the other notes (§10, call 3):
