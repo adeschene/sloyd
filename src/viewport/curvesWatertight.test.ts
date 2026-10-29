@@ -1,4 +1,4 @@
-import { clipPolygon, createBoard, defaultProfile, PROFILE_EDGES, profileCurve, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeFaults, holeInStock, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
+import { clipPolygon, createBoard, defaultProfile, PROFILE_EDGES, profileCurve, curvePlan, holePrism, holeRing, defaultArch, defaultBow, defaultHingeCup, defaultNotch, defaultShelfPinRow, holeFaults, holeInStock, holePieces, holeTouches, partGeometry, sectionCaps, stockChecks } from '../document/document';
 import type { Board, CurveCut, Hole, HoleRow, V3 } from '../document/document';
 import type { ProfileCut, ProfileEnd, ProfileKind } from '../document/types';
 import { canonicalRun, geometryBoard, profileFaults, shapedPart } from '../document/profiles';
@@ -12,6 +12,7 @@ import { mirrorPart } from '../document/frames';
 import { defaultHole } from '../document/holes';
 import { tenonFaults } from '../document/roundTenons';
 import { stoolLegs } from '../document/stoolFixture';
+import { HEADED_CASES } from '../document/meshCases';
 import { apronArch, endToEnd, frontOnly, loop, notchEdge, topCorners, bowFront, chiralTwoSide, frontAndEnds, shortEnds, stationFrontToBack,
   stationFrontToRight, stationRightToBack, cornerGap, overlapCases, stopOnArch, stopOnCorner, stopOnNotch, twoSideSharp, wrapFour, wrapThree, zoneStop } from '../document/sweepFixtures';
 
@@ -509,5 +510,111 @@ describe('a tilted bore\'s mesh is watertight (angled holes Task 4)', () => {
     const { triangles, unmatched } = unmatchedEdges(board);
     expect(triangles).toBeGreaterThan(0);
     expect(unmatched).toBe(0);
+  });
+});
+
+// Counterbores Task 4 (spec §6.1): a headed bore is the union of its two convex pieces — the head (a cylinder, or a
+// countersink's frustum) and the bore past it. The entry face's hole is the HEAD's ring; a counterbore steps down on a
+// flat annulus at its depth, a countersink's cone ends on the bore's own mouth ring; every ring shared, so watertight.
+const facesOf = (m: { positions: Float32Array; normals: Float32Array }) => {
+  const out: { ys: number[]; ny: number }[] = [];
+  for (let t = 0; t < m.positions.length / 9; t += 1) {
+    out.push({ ys: [m.positions[9 * t + 1]!, m.positions[9 * t + 4]!, m.positions[9 * t + 7]!], ny: m.normals[9 * t + 1]! });
+  }
+  return out;
+};
+describe('a headed bore\'s mesh is watertight and stepped (counterbores Task 4)', () => {
+  it('the fixtures are what they claim: every row headed, legal and clean; the apron\'s arch split', () => {
+    for (const [name, b] of HEADED_CASES) {
+      const { holes } = partGeometry(b);
+      expect(holes.length, name).toBeGreaterThan(0);
+      for (const h of holes) {
+        expect(h.head, name).toBeDefined();
+        expect(holeInStock(b, h, stockChecks(b)), name).toBe(true);
+      }
+      for (const r of b.holes) expect(holeFaults(b, r), name).toEqual([]);
+      for (const c of b.curves) expect(curvePlan(b, c)?.clip, name).toBe(false);
+    }
+    expect(HEADED_CASES.filter(([, b]) => b.curves.length > 0).length).toBe(4);
+    expect(partGeometry(HEADED_CASES[8]![1]).holes.length).toBe(20);
+    // An apron head's mouth straddles the arch's strips: its HEAD piece reaches faces of more than one body.
+    const g = partGeometry(HEADED_CASES[4]![1]);
+    const head = holePieces(g.holes[0]!)[0]!;
+    expect(g.bodies.filter((body) => body.faces.some((f) => f.n[2] === 1 && holeTouches(head, f.verts))).length).toBeGreaterThan(1);
+  });
+  it.each(HEADED_CASES)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  // A clean hole's mesh is unclipped, so its triangles count exactly: HOLE_SEGMENTS quads (96 triangles) per wall, the
+  // annulus, or the cone; a blind bottom's 46. Axial normals (±Y on a flat part) are the annulus and the bottom; a
+  // countersink's cone alone has normals partly axial (inward with an axial component back toward the mouth).
+  it.each(HEADED_CASES.slice(0, 8))('%s: the head\'s wall, the step, then the bore', (_name, board) => {
+    const { bodies, holes } = partGeometry(board);
+    const h = holes[0]!;
+    const cone = h.head!.kind === 'countersink';
+    const tris = facesOf(holesMesh(board, holes, bodies, stockChecks(board))!);
+    const bottom = h.through ? 0 : 46;
+    expect(tris.length).toBe((cone ? 192 : 288) + bottom);
+    expect(tris.filter((t) => Math.abs(t.ny) === 1).length).toBe((cone ? 0 : 96) + bottom);
+    const slanted = tris.filter((t) => Math.abs(t.ny) > 1e-6 && Math.abs(t.ny) < 1 - 1e-6);
+    expect(slanted.length).toBe(cone ? 96 : 0);
+    // Every axial face (the annulus, a bottom) and every cone normal faces back toward the mouth: +Y entering from the
+    // thickness max face (dir −1), −Y from the min face.
+    for (const t of [...slanted, ...tris.filter((x) => Math.abs(x.ny) === 1)]) expect(Math.sign(t.ny)).toBe(-h.dir);
+    // The step: the annulus lies at headDepth from the face; a cone's normals tilt by its half-angle.
+    const y = (t: number) => h.centre[2] + h.dir * t - board.thickness / 2;
+    if (!cone) for (const t of tris.filter((x) => Math.abs(x.ny) === 1).slice(0, 96)) for (const v of t.ys) expect(v).toBeCloseTo(y(h.head!.reach), 6);
+    if (cone) {
+      const half = (board.holes[0]!.headAngle! / 2) * Math.PI / 180;
+      for (const t of slanted) expect(Math.abs(t.ny)).toBeCloseTo(Math.sin(half), 6);
+    }
+  });
+  it('the entry face loses exactly the head\'s mouth (the HEAD\'s ring, radius R, cut from the face)', () => {
+    const [, board] = HEADED_CASES[4]!;
+    const plain = { ...board, holes: [] };
+    const head = holePieces(partGeometry(board).holes[0]!)[0]!;
+    expect(head.radius).toBe(0.25);
+    expect(topArea(board)).toBeCloseTo(topArea(plain) - polyArea(holeRing(head, 0)), 6);
+  });
+  // A FAULTED headed bore on a curved part (its head breaking out of the length-min end; its bore clear of it), beside a
+  // clean one on the same plane: the face the faulted head alone reaches is cut by the head's prism (the per-face path:
+  // the merge must see the head reach the plane), so both mouths are open to radius R, not to the bore's.
+  it('a faulted counterbore beside a clean one on the arch\'s strips: the face loses both heads\' mouths', () => {
+    const [, one] = HEADED_CASES[4]!;
+    const board = { ...one, holes: [one.holes[0]!, { ...one.holes[0]!, id: 'e', station: 0.2 }] };
+    const plain = { ...one, holes: [] };
+    const [ok, bad] = partGeometry(board).holes as [Hole, Hole];
+    expect(holeInStock(board, ok, stockChecks(board))).toBe(true);
+    expect(holeInStock(board, bad, stockChecks(board))).toBe(false);
+    expect(bad.centre[0] - bad.radius).toBeGreaterThan(0);
+    const mouth = clipPolygon(holeRing(holePieces(bad)[0]!, 0), { n: [1, 0, 0], d: 0 });
+    expect(topArea(board)).toBeCloseTo(topArea(plain) - polyArea(holeRing(holePieces(ok)[0]!, 0)) - polyArea(mouth), 5);   // Float32 positions over a split face
+  });
+  // Task 3's review: a THROUGH counterbore whose head reaches the far face is legal but faulted (too-deep, kept and
+  // noted). Its bore piece has no length: the mesh draws the head, clipped to the stock as a faulted hole's, and nothing
+  // of the bore.
+  it.each([1.5, 1.75])('a through counterbore whose head is %s" deep in a 1 1/2" part builds, clipped, finite', (depth) => {
+    const board = createBoard({ length: 20, width: 10, thickness: 1.5, holes: [{ id: 'cb', face: 'thickness', from: 'max', diameter: 0.25,
+      depth: 'through', along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 3,
+      head: 'counterbore', headDiameter: 0.5, headDepth: depth }] });
+    expect(holeFaults(board, board.holes[0]!).map((f) => f.kind)).toEqual(['too-deep']);
+    const { bodies, holes } = partGeometry(board);
+    expect(holePieces(holes[0]!)[1]!.depth).toBeLessThanOrEqual(0);
+    const m = holesMesh(board, holes, bodies, stockChecks(board))!;
+    expect(m.positions.length).toBeGreaterThan(0);
+    const half = [10, 0.75, 5];
+    for (let i = 0; i < m.positions.length; i += 1) {
+      expect(Number.isFinite(m.positions[i]!)).toBe(true);
+      expect(Math.abs(m.positions[i]!)).toBeLessThanOrEqual(half[i % 3]! + 1e-6);
+    }
+    // The head's wall only: 96 triangles, every one radial (no annulus, no bore wall, no bottom).
+    const tris = facesOf(m);
+    expect(tris.length).toBe(96);
+    expect(tris.every((t) => Math.abs(t.ny) < 1e-9)).toBe(true);
+    // ...and it is the HEAD's (radius R = 1/4"), not the bore's: every vertex 1/4" from the axis (world x −5, z −2).
+    for (let i = 0; i < m.positions.length; i += 3) expect(Math.hypot(m.positions[i]! + 5, m.positions[i + 2]! + 2)).toBeCloseTo(0.25, 6);
+    for (const body of bodies) for (const x of bodyMesh(board, body, holes, bodies).positions) expect(Number.isFinite(x)).toBe(true);
   });
 });

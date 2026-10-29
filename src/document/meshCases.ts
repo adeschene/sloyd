@@ -105,3 +105,27 @@ export const CURVED_CASES: [string, Board][] = [
   ['an arched stile with a 35 mm hinge cup', createBoard({ ...stile, curves: [stileArch],
     holes: [{ id: 'c', ...defaultHingeCup(createBoard({ ...stile, curves: [stileArch] })), station: 10 }] })],
 ];
+
+/**
+ * Counterbores Task 4 (spec §6.1): headed rows — a counterbore and a countersink, each blind and through, on a plain part
+ * and on an arched apron (the default arch splits the broad face into strips, so a mouth straddles them), and a
+ * counterbored row of 20. Every row legal and clean (no fault). Shared by curvesWatertight and the headed perf cases.
+ */
+const plainPart = { length: 20, width: 10, thickness: 1.5 };
+const headedRow = (over: Partial<HoleRow>): HoleRow => ({ id: 'hd', face: 'thickness', from: 'max', diameter: 0.25, depth: 1, along: 'length',
+  alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 3, ...over });
+const counterbore = (over: Partial<HoleRow> = {}) => headedRow({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25, ...over });
+const countersink = (over: Partial<HoleRow> = {}) => headedRow({ head: 'countersink', headDiameter: 0.5, headAngle: 82, ...over });
+// On the apron (3/4" thick): centred across its 5" width, clear of the arch's crown (1 1/4" up), at the arch's middle.
+const onApron = { station: 15, inset: 2.5, depth: 0.5 } as const;
+export const HEADED_CASES: [string, Board][] = [
+  ['a blind counterbore in a plain part', createBoard({ ...plainPart, holes: [counterbore()] })],
+  ['a through counterbore in a plain part', createBoard({ ...plainPart, holes: [counterbore({ depth: 'through', from: 'min' })] })],
+  ['a blind countersink in a plain part', createBoard({ ...plainPart, holes: [countersink()] })],
+  ['a through 90° countersink in a plain part', createBoard({ ...plainPart, holes: [countersink({ depth: 'through', headAngle: 90 })] })],
+  ['a blind counterbore on an arched apron', createBoard({ ...apron, curves: [arch], holes: [counterbore(onApron)] })],
+  ['a through counterbore on an arched apron', createBoard({ ...apron, curves: [arch], holes: [counterbore({ ...onApron, depth: 'through' })] })],
+  ['a blind countersink on an arched apron', createBoard({ ...apron, curves: [arch], holes: [countersink(onApron)] })],
+  ['a through countersink on an arched apron', createBoard({ ...apron, curves: [arch], holes: [countersink({ ...onApron, depth: 'through', from: 'min' })] })],
+  ['a counterbored row of 20', createBoard({ ...plainPart, holes: [counterbore({ count: 20, pitch: 0.75, station: 2, depth: 'through' })] })],
+];

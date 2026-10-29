@@ -12,6 +12,8 @@ import { bodyMesh, holesMesh } from './grainTiling';
  *   where the memoised prism per Hole and the prism built once per hole (not per piece) carry the cost — reverting
  *   them takes this case to about 135-140 ms;
  * - a seat with four TILTED leg sockets (angled holes Task 4; bound 40 ms): the tilted bore's rings, wall and bottom.
+ * - a row of 20 counterbores and a countersunk row (counterbores Task 4; bound 40 ms): each headed hole's two pieces —
+ *   their prisms and rings memoised per frozen piece, the faces cut by both, the head's wall, the step and the bore.
  * The clean-hole wall path (ruling R15) is pinned deterministically, not here: grainTiling.test.ts' "per hole: one
  * quad per facet (no seam split, nothing doubled)…" counts 96 wall triangles where the clipped path draws 192.
  *
@@ -40,6 +42,12 @@ const socket = (id: string, alongFrom: 'min' | 'max', acrossFrom: 'min' | 'max')
   station: 2.5, count: 1, pitch: 0, acrossFrom, inset: 2.5, tiltAlong: -0.2, tiltAcross: -0.15,
 });
 const sockets = [socket('s1', 'min', 'min'), socket('s2', 'min', 'max'), socket('s3', 'max', 'min'), socket('s4', 'max', 'max')];
+// Counterbores Task 4: a side's shelf-pin-like rows, headed — 20 through counterbores, and 21 blind 82° countersinks.
+const counterbores = { ...pinRow('cb', 'min'), count: 20, depth: 'through' as const, head: 'counterbore' as const, headDiameter: 0.5, headDepth: 0.25 };
+const countersinks = { ...pinRow('cs', 'max'), diameter: 0.1875, head: 'countersink' as const, headDiameter: 0.375, headAngle: 82 as const };
+const headedSide = (row: Board['holes'][number]) => (length: number, cuts: Board['cuts']) =>
+  createBoard({ id: 'side', length, width: 11.25, thickness: 0.75, cuts, holes: [row] });
+
 const seat = (length: number) => createBoard({ id: 'seat', length, width: 16, thickness: 1.5, holes: sockets });
 
 let tick = 0;
@@ -78,4 +86,15 @@ describe('a holed part rebuilds inside a frame (Task 11b)', () => {
     }
     expect(minOf9([], (length) => seat(length))).toBeLessThanOrEqual(40);
   });
+  it.each([['a row of 20 counterbores', counterbores], ['a countersunk row', countersinks]] as const)(
+    '%s (clean): minimum of 9 full rebuilds is at most 40 ms', (_name, row) => {
+      const make = headedSide(row);
+      const b = make(30, []);
+      expect(holeFaults(b, b.holes[0]!)).toEqual([]);
+      for (const h of partGeometry(b).holes) {
+        expect(h.head).toBeDefined();
+        expect(holeInStock(b, h, stockChecks(b))).toBe(true);
+      }
+      expect(minOf9([], make)).toBeLessThanOrEqual(40);
+    });
 });
