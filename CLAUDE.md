@@ -35,12 +35,12 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `ee43d69`, bundle `index-CaZZjZyz.js`, CSS `index-xLh3I_zO.css`, SCHEMA 29** (saved views, deployed 2026-10-28;
-  the same day's other rounds: `docs/rounds.md`).
+- **Production: `e09003b`, bundle `index-B7bX5cuX.js`, CSS `index-Dea2G94f.css`, SCHEMA 29** (parametric resize, deployed
+  2026-10-29; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `c0d3b30` (`index-DQJDNnyg.js`, schema 28): it refuses every project saved at 29 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-28):** parametric resize (stretch, inv 64) is built on branch `stretch`, not yet verified or deployed. Owed to the
-  user: the list below. After it, the user picks from `docs/feature-gaps.md`.
+- **NEXT (2026-10-29):** parametric resize (stretch, inv 64) is deployed. Owed to the user: the list below. Next: the user picks
+  from `docs/feature-gaps.md`.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
