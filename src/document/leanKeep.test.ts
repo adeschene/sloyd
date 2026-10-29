@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument, flatDocument, migrateDocument } from './document';
 import type { Board, SloydDocument, StoredBoard } from './types';
 import { applyBoxJoints, boxJointPlan, fingerSets } from './boxJoints';
-import { keepsExactly, keptAssemblyLinkRefusal, keptNote, keptParts, leaningInAssembly } from './leanKeep';
+import { hasHeads, keepsExactly, keptAssemblyLinkRefusal, keptNote, keptParts, keptWhy, leaningInAssembly } from './leanKeep';
 import { documentToDesign } from './refineDesign';
 import { designToDocument } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
@@ -196,5 +196,68 @@ describe('Refine keeps a box-jointed ASSEMBLY whole (box-joints spec §7, Amende
       '"Drawer 1" is an assembly with box joints and is kept as is: x 0 to 13, y 0 to 4, z 30 to 47.',
       '"Drawer 2" is an assembly with box joints and is kept as is: x 20 to 33, y 0 to 4, z 30 to 47.',
     ]);
+  });
+});
+
+describe('Refine keeps a headed part exactly, and its assembly whole (counterbores spec §9, the user\'s ruling 2026-10-29)', () => {
+  /** A counterbored row (a screw pocket) through a panel's broad face. */
+  const CB = { id: 'h1', face: 'thickness' as const, from: 'min' as const, diameter: 0.1875, depth: 'through' as const, along: 'length' as const,
+    alongFrom: 'min' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 8, head: 'counterbore' as const, headDiameter: 0.375, headDepth: 0.25 };
+  const headed = (id: string, name: string, at: [number, number, number]): Board =>
+    ({ ...createBoard({ id, name, length: 12, width: 16, thickness: 0.75, posture: 'flat', position: at }), holes: [{ ...CB }] });
+  const tableTop = () => createBoard({ id: 'tt', name: 'Table top', length: 40, width: 20, thickness: 0.75, posture: 'flat', position: [0, 0, 0] });
+
+  it('keptParts keeps a headed root part verbatim (the same object), and the note says why', () => {
+    const doc = migrateDocument({ ...createDocument('Shelf'), boards: [tableTop(), headed('sh', 'Shelf', [50, 0, 0])] });
+    const sh = doc.boards.find((b) => b.name === 'Shelf')! as Board;
+    expect(sh.holes[0]).toEqual({ ...CB });
+    expect(keepsExactly(sh)).toBe(true);
+    const kept = keptParts(doc);
+    expect(kept.boards).toHaveLength(1);
+    expect(kept.boards[0]).toBe(sh);
+    expect(kept.names).toEqual(['Shelf']);
+    expect(kept.definitions).toEqual([]);
+    expect(keptWhy(doc, kept)).toEqual(['counterbores or countersinks']);
+    const lines = keptNote(doc)!.split('\n');
+    expect(lines[0]).toBe(`These parts lean, have angled holes or have counterbores or countersinks${HEADER_TAIL}`);
+    expect(lines[1]).toBe('"Shelf" has counterbores or countersinks and is kept as is: x 50 to 62, y 0 to 0.75, z 0 to 16.');
+    // A countersink keeps it the same; the headless row does not.
+    const { head: _h, headDiameter: _d, headDepth: _p, ...plain } = CB;
+    expect(keepsExactly({ ...sh, holes: [{ ...plain, head: 'countersink', headDiameter: 0.375, headAngle: 82 }] } as Board)).toBe(true);
+    expect(keepsExactly({ ...sh, holes: [plain] } as Board)).toBe(false);
+    expect(hasHeads({ ...sh, holes: [plain] } as Board)).toBe(false);
+  });
+
+  it('keeps the assembly holding a headed part: the definition and both placements, no refusal', () => {
+    const doc = migrateDocument({ ...createDocument('Cabinet'), boards: [tableTop()],
+      definitions: [{ id: 'dd', boards: [headed('sh', 'Shelf', [0, 0, 0]), createBoard({ id: 'sd', name: 'Side', length: 16, width: 12, thickness: 0.75, posture: 'upright', position: [12, 0, 0] })], instances: [], hardware: [] }],
+      instances: [{ id: 'i1', name: 'Bay 1', definition: 'dd', position: [0, 0, 30], rotation: 0 }, { id: 'i2', name: 'Bay 2', definition: 'dd', position: [20, 0, 30], rotation: 0 }] });
+    expect(leaningInAssembly(doc)).toBeNull();
+    expect(keptAssemblyLinkRefusal(doc)).toBeNull();
+    const kept = keptParts(doc);
+    expect(kept.definitions).toHaveLength(1);
+    expect(kept.definitions[0]).toBe(doc.definitions[0]);
+    expect(kept.instances).toEqual(doc.instances);
+    expect(kept.instances[0]).toBe(doc.instances[0]);
+    expect(kept.placements).toEqual(['Bay 1', 'Bay 2']);
+    expect(kept.boards).toEqual([]);
+    expect(keptWhy(doc, kept)).toEqual(['counterbores or countersinks', 'counterbores or countersinks']);
+    const d = documentToDesign(doc, { distinct: 100, placed: 300 });
+    if ('refused' in d) throw new Error(d.refused.message);
+    expect(d.design.assemblies).toEqual([]);
+    expect(d.design.parts.map((p) => p.name)).toEqual(['Table top']);
+    const lines = keptNote(doc)!.split('\n');
+    expect(lines[0]).toBe(`These parts lean, have angled holes or have counterbores or countersinks${HEADER_TAIL}`);
+    expect(lines[1]).toMatch(/^"Bay 1" is an assembly with counterbores or countersinks and is kept as is: /);
+  });
+
+  it('a headed part that is box-jointed too: both reasons, box joints first', () => {
+    const [front, ...rest] = drawerBoards();
+    const doc = migrateDocument({ ...createDocument('Drawer'), boards: [{ ...front!, holes: [{ ...CB, station: 3, inset: 2, headDepth: 0.125, diameter: 0.125, headDiameter: 0.25 }] }, ...rest] });
+    const kept = keptParts(doc);
+    expect(keptWhy(doc, kept)[0]).toBe('box joints, counterbores or countersinks');
+    const lines = keptNote(doc)!.split('\n');
+    expect(lines[0]).toBe(`These parts lean, have angled holes, have box joints or have counterbores or countersinks${HEADER_TAIL}`);
+    expect(lines[1]).toMatch(/^"Front" has box joints and has counterbores or countersinks, and is kept as is: /);
   });
 });

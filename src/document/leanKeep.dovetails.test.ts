@@ -76,3 +76,38 @@ describe('keptAssemblyLinkRefusal names the linked assembly\'s kind (dovetails s
     expect(keptAssemblyLinkRefusal(chest(dovetailed('', 0)))).toBeNull();
   });
 });
+
+describe('a kept assembly\'s words with counterbores or countersinks (counterbores spec §9)', () => {
+  /** A counterbored row through a part's broad face, clear of its corner joints. */
+  const CB = { id: 'h1', face: 'thickness' as const, from: 'min' as const, diameter: 0.125, depth: 'through' as const, along: 'length' as const,
+    alongFrom: 'min' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 2, head: 'counterbore' as const, headDiameter: 0.25, headDepth: 0.125 };
+  const headed = (parts: Board[]): Board[] => parts.map((b, i) => (i === 0 ? { ...b, holes: [{ ...CB }] } : b));
+
+  it('definitionKind / assemblyKind: heads alone, with each corner joint, and all three, in order', () => {
+    for (const [parts, kind] of [
+      [headed(drawer('', 0).boards as Board[]), 'counterbores or countersinks'],
+      [headed(boxJointed('', 0)), 'box joints and counterbores or countersinks'],
+      [headed(dovetailed('', 0)), 'dovetails and counterbores or countersinks'],
+      [[...headed(boxJointed('', 0)), ...dovetailed('D', 20)], 'box joints, dovetails and counterbores or countersinks'],
+      // The three corner-joint outputs, byte for byte as before.
+      [boxJointed('', 0), 'box joints'], [dovetailed('', 0), 'dovetails'], [[...boxJointed('', 0), ...dovetailed('D', 20)], 'box joints and dovetails'],
+    ] as const) {
+      const doc = chest([...parts]);
+      expect(definitionKind(doc, doc.definitions[0]!)).toBe(kind);
+      expect(assemblyKind(doc, doc.instances[0]!)).toBe(kind);
+    }
+  });
+
+  it('keptNote: a mixed assembly names both in its line, and the header adds the heads last', () => {
+    const lines = keptNote(chest(headed(boxJointed('', 0))))!.split('\n');
+    expect(lines[0]).toBe(`These parts lean, have angled holes, have box joints or have counterbores or countersinks${HEADER_TAIL}`);
+    expect(lines[1]).toMatch(/^"Drawer 1" is an assembly with box joints and counterbores or countersinks and is kept as is: /);
+  });
+
+  it('keptAssemblyLinkRefusal: a kind with heads names every kind it holds', () => {
+    expect(keptAssemblyLinkRefusal(chest(headed(drawer('', 0).boards as Board[]), true)))
+      .toBe("Refine can't keep an assembly with counterbores or countersinks whose parts are linked to parts outside it — Unlink first: Shelf.");
+    expect(keptAssemblyLinkRefusal(chest(headed(boxJointed('', 0)), true)))
+      .toBe("Refine can't keep an assembly with box joints and counterbores or countersinks whose parts are linked to parts outside it — Unlink first: Shelf.");
+  });
+});

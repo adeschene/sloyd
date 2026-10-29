@@ -218,6 +218,17 @@ describe('turned links (fu 301)', () => {
     expect(turnCandidates({ ...square, holes: [{ ...row, tiltAcross: 0.2 }] })).toEqual([]);
   });
 
+  it('turnCandidates of a headed part is empty (counterbores spec §9, through `keepsExactly`)', () => {
+    // `worldHoles` → `holeRowsFor` re-store rows with no head, so only keepsExactly stands between a headed row and a turn
+    // that would drop its head.
+    const square = createBoard({ length: 16, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0 });
+    const row = { id: 'h', face: 'width' as const, from: 'min' as const, diameter: 0.25, depth: 0.75, along: 'length' as const, alongFrom: 'min' as const,
+      station: 8, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.75 };
+    expect(turnCandidates({ ...square, holes: [row] }).length).toBeGreaterThan(0);
+    expect(turnCandidates({ ...square, holes: [{ ...row, head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 }] })).toEqual([]);
+    expect(turnCandidates({ ...square, holes: [{ ...row, head: 'countersink', headDiameter: 0.5, headAngle: 82 }] })).toEqual([]);
+  });
+
   it('a part with rectangular cuts is never turned', () => {
     const b = createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright',
       cuts: [{ id: 'c', face: 'width', from: 'max', across: 'length', offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 }] });
