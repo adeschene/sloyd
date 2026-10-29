@@ -34,7 +34,7 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
+import { tapeAxisFromKey, tapeLineFor, createDocument, DocumentError, flatDocument } from './document/document';
 import { isTextEntry } from './textEntry';
 import type { SloydDocument } from './document/document';
 import { MATERIALS, isSheetGood, type CustomMaterial, type MaterialKind } from './document/types';
@@ -772,6 +772,19 @@ export default function App() {
         if (tool === 'tape' && tapeAnchor) {
           e.preventDefault();
           setTapeAxis(tapeAxisFromKey(e.key));
+          return;
+        }
+      }
+
+      // Enter with nothing typed under an axis lock places a construction LINE (construction-lines spec §3.3); the
+      // readout's own Enter does the same once its box has focus. Modifier test in the CONDITION, as above. Anything
+      // else (no anchor, no axis, something typed, a duplicate line) falls through; a duplicate keeps the anchor.
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const { tool, tapeAnchor, tapeAxis, tapeTyped, addGuideLine, clearTapeAnchor } = useStore.getState();
+        const line = tool === 'tape' ? tapeLineFor(tapeAnchor?.at ?? null, tapeAxis, tapeTyped) : null;
+        if (line) {
+          e.preventDefault();
+          if (addGuideLine(line.at, line.axis)) clearTapeAnchor();
           return;
         }
       }
