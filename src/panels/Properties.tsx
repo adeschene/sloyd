@@ -22,6 +22,7 @@ import { Profiles } from './Profiles';
 import { Banding } from './Banding';
 import { Hardware } from './Hardware';
 import { AlignSection } from './AlignSection';
+import { StretchSection } from './StretchSection';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const NO_NOTES: readonly string[] = [];
@@ -499,6 +500,7 @@ function GroupProperties({ library, onNewMaterial, onNewBandType, onStretcherAdd
       <SelectionWeight />
       {/* Align and space evenly (align spec §6): disabled while exploded, as every editing region is (inv 47). */}
       <EditLock><AlignSection /></EditLock>
+      <EditLock><StretchSection /></EditLock>
       <EditLock>
       {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
       {plan && !('refused' in plan) && plan.changing.length > 0 && (
@@ -615,6 +617,7 @@ function InstanceProperties({ path, onNewHardwareType }: { path: string; onNewHa
       </label>
       </div>
       </EditLock>
+      <EditLock><StretchSection /></EditLock>
       <Hardware target={{ kind: 'assembly', path }} heading="Hardware" onNewHardwareType={onNewHardwareType} />
     </div>
   );

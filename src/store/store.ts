@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
+import { stretchPlan } from '../document/stretch';
 import {
   partsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
@@ -352,6 +353,14 @@ interface StoreState {
    */
   xray: boolean;
   setXray: (on: boolean) => void;
+  /**
+   * The stretch line's guide plane (parametric-resize spec §8): `at` is a WORLD coordinate on `axis`. View state like `section`:
+   * never in the document, undo or autosave. `setStretchGuide` is its ONE writer. Cleared by a successful stretch, by
+   * `selectionPatch` when the selection actually changes (an undo/redo that keeps it leaves the guide), by `setExplode` above 0,
+   * and by `replaceDocument`.
+   */
+  stretchGuide: { axis: 0 | 1 | 2; at: number } | null;
+  setStretchGuide: (g: { axis: 0 | 1 | 2; at: number } | null) => void;
   duplicateBoard: (id: string) => void;
   /**
    * Copy every named part in place, as ONE undo entry, and select the copies.
@@ -373,6 +382,11 @@ interface StoreState {
   alignItems: (axis: 0 | 1 | 2, edge: 'min' | 'centre' | 'max') => string | null;
   /** Equal gaps along a world axis, the two outermost items fixed (align spec §4, §5): its refusal sentence, else null. */
   distributeItems: (axis: 0 | 1 | 2) => string | null;
+  /**
+   * Stretch the selection to `size` on a world axis at the world line `line` (parametric-resize spec §7): its refusal
+   * sentence, else null (applied, a no-op, or refused at entry: exploded, gesturing, nothing selected). One undo entry.
+   */
+  stretchItems: (axis: 0 | 1 | 2, size: number, line: number) => string | null;
   selectBoard: (id: string | null) => void;
   toggleSelected: (id: string) => void;
   selectAll: () => void;
@@ -643,7 +657,7 @@ export const useStore = create<StoreState>((set, get) => {
     ids: string[],
     hidden: readonly string[] = get().hiddenIds,
     open: string | null = get().openPath,
-  ): { selectedIds: string[]; grabbed?: null } => {
+  ): { selectedIds: string[]; grabbed?: null; stretchGuide?: null } => {
     const held = get().grabbed;
     // Filtered HERE, in the one writer (invariants 42, 43): only direct
     // children of the open assembly (assemblies spec §3.2), never anything
@@ -652,9 +666,13 @@ export const useStore = create<StoreState>((set, get) => {
     const kept = ids.filter((id) => parentPath(id) === open && !isCovered(id, hiddenSet));
     const selectedIds = kept.length === ids.length ? ids : kept;
     // A grab survives while its owner is selected OR under a selected assembly.
+    const before = get().selectedIds;
+    const changed = before.length !== selectedIds.length || before.some((id, i) => id !== selectedIds[i]);
     return {
       selectedIds,
       ...(held && !isCovered(held.owner.id, new Set(selectedIds)) ? { grabbed: null } : {}),
+      // The stretch guide belongs to a selection (spec §8): drop it when the selection changes, not when it is re-asserted.
+      ...(changed && get().stretchGuide ? { stretchGuide: null } : {}),
     };
   };
 
@@ -1166,6 +1184,11 @@ export const useStore = create<StoreState>((set, get) => {
     section: null,
     xray: false,
     setXray: (on) => set({ xray: on }),
+    stretchGuide: null,
+    setStretchGuide: (g) => {
+      if (g !== null && !Number.isFinite(g.at)) return;
+      set({ stretchGuide: g });
+    },
     setSection: (next) => {
       if (next !== null && !Number.isFinite(next.at)) return;
       set({ section: next });
@@ -1174,7 +1197,7 @@ export const useStore = create<StoreState>((set, get) => {
       if (!Number.isFinite(amount) || get().gesturing) return;
       const next = Math.min(1, Math.max(0, amount));
       if (next > 0 && get().explode === 0) get().setTool('select');
-      set({ explode: next });
+      set({ explode: next, ...(next > 0 ? { stretchGuide: null } : {}) });
     },
     openPath: null,
 
@@ -1368,6 +1391,18 @@ export const useStore = create<StoreState>((set, get) => {
       const deltas = distributeDeltas(items, axis);
       if ('refused' in deltas) return deltas.refused;
       return applyDeltas(items, deltas);
+    },
+
+    stretchItems: (axis, size, line) => {
+      if (readOnly() || get().gesturing) return null; // exploded (inv 47) or mid-gesture: refused at entry
+      if (get().selectedIds.length === 0) return null;
+      const plan = stretchPlan(get().doc, get().selectedIds, axis, size, line);
+      if (plan === null) return null;
+      if ('refused' in plan) return plan.refused;
+      edit(() => plan.doc);
+      judgeHeld();
+      set({ stretchGuide: null });
+      return null;
     },
 
     addBoard: () => {
@@ -1848,6 +1883,7 @@ export const useStore = create<StoreState>((set, get) => {
         explode: 0,
         section: null,
         xray: false,
+        stretchGuide: null,
         // Fu 3: a focus request for the replaced document's new part.
         pendingLengthFocus: false,
         // Follow-up 148. NOT the same reason as the held points above: those

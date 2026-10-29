@@ -143,7 +143,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide,
     ray-typed guide, axis-placed guide, copy in a row (copy k = original + k·step·sign,
     never from the previous copy), and align and space evenly (align spec: each item's own exact world delta, one edit, never
-    through `moveGroupTo`; an inner item placed from the FIRST item's max, never a running position). Round what a free drag
+    through `moveGroupTo`; an inner item placed from the FIRST item's max, never a running position), and stretch (inv 64:
+    `δ` computed once and added to every number past the line, in imperial and metric alike). Round what a free drag
     produced, nothing else.
     **A free drag of a LEANING part rounds the drag DELTA, never a corner** (`dragTarget`, Gizmo.tsx; splayed legs §6.2, inv 57): its
     pre-lean corner is off-grid after Level the ends, and its real-bounds corner would move the seat joint. A snap onto a leaning
@@ -1801,3 +1802,85 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `0.0`; `approxWeight` the sentence form; `formatDensity`, `parseDensity`).
     **`partMass` (the tip check) and every design check never read density**: they are byte for byte as before. Generate's schema
     stays byte-identical (pinned by hash in `document.v28.test.ts`).
+
+64. **`stretch.ts` `stretchPlan` is the ONE stretch decider** (parametric resize, "stretch"; spec
+    `2026-10-28-sloyd-parametric-resize-design.md`), for both the panel's live preview and the store action (`stretchItems`): the two
+    call it on the SAME three numbers (axis, size, line), so they cannot disagree. **Nothing is stored and there is no schema
+    change**: a stretch is one geometric edit, and a document no stretch touched is byte for byte as before. Rollback is free.
+    - **The min side is fixed, and everything past the line moves `+δ` exactly.** The items are `selectedIds` at one level (as
+      Align's, `itemExtents`: leaned boxes, inv 57 R2; hidden parts inside a selected assembly included, inv 43). A size not more
+      than 0 refuses first (`The size must be more than 0.`); then the line `s` must be STRICTLY inside the items' extent on world
+      axis `k` (1e-9; else `The stretch line must be inside the selection.`); `δ = size − extent`, computed ONCE, and `|δ| ≤ 1e-9` is
+      a no-op (null: no edit, no undo entry). Exact (inv 25): `δ` is added, never rounded to the drag grid, imperial or metric.
+    - **A placement wholly on one side moves as a placement.** The walk is top-down in tree order (`itemPaths`): a node whose extent
+      ends at the line (`max ≤ s + 1e-9`) STAYS, one starting at it (`min ≥ s − 1e-9`) MOVES whole, anything else SPANS. A spanning
+      assembly is descended into (`childrenOf`); a spanning part goes to `stretchPart`, every OCCURRENCE separately. A moved assembly
+      is ONE placement change; its definition is not edited, so its other copies are untouched. **On a shrink, a node that would
+      MOVE but starts in the removed band, the line included** (`s ≤ min < s + |δ|`, Ruling 9: `min < s + |δ| − 1e-9`) refuses in the walk, in tree order
+      (`<name> sits in the wood this shrink removes — move the line or shrink less.`, Rulings 7 and 9: it would land back past the line,
+      off the typed size); one starting exactly at `s + |δ|` lands on the line. A shrink therefore never moves a part into the stayed side. The plan's `moves` list counts
+      OCCURRENCES (the preview's `moves N`, the user sees each copy move: Ruling 4); the paths are deduped by STORAGE target
+      (`itemKey`) before the ONE `translateItems`, so two placements of one definition moving the same inner node shift its record
+      once.
+    - **A spanning part grows on `d` and never on its thickness.** `stretchPart` (`stretchPart.ts`, pure) is the ONE place a
+      spanning part grows: `d` is the part dimension world axis `k` maps to (`axisDimensions`, inv 44); the grown dimension is
+      `was + δ`, `position` kept (the min corner is before the line). Its far end is the one facing world +k (`endFacing`), which a
+      turn may make its MIN end; the line's station `u` is read through the turn (`fromWorldOffset`). Its refusals, IN THIS ORDER
+      (Ruling 1 moved the corner joints ahead of the per-feature lists: a finger notch is a rectangular cut that `stretchCut` would
+      otherwise grow silently, or refuse with the generic `cut` sentence): thickness (`<part> would get thicker — …`), lean (inv 57:
+      a lean's resize keeps a pivot a crossing line can't honour; a leaning part that MOVES whole is fine), compound end cut (inv
+      59, `hasCompoundCut`), too short (a shrink removing past the far end: `<part> is too short to shrink by <δ> at this line.`),
+      finger sets (`fingerSets`), dovetails, rectangular cuts, angle cuts, hole rows, curves, curves-and-profiles, profiles, round
+      tenons.
+    - **Features follow their side by the per-side rule, through each kind's own rebase helper, or refuse.** Every feature is judged
+      in part terms on `d` against the BAND (`[u, u]` on a grow; the removed wood on a shrink, `[u, u + |δ|]` toward a max far end,
+      `[u − |δ|, u]` toward a min one), its span from its ONE home (`cutRegion`, `touchedRegion`, `holeInstances`/`holeRegion`,
+      `curveOutline`, `endPos`, `tenonZone`, `dovetailZones`, `fingerSets`), never re-derived. A span touching the band counts on the
+      side its body is on. A feature wholly on the fixed side is NEAR and keeps its distance to the fixed end; one wholly toward the
+      far end is FAR and keeps its distance to the moving end; anything else CROSSES. **The per-side rule:** each feature is rebased
+      ONE AT A TIME, on a one-feature copy, by its kind's EXISTING per-feature helper — `rebaseAngleCuts`, `rebaseCurves`,
+      `rebaseProfiles` (exported from `resizeEnd.ts`) and `rebaseHoles` (`holeRebase.ts`): a NEAR feature with `rebaseX(tmp, d, far,
+      δ)` (its numbers measured from the far end gain `δ`), a FAR one with `rebaseX(tmp, d, opposite(far), δ)` (those measured from
+      the fixed end gain `δ`). These helpers are the stretch's tools; what the prohibition below forbids is `resizeEnd`'s own
+      PATTERN — rebasing a whole list against the moving end, which keeps far features fixed in the WORLD. Rectangular cuts take
+      `stretchCut` (`cuts.ts`; their rebase is private to joinery and refaces cuts): a crossing cut grows its one length on `d`
+      (`width` or `depth`; `across === d` has only end-measured stops), and on a shrink must cover the whole band, else
+      `<part>'s cut crosses …`. Per kind:
+      - **Prisms pass unchanged (Ruling 2):** an angle cut with `throughOf(c) === d` (a full-length edge chamfer or bevel) and a
+        curve with `through === d` have no number on `d`; the stretch only lengthens the extrusion, so they never cross. An angle cut
+        that removes nothing (`touchedRegion` null) is kept as it is.
+      - A crossing angle cut (a taper's angle would change), hole row (the pitch can't stretch, follow-up S2), curve (an arc can't
+        stretch) or profile station refuses: `<part>'s <word> crosses the stretch line — move the line.` A hole row's span is every
+        bore's box; a row bored into an end face that moves is far and keeps its numbers.
+      - **Profiles are judged per STATION**: each station on a side running along `d` is judged by its position and rebased alone
+        (a one-station probe through `rebaseProfiles`), so a run along `d` across the line grows by `δ`; `through` ends and `loop`
+        runs need nothing. A part with BOTH curves and profiles refuses whole (a profile on a curved part follows the outline).
+      - Round tenons: a tenoned part spanning across its section (`d !== 'length'`) refuses (`… round tenon is centred on its
+        section …`); along the length the line must clear each `tenonZone`. A tenon is stored end-relative, so it follows its end.
+      - **Corner joints** (box joints, inv 61; dovetails, inv 62) refuse when `d` is the corner's J (the layout is a function of
+        J's span and the mate is a partition partner, follow-up S3) or the line reaches a zone on `dim`; otherwise they follow their
+        end unchanged.
+      - Bands, hardware, `cornerRule`, grain, material, posture and rotation are unchanged (bands follow their side automatically).
+      The faults rule (invs 50, 53, 54, 58, 62) is unchanged: a fault a followed feature takes is KEPT and noted, never clamped.
+      A list nothing changes is the SAME array, an entry the SAME object; an absent `tenons`/`dovetails` key stays absent.
+    - **Every refusal before `edit()`, and ONE undo entry.** The store's `stretchItems(axis, size, line)` refuses at entry while
+      exploded (`readOnly()`, inv 47), mid-gesture, or with nothing selected (null, nothing written); a plan refusal returns its
+      sentence and writes nothing. Otherwise ONE `edit(() => plan.doc)` (inv 4), `judgeHeld()` once after (inv 24), the selection
+      unchanged.
+    - **Copies and links refuse; they are never split.** After the write-back, EVERY occurrence of `worldParts(after)` must equal
+      its expected world part within 1e-9 (a grown one its `stretchPart` result, one under a moved node its old self moved `δ`,
+      any other unchanged) — the whole world compared, not spec §6's `subtreeSignature`. A mismatch names the nearest ancestor
+      placement whose definition has two or more placements: `<assembly> has copies this stretch would change differently — Make
+      Unique first.` Then cornerPlan's link post-condition, before `edit()`: every Shape with users in two or more storage keys still
+      holds them all, else `<part> is linked to <other part>, which this stretch changes differently — Unlink first.` **Write-back
+      is keepWorld** (inv 46): `writeBackParts` over the grown parts (one edit per storage key), then the ONE `translateItems`.
+    - **The guide** (`stretchGuide`, `{ axis, at }`, a WORLD coordinate) is view state like `section` (inv 51): never in the
+      document, undo or autosave; `setStretchGuide` its ONE writer (a non-finite `at` ignored). Cleared by a successful stretch, by
+      `selectionPatch` when the selection actually CHANGES (an undo or redo that changes the selection clears it, Ruling 5; one that
+      keeps it leaves it), by `setExplode` above 0, and by `replaceDocument`. The viewport draws it (`StretchGuide`) with no raycast,
+      no depth write and no clipping plane, so it never steals a click or a snap.
+    - Copy: `stretchText.ts` holds every sentence and the panel's words, and imports `units` (it prints lengths, the → units edge
+      rule). `stretchPart.ts` and `stretch.ts` import no `units` value (`stretchPart.ts`' `Units` is TYPE-only).
+    **PROHIBITION: do not stretch a feature with `resizeEnd`'s rebase (it keeps far features in the world, which breaks every joint
+    past the line), and do not let `writeBackParts` split a definition or a Shape silently.**
+    Follow-ups 545–555.

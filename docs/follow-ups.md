@@ -8231,3 +8231,77 @@ spurious entry (never data loss); Save view / Update do nothing for a frame whil
 view write clears a held tape point (as every other document undo does).
 **Status:** open (record-only).
 
+**545. Stretch: a stretch line for a single part (parametric resize, 2026-10-28; spec S1).** The Overall size section shows for one
+assembly or two or more items, never for one part: a part's own size fields already exist. A part-level stretch line (grow a long apron
+at a station, its features following their side) would reuse `stretchPart` with the panel shown for one part.
+**Status:** open (ask first).
+
+**546. Stretch: a hole row across the line, re-laid at its pitch (parametric resize, 2026-10-28; spec S2).** A hole row crossing the line
+refuses (`<part>'s hole row crosses the stretch line — move the line.`): the pitch can't stretch. Re-laying the row at its pitch (more or
+fewer holes, the ends kept) would let it follow. Note: a shelf-pin row running a bookcase side's full height makes every heightening
+stretch of that side refuse today, wherever the line goes.
+**Status:** open (ask first).
+
+**547. Stretch: corner joints across J, re-planned for both mates in lockstep (parametric resize, 2026-10-28; spec S3).** A box-jointed or
+dovetailed corner refuses when the stretch runs along its J (the layout is a function of J's span, and the mate is a partition partner),
+or when the line reaches a joint zone on `dim`. Re-planning the corner through `cornerPlan.ts` for both mates at the new span (inv 61's
+and 62's ONE layout) would let a drawer box grow taller.
+**Status:** open (ask first).
+
+**548. Stretch: a viewport drag handle (parametric resize, 2026-10-28; spec S4).** v1 is typed only (Overall size fields, Stretch at, the
+Stretch button); the line is drawn in the viewport (`StretchGuide`) but cannot be dragged, nor can the selection's face.
+**Status:** open (ask first).
+
+**549. Stretch: two axes at once (parametric resize, 2026-10-28; spec S5).** One axis per action: changing a second field re-arms to it.
+Two stretches make two undo entries.
+**Status:** open (ask first).
+
+**550. Stretch: the curves-and-profiles refusal is whole-part (parametric resize, 2026-10-28; Task 2 review).** A spanning part carrying
+both curves and profiles refuses (`<part> has curves and profiles, so it can't be stretched — move the line off it.`) even when every
+curve and profile sits on one side of the line, or the curve is a prism along `d` (which alone would pass, Ruling 2). A profile on a
+curved part follows the outline (`carriesProfiles`), which `stretchPart` does not re-trace.
+**Status:** open (record-only).
+Re-filed at the final review (2026-10-28, Ruling 8): a top with radiused corners (curves) and a `loop` roundover is a very common part,
+and it can never be stretched today, wherever the line goes. Proposed narrow pass: let the part through when every profile is a `loop`
+run, or `through` at both ends (so no station sits on `d` to re-trace), and no curve crosses the line (each curve near, far or a prism,
+as for a curve alone); the curves follow by `rebaseCurves` as today and the profiles need nothing. Anything else keeps the refusal.
+**Status:** open (ask first).
+
+**551. Stretch: curve spans come from chord vertices (parametric resize, 2026-10-28; Task 2 review).** `stretchPart` reads a curve's span
+on `d` from `curveOutline`'s chord vertices, which lie up to `CURVE_TOLERANCE` (0.005") inside the true arc, so a curve whose arc bulges
+within that of the line is judged on the side its chords are on.
+**Status:** open (record-only).
+
+**552. Stretch: deferred minors (2026-10-28, per-task reviews).** Tests: `stretchCut` lacks far === 'min' cases for `across === d` /
+`face === d`, shrink cases for across/face, exact-touch, exact-cover and no-mutation cases; no test for a hole row with an inset on `d`, a
+far-end `face === d` angle cut, or far === 'min' for curves, profiles and corner joints; the plan's classification boundary (a node face
+exactly on the line) is untested; the store's nothing-selected test asserts no `past`, the gesturing half no document identity, and a
+non-finite `setStretchGuide` and a same-ids re-select keeping the guide are untested; the panel lacks exploded, metric, unparseable and
+deleted-selection tests, and its original tests were never seen red. Code: a `NO_REGION` cut classifies as near (harmless); raw stops shift
+unclamped; `stretchCut`'s doc comment says "fixed end" for far cuts; profile stations are judged as points (a run-out's extent not
+counted); `stretch.ts`' doc comment calls the grow and move writes "disjoint records", which across placements is not so (the copies
+post-condition catches it); the links check keys plain parts by `storageKey` (cornerPlan uses the id; accepted, more correct); the store
+does not validate axis, size or line (`stretchPlan`'s `!(size > 0)` covers a NaN size). Panel and viewport: the guide effect sets null on
+mount (could clobber another writer); the default line rounds through `formatLength`; `StretchGuide` sits between `AdaptiveGrid`'s doc
+comment and its function, subscribes to `doc` while idle, and hardcodes its accent hex. Fixed at the final review (2026-10-28): the
+"disjoint records" comment (reworded: across placements the two writes can reach one stored record, and the copies post-condition
+refuses), and `StretchGuide`'s place (moved above `AdaptiveGrid`'s doc comment). The rest stands.
+**Status:** open (record-only).
+
+**553. Stretch: `stretchPlan` throws inside the panel's `useMemo`, with no ErrorBoundary (2026-10-28, the final whole-branch review,
+M4).** `stretchPlan` throws on an internal contradiction (a part count changed, an occurrence appeared, a shaped part lowered with its
+links intact) rather than returning a refusal. The panel calls it in a `useMemo` for the live preview, and nothing above it catches,
+so a throw would take the app down. No repro in about 7,200 fuzz runs, and the other planners do the same.
+**Status:** open (record-only).
+
+**554. Stretch: the guide plane does not come back after explode and un-explode while armed (2026-10-28, the final whole-branch
+review, M5).** `setExplode` above 0 clears `stretchGuide` (inv 64), but the panel keeps its armed state; after un-exploding, the panel
+still shows the axis and line armed while the viewport draws no plane.
+**Status:** open (record-only).
+
+**555. Stretch: the panel's size text — an unparseable entry says nothing, and a retyped rounded value arms a tiny δ (2026-10-28,
+the final whole-branch review, M6).** Text the panel cannot parse as a length shows no message (Stretch just stays disabled). The
+extent fields show the extent ROUNDED to display precision, so retyping the displayed number can arm a δ below display precision (a
+stretch the preview reads as `48" → 48"`).
+**Status:** open (record-only).
+

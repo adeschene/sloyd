@@ -98,7 +98,15 @@ The walk is **top-down over the tree**, so a placement that ends up whole on one
    - it carries a **compound end cut** (`hasCompoundCut`, inv 59): same sentence form, `has a compound end cut`.
    - a **shrink** leaves it `≤ 0` long on `d`, or any feature fails §5.
 3. **Shrinking (`δ < 0`)** removes the band `(s, s + |δ|)`. Parts and placements past the line move back into it. Overlaps that
-   result are not refused: the design checks report them, as for any move. A spanning part must clear the band (§5).
+   result are not refused: the design checks report them, as for any move (as a result of Ruling 9 below, a shrink never moves a part
+   into the stayed side, so this applies only to grows and spanning parts). A spanning part must clear the band (§5). A node that
+   would move but starts in the band, the line itself included (`s ≤ min_k < s + |δ|`, amended for Ruling 9; in code `min_k < s + |δ| − 1e-9` for a node that moves), refuses: `<name> sits in the wood this
+   shrink removes — move the line or shrink less.` (`<name>` the part's or assembly's own), decided in the walk, in tree order,
+   before any document is built. One starting exactly at `s + |δ|` lands on the line and passes. *(Amended at the final review,
+   Ruling 7: such a node moved back past the line, so the result was not the typed size — the apron table's aprons, starting at
+   x 1.75, shrunk 48 → 46 at x 1.5, landed at −0.25 and the table came out 46.25 wide while the preview said 46.)*
+   *(Ruling 9: the band includes the line itself. A node with min exactly `s` is also in it: the same aprons at line 1.75 moved −2 to
+   x −0.25 and the table came out 46.25 wide. The lower bound is inclusive; the upper stays open, so min exactly `s + |δ|` passes.)*
 
 **What the plan does NOT refuse**: an overlap or a gap the stretch creates between parts that do not span. The design checks
 report those, and so does the preview's count.
