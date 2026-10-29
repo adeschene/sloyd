@@ -422,7 +422,7 @@ changes.
     `holeTilt.ts` is the ONE home of tilt math**; square rows keep their paths byte for byte. **A tilted row's
     faults are EXACT or CONSERVATIVE, never under-reported**. Leg sockets: `legSockets.ts`, the ONE decider;
     `boreRow` the ONE bore core; `boreAlongAxis` the ONE coaxial test; `tenonInSeat` the ONE tenoned-leg predicate. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter**
-    (a model fault KEPT, never clamped). `drawsAsBox` is the ONE BoxGeometry routing.
+    (untouched rows return EXACTLY; a strict model fault is KEPT and flagged, never clamped). `drawsAsBox` is the ONE BoxGeometry routing.
     **A curved part's mesh is WATERTIGHT** (`curvesWatertight.test.ts`); a shaped part is ONE geometry
     (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (what is memoised where: `docs/invariants.md`). Perf
     guards are the MINIMUM of 9, lowered only, never raised.
@@ -465,15 +465,15 @@ changes.
 57. **A lean is placement, and `lean.ts` is its ONE home** (schema 22). `Board.lean` (SHARED) stores turn-0 SLOPES, only when non-zero,
     only on an UPRIGHT part. **A lean-free document is byte for byte as before.** `position` stays the
     PRE-lean min corner; the lean turns about the PIVOT (the top's centre), which a resize keeps. **Mirrors flip it
-    by `leanFlip` only.** **R1:** every part→world crossing composes it. **R2:** extents come from `partBounds`; **a
+    by `leanFlip` only.** **R1:** every part→world crossing composes it (`cuts.ts`' group-relative helpers stay lean-free). **R2:** extents come from `partBounds`; **a
     leaning part's pre-lean box is never presented as its extent.** **R3:** no box fast path. Drags round the DELTA.
-    Level the ends (`levelEnds.ts`) is never automatic. Checks extended, never weakened; joinery and Repair refuse, Refine keeps; the
+    Level the ends (`levelEnds.ts`): two end miters, lengths rounded UP; never automatic. Checks extended, never weakened; joinery and Repair refuse, Refine keeps; the
     cut list ignores it.
 
 58. **A round tenon is a STORED feature of a part's end, and `roundTenons.ts` is its ONE home** (schema 24).
     `Board.tenons?` (at most one per end; a typed tenon never changes `length`). **A tenon-free part has NO `tenons` key — never `[]`, never
     `undefined` — and is byte for byte as before.** **`tenonFaults` is the ONE fault decider** (CONSERVATIVE): an add refuses any
-    fault, an edit only an ADDED one, a later one is KEPT and noted; **a faulted tenon builds nothing** (`builtTenons`). **The joint**
+    fault, an edit only an ADDED one, a later one is KEPT and noted; **a faulted tenon builds nothing** (`builtTenons`). A tenoned end is square or carries ONE end miter, the tip. **The joint**
     is `tenonJoints.ts` `seatedIn` (every condition: `docs/invariants.md`). **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
 
 59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (`leanTwist` its τ). A first
@@ -485,7 +485,7 @@ changes.
     stretcher, Fit the stretcher again); nothing about one is stored** (no schema change; a stretcher-free project is byte for
     byte as before; inv 39 (d) holds it). Its legs are FOUND every time. Its axis is EXACTLY axis-aligned; `L` and `S` round DOWN to
     the grid, socket depth UP to `tenonStep`; any socket fault refuses the WHOLE action. Every refusal before `edit()`; ONE undo
-    entry. Fit re-fits the CLOSURE.
+    entry, none for a fitted rung's Fit. Fit re-fits the CLOSURE.
 
 61. **A box joint is ORDINARY rectangular cuts; `boxJoints.ts` is the ONE layout, the ONE recogniser and the ONE planner, and they
     are each other's inverse** (NO schema change; a box-joint-free project is byte for byte as before). The recogniser (`fingerSets`)
@@ -499,7 +499,7 @@ changes.
     whole**; **finger sets are claimed BEFORE the gate** (`fingerClaim.ts`), **Repair claims them too**, and a joined Refine fixes
     every NEW site touching a kept part as BUTT (a RECORDED joint stays as recorded) and **(c)** returns the design UNJOINED when the
     re-join would change a kept part. **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a
-    kept part butt, and do not drop the (c) guard.** The cut list prints one line per set (`setupLines` claims first). The corner planner
+    kept part butt, and do not drop the (c) guard.** The cut list prints one line per set, never a tenon or notch lines (`setupLines` claims first). The corner planner
     is `cornerPlan.ts`; every keep/leave-alone site reads `cornerJointed`; the claim sites stay finger-only. Full text: `docs/invariants.md`. Follow-ups 484–496.
 
 62. **A dovetail is a STORED parametric feature of a part's end (schema 26; `lap` 27); `dovetails.ts` is the ONE fault decider (`dovetailFaults`),
@@ -522,7 +522,8 @@ changes.
 
 63. **`weight.ts` is the ONE place weight is computed** (schema 28 for `CustomMaterial.density`, lb/ft³): the wood the MODEL keeps
     (`boardBodies` volumes through `partGeometry`) times the catalog's density; holes ignored. **Solid edging at its BAND's density**:
-    core + strips is the finished wood exactly, allowances never weighed. Every copy and hidden part counts; the cut list's total is
+    core = finished part's wood − solid strips at their FINISHED size, allowances never weighed (never `cutStock`'s
+    core-sized board), so core + strips is the finished wood exactly. Every copy and hidden part counts; the cut list's total is
     exactly the sum of its groups. **A material with no density makes every total say it is partial and name it; nothing weighed reads
     `not known` — never a silent undercount.** `partMass` and every check never read density. Full text: `docs/invariants.md`.
 
