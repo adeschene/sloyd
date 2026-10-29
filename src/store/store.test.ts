@@ -2,7 +2,7 @@ import { worldParts } from '../document/tree';
 import { ARCH } from '../document/curveFixtures';
 import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
-import { useStore, HOLE_TILT_PAST_BOUND, LEAN_SET_TURNS_HOLES, LEAN_TURNS_HOLES } from './store';
+import { useStore, HOLE_TILT_PAST_BOUND, HEAD_NOT_WIDER, HEAD_TOO_DEEP, HEAD_ON_TILT, TILT_ON_HEAD, LEAN_SET_TURNS_HOLES, LEAN_TURNS_HOLES } from './store';
 import type { AngleCut, Board, Lean, Shape, SloydDocument } from '../document/document';
 import { profileFromFields } from '../document/profiles';
 import { BUILT_IN_BAND, newBandType } from '../document/bandModel';
@@ -15,6 +15,9 @@ import { toWorld } from '../document/snapPoints';
 import { holeInstances } from '../document/holes';
 import { partBounds, partsBounds, postureRefusal } from '../document/document';
 import { snapToGrid } from '../document/geometry';
+import { sharedOf } from '../document/links';
+import { holeFaults } from '../document/holeFaults';
+import { sameHoleRow } from '../document/holes';
 import { dragTarget } from '../viewport/Gizmo';
 import { stoolDocument, stoolLegs, stoolSeat } from '../document/stoolFixture';
 import { checkDesign, type DesignLimits } from '../document/designCheck';
@@ -4653,5 +4656,87 @@ describe('round tenons in copies (round tenons spec §3.1, inv 33)', () => {
     setup([createBoard({ id: 'r', name: 'Rung' })]);
     s().duplicateBoards(['r']);
     expect('tenons' in s().doc.boards[1]!).toBe(false);
+  });
+});
+
+describe('counterbores and countersinks on hole rows (counterbores §3.2, §7)', () => {
+  const s = () => useStore.getState();
+  const occ = (id: string) => worldParts(s().doc).find((b) => b.id === id)!;
+  const side = (over: Partial<Board> = {}) =>
+    createBoard({ id: 'P', name: 'Side', length: 30, width: 12, thickness: 0.75, posture: 'flat', position: [0, 0, 0], ...over });
+  const ROW = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.6 as number | 'through', along: 'length' as const, alongFrom: 'min' as const, station: 6, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 4 };
+  const bare = (r: Record<string, unknown>) => { const { id: _id, ...x } = r; return x as never; };
+  const CB = { head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 };
+  const refused = (next: Record<string, unknown>, want: string, base: Record<string, unknown> = ROW) => {
+    s().replaceDocument({ ...createDocument('Head'), boards: [side({ holes: [base as never] })] });
+    const doc = s().doc;
+    const n = s().past.length;
+    expect(s().updateHoleRow('P', 'r1', bare({ ...base, ...next }))).toBe(want);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(n);
+  };
+
+  it('copy is verbatim', () => {
+    expect(HEAD_NOT_WIDER).toBe('The counterbore or countersink must be wider than the hole.');
+    expect(HEAD_TOO_DEEP).toBe('The counterbore or countersink must be shallower than the hole.');
+    expect(HEAD_ON_TILT).toBe("A tilted hole can't take a counterbore or countersink yet.");
+    expect(TILT_ON_HEAD).toBe('Remove the counterbore or countersink before tilting the hole.');
+  });
+  it('updateHoleRow refuses a bore widened to its head', () => {
+    refused({ diameter: 0.5 }, HEAD_NOT_WIDER, { ...ROW, ...CB });
+  });
+  it('refuses a blind depth at or under the head', () => {
+    refused({ depth: 0.25 }, HEAD_TOO_DEEP, { ...ROW, ...CB });
+    refused({ depth: 0.2 }, HEAD_TOO_DEEP, { ...ROW, ...CB });
+  });
+  it('refuses a head on a tilted row (HEAD_ON_TILT) and a tilt on a headed row (TILT_ON_HEAD)', () => {
+    refused({ ...CB }, HEAD_ON_TILT, { ...ROW, tiltAlong: slopeOf(10) });
+    refused({ tiltAlong: slopeOf(10) }, TILT_ON_HEAD, { ...ROW, ...CB });
+  });
+  it('addHoleRows refuses an illegal or tilted head before any change', () => {
+    s().replaceDocument({ ...createDocument('Head'), boards: [side()] });
+    const doc = s().doc;
+    expect(s().addHoleRows('P', [bare({ ...ROW, head: 'counterbore', headDiameter: 0.2, headDepth: 0.1 })])).toBe(HEAD_NOT_WIDER);
+    expect(s().addHoleRows('P', [bare({ ...ROW, ...CB, tiltAlong: slopeOf(10) })])).toBe(HEAD_ON_TILT);
+    expect(s().doc).toBe(doc);
+  });
+  it('a head set to undefined leaves no key, and the row equals the headless original', () => {
+    s().replaceDocument({ ...createDocument('Head'), boards: [side({ holes: [ROW] })] });
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, ...CB }))).toBeNull();
+    expect(occ('P').holes[0]).toMatchObject(CB);
+    const n = s().past.length;
+    const none = { head: undefined, headDiameter: undefined, headDepth: undefined, headAngle: undefined };
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, ...none }))).toBeNull();
+    const r = occ('P').holes[0]!;
+    for (const k of ['head', 'headDiameter', 'headDepth', 'headAngle']) expect(k in r, k).toBe(false);
+    expect(sameHoleRow(r, bare(ROW))).toBe(true);
+    expect(s().past.length).toBe(n + 1);
+    // a no-op edit with explicit undefined keys pushes no entry
+    expect(s().updateHoleRow('P', 'r1', bare({ ...ROW, ...none }))).toBeNull();
+    expect(s().past.length).toBe(n + 1);
+  });
+  it('an add with undefined head keys stores none', () => {
+    s().replaceDocument({ ...createDocument('Head'), boards: [side()] });
+    expect(s().addHoleRows('P', [bare({ ...ROW, head: undefined, headDiameter: undefined })])).toBeNull();
+    expect('head' in occ('P').holes[0]!).toBe(false);
+    expect('headDiameter' in occ('P').holes[0]!).toBe(false);
+  });
+  it('a resize that faults a through counterbore is not refused and the fault is noted', () => {
+    const through = { ...ROW, depth: 'through' as const, head: 'counterbore', headDiameter: 0.5, headDepth: 0.5 };
+    s().replaceDocument({ ...createDocument('Head'), boards: [side({ thickness: 1, holes: [through as never] })] });
+    expect(s().updateBoard('P', { thickness: 0.4 })).toBeUndefined();
+    const b = occ('P');
+    expect(b.thickness).toBe(0.4);
+    expect(holeFaults(b, b.holes[0]!).some((f) => f.kind === 'too-deep')).toBe(true);
+  });
+  it('a linked part\'s head shows on every user', () => {
+    const sh = { id: 's1', ...sharedOf(side({ holes: [ROW] })) };
+    s().replaceDocument({
+      ...createDocument('Head'), shapes: [sh],
+      boards: [{ id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' }, { id: 'b', name: 'B', position: [40, 0, 0], rotation: 0, shape: 's1' }] as never,
+    });
+    expect(s().updateHoleRow('a', 'r1', bare({ ...ROW, ...CB }))).toBeNull();
+    expect(occ('b').holes[0]).toMatchObject(CB);
+    expect(s().doc.shapes[0]!.holes[0]).toMatchObject(CB);
   });
 });

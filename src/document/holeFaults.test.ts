@@ -357,3 +357,48 @@ describe('faults for a tilted bore (angled holes spec §6.3)', () => {
     expect(holeFaults(top(lean(-1)), lean(-1))).toEqual([{ index: 0, kind: 'breaks-out', curve: { id: 'w1', kind: null, profile: 'roundover' } }]);
   });
 });
+
+describe('faults for a headed row (counterbores spec §6.3)', () => {
+  const cb = (over: Partial<HoleRow> = {}): HoleRow => one({ diameter: 0.1875, depth: 'through', head: 'counterbore', headDiameter: 0.375, headDepth: 0.25, ...over });
+  const headless = (r: HoleRow): HoleRow => { const { head: _h, headDiameter: _d, headDepth: _e, headAngle: _a, ...rest } = r; return rest; };
+  const six = () => part({ width: 6, length: 24 });
+  it('a counterbore breaks out where its bore would not', () => {
+    const r = cb({ inset: 0.15 });
+    expect(kinds(six(), r)).toEqual(['0:breaks-out']);
+    expect(kinds(six(), headless(r))).toEqual([]);
+  });
+  it('a head only counts over its own span', () => {
+    const head = cb({ diameter: 0.25, headDiameter: 0.5, headDepth: 0.25, depth: 'through', station: 5, inset: 2 });
+    // The other row is on the OPPOSITE face, 0.3" away across the width.
+    const other = (depth: number) => one({ id: 'h2', from: 'min', diameter: 0.25, depth, station: 5, inset: 2.3 });
+    const run = (o: HoleRow) => holeFaults({ ...six(), holes: [head, o] }, head).map((f) => f.kind);
+    expect(run(other(0.375))).toEqual([]);
+    expect(run(other(0.625))).toEqual(['meets-hole']);
+  });
+  it('two counterbored screws meet by their heads', () => {
+    expect(kinds(six(), cb({ station: 5, count: 2, pitch: 0.35 }))).toContain('0:meets-hole');
+    expect(kinds(six(), cb({ station: 5, count: 2, pitch: 0.38 }))).toEqual([]);
+  });
+  it('a head beside a cut is off-flat where its bore is not', () => {
+    const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const r = cb({ headDepth: 0.375, station: 10 - 0.15 });
+    expect(kinds(six(), r)).toEqual([]);
+    expect(kinds(part({ width: 6, length: 24, cuts: [dado] }), r)).toEqual(['0:off-flat']);
+    expect(kinds(part({ width: 6, length: 24, cuts: [dado] }), headless(r))).toEqual([]);
+  });
+  it('a through counterbore reaching the far face is too-deep', () => {
+    expect(kinds(six(), cb({ headDepth: 0.75 }))).toEqual(['0:too-deep']);
+    expect(kinds(six(), cb({ headDepth: 0.74 }))).toEqual([]);
+  });
+  it('a countersink is judged as its mouth cylinder', () => {
+    const r = cb({ head: 'countersink', headDepth: undefined, headAngle: 90, inset: 0.17 });
+    delete r.headDepth;
+    expect(kinds(six(), r)).toEqual(['0:breaks-out']);
+  });
+  it('holeInStock judges the head too', () => {
+    const b = six();
+    const h = holeInstances(b, cb({ inset: 0.15 }))[0]!;
+    expect(holeInStock(b, h)).toBe(false);
+    expect(holeInStock(b, holeInstances(b, cb())[0]!)).toBe(true);
+  });
+});

@@ -14,7 +14,7 @@ import { nextId } from './ids';
 import { BUILT_IN_BAND, BUILT_IN_BAND_ID, BAND_KINDS, CORNER_RULES, canonicalBands } from './bandModel';
 import { canonicalHardware, HARDWARE_COUNT_MAX, PACK_SIZE_MAX } from './hardwareModel';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
-import { HOLE_COUNT_MAX } from './holes';
+import { HOLE_COUNT_MAX, headProblem } from './holes';
 import { withTenons } from './roundTenons';
 import { DOVETAIL_COUNT_MAX, withDovetails } from './dovetailModel';
 import { withinTiltBound } from './holeTilt';
@@ -42,11 +42,11 @@ export { mirrorCut } from './mirrorCut';
 export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, defaultRaisedPanel, ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, defaultTaperFaces, TAPER_FOUR, TAPER_TWO, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, splitRegion, taperCut, taperFields, throughOf, touchedRegion, zeroStation } from './angleCuts';
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFace, TaperFields, V3 } from './angleCuts';
 export {
-  HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
-  clipPolygon, clipPlan, copyHoleRow, holeBottom, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
-  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, tiltedHole, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
+  HEAD_ANGLES, HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, hasHead, headProblem, headReach, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
+  clipPolygon, clipPlan, copyHoleRow, holeBottom, holeEnvelope, holeInstances, holePieces, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
+  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, tiltedHole, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew,
 } from './holes';
-export type { Hole, Plane } from './holes';
+export type { Hole, HeadKind, Plane } from './holes';
 export { bitVector, isTilted, retilt, tiltDegrees, tiltResultantDeg, tiltSightlineDeg, withinTiltBound } from './holeTilt';
 export { levelEndHoles, rebaseHoles } from './holeRebase';
 export { isSocketOf, legsUnder, legTenonPlan, socketPlan, socketRow, staleSocketOf, socketStale, socketsDisagree, socketFaulted, socketTooSteep, socketTooWide } from './legSockets';
@@ -251,8 +251,13 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * drops a malformed entry and repairs ids and names. Harm a v28 build would do: it rebuilds the document field by field,
  * ignores `views`, and the next autosave writes the project without them — every saved view silently lost. So a v29 file
  * must be refused by a v28 build.
+ *
+ * v30 (counterbores spec §3): `head` / `headDiameter` / `headDepth` / `headAngle` on a hole row. No step: an absent head is a
+ * plain bore. The loader carries every present head key to `headProblem` and DROPS the row, never the part, when it says the head is malformed, not wider than the bore, too deep for a blind row, or on a tilted row. Harm a v29 build would
+ * do: it rebuilds each row field by field, drops the head and drills the plain bore — silently, and autosaves it. So a v30
+ * file must be refused by a v29 build.
  */
-export const CURRENT_VERSION = 29;
+export const CURRENT_VERSION = 30;
 
 export class DocumentError extends Error {
   /**
@@ -549,10 +554,22 @@ function validateHoleRows(raw: unknown): HoleRow[] {
       if (t !== 0) tilts[k] = t;
     }
     if (badTilt || !withinTiltBound(tilts.tiltAlong ?? 0, tilts.tiltAcross ?? 0)) continue;
+    // Schema 30 (counterbores spec §3.2): any head key present is carried to headProblem, which drops the ROW (never
+    // clamps) when the head is illegal; a head key without `head` is malformed, so it never survives as a stray.
+    const heads: Pick<HoleRow, 'head' | 'headDiameter' | 'headDepth' | 'headAngle'> = {};
+    for (const k of ['head', 'headDiameter', 'headDepth', 'headAngle'] as const) {
+      if (r[k] !== undefined) (heads as Record<string, unknown>)[k] = r[k];
+    }
+    const row: Omit<HoleRow, 'id'> = {
+      face, from: r.from as CutFrom, diameter: r.diameter, depth: r.depth as number | 'through',
+      along, alongFrom: r.alongFrom as CutFrom, station: r.station as number, count: r.count as number,
+      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number, ...tilts, ...heads,
+    };
+    if (headProblem(row) !== null) continue;
     out.push({
       id: takeId(r.id, seen), face, from: r.from as CutFrom, diameter: r.diameter, depth: r.depth as number | 'through',
       along, alongFrom: r.alongFrom as CutFrom, station: r.station as number, count: r.count as number,
-      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number, ...tilts,
+      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number, ...tilts, ...heads,
     });
   }
   return out;

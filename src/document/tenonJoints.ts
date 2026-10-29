@@ -87,7 +87,7 @@ export function tipFarthest(b: Board, t: RoundTenon): number {
  *    end: entering by more than TOUCH puts the tip that far past it), so no separate direction test is needed.
  */
 export function seatedIn(a: Board, t: RoundTenon, b: Board, row: HoleRow): boolean {
-  if (a === b || a.id === b.id || row.count !== 1) return false;
+  if (a === b || a.id === b.id || row.count !== 1 || row.head !== undefined) return false; // a headed bore is not a tenon's seat
   if (Math.abs(row.diameter - t.diameter) > EPS) return false;
   if (!builtTenons(a).some((x) => x === t || (x.id === t.id && sameTenon(x, t)))) return false;
   if (!boreAlongAxis(b, row, partAxis(a))) return false;

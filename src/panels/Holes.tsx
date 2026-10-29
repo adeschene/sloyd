@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useStore, HOLE_TILT_PAST_BOUND } from '../store/store';
-import { isMetric } from '../units/length';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, displayNames, holeFaults, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
-import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
+import { useStore, HOLE_TILT_PAST_BOUND, HEAD_ON_TILT, headRefusal } from '../store/store';
+import { formatLength, isMetric } from '../units/length';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
+import type { Board, CutFrom, Dimension, HeadKind, HoleFault, HoleRow } from '../document/document';
 import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout } from '../document/holeText';
 import { leans, slopeOf } from '../document/lean';
 import { staleTenonOf } from '../document/tenonJoints';
@@ -46,6 +46,13 @@ function cleanTilt(r: HoleRow): HoleRow {
   const { tiltAlong, tiltAcross, ...rest } = r;
   return { ...rest, ...(tiltAlong ? { tiltAlong } : {}), ...(tiltAcross ? { tiltAcross } : {}) };
 }
+/** A head key is stored only when present (counterbores spec §3.1): `None` patches all four to undefined. */
+function cleanHead(r: HoleRow): HoleRow {
+  const out = { ...r };
+  for (const k of ['head', 'headDiameter', 'headDepth', 'headAngle'] as const) if (out[k] === undefined) delete out[k];
+  return out;
+}
+const HEAD_NONE = { head: undefined, headDiameter: undefined, headDepth: undefined, headAngle: undefined } as const;
 /** The end (or side) a stored slope leans toward: a positive slope leans to the far one from its flag. Null at 0. */
 const toward = (slope: number | undefined, from: CutFrom): CutFrom | null => (!slope ? null : slope > 0 ? flipEnd(from) : from);
 
@@ -78,9 +85,13 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
     // Angled holes §3.1 (ruling T2c, final review F2): an edit of the row's frame keeps the bit's board-local line (or
     // squares it for a new face); a typed tilt is written by its own field, never re-derived.
     if (FRAME_KEYS.some((k) => next[k] !== row[k])) next = retilt(row, next);
-    next = cleanTilt(next);
+    next = cleanHead(cleanTilt(next));
     // The store's ONE bound, judged first so a steep pair reads as the bound, not as whatever fault it would cause.
     if (!withinTiltBound(next.tiltAlong ?? 0, next.tiltAcross ?? 0)) return HOLE_TILT_PAST_BOUND;
+    // The store's head rules (counterbores spec §3.2), before the fault check: a head the loader would drop is never
+    // judged as a hole. A tilt typed on a headed row reads as TILT_ON_HEAD.
+    const headRefused = headRefusal(next, row.head !== undefined);
+    if (headRefused) return headRefused;
     // Ruling R5: a single hole becoming a row gets a real pitch in the SAME edit (Every is hidden at count 1, and a
     // stored pitch of 0 would stack hole 2 on hole 1); the fault check below judges the seeded row.
     if (row.count === 1 && next.count > 1 && next.pitch < next.diameter) next = { ...next, pitch: seedPitch(next.diameter) };
@@ -118,6 +129,21 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
     }
     remember(to);
   };
+  const tilted = isTilted(row);
+  const metric = isMetric(units);
+  /** The Head select: the first choice of a kind seeds its numbers (spec §4); switching kind keeps the head's width. */
+  const pickHead = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const kind = e.target.value as HeadKind | '';
+    if (kind === '') { set(HEAD_NONE); return; }
+    const headDiameter = row.headDiameter ?? 2 * row.diameter;
+    if (kind === 'counterbore') {
+      const headDepth = Math.min(row.diameter, (row.depth === 'through' ? board[row.face] : row.depth) / 2);
+      set({ head: kind, headDiameter, headDepth, headAngle: undefined });
+    } else {
+      set({ head: kind, headDiameter, headAngle: metric ? 90 : 82, headDepth: undefined });
+    }
+  };
+  const reach = headReach(row);
   return (
     <div className="cut">
       <div className="cut-head">
@@ -173,6 +199,29 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
             <option value="max">{`${cap(across)} max ${end(across)}`}</option>
           </select>
         </div>
+        <div className="field">
+          <label htmlFor={`hole-head-${row.id}`}>Head</label>
+          <select id={`hole-head-${row.id}`} className="input" value={row.head ?? ''} disabled={tilted && row.head === undefined} onChange={pickHead}>
+            <option value="">None</option>
+            <option value="counterbore">Counterbore</option>
+            <option value="countersink">Countersink</option>
+          </select>
+        </div>
+        {row.head !== undefined && (
+          <DimensionField label="Head dia" value={row.headDiameter ?? null} units={units} format={diameterText} onCommit={(headDiameter) => field({ headDiameter })} />
+        )}
+        {row.head === 'counterbore' && (
+          <DimensionField label="Head depth" value={row.headDepth ?? null} units={units} onCommit={(headDepth) => field({ headDepth })} />
+        )}
+        {row.head === 'countersink' && (
+          <div className="field">
+            <label htmlFor={`hole-angle-${row.id}`}>Angle</label>
+            <select id={`hole-angle-${row.id}`} className="input" value={row.headAngle ?? 82} onChange={(e) => set({ headAngle: Number(e.target.value) as 82 | 90 })}>
+              <option value={82}>82°</option>
+              <option value={90}>90°</option>
+            </select>
+          </div>
+        )}
         <AngleField label="Tilt toward end" value={Math.abs(deg.along)} max={45} min0 onCommit={typedTilt('tiltAlong', row.alongFrom, tiltEnd, setEndPick)} />
         <div className="field">
           <label htmlFor={`hole-tilt-end-${row.id}`}>Tilt end</label>
@@ -190,6 +239,8 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
           </select>
         </div>
       </div>
+      {tilted && row.head === undefined && <p className="field-note">{HEAD_ON_TILT}</p>}
+      {row.head === 'countersink' && reach !== null && <p className="field-note">{`Depth ${formatLength(reach, units)}`}</p>}
       {readout && <p className="field-note">{readout}</p>}
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
@@ -243,10 +294,21 @@ export function Holes({ board }: { board: Board }) {
   const metric = isMetric(units);
   const pinText = metric && pins ? holeLengthText(pins.diameter, units, 'diameter') : '¼"';
   const cupDeep = metric && cup && cup.depth !== 'through' ? holeLengthText(cup.depth, units, 'diameter') : '½"';
+  const screwDetail = (kind: 'sink' | 'bore', r: Omit<HoleRow, 'id'>) => {
+    const dia = holeLengthText(r.diameter, units, 'diameter');
+    const head = holeLengthText(r.headDiameter!, units, 'diameter');
+    if (kind === 'sink') return `${metric ? dia : '3/16"'} screw, ${metric ? head : '3/8"'} countersink at ${r.headAngle}°`;
+    const deep = holeLengthText(r.headDepth!, units, 'diameter');
+    return `${metric ? dia : '3/16"'} screw, ${metric ? head : '3/8"'} counterbore ${metric ? deep : '3/8"'} deep`;
+  };
+  const sunk = defaultCountersunkScrew(board, metric);
+  const bored = defaultCounterboredScrew(board, metric);
   const items = [
     ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => add([hole]) }] : []),
     ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `${pinText} pins every 32 mm along the ${pins.along}`, run: () => add([pins]) }] : []),
     ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => add([cup]) }] : []),
+    ...(fits(sunk) ? [{ label: 'Countersunk screw', detail: screwDetail('sink', sunk), run: () => add([sunk]) }] : []),
+    ...(fits(bored) ? [{ label: 'Counterbored screw', detail: screwDetail('bore', bored), run: () => add([bored]) }] : []),
   ];
   return (
     <>

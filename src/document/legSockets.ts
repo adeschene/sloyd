@@ -274,7 +274,7 @@ export function boreAlongAxis(holder: Board, row: HoleRow, axis: WorldAxis): boo
  *  axis IS the leg's axis (`boreAlongAxis`, spec §5). A blind bore along the same axis is not the socket. */
 export function isSocketOf(seat: Board, row: HoleRow, leg: Board): boolean {
   const ax = legAxis(leg);
-  if (!ax || row.count !== 1 || row.depth !== 'through') return false;
+  if (!ax || row.count !== 1 || row.depth !== 'through' || row.head !== undefined) return false;
   const entry = entryOf(seat);
   if (row.face !== entry.face || row.from !== entry.from) return false;
   return boreAlongAxis(seat, row, ax);

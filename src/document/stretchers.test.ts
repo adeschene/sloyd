@@ -893,6 +893,20 @@ describe('stretchers: Fit again, fix round 1 (review I1, I2, M-3, M-4, M-5)', ()
     refitsOwnSocket(doc);
   });
 
+  it('counterbores: a stale tenon never takes a HEADED row of its diameter as its socket; the headed row is left exactly as stored', () => {
+    const doc0 = staleWith((a, tip) => boreRow(a, 'thickness', 'min', [tip[0] - 0.4, tip[1], -0.75], [0, 0, 1], 0.25, 0.75));
+    // Post A's own socket now carries a counterbore (a hand edit); the rung is stale, so only the fallback could find it.
+    const a0 = part(doc0, 'Post A');
+    const socket = a0.holes[0]!;
+    const headed: HoleRow = { ...socket, head: 'counterbore', headDiameter: socket.diameter + 0.5, headDepth: 0.25 };
+    const doc = mapWorld(doc0, (w) => w.map((b) => (b.id === a0.id ? { ...b, holes: [headed, ...b.holes.slice(1)] } : b)));
+    const p = refitPlan(doc, rungsOf(doc)[0]!.id);
+    if (typeof p === 'string') return; // a refusal changes nothing: the head is not lost.
+    const next = applyRefit(doc, p);
+    const row = part(next, 'Post A').holes.find((r) => r.id === headed.id);
+    expect(row).toEqual(headed);
+  });
+
   it('I2: a stale tenon never takes a nearer THROUGH bore of its diameter as its socket', () => {
     const doc = staleWith((a, tip) => boreRow(a, 'thickness', 'min', [tip[0] - 0.4, tip[1], -0.75], [0, 0, 1], 5 / 8, 'through'));
     refitsOwnSocket(doc);

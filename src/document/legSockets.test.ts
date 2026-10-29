@@ -93,6 +93,19 @@ describe('legsUnder', () => {
   });
 });
 
+describe('isSocketOf and a head (counterbores §7)', () => {
+  it('a counterbore on a socket row makes it no longer the leg\'s socket', () => {
+    const doc0 = stoolDocument();
+    const doc = bore(doc0, seatOf(doc0).id);
+    const seat = seatOf(doc);
+    const leg = legsOf(doc)[0]!;
+    const row = seat.holes.find((r) => isSocketOf(seat, r, leg))!;
+    const headed = { ...row, head: 'counterbore' as const, headDiameter: row.diameter * 1.5, headDepth: 0.25 };
+    expect(isSocketOf(seat, headed, leg)).toBe(false);
+    expect(isSocketOf(seat, { ...headed, head: undefined, headDiameter: undefined, headDepth: undefined }, leg)).toBe(true);
+  });
+});
+
 describe('socketRow / socketPlan', () => {
   it("each socket's world axis is its leg's axis; the bore's resultant and sightline are the leg's", () => {
     const doc0 = stoolDocument();

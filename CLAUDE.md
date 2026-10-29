@@ -39,6 +39,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   fewest wins, fu 564; glue-ups fu 268 before it; deployed 2026-10-29; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `c0d3b30` (`index-DQJDNnyg.js`, schema 28): it refuses every project saved at 29 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **IN PROGRESS (not deployed): counterbores and countersinks** (branch `counterbores`, SCHEMA 30, fu 330 chunk 1; records done, browser check owed). A deploy makes `4420042` (`index-CUJBW7-r.js`, schema 29) the nearest refusing boundary: it refuses every project saved at 30 — export first.
 - **NEXT (2026-10-29):** glue-ups (fu 268) and their cap (fu 564) are deployed. Owed to the user: the list below. Next: the user picks from `docs/feature-gaps.md`'s residue.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -63,7 +64,7 @@ rather than assumed. On the DEV server, test projects a check creates are LEFT i
 without asking (the user's ruling, 2026-10-22); ask before an 11th. The key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than the file's version (29)
+**Rollback cost is a schema question.** A build understanding less than the file's version (29 in production; 30 on branch `counterbores`)
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -112,7 +113,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **29** (saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **30** (counterbores: a hole row's `head`; 29, saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -144,7 +145,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | shapes / links | `shapes.ts`, `links.ts`, `linksToShapes.ts` (inv 45) |
 | rectangular cuts | `cuts.ts` (inv 40) |
 | angle cuts | `angleCuts.ts`; AI `angleWorld.ts` / `taperWorld.ts` (inv 48, 59) |
-| holes | `holes.ts`, `holeFaults.ts`, tilt `holeTilt.ts`, `holeRebase.ts`, `legSockets.ts`, stretchers `stretchers.ts`; AI `holeWorld.ts` (inv 50, 60) |
+| holes | `holes.ts` (heads: `headReach`, `headProblem`, `holePieces`), `holeFaults.ts`, tilt `holeTilt.ts`, `holeRebase.ts`, `legSockets.ts`, stretchers `stretchers.ts`; AI `holeWorld.ts` (inv 50, 60) |
 | curves | `curves.ts`, `curveDrawing.ts` (inv 53) |
 | edge profiles | `profiles.ts`, `profilePath.ts`, `sweep.ts` and kin; AI `profileWorld.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
@@ -341,7 +342,7 @@ changes.
     every field but `id`, exact. Do not replace a table with a list in a function body or add an exclusion without
     a written reason. The cut list groups by them as a multiset, ids ignored; `sameShared` compares
     in order, ids included. `cutsThatRemoveStock` decides which cuts are compared; the resulting
-    row split on exact dimensions is correct — do not round.
+    row split on exact dimensions is correct — do not round. `HOLE_FIELDS` includes the head's four keys (schema 30), each present key appended by name.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** Problems compare by `kind` + `parts`, never message text. Every
     refusal is decided before ANY mutation, and every `resize` is pre-checked by
@@ -426,6 +427,12 @@ changes.
     (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (what is memoised where: `docs/invariants.md`). Perf
     guards are the MINIMUM of 9, lowered only, never raised.
     Within-part path chaining on paper is intended — do not undo it.
+    **A row may carry a HEAD, a counterbore or countersink at its mouth (schema 30):** four flat optional scalars (`head`, `headDiameter`,
+    `headDepth`, `headAngle` 82|90), a headless row stores none and is byte for byte as before; `headReach` is the ONE countersink depth,
+    `headProblem` the ONE legality decider (loader DROPS the row, store refuses). **A head and a tilt are refused TOGETHER.** A headed bore
+    is two coaxial convex PIECES (`holePieces`; `holeEnvelope` the conservative form); **faults are judged PER PIECE, exact for a counterbore,
+    CONSERVATIVE for a countersink (its mouth cylinder), never under-reported**; mesh watertight; Level the ends keeps the head's depth from
+    the mouth; a headed bore is never a socket and seats no tenon (inv 58). Full text: `docs/invariants.md`.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
     rebuild). **Caps come only from `sectionCaps`** (board-local; bores subtracted). **Picking and snapping read only `keptBySection`**,
@@ -459,7 +466,10 @@ changes.
 56. **Refine keeps a featured part's posture and rotation by ONE decision, `keptFrame` (the prohibition below).** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` and before `linkByRole`. A resize keeps features at their stored stations (faults KEPT, noted); the turn rules: the full text. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
     A LEANING part, one with a TILTED hole row, a round tenon, a compound end cut, a BOX JOINT or a DOVETAIL is KEPT exactly (`keepsExactly`,
     `keptParts`; corner joints through `cornerJointed`); one in an assembly refuses Refine (a box-jointed or dovetailed one's ASSEMBLY
-    is kept whole instead), as does a joined Refine (unless only box joints and/or dovetails are kept; invs 57–59, 61, 62).
+    is kept whole instead), as does a joined Refine (unless only box joints, dovetails and/or headed parts are kept; invs 57–59, 61, 62).
+    **A part with a HEADED hole row (schema 30) is kept exactly and its ASSEMBLY whole, the box-joint route, not the tilt route** (the user's
+    ruling 2026-10-29): `keptWhole` = `cornerJointed || hasHeads`, read ONLY at Refine's keep sites (`keepsExactly`, `keptParts`, `guardedKept`,
+    the kept-list words), never joining `cornerJointed` itself; no head reaches the model (fu 571).
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (schema 22). `Board.lean` (SHARED) stores turn-0 SLOPES, only when non-zero,
     only on an UPRIGHT part. **A lean-free document is byte for byte as before.** `position` stays the
@@ -473,7 +483,7 @@ changes.
     `Board.tenons?` (at most one per end; a typed tenon never changes `length`). **A tenon-free part has NO `tenons` key — never `[]`, never
     `undefined` — and is byte for byte as before.** **`tenonFaults` is the ONE fault decider** (CONSERVATIVE): an add refuses any
     fault, an edit only an ADDED one, a later one is KEPT and noted; **a faulted tenon builds nothing** (`builtTenons`). A tenoned end is square or carries ONE end miter, the tip. **The joint**
-    is `tenonJoints.ts` `seatedIn` (every condition: `docs/invariants.md`). **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
+    is `tenonJoints.ts` `seatedIn` (every condition: `docs/invariants.md`; a HEADED bore seats nothing, schema 30). **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
 
 59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (`leanTwist` its τ). A first
     lean is square-set; a Set change on a holed part is refused when τ ≠ 0. **A two-slope square-set leg's level ends are COMPOUND
@@ -498,7 +508,7 @@ changes.
     whole**; **finger sets are claimed BEFORE the gate** (`fingerClaim.ts`), **Repair claims them too**, and a joined Refine fixes
     every NEW site touching a kept part as BUTT (a RECORDED joint stays as recorded) and **(c)** returns the design UNJOINED when the
     re-join would change a kept part. **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a
-    kept part butt, and do not drop the (c) guard.** The cut list prints one line per set, never a tenon or notch lines (`setupLines` claims first). The corner planner
+    kept part butt, and do not drop the (c) guard.** (Headed parts widen the joined-Refine allowance under these same guards; `headJoinChanged` is their (c) sentence.) The cut list prints one line per set, never a tenon or notch lines (`setupLines` claims first). The corner planner
     is `cornerPlan.ts`; every keep/leave-alone site reads `cornerJointed`; the claim sites stay finger-only. Full text: `docs/invariants.md`. Follow-ups 484–496.
 
 62. **A dovetail is a STORED parametric feature of a part's end (schema 26; `lap` 27); `dovetails.ts` is the ONE fault decider (`dovetailFaults`),
@@ -540,7 +550,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10202 tests across 295 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10322 tests across 296 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -556,8 +566,8 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 30; ask first), 557–563.
-- **Owed to the user, not code:** by eye — 142, 272 (a phone),
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 31 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts).
+- **Owed to the user, not code:** by eye — counterbores (the Head select's place, the Plans sheet's rims, the RefineDialog kept-why; `docs/rounds.md` once deployed), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
@@ -571,7 +581,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

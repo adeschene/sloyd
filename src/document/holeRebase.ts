@@ -1,5 +1,6 @@
 import type { Board, CutFrom, Dimension, HoleRow } from './types';
 import { acrossOf, isTilted } from './holeTilt';
+import { headProblem } from './holes';
 
 /**
  * Hole rows re-anchored when a part's end moves (joinery-holes spec §4.1; angled holes spec §7). Here, in `document`,
@@ -61,7 +62,8 @@ export function levelEndHoles(rows: HoleRow[], eF: number, eT: number, _board: B
 }
 
 /** Whether the loader would keep a row's re-anchored numbers (`validateHoleRows`: station and inset ≥ 0, a blind depth
- *  > 0). A row failing it was cut away by the new end; storing it would drop it silently on the next load. */
+ *  > 0, and a legal head: a deepened-then-shortened blind row must still clear its head). A row failing it was cut away by the new end; storing it would drop it silently on the next load. */
 export function storableRow(r: HoleRow): boolean {
-  return r.station >= 0 && r.inset >= 0 && (r.depth === 'through' || r.depth > 0);
+  return r.station >= 0 && r.inset >= 0 && (r.depth === 'through' || r.depth > 0)
+    && headProblem(r) === null;
 }

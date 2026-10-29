@@ -62,9 +62,10 @@ export interface DiagramCut {
  * through bore's exit) is an ellipse (angled holes spec §8), and only then carries `rx`, `ry` and `rot`: `rx = r` across
  * the tilt, `ry = r / cos θ` along it, and `rot` the degrees SVG's `rotate()` turns the ellipse's rx axis by from +h
  * toward +v, in (−90, 90] — so the ry axis lies along the bit's lateral travel, at the sightline. A square hole's entry
- * has none of them (diagramIdentity).
+ * has none of them (diagramIdentity). A HEADED row's entry circle also carries `headR`, the counterbore's or countersink's
+ * radius, concentric with `r` (counterbores spec §8); the exit circle never does, and a headless hole has no such key.
  */
-export interface DiagramHole { row: string; index: number; h: number; v: number; r: number; rx?: number; ry?: number; rot?: number }
+export interface DiagramHole { row: string; index: number; h: number; v: number; r: number; rx?: number; ry?: number; rot?: number; headR?: number }
 /** A hole seen across its axis: the box of its depth, drawn dashed (the two walls and, when blind, the bottom). */
 export interface DiagramHoleSide {
   row: string; index: number; h: Span; v: Span;
@@ -79,6 +80,14 @@ export interface DiagramHoleSide {
    * disc's projected diameter (square to the bit), the bottom drawn between them. `h` and `v` are then the band's box.
    */
   quad?: [[number, number], [number, number], [number, number], [number, number]];
+  /**
+   * A HEADED hole only (counterbores spec §8): the head's box in (h, v), `h` and `v` the bore's as before. Axially it runs
+   * from the mouth over the head's reach (clamped to the hole's depth), laterally ±R. The side drawing is stepped, or for
+   * `cone` a trapezoid from the head box's mouth corners to the bore's at the end of the reach. `mouth` is the side of the
+   * hole's box the head opens on (from `dir`, never inferred from the spans: a head that outruns a through bore spans it all).
+   * Absent for a headless hole.
+   */
+  head?: { h: Span; v: Span; cone: boolean; mouth: 'hmin' | 'hmax' | 'vmin' | 'vmax' };
 }
 
 /** A tilted bore's entry or exit ellipse (DiagramHole's doc): the view draws `hi` horizontal, `vi` vertical. */
@@ -477,7 +486,7 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
         // The exit ellipse sits `reach` along the bit: T·tan θ along the tilt (angled holes spec §8).
         const k = view === exit ? h.reach : 0;
         view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]! + k * h.bit[hi]!, v: h.centre[vi]! + k * h.bit[vi]!, r: h.radius, ...tiltedEllipse(h, hi, vi) });
-      } else view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]!, v: h.centre[vi]!, r: h.radius });
+      } else view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]!, v: h.centre[vi]!, r: h.radius, ...(h.head && view === entry ? { headR: h.head.radius } : {}) });
       mark(view, r);
     }
   }
@@ -503,7 +512,20 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
         mark(view, r);
         continue;
       }
-      view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt });
+      let head: DiagramHoleSide['head'];
+      if (h.head) {
+        // The head's box: the mouth over min(reach, depth) axially (a faulted head can outrun a through bore), ±R across.
+        const e = s0 + h.dir * Math.min(h.head.reach, h.depth);
+        const headAxial: Span = [Math.min(s0, e), Math.max(s0, e)];
+        const headSpan = (d: Dimension): Span => {
+          if (d === r.face) return headAxial;
+          const i = DIMENSION_ORDER.indexOf(d);
+          return [h.centre[i]! - h.head!.radius, h.centre[i]! + h.head!.radius];
+        };
+        const mouth = axisIsH ? (h.dir > 0 ? 'hmin' : 'hmax') : (h.dir > 0 ? 'vmin' : 'vmax');
+        head = { h: headSpan(view.horizontal), v: headSpan(view.vertical), cone: h.head.kind === 'countersink', mouth };
+      }
+      view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt, ...(head ? { head } : {}) });
       mark(view, r);
     }
   }

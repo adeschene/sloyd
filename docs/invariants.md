@@ -322,6 +322,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     single-slope cut's values — the cut list's row key, `geometryKey`, the UV signature, `groupSignature` — are byte for byte as
     before; `sameAngleCut` tells cuts apart by `rise`, by `from` and by whether `across` is present. `sortAngleCuts` compares up to
     the shorter values list, then sorts the shorter first, so it stays antisymmetric once lists can differ in length.
+    Hole rows' `HOLE_FIELDS` also lists the head (counterbores, schema 30): `head`, `headDiameter`, `headDepth`, `headAngle`, all exact;
+    `holeRowValues` appends each PRESENT head key's NAME then its value in `HOLE_KEYS` order, so a headless row's values are unchanged
+    and a counterbore never equals a countersink of the same numbers (the cut list never groups a headed row with a headless one).
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -833,6 +836,31 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     UP to `tenonStep`) both call it, so they cannot drift; Bore leg sockets' rows are unchanged (a pinned literal test).
     `faceCrossing` is the ONE line-meets-a-face test (`rungSocketRow` and stretchers' entry-face pre-check). `rungSocketRow`
     THROWS for a line that misses the face or a tip short of the mouth: its caller refuses first (ruling T1a).
+    **A row may carry a HEAD: a counterbore or a countersink at its mouth (counterbores, schema 30; spec `2026-10-29-sloyd-counterbores-design.md`
+    and its *Amended (build)* block).** Four flat optional scalars on `HoleRow` (`head`, `headDiameter`, `headDepth` for a counterbore only,
+    `headAngle` 82 or 90 for a countersink only), present together or not at all; a headless row stores none and is byte for byte as before
+    (`holesSquare.snapshot.json`, `bodyMeshIdentity`, `drawingIdentity`, `diagramIdentity`, `holesPerf`). A countersink's depth is DERIVED, never
+    stored: `headReach` is its ONE home. **`headProblem` is the ONE legality decider** (`malformed`, `not-wider`, `too-deep`, `tilted`), shared
+    by the loader (which DROPS the row, the part kept — dropping the head alone would drill a plain bore) and the store (`headRefusal`, one
+    sentence each, before any mutation). **A head and a tilt are refused TOGETHER**, both ways (adding a head to a tilted row, tilting a headed
+    row; `retilt` never applies to a headed row); a pocket screw is fu 569. **A headed bore is the union of two coaxial convex PIECES**
+    (`holePieces`: the head, a cylinder of radius `R` or a frustum from `R` to `r` (`Hole.tip`), then the bore past it): the frozen `Hole`'s
+    pieces are frozen and memoised by its identity like every prism and ring, `boardBodies` stays hole-free and convex, every reader of the
+    whole headed hole's ring, prism or touches reads the pieces (the whole `Hole`'s own are bore-only by design). `holeEnvelope` is the pieces
+    with `tip` dropped (a countersink's frustum as its mouth cylinder): the CONSERVATIVE form the fault checks read. **Faults are judged PER
+    PIECE** (the head's radius over its own axial span, the bore's past it) and **may over-report, never under-report** (the unclipped clean mesh
+    path trusts `holeInStock`): a counterbore is exact; **a countersink is CONSERVATIVE** in `breaks-out` into a curve, `off-flat` and `meets-hole`
+    (judged as its mouth cylinder), exact against an edge (the mouth is the cone's widest ring). A through row's head reaching the far face is
+    `too-deep` (touching counts), with its own words; a blind row's head is strictly shallower than its depth by legality. A faulted head is KEPT
+    and noted after a resize, never clamped. The mesh is WATERTIGHT (`curvesWatertight.test.ts` holds headed cases), the countersink wall
+    takes the cone's true normals, a counterbore adds a flat annulus and a countersink one junction ring (`radiusAt` is exact at both ends,
+    so the cone's far ring IS the bore's mouth ring); section caps subtract the stepped profile; a counterbore adds its floor centre as a snap
+    point. Drawings and part diagrams show the head rim and the step or cone; on the exploded iso (`visibleOnly`) only a clean headed hole's
+    mouth rim is kept, as clean holes already omit walls and bottoms there (Task 6 ruling; fu 570). The bench line is `holeHeadText` (the
+    ONE home of the head's words; metric prints whole mm, `9 mm`), the faults' words stay in `holeFaultText`. **Level the ends keeps the
+    head's depth from the mouth** (`storableRow` checks the head after the change). **A headed row is never a socket** (`isSocketOf`,
+    `staleSocketOf`) **and never seats a tenon** (inv 58). Generate's design schema is byte for byte unchanged and no head reaches the model
+    (inv 56).
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
     where `explode` is (initial state, `replaceDocument`).** A saved view STORES a copy of the section in `doc.views`; the live section stays view state. One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
@@ -1121,6 +1149,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     dovetails` only when one is kept; `keptAssemblyLinkRefusal` words its sentence by the holding definition's kind; the done view's
     kept line names each kept part's own reasons, `dovetails` among them (`RefineOutcome.leaning.why`, `keptWhy`; the copy review,
     2026-10-27, replaced the fixed list and its `dovetails` flag). A dovetail-free document's notes are byte for byte as before.
+    **A part with a headed hole row (counterbores, schema 30) is KEPT exactly, and its ASSEMBLY whole — the box-joint/dovetail route, NOT the
+    tilt route** (the user's ruling 2026-10-29): `keptWhole(b)` (`leanKeep.ts`) = `cornerJointed(b) || hasHeads(b)` is read ONLY at Refine's keep
+    sites (`keepsExactly`, `keptParts`' definitions filter, `run.ts`' `guardedKept`, the kept-list words `has counterbores or countersinks`);
+    it does NOT join `cornerJointed` itself, whose other readers (joinery leaving size and place alone, Repair's `changedDovetailed`, the
+    finger-set claim sites) keep their meaning, so joinery may still resize a headed part, its rows keeping their stations (faults kept, noted,
+    inv 50). A headed root part is put in first, verbatim; a headed part inside an assembly keeps that assembly whole instead of refusing Refine;
+    `turnCandidates` returns none for it (it asks `keepsExactly`). So no head reaches the model and none comes back plain. A model that cannot
+    author a head is fu 571.
 
 57. **A lean is placement, and `lean.ts` is its ONE home** (splayed legs chunk 1, schema 22; spec
     `2026-10-24-sloyd-splayed-legs-design.md` §3–§8 and its *Amended (build)* block). `Board.lean` (`{ x, z, face, square? }`, a SHARED
@@ -1331,6 +1367,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       (d) through those joints (each leg reaches the floor without it) — no clause, hint or reader is added for it (between
       leaning legs nothing is held "between", fu 438, and that stands). A stale rung (a lean edit after the Add) is reported as any unseated tenon is: an overlap with the
       mismatch hint.
+    **A headed bore seats nothing (counterbores, schema 30):** `seatedIn` requires a headless row and `isSocketOf`/`staleSocketOf` skip a headed
+    one — conservative, it can only report a part as unsupported, never grant support. Stretchers inherit both.
 
 59. **A lean may be SQUARE-SET, and a square-set leg's level ends are COMPOUND miters** (splayed legs chunk 2c, schema 25; spec
     `2026-10-25-sloyd-square-set-legs-design.md` and its *Amended (build)* block). A square-set leg is tilted onto its slopes and
@@ -1583,6 +1621,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       re-exported from `boxJointText.ts` under their old names), and box joints is one `JointKind` of it. Every KEEP and LEAVE-ALONE
       site above reads `cornerJointed` (a finger set OR a stored dovetail); the finger CLAIM sites stay finger-only, so the
       PROHIBITION above is unchanged. A dovetailed part refuses Box joint the corners with the plain-stock sentence (`dovetails`).
+    **Headed parts widen the joined-Refine allowance (counterbores, schema 30):** a joined Refine is allowed when only corner-jointed and/or
+    headed parts are kept, under the same guards: a NEW site touching a kept part is fixed as BUTT, a RECORDED joint stays as recorded, and
+    **(c)** the design comes back UNJOINED when the re-join would change a kept part, with `headJoinChanged` as the sentence when the kept part is
+    headed (the box-joint sentence would be false for it). **PROHIBITION: do not claim finger sets after the gate, do not force a recorded
+    joint into a kept part butt, and do not drop the (c) guard.** A plain part in a mixed assembly takes the assembly's first kind's sentence.
 
 62. **A dovetail is a STORED parametric feature of a part's end (schema 26; half-blind's `lap`, schema 27), and `dovetails.ts` is its ONE fault decider, ONE
     view-curve source and ONE planner; the ONE layout is `dovetailLayout` in the leaf `dovetailModel.ts`** (dovetails chunk 2,

@@ -1,6 +1,6 @@
 # Sloyd — counterbores and countersinks: design
 
-Status: APPROVED by the user 2026-10-29 ("Approved, write the plan"); builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
+Status: BUILT on branch `counterbores` 2026-10-29, NOT DEPLOYED (the *Amended (build)* block at the end awaits the user's approval). APPROVED by the user 2026-10-29 ("Approved, write the plan"); builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
 is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the tilt (schema 23) is
 `docs/superpowers/specs/2026-10-24-sloyd-angled-holes-design.md`, whose layout this follows.
 
@@ -291,3 +291,37 @@ bore), its own preset and bench line, and possibly hardware counted from it (fu 
 - Whether the head is fields on `Hole` or a derived piece (§6.1), within its constraints.
 - The closed forms of §6.3's exact rows and the shape of the conservative ones, within "never under-report".
 - How the stepped silhouettes and diagram bands are built, within byte identity for headless rows.
+
+## Amended (build)
+
+Recorded by the build (Task 10, 2026-10-29). **Not yet approved by the user.** Rulings are quoted from the SDD ledger; the differences are
+what the task reports name.
+
+**Rulings**
+1. **R1 (Task 6): the exploded isometric (`visibleOnly`) keeps only a clean headed hole's mouth rim.** Spec §8 says visibility comes from the
+   one hidden-line pass, but `visibleOnly` has no such pass and a clean headless hole already omits its walls and bottom there. Cost if wrong:
+   on the exploded iso a counterbore reads like a plain hole of radius R. Follow-up 570.
+2. **R2 (Task 8): the Head select sits after In from / Side (beside the tilt controls), not "below Through/Depth" as §4.1 says.** Kept for
+   now, to be judged by the user by eye in the browser check. Cost if wrong: a one-line JSX move.
+3. **R3 (Task 9): a new (c) sentence, `headJoinChanged`:** "Joinery would have changed <part>, which Refine keeps as it is for its
+   counterbores or countersinks, so the design comes back unjoined." The box-joint sentence would be false for a headed part. A plain part in
+   a mixed assembly takes the assembly's first kind's sentence. Cost if wrong: a copy tweak at the user's copy review.
+
+**Differences from the spec as written**
+- **Metric head text prints `9 mm`** (whole mm through `formatMm`), not `9.0 mm`: the plan's form was a guess. Spec §4.3's preset diameter
+  `9 mm` and `10 mm` read the same way.
+- **`tooDeep` for a blind headed row checks the whole row's depth** (a piece's depth is relative to its own start); a through row's head is the
+  head piece's reach (Task 3).
+- **A through counterbore with `headDepth` at or past the thickness is legal but faulted (`too-deep`)** and gives a bore piece of depth at or
+  below 0; the mesh and the snap floor handle it (Task 4, Task 5 review).
+- **The whole headed `Hole`'s own ring, prism and touches stay bore-only by design**; every reader uses `holePieces` or `holeEnvelope`
+  (Task 2; the final review confirms every reader moved).
+- **`radiusAt` is exact at both ends** by special case (the lerp is one ulp off for some inputs), so the cone's far ring and the bore's
+  mouth ring are the same points (Task 2).
+- **The loader passes any head key to `headProblem`**, so a head key without `head` is `malformed` and the row is dropped (Task 1).
+- **`CornerKind` is now a string**, `definitionKind` listing box joints, dovetails and `counterbores or countersinks` joined with `and`; the
+  three old outputs are byte for byte unchanged (Task 9).
+- **Switching a row's head kind keeps `headDiameter`** (Task 8).
+- **Not done, recorded:** the faulted headed perf case (fu 575), the oblique cone silhouettes (fu 574), the exploded-iso step rims (fu 570).
+- **By eye, owed to the user:** the Head select's place, the Plans sheet's coincident rims after the hidden-line pass, the RefineDialog's longer
+  kept-why string (Task 11, the browser check).

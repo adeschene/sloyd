@@ -22,10 +22,10 @@ const part = (doc: SloydDocument) => doc.boards[0] as Board;
 
 describe('schema 25: square-set leans and the across slope (square-set legs spec §3.4)', () => {
   it('CURRENT_VERSION is 28; a v24 file loads unchanged at 28 with no new keys', () => {
-    expect(CURRENT_VERSION).toBe(29);
+    expect(CURRENT_VERSION).toBe(30);
     const lean = { x: 0.1, z: 0.25, face: 'thickness' };
     const doc = at(24, { angleCuts: [MITER], lean });
-    expect(doc.version).toBe(29);
+    expect(doc.version).toBe(30);
     expect(part(doc).angleCuts).toStrictEqual([MITER]);
     expect(part(doc).lean).toStrictEqual(lean);
     expect('across' in part(doc).angleCuts[0]!).toBe(false);
@@ -99,8 +99,8 @@ describe('schema 25: square-set leans and the across slope (square-set legs spec
     expect(part(at(25, { lean: { x: 0, z: 0.2, face: 'width', square: true } })).lean).toStrictEqual({ x: 0, z: 0.2, face: 'thickness', square: true });
   });
 
-  it('a v30 file is refused', () => {
-    expect(() => at(30)).toThrow(DocumentError);
+  it('a v31 file is refused', () => {
+    expect(() => at(31)).toThrow(DocumentError);
   });
 });
 

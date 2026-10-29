@@ -69,7 +69,7 @@ gives the hardwood buyer nothing, but that buyer's purchase is not wrong today.
 **Option B — a stored glue-up on the part (a later round if wanted).** `Board.glueUp?: { strips: number }`, SHARED
 (inv 45), set in a Properties section, for any solid long-grain part whatever its buying mode. The cut list would then
 print a setup line (`Glue up from 4 strips, each …`), board-foot net would include the strip allowances, and Buying
-would pack the user's strips rather than deriving them. It costs schema 30. Its harm argument: a build at 29 rebuilds
+would pack the user's strips rather than deriving them. It costs schema 30 (2026-10-29: counterbores took 30, so this would now cost schema 31). Its harm argument: a build at 29 rebuilds
 each part through `validateBoard`, drops the unknown key, and the next autosave erases every glue-up silently. Rolling
 back past it would strand every project saved since.
 
@@ -221,7 +221,7 @@ as it was, with the part `too wide` again.
 
 ## 9. Follow-ups to record when the round ships
 
-- Option B, the stored glue-up (schema 30), if the user does not take it now.
+- Option B, the stored glue-up (schema 30; now 31, counterbores having taken 30, 2026-10-29), if the user does not take it now.
 - Typed glue allowances (a shop setting, or the document's `stock`).
 - Choosing N, or gluing in place of planing, by price.
 - Face lamination for a part too thick for every stock.

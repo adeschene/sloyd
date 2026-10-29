@@ -591,7 +591,7 @@ function usedRow(world: readonly Board[], rung: Board, t: RoundTenon, leg: Board
   // Another part's tenon seated in a row holds it: never taken for this tenon's (review M-3).
   const held = (r: HoleRow) => holderOf(world, leg, r, rung.id) !== undefined;
   const near = leg.holes
-    .filter((r) => r.count === 1 && r.depth !== 'through' && Math.abs(r.diameter - t.diameter) <= EPS && !held(r))
+    .filter((r) => r.count === 1 && r.depth !== 'through' && r.head === undefined && Math.abs(r.diameter - t.diameter) <= EPS && !held(r))
     .map((r) => ({ r, d: Math.hypot(...sub(boreEnds(leg, r)[1], tip)) }))
     .sort((p, q) => p.d - q.d);
   if (near.length === 0) return null;

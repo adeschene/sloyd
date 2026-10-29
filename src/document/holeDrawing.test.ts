@@ -204,3 +204,57 @@ describe('a tilted bore on the sheet (angled holes spec §8)', () => {
     expect(holeDrawingSegments(side([tilt()]), [-S20, C20, 0])).toHaveLength(2 * DRAWING_HOLE_SEGMENTS);
   });
 });
+
+describe('a headed hole on the sheet (counterbores spec §8)', () => {
+  // `pin` made deeper (1/2) with a 1/2" counterbore 1/4" deep, or a 90 degree countersink to 1/2" (reach 1/8).
+  const cbore: HoleRow = { ...pin, depth: 0.5, head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 };
+  const csink: HoleRow = { ...pin, depth: 0.5, head: 'countersink', headDiameter: 0.5, headAngle: 90 };
+  const radii = (segs: [number[], number[]][]) => [...new Set(segs.flatMap(([a, b]) => [a, b])
+    .map((p) => Math.hypot(p[0]! - 5, p[2]! - 2).toFixed(6)))].sort();
+  const ys = (segs: [number[], number[]][]) => [...new Set(segs.flatMap(([a, b]) => [a[1], b[1]]).map((y) => y!.toFixed(6)))].sort();
+  it('a counterbore down its axis: rims of radius R and r only, at the mouth, the step (twice) and the bottom', () => {
+    const segs = holeDrawingSegments(side([cbore]), [0, 1, 0]);
+    expect(radii(segs)).toEqual(['0.125000', '0.250000']);
+    expect(segs).toHaveLength(4 * DRAWING_HOLE_SEGMENTS);
+    expect(ys(segs)).toEqual(['0.250000', '0.500000', '0.750000']);   // the mouth 3/4, the step 1/2, the bottom 1/4
+  });
+  it('a counterbore from the side: R walls over the head, r walls past it', () => {
+    const segs = holeDrawingSegments(side([cbore]), [0, 0, 1]);
+    const walls = segs.filter(([a, b]) => Math.abs(a[1]! - b[1]!) > 1e-9);
+    expect(walls).toHaveLength(4);
+    const len = (w: [number[], number[]]) => Math.abs(w[0][1]! - w[1][1]!);
+    const at = (x: number) => walls.filter((w) => Math.abs(w[0][0]! - x) < 1e-9);
+    expect(at(5.25).concat(at(4.75)).map(len)).toEqual([0.25, 0.25]);   // R = 1/4 over the head's 1/4
+    expect(at(5.125).concat(at(4.875)).map(len)).toEqual([0.25, 0.25]);  // r = 1/8 over the remaining 1/4
+  });
+  it('a countersink from the side: two slanted silhouettes from +-R at the mouth to +-r at its reach', () => {
+    const segs = holeDrawingSegments(side([csink]), [0, 0, 1]);
+    const slants = segs.filter(([a, b]) => Math.abs(a[1]! - b[1]!) > 1e-9 && Math.abs(a[0]! - b[0]!) > 1e-9);
+    expect(slants).toHaveLength(2);
+    for (const [a, b] of slants) {
+      const [m, f] = a[1]! > b[1]! ? [a, b] : [b, a];
+      expect(m[1]).toBeCloseTo(0.75, 12);
+      expect(Math.abs(m[0]! - 5)).toBeCloseTo(0.25, 12);
+      expect(f[1]).toBeCloseTo(0.625, 12);
+      expect(Math.abs(f[0]! - 5)).toBeCloseTo(0.125, 12);
+    }
+  });
+  it('a countersink down its axis draws the mouth rim R and the bore\'s mouth r once (the cone adds no far rim)', () => {
+    const segs = holeDrawingSegments(side([csink]), [0, 1, 0]);
+    expect(radii(segs)).toEqual(['0.125000', '0.250000']);
+    expect(segs).toHaveLength(3 * DRAWING_HOLE_SEGMENTS);   // mouth, the cone's foot, the bottom
+  });
+  it('a visibleOnly sheet keeps only the mouth rim of a clean headed hole', () => {
+    expect(holeDrawingSegments(side([cbore]), ISO.toward, true)).toHaveLength(DRAWING_HOLE_SEGMENTS);
+    expect(holeDrawingSegments(side([csink]), ISO.toward, true)).toHaveLength(DRAWING_HOLE_SEGMENTS);
+  });
+  it('a through counterbore deeper than the part (faulted) skips the bore with no depth and does not throw', () => {
+    const deep: HoleRow = { ...pin, depth: 'through', head: 'counterbore', headDiameter: 0.5, headDepth: 3 };
+    const b = createBoard({ id: 'd', length: 30, width: 11.25, thickness: 0.75, holes: [deep] });
+    expect(b.holes).toHaveLength(1);
+    for (const v of [[0, 0, 1], [0, 1, 0], ISO.toward]) expect(holeDrawingSegments(b, v).length).toBeGreaterThan(0);
+  });
+  it('a headless row draws the same lines as before (one cylinder piece)', () => {
+    expect(holeDrawingSegments(side([pin]), ISO.toward)).toHaveLength(2 * DRAWING_HOLE_SEGMENTS + 2);
+  });
+});

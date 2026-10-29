@@ -181,6 +181,44 @@ describe('sectionCaps: holes', () => {
   });
 });
 
+describe('sectionCaps: headed bores (counterbores spec §6.2)', () => {
+  const row = (over: Record<string, unknown>) => ({ id: 'c1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25,
+    depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const, station: 6, count: 1, pitch: 0,
+    acrossFrom: 'min' as const, inset: 3, ...over });
+  const T = 0.75, R = 0.375, r = 0.125;
+  const stock = 20 * T;
+  const removed = (over: Record<string, unknown>) => {
+    const part = createBoard({ id: 'h', length: 20, width: 6, thickness: T, position: [0, 0, 0], holes: [row(over) as HoleRow] });
+    return stock - totalArea(sectionCaps(part, { axis: 'front', at: 3, flip: false })!.pieces as P3[][]);
+  };
+  it('a section through a counterbore\'s head is cut at R, below it at r', () => {
+    const want = 2 * R * 0.25 + 2 * r * (T - 0.25);
+    expect(Math.abs(removed({ head: 'counterbore', headDiameter: 0.75, headDepth: 0.25 }) / want - 1)).toBeLessThan(0.01);
+  });
+  it('a countersink\'s cap follows the cone', () => {
+    const reach = 0.25;   // (0.75 - 0.25) / 2 / tan 45 deg
+    const want = (R + r) * reach + 2 * r * (T - reach);
+    expect(Math.abs(removed({ head: 'countersink', headDiameter: 0.75, headAngle: 90 }) / want - 1)).toBeLessThan(0.01);
+  });
+  it('a blind counterbore is cut too, and a plane beside it leaves the cap whole', () => {
+    const part = createBoard({ id: 'h', length: 20, width: 6, thickness: T, position: [0, 0, 0],
+      holes: [row({ depth: 0.5, head: 'counterbore', headDiameter: 0.75, headDepth: 0.25 }) as HoleRow] });
+    const cut = totalArea(sectionCaps(part, { axis: 'front', at: 3, flip: false })!.pieces as P3[][]);
+    expect(Math.abs((stock - cut) / (2 * R * 0.25 + 2 * r * 0.25) - 1)).toBeLessThan(0.01);
+    expect(totalArea(sectionCaps(part, { axis: 'front', at: 3.5, flip: false })!.pieces as P3[][])).toBeCloseTo(stock, 9);
+  });
+  it('a top plane inside the head is a ring of radius R, below it r', () => {
+    const part = createBoard({ id: 'h', length: 20, width: 6, thickness: T, position: [0, 0, 0],
+      holes: [row({ head: 'counterbore', headDiameter: 0.75, headDepth: 0.25 }) as HoleRow] });
+    const gon = (48 / 2) * Math.sin((2 * Math.PI) / 48);
+    expect(totalArea(sectionCaps(part, { axis: 'top', at: 0.6, flip: false })!.pieces as P3[][])).toBeCloseTo(120 - gon * R * R, 6);
+    expect(totalArea(sectionCaps(part, { axis: 'top', at: 0.3, flip: false })!.pieces as P3[][])).toBeCloseTo(120 - gon * r * r, 6);
+  });
+  it('a through counterbore deeper than the part is still capped (its dead bore piece is skipped)', () => {
+    expect(Math.abs(removed({ head: 'counterbore', headDiameter: 0.75, headDepth: 1 }) / (2 * R * T) - 1)).toBeLessThan(0.01);
+  });
+});
+
 describe('sectionCaps: plane on a seam between cells is capped (spec amendment)', () => {
   // A dado across the width, 0.75 wide at x 10 … 10.75, 0.25 deep from the top, on a drilled part (so bodyMesh
   // subtracts seam faces). A plane exactly on the dado's shoulder must still read solid.

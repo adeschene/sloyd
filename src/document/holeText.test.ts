@@ -2,7 +2,7 @@ import { IMPERIAL } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard, defaultProfile } from './document';
 import type { ProfileKind } from './document';
-import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeLengthText, holeLine } from './holeText';
+import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeHeadText, holeLengthText, holeLine } from './holeText';
 import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
 import { ARCH } from './curveFixtures';
@@ -47,6 +47,12 @@ describe('holeLine (spec §4.1, as amended)', () => {
     expect(holeFaultText({ index: 2, kind: 'meets-hole', other: { row: 'h1', index: 1 } }, pins)).toBe('hole 3 meets hole 2');
     expect(holeFaultText({ index: 0, kind: 'meets-hole', other: { row: 'zz', index: 0 } }, pins)).toBe('hole 1 meets a hole of another row');
     expect(holeFaultText({ index: 0, kind: 'too-deep' }, pins)).toBe('the holes are deeper than the thickness');
+  });
+  it('too-deep on a through headed row reads the head\'s words; a blind one keeps the old words', () => {
+    const through: HoleRow = { ...pins, depth: 'through', head: 'counterbore', headDiameter: 0.5, headDepth: 0.75 };
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, through)).toBe('the counterbore runs through the thickness');
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, { ...through, head: 'countersink', headAngle: 90 })).toBe('the countersink runs through the thickness');
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, { ...pins, head: 'counterbore', headDiameter: 0.5, headDepth: 0.1 })).toBe('the holes are deeper than the thickness');
   });
   it('an exact-1/64 whole-mm value does not print its mm (5" is 127 mm)', () => {
     expect(holeLine(side, { ...pins, pitch: 5, count: 2 }, IMPERIAL)).toContain('every 5", last at 7"');
@@ -141,5 +147,30 @@ describe('a tilted row\'s bench line (angled holes, Task 8)', () => {
   });
   it('a zero or absent tilt leaves the line untouched', () => {
     expect(holeLine(side, { ...cup, tiltAlong: 0 }, IMPERIAL)).toBe(holeLine(side, cup, IMPERIAL));
+  });
+});
+
+describe('the head on the bench line (counterbores, Task 7)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  const bore: HoleRow = { ...cup, diameter: 3 / 16, depth: 'through' };
+  const cb: HoleRow = { ...bore, head: 'counterbore', headDiameter: 0.375, headDepth: 0.375 };
+  const cs: HoleRow = { ...bore, head: 'countersink', headDiameter: 0.375, headAngle: 82 };
+  const tail = 'in the thickness face (max side), 3" from the length min end, 7/8" in from the width min side';
+  it('a counterbore', () => {
+    expect(holeLine(side, cb, IMPERIAL)).toBe(`Hole 3/16" dia × through, 3/8" counterbore × 3/8" deep ${tail}`);
+  });
+  it('a countersink', () => {
+    expect(holeLine(side, cs, IMPERIAL)).toBe(`Hole 3/16" dia × through, 3/8" countersink at 82° ${tail}`);
+  });
+  it('a whole-mm head diameter prints its mm aside in imperial', () => {
+    expect(holeHeadText({ ...cs, headDiameter: 35 / 25.4 }, IMPERIAL)).toBe('1-3/8" (35 mm) countersink at 82°');
+  });
+  it('metric', () => {
+    const m: HoleRow = { ...cs, diameter: 4.5 / 25.4, headDiameter: 9 / 25.4, headAngle: 90 };
+    expect(holeLine(side, m, MM)).toContain('Hole 4.5 mm dia × through, 9 mm countersink at 90° in ');
+  });
+  it('a headless row is unchanged and has no head text', () => {
+    expect(holeHeadText(bore, IMPERIAL)).toBeNull();
+    expect(holeLine(side, bore, IMPERIAL)).toBe(`Hole 3/16" dia × through ${tail}`);
   });
 });

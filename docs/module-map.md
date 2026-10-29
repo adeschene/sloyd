@@ -172,6 +172,8 @@ src/
 │   ├── leanContacts.ts   the checks' lean crossing (inv 38, 39, 57): worldBodyFaces (moved here from designCheck.ts, re-exported
 │   │                     there; the lean composed), levelFaces (±Y within LEVEL_EPS 1e-9), overlapArea (plan polygons)
 │   ├── leanKeep.ts       Refine's keep (inv 56, 57): keepsExactly (THE predicate: leans, a tilted hole row — angled holes §9 —, a
+│   │                     hasHeads / keptWhole (cornerJointed || hasHeads; read ONLY at Refine's keep sites: keepsExactly, keptParts' definitions filter,
+│   │                     run.ts' guardedKept; inv 56), CornerKind is a string (definitionKind lists box joints, dovetails, counterbores or countersinks), headJoinChanged
 │   │                     round tenon, hasTenons, faulted included — round tenons §9 — or a compound end cut, hasCompoundCut — inv 59),
 │   │                     whyKept (the note's reason words; `has a compound end cut` only when nothing else applies, a cleared leg),
 │   │                     keptWhy (the done view's per-name reasons, nouns — `leaning`, `round tenon`, `dovetails`, a placement's kind —
@@ -255,6 +257,10 @@ src/
 │   │                     designCheck.ts (which re-exports both, so every old import site stays valid) imports tenonJoints, so taking them
 │   │                     from designCheck would cycle (designCheck → tenonJoints → legSockets → designCheck; ruling T7d)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
+│   │                     HEAD (counterbores, schema 30, inv 50): HeadKind, HEAD_ANGLES, hasHead, headReach (THE countersink depth formula), headProblem (THE
+│   │                     legality decider: malformed / not-wider / too-deep / tilted; loader and store), Hole.head and .tip, holePieces (the head and the bore, frozen
+│   │                     and memoised by the Hole), holeEnvelope (pieces with tip dropped: the conservative form the faults read), radiusAt (exact at both ends),
+│   │                     frustumPrismOf; the whole headed Hole's ring / prism / touches stay bore-only, readers use the pieces
 │   │                     then value, Ruling P1), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44; the tilt rides the flags),
 │   │                     Hole's `bit` and `reach` (axial), tiltedHole (THE gate of every tilted branch), holeRegion (a bore's box,
 │   │                     exact for a tilted one), holeBottom,
@@ -268,10 +274,13 @@ src/
 │   ├── holeDesignFaults.ts holeDesignFaults: a strict fault in a model-authored row → 'hole-fault' violations (message names the row's first centre; `shown`
 │   │                     copy through holeText, so this module takes the → units edge, not holeWorld)
 │   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep, too-shallow; a tilted bore exact or
+│   │                     Headed rows (inv 50): faults judged per piece over holeEnvelope; a through row's head reaching the far face is too-deep;
+│   │                     a countersink is CONSERVATIVE (its mouth cylinder) except against an edge
 │   │                     CONSERVATIVE, never under — the unclipped mesh trusts it), tooShallow, stockChecks, holeInStock (clean);
 │   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`); a round
 │   │                     tenon's square-span view curves are skipped (its own meets-feature judges a hole in its zone)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
+│   │                     holeHeadText (THE head words in the bench line; metric whole mm), holeSizeText carries it; headless lines byte for byte
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep and too-shallow once), endWord/edgeName (→ units);
 │   │                     a tilted row's words (the angle off square and sightline, or the end/side a one-plane tilt leans toward;
 │   │                     a blind one's `, depth measured along the bit`); socketFaultWords (a fault as what a socket would do);
@@ -282,6 +291,7 @@ src/
 │   │                     (THE shoulder number, bench line and Properties readout), TENON_END_TAKEN / TENON_END_FIXED /
 │   │                     TENON_SIZE_POSITIVE (the store's non-fault refusals, ruling T8b), tenonStale, legTenonFaulted
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
+│   │                     Headed rows: the head rim (R) and the step or cone-to-bore rim (r), stepped or tapered side silhouettes via holePieces; visibleOnly keeps a clean headed hole's mouth rim only (fu 570)
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden;
 │   │                     a tilted bore (tiltedLines): mouth and exit rims on the face planes, a blind bottom square to the bit, silhouettes along the bit
@@ -429,6 +439,7 @@ src/
 │   │                     tails dovetail carries `benches` (dovetailBenches; the key absent otherwise)
 │   ├── depthField.ts     buildDepthField (inv 20)
 │   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
+│   │                     DiagramHole.headR / DiagramHoleSide.head: a concentric head circle and a stepped or tapered side band (headless diagrams unchanged)
 │   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
 │   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3);
 │   │                     per view `curves` (waste polygons, hatched), `curveLines` (sharp-vertex lines, only on a face
@@ -481,6 +492,7 @@ src/
 │                         glue-ups (fu 268): gluePlan (N equal strips, GLUE_WIDTH_/GLUE_LENGTH_ALLOWANCE; the thickness needing the fewest, ≤ GLUE_MAX_STRIPS, fu 564) ONLY where a part's
 │                         reason is `too wide` and it is not an edging strip; glueStripPart (the `#glue:` id → its part)
 │   ├── snapPoints.ts     board/cut/guide snap points (and sameSnapPoint, here because the store needs it), towardFor, offsetPoint (inv 26); toWorld (then the lean) and its
+│   │                     a counterbore adds its floor centre (inv 50)
 │   │                     inverse fromWorld (exact for an unleaned part; ~1e-15 through a lean); a leaning part's lattice is built and stockProbe-filtered pre-lean, then mapped;
 │   │                     hole centres ('face-center', entry
 │   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception); b2: each swept stop offers its
@@ -552,6 +564,7 @@ src/
 │   │                     sectionTitle (→ units; from the piece's own min), cuttingLine (null off the piece), hatchPatterns (touching
 │   │                     caps differ; boxes first)
 │   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
+│   │                     caps subtract a headed bore's stepped profile (head radius within its span, bore past it)
 │   │                     sectionCaps (board-local caps minus bores, a per-part local cache; a leaning part's caps clipped in the
 │   │                     pivot frame, its bores subtracted board-local first, and returned in leaned WORLD coordinates,
 │   │                     buildLeaningPieces, inv 51; a tilted bore the plane meets skips fu 348's rings fast outline), unionOutline
@@ -576,6 +589,7 @@ src/
 │                         holesSquare.snapshot.json holds — captured from the code BEFORE the tilt, so square holes stay byte for byte)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points, setKerf (refuses a kerf outside [0, 1):
+│   │                     headRefusal (the head's legality and added-fault sentences, one each, before any mutation), the Head select's edits, the two screw presets
 │   │                     the loader DEFAULTS one there, so storing it would be silently replaced, fu 98),
 │   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46); mirrorLinkedPart (the
 │   │                     Mirrored checkbox: flag + turn inverseTurn(2a + r), world X, inv 46); linkBoards' part-level flags;

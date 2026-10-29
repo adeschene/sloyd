@@ -31,7 +31,7 @@ import { addedTenonFaults, copyTenon, sameTenon, tenonAt, tenonFaults, tenonsOf,
 import { copyDovetail } from '../document/dovetailModel';
 import { TENON_END_FIXED, TENON_END_TAKEN, TENON_SIZE_POSITIVE, tenonFaultText } from '../document/tenonText';
 import type { HardwareTarget } from '../document/hardware';
-import { boardHoles, copyHoleRow, holeTouchesBox, sameHoleRow } from '../document/holes';
+import { boardHoles, copyHoleRow, headProblem, holeTouchesBox, sameHoleRow } from '../document/holes';
 import { withinTiltBound } from '../document/holeTilt';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -49,6 +49,33 @@ function storedTilt(r: HoleRow): HoleRow {
   if (keeps('tiltAlong') && keeps('tiltAcross')) return r;
   const { tiltAlong, tiltAcross, ...rest } = r;
   return { ...rest, ...(tiltAlong ? { tiltAlong } : {}), ...(tiltAcross ? { tiltAcross } : {}) };
+}
+
+/** The stored form of a row's head (counterbores spec §3.1): the four keys are present together or not at all, so an
+ *  explicit `undefined` key is removed (`storedTilt`'s twin). */
+function storedHead(r: HoleRow): HoleRow {
+  const keys = ['head', 'headDiameter', 'headDepth', 'headAngle'] as const;
+  if (!keys.some((k) => k in r && r[k] === undefined)) return r;
+  const out = { ...r };
+  for (const k of keys) if (k in out && out[k] === undefined) delete out[k];
+  return out;
+}
+/** addHoleRows' and updateHoleRow's head refusals (counterbores spec §3.2), verbatim; the loader drops the same rows. */
+export const HEAD_NOT_WIDER = 'The counterbore or countersink must be wider than the hole.';
+export const HEAD_TOO_DEEP = 'The counterbore or countersink must be shallower than the hole.';
+export const HEAD_ON_TILT = "A tilted hole can't take a counterbore or countersink yet.";
+export const TILT_ON_HEAD = 'Remove the counterbore or countersink before tilting the hole.';
+export const HEAD_MALFORMED = "That counterbore or countersink isn't valid.";
+/** The sentence for a row's head problem (`headProblem`, the loader's own decider), or null. `hadHead`: the STORED row
+ *  already had a head, so a tilt is what was added (TILT_ON_HEAD) rather than the head (HEAD_ON_TILT). */
+export function headRefusal(r: Omit<HoleRow, 'id'>, hadHead: boolean): string | null {
+  switch (headProblem(r)) {
+    case null: return null;
+    case 'malformed': return HEAD_MALFORMED;
+    case 'not-wider': return HEAD_NOT_WIDER;
+    case 'too-deep': return HEAD_TOO_DEEP;
+    case 'tilted': return hadHead ? TILT_ON_HEAD : HEAD_ON_TILT;
+  }
 }
 
 /** A tenon size the loader keeps (`validateTenons`: finite and > 0); anything else would vanish on reload. */
@@ -2050,7 +2077,11 @@ export const useStore = create<StoreState>((set, get) => {
       if (!board || rows.length === 0) return null;
       // Angled holes §3.1: the loader's ONE bound, decided before edit(). A leaning part takes holes (§7).
       if (!rows.every(tiltWithin)) return HOLE_TILT_PAST_BOUND;
-      const added = rows.map((r) => ({ ...storedTilt(copyHoleRow(r as HoleRow)), id: nextId() }));
+      for (const r of rows) {
+        const refused = headRefusal(r, false);
+        if (refused) return refused;
+      }
+      const added = rows.map((r) => ({ ...storedHead(storedTilt(copyHoleRow(r as HoleRow))), id: nextId() }));
       const zone = holesZoneRefusal(get().doc, board, added); // dovetails spec §3.6
       if (zone) return zone;
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, holes: [...b.holes, ...added] } : b))));
@@ -2063,7 +2094,9 @@ export const useStore = create<StoreState>((set, get) => {
       const cur = board?.holes.find((r) => r.id === rowId);
       if (!board || !cur) return null;
       if (!tiltWithin(next)) return HOLE_TILT_PAST_BOUND;
-      const after: HoleRow = { ...storedTilt(copyHoleRow(next as HoleRow)), id: rowId };
+      const headRefused = headRefusal(next, cur.head !== undefined);
+      if (headRefused) return headRefused;
+      const after: HoleRow = { ...storedHead(storedTilt(copyHoleRow(next as HoleRow))), id: rowId };
       if (sameHoleRow(cur, after)) return null; // a no-op edit pushes no undo entry (invariant 4)
       const zone = holesZoneRefusal(get().doc, board, [after]); // dovetails spec §3.6
       if (zone) return zone;

@@ -1,7 +1,7 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  HOLE_EPS, holeBottom, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusPrism, ringInside, spanToWorldOffset, tiltedHole, toWorldOffset,
+  HOLE_EPS, holeBottom, holeInStock, holePieces, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusPrism, ringInside, spanToWorldOffset, tiltedHole, toWorldOffset,
   wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, unionLoops, uvDims,
 } from '../document/document';
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
@@ -611,7 +611,7 @@ function packStreams(byMaterial: F32Stream[][]): { groups: { start: number; coun
  * and all (the accepted residue: a faulted hole is drawn approximately).
  */
 function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Candidates): V3[][] {
-  if (holes.some((h) => holeTouches(h, f.verts))) return faceTriangles(f, holes);
+  if (cuttingPieces(holes).some((h) => holeTouches(h, f.verts))) return faceTriangles(f, holes);
   const poly = insertOnEdges(f.verts, f.n, candidates);
   return poly === f.verts ? faceTriangles(f, holes) : centroidFan(poly);
 }
@@ -671,7 +671,8 @@ function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly
   const out = new Map<Body, MergedPlane[]>();
   const checks = stockChecks(board);
   const clean = new Set(holes.filter((h) => holeInStock(board, h, checks)));
-  const faulted = holes.filter((h) => !clean.has(h));
+  // A headed hole reaches faces through its pieces (counterbores spec §6.1): the faulted test reads every piece.
+  const faulted = cuttingPieces(holes.filter((h) => !clean.has(h)));
   // Every plane a clean hole opens into: axis, outward sign, coordinate, and the holes on it.
   const planes: { a: number; sign: number; at: number; holes: Hole[] }[] = [];
   const planeOf = (a: number, sign: number, at: number) => {
@@ -681,9 +682,12 @@ function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly
   };
   for (const h of clean) {
     const a = DIMENSION_ORDER.indexOf(h.axis);
-    planeOf(a, -h.dir, h.centre[a]!).holes.push(h);
+    // A headed hole's entry plane opens on its HEAD piece (radius R) and a through exit on its BORE piece (counterbores
+    // spec §6.1); the step between them lies inside the wood. A headless hole is its own one piece.
+    const ps = holePieces(h);
+    planeOf(a, -h.dir, h.centre[a]!).holes.push(ps[0]!);
     // The exit face, `reach` axially from the mouth (a square hole's reach IS its depth).
-    if (h.through) planeOf(a, h.dir, h.centre[a]! + h.dir * h.reach).holes.push(h);
+    if (h.through) planeOf(a, h.dir, h.centre[a]! + h.dir * h.reach).holes.push(ps[ps.length - 1]!);
   }
   for (const pl of planes) {
     const { a } = pl;
@@ -865,7 +869,20 @@ function ringDisc(h: Hole, t: number): [V3, number] {
 }
 
 /**
+ * The convex pieces that cut a part's faces (counterbores spec §6.1): every hole's holePieces — a headless hole itself,
+ * a headed one its head then its bore — so the entry face meets only the head (ring radius R), the bore's mouth lies
+ * inside the wood (at the step), and a through exit meets the bore. A piece with no length is dropped: a through head
+ * that reaches the far face (a kept too-deep fault) leaves its bore piece nothing, or less. A list with no headed hole
+ * is returned as it came, so a headless part runs exactly the code it always did.
+ */
+function cuttingPieces(holes: readonly Hole[]): readonly Hole[] {
+  if (!holes.some((h) => h.head)) return holes;
+  return holes.flatMap((h) => (h.head ? holePieces(h).filter((p) => p.depth > HOLE_EPS) : [h]));
+}
+
+/**
  * One body face as triangles (board-local), with every hole that reaches into it cut out (holes spec §3.2, amended).
+ * A headed hole cuts it by its pieces (cuttingPieces), each as a hole of its own.
  * No hole: the fan bodyMesh always drew, vertex for vertex. Every reaching hole perpendicular to the face with its ring
  * STRICTLY inside it, and the rings PAIRWISE DISJOINT (ruling R4: centres more than r1 + r2 apart in the face plane):
  * triangulated with the rings as holes, from the SAME ring vertices the wall uses, so face and wall share every rim
@@ -874,7 +891,7 @@ function ringDisc(h: Hole, t: number): [V3, number] {
  */
 export function faceTriangles(f: BodyFace, holes: readonly Hole[]): V3[][] {
   const fan = (p: V3[]): V3[][] => p.slice(1, -1).map((_, i) => [p[0]!, p[i + 1]!, p[i + 2]!]);
-  const reaching = holes.filter((h) => holeTouches(h, f.verts));
+  const reaching = cuttingPieces(holes).filter((h) => holeTouches(h, f.verts));
   if (reaching.length === 0) return fan(f.verts);
   const a = [0, 1, 2].reduce((m, k) => (Math.abs(f.n[k]!) > Math.abs(f.n[m]!) ? k : m), 0);
   const [u, v] = [0, 1, 2].filter((k) => k !== a) as [number, number];
@@ -920,7 +937,9 @@ function putWall({ out, plan, extents, ou, ov }: WallSink, q: V3, nw: V3): void 
  * (the materials are FrontSide). UVs and materials as bodyMesh's sloped faces: each facet takes the plan of the world
  * axis its normal is nearest. A TILTED bore (angled holes spec §6.1): the far ring is the exit face's (`reach` axially)
  * or the bottom disc square to the bit (holeBottom), the wall's normals point square to the bit toward its line, and the
- * bottom faces back up the bit (−b̂); a square hole runs exactly the expressions it always did.
+ * bottom faces back up the bit (−b̂); a square hole runs exactly the expressions it always did. A HEADED bore
+ * (counterbores spec §6.1) draws its pieces (holePieces): the head's wall (a countersink's cone with its true normals),
+ * a counterbore's annulus at its depth, then the bore's wall and bottom or exit, every ring shared with its neighbours.
  */
 export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks: StockChecks = stockChecks(board)): PartMeshData {
   const plans = facePlans(board);
@@ -977,17 +996,13 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
     if (!nw) { nw = vecOf(inward(p)); wallNormals.set(p, nw); }
     return nw;
   };
-  const top = holeRing(h, 0);
-  // A tilted bore's far ring: the exit face's (`reach` axially) or the bottom disc square to the bit (holeBottom). Its
-  // vertex k shares ring vertex k's angle about the bit, so each quad is ruled along the bit.
-  const far = !tilt ? holeRing(h, h.depth) : h.through ? holeRing(h, h.reach) : holeBottom(h);
   // Every wall quad and the bottom are made of ring vertices, so one test per body finds the planes that can change
   // them, or that nothing survives (clipPlan; Task 11b) — the same pieces as clipping by every plane. A body with no
   // such plane keeps every quad whole, so its quads are emitted from the rings' offsets and normals by index.
   // A CLEAN hole (holeInStock: no breaks-out, off-flat or too-deep — holeFaults' own checks) lies wholly in the stock,
   // so its wall and bottom are drawn whole, once, never split where they cross a seam between bodies (ruling R15).
-  const rings = [...top, ...far];
-  const plan: Plane[][] = holeInStock(board, h, checks)
+  const clean = holeInStock(board, h, checks);
+  const planFor = (rings: V3[]): Plane[][] => clean
     ? [[]]
     : planes.map((ps) => clipPlan(ps, rings)).filter((ps): ps is Plane[] => ps !== null);
   const clip = (poly: V3[], ps: Plane[]): V3[] => {
@@ -995,27 +1010,74 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
     for (const q of ps) { p = clipPolygon(p, q); if (!p.length) break; }
     return p;
   };
-  const topW = top.map(offsetOf); const farW = far.map(offsetOf);
-  const topN = top.map(wallNormal); const farN = far.map(wallNormal);
-  for (let k = 0; k < top.length; k += 1) {
-    const k1 = (k + 1) % top.length;
-    const quad = [top[k]!, top[k1]!, far[k1]!, far[k]!];
-    const mid: V3 = [0, 1, 2].map((i) => (top[k]![i]! + top[k1]![i]!) / 2) as V3;
-    const fw = vecOf(inward(mid));
-    for (const ps of plan) {
-      if (ps.length === 0) { emit([topW[k]!, topW[k1]!, farW[k1]!, farW[k]!], [topN[k]!, topN[k1]!, farN[k1]!, farN[k]!], fw); continue; }
-      const piece = clip(quad, ps);
-      if (piece.length) emit(piece.map(offsetOf), piece.map(wallNormal), fw);
+  // One band of HOLE_SEGMENTS quads between two index-aligned rings (a wall, or a counterbore's annulus): `nOf` a vertex's
+  // world normal, `fwOf` a facet's (from its top edge's midpoint).
+  const band = (top: V3[], far: V3[], nOf: (p: V3) => V3, fwOf: (mid: V3) => V3, plan: Plane[][]) => {
+    const topW = top.map(offsetOf); const farW = far.map(offsetOf);
+    const topN = top.map(nOf); const farN = far.map(nOf);
+    for (let k = 0; k < top.length; k += 1) {
+      const k1 = (k + 1) % top.length;
+      const quad = [top[k]!, top[k1]!, far[k1]!, far[k]!];
+      const mid: V3 = [0, 1, 2].map((i) => (top[k]![i]! + top[k1]![i]!) / 2) as V3;
+      const fw = fwOf(mid);
+      for (const ps of plan) {
+        if (ps.length === 0) { emit([topW[k]!, topW[k1]!, farW[k1]!, farW[k]!], [topN[k]!, topN[k1]!, farN[k1]!, farN[k]!], fw); continue; }
+        const piece = clip(quad, ps);
+        if (piece.length) emit(piece.map(offsetOf), piece.map(nOf), fw);
+      }
     }
-  }
-  if (!h.through) {
-    const back: V3 = [0, 0, 0];
-    if (tilt) { back[0] = -bx; back[1] = -by; back[2] = -bz; } else back[a] = -h.dir;
-    const backWorld = vecOf(back);
+  };
+  // A blind bottom's disc, facing back toward the mouth: −dir along the face axis (a tilted bore's back up the bit, −b̂).
+  const back: V3 = [0, 0, 0];
+  if (tilt) { back[0] = -bx; back[1] = -by; back[2] = -bz; } else back[a] = -h.dir;
+  const backWorld = vecOf(back);
+  const disc = (ring: V3[], plan: Plane[][]) => {
+    const ringW = ring.map(offsetOf);
     for (const ps of plan) {
-      const piece = ps.length === 0 ? far : clip(far, ps);
-      if (piece.length) emit(piece === far ? farW : piece.map(offsetOf), piece.map(() => backWorld), backWorld);
+      const piece = ps.length === 0 ? ring : clip(ring, ps);
+      if (piece.length) emit(piece === ring ? ringW : piece.map(offsetOf), piece.map(() => backWorld), backWorld);
     }
+  };
+  const radialFacet = (mid: V3) => vecOf(inward(mid));
+  if (h.head) {
+    // A headed bore (counterbores spec §6.1; never tilted): the head's wall, a counterbore's annulus at its depth, then
+    // the bore's wall and bottom. Each piece's quads clipped on their own rings when the hole is faulted.
+    const [head, bore] = holePieces(h) as [Hole, Hole];
+    const hasBore = bore.depth > HOLE_EPS;   // a through head reaching the far face (too-deep, kept) leaves no bore
+    const boreTop = holeRing(bore, 0);
+    const headTop = holeRing(head, 0);
+    if (head.tip !== undefined) {
+      // A countersink's cone ends on the bore's mouth ring: the SAME vertex array. Its true normals point into the air,
+      // inward with an axial component back toward the mouth: (inward + slope·dir·e_a) / √(1 + slope²), slope = dρ/dt.
+      const headFar = hasBore ? boreTop : holeRing(head, head.depth);
+      const slope = (head.tip - head.radius) / head.depth;
+      const m = Math.hypot(1, slope);
+      const coneNormal = (p: V3): V3 => {
+        const n = inward(p);
+        n[a] += slope * h.dir;
+        return vecOf([n[0] / m, n[1] / m, n[2] / m]);
+      };
+      band(headTop, headFar, coneNormal, coneNormal, planFor([...headTop, ...headFar]));
+    } else {
+      const headFar = holeRing(head, head.depth);
+      band(headTop, headFar, wallNormal, radialFacet, planFor([...headTop, ...headFar]));
+      // The step: quads from the head's far ring in to the bore's mouth ring, index-aligned, facing back toward the mouth.
+      if (hasBore) band(headFar, boreTop, () => backWorld, () => backWorld, planFor([...headFar, ...boreTop]));
+    }
+    if (hasBore) {
+      const boreFar = holeRing(bore, bore.depth);
+      const plan = planFor([...boreTop, ...boreFar]);
+      band(boreTop, boreFar, wallNormal, radialFacet, plan);
+      if (!h.through) disc(boreFar, plan);
+    }
+  } else {
+    const top = holeRing(h, 0);
+    // A tilted bore's far ring: the exit face's (`reach` axially) or the bottom disc square to the bit (holeBottom). Its
+    // vertex k shares ring vertex k's angle about the bit, so each quad is ruled along the bit.
+    const far = !tilt ? holeRing(h, h.depth) : h.through ? holeRing(h, h.reach) : holeBottom(h);
+    const plan = planFor([...top, ...far]);
+    band(top, far, wallNormal, radialFacet, plan);
+    if (!h.through) disc(far, plan);
   }
   const { groups, out: [positions, normals, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.nor, m.uv]));
   return { positions: positions!, normals: normals!, uvs: uvs!, groups };

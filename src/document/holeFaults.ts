@@ -4,7 +4,7 @@ import { clippedRegion } from './cuts';
 import { keptHalfSpace, type V3 } from './angleCuts';
 import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, spanOf, squareSpan, uvDims, type CurveKind, type ViewCurve } from './curves';
 import { runoutReach } from './runout';
-import { HOLE_EPS, holeInstances, holeRegion, holeTouchesBox, tiltedHole, type Hole } from './holes';
+import { HOLE_EPS, holeEnvelope, holeInstances, holeRegion, holeTouchesBox, tiltedHole, type Hole } from './holes';
 import { geometryBoard, profileFields, type ProfileKind } from './profiles';
 import { builtSwept, sweptWasteMeets, sweptWasteMeetsBox } from './sweep';
 
@@ -109,7 +109,7 @@ function segmentDistance(p0: V3, p1: V3, q0: V3, q1: V3): number {
 /** Two cylinders meet (touching is meeting, spec §2.4). Parallel: discs within r1 + r2 and the axial spans overlapping.
  *  Perpendicular (A along a, B along b, c the third): x_a and x_b are independent, so each is taken nearest the other
  *  hole's centre within the spans; the two half-chords on c then must reach. */
-function meets(A: Hole, B: Hole): boolean {
+function meetsCylinders(A: Hole, B: Hole): boolean {
   // Either bore tilted: the capsule test (spec §6.3, conservative — a pair just clear near an end may be judged meeting).
   if (tiltedHole(A) || tiltedHole(B)) {
     const [p0, p1] = capsuleOf(A);
@@ -136,6 +136,13 @@ function meets(A: Hole, B: Hole): boolean {
   return Math.abs(A.centre[c] - B.centre[c]) <= hA + hB + HOLE_EPS;
 }
 
+/** Two holes meet when any envelope piece of one meets any of the other (counterbores spec §6.3): a head counts only over
+ *  its own span. A headless hole's envelope is itself, so this is `meetsCylinders` exactly. */
+function meets(A: Hole, B: Hole): boolean {
+  const eb = holeEnvelope(B);
+  return holeEnvelope(A).some((a) => eb.some((b) => meetsCylinders(a, b)));
+}
+
 /** What the per-hole stock checks read off the board, computed once per board: every rectangular cut's region (a
  *  degenerate one dropped) and every angle cut's kept half-space. */
 export interface StockChecks { regions: ReturnType<typeof clippedRegion>[]; planes: NonNullable<ReturnType<typeof keptHalfSpace>>[] }
@@ -149,6 +156,10 @@ export function stockChecks(board: Board): StockChecks {
 
 /** breaks-out: the face edge the circle runs past (tangent allowed), or null. A curve's waste is `intoCurve`, the same fault kind. */
 export function breaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFrom } | null {
+  for (const p of holeEnvelope(h)) { const e = pieceBreaksOut(board, p); if (e) return e; }
+  return null;
+}
+function pieceBreaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFrom } | null {
   if (tiltedHole(h)) return tiltedBreaksOut(board, h);
   for (const i of inPlane(h)) {
     const d = DIMENSION_ORDER[i]!;
@@ -182,6 +193,10 @@ function tiltedBreaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFrom
  *  (`tenonFaults`' meets-feature, KEPT and noted, inv 58), never a hole's breaks-out into "a curve cut". */
 export function intoCurve(board: Board, h: Hole): FaultCurve | null {
   board = geometryBoard(board);
+  for (const p of holeEnvelope(h)) { const c = pieceIntoCurve(board, p); if (c) return c; }
+  return null;
+}
+function pieceIntoCurve(board: Board, h: Hole): FaultCurve | null {
   for (const c of board.curves) {
     if (squareSpan(c)) continue;
     const [u, v] = uvDims(c.through);
@@ -227,7 +242,10 @@ export function intoCurve(board: Board, h: Hole): FaultCurve | null {
  * reaching strictly inside the region in-plane (in-plane tangency stays allowed),
  * or a point of the cylinder lies on an angle cut's removed side (the linear minimum over each end disc).
  */
-export function offFlat({ regions, planes }: StockChecks, h: Hole): boolean {
+export function offFlat(checks: StockChecks, h: Hole): boolean {
+  return holeEnvelope(h).some((p) => pieceOffFlat(checks, p));
+}
+function pieceOffFlat({ regions, planes }: StockChecks, h: Hole): boolean {
   if (tiltedHole(h)) return tiltedOffFlat({ regions, planes }, h);
   const [u, v] = inPlane(h);
   const ax = idx(h.axis);
@@ -264,6 +282,9 @@ function tiltedOffFlat({ regions, planes }: StockChecks, h: Hole): boolean {
 /** too-deep: a blind hole reaching the back face or past it (zero skin breaks through). A tilted bore (exact, spec §6.3):
  *  the bottom disc's deepest point, its centre's axial `reach` plus `r·sin θ` (the disc's half-extent on the face axis). */
 export function tooDeep(board: Board, h: Hole): boolean {
+  // A headed THROUGH row: its head is blind, and reaching the far face (the bore is already through) is the fault. A
+  // headed blind row's head is strictly shallower than its depth (spec §3.2), so the whole row's own depth decides.
+  if (h.head && h.through) return holeEnvelope(h)[0]!.depth > board[h.axis] - HOLE_EPS;
   if (h.through) return false;
   if (tiltedHole(h)) return h.reach + (h.radius * tanOf(h)) / lenOf(h) > board[h.axis] - HOLE_EPS;
   return h.depth > board[h.axis] - HOLE_EPS;

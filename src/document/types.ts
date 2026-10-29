@@ -140,6 +140,15 @@ export interface HoleRow {
   tiltAlong?: number;
   /** Likewise along the third dimension, positive toward the far side from `acrossFrom`. */
   tiltAcross?: number;
+  /** Schema 30 (counterbores spec §3.1): the head of the bore, cut from the same face. All head keys are present
+   *  together or none are; a headless row has NO `head` key (never undefined). */
+  head?: 'counterbore' | 'countersink';
+  /** Spec §3.1: the head's diameter at the face, inches, wider than `diameter`. Both kinds. */
+  headDiameter?: number;
+  /** Spec §3.1: a counterbore's depth from the face, inches. Counterbore only; a countersink's depth is derived (`headReach`). */
+  headDepth?: number;
+  /** Spec §3.1: a countersink's included angle in degrees, 82 or 90. Countersink only. */
+  headAngle?: 82 | 90;
 }
 
 /**
