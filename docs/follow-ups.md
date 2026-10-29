@@ -8321,6 +8321,8 @@ setting or the document's `stock` would make them typed (a metric shop may want 
 
 **558. Glue-ups: choosing N, or gluing in place of planing, by price (spec §9).** N is the fewest strips the widest long-enough size
 at the thinnest thickness allows; a glue-up never replaces a board a part fits today, even where gluing narrow stock would be cheaper.
+(Since fu 564 the thickness needing the FEWEST strips wins, up to 24, which can choose planed thicker stock that costs more: the
+band-free identity fixture's Top went from $45 to $48. Price still decides nothing.)
 **Status:** open.
 
 **559. Face lamination for a part too thick for every stock (spec §9).** `too thick` stays a refusal.

@@ -86,7 +86,7 @@ built around hand woodworking.
   path (`Cabinet › Drawer › Side`). It shows each part's joinery as a drawing with its setup
   lines, board feet for solid wood and square feet for sheet goods. A **Buying** section turns it into a shopping
   list: board feet with a waste factor, boards bought by the piece packed onto the cheapest sizes, sheets, and a cost
-  from the prices you set. Every group and the project carry a **weight**, from each material's density.
+  from the prices you set. A part wider than any board you buy by the piece is planned as a **glue-up** of equal strips. Every group and the project carry a **weight**, from each material's density.
 - **Labels…**: one sticker per piece on Avery 5160/5163 or L7160/L7163 label sheets, printed at true size.
 - **Hardware**: hinges, slides, screws and the like as typed items with a pack size and price, counted on parts,
   assemblies or the project and multiplied with copies. The cut list has a Hardware section, and Buying counts packs.

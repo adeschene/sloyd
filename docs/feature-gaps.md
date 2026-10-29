@@ -3,8 +3,8 @@
 Researched 2026-10-11 against SketchUp and its woodworking extensions (OpenCutList,
 CutList Bridge, CabinetSense, Fredo Round Corner, the rake-and-splay tool), Fusion 360,
 Shapr3D, SketchList 3D, CutList Plus fx and Mozaik. Each gap was checked against the code
-and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-28
-(production `ee43d69`, schema 29: weight, part labels, align, X-ray and saved views deployed); `docs/follow-ups.md` wins on any follow-up's status.
+and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-29
+(production `4420042`, schema 29: parametric resize and glue-ups deployed; every gap below is shipped except construction lines, fu 130); `docs/follow-ups.md` wins on any follow-up's status.
 
 **This is a candidate list, not a roadmap.** Nothing here is chosen until the user picks it.
 Excluded on purpose: CSV/clipboard export and name run-collapsing (`Leg 1..4`), both
@@ -53,7 +53,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Hardware / accessories BOM | Screws, hinges, slides, pulls | deployed 2026-10-21 (schema 20: per-project types with pack size and price, counts on parts, assemblies and the project, the cut list's Hardware section, Buying's block); residue: hardware from holes, a cross-project library, hardware on the Plans sheet, multi-selection (fu 404–407, open); handedness and parsed sizes (fu 408, open by decision); fu 410–412 closed 2026-10-23 |
 | Weight | OpenCutList reports cost and weight together | DEPLOYED 2026-10-28 (`5395a21`, `index-DawoF3J5.js`) (schema 28: a density on every material — fixed on the built-ins, typed on a custom one; each cut-list group's weight and the project's, Properties' Weight for the selection; edging at its own species; a material with no density named, never silently left out); residue: hardware weight, holes, the Plans sheet and Buying, density in the tip check (fu 522–525) |
 | Printable part labels | OpenCutList-style stickers; distinct from the diagram label layout | DEPLOYED 2026-10-28 (`582ce1e`, `index-CvkZOxnI.js`) (no schema change: `Labels…` in the cut list opens a Labels sheet — one sticker per piece with the row number, name, cut size, material, grain, project and copy, on Avery 5160/5163 or L7160/L7163 at true size, a Start at for a part-used sheet); residue fu 528–532 |
-| Glue-ups from narrow stock | A part wider than every stock board was `too wide` (fu 268) | DONE 2026-10-29 (glue-ups round, no schema change: by-the-piece Buying glues up a part no listed stock is wide enough for, from N equal strips 1/8" over their share and 1" long, packed like any part, one note; the cut list unchanged); residue fu 556–567 (a stored glue-up, option B, is fu 556) |
+| Glue-ups from narrow stock | A part wider than every stock board was `too wide` (fu 268) | DONE 2026-10-29 (glue-ups round, no schema change: by-the-piece Buying glues up a part no listed stock is wide enough for, from N equal strips 1/8" over their share and 1" long, packed like any part, one note; the cut list unchanged); capped at 24 strips, the thickness needing the fewest winning (fu 564, deployed `4420042`); residue fu 556–563, 565–567 (a stored glue-up, option B, is fu 556) |
 | Metric display | Input already parses metric; `units.display` only allows `'imperial-fractional'` | shipped 2026-10-15 in two chunks (Units switch, fields, typing, tape, cut list, bench lines; drawings bare mm + sheet note, Buying brackets, metric grid) |
 
 ## 4. Ergonomics

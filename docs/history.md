@@ -528,7 +528,10 @@ mutations found three tests that could not fail (a metric case a raw `<=` passed
 band fixture banding an end), each replaced by a case that does; a fifth too-wide test the plan missed and one identity hash changed
 by design, diffed before re-capture. The opus whole-branch review found nothing above Minor; its first Minor — the spec's uncapped strip
 count can produce an absurd plan from an odd stock list — went back to the user as fu 564. Seen in the user's Chrome: a 22" pine top
-bought as two strips on one 1×12 × 8′.
+bought as two strips on one 1×12 × 8′. After the deploy the user ruled on fu 564 — "cap the strip count, fewest strips wins" — so
+every long-enough thickness is tried, the fewest strips win (a tie to the thinner), and the count stops at 24, which also removes the
+stall a stored near-1/8" stock width could cause; its mutation test had to be a stall test, since the refusal after the loop hid an
+unbounded count. Deployed as `4420042`.
 
 **Parametric resize (2026-10-28/29, deployed `e09003b`, no schema change).** The last open feature gap the user picked. They skipped the
 brainstorm questions, so the spec took the SketchUp reading of "parametric" — a stretch at a line, nothing stored — over Fusion's stored
