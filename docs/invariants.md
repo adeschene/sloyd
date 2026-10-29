@@ -1816,9 +1816,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       ends at the line (`max ≤ s + 1e-9`) STAYS, one starting at it (`min ≥ s − 1e-9`) MOVES whole, anything else SPANS. A spanning
       assembly is descended into (`childrenOf`); a spanning part goes to `stretchPart`, every OCCURRENCE separately. A moved assembly
       is ONE placement change; its definition is not edited, so its other copies are untouched. **On a shrink, a node that would
-      MOVE but starts strictly inside the removed band** (`s + 1e-9 < min < s + |δ| − 1e-9`) refuses in the walk, in tree order
-      (`<name> sits in the wood this shrink removes — move the line or shrink less.`, Ruling 7: it would land back past the line,
-      off the typed size); one starting exactly at `s + |δ|` lands on the line. The plan's `moves` list counts
+      MOVE but starts in the removed band, the line included** (`s ≤ min < s + |δ|`, Ruling 9: `min < s + |δ| − 1e-9`) refuses in the walk, in tree order
+      (`<name> sits in the wood this shrink removes — move the line or shrink less.`, Rulings 7 and 9: it would land back past the line,
+      off the typed size); one starting exactly at `s + |δ|` lands on the line. A shrink therefore never moves a part into the stayed side. The plan's `moves` list counts
       OCCURRENCES (the preview's `moves N`, the user sees each copy move: Ruling 4); the paths are deduped by STORAGE target
       (`itemKey`) before the ONE `translateItems`, so two placements of one definition moving the same inner node shift its record
       once.

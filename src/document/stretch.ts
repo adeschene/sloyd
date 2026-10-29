@@ -107,11 +107,11 @@ export function stretchPlan(
       const box = extentOf(path);
       if (!box || box.max[k]! <= line + EPS) { stays.push(path); continue; }
       if (box.min[k]! >= line - EPS) {
-        // Ruling 7: on a shrink, a node starting strictly INSIDE the removed band `(s, s + |δ|)` would land back past the line
-        // (its min below `s`), so the result would not be the typed size. Refused, naming the node. The boundary is fine:
-        // a node whose min is exactly `s + |δ|` (within 1e-9) lands exactly on the line, and one whose min is at `s` (within
-        // 1e-9) is outside the band and moves as any other.
-        if (delta < 0 && box.min[k]! > line + EPS && box.min[k]! < line - delta - EPS) {
+        // Ruling 7, amended by Ruling 9: on a shrink, a node starting in the removed band `[s, s + |δ|)` (the line itself
+        // included) would land back on the fixed side of the line (its min below `s`), so the result would not be the typed
+        // size. Refused, naming the node. Only the upper boundary is open: a node whose min is exactly `s + |δ|` (within
+        // 1e-9) lands exactly on the line and passes. (`moves` already means min >= s - 1e-9.)
+        if (delta < 0 && box.min[k]! < line - delta - EPS) {
           return inRemovedBand((partAt(doc, path) ?? instanceAt(doc, path))!.name);
         }
         moves.push(path);

@@ -449,7 +449,8 @@ src/
 │   │                     (equal gaps, outer two fixed, inner placed from the first), itemExtents (partsBounds, leaned); alignText.ts the copy
 │   ├── stretch.ts        THE stretch decider (inv 64): stretchPlan(doc, ids, axis, size, line) → StretchPlan | { refused } | null (the
 │   │                     size, the line strictly inside, the no-op; the top-down walk: stays / moves whole / spans, a spanning assembly
-│   │                     descended, a spanning part through stretchPart per occurrence; writeBackParts keepWorld, then ONE translateItems
+│   │                     descended, a spanning part through stretchPart per occurrence; on a shrink a MOVES node with min < s + |δ| refuses
+│   │                     inRemovedBand, the line included, Rulings 7 and 9; writeBackParts keepWorld, then ONE translateItems
 │   │                     over the moved paths deduped by itemKey — `moves` counts occurrences, Ruling 4; the copies post-condition over
 │   │                     every worldParts occurrence within 1e-9, then cornerPlan's link post-condition); nearlyEqual; the preview and the
 │   │                     store both call it. No → units edge
@@ -461,7 +462,7 @@ src/
 │   │                     rebaseCurves / rebaseProfiles, one feature at a time. A TYPE-only `Units` (no → units edge)
 │   ├── stretchText.ts    THE stretch words (→ units: it prints lengths): the refusals (STRETCH_LINE_INSIDE, STRETCH_SIZE_POSITIVE, thicker,
 │   │                     leansText, compoundText, crosses, boxJointsAcross, dovetailsAcross, tenonCentred, curvesAndProfiles, tooShort,
-│   │                     copiesDiffer, linkDiffers), the panel's words (STRETCH_HEADING, STRETCH_AT, AXIS_LABEL, FROM_WORD, STRETCH_MIDDLE,
+│   │                     copiesDiffer, linkDiffers, inRemovedBand), the panel's words (STRETCH_HEADING, STRETCH_AT, AXIS_LABEL, FROM_WORD, STRETCH_MIDDLE,
 │   │                     STRETCH_GO, STRETCH_CANCEL) and previewText (`<from> → <to>: grows <names> · moves <n> · <m> stay`)
 │   ├── stretchFixtures.ts TEST-ONLY (never import it from a module): the 48 × 30 × 24 apron table (mortises stored from either end, tenon
 │   │                     cheeks), the same table with its end frames as two placements of one definition, `placedTable` (the table as

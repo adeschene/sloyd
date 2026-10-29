@@ -552,7 +552,7 @@ changes.
 
 64. **`stretch.ts` `stretchPlan` is the ONE stretch decider**, for both the preview and the action. Nothing stored, and no schema
     change. The min side is fixed, and everything past the line moves `+δ` exactly. A placement wholly on one side moves as a
-    placement; on a shrink, one starting strictly inside the removed band refuses (Ruling 7). A spanning part grows on `d` and never on its thickness (`stretchPart`). Features follow their side by the per-side
+    placement; on a shrink, one in the removed band, the line included, refuses (Rulings 7, 9). A spanning part grows on `d` and never on its thickness (`stretchPart`). Features follow their side by the per-side
     rule, through each kind's own rebase helper (`resizeEnd.ts`' and `holeRebase.ts`' per-feature helpers, never `resizeEnd`'s whole-list rebase), or refuse: one feature at a time, NEAR `rebaseX(tmp, d, far, δ)`, FAR
     `rebaseX(tmp, d, opposite(far), δ)`; rectangular cuts `stretchCut`; prisms along `d` pass unchanged; corner joints are judged
     before the per-feature lists. Every refusal before `edit()`, and ONE undo entry. Copies and links refuse; they are never split. Write-back is keepWorld.
@@ -564,7 +564,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10177 tests across 295 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10179 tests across 295 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

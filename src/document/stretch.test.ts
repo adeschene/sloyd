@@ -532,6 +532,20 @@ describe('stretchPlan: a CHIRAL part turned 90 and mirrored, the line off-centre
   }
 });
 
+describe('stretchPlan: the removed band includes the line itself (Ruling 9)', () => {
+  const doc = apronTable();
+  it('the repro: aprons at x 1.75, shrink 48 → 46 at x 1.75: refused, naming Front apron (first in tree order); document untouched', () => {
+    const before = structuredClone(doc);
+    const ids = idsOf(doc, 'Front apron', 'Back apron', 'Top');
+    expect(refusal(stretchPlan(doc, ids, 0, 46, 1.75))).toBe('Front apron sits in the wood this shrink removes — move the line or shrink less.');
+    expect(doc).toEqual(before);
+  });
+  it('a line on a leg face: Right legs at 46.25, line 46.25, shrink to 46: refused, naming Right back leg', () => {
+    const ids = idsOf(doc, 'Right back leg', 'Right front leg', 'Top');
+    expect(refusal(stretchPlan(doc, ids, 0, 46, 46.25))).toBe(inRemovedBand('Right back leg'));
+  });
+});
+
 describe('stretchPlan: Ruling 7 names an ASSEMBLY by its own name', () => {
   it('framedTable, [Top, End frame, End frame 2] on X, 48 → 46 at x 46 (band 46–48): End frame 2 (x 46.25) refuses', () => {
     const doc = framedTable();
