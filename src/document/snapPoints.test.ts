@@ -917,6 +917,27 @@ describe('hole centres (holes spec §3.5)', () => {
   });
 });
 
+describe('a counterbore\'s floor centre (counterbores spec §6.2)', () => {
+  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 'through' as const, along: 'length' as const,
+    alongFrom: 'min' as const, station: 12, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 2.75 };
+  const mk = (over: Record<string, unknown>) => createBoard({ id: 'p', length: 24, width: 5.5, thickness: 0.75, holes: [{ ...row, ...over } as never] });
+  const near = (pts: ReturnType<typeof boardSnapPoints>, at: number[]) => pts.filter((p) => p.at.every((v, i) => Math.abs(v - at[i]!) < 1e-9));
+  it('adds the floor centre headDepth below the mouth centre, hole-owned like the others', () => {
+    const plain = boardSnapPoints(mk({}));
+    const pts = boardSnapPoints(mk({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 }));
+    expect(pts).toHaveLength(plain.length + 1);
+    const f = near(pts, [12, 0.5, 2.75]);
+    expect(f).toHaveLength(1);
+    expect(f[0]!.kind).toBe('face-center');
+    expect(f[0]!.owner).toEqual({ type: 'board', id: 'p' });
+    expect(near(pts, [12, 0.75, 2.75])).toHaveLength(1);   // the mouth centre stays
+  });
+  it('a countersink and a headless hole yield the same points', () => {
+    const plain = boardSnapPoints(mk({}));
+    expect(boardSnapPoints(mk({ head: 'countersink', headDiameter: 0.5, headAngle: 90 }))).toEqual(plain);
+  });
+});
+
 describe('a tilted bore\'s exit centre (angled holes spec §8)', () => {
   // 20° toward +length from the top face: the bit (tan 20°, 0, −1) board-local meets the bottom face 3/4·tan 20° along.
   const T20 = Math.tan((20 * Math.PI) / 180);

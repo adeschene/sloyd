@@ -4,7 +4,7 @@ import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffse
 import { leanMap, leans, type LeanMap } from './lean';
 import { partBounds } from './worldBounds';
 import { clipConvex, geometryKey, partGeometry, BODY_EPS, type BodyFace } from './bodies';
-import { HOLE_EPS, holePrism, holeRegion, holeRing, minusPrism, ringInside, tiltedHole } from './holes';
+import { HOLE_EPS, type Hole, holePieces, holePrism, holeRegion, holeRing, minusPrism, ringInside, tiltedHole } from './holes';
 import { SECTION_EPS, unionOutline } from './outline';
 
 /**
@@ -182,8 +182,8 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
   const base = pieces;
   for (const hole of holes) {
     if (!rings) break;
-    if (tiltedHole(hole)) {
-      // A tilted bore's slice is an ellipse, or meets a slanted wall, a tilted bottom or a mouth off the plane: the
+    if (hole.head || tiltedHole(hole)) {
+      // A headed bore's outline is the union of its cut pieces (counterbores spec §6.2). A tilted bore's slice is an ellipse, or meets a slanted wall, a tilted bottom or a mouth off the plane: the
       // pieces' own union decides its outline (angled holes spec §6.2). The plane passes beside it only outside its box.
       const [lo, hi] = holeRegion(hole)[DIMENSION_ORDER[li]!];
       if (u < lo - 1e-6 || u > hi + 1e-6) continue;
@@ -208,7 +208,7 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
     if (!rings.every((_, k) => rings!.every((__, m) => m <= k || Math.hypot(c[k]![0]! - c[m]![0]!, c[k]![1]! - c[m]![1]!) > rad[k]! + rad[m]! + HOLE_EPS))) rings = null;
   }
   let boxed = pieces.map(boxOf);
-  for (const hole of holes) {
+  for (const hole of holes.flatMap(boredPieces)) {
     // A square bore's reach is its centre ± (radius + depth); a tilted one's is its box (`holeRegion`, exact for the true
     // cylinder), which a steep bore's far mouth or a tilted mouth's ellipse can carry past that (angled holes spec §6.2).
     const lo: number[] = [], hi: number[] = [];
@@ -237,6 +237,10 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
 }
 
 /** Twice the signed area of a polygon projected along index `li` (Newell's component `li`). */
+/** The pieces whose prisms a section subtracts (counterbores spec §6.2): a headless hole is itself; a headed one's head and
+ *  bore, each a convex prism, skipping a piece with no depth (a through counterbore deeper than the part: legal, faulted). */
+const boredPieces = (h: Hole): readonly Hole[] => holePieces(h).filter((p) => p.depth > 0);
+
 function newellAlong(poly: readonly V3[], li: number): number {
   const [i, j] = [(li + 1) % 3, (li + 2) % 3] as const;
   let a = 0;
@@ -315,7 +319,7 @@ function buildLeaningPieces(board: Board, map: LeanMap, k: number, u: number, fl
     if (cap) local.push(cap.verts);
   }
   // The bores, board-local (minusPrism's own box test passes a piece the bore misses through whole).
-  for (const hole of holes) {
+  for (const hole of holes.flatMap(boredPieces)) {
     const prism = holePrism(hole);
     local = local.flatMap((poly) => minusPrism(poly, prism));
   }
