@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRegion, holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, headReach, headProblem, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
+  holeRegion, holeRims, insideHole, minusPrism, holePieces, holeEnvelope, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, headReach, headProblem, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
 } from './holes';
 import { parseLength, IMPERIAL } from '../units/length';
 import snapshotRaw from './holesSquare.snapshot.json?raw';
@@ -11,7 +11,7 @@ import { SQUARE_CASES } from './holesSquareCases';
 import { holeBottom, holeTouches, holeTouchesBox } from './holes';
 import type { Hole } from './holes';
 import type { V3 } from './angleCuts';
-import type { HoleRow } from './types';
+import type { HoleRow, Region } from './types';
 
 export const PIN: HoleRow = {
   id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
@@ -543,5 +543,178 @@ describe('the stored head (counterbores, schema 30)', () => {
       for (const k of ['head', 'headDiameter', 'headDepth', 'headAngle'] as const) expect(m[k]).toBe(row[k]);
       expect(mirrorHoleRow(m, d)).toEqual(row);
     }
+  });
+});
+
+describe('the headed Hole and its pieces (counterbores spec §6.1)', () => {
+  const board = createBoard({ id: 'b', length: 30, width: 11.25, thickness: 0.75 });
+  const plain: HoleRow = {
+    id: 'c1', face: 'thickness', from: 'max', diameter: 0.1875, depth: 'through', along: 'length', alongFrom: 'min',
+    station: 2, count: 2, pitch: 1.25, acrossFrom: 'min', inset: 1.5,
+  };
+  const cbRow: HoleRow = { ...plain, head: 'counterbore', headDiameter: 0.375, headDepth: 0.375 };
+  const csRow: HoleRow = { ...plain, head: 'countersink', headDiameter: 0.375, headAngle: 82 };
+  // Both postures the square snapshot uses: entered from max (dir −1) and from min (dir +1).
+  const postures = [['from max', 'max'], ['from min', 'min']] as const;
+  const freezeHole = (h: Hole): Hole => {
+    Object.freeze(h.centre); Object.freeze(h.bit); if (h.head) Object.freeze(h.head);
+    return Object.freeze(h);
+  };
+  const radial = (h: Hole, p: V3) => {
+    const a = ['length', 'width', 'thickness'].indexOf(h.axis);
+    const [u, v] = [0, 1, 2].filter((i) => i !== a) as [number, number];
+    return { t: h.dir * (p[a]! - h.centre[a]!), r: Math.hypot(p[u]! - h.centre[u]!, p[v]! - h.centre[v]!) };
+  };
+  const at = (h: Hole, t: number, r: number): V3 => {
+    const a = ['length', 'width', 'thickness'].indexOf(h.axis);
+    const [u] = [0, 1, 2].filter((i) => i !== a) as [number, number];
+    const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
+    p[a] += h.dir * t; p[u] += r;
+    return p;
+  };
+
+  it('a headless Hole has no head key, and is its own single piece', () => {
+    for (const h of holeInstances(board, plain)) {
+      expect('head' in h).toBe(false);
+      expect('tip' in h).toBe(false);
+      expect(holePieces(h)).toHaveLength(1);
+      expect(holePieces(h)[0]).toBe(h);
+      expect(holeEnvelope(h)[0]).toBe(h);
+    }
+  });
+
+  it.each(postures)('a counterbore splits into the head and the bore (%s)', (_n, from) => {
+    const h = freezeHole(holeInstances(board, { ...cbRow, from })[0]!);
+    expect(h.head).toEqual({ kind: 'counterbore', radius: 0.1875, reach: 0.375 });
+    const ps = holePieces(h);
+    expect(ps.map((p) => p.radius)).toEqual([0.1875, 0.09375]);
+    for (const p of ps) { expect('head' in p).toBe(false); expect('tip' in p).toBe(false); }
+    const [head, bore] = ps as [Hole, Hole];
+    expect(head).toMatchObject({ depth: 0.375, reach: 0.375, through: false, centre: h.centre });
+    expect(radial(h, bore.centre)).toEqual({ t: 0.375, r: 0 });
+    expect(bore).toMatchObject({ depth: 0.375, reach: 0.375, through: true, axis: h.axis, dir: h.dir });
+    expect(holeEnvelope(h)).toBe(ps);   // no frustum: the envelope is the pieces
+  });
+
+  it('pieces of a frozen hole are frozen and memoised by its identity; an unfrozen one computes fresh', () => {
+    const h = freezeHole(holeInstances(board, cbRow)[0]!);
+    const ps = holePieces(h);
+    expect(holePieces(h)).toBe(ps);
+    for (const p of ps) expect(Object.isFrozen(p) && Object.isFrozen(p.centre) && Object.isFrozen(p.bit)).toBe(true);
+    // A frozen piece's own memos apply: the same prism and ring arrays twice.
+    expect(holePrism(ps[1]!)).toBe(holePrism(ps[1]!));
+    expect(holeRing(ps[0]!, 0)).toBe(holeRing(ps[0]!, 0));
+    const loose = holeInstances(board, cbRow)[0]!;
+    expect(holePieces(loose)).not.toBe(holePieces(loose));
+    // A head left unfrozen is not memoised either.
+    const half = Object.freeze({ ...loose, centre: Object.freeze([...loose.centre]) as V3, bit: Object.freeze([...loose.bit]) as V3 });
+    expect(holePieces(half)).not.toBe(holePieces(half));
+  });
+
+  it.each(postures)('a countersink head is a frustum to the bore radius (%s)', (_n, from) => {
+    const h = freezeHole(holeInstances(board, { ...csRow, from })[0]!);
+    const reach = headReach(csRow)!;
+    expect(h.head).toEqual({ kind: 'countersink', radius: 0.1875, reach });
+    const [head, bore] = holePieces(h) as [Hole, Hole];
+    expect(head.tip).toBe(0.09375);
+    expect(head).toMatchObject({ radius: 0.1875, depth: reach, reach, through: false });
+    expect(bore.tip).toBeUndefined();
+    for (const t of [0, reach / 3, reach / 2, reach]) {
+      const want = 0.1875 + ((0.09375 - 0.1875) * t) / reach;
+      for (const p of holeRing(head, t)) {
+        const q = radial(head, p);
+        expect(Math.abs(q.t - t)).toBeLessThan(1e-12);
+        expect(Math.abs(q.r - want)).toBeLessThan(1e-12);
+      }
+    }
+    // The far ring and the bore's mouth ring are the same points, exactly.
+    expect(holeRing(head, head.depth)).toEqual(holeRing(bore, 0));
+    // Inscribed: every prism plane keeps every ring vertex of the piece inside (the facets) or on (the caps' ε).
+    const prism = holePrism(head);
+    expect(prism).toHaveLength(HOLE_SEGMENTS + 2);
+    for (const q of prism) {
+      expect(Math.hypot(...q.n)).toBeCloseTo(1, 14);
+      for (const t of [0, reach / 2, reach]) for (const p of holeRing(head, t)) {
+        expect(q.n[0] * p[0] + q.n[1] * p[1] + q.n[2] * p[2] + q.d).toBeGreaterThanOrEqual(-1e-9);
+      }
+    }
+    // The facets are slanted: a point at radius R just past the mouth is outside, one at the tip radius there is inside.
+    const facetsOk = (p: V3) => prism.slice(0, HOLE_SEGMENTS).every((q) => q.n[0] * p[0] + q.n[1] * p[1] + q.n[2] * p[2] + q.d >= 0);
+    expect(facetsOk(at(head, reach, 0.18))).toBe(false);
+    expect(facetsOk(at(head, reach, 0.09))).toBe(true);
+    expect(facetsOk(at(head, 0, 0.18))).toBe(true);
+    // The envelope judges the frustum as its mouth cylinder; the bore is the same object.
+    const env = holeEnvelope(h);
+    expect(env[0]).toMatchObject({ radius: 0.1875, depth: reach });
+    expect('tip' in env[0]!).toBe(false);
+    expect(env[1]).toBe(bore);
+    expect(holeEnvelope(h)).toBe(env);
+  });
+
+  it('the cone ends EXACTLY on the bore radius, even where the linear interpolation would round', () => {
+    // 5/32" under a 5/8" head at 82°: radius + (tip − radius)·t/t is 0.07812500000000003, not 0.078125.
+    const row: HoleRow = { ...csRow, diameter: 0.15625, headDiameter: 0.625 };
+    const [head, bore] = holePieces(holeInstances(board, row)[0]!) as [Hole, Hole];
+    expect(head.radius + ((head.tip! - head.radius) * head.depth) / head.depth).not.toBe(head.tip);
+    expect(holeRing(head, head.depth)).toEqual(holeRing(bore, 0));
+  });
+
+  it('the frustum prism\'s box holds the mouth ring: a face just inside the mouth, outside the tip radius, is touched', () => {
+    const [head] = holePieces(holeInstances(board, csRow)[0]!) as [Hole];
+    const p0 = at(head, 0.001, 0.17);
+    const poly: V3[] = [p0, [p0[0] + 0.005, p0[1], p0[2]], [p0[0], p0[1] + 0.005, p0[2]]];
+    expect(holeTouches(head, poly)).toBe(true);
+  });
+
+  it.each([['counterbore', cbRow], ['countersink', csRow]] as const)('holeRegion of a %s holds every ring of every piece', (_n, row) => {
+    for (const [, from] of postures) {
+      const h = holeInstances(board, { ...row, from })[0]!;
+      const reg = holeRegion(h);
+      const dims = ['length', 'width', 'thickness'] as const;
+      for (const p of holePieces(h)) for (const t of [0, p.depth / 2, p.depth]) for (const v of holeRing(p, t)) {
+        dims.forEach((d, i) => { expect(v[i]!).toBeGreaterThanOrEqual(reg[d][0] - 1e-12); expect(v[i]!).toBeLessThanOrEqual(reg[d][1] + 1e-12); });
+      }
+      // ±R across over the full depth.
+      const a = dims.indexOf(h.axis);
+      expect(reg[h.axis][1] - reg[h.axis][0]).toBe(0.75);
+      dims.forEach((d, i) => { if (i !== a) expect(reg[d]).toEqual([h.centre[i]! - 0.1875, h.centre[i]! + 0.1875]); });
+      expect(holeTouchesBox(h, { ...reg, [dims[(a + 1) % 3]!]: [reg[dims[(a + 1) % 3]!][1] + 0.01, 99] })).toBe(false);
+      expect(holeTouchesBox(h, reg)).toBe(true);
+    }
+  });
+
+  it('holeTouchesBox sees the head where the bore alone would miss', () => {
+    const h = holeInstances(board, cbRow)[0]!;
+    // A box beside the bore but inside the head's ring, over the head's span.
+    const box: Region = { length: [h.centre[0] + 0.15, h.centre[0] + 0.17], width: [h.centre[1] - 0.01, h.centre[1] + 0.01], thickness: [0.6, 0.7] };
+    expect(holeTouchesBox(holePieces(h)[1]!, box)).toBe(false);
+    expect(holeTouchesBox(h, box)).toBe(true);
+  });
+
+  it('insideHole: inside any piece, a frustum by its interpolated radius', () => {
+    const cb = holeInstances(board, cbRow)[0]!;
+    const cs = holeInstances(board, csRow)[0]!;
+    const mid = (r: number, h: Hole) => at(h, h.head!.reach / 2, r);
+    const between = (0.09375 + 0.1875) / 2;
+    expect(insideHole(cb, mid(between, cb))).toBe(true);
+    expect(insideHole(cs, mid(between + 0.01, cs))).toBe(false);   // the cone's radius at mid-span is `between`
+    expect(insideHole(cs, mid(between - 0.01, cs))).toBe(true);
+    expect(insideHole(cb, mid(0.19, cb))).toBe(false);
+    expect(insideHole(cs, mid(0.19, cs))).toBe(false);
+    // Past the head only the bore is air.
+    expect(insideHole(cb, at(cb, 0.5, between))).toBe(false);
+    expect(insideHole(cb, at(cb, 0.5, 0.05))).toBe(true);
+  });
+
+  it('holeRims: a counterbore draws four rings, a countersink three (the junction once)', () => {
+    const loops = (h: Hole) => holeRims(h).length / HOLE_SEGMENTS;
+    const cb = holeInstances(board, cbRow)[0]!;
+    const cs = holeInstances(board, csRow)[0]!;
+    expect(loops(cb)).toBe(4);
+    expect(loops(cs)).toBe(3);
+    const junction = holeRing(holePieces(cs)[1]!, 0);
+    const key = (p: V3) => p.join(',');
+    const starts = holeRims(cs).map(([p]) => key(p));
+    for (const p of junction) expect(starts.filter((s) => s === key(p))).toHaveLength(1);
   });
 });
