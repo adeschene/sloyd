@@ -8296,7 +8296,7 @@ so a throw would take the app down. No repro in about 7,200 fuzz runs, and the o
 
 **554. Stretch: the guide plane does not come back after explode and un-explode while armed (2026-10-28, the final whole-branch
 review, M5).** `setExplode` above 0 clears `stretchGuide` (inv 64), but the panel keeps its armed state; after un-exploding, the panel
-still shows the axis and line armed while the viewport draws no plane until the user re-arms or edits the line.
+still shows the axis and line armed while the viewport draws no plane.
 **Status:** open (record-only).
 
 **555. Stretch: the panel's size text — an unparseable entry says nothing, and a retyped rounded value arms a tiny δ (2026-10-28,
