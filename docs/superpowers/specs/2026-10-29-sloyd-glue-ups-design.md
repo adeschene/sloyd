@@ -1,6 +1,6 @@
 # Sloyd — glue-ups from narrow stock
 
-**Date:** 2026-10-29 · **Status:** draft for the user's review.
+**Date:** 2026-10-29 · **Status:** approved by the user 2026-10-29 (option A, §2); plan `docs/superpowers/plans/2026-10-29-sloyd-glue-ups.md`.
 
 **Origin:** follow-up 268 ("A part wider than every stock board is 'too wide'; edge-gluing narrower boards is not
 modelled"), picked by the user 2026-10-29 from `docs/feature-gaps.md`'s residue. The user asked for the spec without the
