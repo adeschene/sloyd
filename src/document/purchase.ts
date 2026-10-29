@@ -224,11 +224,17 @@ export function glueStripPart(id: string): string | null {
   return i < 0 ? null : id.slice(0, i);
 }
 
-function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean): PurchaseEntry {
+function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean, edging: ReadonlySet<string>): PurchaseEntry {
   const notes: string[] = [];
   let unplaceable = 0;
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
   const groups = new Map<number, Board[]>();
+  // Stock and part that READ the same leave nothing to plane to say: a 19 mm part from 3/4" stock (the same whole mm),
+  // or a 0.748" part from 3/4" stock (both 3/4" at display precision; fu 359, the user's ruling — imperial too).
+  const planeNote = (part: Board, t: number) => {
+    const same = formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
+    if (t > part.thickness + EPS && !same) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
+  };
   for (const part of parts) {
     // End grain (grain through the thickness) cannot come out of a board along its length; pricing it as long
     // grain would buy stock that cannot yield it. Refused with its reason until it is modelled (final review).
@@ -246,14 +252,26 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       const reason = stock.length === 0 ? `no ${label.toLowerCase()} sizes listed`
         : thick.length === 0 ? 'too thick'
         : stock.some((s) => thickEnough(s.thickness, part.thickness, units) && fitsStock(f.h, s.width, units)) ? 'too long' : 'too wide';
-      notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${reason}`);
+      // Glue-ups (glue-ups spec §3): ONLY where the answer is `too wide`, and never an edging strip, so every part that gets a
+      // board today gets exactly the same board. End grain was refused above.
+      const glue = reason === 'too wide' && !edging.has(part.id) ? gluePlan(part, stock, units) : null;
+      if (glue) {
+        const n = glue.strips.length;
+        const strip = glue.strips[0]!;
+        notes.push(`${part.name} (${partDims(part, units)}): glue up from ${n} strips, ${formatSize([strip.thickness, strip.width, strip.length], units)}`
+          + ` — no ${label.toLowerCase()} stock is ${formatLength(glue.across, units)} wide`);
+        planeNote(part, glue.thickness);
+        groups.set(glue.thickness, [...(groups.get(glue.thickness) ?? []), ...glue.strips]);
+        continue;
+      }
+      const why = reason === 'too wide' && !edging.has(part.id)
+        ? `too wide, and too long to glue up (strips need ${formatLength(GLUE_LENGTH_ALLOWANCE, units)} to trim)`
+        : reason;
+      notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${why}`);
       unplaceable += 1;
       continue;
     }
-    // Stock and part that READ the same leave nothing to plane to say: a 19 mm part from 3/4" stock (the same whole mm),
-    // or a 0.748" part from 3/4" stock (both 3/4" at display precision; fu 359, the user's ruling — imperial too).
-    const same = formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
-    if (t > part.thickness + EPS && !same) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
+    planeNote(part, t);
     groups.set(t, [...(groups.get(t) ?? []), part]);
   }
 
@@ -394,6 +412,8 @@ function hardwareToBuy(hardware: readonly HardwareTotal[]): { hardware: Purchase
 export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings, hardwareList: readonly HardwareTotal[] = []): Purchase {
   const catalog = catalogOf(doc);
   const stock = cutStock(doc);
+  // Edging strips follow the parts in `cutStock`; they are never glued up (glue-ups spec §3).
+  const edging = new Set(stock.slice(doc.boards.length).map((b) => b.id));
   const materials = [...new Set(list.groups.map((g) => g.material))];
   const entries: PurchaseEntry[] = materials.map((m) => {
     const label = catalog.label(m);
@@ -401,7 +421,7 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
     const buying = shop.materials[m] ?? defaultBuying(m, nominal);
     const groups = list.groups.filter((g) => g.material === m);
     if (buying.mode === 'piece' && !isSheetGood(m)) {
-      return byThePiece(m, label, stock.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal);
+      return byThePiece(m, label, stock.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal, edging);
     }
     if (buying.mode === 'board-foot' && !isSheetGood(m)) {
       const price = buying.pricePerBoardFoot;
