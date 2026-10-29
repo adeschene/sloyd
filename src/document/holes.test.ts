@@ -707,6 +707,13 @@ describe('the headed Hole and its pieces (counterbores spec §6.1)', () => {
     expect(insideHole(cb, at(cb, 0.5, 0.05))).toBe(true);
   });
 
+  it('holeRims: a through counterbore deeper than the part draws no bore rings in air (inv 16)', () => {
+    const deep = holeInstances(board, { ...cbRow, headDepth: 1 })[0]!;
+    expect(deep.through).toBe(true);
+    const rings = new Set(holeRims(deep).map(([p]) => radial(deep, p).r.toFixed(6)));
+    expect([...rings]).toEqual([deep.head!.radius.toFixed(6)]);
+  });
+
   it('holeRims: a counterbore draws four rings, a countersink three (the junction once)', () => {
     const loops = (h: Hole) => holeRims(h).length / HOLE_SEGMENTS;
     const cb = holeInstances(board, cbRow)[0]!;

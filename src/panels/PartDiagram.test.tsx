@@ -8,7 +8,7 @@ import { PartDiagram, LEFT_PAD, TICK, TILT_ELLIPSE_POINTS } from './PartDiagram'
 import { archCurve, defaultCorners } from '../document/curves';
 import { fingerLayout, notchCuts } from '../document/boxJoints';
 import { canonicalRun } from '../document/profiles';
-import type { ProfileCut } from '../document/types';
+import type { HoleRow, ProfileCut } from '../document/types';
 import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramLabels';
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -1093,6 +1093,28 @@ describe('PartDiagram headed holes (counterbores spec §8)', () => {
     expect(draw({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 }).side.container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(7);
     cleanup();
     expect(draw({ head: 'countersink', headDiameter: 0.5, headAngle: 90 }).side.container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(5);
+  });
+  it('the head\'s walls sit on the mouth side, blind and through, entered from either face (fu 576)', () => {
+    const outline = (c: HTMLElement) => {
+      const o = c.querySelector('.cutlist-diagram-outline')!;
+      return { y: Number(o.getAttribute('y')), h: Number(o.getAttribute('height')) };
+    };
+    // [from, depth, headDepth, the head wall's two ends as fractions of the thickness down the outline (thickness runs down the page)]
+    const cases: [string, number | 'through', number, [number, number]][] = [
+      ['max', 0.5, 0.25, [1, 2 / 3]], ['min', 0.5, 0.25, [0, 1 / 3]],
+      ['max', 'through', 0.25, [1, 2 / 3]], ['min', 'through', 0.25, [0, 1 / 3]],
+      // A head that outruns a through bore (a kept fault) spans the whole part, from its mouth side.
+      ['max', 'through', 1, [1, 0]], ['min', 'through', 1, [0, 1]],
+    ];
+    for (const [from, depth, headDepth, [f0, f1]] of cases) {
+      const views = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, cuts: [rabbet], holes: [{ ...row, from, depth, head: 'counterbore', headDiameter: 0.5, headDepth } as HoleRow] }), IMPERIAL);
+      const side = render(<PartDiagram view={views.find((v) => v.key === 'width|min')!} />);
+      const o = outline(side.container);
+      const wall = side.container.querySelectorAll('line.cutlist-diagram-hole-side')[0]!;
+      expect(Number(wall.getAttribute('y1')), `${from}/${depth}/${headDepth}`).toBeCloseTo(o.y + f0 * o.h, 6);
+      expect(Number(wall.getAttribute('y2')), `${from}/${depth}/${headDepth}`).toBeCloseTo(o.y + f1 * o.h, 6);
+      cleanup();
+    }
   });
 });
 

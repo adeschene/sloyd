@@ -592,6 +592,27 @@ describe('a headed bore\'s mesh is watertight and stepped (counterbores Task 4)'
     const mouth = clipPolygon(holeRing(holePieces(bad)[0]!, 0), { n: [1, 0, 0], d: 0 });
     expect(topArea(board)).toBeCloseTo(topArea(plain) - polyArea(holeRing(holePieces(ok)[0]!, 0)) - polyArea(mouth), 5);   // Float32 positions over a split face
   });
+  // A faulted headed bore from the WIDTH face whose HEAD alone breaks out through the top (bore clear of it), beside a clean
+  // one opening into that top plane: only the head's prism touches the plane's faces, so the faulted gate must read the
+  // pieces. Handed whole holes (the bore's radius), it would let the merge cover the head's breakout with face.
+  it('a faulted head breaking out into a plane a clean hole opens into, its bore short of it: the face loses the breakout', () => {
+    const [, one] = HEADED_CASES[4]!;
+    const base = one.holes[0]!;
+    const side: HoleRow = { ...base, id: 's', face: 'width', from: 'max', station: 5, acrossFrom: 'max', inset: 0.2, depth: 0.5 };
+    const board = { ...one, holes: [base, side] };
+    const plain = { ...one, holes: [] };
+    const [ok, bad] = partGeometry(board).holes as [Hole, Hole];
+    expect(holeInStock(board, ok, stockChecks(board))).toBe(true);
+    expect(holeInStock(board, bad, stockChecks(board))).toBe(false);
+    const [head, bore] = holePieces(bad) as [Hole, Hole];
+    // The head reaches the top plane (z = thickness/2 above its centre line); the bore does not.
+    const topAt = 2; const reach = (h: Hole) => h.centre[topAt]! + h.radius;
+    expect(reach(head)).toBeGreaterThan(one.thickness);
+    expect(reach(bore)).toBeLessThan(one.thickness);
+    const lost = polyArea(holeRing(holePieces(ok)[0]!, 0));
+    // The head's chord on the top plane (half-width √(R² − 0.2²) over its 1/4" reach) is gone too: well over the sliver of rounding.
+    expect(topArea(plain) - topArea(board)).toBeGreaterThan(lost + 0.05);
+  });
   // Task 3's review: a THROUGH counterbore whose head reaches the far face is legal but faulted (too-deep, kept and
   // noted). Its bore piece has no length: the mesh draws the head, clipped to the stock as a faulted hole's, and nothing
   // of the bore.

@@ -8404,6 +8404,7 @@ ellipses' major axes, not the true tangents; exact in the entry and side views. 
 has headed cases for healthy rows only, so the faulted (clipped) path of a headed part has no wall-clock guard. A faulted-gate "whole holes" mutant also survives (Task 4 review): a faulted head breaking out into a plane that a clean hole opens
 into, where the bore does not reach, has no fixture. Add one or keep this as the recorded gap.
 **Status:** open (record-only).
+**Status:** closed 2026-10-29 (whole-branch review fix wave): `holesPerf.test.ts` times two faulted headed rows of 21 crossing a dado (minimum of 9, at most 100 ms), and `curvesWatertight.test.ts` has the faulted-head-into-a-clean-plane fixture (a head from the width face breaking out through the top, its bore short of it); the "whole holes" mutant fails it.
 
 **576. Counterbores: the build's deferred minors.** Task 1: `validateHoleRows` builds a row twice (the `headProblem` probe and the push), the
 v30 comment in `document.ts` is one long line. Task 2: `frustumPrismOf` duplicates `prismOf`'s caps and box block, `piecesOf` assumes headed
@@ -8417,3 +8418,4 @@ is a `toBeDefined` no-op, `HEAD_MALFORMED` is missing from the copy test, preset
 sits in `leanKeep.ts`, a plain part in a heads-only assembly's (c) branch is untested, stale comments at `leanKeep.ts:333` and `run.ts:376`,
 `changedBoxJointed` does not compare holes (sound today).
 **Status:** open (record-only).
+**Status:** 2026-10-29 (whole-branch review fix wave): the Task 6 items are closed — `DiagramHoleSide.head.mouth` carries the mouth side from `dir` (no float-equality inference), a head that outruns a through bore draws no bore walls, and a positional test pins the head's walls blind and through from both faces. Residue: every other minor listed above stays open (record-only).

@@ -581,7 +581,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574–576.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574 and 576 (575 closed; 576's residue is its other minors).
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

@@ -83,9 +83,11 @@ export interface DiagramHoleSide {
   /**
    * A HEADED hole only (counterbores spec §8): the head's box in (h, v), `h` and `v` the bore's as before. Axially it runs
    * from the mouth over the head's reach (clamped to the hole's depth), laterally ±R. The side drawing is stepped, or for
-   * `cone` a trapezoid from the head box's mouth corners to the bore's at the end of the reach. Absent for a headless hole.
+   * `cone` a trapezoid from the head box's mouth corners to the bore's at the end of the reach. `mouth` is the side of the
+   * hole's box the head opens on (from `dir`, never inferred from the spans: a head that outruns a through bore spans it all).
+   * Absent for a headless hole.
    */
-  head?: { h: Span; v: Span; cone: boolean };
+  head?: { h: Span; v: Span; cone: boolean; mouth: 'hmin' | 'hmax' | 'vmin' | 'vmax' };
 }
 
 /** A tilted bore's entry or exit ellipse (DiagramHole's doc): the view draws `hi` horizontal, `vi` vertical. */
@@ -520,7 +522,8 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
           const i = DIMENSION_ORDER.indexOf(d);
           return [h.centre[i]! - h.head!.radius, h.centre[i]! + h.head!.radius];
         };
-        head = { h: headSpan(view.horizontal), v: headSpan(view.vertical), cone: h.head.kind === 'countersink' };
+        const mouth = axisIsH ? (h.dir > 0 ? 'hmin' : 'hmax') : (h.dir > 0 ? 'vmin' : 'vmax');
+        head = { h: headSpan(view.horizontal), v: headSpan(view.vertical), cone: h.head.kind === 'countersink', mouth };
       }
       view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt, ...(head ? { head } : {}) });
       mark(view, r);

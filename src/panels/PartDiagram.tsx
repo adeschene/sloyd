@@ -488,21 +488,22 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           }
           // A HEADED hole (counterbores spec §8): stepped, R walls over the head and r walls past it, or for a countersink the
           // head box's mouth corners joined to the bore's. Drawn in (axial, lateral) and mapped; the mouth is the box end the
-          // head shares (a blind hole's is opposite its bottom).
+          // head opens on (`head.mouth`, from the hole's direction).
           if (s.head) {
             const h = s.head;
             const ax = (b: { h: [number, number]; v: [number, number] }) => (s.axis === 'h' ? b.h : b.v);
             const lat = (b: { h: [number, number]; v: [number, number] }) => (s.axis === 'h' ? b.v : b.h);
             const [b0, b2] = ax(s), [e0, e1] = ax(h);
-            const mouthMin = s.bottomAt ? s.bottomAt.endsWith('max') : e0 === b0;
+            const mouthMin = h.mouth.endsWith('min');
             const a0 = mouthMin ? b0 : b2, a2 = mouthMin ? b2 : b0;
             const a1 = mouthMin ? e1 : e0;
             const [l0, l1] = lat(s), [L0, L1] = lat(h);
             const pt = (a: number, l: number): [number, number] => (s.axis === 'h' ? [X(a), Y(l)] : [X(l), Y(a)]);
             const seg: [[number, number], [number, number]][] = [
               [pt(a0, L0), pt(a1, h.cone ? l0 : L0)], [pt(a0, L1), pt(a1, h.cone ? l1 : L1)],
-              [pt(a1, l0), pt(a2, l0)], [pt(a1, l1), pt(a2, l1)],
             ];
+            // A head that outruns a through bore leaves no bore wall (a1 = a2): nothing to draw there.
+            if (a1 !== a2) seg.push([pt(a1, l0), pt(a2, l0)], [pt(a1, l1), pt(a2, l1)]);
             if (!h.cone) seg.push([pt(a1, L0), pt(a1, l0)], [pt(a1, L1), pt(a1, l1)]);
             if (s.bottomAt) seg.push([pt(a2, l0), pt(a2, l1)]);
             return seg.map(([[x1, y1], [x2, y2]], i) => (

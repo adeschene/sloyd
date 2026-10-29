@@ -749,9 +749,11 @@ function planesOf(faces: readonly { n: V3; verts: V3[] }[]): Plane[] {
 export function holeRims(h: Hole): [V3, V3][] {
   if (h.head) {
     // Every piece's rims; a countersink's cone ends on the bore's mouth ring (the same points), drawn once.
+    // A bore piece with no length (a through head that outruns the part: a kept too-deep fault) is air: no rings (inv 16).
     const [head, bore] = holePieces(h) as [Hole, Hole];
-    const loops = head.tip !== undefined ? [holeRing(head, 0), holeRing(head, head.depth), holeRing(bore, bore.depth)]
-      : [holeRing(head, 0), holeRing(head, head.depth), holeRing(bore, 0), holeRing(bore, bore.depth)];
+    const bored = bore.depth > HOLE_EPS;
+    const loops = head.tip !== undefined ? [holeRing(head, 0), holeRing(head, head.depth), ...(bored ? [holeRing(bore, bore.depth)] : [])]
+      : [holeRing(head, 0), holeRing(head, head.depth), ...(bored ? [holeRing(bore, 0), holeRing(bore, bore.depth)] : [])];
     return loops.flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
   }
   const far = !tilted(h) ? holeRing(h, h.depth) : h.through ? holeRing(h, h.reach) : holeBottom(h);

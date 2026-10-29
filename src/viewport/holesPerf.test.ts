@@ -86,6 +86,15 @@ describe('a holed part rebuilds inside a frame (Task 11b)', () => {
     }
     expect(minOf9([], (length) => seat(length))).toBeLessThanOrEqual(40);
   });
+  it('two rows of 21 counterbores crossing a dado (faulted, headed): minimum of 9 full rebuilds is at most 100 ms', () => {
+    const headedRows = [counterbores, countersinks].map((r, i) => ({ ...r, id: `h${i}`, count: 21, ...(i === 0 ? { depth: 0.5 as const } : {}), acrossFrom: i === 0 ? 'min' as const : 'max' as const }));
+    const make = (length: number, cuts: Board['cuts']) => createBoard({ id: 'side', length, width: 11.25, thickness: 0.75, cuts, holes: headedRows });
+    const b = make(30, [crossingDado]);
+    expect(b.holes.every((r) => r.head !== undefined && r.count === 21)).toBe(true);
+    expect(b.holes.some((r) => holeFaults(b, r).length > 0)).toBe(true);
+    expect(partGeometry(b).holes.some((h) => !holeInStock(b, h, stockChecks(b)))).toBe(true);
+    expect(minOf9([crossingDado], make)).toBeLessThanOrEqual(100);
+  });
   it.each([['a row of 20 counterbores', counterbores], ['a countersunk row', countersinks]] as const)(
     '%s (clean): minimum of 9 full rebuilds is at most 40 ms', (_name, row) => {
       const make = headedSide(row);
