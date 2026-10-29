@@ -1706,7 +1706,7 @@ describe('schema 21: a mirrored shaped part (mirrored links, fu 432, spec §3)',
     JSON.parse(JSON.stringify({ ...createDocument('M'), version, boards, shapes: [shape], definitions,
       instances: definitions.map((_, i) => ({ id: `i${i}`, name: `Case ${i}`, definition: `d${i + 1}`, position: [40, 0, 0], rotation: 0 })) }));
 
-  it('this build writes 28', () => expect(CURRENT_VERSION).toBe(30));
+  it('this build writes 30', () => expect(CURRENT_VERSION).toBe(30));
 
   it('a v21 shaped part keeps mirrored: true, at the root and in a definition', () => {
     const d = migrateDocument(raw([user('a'), user('b', true)], 21, [{ id: 'd1', boards: [user('c', true), user('e')], instances: [], hardware: [] }]));

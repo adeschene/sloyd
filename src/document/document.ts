@@ -253,8 +253,7 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * must be refused by a v28 build.
  *
  * v30 (counterbores spec §3): `head` / `headDiameter` / `headDepth` / `headAngle` on a hole row. No step: an absent head is a
- * plain bore. The loader copies the head keys only when `head` is present and DROPS the row, never the part, when `headProblem`
- * says the head is malformed, not wider than the bore, too deep for a blind row, or on a tilted row. Harm a v29 build would
+ * plain bore. The loader carries every present head key to `headProblem` and DROPS the row, never the part, when it says the head is malformed, not wider than the bore, too deep for a blind row, or on a tilted row. Harm a v29 build would
  * do: it rebuilds each row field by field, drops the head and drills the plain bore — silently, and autosaves it. So a v30
  * file must be refused by a v29 build.
  */
