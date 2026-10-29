@@ -314,20 +314,6 @@ function Capture({ clean, setClean, captureRef }: {
 }
 
 /**
- * The ground grid, coarsening as the camera pulls back.
- *
- * One inch per cell is the app's unit and stays that way whenever an inch is
- * actually readable. Past that the grid steps up to feet and then to
- * twelve-foot lines rather than drawing sub-pixel lines — see gridDensity for
- * why, and note that this replaced a distance fade. The fade was only ever
- * masking the aliasing, it dissolved the grid into nothing, and because drei
- * fades by distance from the *camera* it behaved completely differently in
- * orthographic (whose framing parks the camera 100+ units back by
- * construction). fadeStrength={0} turns it off; nothing here fades.
- *
- * A metric project uses the 10 mm / 100 mm / 1 m ladder instead (gridDensity.ts).
- */
-/**
  * The stretch line (spec §8): a translucent plane at the armed axis's WORLD position, spanning the selection's other two
  * axes plus 1" a side. View state only. No raycast, no depth write, and no clipping plane (the section cut's plane is
  * never put on this material), so it neither steals a click or a snap nor is cut away.
@@ -378,6 +364,20 @@ function StretchGuide() {
   );
 }
 
+/**
+ * The ground grid, coarsening as the camera pulls back.
+ *
+ * One inch per cell is the app's unit and stays that way whenever an inch is
+ * actually readable. Past that the grid steps up to feet and then to
+ * twelve-foot lines rather than drawing sub-pixel lines — see gridDensity for
+ * why, and note that this replaced a distance fade. The fade was only ever
+ * masking the aliasing, it dissolved the grid into nothing, and because drei
+ * fades by distance from the *camera* it behaved completely differently in
+ * orthographic (whose framing parks the camera 100+ units back by
+ * construction). fadeStrength={0} turns it off; nothing here fades.
+ *
+ * A metric project uses the 10 mm / 100 mm / 1 m ladder instead (gridDensity.ts).
+ */
 function AdaptiveGrid() {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
