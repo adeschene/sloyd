@@ -179,6 +179,51 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
   return best;
 }
 
+/** Glue-ups (glue-ups spec §4): added to each strip's width (jointing both glue edges, the final rip) and length (trimming
+ *  both ends square after clamping), inches. Fixed constants, not settings. */
+export const GLUE_WIDTH_ALLOWANCE = 1 / 8;
+export const GLUE_LENGTH_ALLOWANCE = 1;
+
+/** One part bought as a glue-up: the stock thickness the strips come from, the width across the grain they make up, and the
+ *  N equal strips — plain solid parts, never stored. */
+export interface GluePlan { thickness: number; across: number; strips: Board[] }
+
+const GLUE_TAG = '#glue:';
+
+/**
+ * A part no listed size is wide enough for, as N equal strips (glue-ups spec §4). The caller has already decided it is a
+ * candidate (§3: today's reason is `too wide`). The thickness is the thinnest at least as thick as the part with a size long
+ * enough for a strip; N is the fewest (≥ 2) whose strip fits that thickness's widest such size, by `fitsStock` (whole mm in a
+ * metric project). Null when no thickness has a size long enough. Exact: nothing is rounded (inv 18).
+ */
+export function gluePlan(part: Board, stock: readonly StockBoard[], units: Units): GluePlan | null {
+  const f = grainFootprint(part);
+  const along = f.w + GLUE_LENGTH_ALLOWANCE;
+  const across = f.h;
+  const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b).filter((t) => thickEnough(t, part.thickness, units));
+  for (const t of thicknesses) {
+    const sizes = stock.filter((s) => Math.abs(s.thickness - t) <= EPS && fitsStock(along, s.length, units) && s.width > GLUE_WIDTH_ALLOWANCE);
+    if (sizes.length === 0) continue;
+    const widest = Math.max(...sizes.map((s) => s.width));
+    let n = 2;
+    while (!fitsStock(across / n + GLUE_WIDTH_ALLOWANCE, widest, units)) n += 1;
+    const width = across / n + GLUE_WIDTH_ALLOWANCE;
+    const strips = Array.from({ length: n }, (_, i): Board => ({
+      id: `${part.id}${GLUE_TAG}${i + 1}`, name: `${part.name} strip ${i + 1} of ${n}`,
+      length: along, width, thickness: part.thickness, position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+      material: part.material, cuts: [], angleCuts: [], holes: [], curves: [], profiles: [], bands: [], cornerRule: 'long', hardware: [],
+    }));
+    return { thickness: t, across, strips };
+  }
+  return null;
+}
+
+/** The part a glue strip's id belongs to (the id before its LAST tag), or null for any other id. */
+export function glueStripPart(id: string): string | null {
+  const i = id.lastIndexOf(GLUE_TAG);
+  return i < 0 ? null : id.slice(0, i);
+}
+
 function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean): PurchaseEntry {
   const notes: string[] = [];
   let unplaceable = 0;
