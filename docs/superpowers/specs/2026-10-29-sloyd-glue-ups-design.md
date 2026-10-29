@@ -193,7 +193,8 @@ fail (the working agreement).
     placeable).
 - **Thickness:** a too-wide ¾" part whose ¾" list is short but whose 1" list is long enough for `Ls` glues up at 1", with
   the planing note.
-- **Refusal kept:** a 20" × 95½" part against 96" stock reads `too wide, and too long to glue up …` and counts as not
+- **Refusal kept:** a ¾" × 20" × 95½" part against a list of ¾" × 11¼" × 96" only (NOT the default pine list: its 2×
+  sizes at 10′ and 12′ would glue it up from 1½" stock, planed) reads `too wide, and too long to glue up …` and counts as not
   placed (`Ls = 96.5 > 96`).
 - **Not a candidate:** a too-wide end-grain part keeps its end-grain note. A too-thick part and a too-long part keep their
   reasons. A banded panel glues up its CORE: the strips' width comes from `cutStock`'s core width, and its edging strips
