@@ -406,7 +406,7 @@ describe('runRefine', () => {
 
   it('keeps untouched parts exactly where they were, and carries settings over', async () => {
     const base = orig([bp('Base', [0, 0, 0], [10, 1, 10]), bp('Top', [0, 1, 0], [10, 1, 10])]);
-    const doc = { ...base, stock: { kerf: 0.1 }, guides: [{ id: 'g1', at: [1, 2, 3] as [number, number, number] }] };
+    const doc: SloydDocument = { ...base, stock: { kerf: 0.1 }, guides: [{ id: 'g1', at: [1, 2, 3] as [number, number, number] }, { id: 'l1', at: [0, 2, 3] as [number, number, number], axis: 'x' as const }] };
     const d = echo(doc);
     const wider = { ...d, parts: [d.parts[0]!, { ...d.parts[1]!, size: { ...d.parts[1]!.size, x: 14 } }] };
     const { client } = fakeClient([wider]);
