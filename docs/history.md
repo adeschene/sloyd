@@ -520,7 +520,7 @@ and 79.
 
 ## What each round did
 
-**Glue-ups from narrow stock (2026-10-29, no schema change; fu 268).** The user picked it from the feature gaps' residue and skipped the
+**Glue-ups from narrow stock (2026-10-29, deployed `31dc0f6`, no schema change; fu 268).** The user picked it from the feature gaps' residue and skipped the
 questions. Claude's spec put the one real decision to them — derive the glue-up in Buying from the shop's stock list (A) or store a strip
 count on the part (B, schema 30, so the cut list could show it for hardwood too) — and they took A. The governing rule is that a glue-up
 runs ONLY where Buying said `too wide`, so every other part buys byte for byte as before. Built inline: the review of the plan's own

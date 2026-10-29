@@ -168,7 +168,7 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 | X-ray | 10-28 | — | An **X-ray** button after Section, and **R**: the selection draws solid and every other part in the existing faded look, so its joints show through (round tenons inside legs, fingers and tails at a corner). View state (`xray`, ONE writer `setXray`, reset where `section` is); `viewport/xray.ts` `fadedFor` the ONE faded decision; draw-only — picking and snapping unchanged (fu 539). **Deployed `c0d3b30`, `index-DQJDNnyg.js`** |
 | saved views | 10-28 | 29 | `SloydDocument.views` (`validateViews`; camera with ortho stored as visible height, section, explode, hidden ids — a hint, re-keyed by Group/Ungroup in the same edit); a `Views · N` footer: Save view (name field focused), go to, rename, Update, ×; the four writes are the one document write allowed while exploded (inv 47, `editViews`); going to a view is its own hide entry (inv 43); a restore's projection swap applies the saved pose instead of re-framing (`viewCamera.ts`). Joinery/Repair/Duplicate keep views; Generate/Refine start with none (fu 540–542). **Deployed `ee43d69`, `index-CaZZjZyz.js`** |
 | parametric resize (stretch) | 10-28/29 | — | The assembly and multi-selection panels' **Overall size** section: type a new width, height or depth, place the stretch line (the middle by default), read the preview (grows / moves / stays), Stretch. The min side fixed; everything past the line moves exactly; a part crossing the line grows (never in thickness) and its features follow their side or refuse with a sentence; a shrink refuses a part starting in the removed wood (Rulings 7, 9); copies and links refuse rather than split; a guide plane in the viewport while armed (view state). No schema change; inv 64; fu 545–555. **Deployed `e09003b`, `index-B7bX5cuX.js`** |
-| glue-ups (fu 268) | 10-29 | — | By-the-piece **Buying** glues up a part no listed stock is wide enough for (today's `too wide`, and only that): N equal strips, each 1/8" over its share of the width and 1" longer, from the thinnest thickness with a size long enough, packed and swapped down like any part; one note per glued part; strips on the board layouts carry the part's row number. A strip that cannot be cut long enough keeps the part refused (`too wide, and too long to glue up`). The cut list, Labels, Plans and weight unchanged (option A); fu 556–567. |
+| glue-ups (fu 268) | 10-29 | — | By-the-piece **Buying** glues up a part no listed stock is wide enough for (today's `too wide`, and only that): N equal strips, each 1/8" over its share of the width and 1" longer, from the thinnest thickness with a size long enough, packed and swapped down like any part; one note per glued part; strips on the board layouts carry the part's row number. A strip that cannot be cut long enough keeps the part refused (`too wide, and too long to glue up`). The cut list, Labels, Plans and weight unchanged (option A); fu 556–567. **Deployed `31dc0f6`, `index-CIx6QoDx.js`** |
 
 ## Status log (to 2026-10-29)
 
@@ -176,8 +176,12 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   who skipped the brainstorm questions and approved option A (derived in Buying, no schema change). Built inline (three code tasks,
   TDD, every plan test mutated; seven rulings, three of them added mutation-killing cases), then an opus whole-branch review: no
   Critical or Important, six Minor (fu 564–567; 564, a bound on N, is the user's call). Checked in the user's Chrome
-  (`docs/browser-verification-glue-ups.md`): a 22" pine top bought as two strips on one 1×12 × 8′. 10197/10197, build clean. No
-  schema change: rollback free.
+  (`docs/browser-verification-glue-ups.md`): a 22" pine top bought as two strips on one 1×12 × 8′. MERGED `31dc0f6` (10197/10197,
+  build clean), DEPLOYED as `index-CIx6QoDx.js` (CSS `index-Dea2G94f.css`, unchanged). Verified: `200` on `/` and a deep route
+  in-network and at the edge; the bundle at both, sha256 matching `dist/` (d4796a1d…), carrying `glue up from` and `too long to glue
+  up`; the old `index-B7bX5cuX.js` 404s in-network; CSP at the edge; a headless throwaway-profile load: the new bundle, 0 errors, Add
+  board; storage empty first, the load's two keys removed, read back empty after 3s; the profile deleted. No schema change: rolling
+  back to `e09003b` (`index-B7bX5cuX.js`) is free.
 
 - **Parametric resize (2026-10-28/29; branch `stretch`).** Picked from `docs/feature-gaps.md` by the user, who skipped the brainstorm
   questions; Claude's calls (spec §12) approved. Built subagent-driven (eight tasks, a review each, an opus whole-branch review that
