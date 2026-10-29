@@ -1,6 +1,6 @@
 # Sloyd — counterbores and countersinks: design
 
-Status: DRAFT 2026-10-29, awaiting the user's approval; builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
+Status: APPROVED by the user 2026-10-29 ("Approved, write the plan"); builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
 is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the tilt (schema 23) is
 `docs/superpowers/specs/2026-10-24-sloyd-angled-holes-design.md`, whose layout this follows.
 
