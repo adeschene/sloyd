@@ -158,6 +158,26 @@ export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
   };
 }
 
+/** "Countersunk screw" (counterbores spec §5): the default hole's place, a 3/16" bore (through in stock of 1-1/2" or less,
+ *  else 1-1/4" deep) under a 3/8" countersink at 82° (metric: 4.5 mm under 9 mm at 90°). */
+export function defaultCountersunkScrew(b: Board, metric: boolean): Omit<HoleRow, 'id'> {
+  const base = defaultHole(b);
+  return {
+    ...base, diameter: metric ? mm(4.5) : 3 / 16, depth: b[base.face] <= 1.5 ? 'through' : 1.25,
+    head: 'countersink', headDiameter: metric ? mm(9) : 3 / 8, headAngle: metric ? 90 : 82,
+  };
+}
+
+/** "Counterbored screw" (counterbores spec §5): as the countersunk screw, under a 3/8" × 3/8" deep counterbore
+ *  (metric: 10 mm × 10 mm). */
+export function defaultCounterboredScrew(b: Board, metric: boolean): Omit<HoleRow, 'id'> {
+  const base = defaultHole(b);
+  return {
+    ...base, diameter: metric ? mm(4.5) : 3 / 16, depth: b[base.face] <= 1.5 ? 'through' : 1.25,
+    head: 'counterbore', headDiameter: metric ? mm(10) : 3 / 8, headDepth: metric ? mm(10) : 3 / 8,
+  };
+}
+
 /** Board-local half-space; the kept side is n·x + d ≥ 0. */
 export interface Plane { n: V3; d: number }
 

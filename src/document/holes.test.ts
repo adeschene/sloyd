@@ -8,10 +8,11 @@ import { parseLength, IMPERIAL } from '../units/length';
 import snapshotRaw from './holesSquare.snapshot.json?raw';
 import { bitVector } from './holeTilt';
 import { SQUARE_CASES } from './holesSquareCases';
-import { holeBottom, holeTouches, holeTouchesBox } from './holes';
+import { holeBottom, holeTouches, holeTouchesBox, defaultCountersunkScrew, defaultCounterboredScrew } from './holes';
+import { holeFaults } from './holeFaults';
 import type { Hole } from './holes';
 import type { V3 } from './angleCuts';
-import type { HoleRow, Region } from './types';
+import type { Board, HoleRow, Region } from './types';
 
 export const PIN: HoleRow = {
   id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
@@ -716,5 +717,35 @@ describe('the headed Hole and its pieces (counterbores spec §6.1)', () => {
     const key = (p: V3) => p.join(',');
     const starts = holeRims(cs).map(([p]) => key(p));
     for (const p of junction) expect(starts.filter((s) => s === key(p))).toHaveLength(1);
+  });
+});
+
+describe('screw presets (counterbores §5)', () => {
+  const stock = (thickness: number) => createBoard({ id: 'b', name: 'B', length: 12, width: 4, thickness });
+  const faults = (b: Board, r: Omit<HoleRow, 'id'>) => { const p = { ...r, id: 'p' }; return holeFaults({ ...b, holes: [p] }, p); };
+  it('on 3/4" stock both are through with the exact values, and fault-free', () => {
+    const b = stock(0.75);
+    const sink = defaultCountersunkScrew(b, false);
+    const bore = defaultCounterboredScrew(b, false);
+    expect(sink).toMatchObject({ ...defaultHole(b), diameter: 3 / 16, depth: 'through', head: 'countersink', headDiameter: 3 / 8, headAngle: 82 });
+    expect(bore).toMatchObject({ ...defaultHole(b), diameter: 3 / 16, depth: 'through', head: 'counterbore', headDiameter: 3 / 8, headDepth: 3 / 8 });
+    expect('headDepth' in sink).toBe(false);
+    expect('headAngle' in bore).toBe(false);
+    expect(faults(b, sink)).toEqual([]);
+    expect(faults(b, bore)).toEqual([]);
+    expect(headProblem(sink)).toBeNull();
+    expect(headProblem(bore)).toBeNull();
+  });
+  it('on 2" stock the depth is 1.25 (above 1-1/2" is blind)', () => {
+    const b = stock(2);
+    expect(defaultCountersunkScrew(b, false).depth).toBe(1.25);
+    expect(defaultCounterboredScrew(b, false).depth).toBe(1.25);
+    expect(stock(1.5)).toBeDefined();
+    expect(defaultCounterboredScrew(stock(1.5), false).depth).toBe('through');
+  });
+  it('metric: 4.5 mm bore, 9 mm at 90 degrees, 10 mm x 10 mm', () => {
+    const b = stock(0.75);
+    expect(defaultCountersunkScrew(b, true)).toMatchObject({ diameter: mm(4.5), headDiameter: mm(9), headAngle: 90 });
+    expect(defaultCounterboredScrew(b, true)).toMatchObject({ diameter: mm(4.5), headDiameter: mm(10), headDepth: mm(10) });
   });
 });

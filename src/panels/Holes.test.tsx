@@ -656,3 +656,101 @@ describe('the tilt end / side picks (Task 9 review)', () => {
     expect(rows()[0]!.tiltAlong).toBe(slopeOf(10));
   });
 });
+
+describe('counterbores and countersinks in the Holes section (counterbores §4, §5)', () => {
+  const hole = async (user: ReturnType<typeof userEvent.setup>, over: Partial<Board> = {}) => {
+    open(side(over));
+    await add(user, 'Hole');
+    // The default hole is 1/4" dia and 1/2" deep; make it through (the brief's 1/4" through hole).
+    await user.click(screen.getByLabelText('Through'));
+  };
+  it('choosing Counterbore on a 1/4" through hole in 3/4" stock seeds 2 x diameter and min(diameter, face / 2)', async () => {
+    const user = userEvent.setup();
+    await hole(user);
+    expect(rows()[0]!.depth).toBe('through');
+    await user.selectOptions(screen.getByLabelText('Head'), 'counterbore');
+    expect(rows()[0]).toMatchObject({ head: 'counterbore', headDiameter: 0.5, headDepth: 0.25 });
+    expect('headAngle' in rows()[0]!).toBe(false);
+    expect(screen.getByLabelText('Head dia')).toBeInTheDocument();
+    expect(screen.getByLabelText('Head depth')).toBeInTheDocument();
+  });
+  it('Countersink seeds 82 degrees (imperial) and shows its derived depth; the angle select changes it', async () => {
+    const user = userEvent.setup();
+    await hole(user);
+    await user.selectOptions(screen.getByLabelText('Head'), 'countersink');
+    expect(rows()[0]).toMatchObject({ head: 'countersink', headDiameter: 0.5, headAngle: 82 });
+    expect('headDepth' in rows()[0]!).toBe(false);
+    expect(screen.getByText(/^Depth /)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Angle'), '90');
+    expect(rows()[0]!.headAngle).toBe(90);
+  });
+  it('metric seeds a 90 degree countersink', async () => {
+    const user = userEvent.setup();
+    open(side());
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByText('4.5 mm screw, 9 mm countersink at 90°')).toBeInTheDocument();
+    expect(screen.getByText('4.5 mm screw, 10 mm counterbore 10 mm deep')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Hole' }));
+    await user.click(screen.getByLabelText('Through'));
+    await user.selectOptions(screen.getByLabelText('Head'), 'countersink');
+    expect(rows()[0]!.headAngle).toBe(90);
+  });
+  it('None removes every head key', async () => {
+    const user = userEvent.setup();
+    await hole(user);
+    await user.selectOptions(screen.getByLabelText('Head'), 'counterbore');
+    await user.selectOptions(screen.getByLabelText('Head'), '');
+    for (const k of ['head', 'headDiameter', 'headDepth', 'headAngle']) expect(k in rows()[0]!, k).toBe(false);
+  });
+  it('a Diameter typed to the head size shows HEAD_NOT_WIDER and stores nothing', async () => {
+    const user = userEvent.setup();
+    await hole(user);
+    await user.selectOptions(screen.getByLabelText('Head'), 'counterbore');
+    const dia = screen.getByLabelText('Diameter');
+    await user.clear(dia); await user.type(dia, '1/2{Enter}');
+    expect(rows()[0]!.diameter).toBe(0.25);
+    expect(screen.getByText('The counterbore or countersink must be wider than the hole.')).toBeInTheDocument();
+  });
+  it('a typed tilt on a headed row is refused with TILT_ON_HEAD', async () => {
+    const user = userEvent.setup();
+    await hole(user);
+    await user.selectOptions(screen.getByLabelText('Head'), 'counterbore');
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '10{Enter}');
+    expect(rows()[0]!.tiltAlong).toBeUndefined();
+    expect(screen.getByText('Remove the counterbore or countersink before tilting the hole.')).toBeInTheDocument();
+  });
+  it('a tilted row disables the Head select and says why', async () => {
+    const user = userEvent.setup();
+    await hole(user);
+    const f = screen.getByLabelText('Tilt toward end');
+    await user.clear(f); await user.type(f, '10{Enter}');
+    expect(screen.getByLabelText('Head')).toBeDisabled();
+    expect(screen.getByText("A tilted hole can't take a counterbore or countersink yet.")).toBeInTheDocument();
+  });
+  it('both presets appear on a 3/4" panel and add a through row with the exact values', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Countersunk screw');
+    expect(rows()[0]).toMatchObject({ diameter: 3 / 16, depth: 'through', head: 'countersink', headDiameter: 3 / 8, headAngle: 82 });
+    cleanup();
+    open(side());
+    await add(user, 'Counterbored screw');
+    expect(rows()[0]).toMatchObject({ head: 'counterbore', headDiameter: 3 / 8, headDepth: 3 / 8 });
+  });
+  it('preset details read as the brief says', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByText('3/16" screw, 3/8" countersink at 82°')).toBeInTheDocument();
+    expect(screen.getByText('3/16" screw, 3/8" counterbore 3/8" deep')).toBeInTheDocument();
+  });
+  it('on 1/4" stock the counterbored screw is withheld, the countersunk screw stays', async () => {
+    const user = userEvent.setup();
+    open(side({ thickness: 0.25 }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: 'Counterbored screw' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Countersunk screw' })).toBeInTheDocument();
+  });
+});

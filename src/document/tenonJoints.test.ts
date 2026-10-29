@@ -135,6 +135,17 @@ describe('a seated tenon is a joint (round tenons spec §5)', () => {
     expect(v[0]!.message).toMatch(/^Seat passes [\d.]+in into Front right along [XYZ]\.$/);
   });
 
+  it('a headed bore is not a seat: the same row with a counterbore is not seated (counterbores §7)', () => {
+    const doc = tenonedStool();
+    const seat = part(doc, 'Seat');
+    const leg = part(doc, 'Front right');
+    const row = seat.holes.find((r) => r.id === socketOf(doc, 'Front right').id)!;
+    expect(seatedIn(leg, builtTenons(leg)[0]!, seat, row)).toBe(true);
+    // Judged on the predicate itself: the stool's sockets are tilted, and the loader would drop a headed tilted row.
+    const headed = { ...row, head: 'counterbore' as const, headDiameter: row.diameter * 1.5, headDepth: 0.25 };
+    expect(seatedIn(leg, builtTenons(leg)[0]!, seat, headed)).toBe(false);
+  });
+
   it('a socket 1/64" larger → not seated: an overlap, with the hint (Review Focus 3)', () => {
     const base = tenonedStool();
     const fr = socketOf(base, 'Front right');

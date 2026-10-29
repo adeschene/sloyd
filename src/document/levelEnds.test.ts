@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import { isLevelled, levelCutOf, levelPlan, sameLevelLine, LEVEL_BELOW_FLOOR, LEVEL_CUTS_HOLE, LEVEL_FOOT_CUT, LEVEL_TOP_CUT, type LevelPlan } from './levelEnds';
-import { levelEndHoles } from './holeRebase';
+import { levelEndHoles, storableRow } from './holeRebase';
 import { holeInstances } from './holes';
 import { leanMap, slopeOf } from './lean';
 import { depthAt, depthAtCross, miterFields, mirrorAngleCut, taperCut, throughOf } from './angleCuts';
@@ -265,6 +265,19 @@ describe('levelEndHoles: the rows after the ends grow (angled holes §7)', () =>
     expect(f.depth).toBe(1 + eF);
     expect([f.station, f.inset]).toEqual([0.75, 0.6]);
     expect(run({ ...r, from: 'max' }).depth).toBe(1 + eT);
+  });
+
+  it('a blind counterbored row entering an end deepens by e and keeps headDepth exactly (counterbores §7)', () => {
+    const r = base({ face: 'length', along: 'width', station: 0.75, inset: 0.6, depth: 1, head: 'counterbore', headDiameter: 0.5, headDepth: 0.3125 });
+    const f = run({ ...r, from: 'min' });
+    expect(f.depth).toBe(1 + eF);
+    expect([f.head, f.headDiameter, f.headDepth]).toEqual(['counterbore', 0.5, 0.3125]);
+    expect(storableRow(f)).toBe(true);
+  });
+  it('storableRow refuses a row whose head would become illegal', () => {
+    const r = base({ depth: 0.3, head: 'counterbore', headDiameter: 0.5, headDepth: 0.3125 });
+    expect(storableRow(r)).toBe(false);
+    expect(storableRow({ ...r, depth: 0.5 })).toBe(true);
   });
 
   it('a through square row entering an end is the same object; a row nothing moves is the same object', () => {
