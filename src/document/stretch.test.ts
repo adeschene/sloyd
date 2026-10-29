@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Board, Cut, SloydDocument } from './types';
 import { stretchPlan, type StretchPlan } from './stretch';
-import { apronTable, bookcase, dovetailedDrawer, framedTable, linkedApronTable, placedTable } from './stretchFixtures';
+import { apronTable, bookcase, dovetailedDrawer, framedTable, linkedApronTable, placedChiral, placedTable } from './stretchFixtures';
 import { stoolDocument } from './stoolFixture';
 import { expectPartition, type WorldBox } from './dovetailFixtures';
 import { cutRegion } from './cuts';
@@ -488,5 +488,55 @@ describe('stretchPlan: leaning legs (the staked stool, spec §10, inv 57)', () =
       expect(Math.abs(z[0] - a[0] - p.delta)).toBeLessThanOrEqual(1e-12);
       expect(Math.abs(z[1] - a[1]) + Math.abs(z[2] - a[2])).toBeLessThanOrEqual(1e-12);
     }
+  });
+});
+
+describe('stretchPlan: a CHIRAL part turned 90 and mirrored, the line off-centre (inv 44: never a symmetric fixture)', () => {
+  // chiralPart: c1 at length u 4–4.75, c2 at u 2–8, c3 at u 0–15, on a 20 long part whose u 0 end is at the world MAX of the
+  // axis under either transform. The line at u 6 (world max − 6): c1 lies wholly past it (world-far) and shifts δ; c2 and
+  // c3 cross it and grow, their world-far faces (u 2 and u 0) moving δ and their near faces (u 8, u 15) staying. Read at the
+  // reflected station (u 14) instead, c2 would be wholly far and shift whole: this is the case that tells the two apart.
+  // (u is the DEFINITION's stored station. Turned, the world part's length is a reversed axis, so this case reads the frame;
+  // mirrored, the world part is unreversed with its features flag-flipped (inv 44), so this case checks the mirror's lowering.)
+  const cases = [
+    { tag: 'turned 90°, on Z', o: { rotation: 90 } as const, axis: 2 as const },
+    { tag: 'mirrored, on X', o: { mirrored: true } as const, axis: 0 as const },
+  ];
+  for (const { tag, o, axis } of cases) {
+    it(tag, () => {
+      const doc = placedChiral(o);
+      const ext = itemExtents(doc, ['i'])[0]!;
+      expect(ext.max[axis]! - ext.min[axis]!).toBe(20);
+      const line = ext.max[axis]! - 6;
+      const was = worldCutBoxes(byName(doc, 'Chiral'));
+      // The hand claim that u 0 is at the world max: c3 (u 0–15) reaches it, and c2 (u 2–8) spans max − 8 to max − 2.
+      expect(was.get('c3')!.max[axis]).toBe(ext.max[axis]);
+      expect([was.get('c2')!.min[axis], was.get('c2')!.max[axis]]).toEqual([ext.max[axis]! - 8, ext.max[axis]! - 2]);
+      const p = ok(stretchPlan(doc, ['i'], axis, 24, line));
+      expect(p.delta).toBe(4);
+      const now = worldCutBoxes(byName(p.doc, 'Chiral'));
+      const moved = (b: { min: number[]; max: number[] }, lo: number, hi: number) => {
+        const out = { min: [...b.min], max: [...b.max] };
+        out.min[axis] = out.min[axis]! + lo;
+        out.max[axis] = out.max[axis]! + hi;
+        return out;
+      };
+      expect(closeTo(now.get('c1'), moved(was.get('c1')!, 4, 4))).toBeNull();
+      expect(closeTo(now.get('c2'), moved(was.get('c2')!, 0, 4))).toBeNull();
+      expect(closeTo(now.get('c3'), moved(was.get('c3')!, 0, 4))).toBeNull();
+      expect(byName(p.doc, 'Chiral').length).toBe(24);
+      // Shrunk back at the same line (the removed band toward the part's MIN end): every world part as it was.
+      const back = ok(stretchPlan(p.doc, ['i'], axis, 20, line));
+      expect(closeTo(worldParts(back.doc), worldParts(doc))).toBeNull();
+    });
+  }
+});
+
+describe('stretchPlan: Ruling 7 names an ASSEMBLY by its own name', () => {
+  it('framedTable, [Top, End frame, End frame 2] on X, 48 → 46 at x 46 (band 46–48): End frame 2 (x 46.25) refuses', () => {
+    const doc = framedTable();
+    const before = structuredClone(doc);
+    expect(refusal(stretchPlan(doc, [idOf(doc, 'Top'), 'iL', 'iR'], 0, 46, 46))).toBe(inRemovedBand('End frame 2'));
+    expect(doc).toEqual(before);
   });
 });

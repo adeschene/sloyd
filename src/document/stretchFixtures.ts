@@ -6,6 +6,7 @@ import { createBoard, createDocument, migrateDocument } from './document';
 import type { Board, Cut, HoleRow, SloydDocument } from './types';
 import { linkByRole } from './roleLinks';
 import { applyDovetails, dovetailPlan } from './dovetails';
+import { chiralPart } from './turnFixtures';
 
 /** A leg mortise for an apron 24.5–28.5 high: face width, across thickness, at length u 25–28 (stored from the MIN end). */
 const mortiseFromMin = (id: string, from: 'min' | 'max'): Cut => ({
@@ -160,4 +161,16 @@ export function dovetailedDrawer(): SloydDocument {
   const plan = dovetailPlan(doc, ['f', 'b', 'l', 'r'], { slope: 8, count: null, swap: false });
   if (typeof plan === 'string') throw new Error(plan);
   return applyDovetails(doc, plan);
+}
+
+/** `chiralPart('flat')` (turnFixtures: 20 long on X, 6 wide on Z, 1.5 thick; cuts c1 at length u 4–4.75, c2 at u 2–8, c3 at
+ *  u 0–15) as the ONE placement `Chiral` (id `i`) of a definition `c`: turned 90 (its length toward world −Z) or mirrored
+ *  (its length toward world −X). Either way its stored u 0 end is at the world MAX of that axis (mirrored, the WORLD part is
+ *  unreversed and its features flag-flipped, inv 44). */
+export function placedChiral(o: { rotation: 90 } | { mirrored: true }): SloydDocument {
+  return migrateDocument({
+    ...createDocument('Placed chiral'),
+    definitions: [{ id: 'c', boards: [chiralPart('flat')], instances: [], hardware: [] }],
+    instances: [{ id: 'i', name: 'Chiral', definition: 'c', position: [0, 0, 0], rotation: 0, ...o }],
+  });
 }
