@@ -8419,3 +8419,10 @@ sits in `leanKeep.ts`, a plain part in a heads-only assembly's (c) branch is unt
 `changedBoxJointed` does not compare holes (sound today).
 **Status:** open (record-only).
 **Status:** 2026-10-29 (whole-branch review fix wave): the Task 6 items are closed — `DiagramHoleSide.head.mouth` carries the mouth side from `dir` (no float-equality inference), a head that outruns a through bore draws no bore walls, and a positional test pins the head's walls blind and through from both faces. Residue: every other minor listed above stays open (record-only).
+
+**577. Counterbores: two residues the whole-branch review's fix wave left (2026-10-29).** (1) `holeRims` (holes.ts) still draws the HEAD
+piece's far ring at its stored reach, so a through counterbore whose `headDepth` exceeds the part's face dimension (legal, `too-deep`, kept
+and noted) draws one radius-R ring in air past the exit face (inv 16); the mesh, section and drawings already clip or skip there. Clamp the
+head's far ring to the hole's depth and test that every rim point lies within the stock. Faulted parts only. (2) `PartDiagram.tsx`'s skip of
+zero-length bore walls (a head that outruns a through bore) has no line-count test, so the guard could regress unnoticed (cosmetic).
+**Status:** open (record-only).
