@@ -6008,7 +6008,7 @@ open (spec §11).
 **330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
 refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
 **Status:** open (feature; needs a spec). (triaged 2026-10-16)
-**Status:** narrowed 2026-10-29: counterbores and countersinks are chunk 1 (branch `counterbores`, schema 30; built, not deployed); what remains of 330 is **cam-and-bolt (its chunk 2), now fu 568**.
+**Status:** narrowed 2026-10-29: counterbores and countersinks are chunk 1 (merge `4f73858`, schema 30; deployed 2026-10-29 as `index-D9SIz2nX.js`); what remains of 330 is **cam-and-bolt (its chunk 2), now fu 568**.
 
 **331. Half-holes and holes breaking out of an edge.** `breaks-out` refuses them; they would need a hole to cross body
 edges (inv 50's convex bodies stay). **Status:** open (spec §11).

@@ -1,6 +1,6 @@
 # Sloyd — counterbores and countersinks: design
 
-Status: BUILT on branch `counterbores` 2026-10-29, NOT DEPLOYED (the *Amended (build)* block at the end awaits the user's approval). APPROVED by the user 2026-10-29 ("Approved, write the plan"); builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
+Status: MERGED `4f73858` and DEPLOYED 2026-10-29 as `index-D9SIz2nX.js` (schema 30) (the *Amended (build)* block at the end awaits the user's approval). APPROVED by the user 2026-10-29 ("Approved, write the plan"); builder check taken 2026-10-29 (one question for the user — Refine, §9, answered "Keep assembly whole"; two settled as my calls, §4.1, §4.3). Follow-up 330 (`docs/follow-ups.md`), chunk 1. The holes primitive
 is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the tilt (schema 23) is
 `docs/superpowers/specs/2026-10-24-sloyd-angled-holes-design.md`, whose layout this follows.
 

@@ -7564,7 +7564,7 @@ Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
 
 
 
-## Counterbores and countersinks (2026-10-29, branch `counterbores`, schema 30; built, not deployed)
+## Counterbores and countersinks (2026-10-29, merge `4f73858`, schema 30; deployed as `index-D9SIz2nX.js`)
 
 Follow-up 330 asked for counterbores, countersinks and cam-and-bolt; the user skipped the design questions ("just write the spec from the
 code") and the spec split cam-and-bolt out as a different problem (fu 568). A hole row gained four optional scalars (`head`, `headDiameter`,
