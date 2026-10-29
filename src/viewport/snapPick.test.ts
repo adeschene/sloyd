@@ -1,7 +1,11 @@
 // No `import ... from 'vitest'` — `globals: true` is set in vite.config.ts.
-import type { SnapPoint } from '../document/document';
-import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
+import type { GuideLine, SnapPoint } from '../document/document';
+import { PICK_RADIUS_PX, pickGuided, pickOnLine, pickSnapPoint } from './snapPick';
 import type { Projector } from './snapPick';
+import { IMPERIAL } from '../units/length';
+import type { Units } from '../units/length';
+
+const METRIC: Units = { display: 'metric-mm', precision: 16 };
 
 let n = 0;
 const point = (at: [number, number, number], id = `b${(n += 1)}`): SnapPoint => ({
@@ -93,5 +97,60 @@ describe('pickSnapPoint', () => {
 
   it('ships a 12px default radius', () => {
     expect(PICK_RADIUS_PX).toBe(12);
+  });
+});
+
+describe('pickOnLine / pickGuided', () => {
+  // Top-down orthographic: world x,z -> pixels x10, looking down -Y.
+  const project: Projector = (at) => ({ x: at[0] * 10, y: at[2] * 10, depth: -at[1] });
+  const rayAt = (cx: number, cy: number) => ({
+    origin: [cx / 10, 100, cy / 10] as [number, number, number],
+    dir: [0, -1, 0] as [number, number, number],
+  });
+  const xLine = (z: number, id = 'L'): GuideLine => ({ id, at: [0, 0, z], axis: 'x' });
+  const pick = (lines: GuideLine[], cx: number, cy: number, units: Units = IMPERIAL, extent = 120) =>
+    pickOnLine(lines, project, { x: cx, y: cy }, rayAt(cx, cy), PICK_RADIUS_PX, units, extent);
+
+  it('slides along an X line and rounds to the grid', () => {
+    const hit = pick([xLine(2)], 73.6, 20)!;
+    expect(hit.kind).toBe('line');
+    expect(hit.owner).toEqual({ type: 'guide', id: 'L' });
+    expect(hit.at[0]).toBe(118 / 16);
+    expect(hit.at[1]).toBe(0);
+    expect(hit.at[2]).toBe(2);
+  });
+
+  it('rounds to whole mm in a metric project', () => {
+    const hit = pick([xLine(2)], 73.6, 20, METRIC)!;
+    expect(hit.at[0]).toBe(Math.round(7.36 * 25.4) / 25.4);
+  });
+
+  it('offers nothing 13 px from the line', () => {
+    expect(pick([xLine(2)], 73.4, 33)).toBeNull();
+  });
+
+  it('picks the nearer of two lines', () => {
+    const a = xLine(2, 'A');
+    const b = xLine(2.5, 'B');
+    expect(pick([a, b], 50, 24)!.owner).toEqual({ type: 'guide', id: 'B' });
+  });
+
+  it('offers nothing for a line parallel to the ray, and no NaN', () => {
+    const yLine: GuideLine = { id: 'Y', at: [5, 0, 5], axis: 'y' };
+    expect(pick([yLine], 50, 50)).toBeNull();
+  });
+
+  it('clamps to the extent and rounds; a cursor past the end offers nothing', () => {
+    expect(pick([xLine(2)], 1199.8, 20)!.at[0]).toBe(120);
+    expect(pick([xLine(2)], 1300, 20)).toBeNull();
+  });
+
+  it('pickGuided prefers a discrete candidate in range, else slides', () => {
+    const corner = point([7, 0, 2]);
+    const args = (cands: SnapPoint[]) =>
+      pickGuided(cands, [xLine(2)], project, { x: 73, y: 20 }, rayAt(73, 20), PICK_RADIUS_PX, IMPERIAL, 120);
+    expect(args([corner])).toBe(corner);
+    const far = point([30, 0, 2]);
+    expect(args([far])!.kind).toBe('line');
   });
 });
