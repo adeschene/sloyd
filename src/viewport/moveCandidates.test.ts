@@ -90,3 +90,24 @@ describe('moveCandidates with shared definitions (components spec §4.1)', () =>
     expect(owners(post)).toEqual(new Set(['i2/b1', 'i2/b2', 'i2/g/b3']));
   });
 });
+
+describe('moveCandidates with construction lines (construction-lines spec §5)', () => {
+  // x- and y-axis lines through z = 3 cross at (4, 7, 3)... canonical at[axis] = 0.
+  const lineX = { id: 'lx', at: [0, 7, 3] as [number, number, number], axis: 'x' as const };
+  const lineY = { id: 'ly', at: [4, 0, 3] as [number, number, number], axis: 'y' as const };
+  const lineGuides = [lineX, lineY];
+  const crossings = (pts: { kind: string }[]) => pts.filter((p) => p.kind === 'line-cross');
+
+  it('after a grab with guides shown: the crossing of two lines is a target', () => {
+    const pts = moveCandidates(boards, lineGuides, [a.id], [], true, true);
+    expect(crossings(pts)).toHaveLength(1);
+  });
+
+  it('before a grab: a crossing is never a grab source', () => {
+    expect(crossings(moveCandidates(boards, lineGuides, [a.id], [], false, true))).toHaveLength(0);
+  });
+
+  it('guides hidden: no crossing is offered', () => {
+    expect(crossings(moveCandidates(boards, lineGuides, [a.id], [], true, false))).toHaveLength(0);
+  });
+});

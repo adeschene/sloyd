@@ -1,6 +1,7 @@
-import { guideSnapPoints, isCovered, sharesStorageWith, snapPointsFor } from '../document/document';
+import { guideCandidates, isCovered, sharesStorageWith, snapPointsFor } from '../document/document';
 import type { Board, Guide, SnapPoint } from '../document/document';
 import { visibleBoards } from '../store/visibility';
+import { SCENE_EXTENT } from './extent';
 
 /**
  * The points the Move tool offers, which are two different sets rather than
@@ -21,7 +22,7 @@ import { visibleBoards } from '../store/visibility';
  *
  * Both branches go through snapPointsFor (box lattice + cut-owned points);
  * a cut point is most often a TARGET, on a part that is not selected.
- * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear after a grab only,
+ * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear after a grab only (their line crossings too, construction-lines spec §5),
  * and hidden guides offer nothing (design §6). A HIDDEN part offers no
  * points in either branch: a marker must sit on something drawn (invariant
  * 16; hide/unhide spec §3).
@@ -55,7 +56,7 @@ export function moveCandidates(
   if (grabbing) {
     return [
       ...shown.filter((b) => !covered(b) && !sharesStorage(b)).flatMap(snapPointsFor),
-      ...(showGuides ? guideSnapPoints(guides) : []),
+      ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
     ];
   }
   return shown.filter(covered).flatMap(snapPointsFor);
