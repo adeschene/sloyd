@@ -290,6 +290,33 @@ describe('row numbers (plans balloons §2.1)', () => {
   });
 });
 
+// Glue-ups spec §5: a glue strip in a Buying layout takes its part's cut-list row number, for a part inside an assembly too
+// (its flat id has a path, which `glueStripPart` reads up to the LAST tag).
+describe('glue strips in a board layout (glue-ups spec §5)', () => {
+  it("a glue strip in a board layout carries its part's row number (glue-ups spec §5)", () => {
+    // Pine 3/4 × 4 × 10 from 3/4 × 1-1/2 × 96 only: 4/2 + 1/8 > 1-1/2, 4/3 + 1/8 = 1.458 → 3 strips 1.458 × 11, index-tier thin.
+    const panel = createBoard({ id: 'panel', name: 'Panel', material: 'pine', length: 10, width: 4, thickness: 0.75 });
+    useStore.getState().replaceDocument({
+      ...createDocument('Glue'),
+      // Oak sorts before Pine, so the panel's row is 3; oak is bought by the board foot and draws no layout of its own.
+      boards: [createBoard({ name: 'Back', material: 'oak', length: 20, width: 10, thickness: 0.75 }),
+        createBoard({ name: 'Side', material: 'oak', length: 30, width: 12, thickness: 0.75 })],
+      instances: [{ id: 'i1', name: 'Box', definition: 'd1', position: [40, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd1', boards: [panel], instances: [], hardware: [] }],
+    });
+    const s = defaultShop();
+    s.materials.pine = { mode: 'piece', stock: [{ id: 'x', thickness: 0.75, width: 1.5, length: 96, price: null }] };
+    const { container } = render(<CutList onClose={() => {}} shop={s} />);
+    const row = [...container.querySelectorAll('.cutlist-row')].find((r) => r.textContent!.includes('Panel'))!;
+    const n = row.querySelector('.cutlist-num')!.textContent!;
+    expect(Number(n)).toBeGreaterThan(2);   // after both oak rows, so the layout's own counter could not pass for it
+    const buying = screen.getByRole('region', { name: 'Buying' });
+    const layout = buying.querySelector('svg')!;
+    // All three strips cite the panel's number; the layout's own counter would print 1, 2, 3 instead.
+    expect(within(layout as unknown as HTMLElement).getAllByText(n).length).toBeGreaterThanOrEqual(3);
+  });
+});
+
 // Fu 383, the user's ruling 2026-10-16 ("yes, new page per section"): a printed cut list split its material sections across
 // pages wherever they fell. Not `?raw`: Vitest hands CSS back as '' (palette.test.ts reads it the same way).
 describe('printed page breaks (fu 383)', () => {
