@@ -35,12 +35,11 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `31dc0f6`, bundle `index-CIx6QoDx.js`, CSS `index-Dea2G94f.css`, SCHEMA 29** (glue-ups from narrow stock, fu 268,
-  deployed 2026-10-29; earlier rounds: `docs/rounds.md`).
+- **Production: `4420042`, bundle `index-CUJBW7-r.js`, CSS `index-Dea2G94f.css`, SCHEMA 29** (glue-ups capped at 24 strips,
+  fewest wins, fu 564; glue-ups fu 268 before it; deployed 2026-10-29; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `c0d3b30` (`index-DQJDNnyg.js`, schema 28): it refuses every project saved at 29 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-29):** glue-ups (fu 268) are deployed; fu 564 (cap 24 strips, fewest wins) merged on master. Owed to the
-  user: the list below. Next: the user picks from `docs/feature-gaps.md`'s residue.
+- **NEXT (2026-10-29):** glue-ups (fu 268) and their cap (fu 564) are deployed. Owed to the user: the list below. Next: the user picks from `docs/feature-gaps.md`'s residue.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.

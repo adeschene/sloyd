@@ -176,7 +176,10 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
   = 24` bounds the count (and the stall a stored near-1/8" width could cause); the thickness needing the fewest strips wins, a tie to
   the thinner; over the cap the part is refused with its own reason. The band-free identity's by-the-piece Buying hash re-captured
   (its Top: 2 strips planed from 1-1/2" stock instead of 3 of 3/4"; $45 → $48, price not weighed, fu 558). Every mutation killed (the
-  loop bound by a stall test). No schema change.
+  loop bound by a stall test). No schema change. DEPLOYED `4420042` as `index-CUJBW7-r.js` (CSS unchanged): `200` on `/` and a deep
+  route in-network and at the edge; the bundle at both, sha256 matching `dist/` (35ea3fef…), carrying `strips to glue up`; the old
+  `index-CIx6QoDx.js` 404s in-network; CSP at the edge; a headless throwaway-profile load: the new bundle, 0 errors, Add board;
+  storage empty first, the load's two keys removed, read back empty after 3s; the profile deleted. Rollback to `31dc0f6` free.
 
 - **Glue-ups from narrow stock (2026-10-29; branch `glue-ups`; fu 268).** Picked from `docs/feature-gaps.md`'s residue by the user,
   who skipped the brainstorm questions and approved option A (derived in Buying, no schema change). Built inline (three code tasks,
