@@ -322,6 +322,13 @@ what the task reports name.
 - **`CornerKind` is now a string**, `definitionKind` listing box joints, dovetails and `counterbores or countersinks` joined with `and`; the
   three old outputs are byte for byte unchanged (Task 9).
 - **Switching a row's head kind keeps `headDiameter`** (Task 8).
-- **Not done, recorded:** the faulted headed perf case (fu 575), the oblique cone silhouettes (fu 574), the exploded-iso step rims (fu 570).
-- **By eye, owed to the user:** the Head select's place, the Plans sheet's coincident rims after the hidden-line pass, the RefineDialog's longer
-  kept-why string (Task 11, the browser check).
+- **The whole-branch review's fix wave (`5312f7e`):** stretchers' `usedRow` skips a headed row (Fit again could otherwise replace a
+  counterbored socket with a plain one — "Stretchers inherit both", §5); `holeRims` skips a bore piece of no length;
+  `DiagramHoleSide.head.mouth` carries the mouth side from `dir`; the faulted headed perf case (≤ 100 ms) and the merge faulted-gate
+  fixture were added (fu 575 closed).
+- **Parked by the controller at the review's cap, recorded as fu 577:** the head's far rim drawn past the exit face when `headDepth`
+  exceeds the face dimension (faulted parts only), and no line-count test for the diagram's zero-length bore-wall skip.
+- **Not done, recorded:** the oblique cone silhouettes (fu 574), the exploded-iso step rims (fu 570), the other build minors (fu 576).
+- **Browser check (Task 11, `docs/browser-verification-counterbores.md`): 6/6 PASS** on the dev server in the user's Chrome. By eye, still
+  owed to the user: the Head select's place (R2), the Plans side views at a readable size, the exploded iso (R1), the RefineDialog's longer
+  kept-why string (needs a paid run).

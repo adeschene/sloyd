@@ -41,7 +41,8 @@ built around hand woodworking.
 - **Angles**: tapers, miters (one end or both), bevels and chamfers, from the **+ Add ▾** menu; the cut list reads them
   as bench lines (a miter names its long point, and mitered parts get a short point).
 - **Holes**: a single bore or a stored row (shelf pins at 32 mm), blind or through, on any face, plus a 35 mm
-  hinge cup preset. A row can tilt for an angled bore. Holes show open in 3D, on the Plans sheet and in the part
+  hinge cup preset. A hole can carry a **counterbore** or a **countersink** (82° or 90°) at its mouth, with
+  **Countersunk screw** and **Counterbored screw** presets. A row can tilt for an angled bore. Holes show open in 3D, on the Plans sheet and in the part
   diagrams, and as bench lines on the cut list.
 - **Curves**: cut an arch, a notch or any outline of lines and arcs clean through a part. **Edge profiles** (roundover,
   cove, Roman ogee, bead, thumbnail) run full length, stop short with the router's run-out, or follow a curved outline.
@@ -106,8 +107,8 @@ built around hand woodworking.
   chamfers, holes, edge profiles and banding.
 - **Refine…** changes an existing design by instruction ("make it 2 inches taller") and saves the result as a new
   project with a list of what changed, in shop words. Joined designs keep their joints, and features are carried
-  onto the refined parts. Leaning legs, angled holes, round tenons and box joints can't be described to the model,
-  so those parts (and a box-jointed assembly) come back exactly as they were.
+  onto the refined parts. Leaning legs, angled holes, round tenons, box joints, dovetails and counterbored or countersunk holes can't be
+  described to the model, so those parts (and a box-jointed, dovetailed or counterbored part's assembly) come back exactly as they were.
 
 **Projects**
 - Several projects live in the browser's local storage, with switch, duplicate, delete and
@@ -137,7 +138,7 @@ what keeps undo, save, load and export simple.
 
 Every load path runs the document through a versioned migration chain. Older files open
 unchanged and are upgraded in place, and a file from a newer build is refused rather than
-guessed at. The current schema is **25**.
+guessed at. The current schema is **30**.
 
 ## Development
 

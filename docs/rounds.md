@@ -728,4 +728,10 @@ schema change). Verified at deploy: `200` on `/` and a deep route in-network and
 **Approved 2026-10-27 ("Approved, the amended build section"), after the deploy:** the dovetails spec's *Amended (build)* block (spec
 differences SD1–SD20 and every build ruling recorded under it). Its copy (fu 512) was reviewed and changed, and the bench chain seen by eye (fu 511), both 2026-10-27.
 
+**Awaiting review (2026-10-29, deployed):** the counterbores spec's *Amended (build)* block — R1 the exploded iso draws only a clean
+headed hole's mouth rim (fu 570), R2 the Head select sits beside the tilt controls (spec §4.1 said below Through/Depth), R3 the new
+`headJoinChanged` sentence (`Joinery would have changed <part>, which Refine keeps as it is for its counterbores or countersinks, so the
+design comes back unjoined.`), and the two parked residues (fu 577). By eye: the Head select's place, the Plans side views at a
+readable size (`docs/browser-verification-counterbores.md`).
+
 By eye (moved from CLAUDE.md in full): 142, 319, 380(1) column balance, 384(2) section hatch and cut line on a real print, 387(1) a profile's edge-on silhouette on a real print, 392(2) stopped profiles' run-outs (real hardware; a cove's dashed contours on a real print), 393 swept surfaces' and tangent points' shading (real hardware) and the cove's doubled Iso silhouette (a real print), 394 b2's stops on a curve (shading at a curved stop, a resize drag on a two-side cove, the Stop side select live), 272 (a phone).

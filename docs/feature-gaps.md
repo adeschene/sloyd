@@ -4,7 +4,7 @@ Researched 2026-10-11 against SketchUp and its woodworking extensions (OpenCutLi
 CutList Bridge, CabinetSense, Fredo Round Corner, the rake-and-splay tool), Fusion 360,
 Shapr3D, SketchList 3D, CutList Plus fx and Mozaik. Each gap was checked against the code
 and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-29
-(production `4420042`, schema 29: parametric resize and glue-ups deployed; every gap below is shipped except construction lines, fu 130); `docs/follow-ups.md` wins on any follow-up's status.
+(production `4f73858`, schema 30: counterbores and countersinks deployed — the holes row's fu 330 chunk 1; every gap below is shipped except construction lines, fu 130); `docs/follow-ups.md` wins on any follow-up's status.
 
 **This is a candidate list, not a roadmap.** Nothing here is chosen until the user picks it.
 Excluded on purpose: CSV/clipboard export and name run-collapsing (`Leg 1..4`), both
