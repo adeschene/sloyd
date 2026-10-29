@@ -43,7 +43,24 @@ applied with a real click.
 - `past` back to 0.
 - No console errors throughout.
 
+## After the Ruling 9 fix (`715052a`), same project
+
+- **Shrink back.** With all nine parts selected, the table was first widened to 54" (store action, line 24"). Then, through the
+  panel, Width was typed as 48 with the default line (27", the middle of 54").
+  - The preview read `54" → 48": grows Front apron, Back apron, Top · moves 3 · 3 stay`. (On a shrink, "grows" names the parts
+    that change length.)
+  - After Stretch, every part's numbers equal the original fixture's (ids ignored): Top 48, Right back leg x 46.25.
+- **The removed-band refusal.** With Front apron, Back apron and Top selected, Width was typed as 46 and the line as `1 3/4` (the
+  aprons' end face, the Ruling 9 case).
+  - The panel showed `Front apron sits in the wood this shrink removes — move the line or shrink less.`, and Stretch was disabled.
+  - Cancel cleared it.
+  - Screenshot: `/tmp/claude-chrome-screenshots-fVqADP/screenshot-1793234373416-17.png`.
+- **The hole-row refusal** was not shown live: the apron table has no hole rows. The thickness refusal above stands in for the
+  live refusal check, and the hole-row sentence is covered by the bookcase plan tests.
+
 ## Owed to the user (by eye)
+
+- The panel with an ASSEMBLY selected (`InstanceProperties`): it is only exercised by tests.
 
 - The plane's colour and opacity, and how it reads from below and edge-on.
 - A metric project.
