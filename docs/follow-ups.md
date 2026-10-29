@@ -8315,6 +8315,7 @@ stretch the preview reads as `48" → 48"`).
 Properties for any solid long-grain part, so the cut list prints the strips (a setup line) for board-foot hardwood too, and Buying packs
 the user's strips instead of deriving them. Costs schema 30 (a build at 29 drops the key and autosaves the loss).
 **Status:** open (ask first).
+**Status:** open (ask first); 2026-10-29: counterbores takes schema 30, so a stored glue-up would now cost schema 31 (the harm argument is the same, against a build at 30).
 
 **557. Glue-ups: typed allowances (spec §9).** `GLUE_WIDTH_ALLOWANCE` (1/8") and `GLUE_LENGTH_ALLOWANCE` (1") are constants; a shop
 setting or the document's `stock` would make them typed (a metric shop may want 3 mm and 25 mm).
@@ -8400,9 +8401,8 @@ ellipses' major axes, not the true tangents; exact in the entry and side views. 
 **Status:** open (record-only; cosmetic, iso only).
 
 **575. No faulted headed perf case (Task 4 minor; final review to triage).** Spec §6.1 names a faulted headed row at 100 ms; `holesPerf.test.ts`
-has headed cases for healthy rows only, so the faulted (clipped) path of a headed part has no wall-clock guard. A faulted-gate "whole holes"
-mutant also survives (Task 4 review): the report's equivalence claim is false in general (a faulted head breaking out into a plane a clean hole
-opens into), so add a fixture or keep this as the recorded gap.
+has headed cases for healthy rows only, so the faulted (clipped) path of a headed part has no wall-clock guard. A faulted-gate "whole holes" mutant also survives (Task 4 review): a faulted head breaking out into a plane that a clean hole opens
+into, where the bore does not reach, has no fixture. Add one or keep this as the recorded gap.
 **Status:** open (record-only).
 
 **576. Counterbores: the build's deferred minors.** Task 1: `validateHoleRows` builds a row twice (the `headProblem` probe and the push), the
