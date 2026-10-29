@@ -100,14 +100,9 @@ Each layer depends only on the ones before it:
    store, import `document` directly; `panels` also imports the `storage` singleton.
 
 **The `→ units` edge rule: a module imports `units` when it produces a string a person
-reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts`
-(`formatLength`, so one dimension never reads two ways on one sheet) and
-`viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so do `designCheck.ts` (a metric violation's
-`shown` copy, fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), `dovetailBench.ts` (the
-bench drawings' strings, `formatLengthBare`), and the copy homes `bandText.ts`, `tenonText.ts`, `stretcherText.ts`, `boxJointText.ts`,
-`cornerText.ts`, `dovetailText.ts` and `stretchText.ts`, and `labels.ts` (part labels' strings) (`banding.ts` and `roundTenons.ts` stay numbers-only).
-`snapPoints.ts`, `row.ts` and `weight.ts` (numbers only; its strings are `cutlist.ts`' and `quantity.ts`') deliberately do not. Do not generalise to "everything under
-`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`, `stretchers.ts`, `boxJoints.ts`, `cornerPlan.ts`, `dovetails.ts`, `stretchPart.ts`), nor is `gridDensity.ts`' `isMetric` (the
+reads off the page, and not otherwise.** Which files take it, and which deliberately do not: `docs/module-map.md`
+("The `→ units` edge, file by file"). Do not generalise to "everything under
+`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge, nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
@@ -155,9 +150,9 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | edge profiles | `profiles.ts`, `profilePath.ts`, `sweep.ts` and kin; AI `profileWorld.ts` (inv 48, 53) |
 | hardware | `hardwareModel.ts`, `hardware.ts` (inv 55) |
 | edge banding | `bandModel.ts`, `banding.ts`; AI `bandWorld.ts` (inv 54) |
-| box joints | `boxJoints.ts` (layout, recogniser, planner), `boxJointText.ts`, `resizeEnd.ts`; write-back `treeEdit.ts` `writeBackParts`; Refine/Repair `fingerClaim.ts` (inv 61) |
-| corner joints (shared) | `cornerPlan.ts` (finding, run-out, region, `writeCorners`), `cornerText.ts`; keep predicate `leanKeep.ts` `cornerJointed` (inv 61, 62) |
-| dovetails | `dovetails.ts` (faults, view curves, zones, planner, `dovetailCornerStyle`), layout `dovetailModel.ts`, `dovetailText.ts`, `dovetailBench.ts`, `cornerPlan.ts` (step 3a's `inset`) (inv 62) |
+| box joints | `boxJoints.ts`, `boxJointText.ts`, `resizeEnd.ts`; write-back `treeEdit.ts` `writeBackParts`; Refine/Repair `fingerClaim.ts` (inv 61) |
+| corner joints (shared) | `cornerPlan.ts`, `cornerText.ts`; keep predicate `leanKeep.ts` `cornerJointed` (inv 61, 62) |
+| dovetails | `dovetails.ts`, layout `dovetailModel.ts`, `dovetailText.ts`, `dovetailBench.ts`, `cornerPlan.ts` (step 3a's `inset`) (inv 62) |
 | lean | `lean.ts`, `levelEnds.ts`, `leanContacts.ts`, `worldBounds.ts` (inv 57, 59) |
 | round tenons, the joint | `roundTenons.ts`, `tenonJoints.ts`, `tenonText.ts`; tolerances `checkTolerances.ts` (inv 58) |
 | bodies and edges | `bodies.ts`, `seams.ts`, `outline.ts` (inv 16, 48) |
@@ -167,7 +162,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; store `stretchItems`, `stretchGuide`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
 | saved views | `document/views.ts`, `viewCamera.ts`, `ViewsFooter.tsx` (invs 43, 47) |
-| weight | `weight.ts` (`woodVolume`, `coreWeight`, `weightOf`); density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
+| weight | `weight.ts`; density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
 | X-ray view | store `xray`/`setXray` (view state, like `section`), `viewport/xray.ts` `fadedFor`; button in `ViewportControls.tsx`, R in `App`'s keydown |
 | design checks / AI | `designCheck.ts` (inv 38, 39), `generated.ts`, `generate/` (inv 41) |
@@ -349,8 +344,7 @@ changes.
     in order, ids included. `cutsThatRemoveStock` decides which cuts are compared; the resulting
     row split on exact dimensions is correct — do not round.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
-    caused.** `pocketFor` is tested against the box in every pose, stores via
-    `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
+    caused.** Problems compare by `kind` + `parts`, never message text. Every
     refusal is decided before ANY mutation, and every `resize` is pre-checked by
     `cutIntoEnd`. **ONE decider, `joineryRefusal(entry, …)`** (also called by Repair and a joined Refine), one sentence per
     part. On a featured project joinery rules kinds out per site BEFORE the call (`featureAllowed`). **A curve, profile or band
@@ -370,8 +364,7 @@ changes.
     selector — filter in a memo or handler; a selector may reduce it to a PRIMITIVE. Hidden parts are still in the cut list, joinery,
     checks, export and autosave. Consecutive hide/show toggles share ONE undo entry. `goToView` is a fifth action through `applyHidden`, its own undo entry; a saved view stores a copy.
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
-    (`toWorldOffset`, `fromWorldOffset`, `spanToWorldOffset`, `spanFromWorldOffset`,
-    `endFacing`). **Never `board[dim] - u` at a call site.** Nothing branches on
+    (`toWorldOffset` and kin). **Never `board[dim] - u` at a call site.** Nothing branches on
     `rotation`'s value except `axisFrame`, the migrations, `generated.ts`'s `orient` and
     Properties' Turn select. The one legitimate hand reflection is `mirrorCutAlong`; do not tidy it onto the helpers.
     Every posture shares ONE hand (fu 215, v12). **Every other feature reflects by FLAG FLIPS,
@@ -393,19 +386,18 @@ changes.
       passes `keepWorld`.** Do not unify; a new caller picks one (a leaning part's resize is a third case, inv 57).
     - Group moves nothing; Ungroup is exact for direct child parts only. Joinery runs on `flatDocument`, maps back by index.
     - Write-back keys on the STORAGE target (`storageKey`), one edit per target (`oneEditPerTarget`); an edit in a
-      definition moves every copy (held points `judgeHeld`, keys `rekeyEverywhere`).
+      definition moves every copy.
     - **A mirrored instance (schema 13) is a step inside the ONE composition**; write-back is its exact inverse (`lower`).
       Across a mirror `linkPlan` and `postureRefusal` refuse before any mutation; a Shape is never lowered
       through two parities in one edit (`sameSideFirst`). **A side is chain parity XOR the part's own flag (`sideAt`)**;
       joinery's regroup joins a user only when the Shape resolves EXACTLY to it through its own flag.
     - A `lean`, `tenons` or `dovetails` key present as `undefined` REMOVES it (never stored).
-47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; a saved-view write (`saveView`, `updateView`, `renameView`, `deleteView`; via `editViews`, only `views`) is the one document write allowed while exploded (undo and redo stay refused); actions
+47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; a saved-view write (via `editViews`, only `views`) is the one document write allowed while exploded; actions
     with side effects outside `edit()` refuse at entry (`readOnly()`); `setTool` refuses all but
     Select; `setExplode` is the one writer. The UI lock is `EditLock`'s disabled `<fieldset>` around
     EDITING regions only; the explode offset is a render-time translation, never written back. **Drawings:**
     `drawView` takes lines from `boardEdges` and `holeDrawingSegments` (one hidden-line pass),
-    occluders from the HOLE-FREE `worldBodies`, and TAGS each segment with its feature — tagging changes
-    nothing else. A curved part's visibility is judged on the MODEL chord; ONE facing test (`EDGE_ON`).
+    occluders from the HOLE-FREE `worldBodies`; TAGGING a segment changes nothing else. A curved part's visibility is judged on the MODEL chord; ONE facing test (`EDGE_ON`).
     Non-curved drawings are byte-for-byte unchanged (`drawingIdentity`).
 48. **`boardBodies` is the ONE place angle cuts, curves, profiles, round tenons and dovetails become geometry, and bodies
     stay CONVEX; `pocketCells` is stock minus RECTANGULAR cuts only.** Anything that draws, edges,
@@ -428,12 +420,12 @@ changes.
     convex. `holeFaults` is the ONE strict-rule decider.** An add is refused on any fault, an edit only
     when it ADDS one; a fault a later edit causes is KEPT, noted, never clamped. **A row may TILT (schema 23);
     `holeTilt.ts` is the ONE home of tilt math**; square rows keep their paths byte for byte. **A tilted row's
-    faults are EXACT or CONSERVATIVE, never under-reported** (the unclipped mesh path trusts them). Leg sockets: `legSockets.ts`, the ONE decider;
-    `boreRow` the ONE bore core; `boreAlongAxis` the ONE coaxial test; `tenonInSeat` the ONE tenoned-leg predicate. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter** (untouched rows return
-    EXACTLY; a strict model fault is KEPT and flagged, never clamped). `drawsAsBox` is the ONE BoxGeometry routing.
+    faults are EXACT or CONSERVATIVE, never under-reported**. Leg sockets: `legSockets.ts`, the ONE decider;
+    `boreRow` the ONE bore core; `boreAlongAxis` the ONE coaxial test; `tenonInSeat` the ONE tenoned-leg predicate. **Generate and Refine AUTHOR holes through `holeWorld.ts`, the ONE converter**
+    (a model fault KEPT, never clamped). `drawsAsBox` is the ONE BoxGeometry routing.
     **A curved part's mesh is WATERTIGHT** (`curvesWatertight.test.ts`); a shaped part is ONE geometry
     (`partMesh`), never memoised on the shared bodies. **Rebuild performance breaks silently** (what is memoised where: `docs/invariants.md`). Perf
-    guards are the MINIMUM of 9, lowered only, never raised; `sweptIdentity.test.ts` pins swept parts byte for byte.
+    guards are the MINIMUM of 9, lowered only, never raised.
     Within-part path chaining on paper is intended — do not undo it.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
@@ -442,7 +434,7 @@ changes.
     only from `drawView`'s `section` option, always of the ASSEMBLED piece; a sheet with no section is byte-for-byte unchanged.
 52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the
     DOCUMENT's own `Units`.** Stored values are inches always; a units switch moves no number.
-    Imperial output is byte-for-byte as before (one ruled change, fu 359). Metric: whole mm, a bare
+    Imperial output is byte-for-byte as before (one ruled change). Metric: whole mm, a bare
     typed number is mm, holes to 0.1 mm via `holeLengthText`, free drags via `snapToGrid`. Imperial on
     purpose: trade sizes, Generate's limits, model-facing text. Drawings read BARE mm with one `Dimensions in mm` note.
 53. **`curves.ts` is the ONE place curves become outlines; `curveFaults` is the ONE fault decider.**
@@ -452,110 +444,94 @@ changes.
     `type` refuses the document. **Edge profiles are stored as `ProfileCut`s and every reader goes through
     `geometryBoard`**; `profileFaults` is the ONE profile fault decider, `profilePath.ts` the ONE path home;
     **the straight fallback** is ONE decision in `geometryBoard`. Curves and Profiles refuse an edit that ADDS a fault to
-    ANY profile.     **Generate and Refine AUTHOR profiles through `profileWorld.ts`, the ONE converter**, except on a part
+    ANY profile. **Generate and Refine AUTHOR profiles through `profileWorld.ts`, the ONE converter**, except on a part
     `carriesProfiles` flags (curves or a two-side run), whose profiles stay carried and are never fed to the model.
-54. **`banding.ts` is the ONE place band numbers are computed**, numbers-only, memoised and deep-frozen.
+54. **`banding.ts` is the ONE place band numbers are computed**, numbers-only.
     **The model is the FINISHED size; the cut list prints the CORE**; bodies are untouched. **A faulted band
     adds nothing.** Authoring refuses an ADDED fault; a later one is KEPT. **Generate and Refine AUTHOR bands
     through `bandWorld.ts`, the ONE converter**, except on a part with curves, whose bands stay carried (inv 56); `cornerRule`
-    is always carried. A strip, tape run and glue line count only the VISIBLE run (`visibleRun`). A strip row has no `boardIds`:
-    every reader of a row's parts handles an empty list. A band-free document is byte for byte as before
-    (`bandFreeIdentity.test.ts`). The viewport paints a band by MOVING triangles into material groups 6+,
-    never by recolouring a slot; `glueLines` is the ONE glue-line geometry.
+    is always carried. A strip, tape run and glue line count only the VISIBLE run (`visibleRun`). Every reader of a row's parts
+    handles an empty list (a strip row has no `boardIds`). A band-free document is byte for byte as before. The viewport paints
+    a band by MOVING triangles, never by recolouring a slot; `glueLines` is the ONE glue-line geometry.
 55. **`hardware.ts` is the ONE place hardware is counted** (`placementsOf`, pinned against `worldParts`; hidden
     parts count). **Hardware never groups the cut list, never touches geometry, and every Definition copy carries
     it**; `hardware` is SHARED (inv 45). **`holderHardware` returns STORED arrays, never `resolveBoard`'s copy** (a
     selector returning a fresh array crashes React). Hardware is typed, never derived from holes.
-56. **Refine keeps a featured part's posture and rotation by ONE decision, `keptFrame` (the prohibition below).** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` and before `linkByRole`. A resize keeps features at their stored stations (faults KEPT, noted); a turned featured part is a fault fed to the repair loop. A part whose only frame features are holes, bands and/or authored profiles that the model turned (`keptFrame`'s rank and tie rules) is `orient`ed like its plain twin, the exact swaps skipped; `turnCandidates` never turns a part with curves or carried profiles. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
+56. **Refine keeps a featured part's posture and rotation by ONE decision, `keptFrame` (the prohibition below).** The carry (`featureCarry.ts`, by flat name, in the ORIGINAL frame) lands before `migrateDocument` and before `linkByRole`. A resize keeps features at their stored stations (faults KEPT, noted); the turn rules: the full text. **PROHIBITION: do not `orient` a part with carried curves or carried profiles (a run on two sides, `carriesProfiles`), nor a part whose only frame features are holes, bands and/or authored profiles whose returned box keeps every world extent's rank against the original's (ties allowed both ways) AND still has a smallest extent on the original's thickness axis unless that thickness was not the original's smallest (the ONE decision is `keptFrame` in `convertPart`), and do not move the carry after `migrateDocument` or `linkByRole`.**
     A LEANING part, one with a TILTED hole row, a round tenon, a compound end cut, a BOX JOINT or a DOVETAIL is KEPT exactly (`keepsExactly`,
-    `keptParts`; the corner joints through ONE predicate, `cornerJointed`; invs 57–59, 61, 62); one inside an assembly refuses Refine (a
-    box-jointed or dovetailed part's whole ASSEMBLY is kept whole instead, inv 61, 62), and so does a joined Refine (unless the only kept
-    kinds are box joints and/or dovetails, inv 61, 62).
+    `keptParts`; corner joints through `cornerJointed`); one in an assembly refuses Refine (a box-jointed or dovetailed one's ASSEMBLY
+    is kept whole instead), as does a joined Refine (unless only box joints and/or dovetails are kept; invs 57–59, 61, 62).
 
-57. **A lean is placement, and `lean.ts` is its ONE home** (schema 22). `Board.lean` (SHARED) stores turn-0 SLOPES (degrees only in display
-    and typed input), only when non-zero (a zero lean is no lean), only on an UPRIGHT part, always seam-free. **A lean-free document is byte for byte as before.** `position` stays the
+57. **A lean is placement, and `lean.ts` is its ONE home** (schema 22). `Board.lean` (SHARED) stores turn-0 SLOPES, only when non-zero,
+    only on an UPRIGHT part. **A lean-free document is byte for byte as before.** `position` stays the
     PRE-lean min corner; the lean turns about the PIVOT (the top's centre), which a resize keeps. **Mirrors flip it
-    by `leanFlip` only.** **R1:** every part→world crossing composes it (`cuts.ts`' group-relative helpers stay lean-free). **R2:** extents come from `partBounds`; **a
+    by `leanFlip` only.** **R1:** every part→world crossing composes it. **R2:** extents come from `partBounds`; **a
     leaning part's pre-lean box is never presented as its extent.** **R3:** no box fast path. Drags round the DELTA.
-    Level the ends (`levelEnds.ts`): two end miters, lengths rounded UP; never automatic. Checks extended, never weakened (a joint
-    holds a leaning part too, inv 39 (d)); joinery and Repair refuse,
-    Refine keeps; the cut list ignores it.
+    Level the ends (`levelEnds.ts`) is never automatic. Checks extended, never weakened; joinery and Repair refuse, Refine keeps; the
+    cut list ignores it.
 
 58. **A round tenon is a STORED feature of a part's end, and `roundTenons.ts` is its ONE home** (schema 24).
-    `Board.tenons?` (at most one per end): coaxial, centred, the shoulder square to the axis, `length` from the shoulder to
-    the end's centre, inside the part's length (a typed tenon never changes `length`). **A tenon-free part has NO `tenons` key — never `[]`, never
-    `undefined` — and is byte for byte as before.** **`tenonFaults` is the ONE fault decider** (CONSERVATIVE; copy
-    only in `tenonText.ts`): an add refuses any fault, an edit only an ADDED one, a later one is KEPT and noted;
-    **a faulted tenon builds nothing** (`builtTenons`). A tenoned end is square or carries ONE end miter, the tip. **The joint** is `tenonJoints.ts` `seatedIn` (every
-    condition: `docs/invariants.md`). **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
+    `Board.tenons?` (at most one per end; a typed tenon never changes `length`). **A tenon-free part has NO `tenons` key — never `[]`, never
+    `undefined` — and is byte for byte as before.** **`tenonFaults` is the ONE fault decider** (CONSERVATIVE): an add refuses any
+    fault, an edit only an ADDED one, a later one is KEPT and noted; **a faulted tenon builds nothing** (`builtTenons`). **The joint**
+    is `tenonJoints.ts` `seatedIn` (every condition: `docs/invariants.md`). **Support is never granted by proximity.** A stretcher is held by inv 39 (d) (inv 60).
 
-59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (turned:
-    `T · Ry(τ)`; `leanTwist` its τ). A first lean is square-set; a Set change on a holed part is refused when τ ≠ 0.
-    **A two-slope square-set leg's level ends are COMPOUND miters** (`across: { rise, from }`, end miters only,
-    full depth `depthAtCross`, `deepestCorner`; mirrors flip `across.from`). A document without either is byte for byte as before. **Every reader is correct or refuses**
-    (`hasCompoundCut` the ONE predicate): `miterFields` null, joinery and Repair refuse, Refine keeps, `worldAngles` null.
+59. **A lean may be SQUARE-SET (`square: true`, schema 25): `leanMap` is `m = T`, never twisted** (`leanTwist` its τ). A first
+    lean is square-set; a Set change on a holed part is refused when τ ≠ 0. **A two-slope square-set leg's level ends are COMPOUND
+    miters** (`across: { rise, from }`, end miters only, full depth `depthAtCross`, `deepestCorner`). A document without either is
+    byte for byte as before. **Every reader is correct or refuses** (`hasCompoundCut` the ONE predicate).
 
 60. **A stretcher is an ordinary part with two round tenons in two BLIND sockets; `stretchers.ts` is the ONE planner (Add
     stretcher, Fit the stretcher again); nothing about one is stored** (no schema change; a stretcher-free project is byte for
-    byte as before; inv 39 (d) holds it, no check changes). Its legs are FOUND every time (`rungLegAt`, `stretcherOf`). Its axis
-    is EXACTLY axis-aligned (legs off square by > 1e-6 refuse); `L` and `S` round DOWN to the grid, socket depth UP to `tenonStep`; a free row the tenon is `seatedIn` is reused; any socket fault refuses the WHOLE action. Every refusal before
-    `edit()`; ONE undo entry, none for a fitted rung's Fit. Fit re-fits the CLOSURE (each stretcher sharing a used row).
+    byte as before; inv 39 (d) holds it). Its legs are FOUND every time. Its axis is EXACTLY axis-aligned; `L` and `S` round DOWN to
+    the grid, socket depth UP to `tenonStep`; any socket fault refuses the WHOLE action. Every refusal before `edit()`; ONE undo
+    entry. Fit re-fits the CLOSURE.
 
 61. **A box joint is ORDINARY rectangular cuts; `boxJoints.ts` is the ONE layout, the ONE recogniser and the ONE planner, and they
-    are each other's inverse** (box joints; NO schema change; a box-joint-free project is byte for byte as before). A corner is
-    two parts with full-thickness notches at their ends (`across: 'thickness'`, stops 0); the recogniser (`fingerSets`) reads SHAPE,
-    never a stored field. **One layout per corner, exact complements to 1e-9** (the user's ruling 2026-10-27: every finger `w`, the
-    ONE odd finger at J's world MIN; `N` may be even; **at least five**); each part's segments are computed DIRECTLY in its
+    are each other's inverse** (NO schema change; a box-joint-free project is byte for byte as before). The recogniser (`fingerSets`)
+    reads SHAPE, never a stored field. **One layout per corner, exact complements to 1e-9** (the user's ruling 2026-10-27: every finger
+    `w`, the ONE odd finger at J's world MIN; `N` may be even; **at least five**); each part's segments are computed DIRECTLY in its
     own J terms, and the recogniser reports only part-local `fingerAtMin`/`oddEnd`; a linked mirror along J compares them through the flag.
-    **With an asymmetric layout two linked cases refuse** (the disagreement sentence): mirrored along J at the SAME turn, and UNMIRRORED
-    users at opposite turns (90°/270°); a symmetric layout (odd `N`, no odd finger) succeeds. A recognised
-    width may be an ulp off the planned value, so compare PLANNED parameters. **The write-back is `writeBackParts` (`keepWorld`, one edit per storage key, Shapes regrouped), never `mapWorld`; its
-    link post-condition refuses a split link.** Every refusal before `edit()`; ONE undo entry; the run-out is exact (inv 25).
-    **Joinery leaves the size and place of any box-jointed part alone** (`<part> has box joints, so joinery leaves its size and place
-    alone`). **Refine keeps box-jointed root parts and box-jointed ASSEMBLIES whole** (definition and every placement, put back FIRST,
-    inv 56); **finger sets are claimed BEFORE the gate** (`fingerClaim.ts`), **Repair claims them too**, and a joined Refine fixes
+    **With an asymmetric layout two linked cases refuse**: mirrored along J at the SAME turn, and UNMIRRORED users at opposite turns
+    (90°/270°). Compare PLANNED parameters, never recognised ones (an ulp off). **The write-back is `writeBackParts` (`keepWorld`), never
+    `mapWorld`; its link post-condition refuses a split link.** Every refusal before `edit()`; ONE undo entry; the run-out is exact (inv 25).
+    **Joinery leaves the size and place of any box-jointed part alone.** **Refine keeps box-jointed root parts and box-jointed ASSEMBLIES
+    whole**; **finger sets are claimed BEFORE the gate** (`fingerClaim.ts`), **Repair claims them too**, and a joined Refine fixes
     every NEW site touching a kept part as BUTT (a RECORDED joint stays as recorded) and **(c)** returns the design UNJOINED when the
     re-join would change a kept part. **PROHIBITION: do not claim finger sets after the gate, do not force a recorded joint into a
-    kept part butt, and do not drop the (c) guard.** The cut list prints one line per set, never a tenon or notch lines
-    (`setupLines` claims first). Since dovetails the corner planner is `cornerPlan.ts` (box joints one `JointKind` of it, unchanged)
-    and every keep/leave-alone site reads `cornerJointed`; the claim sites stay finger-only. Full text: `docs/invariants.md`. Follow-ups 484–496.
+    kept part butt, and do not drop the (c) guard.** The cut list prints one line per set (`setupLines` claims first). The corner planner
+    is `cornerPlan.ts`; every keep/leave-alone site reads `cornerJointed`; the claim sites stay finger-only. Full text: `docs/invariants.md`. Follow-ups 484–496.
 
 62. **A dovetail is a STORED parametric feature of a part's end (schema 26; `lap` 27); `dovetails.ts` is the ONE fault decider (`dovetailFaults`),
     the ONE view-curve source and the ONE planner (the dovetail kind of `cornerPlan.ts`); the ONE layout is `dovetailLayout` in the
-    leaf `dovetailModel.ts`** (re-exported from `dovetails.ts`). `Board.dovetails?` `{ id, dim, end, role, count, slope, pin, depth,
-    outside?, lap? }` (pins only: the outside face; `lap`: half-blind, on BOTH entries, absent on through — never `0` or `undefined`), one per `(dim, end)`, canonical order; SHARED (inv 45), mirrors by FLAG FLIPS (inv 44:
-    `end` along `dim`, `outside` along the thickness, nothing along J — the layout is a PALINDROME; `lap` flips under nothing); `DOVETAIL_FIELDS` (inv 40, `lap` in it).
-    **A dovetail-free document is byte for byte as before: no `dovetails` key — never `[]`, never `undefined`.** The layout: half
-    pin `p`, `N` tails `Te = (H − (N + 1)·p) / N`, pins `p`, half pin `p`, every bound computed DIRECTLY from J's min, the last tail's
-    far edge `H − p`; every reader takes its bounds from it. **One layout per corner, an exact partition** (to 1e-9). Faults in order
+    leaf `dovetailModel.ts`** (re-exported from `dovetails.ts`). `Board.dovetails?`: one per `(dim, end)`, canonical order; `lap` on BOTH
+    entries of a half-blind corner, absent on through — never `0` or `undefined`; SHARED (inv 45); mirrors by FLAG FLIPS (inv 44; the
+    layout is a PALINDROME); `DOVETAIL_FIELDS` (inv 40, `lap` in it).
+    **A dovetail-free document is byte for byte as before: no `dovetails` key — never `[]`, never `undefined`.** Every layout bound is
+    computed DIRECTLY from J's min, and every reader takes its bounds from the layout. **One layout per corner, an exact partition** (to 1e-9). Faults in order
     `count`, `slope`, `lap`, `depth`, `narrow` (each defined in the full text). **Authoring refuses ANY fault; a later one is KEPT and noted; a faulted dovetail builds NOTHING** (`builtDovetails`).
-    Geometry is inv 48's path: square-span VIEW curves through `geometryBoard`, after the tenons' (never a curve to the user); snap corners only at the outside plane (a half-blind pin's on the LAP PLANE). **Every reader is correct or refuses:**
-    a dovetailed part refuses dovetails on featured stock and every other feature's ADD,
-    and any cut or hole reaching a dovetailed end's ZONE (`depth` back, whole section) on add or edit, EXCEPT a cut running straight
-    through along the run (`cutRunsThrough`); the checks read it as `realBodied` with inscribed contact boxes (inv 38; no new kind of
-    support). Re-plan keeps the stored count, pin width and tail side (G3); `N` ≤ `DOVETAIL_COUNT_MAX` (100); a linked user mirrored along J at its mate's SAME turn refuses when the Shape takes PINS (fu 507). Joinery
-    leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it (and its assembly) whole, Repair never
-    changes it (`cornerJointed`, `changedDovetailed`). The cut list: one line per stored dovetail; the bench drawings on the TAIL
-    part's row only (`dovetailBench.ts` builds every string, inv 19). **Half-blind** (the pin part keeps a LAP in front of stopped sockets; the
-    tail part runs out to the lap plane): `cornerPlan.ts`' ONE optional hook `JointKind.inset`, **step 3a** (before any end moves; box joints have none);
-    **`dovetailCornerStyle` is the ONE tails-side and lap decision** (`joint` `keep` | `through` | `half-blind`; the lap
-    rule and `autoLap`: the full text); the `narrow` probe carries the lap; a lap not inside the pin part refuses before any mutation; the
-    checks, cut list and bench read the lap. Full text: `docs/invariants.md`. Follow-ups 497–521.
+    Geometry is inv 48's path (square-span VIEW curves through `geometryBoard`, never a curve to the user). **Every reader is correct or refuses:**
+    a dovetailed part refuses dovetails on featured stock and every other feature's ADD, and any cut or hole reaching a dovetailed end's
+    ZONE on add or edit, EXCEPT a cut running straight through along the run (`cutRunsThrough`); the checks read it as `realBodied` (inv 38).
+    Re-plan keeps the stored count, pin width and tail side; `N` ≤ `DOVETAIL_COUNT_MAX`; a linked user mirrored along J at its mate's SAME
+    turn refuses when the Shape takes PINS. Joinery leaves its size and place alone AND skips a pocket reaching its zone; Refine keeps it
+    (and its assembly) whole, Repair never changes it (`cornerJointed`, `changedDovetailed`). `dovetailBench.ts` builds every bench
+    string (inv 19). **Half-blind:** `cornerPlan.ts`' ONE optional hook `JointKind.inset`, **step 3a** (before any end moves);
+    **`dovetailCornerStyle` is the ONE tails-side and lap decision** (the lap rule and `autoLap`: the full text); a lap not inside the
+    pin part refuses before any mutation. Full text: `docs/invariants.md`. Follow-ups 497–521.
 
-63. **`weight.ts` is the ONE place weight is computed** (schema 28 for `CustomMaterial.density`, lb/ft³): the wood the MODEL keeps —
-    `boardBodies` volumes through `partGeometry`, memoised on the cached geometry — times the catalog's density; holes ignored, a lean
-    changes no volume. **Solid edging at its BAND's density**: core = finished part's wood − solid strips at their FINISHED size, allowances never weighed (never `cutStock`'s
-    core-sized board), so core + strips is the finished wood exactly; tape weighed as core. Flat document: every copy and hidden part
-    counts. The cut list sums a group's weight in the SAME visit as `stockInches` (edging in the edging's group), so the total is
-    exactly the sum of the groups. **A material with no density makes every total say it is partial and name it; nothing weighed reads
+63. **`weight.ts` is the ONE place weight is computed** (schema 28 for `CustomMaterial.density`, lb/ft³): the wood the MODEL keeps
+    (`boardBodies` volumes through `partGeometry`) times the catalog's density; holes ignored. **Solid edging at its BAND's density**:
+    core + strips is the finished wood exactly, allowances never weighed. Every copy and hidden part counts; the cut list's total is
+    exactly the sum of its groups. **A material with no density makes every total say it is partial and name it; nothing weighed reads
     `not known` — never a silent undercount.** `partMass` and every check never read density. Full text: `docs/invariants.md`.
 
-64. **`stretch.ts` `stretchPlan` is the ONE stretch decider**, for both the preview and the action. Nothing stored, and no schema
+64. **`stretch.ts` `stretchPlan` is the ONE stretch decider**, for both the preview and the action. Nothing stored; no schema
     change. The min side is fixed, and everything past the line moves `+δ` exactly. A placement wholly on one side moves as a
-    placement; on a shrink, one in the removed band, the line included, refuses (Rulings 7, 9). A spanning part grows on `d` and never on its thickness (`stretchPart`). Features follow their side by the per-side
-    rule, through each kind's own rebase helper (`resizeEnd.ts`' and `holeRebase.ts`' per-feature helpers, never `resizeEnd`'s whole-list rebase), or refuse: one feature at a time, NEAR `rebaseX(tmp, d, far, δ)`, FAR
-    `rebaseX(tmp, d, opposite(far), δ)`; rectangular cuts `stretchCut`; prisms along `d` pass unchanged; corner joints are judged
-    before the per-feature lists. Every refusal before `edit()`, and ONE undo entry. Copies and links refuse; they are never split. Write-back is keepWorld.
+    placement; a shrink refuses one in the removed band, the line included. A spanning part grows on `d`, never on its thickness
+    (`stretchPart`). Features follow their side by the per-side rule, one at a time through each kind's own per-feature rebase helper
+    (never `resizeEnd`'s whole-list rebase), or refuse; rectangular cuts `stretchCut`. Every refusal before `edit()`, and ONE undo
+    entry. Copies and links refuse; they are never split. Write-back is keepWorld.
     **PROHIBITION: do not stretch a feature with `resizeEnd`'s rebase (it keeps far features in the world, which breaks every joint
     past the line), and do not let `writeBackParts` split a definition or a Shape silently.** Full text: `docs/invariants.md`.
 
@@ -588,12 +564,14 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
-- **Open, splayed legs (2026-10-24):** 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
-  holes (2026-10-25): 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons
-  (2026-10-25): 459, 463 and 467 (ask first); record-only 461, 462, 466. Square-set legs (2026-10-26): record-only 472, 474. Stretchers
-  (2026-10-26): 479 (ask first); record-only 483. Box joints (2026-10-27): 493 (pre-existing; ask first), 494; record-only 495. Dovetails
-  (2026-10-27, deployed): 504, 507 and 510 (ask first), 505, 506, 508, 509,
-  514, 515; record-only 513. Half-blind dovetails (2026-10-28, deployed): 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521. Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align: 534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask first); record-only 544. Stretch (2026-10-28, not deployed): 550 (ask first); record-only 551–555.
+- **Open, per round:** splayed legs 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
+  holes: 448 and 453 (ask first), 451, 452; record-only 455, 456, 469. Round tenons: 459, 463 and 467 (ask first); record-only
+  461, 462, 466. Square-set legs: record-only 472, 474. Stretchers: 479 (ask first); record-only 483. Box joints: 493
+  (pre-existing; ask first), 494; record-only 495. Dovetails: 504, 507 and 510 (ask first), 505, 506, 508, 509, 514, 515;
+  record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
+  Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
+  534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

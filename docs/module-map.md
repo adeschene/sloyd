@@ -765,6 +765,23 @@ src/
                       dialog REFUSED when checking features against joints throws, fu 244, P8)
 ```
 
+## The `→ units` edge, file by file
+
+The rule is `CLAUDE.md`'s ("a module imports `units` when it produces a string a person reads off the page, and not otherwise");
+this list moved from there on 2026-10-29, its content unchanged (regrouped into three bullets).
+
+- **Take it:** `cutlist.ts`, `diagram.ts`, `nesting.ts` (`formatLength`, so one dimension never reads two ways on one sheet) and
+  `viewport/TapeTool.tsx` (`parseLength`, for the live preview), and so do `designCheck.ts` (a metric violation's `shown` copy,
+  fu 355; its model `message` stays decimal inches), `sectionView.ts` (the section's heading), `dovetailBench.ts` (the bench
+  drawings' strings, `formatLengthBare`), and the copy homes `bandText.ts`, `tenonText.ts`, `stretcherText.ts`, `boxJointText.ts`,
+  `cornerText.ts`, `dovetailText.ts` and `stretchText.ts`, and `labels.ts` (part labels' strings) (`banding.ts` and
+  `roundTenons.ts` stay numbers-only).
+- **Deliberately do not:** `snapPoints.ts`, `row.ts` and `weight.ts` (numbers only; its strings are `cutlist.ts`' and
+  `quantity.ts`').
+- **A TYPE-only import of `Units` is not an edge:** `types.ts`, `geometry.ts`' `snapStep`, `roundTenons.ts`' `tenonStep`,
+  `stretchers.ts`, `boxJoints.ts`, `cornerPlan.ts`, `dovetails.ts`, `stretchPart.ts`; nor is `gridDensity.ts`' `isMetric` (the
+  ground grid's ladder is a display choice of the project's units, not a string).
+
 ## Per-file rules not covered by an invariant
 
 Moved from `CLAUDE.md` on 2026-10-26, verbatim except that its pointers to this file now read "the tree" (the
