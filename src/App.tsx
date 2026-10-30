@@ -678,7 +678,7 @@ export default function App() {
       // dialogs own Escape while open, and a grab or anchor behind them must
       // survive it.
       if (e.key === 'Escape') {
-        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool, openPath, closeAssembly } =
+        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool, openPath, closeAssembly, selectedGuideIds, selectGuides } =
           useStore.getState();
         if (grabbed) {
           e.preventDefault();
@@ -699,6 +699,10 @@ export default function App() {
           // The last rung (assemblies spec §3.3): close one assembly level.
           e.preventDefault();
           closeAssembly();
+        } else if (selectedGuideIds.length > 0) {
+          // The new last rung (selectable guides spec §5): drop the guide selection.
+          e.preventDefault();
+          selectGuides([]);
         }
         return;
       }
@@ -742,10 +746,15 @@ export default function App() {
       // the browser on a Mac.
       if ((e.altKey && e.code === 'KeyH') || e.key === 'h' || e.key === 'H') {
         if (e.ctrlKey || e.metaKey) return;
-        const { hideSelected, hideUnselected, showAll } = useStore.getState();
+        const { hideSelected, hideUnselected, showAll, selectedGuideIds, hideSelectedGuides, hideOtherGuides } = useStore.getState();
         e.preventDefault();
+        // A part selection and a guide selection never coexist; with guides
+        // selected H and Shift+H act on guides. Alt+H shows parts AND guides.
         if (e.altKey) showAll();
-        else if (e.shiftKey) hideUnselected();
+        else if (selectedGuideIds.length > 0) {
+          if (e.shiftKey) hideOtherGuides();
+          else hideSelectedGuides();
+        } else if (e.shiftKey) hideUnselected();
         else hideSelected();
         return;
       }
@@ -910,6 +919,12 @@ export default function App() {
         // exists. The store drops both defensively; this stops the delete
         // happening at all.
         if (useStore.getState().grabbed || useStore.getState().tapeAnchor) return;
+        const guideIds = useStore.getState().selectedGuideIds;
+        if (guideIds.length > 0) {
+          e.preventDefault();
+          useStore.getState().removeGuides(guideIds);
+          return;
+        }
         const ids = useStore.getState().selectedIds;
         if (ids.length === 0) return;
         e.preventDefault();
