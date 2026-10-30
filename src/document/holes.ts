@@ -198,6 +198,11 @@ export interface Hole {
   /** ON PIECES ONLY (holePieces): a frustum's far-end radius, the countersink's cone narrowing from `radius` at the mouth to
    *  `tip` at `depth`. Never set by holeInstances. */
   tip?: number;
+  /** ON A PAIRED HOLE ONLY (cam-and-bolt spec §3.3; set by partGeometry's `withMates`, never by holeInstances): the PARTNER's
+   *  geometry, so a hole's rim and loop are a pure function of the hole itself. `role` is the PARTNER's role. An unpaired hole
+   *  has no `mate` key at all. Frozen with the hole; the per-hole memo is safe because the partner's geometry is part of the
+   *  hole's identity (a different partner is a different hole object). */
+  mate?: { role: 'cam' | 'bolt'; axis: Dimension; dir: 1 | -1; centre: V3; radius: number; depth: number };
 }
 
 /** The polygon a hole is rendered as, vertices on the true circle (spec §3.2). */
@@ -346,7 +351,7 @@ export function boardHoles(board: Pick<Board, Dimension | 'holes'>): Hole[] {
  * never answers from a stale entry; any other hole, or another `n`, computes
  * fresh. A memoised result is shared, so it is returned frozen (array, planes, normals and points alike).
  */
-interface HoleMemo { prism?: Plane[]; bottom?: V3[]; rings: Map<number, V3[]>; pieces?: readonly Hole[]; envelope?: readonly Hole[] }
+interface HoleMemo { loop?: V3[]; prism?: Plane[]; bottom?: V3[]; rings: Map<number, V3[]>; pieces?: readonly Hole[]; envelope?: readonly Hole[] }
 const holeMemo = new WeakMap<Hole, HoleMemo>();
 /**
  * What touchesPrism knows of a prism built here, beside its planes: the hole's in-plane axes and centre (to try the
@@ -392,6 +397,44 @@ function ringOf(h: Hole, t: number, n: number): V3[] {
     p[v] += r * Math.sin(th);
     return p;
   });
+}
+
+/**
+ * The intersection loop of a BOLT bore with its cam's cylinder (cam-and-bolt spec §3.3): each vertex k of the mouth ring has
+ * its `b`-coordinate (the bolt's axis) moved to where the cam's wall is, `F.centre[b] − dir·√(R² − (p[c] − F.centre[c])²)`.
+ * Index-aligned with `holeRing(bolt, 0, n)`, so a band from ring to loop is ruled along the bit. A pure function of the
+ * bolt's geometry and `bolt.mate` (row and index are never read), memoised per frozen hole at the default `n`.
+ */
+export function camLoop(bolt: Hole, n = HOLE_SEGMENTS): V3[] {
+  if (n !== HOLE_SEGMENTS || !frozen(bolt)) return loopOf(bolt, n);
+  const memo = memoOf(bolt);
+  if (!memo.loop) memo.loop = freezeRing(loopOf(bolt, n));
+  return memo.loop;
+}
+function loopOf(bolt: Hole, n: number): V3[] {
+  const F = bolt.mate!;
+  const b = idx(bolt.axis);
+  const c = 3 - idx(F.axis) - b;
+  return ringOf(bolt, 0, n).map((p) => {
+    p[b] = F.centre[b]! - bolt.dir * Math.sqrt(F.radius * F.radius - (p[c]! - F.centre[c]!) ** 2);
+    return p;
+  });
+}
+
+/**
+ * The partner of a paired hole, rebuilt from `h.mate`: square, blind, `bit` the unit vector `dir` along its `axis`,
+ * `reach = depth`, carrying its own `mate` back at `h` (role flipped). `row` is '' and `index` -1: PLACEHOLDERS, nothing that
+ * reads a mate hole may use them. Not frozen, so never memoised. `camLoop(mateHole(cam))` is bit for bit `camLoop(bolt)`.
+ */
+export function mateHole(h: Hole): Hole {
+  const m = h.mate!;
+  const bit: V3 = [0, 0, 0];
+  bit[idx(m.axis)] = m.dir;
+  return {
+    row: '', index: -1, axis: m.axis, dir: m.dir, centre: [m.centre[0], m.centre[1], m.centre[2]], radius: m.radius,
+    depth: m.depth, through: false, bit, reach: m.depth,
+    mate: { role: m.role === 'cam' ? 'bolt' : 'cam', axis: h.axis, dir: h.dir, centre: [h.centre[0], h.centre[1], h.centre[2]], radius: h.radius, depth: h.depth },
+  };
 }
 
 /** The radius at axial `t`: `radius` for a cylinder; a frustum piece's interpolated linearly from `radius` (t = 0) to `tip`
@@ -756,6 +799,8 @@ export function holeRims(h: Hole): [V3, V3][] {
       : [holeRing(head, 0), holeRing(head, head.depth), ...(bored ? [holeRing(bore, 0), holeRing(bore, bore.depth)] : [])];
     return loops.flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
   }
+  // A bolt's far loop is the cam's wall, not its bottom ring (cam-and-bolt spec §3.3).
+  if (h.mate?.role === 'cam') return [holeRing(h, 0), camLoop(h)].flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
   const far = !tilted(h) ? holeRing(h, h.depth) : h.through ? holeRing(h, h.reach) : holeBottom(h);
   return [holeRing(h, 0), far].flatMap((r) => r.map((p, i) => [p, r[(i + 1) % r.length]!] as [V3, V3]));
 }

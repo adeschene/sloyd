@@ -107,3 +107,21 @@ export function camRowIds(board: Board): ReadonlySet<string> {
   idsMemo.set(key, { length: board.length, width: board.width, thickness: board.thickness, ids });
   return ids;
 }
+
+/** Each paired hole copied with a `mate` built from its partner (its geometry, the partner's role); every other hole is
+ *  returned unchanged, the same object, so an unpaired part gains no key (inv 50, byte for byte). */
+export function withMates(holes: readonly Hole[]): Hole[] {
+  const partner = camPartners(holes);
+  if (partner.size === 0) return holes as Hole[];
+  return holes.map((h) => {
+    const m = partner.get(h);
+    if (!m) return h;
+    return {
+      ...h,
+      mate: {
+        role: camRole(m, h), axis: m.axis, dir: m.dir, centre: [m.centre[0], m.centre[1], m.centre[2]],
+        radius: m.radius, depth: m.depth,
+      },
+    };
+  });
+}

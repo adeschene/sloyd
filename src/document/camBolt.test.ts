@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { HOLE_EPS, holeInstances, mm } from './holes';
+import { HOLE_EPS, HOLE_SEGMENTS, camLoop, holeInstances, holeRims, mateHole, mm } from './holes';
 import type { Hole } from './holes';
+import { partGeometry } from './bodies';
+import { DIMENSION_ORDER } from './geometry';
+import { mirrorPart } from './frames';
+import { chiralPart } from './turnFixtures';
 import { camPairRows, camPartners, camRole, camRowIds } from './camBolt';
 import { BOLT, CAM, camPart } from './camBoltFixtures';
 import type { HoleRow } from './types';
@@ -89,4 +93,67 @@ describe('camPartners', () => {
     expect(pairs({}, { depth: mm(15) }).size).toBe(0);
   });
   it('HOLE_EPS is the shared tolerance', () => { expect(HOLE_EPS).toBe(1e-9); });
+});
+
+describe('the mate, the loop and the rims (cam-and-bolt Task 3)', () => {
+  const geo = (b = camPart()) => partGeometry(b).holes;
+  it('partGeometry marks both bores', () => {
+    const hs = geo();
+    expect(hs.filter((h) => h.mate !== undefined)).toHaveLength(4);
+    for (const h of hs) expect(h.mate!.role).toBe(h.row === 'cam' ? 'bolt' : 'cam');
+  });
+  it('an unpaired part\'s holes carry no mate key', () => {
+    for (const h of geo(camPart({ holes: [{ ...CAM }] }))) expect(Object.keys(h)).not.toContain('mate');
+  });
+  it('camLoop lies on both cylinders', () => {
+    const hs = geo();
+    for (const bolt of hs.filter((h) => h.row === 'bolt')) {
+      const cam = hs.find((h) => h.row === 'cam' && h.index === bolt.index)!;
+      const a = DIMENSION_ORDER.indexOf(cam.axis);
+      const b = DIMENSION_ORDER.indexOf(bolt.axis);
+      const c = 3 - a - b;
+      const loop = camLoop(bolt);
+      expect(loop).toHaveLength(HOLE_SEGMENTS);
+      for (const p of loop) {
+        expect(Math.abs(Math.hypot(p[b]! - cam.centre[b]!, p[c]! - cam.centre[c]!) - cam.radius)).toBeLessThan(1e-12);
+        expect(Math.abs(Math.hypot(p[a]! - bolt.centre[a]!, p[c]! - bolt.centre[c]!) - bolt.radius)).toBeLessThan(1e-12);
+        const t = bolt.dir * (p[b]! - bolt.centre[b]!);
+        expect(t).toBeGreaterThan(0);
+        expect(t).toBeLessThan(bolt.depth);
+      }
+    }
+  });
+  it('bolt rims end on the loop', () => {
+    const hs = geo();
+    const bolt = hs.find((h) => h.row === 'bolt')!;
+    const rims = holeRims(bolt);
+    expect(rims).toHaveLength(2 * HOLE_SEGMENTS);
+    const loop = camLoop(bolt);
+    rims.slice(HOLE_SEGMENTS).forEach(([p], i) => expect(p).toBe(loop[i]));
+    expect(holeRims(hs.find((h) => h.row === 'cam')!)).toHaveLength(2 * HOLE_SEGMENTS);
+  });
+  it('camLoop is memoised on a frozen hole', () => {
+    const bolt = geo().find((h) => h.row === 'bolt')!;
+    expect(camLoop(bolt)).toBe(camLoop(bolt));
+  });
+  it('mirrored and turned parts keep the pair', () => {
+    expect(geo(mirrorPart(camPart())).filter((h) => h.mate)).toHaveLength(4);
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      expect(geo(camPart({ posture })).filter((h) => h.mate)).toHaveLength(4);
+      expect(geo({ ...chiralPart(posture), ...camPart({ posture }), name: 'Chiral' }).filter((h) => h.mate)).toHaveLength(4);
+    }
+  });
+  it('camLoop(mateHole(cam)) equals camLoop(bolt), bit for bit', () => {
+    const hs = geo();
+    for (const bolt of hs.filter((h) => h.row === 'bolt')) {
+      const cam = hs.find((h) => h.row === 'cam' && h.index === bolt.index)!;
+      const m = mateHole(cam);
+      expect(m.through).toBe(false);
+      expect(m.reach).toBe(m.depth);
+      const x = camLoop(m);
+      const y = camLoop(bolt);
+      expect(x).toHaveLength(y.length);
+      x.forEach((p, i) => p.forEach((v, k) => expect(Object.is(v, y[i]![k])).toBe(true)));
+    }
+  });
 });
