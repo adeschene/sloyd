@@ -128,11 +128,15 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
     // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side; a line's face hit
     // sits on a part and is clipped with it (`keepsCandidate`, construction-lines-2 spec §3.1).
-    () => tool !== 'tape' ? [] : [
-      ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
-      ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
-      ...(showGuides ? lineFaceCandidates(guides, visibleBoards(boards, hiddenIds), SCENE_EXTENT) : []),
-    ].filter((p) => keepsCandidate(section, p)),
+    () => {
+      if (tool !== 'tape') return [];
+      const shown = visibleBoards(boards, hiddenIds);
+      return [
+        ...shown.flatMap(snapPointsFor),
+        ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
+        ...(showGuides ? lineFaceCandidates(guides, shown, SCENE_EXTENT) : []),
+      ].filter((p) => keepsCandidate(section, p));
+    },
     [tool, boards, hiddenIds, guides, showGuides, section],
   );
 

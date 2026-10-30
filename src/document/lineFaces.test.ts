@@ -43,6 +43,17 @@ describe('lineFaceHits', () => {
     expect(0 + ((c - 0) / 1) * 1).toBe(c); // …but a canonical line's t cannot.
   });
 
+  // The same faces from a NON-canonical axis line (its anchor 1.1 along the axis — the loader never stores one, but
+  // `lineFaceHits` takes any `AnyLine`): here `t` is measured from z = 1.1, so `at + t·u` is `1.1 + (c − 1.1)`, which
+  // drifts for c = 0.3 + 5.5 (asserted above). Only the assignment gives the face constants; this is the mutation's pin.
+  it('a non-canonical axis line: the face constants still, never `at + t·u`', () => {
+    const b = plain({ position: [0.1, 0.2, 0.3] });
+    const box = worldBodies(b)[0]!.box!;
+    const hits = lineFaceHits(axisLine('z', [3, 0.575, 1.1]), b);
+    expect(hits.map((h) => h.at[2])).toEqual([box.min[2], box.max[2]]);
+    expect(hits.every((h) => h.at[0] === 3 && h.at[1] === 0.575)).toBe(true);
+  });
+
   it('a grazing line along a top edge: exactly the two ends', () => {
     expect(ats(lineFaceHits(axisLine('x', [0, 0.75, 0]), plain()))).toEqual([[0, 0.75, 0], [24, 0.75, 0]]);
   });

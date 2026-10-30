@@ -10,6 +10,7 @@ import { SCENE_EXTENT } from './extent';
  * the document or the guides change (both tools' candidate memos). 20 lines — 10 axis lines spread through the piece and
  * 10 oblique ones across it — against every part of the shaker-table fixture. Part geometry is memoised by the document
  * layer (`partGeometry`), as it is in the app, so a run times the clipping, probing and bore tests, not body building.
+ * The fixture has NO holes, so the guard does not time the bore test (`insideHole` per hit); it times clipping and probing.
  * The MINIMUM of 9 runs (load only inflates a run). Bound 40 ms, the guard budget's default; lowered only, never raised.
  */
 const parts = worldParts(designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false }).doc);
