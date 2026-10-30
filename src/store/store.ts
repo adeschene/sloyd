@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
 import { stretchPlan } from '../document/stretch';
 import {
-  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, newLineOf, sameNewLine, ownedByGuide, heldBoard, heldRoot, isAnyLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, newLineOf, sameNewLine, ownedByGuide, heldBoard, heldRoot, isAnyLine, isGuideLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -642,6 +642,8 @@ interface StoreState {
   /** Restores a view's explode, section and hidden set (its own undo entry when the hidden set changes); returns the view whose camera the caller applies, or null when refused (mid-gesture) or unknown. */
   goToView: (id: string) => SavedView | null;
   removeGuide: (id: string) => void;
+  /** Retype an axis line's two fixed coordinates; false = refused or nothing to do (spec §5.2). */
+  moveGuideLine: (id: string, at: [number, number, number]) => boolean;
   clearGuides: () => void;
 }
 
@@ -713,6 +715,29 @@ export const useStore = create<StoreState>((set, get) => {
 
   /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
   const readOnly = () => get().explode > 0;
+  /** Invariant 24 for a guide that is going or moving: the two clauses removeGuide and moveGuideLine share, so they
+   *  cannot drift apart. Call before the edit. */
+  const dropHeldOwnedBy = (id: string) => {
+    // Invariant 24, the clause `grabbed` does not need: an anchor CAN be
+    // guide-owned, and nothing disables the guides list while the tape is
+    // anchored, so deleting the guide you are measuring from is one click
+    // away. Unlike dropHeldIfGone this may sit on either side of the edit —
+    // the guide id is equally gone before and after — but it is written
+    // before it to match every other guard in this file.
+    if (ownedByGuide(get().tapeAnchor, id)) {
+      set({ tapeAnchor: null, tapeAxis: null });
+    }
+    // The same clause for the latched hover, and it is NOT symmetry: a guide
+    // is a snap candidate like any other, so "anchor on a board, measure to
+    // an existing guide, type an offset" is an ordinary gesture — and the
+    // guides list stays live throughout it, so deleting the guide being
+    // measured TO is as reachable as deleting the one being measured FROM.
+    // Narrowed to this guide: removing a different one must not break the
+    // latch.
+    if (ownedByGuide(get().tapeHover, id)) {
+      set({ tapeHover: null });
+    }
+  };
 
   /** Two hole lists with the same rows in the same order, ids included (a stretcher plan's no-op test, inv 4). */
   const sameRows = (a: readonly HoleRow[], b: readonly HoleRow[]) =>
@@ -2739,26 +2764,22 @@ export const useStore = create<StoreState>((set, get) => {
       // and clears redo, so a no-op would leave a no-op undo entry
       // (invariant 4) and silently wipe the redo stack.
       if (!get().doc.guides.some((g) => g.id === id)) return;
-      // Invariant 24, the clause `grabbed` does not need: an anchor CAN be
-      // guide-owned, and nothing disables the guides list while the tape is
-      // anchored, so deleting the guide you are measuring from is one click
-      // away. Unlike dropHeldIfGone this may sit on either side of the edit —
-      // the guide id is equally gone before and after — but it is written
-      // before it to match every other guard in this file.
-      if (ownedByGuide(get().tapeAnchor, id)) {
-        set({ tapeAnchor: null, tapeAxis: null });
-      }
-      // The same clause for the latched hover, and it is NOT symmetry: a guide
-      // is a snap candidate like any other, so "anchor on a board, measure to
-      // an existing guide, type an offset" is an ordinary gesture — and the
-      // guides list stays live throughout it, so deleting the guide being
-      // measured TO is as reachable as deleting the one being measured FROM.
-      // Narrowed to this guide: removing a different one must not break the
-      // latch.
-      if (ownedByGuide(get().tapeHover, id)) {
-        set({ tapeHover: null });
-      }
+      dropHeldOwnedBy(id);
       edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));
+    },
+
+    // Construction-lines-2 spec §5.2. Both refusals sit BEFORE edit() (inv 4): a no-op or a duplicate must leave neither
+    // an undo entry nor a wiped redo stack. The typed value is stored exactly (inv 25).
+    moveGuideLine: (id, at) => {
+      if (readOnly()) return false;
+      const g = get().doc.guides.find((x) => x.id === id);
+      if (!g || !isGuideLine(g)) return false;
+      const next = canonicalLine(at, g.axis);
+      if (sameNewLine(newLineOf(g), next)) return false;
+      if (get().doc.guides.some((o) => o.id !== id && isAnyLine(o) && sameNewLine(newLineOf(o), next))) return false;
+      dropHeldOwnedBy(id);
+      edit((doc) => ({ ...doc, guides: doc.guides.map((x) => (x.id === id ? { ...x, at: [...next.at] as [number, number, number] } : x)) }));
+      return true;
     },
 
     clearGuides: () => {

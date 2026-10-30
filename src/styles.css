@@ -1799,3 +1799,7 @@ select.input { cursor: pointer; }
 .stretch-from { display: flex; align-items: end; gap: 6px; padding-bottom: 2px; color: var(--ink-dim); font-size: 12px; }
 .stretch-actions { display: flex; gap: 6px; margin-top: 6px; }
 .stretch-preview { font-variant-numeric: tabular-nums; }
+
+/* An axis line's two coordinate fields sit in its row (construction-lines-2 spec §5). */
+.guides li .field { flex: none; width: 76px; margin: 0; }
+.guides li:has(.field) { flex-wrap: wrap; }

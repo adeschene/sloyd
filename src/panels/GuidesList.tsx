@@ -2,6 +2,7 @@ import { useStore } from '../store/store';
 import { isGuideLine, isGuideRay } from '../document/document';
 import type { Guide } from '../document/document';
 import { formatLength } from '../units/length';
+import { DimensionField } from './DimensionField';
 import type { Units } from '../units/length';
 
 /**
@@ -39,7 +40,7 @@ function describe(g: Guide, units: Units): { row: string; remove: string } {
     .filter((a) => a !== g.axis)
     .map((a) => ({ a: a.toUpperCase(), v: formatLength(g.at[a === 'x' ? 0 : a === 'y' ? 1 : 2], units) }));
   return {
-    row: `Line along ${axis} · ${fixed.map((f) => `${f.a} ${f.v}`).join(' · ')}`,
+    row: `Line along ${axis}`,
     remove: `Remove line along ${axis} at ${fixed.map((f) => `${f.a} ${f.v}`).join(', ')}`,
   };
 }
@@ -48,6 +49,7 @@ export function GuidesList() {
   const guides = useStore((s) => s.doc.guides);
   const units = useStore((s) => s.doc.units);
   const removeGuide = useStore((s) => s.removeGuide);
+  const moveGuideLine = useStore((s) => s.moveGuideLine);
   const clearGuides = useStore((s) => s.clearGuides);
 
   if (guides.length === 0) {
@@ -62,6 +64,15 @@ export function GuidesList() {
           return (
             <li key={g.id}>
               <span className="guide-coords">{text.row}</span>
+              {isGuideLine(g) && (['x', 'y', 'z'] as const).map((a, i) => a === g.axis ? null : (
+                // The two fixed coordinates, typed (spec §5): a refused move says why through the field's own error.
+                <DimensionField key={a} label={a.toUpperCase()} units={units} allowNegative value={g.at[i]!}
+                  onCommit={(v) => {
+                    const at: [number, number, number] = [g.at[0], g.at[1], g.at[2]];
+                    at[i] = v;
+                    return moveGuideLine(g.id, at) ? undefined : 'That line is already there';
+                  }} />
+              ))}
               <button
                 className="guide-remove"
                 aria-label={text.remove}
