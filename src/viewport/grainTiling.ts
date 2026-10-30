@@ -12,6 +12,7 @@ import { runoutAxis, runoutNormals, sectionFrame, stopAxis, stopRunoutNormals, t
 import { builtPath } from '../document/profilePath';
 import { oneSideCurve, sweptNormals, sweptRunouts, sweptStops } from '../document/sweep';
 import { spanOf } from '../document/curves';
+import { camLoop, mateHole } from '../document/holes';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 import { candidates as sortedCandidates, centroidFan, CONFORM_EPS, insertOnEdges, welder } from './conform';
@@ -975,8 +976,10 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
     };
   const byMaterial = Array.from({ length: 6 }, () => ({ pos: [] as number[], nor: [] as number[], uv: [] as number[] }));
   // One convex piece, fanned from its first vertex: `ws` its vertices' world offsets, `ns` their WORLD normals, `fw` the
-  // facet's world normal (material, plan and winding).
-  const emit = (ws: V3[], ns: V3[], fw: V3) => {
+  // facet's world normal (material, plan and winding). `wound` (a cam's window): the piece is already wound to face into
+  // the air, so its order is kept rather than judged against `fw` (a long window triangle's own normal may lean far off
+  // the radial at its centroid); every other caller passes none.
+  const emit = (ws: V3[], ns: V3[], fw: V3, wound = false) => {
     let axis = 0;
     for (let i = 1; i < 3; i += 1) if (Math.abs(fw[i]!) > Math.abs(fw[axis]!) + 1e-9) axis = i;
     const material = axis * 2 + (fw[axis]! > 0 ? 0 : 1);
@@ -987,7 +990,7 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
       const d = facing(ws[0]!, ws[i]!, ws[i + 1]!, fw);
       if (d === null) continue;
       putWall(at, ws[0]!, ns[0]!);
-      if (d < 0) { putWall(at, ws[i + 1]!, ns[i + 1]!); putWall(at, ws[i]!, ns[i]!); } else { putWall(at, ws[i]!, ns[i]!); putWall(at, ws[i + 1]!, ns[i + 1]!); }
+      if (d < 0 && !wound) { putWall(at, ws[i + 1]!, ns[i + 1]!); putWall(at, ws[i]!, ns[i]!); } else { putWall(at, ws[i]!, ns[i]!); putWall(at, ws[i + 1]!, ns[i + 1]!); }
     }
   };
   const wallNormals = new Map<V3, V3>();
@@ -1011,11 +1014,13 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
     return p;
   };
   // One band of HOLE_SEGMENTS quads between two index-aligned rings (a wall, or a counterbore's annulus): `nOf` a vertex's
-  // world normal, `fwOf` a facet's (from its top edge's midpoint).
-  const band = (top: V3[], far: V3[], nOf: (p: V3) => V3, fwOf: (mid: V3) => V3, plan: Plane[][]) => {
+  // world normal, `fwOf` a facet's (from its top edge's midpoint). `skip` (a cam's window, cam-and-bolt spec §5.1) leaves
+  // out the columns it names; every other caller passes none and draws every column.
+  const band = (top: V3[], far: V3[], nOf: (p: V3) => V3, fwOf: (mid: V3) => V3, plan: Plane[][], skip?: (k: number) => boolean) => {
     const topW = top.map(offsetOf); const farW = far.map(offsetOf);
     const topN = top.map(nOf); const farN = far.map(nOf);
     for (let k = 0; k < top.length; k += 1) {
+      if (skip?.(k)) continue;
       const k1 = (k + 1) % top.length;
       const quad = [top[k]!, top[k1]!, far[k1]!, far[k]!];
       const mid: V3 = [0, 1, 2].map((i) => (top[k]![i]! + top[k1]![i]!) / 2) as V3;
@@ -1039,6 +1044,82 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
     }
   };
   const radialFacet = (mid: V3) => vecOf(inward(mid));
+  // A CAM (cam-and-bolt spec §5.1; square, blind, headless by the recogniser's clause 1): the usual wall and bottom, except
+  // the columns the bolt's intersection loop reaches. Those are a WINDOW, triangulated in the wall's unrolled plane
+  // (θ·R about the cam's axis from the direction back toward the bolt's mouth, t the depth from the mouth) with the loop as
+  // a hole, and emitted from the original 3D vertices: the rings' own and the loop's, the same numbers as the bolt's wall
+  // (camLoop(mateHole(h)) is camLoop(bolt) coordinate for coordinate), so the pair closes with no tolerance.
+  const camWall = (cam: Hole, top: V3[], far: V3[]) => {
+    const n = top.length;
+    const [ca, cu, cv] = [a, ...[0, 1, 2].filter((i) => i !== a)] as [number, number, number];
+    const ref: V3 = [0, 0, 0];
+    ref[dimIndex(cam.mate!.axis)] = -cam.mate!.dir;
+    const phi0 = Math.atan2(ref[cv], ref[cu]);
+    const step = (2 * Math.PI) / n;
+    const loop = camLoop(mateHole(cam));
+    const thetaOf = (p: V3) => {
+      let t = Math.atan2(p[cv] - cam.centre[cv], p[cu] - cam.centre[cu]) - phi0;
+      while (t <= -Math.PI) t += 2 * Math.PI;
+      while (t > Math.PI) t -= 2 * Math.PI;
+      return t;
+    };
+    const depthOf = (p: V3) => (p[ca] - cam.centre[ca]) * cam.dir;
+    const thetas = loop.map(thetaOf);
+    const ts = loop.map(depthOf);
+    // Ring vertex j (an unwrapped index, mod n) is at θ = j·step − phi0. The window's columns k0..k1: one column past the
+    // loop's on either side, so the loop lies strictly inside it (and inside the depth by the recogniser's clause 4).
+    const k0 = Math.floor((Math.min(...thetas) + phi0) / step) - 1;
+    const k1 = Math.floor((Math.max(...thetas) + phi0) / step) + 1;
+    const span = k1 + 1 - k0;   // the window's vertex columns are k0..k1 + 1
+    const at = (j: number) => ((j % n) + n) % n;
+    const plan = planFor([...top, ...far, ...loop]);
+    // The top and far rows are each one line in the unrolled plane, and earcut drops a vertex collinear with its neighbours
+    // whenever it backtracks (filterPoints, when a pass finds no ear). So the rows' INTERIOR vertices are bowed into the
+    // window, in 2D only, by a sag far below the loop's clearance from either: each is strictly reflex, never dropped, and
+    // no ear is three ring vertices (a chord across the mouth or the floor).
+    const sag = Math.min(Math.min(...ts), cam.depth - Math.max(...ts)) / 4;
+    const bow = (i: number) => sag * Math.sin((Math.PI * i) / span);
+    const outer3: V3[] = []; const outer: Vector2[] = [];
+    for (let i = 0; i <= span; i += 1) { const j = k0 + i; outer3.push(top[at(j)]!); outer.push(new Vector2(cam.radius * (j * step - phi0), bow(i))); }
+    for (let i = span; i >= 0; i -= 1) { const j = k0 + i; outer3.push(far[at(j)]!); outer.push(new Vector2(cam.radius * (j * step - phi0), cam.depth - bow(i))); }
+    // A loop vertex ON a column's line (θ a multiple of the step from the reference: r/R = 1/2 puts the loop's sides at
+    // exactly 30°, four columns) is collinear in 3D with that column's top and far vertices, and a sliver earcut finds
+    // between them (non-zero in 2D by a rounding of θ, or by the bow) is drawn as nothing (facing: under 1e-12), opening
+    // the window. So such a vertex takes the column's own x, EXACTLY: collinear in 2D too, never an ear.
+    const hole = loop.map((_, i) => {
+      const j = Math.round((thetas[i]! + phi0) / step);
+      const onLine = Math.abs(thetas[i]! - (j * step - phi0)) < 1e-9;
+      return new Vector2(cam.radius * (onLine ? j * step - phi0 : thetas[i]!), ts[i]!);
+    });
+    const tris = span < n ? ShapeUtils.triangulateShape(outer, [hole]) : [];
+    // A polygon with one hole of V vertices triangulates into exactly V triangles; fewer means earcut dropped or skipped a
+    // vertex, so the window would not close. Draw the wall whole instead (the watertight test catches it, never hides it).
+    if (tris.length < outer.length + hole.length) {
+      band(top, far, wallNormal, radialFacet, plan);
+      disc(far, plan);
+      return;
+    }
+    band(top, far, wallNormal, radialFacet, plan, (k) => at(k - k0) < span);
+    const all = [...outer3, ...loop];
+    const flat = [...outer, ...hole];
+    // Winding from the unrolled plane, where every triangle is well posed: `sense` is the 3D facing of a triangle that is
+    // counter-clockwise there (the window's first column, top k0 → top k0 + 1 → far k0, half a band quad, well conditioned),
+    // so each triangle is wound to agree with it and with its neighbours, whatever its own normal does.
+    const c0 = top[at(k0)]!; const c1 = top[at(k0 + 1)]!;
+    const sense = facing(offsetOf(c0), offsetOf(c1), offsetOf(far[at(k0)]!), radialFacet([0, 1, 2].map((x) => (c0[x]! + c1[x]!) / 2) as V3))!;
+    for (const [i, j, k] of tris) {
+      const [p, q, r] = [flat[i!]!, flat[j!]!, flat[k!]!];
+      const ccw = (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x) > 0;
+      const tri = ccw === sense > 0 ? [all[i!]!, all[j!]!, all[k!]!] : [all[i!]!, all[k!]!, all[j!]!];
+      const mid: V3 = [0, 1, 2].map((x) => (tri[0]![x]! + tri[1]![x]! + tri[2]![x]!) / 3) as V3;
+      const fw = radialFacet(mid);
+      for (const ps of plan) {
+        const piece = ps.length === 0 ? tri : clip(tri, ps);
+        if (piece.length) emit(piece.map(offsetOf), piece.map(wallNormal), fw, true);
+      }
+    }
+    disc(far, plan);
+  };
   if (h.head) {
     // A headed bore (counterbores spec §6.1; never tilted): the head's wall, a counterbore's annulus at its depth, then
     // the bore's wall and bottom. Each piece's quads clipped on their own rings when the hole is faulted.
@@ -1070,6 +1151,14 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
       band(boreTop, boreFar, wallNormal, radialFacet, plan);
       if (!h.through) disc(boreFar, plan);
     }
+  } else if (h.mate?.role === 'cam') {
+    // A BOLT (cam-and-bolt spec §5.1): its wall runs from the mouth ring to the intersection loop on the cam's wall, index-
+    // aligned (each quad ruled along the bolt's axis), and it has NO bottom: past the loop is the cam's air.
+    const top = holeRing(h, 0);
+    const loop = camLoop(h);
+    band(top, loop, wallNormal, radialFacet, planFor([...top, ...loop]));
+  } else if (h.mate?.role === 'bolt') {
+    camWall(h, holeRing(h, 0), holeRing(h, h.depth));
   } else {
     const top = holeRing(h, 0);
     // A tilted bore's far ring: the exit face's (`reach` axially) or the bottom disc square to the bit (holeBottom). Its

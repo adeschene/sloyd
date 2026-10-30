@@ -1,6 +1,6 @@
 # Sloyd — cam-and-bolt: design
 
-Status: APPROVED by the user 2026-10-30 ("approved"). Builder check taken 2026-10-30 (three questions, all settled as my calls:
+Status: Spec APPROVED by the user 2026-10-30; BUILT on branch `cam-and-bolt`, not merged, not deployed; the *Amended (build)* block awaits approval. No schema change. Builder check taken 2026-10-30 (three questions, all settled as my calls:
 §4.3, §6.1/§6.2, §6.3). Follow-up 568 (`docs/follow-ups.md`; counterbores spec §12, fu 330's chunk 2).
 The holes primitive is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the head (schema 30) is
 `docs/superpowers/specs/2026-10-29-sloyd-counterbores-design.md`, whose layout this follows.
@@ -323,3 +323,65 @@ A read-only survey (2026-10-30) of every non-test reader.
 
 Possibly dowels beside each fitting, and typed hardware uses (ask, inv 55). A "Fit again" when either part moves. Its
 own spec.
+
+## Amended (build)
+
+Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** Rulings are from the SDD ledger
+(`.superpowers/sdd/2026-10-30-sloyd-cam-and-bolt/progress.md`); each changes or settles text above.
+
+**Rulings**
+1. **R1 (Task 3; §5.1): the loop is BIT-IDENTICAL VALUES, not one array.** §5.1's "the loop's vertices are ONE array shared by both walls" is
+   met by `camLoop(mateHole(cam))` giving the same numbers (`Object.is`) as `camLoop(bolt)`: `camLoop` is a pure function of the bolt's and
+   the cam's geometry, and the cam's branch rebuilds the bolt from its `mate` (`mateHole`, added to holes.ts in Task 3, not Task 4).
+   Watertightness compares Float32 values, so identical numbers suffice. Cost if wrong: none for the mesh; a wording fix.
+2. **R2 (Task 4; §5.1): the FAULTED-path pair is not watertight, as no faulted hole is.** The faulted (clip) path has never been watertight for
+   any hole (a lone faulted pin measures 12–214 unmatched edges today); the watertight guard has only covered clean holes. §5.1's watertight
+   claim is read as the CLEAN pair. The two faulted cases (a dado through a cam, 1013 unmatched; a thinned part that unpairs, 820) stay
+   `it.todo` with their counts, and the spec's "both bores faulted by a resize" case is the dado case. Cost if wrong: a crack visible only
+   on a part already flagged faulted. Follow-up 597.
+3. **R3 (Task 4): three mesh deviations, accepted at review**: loop vertices snapped exactly onto column lines in x; the window's winding taken
+   from the unrolled plane (`emit`'s optional `wound`); the window's top and far rows bowed against earcut's collinear drop. Each is found
+   by the size sweep or is a stated guard. Cost if wrong: review rework. (A minor left open: the winding is computed from the BOWED
+   coordinates; the reviewer suggests the unbowed ones before merge, fu 601.)
+4. **R4 (Task 5; §6.1): the bolt's loop is drawn in EVERY view**, including down the bolt, where it projects onto the bore's own circle: the
+   loop is a real crease drawn as a rim, and `drawView`'s one hidden-line pass decides its visibility; `holeDrawing.ts` decides nothing about
+   hiddenness. Cost if wrong: a redundant dashed ring in one view.
+5. **R5 (Task 6; §3.3, §6.2): part diagrams read mates from `partGeometry(board).holes`** (cached), not `holeInstances`, because the pairing
+   is attached in `partGeometry` (`withMates`). Cost if wrong: a diagram rebuild re-derives geometry, small.
+6. **R6 (Task 7; §6.3): the pair line prints metric DEPTHS at 0.1 mm** (`holeLengthText`), while a plain row's `holeLine` prints metric depths
+   in whole mm: the Cam lock's 14.5 mm cam depth is the number its 0.5 mm clearance rests on (§4.1), so rounding it to 15 on the one line a
+   pair prints would misstate the model. Plain rows keep their bytes. Cost if wrong: one inconsistency in metric depth precision (the copy
+   review can settle it). Imperial prints the 14.5 mm depth as 9/16" (14.29 mm), at its usual 1/16" precision.
+7. **R7 (Task 8; §4.1): Cam lock is OFFERED on 1/2" stock** (cam 11 mm deep in 12.7 mm, a 1.7 mm skin, no fault): §4.1 withholds it by the
+   faults, not by a separate rule, so the plan's "withheld on 1/2" stock" test was wrong; the withheld test uses 1/4" stock (the bolt wider
+   than the part). Cost if wrong: a thin-skinned cam offered on 1/2" stock; a thickness floor is a one-line rule later.
+8. **R8 (Task 8; §4.1): `defaultCamLock` returns null when the part's broad face is `length`.** On a part stood on edge the cam goes into the
+   broad (width) face, along thickness — "the face `defaultHole` enters" — and a part whose broad face is its length is too short to have an end to join. Cost if
+   wrong: one preset item missing on unusual parts.
+9. **R9 (Task 1; §3.1): `camRowIds` is memoised on the `holes` array AND the board's three dimensions** (the plan keyed on the array only): a
+   `max`-anchored row resolves against the size, so a resize keeping the array must not return a stale set. Cost if wrong: none (a stricter
+   key).
+10. **R10 (Task 10; §6.5): the pinned quantity is the cam's centre minus the bolt's BOTTOM centre, per pair, exactly.** Level the ends deepens
+    the bolt by `e` from a moved mouth, so mouth-relative vectors legitimately change; the joint is the bolt end's place in the cam. Cost if
+    wrong: a test assertion rework.
+11. **R11 (final review; §3.2, §4.3): an edit that SEPARATES the bores is accepted, and the pair line silently becomes two plain hole lines.**
+    Moving the cam's inset away, or shortening the bolt short of the cam, adds no fault, so nothing refuses it; §3.2/§4.3 say a pair-breaking
+    edit is refused, which holds only while the bores still meet. **Flagged for the user's ruling** (refuse a separating edit, or accept and say so).
+12. **R12 (final review; question for the user, not a defect): R7 offers the Cam lock on 1/2" stock** (11 mm cam, 1.7 mm skin), while a real
+    15 mm housing wants about 12.5 mm. A thickness floor would be one line. Should there be one?
+
+**Differences from the spec as written**
+- **Names:** the recogniser is `camPartners(holes)` (a hole→partner map) with `camRole`, `camPairRows`, `camRowIds` and `withMates` (§3.1's
+  `camPairs(board, holes)` was an example); the pairing key on `Hole` is `mate` (`{ role, axis, dir, centre, radius, depth }`, the
+  PARTNER's), not `meets?` (§3.3); the planners' mechanism (§6.4) is an option, `holeFaults(board, row, { camPairs: false })`, read by Add
+  stretcher, Fit the stretcher again and Bore leg sockets; the pair-edit store action is `updateHoleRows` (`updateHoleRow` now calls it), with
+  the pair rule (§4.3) decided in `Holes.tsx`' `attempt` before it; the refusals are `CAM_PAIR_ALONG` and `CAM_PAIR_PARTIAL`
+  (`holeText.ts`); the pair line is `camPairLine`.
+- **`seatedIn` and `usedRow` refuse a row with ANY paired hole** (`camRowIds`), not only a whole pair's.
+- **The bench line's wording** is the builder's (`camPairLine`); the per-row fault words name the cam row on a bolt-row fault (Task 7 fix).
+- **The size sweep** (`curvesWatertight.test.ts`) adds two cases beyond §5.1's list: a 6 mm bolt into a 12 mm cam (the loop's sides on column
+  lines) and a 5 mm bolt into a deep 35 mm cam entered from below.
+- **Not done, recorded:** the faulted path (fu 597); a bolt past the cam (fu 598); a bolt into the cam's floor (fu 599); hardware from a pair
+  (fu 600, ask first); the build's minors (fu 601).
+- **The browser check** (`docs/browser-verification-cam-and-bolt.md`, run 2026-10-30: 12 PASS, 1 PARTIAL — Plans lines by eye on a print; one copy fix) adds to §8's list: a part diagram with a pair,
+  its width view opened (`PartDiagram.tsx`' gap rendering has no unit test, Task 6).

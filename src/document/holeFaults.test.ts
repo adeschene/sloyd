@@ -7,6 +7,8 @@ import { distinctFaults, faultKey, holeFaultText } from './holeText';
 import { holeBottom, holeInstances, holeRing, insideHole, type Hole } from './holes';
 import type { V3 } from './angleCuts';
 import type { Board, HoleRow } from './types';
+import { BOLT, CAM, camPart } from './camBoltFixtures';
+import { mm } from './holes';
 
 const one = (over: Partial<HoleRow> = {}): HoleRow => ({
   id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
@@ -400,5 +402,33 @@ describe('faults for a headed row (counterbores spec §6.3)', () => {
     const h = holeInstances(b, cb({ inset: 0.15 }))[0]!;
     expect(holeInStock(b, h)).toBe(false);
     expect(holeInStock(b, holeInstances(b, cb())[0]!)).toBe(true);
+  });
+});
+
+describe('a recognised cam pair is exempt from meets-hole (cam-and-bolt §3.2, §6.4)', () => {
+  const pin: HoleRow = {
+    id: 'pin', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.25, along: 'width', alongFrom: 'min',
+    station: mm(37), count: 1, pitch: 0, acrossFrom: 'min', inset: mm(24) + mm(7.5),
+  };
+  const fk = (b: Board, r: HoleRow, opts?: { camPairs?: boolean }) => holeFaults(b, r, opts).map((f) => `${f.index}:${f.kind}`);
+
+  it('a cam pair has no fault', () => {
+    expect(fk(camPart(), CAM)).toEqual([]);
+    expect(fk(camPart(), BOLT)).toEqual([]);
+  });
+  it('the exemption is off for planners', () => {
+    expect(fk(camPart(), CAM, { camPairs: false })).toEqual(['0:meets-hole', '1:meets-hole']);
+    expect(fk(camPart(), BOLT, { camPairs: false })).toEqual(['0:meets-hole', '1:meets-hole']);
+  });
+  it('a third hole meeting a paired bore still faults, whether the partner is found first or last', () => {
+    for (const holes of [[CAM, BOLT, pin], [pin, CAM, BOLT]]) {
+      const b = camPart({ holes });
+      expect(holeFaults(b, pin).filter((f) => f.kind === 'meets-hole')).toEqual([
+        { index: 0, kind: 'meets-hole', other: { row: 'cam', index: 0 } },
+      ]);
+      const cam = holeFaults(b, CAM);
+      expect(cam.map((f) => `${f.index}:${f.kind}`)).toEqual(['0:meets-hole']);
+      expect(cam[0]!.other).toEqual({ row: 'pin', index: 0 });
+    }
   });
 });

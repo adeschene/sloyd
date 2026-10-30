@@ -87,6 +87,33 @@ export function holeLine(board: Board, r: HoleRow, units: Units): string {
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
+/** Refusals of an edit to a cam-and-bolt pair's row (cam-and-bolt spec §4.3), worded like the panel's other refusals. */
+export const CAM_PAIR_ALONG = "This hole is half of a cam-and-bolt pair, so which way it runs can't change — remove one row and add it again.";
+export const CAM_PAIR_ALONG_DIFFERS = "These two rows run different ways, so they can't move together — move each row on its own.";
+export const CAM_PAIR_PARTIAL = 'Only some of these holes are paired with a cam bore — move the rows one at a time.';
+
+/**
+ * A whole cam-and-bolt pair as ONE bench line (cam-and-bolt spec §6.3; invariant 19): the cam's size, face and inset from
+ * its end, the bolt's size and face, then where the pairs sit along the cam row. Faults of both rows are appended as
+ * `holeLine` appends them. The caller passes a WHOLE pair (`camPairRows`).
+ */
+export function camPairLine(board: Board, cam: HoleRow, bolt: HoleRow, units: Units): string {
+  const f = (n: number) => formatLength(n, units);
+  const across = acrossOf(cam);
+  const where = cam.count === 1
+    ? `${f(cam.station)} from the ${cam.along} ${cam.alongFrom} ${end(cam.along)}`
+    : `along the ${cam.along}: first ${f(cam.station)} from the ${cam.alongFrom} ${end(cam.along)}, every ${holePitchText(cam, units)}`;
+  // Metric reads the depth to 0.1 mm (a 14.5 mm cam bore is not 15); imperial is `holeSizeText` verbatim.
+  const size = (r: HoleRow) => (isMetric(units) && r.depth !== 'through'
+    ? `${holeLengthText(r.diameter, units, 'diameter')} dia × ${holeLengthText(r.depth, units, 'diameter')} deep` : holeSizeText(r, units));
+  const base = `Cam-and-bolt ×${cam.count}: ${size(cam)} in ${holeFaceText(cam)}, ${f(cam.inset)} in from the ${across} ${cam.acrossFrom} ${end(across)}; `
+    + `${size(bolt)} from ${holeFaceText(bolt)} into each; ${where}`;
+  // Each fault is worded against the row that produced it (its hole numbers and `meets-hole` test are row-relative).
+  const faults = [...distinctFaults(holeFaults(board, cam)).map((f) => ({ f, r: cam })), ...distinctFaults(holeFaults(board, bolt)).map((f) => ({ f, r: bolt }))];
+  if (faults.length === 0) return base;
+  return `${base} — check: ${holeFaultText(faults[0]!.f, faults[0]!.r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+}
+
 /** A hole's diameter as a hole is specified, with the imperial mm aside: the bore's and the head's share it. */
 const diameterText = (v: number, units: Units) => `${holeLengthText(v, units, 'diameter')}${isMetric(units) ? '' : mm(v)}`;
 

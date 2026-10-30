@@ -9,6 +9,11 @@ import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
 import { holeLengthText } from '../document/holeText';
 import { slopeOf } from '../document/lean';
+import { CAM, BOLT, camPart } from '../document/camBoltFixtures';
+import { mm } from '../document/holes';
+import { camPairRows } from '../document/camBolt';
+import { holeFaults } from '../document/holeFaults';
+import { CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL } from '../document/holeText';
 
 const side = (over: Partial<Board> = {}) => createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -129,6 +134,61 @@ describe('the Holes section', () => {
     open(side({ length: 20, width: 15, thickness: 0.5 }));
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     expect(screen.queryByRole('button', { name: 'Hinge cup' })).toBeNull();
+  });
+  it('lists a Cam lock for each end and a Cam bolt bore; a Cam lock is two rows in one undo entry', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByRole('button', { name: 'Cam lock, max end' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cam bolt bore' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cam lock, min end' }));
+    expect(rows()).toHaveLength(2);
+    act(() => useStore.getState().undo());
+    expect(rows()).toHaveLength(0);
+  });
+  it('names the metric hardware in an imperial project, as the Hinge cup does (browser check 1)', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByText('15 mm cam and 8 mm bolt bore, 24 mm in from the min end')).toBeInTheDocument();
+    expect(screen.getByText('5 mm bore, 12 mm deep, centred on the broad face')).toBeInTheDocument();
+  });
+  const dado = (over: Record<string, unknown>) => ({
+    id: 'd', face: 'thickness', across: 'width', stopMin: 0, stopMax: 0, ...over,
+  }) as Board['cuts'][number];
+  it('withholds the min-end Cam lock when only its bolt row would fault (a dado the bolt runs through)', async () => {
+    const user = userEvent.setup();
+    open(side({ cuts: [dado({ from: 'min', offset: 0.3, width: 0.2, depth: 0.3 })] }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: 'Cam lock, min end' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cam lock, max end' })).toBeInTheDocument();
+  });
+  it('withholds the min-end Cam lock when only its cam row would fault (a dado under the cam)', async () => {
+    const user = userEvent.setup();
+    open(side({ cuts: [dado({ from: 'max', offset: 0.9, width: 0.2, depth: 0.1 })] }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: 'Cam lock, min end' })).toBeNull();
+  });
+  it('the max-end Cam lock enters both rows from the max end', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Cam lock, max end');
+    expect(rows()).toHaveLength(2);
+    expect(rows()[0]).toMatchObject({ acrossFrom: 'max' });
+    expect(rows()[1]).toMatchObject({ from: 'max' });
+  });
+  it('adds a Cam bolt bore', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Cam bolt bore');
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toMatchObject({ diameter: 5 / 25.4, depth: 12 / 25.4 });
+  });
+  it('withholds the Cam lock on 1/4" stock, where the 8 mm bolt is wider than the part', async () => {
+    const user = userEvent.setup();
+    open(side({ thickness: 0.25 }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: /^Cam lock/ })).toBeNull();
   });
   it('withholds a preset that would fault on this part', async () => {
     const user = userEvent.setup();
@@ -752,5 +812,94 @@ describe('counterbores and countersinks in the Holes section (counterbores §4, 
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     expect(screen.queryByRole('button', { name: 'Counterbored screw' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Countersunk screw' })).toBeInTheDocument();
+  });
+
+  describe('editing a cam-and-bolt pair', () => {
+    const pair = (over: Partial<Board> = {}) => camPart({ id: 'side', name: 'Side', ...over });
+    const faultsOf = () => { const b = worldParts(useStore.getState().doc)[0]!; return b.holes.flatMap((r) => holeFaults(b, r)); };
+    const field = async (user: ReturnType<typeof userEvent.setup>, label: string, nth: number, text: string) => {
+      const f = screen.getAllByLabelText(label)[nth]!;
+      await user.clear(f); await user.type(f, `${text}{Enter}`);
+    };
+    it('First at on the cam moves both rows, with no fault and one undo', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      const before = useStore.getState().past.length;
+      await field(user, 'First at', 0, '50mm');
+      expect(rows().map((r) => r.station)).toEqual([mm(50), mm(50)]);
+      expect(faultsOf()).toEqual([]);
+      expect(useStore.getState().past.length).toBe(before + 1);
+      act(() => useStore.getState().undo());
+      expect(rows().map((r) => r.station)).toEqual([mm(37), mm(37)]);
+    });
+    it('Count 2 to 3 moves both rows', async () => {
+      const user = userEvent.setup();
+      open(pair({ width: 20 }));
+      await field(user, 'Count', 1, '3');
+      expect(rows().map((r) => r.count)).toEqual([3, 3]);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('Every moves both rows', async () => {
+      const user = userEvent.setup();
+      open(pair({ width: 20 }));
+      await field(user, 'Every', 0, '150mm');
+      expect(rows().map((r) => r.pitch)).toEqual([mm(150), mm(150)]);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('the bolt\'s From copies all four along fields onto the cam', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      const sel = screen.getAllByLabelText('From')[1]!;
+      await user.selectOptions(sel, 'max');
+      expect(rows().map((r) => [r.alongFrom, r.station, r.count, r.pitch])).toEqual(
+        [['max', BOLT.station, 2, BOLT.pitch], ['max', BOLT.station, 2, BOLT.pitch]]);
+    });
+    it('the bolt\'s edit overwrites a cam that encoded its stations differently', async () => {
+      const user = userEvent.setup();
+      open(pair({ holes: [{ ...CAM, alongFrom: 'max' }, { ...BOLT }] }));
+      await field(user, 'First at', 1, '40mm');
+      expect(rows().map((r) => [r.alongFrom, r.station])).toEqual([['min', mm(40)], ['min', mm(40)]]);
+    });
+    it('an Along edit on either row is refused and changes nothing', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      const before = rows();
+      await user.selectOptions(screen.getAllByLabelText('Along')[0]!, 'length');
+      expect(screen.getByRole('alert')).toHaveTextContent(CAM_PAIR_ALONG);
+      expect(rows()).toEqual(before);
+    });
+    it('a station edit on a partly paired row is refused', async () => {
+      const user = userEvent.setup();
+      open(pair({ holes: [{ ...CAM }, { ...BOLT, count: 1 }] }));
+      await field(user, 'First at', 0, '50mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_PARTIAL);
+      expect(rows()[0]!.station).toBe(mm(37));
+    });
+    it('a whole pair whose rows run different ways refuses with its own wording', async () => {
+      const user = userEvent.setup();
+      const holes = [{ ...CAM, count: 1, pitch: 0 }, { ...BOLT, count: 1, pitch: 0, along: 'thickness' as const, station: 0.375, inset: mm(37) }];
+      const b = pair({ holes });
+      expect(camPairRows(b)).toHaveLength(1);
+      open(b);
+      await field(user, 'First at', 0, '50mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_ALONG_DIFFERS);
+      expect(rows()[0]!.station).toBe(mm(37));
+    });
+    it('a non-shared field edits only its row', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      await field(user, 'Depth', 0, '15mm');
+      expect(rows()[0]!.depth).toBeCloseTo(mm(15));
+      expect(rows()[1]).toEqual(BOLT);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('a depth that unpairs the rows is refused as meets-hole', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      // a bolt ending inside the cam's wall (tangent) is no pair and meets the cam
+      await field(user, 'Depth', 1, '17mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toMatch(/into hole 1 of another row/);
+      expect(rows()[1]).toEqual(BOLT);
+    });
   });
 });

@@ -1,5 +1,6 @@
 import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
+import { withMates } from './camBolt';
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
 import { curveOutline, curvePlan, curveValues, smoothLines, spanOf, splitPieces, uvDims, type ViewCurve } from './curves';
@@ -1339,7 +1340,7 @@ export function partGeometry(board: Board): PartGeometry {
     return hit;
   }
   const bodies = deepFreeze(boardBodies(board));
-  const holes = deepFreeze(boardHoles(board));
+  const holes = deepFreeze(withMates(boardHoles(board)));
   let edges: readonly Segment[] | undefined;
   const entry: PartGeometry = {
     bodies,

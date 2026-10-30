@@ -256,6 +256,10 @@ src/
 │   ├── checkTolerances.ts TOUCH and REST_AREA, in a LEAF module (imports nothing): legSockets.ts and tenonJoints.ts read them, and
 │   │                     designCheck.ts (which re-exports both, so every old import site stays valid) imports tenonJoints, so taking them
 │   │                     from designCheck would cycle (designCheck → tenonJoints → legSockets → designCheck; ruling T7d)
+│   ├── camBolt.ts        THE cam-and-bolt recogniser (cam-and-bolt chunk 1, inv 50; no schema change; a leaf over holes.ts, which must never
+│   │                     import it): camPartners (spec §3.1's seven clauses on Hole instances, conservative; one to one), camRole,
+│   │                     camPairRows (WHOLE pairs of rows), camRowIds (rows with any paired hole; memo keyed on the holes array AND the
+│   │                     board's three dimensions), withMates (partGeometry's: a paired hole copied with `mate`, every other hole the same object)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
 │   │                     HEAD (counterbores, schema 30, inv 50): HeadKind, HEAD_ANGLES, hasHead, headReach (THE countersink depth formula), headProblem (THE
 │   │                     legality decider: malformed / not-wider / too-deep / tilted; loader and store), Hole.head and .tip, holePieces (the head and the bore, frozen
@@ -267,6 +271,9 @@ src/
 │   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
 │   │                     the min end of the LONGER in-face dimension, 22.5 mm in; fu 343), holeInstances/boardHoles, holeRing/
 │   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
+│   │                     Cam pairs (inv 50): Hole.mate (the partner's geometry, set only by withMates), camLoop (THE intersection loop,
+│   │                     memoised per frozen hole), mateHole (the partner rebuilt from `mate`; never memoised), holeRims draws a bolt's
+│   │                     mouth and loop, defaultCamLock (two rows, or null) / defaultCamBoltBore (5 mm × 12 mm)
 │   ├── holeWorld.ts      THE world-words hole converter (inv 50; model-facing, no → units edge): holeSnap (nearer of 1/64 in and whole mm), worldHoles
 │   │                     (stored rows → WorldHoleRow), holeRowsFor (world rows → stored, the grid on the STORED distances; shape faults = loader drop rules + the 1/32 plane rule + MAX_MAGNITUDE; canonical
 │   │                     alongFrom 'min', 'max' when min cannot express a loader-legal row; across side nearer, else far), sameHoles (centres as a SET),
@@ -279,6 +286,8 @@ src/
 │   │                     CONSERVATIVE, never under — the unclipped mesh trusts it), tooShallow, stockChecks, holeInStock (clean);
 │   │                     intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`); a round
 │   │                     tenon's square-span view curves are skipped (its own meets-feature judges a hole in its zone)
+│   │                     a recognised cam pair skips its partner in the meets-hole search and keeps searching (THE one exemption site,
+│   │                     inv 50); `{ camPairs: false }` for the planners (stretchers, legSockets)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
 │   │                     holeHeadText (THE head words in the bench line; metric whole mm), holeSizeText carries it; headless lines byte for byte
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep and too-shallow once), endWord/edgeName (→ units);
@@ -286,6 +295,8 @@ src/
 │   │                     a blind one's `, depth measured along the bit`); socketFaultWords (a fault as what a socket would do);
 │   │                     faultKey (a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key);
 │   │                     curveWord (THE one home of hole-into-curve words: "the roundover", "the cove", … or the curve kind)
+│   │                     camPairLine (a WHOLE cam pair's ONE line, cut list and Holes panel; metric depths at 0.1 mm), CAM_PAIR_ALONG,
+│   │                     CAM_PAIR_PARTIAL (the pair-edit refusals)
 │   ├── tenonText.ts      THE round tenon words (→ units: it produces strings): tenonFaultText (the fault copy, verbatim), tenonLine (THE
 │   │                     bench line; the diameter at hole precision, holeLengthText; a faulted one's `— check:`), shoulderFromFarEnd
 │   │                     (THE shoulder number, bench line and Properties readout), TENON_END_TAKEN / TENON_END_FIXED /
@@ -295,6 +306,8 @@ src/
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden;
 │   │                     a tilted bore (tiltedLines): mouth and exit rims on the face planes, a blind bottom square to the bit, silhouettes along the bit
+│   │                     a cam pair (inv 50): boltLines (silhouettes end on the cam, no bottom rim, the loop drawn in every view) and
+│   │                     camLines (the generator facing the bolt split over the window); `squareLines` untouched for unpaired holes
 │   ├── curves.ts         THE curve model (inv 53): CURVE_FIELDS (inv 40), CURVE_TOLERANCE 0.005 / SEGMENTS_MAX
 │   │                     (round tenons: CurveSpan.square and squareSpan — a span whose stops are plain walls with no run-out, a tenon's waste)
 │   │                     24 / STORED_MAX 64, copyCurve, mirrorCurveCut (inv 44), localSegments/arcOf (LocalArc: centre, radius,
@@ -440,6 +453,8 @@ src/
 │   ├── depthField.ts     buildDepthField (inv 20)
 │   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
 │   │                     DiagramHole.headR / DiagramHoleSide.head: a concentric head circle and a stepped or tapered side band (headless diagrams unchanged)
+│   │                     DiagramHoleSide.gap: a cam pair's bolt band ends on the cam's circle and the cam's wall breaks over it (mates from
+│   │                     partGeometry's holes; an unpaired band unchanged; PartDiagram.tsx draws the gap)
 │   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
 │   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3);
 │   │                     per view `curves` (waste polygons, hatched), `curveLines` (sharp-vertex lines, only on a face
@@ -596,6 +611,8 @@ src/
 │                         after Clear lean, the compound cuts kept);
 │                         holesSquareCases.ts (TEST-ONLY angled holes: SQUARE_CASES, the square rows whose geometry
 │                         holesSquare.snapshot.json holds — captured from the code BEFORE the tilt, so square holes stay byte for byte)
+│                         camBoltFixtures.ts (TEST-ONLY cam-and-bolt: CAM, BOLT — a 15 mm cam and an 8 mm bolt, two stations —
+│                         and camPart, a 30 × 11.25 × 0.75 part carrying both);
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points, setKerf (refuses a kerf outside [0, 1):
 │   │                     headRefusal (the head's legality and added-fault sentences, one each, before any mutation), the Head select's edits, the two screw presets
@@ -651,7 +668,8 @@ src/
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
 │                     and its twin the same stored part; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
-├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
+├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36); they sit beside App.tsx, not in
+│                     generate/, because they own React state and storage writes (moved from CLAUDE.md's layer order, 2026-10-30)
 ├── viewport/         NO unit tests by design. Viewport (its StretchGuide: the stretch line's translucent plane, inv 64 — no raycast, no depth
 │                     write, no clipping plane), BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines),
@@ -668,6 +686,8 @@ src/
 │                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard);
 │                     a tilted bore: elliptical rings on the face planes, ringDisc (its conservative disc for the clearance
 │                     tests, fu 451), the far ring at `reach` or the bottom disc square to the bit (holeBottom); watertight
+│                     a cam pair (inv 50): the bolt's band to camLoop, no bottom; the cam's window triangulated in its unrolled plane with
+│                     the loop (from camLoop(mateHole(cam)), bit-identical) as a hole; the faulted path clips as before (fu 597)
 │                     xray.ts (pure, TESTED: fadedFor — THE decision of a part's faded look: outside the open assembly (gated on
 │                     `clean`) OR X-ray on and not covered by a non-empty selection (not gated on `clean`); x-ray spec §3)
 │                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap (a leaning part: its group gets the lean as ONE derived transform, the `leaned` memo, and its cap is drawn as a sibling at identity, inv 57); sectionPerf.test.ts

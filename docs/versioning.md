@@ -57,3 +57,8 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
   `repairTree(doc, { copyShared: version < 11 })` runs on every load (inv 46).
 - A malformed entry is DROPPED; a faulted but well-formed one is KEPT (holes, curves, profiles,
   bands alike).
+- **No bump for cam-and-bolt (chunk 1, 2026-10-30; schema stays 32).** A cam pair is recognised from SHAPE (`camBolt.ts`,
+  inv 50); no field is added. A build from before it (`9c3b57b`, schema 32) loading a pair keeps both rows (`validateHoleRows`
+  drops only malformed rows; a well-formed faulted row is KEPT), shows a kept `meets-hole` fault and draws the bores through
+  each other's air. Nothing is lost, rewritten or wrongly autosaved, so there is no refusal gate to protect (the box-joint
+  precedent, inv 61; cam-and-bolt spec §3.1).

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, HOLE_TILT_PAST_BOUND, HEAD_ON_TILT, headRefusal } from '../store/store';
 import { formatLength, isMetric } from '../units/length';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, defaultCamLock, defaultCamBoltBore, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
 import type { Board, CutFrom, Dimension, HeadKind, HoleFault, HoleRow } from '../document/document';
-import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout } from '../document/holeText';
+import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine, CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL } from '../document/holeText';
+import { camPairRows, camRowIds } from '../document/camBolt';
 import { leans, slopeOf } from '../document/lean';
 import { staleTenonOf } from '../document/tenonJoints';
 import { tenonStale } from '../document/tenonText';
@@ -36,6 +37,8 @@ const seedPitch = (diameter: number) => (mm(32) > diameter ? mm(32) : 2 * diamet
  *  end-grain row in a 30" rail would otherwise seed a 15" bore. */
 const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
 
+/** The along-encoding fields a cam-and-bolt pair shares (spec §4.3). */
+const SHARED_ALONG = ['alongFrom', 'station', 'count', 'pitch'] as const;
 const flipEnd = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
 /** The fields whose change re-reads the tilt (controller ruling T2c): the bit keeps its board-local line through
  *  `retilt` (the other entry side of the same face negates both slopes, final review F2), or, for a new face, the row is
@@ -61,10 +64,12 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   // Diameter and Every read as a hole is specified (spec R7), through the bench line's own formatter (holeText.ts).
   const diameterText = (v: number) => holeLengthText(v, units, 'diameter');
   const pitchText = (v: number) => holeLengthText(v, units, 'pitch');
-  const updateHoleRow = useStore((s) => s.updateHoleRow);
+  const updateHoleRows = useStore((s) => s.updateHoleRows);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);
-  const line = holeLine(board, row, units);
+  // A row of a WHOLE cam-and-bolt pair reads as the pair's one line (spec §6.3), whichever row it is.
+  const pair = camPairRows(board).find((p) => p.cam.id === row.id || p.bolt.id === row.id);
+  const line = pair ? camPairLine(board, pair.cam, pair.bolt, units) : holeLine(board, row, units);
   const stored = distinctFaults(holeFaults(board, row));
   const across = acrossOf(row);
   // The end / side a square slope will lean toward once typed (a zero slope has no direction to store): the far one from
@@ -95,13 +100,30 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
     // Ruling R5: a single hole becoming a row gets a real pitch in the SAME edit (Every is hidden at count 1, and a
     // stored pitch of 0 would stack hole 2 on hole 1); the fault check below judges the seeded row.
     if (row.count === 1 && next.count > 1 && next.pitch < next.diameter) next = { ...next, pitch: seedPitch(next.diameter) };
+    // Cam-and-bolt spec §4.3: a pair member's direction cannot change; its shared along fields move BOTH rows (the
+    // partner takes all four, so the holes still line up), or the edit is refused on a partly paired row.
+    const edits: { row: HoleRow; next: HoleRow }[] = [{ row, next }];
+    if (camRowIds(board).has(row.id)) {
+      if (next.along !== row.along) return CAM_PAIR_ALONG;
+      if (SHARED_ALONG.some((k) => next[k] !== row[k])) {
+        const p = camPairRows(board).find((q) => q.cam.id === row.id || q.bolt.id === row.id);
+        const partner = p && (p.cam.id === row.id ? p.bolt : p.cam);
+        if (!partner) return CAM_PAIR_PARTIAL;
+        if (partner.along !== row.along) return CAM_PAIR_ALONG_DIFFERS;
+        const { alongFrom, station, count, pitch } = next;
+        edits.push({ row: partner, next: { ...partner, alongFrom, station, count, pitch } });
+      }
+    }
     // Refused only when the edit ADDS a (hole, kind) fault the stored row lacks (spec §7, amended): a row a later
-    // resize faulted can still be edited toward fitting.
-    const had = new Set(stored.map(key));
-    const added = holeFaults({ ...board, holes: board.holes.map((r) => (r.id === row.id ? next : r)) }, next).find((f) => !had.has(key(f)));
-    if (added) return refusal(added, next, row.id);
-    const { id: _id, ...rest } = next;
-    const refused = updateHoleRow(board.id, row.id, rest) ?? null;
+    // resize faulted can still be edited toward fitting. Judged per row with every edited row replaced.
+    const edited = new Map(edits.map((e) => [e.row.id, e.next]));
+    const judged = { ...board, holes: board.holes.map((r) => edited.get(r.id) ?? r) };
+    for (const e of edits) {
+      const had = new Set(distinctFaults(holeFaults(board, e.row)).map(key));
+      const added = holeFaults(judged, e.next).find((f) => !had.has(key(f)));
+      if (added) return refusal(added, e.next, e.row.id);
+    }
+    const refused = updateHoleRows(board.id, edits.map((e) => { const { id: _id, ...rest } = e.next; return { rowId: e.row.id, next: rest }; })) ?? null;
     if (!refused) setError(null);
     return refused;
   };
@@ -287,6 +309,13 @@ export function Holes({ board }: { board: Board }) {
     const probe = { ...r, id: '__preset' };
     return holeFaults({ ...board, holes: [...board.holes, probe] }, probe).length === 0;
   };
+  // A pair is judged with both rows on the board: a fitting Cam lock probes fault-free (holeFaults exempts a recognised pair).
+  const fitsAll = (pair: [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null): pair is [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] => {
+    if (!pair) return false;
+    const probes = [{ ...pair[0], id: '__cam' }, { ...pair[1], id: '__bolt' }];
+    const probed = { ...board, holes: [...board.holes, ...probes] };
+    return probes.every((p) => holeFaults(probed, p).length === 0);
+  };
   const hole = defaultHole(board);
   const pins = defaultShelfPinRow(board);
   const cup = defaultHingeCup(board);
@@ -303,12 +332,21 @@ export function Holes({ board }: { board: Board }) {
   };
   const sunk = defaultCountersunkScrew(board, metric);
   const bored = defaultCounterboredScrew(board, metric);
+  const camLocks = (['min', 'max'] as const).map((e) => ({ e, pair: defaultCamLock(board, e) }));
+  const camBore = defaultCamBoltBore(board);
   const items = [
     ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => add([hole]) }] : []),
     ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `${pinText} pins every 32 mm along the ${pins.along}`, run: () => add([pins]) }] : []),
     ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => add([cup]) }] : []),
     ...(fits(sunk) ? [{ label: 'Countersunk screw', detail: screwDetail('sink', sunk), run: () => add([sunk]) }] : []),
     ...(fits(bored) ? [{ label: 'Counterbored screw', detail: screwDetail('bore', bored), run: () => add([bored]) }] : []),
+    // The fitting is metric hardware in both unit systems (cam-and-bolt spec §4.1), so its sizes are named in mm, as the
+    // Hinge cup's 35 mm is (browser check 1: an imperial project read "9/16" cam").
+    ...camLocks.flatMap(({ e, pair }) => (fitsAll(pair)
+      ? [{ label: `Cam lock, ${e} ${end('length')}`, run: () => add(pair),
+        detail: `15 mm cam and 8 mm bolt bore, 24 mm in from the ${e} ${end('length')}` }]
+      : [])),
+    ...(fits(camBore) ? [{ label: 'Cam bolt bore', detail: '5 mm bore, 12 mm deep, centred on the broad face', run: () => add([camBore]) }] : []),
   ];
   return (
     <>

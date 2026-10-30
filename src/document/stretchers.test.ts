@@ -6,6 +6,7 @@ import { createBoard, createDocument, flatDocument, migrateDocument } from './do
 import { chooseFace, slopeOf } from './lean';
 import { boreRow, partAxis } from './legSockets';
 import { holeInstances } from './holes';
+import { camPartners } from './camBolt';
 import { toWorld } from './snapPoints';
 import { worldBodies } from './drawing';
 import { checkDesign, type DesignLimits } from './designCheck';
@@ -1017,5 +1018,27 @@ describe('stretchers: final review (I1 ruling TFa, M2)', () => {
     }
     // First, before the legs' checks and any geometry (a flat Seat as the second leg).
     expect(stretcherPlan(doc, ids(doc, 'Front right', 'Seat'), { height: 6, size: 1, diameter: 0 })).toBe(STRETCHER_SIZE_POSITIVE);
+  });
+});
+
+describe('stretchers: a paired bolt bore is no socket (cam-and-bolt §6.4)', () => {
+  it('Fit again takes a leg\'s only socket for none when it is the bolt of a cam pair', () => {
+    const doc = postsDocument();
+    const fitted = apply(doc, planOf(doc, ids(doc, 'Post A', 'Post B'), { height: 10, ...O }));
+    const rung = world(fitted).find((b) => b.name.startsWith('Stretcher'))!;
+    expect(typeof refitPlan(fitted, rung.id)).not.toBe('string');
+    // Add a cam across Post A's socket: a face bore on the other horizontal axis, centred on the socket's axis.
+    const post = part(fitted, 'Post A');
+    const bolt = post.holes.at(-1)!;
+    const h = holeInstances(post, bolt)[0]!;
+    const cross = (['width', 'thickness'] as const).find((d) => d !== bolt.face)!;
+    const cam: HoleRow = { id: 'cam', face: cross, from: 'min', diameter: 1.1, depth: 1.25, along: bolt.face, alongFrom: 'min',
+      station: post[bolt.face] / 2, count: 1, pitch: 0, acrossFrom: 'min', inset: h.centre[0] };
+    const paired = mapWorld(fitted, (w) => w.map((b) => (b.id === post.id ? { ...b, holes: [...b.holes, cam] } : b)));
+    const holes = part(paired, 'Post A').holes;
+    const hs = holes.flatMap((r) => holeInstances(part(paired, 'Post A'), r));
+    expect(camPartners(hs).size).toBe(2);
+    // The bolt is not Fit again's socket for the tenon: a fresh socket would be bored beside it, which it refuses.
+    expect(refitPlan(paired, rung.id)).toBe(stretcherDifferentSocket('Post A'));
   });
 });

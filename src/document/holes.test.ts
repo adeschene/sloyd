@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRegion, holeRims, insideHole, minusPrism, holePieces, holeEnvelope, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, headReach, headProblem, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
+  holeRegion, holeRims, insideHole, minusPrism, holePieces, holeEnvelope, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, headReach, headProblem, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCamLock, defaultCamBoltBore, mm,
 } from './holes';
 import { parseLength, IMPERIAL } from '../units/length';
 import snapshotRaw from './holesSquare.snapshot.json?raw';
@@ -754,5 +754,35 @@ describe('screw presets (counterbores §5)', () => {
     const b = stock(0.75);
     expect(defaultCountersunkScrew(b, true)).toMatchObject({ diameter: mm(4.5), headDiameter: mm(9), headAngle: 90 });
     expect(defaultCounterboredScrew(b, true)).toMatchObject({ diameter: mm(4.5), headDiameter: mm(10), headDepth: mm(10) });
+  });
+});
+
+describe('cam-and-bolt presets (spec §4)', () => {
+  const strip = (r: HoleRow): Omit<HoleRow, 'id'> => { const { id: _id, ...rest } = r; return rest; };
+  it('defaultCamLock on the fixture-sized part is the fixture pair', async () => {
+    const { CAM, BOLT, camPart } = await import('./camBoltFixtures');
+    expect(defaultCamLock(camPart({ holes: [] }), 'min')).toEqual([strip(CAM), strip(BOLT)]);
+  });
+  it('the max end enters the cam and the bolt from max', () => {
+    const [cam, bolt] = defaultCamLock(createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75 }), 'max')!;
+    expect(cam.acrossFrom).toBe('max');
+    expect(bolt.from).toBe('max');
+  });
+  it('a narrow part takes one, centred', () => {
+    const w = mm(140);
+    const [cam, bolt] = defaultCamLock(createBoard({ id: 'p', length: 30, width: w, thickness: 0.75 }), 'min')!;
+    expect(cam).toMatchObject({ count: 1, station: w / 2, pitch: 0 });
+    expect(bolt).toMatchObject({ count: 1, station: w / 2 });
+  });
+  it('5/8" stock gives a 12.5 mm cam', () => {
+    const [cam] = defaultCamLock(createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.625 }), 'min')!;
+    expect(cam.depth).toBe(mm(12.5));
+  });
+  it('withholds when the broad face is the length', () => {
+    expect(defaultCamLock(createBoard({ id: 'p', length: 0.5, width: 3, thickness: 2 }), 'min')).toBeNull();
+  });
+  it('the bore is 5 mm by 12 mm at the default hole\'s place', () => {
+    const b = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75 });
+    expect(defaultCamBoltBore(b)).toEqual({ ...defaultHole(b), diameter: mm(5), depth: mm(12) });
   });
 });
