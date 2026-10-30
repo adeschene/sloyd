@@ -8509,6 +8509,7 @@ also changes the tape's colour (`guide`). The choice goes to the user by eye.
 becomes a dark maroon). Every floor clears; the tightest are guide/line 26.5 normal, line-face/offset 14.7 deut and face-center/guide 15.3 prot.
 `src/viewport/snapColors.test.ts` now holds `SNAP_COLORS` to every floor, mutation-tested (round 1's `line` and a lighter corner each fail it).
 Owed: a live look in the user's Chrome (fu 60: the swatches were simulated, not the app).
+**Status:** approved by the user 2026-10-30 ("The colors look good"); built, not deployed (ships with the next deploy).
 
 **591. Selectable guides: points and lines, in the viewport and the Guides list.** The user's request, 2026-10-30: select a guide point or a
 construction line by clicking it in the viewport or its row in the Guides list; a selected line is emphasised in the viewport; a selected guide is
