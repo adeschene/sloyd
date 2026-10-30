@@ -499,7 +499,7 @@ src/
 │   │                     section's two junction points on the stop plane as `'corner'`s (Q25, from `sweptStops`); a BUILT dovetail offers its
 │   │                     outside-plane corners as `'corner'`s (dovetailCorners, deduped against the lattice; the sockets are air to stockProbe; a
 │   │                     half-blind pin's corners on its LAP PLANE, nothing on its unbroken outside face)
-│   ├── lineModel.ts      construction lines, round 2 (schema 32) — the LEAF both `types.ts` and `snapPoints.ts` import: Vec3, `NewLine` (`{ at; axis }` | `{ at; to }`),
+│   ├── lineModel.ts      construction lines, round 2 (schema 32) — the LEAF both `document.ts` (`validateGuides`) and `snapPoints.ts` import: Vec3, `NewLine` (`{ at; axis }` | `{ at; to }`),
 │   │                     `lineThrough(a, b)` (the one two-point decider: null when equal, an AXIS line when exactly axis-parallel, else oblique), `sameNewLine`
 │   │                     (an exact unordered pair for oblique), `canonicalLine`/`sameLine`, `newLineOf`; `snapPoints.ts` re-exports it (no → units)
 │   ├── lineFaces.ts      where a line meets a part's surface (round 2 §3): `lineFaceHits(line, board)` (Cyrus–Beck on `worldBodies`; an entry or exit kept only

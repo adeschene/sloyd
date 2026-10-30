@@ -214,6 +214,16 @@ describe('TapeReadout Shift+Enter steps the anchor (construction-lines 2, spec Â
     expect(hint()).toBe('Enter to place, Shift+Enter to move the anchor there');
   });
 
+  it('typed text with no axis and no hover keeps the plain hint (Amended A7: Shift+Enter is not offered)', async () => {
+    const { box } = corner();
+    act(() => {
+      useStore.getState().setTapeAxis(null);
+      useStore.getState().setTapeHover(null);
+    });
+    await userEvent.type(box, '3');
+    expect(hint()).toBe('Type a distance, Enter to place');
+  });
+
   it('undo right after a step: the guide is gone and the anchor is null (review focus 2)', async () => {
     const { box } = corner();
     act(() => useStore.getState().addGuide([1, 1, 1]));

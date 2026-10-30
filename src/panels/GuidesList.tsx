@@ -66,7 +66,7 @@ export function GuidesList() {
               <span className="guide-coords">{text.row}</span>
               {isGuideLine(g) && (['x', 'y', 'z'] as const).map((a, i) => a === g.axis ? null : (
                 // The two fixed coordinates, typed (spec §5): a refused move says why through the field's own error.
-                <DimensionField key={a} label={a.toUpperCase()} units={units} allowNegative value={g.at[i]!}
+                <DimensionField key={a} label={a.toUpperCase()} ariaLabel={`${a.toUpperCase()} of ${text.remove.replace(/^Remove /, '')}`} units={units} allowNegative value={g.at[i]!}
                   onCommit={(v) => {
                     const at: [number, number, number] = [g.at[0], g.at[1], g.at[2]];
                     at[i] = v;

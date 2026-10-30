@@ -27,7 +27,10 @@ describe('planLines', () => {
     expect(out[0]!.b[0]).toBeCloseTo(5); expect(out[0]!.b[1]).toBeCloseTo(5);
   });
 
-  it('skips an oblique line parallel to the sight direction', () => {
+  // Covers planLines' end-on branch with an axis-DIRECTION input. No stored oblique line can be edge-on in FRONT/SIDE/TOP
+  // (their sight directions are axis directions, and an axis-parallel pair loads as an axis line), so this is the fixture
+  // for the branch, not a reachable oblique case.
+  it('skips a line parallel to the sight direction (the end-on branch, axis-direction input)', () => {
     const ray: AnyLine = { id: 'r', at: [0, 0, 0], to: [0, 0, 3] };
     expect(planLines([ray], FRONT, bounds)).toEqual([]);
   });

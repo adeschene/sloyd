@@ -72,8 +72,8 @@ describe('GuidesList', () => {
     useStore.getState().addGuideLine({ at: [0, 300 / 25.4, 0], axis: 'z' });
     render(<GuidesList />);
     expect(screen.getByText('Line along Z')).toBeInTheDocument();
-    expect((screen.getByLabelText('X') as HTMLInputElement).value).toBe('0 mm');
-    expect((screen.getByLabelText('Y') as HTMLInputElement).value).toBe('300 mm');
+    expect((screen.getByLabelText('X of line along Z at X 0 mm, Y 300 mm') as HTMLInputElement).value).toBe('0 mm');
+    expect((screen.getByLabelText('Y of line along Z at X 0 mm, Y 300 mm') as HTMLInputElement).value).toBe('300 mm');
   });
 
   it('words an oblique line by its two points', () => {
@@ -95,7 +95,12 @@ describe('GuidesList', () => {
 });
 
 describe('GuidesList editing (construction-lines-2 spec §5)', () => {
-  const field = (name: string) => screen.getByLabelText(name) as HTMLInputElement;
+  // Each field's accessible name carries its row (unique across rows): `<A> of line along <X> at <fixed coordinates>`.
+  const NAMES: Record<string, string> = {
+    Y: 'Y of line along X at Y 12", Z 3-1/2"',
+    Z: 'Z of line along X at Y 12", Z 3-1/2"',
+  };
+  const field = (name: string) => screen.getByLabelText(NAMES[name] ?? name) as HTMLInputElement;
 
   it('an axis row has its two fixed coordinates as fields', () => {
     useStore.getState().addGuideLine({ at: [0, 12, 3.5], axis: 'x' });
@@ -135,8 +140,10 @@ describe('GuidesList editing (construction-lines-2 spec §5)', () => {
     useStore.getState().addGuideLine({ at: [0, 14, 3.5], axis: 'x' });
     render(<GuidesList />);
     const past = useStore.getState().past.length;
-    await userEvent.clear(screen.getAllByLabelText('Y')[0]!);
-    await userEvent.type(screen.getAllByLabelText('Y')[0]!, '14{Enter}');
+    const first = screen.getByLabelText('Y of line along X at Y 12", Z 3-1/2"');
+    expect(screen.getByLabelText('Y of line along X at Y 14", Z 3-1/2"')).not.toBe(first);
+    await userEvent.clear(first);
+    await userEvent.type(first, '14{Enter}');
     expect(screen.getByText('That line is already there')).toBeInTheDocument();
     expect(useStore.getState().past.length).toBe(past);
   });

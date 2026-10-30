@@ -34,7 +34,8 @@ export const OBLIQUE_COLOR = '#8a7fb0';
  * One construction line (construction-lines spec §5; oblique lines: construction-lines-2 spec §2.5). An AXIS line runs
  * `±SCENE_EXTENT` along its axis through `at`, dashed in the axis hue (AXIS_COLOR, shared with OriginAxes so the two
  * cannot drift). An oblique line runs the part of it inside that box (`lineSpan`; none, if it misses), in
- * OBLIQUE_COLOR and with no ground lift. Depth-tested and not clipped by the section plane, like the guide markers;
+ * OBLIQUE_COLOR. An oblique line lying wholly on the ground (both points at y = 0) is lifted by GROUND_LIFT at both ends,
+ * the same display-only rule as an axis line at y = 0 (round 1's Amended B3; spec §2.5: every other rule is round 1's). Depth-tested and not clipped by the section plane, like the guide markers;
  * never a click target (inv 21 — the Line raycast threshold is a bad hit target, and a line is removed from the Guides list).
  */
 export function ConstructionLine({ line, preview }: { line: NewLine; preview?: boolean }) {
@@ -46,7 +47,13 @@ export function ConstructionLine({ line, preview }: { line: NewLine; preview?: b
       if (!span) return null;
       const u = lineDir({ at: line.at, to: to! });
       const end = (t: number) => new THREE.Vector3(line.at[0] + t * u[0], line.at[1] + t * u[1], line.at[2] + t * u[2]);
-      return [end(span[0]), end(span[1])] as [THREE.Vector3, THREE.Vector3];
+      const [p0, p1] = [end(span[0]), end(span[1])];
+      // Display only: a line on the ground plane would z-fight the grid and shadow receiver (round 1's B3, as for axis lines).
+      if (line.at[1] === 0 && to![1] === 0) {
+        p0.y = GROUND_LIFT;
+        p1.y = GROUND_LIFT;
+      }
+      return [p0, p1] as [THREE.Vector3, THREE.Vector3];
     }
     const index = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
     // Lifted off the ground plane exactly as OriginAxes lifts its ground axes, so a

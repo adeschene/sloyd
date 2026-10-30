@@ -263,6 +263,12 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * `axis` is a point. The loader drops an entry whose `axis` is present and not x/y/z, and zeroes a line's along-axis coordinate.
  * Harm a v30 build would do: it rebuilds each guide as `{ id, at }`, so every line silently becomes a point at its stored
  * position and the next autosave writes that — the lines are lost. So a v31 file must be refused by a v30 build.
+ *
+ * v32 (construction-lines-2 spec §2.3): a guide may carry `to` (an oblique construction line through `at` and `to`). No step: an
+ * absent `to` is a point or an axis line. The loader keeps `{ id, at, to }` when both are three finite numbers that differ, drops
+ * an entry whose `to` is malformed, equal to `at`, or beside an `axis`, and loads a `to` that makes the line axis-parallel as the
+ * canonical axis line. Harm a v31 build would do: it reads an entry with no `axis` as a guide point and keeps it at `at`, so the
+ * oblique line is lost on the next autosave and a stray point is left behind. So a v32 file must be refused by a v31 build.
  */
 export const CURRENT_VERSION = 32;
 

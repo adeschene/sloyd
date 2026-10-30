@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
 import { stretchPlan } from '../document/stretch';
 import {
-  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, newLineOf, sameNewLine, ownedByGuide, heldBoard, heldRoot, isAnyLine, isGuideLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, lineThrough, newLineOf, sameNewLine, ownedByGuide, heldBoard, heldRoot, isAnyLine, isGuideLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -2694,7 +2694,9 @@ export const useStore = create<StoreState>((set, get) => {
     // would leave a no-op entry (inv 4) and wipe the redo stack. Like addGuide, selection is untouched.
     addGuideLine: (line) => {
       if (readOnly()) return false;
-      const stored: NewLine = 'axis' in line ? canonicalLine(line.at, line.axis) : { at: [...line.at], to: [...line.to] };
+      // The ONE decider: an oblique pair on an axis line is stored as that axis line, equal points are no line.
+      const stored: NewLine | null = 'axis' in line ? canonicalLine(line.at, line.axis) : lineThrough(line.at, line.to);
+      if (!stored) return false;
       if (get().doc.guides.some((g) => isAnyLine(g) && sameNewLine(newLineOf(g), stored))) return false;
       const guide = { id: nextId(), ...stored } as Guide;
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));

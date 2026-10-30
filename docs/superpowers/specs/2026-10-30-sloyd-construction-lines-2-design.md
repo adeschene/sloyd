@@ -427,7 +427,7 @@ Decisions made after this spec was approved. Where one contradicts the text abov
 - **A1 (§2.4, `lineSpan`'s parameter; plan).** `lineSpan(line, extent)` returns the parameter range as DISTANCE FROM `at` along
   `lineDir`. For an axis line `at[axis]` is 0, so that distance is the world coordinate and the range is `[-extent, extent]`; for an
   oblique line it is the clipped slab range. One convention serves `pickOnLine`'s clamp, the drawing and `lineFaceHits`' `t`.
-- **A2 (§5.2, the refused edit; plan).** The spec says a refused move "resyncs on blur". `DimensionField` gained a refusal channel
+- **A2 (§5.2, the refused edit; plan).** The spec says a refused move "resyncs on blur". The row uses `DimensionField`'s existing refusal channel
   (its `onCommit` may return a string): `moveGuideLine` returning false makes the row return `That line is already there`, which the
   field shows as its own error, and nothing is stored (as the field's min/max refusals work). The inline `·` separators of §5.1's row
   sketch are gone: the row is `Line along X`, then two labelled fields. The wrapped layout is owed to a browser look (fu 589).

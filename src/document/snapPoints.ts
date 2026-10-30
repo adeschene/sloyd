@@ -599,12 +599,12 @@ function obliqueCrossing(a: AnyLine, b: AnyLine): Vec3 | null {
   const cx = u[1] * v[2] - u[2] * v[1];
   const cy = u[2] * v[0] - u[0] * v[2];
   const cz = u[0] * v[1] - u[1] * v[0];
-  if (Math.hypot(cx, cy, cz) < 1e-12) return null;
+  const den = cx * cx + cy * cy + cz * cz; // |u × v|², = 1 − (u·v)² for unit directions
+  if (Math.sqrt(den) < 1e-12) return null;
   const w: Vec3 = [a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]];
   const bb = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
   const d = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
   const e = v[0] * w[0] + v[1] * w[1] + v[2] * w[2];
-  const den = 1 - bb * bb;
   const s = (bb * e - d) / den;
   const t = (e - bb * d) / den;
   const p: Vec3 = [a.at[0] + s * u[0], a.at[1] + s * u[1], a.at[2] + s * u[2]];

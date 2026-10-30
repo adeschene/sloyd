@@ -30,6 +30,19 @@ describe('addGuideLine, oblique (construction-lines-2 spec §2)', () => {
     s().setExplode(0.5);
     expect(s().addGuideLine({ at: [1, 2, 3], to: [4, 5, 6] })).toBe(false);
   });
+  it('refuses equal points: no line, no undo entry', () => {
+    const [doc, past] = [s().doc, s().past.length];
+    expect(s().addGuideLine({ at: [1, 2, 3], to: [1, 2, 3] })).toBe(false);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(past);
+  });
+  it('stores an axis-parallel pair as the canonical axis line, with no `to`', () => {
+    expect(s().addGuideLine({ at: [1, 2, 3], to: [9, 2, 3] })).toBe(true);
+    const g = s().doc.guides.at(-1)!;
+    expect(g).toEqual({ id: expect.any(String), at: [0, 2, 3], axis: 'x' });
+    expect('to' in g).toBe(false);
+    expect(s().addGuideLine({ at: [5, 2, 3], axis: 'x' })).toBe(false); // same line as the stored one
+  });
 });
 
 describe('addGuideLine', () => {

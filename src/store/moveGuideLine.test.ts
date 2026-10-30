@@ -48,6 +48,25 @@ describe('moveGuideLine (construction-lines-2 spec §5.2)', () => {
     expect(s().past).toBe(past);
   });
 
+  it('a refused move (duplicate or no-op) drops no held point and touches neither stack', () => {
+    const board = createBoard({ length: 24, width: 5.5, thickness: 0.75, posture: 'flat', position: [0, 0, 0] });
+    s().replaceDocument({ ...createDocument('T'), boards: [board] });
+    const a = addX(0.375, 2.75);
+    s().addGuideLine({ at: [1, 0, 2.75], axis: 'y' });
+    const b = s().doc.guides.at(-1)!.id;
+    addX(14, 3);
+    s().setTapeAnchor(crossing(a, b));
+    const hit = lineFaceHits(s().doc.guides[0] as Parameters<typeof lineFaceHits>[0], board)[0]!;
+    s().setTapeHover(hit);
+    const [anchor, hover, past, future] = [s().tapeAnchor, s().tapeHover, s().past, s().future];
+    expect(s().moveGuideLine(a, [0, 14, 3])).toBe(false); // duplicate
+    expect(s().moveGuideLine(a, [0, 0.375, 2.75])).toBe(false); // no-op
+    expect(s().tapeAnchor).toBe(anchor);
+    expect(s().tapeHover).toBe(hover);
+    expect(s().past).toBe(past);
+    expect(s().future).toBe(future);
+  });
+
   it('refuses while exploded', () => {
     const id = addX(12, 3);
     s().addBoard();

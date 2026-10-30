@@ -111,6 +111,19 @@ describe('a held face hit (spec §3.2)', () => {
   });
 });
 
+describe('a held face hit and a bore (spec §3.2)', () => {
+  it('adding a bore that swallows the hit\u2019s mouth drops it, and one elsewhere keeps it', () => {
+    const L = lineThroughB();
+    s().setTapeAnchor(faceHit(L, 'B', 24));
+    const hit = s().tapeAnchor;
+    expect(s().addHoleRows('B', [{ face: 'length', from: 'max', diameter: 0.25, depth: 0.5, along: 'width', alongFrom: 'min', station: 5, count: 1, pitch: 1, acrossFrom: 'min', inset: 0.375 }])).toBeNull();
+    expect(s().tapeAnchor).toBe(hit);
+    expect(s().addHoleRows('B', [{ face: 'length', from: 'max', diameter: 0.25, depth: 0.5, along: 'width', alongFrom: 'min', station: 2, count: 1, pitch: 1, acrossFrom: 'min', inset: 0.375 }])).toBeNull();
+    expect(part('B').holes).toHaveLength(2);
+    expect(s().tapeAnchor).toBeNull();
+  });
+});
+
 describe('Group and Ungroup re-key a held face hit (spec §3.2)', () => {
   it('Group re-keys owner.board to the part’s new path, and the hit still survives a rename there', () => {
     const L = lineThroughB();

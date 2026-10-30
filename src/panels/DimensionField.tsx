@@ -52,11 +52,13 @@ interface Props {
   /** Text shown before the input (a ratio's `1 :`, dovetails spec §4); not part of the typed text. Absent: the markup is
    *  exactly as before. */
   prefix?: string;
+  /** An accessible name for the input when the visible `label` is not unique on the page (a row of fields repeated per item). Absent: no attribute, markup unchanged. */
+  ariaLabel?: string;
 }
 
 export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
   label, value, onCommit, allowNegative = false, min, max, units,
-  commitUnchanged = false, onErrorChange, parse, format, invalid, prefix,
+  commitUnchanged = false, onErrorChange, parse, format, invalid, prefix, ariaLabel,
 }: Props, forwardedRef) {
   // parse/format generalise this field to non-length values (AngleField);
   // every rule here — the dirty guard, Enter/Escape, refusal never clamps — is
@@ -157,6 +159,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       ref={inputRef}
       value={text}
       placeholder={value === null ? 'mixed' : undefined}
+      aria-label={ariaLabel}
       aria-invalid={error ? 'true' : 'false'}
       className={error ? 'input invalid' : 'input'}
       onFocus={() => { editing.current = true; }}
