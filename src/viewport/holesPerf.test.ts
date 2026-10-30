@@ -1,6 +1,7 @@
 import { createBoard, holeFaults, holeInStock, partGeometry, stockChecks } from '../document/document';
 import type { Board } from '../document/document';
 import { bodyMesh, holesMesh } from './grainTiling';
+import { BOLT, CAM } from '../document/camBoltFixtures';
 
 /**
  * Hole rebuild performance (Task 11b). A resize drag rebuilds a holed part's meshes every frame, so a full rebuild —
@@ -14,6 +15,8 @@ import { bodyMesh, holesMesh } from './grainTiling';
  * - a seat with four TILTED leg sockets (angled holes Task 4; bound 40 ms): the tilted bore's rings, wall and bottom.
  * - a row of 20 counterbores and a countersunk row (counterbores Task 4; bound 40 ms): each headed hole's two pieces —
  *   their prisms and rings memoised per frozen piece, the faces cut by both, the head's wall, the step and the bore.
+ * - four cam pairs, the Cam lock twice at each end (cam-and-bolt Task 4; bound 40 ms): the recogniser, each bolt's wall to
+ *   its intersection loop and each cam's window, triangulated with the loop as a hole.
  * The clean-hole wall path (ruling R15) is pinned deterministically, not here: grainTiling.test.ts' "per hole: one
  * quad per facet (no seam split, nothing doubled)…" counts 96 wall triangles where the clipped path draws 192.
  *
@@ -47,6 +50,10 @@ const counterbores = { ...pinRow('cb', 'min'), count: 20, depth: 'through' as co
 const countersinks = { ...pinRow('cs', 'max'), diameter: 0.1875, head: 'countersink' as const, headDiameter: 0.375, headAngle: 82 as const };
 const headedSide = (row: Board['holes'][number]) => (length: number, cuts: Board['cuts']) =>
   createBoard({ id: 'side', length, width: 11.25, thickness: 0.75, cuts, holes: [row] });
+
+// Cam-and-bolt Task 4: the Cam lock pair (two stations) at each end of a side.
+const camLocks = (length: number) => createBoard({ id: 'side', length, width: 11.25, thickness: 0.75, holes: [
+  { ...CAM }, { ...BOLT }, { ...CAM, id: 'cam2', acrossFrom: 'max' }, { ...BOLT, id: 'bolt2', from: 'max' }] });
 
 const seat = (length: number) => createBoard({ id: 'seat', length, width: 16, thickness: 1.5, holes: sockets });
 
@@ -106,4 +113,15 @@ describe('a holed part rebuilds inside a frame (Task 11b)', () => {
       }
       expect(minOf9([], make)).toBeLessThanOrEqual(40);
     });
+  it('four cam pairs (two Cam locks each end), clean: minimum of 9 full rebuilds is at most 40 ms', () => {
+    const b = camLocks(30);
+    for (const r of b.holes) expect(holeFaults(b, r)).toEqual([]);
+    const { holes } = partGeometry(b);
+    expect(holes.length).toBe(8);
+    for (const h of holes) {
+      expect(h.mate).toBeDefined();
+      expect(holeInStock(b, h, stockChecks(b))).toBe(true);
+    }
+    expect(minOf9([], (length) => camLocks(length))).toBeLessThanOrEqual(40);
+  });
 });

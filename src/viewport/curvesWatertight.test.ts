@@ -5,7 +5,11 @@ import { canonicalRun, geometryBoard, profileFaults, shapedPart } from '../docum
 import { spanOf } from '../document/curves';
 import { runoutReach } from '../document/runout';
 import { capFill } from './capFill';
-import { bodyMesh, drawsAsBox, holesMesh, partMesh } from './grainTiling';
+import { bodyMesh, drawsAsBox, holeMesh, holesMesh, partMesh } from './grainTiling';
+import { axisFrame, boardExtents, DIMENSION_ORDER, toWorldOffset } from '../document/document';
+import { camLoop, mm } from '../document/holes';
+import { BOLT, CAM, camPart } from '../document/camBoltFixtures';
+import { ARCH } from '../document/curveFixtures';
 import { chamferCut } from '../document/angleCuts';
 import { builtSwept, sweptStops } from '../document/sweep';
 import { mirrorPart } from '../document/frames';
@@ -638,4 +642,125 @@ describe('a headed bore\'s mesh is watertight and stepped (counterbores Task 4)'
     for (let i = 0; i < m.positions.length; i += 3) expect(Math.hypot(m.positions[i]! + 5, m.positions[i + 2]! + 2)).toBeCloseTo(0.25, 6);
     for (const body of bodies) for (const x of bodyMesh(board, body, holes, bodies).positions) expect(Number.isFinite(x)).toBe(true);
   });
+});
+
+// Cam-and-bolt Task 4 (spec §5.1): a recognised pair draws as ONE void. The bolt's wall runs from its mouth ring to the
+// intersection loop (camLoop) and has no bottom; the cam's wall has a window where the loop meets it, triangulated with the
+// loop as a hole. The loop's vertices are the same numbers in both walls, so the pair closes with no tolerance.
+const camBore = { id: 'cb', face: 'thickness' as const, from: 'max' as const, diameter: 3 / 16, depth: 'through' as const, along: 'length' as const,
+  alongFrom: 'min' as const, station: 10, count: 3, pitch: 2, acrossFrom: 'min' as const, inset: 5.625, head: 'counterbore' as const,
+  headDiameter: 0.375, headDepth: 0.25 };
+/** A cam part with one pair (two stations) of a cam `R` mm and a bolt `r` mm, the bolt `off` above mid-thickness. */
+const pairOf = (thickness: number, R: number, r: number, off: number, from: 'min' | 'max' = 'max') => camPart({ thickness, holes: [
+  { ...CAM, from, diameter: mm(R), depth: Math.min(thickness - 0.05, thickness / 2 + mm(r) / 2 + 0.05 + off), inset: mm(R) + 0.3 },
+  { ...BOLT, diameter: mm(r), depth: mm(R) + 0.3 + off * 2, inset: thickness / 2 + off }] });
+const camCases: [string, Board][] = [
+  ['the plain cam part', camPart()],
+  ['the cam part with the Arch on it (split strips)', camPart({ curves: [ARCH] })],
+  ['the mirrored cam part (the window about ring index 0)', mirrorPart(camPart())],
+  ['the cam part beside a counterbored row', camPart({ holes: [{ ...CAM }, { ...BOLT }, camBore] })],
+  // Found by a sweep of sizes (Task 4): r/R = 1/2 puts the loop's sides at exactly 30° (four columns), each on a column's
+  // line, collinear in 3D with its top and far vertices; and a deep cam entered from below with a slim bolt, whose long
+  // window triangles' own normals lean off the radial (winding judged in the unrolled plane, not against it).
+  ['a 6 mm bolt into a 12 mm cam (the loop\'s sides on column lines)', pairOf(0.75, 12, 6, 0.1)],
+  ['a 5 mm bolt into a deep 35 mm cam entered from below (long window triangles)', pairOf(1.5, 35, 5, 0.03, 'min')],
+];
+const camDado = { id: 'd', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 0.5, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+
+/** A board-local point as the mesh's Float32 world position (putWall: the world offset, centred on the extents). */
+function worldOf(board: Board): (p: V3) => [number, number, number] {
+  const frame = axisFrame(board);
+  const dims = frame.map((a) => DIMENSION_ORDER.indexOf(a.dim));
+  const ex = boardExtents(board);
+  return (p) => [0, 1, 2].map((i) => Math.fround(toWorldOffset(board, i, p[dims[i]!]!, frame) - ex[i]! / 2)) as [number, number, number];
+}
+const along = (h: Pick<Hole, 'axis' | 'dir' | 'centre'>, t: number): V3 => {
+  const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
+  p[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * t;
+  return p;
+};
+/** The distance of world point q from the segment of a hole's axis (mouth to `depth`), or null when q is past either end. */
+function axisDistance(board: Board, h: Pick<Hole, 'axis' | 'dir' | 'centre'>, depth: number, q: readonly number[]): number | null {
+  const w = worldOf(board);
+  const p0 = w(h.centre); const p1 = w(along(h, depth));
+  const d = [0, 1, 2].map((i) => p1[i]! - p0[i]!); const l = Math.hypot(d[0]!, d[1]!, d[2]!);
+  const u = d.map((x) => x / l);
+  const s = [0, 1, 2].reduce((m, i) => m + (q[i]! - p0[i]!) * u[i]!, 0);
+  if (s < -1e-9 || s > l + 1e-9) return null;
+  return Math.hypot(...[0, 1, 2].map((i) => q[i]! - p0[i]! - s * u[i]!));
+}
+const vertexKeys = (p: Float32Array) => new Set(Array.from({ length: p.length / 3 }, (_, i) => `${p[3 * i]},${p[3 * i + 1]},${p[3 * i + 2]}`));
+
+describe('a cam-and-bolt pair\'s mesh is watertight, one void (cam-and-bolt Task 4)', () => {
+  it('the fixtures are what they claim: every hole paired and clean, and every loop vertex drawn', () => {
+    for (const [name, b] of camCases) {
+      const { bodies, holes } = partGeometry(b);
+      const paired = holes.filter((h) => h.mate);
+      expect(paired.length, name).toBe(4);
+      for (const h of paired) expect(holeInStock(b, h, stockChecks(b)), name).toBe(true);
+      const drawn = vertexKeys(holesMesh(b, holes, bodies, stockChecks(b))!.positions);
+      const w = worldOf(b);
+      for (const h of paired.filter((x) => x.mate!.role === 'cam')) for (const p of camLoop(h)) expect(drawn.has(w(p).join(',')), name).toBe(true);
+    }
+    expect(partGeometry(camCases[1]![1]).bodies.length).toBeGreaterThan(1);
+  });
+  it.each(camCases)('%s', (_name, board) => {
+    const { triangles, unmatched } = unmatchedEdges(board);
+    expect(triangles).toBeGreaterThan(0);
+    expect(unmatched).toBe(0);
+  });
+  it.each(camCases)('no wall in air: %s', (name, board) => {
+    const { bodies, holes } = partGeometry(board);
+    const checks = stockChecks(board);
+    for (const bolt of holes.filter((h) => h.mate?.role === 'cam')) {
+      const cam = holes.find((h) => h.mate?.role === 'bolt' && h.centre.every((x, i) => x === bolt.mate!.centre[i]))!;
+      expect(cam, name).toBeDefined();
+      // The bolt's mesh never enters the cam's air: no vertex nearer the cam's axis than R, within the cam's depth.
+      const bp = holeMesh(board, bolt, bodies, checks).positions;
+      for (let i = 0; i < bp.length; i += 3) {
+        const d = axisDistance(board, cam, cam.depth, [bp[i]!, bp[i + 1]!, bp[i + 2]!]);
+        if (d !== null) expect(d, name).toBeGreaterThanOrEqual(cam.radius - 1e-6);
+      }
+      // The cam's wall is open where the bolt runs into it: no triangle's centroid nearer the bolt's axis than r, along the
+      // bolt (mouth to its end at the cam's axis — past it lies the cam's far side, which the bolt never reaches).
+      const cp = holeMesh(board, cam, bodies, checks).positions;
+      for (let t = 0; t < cp.length; t += 9) {
+        const c = [0, 1, 2].map((i) => (cp[t + i]! + cp[t + 3 + i]! + cp[t + 6 + i]!) / 3);
+        const d = axisDistance(board, bolt, bolt.depth, c);
+        if (d !== null) expect(d, name).toBeGreaterThanOrEqual(bolt.radius - 1e-6);
+      }
+    }
+  });
+  it('a dado crossing a cam: both bores faulted and clipped, the loop seam still closed', () => {
+    const board = camPart({ cuts: [camDado] });
+    const { bodies, holes } = partGeometry(board);
+    const paired = holes.filter((h) => h.mate);
+    expect(paired.length).toBe(4);
+    for (const h of paired) expect(holeInStock(board, h, stockChecks(board))).toBe(false);
+    const p = holesMesh(board, holes, bodies, stockChecks(board))!.positions;
+    const w = worldOf(board);
+    const loopKeys = new Set(paired.filter((h) => h.mate!.role === 'cam').flatMap((h) => camLoop(h).map((q) => w(q).join(','))));
+    const count = new Map<string, number>();
+    const key = (i: number) => `${p[3 * i]},${p[3 * i + 1]},${p[3 * i + 2]}`;
+    for (let t = 0; t < p.length / 9; t += 1) {
+      const k = [key(3 * t), key(3 * t + 1), key(3 * t + 2)];
+      for (let e = 0; e < 3; e += 1) count.set(`${k[e]}|${k[(e + 1) % 3]}`, (count.get(`${k[e]}|${k[(e + 1) % 3]}`) ?? 0) + 1);
+    }
+    let seam = 0; let open = 0;
+    for (const [edge, n] of count) {
+      const [a, b] = edge.split('|') as [string, string];
+      if (!loopKeys.has(a) || !loopKeys.has(b)) continue;
+      seam += 1;
+      if ((count.get(`${b}|${a}`) ?? 0) !== n) open += 1;
+    }
+    expect(seam).toBeGreaterThan(0);
+    expect(open).toBe(0);
+  });
+  // PENDING A RULING (Task 4): the brief asks both of these for `unmatched === 0`, but each runs only the FAULTED path,
+  // which was never watertight (faceTriangles: "T-junctions accepted there"; a lone faulted pin crossing a dado measures 12
+  // unmatched, one breaking out of an end 152). Measured with the pair branch: the dado part 1013 (and it has a box cell,
+  // which unmatchedEdges refuses), the thinned part 820 (no pair, so the untouched headless path, byte for byte). The pair's
+  // own seam, the loop, is closed on the faulted path (the test above). Not weakened: left as todo until ruled.
+  it.todo('a dado crossing a cam: the whole part is watertight (pending ruling: measured 1013 unmatched, faulted path)');
+  it.todo('a thinned part unpairs and stays watertight (pending ruling: measured 820 unmatched, faulted headless path)');
 });
