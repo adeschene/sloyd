@@ -454,3 +454,9 @@ Decisions made after this spec was approved. Where one contradicts the text abov
   watch them fail. Cost if wrong: none.
 - **Deferred to follow-ups** (not rulings): editing an oblique line, an axis change, guide points, dragging, lines in ISO/assembly/
   section figures, bore-wall hits (fu 583–588); build-time residue (fu 589).
+- **A11 (§2.5, the ground lift; final review).** Plan Task 3 said an oblique line takes "no ground lift"; §2.5 says every other rule is
+  round 1's, and round 1's B3 lifts a line lying at `y = 0` so it wins the depth test against the grid. The spec governs: an oblique line
+  with BOTH ends at `y = 0` is lifted by `GROUND_LIFT`, display only (the stored line and every snap computation are untouched). Checked in the
+  browser (a floor diagonal reads on the grid). Cost if wrong: one condition in `GuideLines`.
+- **By eye (the user, 2026-10-30).** Kept as built: the oblique colour, the `line-face` and `offset` hues, the Plans chain line, the Guides
+  row. The user allows a retune to fu 249's colour-blind floors (fu 590), and asked for selectable guides next (fu 591).

@@ -7581,3 +7581,28 @@ rather than the tilt route, with `keptWhole` read only at Refine's keep sites so
 risk (a recorded tenon on a headed rail) was run first and held. Tilt and head are refused together (a pocket screw is fu 569). The build's
 unapproved rulings (the exploded iso keeps only the mouth rim, the Head select's place, the `headJoinChanged` sentence, metric text `9 mm`)
 are in the spec's *Amended (build)* block.
+
+## Construction lines (2026-10-29/30, merge `fb1e133`, schema 31; deployed as `index-zJyvpYf3.js`)
+
+The last open gap in `docs/feature-gaps.md` was fu 130's line "as a visual — something to sight along and to snap other things to". The user
+skipped the design questions. A construction line is a guide with an `axis`, stored in the same `guides` array as points, with the coordinate
+along its axis canonically 0 so sameness is exact equality. `GuidePoint.axis?: undefined` made every point reader stop compiling until it
+filtered, which is how the two readers that assumed points were found. Enter with nothing typed under an axis lock places one, from either
+Enter site through one decider (`tapeLineFor`, inv 27). Snapping slides along a line (the along coordinate on the drag grid) and lands exactly
+where two lines cross, which needed `SnapOwner` to carry a second guide (`cross`) and inv 24's removal clauses to test both through
+`ownedByGuide`. The build moved the duplicate-line hint from an error state to a derived one (a cleared anchor could never show it) and hid
+lines while exploded. Browser check 19/19; the user kept the look as built.
+
+## Construction lines, round 2 (2026-10-30, merge `9c3b57b`, schema 32; deployed as `index-ByMH6Ibb.js`)
+
+The user asked for all five of round 1's residue at once (fu 578–582) and skipped the questions. Oblique lines (`GuideRay`, `{ at, to }`) took
+the bump: a 31 build would read one as a guide point and autosave the loss. Enter on a hover with no lock places one; a pair that is exactly
+axis-parallel becomes an axis line, so `lineThrough` is the one two-point decider for the loader, the tape and the store (the final review
+caught the store storing an oblique line raw). Line-meets-face (`lineFaces.ts`) clips each line against `worldBodies` and keeps a clip end only
+where air and wood meet, so cell seams and bore mouths offer nothing; an axis line's hit on a square face is the plane's own constant. Face hits
+and Shift+Enter's stepped anchor each depend on something besides their own position, so inv 24 now judges every held point through
+`heldRoot`/`heldBoard` rather than site by site. Typed line edits share `removeGuide`'s held-point clauses through `dropHeldOwnedBy`, and the
+Plans sheet draws lines only when asked, byte for byte unchanged otherwise. Two hue picks failed fu 249's colour-blind floor and were redone with
+measured values; measuring showed round 1's two line hues fail it too (fu 590). Built in ten reviewed tasks plus a whole-branch review; browser
+check 21/21. The user then asked for selectable guides (fu 591), which reverses the "no selection model" decision both rounds kept.
+
