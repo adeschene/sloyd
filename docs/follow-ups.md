@@ -8589,4 +8589,5 @@ hardware list. Inv 55 says hardware is TYPED, never derived from holes, so this 
 - Task 8 (presets): the Cam lock's detail string is built inline in `Holes.tsx` (as the other presets' are).
 - Task 9 (pair edits): the partner's copy is not retilted (paired rows are square; comment it); `updateHoleRows` has no test for a stale
   partner id or a two-row zone refusal.
+- Final review: the part diagram's notes under the figure print two plain hole lines for a pair while the setup lines print one Cam-and-bolt line (a copy-review consistency choice).
 **Status:** open (record-only; the Task 4 winding item is flagged for the whole-branch review).

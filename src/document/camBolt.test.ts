@@ -4,7 +4,6 @@ import type { Hole } from './holes';
 import { partGeometry } from './bodies';
 import { DIMENSION_ORDER } from './geometry';
 import { mirrorDim, mirrorPart } from './frames';
-import { chiralPart } from './turnFixtures';
 import { camPairRows, camPartners, camRole, camRowIds } from './camBolt';
 import { BOLT, CAM, camPart } from './camBoltFixtures';
 import type { Board, HoleRow, ShapedBoard } from './types';
@@ -144,10 +143,6 @@ describe('the mate, the loop and the rims (cam-and-bolt Task 3)', () => {
   });
   it('mirrored and turned parts keep the pair', () => {
     expect(geo(mirrorPart(camPart())).filter((h) => h.mate)).toHaveLength(4);
-    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
-      expect(geo(camPart({ posture })).filter((h) => h.mate)).toHaveLength(4);
-      expect(geo({ ...chiralPart(posture), ...camPart({ posture }), name: 'Chiral' }).filter((h) => h.mate)).toHaveLength(4);
-    }
   });
   it('camLoop(mateHole(cam)) equals camLoop(bolt), bit for bit', () => {
     const hs = geo();

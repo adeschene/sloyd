@@ -11,8 +11,9 @@ import { holeLengthText } from '../document/holeText';
 import { slopeOf } from '../document/lean';
 import { CAM, BOLT, camPart } from '../document/camBoltFixtures';
 import { mm } from '../document/holes';
+import { camPairRows } from '../document/camBolt';
 import { holeFaults } from '../document/holeFaults';
-import { CAM_PAIR_ALONG, CAM_PAIR_PARTIAL } from '../document/holeText';
+import { CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL } from '../document/holeText';
 
 const side = (over: Partial<Board> = {}) => createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -865,6 +866,16 @@ describe('counterbores and countersinks in the Holes section (counterbores §4, 
       open(pair({ holes: [{ ...CAM }, { ...BOLT, count: 1 }] }));
       await field(user, 'First at', 0, '50mm');
       expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_PARTIAL);
+      expect(rows()[0]!.station).toBe(mm(37));
+    });
+    it('a whole pair whose rows run different ways refuses with its own wording', async () => {
+      const user = userEvent.setup();
+      const holes = [{ ...CAM, count: 1, pitch: 0 }, { ...BOLT, count: 1, pitch: 0, along: 'thickness' as const, station: 0.375, inset: mm(37) }];
+      const b = pair({ holes });
+      expect(camPairRows(b)).toHaveLength(1);
+      open(b);
+      await field(user, 'First at', 0, '50mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_ALONG_DIFFERS);
       expect(rows()[0]!.station).toBe(mm(37));
     });
     it('a non-shared field edits only its row', async () => {

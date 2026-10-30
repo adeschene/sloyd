@@ -1,6 +1,6 @@
 # Sloyd — cam-and-bolt: design
 
-Status: BUILT on branch `cam-and-bolt` (`c87433d..6db3f03d` + the records), NOT merged, NOT deployed; no schema change (the *Amended (build)* block at the end awaits the user's approval). APPROVED by the user 2026-10-30 ("approved"). Builder check taken 2026-10-30 (three questions, all settled as my calls:
+Status: Spec APPROVED by the user 2026-10-30; BUILT on branch `cam-and-bolt`, not merged, not deployed; the *Amended (build)* block awaits approval. No schema change. Builder check taken 2026-10-30 (three questions, all settled as my calls:
 §4.3, §6.1/§6.2, §6.3). Follow-up 568 (`docs/follow-ups.md`; counterbores spec §12, fu 330's chunk 2).
 The holes primitive is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the head (schema 30) is
 `docs/superpowers/specs/2026-10-29-sloyd-counterbores-design.md`, whose layout this follows.
@@ -351,7 +351,7 @@ Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** R
 6. **R6 (Task 7; §6.3): the pair line prints metric DEPTHS at 0.1 mm** (`holeLengthText`), while a plain row's `holeLine` prints metric depths
    in whole mm: the Cam lock's 14.5 mm cam depth is the number its 0.5 mm clearance rests on (§4.1), so rounding it to 15 on the one line a
    pair prints would misstate the model. Plain rows keep their bytes. Cost if wrong: one inconsistency in metric depth precision (the copy
-   review can settle it).
+   review can settle it). Imperial prints the 14.5 mm depth as 9/16" (14.29 mm), at its usual 1/16" precision.
 7. **R7 (Task 8; §4.1): Cam lock is OFFERED on 1/2" stock** (cam 11 mm deep in 12.7 mm, a 1.7 mm skin, no fault): §4.1 withholds it by the
    faults, not by a separate rule, so the plan's "withheld on 1/2" stock" test was wrong; the withheld test uses 1/4" stock (the bolt wider
    than the part). Cost if wrong: a thin-skinned cam offered on 1/2" stock; a thickness floor is a one-line rule later.
@@ -364,6 +364,11 @@ Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** R
 10. **R10 (Task 10; §6.5): the pinned quantity is the cam's centre minus the bolt's BOTTOM centre, per pair, exactly.** Level the ends deepens
     the bolt by `e` from a moved mouth, so mouth-relative vectors legitimately change; the joint is the bolt end's place in the cam. Cost if
     wrong: a test assertion rework.
+11. **R11 (final review; §3.2, §4.3): an edit that SEPARATES the bores is accepted, and the pair line silently becomes two plain hole lines.**
+    Moving the cam's inset away, or shortening the bolt short of the cam, adds no fault, so nothing refuses it; §3.2/§4.3 say a pair-breaking
+    edit is refused, which holds only while the bores still meet. **Flagged for the user's ruling** (refuse a separating edit, or accept and say so).
+12. **R12 (final review; question for the user, not a defect): R7 offers the Cam lock on 1/2" stock** (11 mm cam, 1.7 mm skin), while a real
+    15 mm housing wants about 12.5 mm. A thickness floor would be one line. Should there be one?
 
 **Differences from the spec as written**
 - **Names:** the recogniser is `camPartners(holes)` (a hole→partner map) with `camRole`, `camPairRows`, `camRowIds` and `withMates` (§3.1's

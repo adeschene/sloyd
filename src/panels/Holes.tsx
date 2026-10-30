@@ -3,7 +3,7 @@ import { useStore, HOLE_TILT_PAST_BOUND, HEAD_ON_TILT, headRefusal } from '../st
 import { formatLength, isMetric } from '../units/length';
 import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, defaultCamLock, defaultCamBoltBore, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
 import type { Board, CutFrom, Dimension, HeadKind, HoleFault, HoleRow } from '../document/document';
-import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine, CAM_PAIR_ALONG, CAM_PAIR_PARTIAL } from '../document/holeText';
+import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine, CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL } from '../document/holeText';
 import { camPairRows, camRowIds } from '../document/camBolt';
 import { leans, slopeOf } from '../document/lean';
 import { staleTenonOf } from '../document/tenonJoints';
@@ -108,7 +108,8 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
       if (SHARED_ALONG.some((k) => next[k] !== row[k])) {
         const p = camPairRows(board).find((q) => q.cam.id === row.id || q.bolt.id === row.id);
         const partner = p && (p.cam.id === row.id ? p.bolt : p.cam);
-        if (!partner || partner.along !== row.along) return CAM_PAIR_PARTIAL;
+        if (!partner) return CAM_PAIR_PARTIAL;
+        if (partner.along !== row.along) return CAM_PAIR_ALONG_DIFFERS;
         const { alongFrom, station, count, pitch } = next;
         edits.push({ row: partner, next: { ...partner, alongFrom, station, count, pitch } });
       }

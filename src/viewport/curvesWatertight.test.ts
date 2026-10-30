@@ -13,7 +13,7 @@ import { ARCH } from '../document/curveFixtures';
 import { chamferCut } from '../document/angleCuts';
 import { builtSwept, sweptStops } from '../document/sweep';
 import { mirrorPart } from '../document/frames';
-import { defaultHole } from '../document/holes';
+import { defaultHole, defaultCamLock } from '../document/holes';
 import { tenonFaults } from '../document/roundTenons';
 import { stoolLegs } from '../document/stoolFixture';
 import { HEADED_CASES } from '../document/meshCases';
@@ -756,11 +756,29 @@ describe('a cam-and-bolt pair\'s mesh is watertight, one void (cam-and-bolt Task
     expect(seam).toBeGreaterThan(0);
     expect(open).toBe(0);
   });
-  // PENDING A RULING (Task 4): the brief asks both of these for `unmatched === 0`, but each runs only the FAULTED path,
-  // which was never watertight (faceTriangles: "T-junctions accepted there"; a lone faulted pin crossing a dado measures 12
-  // unmatched, one breaking out of an end 152). Measured with the pair branch: the dado part 1013 (and it has a box cell,
-  // which unmatchedEdges refuses), the thinned part 820 (no pair, so the untouched headless path, byte for byte). The pair's
-  // own seam, the loop, is closed on the faulted path (the test above). Not weakened: left as todo until ruled.
+  describe('two Cam locks on one part, across postures and turns', () => {
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      for (const rotation of [0, 90, 270] as const) {
+        it(`${posture} at ${rotation}: every hole paired, 0 unmatched edges`, () => {
+          const base = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75, posture, rotation });
+          const rows = (['min', 'max'] as const).flatMap((end, e) => {
+            const [cam, bolt] = defaultCamLock(base, end)!;
+            return [{ id: `c${e}`, ...cam }, { id: `b${e}`, ...bolt }];
+          });
+          const board = { ...base, holes: rows };
+          const { holes } = partGeometry(board);
+          expect(holes.length).toBeGreaterThan(0);
+          for (const h of holes) expect(h.mate).toBeDefined();
+          const { triangles, unmatched } = unmatchedEdges(board);
+          expect(triangles).toBeGreaterThan(0);
+          expect(unmatched).toBe(0);
+        });
+      }
+    }
+  });
+  // The faulted path is not watertight for any hole (spec Amended R2, fu 597): both cases stay todo, with their measured counts
+  // (a dado through a cam: 1013 unmatched, and the part has a box cell, which unmatchedEdges refuses; a thinned part that
+  // unpairs: 820, the untouched headless faulted path). The pair's own seam, the loop, is closed on it (the test above).
   it.todo('a dado crossing a cam: the whole part is watertight (pending ruling: measured 1013 unmatched, faulted path)');
   it.todo('a thinned part unpairs and stays watertight (pending ruling: measured 820 unmatched, faulted headless path)');
 });
