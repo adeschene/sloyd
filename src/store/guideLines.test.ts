@@ -10,12 +10,34 @@ const crossing = (a: string, b: string): SnapPoint =>
 const slide = (id: string): SnapPoint =>
   ({ kind: 'line', at: [0, 0, 0], owner: { type: 'guide', id } });
 
+describe('addGuideLine, oblique (construction-lines-2 spec §2)', () => {
+  it('adds an oblique line as one undo entry and refuses its reversed twin, leaving redo alone', () => {
+    const past = s().past.length;
+    expect(s().addGuideLine({ at: [1, 2, 3], to: [4, 5, 6] })).toBe(true);
+    expect(s().past.length).toBe(past + 1);
+    expect(s().doc.guides.at(-1)).toEqual({ id: expect.any(String), at: [1, 2, 3], to: [4, 5, 6] });
+    s().addBoard();
+    s().undo();
+    const [doc, p2, future] = [s().doc, s().past.length, s().future];
+    expect(future.length).toBeGreaterThan(0);
+    expect(s().addGuideLine({ at: [4, 5, 6], to: [1, 2, 3] })).toBe(false);
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(p2);
+    expect(s().future).toBe(future);
+  });
+  it('refuses while exploded', () => {
+    s().addBoard();
+    s().setExplode(0.5);
+    expect(s().addGuideLine({ at: [1, 2, 3], to: [4, 5, 6] })).toBe(false);
+  });
+});
+
 describe('addGuideLine', () => {
   it('adds a canonical line as one undo entry, selection untouched', () => {
     s().addBoard();
     const sel = s().selectedIds;
     const past = s().past.length;
-    expect(s().addGuideLine([4, 5, 6], 'x')).toBe(true);
+    expect(s().addGuideLine({ at: [4, 5, 6], axis: 'x' })).toBe(true);
     const g = s().doc.guides.at(-1)!;
     expect(g).toEqual({ id: expect.any(String), at: [0, 5, 6], axis: 'x' });
     expect(s().past.length).toBe(past + 1);
@@ -27,12 +49,12 @@ describe('addGuideLine', () => {
   });
 
   it('refuses a duplicate without touching doc, undo stack or redo', () => {
-    s().addGuideLine([4, 5, 6], 'x');
+    s().addGuideLine({ at: [4, 5, 6], axis: 'x' });
     s().addBoard();
     s().undo();
     const [doc, past, future] = [s().doc, s().past.length, s().future.length];
     expect(future).toBeGreaterThan(0);
-    expect(s().addGuideLine([9, 5, 6], 'x')).toBe(false);
+    expect(s().addGuideLine({ at: [9, 5, 6], axis: 'x' })).toBe(false);
     expect(s().doc).toBe(doc);
     expect(s().past.length).toBe(past);
     expect(s().future.length).toBe(future);
@@ -43,14 +65,14 @@ describe('addGuideLine', () => {
   it('refuses while exploded', () => {
     const doc = s().doc;
     s().setExplode(0.5);
-    expect(s().addGuideLine([1, 2, 3], 'y')).toBe(false);
+    expect(s().addGuideLine({ at: [1, 2, 3], axis: 'y' })).toBe(false);
     expect(s().doc).toBe(doc);
   });
 });
 
 describe('removeGuide and held crossings', () => {
   const setup = () => {
-    for (const [p, a] of [[[0, 1, 1], 'x'], [[1, 0, 1], 'y'], [[1, 1, 0], 'z'], [[0, 7, 7], 'x']] as const) s().addGuideLine([...p], a);
+    for (const [p, a] of [[[0, 1, 1], 'x'], [[1, 0, 1], 'y'], [[1, 1, 0], 'z'], [[0, 7, 7], 'x']] as const) s().addGuideLine({ at: [...p], axis: a });
     const [A, B, C, D] = s().doc.guides.map((g) => g.id) as [string, string, string, string];
     s().setTapeAnchor(crossing(A, B));
     s().setTapeHover(slide(C));

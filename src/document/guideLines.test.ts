@@ -4,9 +4,9 @@ import { CURRENT_VERSION, createDocument, migrateDocument, isGuideLine, isGuideP
 const load = (guides: unknown[]) => migrateDocument({ ...createDocument('T'), version: 30, guides }).guides;
 
 describe('schema 31: construction lines (construction-lines spec §2)', () => {
-  it('is version 31 and refuses 32', () => {
-    expect(CURRENT_VERSION).toBe(31);
-    expect(() => migrateDocument({ ...createDocument('T'), version: 32 })).toThrow(/newer version of Sloyd/);
+  it('is version 32 and refuses 33', () => {
+    expect(CURRENT_VERSION).toBe(32);
+    expect(() => migrateDocument({ ...createDocument('T'), version: 33 })).toThrow(/newer version of Sloyd/);
   });
   it('loads a 30 file point unchanged, with no axis key', () => {
     const [g] = load([{ id: 'g1', at: [1, 2, 3] }]);
@@ -89,14 +89,14 @@ describe('sameSnapPoint with crossings', () => {
 
 describe('tapeLineFor', () => {
   it('is null without an anchor, an axis, or with a typed distance', () => {
-    expect(tapeLineFor(null, 'y', '')).toBeNull();
-    expect(tapeLineFor([1, 2, 3], null, '')).toBeNull();
-    expect(tapeLineFor([1, 2, 3], 'y', '3')).toBeNull();
+    expect(tapeLineFor(null, 'y', '', null)).toBeNull();
+    expect(tapeLineFor([1, 2, 3], null, '', null)).toBeNull();
+    expect(tapeLineFor([1, 2, 3], 'y', '3', null)).toBeNull();
   });
   it('counts whitespace as empty and zeroes the axis without mutating the anchor', () => {
     const anchor: [number, number, number] = [4, 5, 6];
-    expect(tapeLineFor(anchor, 'y', '')).toEqual({ at: [4, 0, 6], axis: 'y' });
-    expect(tapeLineFor(anchor, 'y', '  ')).toEqual({ at: [4, 0, 6], axis: 'y' });
+    expect(tapeLineFor(anchor, 'y', '', null)).toEqual({ at: [4, 0, 6], axis: 'y' });
+    expect(tapeLineFor(anchor, 'y', '  ', null)).toEqual({ at: [4, 0, 6], axis: 'y' });
     expect(anchor).toEqual([4, 5, 6]);
   });
 });

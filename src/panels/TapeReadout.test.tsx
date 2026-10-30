@@ -41,7 +41,7 @@ describe('TapeReadout units', () => {
 describe('TapeReadout lines (construction-lines spec §3.2, plan A1)', () => {
   const lockZ = (withLine = false) => {
     useStore.getState().replaceDocument(createDocument('T'));
-    if (withLine) useStore.getState().addGuideLine([1, 2, 0], 'z');
+    if (withLine) useStore.getState().addGuideLine({ at: [1, 2, 0], axis: 'z' });
     act(() => {
       useStore.getState().setTool('tape');
       useStore.getState().setTapeAnchor({ at: [1, 2, 3], owner: { type: 'guide', id: 'x' } } as never);

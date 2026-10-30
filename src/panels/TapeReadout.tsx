@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
-import { isGuideLine, offsetPoint, sameLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
+import { isAnyLine, newLineOf, offsetPoint, sameNewLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
 import { useStore } from '../store/store';
 
 /**
@@ -127,8 +127,8 @@ export function TapeReadout() {
     : null;
 
   // Derived, not an error state (plan A1): the line a bare Enter would place, and whether it is already there.
-  const pending = tapeLineFor(anchor.at, axis, text);
-  const duplicate = pending !== null && guides.some((g) => isGuideLine(g) && sameLine(g, pending));
+  const pending = tapeLineFor(anchor.at, axis, text, hovered?.at ?? null);
+  const duplicate = pending !== null && guides.some((g) => isAnyLine(g) && sameNewLine(newLineOf(g), pending));
 
   const commit = () => {
     const store = useStore.getState();
@@ -139,9 +139,9 @@ export function TapeReadout() {
     if (!from) return;
     // Locked with nothing typed is a LINE (construction-lines spec §3.2). A duplicate is a no-op that keeps the
     // anchor and axis (plan A1): the hint, derived in render, says why nothing happened.
-    const line = tapeLineFor(from.at, store.tapeAxis, text);
+    const line = tapeLineFor(from.at, store.tapeAxis, text, store.tapeHover?.at ?? null);
     if (line) {
-      if (store.addGuideLine(line.at, line.axis)) store.clearTapeAnchor();
+      if (store.addGuideLine(line)) store.clearTapeAnchor();
       return;
     }
     // The SAME function TapeTool's preview memo calls, which is what keeps the

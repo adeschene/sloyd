@@ -24,6 +24,7 @@ import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf } from './geometry';
 import { seamFree, withinBound } from './lean';
+import { lineThrough } from './lineModel';
 
 export * from './types';
 export * from './materials';
@@ -79,8 +80,8 @@ export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
-export { boardSnapPoints, canonicalLine, cutSnapPoints, guideCandidates, guideSnapPoints, lineCrossings, ownedByGuide, sameLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
-export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint } from './snapPoints';
+export { boardSnapPoints, canonicalLine, cutSnapPoints, guideCandidates, guideSnapPoints, lineCrossings, lineThrough, newLineOf, ownedByGuide, sameLine, sameNewLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
+export type { BoardSnapPoint, NewLine, SnapKind, SnapOwner, SnapPoint, Vec3 } from './snapPoints';
 export { partBounds, partsBounds } from './worldBounds';
 export { leanMap } from './lean';
 export { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, sectionCaps, unionOutline, SECTION_EPS } from './section';
@@ -262,7 +263,7 @@ export type { Section, SectionAxis, SectionCap } from './section';
  * Harm a v30 build would do: it rebuilds each guide as `{ id, at }`, so every line silently becomes a point at its stored
  * position and the next autosave writes that — the lines are lost. So a v31 file must be refused by a v30 build.
  */
-export const CURRENT_VERSION = 31;
+export const CURRENT_VERSION = 32;
 
 export class DocumentError extends Error {
   /**
@@ -936,6 +937,17 @@ export function validateGuides(raw: unknown): Guide[] {
     if (!Array.isArray(at) || at.length !== 3) continue;
     if (!at.every((n) => typeof n === 'number' && Number.isFinite(n))) continue;
     const xyz: [number, number, number] = [at[0] as number, at[1] as number, at[2] as number];
+    if (g.to !== undefined) {
+      // An oblique line (schema 32, spec §2.3). A malformed `to`, or `axis` beside it, drops the entry: it never
+      // degrades to a point. A `to` that makes the line axis-parallel loads as the axis line, canonical.
+      if (g.axis !== undefined) continue;
+      const to = g.to;
+      if (!Array.isArray(to) || to.length !== 3 || !to.every((n) => typeof n === 'number' && Number.isFinite(n))) continue;
+      const line = lineThrough(xyz, [to[0] as number, to[1] as number, to[2] as number]);
+      if (!line) continue;
+      guides.push({ id: takeId(g.id, seen), ...line });
+      continue;
+    }
     if ('axis' in g && g.axis !== undefined) {
       // A line: any other axis value is malformed, and a malformed guide is dropped. The along-axis coordinate is
       // canonically 0 (spec §2.2), so a stray value is normalised, never a reason to drop.

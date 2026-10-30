@@ -8317,7 +8317,7 @@ stretch the preview reads as `48" → 48"`).
 Properties for any solid long-grain part, so the cut list prints the strips (a setup line) for board-foot hardwood too, and Buying packs
 the user's strips instead of deriving them. Costs schema 30 (a build at 29 drops the key and autosaves the loss).
 **Status:** open (ask first).
-**Status:** open (ask first); 2026-10-29: counterbores takes schema 30, so a stored glue-up would now cost schema 31 (construction lines then took 31: schema 32 now) (the harm argument is the same, against a build at 30).
+**Status:** open (ask first); 2026-10-29: counterbores takes schema 30, so a stored glue-up would now cost schema 31 (construction lines then took 31: schema 33 now) (the harm argument is the same, against a build at 30).
 
 **557. Glue-ups: typed allowances (spec §9).** `GLUE_WIDTH_ALLOWANCE` (1/8") and `GLUE_LENGTH_ALLOWANCE` (1") are constants; a shop
 setting or the document's `stock` would make them typed (a metric shop may want 3 mm and 25 mm).

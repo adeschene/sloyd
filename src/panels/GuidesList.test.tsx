@@ -54,7 +54,7 @@ describe('GuidesList', () => {
   });
 
   it('lists a line with its two fixed coordinates and removes it by the matching label', async () => {
-    useStore.getState().addGuideLine([0, 12, 3.5], 'x');
+    useStore.getState().addGuideLine({ at: [0, 12, 3.5], axis: 'x' });
     render(<GuidesList />);
     expect(screen.getByText('Line along X · Y 12" · Z 3-1/2"')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Remove line along X at Y 12", Z 3-1/2"' }));
@@ -62,14 +62,14 @@ describe('GuidesList', () => {
   });
 
   it('prints a Y line as X then Z', () => {
-    useStore.getState().addGuideLine([2, 0, 5], 'y');
+    useStore.getState().addGuideLine({ at: [2, 0, 5], axis: 'y' });
     render(<GuidesList />);
     expect(screen.getByText('Line along Y · X 2" · Z 5"')).toBeInTheDocument();
   });
 
   it('prints a line in mm in a metric project', () => {
     useStore.getState().setUnitsDisplay('metric-mm');
-    useStore.getState().addGuideLine([0, 300 / 25.4, 0], 'z');
+    useStore.getState().addGuideLine({ at: [0, 300 / 25.4, 0], axis: 'z' });
     render(<GuidesList />);
     expect(screen.getByText('Line along Z · X 0 mm · Y 300 mm')).toBeInTheDocument();
   });

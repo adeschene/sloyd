@@ -9,6 +9,11 @@ import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, Guide, TapeAxis } from './types';
 import { isGuideLine, isGuidePoint } from './types';
+import { canonicalLine, lineThrough, newLineOf, sameLine, sameNewLine } from './lineModel';
+import type { NewLine, Vec3 } from './lineModel';
+
+export { canonicalLine, lineThrough, newLineOf, sameLine, sameNewLine };
+export type { NewLine, Vec3 };
 import { geometryBoard, shapedPart } from './profiles';
 import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
 import { sectionFrame } from './runout';
@@ -489,24 +494,6 @@ export function guideSnapPoints(guides: Guide[]): SnapPoint[] {
   }));
 }
 
-/** A copy of a line's anchor with the coordinate along its axis zeroed (construction-lines spec §2). */
-export function canonicalLine(
-  at: [number, number, number],
-  axis: TapeAxis,
-): { at: [number, number, number]; axis: TapeAxis } {
-  const out: [number, number, number] = [at[0], at[1], at[2]];
-  out[AXIS_INDEX[axis]] = 0;
-  return { at: out, axis };
-}
-
-/** Whether two lines are the same line, exactly (never within a tolerance). */
-export function sameLine(
-  a: { at: [number, number, number]; axis: TapeAxis },
-  b: { at: [number, number, number]; axis: TapeAxis },
-): boolean {
-  return a.axis === b.axis && a.at[0] === b.at[0] && a.at[1] === b.at[1] && a.at[2] === b.at[2];
-}
-
 /**
  * Where two construction lines of different axes meet (construction-lines
  * spec §4.2): they agree EXACTLY on the third axis `k`. Exact on purpose — a
@@ -544,16 +531,19 @@ export function guideCandidates(guides: Guide[], extent: number): SnapPoint[] {
 }
 
 /**
- * The line a tape would place: an anchor, an axis the user pressed and nothing
- * typed (construction-lines spec §3.2). Typed text means a distance instead.
+ * The line a tape would place (construction-lines spec §3.2; oblique-lines spec §2.1): an axis the user pressed and
+ * nothing typed is that axis's line; no axis, nothing typed and a hovered point is the line through the anchor and the
+ * hover. Typed text means a distance instead.
  */
 export function tapeLineFor(
-  anchor: [number, number, number] | null,
+  anchor: Vec3 | null,
   axis: TapeAxis | null,
   typed: string,
-): { at: [number, number, number]; axis: TapeAxis } | null {
-  if (!anchor || !axis || typed.trim() !== '') return null;
-  return canonicalLine(anchor, axis);
+  hover: Vec3 | null,
+): NewLine | null {
+  if (!anchor || typed.trim() !== '') return null;
+  if (axis) return canonicalLine(anchor, axis);
+  return hover ? lineThrough(anchor, hover) : null;
 }
 
 /** Whether a snap point belongs to guide `id`, as a point or as either line of a crossing. */

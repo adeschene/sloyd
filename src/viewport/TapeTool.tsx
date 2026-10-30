@@ -382,11 +382,12 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   if (tool !== 'tape' || hidden) return null;
 
   // The line Enter would place under a lock with nothing typed (spec §3.5).
-  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed);
+  // Axis lines only until the oblique preview is wired (hover null here).
+  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed, null);
 
   return (
     <>
-      {lineAt && <ConstructionLine at={lineAt.at} axis={lineAt.axis} preview />}
+      {lineAt && 'axis' in lineAt && <ConstructionLine at={lineAt.at} axis={lineAt.axis} preview />}
       {anchor && <SnapMarker point={anchor} />}
       {hovered && <SnapMarker point={hovered} />}
       {preview && (

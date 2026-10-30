@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
 import { stretchPlan } from '../document/stretch';
 import {
-  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, sameLine, ownedByGuide, isGuideLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, newLineOf, sameNewLine, ownedByGuide, isAnyLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { SavedView, SavedViewCamera, BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { SavedView, SavedViewCamera, BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, Guide, NewLine, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
@@ -627,7 +627,7 @@ interface StoreState {
 
   addGuide: (at: [number, number, number]) => void;
   /** Add an infinite construction line through `at` along `axis` (construction-lines spec §3.3); false when refused (exploded) or already there. */
-  addGuideLine: (at: [number, number, number], axis: TapeAxis) => boolean;
+  addGuideLine: (line: NewLine) => boolean;
   /** Saved views (spec §3): each is one undo entry, allowed while exploded (inv 47 carve-out), refused mid-gesture. */
   saveView: (camera: SavedViewCamera) => string | null;
   updateView: (id: string, camera: SavedViewCamera) => void;
@@ -2642,11 +2642,11 @@ export const useStore = create<StoreState>((set, get) => {
     // Construction-lines spec §3.3: canonical (at[axis] = 0), so a duplicate is decided on the line itself. The
     // duplicate check sits BEFORE edit(): edit() pushes an undo snapshot and clears redo, so a no-op add
     // would leave a no-op entry (inv 4) and wipe the redo stack. Like addGuide, selection is untouched.
-    addGuideLine: (at, axis) => {
+    addGuideLine: (line) => {
       if (readOnly()) return false;
-      const line = canonicalLine(at, axis);
-      if (get().doc.guides.some((g) => isGuideLine(g) && sameLine(g, line))) return false;
-      const guide = { id: nextId(), ...line };
+      const stored: NewLine = 'axis' in line ? canonicalLine(line.at, line.axis) : { at: [...line.at], to: [...line.to] };
+      if (get().doc.guides.some((g) => isAnyLine(g) && sameNewLine(newLineOf(g), stored))) return false;
+      const guide = { id: nextId(), ...stored } as Guide;
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
       return true;
     },

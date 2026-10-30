@@ -112,7 +112,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **31** (construction lines: a guide's `axis`; 30, counterbores: a hole row's `head`; 29, saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **32** (oblique lines: a guide's `to`; 31, construction lines: `axis`; 30, counterbores: a hole row's `head`; 29, saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -567,7 +567,7 @@ This list is the triage's open set — when an entry's status changes, change it
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 32 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 578–582 (oblique, typed offset, edit a line, line meets face, Plans; ask first).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 578–582 (oblique, typed offset, edit a line, line meets face, Plans; ask first).
 - **Owed to the user, not code:** by eye — counterbores (the Head select's place, the Plans side views, the exploded iso fu 570, the RefineDialog kept-why; `docs/browser-verification-counterbores.md`; the spec's *Amended (build)* R1–R3, `docs/rounds.md`), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).

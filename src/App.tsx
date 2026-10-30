@@ -783,11 +783,11 @@ export default function App() {
       // preventDefault below would swallow.
       const onControl = e.target instanceof Element && e.target.closest('button, a, summary, [role="button"]') !== null;
       if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !onControl) {
-        const { tool, tapeAnchor, tapeAxis, tapeTyped, addGuideLine, clearTapeAnchor } = useStore.getState();
-        const line = tool === 'tape' ? tapeLineFor(tapeAnchor?.at ?? null, tapeAxis, tapeTyped) : null;
+        const { tool, tapeAnchor, tapeAxis, tapeTyped, tapeHover, addGuideLine, clearTapeAnchor } = useStore.getState();
+        const line = tool === 'tape' ? tapeLineFor(tapeAnchor?.at ?? null, tapeAxis, tapeTyped, tapeHover?.at ?? null) : null;
         if (line) {
           e.preventDefault();
-          if (addGuideLine(line.at, line.axis)) clearTapeAnchor();
+          if (addGuideLine(line)) clearTapeAnchor();
           return;
         }
       }
