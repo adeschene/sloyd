@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { HOLE_EPS, HOLE_SEGMENTS, camLoop, holeInstances, holeRims, mateHole, mm } from './holes';
+import { HOLE_EPS, HOLE_SEGMENTS, boardHoles, camLoop, holeInstances, holeRims, mateHole, mm } from './holes';
 import type { Hole } from './holes';
 import { partGeometry } from './bodies';
 import { DIMENSION_ORDER } from './geometry';
@@ -7,7 +7,13 @@ import { mirrorPart } from './frames';
 import { chiralPart } from './turnFixtures';
 import { camPairRows, camPartners, camRole, camRowIds } from './camBolt';
 import { BOLT, CAM, camPart } from './camBoltFixtures';
-import type { HoleRow } from './types';
+import type { Board, HoleRow, ShapedBoard } from './types';
+import { IMPERIAL } from '../units/length';
+import { levelEndHoles, rebaseHoles } from './holeRebase';
+import { stretchPart } from './stretchPart';
+import { holeRowsFor, sameHoles, worldHoles } from './holeWorld';
+import { resolveBoard } from './shapes';
+import { SHARED_KEYS } from './links';
 
 const holesOf = (rows: HoleRow[]): Hole[] => {
   const b = camPart();
@@ -155,5 +161,53 @@ describe('the mate, the loop and the rims (cam-and-bolt Task 3)', () => {
       expect(x).toHaveLength(y.length);
       x.forEach((p, i) => p.forEach((v, k) => expect(Object.is(v, y[i]![k])).toBe(true)));
     }
+  });
+});
+
+const partners = (b: Board) => camPartners(boardHoles(b)).size;
+
+describe('the pair survives every move (spec 6.5, 7)', () => {
+  it('Level the ends keeps the pair on the board whose length grows at min', () => {
+    const b = camPart();
+    const e = 0.1;
+    const after: Board = { ...b, length: b.length + e, holes: levelEndHoles(b.holes, e, 0, b) };
+    expect(partners(after)).toBe(4);
+  });
+  it('stretch past the cam keeps the pair; through the bolt refuses', () => {
+    const b = camPart();
+    const out = stretchPart(b, 0, 20, 2, IMPERIAL);
+    if ('refused' in out) throw new Error(out.refused);
+    expect(out.length).toBe(b.length + 2);
+    expect(partners(out)).toBe(4);
+    expect(stretchPart(b, 0, mm(10), 2, IMPERIAL)).toHaveProperty('refused');
+  });
+  it('rebaseHoles at the far end keeps the pair', () => {
+    const b = camPart();
+    rebaseHoles(b, 'length', 'max', 3);
+    expect(partners(b)).toBe(4);
+  });
+  it("Refine's world round trip keeps the pair", () => {
+    const b = camPart();
+    const world = worldHoles(b);
+    // Refine's exact-number map (roleLinks.ts, generated.ts): the original's own numbers are kept as they are.
+    const exact = new Set(world.flatMap((r) => [r.diameter, r.depth, r.pitch, r.offset.x, r.offset.y, r.offset.z]));
+    const back = holeRowsFor(b, world, exact);
+    if ('fault' in back) throw new Error(back.fault);
+    expect(back.rows).toHaveLength(2);
+    for (const r of b.holes) expect(back.rows.some((x) => sameHoles(x, r, b))).toBe(true);
+    expect(partners({ ...b, holes: back.rows.map((r, i) => ({ id: `r${i}`, ...r })) })).toBe(4);
+  });
+  it("a linked Shape's mirrored user has the pair", () => {
+    const src = camPart();
+    const shape: Record<string, unknown> = { id: 's1' };
+    for (const k of SHARED_KEYS) if (k in src) shape[k] = (src as unknown as Record<string, unknown>)[k];
+    const shapes = new Map([['s1', shape as never]]);
+    const user = (mirrored: boolean) => resolveBoard(shapes, {
+      id: 'u', name: 'U', position: [0, 0, 0], rotation: 0, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}),
+    } as ShapedBoard)!;
+    expect(partners(user(false))).toBe(4);
+    const m = user(true);
+    expect(m.mirrored).toBe(true);
+    expect(partners(m)).toBe(4);
   });
 });
