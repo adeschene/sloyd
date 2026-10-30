@@ -103,9 +103,10 @@ export function camPairLine(board: Board, cam: HoleRow, bolt: HoleRow, units: Un
     ? `${holeLengthText(r.diameter, units, 'diameter')} dia × ${holeLengthText(r.depth, units, 'diameter')} deep` : holeSizeText(r, units));
   const base = `Cam-and-bolt ×${cam.count}: ${size(cam)} in ${holeFaceText(cam)}, ${f(cam.inset)} in from the ${across} ${cam.acrossFrom} ${end(across)}; `
     + `${size(bolt)} from ${holeFaceText(bolt)} into each; ${where}`;
-  const faults = distinctFaults([...holeFaults(board, cam), ...holeFaults(board, bolt)]);
+  // Each fault is worded against the row that produced it (its hole numbers and `meets-hole` test are row-relative).
+  const faults = [...distinctFaults(holeFaults(board, cam)).map((f) => ({ f, r: cam })), ...distinctFaults(holeFaults(board, bolt)).map((f) => ({ f, r: bolt }))];
   if (faults.length === 0) return base;
-  return `${base} — check: ${holeFaultText(faults[0]!, cam)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+  return `${base} — check: ${holeFaultText(faults[0]!.f, faults[0]!.r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
 /** A hole's diameter as a hole is specified, with the imperial mm aside: the bore's and the head's share it. */
