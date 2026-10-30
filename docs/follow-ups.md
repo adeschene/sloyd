@@ -8376,8 +8376,8 @@ face bore), its own preset and bench line, and possibly hardware counted from it
 **Status:** open (feature; needs a spec).
 **Status:** narrowed 2026-10-30: chunk 1 (the pair in ONE part: the recogniser `camBolt.ts`, the one `meets-hole` exemption, the mesh,
 drawings, diagrams, the bench line, the Cam lock and Cam bolt bore presets, pair edits; no schema change; spec
-`docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md`) is MERGED `17a434f8` (2026-10-30; browser check 12 PASS, 1 PARTIAL),
-not deployed. What remains of 568 is **chunk 2, the two-part joint planner** (spec §11): with A's end butting B's face, lay out N
+`docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md`) is MERGED `17a434f8` and DEPLOYED 2026-10-30 (`382d825b`, `index-CLtY_ePc.js`; browser check 12 PASS, 1 PARTIAL);
+What remains of 568 is **chunk 2, the two-part joint planner** (spec §11): with A's end butting B's face, lay out N
 fittings — the cam and bolt rows in A, the bolt's bore in B coaxial with A's bolt bore — in one undo entry, every refusal before `edit()`;
 possibly dowels beside each and a Fit again. Its own spec. Hardware from a pair is fu 600.
 
@@ -8509,6 +8509,7 @@ Feature-sized; a separate session.
 **Status:** open (feature; the user asked for it 2026-10-30 — next session).
 **Status:** built, not deployed (2026-10-30, branch `selectable-guides`; spec `docs/superpowers/specs/2026-10-30-sloyd-selectable-guides-design.md`). Guides are selected by click in the viewport (Select tool, a screen-space pick, `GuidePicker`/`pickGuide`) and in the Guides list; Delete removes them as one undo entry; H / Shift+H hide them as view state through `applyHidden`; hidden guides are neither drawn nor snapped (`visibleGuides`). Invariants 42, 43 and 47 widened. The browser check is owed: `docs/browser-verification-selectable-guides.md`. Residue: fu 592–596.
 **Status:** built, browser-checked, not deployed (2026-10-30): 18 of 19 checks pass in the user's Chrome (`docs/browser-verification-selectable-guides.md`); check 9 failed and was fixed (`5a347b0`: a guide point within reach beats every line). Owed to the user: Save image with a guide selected, and the by-eye items A–D.
+**Status:** DEPLOYED 2026-10-30 (`382d825b`, `index-CLtY_ePc.js`, with cam-and-bolt chunk 1). Still owed to the user: Save image with a guide selected, and the by-eye items A–D.
 
 ## From the selectable guides round (fu 591) — 2026-10-30
 

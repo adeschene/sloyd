@@ -35,13 +35,11 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `9c3b57b`, bundle `index-ByMH6Ibb.js`, CSS `index-hpMeTFi2.css`, SCHEMA 32** (construction lines round 2,
-  fu 578–582; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
+- **Production: `382d825b`, bundle `index-CLtY_ePc.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (selectable guides fu 591 +
+  cam-and-bolt chunk 1 fu 568; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-30):** selectable guides (fu 591) MERGED `978c48e`, NOT deployed (no schema change). Owed: its deploy, on the
-  user's word, and the list below. Cam-and-bolt chunk 1 (fu 568) MERGED `17a434f8`, NOT deployed (no schema change);
-  owed: its deploy, on the user's word. Then: CVD hues (fu 590), cam-and-bolt chunk 2 (fu 568).
+- **NEXT (2026-10-30):** owed: the list below. Then: CVD hues (fu 590), cam-and-bolt chunk 2 (fu 568).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -589,7 +587,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: 590 (snap hues to the CVD floors; approved in principle); record-only 589. Selectable guides: 591 (built; browser check owed), 596 (a ruling); record-only 595. Cam-and-bolt: record-only 597, 601.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: 590 (snap hues to the CVD floors; approved in principle); record-only 589. Selectable guides: 591 (deployed; Save image and A–D by eye owed), 596 (a ruling); record-only 595. Cam-and-bolt: record-only 597, 601.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

@@ -1,6 +1,6 @@
 # Sloyd — selectable guides (fu 591)
 
-Date: 2026-10-30. Status: approved by the user ("Yes, go ahead"), built and merged 2026-10-30 (`978c48e`), not deployed. The
+Date: 2026-10-30. Status: approved by the user ("Yes, go ahead"), built and merged 2026-10-30 (`978c48e`), DEPLOYED 2026-10-30 (`382d825b`, `index-CLtY_ePc.js`). The
 build's rulings are in *Amended (build)* at the end.
 
 The user asked for this on 2026-10-30. They skipped the design questions ("skip the questions"), so every open
