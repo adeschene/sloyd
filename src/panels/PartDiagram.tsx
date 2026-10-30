@@ -518,6 +518,19 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           if (s.bottomAt === 'hmax') lines.push([X(s.h[1]), Y(s.v[0]), X(s.h[1]), Y(s.v[1])]);
           if (s.bottomAt === 'vmin') lines.push([X(s.h[0]), Y(s.v[0]), X(s.h[1]), Y(s.v[0])]);
           if (s.bottomAt === 'vmax') lines.push([X(s.h[0]), Y(s.v[1]), X(s.h[1]), Y(s.v[1])]);
+          // A paired cam's wall on the bolt's side is open across the bolt's window: two pieces either side of it.
+          if (s.gap) {
+            const g = s.gap;
+            const i = g.wall.endsWith('min') ? 0 : 1;   // the two walls come first, min then max
+            const [x1, y1, x2, y2] = lines[i]!;
+            const alongV = g.wall.startsWith('h');      // an h wall is a vertical line: the gap runs in v
+            const [e0, e1] = alongV ? [y1, y2] : [x1, x2];
+            const [g0, g1] = [alongV ? Y(g.from) : X(g.from), alongV ? Y(g.to) : X(g.to)].sort((p, q) => p - q) as [number, number];
+            const [lo, hi] = e0 < e1 ? [e0, e1] : [e1, e0];
+            const piece = (u0: number, u1: number): [number, number, number, number] => (alongV ? [x1, u0, x2, u1] : [u0, y1, u1, y2]);
+            const pieces = [piece(lo, Math.max(lo, g0)), piece(Math.min(hi, g1), hi)].filter((l) => Math.abs(alongV ? l[3] - l[1] : l[2] - l[0]) > 1e-9);
+            lines.splice(i, 1, ...pieces);
+          }
           return lines.map(([x1, y1, x2, y2], i) => (
             <line key={`${s.row}:${s.index}:${i}`} className="cutlist-diagram-hole-side" x1={x1} y1={y1} x2={x2} y2={y2} />
           ));

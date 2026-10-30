@@ -9,7 +9,8 @@ import { fingerSetLine } from './boxJointText';
 import type { Dimension, HoleRow, ProfileCut, ProfileEnd, ProfileKind } from './types';
 import { canonicalRun, geometryBoard, profileCurve, PROFILE_KINDS } from './profiles';
 import { curveLineEntries } from './curveText';
-import { holeInstances, holeRing } from './holes';
+import { holeInstances, holeRing, mm } from './holes';
+import { camPart } from './camBoltFixtures';
 
 /** The canonical cut from the joinery work: 3/4" wide, 3/8" deep, 6" along. */
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -894,5 +895,41 @@ describe('box joint finger sets (box joints spec §5.2)', () => {
 
   it('a box-joint-free board has no fingerNotes key on any view', () => {
     for (const v of buildDiagrams(board(dado()), IMPERIAL)) expect('fingerNotes' in v).toBe(false);
+  });
+});
+
+describe('a cam pair in the part diagrams (cam-and-bolt spec §6.2)', () => {
+  // A far end miter opens the width view (looking along c) without touching either bore.
+  const opened = () => camPart({ angleCuts: [{ id: 'm', kind: 'taper', face: 'thickness', from: 'min', along: 'length', alongFrom: 'min', points: [[29, 0], [30, 0.1]] }] });
+  const R = mm(7.5), r = mm(4), cx = mm(24), bz = 0.375;
+
+  it('ends the bolt band on the cam cylinder in the cam entry view, with no bottom', () => {
+    const v = buildDiagrams(opened(), IMPERIAL).find((x) => x.key === 'thickness|max')!;
+    const s = v.holeSides.find((x) => x.row === 'bolt' && x.index === 0)!;
+    expect(s.bottomAt).toBeNull();
+    // the bolt's mouth is at length 0, running +; its end is cam centre - sqrt(R^2 - r^2)
+    expect(s.h[0]).toBeCloseTo(0, 9);
+    expect(s.h[1]).toBeCloseTo(cx - Math.sqrt(R * R - r * r), 9);
+    // across the bolt's own axis the cam wall is whole
+    expect('gap' in buildDiagrams(opened(), IMPERIAL).find((x) => x.key === 'length|min')!.holeSides[0]!).toBe(false);
+  });
+
+  it('ends the bolt band at R in the width view and opens a gap in the cam band', () => {
+    const v = buildDiagrams(opened(), IMPERIAL).find((x) => x.key === 'width|min')!;
+    const s = v.holeSides.find((x) => x.row === 'bolt' && x.index === 0)!;
+    expect(s.bottomAt).toBeNull();
+    expect(s.h[1]).toBeCloseTo(cx - R, 9);
+    const c = v.holeSides.find((x) => x.row === 'cam' && x.index === 0)!;
+    expect(c.gap!.wall).toBe('hmin');
+    expect(c.gap!.from).toBeCloseTo(bz - r, 9);
+    expect(c.gap!.to).toBeCloseTo(bz + r, 9);
+    expect(c.bottomAt).toBe('vmin');
+  });
+
+  it('leaves a pair-free part unchanged (no gap key, bolt-only band keeps its bottom)', () => {
+    const p = opened();
+    const v = buildDiagrams({ ...p, holes: [p.holes[1]!] }, IMPERIAL).find((x) => x.key === 'width|min')!;
+    expect(v.holeSides[0]!.bottomAt).toBe('hmax');
+    expect('gap' in v.holeSides[0]!).toBe(false);
   });
 });

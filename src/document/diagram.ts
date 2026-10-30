@@ -1,6 +1,7 @@
 import type { AngleCut, BandType, Board, CurveCut, CutFrom, Dimension, HoleRow, ProfileSide, RoundTenon, Span } from './types';
 import { holeInstances, tiltedHole, type Hole } from './holes';
 import { holeLine } from './holeText';
+import { partGeometry } from './bodies';
 import { DIMENSION_ORDER } from './geometry';
 import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
@@ -88,6 +89,12 @@ export interface DiagramHoleSide {
    * Absent for a headless hole.
    */
   head?: { h: Span; v: Span; cone: boolean; mouth: 'hmin' | 'hmax' | 'vmin' | 'vmax' };
+  /**
+   * A paired CAM's band only (cam-and-bolt spec §6.2), in a view whose lateral axis is the bolt's: the wall on the bolt's side
+   * is open across the bolt's opening, `[from, to]` along the cam's axis (clamped to the band). Drawn as two pieces. Absent
+   * for every other band (diagramIdentity).
+   */
+  gap?: { wall: 'hmin' | 'hmax' | 'vmin' | 'vmax'; from: number; to: number };
 }
 
 /** A tilted bore's entry or exit ellipse (DiagramHole's doc): the view draws `hi` horizontal, `vi` vertical. */
@@ -490,20 +497,49 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
       mark(view, r);
     }
   }
+  // A recognised cam pair (cam-and-bolt spec §6.2): the mates come from the cached part geometry, matched by row and index.
+  // Only a part with two rows can hold a pair; every other part never touches partGeometry (diagramIdentity).
+  const mates = new Map<string, NonNullable<Hole['mate']>>();
+  if (board.holes.length > 1) for (const g of partGeometry(board).holes) if (g.mate) mates.set(`${g.row}:${g.index}`, g.mate);
   for (const r of board.holes) for (const h of holeInstances(board, r)) {
+    const mate = mates.get(`${r.id}:${h.index}`);
     for (const view of views.values()) {
       if (view.face === r.face) continue;
       const a = DIMENSION_ORDER.indexOf(r.face);
       const s0 = h.centre[a]!;
       const s1 = s0 + h.dir * h.depth;
-      const axial: Span = [Math.min(s0, s1), Math.max(s0, s1)];
+      let axial: Span = [Math.min(s0, s1), Math.max(s0, s1)];
       const spanOf = (d: Dimension): Span => {
         if (d === r.face) return axial;
         const i = DIMENSION_ORDER.indexOf(d);
         return [h.centre[i]! - h.radius, h.centre[i]! + h.radius];
       };
       const axisIsH = view.horizontal === r.face;
-      const bottomAt = h.through ? null : axisIsH ? (h.dir > 0 ? 'hmax' : 'hmin') : (h.dir > 0 ? 'vmax' : 'vmin');
+      let gap: DiagramHoleSide['gap'];
+      let paired = false;
+      if (mate && !h.head && !tiltedHole(h)) {
+        const lateral = axisIsH ? view.vertical : view.horizontal;
+        const ai = DIMENSION_ORDER.indexOf(mate.axis);
+        if (mate.role === 'cam') {
+          // The bolt's band ends on the cam's cylinder: R in the view across the cam's axis, √(R² − r²) in the cam's entry
+          // view (the wall sits r off the cam's centre line). It has no bottom.
+          const ci = 3 - DIMENSION_ORDER.indexOf(r.face) - ai;
+          const R = mate.radius;
+          const w = lateral === mate.axis ? R : DIMENSION_ORDER[ci] === lateral ? Math.sqrt(Math.max(0, R * R - h.radius * h.radius)) : undefined;
+          if (w !== undefined) {
+            const e = mate.centre[DIMENSION_ORDER.indexOf(r.face)]! - h.dir * w;
+            axial = [Math.min(s0, e), Math.max(s0, e)];
+            paired = true;
+          }
+        } else if (lateral === mate.axis) {
+          // The cam's wall on the bolt's side is open across the bolt's window along the cam's axis.
+          const lo = Math.max(axial[0], mate.centre[a]! - mate.radius);
+          const hi = Math.min(axial[1], mate.centre[a]! + mate.radius);
+          const towardMin = mate.dir > 0;   // the bolt lies on the side it comes from, opposite its direction
+          if (lo < hi) gap = { wall: axisIsH ? (towardMin ? 'vmin' : 'vmax') : (towardMin ? 'hmin' : 'hmax'), from: lo, to: hi };
+        }
+      }
+      const bottomAt = h.through || paired ? null : axisIsH ? (h.dir > 0 ? 'hmax' : 'hmin') : (h.dir > 0 ? 'vmax' : 'vmin');
       if (tiltedHole(h)) {
         const d = DIMENSION_ORDER.indexOf(axisIsH ? view.vertical : view.horizontal);
         const quad = tiltedBand(h, a, d).map(([s, t]) => (axisIsH ? [s, t] : [t, s]) as [number, number]);
@@ -525,7 +561,7 @@ export function buildDiagrams(board: Board, units: Units, bandTypes: readonly Ba
         const mouth = axisIsH ? (h.dir > 0 ? 'hmin' : 'hmax') : (h.dir > 0 ? 'vmin' : 'vmax');
         head = { h: headSpan(view.horizontal), v: headSpan(view.vertical), cone: h.head.kind === 'countersink', mouth };
       }
-      view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt, ...(head ? { head } : {}) });
+      view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt, ...(head ? { head } : {}), ...(gap ? { gap } : {}) });
       mark(view, r);
     }
   }
