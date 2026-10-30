@@ -2,10 +2,7 @@
 
 Run 2026-10-30 (Claude driving the user's Chrome through claude-in-chrome; real clicks and keys for every panel action, results read
 off the page's own store module). Project `Cam-and-bolt check` left in place (dev profile rule): `Shelf` 30 x 11-1/4 x 3/4" with
-Cam locks at both ends and a Cam bolt bore; `Block` 3 x 3 x 3/4" with one Cam lock (min end), at X 40". Originally: the user's own Chrome over the MobaXterm tunnel (`localhost:5199`, real GPU), Claude driving through claude-in-chrome, the user
-watching. Dev server on branch `cam-and-bolt`. A NEW project, left in place afterwards (dev profile rule), holding a 30 x 11-1/4 x
-3/4" shelf and a 30 x 11-1/4 x 3/4" side. Record each step's input (real mouse/keyboard, or a store action) and read results off
-the page's own store module. Spec: `docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md` §8 and its Amended (build)
+Cam locks at both ends and a Cam bolt bore; `Block` 3 x 3 x 3/4" with one Cam lock (min end), at X 40". Dev server on branch `cam-and-bolt` (merged since as `17a434f8`). Spec: `docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md` §8 and its Amended (build)
 block.
 
 | # | Check | Result |

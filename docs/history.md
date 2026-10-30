@@ -7606,7 +7606,7 @@ Plans sheet draws lines only when asked, byte for byte unchanged otherwise. Two 
 measured values; measuring showed round 1's two line hues fail it too (fu 590). Built in ten reviewed tasks plus a whole-branch review; browser
 check 21/21. The user then asked for selectable guides (fu 591), which reverses the "no selection model" decision both rounds kept.
 
-## Selectable guides (2026-10-30, merge `978c48e`, no schema change; not deployed)
+## Selectable guides (2026-10-30, merge `978c48e`, no schema change; deployed with cam-and-bolt as `382d825b`)
 
 The user asked for it at the end of construction lines round 2 and skipped the design questions, so every open call was Claude's, marked
 in the spec. It reverses two decisions both line rounds kept: the Guides list had no selection model, and a line was never a click target
@@ -7619,3 +7619,23 @@ One `visibleGuides` filter feeds every drawing and snapping reader, so a hidden 
 a clear when guides are turned off. The browser check found a guide point on a line nearly unclickable (the line sits at distance ~0 all
 along it); a point in reach now beats any line, the snapping rule. Seven reviewed tasks, a whole-branch review, browser 18/19 plus check 9
 fixed. Residue fu 592–596.
+
+## Cam-and-bolt chunk 1 (2026-10-30, merge `17a434f8`, no schema change; deployed `382d825b`, `index-CLtY_ePc.js`)
+
+Follow-up 568, split out of the counterbores round. The user skipped the design questions ("skip the questions"), so the spec was written
+from fu 568 and a read-only survey of every hole reader, then given a builder check (three questions, all settled as my calls) and approved.
+The choice that shaped the round: a cam and its bolt are recognised by SHAPE (`camBolt.ts` `camPartners`, seven clauses, conservative at
+every boundary) rather than stored, so nothing changed in the schema and an older build merely shows a kept `meets-hole` fault. The
+exemption lives at one site, the `hit` search in `holeFaults`; the stretcher and leg-socket planners opt out of it, and `seatedIn`/`usedRow`
+never take a paired bore. The real cost was geometry: `holeInStock` already ignored meets-hole, so an exempted pair would have drawn the bolt
+through the cam's air. The bolt's wall now ends on an intersection loop computed in closed form, and the cam's wall gets a window
+triangulated in its unrolled plane around the same loop, the numbers bit-identical from both sides, so the mesh is watertight with no
+tolerance (a 949-configuration size sweep found two cracks during the build, both fixed; a faulted pair is not watertight, as no faulted
+hole is: fu 597). Drawings, part diagrams and rims follow the same rule; the cut list prints one `Cam-and-bolt ×N` line per whole pair; a
+Cam lock preset adds both rows (Minifix-style 15 mm cam, 8 mm bolt, the cam depth half the stock plus 4.5 mm, rounded up to 0.5 mm, so the
+bolt clears the cam's floor); editing a pair's station, count or pitch moves both rows. Eleven tasks, each reviewed (fix rounds on the
+recogniser's memo key, the pair line's faults, the preset's both-rows probe and the move tests' exactness), a whole-branch review (nothing
+Critical or Important; posture × turn watertight cases added), and a browser check in the user's Chrome: 12 pass, the Plans lines owed on a
+print, one copy fix (the presets named metric hardware in rounded inches). Twelve build rulings (R1–R12) await approval; R11 (an edit that
+separates the bores is accepted silently) and R12 (the Cam lock on 1/2" stock) are questions for the user. Chunk 2, the joint across two
+parts, stays fu 568.

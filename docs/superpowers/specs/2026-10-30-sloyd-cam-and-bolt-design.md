@@ -378,10 +378,10 @@ Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** R
   the pair rule (§4.3) decided in `Holes.tsx`' `attempt` before it; the refusals are `CAM_PAIR_ALONG` and `CAM_PAIR_PARTIAL`
   (`holeText.ts`); the pair line is `camPairLine`.
 - **`seatedIn` and `usedRow` refuse a row with ANY paired hole** (`camRowIds`), not only a whole pair's.
-- **The bench line's wording** is the builder's (`camPairLine`); the per-row fault words name the cam row on a bolt-row fault (Task 7 fix).
+- **The bench line's wording** is the builder's (`camPairLine`); each fault on the pair line is worded with the row that produced it (Task 7 fix).
 - **The size sweep** (`curvesWatertight.test.ts`) adds two cases beyond §5.1's list: a 6 mm bolt into a 12 mm cam (the loop's sides on column
   lines) and a 5 mm bolt into a deep 35 mm cam entered from below.
 - **Not done, recorded:** the faulted path (fu 597); a bolt past the cam (fu 598); a bolt into the cam's floor (fu 599); hardware from a pair
   (fu 600, ask first); the build's minors (fu 601).
-- **The browser check** (`docs/browser-verification-cam-and-bolt.md`, run 2026-10-30: 12 PASS, 1 PARTIAL — Plans lines by eye on a print; one copy fix) adds to §8's list: a part diagram with a pair,
+- **The browser check** (`docs/browser-verification-cam-and-bolt.md`, run 2026-10-30: 12 PASS, 1 PARTIAL — Plans lines by eye on a print; one copy fix: the Cam lock and Cam bolt bore details now name the metric hardware in mm in an imperial project, as the Hinge cup's `35 mm`, where they had printed `9/16" cam`) adds to §8's list: a part diagram with a pair,
   its width view opened (`PartDiagram.tsx`' gap rendering has no unit test, Task 6).
