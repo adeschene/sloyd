@@ -383,5 +383,5 @@ Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** R
   lines) and a 5 mm bolt into a deep 35 mm cam entered from below.
 - **Not done, recorded:** the faulted path (fu 597); a bolt past the cam (fu 598); a bolt into the cam's floor (fu 599); hardware from a pair
   (fu 600, ask first); the build's minors (fu 601).
-- **The browser check** (`docs/browser-verification-cam-and-bolt.md`, not yet written or run) adds to §8's list: a part diagram with a pair,
+- **The browser check** (`docs/browser-verification-cam-and-bolt.md`, run 2026-10-30: 12 PASS, 1 PARTIAL — Plans lines by eye on a print; one copy fix) adds to §8's list: a part diagram with a pair,
   its width view opened (`PartDiagram.tsx`' gap rendering has no unit test, Task 6).

@@ -146,6 +146,13 @@ describe('the Holes section', () => {
     act(() => useStore.getState().undo());
     expect(rows()).toHaveLength(0);
   });
+  it('names the metric hardware in an imperial project, as the Hinge cup does (browser check 1)', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByText('15 mm cam and 8 mm bolt bore, 24 mm in from the min end')).toBeInTheDocument();
+    expect(screen.getByText('5 mm bore, 12 mm deep, centred on the broad face')).toBeInTheDocument();
+  });
   const dado = (over: Record<string, unknown>) => ({
     id: 'd', face: 'thickness', across: 'width', stopMin: 0, stopMax: 0, ...over,
   }) as Board['cuts'][number];

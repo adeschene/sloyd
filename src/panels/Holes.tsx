@@ -340,11 +340,13 @@ export function Holes({ board }: { board: Board }) {
     ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => add([cup]) }] : []),
     ...(fits(sunk) ? [{ label: 'Countersunk screw', detail: screwDetail('sink', sunk), run: () => add([sunk]) }] : []),
     ...(fits(bored) ? [{ label: 'Counterbored screw', detail: screwDetail('bore', bored), run: () => add([bored]) }] : []),
+    // The fitting is metric hardware in both unit systems (cam-and-bolt spec §4.1), so its sizes are named in mm, as the
+    // Hinge cup's 35 mm is (browser check 1: an imperial project read "9/16" cam").
     ...camLocks.flatMap(({ e, pair }) => (fitsAll(pair)
       ? [{ label: `Cam lock, ${e} ${end('length')}`, run: () => add(pair),
-        detail: `${holeLengthText(pair[0].diameter, units, 'diameter')} cam and ${holeLengthText(pair[1].diameter, units, 'diameter')} bolt bore, ${holeLengthText(pair[0].inset, units, 'diameter')} in from the ${e} ${end('length')}` }]
+        detail: `15 mm cam and 8 mm bolt bore, 24 mm in from the ${e} ${end('length')}` }]
       : [])),
-    ...(fits(camBore) ? [{ label: 'Cam bolt bore', detail: `${holeLengthText(camBore.diameter, units, 'diameter')} bore, ${holeLengthText(camBore.depth as number, units, 'diameter')} deep, centred on the broad face`, run: () => add([camBore]) }] : []),
+    ...(fits(camBore) ? [{ label: 'Cam bolt bore', detail: '5 mm bore, 12 mm deep, centred on the broad face', run: () => add([camBore]) }] : []),
   ];
   return (
     <>
