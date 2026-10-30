@@ -6,7 +6,7 @@ import { EditLock } from './EditLock';
 /**
  * Guides as a footer of the side panel (ui-polish spec §4.5): a count, closed
  * by default, opening ITSELF when the count goes up (a guide was placed — or an
- * undo brought one back). It never closes by itself. Open/closed is view state
+ * undo brought one back) or when a guide becomes selected (fu 591). It never closes by itself. Open/closed is view state
  * local to this component: not in the document, the store, undo or storage.
  *
  * "Goes up" is judged against the count at MOUNT. App keys this component by
@@ -22,6 +22,11 @@ export function GuidesFooter() {
     if (count > last.current) setOpen(true);
     last.current = count;
   }, [count]);
+  // A guide selected (a viewport pick, a Select all) opens the list so the row shows (fu 591); still never closes itself.
+  const anySelected = useStore((s) => s.selectedGuideIds.length > 0);
+  useEffect(() => {
+    if (anySelected) setOpen(true);
+  }, [anySelected]);
 
   return (
     <section className={open ? 'panel panel-guides open' : 'panel panel-guides'}>

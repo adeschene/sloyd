@@ -1729,4 +1729,33 @@ describe('Add board focuses Length once (fu 2)', () => {
     act(() => useStore.getState().selectBoard(first));
     expect(document.activeElement).not.toBe(screen.getByLabelText('Length'));
   });
+
+describe('Properties with guides selected (fu 591)', () => {
+  const guides = () => {
+    useStore.getState().addGuide([1, 0, 0]);
+    useStore.getState().addGuide([2, 0, 0]);
+    return useStore.getState().doc.guides.map((g) => g.id);
+  };
+
+  it('says what Delete and H do for one guide', () => {
+    const [a] = guides();
+    act(() => useStore.getState().selectGuide(a!, false));
+    render(<Properties />);
+    expect(screen.getByText('1 guide selected \u2014 Delete removes it, H hides it.')).toBeInTheDocument();
+  });
+
+  it('and for two', () => {
+    const [a, b] = guides();
+    act(() => { useStore.getState().selectGuide(a!, false); useStore.getState().selectGuide(b!, true); });
+    render(<Properties />);
+    expect(screen.getByText('2 guides selected \u2014 Delete removes them, H hides them.')).toBeInTheDocument();
+  });
+
+  it('with nothing selected shows only the usual line', () => {
+    guides();
+    render(<Properties />);
+    expect(screen.getByText('Select a part to edit it.')).toBeInTheDocument();
+    expect(screen.queryByText(/guides? selected/)).toBeNull();
+  });
+});
 });

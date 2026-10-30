@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GuidesList } from './GuidesList';
 import { useStore } from '../store/store';
@@ -152,5 +152,59 @@ describe('GuidesList editing (construction-lines-2 spec §5)', () => {
     useStore.getState().replaceDocument({ ...createDocument('T'), guides: [{ id: 'r', at: [1, 2, 3], to: [4, 5, 6] }, { id: 'p', at: [1, 2, 3] }] });
     render(<GuidesList />);
     expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+  });
+
+  describe('selection (fu 591)', () => {
+    const two = () => {
+      useStore.getState().addGuideLine({ at: [0, 12, 3.5], axis: 'x' });
+      useStore.getState().addGuideLine({ at: [0, 14, 3.5], axis: 'z' });
+      return useStore.getState().doc.guides.map((g) => g.id);
+    };
+    const selectBtn = (text: string) => screen.getByRole('button', { name: text });
+
+    it('the row text is a toggle button that selects its guide', async () => {
+      const [a] = two();
+      render(<GuidesList />);
+      const btn = selectBtn('Line along X');
+      expect(btn).toHaveAttribute('aria-pressed', 'false');
+      await userEvent.click(btn);
+      expect(useStore.getState().selectedGuideIds).toEqual([a]);
+      expect(btn).toHaveAttribute('aria-pressed', 'true');
+      expect(btn.closest('li')).toHaveClass('selected');
+    });
+
+    it('Shift-click toggles a second guide in', async () => {
+      const [a, b] = two();
+      render(<GuidesList />);
+      await userEvent.click(selectBtn('Line along X'));
+      fireEvent.click(selectBtn('Line along Z'), { shiftKey: true });
+      expect(useStore.getState().selectedGuideIds).toEqual([a, b]);
+    });
+
+    it('typing in a field and clicking x leave the selection alone', async () => {
+      const [a, b] = two();
+      render(<GuidesList />);
+      await userEvent.click(selectBtn('Line along X'));
+      await userEvent.clear(field('Y'));
+      await userEvent.type(field('Y'), '13{Enter}');
+      expect(useStore.getState().selectedGuideIds).toEqual([a]);
+      await userEvent.click(screen.getByRole('button', { name: /^Remove line along Z/ }));
+      expect(useStore.getState().selectedGuideIds).toEqual([a]);
+      expect(b).toBeDefined();
+    });
+
+    it('the eye hides a guide: the row is hidden and its select button disabled', async () => {
+      const [a] = two();
+      render(<GuidesList />);
+      await userEvent.click(selectBtn('Line along X'));
+      await userEvent.click(screen.getByRole('button', { name: 'Hide Line along X' }));
+      expect(useStore.getState().hiddenGuideIds).toEqual([a]);
+      expect(useStore.getState().selectedGuideIds).toEqual([]);
+      const btn = selectBtn('Line along X');
+      expect(btn).toBeDisabled();
+      expect(btn.closest('li')).toHaveClass('hidden');
+      await userEvent.click(screen.getByRole('button', { name: 'Show Line along X' }));
+      expect(useStore.getState().hiddenGuideIds).toEqual([]);
+    });
   });
 });

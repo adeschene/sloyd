@@ -664,6 +664,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
     return p !== null && isShaped(p) ? p.mirrored === true : null;
   });
   const lengthRef = useRef<HTMLInputElement>(null);
+  const guidesSelected = useStore((s) => s.selectedGuideIds.length);
   // The last Add stretcher's link notes (spec §4): the Add selects the new rung, which unmounts the multi-selection panel
   // that made it, so they are held here and shown in the rung's own panel while it is selected and the document is the
   // one the Add made (another selection, an edit or an undo retires them).
@@ -689,6 +690,13 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
   if (!board) return (
     <>
       <p className="empty">Select a part to edit it.</p>
+      {guidesSelected > 0 && (
+        <p className="empty">
+          {guidesSelected === 1
+            ? '1 guide selected \u2014 Delete removes it, H hides it.'
+            : `${guidesSelected} guides selected \u2014 Delete removes them, H hides them.`}
+        </p>
+      )}
       {/* Spec §5.1: the project's hardware, or the OPEN assembly's own (an open assembly cannot be selected from inside). */}
       {openPath && openName !== null
         ? <Hardware key={openPath} target={{ kind: 'assembly', path: openPath }} heading={`${openName} hardware`} onNewHardwareType={newHardware} />

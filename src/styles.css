@@ -841,12 +841,43 @@ button[aria-pressed='true'] {
   border-left-color: var(--rule);
 }
 
+/* The selected row matches .part.selected (fu 591). */
+.guides li.selected,
+.guides li.selected:hover {
+  background: var(--raised-2);
+  border-left-color: var(--accent);
+}
+
 .guide-coords {
   flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
   font-family: var(--font-num);
   font-size: 12px;
   color: var(--ink-dim);
+  cursor: pointer;
 }
+
+.guides li.selected .guide-coords { color: var(--ink); font-weight: 600; }
+.guides li.hidden .guide-coords { opacity: 0.45; cursor: default; }
+
+.guide-eye {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.guide-eye:hover { color: var(--ink); }
 
 /* A bare icon button, right-aligned in its row — no border or fill of its
    own, since a rule per guide would out-noise the list it sits in. */
