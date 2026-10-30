@@ -137,7 +137,7 @@ export function TapeReadout() {
     // actions enumerated at `tapeHover`'s declaration in store.ts (invariant
     // 24's third instance). Read it rather than asserting it.
     if (!from) return;
-    // Locked with nothing typed is a LINE (construction-lines spec §3.2). A duplicate is a no-op that keeps the
+    // Nothing typed is a LINE (construction-lines spec §3.2), under an axis lock or with no axis and a hover. A duplicate is a no-op that keeps the
     // anchor and axis (plan A1): the hint, derived in render, says why nothing happened.
     const line = tapeLineFor(from.at, store.tapeAxis, text, store.tapeHover?.at ?? null);
     if (line) {
