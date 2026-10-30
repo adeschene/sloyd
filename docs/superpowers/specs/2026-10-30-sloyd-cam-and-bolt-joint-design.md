@@ -195,7 +195,8 @@ two-part cam-and-bolt planner; every B bore is `boreRow`'s and coaxial with its 
 stored.** `docs/module-map.md` (the two new files, `holesZoneRefusal`'s move), `docs/follow-ups.md` (fu 568 narrowed to the
 non-goals; new numbers for Fit again, dowels, the B-bore recogniser), `docs/rounds.md`, a browser check
 `docs/browser-verification-cam-and-bolt-joint.md` (the joint added on a shelf between two sides, imperial and metric, a
-turned B, a linked shelf pair reusing its rows, undo, a refusal shown).
+turned B, a linked shelf pair reusing its rows, undo, a refusal shown; and, riding along, fu 590's new snap-marker hues live on
+pine, walnut and plywood, after which `SnapMarker.tsx`' "owed the same live look" sentence is updated).
 
 ## 6. Tests (the builder's, at least)
 
