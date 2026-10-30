@@ -137,6 +137,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       point-precise. Deleting the former or adding one for the latter breaks behaviour that
       only the "keeps" tests catch.
     - The enumeration lives only at `tapeHover`'s declaration in `store.ts`; never restate it.
+    - **A guide-owned point may be a line CROSSING** (construction lines, schema 31): `SnapOwner` is `{ type: 'guide'; id; cross? }`, `cross`
+      present only on a crossing (`id` the first line in array order, `cross` the second), and a slid point on one line is owned by that line
+      alone. "Owned by guide G" is `ownedByGuide` (`id === G || cross === G`), never `owner.id === G` alone: `removeGuide`'s anchor and
+      hover clauses use it, so removing either line of a held crossing drops it and removing a third line leaves it. `sameSnapPoint` compares
+      `cross` too. Lines never move, so removal is the only way a line leaves a held point stale; no new held field.
     - **A lean edit moves the world under a held point** (splayed legs, inv 57): `setLean` and `levelEnds` end in `judgeHeld()`, the
       same point-precise path a resize takes (`updateBoards`), because a leaning part's snap points are its lean-mapped lattice. No
       board-precise tape clause was added for it.
@@ -146,6 +151,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     through `moveGroupTo`; an inner item placed from the FIRST item's max, never a running position), and stretch (inv 64:
     `δ` computed once and added to every number past the line, in imperial and metric alike). Round what a free drag
     produced, nothing else.
+    **Construction lines (schema 31) add two entries:** a line CROSSING is exact (`lineCrossings`: the two lines agree on the third axis by `===`,
+    every value read straight from a stored coordinate, no epsilon, no arithmetic), and a point SLID along a line (`pickOnLine`) rounds only its
+    coordinate ALONG the line, through `snapToGrid` (1/16" or 1 mm), the other two staying the line's own, exact; a Move to a slid target moves by
+    the exact delta to that rounded point. A line itself is placed exactly (`tapeLineFor`/`canonicalLine`, `at[axis] = 0`).
     **A free drag of a LEANING part rounds the drag DELTA, never a corner** (`dragTarget`, Gizmo.tsx; splayed legs §6.2, inv 57): its
     pre-lean corner is off-grid after Level the ends, and its real-bounds corner would move the seat joint. A snap onto a leaning
     part's point moves the moving part by an exact world delta, unrounded, as before.
@@ -184,7 +193,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     container; definition and shape ids per document; cut ids per board (per shape for a
     shape), and so angle-cut, hole, curve, round-tenon (schema 24, inv 58) and dovetail ids (schema 26, inv 62); profile ids share the part's CURVE scope (curves validated first), so the
     geometry view never holds two curves with one id. Band type ids per document (one `seen` set; the built-in's id fixed);
-    bands carry no id (keyed by side); saved-view ids per document (one `seen` set, `validateViews`). `/` in an id is re-minted. A guide with no id is dropped. References
+    bands carry no id (keyed by side); saved-view ids per document (one `seen` set, `validateViews`). `/` in an id is re-minted. A guide with no id is dropped. A construction line (schema 31) is a guide, so a line and a point share the one `guides` scope (one `seen` set, `validateGuides`); a duplicate line is kept by content and its id re-minted. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
     at a board by id breaks the single-pass repair. **`views[].hidden` is exempt: it is a hint, never a reference** — load never

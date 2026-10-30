@@ -62,7 +62,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 |---|---|---|
 | Parametric resize | Fusion users praise resizing a piece and having parts follow | DEPLOYED 2026-10-29 (`e09003b`, `index-B7bX5cuX.js`) (no schema change, inv 64: "stretch", not stored constraints — the assembly and multi-selection panels' Overall size section: type a new width, height or depth, place the stretch line (the middle by default), see what grows, moves and stays, and Stretch; the min side fixed, everything past the line moves exactly, spanning parts grow and their features follow their side or refuse; one undo entry); residue fu 545–555 |
 | Align / distribute | Equal shelf spacing etc.; copy in a row covers part of it | DEPLOYED 2026-10-28 (`cf911cc`, `index-5OtJpPqw.js`) (no schema change: the multi-selection panel's Align section — align left/centre/right, bottom/middle/top, back/centre/front to the part selected first; Space evenly along X/Y/Z with the outer two fixed; exact, one undo entry); residue fu 534–537 |
-| Construction lines | fu 130 — ask before assuming it's wanted; needs real hardware (26a) | open |
+| Construction lines | fu 130 — ask before assuming it's wanted; needs real hardware (26a) | merged (construction lines, schema 31); update at deploy; residue fu 578–582 |
 
 ## Sources
 

@@ -435,3 +435,32 @@ and tested); where in each tool's pointer handler the ray is built.
 8. A slid point rounds its along-line coordinate to the drag grid (§4.1).
 9. Lines are hidden behind parts (depth-tested), pending your eye (§5).
 10. Lines are colour-coded by axis (§5).
+
+---
+
+## Amended (plan and build)
+
+Decisions made after this spec was approved. Where one contradicts the text above, this block governs.
+
+- **A1 (§3.3, duplicate line; plan).** The spec says a duplicate clears the anchor and shows a
+  `'duplicate-line'` error. But `TapeReadout` renders nothing once the anchor clears, so that
+  hint could never be seen, and App's Enter path has no error channel at all. Instead: a
+  duplicate is a no-op that **keeps** the anchor and axis. The hint is DERIVED, not an error
+  state: while locked with nothing typed, the readout computes `tapeLineFor(...)`. If an
+  equal line already exists it reads `Along X — that line is already there; type a
+  distance`. There is no `'duplicate-line'` `TapeError`. Both Enter sites behave the same.
+- **A2 (§5, explode; plan).** `GuideMarkers` is mounted only when `showGuides && explode === 0`.
+  Lines use the same condition, so they are hidden while exploded rather than drawn
+  unmoved. Save image draws guide markers (they are not gated on `clean`), so it draws lines
+  too.
+- **B1 (§4.1, past the drawn end; build).** A cursor past a line's drawn end (`±SCENE_EXTENT`)
+  offers no slide point: `pickOnLine` returns null rather than clamping the point onto the
+  end.
+- **B2 (§6, the Guides list; build).** The list prints coordinates through `formatLength`
+  (`3-1/2"`), not the hand-typed `3 1/2"` the spec shows.
+- **B3 (§5, drawing; build).** Each construction line is its own drei `Line`, not one batched
+  `LineSegments`. An X or Z line at exactly `y = 0` is lifted by `OriginAxes`' `GROUND_LIFT`,
+  for display only, so it wins the depth test against the grid.
+- **B4 (§5, hues; build).** `SNAP_COLORS` picks `line` `#4a86b8` and `line-cross` `#3a4a8c`;
+  a placed line's opacity is 0.55 and the preview's 0.9. These are the builder's values, owed
+  to the user by eye.

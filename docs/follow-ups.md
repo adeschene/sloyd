@@ -2718,6 +2718,7 @@ The rest of §9, each looked at and deferred with a reason:
   a **visual** — something to sight along and to snap other things to at positions nobody
   typed. The browser pass found the no-line state reads as *waiting* rather than *broken*,
   which is the evidence that this item is still a want rather than a gap.
+  **Status:** shipped by the construction-lines round (2026-10-29; schema 31, merged, deploy pending): axis-parallel lines placed with Tape + axis lock + Enter, drawn `±SCENE_EXTENT`, snapped along and at crossings, listed and removed from the Guides list. The residue is 578–582 below.
 - **Moving or editing an existing guide.** Delete and re-place. A guide is two clicks to
   create; a drag-to-reposition gesture would need its own tool mode, its own gates and a
   decision about undo coalescing. A guide also has **no name** and no rename field — its
@@ -8315,7 +8316,7 @@ stretch the preview reads as `48" → 48"`).
 Properties for any solid long-grain part, so the cut list prints the strips (a setup line) for board-foot hardwood too, and Buying packs
 the user's strips instead of deriving them. Costs schema 30 (a build at 29 drops the key and autosaves the loss).
 **Status:** open (ask first).
-**Status:** open (ask first); 2026-10-29: counterbores takes schema 30, so a stored glue-up would now cost schema 31 (the harm argument is the same, against a build at 30).
+**Status:** open (ask first); 2026-10-29: counterbores takes schema 30, so a stored glue-up would now cost schema 31 (construction lines then took 31: schema 32 now) (the harm argument is the same, against a build at 30).
 
 **557. Glue-ups: typed allowances (spec §9).** `GLUE_WIDTH_ALLOWANCE` (1/8") and `GLUE_LENGTH_ALLOWANCE` (1") are constants; a shop
 setting or the document's `stock` would make them typed (a metric shop may want 3 mm and 25 mm).
@@ -8426,3 +8427,18 @@ and noted) draws one radius-R ring in air past the exit face (inv 16); the mesh,
 head's far ring to the hole's depth and test that every rim point lies within the stock. Faulted parts only. (2) `PartDiagram.tsx`'s skip of
 zero-length bore walls (a head that outruns a through bore) has no line-count test, so the guard could regress unnoticed (cosmetic).
 **Status:** open (record-only).
+
+**578. Construction lines: oblique lines (feature-sized).** Only the three world axes. A line along a leaning leg or between two arbitrary points needs a direction stored on the guide, a general crossing test (skew lines do not meet), and `pickOnLine` without the axis shortcut. Construction-lines spec non-goals.
+**Status:** open (feature; ask first).
+
+**579. Construction lines: a line at a typed offset in one gesture.** Today it takes two steps: place a guide point at the offset, then anchor on it and place the line. Construction-lines spec non-goals.
+**Status:** open (feature; ask first).
+
+**580. Construction lines: moving or editing a line.** Delete it and place it again, as fu 130 rules for guide points. Construction-lines spec non-goals.
+**Status:** open (feature; ask first).
+
+**581. Construction lines: a line meeting a part's face as a snap point.** Line-meets-face is not offered; only line-line crossings are (`lineCrossings`). Construction-lines spec non-goals.
+**Status:** open (feature; ask first).
+
+**582. Construction lines: lines on the Plans sheet.** Lines appear in the viewport only, not on Plans, the part diagrams, the cut list or the labels. Construction-lines spec non-goals.
+**Status:** open (feature; ask first).
