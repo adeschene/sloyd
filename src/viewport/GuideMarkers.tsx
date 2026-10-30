@@ -26,12 +26,13 @@ import { SnapMarker } from './SnapMarker';
  * SELECTED guide point is drawn emphasised by the same mechanism a hover uses: a full-size marker over its resting one
  * (spec §6), so a selected point reads exactly as a hovered one does.
  */
-export function GuideMarkers() {
+export function GuideMarkers({ emphasise }: { emphasise: boolean }) {
   const guides = useStore((s) => s.doc.guides);
   const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
   const selectedGuideIds = useStore((s) => s.selectedGuideIds);
   const points = useMemo(() => guideSnapPoints(visibleGuides(guides, hiddenGuideIds)), [guides, hiddenGuideIds]);
-  const selected = useMemo(() => new Set(selectedGuideIds), [selectedGuideIds]);
+  // None in the capture's clean frame (`emphasise` false): a selected look is chrome, as a part's is.
+  const selected = useMemo(() => new Set(emphasise ? selectedGuideIds : []), [emphasise, selectedGuideIds]);
   return (
     <>
       {points.map((p) => (

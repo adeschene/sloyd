@@ -114,12 +114,13 @@ export function ConstructionLine({ line, preview, selected }: { line: NewLine; p
  * Every construction line in the document that is not HIDDEN, drawn whenever guides are shown (hidden: through
  * `visibleGuides`, in the memo, never a selector; selectable-guides spec §3.5). A selected one is drawn emphasised.
  */
-export function GuideLines() {
+export function GuideLines({ emphasise }: { emphasise: boolean }) {
   const guides = useStore((s) => s.doc.guides);
   const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
   const selectedGuideIds = useStore((s) => s.selectedGuideIds);
   const lines = useMemo(() => visibleGuides(guides, hiddenGuideIds).filter(isAnyLine), [guides, hiddenGuideIds]);
-  const selected = useMemo(() => new Set(selectedGuideIds), [selectedGuideIds]);
+  // None in the capture's clean frame (`emphasise` false): a selected look is chrome, as a part's is.
+  const selected = useMemo(() => new Set(emphasise ? selectedGuideIds : []), [emphasise, selectedGuideIds]);
   return (
     <>
       {lines.map((g) => (
