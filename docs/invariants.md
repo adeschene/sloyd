@@ -910,6 +910,32 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     head's depth from the mouth** (`storableRow` checks the head after the change). **A headed row is never a socket** (`isSocketOf`,
     `staleSocketOf`) **and never seats a tenon** (inv 58). Generate's design schema is byte for byte unchanged and no head reaches the model
     (inv 56).
+    **A CAM PAIR (cam-and-bolt chunk 1, NO schema change; spec `2026-10-30-sloyd-cam-and-bolt-design.md` and its *Amended (build)*
+    block): a blind face bore (the cam) and a blind edge bore (the bolt) in one part that meet on purpose.** **`camBolt.ts` is the ONE
+    recogniser** (`camPartners(holes)`, on `Hole` instances, so count and pitch line up hole for hole; `camRole`, `camPairRows` (WHOLE
+    pairs of rows), `camRowIds` (rows with ANY paired hole, memoised on the `holes` array AND the board's three dimensions — a resize
+    keeping the array must not return a stale set), `withMates`): recognised by SHAPE, nothing stored. Spec §3.1's seven clauses (both
+    square, headless and blind; perpendicular; the bolt's axis through the cam's to `HOLE_EPS`; the bolt's section STRICTLY inside the cam's
+    depth, never its floor or mouth plane; the bolt narrower; the bolt's whole bottom disc in the cam's air and its mouth outside it; one to
+    one), every comparison CONSERVATIVE: a borderline pair is NOT a pair, so it stays a `meets-hole` fault. **The exemption has ONE site**,
+    `holeFaults`' meets-hole search, which skips the partner and KEEPS SEARCHING (a third bore meeting either still faults); every other
+    rule judges each bore as before. An edit that breaks a pair ADDS a fault and is refused; a resize that unpairs one KEEPS the fault and
+    notes it. **Planners never take the exemption** (`holeFaults(…, { camPairs: false })`: Bore leg sockets here, and stretchers, inv 60).
+    `partGeometry` attaches each paired hole's partner as `Hole.mate` (`withMates`; an unpaired hole has NO `mate` key and is byte for
+    byte as before); the partner's geometry is in the frozen `Hole`, so the per-hole memo cannot outlive a change to it. **The mesh is one
+    void**: the bolt's wall runs from its mouth ring to the intersection loop (`camLoop`, closed form, index-aligned with the mouth ring)
+    with no bottom; the cam's wall has a window triangulated in its unrolled plane with the loop as a hole; the loop's values are
+    BIT-IDENTICAL from both sides (`camLoop(mateHole(cam))` is `camLoop(bolt)`, `Object.is`), so a CLEAN pair is watertight with no
+    tolerance (`curvesWatertight.test.ts`: plain, curved, mirrored, beside a counterbore, two size-sweep cases). The FAULTED (clip) path is
+    not watertight, as no faulted hole's is (fu 597). `holeRims` draws the bolt's mouth and loop, never a bottom; drawings end the bolt's
+    silhouettes on the cam and break the cam's generator over the window, the loop drawn in every view (`holeDrawing.ts`); part diagrams
+    end the bolt band on the cam's circle (`DiagramHoleSide.gap`). **Text:** a WHOLE pair prints ONE bench and cut-list line
+    (`camPairLine`, metric depths at 0.1 mm); a partly paired row prints its own line; the Plans sheet keeps one key per ROW; `HOLE_FIELDS`
+    untouched. **Editing:** a pair member's `along` cannot change (`CAM_PAIR_ALONG`); an `alongFrom`/`station`/`count`/`pitch` edit on a
+    whole pair copies all four onto the partner in ONE `updateHoleRows` edit, judged as a pair, or refuses (`CAM_PAIR_PARTIAL`). Presets:
+    Cam lock (`defaultCamLock`, two rows, one undo entry, withheld by the faults; null on a part whose broad face is `length`) and Cam bolt
+    bore (`defaultCamBoltBore`, an ordinary row). Level the ends, stretch and `rebaseHoles` never split a pair (pinned: the cam centre minus
+    the bolt's BOTTOM centre per pair, exactly). Refine carries both rows exactly when untouched; a pair is not `keptWhole`.
 
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
     where `explode` is (initial state, `replaceDocument`).** A saved view STORES a copy of the section in `doc.views`; the live section stays view state. One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
@@ -1418,6 +1444,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       mismatch hint.
     **A headed bore seats nothing (counterbores, schema 30):** `seatedIn` requires a headless row and `isSocketOf`/`staleSocketOf` skip a headed
     one — conservative, it can only report a part as unsupported, never grant support. Stretchers inherit both.
+    **A cam-pair bore seats nothing (cam-and-bolt, no schema change):** `seatedIn` refuses a row with ANY paired hole (`camRowIds`, inv 50),
+    and stretchers' `usedRow` skips one — conservative, as the headed bore; `staleTenonOf`, `holderOf` and the stretchers inherit it.
 
 59. **A lean may be SQUARE-SET, and a square-set leg's level ends are COMPOUND miters** (splayed legs chunk 2c, schema 25; spec
     `2026-10-25-sloyd-square-set-legs-design.md` and its *Amended (build)* block). A square-set leg is tilted onto its slopes and
@@ -1532,6 +1560,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       any `holeFaults` fault (THE decider, inv 50) refuses the WHOLE action, naming the leg (`<Leg>'s socket would <words> —
       choose a different height, or a smaller tenon.`, `socketFaultWords`) — unlike Bore leg sockets, which bores the rest. The
       second leg is judged on a trial document holding the first socket (two legs on one Shape carry both).
+      **Planner sockets are checked WITHOUT the cam-pair exemption** (cam-and-bolt §6.4: `holeFaults(…, { camPairs: false })` in Add
+      stretcher and Fit the stretcher again, as in Bore leg sockets, inv 50): a socket that would form a cam pair is a `meets-hole` socket
+      fault, refused, and `defaultHeight`'s stepping steps over it. A planner never relies on the exemption.
     - **Add stretcher** (`stretcherPlan(doc, legIds, { height, size, diameter })`, the store's `addStretcher`): every refusal is
       decided before `edit()`, in this order: a height, rung size or tenon diameter not finite and more than zero (`A
       stretcher's height, rung size and tenon diameter must be more than zero.`; the loader would drop such a socket), a leg

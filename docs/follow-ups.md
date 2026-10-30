@@ -8374,6 +8374,12 @@ search alone would find the $12 board.
 and the dowel or bolt bore in the mating part: a `meets-hole` exemption for a recognised pair (perpendicular, the edge bore's axis through the
 face bore), its own preset and bench line, and possibly hardware counted from it (fu 404). Counterbores spec §12.
 **Status:** open (feature; needs a spec).
+**Status:** narrowed 2026-10-30: chunk 1 (the pair in ONE part: the recogniser `camBolt.ts`, the one `meets-hole` exemption, the mesh,
+drawings, diagrams, the bench line, the Cam lock and Cam bolt bore presets, pair edits; no schema change; spec
+`docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md`) is BUILT on branch `cam-and-bolt` (`c87433d..6db3f03d` + the records),
+not merged, not deployed. What remains of 568 is **chunk 2, the two-part joint planner** (spec §11): with A's end butting B's face, lay out N
+fittings — the cam and bolt rows in A, the bolt's bore in B coaxial with A's bolt bore — in one undo entry, every refusal before `edit()`;
+possibly dowels beside each and a Fit again. Its own spec. Hardware from a pair is fu 600.
 
 **569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
 both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every
@@ -8533,3 +8539,54 @@ that misleads for a line the user cannot see; refusing is right (lines stay uniq
 `openAssembly` re-asserts only an EMPTY part selection, which keeps the guides (inv 42; spec §3.2, as specified). (`closeAssembly` selects the
 assembly it leaves, a non-empty part write, so leaving does clear it.) The user may rule otherwise (clear it on entering too).
 **Status:** open (a ruling for the user; record-only until then).
+
+## From the cam-and-bolt round (fu 568 chunk 1) — 2026-10-30
+
+**597. Faulted holes' meshes are not watertight, a cam pair's included (build ruling, Task 4).** The clean path is watertight (inv 50; every
+cam pair case in `curvesWatertight.test.ts`), but the FAULTED (clip) path never has been for any hole: a lone faulted pin measures 12–214
+unmatched edges today, and the watertight guard has only ever covered clean holes. A cam pair on that path measures more: a dado through a
+cam 1013 unmatched edges, a part thinned until the pair unpairs 820. Lone faulted rows measure about 541 in the same dado setting; the
+excess of the pair's 1013 is unexplained. Both pair cases are `it.todo` in `curvesWatertight.test.ts` with these counts. Cost: a crack
+visible only on a part already flagged faulted. Cam-and-bolt spec *Amended (build)*.
+**Status:** open (record-only; a fix would cover every faulted hole, not only pairs).
+
+**598. Cam-and-bolt: a bolt bore past the cam.** A bolt bore drilled on past the cam's axis into the wood beyond (or a through drill from the
+edge) is not a pair: clause 6 needs the bolt's whole bottom disc in the cam's air (cam-and-bolt spec §3.1), so it stays `meets-hole`.
+Recognising it would need a second intersection loop (the bolt leaving the cam) and a bolt wall on both sides of the window.
+**Status:** open (feature; record-only until a real fitting needs it).
+
+**599. Cam-and-bolt: a bolt bore into the cam's floor (real hardware's quoted depth).** Häfele lists a 13.5 mm cam depth for 19 mm board. With
+the bolt at mid-thickness (8 mm, 9.525 mm from the face) its section reaches 13.525 mm, so it meets the cam's FLOOR (near tangent), which clause
+4 refuses: the bolt's section must lie strictly inside the cam's depth. The Cam lock preset uses `t/2 + 4 mm + 0.5 mm` rounded up to 0.5 mm
+(14.5 mm) for this reason (spec §4.1); a user typing the catalogue depth gets `meets-hole`. Allowing it needs the loop to meet the floor
+disc as well as the wall (a second window, in the floor).
+**Status:** open (feature).
+
+**600. Cam-and-bolt: hardware counted from a pair (ask first, inv 55).** A pair could add its cam, bolt and (chunk 2) the bolt's insert to the
+hardware list. Inv 55 says hardware is TYPED, never derived from holes, so this changes a rule.
+**Status:** open (feature; ask first).
+
+**601. Cam-and-bolt: the build's deferred minors (the SDD ledger, by task).**
+- Task 1 (recogniser): the clause 2 and clause 5 tests cannot fail on their own (the guards are implied by clauses 4 and 6) — say so in a
+  comment; no test of `camPairRows`/`camRowIds`' partial branches (different counts; a cam pairing two bolt rows); no test pins `HOLE_EPS`'s
+  value; `camRole`'s doc should say it returns `'bolt'` for any non-cam input.
+- Task 2 (the exemption): the stretchers test asserts only the final sentence, so the `camPairs: false` path is pinned indirectly; a duplicate
+  import line from `./holes` in `holeFaults.test.ts`.
+- Task 3 (mate, loop, rims): the chiral/posture half of "mirrored and turned parts keep the pair" cannot fail (`camPart` overwrites
+  `chiralPart`; posture never reaches holes) — delete it or replace it with `mirrorPart` per posture; `camLoop`'s precondition
+  (`mate.role === 'cam'`) is undocumented; `Hole.mate`'s doc could name `geometryKey` as why the memo is safe.
+- Task 4 (mesh): **the window's winding (`ccw`) is computed from the BOWED 2D coordinates (`grainTiling.ts` ~1112); compute it from the
+  unbowed ones (the reviewer suggested doing this before merge)**; the dado "loop seam still closed" test checks only the unclipped loop
+  edges — rename it (fu 597); "no wall in air" samples one point per triangle — add edge midpoints; `facing(...)!` (~1108) would mis-wind
+  silently on a degenerate sense — assert, or fall back to the band.
+- Task 5 (drawings): no oblique-view numeric check of the bolt's end and the cam's gap; no turned or mirrored drawing case; the cam row is not
+  asserted under `visibleOnly`.
+- Task 6 (diagrams): no max-side (`dir` −1) bolt case; the `row:index` match to `holeInstances` is not pinned by a comment or test;
+  `PartDiagram.tsx`'s gap rendering has no unit test (in the browser check).
+- Task 7 (text): the metric branch of `camPairLine` rebuilds the size text by hand and drops `holeHeadText` (unreachable: paired rows are
+  headless by clause 1), and uses the `'diameter'` kind for a depth — a comment or a helper; both panel rows show the same pair line and
+  `camPairRows` is scanned per row per render; the per-row fault wording has no regression test.
+- Task 8 (presets): the Cam lock's detail string is built inline in `Holes.tsx` (as the other presets' are).
+- Task 9 (pair edits): the partner's copy is not retilted (paired rows are square; comment it); `updateHoleRows` has no test for a stale
+  partner id or a two-row zone refusal.
+**Status:** open (record-only; the Task 4 winding item is flagged for the whole-branch review).
