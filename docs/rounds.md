@@ -12,7 +12,8 @@ Newest first; update with every deploy (CLAUDE.md keeps only the nearest refusin
 
 | Roll back to | Bundle | Schema | Cost |
 |---|---|---|---|
-| `382d825b` (selectable guides fu 591 + cam-and-bolt chunk 1, fu 568) | `index-CLtY_ePc.js` (CSS `index-uaGQ0UmW.css`) | 32 | current |
+| `581edd32` (cam-and-bolt rulings R11, R12) | `index-Ca69eV2i.js` (CSS `index-uaGQ0UmW.css`) | 32 | current |
+| `382d825b` (selectable guides fu 591 + cam-and-bolt chunk 1, fu 568) | `index-CLtY_ePc.js` (CSS `index-uaGQ0UmW.css`) | 32 | free (no schema change); a separating pair edit is accepted again, the Cam lock offered on 1/2" stock |
 | `9c3b57b` (construction lines round 2, fu 578–582) | `index-ByMH6Ibb.js` (CSS `index-hpMeTFi2.css`) | 32 | free (no schema change); guides are no longer selectable, a cam pair reads as two meeting holes (kept faults, drawn through air) |
 | `fb1e133` (construction lines, fu 130) | `index-zJyvpYf3.js` (CSS `index-Dea2G94f.css`) | 31 | **refuses every project saved at 32** — export first; oblique lines are gone |
 | `4f73858` (counterbores and countersinks, fu 330 chunk 1) | `index-D9SIz2nX.js` (CSS `index-Dea2G94f.css`) | 30 | **refuses every project saved at 31** — export first; construction lines are gone |

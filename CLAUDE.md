@@ -35,8 +35,8 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `382d825b`, bundle `index-CLtY_ePc.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (selectable guides fu 591 +
-  cam-and-bolt chunk 1 fu 568; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
+- **Production: `581edd32`, bundle `index-Ca69eV2i.js`, CSS `index-uaGQ0UmW.css`, SCHEMA 32** (cam-and-bolt R11/R12 rulings, after
+  selectable guides fu 591 + cam-and-bolt chunk 1 fu 568; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-30):** owed: the list below. Then: CVD hues (fu 590), cam-and-bolt chunk 2 (fu 568).
