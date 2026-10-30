@@ -372,7 +372,8 @@ Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** R
     separated. A resize still keeps inv 50's kept-and-noted rule.
 12. **R12 (final review; question for the user, not a defect): R7 offers the Cam lock on 1/2" stock** (11 mm cam, 1.7 mm skin), while a real
     15 mm housing wants about 12.5 mm. **The user's ruling, 2026-10-30: "yes" — the Cam lock needs stock thicker than 1/2".** Built:
-    `defaultCamLock` returns null at 1/2" or thinner, so the preset is not offered.
+    `defaultCamLock` returns null at 1/2" or thinner, so the preset is not offered. R11 and R12 DEPLOYED 2026-10-30 (`581edd32`,
+    `index-Ca69eV2i.js`).
 
 **Differences from the spec as written**
 - **Names:** the recogniser is `camPartners(holes)` (a hole→partner map) with `camRole`, `camPairRows`, `camRowIds` and `withMates` (§3.1's
