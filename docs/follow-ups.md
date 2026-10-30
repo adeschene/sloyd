@@ -8496,6 +8496,14 @@ CVD floor against the `guide` hue (CIEDE2000 under simulated deuteranopia/protan
 although I'm fine with making changes that align with the color blindness requirements." So a retune that meets every floor in `SnapMarker.tsx`'s
 header (WCAG on the wood swatches, ΔE from oak, mutual ΔE normal + deut + prot) is approved in principle; the new hues still go to the user by eye.
 **Status:** open (small; approved in principle; the hues owed by eye).
+**Status:** measured 2026-10-30; a ruling owed. The shortfall is wider than recorded above. Under NORMAL vision `guide`/`line` is 12.7,
+`guide`/`line-cross` 10.7, `edge-mid`/`line` 19.6 and `face-center`/`line-cross` 21.4 against the floor of 25. Under CVD (deut/prot) `guide`/`line` is
+8.1/9.6, `guide`/`line-cross` 10.3/10.7, `edge-mid`/`line` 12.6 (deut) and `face-center`/`line-cross` 10.3 (prot). The other six clear every floor. The method
+and scripts are kept in `docs/snap-hues/`. **No small retune exists.** With the other six fixed, only near-black navies and teals clear the floors.
+With fu 249's four fixed, the four newer kinds become three near-blacks plus a crimson (`#000070`, `#002020`, `#382000`, `#f01858`; every floor clears).
+Retuning all eight within their hue families clears the floors only at a chroma near 85, which is not fu 249's muted milk paint. Example:
+`#089300`, `#178d8a`, `#e62d7e`, `#8210aa`, `#4870ff`, `#00274a`, `#543b00`, `#4b111e`. At a chroma cap of 60 the best set misses by 0.3%. That set
+also changes the tape's colour (`guide`). The choice goes to the user by eye.
 
 **591. Selectable guides: points and lines, in the viewport and the Guides list.** The user's request, 2026-10-30: select a guide point or a
 construction line by clicking it in the viewport or its row in the Guides list; a selected line is emphasised in the viewport; a selected guide is
