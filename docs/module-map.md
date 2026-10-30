@@ -261,6 +261,16 @@ src/
 │   │                     camPairRows (WHOLE pairs of rows), camRowIds (rows with any paired hole; memo keyed on the holes array AND the
 │   │                     board's three dimensions), withMates (partGeometry's: a paired hole copied with `mate`, every other hole the same object), separatesPair (R11: a paired
 │   │                     hole still there but unpaired — the Holes panel refuses such an edit)
+│   ├── camJoint.ts       THE two-part cam-and-bolt planner (cam-and-bolt chunk 2, inv 50; no schema change; imports camBolt, holes,
+│   │                     holeFaults, legSockets, treeEdit): findCamJoint (A's end butting B's face, both selection orders; refusals
+│   │                     2–6 of spec §3.4; R4/R5: only what changes the END refuses; R8: many candidates refuse as none),
+│   │                     camJointPlan (the layout with holes.ts' defaultCamLock(b, end, count?, camFrom?), reuse of A's pair and of a
+│   │                     B bore, B's bores by legSockets' boreRow, judged camPairs: false; checks 7–8 in R10's order; holesKey is the
+│   │                     storage-target rule for linked users, R9) → { writes, reused, notes } | string, defaultCamJointCount,
+│   │                     camFaceOptions (exactly two {from,label}, R2) and defaultCamFrom (the panel's), CAM_JOINT_MAX (12); the
+│   │                     three caller-bug throws stay (R14: the panel and the store catch them)
+│   ├── camJointText.ts   THE cam-and-bolt joint's copy: every refusal sentence, the link note, the panel's words (no → units edge:
+│   │                     no length is printed); names come in as given (displayNames)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
 │   │                     HEAD (counterbores, schema 30, inv 50): HeadKind, HEAD_ANGLES, hasHead, headReach (THE countersink depth formula), headProblem (THE
 │   │                     legality decider: malformed / not-wider / too-deep / tilted; loader and store), Hole.head and .tip, holePieces (the head and the bore, frozen
@@ -614,6 +624,8 @@ src/
 │                         holesSquare.snapshot.json holds — captured from the code BEFORE the tilt, so square holes stay byte for byte)
 │                         camBoltFixtures.ts (TEST-ONLY cam-and-bolt: CAM, BOLT — a 15 mm cam and an 8 mm bolt, two stations —
 │                         and camPart, a 30 × 11.25 × 0.75 part carrying both);
+│                         camJointFixtures.ts (TEST-ONLY cam-and-bolt joint: carcass(units?) → { doc, left, right, shelf } — a
+│                         shelf between two sides);
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points, setKerf (refuses a kerf outside [0, 1):
 │   │                     headRefusal (the head's legality and added-fault sentences, one each, before any mutation), the Head select's edits, the two screw presets
@@ -631,7 +643,9 @@ src/
 │   │                     the legs' container and mapWorld, a reused leg's list not written; the rung selected) and fitStretcher
 │   │                     (STRETCHER_NOT_A_STRETCHER first, refitPlan, ONE mapWorld edit; the no-change check names `length`,
 │   │                     `position`, `tenons` and throws on any other key, so a fitted rung pushes no entry); store.stretchers.test.ts;
-│   │                     copyBoard re-mints tenon ids; box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
+│   │                     copyBoard re-mints tenon ids; cam-and-bolt joint (inv 50): addCamJoint (camJointPlan re-run at click time, in a
+│                     try/catch for the caller-bug throws, R14; holesZoneRefusal on each write; ONE mapWorld edit; null when exploded,
+│                     gesturing, a stale id or a planner bug; store.camJoint.test.ts); box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
 │                     document; store.boxJoints.test.ts); dovetails (inv 62): dovetailCorners (as boxJointCorners: dovetailPlan, ONE
 │                     edit(applyDovetails), judgeHeld; `joint = 'keep'`, `lap = null` positional after swap, half-blind), removeDovetail (that end only, through mapWorld; the last leaves no key), copyBoard
 │                     re-mints dovetail ids; spec §3.6's refusals before edit(): addAngleCuts / addCurves / addProfiles / addTenon / setBands
@@ -762,6 +776,10 @@ src/
 │                     `pairSignature`, ruling T5c —, Rung size, Tenon diameter, `Add stretcher`, the store's refusal as the alert)
 │                     and StretcherReadout (under Round tenons: the readout or the stale line and `Fit the stretcher again`, from
 │                     stretcherOf in a memo; the last Add's link notes, held by Properties, ruling T5a); Stretcher.test.tsx;
+│                     CamJoint (cam-and-bolt joint §4, inv 50): CamJointSection (in the multi-selection panel for exactly two parts,
+│                     inside its EditLock: the joint line, the `Cam face` select, Fittings, `Add joint`, the reuse note, the planner's
+│                     refusal, then the store's link notes; the plan memoised on pairSignature; the joint line names A's end as the
+│                     Holes panel does, R15); CamJoint.test.tsx (the link notes stubbed, R16);
 │                     BoxJoints (box joints §4, inv 61): BoxJointsSection (in the multi-selection panel for two or more parts, inside its EditLock:
 │                     Finger width, Swap fingers, `Box joint the corners`, the notes held in section state); PartDiagram's fingerNotes;
 │                     Dovetails (dovetails §4, inv 62): DovetailsSection (in the multi-selection panel for two or more parts, after Box joints,

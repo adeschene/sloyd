@@ -8380,6 +8380,10 @@ drawings, diagrams, the bench line, the Cam lock and Cam bolt bore presets, pair
 What remains of 568 is **chunk 2, the two-part joint planner** (spec §11): with A's end butting B's face, lay out N
 fittings — the cam and bolt rows in A, the bolt's bore in B coaxial with A's bolt bore — in one undo entry, every refusal before `edit()`;
 possibly dowels beside each and a Fit again. Its own spec. Hardware from a pair is fu 600.
+**Status:** chunk 2 BUILT 2026-10-30, not deployed, on branch `cam-joint` (the joint planner `camJoint.ts`, `addCamJoint`, the Cam-and-bolt joint
+section; no schema change; spec `docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-joint-design.md`, its *Amended (build)* block awaits approval;
+browser check `docs/browser-verification-cam-and-bolt-joint.md`, pending). What stays out of it: Fit again (fu 602), dowels (fu 603), the B-bore
+recogniser (fu 604), the joint as support (fu 605), world end words (fu 606); the build's minors are fu 607; hardware from a pair is fu 600.
 
 **569. A head on a TILTED row (pocket screws; feature-sized, ask first).** Adding a head to a tilted row and tilting a headed row are refused
 both ways (counterbores spec §3.3): a head there needs elliptical head rings, a stepped capsule for `meets-hole` and a tilted cone, so every
@@ -8606,3 +8610,42 @@ hardware list. Inv 55 says hardware is TYPED, never derived from holes, so this 
   partner id or a two-row zone refusal.
 - Final review: the part diagram's notes under the figure print two plain hole lines for a pair while the setup lines print one Cam-and-bolt line (a copy-review consistency choice).
 **Status:** open (record-only; the Task 4 winding item is flagged for the whole-branch review).
+
+## From the cam-and-bolt joint round (fu 568 chunk 2) — 2026-10-30
+
+**602. Cam-and-bolt joint: Fit again (feature-sized).** When A or B moves after the joint is added, B's bolt bores are no longer on A's bolt axes,
+and nothing says so or re-lays them. A "Fit the joint again" would re-plan from A's stored cam rows and move B's bores onto their axes in one
+undo entry (the stretchers' Fit, inv 60). Today the user removes B's rows and adds the joint again.
+**Status:** open (feature).
+
+**603. Cam-and-bolt joint: dowels beside each fitting (feature-sized; ask first).** A knock-down joint usually also carries a locating dowel beside
+each cam: a blind bore in A's end face and one in B's face, coaxial. It needs a layout beside the fitting (pitch, size, clear of the cam) and
+its own refusals.
+**Status:** open (feature; ask first).
+
+**604. A recogniser for a B bore as a cam bolt's (cut-list wording).** B's bolt bores are ordinary hole rows (the joint spec's anti-goal), so the
+cut list and the bench print them as plain holes, not as the bolt's thread. A recogniser by SHAPE (a blind face bore on the axis of a cam pair
+in a part butting it) would let the line name its fitting. Not needed for correctness.
+**Status:** open (record-only until the wording is wanted).
+
+**605. The cam-and-bolt joint grants no support in the checks (inv 39).** A shelf held only by its fittings is not "held" for the support check
+(`groundedSet`): a (d)-style joined clause, as a seated tenon has, would have to read the joint from SHAPE (a cam pair in A and a coaxial bore in B)
+and hold A only toward the floor. Inv 39's prohibition on dropping (c) stands; this is a new clause, ask first.
+**Status:** open (feature; ask first, invs 38, 39).
+
+**606. World-direction end words for the joint line and the Cam lock labels (build ruling R15).** The joint line says `min end` / `max end`
+in A's own frame, as the Holes panel's `Cam lock, min end` labels do; on a turned shelf these words do not match what the user sees. A copy
+review may move both to world words (the Align words) together.
+**Status:** open (a ruling for the copy review; cost if wrong: one wording change in two places).
+
+**607. Cam-and-bolt joint: the build's deferred minors (the SDD ledger, by task).**
+- Task 1 (counts): the count-5 test recomputes the pitch with the implementation's formula (mutation-checked); no narrow-board explicit-count case;
+  the doc comment lacks "count is an integer >= 1".
+- Task 3 (planner): `plan.test`'s `boltAxes`/`pt` copy the implementation's axis derivation (independent cover exists); `expectJoined` judges B
+  with default `camPairs` (the planner uses false, stricter); a dead `j<0` guard in `camFaceOptions`.
+- Task 4 (store): an all-writes-unchanged plan would still call `edit()` with an identity `mapWorld` (the planner refuses `CAM_JOINT_ALREADY`
+  first; `addStretcher` has the same shape), so a `holes.size === 0` guard is cheap insurance; the reuse test's comment is muddled.
+- Task 5 (panel): the memo signature misses `displayNames`, container mirroring and other Shape users (the click-time re-plan backstops it); a
+  stale hidden count is passed under reuse (the planner ignores it); no exploded-state panel test; the cam-face wiring test is weak;
+  `console.error` fires twice under StrictMode.
+**Status:** open (record-only).
