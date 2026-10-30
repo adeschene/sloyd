@@ -1030,7 +1030,11 @@ export default function App() {
               showAxes={showAxes}
               onToggleAxes={() => setShowAxes((v) => !v)}
               showGuides={showGuides}
-              onToggleGuides={() => setShowGuides((v) => !v)}
+              onToggleGuides={() => {
+                // Spec §7: nothing drawn, nothing selected (Delete/H on an invisible selection is a trap).
+                if (showGuides) useStore.getState().selectGuides([]);
+                setShowGuides((v) => !v);
+              }}
               onView={(v) => viewportRef.current?.showView(v)}
               onSaveImage={saveImage}
             />

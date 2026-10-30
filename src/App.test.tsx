@@ -2391,6 +2391,25 @@ describe('App keys on a guide selection (selectable guides, fu 591)', () => {
     expect(useStore.getState().selectedGuideIds).toEqual([]);
   });
 
+  it('switching guides off clears the guide selection; switching them back on selects nothing (spec §7)', async () => {
+    const { ids, user } = await mountWithGuides();
+    expect(useStore.getState().selectedGuideIds).toEqual([ids[0]]);
+    await user.click(screen.getByTitle('Show guide points and lines'));
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+    await user.click(screen.getByTitle('Show guide points and lines'));
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+  });
+
+  it('Escape backs out a lower rung before the guide selection (the guide rung is last)', async () => {
+    const { ids, user } = await mountWithGuides();
+    act(() => useStore.getState().setTool('tape'));
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tool).toBe('select');
+    expect(useStore.getState().selectedGuideIds).toEqual([ids[0]]);
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+  });
+
   it('Delete with a part selected still deletes the part', async () => {
     const { user } = await mountWithGuides();
     const partId = worldParts(useStore.getState().doc)[0]!.id;

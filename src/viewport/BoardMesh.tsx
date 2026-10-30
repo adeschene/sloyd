@@ -34,6 +34,7 @@ const SELECTED = '#c8955a';
  * markers, lines, grid or axes. R3F assigns `userData` as given (a plain object is overwritten, not merged); read only
  * through `isPartMesh`.
  */
+// Shared by EVERY part mesh: never write to it.
 const PART_MESH_DATA: Record<string, unknown> = { sloydPart: true };
 /** A ghost's (inv 21): never `undefined`, which R3F would skip, leaving the old tag on a mesh that became a ghost. */
 const NOT_PART_DATA: Record<string, unknown> = {};

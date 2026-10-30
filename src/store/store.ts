@@ -105,12 +105,6 @@ export const HOLE_TILT_PAST_BOUND = "The bore can't tilt past 45° in all — re
  */
 export type ToolMode = 'select' | 'move' | 'tape';
 
-/**
- * One undo step: the document AND the hidden set as they were (hide/unhide
- * spec §2.1). Hidden-ness is view state, never saved, but it IS undone, so a
- * Ctrl+Z after H shows the parts again. A hide's entry holds the SAME document
- * object, so nothing is copied and autosave does not fire.
- */
 /** One undo step: a document and BOTH hidden sets as they were (inv 43; the guide set, selectable-guides spec §3.4). A
  *  hide or show pushes an entry holding the SAME document object, so no copy is made and autosave does not fire. */
 export interface HistoryEntry { doc: SloydDocument; hiddenIds: string[]; hiddenGuideIds: string[] }

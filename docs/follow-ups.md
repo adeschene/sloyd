@@ -8524,7 +8524,8 @@ far perspective zoom a line slightly behind a face can be clicked through it (th
 near the camera). (2) The Gizmo is not an occluder (by ruling): a still click on a Gizmo handle within 12 px (`PICK_RADIUS_PX`) of a line selects
 the line. (3) Faded parts (X-ray, outside an open assembly) still occlude a line for picking, though drawn see-through. (4) Shift+double-click on
 a guide toggles it twice (two clicks, each a toggle), ending where it began. (5) The Guides footer opens when a guide BECOMES selected
-(`selectedGuideIds.length > 0`); after the user collapses it by hand while a selection persists, selecting a different guide does not reopen it.
+(`selectedGuideIds.length > 0`); after the user collapses it by hand while a selection persists, selecting a different guide does not reopen it. (6) Typing a line identical to a HIDDEN line is refused as `That line is already there`, wording
+that misleads for a line the user cannot see; refusing is right (lines stay unique), only the wording is off.
 **Status:** open (record-only).
 
 **596. Selectable guides: opening an assembly keeps a guide selection.** A guide has no assembly level, so `openPath` filters no guide id and
