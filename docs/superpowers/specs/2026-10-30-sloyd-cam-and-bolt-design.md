@@ -1,6 +1,6 @@
 # Sloyd — cam-and-bolt: design
 
-Status: DRAFT, awaiting the user's approval. Builder check taken 2026-10-30 (three questions, all settled as my calls:
+Status: APPROVED by the user 2026-10-30 ("approved"). Builder check taken 2026-10-30 (three questions, all settled as my calls:
 §4.3, §6.1/§6.2, §6.3). Follow-up 568 (`docs/follow-ups.md`; counterbores spec §12, fu 330's chunk 2).
 The holes primitive is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the head (schema 30) is
 `docs/superpowers/specs/2026-10-29-sloyd-counterbores-design.md`, whose layout this follows.
