@@ -8504,6 +8504,11 @@ With fu 249's four fixed, the four newer kinds become three near-blacks plus a c
 Retuning all eight within their hue families clears the floors only at a chroma near 85, which is not fu 249's muted milk paint. Example:
 `#089300`, `#178d8a`, `#e62d7e`, `#8210aa`, `#4870ff`, `#00274a`, `#543b00`, `#4b111e`. At a chroma cap of 60 the best set misses by 0.3%. That set
 also changes the tape's colour (`guide`). The choice goes to the user by eye.
+**Status:** built, not deployed (2026-10-30). The user chose set C by eye on simulated swatches: every kind retuned within its CIELAB hue family
+(`#089300`, `#178d8a`, `#e62d7e`, `#8210aa`, `#4870ff`, `#00274a`, `#543b00`, `#4b111e`; the guide, and so the tape, turns violet; the stepped anchor
+becomes a dark maroon). Every floor clears; the tightest are guide/line 26.5 normal, line-face/offset 14.7 deut and face-center/guide 15.3 prot.
+`src/viewport/snapColors.test.ts` now holds `SNAP_COLORS` to every floor, mutation-tested (round 1's `line` and a lighter corner each fail it).
+Owed: a live look in the user's Chrome (fu 60: the swatches were simulated, not the app).
 
 **591. Selectable guides: points and lines, in the viewport and the Guides list.** The user's request, 2026-10-30: select a guide point or a
 construction line by clicking it in the viewport or its row in the Guides list; a selected line is emphasised in the viewport; a selected guide is

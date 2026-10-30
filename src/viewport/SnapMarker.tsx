@@ -13,54 +13,50 @@ import { screenPixelsPerInch } from './screenScale';
  * hiding it. Hue and lightness can.
  *
  * Retuned 2026-10-11 (follow-up 249, at the user's request) from saturated
- * SketchUp-style primaries (#2e9e5b, #22b8d4, #8a5fd0, #4f6fd0) to muted
- * milk-paint tones that sit with the walnut/maple palette: moss, verdigris,
- * mulberry, slate blue. The hue families are kept (green corner, cyan-ish
- * midpoint, violet-ish face, blue guide), so the convention still reads. The
- * values came from a search, not from taste alone, with these floors — keep
- * them if you retune again:
- *   - every fill ≥ 3:1 against the maple ground #ebe3d4 (the old cyan was
- *     1.86:1) and ≥ 3.4:1 against the ring, which is what carries a marker on
- *     walnut and cherry;
+ * SketchUp-style primaries to muted milk-paint tones. Retuned again
+ * 2026-10-30 (follow-up 590, the user's choice by eye of three candidate
+ * sets): with eight kinds the muted tones could not meet the floors below
+ * (round 1's line blues sat 8–13 from the guide), and the only set that
+ * meets them all and keeps each kind's CIELAB hue family is vivid, chroma up
+ * to about 85. Keeping fu 249's four and retuning the rest left only
+ * near-black dots. These floors stand; meet them all if you retune again:
+ *   - every fill ≥ 3:1 against the maple ground #ebe3d4 and ≥ 3.4:1 against
+ *     the ring, which is what carries a marker on walnut and cherry;
  *   - mutual CIEDE2000 ≥ 25, and ≥ 14 under simulated deuteranopia and
- *     protanopia (the old violet/blue pair was 3 — indistinguishable). The
- *     distinctness comes from lightness as much as hue: moss and mulberry are
- *     dark, verdigris and slate lighter;
+ *     protanopia (Machado 2009, severity 1);
  *   - ≥ 35 ΔE from the selected-board oak, so a marker never reads as part of
  *     a selection.
- * Measured values: docs/follow-ups.md, 249.
+ * The checker and the searches that found these values are in
+ * `docs/snap-hues/` (`node check.mjs` prints every figure). The tightest
+ * pairs: guide/line 26.5 normal, line-face/offset 14.7 deuteranopia,
+ * face-center/guide 15.3 protanopia. The tightest single values: edge-mid's
+ * 3.16:1 on maple and oak ΔE 37.5 for line-face. Measured values for fu 249's
+ * set: docs/follow-ups.md, 249.
  *
- * Browser-settled in the sense of follow-up 60: checked live against pine,
- * walnut and plywood on this app's own ground, not argued from theory alone.
+ * Browser-settled in the sense of follow-up 60: fu 249's set was checked live
+ * against pine, walnut and plywood on this app's own ground; fu 590's set was
+ * chosen from simulated swatches and is owed the same live look.
  */
 export const SNAP_COLORS: Record<SnapKind, string> = {
-  corner: '#3a6028',
-  'edge-mid': '#378988',
-  'face-center': '#753c60',
+  corner: '#089300',
+  'edge-mid': '#178d8a',
+  'face-center': '#e62d7e',
   // A guide is not a corner, an edge midpoint or a face centre, and colouring
   // it as one would tell the user something false about what they are about
   // to snap to — the marker's only job. Also the tape's colour (TapeTool).
-  guide: '#5469a6',
-  // The guide family: a line crossing is a guide-owned point, a lighter and
-  // a darker blue than the point guide so the three stay apart. Task 9 shows
-  // them to the user.
-  line: '#4a86b8',
-  'line-cross': '#3a4a8c',
-  // Where a line meets a part (construction-lines-2 spec §3.1): a guide-owned point that sits ON wood, so neither the
-  // guide blues (it would read as floating) nor a board kind (it is not a lattice point). A very dark umber, from a grid
-  // search against EVERY floor above and every entry here (CVD by Machado 2009 severity 1, which reproduces fu 249's
-  // 14.5/16.4): maple 12.6:1, ring 14.3:1, oak ΔE 46.3; ΔE (normal / deuteranopia / protanopia) against corner
-  // 31.5/16.3/20.5, edge-mid 45.0/37.7/38.2, face 30.1/26.5/29.1, guide 41.5/44.3/43.8, line 47.1/48.1/48.9, line-cross
-  // 37.4/41.3/39.4. Lightness (L≈13 against moss's ≈37) carries it; the only other family that clears every floor is a
-  // vivid crimson (#f80458). The user judges it by eye.
-  'line-face': '#341c00',
-  // A stepped tape anchor (construction-lines-2 spec §4.2): a point typed off a feature, sitting on nothing, so a vivid
-  // crimson that reads as no physical kind. The same grid search and method as `line-face`, against every entry above:
-  // maple 3.40:1, ring 3.88:1, oak ΔE 37.4; ΔE (normal / deuteranopia / protanopia) against corner 64.4/20.1/16.7,
-  // edge-mid 57.9/28.5/15.8, face 25.4/33.6/16.0, guide 38.8/44.5/23.9, line 48.4/42.0/27.0, line-cross 40.2/49.8/24.3,
-  // line-face 41.7/35.7/22.9. The only other family that clears every floor is a near-black teal (#001c20), which
-  // would sit beside `line-face` as a second near-black dot. The user judges it by eye.
-  offset: '#f00058',
+  // Violet since fu 590: the blue it had left no room for two more guide kinds.
+  guide: '#8210aa',
+  // The guide family: a line crossing is a guide-owned point. A bright blue
+  // for a line and a dark navy for a crossing, apart from the guide's violet
+  // by lightness as much as hue.
+  line: '#4870ff',
+  'line-cross': '#00274a',
+  // Where a line meets a part (construction-lines-2 spec §3.1): a guide-owned point that sits ON wood, so neither a guide
+  // hue (it would read as floating) nor a board kind (it is not a lattice point). A dark umber, carried by lightness.
+  'line-face': '#543b00',
+  // A stepped tape anchor (construction-lines-2 spec §4.2): a point typed off a feature, sitting on nothing, so a hue that
+  // reads as no physical kind: a dark maroon (the crimson it had went to face-center in fu 590).
+  offset: '#4b111e',
 };
 
 /**

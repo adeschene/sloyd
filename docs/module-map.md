@@ -676,7 +676,7 @@ src/
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines),
 │                     GuidePicker (fu 591: the Select tool's guide click, below), projector.ts (`projectorFor`, `ndcDepth`: the ONE
 │                     world→canvas projector of MoveTool, TapeTool and GuidePicker, so their depths share one scale),
-│                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
+│                     SnapMarker (`SNAP_COLORS`: the colour floors are TESTED, `snapColors.test.ts`; method `docs/snap-hues/`), snapPick (screen-space nearest, on purpose), grain*.ts,
 │                     viewCamera.ts (pure, TESTED: `orthoHeight` / `orthoZoomFor`, an ortho zoom stored as a visible HEIGHT so a window resize keeps the extent;
 │                     `pendingPoseReady`, the condition a saved-view pose waits on), framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
 │                     with explode offsets, zoom/distance); Viewport's `ViewportHandle` (showView, capture — the clean
