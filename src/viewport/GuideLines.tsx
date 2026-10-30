@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -40,7 +40,7 @@ export function ConstructionLine({ at, axis, preview }: { at: Vec3; axis: TapeAx
   const points = useMemo(() => {
     // Lifted off the ground plane exactly as OriginAxes lifts its ground axes, so a
     // line at y = 0 wins the depth test against the grid and shadow receiver.
-    const y = axis !== 'y' && at[1] < GROUND_LIFT ? GROUND_LIFT : at[1];
+    const y = axis !== 'y' && at[1] === 0 ? GROUND_LIFT : at[1];
     const a = new THREE.Vector3(at[0], y, at[2]);
     const b = a.clone();
     a.setComponent(index, -SCENE_EXTENT);
@@ -50,6 +50,9 @@ export function ConstructionLine({ at, axis, preview }: { at: Vec3; axis: TapeAx
   }, [at[0], at[1], at[2], axis, index]);
 
   const material = useRef<LineMaterial | null>(null);
+  const setLine = useCallback((line: { material: unknown } | null) => {
+    material.current = (line?.material as LineMaterial | undefined) ?? null;
+  }, []);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const controls = useThree((s) => s.controls) as { target: THREE.Vector3 } | null;
@@ -74,7 +77,7 @@ export function ConstructionLine({ at, axis, preview }: { at: Vec3; axis: TapeAx
       dashed
       dashSize={DASH_SIZE}
       gapSize={GAP_SIZE}
-      ref={(line) => { material.current = (line?.material as LineMaterial | undefined) ?? null; }}
+      ref={setLine}
     />
   );
 }
