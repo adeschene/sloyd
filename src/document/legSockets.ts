@@ -367,7 +367,7 @@ function copyPlan(world: readonly Board[], seat: Board, diameter: number, names:
       continue;
     }
     const trial = stale ? rows.map((r) => (r.id === stale.id ? row : r)) : [...rows, row];
-    const faults = holeFaults({ ...seat, holes: trial }, row);
+    const faults = holeFaults({ ...seat, holes: trial }, row, { camPairs: false });
     if (faults.length > 0) {
       faulted.push(socketFaulted(names.get(leg.id) ?? leg.name, socketFaultWords(faults[0]!)));
       continue;

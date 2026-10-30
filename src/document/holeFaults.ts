@@ -4,6 +4,7 @@ import { clippedRegion } from './cuts';
 import { keptHalfSpace, type V3 } from './angleCuts';
 import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, spanOf, squareSpan, uvDims, type CurveKind, type ViewCurve } from './curves';
 import { runoutReach } from './runout';
+import { camPartners } from './camBolt';
 import { HOLE_EPS, holeEnvelope, holeInstances, holeRegion, holeTouchesBox, tiltedHole, type Hole } from './holes';
 import { geometryBoard, profileFields, type ProfileKind } from './profiles';
 import { builtSwept, sweptWasteMeets, sweptWasteMeetsBox } from './sweep';
@@ -313,12 +314,17 @@ export function holeInStock(board: Board, h: Hole, checks: StockChecks = stockCh
  * the other rows are `board.holes` without it. Exact against the cylinder (closed forms within HOLE_EPS), never sampled:
  * tangent to an edge or a cut passes, touching another hole meets it. A TILTED bore (angled holes spec §6.3): exact or
  * CONSERVATIVE (may over-report, never under-report), never sampled — see each rule.
+ *
+ * A recognised cam pair (`camPartners`, cam-and-bolt spec §3.2) meets on purpose: its two holes skip each other in the
+ * meets-hole search (the search goes on to the next hole, so a third bore meeting either still faults). `camPairs: false`
+ * judges every meeting, as the planners that bore sockets (Add/Fit stretcher, Bore leg sockets) must: a socket is never a pair.
  */
-export function holeFaults(board: Board, row: HoleRow): HoleFault[] {
+export function holeFaults(board: Board, row: HoleRow, opts?: { camPairs?: boolean }): HoleFault[] {
   board = geometryBoard(board);
   const mine = holeInstances(board, row);
   const others = board.holes.filter((r) => r.id !== row.id).flatMap((r) => holeInstances(board, r));
   const checks = stockChecks(board);
+  const partners = opts?.camPairs === false ? undefined : camPartners([...mine, ...others]);
   const out: HoleFault[] = [];
   for (const h of mine) {
     const edge = breaksOut(board, h);
@@ -326,7 +332,7 @@ export function holeFaults(board: Board, row: HoleRow): HoleFault[] {
     const curve = intoCurve(board, h);
     if (curve) out.push({ index: h.index, kind: 'breaks-out', curve });
     if (offFlat(checks, h)) out.push({ index: h.index, kind: 'off-flat' });
-    const hit = [...mine.filter((o) => o.index !== h.index), ...others].find((o) => meets(h, o));
+    const hit = [...mine.filter((o) => o.index !== h.index), ...others].find((o) => partners?.get(h) !== o && meets(h, o));
     if (hit) out.push({ index: h.index, kind: 'meets-hole', other: { row: hit.row, index: hit.index } });
     if (tooDeep(board, h)) out.push({ index: h.index, kind: 'too-deep' });
     if (tooShallow(h)) out.push({ index: h.index, kind: 'too-shallow' });

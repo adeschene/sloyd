@@ -16,6 +16,8 @@ import { linkByRole } from './roleLinks';
 import { sameLevelLine } from './levelEnds';
 import { levelFaces } from './leanContacts';
 import { seatedIn, tenonJoints, withoutTenon } from './tenonJoints';
+import { BOLT, CAM, camPart } from './camBoltFixtures';
+import { mm } from './holes';
 
 /**
  * Round tenons spec §5 (Task 7): a tenon seated in a matching bore is a JOINT in the design checks. Every fixture asserts
@@ -549,5 +551,26 @@ describe('a part whose tenons are all faulted checks as its tenon-free twin (T7h
     const twin = checkDesign(flatOf(a, b), NO_LIMITS);
     expect(twin.map((v) => v.kind)).toContain('hangs'); // what it claims: B is grounded by A's box, held by nothing
     expect(checkDesign(flatOf(faulted, b), NO_LIMITS)).toEqual(twin);
+  });
+});
+
+describe('a paired bolt bore is no seat (cam-and-bolt §6.4)', () => {
+  const bolt1: HoleRow = { ...BOLT, count: 1, pitch: 0 };
+  const cam1: HoleRow = { ...CAM, count: 1, pitch: 0 };
+  const rod = (b: Board) => {
+    const t = { id: 't', end: 'max' as const, diameter: mm(8), length: 0.5 };
+    const r0 = createBoard({ id: 'r', length: 5, width: 0.75, thickness: 0.75, tenons: [t] });
+    const target = toWorld(b, { length: 0.5, width: mm(37), thickness: 0.375 }); // the tenon is the part's own end: tip 0.5 into the bore
+    const p = partAxis(r0).p;
+    return createBoard({ ...r0, position: [target[0] - p[0], target[1] - p[1], target[2] - p[2]] });
+  };
+  it('refuses the bolt of a pair; the same bore without its cam is seated', () => {
+    const paired = camPart({ holes: [cam1, bolt1] });
+    const a = rod(paired);
+    expect(builtTenons(a)).toHaveLength(1);
+    expect(boreAlongAxis(paired, bolt1, partAxis(a))).toBe(true);
+    expect(seatedIn(a, builtTenons(a)[0]!, paired, bolt1)).toBe(false);
+    const alone = camPart({ holes: [bolt1] });
+    expect(seatedIn(a, builtTenons(a)[0]!, alone, bolt1)).toBe(true);
   });
 });

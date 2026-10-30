@@ -7,6 +7,7 @@ import { createBoard } from './document';
 import { nextId } from './ids';
 import { uniqueName } from './names';
 import { holeRowValues, mm } from './holes';
+import { camRowIds } from './camBolt';
 import { leans, leanTwist } from './lean';
 import { holeFaults, type HoleFaultKind } from './holeFaults';
 import { socketFaultWords } from './holeText';
@@ -406,7 +407,7 @@ function plan(doc: SloydDocument, legIds: readonly [string, string], o: { height
     const r = socketFor(leg, line, atStart, o.diameter, tipAt, doc.units, nameOf(leg));
     if (typeof r === 'string') return refuse(r);
     const row: HoleRow = { ...r, id: nextId() };
-    const faults = holeFaults({ ...leg, holes: [...leg.holes, row] }, row);
+    const faults = holeFaults({ ...leg, holes: [...leg.holes, row] }, row, { camPairs: false });
     if (faults.length > 0) {
       const meets = faults.some((f) => f.kind === 'meets-hole');
       return refuse(stretcherSocketFaulted(nameOf(leg), socketFaultWords(faults[0]!)), meets ? 'meets-hole' : faults[0]!.kind);
@@ -591,7 +592,7 @@ function usedRow(world: readonly Board[], rung: Board, t: RoundTenon, leg: Board
   // Another part's tenon seated in a row holds it: never taken for this tenon's (review M-3).
   const held = (r: HoleRow) => holderOf(world, leg, r, rung.id) !== undefined;
   const near = leg.holes
-    .filter((r) => r.count === 1 && r.depth !== 'through' && r.head === undefined && Math.abs(r.diameter - t.diameter) <= EPS && !held(r))
+    .filter((r) => r.count === 1 && r.depth !== 'through' && r.head === undefined && !camRowIds(leg).has(r.id) && Math.abs(r.diameter - t.diameter) <= EPS && !held(r))
     .map((r) => ({ r, d: Math.hypot(...sub(boreEnds(leg, r)[1], tip)) }))
     .sort((p, q) => p.d - q.d);
   if (near.length === 0) return null;
@@ -766,7 +767,7 @@ export function refitPlan(doc: SloydDocument, rungId: string): RefitPlan | strin
     if (leg.holes.some((r) => r.id !== rowId && r.count === 1 && boreAlongAxis(leg, r, axis) && enters(leg, r, along(q, w, p.shoulders[i]!), out, t.length))) {
       return stretcherDifferentSocket(nameOf(leg));
     }
-    const faults = holeFaults(leg, row);
+    const faults = holeFaults(leg, row, { camPairs: false });
     if (faults.length > 0) return stretcherSocketFaulted(nameOf(leg), socketFaultWords(faults[0]!));
   }
 

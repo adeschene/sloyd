@@ -6,6 +6,7 @@ import { builtTenons, endCutOf, sameTenon, shoulderAt, tenonAt } from './roundTe
 import { boreAlongAxis, boreEnds, partAxis } from './legSockets';
 import { toWorld } from './snapPoints';
 import { TOUCH } from './checkTolerances';
+import { camRowIds } from './camBolt';
 
 /**
  * The tenon JOINT (round tenons spec §5, invs 38, 39): which round tenons sit in which bores, structurally, in the WORLD
@@ -88,6 +89,7 @@ export function tipFarthest(b: Board, t: RoundTenon): number {
  */
 export function seatedIn(a: Board, t: RoundTenon, b: Board, row: HoleRow): boolean {
   if (a === b || a.id === b.id || row.count !== 1 || row.head !== undefined) return false; // a headed bore is not a tenon's seat
+  if (camRowIds(b).has(row.id)) return false; // nor is the bolt (or cam) of a recognised cam pair (cam-and-bolt §6.4)
   if (Math.abs(row.diameter - t.diameter) > EPS) return false;
   if (!builtTenons(a).some((x) => x === t || (x.id === t.id && sameTenon(x, t)))) return false;
   if (!boreAlongAxis(b, row, partAxis(a))) return false;
