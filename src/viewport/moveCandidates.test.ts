@@ -111,3 +111,27 @@ describe('moveCandidates with construction lines (construction-lines spec §4)',
     expect(crossings(moveCandidates(boards, lineGuides, [a.id], [], true, false))).toHaveLength(0);
   });
 });
+
+describe('moveCandidates with a line through two parts (construction-lines-2 spec §3.1, Review Focus 4)', () => {
+  // A Z line through a (z 0..5-1/2) and b (z 10..15-1/2), at mid-thickness. A face hit is owned by the LINE, so the
+  // part it sits on is `owner.board`.
+  const through = [{ id: 'lz', at: [3, 0.375, 0] as [number, number, number], axis: 'z' as const }];
+  const faceParts = (pts: { kind: string; owner: { type: string; board?: string } }[]) =>
+    pts.filter((p) => p.kind === 'line-face').map((p) => (p.owner as { board?: string }).board);
+
+  it('grabbing a: b’s hits are targets, none of a’s (they would move with it)', () => {
+    expect(faceParts(moveCandidates(boards, through, [a.id], [], true, true))).toEqual([b.id, b.id]);
+  });
+
+  it('before a grab: no face hit is a grab source', () => {
+    expect(faceParts(moveCandidates(boards, through, [a.id], [], false, true))).toEqual([]);
+  });
+
+  it('guides hidden: no face hit', () => {
+    expect(faceParts(moveCandidates(boards, through, [a.id], [], true, false))).toEqual([]);
+  });
+
+  it('a hidden b offers none', () => {
+    expect(faceParts(moveCandidates(boards, through, [a.id], [b.id], true, true))).toEqual([]);
+  });
+});

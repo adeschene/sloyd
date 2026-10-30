@@ -14,14 +14,14 @@ describe('schema 26: the stored dovetail (dovetails spec §8)', () => {
     migrateDocument({ ...createDocument('T'), version, boards: [{ ...side, ...(dovetails === undefined ? {} : { dovetails }) }] });
   const dovetailsOf = (doc: { boards: unknown[] }) => (doc.boards[0] as Board).dovetails;
 
-  it('this build writes 31', () => expect(CURRENT_VERSION).toBe(31));
+  it('this build writes 32', () => expect(CURRENT_VERSION).toBe(32));
 
   it('a v25 document with no dovetails loads exactly as before, with no dovetails key', () => {
     const raw = { ...createDocument('T'), version: 25, boards: [side] };
     const doc = migrateDocument(raw);
     expect(doc).toEqual(migrateDocument({ ...raw, version: 26 }));
     // Byte for byte what the schema-25 build wrote (captured at e8ca93f), but the version.
-    expect(JSON.stringify(doc)).toBe(BEFORE.replace('"version":25', '"version":31').replace('"guides":[],', '"guides":[],"views":[],'));
+    expect(JSON.stringify(doc)).toBe(BEFORE.replace('"version":25', '"version":32').replace('"guides":[],', '"guides":[],"views":[],'));
     expect('dovetails' in doc.boards[0]!).toBe(false);
     expect(JSON.stringify(doc)).not.toContain('dovetail');
   });
@@ -86,8 +86,8 @@ describe('schema 26: the stored dovetail (dovetails spec §8)', () => {
     expect(d!.id).not.toBe('d2');
   });
 
-  it('a version 32 document is refused', () => {
-    expect(() => at(32, [tails])).toThrow(/newer version/);
+  it('a version 33 document is refused', () => {
+    expect(() => at(33, [tails])).toThrow(/newer version/);
   });
 
   it('a Shape keeps its dovetails; its users resolve with copies', () => {

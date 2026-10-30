@@ -46,6 +46,21 @@ export const SNAP_COLORS: Record<SnapKind, string> = {
   // them to the user.
   line: '#4a86b8',
   'line-cross': '#3a4a8c',
+  // Where a line meets a part (construction-lines-2 spec §3.1): a guide-owned point that sits ON wood, so neither the
+  // guide blues (it would read as floating) nor a board kind (it is not a lattice point). A very dark umber, from a grid
+  // search against EVERY floor above and every entry here (CVD by Machado 2009 severity 1, which reproduces fu 249's
+  // 14.5/16.4): maple 12.6:1, ring 14.3:1, oak ΔE 46.3; ΔE (normal / deuteranopia / protanopia) against corner
+  // 31.5/16.3/20.5, edge-mid 45.0/37.7/38.2, face 30.1/26.5/29.1, guide 41.5/44.3/43.8, line 47.1/48.1/48.9, line-cross
+  // 37.4/41.3/39.4. Lightness (L≈13 against moss's ≈37) carries it; the only other family that clears every floor is a
+  // vivid crimson (#f80458). The user judges it by eye.
+  'line-face': '#341c00',
+  // A stepped tape anchor (construction-lines-2 spec §4.2): a point typed off a feature, sitting on nothing, so a vivid
+  // crimson that reads as no physical kind. The same grid search and method as `line-face`, against every entry above:
+  // maple 3.40:1, ring 3.88:1, oak ΔE 37.4; ΔE (normal / deuteranopia / protanopia) against corner 64.4/20.1/16.7,
+  // edge-mid 57.9/28.5/15.8, face 25.4/33.6/16.0, guide 38.8/44.5/23.9, line 48.4/42.0/27.0, line-cross 40.2/49.8/24.3,
+  // line-face 41.7/35.7/22.9. The only other family that clears every floor is a near-black teal (#001c20), which
+  // would sit beside `line-face` as a second near-black dot. The user judges it by eye.
+  offset: '#f00058',
 };
 
 /**

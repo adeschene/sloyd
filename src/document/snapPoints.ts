@@ -8,7 +8,13 @@ import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, Guide, TapeAxis } from './types';
-import { isGuideLine, isGuidePoint } from './types';
+import { isAnyLine, isGuidePoint } from './types';
+import type { AnyLine, GuideLine } from './types';
+import { canonicalLine, lineThrough, newLineOf, sameLine, sameNewLine } from './lineModel';
+import type { NewLine, Vec3 } from './lineModel';
+
+export { canonicalLine, lineThrough, newLineOf, sameLine, sameNewLine };
+export type { NewLine, Vec3 };
 import { geometryBoard, shapedPart } from './profiles';
 import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
 import { sectionFrame } from './runout';
@@ -19,7 +25,7 @@ import { tiltedHole } from './holes';
  * What a snap point sits on. Drives the marker's colour, and nothing else —
  * every kind snaps identically.
  */
-export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross';
+export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross' | 'line-face' | 'offset';
 
 /**
  * What a snap point belongs to.
@@ -35,16 +41,24 @@ export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' 
  * `cross` exists only on a line crossing (construction-lines spec §4.2): `id` is
  * the first line in array order, `cross` the second. "Owned by guide G" then
  * means `ownedByGuide`, never `owner.id === G` alone.
+ *
+ * `board` exists only on a line-face hit (construction-lines-2 spec §3.1): `id` is the line, `board` the part the hit sits
+ * on. Owned by the line, so a face hit is never a grab (inv 26); `keepsCandidate` reads `board` to section-filter it.
  */
 export type SnapOwner =
   | { type: 'board'; id: string }
-  | { type: 'guide'; id: string; cross?: string };
+  | { type: 'guide'; id: string; cross?: string; board?: string };
 
 export interface SnapPoint {
   kind: SnapKind;
   /** World position, inches. */
   at: [number, number, number];
   owner: SnapOwner;
+  /**
+   * Only on a stepped tape anchor (`kind: 'offset'`, construction-lines-2 spec §4.2): the ROOT feature point the steps
+   * started from, never itself stepped; `owner` is a copy of its owner. How it is judged: see `tapeHover`'s declaration.
+   */
+  base?: SnapPoint;
 }
 
 /**
@@ -84,12 +98,28 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
     a.kind === b.kind &&
     a.owner.type === b.owner.type &&
     a.owner.id === b.owner.id &&
-    // Two crossings on the same first line differ only here.
-    (a.owner.type === 'guide' && b.owner.type === 'guide' ? a.owner.cross === b.owner.cross : true) &&
+    // Two crossings on the same first line differ only in `cross`; two face hits of one line only in `board`.
+    (a.owner.type === 'guide' && b.owner.type === 'guide' ? a.owner.cross === b.owner.cross && a.owner.board === b.owner.board : true) &&
     a.at[0] === b.at[0] &&
     a.at[1] === b.at[1] &&
-    a.at[2] === b.at[2]
+    a.at[2] === b.at[2] &&
+    // Two stepped anchors at one position differ only in what they stepped from.
+    sameSnapPoint(a.base ?? null, b.base ?? null)
   );
+}
+
+/**
+ * What a held point is judged by (inv 24): a stepped anchor's base, else the point itself. The stepped position is the
+ * base's plus two numbers the user typed, so the base surviving point-precisely means the anchor is still current.
+ */
+export function heldRoot(p: SnapPoint): SnapPoint {
+  return p.base ?? p;
+}
+
+/** The part a held point depends on, through `heldRoot`: a board owner's id, a face hit's `board`, else null. */
+export function heldBoard(p: SnapPoint): string | null {
+  const { owner } = heldRoot(p);
+  return owner.type === 'board' ? owner.id : owner.board ?? null;
 }
 
 /**
@@ -489,53 +519,98 @@ export function guideSnapPoints(guides: Guide[]): SnapPoint[] {
   }));
 }
 
-/** A copy of a line's anchor with the coordinate along its axis zeroed (construction-lines spec §2). */
-export function canonicalLine(
-  at: [number, number, number],
-  axis: TapeAxis,
-): { at: [number, number, number]; axis: TapeAxis } {
-  const out: [number, number, number] = [at[0], at[1], at[2]];
-  out[AXIS_INDEX[axis]] = 0;
-  return { at: out, axis };
-}
+/** How close two lines must pass to cross, inches (construction-lines-2 spec §2.4). A pair involving an oblique line only. */
+export const CROSS_TOLERANCE = 1e-6;
 
-/** Whether two lines are the same line, exactly (never within a tolerance). */
-export function sameLine(
-  a: { at: [number, number, number]; axis: TapeAxis },
-  b: { at: [number, number, number]; axis: TapeAxis },
-): boolean {
-  return a.axis === b.axis && a.at[0] === b.at[0] && a.at[1] === b.at[1] && a.at[2] === b.at[2];
+const AXIS_UNIT: Record<TapeAxis, Vec3> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+
+/** A line's unit direction: its axis, or `(to - at)/|to - at|` for an oblique one (spec §2.4). */
+export function lineDir(line: NewLine | AnyLine): Vec3 {
+  if ('axis' in line && line.axis !== undefined) return AXIS_UNIT[line.axis];
+  const to = (line as { to: Vec3 }).to;
+  const d: Vec3 = [to[0] - line.at[0], to[1] - line.at[1], to[2] - line.at[2]];
+  const n = Math.hypot(d[0], d[1], d[2]);
+  return [d[0] / n, d[1] / n, d[2] / n];
 }
 
 /**
- * Where two construction lines of different axes meet (construction-lines
- * spec §4.2): they agree EXACTLY on the third axis `k`. Exact on purpose — a
- * crossing is a point the user can snap to, and an ulp of disagreement means
- * the lines miss. Each pair is offered once, first in array order as `id`.
- * A crossing with a coordinate beyond ±`extent` is not offered: the lines are
- * drawn only that far, and a marker past their end sits on nothing.
+ * The parameter range, as distance from `line.at` along `lineDir`, of the part of the line inside the box `±extent`
+ * (spec §2.5), or null when it misses. An axis line's `at` coordinate on its axis is 0, so its parameter is the world
+ * coordinate and the range is the whole box. An oblique line is clipped against the six planes (slab method).
+ */
+export function lineSpan(line: NewLine | AnyLine, extent: number): [number, number] | null {
+  if ('axis' in line && line.axis !== undefined) return [-extent, extent];
+  const u = lineDir(line);
+  let lo = -Infinity;
+  let hi = Infinity;
+  for (let i = 0; i < 3; i++) {
+    if (u[i] === 0) {
+      if (Math.abs(line.at[i]) > extent) return null;
+      continue;
+    }
+    const a = (-extent - line.at[i]) / u[i];
+    const b = (extent - line.at[i]) / u[i];
+    lo = Math.max(lo, Math.min(a, b));
+    hi = Math.min(hi, Math.max(a, b));
+  }
+  return lo > hi ? null : [lo, hi];
+}
+
+/**
+ * Where two construction lines meet (construction-lines spec §4.2; oblique lines: construction-lines-2 spec §2.4).
+ * Two AXIS lines of different axes agree EXACTLY on the third axis `k`: exact on purpose — a crossing is a point the
+ * user can snap to, and an ulp of disagreement means the lines miss. Any pair involving an oblique line crosses when
+ * the closest approach is under `CROSS_TOLERANCE`, at the midpoint of that segment (computed, not exact); parallel
+ * lines never cross. Each pair is offered once, first in array order as `id`. A crossing with a coordinate beyond
+ * ±`extent` is not offered: the lines are drawn only that far, and a marker past their end sits on nothing.
  */
 export function lineCrossings(guides: Guide[], extent: number): SnapPoint[] {
-  const lines = guides.filter(isGuideLine);
+  const lines = guides.filter(isAnyLine);
   const out: SnapPoint[] = [];
   for (let i = 0; i < lines.length; i++) {
     for (let j = i + 1; j < lines.length; j++) {
       const a = lines[i];
       const b = lines[j];
-      if (a.axis === b.axis) continue;
-      const ia = AXIS_INDEX[a.axis];
-      const ib = AXIS_INDEX[b.axis];
-      const k = 3 - ia - ib;
-      if (a.at[k] !== b.at[k]) continue;
-      const at: [number, number, number] = [0, 0, 0];
-      at[ia] = b.at[ia];
-      at[ib] = a.at[ib];
-      at[k] = a.at[k];
-      if (at.some((c) => Math.abs(c) > extent)) continue;
+      const at = a.axis !== undefined && b.axis !== undefined ? axisCrossing(a, b) : obliqueCrossing(a, b);
+      if (!at || at.some((c) => Math.abs(c) > extent)) continue;
       out.push({ kind: 'line-cross', at, owner: { type: 'guide', id: a.id, cross: b.id } });
     }
   }
   return out;
+}
+
+function axisCrossing(a: GuideLine, b: GuideLine): Vec3 | null {
+  if (a.axis === b.axis) return null;
+  const ia = AXIS_INDEX[a.axis];
+  const ib = AXIS_INDEX[b.axis];
+  const k = 3 - ia - ib;
+  if (a.at[k] !== b.at[k]) return null;
+  const at: Vec3 = [0, 0, 0];
+  at[ia] = b.at[ia];
+  at[ib] = a.at[ib];
+  at[k] = a.at[k];
+  return at;
+}
+
+/** The midpoint of the closest-approach segment of two lines, or null when parallel or further apart than the tolerance. */
+function obliqueCrossing(a: AnyLine, b: AnyLine): Vec3 | null {
+  const u = lineDir(a);
+  const v = lineDir(b);
+  const cx = u[1] * v[2] - u[2] * v[1];
+  const cy = u[2] * v[0] - u[0] * v[2];
+  const cz = u[0] * v[1] - u[1] * v[0];
+  const den = cx * cx + cy * cy + cz * cz; // |u × v|², = 1 − (u·v)² for unit directions
+  if (Math.sqrt(den) < 1e-12) return null;
+  const w: Vec3 = [a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]];
+  const bb = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const d = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
+  const e = v[0] * w[0] + v[1] * w[1] + v[2] * w[2];
+  const s = (bb * e - d) / den;
+  const t = (e - bb * d) / den;
+  const p: Vec3 = [a.at[0] + s * u[0], a.at[1] + s * u[1], a.at[2] + s * u[2]];
+  const q: Vec3 = [b.at[0] + t * v[0], b.at[1] + t * v[1], b.at[2] + t * v[2]];
+  if (!(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < CROSS_TOLERANCE)) return null;
+  return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
 }
 
 /** The ONE list of guide-owned candidates both the Move and Tape tools offer. */
@@ -544,21 +619,26 @@ export function guideCandidates(guides: Guide[], extent: number): SnapPoint[] {
 }
 
 /**
- * The line a tape would place: an anchor, an axis the user pressed and nothing
- * typed (construction-lines spec §3.2). Typed text means a distance instead.
+ * The line a tape would place (construction-lines spec §3.2; oblique-lines spec §2.1): an axis the user pressed and
+ * nothing typed is that axis's line; no axis, nothing typed and a hovered point is the line through the anchor and the
+ * hover. Typed text means a distance instead.
  */
 export function tapeLineFor(
-  anchor: [number, number, number] | null,
+  anchor: Vec3 | null,
   axis: TapeAxis | null,
   typed: string,
-): { at: [number, number, number]; axis: TapeAxis } | null {
-  if (!anchor || !axis || typed.trim() !== '') return null;
-  return canonicalLine(anchor, axis);
+  hover: Vec3 | null,
+): NewLine | null {
+  if (!anchor || typed.trim() !== '') return null;
+  if (axis) return canonicalLine(anchor, axis);
+  return hover ? lineThrough(anchor, hover) : null;
 }
 
-/** Whether a snap point belongs to guide `id`, as a point or as either line of a crossing. */
+/** Whether a snap point belongs to guide `id`, as a point or as either line of a crossing, judged on `heldRoot`. */
 export function ownedByGuide(p: SnapPoint | null, id: string): boolean {
-  return !!p && p.owner.type === 'guide' && (p.owner.id === id || p.owner.cross === id);
+  if (!p) return false;
+  const { owner } = heldRoot(p);
+  return owner.type === 'guide' && (owner.id === id || owner.cross === id);
 }
 
 /**

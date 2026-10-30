@@ -776,18 +776,19 @@ export default function App() {
         }
       }
 
-      // Enter with nothing typed under an axis lock places a construction LINE (construction-lines spec §3.2); the
-      // readout's own Enter does the same once its box has focus. Modifier test in the CONDITION, as above. Anything
-      // else (no anchor, no axis, something typed, a duplicate line) falls through; a duplicate keeps the anchor.
+      // Enter (or Shift+Enter, which is Enter here: the step is the readout's own, with a distance typed) with nothing typed places a construction LINE (construction-lines spec §3.2) under an axis lock, or
+      // with no axis when a point is hovered (a line through both points); the readout's own Enter does the same once
+      // its box has focus. Modifier test in the CONDITION, as above. Anything else (no anchor, something typed, no
+      // axis and no hover, a duplicate line) falls through; a duplicate keeps the anchor.
       // A focused button, link or summary falls through too: Enter on it is that control's own activation, which the
       // preventDefault below would swallow.
       const onControl = e.target instanceof Element && e.target.closest('button, a, summary, [role="button"]') !== null;
-      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !onControl) {
-        const { tool, tapeAnchor, tapeAxis, tapeTyped, addGuideLine, clearTapeAnchor } = useStore.getState();
-        const line = tool === 'tape' ? tapeLineFor(tapeAnchor?.at ?? null, tapeAxis, tapeTyped) : null;
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !onControl) {
+        const { tool, tapeAnchor, tapeAxis, tapeTyped, tapeHover, addGuideLine, clearTapeAnchor } = useStore.getState();
+        const line = tool === 'tape' ? tapeLineFor(tapeAnchor?.at ?? null, tapeAxis, tapeTyped, tapeHover?.at ?? null) : null;
         if (line) {
           e.preventDefault();
-          if (addGuideLine(line.at, line.axis)) clearTapeAnchor();
+          if (addGuideLine(line)) clearTapeAnchor();
           return;
         }
       }

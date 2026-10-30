@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideCandidates, isGuideLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
+import { guideCandidates, isAnyLine, lineFaceCandidates, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keepsCandidate } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -126,17 +126,23 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // gizmo drag under another tool changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
     // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
-    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side.
-    () => tool !== 'tape' ? [] : [
-      ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
-      ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
-    ].filter((p) => p.owner.type === 'guide' || keptBySection(section, p.at)),
+    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side; a line's face hit
+    // sits on a part and is clipped with it (`keepsCandidate`, construction-lines-2 spec §3.1).
+    () => {
+      if (tool !== 'tape') return [];
+      const shown = visibleBoards(boards, hiddenIds);
+      return [
+        ...shown.flatMap(snapPointsFor),
+        ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
+        ...(showGuides ? lineFaceCandidates(guides, shown, SCENE_EXTENT) : []),
+      ].filter((p) => keepsCandidate(section, p));
+    },
     [tool, boards, hiddenIds, guides, showGuides, section],
   );
 
   // Memoised beside the candidates: the handlers close over it (construction-lines spec §4).
   const lines = useMemo(
-    () => tool !== 'tape' || !showGuides ? [] : guides.filter(isGuideLine),
+    () => tool !== 'tape' || !showGuides ? [] : guides.filter(isAnyLine),
     [tool, guides, showGuides],
   );
 
@@ -364,7 +370,8 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // Locked with nothing typed yet draws NO measuring line, and that is deliberate:
   // there is nothing to measure yet. What Enter would create there is a
   // construction line, previewed separately below as a <ConstructionLine preview />
-  // (construction-lines spec §3.5), not through this two-point line.
+  // (construction-lines spec §3.5), not through this two-point line. With NO axis, a hover and empty text
+  // both draw: this measuring line AND the oblique line Enter would place, over one another.
   const lineEnd = preview ?? (axis ? null : hovered?.at) ?? null;
 
   // Memoised on the six coordinates rather than rebuilt inline: drei's <Line>
@@ -382,11 +389,11 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   if (tool !== 'tape' || hidden) return null;
 
   // The line Enter would place under a lock with nothing typed (spec §3.5).
-  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed);
+  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed, hovered?.at ?? null);
 
   return (
     <>
-      {lineAt && <ConstructionLine at={lineAt.at} axis={lineAt.axis} preview />}
+      {lineAt && <ConstructionLine line={lineAt} preview />}
       {anchor && <SnapMarker point={anchor} />}
       {hovered && <SnapMarker point={hovered} />}
       {preview && (

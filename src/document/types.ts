@@ -345,6 +345,8 @@ export interface GuidePoint {
   at: [number, number, number];
   /** Never present on a point. Typed `undefined` so a GuideLine is NOT assignable to a GuidePoint (construction-lines spec §2.3). */
   axis?: undefined;
+  /** Never present on a point (oblique-lines spec §2.3). */
+  to?: undefined;
 }
 
 /**
@@ -369,12 +371,26 @@ export interface GuideLine {
   /** World position, inches; the coordinate ON `axis` is always 0 (canonical, spec §2.2). */
   at: [number, number, number];
   axis: TapeAxis;
+  /** Never present on an axis line. */
+  to?: undefined;
 }
 
-export type Guide = GuidePoint | GuideLine;
+/** An oblique construction line (construction-lines-2 spec §2): through `at` and `to`, which differ and are never axis-parallel. */
+export interface GuideRay {
+  id: string;
+  at: [number, number, number];
+  to: [number, number, number];
+  axis?: undefined;
+}
 
+export type Guide = GuidePoint | GuideLine | GuideRay;
+export type AnyLine = GuideLine | GuideRay;
+
+/** An AXIS line only; an oblique line is `isGuideRay`, and either is `isAnyLine`. */
 export const isGuideLine = (g: Guide): g is GuideLine => g.axis !== undefined;
-export const isGuidePoint = (g: Guide): g is GuidePoint => g.axis === undefined;
+export const isGuideRay = (g: Guide): g is GuideRay => g.to !== undefined;
+export const isAnyLine = (g: Guide): g is AnyLine => g.axis !== undefined || g.to !== undefined;
+export const isGuidePoint = (g: Guide): g is GuidePoint => g.axis === undefined && g.to === undefined;
 
 /** A saved view's camera (saved views spec §2). `height` is the visible world height in inches, ortho only. */
 export interface SavedViewCamera {

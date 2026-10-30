@@ -1,7 +1,8 @@
 import { memo, useId, useMemo } from 'react';
-import type { BandType, Board, SloydDocument } from '../document/types';
+import type { AnyLine, BandType, Board, SloydDocument } from '../document/types';
 import { worldParts } from '../document/tree';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type View } from '../document/drawing';
+import { planLines } from '../document/planLines';
 import { dimensionView, type DimLine } from '../document/dimensions';
 import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
@@ -100,8 +101,16 @@ function KeyMark({ t, r }: { t: KeyTag; r: number }) {
   );
 }
 
+/** The sheet's construction lines (lines2 spec §6): one thin chain-line path per view, clipped to the drawing's bounds;
+ *  nothing joins the dimensions, keys or bounds. Absent when the view shows none (all end-on or outside). */
+function ConstructionLines({ lines, view, d, map }: { lines: readonly AnyLine[]; view: View; d: Drawing; map: ToSvg }) {
+  const segs = planLines(lines, view, d.bounds);
+  if (segs.length === 0) return null;
+  return <path className="plan-construction" d={segs.map((s) => `M${map(s.a).map((n) => n.toFixed(2)).join(' ')}L${map(s.b).map((n) => n.toFixed(2)).join(' ')}`).join('')} />;
+}
+
 /** One elevation with its dimensions: chain above/left, overall below/right (spec §5.4). */
-function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: number; h: Fitted; v: Fitted }) {
+function Elevation({ d, at, scale, h, v, view, lines }: { d: Drawing; at: Placement; scale: number; h: Fitted; v: Fitted; view: View; lines?: readonly AnyLine[] }) {
   const map = toSvg(d, at, scale);
   const left = at.x;
   const right = at.x + (d.bounds.max[0] - d.bounds.min[0]) * scale;
@@ -126,6 +135,7 @@ function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: n
   return (
     <g>
       <Lines d={d} map={map} hidden />
+      {lines && <ConstructionLines lines={lines} view={view} d={d} map={map} />}
       {h.overall && hDim(h.overall, bottom + DIM_BAND / 2, bottom)}
       {h.chain.map((c) => hDim(c, top - DIM_BAND / 2, top))}
       {v.overall && vDim(v.overall, right + DIM_BAND / 2, right)}
@@ -160,10 +170,12 @@ export function trioScale(parts: readonly Board[], bandTypes: readonly BandType[
 /** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2), and, when `keyed`, the features of
  *  those parts as lettered tags with a key list (feature callouts spec §4). Memoised on its props (fu 263): a tick of the
  *  sheet's Explode slider re-renders the sheet, never these — so `keyed` must be a stable set. */
-export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section, bandTypes = NO_BAND_TYPES }: {
+export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, section, bandTypes = NO_BAND_TYPES, lines }: {
   parts: readonly Board[]; units: Units; label: string; keyed?: ReadonlySet<string>; section?: Section | null;
   /** The project's band types (`doc.bandTypes`): glue lines and band keys (edge banding chunk 2). */
   bandTypes?: readonly BandType[];
+  /** The project's construction lines, when the sheet's box is ticked; absent or empty draws exactly as before. Keep it a stable array (the memo). */
+  lines?: readonly AnyLine[];
 }) {
   const views = useMemo(() => {
     const ds = trioDrawings(parts, bandTypes);
@@ -176,7 +188,7 @@ export const PlanTrio = memo(function PlanTrio({ parts, units, label, keyed, sec
     const h = fitChain(x.dims.horizontal, lay.scale);
     const v = fitChain(x.dims.vertical, lay.scale);
     for (const n of [h.note, v.note]) if (n) notes.push(`${x.view.title}: ${n}`);
-    return <Elevation key={x.view.title} d={x.d} at={at} scale={lay.scale}
+    return <Elevation key={x.view.title} d={x.d} at={at} scale={lay.scale} view={x.view} lines={lines && lines.length > 0 ? lines : undefined}
       h={{ overall: x.dims.horizontal.overall, chain: h.chain }}
       v={{ overall: x.dims.vertical.overall, chain: v.chain }} />;
   };

@@ -12,7 +12,7 @@ describe('schema 27: Dovetail.lap (half-blind dovetails spec §8)', () => {
     migrateDocument({ ...createDocument('T'), version, boards: [{ ...side, ...(dovetails === undefined ? {} : { dovetails }) }] });
   const dovetailsOf = (doc: { boards: unknown[] }) => (doc.boards[0] as Board).dovetails;
 
-  it('this build writes 31', () => expect(CURRENT_VERSION).toBe(31));
+  it('this build writes 32', () => expect(CURRENT_VERSION).toBe(32));
 
   it('a v26 document with through dovetails loads as its v26 self: no lap key anywhere', () => {
     const doc = at(26, [tails, pins]);
@@ -44,7 +44,7 @@ describe('schema 27: Dovetail.lap (half-blind dovetails spec §8)', () => {
     expect(dovetailFaults(part, kept[0]!)).toContain('lap');
   });
 
-  it('a version 32 document is refused', () => {
-    expect(() => at(32, [pins])).toThrow(/newer version/);
+  it('a version 33 document is refused', () => {
+    expect(() => at(33, [pins])).toThrow(/newer version/);
   });
 });

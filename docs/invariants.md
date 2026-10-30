@@ -145,16 +145,35 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - **A lean edit moves the world under a held point** (splayed legs, inv 57): `setLean` and `levelEnds` end in `judgeHeld()`, the
       same point-precise path a resize takes (`updateBoards`), because a leaning part's snap points are its lean-mapped lattice. No
       board-precise tape clause was added for it.
+    - **A held point may carry `board` or `base`** (construction lines round 2, schema 32). A LINE-FACE hit (`kind: 'line-face'`) is owned by
+      its LINE with the part it sits on in `SnapOwner.board`: it depends on two things, so it is dropped when either changes. The line
+      going or being edited drops it through `ownedByGuide` with no new clause; the part moving or changing drops it through the same
+      point-precise judgement a board-owned point gets (`judgeHeld`/`dropHeldIfGone`, called AFTER `edit()`): it survives when the same
+      line's `lineFaceHits` on that part, recomputed on the post-edit document, still include it (`sameSnapPoint` compares `board` too).
+      `deleteBoards` drops it when its part goes, and `rekeyHeld` re-keys `owner.board`. A STEPPED anchor (`kind: 'offset'`, Shift+Enter
+      in the tape readout) carries `base`, the ROOT feature point the steps started from (never itself stepped; `owner` a copy of the
+      base's owner): it survives exactly as long as its base would, so every held-point judgement reads `heldRoot(p)` (`p.base ?? p`) and
+      the part it depends on is `heldBoard(p)`; `rekeyHeld` re-keys both the point and its base, and `sameSnapPoint` compares `base`.
+      A stepped anchor is only ever `tapeAnchor`: never a hover, a grab or a candidate. **`moveGuideLine` (typing a line's
+      coordinates) and `removeGuide` drop every held point owned by the line through ONE shared helper, `dropHeldOwnedBy`**, before
+      `edit()`, so the two cannot drift apart. The enumeration at `tapeHover`'s declaration gains its sentences there only.
 25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide,
     ray-typed guide, axis-placed guide, copy in a row (copy k = original + k·step·sign,
     never from the previous copy), and align and space evenly (align spec: each item's own exact world delta, one edit, never
     through `moveGroupTo`; an inner item placed from the FIRST item's max, never a running position), and stretch (inv 64:
     `δ` computed once and added to every number past the line, in imperial and metric alike). Round what a free drag
     produced, nothing else.
-    **Construction lines (schema 31) add two entries:** a line CROSSING is exact (`lineCrossings`: the two lines agree on the third axis by `===`,
+    **Construction lines (schema 31) add two entries:** a CROSSING OF TWO AXIS LINES is exact (`lineCrossings`: the two lines agree on the third axis by `===`,
     every value read straight from a stored coordinate, no epsilon, no arithmetic), and a point SLID along a line (`pickOnLine`) rounds only its
     coordinate ALONG the line, through `snapToGrid` (1/16" or 1 mm), the other two staying the line's own, exact; a Move to a slid target moves by
     the exact delta to that rounded point. A line itself is placed exactly (`tapeLineFor`/`canonicalLine`, `at[axis] = 0`).
+    **Round 2 (schema 32) changes and adds entries.** A crossing involving an OBLIQUE line is COMPUTED, not exact: the lines cross when
+    their closest approach is under `CROSS_TOLERANCE` (1e-6"), at the midpoint of that segment; parallel lines never cross. A point
+    slid along an oblique line rounds its DISTANCE FROM `at` through `snapToGrid` (the only free coordinate; its world coordinates
+    `at + t·u` are computed and cannot be on the world grid). A typed line edit (`moveGuideLine`) stores the typed value EXACTLY, canonicalised
+    (`at[axis] = 0`). An AXIS line's face hit on a face SQUARE to it (the face plane's normal ±that axis) is exact: its coordinate along the axis
+    is the plane's own constant, ASSIGNED and never computed back through `t` (`a + (c − a)` is not always `c`), the other two the line's
+    stored values; every other face hit is computed. Shift+Enter's step is `offsetPoint` from the root: exact arithmetic from typed numbers, never rounded.
     **A free drag of a LEANING part rounds the drag DELTA, never a corner** (`dragTarget`, Gizmo.tsx; splayed legs §6.2, inv 57): its
     pre-lean corner is off-grid after Level the ends, and its real-bounds corner would move the seat joint. A snap onto a leaning
     part's point moves the moving part by an exact world delta, unrounded, as before.
@@ -193,7 +212,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     container; definition and shape ids per document; cut ids per board (per shape for a
     shape), and so angle-cut, hole, curve, round-tenon (schema 24, inv 58) and dovetail ids (schema 26, inv 62); profile ids share the part's CURVE scope (curves validated first), so the
     geometry view never holds two curves with one id. Band type ids per document (one `seen` set; the built-in's id fixed);
-    bands carry no id (keyed by side); saved-view ids per document (one `seen` set, `validateViews`). `/` in an id is re-minted. A guide with no id is dropped. A construction line (schema 31) is a guide, so a line and a point share the one `guides` scope (one `seen` set, `validateGuides`); a duplicate line is kept by content and its id re-minted. References
+    bands carry no id (keyed by side); saved-view ids per document (one `seen` set, `validateViews`). `/` in an id is re-minted. A guide with no id is dropped. A construction line (schema 31) is a guide, so a line and a point share the one `guides` scope (one `seen` set, `validateGuides`); a duplicate line is kept by content and its id re-minted. An OBLIQUE line (schema 32, `to`) shares that scope too: all three kinds (point, axis line, oblique line) run through the one `validateGuides` and the one `seen` set. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
     at a board by id breaks the single-pass repair. **`views[].hidden` is exempt: it is a hint, never a reference** — load never
@@ -570,7 +589,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 47. **Exploded is read-only.** `explode > 0` means the model cannot change: `edit()`, `undo` and `redo` are the
     gate; **a saved-view write (`saveView`, `updateView`, `renameView`, `deleteView`) is the one document write allowed while exploded; it goes through
     `editViews` (`edit`'s `viewsOnly`) and touches only `views`; undo and redo stay refused while exploded;** any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
-    Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
+    Ungroup, guide and board deletes, `moveGuideLine` (a line's typed coordinates), `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
     stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent), placed by `EditLock`
     around EDITING regions only (fu 262): the ActionBar sits outside it and disables its own non-`view` actions (Hide others,
@@ -889,7 +908,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     its colour is `capOutlineColor` (`viewport/capOutline.ts`): the edge colour on a light cap, the cap lifted toward white on a dark one
     (sRGB lightness under 0.4: cherry, walnut). The cap material takes no clipping plane and
     is keyed on `faded`. **Picking and snapping read only `keptBySection`** (a raycast wrapper on part meshes; Move/Tape
-    candidates), guide points exempt — guides are drawn unclipped. The per-part local-cap cache is hit only on the same
+    candidates), guide points exempt — guides are drawn unclipped. A LINE-FACE hit lies on a part, so it obeys `keptBySection` like a part's own point (`keepsCandidate`, reading `owner.board`); the lines themselves stay exempt. The per-part local-cap cache is hit only on the same
     `geometryKey` and the exact local plane coordinate; never hand out its arrays.
     **On the Plans sheet** (fu 256) the store's section is read as the sheet renders (never saved): the section drawing comes only
     from `drawView`'s `section` option — ONE hidden-line pass, every line clipped by `keptBySection`'s test, every occluder
