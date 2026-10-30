@@ -54,6 +54,13 @@ export const SNAP_COLORS: Record<SnapKind, string> = {
   // 37.4/41.3/39.4. Lightness (L≈13 against moss's ≈37) carries it; the only other family that clears every floor is a
   // vivid crimson (#f80458). The user judges it by eye.
   'line-face': '#341c00',
+  // A stepped tape anchor (construction-lines-2 spec §4.2): a point typed off a feature, sitting on nothing, so a vivid
+  // crimson that reads as no physical kind. The same grid search and method as `line-face`, against every entry above:
+  // maple 3.40:1, ring 3.88:1, oak ΔE 37.4; ΔE (normal / deuteranopia / protanopia) against corner 64.4/20.1/16.7,
+  // edge-mid 57.9/28.5/15.8, face 25.4/33.6/16.0, guide 38.8/44.5/23.9, line 48.4/42.0/27.0, line-cross 40.2/49.8/24.3,
+  // line-face 41.7/35.7/22.9. The only other family that clears every floor is a near-black teal (#001c20), which
+  // would sit beside `line-face` as a second near-black dot. The user judges it by eye.
+  offset: '#f00058',
 };
 
 /**

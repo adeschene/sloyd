@@ -25,7 +25,7 @@ import { tiltedHole } from './holes';
  * What a snap point sits on. Drives the marker's colour, and nothing else —
  * every kind snaps identically.
  */
-export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross' | 'line-face';
+export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross' | 'line-face' | 'offset';
 
 /**
  * What a snap point belongs to.
@@ -54,6 +54,11 @@ export interface SnapPoint {
   /** World position, inches. */
   at: [number, number, number];
   owner: SnapOwner;
+  /**
+   * Only on a stepped tape anchor (`kind: 'offset'`, construction-lines-2 spec §4.2): the ROOT feature point the steps
+   * started from, never itself stepped; `owner` is a copy of its owner. Every held-point judgement reads `heldRoot`.
+   */
+  base?: SnapPoint;
 }
 
 /**
@@ -97,8 +102,24 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
     (a.owner.type === 'guide' && b.owner.type === 'guide' ? a.owner.cross === b.owner.cross && a.owner.board === b.owner.board : true) &&
     a.at[0] === b.at[0] &&
     a.at[1] === b.at[1] &&
-    a.at[2] === b.at[2]
+    a.at[2] === b.at[2] &&
+    // Two stepped anchors at one position differ only in what they stepped from.
+    sameSnapPoint(a.base ?? null, b.base ?? null)
   );
+}
+
+/**
+ * What a held point is judged by (inv 24): a stepped anchor's base, else the point itself. The stepped position is the
+ * base's plus two numbers the user typed, so the base surviving point-precisely means the anchor is still current.
+ */
+export function heldRoot(p: SnapPoint): SnapPoint {
+  return p.base ?? p;
+}
+
+/** The part a held point depends on, through `heldRoot`: a board owner's id, a face hit's `board`, else null. */
+export function heldBoard(p: SnapPoint): string | null {
+  const { owner } = heldRoot(p);
+  return owner.type === 'board' ? owner.id : owner.board ?? null;
 }
 
 /**
@@ -613,9 +634,11 @@ export function tapeLineFor(
   return hover ? lineThrough(anchor, hover) : null;
 }
 
-/** Whether a snap point belongs to guide `id`, as a point or as either line of a crossing. */
+/** Whether a snap point belongs to guide `id`, as a point or as either line of a crossing, judged on `heldRoot`. */
 export function ownedByGuide(p: SnapPoint | null, id: string): boolean {
-  return !!p && p.owner.type === 'guide' && (p.owner.id === id || p.owner.cross === id);
+  if (!p) return false;
+  const { owner } = heldRoot(p);
+  return owner.type === 'guide' && (owner.id === id || owner.cross === id);
 }
 
 /**

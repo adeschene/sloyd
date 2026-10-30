@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
 import { stretchPlan } from '../document/stretch';
 import {
-  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, newLineOf, sameNewLine, ownedByGuide, isAnyLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, newLineOf, sameNewLine, ownedByGuide, heldBoard, heldRoot, isAnyLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -15,6 +15,7 @@ import { rotateVec } from '../document/frames';
 import { chooseFace, leanMap, leans, leanTwist, pivotKeptPosition, seamFree, slopeOf, withinBound, worldSlopes } from '../document/lean';
 import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../document/levelEnds';
 import { socketPlan } from '../document/legSockets';
+import { lineFaceHits } from '../document/lineFaces';
 import { refitPlan, stretcherOf, stretcherPlan } from '../document/stretchers';
 import { STRETCHER_NOT_A_STRETCHER } from '../document/stretcherText';
 import { applyBoxJoints, boxJointPlan } from '../document/boxJoints';
@@ -229,6 +230,10 @@ interface StoreState {
    *    statements, not a licence to add another.
    *  - `setExplode` leaving 0 reaches the blanket clear THROUGH `setTool('select')` — the drawn
    *    world no longer matches world positions (plans-sheet spec §4.1). It is not a new writer.
+   *  - A face hit (`owner.board`, construction-lines-2 §3.2) depends on its line AND its part: removal drops it through
+   *    `ownedByGuide`, and every part judgement above judges it as `heldBoard` names, surviving while that line's
+   *    `lineFaceHits` on the post-edit part still include it.
+   *  - A stepped anchor (`base`, §4.2) survives exactly as long as its base would: every judgement above reads `heldRoot`.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -920,8 +925,8 @@ export const useStore = create<StoreState>((set, get) => {
    * three rather than a second copy: two
    * functions computing snapPointsFor(board) and comparing with sameSnapPoint
    * are two places for a future rule to disagree (follow-up 113). The
-   * board-id guard makes a guide-owned anchor fall through untouched, which is
-   * correct — a cut edit cannot affect a guide.
+   * board-id guard (`heldBoard`) makes a guide-owned anchor on no part fall
+   * through untouched, which is correct — a cut edit cannot affect a guide.
    *
    * KEEPS THE ORIGINAL'S GUARD-FIRST SHAPE. snapPointsFor builds the cell grid
    * for a cut board, and these three actions fire on every ordinary edit in
@@ -936,8 +941,15 @@ export const useStore = create<StoreState>((set, get) => {
    */
   const rekeyHeld = (rekey: Rekey, lift: Lift = () => null) => {
     const { hiddenIds, tapeAnchor, tapeHover } = get();
-    const move = (p: SnapPoint | null) =>
-      p && p.owner.type === 'board' ? { ...p, owner: { ...p.owner, id: rekey(p.owner.id) } } : p;
+    // A board owner's id, a face hit's `board`; a stepped anchor's base the same way (spec §4.2).
+    const rekeyOwner = (p: SnapPoint): SnapPoint =>
+      p.owner.type === 'board' ? { ...p, owner: { ...p.owner, id: rekey(p.owner.id) } }
+        : p.owner.board !== undefined ? { ...p, owner: { ...p.owner, board: rekey(p.owner.board) } } : p;
+    const move = (p: SnapPoint | null): SnapPoint | null => {
+      if (!p) return p;
+      const q = rekeyOwner(p);
+      return q.base ? { ...q, base: rekeyOwner(q.base) } : q;
+    };
     // A hidden assembly an edit dissolved passes its hidden-ness to what it held
     // (fu 229), once each: a child already hidden on its own is not listed twice.
     const hidden = [...new Set(hiddenIds.flatMap((id) => lift(id) ?? [rekey(id)]))];
@@ -993,22 +1005,26 @@ export const useStore = create<StoreState>((set, get) => {
     return out;
   };
 
-  /** Every board-owned held point, judged point-precisely (components spec §4.2):
+  /** Every held point on a part (`heldBoard`), judged point-precisely (components spec §4.2):
    *  an edit inside a definition moves parts in EVERY copy, so judging only the
    *  edited occurrence would miss held points under the other copies. */
   const judgeHeld = () => {
     const owners = new Set<string>();
-    for (const h of [get().grabbed, get().tapeAnchor, get().tapeHover]) if (h && h.owner.type === 'board') owners.add(h.owner.id);
+    for (const h of [get().grabbed, get().tapeAnchor, get().tapeHover]) {
+      const b = h && heldBoard(h);
+      if (b) owners.add(b);
+    }
     for (const id of owners) dropHeldIfGone(id);
   };
 
   const dropHeldIfGone = (boardId: string) => {
-    // `type === 'board'` is redundant for `grabbed` (its type says so) and
-    // load-bearing for `tapeAnchor` (its type does not) — design §3.0 showing
-    // through in one predicate over three fields. Returns the point rather
-    // than a boolean so the three call sites below need no non-null assertion.
+    // `heldBoard` is redundant for `grabbed` (its type says board-owned) and
+    // load-bearing for the tape's two (a face hit or a stepped anchor names its
+    // part elsewhere) — design §3.0 showing through in one predicate over three
+    // fields. Returns the point rather than a boolean so the three call sites
+    // below need no non-null assertion.
     const heldOnBoard = (held: SnapPoint | null): SnapPoint | null =>
-      held !== null && held.owner.type === 'board' && held.owner.id === boardId ? held : null;
+      held !== null && heldBoard(held) === boardId ? held : null;
 
     const grabbed = heldOnBoard(get().grabbed);
     const anchor = heldOnBoard(get().tapeAnchor);
@@ -1019,8 +1035,16 @@ export const useStore = create<StoreState>((set, get) => {
     if (!grabbed && !anchor && !hover) return;
 
     const board = worldParts(get().doc).find((b) => b.id === boardId);
-    const points = board ? snapPointsFor(board) : [];
-    const survives = (held: SnapPoint) => points.some((p) => sameSnapPoint(p, held));
+    // Built on first need: a held face hit alone never pays for the lattice.
+    let points: SnapPoint[] | null = null;
+    const survives = (held: SnapPoint) => {
+      const r = heldRoot(held);
+      if (!board) return false;
+      if (r.owner.type === 'board') return (points ??= snapPointsFor(board)).some((p) => sameSnapPoint(p, r));
+      // A face hit (spec §3.2): the same line's hits on the post-edit part still include it.
+      const line = get().doc.guides.find((g) => g.id === r.owner.id);
+      return line !== undefined && isAnyLine(line) && lineFaceHits(line, board).some((p) => sameSnapPoint(p, r));
+    };
 
     const patch: { grabbed?: null; tapeAnchor?: null; tapeHover?: null; tapeAxis?: null } = {};
     if (grabbed && !survives(grabbed)) patch.grabbed = null;
@@ -1540,9 +1564,9 @@ export const useStore = create<StoreState>((set, get) => {
       // comment gives: the question is what the board offers once the edit has
       // landed. A rename leaves every point exactly where it was, so both the
       // anchor and the latched hover survive; a Length, Posture, Rotation or
-      // Position change moves them, so they drop. A guide-owned anchor falls
-      // through untouched — heldOnBoard requires `owner.type === 'board'` —
-      // which is the same behaviour the deleted clause had. `grabbed` was
+      // Position change moves them, so they drop. A guide-owned anchor on no
+      // part falls through untouched — heldOnBoard requires `heldBoard` to name
+      // this part — which is the same behaviour the deleted clause had. `grabbed` was
       // already nulled above if it named this board, so reaching it here is a
       // no-op rather than a second opinion. Every held point is judged: a
       // shape's Length moves every user's points, not only the targets'.
@@ -1586,11 +1610,12 @@ export const useStore = create<StoreState>((set, get) => {
       // and "is this a deleted board" are the same question with the same
       // answer for every point on it.
       const { grabbed, tapeAnchor, tapeHover } = get();
+      const onDoomed = (p: SnapPoint | null) => { const b = p && heldBoard(p); return !!b && isCovered(b, doomed); };
       if (grabbed && isCovered(grabbed.owner.id, doomed)) set({ grabbed: null });
-      if (tapeAnchor?.owner.type === 'board' && isCovered(tapeAnchor.owner.id, doomed)) {
+      if (onDoomed(tapeAnchor)) {
         set({ tapeAnchor: null, tapeAxis: null });
       }
-      if (tapeHover?.owner.type === 'board' && isCovered(tapeHover.owner.id, doomed)) {
+      if (onDoomed(tapeHover)) {
         set({ tapeHover: null });
       }
       edit(
