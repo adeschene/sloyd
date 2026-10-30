@@ -8482,3 +8482,22 @@ injects a hover `as never`, and typed + no axis + no hover has no assertion for 
 the user kept them by eye 2026-10-30, so do not change them unasked. (8) The Guides list row's wrapped layout (`.field` label-over-input with
 flex-wrap may push × onto its own line) and the spec's inline "·" separators are owed to a browser look.
 **Status:** open (record-only).
+**Status:** (1) fixed in the final-review wave (`den = |u×v|²`); (8) seen in the browser 2026-10-30: the fields sit on the row with × at its end, and the user kept the layout; (7) moved to fu 590 (the user now allows the retune). The rest stay record-only. (2026-10-30)
+
+**590. Snap-marker hues: meet fu 249's colour-blind floors everywhere.** Round 1's `line` `#4a86b8` and `line-cross` `#3a4a8c` sit below fu 249's
+CVD floor against the `guide` hue (CIEDE2000 under simulated deuteranopia/protanopia 8.0–10.7, floor 14; measured in round 2, fu 589 (7)), and
+`offset` `#f00058` clears face-center's normal floor by only 0.4. The user, 2026-10-30, on round 2's by-eye check: "The current state is fine,
+although I'm fine with making changes that align with the color blindness requirements." So a retune that meets every floor in `SnapMarker.tsx`'s
+header (WCAG on the wood swatches, ΔE from oak, mutual ΔE normal + deut + prot) is approved in principle; the new hues still go to the user by eye.
+**Status:** open (small; approved in principle; the hues owed by eye).
+
+**591. Selectable guides: points and lines, in the viewport and the Guides list.** The user's request, 2026-10-30: select a guide point or a
+construction line by clicking it in the viewport or its row in the Guides list; a selected line is emphasised in the viewport; a selected guide is
+deleted or hidden with the same keys as parts. This REVERSES two standing decisions, which the spec must address head-on: `GuidesList`'s
+"DELIBERATELY NO SELECTION MODEL" (nothing touches `selectedIds`, no Delete-key path) and round 1 spec §5's "picking a line in the viewport must not
+exist" (the `THREE.Line` raycast threshold makes a line a poor hit target; inv 21's lesson). Open questions for the spec: a guide selection beside
+`selectedIds` or inside it (`selectionPatch` is the ONE writer, inv 42; the Properties panel is a panel for boards); what "hide" means for a guide
+(view state like `hiddenIds`, inv 43, or one more `showGuides`-style toggle) and whether hidden guides still snap; Delete/H in App's ONE keydown
+effect (inv 27); exploded (inv 47); a screen-space pick for lines (distance to the projected segment, like `pickOnLine`) instead of a raycast.
+Feature-sized; a separate session.
+**Status:** open (feature; the user asked for it 2026-10-30 — next session).
