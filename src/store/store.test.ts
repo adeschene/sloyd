@@ -28,6 +28,8 @@ import { staleTenonOf, tenonJoints } from '../document/tenonJoints';
 import { tenonLine } from '../document/tenonText';
 import { migrateDocument } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
+import { CAM, BOLT, camPart } from '../document/camBoltFixtures';
+import type { HoleRow } from '../document/types';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -4738,5 +4740,40 @@ describe('counterbores and countersinks on hole rows (counterbores §3.2, §7)',
     expect(s().updateHoleRow('a', 'r1', bare({ ...ROW, ...CB }))).toBeNull();
     expect(occ('b').holes[0]).toMatchObject(CB);
     expect(s().doc.shapes[0]!.holes[0]).toMatchObject(CB);
+  });
+});
+
+describe('updateHoleRows (cam-and-bolt spec §4.3)', () => {
+  const s = () => useStore.getState();
+  const rowsOf = () => (s().doc.boards[0] as Board).holes;
+  const bare = (r: HoleRow) => { const { id: _id, ...x } = r; return x; };
+  const setup = () => s().replaceDocument({ ...createDocument('Cam'), boards: [camPart({ id: 'P' })] });
+  it('replaces every edited row in ONE undo entry', () => {
+    setup();
+    const before = s().past.length;
+    expect(s().updateHoleRows('P', [
+      { rowId: 'cam', next: { ...bare(CAM), station: 2 } }, { rowId: 'bolt', next: { ...bare(BOLT), station: 2 } },
+    ])).toBeNull();
+    expect(rowsOf().map((r) => r.station)).toEqual([2, 2]);
+    expect(s().past.length).toBe(before + 1);
+    s().undo();
+    expect(rowsOf().map((r) => r.station)).toEqual([CAM.station, BOLT.station]);
+  });
+  it('pushes nothing when every row is a no-op, and skips a no-op row', () => {
+    setup();
+    const before = s().past.length;
+    expect(s().updateHoleRows('P', [{ rowId: 'cam', next: bare(CAM) }, { rowId: 'bolt', next: bare(BOLT) }])).toBeNull();
+    expect(s().past.length).toBe(before);
+    s().updateHoleRows('P', [{ rowId: 'cam', next: bare(CAM) }, { rowId: 'bolt', next: { ...bare(BOLT), station: 2 } }]);
+    expect(rowsOf().map((r) => r.station)).toEqual([CAM.station, 2]);
+  });
+  it('refuses all when one row refuses, changing nothing', () => {
+    setup();
+    const before = s().past.length;
+    expect(s().updateHoleRows('P', [
+      { rowId: 'cam', next: { ...bare(CAM), station: 2 } }, { rowId: 'bolt', next: { ...bare(BOLT), tiltAlong: Number.NaN } },
+    ])).toBe(HOLE_TILT_PAST_BOUND);
+    expect(rowsOf().map((r) => r.station)).toEqual([CAM.station, BOLT.station]);
+    expect(s().past.length).toBe(before);
   });
 });

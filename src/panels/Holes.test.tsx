@@ -9,6 +9,10 @@ import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
 import { holeLengthText } from '../document/holeText';
 import { slopeOf } from '../document/lean';
+import { CAM, BOLT, camPart } from '../document/camBoltFixtures';
+import { mm } from '../document/holes';
+import { holeFaults } from '../document/holeFaults';
+import { CAM_PAIR_ALONG, CAM_PAIR_PARTIAL } from '../document/holeText';
 
 const side = (over: Partial<Board> = {}) => createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -800,5 +804,84 @@ describe('counterbores and countersinks in the Holes section (counterbores §4, 
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     expect(screen.queryByRole('button', { name: 'Counterbored screw' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Countersunk screw' })).toBeInTheDocument();
+  });
+
+  describe('editing a cam-and-bolt pair', () => {
+    const pair = (over: Partial<Board> = {}) => camPart({ id: 'side', name: 'Side', ...over });
+    const faultsOf = () => { const b = worldParts(useStore.getState().doc)[0]!; return b.holes.flatMap((r) => holeFaults(b, r)); };
+    const field = async (user: ReturnType<typeof userEvent.setup>, label: string, nth: number, text: string) => {
+      const f = screen.getAllByLabelText(label)[nth]!;
+      await user.clear(f); await user.type(f, `${text}{Enter}`);
+    };
+    it('First at on the cam moves both rows, with no fault and one undo', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      const before = useStore.getState().past.length;
+      await field(user, 'First at', 0, '50mm');
+      expect(rows().map((r) => r.station)).toEqual([mm(50), mm(50)]);
+      expect(faultsOf()).toEqual([]);
+      expect(useStore.getState().past.length).toBe(before + 1);
+      act(() => useStore.getState().undo());
+      expect(rows().map((r) => r.station)).toEqual([mm(37), mm(37)]);
+    });
+    it('Count 2 to 3 moves both rows', async () => {
+      const user = userEvent.setup();
+      open(pair({ width: 20 }));
+      await field(user, 'Count', 1, '3');
+      expect(rows().map((r) => r.count)).toEqual([3, 3]);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('Every moves both rows', async () => {
+      const user = userEvent.setup();
+      open(pair({ width: 20 }));
+      await field(user, 'Every', 0, '150mm');
+      expect(rows().map((r) => r.pitch)).toEqual([mm(150), mm(150)]);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('the bolt\'s From copies all four along fields onto the cam', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      const sel = screen.getAllByLabelText('From')[1]!;
+      await user.selectOptions(sel, 'max');
+      expect(rows().map((r) => [r.alongFrom, r.station, r.count, r.pitch])).toEqual(
+        [['max', BOLT.station, 2, BOLT.pitch], ['max', BOLT.station, 2, BOLT.pitch]]);
+    });
+    it('the bolt\'s edit overwrites a cam that encoded its stations differently', async () => {
+      const user = userEvent.setup();
+      open(pair({ holes: [{ ...CAM, alongFrom: 'max' }, { ...BOLT }] }));
+      await field(user, 'First at', 1, '40mm');
+      expect(rows().map((r) => [r.alongFrom, r.station])).toEqual([['min', mm(40)], ['min', mm(40)]]);
+    });
+    it('an Along edit on either row is refused and changes nothing', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      const before = rows();
+      await user.selectOptions(screen.getAllByLabelText('Along')[0]!, 'length');
+      expect(screen.getByRole('alert')).toHaveTextContent(CAM_PAIR_ALONG);
+      expect(rows()).toEqual(before);
+    });
+    it('a station edit on a partly paired row is refused', async () => {
+      const user = userEvent.setup();
+      open(pair({ holes: [{ ...CAM }, { ...BOLT, count: 1 }] }));
+      await field(user, 'First at', 0, '50mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_PARTIAL);
+      expect(rows()[0]!.station).toBe(mm(37));
+    });
+    it('a non-shared field edits only its row', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      await field(user, 'Depth', 0, '15mm');
+      expect(rows()[0]!.depth).toBeCloseTo(mm(15));
+      expect(rows()[1]).toEqual(BOLT);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('a depth that unpairs the rows is refused as meets-hole', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      // a bolt ending inside the cam's wall (tangent) is no pair and meets the cam
+      await field(user, 'Depth', 1, '17mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toMatch(/into hole 1 of another row/);
+      expect(rows()[1]).toEqual(BOLT);
+    });
   });
 });

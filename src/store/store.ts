@@ -539,6 +539,10 @@ interface StoreState {
   /** As addHoleRows: `HOLE_TILT_PAST_BOUND` past the bound, `dovetailMoveClear` for an edited row touching a dovetailed
    *  end's zone, decided before any mutation; null otherwise. */
   updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => string | null;
+  /** The same per-row steps and refusals as updateHoleRow for each edit (cam-and-bolt spec §4.3); any refusal refuses
+   *  all, before any mutation. A no-op row is skipped; if every row is a no-op nothing is pushed (inv 4), else ONE edit()
+   *  replaces all the edited rows (one undo entry). */
+  updateHoleRows: (boardId: string, edits: { rowId: string; next: Omit<HoleRow, 'id'> }[]) => string | null;
   removeHoleRow: (boardId: string, rowId: string) => void;
   /**
    * Round tenons (round tenons spec §4) on the WORLD part `boardId`, `end` in its world frame (a mirrored Shape user's
@@ -2278,20 +2282,26 @@ export const useStore = create<StoreState>((set, get) => {
       judgeHeld();
       return null;
     },
-    updateHoleRow: (boardId, rowId, next) => {
+    updateHoleRow: (boardId, rowId, next) => get().updateHoleRows(boardId, [{ rowId, next }]),
+    updateHoleRows: (boardId, edits) => {
       if (readOnly()) return null;
       const board = worldParts(get().doc).find((b) => b.id === boardId);
-      const cur = board?.holes.find((r) => r.id === rowId);
-      if (!board || !cur) return null;
-      if (!tiltWithin(next)) return HOLE_TILT_PAST_BOUND;
-      const headRefused = headRefusal(next, cur.head !== undefined);
-      if (headRefused) return headRefused;
-      const after: HoleRow = { ...storedHead(storedTilt(copyHoleRow(next as HoleRow))), id: rowId };
-      if (sameHoleRow(cur, after)) return null; // a no-op edit pushes no undo entry (invariant 4)
-      const zone = holesZoneRefusal(get().doc, board, [after]); // dovetails spec §3.6
+      if (!board) return null;
+      const changed = new Map<string, HoleRow>();
+      for (const { rowId, next } of edits) {
+        const cur = board.holes.find((r) => r.id === rowId);
+        if (!cur) return null; // a stale id: as the hole actions (updateHoleRow)
+        if (!tiltWithin(next)) return HOLE_TILT_PAST_BOUND;
+        const headRefused = headRefusal(next, cur.head !== undefined);
+        if (headRefused) return headRefused;
+        const after: HoleRow = { ...storedHead(storedTilt(copyHoleRow(next as HoleRow))), id: rowId };
+        if (!sameHoleRow(cur, after)) changed.set(rowId, after); // a no-op edit pushes no undo entry (invariant 4)
+      }
+      if (changed.size === 0) return null;
+      const zone = holesZoneRefusal(get().doc, board, [...changed.values()]); // dovetails spec §3.6
       if (zone) return zone;
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
-        b.id === boardId ? { ...b, holes: b.holes.map((r) => (r.id === rowId ? after : r)) } : b)));
+        b.id === boardId ? { ...b, holes: b.holes.map((r) => changed.get(r.id) ?? r) } : b)));
       judgeHeld();
       return null;
     },

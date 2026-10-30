@@ -87,6 +87,10 @@ export function holeLine(board: Board, r: HoleRow, units: Units): string {
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
+/** Refusals of an edit to a cam-and-bolt pair's row (cam-and-bolt spec §4.3), worded like the panel's other refusals. */
+export const CAM_PAIR_ALONG = "This hole is half of a cam-and-bolt pair, so which way it runs can't change — remove one row and add it again.";
+export const CAM_PAIR_PARTIAL = 'Only some of these holes are paired with a cam bore — move the rows one at a time.';
+
 /**
  * A whole cam-and-bolt pair as ONE bench line (cam-and-bolt spec §6.3; invariant 19): the cam's size, face and inset from
  * its end, the bolt's size and face, then where the pairs sit along the cam row. Faults of both rows are appended as
