@@ -260,6 +260,17 @@ describe('pickGuide', () => {
     expect(pick([axisLine(104), pt(104, 100)])).toBe('P');
     expect(pick([pt(104, 100), axisLine(104)])).toBe('P');
   });
+  it('prefers a point within reach to a nearer line (browser check)', () => {
+    // point 6 px off, line 1 px off: both in radius; the point wins whatever the order or the line's depth
+    expect(pick([axisLine(101), pt(106, 100)])).toBe('P');
+    expect(pick([pt(106, 100), axisLine(101)])).toBe('P');
+  });
+  it('picks the nearer of two points, ties to depth', () => {
+    expect(pick([pt(108, 100, 'far'), pt(103, 100, 'near')])).toBe('near');
+    const deep: Guide = { id: 'deep', at: [104, 100, -5] };
+    const shallow: Guide = { id: 'shallow', at: [104, 100, 5] };
+    expect(pick([deep, shallow])).toBe('shallow');
+  });
   it('drops a line with a nearer occluder', () => {
     const l: Guide = { id: 'A', at: [0, 104, -3], axis: 'x' }; // depth 3
     expect(pick([l], 0)).toBeNull();

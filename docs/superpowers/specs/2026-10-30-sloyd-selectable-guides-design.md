@@ -150,6 +150,11 @@ Distances are in screen pixels, at the radius the tools already use for snap mar
   builder's). A line hidden behind a part cannot be clicked through it.
 - Among guides in radius, the nearest on screen wins, and ties go to the nearer depth (as `pickSnapPoint` does). A point
   and a line through it at the same distance: the point wins (call; it is the smaller target).
+  *Amended (2026-10-30, browser check):* a guide point on a line was almost unclickable, since the line's distance to
+  the cursor is ~0 along its whole length. A guide POINT within the radius now beats EVERY line, whatever their screen
+  distances (the rule `pickGuided` applies to snapping: a discrete candidate within the radius always wins). Among
+  points the nearest on screen wins, ties to the nearer depth; only when no point is in reach are lines considered
+  (nearest, ties to depth, the occluder rule unchanged).
 - A part is considered only if it is visible, not hidden and kept by the section (`keptBySection`, inv 51), which is
   what a part click already obeys.
 - Modifiers: Shift, Ctrl and Cmd toggle (`isToggleModifier`), as for parts.

@@ -219,10 +219,12 @@ export function closestOnLine(
 export const DEPTH_EPS = 1e-6;
 
 /**
- * The id of the guide nearest the cursor within `radiusPx`, or null. Points by projected distance (never occluded:
- * their markers draw `depthTest: false`); lines by the projected unrounded `closestOnLine` point, kept only when
- * nothing nearer hides it (`occluderDepth`, the NDC depth of the first part hit under the cursor, or null).
- * Nearest on screen wins; a tie goes to a point, then to the nearer depth.
+ * The id of the guide under the cursor within `radiusPx`, or null. A guide POINT within the radius beats EVERY line,
+ * whatever their screen distances (a point on a line sits at line-distance ~0 all along it; `pickGuided`'s rule:
+ * a discrete candidate within the radius always wins); points by projected distance (never occluded: their markers
+ * draw `depthTest: false`), the nearest wins, a tie to the nearer depth. Only when no point is in reach are lines
+ * considered: the projected unrounded `closestOnLine` point, kept only when nothing nearer hides it (`occluderDepth`,
+ * the NDC depth of the first part hit under the cursor, or null); nearest on screen, a tie to the nearer depth.
  */
 export function pickGuide(
   guides: readonly Guide[],
@@ -233,10 +235,13 @@ export function pickGuide(
   extent: number,
   occluderDepth: number | null,
 ): string | null {
-  let best: string | null = null;
-  let bestDistSq = radiusPx * radiusPx;
-  let bestDepth = Number.POSITIVE_INFINITY;
-  let bestIsPoint = false;
+  const limit = radiusPx * radiusPx;
+  let bestPoint: string | null = null;
+  let pointDistSq = limit;
+  let pointDepth = Number.POSITIVE_INFINITY;
+  let bestLine: string | null = null;
+  let lineDistSq = limit;
+  let lineDepth = Number.POSITIVE_INFINITY;
 
   for (const g of guides) {
     const isPoint = isGuidePoint(g);
@@ -244,6 +249,7 @@ export function pickGuide(
     if (isPoint) {
       at = g.at;
     } else {
+      if (bestPoint !== null) continue; // a point in reach already decides it
       const hit = closestOnLine(g, ray, extent);
       if (!hit) continue;
       at = hit.at;
@@ -254,20 +260,23 @@ export function pickGuide(
     const dx = projected.x - cursor.x;
     const dy = projected.y - cursor.y;
     const distSq = dx * dx + dy * dy;
-    if (distSq > bestDistSq) continue;
-    const better =
-      best === null ||
-      distSq < bestDistSq ||
-      (isPoint && !bestIsPoint) ||
-      (isPoint === bestIsPoint && projected.depth < bestDepth);
-    if (better) {
-      best = g.id;
-      bestDistSq = distSq;
-      bestDepth = projected.depth;
-      bestIsPoint = isPoint;
+    if (isPoint) {
+      if (distSq > limit) continue;
+      if (bestPoint === null || distSq < pointDistSq || (distSq === pointDistSq && projected.depth < pointDepth)) {
+        bestPoint = g.id;
+        pointDistSq = distSq;
+        pointDepth = projected.depth;
+      }
+    } else {
+      if (distSq > limit) continue;
+      if (bestLine === null || distSq < lineDistSq || (distSq === lineDistSq && projected.depth < lineDepth)) {
+        bestLine = g.id;
+        lineDistSq = distSq;
+        lineDepth = projected.depth;
+      }
     }
   }
-  return best;
+  return bestPoint ?? bestLine;
 }
 
 /**
