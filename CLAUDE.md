@@ -39,7 +39,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   fu 130; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `4f73858` (`index-D9SIz2nX.js`, schema 30): it refuses every project saved at 31 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **BUILT, NOT DEPLOYED:** construction lines round 2 (fu 578–582, SCHEMA 32), branch `construction-lines-2`; the production and rollback lines stand until it ships.
+- **MERGED, NOT DEPLOYED:** construction lines round 2 (fu 578–582, SCHEMA 32), merge `9c3b57b`; the production and rollback lines stand until it ships.
 - **NEXT (2026-10-30):** construction lines (fu 130) are deployed; every `docs/feature-gaps.md` gap has now shipped. Owed to the user: the list below (counterbores by eye: the Head select's position, the Plans side views, fu 570; the Amended (build) rulings). Round 2 (fu 578–582) is merged (browser check 21/21, by eye kept as built) and awaits deploy. Next: selectable guides (fu 591, asked for), the CVD hue retune (fu 590), cam-and-bolt (fu 568).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
