@@ -644,8 +644,8 @@ src/
 │   │                     (STRETCHER_NOT_A_STRETCHER first, refitPlan, ONE mapWorld edit; the no-change check names `length`,
 │   │                     `position`, `tenons` and throws on any other key, so a fitted rung pushes no entry); store.stretchers.test.ts;
 │   │                     copyBoard re-mints tenon ids; cam-and-bolt joint (inv 50): addCamJoint (camJointPlan re-run at click time, in a
-│                     try/catch for the caller-bug throws, R14; holesZoneRefusal on each write; ONE mapWorld edit; null when exploded,
-│                     gesturing, a stale id or a planner bug; store.camJoint.test.ts); box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
+│   │                     try/catch for the caller-bug throws, R14; holesZoneRefusal on each write; ONE mapWorld edit; null when exploded,
+│   │                     gesturing, a stale id or a planner bug; store.camJoint.test.ts); box joints (inv 61): boxJointCorners (guards, boxJointPlan, ONE edit(applyBoxJoints), judgeHeld on the written
 │                     document; store.boxJoints.test.ts); dovetails (inv 62): dovetailCorners (as boxJointCorners: dovetailPlan, ONE
 │                     edit(applyDovetails), judgeHeld; `joint = 'keep'`, `lap = null` positional after swap, half-blind), removeDovetail (that end only, through mapWorld; the last leaves no key), copyBoard
 │                     re-mints dovetail ids; spec §3.6's refusals before edit(): addAngleCuts / addCurves / addProfiles / addTenon / setBands
