@@ -141,6 +141,30 @@ describe('the Holes section', () => {
     act(() => useStore.getState().undo());
     expect(rows()).toHaveLength(0);
   });
+  const dado = (over: Record<string, unknown>) => ({
+    id: 'd', face: 'thickness', across: 'width', stopMin: 0, stopMax: 0, ...over,
+  }) as Board['cuts'][number];
+  it('withholds the min-end Cam lock when only its bolt row would fault (a dado the bolt runs through)', async () => {
+    const user = userEvent.setup();
+    open(side({ cuts: [dado({ from: 'min', offset: 0.3, width: 0.2, depth: 0.3 })] }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: 'Cam lock, min end' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Cam lock, max end' })).toBeInTheDocument();
+  });
+  it('withholds the min-end Cam lock when only its cam row would fault (a dado under the cam)', async () => {
+    const user = userEvent.setup();
+    open(side({ cuts: [dado({ from: 'max', offset: 0.9, width: 0.2, depth: 0.1 })] }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: 'Cam lock, min end' })).toBeNull();
+  });
+  it('the max-end Cam lock enters both rows from the max end', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Cam lock, max end');
+    expect(rows()).toHaveLength(2);
+    expect(rows()[0]).toMatchObject({ acrossFrom: 'max' });
+    expect(rows()[1]).toMatchObject({ from: 'max' });
+  });
   it('adds a Cam bolt bore', async () => {
     const user = userEvent.setup();
     open(side());
