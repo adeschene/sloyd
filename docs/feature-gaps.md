@@ -3,8 +3,8 @@
 Researched 2026-10-11 against SketchUp and its woodworking extensions (OpenCutList,
 CutList Bridge, CabinetSense, Fredo Round Corner, the rake-and-splay tool), Fusion 360,
 Shapr3D, SketchList 3D, CutList Plus fx and Mozaik. Each gap was checked against the code
-and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-29
-(production `4f73858`, schema 30: counterbores and countersinks deployed — the holes row's fu 330 chunk 1; every gap below is shipped except construction lines, fu 130); `docs/follow-ups.md` wins on any follow-up's status.
+and `docs/follow-ups.md` before being listed. Statuses last brought up to date 2026-10-30
+(production `fb1e133`, schema 31: construction lines deployed, fu 130 — every gap below is now shipped); `docs/follow-ups.md` wins on any follow-up's status.
 
 **This is a candidate list, not a roadmap.** Nothing here is chosen until the user picks it.
 Excluded on purpose: CSV/clipboard export and name run-collapsing (`Leg 1..4`), both
@@ -62,7 +62,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 |---|---|---|
 | Parametric resize | Fusion users praise resizing a piece and having parts follow | DEPLOYED 2026-10-29 (`e09003b`, `index-B7bX5cuX.js`) (no schema change, inv 64: "stretch", not stored constraints — the assembly and multi-selection panels' Overall size section: type a new width, height or depth, place the stretch line (the middle by default), see what grows, moves and stays, and Stretch; the min side fixed, everything past the line moves exactly, spanning parts grow and their features follow their side or refuse; one undo entry); residue fu 545–555 |
 | Align / distribute | Equal shelf spacing etc.; copy in a row covers part of it | DEPLOYED 2026-10-28 (`cf911cc`, `index-5OtJpPqw.js`) (no schema change: the multi-selection panel's Align section — align left/centre/right, bottom/middle/top, back/centre/front to the part selected first; Space evenly along X/Y/Z with the outer two fixed; exact, one undo entry); residue fu 534–537 |
-| Construction lines | fu 130 — ask before assuming it's wanted; needs real hardware (26a) | merged (construction lines, schema 31); update at deploy; residue fu 578–582 |
+| Construction lines | fu 130 — ask before assuming it's wanted; needs real hardware (26a) | shipped (construction lines, schema 31; deployed 2026-10-30, `fb1e133`); residue fu 578–582 |
 
 ## Sources
 

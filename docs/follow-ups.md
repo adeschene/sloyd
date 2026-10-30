@@ -2718,7 +2718,7 @@ The rest of §9, each looked at and deferred with a reason:
   a **visual** — something to sight along and to snap other things to at positions nobody
   typed. The browser pass found the no-line state reads as *waiting* rather than *broken*,
   which is the evidence that this item is still a want rather than a gap.
-  **Status:** shipped by the construction-lines round (2026-10-29; schema 31, merged, deploy pending): axis-parallel lines placed with Tape + axis lock + Enter, drawn `±SCENE_EXTENT`, snapped along and at crossings, listed and removed from the Guides list. The residue is 578–582 below.
+  **Status:** shipped by the construction-lines round (2026-10-29; schema 31; deployed 2026-10-30, `fb1e133`, `index-zJyvpYf3.js`): axis-parallel lines placed with Tape + axis lock + Enter, drawn `±SCENE_EXTENT`, snapped along and at crossings, listed and removed from the Guides list. The residue is 578–582 below.
 - **Moving or editing an existing guide.** Delete and re-place. A guide is two clicks to
   create; a drag-to-reposition gesture would need its own tool mode, its own gates and a
   decision about undo coalescing. A guide also has **no name** and no rename field — its
@@ -2738,6 +2738,7 @@ The rest of §9, each looked at and deferred with a reason:
   a guide's marker is far smaller than a board.
 
 **Status:** open by decision (semi-infinite construction lines: ask before assuming they are wanted; real hardware). (triaged 2026-10-16)
+**Status:** construction lines SHIPPED (deployed 2026-10-30, `fb1e133`, schema 31; residue fu 578–582); the entry's other non-goals stay open by decision.
 
 **131. CLOSED 2026-08-31 with 97, which is exactly how this entry asked to be closed.** It
 said enforcing guide ids while leaving boards unenforced would be the inconsistent
