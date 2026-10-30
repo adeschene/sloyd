@@ -13,7 +13,7 @@ import { CAM, BOLT, camPart } from '../document/camBoltFixtures';
 import { mm } from '../document/holes';
 import { camPairRows } from '../document/camBolt';
 import { holeFaults } from '../document/holeFaults';
-import { CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL } from '../document/holeText';
+import { CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL, CAM_PAIR_SEPARATED } from '../document/holeText';
 
 const side = (over: Partial<Board> = {}) => createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -891,6 +891,27 @@ describe('counterbores and countersinks in the Holes section (counterbores §4, 
       await field(user, 'Depth', 0, '15mm');
       expect(rows()[0]!.depth).toBeCloseTo(mm(15));
       expect(rows()[1]).toEqual(BOLT);
+      expect(faultsOf()).toEqual([]);
+    });
+    it('R11: moving the cam away from its bolt is refused, though no fault would follow', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      await field(user, 'In from', 0, '60mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_SEPARATED);
+      expect(rows()).toEqual([CAM, BOLT]);
+    });
+    it('R11: a bolt shortened so it stops short of the cam is refused', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      await field(user, 'Depth', 1, '10mm');
+      expect(screen.getAllByRole('alert').map((a) => a.textContent).join()).toContain(CAM_PAIR_SEPARATED);
+      expect(rows()).toEqual([CAM, BOLT]);
+    });
+    it('R11: fewer fittings is not a separation (both rows lose the same holes)', async () => {
+      const user = userEvent.setup();
+      open(pair());
+      await field(user, 'Count', 0, '1');
+      expect(rows().map((r) => r.count)).toEqual([1, 1]);
       expect(faultsOf()).toEqual([]);
     });
     it('a depth that unpairs the rows is refused as meets-hole', async () => {

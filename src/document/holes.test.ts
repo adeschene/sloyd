@@ -778,6 +778,11 @@ describe('cam-and-bolt presets (spec §4)', () => {
     const [cam] = defaultCamLock(createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.625 }), 'min')!;
     expect(cam.depth).toBe(mm(12.5));
   });
+  it('R12 (the user\'s ruling 2026-10-30): withheld on stock 1/2" or thinner, offered just above', () => {
+    expect(defaultCamLock(createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.5 }), 'min')).toBeNull();
+    expect(defaultCamLock(createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.25 }), 'min')).toBeNull();
+    expect(defaultCamLock(createBoard({ id: 'p', length: 30, width: 11.25, thickness: mm(13) }), 'min')).not.toBeNull();
+  });
   it('withholds when the broad face is the length', () => {
     expect(defaultCamLock(createBoard({ id: 'p', length: 0.5, width: 3, thickness: 2 }), 'min')).toBeNull();
   });

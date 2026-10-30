@@ -90,6 +90,7 @@ export function holeLine(board: Board, r: HoleRow, units: Units): string {
 /** Refusals of an edit to a cam-and-bolt pair's row (cam-and-bolt spec §4.3), worded like the panel's other refusals. */
 export const CAM_PAIR_ALONG = "This hole is half of a cam-and-bolt pair, so which way it runs can't change — remove one row and add it again.";
 export const CAM_PAIR_ALONG_DIFFERS = "These two rows run different ways, so they can't move together — move each row on its own.";
+export const CAM_PAIR_SEPARATED = "That would pull a cam and its bolt bore apart — keep them meeting, or remove a row.";
 export const CAM_PAIR_PARTIAL = 'Only some of these holes are paired with a cam bore — move the rows one at a time.';
 
 /**

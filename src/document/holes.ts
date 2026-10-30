@@ -165,6 +165,8 @@ export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
 export function defaultCamLock(b: Board, end: CutFrom): [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null {
   const face = broadFace(b);
   if (face === 'length') return null;
+  // Spec Amended R12 (the user's ruling 2026-10-30): only on stock thicker than 1/2" (a 15 mm housing wants depth).
+  if (b[face] <= 0.5 + 1e-9) return null;
   const along: Dimension = face === 'thickness' ? 'width' : 'thickness';
   const two = b[along] * 25.4 >= 150 - 1e-9;
   const station = two ? mm(37) : b[along] / 2;

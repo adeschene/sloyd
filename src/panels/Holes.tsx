@@ -3,8 +3,8 @@ import { useStore, HOLE_TILT_PAST_BOUND, HEAD_ON_TILT, headRefusal } from '../st
 import { formatLength, isMetric } from '../units/length';
 import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, defaultCamLock, defaultCamBoltBore, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
 import type { Board, CutFrom, Dimension, HeadKind, HoleFault, HoleRow } from '../document/document';
-import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine, CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL } from '../document/holeText';
-import { camPairRows, camRowIds } from '../document/camBolt';
+import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine, CAM_PAIR_ALONG, CAM_PAIR_ALONG_DIFFERS, CAM_PAIR_PARTIAL, CAM_PAIR_SEPARATED } from '../document/holeText';
+import { camPairRows, camRowIds, separatesPair } from '../document/camBolt';
 import { leans, slopeOf } from '../document/lean';
 import { staleTenonOf } from '../document/tenonJoints';
 import { tenonStale } from '../document/tenonText';
@@ -123,6 +123,9 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
       const added = holeFaults(judged, e.next).find((f) => !had.has(key(f)));
       if (added) return refusal(added, e.next, e.row.id);
     }
+    // Spec Amended R11 (the user's ruling 2026-10-30): an edit that leaves a paired hole unpaired adds no fault, yet breaks
+    // the joint; it is refused, as an added fault is.
+    if (separatesPair(board, judged)) return CAM_PAIR_SEPARATED;
     const refused = updateHoleRows(board.id, edits.map((e) => { const { id: _id, ...rest } = e.next; return { rowId: e.row.id, next: rest }; })) ?? null;
     if (!refused) setError(null);
     return refused;

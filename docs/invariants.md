@@ -919,8 +919,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     depth, never its floor or mouth plane; the bolt narrower; the bolt's whole bottom disc in the cam's air and its mouth outside it; one to
     one), every comparison CONSERVATIVE: a borderline pair is NOT a pair, so it stays a `meets-hole` fault. **The exemption has ONE site**,
     `holeFaults`' meets-hole search, which skips the partner and KEEPS SEARCHING (a third bore meeting either still faults); every other
-    rule judges each bore as before. An edit that breaks a pair ADDS a fault and is refused; a resize that unpairs one KEEPS the fault and
-    notes it. **Planners never take the exemption** (`holeFaults(…, { camPairs: false })`: Bore leg sockets here, and stretchers, inv 60).
+    rule judges each bore as before. An edit that breaks a pair ADDS a fault and is refused; **an edit that SEPARATES one (a paired hole still there,
+    no longer paired, no fault added) is refused too (`separatesPair`, the user's ruling R11, 2026-10-30)**; a resize that unpairs one KEEPS
+    the fault and notes it. **Planners never take the exemption** (`holeFaults(…, { camPairs: false })`: Bore leg sockets here, and stretchers, inv 60).
     `partGeometry` attaches each paired hole's partner as `Hole.mate` (`withMates`; an unpaired hole has NO `mate` key and is byte for
     byte as before); the partner's geometry is in the frozen `Hole`, so the per-hole memo cannot outlive a change to it. **The mesh is one
     void**: the bolt's wall runs from its mouth ring to the intersection loop (`camLoop`, closed form, index-aligned with the mouth ring)
@@ -933,7 +934,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (`camPairLine`, metric depths at 0.1 mm); a partly paired row prints its own line; the Plans sheet keeps one key per ROW; `HOLE_FIELDS`
     untouched. **Editing:** a pair member's `along` cannot change (`CAM_PAIR_ALONG`); an `alongFrom`/`station`/`count`/`pitch` edit on a
     whole pair copies all four onto the partner in ONE `updateHoleRows` edit, judged as a pair, or refuses (`CAM_PAIR_PARTIAL`). Presets:
-    Cam lock (`defaultCamLock`, two rows, one undo entry, withheld by the faults; null on a part whose broad face is `length`) and Cam bolt
+    Cam lock (`defaultCamLock`, two rows, one undo entry, withheld by the faults; null on a part whose broad face is `length`, and on stock 1/2" or thinner — the user's ruling R12) and Cam bolt
     bore (`defaultCamBoltBore`, an ordinary row). Level the ends, stretch and `rebaseHoles` never split a pair (pinned: the cam centre minus
     the bolt's BOTTOM centre per pair, exactly). Refine carries both rows exactly when untouched; a pair is not `keptWhole`.
 

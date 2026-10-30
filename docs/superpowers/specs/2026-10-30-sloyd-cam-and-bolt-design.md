@@ -366,9 +366,13 @@ Recorded by the build (Task 11, 2026-10-30). **Not yet approved by the user.** R
     wrong: a test assertion rework.
 11. **R11 (final review; §3.2, §4.3): an edit that SEPARATES the bores is accepted, and the pair line silently becomes two plain hole lines.**
     Moving the cam's inset away, or shortening the bolt short of the cam, adds no fault, so nothing refuses it; §3.2/§4.3 say a pair-breaking
-    edit is refused, which holds only while the bores still meet. **Flagged for the user's ruling** (refuse a separating edit, or accept and say so).
+    edit is refused, which holds only while the bores still meet. **The user's ruling, 2026-10-30: "refused".** Built: `camBolt.ts`
+    `separatesPair(before, after)` (a hole paired before, still present by row and index, unpaired after) is checked in the Holes panel's
+    edit after the added-fault rule, refused as `CAM_PAIR_SEPARATED`; a hole that goes away (fewer fittings, a deleted row) is not
+    separated. A resize still keeps inv 50's kept-and-noted rule.
 12. **R12 (final review; question for the user, not a defect): R7 offers the Cam lock on 1/2" stock** (11 mm cam, 1.7 mm skin), while a real
-    15 mm housing wants about 12.5 mm. A thickness floor would be one line. Should there be one?
+    15 mm housing wants about 12.5 mm. **The user's ruling, 2026-10-30: "yes" — the Cam lock needs stock thicker than 1/2".** Built:
+    `defaultCamLock` returns null at 1/2" or thinner, so the preset is not offered.
 
 **Differences from the spec as written**
 - **Names:** the recogniser is `camPartners(holes)` (a hole→partner map) with `camRole`, `camPairRows`, `camRowIds` and `withMates` (§3.1's

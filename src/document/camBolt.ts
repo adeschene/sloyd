@@ -125,3 +125,20 @@ export function withMates(holes: readonly Hole[]): Hole[] {
     };
   });
 }
+
+/**
+ * Spec Amended R11 (the user's ruling 2026-10-30: refused): true when a hole that was half of a recognised pair on `before`
+ * is still there on `after` (the same row and index) but no longer paired — the cam moved away, the bolt shortened short
+ * of it, one station of a row moved. Such an edit adds no fault (the bores no longer meet), so the fault rule alone would
+ * accept it and the joint would quietly become two plain holes. A hole that goes away (fewer fittings, a deleted row) is
+ * not separated. Read by the Holes panel's edit, before any mutation.
+ */
+export function separatesPair(before: Board, after: Board): boolean {
+  const keyOf = (h: Hole) => `${h.row}\u0000${h.index}`;
+  const instances = (b: Board) => b.holes.flatMap((r) => holeInstances(b, r));
+  const was = new Set([...camPartners(instances(before)).keys()].map(keyOf));
+  if (was.size === 0) return false;
+  const now = instances(after);
+  const paired = new Set([...camPartners(now).keys()].map(keyOf));
+  return now.some((h) => was.has(keyOf(h)) && !paired.has(keyOf(h)));
+}

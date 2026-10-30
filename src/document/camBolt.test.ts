@@ -4,7 +4,7 @@ import type { Hole } from './holes';
 import { partGeometry } from './bodies';
 import { DIMENSION_ORDER } from './geometry';
 import { mirrorDim, mirrorPart } from './frames';
-import { camPairRows, camPartners, camRole, camRowIds } from './camBolt';
+import { camPairRows, camPartners, camRole, camRowIds, separatesPair } from './camBolt';
 import { BOLT, CAM, camPart } from './camBoltFixtures';
 import type { Board, HoleRow, ShapedBoard } from './types';
 import { IMPERIAL } from '../units/length';
@@ -242,5 +242,29 @@ describe('the pair survives every move (spec 6.5, 7)', () => {
     const flipped = jointVectors(user(false)).map((v) => v.map((c, k) => (k === DIM_INDEX[mirrorDim(src)] ? -c : c)));
     const key = (v: number[]) => v.map((c) => c.toFixed(9)).join(',');
     expect(jointVectors(m).map(key).sort()).toEqual(flipped.map(key).sort());
+  });
+});
+
+describe('separatesPair (spec Amended R11, the user\'s ruling 2026-10-30: refused)', () => {
+  const b = camPart();
+  const withRows = (holes: HoleRow[]) => ({ ...b, holes });
+  it('an unchanged board separates nothing', () => {
+    expect(separatesPair(b, b)).toBe(false);
+  });
+  it('the cam moved away from its bolt separates the pair', () => {
+    expect(separatesPair(b, withRows([{ ...CAM, inset: mm(60) }, BOLT]))).toBe(true);
+  });
+  it('the bolt shortened short of the cam separates the pair', () => {
+    expect(separatesPair(b, withRows([CAM, { ...BOLT, depth: mm(10) }]))).toBe(true);
+  });
+  it('a hole that goes away is not separated (fewer fittings, a deleted row)', () => {
+    expect(separatesPair(b, withRows([{ ...CAM, count: 1 }, { ...BOLT, count: 1 }]))).toBe(false);
+    expect(separatesPair(b, withRows([]))).toBe(false);
+  });
+  it('only ONE hole of a row moved apart separates it (count 2, the second station moved)', () => {
+    expect(separatesPair(b, withRows([{ ...CAM, pitch: CAM.pitch - mm(30) }, BOLT]))).toBe(true);
+  });
+  it('a pair that stays a pair after an edit is not separated', () => {
+    expect(separatesPair(b, withRows([{ ...CAM, depth: mm(15) }, BOLT]))).toBe(false);
   });
 });

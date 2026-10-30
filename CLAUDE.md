@@ -437,7 +437,7 @@ changes.
     CONSERVATIVE for a countersink (its mouth cylinder), never under-reported**; mesh watertight; Level the ends keeps the head's depth from
     the mouth; a headed bore is never a socket and seats no tenon (inv 58). **A CAM PAIR (no schema change): `camBolt.ts` `camPartners` is
     the ONE recogniser, by SHAPE, conservative (borderline stays `meets-hole`); `holeFaults`' meets-hole search is the ONE exemption site
-    (skips the partner, keeps searching); planners pass `camPairs: false`.** A clean pair's mesh is one void (`camLoop`, bit-identical from
+    (skips the partner, keeps searching); planners pass `camPairs: false`; an edit SEPARATING a pair is refused (`separatesPair`).** A clean pair's mesh is one void (`camLoop`, bit-identical from
     both sides). Full text: `docs/invariants.md`.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
@@ -556,7 +556,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10694 tests (2 todo) across 307 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10704 tests (2 todo) across 307 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -575,7 +575,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; cam-and-bolt 568 (chunk 2, the two-part joint), 598, 599, 600 (ask first); counterbores 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (listed in its spec's *Amended (build)* block), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); the spec's Amended R1–R12 (R11, R12 are questions).
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray and Stretch (their `docs/browser-verification-*.md`), Saved views (`docs/rounds.md`), by eye. Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`). Cam-and-bolt: a close look at the window, a Plans print (`docs/browser-verification-cam-and-bolt.md`); the spec's Amended R1–R10 (R11, R12 ruled and built).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only

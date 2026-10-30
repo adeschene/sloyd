@@ -259,7 +259,8 @@ src/
 │   ├── camBolt.ts        THE cam-and-bolt recogniser (cam-and-bolt chunk 1, inv 50; no schema change; a leaf over holes.ts, which must never
 │   │                     import it): camPartners (spec §3.1's seven clauses on Hole instances, conservative; one to one), camRole,
 │   │                     camPairRows (WHOLE pairs of rows), camRowIds (rows with any paired hole; memo keyed on the holes array AND the
-│   │                     board's three dimensions), withMates (partGeometry's: a paired hole copied with `mate`, every other hole the same object)
+│   │                     board's three dimensions), withMates (partGeometry's: a paired hole copied with `mate`, every other hole the same object), separatesPair (R11: a paired
+│   │                     hole still there but unpaired — the Holes panel refuses such an edit)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40; holeRowValues appends each PRESENT tilt key's name
 │   │                     HEAD (counterbores, schema 30, inv 50): HeadKind, HEAD_ANGLES, hasHead, headReach (THE countersink depth formula), headProblem (THE
 │   │                     legality decider: malformed / not-wider / too-deep / tilted; loader and store), Hole.head and .tip, holePieces (the head and the bore, frozen
