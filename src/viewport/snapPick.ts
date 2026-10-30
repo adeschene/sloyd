@@ -1,5 +1,5 @@
-import type { AnyLine, SnapPoint } from '../document/document';
-import { lineDir, lineSpan } from '../document/document';
+import type { AnyLine, Guide, SnapPoint } from '../document/document';
+import { isGuidePoint, lineDir, lineSpan } from '../document/document';
 import { snapToGrid } from '../document/geometry';
 import type { Units } from '../units/length';
 
@@ -142,64 +142,129 @@ export function pickOnLine(
   units: Units,
   extent: number,
 ): SnapPoint | null {
-  const { origin: O, dir: d } = ray;
-  const c = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
   let best: SnapPoint | null = null;
   let bestDistSq = radiusPx * radiusPx;
   let bestDepth = Number.POSITIVE_INFINITY;
 
   for (const line of lines) {
-    if (line.axis === undefined) {
-      const u = lineDir(line);
-      const span = lineSpan(line, extent);
-      if (!span) continue;
-      const b = u[0] * d[0] + u[1] * d[1] + u[2] * d[2];
-      const den = c - b * b;
-      if (!(den > 1e-9 * c)) continue;
-      const w: Vec3 = [line.at[0] - O[0], line.at[1] - O[1], line.at[2] - O[2]];
-      const p = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
-      const q = d[0] * w[0] + d[1] * w[1] + d[2] * w[2];
-      let t = (b * q - c * p) / den;
-      if (!Number.isFinite(t)) continue;
-      t = Math.max(span[0], Math.min(span[1], t));
-      const projected = project([line.at[0] + t * u[0], line.at[1] + t * u[1], line.at[2] + t * u[2]]);
-      if (!projected) continue;
-      const dx = projected.x - cursor.x;
-      const dy = projected.y - cursor.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq > bestDistSq) continue;
-      if (distSq < bestDistSq || projected.depth < bestDepth) {
-        const r = snapToGrid(t, units);
-        best = { kind: 'line', at: [line.at[0] + r * u[0], line.at[1] + r * u[1], line.at[2] + r * u[2]], owner: { type: 'guide', id: line.id } };
-        bestDistSq = distSq;
-        bestDepth = projected.depth;
-      }
-      continue;
-    }
-    const i = AXIS_INDEX[line.axis];
-    const b = d[i];
-    const den = c - b * b;
-    if (!(den > 1e-9 * c)) continue;
-    const p = line.at[i] - O[i]; // e.w, e the unit axis
-    const q = d[0] * (line.at[0] - O[0]) + d[1] * (line.at[1] - O[1]) + d[2] * (line.at[2] - O[2]);
-    let t = (b * q - c * p) / den;
-    if (!Number.isFinite(t)) continue;
-    t = Math.max(-extent, Math.min(extent, t));
-
-    const free: Vec3 = [line.at[0], line.at[1], line.at[2]];
-    free[i] = t;
-    const projected = project(free);
+    const hit = closestOnLine(line, ray, extent);
+    if (!hit) continue;
+    const projected = project(hit.at);
     if (!projected) continue;
     const dx = projected.x - cursor.x;
     const dy = projected.y - cursor.y;
     const distSq = dx * dx + dy * dy;
     if (distSq > bestDistSq) continue;
     if (distSq < bestDistSq || projected.depth < bestDepth) {
-      const at: Vec3 = [line.at[0], line.at[1], line.at[2]];
-      at[i] = snapToGrid(t, units);
+      let at: Vec3;
+      if (line.axis === undefined) {
+        const u = lineDir(line);
+        const r = snapToGrid(hit.t, units);
+        at = [line.at[0] + r * u[0], line.at[1] + r * u[1], line.at[2] + r * u[2]];
+      } else {
+        at = [line.at[0], line.at[1], line.at[2]];
+        at[AXIS_INDEX[line.axis]] = snapToGrid(hit.t, units);
+      }
       best = { kind: 'line', at, owner: { type: 'guide', id: line.id } };
       bestDistSq = distSq;
       bestDepth = projected.depth;
+    }
+  }
+  return best;
+}
+
+/**
+ * The closest approach of the cursor's ray to a construction line, `t` clamped to the drawn extent (`+-extent` on an
+ * axis line, `lineSpan` on an oblique one; `t` is the world coordinate along an axis line, the distance from `at` along
+ * an oblique one) and `at` the UNROUNDED point. `null` for a ray parallel to the line, or an oblique line that misses
+ * the box. Shared by `pickOnLine` (which then rounds `t`, inv 25) and `pickGuide` (which does not).
+ */
+export function closestOnLine(
+  line: AnyLine,
+  ray: { origin: Vec3; dir: Vec3 },
+  extent: number,
+): { t: number; at: Vec3 } | null {
+  const { origin: O, dir: d } = ray;
+  const c = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+  if (line.axis === undefined) {
+    const u = lineDir(line);
+    const span = lineSpan(line, extent);
+    if (!span) return null;
+    const b = u[0] * d[0] + u[1] * d[1] + u[2] * d[2];
+    const den = c - b * b;
+    if (!(den > 1e-9 * c)) return null;
+    const w: Vec3 = [line.at[0] - O[0], line.at[1] - O[1], line.at[2] - O[2]];
+    const p = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
+    const q = d[0] * w[0] + d[1] * w[1] + d[2] * w[2];
+    let t = (b * q - c * p) / den;
+    if (!Number.isFinite(t)) return null;
+    t = Math.max(span[0], Math.min(span[1], t));
+    return { t, at: [line.at[0] + t * u[0], line.at[1] + t * u[1], line.at[2] + t * u[2]] };
+  }
+  const i = AXIS_INDEX[line.axis];
+  const b = d[i];
+  const den = c - b * b;
+  if (!(den > 1e-9 * c)) return null;
+  const p = line.at[i] - O[i]; // e.w, e the unit axis
+  const q = d[0] * (line.at[0] - O[0]) + d[1] * (line.at[1] - O[1]) + d[2] * (line.at[2] - O[2]);
+  let t = (b * q - c * p) / den;
+  if (!Number.isFinite(t)) return null;
+  t = Math.max(-extent, Math.min(extent, t));
+  const at: Vec3 = [line.at[0], line.at[1], line.at[2]];
+  at[i] = t;
+  return { t, at };
+}
+
+/** `projected.depth` and the caller's occluder depth come from one projection; the epsilon only absorbs float noise. */
+export const DEPTH_EPS = 1e-6;
+
+/**
+ * The id of the guide nearest the cursor within `radiusPx`, or null. Points by projected distance (never occluded:
+ * their markers draw `depthTest: false`); lines by the projected unrounded `closestOnLine` point, kept only when
+ * nothing nearer hides it (`occluderDepth`, the NDC depth of the first part hit under the cursor, or null).
+ * Nearest on screen wins; a tie goes to a point, then to the nearer depth.
+ */
+export function pickGuide(
+  guides: readonly Guide[],
+  project: Projector,
+  cursor: { x: number; y: number },
+  ray: { origin: Vec3; dir: Vec3 },
+  radiusPx: number,
+  extent: number,
+  occluderDepth: number | null,
+): string | null {
+  let best: string | null = null;
+  let bestDistSq = radiusPx * radiusPx;
+  let bestDepth = Number.POSITIVE_INFINITY;
+  let bestIsPoint = false;
+
+  for (const g of guides) {
+    const isPoint = isGuidePoint(g);
+    let at: Vec3;
+    if (isPoint) {
+      at = g.at;
+    } else {
+      const hit = closestOnLine(g, ray, extent);
+      if (!hit) continue;
+      at = hit.at;
+    }
+    const projected = project(at);
+    if (!projected) continue;
+    if (!isPoint && occluderDepth !== null && projected.depth > occluderDepth + DEPTH_EPS) continue;
+    const dx = projected.x - cursor.x;
+    const dy = projected.y - cursor.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > bestDistSq) continue;
+    const better =
+      best === null ||
+      distSq < bestDistSq ||
+      (isPoint && !bestIsPoint) ||
+      (isPoint === bestIsPoint && projected.depth < bestDepth);
+    if (better) {
+      best = g.id;
+      bestDistSq = distSq;
+      bestDepth = projected.depth;
+      bestIsPoint = isPoint;
     }
   }
   return best;

@@ -1,6 +1,6 @@
 // No `import ... from 'vitest'` — `globals: true` is set in vite.config.ts.
-import type { AnyLine, GuideLine, SnapPoint } from '../document/document';
-import { PICK_RADIUS_PX, pickGuided, pickOnLine, pickSnapPoint } from './snapPick';
+import type { AnyLine, Guide, GuideLine, SnapPoint } from '../document/document';
+import { PICK_RADIUS_PX, closestOnLine, pickGuide, pickGuided, pickOnLine, pickSnapPoint } from './snapPick';
 import type { Projector } from './snapPick';
 import { snapToGrid } from '../document/geometry';
 import { IMPERIAL } from '../units/length';
@@ -216,5 +216,60 @@ describe('pickOnLine: an oblique line (construction-lines-2 spec §2.4)', () => 
     const c = point([0.6, 1.6, 0]);
     const hit = pickGuided([c], [line], project, { x: 6, y: 0 }, rayAt(6, 0), PICK_RADIUS_PX, IMPERIAL, 120);
     expect(hit).toBe(c);
+  });
+});
+
+describe('closestOnLine', () => {
+  const line: GuideLine = { id: 'L', at: [0, 5, 0], axis: 'x' };
+  const down = (x: number) => ({ origin: [x, 0, 10] as [number, number, number], dir: [0, 0, -1] as [number, number, number] });
+  it('finds the closest approach on an axis line', () => {
+    const hit = closestOnLine(line, down(3), 120)!;
+    expect(hit.t).toBeCloseTo(3, 12);
+    expect(hit.at[0]).toBeCloseTo(3, 12);
+    expect(hit.at[1]).toBe(5);
+    expect(hit.at[2]).toBe(0);
+  });
+  it('clamps t to the extent', () => {
+    expect(closestOnLine(line, down(50), 10)!.t).toBe(10);
+    expect(closestOnLine(line, down(-50), 10)!.t).toBe(-10);
+  });
+  it('is null for a ray parallel to the line', () => {
+    expect(closestOnLine(line, { origin: [0, 0, 0], dir: [1, 0, 0] }, 120)).toBeNull();
+  });
+});
+
+describe('pickGuide', () => {
+  // Orthographic, looking down -Z: world (x, y) -> pixel (x, -y); depth = -z (smaller is nearer).
+  const project: Projector = (at) => ({ x: at[0], y: -at[1], depth: -at[2] });
+  const cursor = { x: 100, y: -100 };
+  const ray = { origin: [100, 100, 50] as [number, number, number], dir: [0, 0, -1] as [number, number, number] };
+  const pick = (guides: Guide[], occ: number | null = null) =>
+    pickGuide(guides, project, cursor, ray, PICK_RADIUS_PX, 1000, occ);
+  const pt = (x: number, y: number, id = 'P'): Guide => ({ id, at: [x, y, 0] });
+  const axisLine = (y: number, id = 'A'): Guide => ({ id, at: [0, y, 0], axis: 'x' });
+
+  it('picks a point 5 px off', () => expect(pick([pt(105, 100)])).toBe('P'));
+  it('ignores a point 13 px off', () => expect(pick([pt(113, 100)])).toBeNull());
+  it('picks an axis line 4 px off', () => expect(pick([axisLine(104)])).toBe('A'));
+  it('picks an oblique line 4 px off', () => {
+    // through (0,104,0) and (200,104,0): horizontal in screen, 4 px off, though not axis-parallel by construction
+    const o: Guide = { id: 'O', at: [0, 104, 0], to: [200, 104.0001, 0.0001] };
+    expect(pick([o])).toBe('O');
+  });
+  it('prefers a point to a line at an equal distance', () => {
+    expect(pick([axisLine(104), pt(104, 100)])).toBe('P');
+    expect(pick([pt(104, 100), axisLine(104)])).toBe('P');
+  });
+  it('drops a line with a nearer occluder', () => {
+    const l: Guide = { id: 'A', at: [0, 104, -3], axis: 'x' }; // depth 3
+    expect(pick([l], 0)).toBeNull();
+    expect(pick([l], 10)).toBe('A');
+  });
+  it('keeps a point whatever the occluder', () => expect(pick([pt(105, 100)], -100)).toBe('P'));
+  it('breaks a line-line tie by nearer depth', () => {
+    const far: Guide = { id: 'far', at: [0, 104, -5], axis: 'x' };
+    const near: Guide = { id: 'near', at: [0, 104, 5], axis: 'x' };
+    expect(pick([far, near])).toBe('near');
+    expect(pick([near, far])).toBe('near');
   });
 });
