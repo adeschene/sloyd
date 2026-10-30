@@ -6,6 +6,7 @@ import type { LineMaterial } from 'three-stdlib';
 import { isAnyLine, lineDir, lineSpan, newLineOf } from '../document/document';
 import type { NewLine } from '../document/document';
 import { useStore } from '../store/store';
+import { visibleGuides } from '../store/visibility';
 import { SCENE_EXTENT } from './extent';
 import { AXIS_COLOR, GROUND_LIFT } from './OriginAxes';
 import { dashScaleForScreenPeriod, screenPixelsPerInch } from './screenScale';
@@ -26,6 +27,12 @@ const PATTERN_LENGTH = DASH_SIZE + GAP_SIZE;
 // stronger, in the way a hovered marker is stronger than a resting one.
 const PLACED_OPACITY = 0.55;
 const PREVIEW_OPACITY = 0.9;
+const PLACED_WIDTH = 1.2;
+const PREVIEW_WIDTH = 1.6;
+// A SELECTED line (selectable-guides spec §6): full opacity and heavier than the preview, still dashed. For the user to
+// judge by eye.
+const SELECTED_OPACITY = 1;
+const SELECTED_WIDTH = 2.4;
 
 // An oblique line has no axis hue; a neutral violet-grey, distinct from the three axis colours. For the user to judge by eye.
 export const OBLIQUE_COLOR = '#8a7fb0';
@@ -35,10 +42,12 @@ export const OBLIQUE_COLOR = '#8a7fb0';
  * `±SCENE_EXTENT` along its axis through `at`, dashed in the axis hue (AXIS_COLOR, shared with OriginAxes so the two
  * cannot drift). An oblique line runs the part of it inside that box (`lineSpan`; none, if it misses), in
  * OBLIQUE_COLOR. An oblique line lying wholly on the ground (both points at y = 0) is lifted by GROUND_LIFT at both ends,
- * the same display-only rule as an axis line at y = 0 (round 1's Amended B3; spec §2.5: every other rule is round 1's). Depth-tested and not clipped by the section plane, like the guide markers;
- * never a click target (inv 21 — the Line raycast threshold is a bad hit target, and a line is removed from the Guides list).
+ * the same display-only rule as an axis line at y = 0 (round 1's Amended B3; spec §2.5: every other rule is round 1's). Depth-tested and not clipped by the section plane, like the guide markers.
+ * Never a RAYCAST target (`raycast={() => null}`): the Line raycast threshold is a bad hit target (inv 21's lesson).
+ * Selection is a SCREEN-SPACE pick instead, by pixel distance to the projected line (`GuidePicker`, `pickGuide`;
+ * selectable-guides spec §2). `selected` draws it emphasised (spec §6).
  */
-export function ConstructionLine({ line, preview }: { line: NewLine; preview?: boolean }) {
+export function ConstructionLine({ line, preview, selected }: { line: NewLine; preview?: boolean; selected?: boolean }) {
   const axis = 'axis' in line ? line.axis : undefined;
   const to = 'to' in line ? line.to : undefined;
   const points = useMemo(() => {
@@ -87,9 +96,9 @@ export function ConstructionLine({ line, preview }: { line: NewLine; preview?: b
     <Line
       points={points}
       color={axis === undefined ? OBLIQUE_COLOR : AXIS_COLOR[axis]}
-      lineWidth={preview ? 1.6 : 1.2}
+      lineWidth={selected ? SELECTED_WIDTH : preview ? PREVIEW_WIDTH : PLACED_WIDTH}
       transparent
-      opacity={preview ? PREVIEW_OPACITY : PLACED_OPACITY}
+      opacity={selected ? SELECTED_OPACITY : preview ? PREVIEW_OPACITY : PLACED_OPACITY}
       depthWrite={false}
       renderOrder={3}
       raycast={() => null}
@@ -101,14 +110,20 @@ export function ConstructionLine({ line, preview }: { line: NewLine; preview?: b
   );
 }
 
-/** Every construction line in the document, drawn whenever guides are shown. */
+/**
+ * Every construction line in the document that is not HIDDEN, drawn whenever guides are shown (hidden: through
+ * `visibleGuides`, in the memo, never a selector; selectable-guides spec §3.5). A selected one is drawn emphasised.
+ */
 export function GuideLines() {
   const guides = useStore((s) => s.doc.guides);
-  const lines = useMemo(() => guides.filter(isAnyLine), [guides]);
+  const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
+  const selectedGuideIds = useStore((s) => s.selectedGuideIds);
+  const lines = useMemo(() => visibleGuides(guides, hiddenGuideIds).filter(isAnyLine), [guides, hiddenGuideIds]);
+  const selected = useMemo(() => new Set(selectedGuideIds), [selectedGuideIds]);
   return (
     <>
       {lines.map((g) => (
-        <ConstructionLine key={g.id} line={newLineOf(g)} />
+        <ConstructionLine key={g.id} line={newLineOf(g)} selected={selected.has(g.id)} />
       ))}
     </>
   );

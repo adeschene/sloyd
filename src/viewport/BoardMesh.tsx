@@ -28,6 +28,17 @@ const CAP_LINE_LIFT = 0.01;
 /** Oak — the one live colour in the app. */
 const SELECTED = '#c8955a';
 
+/**
+ * Tags a mesh as a PART's wood (its solids and its section cap; not the empty-solids ghost), so a direct raycast can tell a part from everything
+ * else in the scene: GuidePicker's occluder test raycasts only these (selectable-guides spec §4.2), never the Gizmo,
+ * markers, lines, grid or axes. R3F assigns `userData` as given (a plain object is overwritten, not merged); read only
+ * through `isPartMesh`.
+ */
+const PART_MESH_DATA: Record<string, unknown> = { sloydPart: true };
+/** A ghost's (inv 21): never `undefined`, which R3F would skip, leaving the old tag on a mesh that became a ghost. */
+const NOT_PART_DATA: Record<string, unknown> = {};
+export const isPartMesh = (o: THREE.Object3D): boolean => o.userData.sloydPart === true;
+
 /** Drops hits on the section's removed side, so a click passes through to what is drawn (invariant 51). */
 function sectionRaycast(s: Section) {
   return function (this: THREE.Mesh, rc: THREE.Raycaster, hits: THREE.Intersection[]) {
@@ -385,7 +396,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // points (the leaning cap is mapped by the lean itself, Task 10), so it must not be leaned a second time.
   const capNode = cap && (
     <>
-      <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick}
+      <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick} userData={PART_MESH_DATA}
         renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded} receiveShadow>
         {/* Keyed on `faded`, as the grain materials are: three bakes `transparent` into the program (the OPAQUE
             define) and a prop change alone does not recompile it, so a cap drawn opaque would stay opaque. */}
@@ -424,6 +435,8 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           raycast={raycast}
           onClick={onClick}
           onDoubleClick={onDoubleClick}
+          // The ghost is translucent and writes no depth, so a line behind it stays visible: it stays clickable too (inv 21).
+          userData={geometries.placeholder ? NOT_PART_DATA : PART_MESH_DATA}
         >
           {/* The ghost takes ONE plain material rather than the six grain
               materials: per-face grain describes how stock was sawn, and this
