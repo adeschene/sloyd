@@ -408,7 +408,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     per kind, inv 33, and every part reader treats `selectedIds` as parts). A NON-EMPTY part write clears the guide selection; an
     EMPTY one leaves it alone (the store re-asserts an empty part selection internally: `applyHidden`, `restore`, `deleteBoards`,
     `openAssembly`, `edit()`'s callbacks), so the user's "select nothing" (`selectBoard(null)`, the viewport miss) clears BOTH
-    explicitly; Escape's last rung clears the guide selection (`selectGuides([])`). A NON-EMPTY guide write is `selectionPatch([])` plus the guides, so it carries every part-selection
+    explicitly; Escape's last rung clears the guide selection (`selectGuides([])`), and so does turning guides off (App's
+    `onToggleGuides`; spec *Amended (build)* B4: nothing drawn, nothing selected). A NON-EMPTY guide write is `selectionPatch([])` plus the guides, so it carries every part-selection
     change's drops (`grabbed`, `stretchGuide`). The guide half keeps only ids of existing, unhidden guides, once each, in order;
     `openPath` filters no guide, and a guide selection never closes an open assembly. Never touches `tapeAnchor`/`tapeHover` (inv 24).
     **A group with any LEANING part rounds the DELTA instead** (`delta = snap(minCorner − bounds.min)` over `partsBounds`; splayed

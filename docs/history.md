@@ -7606,3 +7606,16 @@ Plans sheet draws lines only when asked, byte for byte unchanged otherwise. Two 
 measured values; measuring showed round 1's two line hues fail it too (fu 590). Built in ten reviewed tasks plus a whole-branch review; browser
 check 21/21. The user then asked for selectable guides (fu 591), which reverses the "no selection model" decision both rounds kept.
 
+## Selectable guides (2026-10-30, merge `978c48e`, no schema change; not deployed)
+
+The user asked for it at the end of construction lines round 2 and skipped the design questions, so every open call was Claude's, marked
+in the spec. It reverses two decisions both line rounds kept: the Guides list had no selection model, and a line was never a click target
+because `THREE.Line`'s raycast threshold makes a bad one. Lines still are not raycast: a click picks in SCREEN space (`pickGuide`, the
+closest-approach math factored out of `pickOnLine` as `closestOnLine`), and a capture-phase listener on the canvas decides guide, part or miss
+before R3F sees the click. Board and guide ids can collide in an imported file, and `selectionPatch` filters by assembly level, so the guide
+state is two new fields beside the part ones (`selectedGuideIds`, `hiddenGuideIds`) written through the existing ONE writers: a guide form
+beside `selectionPatch` (the kinds exclude each other) and `applyHidden` (one hide run across parts and guides, the tape prohibition kept).
+One `visibleGuides` filter feeds every drawing and snapping reader, so a hidden line's crossings and face hits go too. The final review added
+a clear when guides are turned off. The browser check found a guide point on a line nearly unclickable (the line sits at distance ~0 all
+along it); a point in reach now beats any line, the snapping rule. Seven reviewed tasks, a whole-branch review, browser 18/19 plus check 9
+fixed. Residue fu 592–596.

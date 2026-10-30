@@ -1,6 +1,7 @@
 # Sloyd — selectable guides (fu 591)
 
-Date: 2026-10-30. Status: draft, for the user's approval.
+Date: 2026-10-30. Status: approved by the user ("Yes, go ahead"), built and merged 2026-10-30 (`978c48e`), not deployed. The
+build's rulings are in *Amended (build)* at the end.
 
 The user asked for this on 2026-10-30. They skipped the design questions ("skip the questions"), so every open
 call below is **Claude's call**, marked **(call)**, for the user to override while reading.
@@ -261,3 +262,29 @@ A `docs/browser-verification-selectable-guides.md`. At least:
 7. In Tape and Move, a click on a guide snaps and does not select.
 
 By eye: the selected line's and point's look (§6).
+
+## Amended (build)
+
+Rulings made while building, none yet seen by the user; each with what it costs if wrong.
+
+- **B1 (§4.2, the occluder).** A line lying ON a part's face must stay pickable, but the line's closest point and the face hit are two
+  different points, so the occluder depth is taken 1/16" (world) BEYOND the first part hit (`OCCLUDER_BEYOND_INCHES`), then projected.
+  Cost if wrong: a line within 1/16" in front of a face behind it is pickable through that sliver.
+- **B2 (§4.1, which meshes occlude).** Only part solids and the section cap (`userData.sloydPart`, `isPartMesh`); never the Gizmo,
+  markers, lines, grid, axes or the empty-solids ghost (inv 21). So a still click on a Gizmo handle within 12 px of a line selects the line
+  (fu 595 (2); not reproduced in the browser check), and a faded part (X-ray, outside an open assembly) still occludes (fu 595 (3)).
+- **B3 (§6, Save image).** The capture's clean frame draws no guide emphasis (`emphasise={!clean}`), as a part's selected look is chrome.
+  Cost if wrong: one prop.
+- **B4 (§7, guides off).** Turning guides off clears the guide selection, for §7's reason: nothing drawn, nothing selected (Delete/H on an
+  invisible selection would be a trap). Cost if wrong: re-click a guide after turning guides on.
+- **B5 (§4.2, points and lines).** The point-beats-line rule above (*Amended, browser check*), found by browser check 9.
+- **B6 (§3.2, assemblies).** Opening an assembly keeps a guide selection (a guide has no assembly level); closing one selects the
+  assembly and so clears it. Left for the user's ruling (fu 596).
+- **B7 (build extra).** `viewport/projector.ts` (`projectorFor`, `ndcDepth`) is now the ONE world→canvas projector of MoveTool, TapeTool
+  and GuidePicker, so the pick's depths and the tools' share one scale.
+- **Deferred** (record-only, fu 595): `DEPTH_EPS` is in NDC (a far perspective zoom loosens it), Shift+double-click toggles twice (as
+  parts do), the footer does not reopen after a manual collapse while a selection persists, and a typed line duplicating a HIDDEN line is
+  refused with wording that names a line the user cannot see. Hidden guides in saved views, a guide properties panel and dragging a guide
+  are fu 592–594.
+- **Owed to the user.** Save image with a guide selected; by eye, the selected line and point, the list row, the Properties line
+  (`docs/browser-verification-selectable-guides.md` A–D).

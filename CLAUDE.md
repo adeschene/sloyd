@@ -39,8 +39,8 @@ What it does today is listed round by round in `docs/rounds.md`.
   fu 578–582; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
-- **NEXT (2026-10-30):** selectable guides (fu 591) MERGED `978c48e`, NOT deployed (browser 18/19 + check 9 fixed; no schema
-  change). Owed: deploy on the user's word, its by-eye items, the list below. Then: CVD hues (fu 590), cam-and-bolt (fu 568).
+- **NEXT (2026-10-30):** selectable guides (fu 591) MERGED `978c48e`, NOT deployed (no schema change). Owed: its deploy, on the
+  user's word, and the list below. Then: CVD hues (fu 590), cam-and-bolt (fu 568).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
@@ -360,8 +360,8 @@ changes.
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
     the ONE writer of a user's selection change. A selection change mid-drag ends the
-    gizmo's gesture and commits nothing. With `guideSelectionPatch` it is a PAIR, the ONE writer: parts OR guides; an
-    empty part write keeps the guides, `selectBoard(null)` clears both. A group with a LEANING part rounds the delta instead (inv 57).
+    gizmo's gesture and commits nothing. With `guideSelectionPatch` it is a PAIR, the ONE writer: parts OR guides
+    (the rest: the full text). A group with a LEANING part rounds the delta instead (inv 57).
 43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The user's hide
     actions (parts and guides) go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
     reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
@@ -576,7 +576,7 @@ This list is the triage's open set — when an entry's status changes, change it
   dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (the Head select's place, the Plans side views, the exploded iso fu 570, the RefineDialog kept-why; `docs/browser-verification-counterbores.md`; the spec's *Amended (build)* R1–R3, `docs/rounds.md`), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
-  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
+  (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`). Selectable guides: Save image, A–D by eye (`docs/browser-verification-selectable-guides.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
 - **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
