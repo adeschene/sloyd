@@ -1749,12 +1749,21 @@ describe('App type-anywhere tape capture', () => {
       ['ctrl', { ctrlKey: true }],
       ['meta', { metaKey: true }],
       ['alt', { altKey: true }],
-      ['shift', { shiftKey: true }],
     ])('does nothing with %s held', async (_n, init) => {
       await lockedX();
       enter(init);
       expect(useStore.getState().doc.guides).toHaveLength(0);
       expect(useStore.getState().tapeAnchor).not.toBeNull();
+    });
+
+    it('Shift+Enter with nothing typed places the line, as Enter does (task 6)', async () => {
+      await lockedX();
+      const at = useStore.getState().tapeAnchor!.at;
+      enter({ shiftKey: true });
+      const g = useStore.getState().doc.guides;
+      expect(g).toHaveLength(1);
+      expect(g[0]).toMatchObject({ axis: 'x', at: [0, at[1], at[2]] });
+      expect(useStore.getState().tapeAnchor).toBeNull();
     });
 
     it('does nothing behind a modal', async () => {

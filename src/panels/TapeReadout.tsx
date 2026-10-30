@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
-import { isAnyLine, newLineOf, offsetPoint, sameNewLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
+import { heldRoot, isAnyLine, newLineOf, offsetPoint, sameNewLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
 import { useStore } from '../store/store';
 
 /**
@@ -130,7 +130,11 @@ export function TapeReadout() {
   const pending = tapeLineFor(anchor.at, axis, text, hovered?.at ?? null);
   const duplicate = pending !== null && guides.some((g) => isAnyLine(g) && sameNewLine(newLineOf(g), pending));
 
-  const commit = () => {
+  // `step` is Shift+Enter: with a distance typed, the anchor MOVES to the offset point (kind 'offset', its `base` the root it
+  // started from) instead of a guide point being placed, so 'a line 3 in from that edge' is one gesture (spec §4.1).
+  // With nothing typed it is Enter. A step is no edit(): no undo entry, no guide; the axis lock survives (setTapeAnchor
+  // preserves it) and the anchor effect above clears the text.
+  const commit = (step: boolean) => {
     const store = useStore.getState();
     const from = store.tapeAnchor;
     // The anchor can be cleared out from under a focused input by any of the
@@ -160,6 +164,11 @@ export function TapeReadout() {
     const at = offsetPoint(from.at, toward, distance);
     if (!at) {
       setError('degenerate');
+      return;
+    }
+    if (step) {
+      const root = heldRoot(from);
+      store.setTapeAnchor({ kind: 'offset', at, owner: root.owner, base: root });
       return;
     }
     store.addGuide(at);
@@ -196,7 +205,7 @@ export function TapeReadout() {
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
-              commit();
+              commit(e.shiftKey);
               return;
             }
             // X / Y / Z have to be handled HERE as well as in App's window
@@ -259,12 +268,14 @@ export function TapeReadout() {
               ? duplicate
                 ? `Along ${axis.toUpperCase()} — that line is already there; type a distance`
                 : `Along ${axis.toUpperCase()} — Enter for a line, or type a distance`
-              : `Along ${axis.toUpperCase()} — Enter to place`
+              : `Along ${axis.toUpperCase()} — Enter to place, Shift+Enter to move the anchor there`
             : pending
               ? duplicate
                 ? 'That line is already there; type a distance'
                 : 'Enter for a line through both points, or type a distance'
-              : 'Type a distance, Enter to place'}
+              : hovered && text.trim() !== ''
+                ? 'Enter to place, Shift+Enter to move the anchor there'
+                : 'Type a distance, Enter to place'}
         </span>
       )}
     </div>
