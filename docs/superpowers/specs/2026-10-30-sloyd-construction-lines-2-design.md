@@ -433,21 +433,24 @@ Decisions made after this spec was approved. Where one contradicts the text abov
   sketch are gone: the row is `Line along X`, then two labelled fields. The wrapped layout is owed to a browser look (fu 589).
 - **A3 (§3.1, the bore test; build, Task 4).** The spec leaves the test to the builder. It uses `holes.ts`' `insideHole`, not the
   plan's `s/R(s)` formula: that formula keeps a hit in a tilted through-bore's exit mouth (the bit is not unit on a tilted row), and a
-  test pins it. Stricter, never looser.
+  test pins it. Stricter, never looser. Cost if wrong: none.
 - **A4 (§3.1, exact assignment; build, Task 4).** The exact-assignment mutation (assign the plane constant vs `at + t·u`) cannot
   fail for a STORED axis line, since `at[axis] = 0` makes `a + t·u` exactly `t`, the face constant. The assignment stays as the
-  spec's rule, and the test asserts both.
+  spec's rule, and the test asserts both. Cost if wrong: none.
 - **A5 (§9, tests; build, Task 4).** Y-line dado tests were added: the plan's X-line case crossed no cell seam and could not catch
-  the probe mutation.
+  the probe mutation. Cost if wrong: none.
 - **A6 (§3.1, hues; build, Tasks 4–5).** `line-face` is `#341c00`, because the first pick `#683808` failed fu 249's CVD floor against
   `corner`; `offset` is `#f00058`, meeting the same floors. The oblique line colour is `OBLIQUE_COLOR` `#8a7fb0`. All three are the
-  builder's values, owed to the user by eye. Round 1's `line` and `line-cross` hues were never checked against fu 249's floors (8.0–10.7
+  builder's values, owed to the user by eye. Cost if wrong: none (the T5 ruling that Task 5 adds `SNAP_COLORS.offset` meeting the floors). Round 1's `line` and `line-cross` hues were never checked against fu 249's floors (8.0–10.7
   against the guide hue); the user kept them by eye on 2026-10-30, so they are left (fu 589).
 - **A7 (§4.1, the hint; build, Task 6).** Typed, no axis lock and no hover keeps `Type a distance, Enter to place`: there is no
-  direction to step along. Spec §4.1's "(without)" means without a LOCK, with a hover.
-- **A8 (§2.1 and §4, shared schema bump; build, Task 1).** The schema 31→32 gate tests and several older version sentinels moved
+  direction to step along. Spec §4.1's "(without)" means without a LOCK, with a hover. Cost if wrong: one hint string.
+- **A8 (§2.1 and §4, shared schema bump; build, Task 1).** Task 1 reported DONE_WITH_CONCERNS (the oblique line not yet drawn or listed, and extra 32→33 sentinel bumps); ruling: the concerns are later tasks' scope (Tasks 2 and 3). Cost if wrong: none. The schema 31→32 gate tests and several older version sentinels moved
   from 32 to 33 as "newer than current" fixtures; fu 556 now reads "schema 33 now".
 - **A9 (§8, SnapMarker; plan).** `SNAP_COLORS` is a `Record<SnapKind, …>`, so the `'offset'` hue landed in Task 5 with the kind
-  rather than in Task 6.
+  rather than in Task 6. Cost if wrong: none.
+- **A10 (§2.1 and §4.1, the Enter wiring; plan pre-flight).** Task 1 wires the hover into `commit()` and App's Enter as written;
+  Task 2 still writes its Enter-on-hover tests (which may pass on arrival) and proves them by mutation: drop the hover argument and
+  watch them fail. Cost if wrong: none.
 - **Deferred to follow-ups** (not rulings): editing an oblique line, an axis change, guide points, dragging, lines in ISO/assembly/
   section figures, bore-wall hits (fu 583–588); build-time residue (fu 589).
