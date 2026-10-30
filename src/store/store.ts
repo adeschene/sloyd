@@ -124,6 +124,13 @@ interface StoreState {
    * `selectionPatch` below.
    */
   selectedIds: string[];
+  /**
+   * The selected guides (selectable-guides spec §3.1, fu 591), insertion order, no duplicates. View state like
+   * `selectedIds` — never saved, never undone — and kept APART from it because ids are unique only per kind (inv 33) and
+   * everything that reads `selectedIds` reads parts. A selection is parts OR guides, never both (spec §3.2). Written ONLY
+   * through `guideSelectionPatch`, beside `selectionPatch`: the pair is inv 42's ONE writer.
+   */
+  selectedGuideIds: string[];
   past: HistoryEntry[];
   future: HistoryEntry[];
   /**
@@ -177,7 +184,7 @@ interface StoreState {
    * to subscribe to every action enumerated below and re-derive when to drop
    * itself, which is the bookkeeping invariant 24 exists to avoid.
    *
-   * It needs two actions `grabbed` does not: removeGuide and clearGuides. A
+   * It needs two actions `grabbed` does not: removeGuides (with removeGuide, which delegates to it) and clearGuides. A
    * grab is never guide-owned (MoveTool's filter); an anchor can be.
    */
   tapeAnchor: SnapPoint | null;
@@ -218,7 +225,7 @@ interface StoreState {
    *    path, and a rename moves no point, so a board-precise clause would
    *    drop the latch while TapeTool went on drawing the marker.
    *  - `addCut`/`updateCut`/`removeCut` reach the same survival test.
-   *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
+   *  - `deleteBoard` and `removeGuides` (`removeGuide` delegates to it) are owner-conditional, which is exactly
    *    point-precise there: neither owner offers any point afterward. A guide-owned point may be a
    *    crossing (`owner.cross`), so removal tests both ids through `ownedByGuide`.
    *  - `setTool`, `clearGuides` and `replaceDocument` clear it blanket.
@@ -290,7 +297,7 @@ interface StoreState {
    *
    *  - every site that nulls `tapeAnchor` nulls this too, at the SAME
    *    conditionality: blanket where the anchor's clear is blanket,
-   *    owner-conditional in `deleteBoard`/`removeGuide`, point-precise inside
+   *    owner-conditional in `deleteBoard`/`removeGuides`, point-precise inside
    *    `dropHeldIfGone`. So an edit the anchor SURVIVES leaves the lock alone.
    *  - `setTapeAnchor` PRESERVES it, which is the half a "clear it everywhere"
    *    implementation breaks while passing every other test. It is what lets a
@@ -355,6 +362,12 @@ interface StoreState {
    * never selected: selectionPatch filters it out.
    */
   hiddenIds: string[];
+  /**
+   * The hidden guides (selectable-guides spec §3.4), insertion order, no duplicates. View state beside `hiddenIds`, kept
+   * apart for the reasons at `selectedGuideIds`. Declared ahead of its writer (the guide hide round adds it, through
+   * `applyHidden`) so the guide selection writer drops hidden ids in ONE place from the start (inv 43).
+   */
+  hiddenGuideIds: string[];
   hideSelected: () => void;
   hideUnselected: () => void;
   showAll: () => void;
@@ -420,7 +433,12 @@ interface StoreState {
    * sentence, else null (applied, a no-op, or refused at entry: exploded, gesturing, nothing selected). One undo entry.
    */
   stretchItems: (axis: 0 | 1 | 2, size: number, line: number) => string | null;
+  /** Select one part; `null` is the user's "select nothing" (the viewport's miss) and clears BOTH kinds (spec §3.3). */
   selectBoard: (id: string | null) => void;
+  /** Without toggle the guide selection becomes `[id]`; with it, `id` is added or removed. Clears any part selection. */
+  selectGuide: (id: string, toggle: boolean) => void;
+  /** Replace the guide selection; `[]` clears the guide selection only (Escape, spec §5). */
+  selectGuides: (ids: string[]) => void;
   toggleSelected: (id: string) => void;
   selectAll: () => void;
   /**
@@ -641,7 +659,13 @@ interface StoreState {
   deleteView: (id: string) => void;
   /** Restores a view's explode, section and hidden set (its own undo entry when the hidden set changes); returns the view whose camera the caller applies, or null when refused (mid-gesture) or unknown. */
   goToView: (id: string) => SavedView | null;
+  /** `removeGuides([id])` (the Guides list's ×). */
   removeGuide: (id: string) => void;
+  /**
+   * Remove every named guide as ONE undo entry (spec §3.3). Refused while exploded (inv 47); unknown ids are ignored, and
+   * none known pushes nothing (inv 4); held points owned by each go first (inv 24, `dropHeldOwnedBy`).
+   */
+  removeGuides: (ids: string[]) => void;
   /** Retype an axis line's two fixed coordinates; false = refused or nothing to do (spec §5.2). */
   moveGuideLine: (id: string, at: [number, number, number]) => boolean;
   clearGuides: () => void;
@@ -674,7 +698,14 @@ const newRows = (before: readonly HoleRow[], after: readonly HoleRow[]): HoleRow
 export const useStore = create<StoreState>((set, get) => {
   /**
    * The ONE place a new selection is written. `selectBoard`, `toggleSelected`,
-   * `selectAll` and `edit()`'s selection callback all route through it.
+   * `selectAll` and `edit()`'s selection callback all route through it. It and
+   * `guideSelectionPatch` below are a PAIR, and the pair is invariant 42's ONE
+   * writer: a selection is parts OR guides (selectable-guides spec §3.2), so a
+   * NON-EMPTY part selection clears the guides here. An EMPTY one leaves them
+   * alone: the store re-asserts an empty part selection internally (applyHidden,
+   * restore, deleteBoards, openAssembly, edit()'s callbacks), and that must not
+   * wipe a guide selection. The user's "select nothing" is `selectBoard(null)`,
+   * which clears both explicitly.
    *
    * It carries invariant 24's retargeting rule, applied to a SET: the Move
    * tool's grab candidates are the selected parts' points, so a held grab
@@ -694,7 +725,7 @@ export const useStore = create<StoreState>((set, get) => {
     ids: string[],
     hidden: readonly string[] = get().hiddenIds,
     open: string | null = get().openPath,
-  ): { selectedIds: string[]; grabbed?: null; stretchGuide?: null } => {
+  ): { selectedIds: string[]; selectedGuideIds?: string[]; grabbed?: null; stretchGuide?: null } => {
     const held = get().grabbed;
     // Filtered HERE, in the one writer (invariants 42, 43): only direct
     // children of the open assembly (assemblies spec §3.2), never anything
@@ -707,15 +738,46 @@ export const useStore = create<StoreState>((set, get) => {
     const changed = before.length !== selectedIds.length || before.some((id, i) => id !== selectedIds[i]);
     return {
       selectedIds,
+      // The kinds never mix (spec §3.2). Written only when there is something to clear, so a re-assertion is not a fresh array.
+      ...(selectedIds.length > 0 && get().selectedGuideIds.length > 0 ? { selectedGuideIds: [] } : {}),
       ...(held && !isCovered(held.owner.id, new Set(selectedIds)) ? { grabbed: null } : {}),
       // The stretch guide belongs to a selection (spec §8): drop it when the selection changes, not when it is re-asserted.
       ...(changed && get().stretchGuide ? { stretchGuide: null } : {}),
     };
   };
 
+  /**
+   * The guide half of the ONE selection writer (with `selectionPatch`, invariant 42; selectable-guides spec §3.2). Keeps
+   * ids that name a guide of `guides` and are not hidden (inv 43's rule, applied HERE and not by callers), once each, in
+   * order. A guide has no assembly level, so `openPath` filters nothing and is left alone. A NON-EMPTY result clears the
+   * part selection with everything a part-selection change carries (`selectionPatch([])`: the `grabbed` drop, the
+   * `stretchGuide` drop); an empty one touches only the guides. Never touches `tapeAnchor`/`tapeHover` (inv 24's
+   * prohibition, inherited from selectionPatch).
+   */
+  const guideSelectionPatch = (
+    ids: readonly string[],
+    hiddenGuides: readonly string[] = get().hiddenGuideIds,
+    guides: readonly Guide[] = get().doc.guides,
+  ): { selectedGuideIds: string[]; selectedIds?: string[]; grabbed?: null; stretchGuide?: null } => {
+    const known = new Set(guides.map((g) => g.id));
+    const hidden = new Set(hiddenGuides);
+    const selectedGuideIds = [...new Set(ids)].filter((id) => known.has(id) && !hidden.has(id));
+    return selectedGuideIds.length > 0 ? { ...selectionPatch([]), selectedGuideIds } : { selectedGuideIds };
+  };
+
+  /** The guide selection kept to the guides of `doc` (an edit, undo or redo may remove one): the SAME array when nothing
+   *  goes, so an edit that removes no selected guide writes nothing new. */
+  const survivingGuides = (doc: SloydDocument): string[] => {
+    const before = get().selectedGuideIds;
+    if (before.length === 0) return before;
+    const known = new Set(doc.guides.map((g) => g.id));
+    const kept = before.filter((id) => known.has(id));
+    return kept.length === before.length ? before : kept;
+  };
+
   /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
   const readOnly = () => get().explode > 0;
-  /** Invariant 24 for a guide that is going or moving: the two clauses removeGuide and moveGuideLine share, so they
+  /** Invariant 24 for a guide that is going or moving: the two clauses removeGuides and moveGuideLine share, so they
    *  cannot drift apart. Call before the edit. */
   const dropHeldOwnedBy = (id: string) => {
     // Invariant 24, the clause `grabbed` does not need: an anchor CAN be
@@ -806,6 +868,9 @@ export const useStore = create<StoreState>((set, get) => {
       past: nextPast,
       future: nextFuture,
       ...(takeSnapshot ? { gestureSnapshotTaken: true } : {}),
+      // A selected guide the edit removed is no longer selected (selectable-guides spec §3.4). Before the part patch, which
+      // clears the guides outright when the edit selects parts.
+      selectedGuideIds: survivingGuides(next),
       ...(selection ? selectionPatch(selection(next)) : {}),
     });
   };
@@ -904,6 +969,8 @@ export const useStore = create<StoreState>((set, get) => {
       doc: entry.doc,
       hiddenIds: hidden,
       openPath: open,
+      // Selection is never undone; a guide the entry's document lacks just drops (selectable-guides spec §3.4).
+      selectedGuideIds: survivingGuides(entry.doc),
       ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden, open),
       ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null }),
     };
@@ -939,7 +1006,7 @@ export const useStore = create<StoreState>((set, get) => {
    * way in.
    *
    * Call AFTER edit(), so `get().doc` is the post-edit document. Unlike
-   * removeGuide's clear — which may sit on either side of its edit, because
+   * removeGuides' clear — which may sit on either side of its edit, because
    * the guide id is gone either way — this one MUST come after: the whole
    * question it asks is what the board offers once the edit has landed.
    *
@@ -1256,9 +1323,11 @@ export const useStore = create<StoreState>((set, get) => {
   return {
     doc: createDocument(),
     selectedIds: [],
+    selectedGuideIds: [],
     past: [],
     future: [],
     hiddenIds: [],
+    hiddenGuideIds: [],
     explode: 0,
     section: null,
     xray: false,
@@ -1276,7 +1345,9 @@ export const useStore = create<StoreState>((set, get) => {
       if (!Number.isFinite(amount) || get().gesturing) return;
       const next = Math.min(1, Math.max(0, amount));
       if (next > 0 && get().explode === 0) get().setTool('select');
-      set({ explode: next, ...(next > 0 ? { stretchGuide: null } : {}) });
+      // Guides are not drawn while exploded and the Guides list is locked, so a guide selection would be one the user
+      // cannot see (selectable-guides spec §7).
+      set({ explode: next, ...(next > 0 ? { stretchGuide: null, selectedGuideIds: [] } : {}) });
     },
     openPath: null,
 
@@ -1759,7 +1830,18 @@ export const useStore = create<StoreState>((set, get) => {
     // for the same reason. A test pins the ANCHOR half of that here; the
     // hover's is pinned at edit()'s selection callback (two tests latch a
     // hover across addBoard()), not at this action.
-    selectBoard: (id) => set(selectionPatch(id === null ? [] : [id])),
+    // `null` is the user's "select nothing" (the viewport miss): it clears BOTH kinds, explicitly, rather than through
+    // the empty-parts rule, which deliberately keeps the guides (selectable-guides spec §3.3).
+    selectBoard: (id) => set(id === null ? { ...selectionPatch([]), selectedGuideIds: [] } : selectionPatch([id])),
+
+    // Toggling while PARTS are selected starts a new guide selection: the current guide selection is empty then, since
+    // the kinds never mix.
+    selectGuide: (id, toggle) => {
+      const ids = get().selectedGuideIds;
+      set(guideSelectionPatch(!toggle ? [id] : ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+    },
+
+    selectGuides: (ids) => set(guideSelectionPatch(ids)),
 
     toggleSelected: (id) => {
       const ids = get().selectedIds;
@@ -1952,7 +2034,9 @@ export const useStore = create<StoreState>((set, get) => {
       set({
         doc,
         selectedIds: [],
+        selectedGuideIds: [],
         hiddenIds: [],
+        hiddenGuideIds: [],
         openPath: null,
         past: [],
         future: [],
@@ -2759,15 +2843,19 @@ export const useStore = create<StoreState>((set, get) => {
       editViews((views) => (views.some((v) => v.id === id) ? views.filter((v) => v.id !== id) : views));
     },
 
-    removeGuide: (id) => {
-      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
+    removeGuide: (id) => get().removeGuides([id]),
+
+    removeGuides: (ids) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2; inv 47)
       // Guarded before the edit, the same rule updateCut, removeCut and
       // commitSnapMove follow: edit() unconditionally pushes an undo snapshot
       // and clears redo, so a no-op would leave a no-op undo entry
       // (invariant 4) and silently wipe the redo stack.
-      if (!get().doc.guides.some((g) => g.id === id)) return;
-      dropHeldOwnedBy(id);
-      edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));
+      const doomed = new Set(ids.filter((id) => get().doc.guides.some((g) => g.id === id)));
+      if (doomed.size === 0) return;
+      for (const id of doomed) dropHeldOwnedBy(id);
+      // ONE edit, so ONE undo entry; edit() drops the removed ids from the guide selection.
+      edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => !doomed.has(g.id)) }));
     },
 
     // Construction-lines-2 spec §5.2. Both refusals sit BEFORE edit() (inv 4): a no-op or a duplicate must leave neither
