@@ -3,7 +3,7 @@ import { HOLE_EPS, HOLE_SEGMENTS, boardHoles, camLoop, holeInstances, holeRims, 
 import type { Hole } from './holes';
 import { partGeometry } from './bodies';
 import { DIMENSION_ORDER } from './geometry';
-import { mirrorPart } from './frames';
+import { mirrorDim, mirrorPart } from './frames';
 import { chiralPart } from './turnFixtures';
 import { camPairRows, camPartners, camRole, camRowIds } from './camBolt';
 import { BOLT, CAM, camPart } from './camBoltFixtures';
@@ -165,6 +165,26 @@ describe('the mate, the loop and the rims (cam-and-bolt Task 3)', () => {
 });
 
 const partners = (b: Board) => camPartners(boardHoles(b)).size;
+const DIM_INDEX = { length: 0, width: 1, thickness: 2 } as const;
+/** Per pair, cam centre minus the bolt's BOTTOM (its mouth centre plus dir along its axis by its depth), cam row id then
+ *  index order. The bottom is fixed in the wood by Level the ends; the mouth is not. */
+function jointVectors(b: Board): number[][] {
+  const hs = boardHoles(b);
+  const m = camPartners(hs);
+  return hs
+    .filter((h) => m.has(h) && camRole(h, m.get(h)!) === 'cam')
+    .sort((x, y) => (x.row < y.row ? -1 : x.row > y.row ? 1 : x.index - y.index))
+    .map((cam) => {
+      const bolt = m.get(cam)!;
+      const bottom = [...bolt.centre];
+      bottom[DIM_INDEX[bolt.axis]]! += bolt.dir * bolt.depth;
+      return cam.centre.map((v, k) => v - bottom[k]!);
+    });
+}
+const expectVectors = (got: number[][], want: number[][]) => {
+  expect(got).toHaveLength(want.length);
+  got.forEach((v, i) => v.forEach((c, k) => expect(Math.abs(c - want[i]![k]!)).toBeLessThanOrEqual(1e-9)));
+};
 
 describe('the pair survives every move (spec 6.5, 7)', () => {
   it('Level the ends keeps the pair on the board whose length grows at min', () => {
@@ -172,6 +192,8 @@ describe('the pair survives every move (spec 6.5, 7)', () => {
     const e = 0.1;
     const after: Board = { ...b, length: b.length + e, holes: levelEndHoles(b.holes, e, 0, b) };
     expect(partners(after)).toBe(4);
+    expect(after.holes[0]!.inset).toBeCloseTo(b.holes[0]!.inset + e, 12);
+    expectVectors(jointVectors(after), jointVectors(b));
   });
   it('stretch past the cam keeps the pair; through the bolt refuses', () => {
     const b = camPart();
@@ -179,12 +201,24 @@ describe('the pair survives every move (spec 6.5, 7)', () => {
     if ('refused' in out) throw new Error(out.refused);
     expect(out.length).toBe(b.length + 2);
     expect(partners(out)).toBe(4);
+    expectVectors(jointVectors(out), jointVectors(b));
     expect(stretchPart(b, 0, mm(10), 2, IMPERIAL)).toHaveProperty('refused');
   });
   it('rebaseHoles at the far end keeps the pair', () => {
     const b = camPart();
-    rebaseHoles(b, 'length', 'max', 3);
+    const before = jointVectors(b);
+    const rows = b.holes;
+    rebaseHoles(b, 'length', 'max', 3); // mutates b.holes in place (void)
+    // Nothing is measured from the length MAX end, so no row shifts: every row is the SAME object, as documented.
+    expect(b.holes).toHaveLength(rows.length);
+    b.holes.forEach((r, i) => expect(r).toBe(rows[i]));
     expect(partners(b)).toBe(4);
+    expectVectors(jointVectors(b), before);
+    // A row measured from the max end does shift, so the rebase is not a no-op on this fixture's shape.
+    const far = camPart({ holes: [{ ...CAM, acrossFrom: 'max' }, { ...BOLT, from: 'max' }] });
+    const moved = { ...far, holes: far.holes.map((r) => ({ ...r })) };
+    rebaseHoles(moved, 'length', 'max', 3);
+    expect(moved.holes[0]!.inset).toBe(far.holes[0]!.inset + 3);
   });
   it("Refine's world round trip keeps the pair", () => {
     const b = camPart();
@@ -209,5 +243,9 @@ describe('the pair survives every move (spec 6.5, 7)', () => {
     const m = user(true);
     expect(m.mirrored).toBe(true);
     expect(partners(m)).toBe(4);
+    // The mirror flips the part's own mirrorDim (length at turn 0): that component of every joint vector is negated.
+    const flipped = jointVectors(user(false)).map((v) => v.map((c, k) => (k === DIM_INDEX[mirrorDim(src)] ? -c : c)));
+    const key = (v: number[]) => v.map((c) => c.toFixed(9)).join(',');
+    expect(jointVectors(m).map(key).sort()).toEqual(flipped.map(key).sort());
   });
 });
