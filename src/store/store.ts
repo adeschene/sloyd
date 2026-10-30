@@ -111,7 +111,9 @@ export type ToolMode = 'select' | 'move' | 'tape';
  * Ctrl+Z after H shows the parts again. A hide's entry holds the SAME document
  * object, so nothing is copied and autosave does not fire.
  */
-export interface HistoryEntry { doc: SloydDocument; hiddenIds: string[] }
+/** One undo step: a document and BOTH hidden sets as they were (inv 43; the guide set, selectable-guides spec §3.4). A
+ *  hide or show pushes an entry holding the SAME document object, so no copy is made and autosave does not fire. */
+export interface HistoryEntry { doc: SloydDocument; hiddenIds: string[]; hiddenGuideIds: string[] }
 
 interface StoreState {
   doc: SloydDocument;
@@ -364,14 +366,24 @@ interface StoreState {
   hiddenIds: string[];
   /**
    * The hidden guides (selectable-guides spec §3.4), insertion order, no duplicates. View state beside `hiddenIds`, kept
-   * apart for the reasons at `selectedGuideIds`. Declared ahead of its writer (the guide hide round adds it, through
-   * `applyHidden`) so the guide selection writer drops hidden ids in ONE place from the start (inv 43).
+   * apart for the reasons at `selectedGuideIds`, and under the SAME rules (invariant 43): written by the three guide
+   * actions below and `showAll` ONLY through `applyHidden`, in the undo history, never in the document or a saved view
+   * (views are board-only); `restore`, `edit()` (removeGuides, clearGuides) and `replaceDocument` merely reconcile it.
+   * A hidden guide is never selected (`guideSelectionPatch` filters it out), and is neither drawn nor snapped to
+   * (`visibleGuides`, the ONE filter).
    */
   hiddenGuideIds: string[];
   hideSelected: () => void;
   hideUnselected: () => void;
+  /** Shows every part AND every guide, as one entry (selectable-guides spec §3.3). */
   showAll: () => void;
   setHidden: (id: string, hidden: boolean) => void;
+  /** Hides the selected guides; they leave the selection, as hidden parts do. */
+  hideSelectedGuides: () => void;
+  /** Hides every guide not selected, parts untouched. With no guide selected it would hide them all, so it does nothing. */
+  hideOtherGuides: () => void;
+  /** The Guides list's eye: hides or shows one guide. */
+  setGuideHidden: (id: string, hidden: boolean) => void;
   /**
    * How far the viewport's exploded view is spread, 0..1 (plans-sheet spec §4). View state: not in
    * the document, not in undo, not saved; `replaceDocument` resets it. While it is above 0 the model
@@ -775,6 +787,14 @@ export const useStore = create<StoreState>((set, get) => {
     return kept.length === before.length ? before : kept;
   };
 
+  /** `ids` kept to the guides of `doc`: the SAME array when nothing goes. */
+  const keptGuides = (ids: string[], doc: SloydDocument): string[] => {
+    if (ids.length === 0) return ids;
+    const known = new Set(doc.guides.map((g) => g.id));
+    const kept = ids.filter((id) => known.has(id));
+    return kept.length === ids.length ? ids : kept;
+  };
+
   /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
   const readOnly = () => get().explode > 0;
   /** Invariant 24 for a guide that is going or moving: the two clauses removeGuides and moveGuideLine share, so they
@@ -837,7 +857,7 @@ export const useStore = create<StoreState>((set, get) => {
     let nextFuture = future;
     let takeSnapshot = false;
     if (!gesturing || !gestureSnapshotTaken) {
-      nextPast = [...past, { doc, hiddenIds: get().hiddenIds }].slice(-HISTORY_LIMIT);
+      nextPast = [...past, { doc, hiddenIds: get().hiddenIds, hiddenGuideIds: get().hiddenGuideIds }].slice(-HISTORY_LIMIT);
       nextFuture = [];
       takeSnapshot = gesturing;
     }
@@ -871,6 +891,9 @@ export const useStore = create<StoreState>((set, get) => {
       // A selected guide the edit removed is no longer selected (selectable-guides spec §3.4). Before the part patch, which
       // clears the guides outright when the edit selects parts.
       selectedGuideIds: survivingGuides(next),
+      // A hidden guide the edit removed (removeGuides, clearGuides) is no longer hidden; the entry above keeps the set
+      // from before, so its undo hides it again (inv 43's reconcile, spec §3.4).
+      hiddenGuideIds: keptGuides(get().hiddenGuideIds, next),
       ...(selection ? selectionPatch(selection(next)) : {}),
     });
   };
@@ -886,8 +909,11 @@ export const useStore = create<StoreState>((set, get) => {
   let hideRunEntry: HistoryEntry | null = null;
 
   /**
-   * The ONE writer of `hiddenIds` (hide/unhide spec §2.1). Never runs edit() and
-   * never replaces `doc`: the entry it pushes holds the SAME document object.
+   * The ONE writer of `hiddenIds` (hide/unhide spec §2.1) AND of `hiddenGuideIds`
+   * (selectable-guides spec §3.4): `next` the parts, `nextGuides` the guides
+   * (default: unchanged). Never runs edit() and never replaces `doc`: the entry
+   * it pushes holds the SAME document object. Part and guide toggles share ONE
+   * run; the run is back at its start only when BOTH sets are.
    *
    * Refused while a gesture is open. A hide pushes its own entry, so inside a
    * gesture it would land between the gesture's lazy snapshot (invariant 4) and
@@ -897,14 +923,21 @@ export const useStore = create<StoreState>((set, get) => {
    *
    * Pushes nothing when the set does not change (invariant 4: no entry that
    * undoes to nothing), and consecutive toggles share one entry (fu 214). Never touches tapeAnchor/tapeHover (invariant 24's
-   * prohibition): hiding moves nothing.
+   * prohibition): hiding moves nothing — a guide hide included (do NOT reach for `dropHeldOwnedBy` here).
+   *
+   * Both selections lose what is newly hidden, each through its half of the ONE writer (inv 42), handed the NEW set.
    */
-  const applyHidden = (next: string[]) => {
-    const { doc, hiddenIds, past, selectedIds, gesturing } = get();
+  const applyHidden = (next: string[], nextGuides: string[] = get().hiddenGuideIds) => {
+    const { doc, hiddenIds, hiddenGuideIds, past, selectedIds, selectedGuideIds, gesturing } = get();
     if (gesturing) return;
     const exists = itemPaths(doc);
     const clean = [...new Set(next)].filter((id) => exists.has(id));
-    if (clean.length === hiddenIds.length && clean.every((id) => hiddenIds.includes(id))) return;
+    const guides = new Set(doc.guides.map((g) => g.id));
+    const cleanGuides = [...new Set(nextGuides)].filter((id) => guides.has(id));
+    const same = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((id) => b.includes(id));
+    if (same(clean, hiddenIds) && same(cleanGuides, hiddenGuideIds)) return;
+    // Only when a guide is selected: an empty guide selection stays the SAME array.
+    const guidePatch = selectedGuideIds.length > 0 ? guideSelectionPatch(selectedGuideIds, cleanGuides) : {};
     // Consecutive toggles share ONE entry (fu 214, ruled): while the top of
     // `past` is still the entry this run pushed, a further toggle only moves
     // `hiddenIds`; the entry keeps the set from before the run. An edit or a
@@ -915,30 +948,34 @@ export const useStore = create<StoreState>((set, get) => {
     // (invariant 4).
     const top = past[past.length - 1];
     if (top !== undefined && top === hideRunEntry) {
-      const restored = top.hiddenIds.length === clean.length && clean.every((id) => top.hiddenIds.includes(id));
+      const restored = same(top.hiddenIds, clean) && same(top.hiddenGuideIds, cleanGuides);
       set({
         hiddenIds: clean,
+        hiddenGuideIds: cleanGuides,
         past: restored ? past.slice(0, -1) : past,
         future: [],
+        ...guidePatch,
         ...selectionPatch(selectedIds, clean),
       });
       return;
     }
-    const entry = { doc, hiddenIds };
+    const entry: HistoryEntry = { doc, hiddenIds, hiddenGuideIds };
     hideRunEntry = entry;
     set({
       hiddenIds: clean,
+      hiddenGuideIds: cleanGuides,
       past: [...past, entry].slice(-HISTORY_LIMIT),
       future: [],
+      ...guidePatch,
       ...selectionPatch(selectedIds, clean),
     });
   };
 
   /**
-   * What undo and redo both restore from an entry: its document, its hidden set
-   * (filtered to that document's parts), and a selection reconciled with both
-   * through selectionPatch, so a redo that re-hides a selected part deselects it
-   * and drops a grab it owned.
+   * What undo and redo both restore from an entry: its document, its hidden sets
+   * (parts filtered to that document's parts, guides to its guides), and a
+   * selection reconciled with both through the ONE writer's two halves, so a redo
+   * that re-hides a selected part or guide deselects it (and drops a grab it owned).
    *
    * Held points: an entry whose document is a DIFFERENT object is a wholesale
    * rewrite, so grabbed / tapeAnchor / tapeHover / tapeAxis clear unconditionally
@@ -961,6 +998,7 @@ export const useStore = create<StoreState>((set, get) => {
   const restore = (entry: HistoryEntry, current: SloydDocument, selectedIds: string[]) => {
     const exists = itemPaths(entry.doc);
     const hidden = entry.hiddenIds.filter((id) => exists.has(id));
+    const hiddenGuides = keptGuides(entry.hiddenGuideIds, entry.doc);
     const surviving = selectedIds.filter((id) => exists.has(id));
     // The deepest open level that still exists (assemblies spec §3.1).
     let open = get().openPath;
@@ -968,9 +1006,13 @@ export const useStore = create<StoreState>((set, get) => {
     return {
       doc: entry.doc,
       hiddenIds: hidden,
+      hiddenGuideIds: hiddenGuides,
       openPath: open,
-      // Selection is never undone; a guide the entry's document lacks just drops (selectable-guides spec §3.4).
-      selectedGuideIds: survivingGuides(entry.doc),
+      // Selection is never undone; a guide the entry's document lacks, or that it hides, just drops (selectable-guides
+      // spec §3.4). Before the part patch, which wins on `selectedIds` (the kinds never mix, so the two agree).
+      ...(get().selectedGuideIds.length > 0
+        ? guideSelectionPatch(get().selectedGuideIds, hiddenGuides, entry.doc.guides)
+        : {}),
       ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden, open),
       ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null }),
     };
@@ -2000,11 +2042,28 @@ export const useStore = create<StoreState>((set, get) => {
       applyHidden([...hiddenIds, ...childrenOf(doc, get().openPath).filter((id) => !selectedIds.includes(id))]);
     },
 
-    showAll: () => applyHidden([]),
+    showAll: () => applyHidden([], []),
 
     setHidden: (id, hidden) => {
       const { hiddenIds } = get();
       applyHidden(hidden ? [...hiddenIds, id] : hiddenIds.filter((x) => x !== id));
+    },
+
+    // Guide hides (selectable-guides spec §3.4): the same gate, the part set passed through unchanged.
+    hideSelectedGuides: () => {
+      const { hiddenIds, hiddenGuideIds, selectedGuideIds } = get();
+      applyHidden(hiddenIds, [...hiddenGuideIds, ...selectedGuideIds]);
+    },
+
+    hideOtherGuides: () => {
+      const { hiddenIds, hiddenGuideIds, selectedGuideIds, doc } = get();
+      if (selectedGuideIds.length === 0) return;
+      applyHidden(hiddenIds, [...hiddenGuideIds, ...doc.guides.map((g) => g.id).filter((id) => !selectedGuideIds.includes(id))]);
+    },
+
+    setGuideHidden: (id, hidden) => {
+      const { hiddenIds, hiddenGuideIds } = get();
+      applyHidden(hiddenIds, hidden ? [...hiddenGuideIds, id] : hiddenGuideIds.filter((x) => x !== id));
     },
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
@@ -2062,7 +2121,7 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     undo: () => {
-      const { past, future, doc, hiddenIds, selectedIds } = get();
+      const { past, future, doc, hiddenIds, hiddenGuideIds, selectedIds } = get();
       // Refused mid-gesture (fu 208), as a hide is (invariant 43): popping the drag's own entry left its later edits with
       // none (the snapshot flag still set), and an undone resize slid under the gizmo's proxy.
       if (past.length === 0 || get().explode > 0 || get().gesturing) return;
@@ -2072,18 +2131,18 @@ export const useStore = create<StoreState>((set, get) => {
       hideRunEntry = null;
       set({
         past: past.slice(0, -1),
-        future: [{ doc, hiddenIds }, ...future].slice(0, HISTORY_LIMIT),
+        future: [{ doc, hiddenIds, hiddenGuideIds }, ...future].slice(0, HISTORY_LIMIT),
         ...restore(previous, doc, selectedIds),
       });
     },
 
     redo: () => {
-      const { past, future, doc, hiddenIds, selectedIds } = get();
+      const { past, future, doc, hiddenIds, hiddenGuideIds, selectedIds } = get();
       if (future.length === 0 || get().explode > 0 || get().gesturing) return;   // refused mid-gesture, as undo (fu 208)
       const next = future[0]!;
       hideRunEntry = null; // a redo ends a run, like undo
       set({
-        past: [...past, { doc, hiddenIds }].slice(-HISTORY_LIMIT),
+        past: [...past, { doc, hiddenIds, hiddenGuideIds }].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         ...restore(next, doc, selectedIds),
       });
@@ -2800,7 +2859,8 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     // Inv 43 amendment: going to a view is a fifth user action through applyHidden. It ends any hide run
-    // (hideRunEntry = null), so its hide is never merged into a preceding toggle's entry.
+    // (hideRunEntry = null), so its hide is never merged into a preceding toggle's entry. Saved views are board-only
+    // (selectable-guides spec §3.4): `applyHidden`'s guide set defaults to the current one, so the guides are left alone.
     goToView: (id) => {
       if (get().gesturing) return null;
       const view = get().doc.views.find((v) => v.id === id);
