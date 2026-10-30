@@ -39,6 +39,7 @@ What it does today is listed round by round in `docs/rounds.md`.
   fu 130; deployed 2026-10-30; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `4f73858` (`index-D9SIz2nX.js`, schema 30): it refuses every project saved at 31 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
+- **BUILT, NOT DEPLOYED:** construction lines round 2 (fu 578–582, SCHEMA 32), branch `construction-lines-2`; the production and rollback lines stand until it ships.
 - **NEXT (2026-10-30):** construction lines (fu 130) are deployed; every `docs/feature-gaps.md` gap has now shipped. Owed to the user: the list below (counterbores by eye: the Head select's position, the Plans side views, fu 570; the Amended (build) rulings). Next: the user picks — cam-and-bolt (fu 568), construction-line residue (fu 578–582), or another follow-up.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
@@ -160,7 +161,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | align / space evenly | `align.ts`, `alignText.ts`; store `alignItems`, `distributeItems`; `panels/AlignSection.tsx` (inv 25) |
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; store `stretchItems`, `stretchGuide`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
-| construction lines | `snapPoints.ts` (`lineCrossings`, `tapeLineFor`), `snapPick.ts` `pickOnLine`, `GuideLines.tsx` (invs 24, 25) |
+| construction lines | `lineModel.ts` (the leaf: `NewLine`, `lineThrough`), `snapPoints.ts` (`lineCrossings`, `tapeLineFor`, `lineDir`, `lineSpan`, `heldRoot`/`heldBoard`), `lineFaces.ts` (`lineFaceHits`), `snapPick.ts` `pickOnLine`, `GuideLines.tsx`, store `moveGuideLine`, `planLines.ts` (invs 24, 25) |
 | saved views | `document/views.ts`, `viewCamera.ts`, `ViewsFooter.tsx` (invs 43, 47) |
 | weight | `weight.ts`; density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
@@ -271,7 +272,10 @@ changes.
       only the "keeps" tests catch.
     - The enumeration lives only at `tapeHover`'s declaration in `store.ts`; never restate it.
     - A guide-owned point may be a line CROSSING (`owner.cross`, schema 31): ownership is `ownedByGuide` (`id` or `cross`), never `owner.id` alone.
-25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide, a line crossing (exact; a point slid along a line rounds only its along-line coordinate, `pickOnLine`),
+    - A held point may carry `board` (a line-face hit: owned by its line, dropped when the line OR the part changes) or `base` (a Shift+Enter stepped
+      anchor, `kind: 'offset'`: it lives and dies with its ROOT base, so every judgement reads `heldRoot`/`heldBoard`); `moveGuideLine` and `removeGuide` drop
+      through ONE helper, `dropHeldOwnedBy` (schema 32).
+25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide, a crossing of two AXIS lines (exact; any crossing with an oblique line is computed, within `CROSS_TOLERANCE`; a point slid along a line rounds only its along-line coordinate, on an oblique line its distance from `at`; `pickOnLine`), a typed line edit and an axis line's hit on a square face (exact: the plane's own constant, assigned),
     ray-typed guide, axis-placed guide, copy in a row (copy k = original + k·step·sign,
     never from the previous copy), align and space evenly (inner items placed from the first, never a running position), stretch (`δ` once, inv 64). Round what a free drag produced, nothing else; a free drag of a LEANING part
     rounds the DELTA, never a corner (`dragTarget`, inv 57).
@@ -307,7 +311,7 @@ changes.
     index writes stay synchronous with its read.
 33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes per id kind (dovetail ids per board, as tenons):
-    `docs/invariants.md`. `/` in an id is re-minted. A guide with no id is dropped; a construction line shares `guides`' scope.
+    `docs/invariants.md`. `/` in an id is re-minted. A guide with no id is dropped; a construction line (axis or oblique) shares `guides`' scope.
     References (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the
     duplicate or the dangling part, never by re-minting. A future field pointing at a board by id
     breaks the single-pass repair — except `views[].hidden`, a hint never repaired (skipped when missing; Group/Ungroup re-key it).
@@ -394,7 +398,7 @@ changes.
       joinery's regroup joins a user only when the Shape resolves EXACTLY to it through its own flag.
     - A `lean`, `tenons` or `dovetails` key present as `undefined` REMOVES it (never stored).
 47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; a saved-view write (via `editViews`, only `views`) is the one document write allowed while exploded; actions
-    with side effects outside `edit()` refuse at entry (`readOnly()`); `setTool` refuses all but
+    with side effects outside `edit()` refuse at entry (`readOnly()`; `moveGuideLine` among them); `setTool` refuses all but
     Select; `setExplode` is the one writer. The UI lock is `EditLock`'s disabled `<fieldset>` around
     EDITING regions only; the explode offset is a render-time translation, never written back. **Drawings:**
     `drawView` takes lines from `boardEdges` and `holeDrawingSegments` (one hidden-line pass),
@@ -437,7 +441,7 @@ changes.
 51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or
     autosave** (a saved view copies it); reset only where `explode` is. One shared `THREE.Plane` clips on the GPU (no geometry
     rebuild). **Caps come only from `sectionCaps`** (board-local; bores subtracted). **Picking and snapping read only `keptBySection`**,
-    guides exempt. Never hand out the local-cap cache's arrays. On the Plans sheet the section drawing comes
+    guides exempt (a line-face hit is on a part, so it obeys it). Never hand out the local-cap cache's arrays. On the Plans sheet the section drawing comes
     only from `drawView`'s `section` option, always of the ASSEMBLED piece; a sheet with no section is byte-for-byte unchanged.
 52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the
     DOCUMENT's own `Units`.** Stored values are inches always; a units switch moves no number.
@@ -551,7 +555,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10386 tests across 298 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10520 tests across 304 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -560,19 +564,19 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–582). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–589). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 578–582 (oblique, typed offset, edit a line, line meets face, Plans; ask first).
-- **Owed to the user, not code:** by eye — counterbores (the Head select's place, the Plans side views, the exploded iso fu 570, the RefineDialog kept-why; `docs/browser-verification-counterbores.md`; the spec's *Amended (build)* R1–R3, `docs/rounds.md`), 142, 272 (a phone),
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first).
+- **Owed to the user, not code:** by eye — construction lines round 2 (the oblique colour, the `line-face` and `offset` hues, the Plans chain line, the Guides row; the spec's *Amended*), counterbores (the Head select's place, the Plans side views, the exploded iso fu 570, the RefineDialog kept-why; `docs/browser-verification-counterbores.md`; the spec's *Amended (build)* R1–R3, `docs/rounds.md`), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
-- **Open by decision:** 147, 163's residue (do not re-open unasked), 176, 207, 225,
+- **Open by decision:** 585 (guide points stay delete-and-replace, fu 130), 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
 - **Open, per round:** splayed legs 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled
@@ -582,7 +586,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors).
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: record-only 589.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

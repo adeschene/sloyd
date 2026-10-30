@@ -56,7 +56,7 @@ export interface SnapPoint {
   owner: SnapOwner;
   /**
    * Only on a stepped tape anchor (`kind: 'offset'`, construction-lines-2 spec §4.2): the ROOT feature point the steps
-   * started from, never itself stepped; `owner` is a copy of its owner. Every held-point judgement reads `heldRoot`.
+   * started from, never itself stepped; `owner` is a copy of its owner. How it is judged: see `tapeHover`'s declaration.
    */
   base?: SnapPoint;
 }

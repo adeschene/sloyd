@@ -8430,16 +8430,55 @@ zero-length bore walls (a head that outruns a through bore) has no line-count te
 **Status:** open (record-only).
 
 **578. Construction lines: oblique lines (feature-sized).** Only the three world axes. A line along a leaning leg or between two arbitrary points needs a direction stored on the guide, a general crossing test (skew lines do not meet), and `pickOnLine` without the axis shortcut. Construction-lines spec non-goals.
-**Status:** open (feature; ask first).
+**Status:** shipped by the construction-lines round 2 (built 2026-10-30 on branch `construction-lines-2`; schema 32; not yet deployed): a line through two snap points (Enter on a hover, no lock, nothing typed), stored as `{ at, to }` (`GuideRay`), an exactly axis-parallel pair stored as an axis line; sliding rounds the distance from `at`; crossings with an oblique line are computed within `CROSS_TOLERANCE`. Editing one, or changing any line's axis: fu 583, 584.
 
 **579. Construction lines: a line at a typed offset in one gesture.** Today it takes two steps: place a guide point at the offset, then anchor on it and place the line. Construction-lines spec non-goals.
-**Status:** open (feature; ask first).
+**Status:** shipped by the construction-lines round 2 (built 2026-10-30 on branch `construction-lines-2`; schema 32; not yet deployed): Shift+Enter in the tape readout steps the anchor by the typed distance (`kind: 'offset'`, `base` the root point), leaving no guide point. Held-point rule: inv 24.
 
 **580. Construction lines: moving or editing a line.** Delete it and place it again, as fu 130 rules for guide points. Construction-lines spec non-goals.
-**Status:** open (feature; ask first).
+**Status:** shipped by the construction-lines round 2 (built 2026-10-30 on branch `construction-lines-2`; schema 32; not yet deployed): an axis line's two fixed coordinates are typed in the Guides list (`moveGuideLine`, exact, one undo entry, a duplicate refused). Oblique lines and guide points are not editable (fu 583, 585); dragging a line: fu 586.
 
 **581. Construction lines: a line meeting a part's face as a snap point.** Line-meets-face is not offered; only line-line crossings are (`lineCrossings`). Construction-lines spec non-goals.
-**Status:** open (feature; ask first).
+**Status:** shipped by the construction-lines round 2 (built 2026-10-30 on branch `construction-lines-2`; schema 32; not yet deployed): a `line-face` snap point where a line enters or leaves a part's true surface (`lineFaceHits` on `worldBodies`, owned by the line with the part on `board`). A bore wall is not offered (fu 588).
 
 **582. Construction lines: lines on the Plans sheet.** Lines appear in the viewport only, not on Plans, the part diagrams, the cut list or the labels. Construction-lines spec non-goals.
+**Status:** shipped by the construction-lines round 2 (built 2026-10-30 on branch `construction-lines-2`; schema 32; not yet deployed): a "Construction lines" checkbox on the Plans sheet (off by default, sheet view state) draws each line as a chain line in the whole piece's Front, Side and Plan views (`planLines`). ISO, assembly and section figures: fu 587.
+
+**583. Construction lines: editing an oblique line.** Round 2 lists an oblique line's row as text and offers no fields; moving either of its two
+points means deleting the line and placing it again. A fix needs a model for editing a pair of points (typed coordinates for six numbers, or
+re-picking), the exact-pair duplicate rule, and the axis-parallel canonicalisation on every edit. Construction-lines round 2 spec §1 non-goals.
 **Status:** open (feature; ask first).
+
+**584. Construction lines: changing a line's axis.** `moveGuideLine` edits the two fixed coordinates only; the along-axis coordinate means
+nothing and the axis itself is not editable. Delete and place again. Round 2 spec §1 non-goals.
+**Status:** open (feature; ask first).
+
+**585. Construction lines: editing a guide POINT.** Guide points stay "delete and place again", as fu 130 rules (its non-goal "Moving or editing an
+existing guide"); round 2 edited lines only. Round 2 spec §1 non-goals.
+**Status:** open by decision (fu 130's ruling; ask first).
+
+**586. Construction lines: dragging a line in the viewport.** A line is never a pick target (inv 21, round 1 §5), so a drag would need its own
+handle, its own gate and a decision about undo coalescing. Round 2 spec §1 non-goals.
+**Status:** open (feature; ask first).
+
+**587. Construction lines: lines in the Plans ISO, assembly and section figures, and on the part diagrams, cut list and labels.** Round 2 draws
+lines in the piece's three orthographic views only: an assembly figure draws a definition in its own frame and a line is a world annotation, the
+ISO would bury the piece, and the section figure is a cut. Round 2 spec §6.2.
+**Status:** open (feature; ask first).
+
+**588. Construction lines: a face hit on a hole's wall or inside a bore.** `lineFaceHits` drops a hit inside a bore's mouth (it sits on air in the
+drawn mesh, `FACE_PROBE` against `insideHole`) and offers nothing on the bore's wall. A line down a bore's axis meets the wall nowhere; one crossing
+it obliquely could. Round 2 spec §3.1.
+**Status:** open (feature; ask first).
+
+**589. Construction lines round 2: build-time residue.** (1) `obliqueCrossing`'s `den = 1 − b²` loses precision for a near-parallel pair
+(|u×v| between 1e-12 and 1e-8): `s` and `t` are noisy, though the gap test still bounds the result; use `den = |u×v|²`. (2) A seam point may be
+kept within `FACE_PROBE` (1e-4) of an inside corner (in wood, never air), and two convex pieces sharing a face may give hits an ulp apart that both
+survive the `===` dedupe (a harmless tie). (3) `GuideLines`' `setLine` parameter `line` shadows the prop. (4) No test that a REFUSED
+`moveGuideLine` keeps a guide-owned anchor or hover; the Ungroup re-key test does not check survival after a rename at the new id. (5) The hint test
+injects a hover `as never`, and typed + no axis + no hover has no assertion for keeping "Type a distance, Enter to place" (the builder's ruling).
+(6) The `offset` hue `#f00058` clears face-center's normal CVD floor by 0.4 (25.4 against 25); neighbours `#ec1458` and `#f00c58` if retuned.
+(7) Round 1's `line` `#4a86b8` and `line-cross` `#3a4a8c` fail fu 249's CVD floors against the guide hue (8.0–10.7), measured only in round 2;
+the user kept them by eye 2026-10-30, so do not change them unasked. (8) The Guides list row's wrapped layout (`.field` label-over-input with
+flex-wrap may push × onto its own line) and the spec's inline "·" separators are owed to a browser look.
+**Status:** open (record-only).

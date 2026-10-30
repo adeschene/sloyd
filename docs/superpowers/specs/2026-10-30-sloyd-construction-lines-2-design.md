@@ -417,3 +417,37 @@ which refuses every project saved at 32, so export first. Deploy and verify per 
     as fu 130 rules (§5).
 11. Plans lines are **opt-in per sheet**, in the **piece's three orthographic views only**, as **chain lines**, never resizing the
     figure (§6).
+
+---
+
+## Amended (plan and build)
+
+Decisions made after this spec was approved. Where one contradicts the text above, this block governs.
+
+- **A1 (§2.4, `lineSpan`'s parameter; plan).** `lineSpan(line, extent)` returns the parameter range as DISTANCE FROM `at` along
+  `lineDir`. For an axis line `at[axis]` is 0, so that distance is the world coordinate and the range is `[-extent, extent]`; for an
+  oblique line it is the clipped slab range. One convention serves `pickOnLine`'s clamp, the drawing and `lineFaceHits`' `t`.
+- **A2 (§5.2, the refused edit; plan).** The spec says a refused move "resyncs on blur". `DimensionField` gained a refusal channel
+  (its `onCommit` may return a string): `moveGuideLine` returning false makes the row return `That line is already there`, which the
+  field shows as its own error, and nothing is stored (as the field's min/max refusals work). The inline `·` separators of §5.1's row
+  sketch are gone: the row is `Line along X`, then two labelled fields. The wrapped layout is owed to a browser look (fu 589).
+- **A3 (§3.1, the bore test; build, Task 4).** The spec leaves the test to the builder. It uses `holes.ts`' `insideHole`, not the
+  plan's `s/R(s)` formula: that formula keeps a hit in a tilted through-bore's exit mouth (the bit is not unit on a tilted row), and a
+  test pins it. Stricter, never looser.
+- **A4 (§3.1, exact assignment; build, Task 4).** The exact-assignment mutation (assign the plane constant vs `at + t·u`) cannot
+  fail for a STORED axis line, since `at[axis] = 0` makes `a + t·u` exactly `t`, the face constant. The assignment stays as the
+  spec's rule, and the test asserts both.
+- **A5 (§9, tests; build, Task 4).** Y-line dado tests were added: the plan's X-line case crossed no cell seam and could not catch
+  the probe mutation.
+- **A6 (§3.1, hues; build, Tasks 4–5).** `line-face` is `#341c00`, because the first pick `#683808` failed fu 249's CVD floor against
+  `corner`; `offset` is `#f00058`, meeting the same floors. The oblique line colour is `OBLIQUE_COLOR` `#8a7fb0`. All three are the
+  builder's values, owed to the user by eye. Round 1's `line` and `line-cross` hues were never checked against fu 249's floors (8.0–10.7
+  against the guide hue); the user kept them by eye on 2026-10-30, so they are left (fu 589).
+- **A7 (§4.1, the hint; build, Task 6).** Typed, no axis lock and no hover keeps `Type a distance, Enter to place`: there is no
+  direction to step along. Spec §4.1's "(without)" means without a LOCK, with a hover.
+- **A8 (§2.1 and §4, shared schema bump; build, Task 1).** The schema 31→32 gate tests and several older version sentinels moved
+  from 32 to 33 as "newer than current" fixtures; fu 556 now reads "schema 33 now".
+- **A9 (§8, SnapMarker; plan).** `SNAP_COLORS` is a `Record<SnapKind, …>`, so the `'offset'` hue landed in Task 5 with the kind
+  rather than in Task 6.
+- **Deferred to follow-ups** (not rulings): editing an oblique line, an axis change, guide points, dragging, lines in ISO/assembly/
+  section figures, bore-wall hits (fu 583–588); build-time residue (fu 589).
