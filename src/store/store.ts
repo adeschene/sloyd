@@ -8,7 +8,7 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, inverseTurn, addTurns, withoutFlag, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { SavedView, SavedViewCamera, BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, Guide, NewLine, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { CutFrom, SavedView, SavedViewCamera, BandType, HardwareType, ProfileSide, RoundTenon, AngleCut, Board, Lean, HoleRow, CurveCut, ProfileCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, Guide, NewLine, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { rotateVec } from '../document/frames';
@@ -16,6 +16,7 @@ import { chooseFace, leanMap, leans, leanTwist, pivotKeptPosition, seamFree, slo
 import { isLevelled, levelPlan, levelUsersDisagree, type LevelPlan } from '../document/levelEnds';
 import { socketPlan } from '../document/legSockets';
 import { lineFaceHits } from '../document/lineFaces';
+import { camJointPlan } from '../document/camJoint';
 import { refitPlan, stretcherOf, stretcherPlan } from '../document/stretchers';
 import { STRETCHER_NOT_A_STRETCHER } from '../document/stretcherText';
 import { applyBoxJoints, boxJointPlan } from '../document/boxJoints';
@@ -622,6 +623,9 @@ interface StoreState {
    * leg id (the hole actions').
    */
   addStretcher: (legIds: [string, string], height: number, size: number, diameter: number) => string | null;
+  /** Add the cam-and-bolt joint between a side and a shelf end (`camJointPlan`): the refusal sentence; null when nothing was
+   *  done silently (exploded, gesturing, a stale id, a planner bug); else the notes (linked parts that gained a row). */
+  addCamJoint: (ids: [string, string], count: number | null, camFrom: CutFrom | null) => { notes: string[] } | string | null;
   /**
    * Fit the stretcher again (stretchers spec §6.3, §6.4) on world rung `rungId`: `refitPlan` (its closure: every rung
    * sharing a moved row) written in ONE `edit` through `mapWorld`, held points re-judged. Returns `refitPlan`'s refusal,
@@ -2629,6 +2633,35 @@ export const useStore = create<StoreState>((set, get) => {
       // Inv 24: a socket swallows the lattice points in its mouth.
       judgeHeld();
       return null;
+    },
+
+    addCamJoint: (ids, count, camFrom) => {
+      if (readOnly() || get().gesturing) return null;
+      const doc0 = get().doc;
+      const world0 = worldParts(doc0);
+      if (!ids.every((id) => world0.some((b) => b.id === id))) return null; // a stale id: as the hole actions
+      // Every refusal is decided by the planner, re-run at click time on the live document, before edit(). It throws only
+      // on a caller bug (R14): logged, nothing written.
+      let plan: ReturnType<typeof camJointPlan>;
+      try {
+        plan = camJointPlan(doc0, ids, count, camFrom);
+      } catch (e) {
+        console.error('addCamJoint: camJointPlan threw', e);
+        return null;
+      }
+      if (typeof plan === 'string') return plan;
+      // Dovetails spec §3.6, before edit(): a bore in a dovetailed part's zone.
+      for (const w of plan.writes) {
+        const part = world0.find((b) => b.id === w.id)!;
+        const zone = holesZoneRefusal(doc0, part, newRows(part.holes, w.holes));
+        if (zone) return zone;
+      }
+      // An unchanged list (a reused pair's A) is not written: a mirrored user's world rows are a fresh lowering each time.
+      const holes = new Map(plan.writes.filter((w) => !sameRows(w.holes, world0.find((b) => b.id === w.id)!.holes)).map((w) => [w.id, w.holes]));
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (holes.has(b.id) ? { ...b, holes: holes.get(b.id)! } : b))));
+      // Inv 24: a bore swallows the lattice points in its mouth.
+      judgeHeld();
+      return { notes: plan.notes };
     },
 
     fitStretcher: (rungId) => {
