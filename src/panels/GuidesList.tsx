@@ -1,5 +1,5 @@
 import { useStore } from '../store/store';
-import { isGuideLine } from '../document/document';
+import { isGuideLine, isGuideRay } from '../document/document';
 import type { Guide } from '../document/document';
 import { formatLength } from '../units/length';
 import type { Units } from '../units/length';
@@ -25,6 +25,11 @@ import type { Units } from '../units/length';
  * construction and says nothing (construction-lines spec §2.2; row format §6).
  */
 function describe(g: Guide, units: Units): { row: string; remove: string } {
+  if (isGuideRay(g)) {
+    // Both points, in X, Y, Z order each (construction-lines-2 spec §2.6).
+    const pts = [g.at, g.to].map((p) => p.map((n) => formatLength(n, units)).join(', '));
+    return { row: `Line through ${pts[0]} and ${pts[1]}`, remove: `Remove line through ${pts[0]} and ${pts[1]}` };
+  }
   if (!isGuideLine(g)) {
     const at = g.at.map((n) => formatLength(n, units)).join(', ');
     return { row: at, remove: `Remove guide at ${at}` };

@@ -8,7 +8,8 @@ import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, Guide, TapeAxis } from './types';
-import { isGuideLine, isGuidePoint } from './types';
+import { isAnyLine, isGuidePoint } from './types';
+import type { AnyLine, GuideLine } from './types';
 import { canonicalLine, lineThrough, newLineOf, sameLine, sameNewLine } from './lineModel';
 import type { NewLine, Vec3 } from './lineModel';
 
@@ -494,35 +495,98 @@ export function guideSnapPoints(guides: Guide[]): SnapPoint[] {
   }));
 }
 
+/** How close two lines must pass to cross, inches (construction-lines-2 spec §2.4). A pair involving an oblique line only. */
+export const CROSS_TOLERANCE = 1e-6;
+
+const AXIS_UNIT: Record<TapeAxis, Vec3> = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+
+/** A line's unit direction: its axis, or `(to - at)/|to - at|` for an oblique one (spec §2.4). */
+export function lineDir(line: NewLine | AnyLine): Vec3 {
+  if ('axis' in line && line.axis !== undefined) return AXIS_UNIT[line.axis];
+  const to = (line as { to: Vec3 }).to;
+  const d: Vec3 = [to[0] - line.at[0], to[1] - line.at[1], to[2] - line.at[2]];
+  const n = Math.hypot(d[0], d[1], d[2]);
+  return [d[0] / n, d[1] / n, d[2] / n];
+}
+
 /**
- * Where two construction lines of different axes meet (construction-lines
- * spec §4.2): they agree EXACTLY on the third axis `k`. Exact on purpose — a
- * crossing is a point the user can snap to, and an ulp of disagreement means
- * the lines miss. Each pair is offered once, first in array order as `id`.
- * A crossing with a coordinate beyond ±`extent` is not offered: the lines are
- * drawn only that far, and a marker past their end sits on nothing.
+ * The parameter range, as distance from `line.at` along `lineDir`, of the part of the line inside the box `±extent`
+ * (spec §2.5), or null when it misses. An axis line's `at` coordinate on its axis is 0, so its parameter is the world
+ * coordinate and the range is the whole box. An oblique line is clipped against the six planes (slab method).
+ */
+export function lineSpan(line: NewLine | AnyLine, extent: number): [number, number] | null {
+  if ('axis' in line && line.axis !== undefined) return [-extent, extent];
+  const u = lineDir(line);
+  let lo = -Infinity;
+  let hi = Infinity;
+  for (let i = 0; i < 3; i++) {
+    if (u[i] === 0) {
+      if (Math.abs(line.at[i]) > extent) return null;
+      continue;
+    }
+    const a = (-extent - line.at[i]) / u[i];
+    const b = (extent - line.at[i]) / u[i];
+    lo = Math.max(lo, Math.min(a, b));
+    hi = Math.min(hi, Math.max(a, b));
+  }
+  return lo > hi ? null : [lo, hi];
+}
+
+/**
+ * Where two construction lines meet (construction-lines spec §4.2; oblique lines: construction-lines-2 spec §2.4).
+ * Two AXIS lines of different axes agree EXACTLY on the third axis `k`: exact on purpose — a crossing is a point the
+ * user can snap to, and an ulp of disagreement means the lines miss. Any pair involving an oblique line crosses when
+ * the closest approach is under `CROSS_TOLERANCE`, at the midpoint of that segment (computed, not exact); parallel
+ * lines never cross. Each pair is offered once, first in array order as `id`. A crossing with a coordinate beyond
+ * ±`extent` is not offered: the lines are drawn only that far, and a marker past their end sits on nothing.
  */
 export function lineCrossings(guides: Guide[], extent: number): SnapPoint[] {
-  const lines = guides.filter(isGuideLine);
+  const lines = guides.filter(isAnyLine);
   const out: SnapPoint[] = [];
   for (let i = 0; i < lines.length; i++) {
     for (let j = i + 1; j < lines.length; j++) {
       const a = lines[i];
       const b = lines[j];
-      if (a.axis === b.axis) continue;
-      const ia = AXIS_INDEX[a.axis];
-      const ib = AXIS_INDEX[b.axis];
-      const k = 3 - ia - ib;
-      if (a.at[k] !== b.at[k]) continue;
-      const at: [number, number, number] = [0, 0, 0];
-      at[ia] = b.at[ia];
-      at[ib] = a.at[ib];
-      at[k] = a.at[k];
-      if (at.some((c) => Math.abs(c) > extent)) continue;
+      const at = a.axis !== undefined && b.axis !== undefined ? axisCrossing(a, b) : obliqueCrossing(a, b);
+      if (!at || at.some((c) => Math.abs(c) > extent)) continue;
       out.push({ kind: 'line-cross', at, owner: { type: 'guide', id: a.id, cross: b.id } });
     }
   }
   return out;
+}
+
+function axisCrossing(a: GuideLine, b: GuideLine): Vec3 | null {
+  if (a.axis === b.axis) return null;
+  const ia = AXIS_INDEX[a.axis];
+  const ib = AXIS_INDEX[b.axis];
+  const k = 3 - ia - ib;
+  if (a.at[k] !== b.at[k]) return null;
+  const at: Vec3 = [0, 0, 0];
+  at[ia] = b.at[ia];
+  at[ib] = a.at[ib];
+  at[k] = a.at[k];
+  return at;
+}
+
+/** The midpoint of the closest-approach segment of two lines, or null when parallel or further apart than the tolerance. */
+function obliqueCrossing(a: AnyLine, b: AnyLine): Vec3 | null {
+  const u = lineDir(a);
+  const v = lineDir(b);
+  const cx = u[1] * v[2] - u[2] * v[1];
+  const cy = u[2] * v[0] - u[0] * v[2];
+  const cz = u[0] * v[1] - u[1] * v[0];
+  if (Math.hypot(cx, cy, cz) < 1e-12) return null;
+  const w: Vec3 = [a.at[0] - b.at[0], a.at[1] - b.at[1], a.at[2] - b.at[2]];
+  const bb = u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const d = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
+  const e = v[0] * w[0] + v[1] * w[1] + v[2] * w[2];
+  const den = 1 - bb * bb;
+  const s = (bb * e - d) / den;
+  const t = (e - bb * d) / den;
+  const p: Vec3 = [a.at[0] + s * u[0], a.at[1] + s * u[1], a.at[2] + s * u[2]];
+  const q: Vec3 = [b.at[0] + t * v[0], b.at[1] + t * v[1], b.at[2] + t * v[2]];
+  if (!(Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < CROSS_TOLERANCE)) return null;
+  return [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
 }
 
 /** The ONE list of guide-owned candidates both the Move and Tape tools offer. */

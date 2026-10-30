@@ -1,7 +1,8 @@
 // No `import ... from 'vitest'` — `globals: true` is set in vite.config.ts.
-import type { GuideLine, SnapPoint } from '../document/document';
+import type { AnyLine, GuideLine, SnapPoint } from '../document/document';
 import { PICK_RADIUS_PX, pickGuided, pickOnLine, pickSnapPoint } from './snapPick';
 import type { Projector } from './snapPick';
+import { snapToGrid } from '../document/geometry';
 import { IMPERIAL } from '../units/length';
 import type { Units } from '../units/length';
 
@@ -166,5 +167,54 @@ describe('pickOnLine / pickGuided', () => {
     expect(args([corner])).toBe(corner);
     const far = point([30, 0, 2]);
     expect(args([far])!.kind).toBe('line');
+  });
+});
+
+describe('pickOnLine: an oblique line (construction-lines-2 spec §2.4)', () => {
+  const project: Projector = (at) => ({ x: at[0] * 10, y: at[2] * 10, depth: -at[1] });
+  const rayAt = (cx: number, cy: number) => ({
+    origin: [cx / 10, 100, cy / 10] as [number, number, number],
+    dir: [0, -1, 0] as [number, number, number],
+  });
+  const line: AnyLine = { id: 'R', at: [0, 0, 0], to: [3, 4, 0] };
+  const pick = (cx: number, cy: number, units: Units = IMPERIAL, extent = 120, lines: AnyLine[] = [line]) =>
+    pickOnLine(lines, project, { x: cx, y: cy }, rayAt(cx, cy), PICK_RADIUS_PX, units, extent);
+
+  it('rounds the distance along the line, not the world coordinates', () => {
+    const hit = pick(2.03 * 0.6 * 10, 0)!;
+    expect(hit.kind).toBe('line');
+    expect(hit.owner).toEqual({ type: 'guide', id: 'R' });
+    expect(hit.at[0]).toBeCloseTo(1.2, 12);
+    expect(hit.at[1]).toBeCloseTo(1.6, 12);
+    expect(hit.at[2]).toBe(0);
+  });
+  it('rounds to the nearest mm in a metric project', () => {
+    const t = snapToGrid(2.03, METRIC);
+    expect(t).toBe(Math.round(2.03 * 25.4) / 25.4);
+    const hit = pick(2.03 * 0.6 * 10, 0, METRIC)!;
+    expect(hit.at[0]).toBeCloseTo(0.6 * t, 12);
+    expect(hit.at[1]).toBeCloseTo(0.8 * t, 12);
+  });
+  it('offers nothing for a ray parallel to the line', () => {
+    const along = { origin: [0, 0, 5] as [number, number, number], dir: [0.6, 0.8, 0] as [number, number, number] };
+    expect(pickOnLine([line], project, { x: 0, y: 50 }, along, PICK_RADIUS_PX, IMPERIAL, 120)).toBeNull();
+  });
+  it('offers nothing when the clamped end is far from the cursor', () => {
+    // extent 0.2 ends the line at t = 0.25; the cursor is aimed at t = 4.
+    expect(pick(4 * 0.6 * 10, 0, IMPERIAL, 0.2)).toBeNull();
+  });
+  it('clamps a point just past the end back onto it', () => {
+    // extent 1: the line ends at t = 1.25 (y = 1). Aimed at t = 1.5, the hit is the end, not a point beyond it.
+    const hit = pick(1.5 * 0.6 * 10, 0, IMPERIAL, 1)!;
+    expect(hit.at[0]).toBeCloseTo(0.75, 12);
+    expect(hit.at[1]).toBeCloseTo(1, 12);
+  });
+  it('offers nothing for a line that misses the box', () => {
+    expect(pick(10, 0, IMPERIAL, 120, [{ id: 'F', at: [200, 0, 0], to: [200, 1, 0] }])).toBeNull();
+  });
+  it('lets pickGuided prefer a discrete candidate', () => {
+    const c = point([0.6, 1.6, 0]);
+    const hit = pickGuided([c], [line], project, { x: 6, y: 0 }, rayAt(6, 0), PICK_RADIUS_PX, IMPERIAL, 120);
+    expect(hit).toBe(c);
   });
 });

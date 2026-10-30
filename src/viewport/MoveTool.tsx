@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { isGuideLine, itemKey, sameSnapPoint, worldParts, keptBySection } from '../document/document';
+import { isAnyLine, itemKey, sameSnapPoint, worldParts, keptBySection } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { moveCandidates } from './moveCandidates';
@@ -100,7 +100,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
   // Lines are targets, never grab sources (inv 26): none before a grab, so the pre-grab pick
   // can only ever land on a selected part's own point.
   const lines = useMemo(
-    () => tool !== 'move' || !grabbing || !showGuides ? [] : guides.filter(isGuideLine),
+    () => tool !== 'move' || !grabbing || !showGuides ? [] : guides.filter(isAnyLine),
     [tool, grabbing, showGuides, guides],
   );
 

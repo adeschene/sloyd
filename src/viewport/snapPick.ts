@@ -1,4 +1,5 @@
-import type { GuideLine, SnapPoint } from '../document/document';
+import type { AnyLine, SnapPoint } from '../document/document';
+import { lineDir, lineSpan } from '../document/document';
 import { snapToGrid } from '../document/geometry';
 import type { Units } from '../units/length';
 
@@ -125,10 +126,15 @@ const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
  * offers nothing. Only the returned `at` is rounded (`snapToGrid`, a free
  * slide: invariant 25 forbids rounding exact moves, not this).
  *
+ * An OBLIQUE line (construction-lines-2 spec §2.4) takes the general closest approach with `u` its unit direction
+ * (`t` is the distance from `at`), `t` clamped to `lineSpan` (a line that misses the box offers nothing), the screen
+ * test on that clamped, unrounded point, and only the returned point rounded: `at + snapToGrid(t)*u`, the one free
+ * coordinate (inv 25). The axis path above is untouched.
+ *
  * Ties break by screen distance, then depth, as `pickSnapPoint` does.
  */
 export function pickOnLine(
-  lines: GuideLine[],
+  lines: AnyLine[],
   project: Projector,
   cursor: { x: number; y: number },
   ray: { origin: Vec3; dir: Vec3 },
@@ -143,6 +149,33 @@ export function pickOnLine(
   let bestDepth = Number.POSITIVE_INFINITY;
 
   for (const line of lines) {
+    if (line.axis === undefined) {
+      const u = lineDir(line);
+      const span = lineSpan(line, extent);
+      if (!span) continue;
+      const b = u[0] * d[0] + u[1] * d[1] + u[2] * d[2];
+      const den = c - b * b;
+      if (!(den > 1e-9 * c)) continue;
+      const w: Vec3 = [line.at[0] - O[0], line.at[1] - O[1], line.at[2] - O[2]];
+      const p = u[0] * w[0] + u[1] * w[1] + u[2] * w[2];
+      const q = d[0] * w[0] + d[1] * w[1] + d[2] * w[2];
+      let t = (b * q - c * p) / den;
+      if (!Number.isFinite(t)) continue;
+      t = Math.max(span[0], Math.min(span[1], t));
+      const projected = project([line.at[0] + t * u[0], line.at[1] + t * u[1], line.at[2] + t * u[2]]);
+      if (!projected) continue;
+      const dx = projected.x - cursor.x;
+      const dy = projected.y - cursor.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > bestDistSq) continue;
+      if (distSq < bestDistSq || projected.depth < bestDepth) {
+        const r = snapToGrid(t, units);
+        best = { kind: 'line', at: [line.at[0] + r * u[0], line.at[1] + r * u[1], line.at[2] + r * u[2]], owner: { type: 'guide', id: line.id } };
+        bestDistSq = distSq;
+        bestDepth = projected.depth;
+      }
+      continue;
+    }
     const i = AXIS_INDEX[line.axis];
     const b = d[i];
     const den = c - b * b;
@@ -179,7 +212,7 @@ export function pickOnLine(
  */
 export function pickGuided(
   candidates: SnapPoint[],
-  lines: GuideLine[],
+  lines: AnyLine[],
   project: Projector,
   cursor: { x: number; y: number },
   ray: { origin: Vec3; dir: Vec3 },

@@ -80,7 +80,7 @@ export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
-export { boardSnapPoints, canonicalLine, cutSnapPoints, guideCandidates, guideSnapPoints, lineCrossings, lineThrough, newLineOf, ownedByGuide, sameLine, sameNewLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
+export { CROSS_TOLERANCE, boardSnapPoints, canonicalLine, cutSnapPoints, guideCandidates, guideSnapPoints, lineCrossings, lineDir, lineSpan, lineThrough, newLineOf, ownedByGuide, sameLine, sameNewLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 export type { BoardSnapPoint, NewLine, SnapKind, SnapOwner, SnapPoint, Vec3 } from './snapPoints';
 export { partBounds, partsBounds } from './worldBounds';
 export { leanMap } from './lean';

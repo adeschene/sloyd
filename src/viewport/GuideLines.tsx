@@ -3,13 +3,12 @@ import { Line } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { LineMaterial } from 'three-stdlib';
-import { isGuideLine } from '../document/document';
-import type { TapeAxis } from '../document/document';
+import { isAnyLine, lineDir, lineSpan, newLineOf } from '../document/document';
+import type { NewLine } from '../document/document';
 import { useStore } from '../store/store';
 import { SCENE_EXTENT } from './extent';
 import { AXIS_COLOR, GROUND_LIFT } from './OriginAxes';
 import { dashScaleForScreenPeriod, screenPixelsPerInch } from './screenScale';
-import type { Vec3 } from './snapPick';
 
 const ORIGIN = new THREE.Vector3(0, 0, 0);
 
@@ -28,26 +27,38 @@ const PATTERN_LENGTH = DASH_SIZE + GAP_SIZE;
 const PLACED_OPACITY = 0.55;
 const PREVIEW_OPACITY = 0.9;
 
+// An oblique line has no axis hue; a neutral violet-grey, distinct from the three axis colours. For the user to judge by eye.
+export const OBLIQUE_COLOR = '#8a7fb0';
+
 /**
- * One construction line, `±SCENE_EXTENT` along `axis` through `at` (construction-lines
- * spec §5). Dashed in the axis hue (AXIS_COLOR, shared with OriginAxes so the two
- * cannot drift). Depth-tested and not clipped by the section plane, like the guide
- * markers; never a click target (inv 21 — the Line raycast threshold is a bad hit
- * target, and a line is removed from the Guides list).
+ * One construction line (construction-lines spec §5; oblique lines: construction-lines-2 spec §2.5). An AXIS line runs
+ * `±SCENE_EXTENT` along its axis through `at`, dashed in the axis hue (AXIS_COLOR, shared with OriginAxes so the two
+ * cannot drift). An oblique line runs the part of it inside that box (`lineSpan`; none, if it misses), in
+ * OBLIQUE_COLOR and with no ground lift. Depth-tested and not clipped by the section plane, like the guide markers;
+ * never a click target (inv 21 — the Line raycast threshold is a bad hit target, and a line is removed from the Guides list).
  */
-export function ConstructionLine({ at, axis, preview }: { at: Vec3; axis: TapeAxis; preview?: boolean }) {
-  const index = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
+export function ConstructionLine({ line, preview }: { line: NewLine; preview?: boolean }) {
+  const axis = 'axis' in line ? line.axis : undefined;
+  const to = 'to' in line ? line.to : undefined;
   const points = useMemo(() => {
+    if (axis === undefined) {
+      const span = lineSpan({ at: line.at, to: to! }, SCENE_EXTENT);
+      if (!span) return null;
+      const u = lineDir({ at: line.at, to: to! });
+      const end = (t: number) => new THREE.Vector3(line.at[0] + t * u[0], line.at[1] + t * u[1], line.at[2] + t * u[2]);
+      return [end(span[0]), end(span[1])] as [THREE.Vector3, THREE.Vector3];
+    }
+    const index = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
     // Lifted off the ground plane exactly as OriginAxes lifts its ground axes, so a
     // line at y = 0 wins the depth test against the grid and shadow receiver.
-    const y = axis !== 'y' && at[1] === 0 ? GROUND_LIFT : at[1];
-    const a = new THREE.Vector3(at[0], y, at[2]);
+    const y = axis !== 'y' && line.at[1] === 0 ? GROUND_LIFT : line.at[1];
+    const a = new THREE.Vector3(line.at[0], y, line.at[2]);
     const b = a.clone();
     a.setComponent(index, -SCENE_EXTENT);
     b.setComponent(index, SCENE_EXTENT);
     return [a, b] as [THREE.Vector3, THREE.Vector3];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [at[0], at[1], at[2], axis, index]);
+  }, [line.at[0], line.at[1], line.at[2], axis, to?.[0], to?.[1], to?.[2]]);
 
   const material = useRef<LineMaterial | null>(null);
   const setLine = useCallback((line: { material: unknown } | null) => {
@@ -64,10 +75,11 @@ export function ConstructionLine({ at, axis, preview }: { at: Vec3; axis: TapeAx
     );
   });
 
+  if (!points) return null;
   return (
     <Line
       points={points}
-      color={AXIS_COLOR[axis]}
+      color={axis === undefined ? OBLIQUE_COLOR : AXIS_COLOR[axis]}
       lineWidth={preview ? 1.6 : 1.2}
       transparent
       opacity={preview ? PREVIEW_OPACITY : PLACED_OPACITY}
@@ -85,11 +97,11 @@ export function ConstructionLine({ at, axis, preview }: { at: Vec3; axis: TapeAx
 /** Every construction line in the document, drawn whenever guides are shown. */
 export function GuideLines() {
   const guides = useStore((s) => s.doc.guides);
-  const lines = useMemo(() => guides.filter(isGuideLine), [guides]);
+  const lines = useMemo(() => guides.filter(isAnyLine), [guides]);
   return (
     <>
       {lines.map((g) => (
-        <ConstructionLine key={g.id} at={g.at} axis={g.axis} />
+        <ConstructionLine key={g.id} line={newLineOf(g)} />
       ))}
     </>
   );

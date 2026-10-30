@@ -73,4 +73,21 @@ describe('GuidesList', () => {
     render(<GuidesList />);
     expect(screen.getByText('Line along Z · X 0 mm · Y 300 mm')).toBeInTheDocument();
   });
+
+  it('words an oblique line by its two points', () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), guides: [{ id: 'r', at: [1, 2, 3], to: [4, 5.5, 6] }] });
+    render(<GuidesList />);
+    expect(screen.getByText('Line through 1", 2", 3" and 4", 5-1/2", 6"')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove line through 1", 2", 3" and 4", 5-1/2", 6"' })).toBeInTheDocument();
+  });
+
+  it('prints an oblique line in mm in a metric project', () => {
+    useStore.getState().replaceDocument({
+      ...createDocument('T'),
+      units: { display: 'metric-mm', precision: 16 },
+      guides: [{ id: 'r', at: [1, 2, 3], to: [4, 5.5, 6] }],
+    });
+    render(<GuidesList />);
+    expect(screen.getByText('Line through 25 mm, 51 mm, 76 mm and 102 mm, 140 mm, 152 mm')).toBeInTheDocument();
+  });
 });

@@ -105,3 +105,76 @@ describe('tapeLineFor (spec §2.1)', () => {
   });
   it('no anchor gives nothing', () => expect(tapeLineFor(null, null, '', hover)).toBeNull());
 });
+
+import { CROSS_TOLERANCE, lineCrossings, lineDir, lineSpan } from './snapPoints';
+import type { Guide } from './document';
+
+describe('lineSpan / lineDir (construction-lines-2 spec §2.5)', () => {
+  it('gives an axis line the whole box', () => {
+    expect(lineSpan({ id: 'a', at: [0, 2, 3], axis: 'x' }, 120)).toEqual([-120, 120]);
+    expect(lineDir({ id: 'a', at: [0, 2, 3], axis: 'y' })).toEqual([0, 1, 0]);
+  });
+  it('clips a diagonal at the box corners', () => {
+    const [lo, hi] = lineSpan({ id: 'r', at: [0, 0, 0], to: [1, 1, 0] }, 120)!;
+    expect(lo).toBeCloseTo(-120 * Math.SQRT2, 9);
+    expect(hi).toBeCloseTo(120 * Math.SQRT2, 9);
+  });
+  it('measures from at, not from the middle', () => {
+    const [lo, hi] = lineSpan({ id: 'r', at: [60, 0, 0], to: [61, 1, 0] }, 120)!;
+    expect(lo).toBeCloseTo(-120 * Math.SQRT2, 9); // y reaches -120 before x does
+    expect(hi).toBeCloseTo(60 * Math.SQRT2, 9);
+  });
+  it('gives null for a line wholly outside the box', () => {
+    expect(lineSpan({ id: 'r', at: [200, 0, 0], to: [200, 1, 0] }, 120)).toBeNull();
+  });
+  it('gives null for a skew line that misses the corner', () => {
+    expect(lineSpan({ id: 'r', at: [100, 100, 130], to: [101, 99, 130] }, 120)).toBeNull();
+  });
+});
+
+describe('lineCrossings with an oblique line (spec §2.4)', () => {
+  const R = (id: string, at: [number, number, number], to: [number, number, number]): Guide => ({ id, at, to });
+  const A = (id: string, at: [number, number, number], axis: 'x' | 'y' | 'z'): Guide => ({ id, at, axis });
+  it('names the tolerance', () => {
+    expect(CROSS_TOLERANCE).toBe(1e-6);
+  });
+  it('crosses an oblique and an axis line that truly meet', () => {
+    const c = lineCrossings([R('r', [0, 0, 0], [1, 1, 0]), A('z', [3, 3, 0], 'z')], 120);
+    expect(c).toHaveLength(1);
+    expect(c[0].kind).toBe('line-cross');
+    expect(c[0].owner).toEqual({ type: 'guide', id: 'r', cross: 'z' });
+    c[0].at.forEach((v, i) => expect(v).toBeCloseTo([3, 3, 0][i], 9));
+  });
+  it('keeps array order for the owner', () => {
+    const c = lineCrossings([A('z', [3, 3, 0], 'z'), R('r', [0, 0, 0], [1, 1, 0])], 120);
+    expect(c[0].owner).toEqual({ type: 'guide', id: 'z', cross: 'r' });
+  });
+  it('misses a pair 2e-6 apart', () => {
+    expect(lineCrossings([R('r', [0, 0, 0], [1, 1, 0]), A('x', [0, 0, 2e-6], 'x')], 120)).toEqual([]);
+  });
+  it('crosses a pair 5e-7 apart, at the midpoint', () => {
+    const c = lineCrossings([R('r', [0, 0, 0], [1, 1, 0]), A('x', [0, 0, 5e-7], 'x')], 120);
+    expect(c).toHaveLength(1);
+    expect(c[0].at[2]).toBeCloseTo(2.5e-7, 12);
+  });
+  it('misses a pair at exactly the tolerance (strict)', () => {
+    expect(lineCrossings([R('r', [0, 0, 0], [1, 1, 0]), A('x', [0, 0, CROSS_TOLERANCE], 'x')], 120)).toEqual([]);
+  });
+  it('never crosses two parallel oblique lines', () => {
+    expect(lineCrossings([R('a', [0, 0, 0], [1, 1, 1]), R('b', [0, 0, 0], [2, 2, 2])], 120)).toEqual([]);
+    expect(lineCrossings([R('a', [0, 0, 0], [1, 1, 1]), R('b', [1, 0, 0], [2, 1, 1])], 120)).toEqual([]);
+  });
+  it('crosses two oblique lines that meet', () => {
+    const c = lineCrossings([R('a', [0, 0, 0], [1, 1, 0]), R('b', [4, 0, 0], [3, 1, 0])], 120);
+    expect(c).toHaveLength(1);
+    c[0].at.forEach((v, i) => expect(v).toBeCloseTo([2, 2, 0][i], 9));
+  });
+  it('drops a crossing beyond the extent', () => {
+    expect(lineCrossings([R('a', [0, 0, 0], [1, 1, 0]), A('z', [121, 121, 0], 'z')], 120)).toEqual([]);
+  });
+  it('leaves axis x axis exact', () => {
+    expect(lineCrossings([A('a', [0, 5, 2], 'x'), A('b', [3, 5, 0], 'z')], 120)).toEqual([
+      { kind: 'line-cross', at: [3, 5, 2], owner: { type: 'guide', id: 'a', cross: 'b' } },
+    ]);
+  });
+});
