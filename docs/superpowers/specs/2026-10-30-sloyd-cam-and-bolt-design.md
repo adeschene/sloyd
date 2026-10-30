@@ -1,6 +1,6 @@
 # Sloyd — cam-and-bolt: design
 
-Status: Spec APPROVED by the user 2026-10-30; BUILT on branch `cam-and-bolt`, not merged, not deployed; the *Amended (build)* block awaits approval. No schema change. Builder check taken 2026-10-30 (three questions, all settled as my calls:
+Status: Spec APPROVED by the user 2026-10-30; MERGED `17a434f8` 2026-10-30, not deployed; the *Amended (build)* block awaits approval. No schema change. Builder check taken 2026-10-30 (three questions, all settled as my calls:
 §4.3, §6.1/§6.2, §6.3). Follow-up 568 (`docs/follow-ups.md`; counterbores spec §12, fu 330's chunk 2).
 The holes primitive is `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`; the head (schema 30) is
 `docs/superpowers/specs/2026-10-29-sloyd-counterbores-design.md`, whose layout this follows.

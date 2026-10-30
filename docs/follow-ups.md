@@ -8376,8 +8376,8 @@ face bore), its own preset and bench line, and possibly hardware counted from it
 **Status:** open (feature; needs a spec).
 **Status:** narrowed 2026-10-30: chunk 1 (the pair in ONE part: the recogniser `camBolt.ts`, the one `meets-hole` exemption, the mesh,
 drawings, diagrams, the bench line, the Cam lock and Cam bolt bore presets, pair edits; no schema change; spec
-`docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md`) is BUILT on branch `cam-and-bolt` (`c87433d..6db3f03d` + the records),
-not merged, not deployed. What remains of 568 is **chunk 2, the two-part joint planner** (spec §11): with A's end butting B's face, lay out N
+`docs/superpowers/specs/2026-10-30-sloyd-cam-and-bolt-design.md`) is MERGED `17a434f8` (2026-10-30; browser check 12 PASS, 1 PARTIAL),
+not deployed. What remains of 568 is **chunk 2, the two-part joint planner** (spec §11): with A's end butting B's face, lay out N
 fittings — the cam and bolt rows in A, the bolt's bore in B coaxial with A's bolt bore — in one undo entry, every refusal before `edit()`;
 possibly dowels beside each and a Fit again. Its own spec. Hardware from a pair is fu 600.
 

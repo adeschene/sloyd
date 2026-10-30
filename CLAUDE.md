@@ -40,8 +40,8 @@ What it does today is listed round by round in `docs/rounds.md`.
 - **Rollback:** the nearest refusing boundary is `fb1e133` (`index-zJyvpYf3.js`, schema 31): it refuses every project saved at 32 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
 - **NEXT (2026-10-30):** selectable guides (fu 591) MERGED `978c48e`, NOT deployed (no schema change). Owed: its deploy, on the
-  user's word, and the list below. Cam-and-bolt chunk 1 (fu 568) BUILT on branch `cam-and-bolt`, NOT merged (no schema change);
-  owed: its whole-branch review, browser check and merge. Then: CVD hues (fu 590), cam-and-bolt chunk 2 (fu 568).
+  user's word, and the list below. Cam-and-bolt chunk 1 (fu 568) MERGED `17a434f8`, NOT deployed (no schema change);
+  owed: its deploy, on the user's word. Then: CVD hues (fu 590), cam-and-bolt chunk 2 (fu 568).
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after it.
   Docs-only commits past it are not unreleased work, and some rounds ship byte-identical bundles
   (test-only). Check what a later commit touches before reading `git log` as a pending release.
