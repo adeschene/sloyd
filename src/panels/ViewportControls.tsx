@@ -122,7 +122,7 @@ export function ViewportControls({
           <button onClick={() => setTool('move')} aria-pressed={tool === 'move'} disabled={explode > 0}
             title={explode > 0 ? EXPLODED_TITLE : "Move tool — click a corner or midpoint, then click one on another part to snap them together (M)"}>Move</button>
           <button onClick={() => setTool('tape')} aria-pressed={tool === 'tape'} disabled={explode > 0}
-            title={explode > 0 ? EXPLODED_TITLE : "Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway (T)"}>Tape</button>
+            title={explode > 0 ? EXPLODED_TITLE : "Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway; lock X, Y or Z and press Enter for a construction line (T)"}>Tape</button>
         </div>
       </div>
 
@@ -143,7 +143,7 @@ export function ViewportControls({
         <div className="segmented">
           <button aria-pressed={showGrid} onClick={onToggleGrid} title="Show the ground grid">Grid</button>
           <button aria-pressed={showAxes} onClick={onToggleAxes} title="Show the origin axes">Origin</button>
-          <button aria-pressed={showGuides} onClick={onToggleGuides} title="Show tape-measure guide points">Guides</button>
+          <button aria-pressed={showGuides} onClick={onToggleGuides} title="Show guide points and lines">Guides</button>
         </div>
         <button aria-pressed={section !== null} onClick={toggleSection}
           disabled={section === null && !anyShown}

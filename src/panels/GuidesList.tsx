@@ -1,5 +1,8 @@
 import { useStore } from '../store/store';
+import { isGuideLine } from '../document/document';
+import type { Guide } from '../document/document';
 import { formatLength } from '../units/length';
+import type { Units } from '../units/length';
 
 /**
  * The guides a project carries, and the only way to remove one.
@@ -15,6 +18,27 @@ import { formatLength } from '../units/length';
  * click-the-guide-in-the-viewport is a known-bad hit target. A guide is
  * removed by id, the way PartsList already selects a board by id.
  */
+/**
+ * The row text and the remove label, built ONCE from one formatting of the
+ * fixed coordinates so the two cannot disagree (inv 19's spirit). A line prints
+ * its two fixed axes in X, Y, Z order; the along-axis coordinate is 0 by
+ * construction and says nothing (construction-lines spec §3.5).
+ */
+function describe(g: Guide, units: Units): { row: string; remove: string } {
+  if (!isGuideLine(g)) {
+    const at = g.at.map((n) => formatLength(n, units)).join(', ');
+    return { row: at, remove: `Remove guide at ${at}` };
+  }
+  const axis = g.axis.toUpperCase();
+  const fixed = (['x', 'y', 'z'] as const)
+    .filter((a) => a !== g.axis)
+    .map((a) => ({ a: a.toUpperCase(), v: formatLength(g.at[a === 'x' ? 0 : a === 'y' ? 1 : 2], units) }));
+  return {
+    row: `Line along ${axis} · ${fixed.map((f) => `${f.a} ${f.v}`).join(' · ')}`,
+    remove: `Remove line along ${axis} at ${fixed.map((f) => `${f.a} ${f.v}`).join(', ')}`,
+  };
+}
+
 export function GuidesList() {
   const guides = useStore((s) => s.doc.guides);
   const units = useStore((s) => s.doc.units);
@@ -22,26 +46,27 @@ export function GuidesList() {
   const clearGuides = useStore((s) => s.clearGuides);
 
   if (guides.length === 0) {
-    return <p className="empty">No guides. Use the Tape tool to place one.</p>;
+    return <p className="empty">No guides. Use the Tape tool to place a point or a line.</p>;
   }
 
   return (
     <>
       <ul className="guides">
-        {guides.map((g) => (
-          <li key={g.id}>
-            <span className="guide-coords">
-              {g.at.map((n) => formatLength(n, units)).join(', ')}
-            </span>
-            <button
-              className="guide-remove"
-              aria-label={`Remove guide at ${g.at.map((n) => formatLength(n, units)).join(', ')}`}
-              onClick={() => removeGuide(g.id)}
-            >
-              ×
-            </button>
-          </li>
-        ))}
+        {guides.map((g) => {
+          const text = describe(g, units);
+          return (
+            <li key={g.id}>
+              <span className="guide-coords">{text.row}</span>
+              <button
+                className="guide-remove"
+                aria-label={text.remove}
+                onClick={() => removeGuide(g.id)}
+              >
+                ×
+              </button>
+            </li>
+          );
+        })}
       </ul>
       <button className="guides-clear" onClick={clearGuides}>Clear all</button>
     </>

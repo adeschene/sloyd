@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideCandidates, isGuideLine, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
+import { guideCandidates, isGuideLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -20,6 +20,7 @@ import { PICK_RADIUS_PX, pickGuided } from './snapPick';
 import type { ProjectedPoint, Vec3 } from './snapPick';
 import { SCENE_EXTENT } from './extent';
 import { SnapMarker, SNAP_COLORS } from './SnapMarker';
+import { ConstructionLine } from './GuideLines';
 
 /** Reused rather than allocated per candidate per pointer event. */
 const projected = new THREE.Vector3();
@@ -360,13 +361,10 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // say "this is the measurement you are making", and once a number is typed
   // the measurement ends at the number.
   //
-  // Locked with nothing typed yet draws NO line, and that is a decision rather
-  // than an omission: the honest thing to draw would be a semi-infinite axis
-  // line, which is follow-up 130's construction line and is out of this round's
-  // scope (design §8). The readout's axis chip is what confirms the lock. If
-  // the browser pass finds this reads as broken rather than as waiting, §9.1
-  // names the remedy — a 1" stub to offsetPoint(anchor, toward, 1) — rather
-  // than reopening §8.
+  // Locked with nothing typed yet draws NO measuring line, and that is deliberate:
+  // there is nothing to measure yet. What Enter would create there is a
+  // construction line, previewed separately below as a <ConstructionLine preview />
+  // (construction-lines spec §3.5), not through this two-point line.
   const lineEnd = preview ?? (axis ? null : hovered?.at) ?? null;
 
   // Memoised on the six coordinates rather than rebuilt inline: drei's <Line>
@@ -383,8 +381,12 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // live (invariant 24: a capture moves nothing and writes no held point).
   if (tool !== 'tape' || hidden) return null;
 
+  // The line Enter would place under a lock with nothing typed (spec §3.5).
+  const lineAt = anchor && axis && typed.trim() === '' ? tapeLineFor(anchor.at, axis, typed) : null;
+
   return (
     <>
+      {lineAt && <ConstructionLine at={lineAt.at} axis={lineAt.axis} preview />}
       {anchor && <SnapMarker point={anchor} />}
       {hovered && <SnapMarker point={hovered} />}
       {preview && (

@@ -47,4 +47,30 @@ describe('GuidesList', () => {
     render(<GuidesList />);
     expect(screen.getByText('0 mm, 0 mm, 19 mm')).toBeInTheDocument();
   });
+
+  it('says the empty text for points and lines', () => {
+    render(<GuidesList />);
+    expect(screen.getByText('No guides. Use the Tape tool to place a point or a line.')).toBeInTheDocument();
+  });
+
+  it('lists a line with its two fixed coordinates and removes it by the matching label', async () => {
+    useStore.getState().addGuideLine([0, 12, 3.5], 'x');
+    render(<GuidesList />);
+    expect(screen.getByText('Line along X · Y 12" · Z 3-1/2"')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Remove line along X at Y 12", Z 3-1/2"' }));
+    expect(useStore.getState().doc.guides).toEqual([]);
+  });
+
+  it('prints a Y line as X then Z', () => {
+    useStore.getState().addGuideLine([2, 0, 5], 'y');
+    render(<GuidesList />);
+    expect(screen.getByText('Line along Y · X 2" · Z 5"')).toBeInTheDocument();
+  });
+
+  it('prints a line in mm in a metric project', () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addGuideLine([0, 300 / 25.4, 0], 'z');
+    render(<GuidesList />);
+    expect(screen.getByText('Line along Z · X 0 mm · Y 300 mm')).toBeInTheDocument();
+  });
 });
