@@ -130,6 +130,14 @@ describe('guide selection reconciles (spec §3.4, §7)', () => {
     expect(s().selectedGuideIds).toEqual(['g1']);
   });
 
+  it('an edit that selects parts (addBoard) clears it: the part patch wins over the edit\'s re-filter (spec §3.2)', () => {
+    s().selectGuide('g1', false);
+    s().addBoard();
+    const added = worldParts(s().doc).find((p) => p.id !== 'a' && p.id !== 'b')!;
+    expect(s().selectedGuideIds).toEqual([]);
+    expect(s().selectedIds).toEqual([added.id]);
+  });
+
   it('clearGuides (an edit) drops it', () => {
     s().selectGuides(['g1', 'g2']);
     s().clearGuides();
