@@ -91,17 +91,19 @@ export function camPairRows(board: Board): { cam: HoleRow; bolt: HoleRow }[] {
   return pairedRows(board).map(({ cam, bolt }) => ({ cam, bolt }));
 }
 
-const idsMemo = new WeakMap<object, ReadonlySet<string>>();
+interface IdsMemo { length: number; width: number; thickness: number; ids: ReadonlySet<string> }
+const idsMemo = new WeakMap<object, IdsMemo>();
 
-/** Ids of rows with at least one paired hole. Memoised on the `board.holes` array. */
+/** Ids of rows with at least one paired hole. Memoised on the `board.holes` array AND the board's size (a `max`-anchored
+ *  row resolves against it, so a resize that keeps the array changes the answer). */
 export function camRowIds(board: Board): ReadonlySet<string> {
   const key = board.holes;
   if (key === undefined) return new Set();
   const hit = idsMemo.get(key);
-  if (hit) return hit;
+  if (hit && hit.length === board.length && hit.width === board.width && hit.thickness === board.thickness) return hit.ids;
   const holes = key.flatMap((r) => holeInstances(board, r));
   const ids = new Set<string>();
   for (const h of camPartners(holes).keys()) ids.add(h.row);
-  idsMemo.set(key, ids);
+  idsMemo.set(key, { length: board.length, width: board.width, thickness: board.thickness, ids });
   return ids;
 }

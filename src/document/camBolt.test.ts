@@ -28,6 +28,13 @@ describe('camPartners', () => {
     expect([...camRowIds(b)].sort()).toEqual(['bolt', 'cam']);
     expect(camRowIds(b)).toBe(camRowIds(b));
   });
+  it('camRowIds keys on the board size, not only the holes array', () => {
+    const a = camPart();
+    const thin = camPart({ thickness: 0.5, holes: a.holes });
+    expect(thin.holes).toBe(a.holes);
+    expect([...camRowIds(a)].sort()).toEqual(['bolt', 'cam']);
+    expect(camRowIds(thin).size).toBe(0);
+  });
   it('camRole: the face bore is the cam', () => {
     const [c, e] = [holesOf([CAM])[0]!, holesOf([BOLT])[0]!];
     expect(camRole(c, e)).toBe('cam');
