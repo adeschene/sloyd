@@ -5,7 +5,8 @@ import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from '.
 import type { CutShape } from './cuts';
 import { angleCutValues, angleCutsThatRemoveStock } from './angleCuts';
 import { angleLine, shortPointLine } from './angleText';
-import { holeLine } from './holeText';
+import { camPairLine, holeLine } from './holeText';
+import { camPairRows } from './camBolt';
 import { holeRowValues } from './holes';
 import { curveLines } from './curveText';
 import { curveValues } from './curves';
@@ -272,7 +273,14 @@ function setupLines(board: Board, units: Units, types: readonly BandType[]): str
   for (const c of angleCutsThatRemoveStock(board)) lines.push(angleLine(board, c, units));
   const short = shortPointLine(board, units);
   if (short) lines.push(short);
-  for (const r of board.holes) lines.push(holeLine(board, r, units));
+  // A WHOLE cam-and-bolt pair is one line at the cam's place; its bolt row prints nothing of its own.
+  const pairs = new Map(camPairRows(board).map((p) => [p.cam.id, p] as const));
+  const bolts = new Set([...pairs.values()].map((p) => p.bolt.id));
+  for (const r of board.holes) {
+    const p = pairs.get(r.id);
+    if (p) lines.push(camPairLine(board, p.cam, p.bolt, units));
+    else if (!bolts.has(r.id)) lines.push(holeLine(board, r, units));
+  }
   lines.push(...curveLines(board, units));
   const band = bandLine(board, types, units);
   if (band) lines.push(band);

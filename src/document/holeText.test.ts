@@ -1,8 +1,9 @@
-import { IMPERIAL } from '../units/length';
+import { IMPERIAL, type Units } from '../units/length';
+import { BOLT, CAM, camPart } from './camBoltFixtures';
 import { describe, expect, it } from 'vitest';
 import { createBoard, defaultProfile } from './document';
 import type { ProfileKind } from './document';
-import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeHeadText, holeLengthText, holeLine } from './holeText';
+import { curveWord, distinctFaults, edgeName, endWord, holeFaultText, holeHeadText, holeLengthText, holeLine, camPairLine, holeSizeText } from './holeText';
 import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
 import { ARCH } from './curveFixtures';
@@ -172,5 +173,20 @@ describe('the head on the bench line (counterbores, Task 7)', () => {
   it('a headless row is unchanged and has no head text', () => {
     expect(holeHeadText(bore, IMPERIAL)).toBeNull();
     expect(holeLine(side, bore, IMPERIAL)).toBe(`Hole 3/16" dia × through ${tail}`);
+  });
+});
+
+describe('camPairLine (cam-and-bolt spec §6.3)', () => {
+  const METRIC: Units = { display: 'metric-mm', precision: 16 };
+  it('metric: one pinned line for the pair', () => {
+    expect(camPairLine(camPart(), CAM, BOLT, METRIC)).toBe(
+      'Cam-and-bolt ×2: 15 mm dia × 14.5 mm deep in the thickness face (max side), 24 mm in from the length min end; 8 mm dia × 24 mm deep from the length min end into each; along the width: first 37 mm from the min side, every 211.8 mm');
+  });
+  it('imperial: carries both size texts verbatim', () => {
+    const line = camPairLine(camPart(), CAM, BOLT, IMPERIAL);
+    expect(line).toContain(holeSizeText(CAM, IMPERIAL));
+    expect(line).toContain(holeSizeText(BOLT, IMPERIAL));
+    expect(line).toContain('Cam-and-bolt ×2');
+    expect(line).toBe('Cam-and-bolt ×2: 9/16" (15 mm) dia × 9/16" deep in the thickness face (max side), 15/16" in from the length min end; 5/16" (8 mm) dia × 15/16" deep from the length min end into each; along the width: first 1-7/16" from the min side, every 8-11/32"');
   });
 });

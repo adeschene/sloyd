@@ -1,3 +1,6 @@
+import { camPart } from './camBoltFixtures';
+import { holeLine } from './holeText';
+import { IMPERIAL } from '../units/length';
 import { buildCutList, createBoard, createDocument, cornerCurve } from './document';
 import type { Board, FlatDocument, SloydDocument } from './document';
 import { flatDocument } from './tree';
@@ -1099,5 +1102,25 @@ describe('box joints on the sheet (box joints spec §5.2)', () => {
     expect(setupOf({ cuts: [cheek('c1', 'min', 'max'), cheek('c2', 'max', 'max')] })).toEqual([
       '1/2" tenon, 1/4" thick × 4-1/2" wide — at the length max end',
     ]);
+  });
+});
+
+describe('cam-and-bolt bench line (spec §6.3)', () => {
+  const setupOf = (b: Board) => buildCutList({ ...docWith({}), boards: [b] }).groups[0].rows[0].setup;
+  it('a whole pair prints ONE line and no per-row bolt line', () => {
+    const b = camPart();
+    const setup = setupOf(b);
+    expect(setup.filter((l) => l.includes('Cam-and-bolt'))).toHaveLength(1);
+    expect(setup).toHaveLength(1);
+    expect(setup).not.toContain(holeLine(b, b.holes[1]!, IMPERIAL));
+  });
+  it('a cam alone keeps holeLine', () => {
+    const b = camPart({ holes: [camPart().holes[0]!] });
+    expect(setupOf(b)).toEqual([holeLine(b, b.holes[0]!, IMPERIAL)]);
+  });
+  it('a partly paired bolt keeps both holeLines', () => {
+    const b = camPart(); const bolt = { ...b.holes[1]!, count: 1 };
+    const c = { ...b, holes: [b.holes[0]!, bolt] };
+    expect(setupOf(c)).toEqual([holeLine(c, c.holes[0]!, IMPERIAL), holeLine(c, bolt, IMPERIAL)]);
   });
 });

@@ -3,7 +3,8 @@ import { useStore, HOLE_TILT_PAST_BOUND, HEAD_ON_TILT, headRefusal } from '../st
 import { formatLength, isMetric } from '../units/length';
 import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
 import type { Board, CutFrom, Dimension, HeadKind, HoleFault, HoleRow } from '../document/document';
-import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout } from '../document/holeText';
+import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine } from '../document/holeText';
+import { camPairRows } from '../document/camBolt';
 import { leans, slopeOf } from '../document/lean';
 import { staleTenonOf } from '../document/tenonJoints';
 import { tenonStale } from '../document/tenonText';
@@ -64,7 +65,9 @@ function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   const updateHoleRow = useStore((s) => s.updateHoleRow);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);
-  const line = holeLine(board, row, units);
+  // A row of a WHOLE cam-and-bolt pair reads as the pair's one line (spec §6.3), whichever row it is.
+  const pair = camPairRows(board).find((p) => p.cam.id === row.id || p.bolt.id === row.id);
+  const line = pair ? camPairLine(board, pair.cam, pair.bolt, units) : holeLine(board, row, units);
   const stored = distinctFaults(holeFaults(board, row));
   const across = acrossOf(row);
   // The end / side a square slope will lean toward once typed (a zero slope has no direction to store): the far one from
