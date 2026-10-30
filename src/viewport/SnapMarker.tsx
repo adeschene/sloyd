@@ -46,6 +46,11 @@ export const SNAP_COLORS: Record<SnapKind, string> = {
   // them to the user.
   line: '#4a86b8',
   'line-cross': '#3a4a8c',
+  // Where a line meets a part (construction-lines-2 spec §3.1): a guide-owned point that sits ON wood, so neither the
+  // guide blues (it would read as floating) nor a board kind (it is not a lattice point). A burnt umber, chosen by a
+  // search against the floors above (maple 7.6:1, ring 8.7:1, oak ΔE 36, mutual ΔE ≥ 32; colour-blind ΔE not measured);
+  // the user judges it by eye.
+  'line-face': '#683808',
 };
 
 /**

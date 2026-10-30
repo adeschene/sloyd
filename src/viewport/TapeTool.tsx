@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideCandidates, isAnyLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
+import { guideCandidates, isAnyLine, lineFaceCandidates, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keepsCandidate } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -126,11 +126,13 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // gizmo drag under another tool changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
     // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
-    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side.
+    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side; a line's face hit
+    // sits on a part and is clipped with it (`keepsCandidate`, construction-lines-2 spec §3.1).
     () => tool !== 'tape' ? [] : [
       ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
       ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
-    ].filter((p) => p.owner.type === 'guide' || keptBySection(section, p.at)),
+      ...(showGuides ? lineFaceCandidates(guides, visibleBoards(boards, hiddenIds), SCENE_EXTENT) : []),
+    ].filter((p) => keepsCandidate(section, p)),
     [tool, boards, hiddenIds, guides, showGuides, section],
   );
 

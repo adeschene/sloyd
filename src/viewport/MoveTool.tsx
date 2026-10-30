@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { isAnyLine, itemKey, sameSnapPoint, worldParts, keptBySection } from '../document/document';
+import { isAnyLine, itemKey, sameSnapPoint, worldParts, keepsCandidate } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { moveCandidates } from './moveCandidates';
@@ -91,9 +91,10 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
   // drag under Select changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
     // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
-    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side.
+    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side; a line's face hit
+    // sits on a part and is clipped with it (`keepsCandidate`, construction-lines-2 spec §3.1).
     () => tool !== 'move' ? [] : moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf)
-      .filter((p) => p.owner.type === 'guide' || keptBySection(section, p.at)),
+      .filter((p) => keepsCandidate(section, p)),
     [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf, section],
   );
 

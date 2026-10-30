@@ -25,7 +25,7 @@ import { tiltedHole } from './holes';
  * What a snap point sits on. Drives the marker's colour, and nothing else —
  * every kind snaps identically.
  */
-export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross';
+export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross' | 'line-face';
 
 /**
  * What a snap point belongs to.
@@ -41,10 +41,13 @@ export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' 
  * `cross` exists only on a line crossing (construction-lines spec §4.2): `id` is
  * the first line in array order, `cross` the second. "Owned by guide G" then
  * means `ownedByGuide`, never `owner.id === G` alone.
+ *
+ * `board` exists only on a line-face hit (construction-lines-2 spec §3.1): `id` is the line, `board` the part the hit sits
+ * on. Owned by the line, so a face hit is never a grab (inv 26); `keepsCandidate` reads `board` to section-filter it.
  */
 export type SnapOwner =
   | { type: 'board'; id: string }
-  | { type: 'guide'; id: string; cross?: string };
+  | { type: 'guide'; id: string; cross?: string; board?: string };
 
 export interface SnapPoint {
   kind: SnapKind;
@@ -90,8 +93,8 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
     a.kind === b.kind &&
     a.owner.type === b.owner.type &&
     a.owner.id === b.owner.id &&
-    // Two crossings on the same first line differ only here.
-    (a.owner.type === 'guide' && b.owner.type === 'guide' ? a.owner.cross === b.owner.cross : true) &&
+    // Two crossings on the same first line differ only in `cross`; two face hits of one line only in `board`.
+    (a.owner.type === 'guide' && b.owner.type === 'guide' ? a.owner.cross === b.owner.cross && a.owner.board === b.owner.board : true) &&
     a.at[0] === b.at[0] &&
     a.at[1] === b.at[1] &&
     a.at[2] === b.at[2]

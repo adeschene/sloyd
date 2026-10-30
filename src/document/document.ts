@@ -82,6 +82,7 @@ export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
 export { CROSS_TOLERANCE, boardSnapPoints, canonicalLine, cutSnapPoints, guideCandidates, guideSnapPoints, lineCrossings, lineDir, lineSpan, lineThrough, newLineOf, ownedByGuide, sameLine, sameNewLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 export type { BoardSnapPoint, NewLine, SnapKind, SnapOwner, SnapPoint, Vec3 } from './snapPoints';
+export { FACE_PROBE, keepsCandidate, lineFaceCandidates, lineFaceHits } from './lineFaces';
 export { partBounds, partsBounds } from './worldBounds';
 export { leanMap } from './lean';
 export { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, sectionCaps, unionOutline, SECTION_EPS } from './section';

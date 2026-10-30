@@ -1,4 +1,4 @@
-import { guideCandidates, isCovered, sharesStorageWith, snapPointsFor } from '../document/document';
+import { guideCandidates, isCovered, lineFaceCandidates, sharesStorageWith, snapPointsFor } from '../document/document';
 import type { Board, Guide, SnapPoint } from '../document/document';
 import { visibleBoards } from '../store/visibility';
 import { SCENE_EXTENT } from './extent';
@@ -23,7 +23,9 @@ import { SCENE_EXTENT } from './extent';
  * Both branches go through snapPointsFor (box lattice + cut-owned points);
  * a cut point is most often a TARGET, on a part that is not selected.
  * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear after a grab only (their line crossings too, construction-lines spec §4),
- * and hidden guides offer nothing (design §6). A HIDDEN part offers no
+ * and hidden guides offer nothing (design §6). Where a line meets a part (`line-face`, construction-lines-2 spec §3.1) is
+ * offered over the same parts as the targets: a moving part's own face hits would move with it, a hidden one's sit on
+ * nothing drawn. A HIDDEN part offers no
  * points in either branch: a marker must sit on something drawn (invariant
  * 16; hide/unhide spec §3).
  *
@@ -54,9 +56,11 @@ export function moveCandidates(
   // drawn (invariant 16; hide/unhide spec §3).
   const shown = visibleBoards(boards, hiddenIds);
   if (grabbing) {
+    const targets = shown.filter((b) => !covered(b) && !sharesStorage(b));
     return [
-      ...shown.filter((b) => !covered(b) && !sharesStorage(b)).flatMap(snapPointsFor),
+      ...targets.flatMap(snapPointsFor),
       ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
+      ...(showGuides ? lineFaceCandidates(guides, targets, SCENE_EXTENT) : []),
     ];
   }
   return shown.filter(covered).flatMap(snapPointsFor);
