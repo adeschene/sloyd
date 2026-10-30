@@ -55,3 +55,9 @@ export const FITTINGS_LABEL = 'Fittings';
 export const camJointLine = (a: string, endWord: string, b: string) => `${a}'s ${endWord} end into ${b}`;
 /** A's end already carries a whole cam pair: its fittings are used, the typed count ignored. */
 export const camJointReused = (n: number) => `Uses the cam lock already at this end (${n} ${n === 1 ? 'fitting' : 'fittings'}).`;
+/** The `Cam face` select's two words (ruling R2): each of A's broad faces named by the world direction it points, on the
+ *  world axis carrying that face (the Align words, `alignText.ts`: −Z is the back, +Z the front). */
+const CAM_FACE_WORDS = [
+  { min: 'Left', max: 'Right' }, { min: 'Underside', max: 'Top' }, { min: 'Back', max: 'Front' },
+] as const;
+export const camFaceWord = (axis: 0 | 1 | 2, side: -1 | 1) => CAM_FACE_WORDS[axis][side === -1 ? 'min' : 'max'];

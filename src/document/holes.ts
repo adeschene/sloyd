@@ -110,7 +110,7 @@ export function mirrorHoleRow(r: HoleRow, d: Dimension): HoleRow {
 export const mm = (n: number) => n / 25.4;
 
 /** The broad face: the smallest dimension (a tie goes to the later of DIMENSION_ORDER: thickness, then width). */
-function broadFace(b: Pick<Board, Dimension>): Dimension {
+export function broadFace(b: Pick<Board, Dimension>): Dimension {
   return DIMENSION_ORDER.reduce((best, d) => (b[d] <= b[best] ? d : best), 'length' as Dimension);
 }
 /** The two others, the longer first (a row runs along the longer; length on a tie). Bore leg sockets lays its rows out
