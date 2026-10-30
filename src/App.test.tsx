@@ -1697,6 +1697,84 @@ describe('App type-anywhere tape capture', () => {
     await user.keyboard('{Escape}');
     expect(useStore.getState().tapeAnchor).toBeNull();
   });
+  // Enter with nothing typed under an axis lock places a construction line (construction-lines spec §3.2), from the
+  // window listener when focus is on the body.
+  describe('Enter places a line', () => {
+    const lockedX = async () => {
+      const user = await anchoredTape();
+      await act(async () => { useStore.getState().setTapeAxis('x'); });
+      (document.activeElement as HTMLElement | null)?.blur();
+      return user;
+    };
+    const enter = (init: KeyboardEventInit = {}) =>
+      act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...init })); });
+
+    it('adds the line and clears the anchor', async () => {
+      await lockedX();
+      const at = useStore.getState().tapeAnchor!.at;
+      enter();
+      const g = useStore.getState().doc.guides;
+      expect(g).toHaveLength(1);
+      expect(g[0]).toMatchObject({ axis: 'x', at: [0, at[1], at[2]] });
+      expect(useStore.getState().tapeAnchor).toBeNull();
+    });
+
+    it('a duplicate adds nothing and keeps the anchor and axis', async () => {
+      await lockedX();
+      enter();
+      await act(async () => {
+        useStore.getState().setTapeAnchor(boardSnapPoints(worldParts(useStore.getState().doc)[0])[0]);
+        useStore.getState().setTapeAxis('x');
+      });
+      enter();
+      expect(useStore.getState().doc.guides).toHaveLength(1);
+      expect(useStore.getState().tapeAnchor).not.toBeNull();
+      expect(useStore.getState().tapeAxis).toBe('x');
+    });
+
+    it.each([
+      ['ctrl', { ctrlKey: true }],
+      ['meta', { metaKey: true }],
+      ['alt', { altKey: true }],
+      ['shift', { shiftKey: true }],
+    ])('does nothing with %s held', async (_n, init) => {
+      await lockedX();
+      enter(init);
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+      expect(useStore.getState().tapeAnchor).not.toBeNull();
+    });
+
+    it('does nothing behind a modal', async () => {
+      const user = await lockedX();
+      await user.click(screen.getByRole('button', { name: /cut list/i }));
+      enter();
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+      expect(useStore.getState().tapeAnchor).not.toBeNull();
+    });
+
+    it('falls through on a focused button: Enter there is the button\'s own, not a line', async () => {
+      await lockedX();
+      const btn = screen.getByRole('button', { name: /cut list/i });
+      act(() => { btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+      expect(useStore.getState().tapeAnchor).not.toBeNull();
+    });
+
+    it('does nothing on the Select tool', async () => {
+      await lockedX();
+      await act(async () => { useStore.setState({ tool: 'select' }); });
+      enter();
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+    });
+
+    it('does nothing with an anchor but no axis', async () => {
+      await anchoredTape();
+      (document.activeElement as HTMLElement | null)?.blur();
+      enter();
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+      expect(useStore.getState().tapeAnchor).not.toBeNull();
+    });
+  });
 });
 
 // The brief this round supplied two selectors that do not match the shipped

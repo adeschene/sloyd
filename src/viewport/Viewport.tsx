@@ -13,6 +13,7 @@ import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
 import { GuideMarkers } from './GuideMarkers';
+import { GuideLines } from './GuideLines';
 import { MoveTool } from './MoveTool';
 import { OriginAxes } from './OriginAxes';
 import { TapeTool } from './TapeTool';
@@ -628,6 +629,7 @@ export function Viewport({
       {/* Guide markers are world positions; while exploded they would sit away from the
           parts they belong to (invariant 16). */}
       {showGuides && explode === 0 && <GuideMarkers />}
+      {showGuides && explode === 0 && <GuideLines />}
       <StretchGuide />
 
       {shown.map((board) => (

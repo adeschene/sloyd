@@ -1,4 +1,8 @@
-import type { SnapPoint } from '../document/document';
+import type { GuideLine, SnapPoint } from '../document/document';
+import { snapToGrid } from '../document/geometry';
+import type { Units } from '../units/length';
+
+export type Vec3 = [number, number, number];
 
 /**
  * How close, in canvas pixels, the cursor must come to a candidate before it
@@ -101,4 +105,90 @@ export function pickSnapPoint<T extends SnapPoint>(
     }
   }
   return best;
+}
+
+const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
+
+/**
+ * The point on an axis-parallel construction line nearest the cursor's ray,
+ * slid along the line and rounded to the drag grid (construction-lines spec §4.1).
+ *
+ * The line is `P + t*e` (`e` the unit axis, `P = line.at`, whose along
+ * coordinate is 0 by the canonical form, so `t` IS the world coordinate along
+ * it) and the ray `O + s*d`. With `w = P - O`, `b = e.d`, `c = d.d`,
+ * `p = e.w`, `q = d.w` the closest approach is `t = (b*q - c*p) / (c - b^2)`.
+ * A ray parallel to the line (a Y line seen straight down) has no closest
+ * point, so it offers nothing rather than a NaN.
+ *
+ * `t` is clamped to the drawn `extent`; the screen test then projects that
+ * UNROUNDED point, so a cursor past the line's drawn end is far from it and
+ * offers nothing. Only the returned `at` is rounded (`snapToGrid`, a free
+ * slide: invariant 25 forbids rounding exact moves, not this).
+ *
+ * Ties break by screen distance, then depth, as `pickSnapPoint` does.
+ */
+export function pickOnLine(
+  lines: GuideLine[],
+  project: Projector,
+  cursor: { x: number; y: number },
+  ray: { origin: Vec3; dir: Vec3 },
+  radiusPx: number,
+  units: Units,
+  extent: number,
+): SnapPoint | null {
+  const { origin: O, dir: d } = ray;
+  const c = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+  let best: SnapPoint | null = null;
+  let bestDistSq = radiusPx * radiusPx;
+  let bestDepth = Number.POSITIVE_INFINITY;
+
+  for (const line of lines) {
+    const i = AXIS_INDEX[line.axis];
+    const b = d[i];
+    const den = c - b * b;
+    if (!(den > 1e-9 * c)) continue;
+    const p = line.at[i] - O[i]; // e.w, e the unit axis
+    const q = d[0] * (line.at[0] - O[0]) + d[1] * (line.at[1] - O[1]) + d[2] * (line.at[2] - O[2]);
+    let t = (b * q - c * p) / den;
+    if (!Number.isFinite(t)) continue;
+    t = Math.max(-extent, Math.min(extent, t));
+
+    const free: Vec3 = [line.at[0], line.at[1], line.at[2]];
+    free[i] = t;
+    const projected = project(free);
+    if (!projected) continue;
+    const dx = projected.x - cursor.x;
+    const dy = projected.y - cursor.y;
+    const distSq = dx * dx + dy * dy;
+    if (distSq > bestDistSq) continue;
+    if (distSq < bestDistSq || projected.depth < bestDepth) {
+      const at: Vec3 = [line.at[0], line.at[1], line.at[2]];
+      at[i] = snapToGrid(t, units);
+      best = { kind: 'line', at, owner: { type: 'guide', id: line.id } };
+      bestDistSq = distSq;
+      bestDepth = projected.depth;
+    }
+  }
+  return best;
+}
+
+/**
+ * The composed picker: a discrete candidate (corner, edge point, guide point,
+ * crossing) within the radius always wins; only when none is does the cursor
+ * slide along a construction line.
+ */
+export function pickGuided(
+  candidates: SnapPoint[],
+  lines: GuideLine[],
+  project: Projector,
+  cursor: { x: number; y: number },
+  ray: { origin: Vec3; dir: Vec3 },
+  radiusPx: number,
+  units: Units,
+  extent: number,
+): SnapPoint | null {
+  return (
+    pickSnapPoint(candidates, project, cursor, radiusPx) ??
+    pickOnLine(lines, project, cursor, ray, radiusPx, units, extent)
+  );
 }

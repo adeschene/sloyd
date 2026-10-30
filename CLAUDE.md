@@ -112,7 +112,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **30** (counterbores: a hole row's `head`; 29, saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **31** (construction lines: a guide's `axis`; 30, counterbores: a hole row's `head`; 29, saved views: `views`; 28, weight: `density`; 27, half-blind dovetails' `lap`). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 The step table — what each step adds, validates, drops and refuses, and the harm a build one version back
 would do — is `docs/versioning.md`; update it
@@ -160,6 +160,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | align / space evenly | `align.ts`, `alignText.ts`; store `alignItems`, `distributeItems`; `panels/AlignSection.tsx` (inv 25) |
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; store `stretchItems`, `stretchGuide`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
+| construction lines | `snapPoints.ts` (`lineCrossings`, `tapeLineFor`), `snapPick.ts` `pickOnLine`, `GuideLines.tsx` (invs 24, 25) |
 | saved views | `document/views.ts`, `viewCamera.ts`, `ViewsFooter.tsx` (invs 43, 47) |
 | weight | `weight.ts`; density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
@@ -269,7 +270,8 @@ changes.
       point-precise. Deleting the former or adding one for the latter breaks behaviour that
       only the "keeps" tests catch.
     - The enumeration lives only at `tapeHover`'s declaration in `store.ts`; never restate it.
-25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide,
+    - A guide-owned point may be a line CROSSING (`owner.cross`, schema 31): ownership is `ownedByGuide` (`id` or `cross`), never `owner.id` alone.
+25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide, a line crossing (exact; a point slid along a line rounds only its along-line coordinate, `pickOnLine`),
     ray-typed guide, axis-placed guide, copy in a row (copy k = original + k·step·sign,
     never from the previous copy), align and space evenly (inner items placed from the first, never a running position), stretch (`δ` once, inv 64). Round what a free drag produced, nothing else; a free drag of a LEANING part
     rounds the DELTA, never a corner (`dragTarget`, inv 57).
@@ -305,7 +307,7 @@ changes.
     index writes stay synchronous with its read.
 33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes per id kind (dovetail ids per board, as tenons):
-    `docs/invariants.md`. `/` in an id is re-minted. A guide with no id is dropped.
+    `docs/invariants.md`. `/` in an id is re-minted. A guide with no id is dropped; a construction line shares `guides`' scope.
     References (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the
     duplicate or the dangling part, never by re-minting. A future field pointing at a board by id
     breaks the single-pass repair — except `views[].hidden`, a hint never repaired (skipped when missing; Group/Ungroup re-key it).
@@ -549,7 +551,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10322 tests across 296 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10386 tests across 298 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -558,19 +560,19 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–567). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–582). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 31 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 32 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 578–582 (oblique, typed offset, edit a line, line meets face, Plans; ask first).
 - **Owed to the user, not code:** by eye — counterbores (the Head select's place, the Plans side views, the exploded iso fu 570, the RefineDialog kept-why; `docs/browser-verification-counterbores.md`; the spec's *Amended (build)* R1–R3, `docs/rounds.md`), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
-- **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
+- **Open by decision:** 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
 - **Open, per round:** splayed legs 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled

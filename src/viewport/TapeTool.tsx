@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
+import { guideCandidates, isGuideLine, tapeLineFor, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -16,9 +16,11 @@ import { parseLength } from '../units/length';
 import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
-import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
-import type { ProjectedPoint } from './snapPick';
+import { PICK_RADIUS_PX, pickGuided } from './snapPick';
+import type { ProjectedPoint, Vec3 } from './snapPick';
+import { SCENE_EXTENT } from './extent';
 import { SnapMarker, SNAP_COLORS } from './SnapMarker';
+import { ConstructionLine } from './GuideLines';
 
 /** Reused rather than allocated per candidate per pointer event. */
 const projected = new THREE.Vector3();
@@ -31,6 +33,10 @@ const projected = new THREE.Vector3();
  * moves.
  */
 const TAPE_COLOR = SNAP_COLORS.guide;
+
+/** Reused for every pointer event: a per-event allocation would churn on each pointermove. */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
 
 /**
  * The Tape tool: click a snap point to anchor, hover a second to read the
@@ -123,9 +129,15 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side.
     () => tool !== 'tape' ? [] : [
       ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
-      ...(showGuides ? guideSnapPoints(guides) : []),
+      ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
     ].filter((p) => p.owner.type === 'guide' || keptBySection(section, p.at)),
     [tool, boards, hiddenIds, guides, showGuides, section],
+  );
+
+  // Memoised beside the candidates: the handlers close over it (construction-lines spec §4).
+  const lines = useMemo(
+    () => tool !== 'tape' || !showGuides ? [] : guides.filter(isGuideLine),
+    [tool, guides, showGuides],
   );
 
   useEffect(() => {
@@ -158,6 +170,15 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
+    /** The cursor's world ray, for sliding along a construction line (construction-lines spec §4.1). */
+    const rayOf = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      ndc.set(((e.clientX - rect.left) / size.width) * 2 - 1, -((e.clientY - rect.top) / size.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, camera);
+      const { origin, direction } = raycaster.ray;
+      return { origin: [origin.x, origin.y, origin.z] as Vec3, dir: [direction.x, direction.y, direction.z] as Vec3 };
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
       // Tagged with the pointerId that set it, for the same multi-touch reason
@@ -168,7 +189,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      const next = pickSnapPoint(candidates, project, cursorOf(e), PICK_RADIUS_PX);
+      const next = pickGuided(candidates, lines, project, cursorOf(e), rayOf(e), PICK_RADIUS_PX, units, SCENE_EXTENT);
       // Committed to React only when the pick actually changes — pointermove
       // fires far more often than that.
       if (sameSnapPoint(next, hoveredRef.current)) return;
@@ -192,7 +213,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
 
       // Re-picked at the release position rather than trusting the last
       // pointermove: a pen or touch click can produce no pointermove at all.
-      const hit = pickSnapPoint(candidates, project, cursorOf(e), PICK_RADIUS_PX);
+      const hit = pickGuided(candidates, lines, project, cursorOf(e), rayOf(e), PICK_RADIUS_PX, units, SCENE_EXTENT);
       // Read imperatively: the render closure's `anchor` would be stale for
       // any event arriving between a store write and the next commit.
       const store = useStore.getState();
@@ -266,7 +287,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     // because the handlers close over it; it is a zustand action and so stable
     // for the store's lifetime, which makes listing it free rather than
     // churn — the same reason a useState setter is safe to list.
-  }, [tool, candidates, gl, camera, size.width, size.height, setHovered]);
+  }, [tool, candidates, lines, units, gl, camera, size.width, size.height, setHovered]);
 
   // Clearing the anchor ends the measurement, so the latched target goes with
   // it — otherwise a stale marker would sit on screen after Escape. Redundant
@@ -340,13 +361,10 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // say "this is the measurement you are making", and once a number is typed
   // the measurement ends at the number.
   //
-  // Locked with nothing typed yet draws NO line, and that is a decision rather
-  // than an omission: the honest thing to draw would be a semi-infinite axis
-  // line, which is follow-up 130's construction line and is out of this round's
-  // scope (design §8). The readout's axis chip is what confirms the lock. If
-  // the browser pass finds this reads as broken rather than as waiting, §9.1
-  // names the remedy — a 1" stub to offsetPoint(anchor, toward, 1) — rather
-  // than reopening §8.
+  // Locked with nothing typed yet draws NO measuring line, and that is deliberate:
+  // there is nothing to measure yet. What Enter would create there is a
+  // construction line, previewed separately below as a <ConstructionLine preview />
+  // (construction-lines spec §3.5), not through this two-point line.
   const lineEnd = preview ?? (axis ? null : hovered?.at) ?? null;
 
   // Memoised on the six coordinates rather than rebuilt inline: drei's <Line>
@@ -363,8 +381,12 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // live (invariant 24: a capture moves nothing and writes no held point).
   if (tool !== 'tape' || hidden) return null;
 
+  // The line Enter would place under a lock with nothing typed (spec §3.5).
+  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed);
+
   return (
     <>
+      {lineAt && <ConstructionLine at={lineAt.at} axis={lineAt.axis} preview />}
       {anchor && <SnapMarker point={anchor} />}
       {hovered && <SnapMarker point={hovered} />}
       {preview && (

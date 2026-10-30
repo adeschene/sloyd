@@ -7,7 +7,8 @@ import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
-import type { Board, Cut, GuidePoint } from './types';
+import type { Board, Cut, Guide, TapeAxis } from './types';
+import { isGuideLine, isGuidePoint } from './types';
 import { geometryBoard, shapedPart } from './profiles';
 import { builtSwept, keptSection, oneSideCurve, sweptStops } from './sweep';
 import { sectionFrame } from './runout';
@@ -18,7 +19,7 @@ import { tiltedHole } from './holes';
  * What a snap point sits on. Drives the marker's colour, and nothing else —
  * every kind snaps identically.
  */
-export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide';
+export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' | 'line-cross';
 
 /**
  * What a snap point belongs to.
@@ -30,10 +31,14 @@ export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide';
  * READ THE TYPE, NOT THE ID. Both members carry `id: string`, so `owner.id`
  * typechecks on the union while meaning two different things. Every consumer
  * that means "this board" must narrow on `owner.type === 'board'` first.
+ *
+ * `cross` exists only on a line crossing (construction-lines spec §4.2): `id` is
+ * the first line in array order, `cross` the second. "Owned by guide G" then
+ * means `ownedByGuide`, never `owner.id === G` alone.
  */
 export type SnapOwner =
   | { type: 'board'; id: string }
-  | { type: 'guide'; id: string };
+  | { type: 'guide'; id: string; cross?: string };
 
 export interface SnapPoint {
   kind: SnapKind;
@@ -79,6 +84,8 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
     a.kind === b.kind &&
     a.owner.type === b.owner.type &&
     a.owner.id === b.owner.id &&
+    // Two crossings on the same first line differ only here.
+    (a.owner.type === 'guide' && b.owner.type === 'guide' ? a.owner.cross === b.owner.cross : true) &&
     a.at[0] === b.at[0] &&
     a.at[1] === b.at[1] &&
     a.at[2] === b.at[2]
@@ -474,12 +481,84 @@ export function snapPointsFor(board: Board): BoardSnapPoint[] {
  * The whole of what the guide-points round needed from this module. Boards
  * offer 26 derived points; a guide offers the one position it is.
  */
-export function guideSnapPoints(guides: GuidePoint[]): SnapPoint[] {
-  return guides.map((g) => ({
+export function guideSnapPoints(guides: Guide[]): SnapPoint[] {
+  return guides.filter(isGuidePoint).map((g) => ({
     kind: 'guide' as const,
     at: [g.at[0], g.at[1], g.at[2]] as [number, number, number],
     owner: { type: 'guide' as const, id: g.id },
   }));
+}
+
+/** A copy of a line's anchor with the coordinate along its axis zeroed (construction-lines spec §2). */
+export function canonicalLine(
+  at: [number, number, number],
+  axis: TapeAxis,
+): { at: [number, number, number]; axis: TapeAxis } {
+  const out: [number, number, number] = [at[0], at[1], at[2]];
+  out[AXIS_INDEX[axis]] = 0;
+  return { at: out, axis };
+}
+
+/** Whether two lines are the same line, exactly (never within a tolerance). */
+export function sameLine(
+  a: { at: [number, number, number]; axis: TapeAxis },
+  b: { at: [number, number, number]; axis: TapeAxis },
+): boolean {
+  return a.axis === b.axis && a.at[0] === b.at[0] && a.at[1] === b.at[1] && a.at[2] === b.at[2];
+}
+
+/**
+ * Where two construction lines of different axes meet (construction-lines
+ * spec §4.2): they agree EXACTLY on the third axis `k`. Exact on purpose — a
+ * crossing is a point the user can snap to, and an ulp of disagreement means
+ * the lines miss. Each pair is offered once, first in array order as `id`.
+ * A crossing with a coordinate beyond ±`extent` is not offered: the lines are
+ * drawn only that far, and a marker past their end sits on nothing.
+ */
+export function lineCrossings(guides: Guide[], extent: number): SnapPoint[] {
+  const lines = guides.filter(isGuideLine);
+  const out: SnapPoint[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    for (let j = i + 1; j < lines.length; j++) {
+      const a = lines[i];
+      const b = lines[j];
+      if (a.axis === b.axis) continue;
+      const ia = AXIS_INDEX[a.axis];
+      const ib = AXIS_INDEX[b.axis];
+      const k = 3 - ia - ib;
+      if (a.at[k] !== b.at[k]) continue;
+      const at: [number, number, number] = [0, 0, 0];
+      at[ia] = b.at[ia];
+      at[ib] = a.at[ib];
+      at[k] = a.at[k];
+      if (at.some((c) => Math.abs(c) > extent)) continue;
+      out.push({ kind: 'line-cross', at, owner: { type: 'guide', id: a.id, cross: b.id } });
+    }
+  }
+  return out;
+}
+
+/** The ONE list of guide-owned candidates both the Move and Tape tools offer. */
+export function guideCandidates(guides: Guide[], extent: number): SnapPoint[] {
+  return [...guideSnapPoints(guides), ...lineCrossings(guides, extent)];
+}
+
+/**
+ * The line a tape would place: an anchor, an axis the user pressed and nothing
+ * typed (construction-lines spec §3.2). Typed text means a distance instead.
+ */
+export function tapeLineFor(
+  anchor: [number, number, number] | null,
+  axis: TapeAxis | null,
+  typed: string,
+): { at: [number, number, number]; axis: TapeAxis } | null {
+  if (!anchor || !axis || typed.trim() !== '') return null;
+  return canonicalLine(anchor, axis);
+}
+
+/** Whether a snap point belongs to guide `id`, as a point or as either line of a crossing. */
+export function ownedByGuide(p: SnapPoint | null, id: string): boolean {
+  return !!p && p.owner.type === 'guide' && (p.owner.id === id || p.owner.cross === id);
 }
 
 /**
@@ -519,21 +598,7 @@ export function offsetPoint(
   return [anchor[0] + dx * k, anchor[1] + dy * k, anchor[2] + dz * k];
 }
 
-/**
- * A world axis the tape can lock its typed offset to.
- *
- * WORLD, not board-local, and that is the round's central decision rather than
- * a default. `axisDimensions` maps a board's length/width/thickness onto the
- * world axes, and by construction it is always a PERMUTATION of [X, Y, Z] —
- * `posture` names which dimension is up and `rotation` is one of four quarter
- * turns about Y (any horizontal axis possibly reversed, which flips a
- * direction but never makes one oblique), so each dimension lands on exactly
- * one axis and no two share one. There is no
- * oblique case the document can express. So board-local axes would reach the
- * same six directions and buy a LABEL, not a capability — and they would be
- * unreachable from a guide-owned anchor, which owns no board. See design §2.
- */
-export type TapeAxis = 'x' | 'y' | 'z';
+export type { TapeAxis };
 
 const AXIS_INDEX: Record<TapeAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
 

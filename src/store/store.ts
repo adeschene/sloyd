@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { alignDeltas, distributeDeltas, itemExtents, type AlignItem } from '../document/align';
 import { stretchPlan } from '../document/stretch';
 import {
-  partsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  partsBounds, cleanName, createBoard, createDocument, createGuide, canonicalLine, sameLine, ownedByGuide, isGuideLine, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, definitionAt, mirroredAt, sideAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -218,7 +218,8 @@ interface StoreState {
    *    drop the latch while TapeTool went on drawing the marker.
    *  - `addCut`/`updateCut`/`removeCut` reach the same survival test.
    *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
-   *    point-precise there: neither owner offers any point afterward.
+   *    point-precise there: neither owner offers any point afterward. A guide-owned point may be a
+   *    crossing (`owner.cross`), so removal tests both ids through `ownedByGuide`.
    *  - `setTool`, `clearGuides` and `replaceDocument` clear it blanket.
    *    `undo` and `redo` do too, through `restore`, but only when the restored
    *    document is a different object (invariant 43). Each is defensible only
@@ -625,6 +626,8 @@ interface StoreState {
   selectLinked: (id: string) => void;
 
   addGuide: (at: [number, number, number]) => void;
+  /** Add an infinite construction line through `at` along `axis` (construction-lines spec §3.3); false when refused (exploded) or already there. */
+  addGuideLine: (at: [number, number, number], axis: TapeAxis) => boolean;
   /** Saved views (spec §3): each is one undo entry, allowed while exploded (inv 47 carve-out), refused mid-gesture. */
   saveView: (camera: SavedViewCamera) => string | null;
   updateView: (id: string, camera: SavedViewCamera) => void;
@@ -2636,6 +2639,18 @@ export const useStore = create<StoreState>((set, get) => {
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
     },
 
+    // Construction-lines spec §3.3: canonical (at[axis] = 0), so a duplicate is decided on the line itself. The
+    // duplicate check sits BEFORE edit(): edit() pushes an undo snapshot and clears redo, so a no-op add
+    // would leave a no-op entry (inv 4) and wipe the redo stack. Like addGuide, selection is untouched.
+    addGuideLine: (at, axis) => {
+      if (readOnly()) return false;
+      const line = canonicalLine(at, axis);
+      if (get().doc.guides.some((g) => isGuideLine(g) && sameLine(g, line))) return false;
+      const guide = { id: nextId(), ...line };
+      edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
+      return true;
+    },
+
     saveView: (camera) => {
       const { section, explode, hiddenIds } = get();
       const id = nextId();
@@ -2705,7 +2720,7 @@ export const useStore = create<StoreState>((set, get) => {
       // away. Unlike dropHeldIfGone this may sit on either side of the edit —
       // the guide id is equally gone before and after — but it is written
       // before it to match every other guard in this file.
-      if (get().tapeAnchor?.owner.type === 'guide' && get().tapeAnchor?.owner.id === id) {
+      if (ownedByGuide(get().tapeAnchor, id)) {
         set({ tapeAnchor: null, tapeAxis: null });
       }
       // The same clause for the latched hover, and it is NOT symmetry: a guide
@@ -2715,7 +2730,7 @@ export const useStore = create<StoreState>((set, get) => {
       // measured TO is as reachable as deleting the one being measured FROM.
       // Narrowed to this guide: removing a different one must not break the
       // latch.
-      if (get().tapeHover?.owner.type === 'guide' && get().tapeHover?.owner.id === id) {
+      if (ownedByGuide(get().tapeHover, id)) {
         set({ tapeHover: null });
       }
       edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));

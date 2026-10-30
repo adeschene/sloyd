@@ -86,6 +86,17 @@ describe('ViewportControls projection', () => {
   });
 });
 
+describe('ViewportControls construction-line copy', () => {
+  it('names the construction line in the Tape title', () => {
+    renderControls();
+    expect(btn('Tape')).toHaveAttribute('title', expect.stringContaining('; lock X, Y or Z and press Enter for a construction line (T)'));
+  });
+  it('calls the toggle guide points and lines', () => {
+    renderControls();
+    expect(btn('Guides')).toHaveAttribute('title', 'Show guide points and lines');
+  });
+});
+
 describe('ViewportControls view toggles', () => {
   it.each([
     ['Grid', 'showGrid', 'onToggleGrid'],

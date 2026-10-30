@@ -27,14 +27,14 @@ const AXIS_EXTENT = SCENE_EXTENT;
  * board resting on the ground spans y=0 upward, so it hides the axis running
  * underneath it instead of having the axis bleed through it.
  */
-const GROUND_LIFT = 1 / 64;
+export const GROUND_LIFT = 1 / 64;
 
 /**
  * three.js convention — red X, green Y (up), blue Z — because that is what
  * the rest of the code speaks. Muted rather than saturated so they sit inside
  * the wood palette instead of shouting over it.
  */
-const AXIS_COLOR = { x: '#b6483c', y: '#4e8b46', z: '#3f6ea8' } as const;
+export const AXIS_COLOR = { x: '#b6483c', y: '#4e8b46', z: '#3f6ea8' } as const;
 
 /**
  * The negative half of each axis is dashed and slightly dimmer, so "behind the

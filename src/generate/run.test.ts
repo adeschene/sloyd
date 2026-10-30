@@ -406,7 +406,7 @@ describe('runRefine', () => {
 
   it('keeps untouched parts exactly where they were, and carries settings over', async () => {
     const base = orig([bp('Base', [0, 0, 0], [10, 1, 10]), bp('Top', [0, 1, 0], [10, 1, 10])]);
-    const doc = { ...base, stock: { kerf: 0.1 }, guides: [{ id: 'g1', at: [1, 2, 3] as [number, number, number] }] };
+    const doc: SloydDocument = { ...base, stock: { kerf: 0.1 }, guides: [{ id: 'g1', at: [1, 2, 3] as [number, number, number] }, { id: 'l1', at: [0, 2, 3] as [number, number, number], axis: 'x' as const }] };
     const d = echo(doc);
     const wider = { ...d, parts: [d.parts[0]!, { ...d.parts[1]!, size: { ...d.parts[1]!.size, x: 14 } }] };
     const { client } = fakeClient([wider]);
@@ -636,13 +636,16 @@ describe('runRefine — custom materials (custom materials spec §6)', () => {
       bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75]),
     ] }).doc);
     const sites = findSites(flat);
-    const joined = paint(migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc), 'm-s-ash1', [ASH]);
+    const joined0 = paint(migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc), 'm-s-ash1', [ASH]);
+    // A construction line rides through the joined re-join too (construction-lines spec §9: both run.ts sites).
+    const joined: SloydDocument = { ...joined0, guides: [{ id: 'l1', at: [0, 2, 3], axis: 'x' }] };
     expect(flatDocument(joined).boards.some((b) => b.cuts.length > 0)).toBe(true);
     const p = plainForRefine(joined); if ('refused' in p) throw new Error(p.refused.message);
     const { client } = fakeClient([echo(p.plain)]);
     const out = await go(client, joined);
     if ('refused' in out) throw new Error(out.refused.message);
     expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.doc.guides).toEqual(joined.guides);
     expect(flatDocument(out.doc).boards.map((b) => (b as Board).material)).toEqual(['m-s-ash1', 'm-s-ash1']);
     expect(out.doc.materials).toEqual([ASH]);
   });

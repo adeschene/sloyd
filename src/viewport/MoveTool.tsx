@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { itemKey, sameSnapPoint, worldParts, keptBySection } from '../document/document';
+import { isGuideLine, itemKey, sameSnapPoint, worldParts, keptBySection } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { moveCandidates } from './moveCandidates';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
-import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
-import type { ProjectedPoint } from './snapPick';
+import { PICK_RADIUS_PX, pickGuided } from './snapPick';
+import type { ProjectedPoint, Vec3 } from './snapPick';
+import { SCENE_EXTENT } from './extent';
 import { SnapMarker } from './SnapMarker';
 
 /** Reused rather than allocated per candidate per pointer event. */
@@ -35,6 +36,10 @@ const projected = new THREE.Vector3();
  */
 const isBoardOwned = (p: SnapPoint): p is BoardSnapPoint => p.owner.type === 'board';
 
+/** Reused for every pointer event: a per-event allocation would churn on each pointermove. */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
 /**
  * The Move tool: click a snap point to grab it, click another to drop the
  * grabbed board so the two points coincide exactly.
@@ -50,6 +55,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
   const selectedIds = useStore((s) => s.selectedIds);
   const hiddenIds = useStore((s) => s.hiddenIds);
   const section = useStore((s) => s.section);
+  const units = useStore((s) => s.doc.units);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -91,6 +97,13 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
     [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf, section],
   );
 
+  // Lines are targets, never grab sources (inv 26): none before a grab, so the pre-grab pick
+  // can only ever land on a selected part's own point.
+  const lines = useMemo(
+    () => tool !== 'move' || !grabbing || !showGuides ? [] : guides.filter(isGuideLine),
+    [tool, grabbing, showGuides, guides],
+  );
+
   useEffect(() => {
     if (tool !== 'move') {
       hoveredRef.current = null;
@@ -124,13 +137,22 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
+    /** The cursor's world ray, for sliding along a construction line (construction-lines spec §4.1). */
+    const rayOf = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      ndc.set(((e.clientX - rect.left) / size.width) * 2 - 1, -((e.clientY - rect.top) / size.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, camera);
+      const { origin, direction } = raycaster.ray;
+      return { origin: [origin.x, origin.y, origin.z] as Vec3, dir: [direction.x, direction.y, direction.z] as Vec3 };
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
       downAt.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      const next = pickSnapPoint(candidates, project, cursorOf(e), PICK_RADIUS_PX);
+      const next = pickGuided(candidates, lines, project, cursorOf(e), rayOf(e), PICK_RADIUS_PX, units, SCENE_EXTENT);
       // Committed to React only when the pick actually changes. pointermove
       // fires far more often than that — the same "re-evaluate continuously,
       // commit only on change" pattern AdaptiveGrid uses for grid tiers.
@@ -157,7 +179,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
 
       // Re-picked at the release position rather than trusting the last
       // pointermove: a pen or touch click can produce no pointermove at all.
-      const hit = pickSnapPoint(candidates, project, cursorOf(e), PICK_RADIUS_PX);
+      const hit = pickGuided(candidates, lines, project, cursorOf(e), rayOf(e), PICK_RADIUS_PX, units, SCENE_EXTENT);
       // Read imperatively: `grabbed` from the render closure would be stale
       // for any event arriving between a store write and the next commit.
       const store = useStore.getState();
@@ -192,7 +214,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
     // `guides` and `showGuides` — so none of those belongs here again. `size.width`/
     // `.height` rather than `size` so a re-created size object does not
     // resubscribe.
-  }, [tool, candidates, gl, camera, size.width, size.height]);
+  }, [tool, candidates, lines, units, gl, camera, size.width, size.height]);
 
   // `hidden`: the capture's clean frame (standard-views spec §3.2) — the listeners stay live.
   if (tool !== 'move' || hidden) return null;

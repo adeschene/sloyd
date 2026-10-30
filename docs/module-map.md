@@ -640,7 +640,7 @@ src/
 ├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport (its StretchGuide: the stretch line's translucent plane, inv 64 — no raycast, no depth
 │                     write, no clipping plane), BoardMesh (inv 21), MoveTool +
-│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers,
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines),
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
 │                     viewCamera.ts (pure, TESTED: `orthoHeight` / `orthoZoomFor`, an ortho zoom stored as a visible HEIGHT so a window resize keeps the extent;
 │                     `pendingPoseReady`, the condition a saved-view pose waits on), framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
@@ -807,7 +807,7 @@ annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invarian
   geometry. A label's number is `CutListRow.number`, never recounted; its size is ONE `formatSize` over the row's cut length and
   width and the group's thickness (never `row.dims` plus a thickness: a metric `row.dims` already carries ` mm`). The sheet formats
   nothing; each paper is a named `@page` at margin 0, and the cells carry the stock's own geometry in its own unit.
-- **`snapPoints.ts`**: local→world is `position[axis] + toWorldOffset(board, axis,
+- **`snapPoints.ts`**: construction lines live here too: `lineCrossings(guides, extent)` (exact `===` crossings, `SnapOwner.cross`), `guideCandidates` (the ONE guide-owned list both tools offer: points plus crossings; `guideSnapPoints` is points only), `canonicalLine`/`sameLine`, `tapeLineFor` (the ONE decider both Enter sites call), `ownedByGuide`. Local→world is `position[axis] + toWorldOffset(board, axis,
   local[axisFrame(board)[axis].dim])`, then `leanMap(board).apply` for a leaning part (`fromWorld` inverts it — exactly only for an unleaned part). `pointToLocalXYZ` and `solidWorldBox` are
   CENTRE-relative and both look like they do this — using either puts every point off by
   half the board, plausibly. Pin with a rotated, non-flat pose. `towardFor` is the tape's
@@ -862,11 +862,12 @@ annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invarian
   `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
   `setKerf` refuses a kerf outside [0, 1) (fu 98; why: the tree).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
+- **`snapPick.ts`**: `pickSnapPoint` stays screen-space nearest, on purpose; `pickOnLine` (THREE-free) slides along a construction line (closest approach to the cursor ray, the along-line coordinate rounded by `snapToGrid`; a ray parallel to the line offers nothing; the slide point is clamped to the drawn end `±SCENE_EXTENT`, so a cursor within the pick radius of the end gets a point AT the end and one farther past it gets none); `pickGuided` composes them: a discrete candidate within the radius always wins, the slide only when none does.
 - **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
   post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
   only, never grab sources. Its dep list is inv 15's failure mode.
-- **`TapeTool.tsx`** subscribes to `tapeAxis`; locked with nothing typed draws NO line (a
-  decision; fu 130 is the alternative). A click while locked re-anchors and keeps the lock.
+- **`TapeTool.tsx`** subscribes to `tapeAxis`; locked with nothing typed draws the PREVIEW of the construction line Enter would place
+  (`ConstructionLine` with `preview`, construction-lines spec; this reverses the cardinal round's "draws nothing"). Its anchor and hover pick through `pickGuided`. A click while locked re-anchors and keeps the lock.
 - **`BoardMesh.tsx`**: its `stopPropagation` is load-bearing (a toggle reaching two solids
   is a no-op); `selectable` is required so Move's commit click cannot select its target.
 - **`Viewport.tsx`**: the projection swap re-frames only once `controls.object === camera`,
@@ -884,7 +885,8 @@ annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invarian
   `storage.available` (the ADAPTER flag, never React's `available`; fu 159). A row click closes the menu at once; a failed open
   reopens it on that row with the message, focus on the caret (fu 35; `onOpen`: the tree). Escape focuses the
   caret before closing (fu 152).
-- **`GuidesList.tsx`** has no selection model, deliberately.
+- **`GuidesList.tsx`** has no selection model, deliberately. A line's row prints its two fixing coordinates through `formatLength` (`Line along X · Y 12" · Z 3-1/2"`).
+- **`GuideLines.tsx`** (construction lines): each line is its own drei `Line` (`ConstructionLine`; not one batched `LineSegments`), `±SCENE_EXTENT` on its axis, dashed in `OriginAxes`' `AXIS_COLOR` with the dash held constant on screen (`dashScaleForScreenPeriod`, fu 27), depth-tested, `raycast={() => null}` (never a click target, inv 21), not clipped by the section. Mounted beside `GuideMarkers` when `showGuides && explode === 0`. A line exactly in the ground plane (`y === 0`, X or Z) is lifted by `OriginAxes`' `GROUND_LIFT` for display only.
 - **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
   Escape is bound on its subtree with `stopPropagation`, never on window (inv 27).
   ProjectMenu keeps its own copy, with the same fu 250 guard (the tree).

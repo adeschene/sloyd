@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
-import { offsetPoint, tapeAxisFromKey, towardFor } from '../document/document';
+import { isGuideLine, offsetPoint, sameLine, tapeAxisFromKey, tapeLineFor, towardFor } from '../document/document';
 import { useStore } from '../store/store';
 
 /**
@@ -52,6 +52,8 @@ export function TapeReadout() {
   const text = useStore((s) => s.tapeTyped);
   const setText = useStore((s) => s.setTapeTyped);
   const axis = useStore((s) => s.tapeAxis);
+  // Subscribed so the 'that line is already there' hint follows the document (inv 15's rule: a value read in render is a subscription).
+  const guides = useStore((s) => s.doc.guides);
   const [error, setError] = useState<TapeError>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -124,6 +126,10 @@ export function TapeReadout() {
       )
     : null;
 
+  // Derived, not an error state (plan A1): the line a bare Enter would place, and whether it is already there.
+  const pending = tapeLineFor(anchor.at, axis, text);
+  const duplicate = pending !== null && guides.some((g) => isGuideLine(g) && sameLine(g, pending));
+
   const commit = () => {
     const store = useStore.getState();
     const from = store.tapeAnchor;
@@ -131,6 +137,13 @@ export function TapeReadout() {
     // actions enumerated at `tapeHover`'s declaration in store.ts (invariant
     // 24's third instance). Read it rather than asserting it.
     if (!from) return;
+    // Locked with nothing typed is a LINE (construction-lines spec §3.2). A duplicate is a no-op that keeps the
+    // anchor and axis (plan A1): the hint, derived in render, says why nothing happened.
+    const line = tapeLineFor(from.at, store.tapeAxis, text);
+    if (line) {
+      if (store.addGuideLine(line.at, line.axis)) store.clearTapeAnchor();
+      return;
+    }
     // The SAME function TapeTool's preview memo calls, which is what keeps the
     // marker and the placement agreeing under both modes rather than only under
     // the ray one — design §4.
@@ -241,7 +254,13 @@ export function TapeReadout() {
         </span>
       ) : (
         <span className="tape-readout-hint">
-          {axis ? `Along ${axis.toUpperCase()} — Enter to place` : 'Type a distance, Enter to place'}
+          {axis
+            ? pending
+              ? duplicate
+                ? `Along ${axis.toUpperCase()} — that line is already there; type a distance`
+                : `Along ${axis.toUpperCase()} — Enter for a line, or type a distance`
+              : `Along ${axis.toUpperCase()} — Enter to place`
+            : 'Type a distance, Enter to place'}
         </span>
       )}
     </div>
