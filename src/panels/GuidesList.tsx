@@ -22,7 +22,7 @@ import type { Units } from '../units/length';
  * The row text and the remove label, built ONCE from one formatting of the
  * fixed coordinates so the two cannot disagree (inv 19's spirit). A line prints
  * its two fixed axes in X, Y, Z order; the along-axis coordinate is 0 by
- * construction and says nothing (construction-lines spec §3.5).
+ * construction and says nothing (construction-lines spec §2.2; row format §6).
  */
 function describe(g: Guide, units: Units): { row: string; remove: string } {
   if (!isGuideLine(g)) {

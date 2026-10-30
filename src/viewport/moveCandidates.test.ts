@@ -91,7 +91,7 @@ describe('moveCandidates with shared definitions (components spec §4.1)', () =>
   });
 });
 
-describe('moveCandidates with construction lines (construction-lines spec §5)', () => {
+describe('moveCandidates with construction lines (construction-lines spec §4)', () => {
   // x- and y-axis lines through z = 3 cross at (4, 7, 3)... canonical at[axis] = 0.
   const lineX = { id: 'lx', at: [0, 7, 3] as [number, number, number], axis: 'x' as const };
   const lineY = { id: 'ly', at: [4, 0, 3] as [number, number, number], axis: 'y' as const };

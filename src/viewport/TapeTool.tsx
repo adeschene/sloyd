@@ -34,6 +34,10 @@ const projected = new THREE.Vector3();
  */
 const TAPE_COLOR = SNAP_COLORS.guide;
 
+/** Reused for every pointer event: a per-event allocation would churn on each pointermove. */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
 /**
  * The Tape tool: click a snap point to anchor, hover a second to read the
  * distance, click to place a guide point there (or type a length in the
@@ -46,10 +50,6 @@ const TAPE_COLOR = SNAP_COLORS.guide;
  *
  * Renders nothing and listens to nothing unless `tool === 'tape'`.
  */
-/** Reused for every pointer event: a per-event allocation would churn on each pointermove. */
-const raycaster = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-
 export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: boolean; hidden?: boolean }) {
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => worldParts(s.doc));
@@ -134,7 +134,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     [tool, boards, hiddenIds, guides, showGuides, section],
   );
 
-  // Memoised beside the candidates: the handlers close over it (construction-lines spec §5).
+  // Memoised beside the candidates: the handlers close over it (construction-lines spec §4).
   const lines = useMemo(
     () => tool !== 'tape' || !showGuides ? [] : guides.filter(isGuideLine),
     [tool, guides, showGuides],
@@ -170,7 +170,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
-    /** The cursor's world ray, for sliding along a construction line (construction-lines spec §5). */
+    /** The cursor's world ray, for sliding along a construction line (construction-lines spec §4.1). */
     const rayOf = (e: PointerEvent) => {
       const rect = el.getBoundingClientRect();
       ndc.set(((e.clientX - rect.left) / size.width) * 2 - 1, -((e.clientY - rect.top) / size.height) * 2 + 1);
@@ -382,7 +382,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   if (tool !== 'tape' || hidden) return null;
 
   // The line Enter would place under a lock with nothing typed (spec §3.5).
-  const lineAt = anchor && axis && typed.trim() === '' ? tapeLineFor(anchor.at, axis, typed) : null;
+  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed);
 
   return (
     <>

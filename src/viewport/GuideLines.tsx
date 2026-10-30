@@ -30,7 +30,7 @@ const PREVIEW_OPACITY = 0.9;
 
 /**
  * One construction line, `±SCENE_EXTENT` along `axis` through `at` (construction-lines
- * spec §3.5). Dashed in the axis hue (AXIS_COLOR, shared with OriginAxes so the two
+ * spec §5). Dashed in the axis hue (AXIS_COLOR, shared with OriginAxes so the two
  * cannot drift). Depth-tested and not clipped by the section plane, like the guide
  * markers; never a click target (inv 21 — the Line raycast threshold is a bad hit
  * target, and a line is removed from the Guides list).

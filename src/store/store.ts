@@ -626,7 +626,7 @@ interface StoreState {
   selectLinked: (id: string) => void;
 
   addGuide: (at: [number, number, number]) => void;
-  /** Add an infinite construction line through `at` along `axis` (construction-lines spec §3); false when refused (exploded) or already there. */
+  /** Add an infinite construction line through `at` along `axis` (construction-lines spec §3.3); false when refused (exploded) or already there. */
   addGuideLine: (at: [number, number, number], axis: TapeAxis) => boolean;
   /** Saved views (spec §3): each is one undo entry, allowed while exploded (inv 47 carve-out), refused mid-gesture. */
   saveView: (camera: SavedViewCamera) => string | null;
@@ -2639,7 +2639,7 @@ export const useStore = create<StoreState>((set, get) => {
       edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
     },
 
-    // Construction-lines spec §3: canonical (at[axis] = 0), so a duplicate is decided on the line itself. The
+    // Construction-lines spec §3.3: canonical (at[axis] = 0), so a duplicate is decided on the line itself. The
     // duplicate check sits BEFORE edit(): edit() pushes an undo snapshot and clears redo, so a no-op add
     // would leave a no-op entry (inv 4) and wipe the redo stack. Like addGuide, selection is untouched.
     addGuideLine: (at, axis) => {

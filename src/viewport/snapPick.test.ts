@@ -140,6 +140,20 @@ describe('pickOnLine / pickGuided', () => {
     expect(pick([yLine], 50, 50)).toBeNull();
   });
 
+  it('slides on an OBLIQUE ray (the b*q term): origin [3,5,1], dir [0.2,-1,0] meets the line at x = 4', () => {
+    // Hand-checked: w = P-O = [-3,-5,0]; b = 0.2, c = 1.04, p = -3, q = 4.4, t = (0.88+3.12)/(1.04-0.04) = 4.
+    const line: GuideLine = { id: 'O', at: [0, 0, 1], axis: 'x' };
+    const ray = { origin: [3, 5, 1] as [number, number, number], dir: [0.2, -1, 0] as [number, number, number] };
+    const hit = pickOnLine([line], project, { x: 40, y: 10 }, ray, PICK_RADIUS_PX, IMPERIAL, 120)!;
+    expect(hit.at).toEqual([4, 0, 1]);
+  });
+
+  it('offers nothing for a NEAR-parallel ray (not exactly parallel), and no NaN', () => {
+    const yLine: GuideLine = { id: 'Y', at: [5, 0, 5], axis: 'y' };
+    const ray = { origin: [5, 100, 5] as [number, number, number], dir: [1e-6, -1, 0] as [number, number, number] };
+    expect(pickOnLine([yLine], project, { x: 50, y: 50 }, ray, PICK_RADIUS_PX, IMPERIAL, 120)).toBeNull();
+  });
+
   it('clamps to the extent and rounds; a cursor past the end offers nothing', () => {
     expect(pick([xLine(2)], 1199.8, 20)!.at[0]).toBe(120);
     expect(pick([xLine(2)], 1300, 20)).toBeNull();

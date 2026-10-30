@@ -776,10 +776,13 @@ export default function App() {
         }
       }
 
-      // Enter with nothing typed under an axis lock places a construction LINE (construction-lines spec §3.3); the
+      // Enter with nothing typed under an axis lock places a construction LINE (construction-lines spec §3.2); the
       // readout's own Enter does the same once its box has focus. Modifier test in the CONDITION, as above. Anything
       // else (no anchor, no axis, something typed, a duplicate line) falls through; a duplicate keeps the anchor.
-      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      // A focused button, link or summary falls through too: Enter on it is that control's own activation, which the
+      // preventDefault below would swallow.
+      const onControl = e.target instanceof Element && e.target.closest('button, a, summary, [role="button"]') !== null;
+      if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !onControl) {
         const { tool, tapeAnchor, tapeAxis, tapeTyped, addGuideLine, clearTapeAnchor } = useStore.getState();
         const line = tool === 'tape' ? tapeLineFor(tapeAnchor?.at ?? null, tapeAxis, tapeTyped) : null;
         if (line) {

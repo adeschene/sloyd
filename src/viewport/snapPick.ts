@@ -111,7 +111,7 @@ const AXIS_INDEX = { x: 0, y: 1, z: 2 } as const;
 
 /**
  * The point on an axis-parallel construction line nearest the cursor's ray,
- * slid along the line and rounded to the drag grid (construction-lines spec §3).
+ * slid along the line and rounded to the drag grid (construction-lines spec §4.1).
  *
  * The line is `P + t*e` (`e` the unit axis, `P = line.at`, whose along
  * coordinate is 0 by the canonical form, so `t` IS the world coordinate along

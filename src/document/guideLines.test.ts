@@ -45,7 +45,7 @@ import type { Guide } from './document';
 
 const L = (id: string, at: [number, number, number], axis: 'x' | 'y' | 'z'): Guide => ({ id, at, axis });
 
-describe('lineCrossings (construction-lines spec §3)', () => {
+describe('lineCrossings (construction-lines spec §4.2)', () => {
   it('gives one crossing for an X and a Z line sharing y', () => {
     expect(lineCrossings([L('a', [0, 5, 2], 'x'), L('b', [3, 5, 0], 'z')], 120)).toEqual([
       { kind: 'line-cross', at: [3, 5, 2], owner: { type: 'guide', id: 'a', cross: 'b' } },

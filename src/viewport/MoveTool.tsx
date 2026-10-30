@@ -36,16 +36,16 @@ const projected = new THREE.Vector3();
  */
 const isBoardOwned = (p: SnapPoint): p is BoardSnapPoint => p.owner.type === 'board';
 
+/** Reused for every pointer event: a per-event allocation would churn on each pointermove. */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
 /**
  * The Move tool: click a snap point to grab it, click another to drop the
  * grabbed board so the two points coincide exactly.
  *
  * Renders nothing and listens to nothing unless `tool === 'move'`.
  */
-/** Reused for every pointer event: a per-event allocation would churn on each pointermove. */
-const raycaster = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-
 export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: boolean; hidden?: boolean }) {
   const tool = useStore((s) => s.tool);
   const doc = useStore((s) => s.doc);
@@ -137,7 +137,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
-    /** The cursor's world ray, for sliding along a construction line (construction-lines spec §5). */
+    /** The cursor's world ray, for sliding along a construction line (construction-lines spec §4.1). */
     const rayOf = (e: PointerEvent) => {
       const rect = el.getBoundingClientRect();
       ndc.set(((e.clientX - rect.left) / size.width) * 2 - 1, -((e.clientY - rect.top) / size.height) * 2 + 1);

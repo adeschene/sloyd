@@ -560,7 +560,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–567). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–582). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
@@ -572,7 +572,7 @@ This list is the triage's open set — when an entry's status changes, change it
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
 - **Open, cosmetic and not small:** 33 (one drawn ring centre for every board's end grain).
-- **Open by decision:** 130 (ask before assuming it is wanted), 147, 163's residue (do not re-open unasked), 176, 207, 225,
+- **Open by decision:** 147, 163's residue (do not re-open unasked), 176, 207, 225,
   232, 241, 295, 315 (needs 232), 349 (ask first), 389 (ask first), 393(2) (left as is 2026-10-19), 396, 397 and 408 (only
   when a real project needs it), 417 (ask first), 431 (left as is 2026-10-23; do not re-open unasked). Record-only: 401, 403, 409, 413 (ask first), 414, 418, 420–428, 429 (ask first), 433 (ask first), 434, 435.
 - **Open, per round:** splayed legs 436 and 439 (ask first), 441 (by decision), 442, 443, 445; record-only 440, 446. Angled

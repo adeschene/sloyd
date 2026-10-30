@@ -6,9 +6,9 @@ const s = () => useStore.getState();
 beforeEach(() => s().replaceDocument(createDocument('Test')));
 
 const crossing = (a: string, b: string): SnapPoint =>
-  ({ position: [0, 0, 0], kind: 'guide', owner: { type: 'guide', id: a, cross: b } }) as unknown as SnapPoint;
+  ({ kind: 'line-cross', at: [0, 0, 0], owner: { type: 'guide', id: a, cross: b } });
 const slide = (id: string): SnapPoint =>
-  ({ position: [0, 0, 0], kind: 'guide', owner: { type: 'guide', id } }) as unknown as SnapPoint;
+  ({ kind: 'line', at: [0, 0, 0], owner: { type: 'guide', id } });
 
 describe('addGuideLine', () => {
   it('adds a canonical line as one undo entry, selection untouched', () => {
@@ -77,6 +77,16 @@ describe('removeGuide and held crossings', () => {
     const { C } = setup();
     const a = s().tapeAnchor;
     s().removeGuide(C);
+    expect(s().tapeHover).toBeNull();
+    expect(s().tapeAnchor).toBe(a);
+  });
+
+  it('removing the OTHER line of a held hover crossing clears the hover, keeps the anchor', () => {
+    const { A, B, C } = setup();
+    s().setTapeHover(crossing(A, B));
+    s().setTapeAnchor(slide(C));
+    const a = s().tapeAnchor;
+    s().removeGuide(B);
     expect(s().tapeHover).toBeNull();
     expect(s().tapeAnchor).toBe(a);
   });

@@ -38,7 +38,7 @@ describe('TapeReadout units', () => {
   });
 });
 
-describe('TapeReadout lines (construction-lines spec §3.3, plan A1)', () => {
+describe('TapeReadout lines (construction-lines spec §3.2, plan A1)', () => {
   const lockZ = (withLine = false) => {
     useStore.getState().replaceDocument(createDocument('T'));
     if (withLine) useStore.getState().addGuideLine([1, 2, 0], 'z');

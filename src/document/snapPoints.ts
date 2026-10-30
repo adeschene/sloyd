@@ -32,7 +32,7 @@ export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide' | 'line' 
  * typechecks on the union while meaning two different things. Every consumer
  * that means "this board" must narrow on `owner.type === 'board'` first.
  *
- * `cross` exists only on a line crossing (construction-lines spec §3): `id` is
+ * `cross` exists only on a line crossing (construction-lines spec §4.2): `id` is
  * the first line in array order, `cross` the second. "Owned by guide G" then
  * means `ownedByGuide`, never `owner.id === G` alone.
  */
@@ -509,7 +509,7 @@ export function sameLine(
 
 /**
  * Where two construction lines of different axes meet (construction-lines
- * spec §3): they agree EXACTLY on the third axis `k`. Exact on purpose — a
+ * spec §4.2): they agree EXACTLY on the third axis `k`. Exact on purpose — a
  * crossing is a point the user can snap to, and an ulp of disagreement means
  * the lines miss. Each pair is offered once, first in array order as `id`.
  * A crossing with a coordinate beyond ±`extent` is not offered: the lines are
@@ -545,7 +545,7 @@ export function guideCandidates(guides: Guide[], extent: number): SnapPoint[] {
 
 /**
  * The line a tape would place: an anchor, an axis the user pressed and nothing
- * typed (construction-lines spec §4). Typed text means a distance instead.
+ * typed (construction-lines spec §3.2). Typed text means a distance instead.
  */
 export function tapeLineFor(
   anchor: [number, number, number] | null,

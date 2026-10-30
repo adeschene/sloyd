@@ -1697,7 +1697,7 @@ describe('App type-anywhere tape capture', () => {
     await user.keyboard('{Escape}');
     expect(useStore.getState().tapeAnchor).toBeNull();
   });
-  // Enter with nothing typed under an axis lock places a construction line (construction-lines spec §3.3), from the
+  // Enter with nothing typed under an axis lock places a construction line (construction-lines spec §3.2), from the
   // window listener when focus is on the body.
   describe('Enter places a line', () => {
     const lockedX = async () => {
@@ -1748,6 +1748,14 @@ describe('App type-anywhere tape capture', () => {
       const user = await lockedX();
       await user.click(screen.getByRole('button', { name: /cut list/i }));
       enter();
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+      expect(useStore.getState().tapeAnchor).not.toBeNull();
+    });
+
+    it('falls through on a focused button: Enter there is the button\'s own, not a line', async () => {
+      await lockedX();
+      const btn = screen.getByRole('button', { name: /cut list/i });
+      act(() => { btn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); });
       expect(useStore.getState().doc.guides).toHaveLength(0);
       expect(useStore.getState().tapeAnchor).not.toBeNull();
     });

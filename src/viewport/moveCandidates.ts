@@ -22,7 +22,7 @@ import { SCENE_EXTENT } from './extent';
  *
  * Both branches go through snapPointsFor (box lattice + cut-owned points);
  * a cut point is most often a TARGET, on a part that is not selected.
- * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear after a grab only (their line crossings too, construction-lines spec §5),
+ * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear after a grab only (their line crossings too, construction-lines spec §4),
  * and hidden guides offer nothing (design §6). A HIDDEN part offers no
  * points in either branch: a marker must sit on something drawn (invariant
  * 16; hide/unhide spec §3).
