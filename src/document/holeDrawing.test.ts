@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { DRAWING_HOLE_SEGMENTS, holeDrawingSegments } from './holeDrawing';
+import { DRAWING_HOLE_SEGMENTS, holeDrawingSegments, holeDrawingTagged } from './holeDrawing';
+import { partGeometry } from './bodies';
+import { camLoop } from './holes';
+import { toWorld } from './snapPoints';
+import { camPart } from './camBoltFixtures';
 import { FRONT, ISO, TOP } from './drawing';
 import { chiralHoled, sameSet } from './turnFixtures';
 import { mirrorPart } from './frames';
@@ -256,5 +260,64 @@ describe('a headed hole on the sheet (counterbores spec §8)', () => {
   });
   it('a headless row draws the same lines as before (one cylinder piece)', () => {
     expect(holeDrawingSegments(side([pin]), ISO.toward)).toHaveLength(2 * DRAWING_HOLE_SEGMENTS + 2);
+  });
+});
+
+describe('a cam pair is trimmed at the window (cam-and-bolt spec §6.1)', () => {
+  const part = camPart();
+  const holes = partGeometry(part).holes;
+  const bolts = holes.filter((h) => h.row === 'bolt');
+  const cams = holes.filter((h) => h.row === 'cam');
+  // The part is flat at turn 0: world = (length, thickness, width), so board-local = (x, z, y).
+  const loc = (p: readonly number[]): number[] => [p[0]!, p[2]!, p[1]!];
+  const views: Record<string, number[]> = { cam: [0, 1, 0], width: [0, 0, 1], length: [1, 0, 0] };
+  const rowSegs = (row: string, toward: number[], visibleOnly = false) => holeDrawingTagged(part, toward, visibleOnly).filter((s) => s.row === row);
+  const key = (p: readonly number[]) => p.map((x) => x.toFixed(9)).join(',');
+  // distance of a (local) point from a cam's axis (thickness, index 2)
+  const fromCamAxis = (q: readonly number[], f: (typeof cams)[number]) => Math.hypot(q[0]! - f.centre[0], q[1]! - f.centre[1]);
+  it('the bolt has no bottom rim', () => {
+    const e = bolts[0]!;
+    const bottom = e.centre[0] + e.dir * e.depth;
+    for (const [name, toward] of Object.entries(views)) {
+      for (const s of rowSegs('bolt', toward)) for (const p of [s.A, s.E]) expect(Math.abs(p[0] - bottom) > 1e-6, name).toBe(true);
+    }
+  });
+  it('the loop is drawn: DRAWING_HOLE_SEGMENTS segments on camLoop(h, 96), per bolt', () => {
+    for (const h of bolts) {
+      const loop = camLoop(h, DRAWING_HOLE_SEGMENTS).map((p) => key(toWorld(part, { length: p[0], width: p[1], thickness: p[2] })));
+      const set = new Set(loop);
+      const segs = rowSegs('bolt', views.cam!).filter((s) => set.has(key(s.A)) && set.has(key(s.E)));
+      expect(segs).toHaveLength(DRAWING_HOLE_SEGMENTS);
+    }
+  });
+  it('bolt silhouettes stop on the cam cylinder (1e-9)', () => {
+    for (const name of ['width', 'cam']) {
+      // A bolt silhouette runs along the length (world X) at constant y, z.
+      const walls = rowSegs('bolt', views[name]!).filter((s) => Math.abs(s.A[0] - s.E[0]) > 1e-3 && Math.abs(s.A[1] - s.E[1]) < 1e-12 && Math.abs(s.A[2] - s.E[2]) < 1e-12);
+      expect(walls.length, name).toBe(4);
+      for (const w of walls) {
+        const f = cams.find((c) => Math.abs(c.centre[1] - loc(w.A)[1]!) < 0.3)!;
+        expect(Math.abs(fromCamAxis(loc(w.E), f) - f.radius), name).toBeLessThan(1e-9);
+      }
+    }
+    // Looking along the bolt there are no silhouettes at all.
+    expect(rowSegs('bolt', views.length!)).toHaveLength(4 * DRAWING_HOLE_SEGMENTS);   // per bolt a mouth rim and the loop, no walls
+  });
+  it("the cam's silhouette on the bolt's side is split over the window; the far side is one piece", () => {
+    const e = bolts[0]!;
+    for (const f of cams) {
+      const walls = rowSegs('cam', views.width!).filter((s) => Math.abs(s.A[1] - s.E[1]) > 1e-9 && Math.abs(loc(s.A)[1]! - f.centre[1]) < 1e-9);
+      const nearX = f.centre[0] - e.dir * f.radius;
+      const near = walls.filter((s) => Math.abs(s.A[0] - nearX) < 1e-9);
+      const far = walls.filter((s) => Math.abs(s.A[0] - (f.centre[0] + e.dir * f.radius)) < 1e-9);
+      expect(near).toHaveLength(2);
+      expect(far).toHaveLength(1);
+      const ys = near.flatMap((s) => [s.A[1], s.E[1]]).sort((p, q) => p - q);   // world y = thickness
+      expect(ys[1]).toBeCloseTo(e.centre[2] - e.radius, 9);
+      expect(ys[2]).toBeCloseTo(e.centre[2] + e.radius, 9);
+    }
+  });
+  it("visibleOnly drops the clean pair's bolt walls and loop", () => {
+    expect(rowSegs('bolt', ISO.toward, true)).toHaveLength(2 * DRAWING_HOLE_SEGMENTS);   // the two mouth rims only
   });
 });

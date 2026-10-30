@@ -2,7 +2,7 @@ import type { Board } from './types';
 import type { V3 } from './angleCuts';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry } from './bodies';
-import { holeBottom, holePieces, holeRing, tiltedHole, type Hole } from './holes';
+import { camLoop, holeBottom, holePieces, holeRing, tiltedHole, type Hole } from './holes';
 import { holeInStock, stockChecks } from './holeFaults';
 import { toWorld } from './snapPoints';
 
@@ -41,6 +41,7 @@ export function holeDrawingTagged(b: Board, toward: readonly number[], visibleOn
   const P = (p: readonly number[]): Vec3 => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   // Per hole: its rims, then its wall silhouettes; the sheet takes every hole's rims first, then every wall.
   const lines = holes.map((h): { rims: Line[]; walls: Line[] } => {
+    if (h.mate && !h.head && !tiltedHole(h)) return h.mate.role === 'cam' ? boltLines(h, P, toward, inside(h)) : camLines(h, P, toward, inside(h));
     if (tiltedHole(h)) return tiltedLines(h, P, toward, inside(h));
     return h.head ? headedLines(h, P, toward, inside(h)) : squareLines(h, P, toward, inside(h));
   });
@@ -80,6 +81,76 @@ function squareLines(h: Hole, P: ToWorld, toward: readonly number[], clean: bool
     for (const s of [1, -1]) {
       const p0: Vec3 = [C[0] + s * r[0]!, C[1] + s * r[1]!, C[2] + s * r[2]!];
       walls.push({ A: p0, E: [p0[0] + A[0]!, p0[1] + A[1]!, p0[2] + A[2]!], row: h.row });
+    }
+  }
+  return { rims, walls };
+}
+
+/** The local offset of a silhouette generator from the axis (in-plane, board-local), by the same tu/tv weights `frameLines` uses
+ *  for the world radial r = (tv·U − tu·V)/n, so the generator is found through the one composition (inv 44). Null looking down the axis. */
+function silhouetteOffsets(h: Hole, P: ToWorld, toward: readonly number[]): { u: number; v: number; o: [number, number] }[] | null {
+  const a = DIMENSION_ORDER.indexOf(h.axis);
+  const [u, v] = [0, 1, 2].filter((i) => i !== a) as [number, number];
+  const at = (du: number, dv: number): Vec3 => {
+    const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
+    p[u] += du; p[v] += dv;
+    return P(p);
+  };
+  const C = at(0, 0);
+  const tu = dot(at(h.radius, 0).map((x, i) => x - C[i]!), toward);
+  const tv = dot(at(0, h.radius).map((x, i) => x - C[i]!), toward);
+  const n = Math.hypot(tu, tv);
+  if (n <= 1e-9 * h.radius) return null;
+  return [1, -1].map((s) => ({ u, v, o: [(s * h.radius * tv) / n, (-s * h.radius * tu) / n] as [number, number] }));
+}
+
+/** A cam pair's BOLT (spec §6.1): the mouth rim as `squareLines` draws it, NO bottom rim, the intersection loop `camLoop` as a
+ *  closed rim (a clean pair's is inside the stock: left out under visibleOnly), and each wall silhouette run from the mouth to
+ *  where it meets the cam's cylinder, local b = F.b − dir·√(R² − o_c²). */
+function boltLines(h: Hole, P: ToWorld, toward: readonly number[], clean: boolean): { rims: Line[]; walls: Line[] } {
+  const F = h.mate!;
+  const a = DIMENSION_ORDER.indexOf(h.axis);
+  const c = 3 - DIMENSION_ORDER.indexOf(F.axis) - a;
+  const rims = squareLines(h, P, toward, true).rims;   // clean: the mouth rim only (the blind bottom and the walls are left out)
+  const walls: Line[] = [];
+  if (!clean) {
+    const loop = camLoop(h, DRAWING_HOLE_SEGMENTS).map(P);
+    for (let i = 0; i < loop.length; i += 1) rims.push({ A: loop[i]!, E: loop[(i + 1) % loop.length]!, row: h.row });
+    for (const s of silhouetteOffsets(h, P, toward) ?? []) {
+      const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
+      p[s.u] += s.o[0]; p[s.v] += s.o[1];
+      const q: V3 = [p[0], p[1], p[2]];
+      q[a] = F.centre[a]! - h.dir * Math.sqrt(Math.max(0, F.radius * F.radius - (p[c]! - F.centre[c]!) ** 2));
+      walls.push({ A: P(p), E: P(q), row: h.row });
+    }
+  }
+  return { rims, walls };
+}
+
+/** A cam pair's CAM (spec §6.1): `squareLines`' rims, its two walls but each generator on the bolt's side that runs across the
+ *  bolt's opening split in two pieces either side of the window `a ∈ E.a ± √(r² − o_c²)` (the bolt's air). */
+function camLines(h: Hole, P: ToWorld, toward: readonly number[], clean: boolean): { rims: Line[]; walls: Line[] } {
+  const E = h.mate!;
+  const a = DIMENSION_ORDER.indexOf(h.axis);
+  const bi = DIMENSION_ORDER.indexOf(E.axis);
+  const ci = 3 - a - bi;
+  const { rims } = squareLines(h, P, toward, clean);
+  const walls: Line[] = [];
+  if (!clean) {
+    for (const s of silhouetteOffsets(h, P, toward) ?? []) {
+      const p: V3 = [h.centre[0], h.centre[1], h.centre[2]];
+      p[s.u] += s.o[0]; p[s.v] += s.o[1];
+      const ob = p[bi]! - h.centre[bi]!;
+      const oc = p[ci]! - E.centre[ci]!;
+      const at = (t: number): Vec3 => { const q: V3 = [p[0], p[1], p[2]]; q[a] += h.dir * t; return P(q); };
+      if (ob * E.dir < 0 && Math.abs(oc) < E.radius) {
+        const w = Math.sqrt(E.radius * E.radius - oc * oc);
+        const te = h.dir * (E.centre[a]! - h.centre[a]!);
+        const lo = te - w;
+        const hi = te + w;
+        if (lo > 0) walls.push({ A: at(0), E: at(Math.min(lo, h.depth)), row: h.row });
+        if (hi < h.depth) walls.push({ A: at(Math.max(hi, 0)), E: at(h.depth), row: h.row });
+      } else walls.push({ A: at(0), E: at(h.depth), row: h.row });
     }
   }
   return { rims, walls };
