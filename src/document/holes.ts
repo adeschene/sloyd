@@ -159,25 +159,29 @@ export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
 }
 
 /** "Cam lock" (cam-and-bolt spec §4.1): a 15 mm cam bore in the broad face, 24 mm in from `end`, and its 8 mm bolt bore 24 mm
- *  deep into that end, at the same stations (37 mm from each side, two when the width is at least 150 mm, else one centred).
+ *  deep into that end, at the same stations (37 mm from each side, two when the width is at least 150 mm, else one centred; a given `count` overrides that, and
+ *  `camFrom` picks which broad face the cam enters, `max` by default).
  *  The cam is deep enough for the half-thickness plus 4.5 mm, rounded up to the next half millimetre. Null when the broad
  *  face is the length (a part that short has no end to join). */
-export function defaultCamLock(b: Board, end: CutFrom): [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null {
+export function defaultCamLock(
+  b: Board, end: CutFrom, count?: number, camFrom?: CutFrom,
+): [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null {
   const face = broadFace(b);
   if (face === 'length') return null;
   // Spec Amended R12 (the user's ruling 2026-10-30): only on stock thicker than 1/2" (a 15 mm housing wants depth).
   if (b[face] <= 0.5 + 1e-9) return null;
   const along: Dimension = face === 'thickness' ? 'width' : 'thickness';
-  const two = b[along] * 25.4 >= 150 - 1e-9;
-  const station = two ? mm(37) : b[along] / 2;
-  const count = two ? 2 : 1;
-  const pitch = two ? b[along] - 2 * mm(37) : 0;
+  // A given count (cam-and-bolt joint spec §3.2) overrides the width rule: one is centred, two or more start 37 mm in and
+  // divide the rest in ONE division, so the last lands exactly 37 mm from the far side.
+  const n = count ?? (b[along] * 25.4 >= 150 - 1e-9 ? 2 : 1);
+  const station = n >= 2 ? mm(37) : b[along] / 2;
+  const pitch = n >= 2 ? (b[along] - 2 * mm(37)) / (n - 1) : 0;
   const cam: Omit<HoleRow, 'id'> = {
-    face, from: 'max', diameter: mm(15), depth: mm(Math.ceil((b[face] * 25.4 / 2 + 4.5) * 2 - 1e-9) / 2),
-    along, alongFrom: 'min', station, count, pitch, acrossFrom: end, inset: mm(24),
+    face, from: camFrom ?? 'max', diameter: mm(15), depth: mm(Math.ceil((b[face] * 25.4 / 2 + 4.5) * 2 - 1e-9) / 2),
+    along, alongFrom: 'min', station, count: n, pitch, acrossFrom: end, inset: mm(24),
   };
   const bolt: Omit<HoleRow, 'id'> = {
-    face: 'length', from: end, diameter: mm(8), depth: mm(24), along, alongFrom: 'min', station, count, pitch,
+    face: 'length', from: end, diameter: mm(8), depth: mm(24), along, alongFrom: 'min', station, count: n, pitch,
     acrossFrom: 'min', inset: b[face] / 2,
   };
   return [cam, bolt];
