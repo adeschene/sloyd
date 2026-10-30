@@ -89,4 +89,53 @@ describe('TapeReadout lines (construction-lines spec §3.2, plan A1)', () => {
     expect(useStore.getState().doc.guides).toHaveLength(0);
     expect(screen.getByTestId('tape-readout-error').textContent).toBe('Hover a point, or press X / Y / Z');
   });
+
+  describe('no axis, a hover', () => {
+    const hov = { at: [4, 6, 3], owner: { type: 'guide', id: 'h' } } as never;
+    const oblique = (stored = false) => {
+      const box = lockZ();
+      if (stored) useStore.getState().addGuideLine({ at: [1, 2, 3], to: [4, 6, 3] });
+      act(() => {
+        useStore.getState().setTapeAxis(null);
+        useStore.getState().setTapeHover(hov);
+      });
+      return box;
+    };
+
+    it('Enter in the input adds one oblique guide and clears the anchor', async () => {
+      const box = oblique();
+      await userEvent.type(box, '{Enter}');
+      expect(useStore.getState().doc.guides).toEqual([expect.objectContaining({ at: [1, 2, 3], to: [4, 6, 3] })]);
+      expect(useStore.getState().tapeAnchor).toBeNull();
+    });
+
+    it('Enter with no hover shows the no-direction error and adds nothing', async () => {
+      const box = lockZ();
+      act(() => useStore.getState().setTapeAxis(null));
+      await userEvent.type(box, '{Enter}');
+      expect(useStore.getState().doc.guides).toHaveLength(0);
+      expect(screen.getByTestId('tape-readout-error').textContent).toBe('Hover a point, or press X / Y / Z');
+    });
+
+    it('the hint offers the line with a hover, the distance without', () => {
+      oblique();
+      expect(hint()).toBe('Enter for a line through both points, or type a distance');
+      act(() => useStore.getState().setTapeHover(null));
+      expect(hint()).toBe('Type a distance, Enter to place');
+    });
+
+    it('the hint says an already-stored line is there', () => {
+      oblique(true);
+      expect(hint()).toBe('That line is already there; type a distance');
+    });
+
+    it('a typed 3 with a hover still adds a guide point', async () => {
+      const box = oblique();
+      await userEvent.type(box, '3{Enter}');
+      const g = useStore.getState().doc.guides;
+      expect(g).toHaveLength(1);
+      expect('to' in g[0]! ? g[0]!.to : undefined).toBeUndefined();
+      expect(g[0]!.axis).toBeUndefined();
+    });
+  });
 });

@@ -260,7 +260,11 @@ export function TapeReadout() {
                 ? `Along ${axis.toUpperCase()} — that line is already there; type a distance`
                 : `Along ${axis.toUpperCase()} — Enter for a line, or type a distance`
               : `Along ${axis.toUpperCase()} — Enter to place`
-            : 'Type a distance, Enter to place'}
+            : pending
+              ? duplicate
+                ? 'That line is already there; type a distance'
+                : 'Enter for a line through both points, or type a distance'
+              : 'Type a distance, Enter to place'}
         </span>
       )}
     </div>

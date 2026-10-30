@@ -382,8 +382,8 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   if (tool !== 'tape' || hidden) return null;
 
   // The line Enter would place under a lock with nothing typed (spec §3.5).
-  // Axis lines only until the oblique preview is wired (hover null here).
-  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed, null);
+  // Only an axis line is drawn until ConstructionLine takes an oblique one.
+  const lineAt = tapeLineFor(anchor?.at ?? null, axis, typed, hovered?.at ?? null);
 
   return (
     <>

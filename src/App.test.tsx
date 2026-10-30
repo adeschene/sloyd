@@ -1719,6 +1719,19 @@ describe('App type-anywhere tape capture', () => {
       expect(useStore.getState().tapeAnchor).toBeNull();
     });
 
+    it('with no axis, a hover and nothing typed adds an oblique line and clears the anchor', async () => {
+      await anchoredTape();
+      (document.activeElement as HTMLElement | null)?.blur();
+      const from = useStore.getState().tapeAnchor!.at;
+      const to: [number, number, number] = [from[0] + 3, from[1] + 4, from[2]];
+      await act(async () => { useStore.getState().setTapeHover({ at: to, owner: { type: 'guide', id: 'h' } } as never); });
+      enter();
+      const g = useStore.getState().doc.guides;
+      expect(g).toHaveLength(1);
+      expect(g[0]).toMatchObject({ at: from, to });
+      expect(useStore.getState().tapeAnchor).toBeNull();
+    });
+
     it('a duplicate adds nothing and keeps the anchor and axis', async () => {
       await lockedX();
       enter();
