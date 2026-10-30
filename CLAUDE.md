@@ -161,7 +161,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 | align / space evenly | `align.ts`, `alignText.ts`; store `alignItems`, `distributeItems`; `panels/AlignSection.tsx` (inv 25) |
 | stretch (parametric resize) | `stretch.ts` `stretchPlan`, `stretchPart.ts`, `cuts.ts` `stretchCut`, `stretchText.ts`; store `stretchItems`, `stretchGuide`; `panels/StretchSection.tsx` (inv 64) |
 | part labels | `labels.ts` (strings, sticker geometry), `panels/LabelsSheet.tsx` |
-| construction lines | `lineModel.ts` (the leaf: `NewLine`, `lineThrough`), `snapPoints.ts` (`lineCrossings`, `tapeLineFor`, `lineDir`, `lineSpan`, `heldRoot`/`heldBoard`), `lineFaces.ts` (`lineFaceHits`), `snapPick.ts` `pickOnLine`, `GuideLines.tsx`, store `moveGuideLine`, `planLines.ts` (invs 24, 25) |
+| construction lines | `lineModel.ts` (the leaf: `NewLine`, `lineThrough`), `snapPoints.ts` (`lineCrossings`, `tapeLineFor`, `lineDir`, `lineSpan`, `heldRoot`/`heldBoard`), `lineFaces.ts` (`lineFaceHits`), `snapPick.ts` `pickOnLine`/`pickGuide`, `GuideLines.tsx`, `GuidePicker.tsx`, `visibleGuides`, store `moveGuideLine`, `planLines.ts` (invs 24, 25) |
 | saved views | `document/views.ts`, `viewCamera.ts`, `ViewsFooter.tsx` (invs 43, 47) |
 | weight | `weight.ts`; density on the catalog (`MATERIALS`, `CustomMaterial.density`); text `units/quantity.ts` (inv 63) |
 | drawings | `drawing.ts` `drawView` (inv 47), `plans.ts`, `section.ts` (inv 51) |
@@ -181,7 +181,7 @@ or its role changes. Where a file's own doc comment is the stated single source 
 editing it** (`snapPoints.ts`, `cutlist.ts`/`diagram.ts`, `bodies.ts`, `angleCuts.ts`, `AngleCuts.tsx`, `nesting.ts`,
 `SheetLayout.tsx`, `plans.ts`, `featureKeys.ts`/`planKeys.ts`, `pocket.ts`, `prompt.ts`/`concepts.ts`, `SettingsDialog.tsx`,
 `useGenerations.ts`, `store.ts`, `MoveTool`, `TapeTool.tsx`, `BoardMesh.tsx`, `Viewport.tsx`, `DimensionField.tsx`,
-`ProjectMenu.tsx`, `GuidesList.tsx`, `Popover.tsx`, `styles.css`, `App.tsx` keys, `labels.ts`/`LabelsSheet.tsx`). A new per-file rule goes there, and
+`ProjectMenu.tsx`, `GuidesList.tsx`/`GuidePicker.tsx`, `Popover.tsx`, `styles.css`, `App.tsx` keys, `labels.ts`/`LabelsSheet.tsx`). A new per-file rule goes there, and
 its file's name here.
 
 ## Invariants — break these and things fail in confusing ways
@@ -360,14 +360,16 @@ changes.
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
     the ONE writer of a user's selection change. A selection change mid-drag ends the
-    gizmo's gesture and commits nothing. A group with a LEANING part rounds the delta instead (inv 57).
-43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The four user
-    actions go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
+    gizmo's gesture and commits nothing. With `guideSelectionPatch` it is a PAIR, the ONE writer: parts OR guides; an
+    empty part write keeps the guides, `selectBoard(null)` clears both. A group with a LEANING part rounds the delta instead (inv 57).
+43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The user's hide
+    actions (parts and guides) go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
     reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
     refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
     `tapeHover`.** Never return `visibleBoards`' array (or anything built from it) from a
     selector — filter in a memo or handler; a selector may reduce it to a PRIMITIVE. Hidden parts are still in the cut list, joinery,
-    checks, export and autosave. Consecutive hide/show toggles share ONE undo entry. `goToView` is a fifth action through `applyHidden`, its own undo entry; a saved view stores a copy.
+    checks, export and autosave. Consecutive hide/show toggles share ONE undo entry. `goToView` also goes through `applyHidden`, its own undo entry; a saved view stores a copy.
+    It writes BOTH hidden sets (guides, fu 591; views stay board-only); a hidden guide is not drawn or snapped, through ONE `visibleGuides`.
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
     (`toWorldOffset` and kin). **Never `board[dim] - u` at a call site.** Nothing branches on
     `rotation`'s value except `axisFrame`, the migrations, `generated.ts`'s `orient` and
@@ -398,8 +400,8 @@ changes.
       joinery's regroup joins a user only when the Shape resolves EXACTLY to it through its own flag.
     - A `lean`, `tenons` or `dovetails` key present as `undefined` REMOVES it (never stored).
 47. **Exploded is read-only.** `explode > 0`: `edit()`, `undo` and `redo` are the gate; a saved-view write (via `editViews`, only `views`) is the one document write allowed while exploded; actions
-    with side effects outside `edit()` refuse at entry (`readOnly()`; `moveGuideLine` among them); `setTool` refuses all but
-    Select; `setExplode` is the one writer. The UI lock is `EditLock`'s disabled `<fieldset>` around
+    with side effects outside `edit()` refuse at entry (`readOnly()`; `moveGuideLine`, `removeGuides` among them); `setTool` refuses all but
+    Select; `setExplode` is the one writer (above 0 it clears the guide selection). The UI lock is `EditLock`'s disabled `<fieldset>` around
     EDITING regions only; the explode offset is a render-time translation, never written back. **Drawings:**
     `drawView` takes lines from `boardEdges` and `holeDrawingSegments` (one hidden-line pass),
     occluders from the HOLE-FREE `worldBodies`; TAGGING a segment changes nothing else. A curved part's visibility is judged on the MODEL chord; ONE facing test (`EDGE_ON`).
@@ -555,7 +557,7 @@ changes.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 10525 tests across 304 files (timing guards can fail under load; re-run quiet before claiming a regression)
+npm test           # Vitest, currently 10593 tests across 306 files (timing guards can fail under load; re-run quiet before claiming a regression)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -564,14 +566,14 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–591). Every entry's LAST `**Status:**` line governs
+**`docs/follow-ups.md` is authoritative** (1–596). Every entry's LAST `**Status:**` line governs
 (numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber).
 This list is the triage's open set — when an entry's status changes, change it here too, or delete the number; some entries close mid-line, so read an entry whole.
 
 - **Feature-sized (need a spec):** 253 and 265 (schema bumps); 257, 258, 268, 270, 271, 274; 404–407 (hardware); angle cuts
   275, 276 (joint kinds only), 280; holes 330, 331, 334; curves 363 (authoring; design checks reading curved bodies),
   364–366; banding 399, 400; splayed legs 449, 450; stretchers 475–478, 480, 481; round tenons 457, 458, 460; square-set legs 470, 471; box joints 485 (and both dovetail kinds), 486–490, 492;
-  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 591 (asked for 2026-10-30, next session).
+  dovetails 498–503; half-blind 516 (rabbeted and overlay fronts); weight 522 (hardware weight); stretch 545–549 (ask first); glue-ups 556 (stored, schema 33 now; ask first), 557–563; counterbores 568 (cam-and-bolt), 569 (a head on a tilted row; ask first), 571 (AI authoring a head; ask first), 572 (a head at a through bore's exit), 573 (plugs as parts); construction lines 583, 584, 586–588 (ask first); selectable guides 592 (schema; ask first), 593, 594 (ask first).
 - **Owed to the user, not code:** by eye — counterbores (the Head select's place, the Plans side views, the exploded iso fu 570, the RefineDialog kept-why; `docs/browser-verification-counterbores.md`; the spec's *Amended (build)* R1–R3, `docs/rounds.md`), 142, 272 (a phone),
   384(2), 393, 394 (`docs/rounds.md`); 465(2)–(4) (round tenons); 106 (touch/pen); 153 (a browser at quota); a real print — 357
   (Brave, metric margin), 402(2); paid runs 172, 177. 336's grain seam waits for a texture/shader session. X-ray: Save image with it on, and an opened assembly's joints, by eye (`docs/browser-verification-xray.md`). Saved views: a resized window, export/import, the rows, by eye. Stretch: the panel with an assembly selected, the plane's look, a metric project, by eye (`docs/browser-verification-stretch.md`).
@@ -586,7 +588,7 @@ This list is the triage's open set — when an entry's status changes, change it
   record-only 513. Half-blind dovetails: 517 (ask first), 519 (left as is 2026-10-28; do not re-open unasked); record-only 521.
   Weight: 524 and 525 (ask first); record-only 523, 527. Part labels: 528, 529 and 531 (ask first); record-only 530, 533. Align:
   534–536 and 537's gesture (ask first); record-only 538. X-ray: 539 (ask first); record-only 543. Saved views: 540–542 (ask
-  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: 590 (snap hues to the CVD floors; approved in principle); record-only 589.
+  first); record-only 544. Stretch: 550 (ask first); record-only 551–555. Glue-ups: record-only 565–567. Counterbores: 570 (exploded-iso step rims, an unapproved build ruling); record-only 574, 576 and 577 (575 closed; 576's residue is its other minors). Construction lines round 2: 590 (snap hues to the CVD floors; approved in principle); record-only 589. Selectable guides: 591 (built; browser check owed), 596 (a ruling); record-only 595.
 - **Read before touching:** 26a before the viewport (software GL hides shader behaviour); invs 38, 41 and fu 180–206
   before `generate/joints/`; 322 before any `DESIGN_SCHEMA` change (one live compile); 76 (hatch vs cross-hatch: the
   legend carries it).

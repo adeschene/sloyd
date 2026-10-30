@@ -8501,3 +8501,33 @@ exist" (the `THREE.Line` raycast threshold makes a line a poor hit target; inv 2
 effect (inv 27); exploded (inv 47); a screen-space pick for lines (distance to the projected segment, like `pickOnLine`) instead of a raycast.
 Feature-sized; a separate session.
 **Status:** open (feature; the user asked for it 2026-10-30 — next session).
+**Status:** built, not deployed (2026-10-30, branch `selectable-guides`; spec `docs/superpowers/specs/2026-10-30-sloyd-selectable-guides-design.md`). Guides are selected by click in the viewport (Select tool, a screen-space pick, `GuidePicker`/`pickGuide`) and in the Guides list; Delete removes them as one undo entry; H / Shift+H hide them as view state through `applyHidden`; hidden guides are neither drawn nor snapped (`visibleGuides`). Invariants 42, 43 and 47 widened. The browser check is owed: `docs/browser-verification-selectable-guides.md`. Residue: fu 592–596.
+
+## From the selectable guides round (fu 591) — 2026-10-30
+
+**592. Selectable guides: hidden guides in saved views.** A saved view stores `views[].hidden` (parts only); `goToView` and `saveView` never
+read or write `hiddenGuideIds`, so going to a view leaves the guides as they are. Storing hidden guides in a view needs a new field on `views[]`,
+so a schema bump (a build one version back would drop it silently). Selectable guides spec §1 non-goals, §3.4.
+**Status:** open (feature; schema bump; ask first).
+
+**593. Selectable guides: a guide properties panel.** Properties stays board-only: with a guide selected it shows its empty state plus one line
+(the count and the keys). A panel for a guide (a point's coordinates, a line's axis or ends) would duplicate the Guides list's row. Selectable
+guides spec §1 non-goals, §6.
+**Status:** open (feature; record-only).
+
+**594. Selectable guides: dragging a guide.** A selected guide cannot be moved by drag; a line's typed coordinates stay in the list, and points stay
+delete-and-replace (fu 585, fu 130). Selectable guides spec §1 non-goals.
+**Status:** open (feature; ask first; cf fu 585).
+
+**595. Selectable guides: build-time residue.** (1) `DEPTH_EPS` (1e-6) is in NDC, whose resolution falls with distance under perspective, so at a
+far perspective zoom a line slightly behind a face can be clicked through it (the 1/16" `OCCLUDER_BEYOND_INCHES` is in world units and dominates
+near the camera). (2) The Gizmo is not an occluder (by ruling): a still click on a Gizmo handle within 12 px (`PICK_RADIUS_PX`) of a line selects
+the line. (3) Faded parts (X-ray, outside an open assembly) still occlude a line for picking, though drawn see-through. (4) Shift+double-click on
+a guide toggles it twice (two clicks, each a toggle), ending where it began. (5) The Guides footer opens when a guide BECOMES selected
+(`selectedGuideIds.length > 0`); after the user collapses it by hand while a selection persists, selecting a different guide does not reopen it.
+**Status:** open (record-only).
+
+**596. Selectable guides: opening an assembly keeps a guide selection.** A guide has no assembly level, so `openPath` filters no guide id and
+`openAssembly` re-asserts only an EMPTY part selection, which keeps the guides (inv 42; spec §3.2, as specified). (`closeAssembly` selects the
+assembly it leaves, a non-empty part write, so leaving does clear it.) The user may rule otherwise (clear it on entering too).
+**Status:** open (a ruling for the user; record-only until then).
