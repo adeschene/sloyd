@@ -2320,3 +2320,104 @@ describe('App edit lock while exploded', () => {
     expect(button('Delete').disabled).toBe(false);
   });
 });
+
+describe('App keys on a guide selection (selectable guides, fu 591)', () => {
+  const mountWithGuides = async () => {
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => {
+      useStore.getState().setTool('select');
+      useStore.getState().selectBoard(null);
+      useStore.getState().addBoard();
+      useStore.getState().selectBoard(null);
+      useStore.getState().addGuide([1, 0, 0]);
+      useStore.getState().addGuide([2, 0, 0]);
+      useStore.getState().addGuide([3, 0, 0]);
+    });
+    const ids = useStore.getState().doc.guides.map((g) => g.id);
+    act(() => useStore.getState().selectGuides([ids[0]!]));
+    return { ids, user: userEvent.setup() };
+  };
+
+  it('Delete removes the selected guide as one undo entry', async () => {
+    const { ids, user } = await mountWithGuides();
+    const before = useStore.getState().past.length;
+    await user.keyboard('{Delete}');
+    expect(useStore.getState().doc.guides.map((g) => g.id)).toEqual([ids[1], ids[2]]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+  });
+
+  it('Backspace does the same', async () => {
+    const { ids, user } = await mountWithGuides();
+    await user.keyboard('{Backspace}');
+    expect(useStore.getState().doc.guides).toHaveLength(2);
+    expect(useStore.getState().doc.guides.some((g) => g.id === ids[0])).toBe(false);
+  });
+
+  it('Delete removes nothing while the tape is anchored', async () => {
+    const { user } = await mountWithGuides();
+    act(() => {
+      useStore.getState().setTool('tape');
+      useStore.getState().setTapeAnchor(boardSnapPoints(worldParts(useStore.getState().doc)[0]!)[0]!);
+    });
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+    await user.keyboard('{Delete}');
+    expect(useStore.getState().doc.guides).toHaveLength(3);
+    act(() => { useStore.getState().clearTapeAnchor(); useStore.getState().setTool('select'); });
+  });
+
+  it('H hides the selected guide; Shift+H hides the other guides and leaves parts', async () => {
+    const { ids, user } = await mountWithGuides();
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenGuideIds).toEqual([ids[0]]);
+    act(() => useStore.getState().showAll());
+    act(() => useStore.getState().selectGuides([ids[0]!]));
+    await user.keyboard('{Shift>}H{/Shift}');
+    expect([...useStore.getState().hiddenGuideIds].sort()).toEqual([ids[1], ids[2]].sort());
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('Alt+H shows everything', async () => {
+    const { ids, user } = await mountWithGuides();
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenGuideIds).toEqual([ids[0]]);
+    fireEvent.keyDown(document.body, { key: '˙', code: 'KeyH', altKey: true });
+    expect(useStore.getState().hiddenGuideIds).toEqual([]);
+  });
+
+  it('Escape clears the guide selection when nothing else is held', async () => {
+    const { user } = await mountWithGuides();
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+  });
+
+  it('switching guides off clears the guide selection; switching them back on selects nothing (spec §7)', async () => {
+    const { ids, user } = await mountWithGuides();
+    expect(useStore.getState().selectedGuideIds).toEqual([ids[0]]);
+    await user.click(screen.getByTitle('Show guide points and lines'));
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+    await user.click(screen.getByTitle('Show guide points and lines'));
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+  });
+
+  it('Escape backs out a lower rung before the guide selection (the guide rung is last)', async () => {
+    const { ids, user } = await mountWithGuides();
+    act(() => useStore.getState().setTool('tape'));
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tool).toBe('select');
+    expect(useStore.getState().selectedGuideIds).toEqual([ids[0]]);
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().selectedGuideIds).toEqual([]);
+  });
+
+  it('Delete with a part selected still deletes the part', async () => {
+    const { user } = await mountWithGuides();
+    const partId = worldParts(useStore.getState().doc)[0]!.id;
+    act(() => useStore.getState().selectBoard(partId));
+    // Properties focuses a field on selection; a key typed there is text entry.
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await user.keyboard('{Delete}');
+    expect(worldParts(useStore.getState().doc).some((b) => b.id === partId)).toBe(false);
+    expect(useStore.getState().doc.guides).toHaveLength(3);
+  });
+});

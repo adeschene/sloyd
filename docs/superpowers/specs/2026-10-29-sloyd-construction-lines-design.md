@@ -303,6 +303,11 @@ its axis.
 - Picking a line in the viewport (click to select) does not exist, and must not: a line
   is removed from the list, for the reason `GuidesList`'s comment gives about
   `THREE.Line` raycast thresholds.
+  *Amended (2026-10-30):* reversed by selectable guides (fu 591,
+  `2026-10-30-sloyd-selectable-guides-design.md` §2). A line is still never a RAYCAST
+  target (`raycast={() => null}` stays); it is picked in SCREEN SPACE by pixel distance to
+  the projected segment (`GuidePicker` → `pickGuide`, sharing `closestOnLine` with
+  `pickOnLine`), Select tool only, occluded by the first part under the cursor.
 - Performance: one `LineSegments` geometry for all lines, rebuilt only when `guides`
   changes (memoised on the array). Tens of lines cost nothing measurable, so no perf
   guard is added.

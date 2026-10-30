@@ -117,7 +117,7 @@ describe('undo reconciles the open assembly (assemblies spec §3.1)', () => {
     s().openAssembly('i1');
     s().openAssembly('i1/i2');
     const without = removeItems(s().doc, ['i1/i2']);
-    useStore.setState({ past: [{ doc: without, hiddenIds: [] }] });
+    useStore.setState({ past: [{ doc: without, hiddenIds: [], hiddenGuideIds: [] }] });
     s().undo();
     expect(s().openPath).toBe('i1');
   });
@@ -528,7 +528,7 @@ describe('undo and redo drop what a closed level held (fu 228)', () => {
     s().selectBoard('i1/i2/b3');
     s().setTapeAnchor(heldOn('i1/i2/b3'));
     const without = removeItems(s().doc, ['i1/i2']);
-    useStore.setState({ past: [{ doc: without, hiddenIds: [] }] });
+    useStore.setState({ past: [{ doc: without, hiddenIds: [], hiddenGuideIds: [] }] });
     s().undo();
     expect(s().openPath).toBe('i1');
     expect(s().selectedIds).toEqual([]);
@@ -543,7 +543,7 @@ describe('undo and redo drop what a closed level held (fu 228)', () => {
     s().openAssembly('i1');
     s().openAssembly('i1/i2');
     s().selectBoard('i1/i2/b3');
-    useStore.setState({ past: [{ doc: removeItems(s().doc, ['i1']), hiddenIds: [] }] });
+    useStore.setState({ past: [{ doc: removeItems(s().doc, ['i1']), hiddenIds: [], hiddenGuideIds: [] }] });
     s().undo();
     expect([s().openPath, s().selectedIds]).toEqual([null, []]);
   });
@@ -551,7 +551,7 @@ describe('undo and redo drop what a closed level held (fu 228)', () => {
   it('a selected item that survives the undo stays selected', () => {
     s().openAssembly('i1');
     s().selectBoard('i1/b1');
-    useStore.setState({ past: [{ doc: removeItems(s().doc, ['i1/i2']), hiddenIds: [] }] });
+    useStore.setState({ past: [{ doc: removeItems(s().doc, ['i1/i2']), hiddenIds: [], hiddenGuideIds: [] }] });
     s().undo();
     expect([s().openPath, s().selectedIds]).toEqual(['i1', ['i1/b1']]);
   });

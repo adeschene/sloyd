@@ -14,6 +14,7 @@ import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
 import { GuideMarkers } from './GuideMarkers';
 import { GuideLines } from './GuideLines';
+import { GuidePicker } from './GuidePicker';
 import { MoveTool } from './MoveTool';
 import { OriginAxes } from './OriginAxes';
 import { TapeTool } from './TapeTool';
@@ -628,8 +629,11 @@ export function Viewport({
       {showAxes && <OriginAxes />}
       {/* Guide markers are world positions; while exploded they would sit away from the
           parts they belong to (invariant 16). */}
-      {showGuides && explode === 0 && <GuideMarkers />}
-      {showGuides && explode === 0 && <GuideLines />}
+      {/* `emphasise`: a guide's selected look is chrome, like a part's, so the capture's clean frame draws none. */}
+      {showGuides && explode === 0 && <GuideMarkers emphasise={!clean} />}
+      {showGuides && explode === 0 && <GuideLines emphasise={!clean} />}
+      {/* The guide selection's click (selectable-guides spec §4): Select tool only, under the guides' own condition. */}
+      {showGuides && explode === 0 && <GuidePicker enabled={tool === 'select'} />}
       <StretchGuide />
 
       {shown.map((board) => (

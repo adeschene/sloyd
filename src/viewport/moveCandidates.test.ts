@@ -1,5 +1,5 @@
 import { createBoard, createDocument, createGuide, itemKey, snapPointsFor } from '../document/document';
-import type { SloydDocument } from '../document/document';
+import type { Guide, SloydDocument, SnapPoint } from '../document/document';
 import { moveCandidates } from './moveCandidates';
 import { assemblyDoc } from '../document/treeFixtures';
 import { worldParts } from '../document/tree';
@@ -34,6 +34,27 @@ describe('moveCandidates', () => {
   it('hidden guides offer no target', () => {
     const points = moveCandidates(boards, guides, [a.id], [], true, false);
     expect(owners(points)).toEqual(new Set([b.id, c.id]));
+  });
+
+  // Selectable guides spec §3.5: a hidden guide offers no point, no crossing and no line-face hit.
+  it('a HIDDEN guide offers no candidate it owns, nor any crossing involving it', () => {
+    const lines: Guide[] = [
+      { id: 'LX', at: [0, 1, 2], axis: 'x' },
+      { id: 'LZ', at: [3, 0.5, 0], axis: 'z' }, // through b's wood: face hits on a target
+      { id: 'LY', at: [3, 0, 2], axis: 'y' },
+    ];
+    const all = [...guides, ...lines];
+    const shownAll = moveCandidates(boards, all, [a.id], [], true, true);
+    // The fixture must offer what the hide is to remove, or the test below passes for the wrong reason.
+    const involves = (p: SnapPoint, id: string) => p.owner.type === 'guide' && (p.owner.id === id || p.owner.cross === id);
+    expect(shownAll.some((p) => involves(p, 'LZ'))).toBe(true);
+    expect(shownAll.some((p) => p.kind === 'line-cross' && involves(p, 'LZ'))).toBe(true);
+    expect(shownAll.some((p) => p.kind === 'line-face' && involves(p, 'LZ'))).toBe(true);
+    const hidden = moveCandidates(boards, all, [a.id], [], true, true, undefined, ['LZ']);
+    expect(hidden.some((p) => involves(p, 'LZ'))).toBe(false);
+    // The rest are untouched: LX × LY still crosses, and the guide point is still offered.
+    expect(hidden.some((p) => p.kind === 'line-cross' && involves(p, 'LX') && involves(p, 'LY'))).toBe(true);
+    expect(owners(hidden).has(guides[0]!.id)).toBe(true);
   });
 
   it('a hidden part is never a target, and never a grab source', () => {

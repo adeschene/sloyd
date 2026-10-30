@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useStore } from '../store/store';
 import { guideSnapPoints } from '../document/document';
+import { visibleGuides } from '../store/visibility';
 import { SnapMarker } from './SnapMarker';
 
 /**
@@ -20,14 +21,25 @@ import { SnapMarker } from './SnapMarker';
  * TapeTool), on top of this one and at full size. Two markers at one position
  * is correct and is what produces the growth — same hue, so the small one
  * simply disappears inside the large one.
+ *
+ * A HIDDEN guide is not drawn (selectable-guides spec §3.5: through `visibleGuides`, in the memo, never a selector). A
+ * SELECTED guide point is drawn emphasised by the same mechanism a hover uses: a full-size marker over its resting one
+ * (spec §6), so a selected point reads exactly as a hovered one does.
  */
-export function GuideMarkers() {
+export function GuideMarkers({ emphasise }: { emphasise: boolean }) {
   const guides = useStore((s) => s.doc.guides);
-  const points = useMemo(() => guideSnapPoints(guides), [guides]);
+  const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
+  const selectedGuideIds = useStore((s) => s.selectedGuideIds);
+  const points = useMemo(() => guideSnapPoints(visibleGuides(guides, hiddenGuideIds)), [guides, hiddenGuideIds]);
+  // None in the capture's clean frame (`emphasise` false): a selected look is chrome, as a part's is.
+  const selected = useMemo(() => new Set(emphasise ? selectedGuideIds : []), [emphasise, selectedGuideIds]);
   return (
     <>
       {points.map((p) => (
         <SnapMarker key={p.owner.id} point={p} resting />
+      ))}
+      {points.filter((p) => selected.has(p.owner.id)).map((p) => (
+        <SnapMarker key={`selected-${p.owner.id}`} point={p} />
       ))}
     </>
   );

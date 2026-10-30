@@ -403,11 +403,19 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
     the ONE writer of a user's selection change. A selection change mid-drag ends the
     gizmo's gesture and commits nothing.
+    **Guides (selectable guides, fu 591, spec §3.2): `selectionPatch` and `guideSelectionPatch` are a PAIR, and the pair is the ONE
+    writer; a selection is parts OR guides, never both** (`selectedIds` / `selectedGuideIds`, two fields because ids are unique only
+    per kind, inv 33, and every part reader treats `selectedIds` as parts). A NON-EMPTY part write clears the guide selection; an
+    EMPTY one leaves it alone (the store re-asserts an empty part selection internally: `applyHidden`, `restore`, `deleteBoards`,
+    `openAssembly`, `edit()`'s callbacks), so the user's "select nothing" (`selectBoard(null)`, the viewport miss) clears BOTH
+    explicitly; Escape's last rung clears the guide selection (`selectGuides([])`). A NON-EMPTY guide write is `selectionPatch([])` plus the guides, so it carries every part-selection
+    change's drops (`grabbed`, `stretchGuide`). The guide half keeps only ids of existing, unhidden guides, once each, in order;
+    `openPath` filters no guide, and a guide selection never closes an open assembly. Never touches `tapeAnchor`/`tapeHover` (inv 24).
     **A group with any LEANING part rounds the DELTA instead** (`delta = snap(minCorner − bounds.min)` over `partsBounds`; splayed
     legs §6.2, inv 57): its real min corner is not a grid point, and rounding it would lift a levelled foot off the floor. Still one
     delta through `translateBoards`, never rounded inside it; a lean-free group is unchanged byte for byte.
-43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The four user
-    actions go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
+43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The user's hide
+    actions (four for parts, three for guides) go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
     reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
     refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
     `tapeHover`.** Never return `visibleBoards`' array (or anything built from it) from a selector — a fresh array every store write
@@ -417,8 +425,18 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Consecutive hide/show toggles share ONE undo entry (the run is the top of `past`, by identity;
     any edit, gesture snapshot, undo or redo ends it; a run back at its start leaves no entry).
     A saved view STORES a copy of the hidden set in `doc.views`; the live hidden set stays view state.
-    **Going to a saved view (`goToView`) is a fifth user action through `applyHidden`; it ends any hide run first, so it is its own undo entry** (none when the
+    **Going to a saved view (`goToView`) also goes through `applyHidden`; it ends any hide run first, so it is its own undo entry** (none when the
     hidden set already matches).
+    **Guides (fu 591, spec §3.4–3.5): `applyHidden(next, nextGuides)` is the ONE writer of BOTH `hiddenIds` and `hiddenGuideIds`.**
+    The three guide actions are `hideSelectedGuides`, `hideOtherGuides` and `setGuideHidden`; `showAll` shows both sets as one entry; `HistoryEntry` carries `hiddenGuideIds` beside `hiddenIds`, still the SAME `doc`. Part and guide toggles share ONE
+    run (back at its start only when BOTH sets are); a guide hide is refused while `gesturing`. The PROHIBITION above covers a
+    guide hide or show: do NOT reach for `dropHeldOwnedBy` there. `restore`, `edit()` (`removeGuides`, `clearGuides`) only reconcile
+    the guide set against the guides that exist; `replaceDocument` resets it. **Saved views are board-only**: `goToView` and
+    `saveView` never read or write `hiddenGuideIds`. A hidden guide is never selected (`guideSelectionPatch` drops it), never drawn
+    and never snapped to — no candidate it owns, no crossing involving a hidden line, no line-face hit of one — through ONE filter,
+    `visibility.ts` `visibleGuides`, which every drawing or snapping reader of `doc.guides` uses (`GuideMarkers`, `GuideLines`,
+    TapeTool, MoveTool / `moveCandidates`, `GuidePicker`). The selector rule above applies to it: filter in a memo. Hidden guides
+    stay in the Guides list (dimmed, select disabled), the document, autosave, export and the Plans sheet's construction lines.
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
     (`toWorldOffset`, `fromWorldOffset`, `spanToWorldOffset`, `spanFromWorldOffset`,
     `endFacing`). **Never `board[dim] - u` at a call site.** Nothing branches on
@@ -589,8 +607,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 47. **Exploded is read-only.** `explode > 0` means the model cannot change: `edit()`, `undo` and `redo` are the
     gate; **a saved-view write (`saveView`, `updateView`, `renameView`, `deleteView`) is the one document write allowed while exploded; it goes through
     `editViews` (`edit`'s `viewsOnly`) and touches only `views`; undo and redo stay refused while exploded;** any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
-    Ungroup, guide and board deletes, `moveGuideLine` (a line's typed coordinates), `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
-    stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
+    Ungroup, guide and board deletes (`removeGuides` included, fu 591), `moveGuideLine` (a line's typed coordinates), `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
+    stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. **`setExplode` above 0 clears
+    the guide selection** (selectable guides spec §7): guides are not drawn or picked while exploded (`GuidePicker` mounts with
+    `GuideMarkers`/`GuideLines` under `showGuides && explode === 0`) and the Guides list's eyes sit inside `EditLock`. The
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent), placed by `EditLock`
     around EDITING regions only (fu 262): the ActionBar sits outside it and disables its own non-`view` actions (Hide others,
     Select copies stay live), as do Select linked and the guides footer's disclosure. The explode

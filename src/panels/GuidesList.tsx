@@ -1,4 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
+import { isToggleModifier } from '../store/selectionGesture';
+import { EyeIcon } from './EyeIcon';
 import { isGuideLine, isGuideRay } from '../document/document';
 import type { Guide } from '../document/document';
 import { formatLength } from '../units/length';
@@ -6,18 +9,17 @@ import { DimensionField } from './DimensionField';
 import type { Units } from '../units/length';
 
 /**
- * The guides a project carries, and the only way to remove one.
+ * The guides a project carries: select, hide, edit and remove them (fu 591).
  *
- * DELIBERATELY NO SELECTION MODEL — no selectedGuideId, no Delete-key path,
- * nothing touching selectedIds. The list exists to remove guides; adding
- * selection would mean deciding what a selected guide shows in the properties
- * panel, which is a panel for boards.
+ * A row's text is a toggle button over the store's `selectedGuideIds` (Shift,
+ * Ctrl or Cmd toggles, as in PartsList); the eye hides a guide, and a hidden
+ * guide cannot be selected, so its select button is disabled. Editing a
+ * coordinate or removing a row never changes the selection. A guide is still
+ * removed by id (`removeGuide`), the way PartsList selects a board by id.
  *
- * It is also how this round avoids invariant 21's trap rather than meeting it
- * in a browser: THREE.Line raycasting registers a hit only within
- * raycaster.params.Line.threshold — one inch here — of a drawn line, so
- * click-the-guide-in-the-viewport is a known-bad hit target. A guide is
- * removed by id, the way PartsList already selects a board by id.
+ * The viewport is a second way to select one (`pickGuide`); this list is the
+ * way that needs no aim, which matters because THREE.Line raycasting registers
+ * a hit only within raycaster.params.Line.threshold of a drawn line (inv 21).
  */
 /**
  * The row text and the remove label, built ONCE from one formatting of the
@@ -51,6 +53,20 @@ export function GuidesList() {
   const removeGuide = useStore((s) => s.removeGuide);
   const moveGuideLine = useStore((s) => s.moveGuideLine);
   const clearGuides = useStore((s) => s.clearGuides);
+  const selectedGuideIds = useStore((s) => s.selectedGuideIds);
+  const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
+  const selectGuide = useStore((s) => s.selectGuide);
+  const setGuideHidden = useStore((s) => s.setGuideHidden);
+
+  // Keep the first selected row in view (a viewport pick may select one scrolled out of the list).
+  const listRef = useRef<HTMLUListElement>(null);
+  const firstSelected = selectedGuideIds[0];
+  useEffect(() => {
+    if (firstSelected === undefined) return;
+    const li = Array.from(listRef.current?.children ?? []).find((el) => (el as HTMLElement).dataset.guideId === firstSelected);
+    // jsdom has no scrollIntoView.
+    if (li && typeof li.scrollIntoView === 'function') li.scrollIntoView({ block: 'nearest' });
+  }, [firstSelected]);
 
   if (guides.length === 0) {
     return <p className="empty">No guides. Use the Tape tool to place a point or a line.</p>;
@@ -58,12 +74,21 @@ export function GuidesList() {
 
   return (
     <>
-      <ul className="guides">
+      <ul className="guides" ref={listRef}>
         {guides.map((g) => {
           const text = describe(g, units);
+          const selected = selectedGuideIds.includes(g.id);
+          const hidden = hiddenGuideIds.includes(g.id);
           return (
-            <li key={g.id}>
-              <span className="guide-coords">{text.row}</span>
+            <li key={g.id} data-guide-id={g.id} className={hidden ? 'guide-row hidden' : selected ? 'guide-row selected' : 'guide-row'}>
+              <button className="guide-eye" aria-label={`${hidden ? 'Show' : 'Hide'} ${text.row}`}
+                onClick={() => setGuideHidden(g.id, !hidden)}>
+                <EyeIcon hidden={hidden} />
+              </button>
+              <button className="guide-coords" aria-pressed={selected} disabled={hidden}
+                onClick={(e) => selectGuide(g.id, isToggleModifier(e))}>
+                {text.row}
+              </button>
               {isGuideLine(g) && (['x', 'y', 'z'] as const).map((a, i) => a === g.axis ? null : (
                 // The two fixed coordinates, typed (spec §5): a refused move says why through the field's own error.
                 <DimensionField key={a} label={a.toUpperCase()} ariaLabel={`${a.toUpperCase()} of ${text.remove.replace(/^Remove /, '')}`} units={units} allowNegative value={g.at[i]!}

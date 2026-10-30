@@ -66,4 +66,12 @@ describe('GuidesFooter (ui-polish spec §4.5)', () => {
     expect(toggle()).toHaveAccessibleName('Guides · 1');
     expect(toggle()).toHaveAttribute('aria-expanded', 'true');
   });
+
+  it('opens when a guide is selected from the store', () => {
+    act(() => st().addGuide([12, 0, 4]));
+    render(<GuidesFooter />);
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+    act(() => st().selectGuide(st().doc.guides[0]!.id, false));
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+  });
 });

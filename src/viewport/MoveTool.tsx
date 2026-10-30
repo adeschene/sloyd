@@ -4,15 +4,14 @@ import * as THREE from 'three';
 import { isAnyLine, itemKey, sameSnapPoint, worldParts, keepsCandidate } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
+import { visibleGuides } from '../store/visibility';
 import { moveCandidates } from './moveCandidates';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickGuided } from './snapPick';
-import type { ProjectedPoint, Vec3 } from './snapPick';
+import type { Vec3 } from './snapPick';
+import { projectorFor } from './projector';
 import { SCENE_EXTENT } from './extent';
 import { SnapMarker } from './SnapMarker';
-
-/** Reused rather than allocated per candidate per pointer event. */
-const projected = new THREE.Vector3();
 
 /**
  * Narrows a picked candidate to a board-owned one, for the grab call.
@@ -54,6 +53,9 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
   const grabbed = useStore((s) => s.grabbed);
   const selectedIds = useStore((s) => s.selectedIds);
   const hiddenIds = useStore((s) => s.hiddenIds);
+  // A hidden guide is no target, nor any crossing or face hit of it (selectable-guides spec §3.5). The raw array is
+  // subscribed; the filter runs inside the memos (inv 43: never a selector's result).
+  const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
   const section = useStore((s) => s.section);
   const units = useStore((s) => s.doc.units);
 
@@ -93,16 +95,16 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
     // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
     // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side; a line's face hit
     // sits on a part and is clipped with it (`keepsCandidate`, construction-lines-2 spec §3.1).
-    () => tool !== 'move' ? [] : moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf)
+    () => tool !== 'move' ? [] : moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf, hiddenGuideIds)
       .filter((p) => keepsCandidate(section, p)),
-    [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf, section],
+    [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf, section, hiddenGuideIds],
   );
 
   // Lines are targets, never grab sources (inv 26): none before a grab, so the pre-grab pick
   // can only ever land on a selected part's own point.
   const lines = useMemo(
-    () => tool !== 'move' || !grabbing || !showGuides ? [] : guides.filter(isAnyLine),
-    [tool, grabbing, showGuides, guides],
+    () => tool !== 'move' || !grabbing || !showGuides ? [] : visibleGuides(guides, hiddenGuideIds).filter(isAnyLine),
+    [tool, grabbing, showGuides, guides, hiddenGuideIds],
   );
 
   useEffect(() => {
@@ -114,22 +116,8 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
 
     const el = gl.domElement;
 
-    /** World position -> canvas pixels, or null for a point the camera cannot see. */
-    const project = (at: [number, number, number]): ProjectedPoint | null => {
-      projected.set(at[0], at[1], at[2]).project(camera);
-      // Outside the normalised depth range means behind the camera (or beyond
-      // the far plane). This is the whole of the culling pickSnapPoint relies
-      // on: without it, a point behind a perspective camera projects to a
-      // mirrored position in FRONT of the cursor and reads as a near miss.
-      if (projected.z < -1 || projected.z > 1) return null;
-      return {
-        x: (projected.x * 0.5 + 0.5) * size.width,
-        y: (-projected.y * 0.5 + 0.5) * size.height,
-        // NDC z, not distance to the camera position: it is monotonic in view
-        // depth for both projections, where a radial distance is not.
-        depth: projected.z,
-      };
-    };
+    /** World position -> canvas pixels (the ONE projector, `projector.ts`). */
+    const project = projectorFor(camera, size.width, size.height);
 
     const cursorOf = (e: PointerEvent) => {
       // size.width/height are CSS pixels and so is the bounding rect. The
@@ -212,7 +200,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
     };
     // `candidates` is in the list because the handlers close over it, and it
     // already depends on `boards`, `grabbing`, `selectedIds`, `hiddenIds`,
-    // `guides` and `showGuides` — so none of those belongs here again. `size.width`/
+    // `guides`, `hiddenGuideIds` and `showGuides` — so none of those belongs here again. `size.width`/
     // `.height` rather than `size` so a re-created size object does not
     // resubscribe.
   }, [tool, candidates, lines, units, gl, camera, size.width, size.height]);

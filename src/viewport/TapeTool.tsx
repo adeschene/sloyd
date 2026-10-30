@@ -14,16 +14,14 @@ import type { SnapPoint } from '../document/document';
 // `document -> units` edges were each opened to avoid.
 import { parseLength } from '../units/length';
 import { useStore } from '../store/store';
-import { visibleBoards } from '../store/visibility';
+import { visibleBoards, visibleGuides } from '../store/visibility';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickGuided } from './snapPick';
-import type { ProjectedPoint, Vec3 } from './snapPick';
+import type { Vec3 } from './snapPick';
+import { projectorFor } from './projector';
 import { SCENE_EXTENT } from './extent';
 import { SnapMarker, SNAP_COLORS } from './SnapMarker';
 import { ConstructionLine } from './GuideLines';
-
-/** Reused rather than allocated per candidate per pointer event. */
-const projected = new THREE.Vector3();
 
 /**
  * The measuring line's colour — the guide marker's hue, so the two read as
@@ -56,6 +54,9 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   const hiddenIds = useStore((s) => s.hiddenIds);
   const section = useStore((s) => s.section);
   const guides = useStore((s) => s.doc.guides);
+  // A hidden guide is no target, nor any crossing or face hit of it (selectable-guides spec §3.5); filtered in the memos
+  // below, never in a selector (inv 43).
+  const hiddenGuideIds = useStore((s) => s.hiddenGuideIds);
   const anchor = useStore((s) => s.tapeAnchor);
   // The raw text from the readout's box, parsed below. Subscribed here rather
   // than passed in: TapeReadout is a DOM sibling outside the Canvas, so there
@@ -131,19 +132,20 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     () => {
       if (tool !== 'tape') return [];
       const shown = visibleBoards(boards, hiddenIds);
+      const shownGuides = visibleGuides(guides, hiddenGuideIds);
       return [
         ...shown.flatMap(snapPointsFor),
-        ...(showGuides ? guideCandidates(guides, SCENE_EXTENT) : []),
-        ...(showGuides ? lineFaceCandidates(guides, shown, SCENE_EXTENT) : []),
+        ...(showGuides ? guideCandidates(shownGuides, SCENE_EXTENT) : []),
+        ...(showGuides ? lineFaceCandidates(shownGuides, shown, SCENE_EXTENT) : []),
       ].filter((p) => keepsCandidate(section, p));
     },
-    [tool, boards, hiddenIds, guides, showGuides, section],
+    [tool, boards, hiddenIds, guides, hiddenGuideIds, showGuides, section],
   );
 
   // Memoised beside the candidates: the handlers close over it (construction-lines spec §4).
   const lines = useMemo(
-    () => tool !== 'tape' || !showGuides ? [] : guides.filter(isAnyLine),
-    [tool, guides, showGuides],
+    () => tool !== 'tape' || !showGuides ? [] : visibleGuides(guides, hiddenGuideIds).filter(isAnyLine),
+    [tool, guides, hiddenGuideIds, showGuides],
   );
 
   useEffect(() => {
@@ -154,20 +156,8 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
 
     const el = gl.domElement;
 
-    /** World position -> canvas pixels, or null for a point the camera cannot see. */
-    const project = (at: [number, number, number]): ProjectedPoint | null => {
-      projected.set(at[0], at[1], at[2]).project(camera);
-      // Outside the normalised depth range means behind the camera (or beyond
-      // the far plane) — without this a point behind a perspective camera
-      // projects to a mirrored position in FRONT of the cursor and reads as a
-      // near miss. See MoveTool's own copy for the full account.
-      if (projected.z < -1 || projected.z > 1) return null;
-      return {
-        x: (projected.x * 0.5 + 0.5) * size.width,
-        y: (-projected.y * 0.5 + 0.5) * size.height,
-        depth: projected.z,
-      };
-    };
+    /** World position -> canvas pixels (the ONE projector, `projector.ts`). */
+    const project = projectorFor(camera, size.width, size.height);
 
     const cursorOf = (e: PointerEvent) => {
       // size.width/height are CSS pixels and so is the bounding rect. The
@@ -287,7 +277,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `hiddenIds`, `guides` and `showGuides` — so none of
+    // already depends on `boards`, `hiddenIds`, `guides`, `hiddenGuideIds` and `showGuides` — so none of
     // those belongs here again. `size.width`/`.height` rather than `size` so a
     // re-created size object does not resubscribe. `setHovered` is listed
     // because the handlers close over it; it is a zustand action and so stable
