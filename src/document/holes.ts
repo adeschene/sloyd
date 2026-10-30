@@ -158,6 +158,34 @@ export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
   };
 }
 
+/** "Cam lock" (cam-and-bolt spec §4.1): a 15 mm cam bore in the broad face, 24 mm in from `end`, and its 8 mm bolt bore 24 mm
+ *  deep into that end, at the same stations (37 mm from each side, two when the width is at least 150 mm, else one centred).
+ *  The cam is deep enough for the half-thickness plus 4.5 mm, rounded up to the next half millimetre. Null when the broad
+ *  face is the length (a part that short has no end to join). */
+export function defaultCamLock(b: Board, end: CutFrom): [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null {
+  const face = broadFace(b);
+  if (face === 'length') return null;
+  const along: Dimension = face === 'thickness' ? 'width' : 'thickness';
+  const two = b[along] * 25.4 >= 150 - 1e-9;
+  const station = two ? mm(37) : b[along] / 2;
+  const count = two ? 2 : 1;
+  const pitch = two ? b[along] - 2 * mm(37) : 0;
+  const cam: Omit<HoleRow, 'id'> = {
+    face, from: 'max', diameter: mm(15), depth: mm(Math.ceil((b[face] * 25.4 / 2 + 4.5) * 2 - 1e-9) / 2),
+    along, alongFrom: 'min', station, count, pitch, acrossFrom: end, inset: mm(24),
+  };
+  const bolt: Omit<HoleRow, 'id'> = {
+    face: 'length', from: end, diameter: mm(8), depth: mm(24), along, alongFrom: 'min', station, count, pitch,
+    acrossFrom: 'min', inset: b[face] / 2,
+  };
+  return [cam, bolt];
+}
+
+/** "Cam bolt bore" (cam-and-bolt spec §4.2): the default hole's place, 5 mm × 12 mm deep. */
+export function defaultCamBoltBore(b: Board): Omit<HoleRow, 'id'> {
+  return { ...defaultHole(b), diameter: mm(5), depth: mm(12) };
+}
+
 /** "Countersunk screw" (counterbores spec §5): the default hole's place, a 3/16" bore (through in stock of 1-1/2" or less,
  *  else 1-1/4" deep) under a 3/8" countersink at 82° (metric: 4.5 mm under 9 mm at 90°). */
 export function defaultCountersunkScrew(b: Board, metric: boolean): Omit<HoleRow, 'id'> {

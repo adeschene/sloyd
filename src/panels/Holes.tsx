@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, HOLE_TILT_PAST_BOUND, HEAD_ON_TILT, headRefusal } from '../store/store';
 import { formatLength, isMetric } from '../units/length';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, defaultCountersunkScrew, defaultCounterboredScrew, defaultCamLock, defaultCamBoltBore, displayNames, headReach, holeFaults, isTilted, legsUnder, retilt, socketStale, staleSocketOf, tiltDegrees, withinTiltBound, worldParts } from '../document/document';
 import type { Board, CutFrom, Dimension, HeadKind, HoleFault, HoleRow } from '../document/document';
 import { curveWord, distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine, holeTiltReadout, camPairLine } from '../document/holeText';
 import { camPairRows } from '../document/camBolt';
@@ -290,6 +290,13 @@ export function Holes({ board }: { board: Board }) {
     const probe = { ...r, id: '__preset' };
     return holeFaults({ ...board, holes: [...board.holes, probe] }, probe).length === 0;
   };
+  // A pair is judged with both rows on the board: a fitting Cam lock probes fault-free (holeFaults exempts a recognised pair).
+  const fitsAll = (pair: [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] | null): pair is [Omit<HoleRow, 'id'>, Omit<HoleRow, 'id'>] => {
+    if (!pair) return false;
+    const probes = [{ ...pair[0], id: '__cam' }, { ...pair[1], id: '__bolt' }];
+    const probed = { ...board, holes: [...board.holes, ...probes] };
+    return probes.every((p) => holeFaults(probed, p).length === 0);
+  };
   const hole = defaultHole(board);
   const pins = defaultShelfPinRow(board);
   const cup = defaultHingeCup(board);
@@ -306,12 +313,19 @@ export function Holes({ board }: { board: Board }) {
   };
   const sunk = defaultCountersunkScrew(board, metric);
   const bored = defaultCounterboredScrew(board, metric);
+  const camLocks = (['min', 'max'] as const).map((e) => ({ e, pair: defaultCamLock(board, e) }));
+  const camBore = defaultCamBoltBore(board);
   const items = [
     ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => add([hole]) }] : []),
     ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `${pinText} pins every 32 mm along the ${pins.along}`, run: () => add([pins]) }] : []),
     ...(fits(cup) ? [{ label: 'Hinge cup', detail: `35 mm cup, ${cupDeep} deep, 22.5 mm in from the edge`, run: () => add([cup]) }] : []),
     ...(fits(sunk) ? [{ label: 'Countersunk screw', detail: screwDetail('sink', sunk), run: () => add([sunk]) }] : []),
     ...(fits(bored) ? [{ label: 'Counterbored screw', detail: screwDetail('bore', bored), run: () => add([bored]) }] : []),
+    ...camLocks.flatMap(({ e, pair }) => (fitsAll(pair)
+      ? [{ label: `Cam lock, ${e} ${end('length')}`, run: () => add(pair),
+        detail: `${holeLengthText(pair[0].diameter, units, 'diameter')} cam and ${holeLengthText(pair[1].diameter, units, 'diameter')} bolt bore, ${holeLengthText(pair[0].inset, units, 'diameter')} in from the ${e} ${end('length')}` }]
+      : [])),
+    ...(fits(camBore) ? [{ label: 'Cam bolt bore', detail: `${holeLengthText(camBore.diameter, units, 'diameter')} bore, ${holeLengthText(camBore.depth as number, units, 'diameter')} deep, centred on the broad face`, run: () => add([camBore]) }] : []),
   ];
   return (
     <>

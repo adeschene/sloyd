@@ -130,6 +130,30 @@ describe('the Holes section', () => {
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     expect(screen.queryByRole('button', { name: 'Hinge cup' })).toBeNull();
   });
+  it('lists a Cam lock for each end and a Cam bolt bore; a Cam lock is two rows in one undo entry', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.getByRole('button', { name: 'Cam lock, max end' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cam bolt bore' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cam lock, min end' }));
+    expect(rows()).toHaveLength(2);
+    act(() => useStore.getState().undo());
+    expect(rows()).toHaveLength(0);
+  });
+  it('adds a Cam bolt bore', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Cam bolt bore');
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toMatchObject({ diameter: 5 / 25.4, depth: 12 / 25.4 });
+  });
+  it('withholds the Cam lock on 1/4" stock, where the 8 mm bolt is wider than the part', async () => {
+    const user = userEvent.setup();
+    open(side({ thickness: 0.25 }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: /^Cam lock/ })).toBeNull();
+  });
   it('withholds a preset that would fault on this part', async () => {
     const user = userEvent.setup();
     open(side({ length: 3, width: 3 }));
