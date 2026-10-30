@@ -640,7 +640,7 @@ src/
 ├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport (its StretchGuide: the stretch line's translucent plane, inv 64 — no raycast, no depth
 │                     write, no clipping plane), BoardMesh (inv 21), MoveTool +
-│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines), GuideLines (construction lines),
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42; dragTarget rounds a leaning part's DELTA, the handle at partBounds' centre, inv 57) + gizmoPatch.ts (the flip fix and size ceiling, tested), GuideMarkers, GuideLines (construction lines),
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
 │                     viewCamera.ts (pure, TESTED: `orthoHeight` / `orthoZoomFor`, an ortho zoom stored as a visible HEIGHT so a window resize keeps the extent;
 │                     `pendingPoseReady`, the condition a saved-view pose waits on), framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
@@ -862,7 +862,7 @@ annotated tree above); `CLAUDE.md` lists the files. Each is a rule (the invarian
   `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
   `setKerf` refuses a kerf outside [0, 1) (fu 98; why: the tree).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
-- **`snapPick.ts`**: `pickSnapPoint` stays screen-space nearest, on purpose; `pickOnLine` (THREE-free) slides along a construction line (closest approach to the cursor ray, the along-line coordinate rounded by `snapToGrid`; a ray parallel to the line, or a cursor past the drawn end `±SCENE_EXTENT`, offers nothing); `pickGuided` composes them: a discrete candidate within the radius always wins, the slide only when none does.
+- **`snapPick.ts`**: `pickSnapPoint` stays screen-space nearest, on purpose; `pickOnLine` (THREE-free) slides along a construction line (closest approach to the cursor ray, the along-line coordinate rounded by `snapToGrid`; a ray parallel to the line offers nothing; the slide point is clamped to the drawn end `±SCENE_EXTENT`, so a cursor within the pick radius of the end gets a point AT the end and one farther past it gets none); `pickGuided` composes them: a discrete candidate within the radius always wins, the slide only when none does.
 - **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
   post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
   only, never grab sources. Its dep list is inv 15's failure mode.

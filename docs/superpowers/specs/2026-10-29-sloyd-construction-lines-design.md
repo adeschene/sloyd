@@ -453,9 +453,10 @@ Decisions made after this spec was approved. Where one contradicts the text abov
   Lines use the same condition, so they are hidden while exploded rather than drawn
   unmoved. Save image draws guide markers (they are not gated on `clean`), so it draws lines
   too.
-- **B1 (§4.1, past the drawn end; build).** A cursor past a line's drawn end (`±SCENE_EXTENT`)
-  offers no slide point: `pickOnLine` returns null rather than clamping the point onto the
-  end.
+- **B1 (§4.1, past the drawn end; build).** `pickOnLine` clamps the slide point to the drawn
+  extent (`±SCENE_EXTENT`) and runs the screen test on that clamped, unrounded point. A cursor
+  within `radiusPx` of a line's drawn end therefore gets a slide point AT the end; a cursor
+  farther than the pick radius past it offers nothing.
 - **B2 (§6, the Guides list; build).** The list prints coordinates through `formatLength`
   (`3-1/2"`), not the hand-typed `3 1/2"` the spec shows.
 - **B3 (§5, drawing; build).** Each construction line is its own drei `Line`, not one batched
