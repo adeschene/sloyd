@@ -853,8 +853,6 @@ button[aria-pressed='true'] {
   min-width: 0;
   text-align: left;
   padding: 0;
-  background: none;
-  border: 0;
   border-radius: 0;
   font-family: var(--font-num);
   font-size: 12px;
@@ -862,6 +860,8 @@ button[aria-pressed='true'] {
   cursor: pointer;
 }
 
+.guides .guide-coords,
+.guides .guide-coords[aria-pressed='true'] { background: none; border: 0; }
 .guides li.selected .guide-coords { color: var(--ink); font-weight: 600; }
 .guides li.hidden .guide-coords { opacity: 0.45; cursor: default; }
 

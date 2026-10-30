@@ -182,7 +182,7 @@ describe('GuidesList editing (construction-lines-2 spec §5)', () => {
     });
 
     it('typing in a field and clicking x leave the selection alone', async () => {
-      const [a, b] = two();
+      const [a] = two();
       render(<GuidesList />);
       await userEvent.click(selectBtn('Line along X'));
       await userEvent.clear(field('Y'));
@@ -190,7 +190,7 @@ describe('GuidesList editing (construction-lines-2 spec §5)', () => {
       expect(useStore.getState().selectedGuideIds).toEqual([a]);
       await userEvent.click(screen.getByRole('button', { name: /^Remove line along Z/ }));
       expect(useStore.getState().selectedGuideIds).toEqual([a]);
-      expect(b).toBeDefined();
+      expect(screen.queryByRole('button', { name: 'Line along Z' })).toBeNull();
     });
 
     it('the eye hides a guide: the row is hidden and its select button disabled', async () => {

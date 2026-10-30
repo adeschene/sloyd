@@ -1729,6 +1729,7 @@ describe('Add board focuses Length once (fu 2)', () => {
     act(() => useStore.getState().selectBoard(first));
     expect(document.activeElement).not.toBe(screen.getByLabelText('Length'));
   });
+});
 
 describe('Properties with guides selected (fu 591)', () => {
   const guides = () => {
@@ -1757,5 +1758,4 @@ describe('Properties with guides selected (fu 591)', () => {
     expect(screen.getByText('Select a part to edit it.')).toBeInTheDocument();
     expect(screen.queryByText(/guides? selected/)).toBeNull();
   });
-});
 });
