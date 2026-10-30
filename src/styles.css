@@ -1027,7 +1027,7 @@ select.input { cursor: pointer; }
 .plans-section { margin-top: 24px; }
 .plans-section h3 { margin: 0 0 8px; }
 .plans-figure-wrap { margin: 0; }
-.plans-explode { display: flex; align-items: center; gap: 6px; }
+.plans-explode, .plans-lines { display: flex; align-items: center; gap: 6px; }
 
 .cutlist-head {
   display: flex;
@@ -1348,6 +1348,7 @@ select.input { cursor: pointer; }
 .plans-figure path, .plans-figure line { fill: none; stroke: currentColor; vector-effect: non-scaling-stroke; }
 .plan-visible { stroke-width: 1.5; }
 .plan-hidden { stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.7; }
+.plan-construction { stroke-width: 1; stroke-dasharray: 12 3 2 3; opacity: 0.7; }
 .plan-dim line, .plan-ext { stroke-width: 0.75; }
 .plan-dim-label { fill: currentColor; stroke: none; font-family: var(--font-num); }
 .plans-notes { margin: 4px 0 0; padding-left: 1.2em; font-size: 12px; color: var(--ink-dim); }

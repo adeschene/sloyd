@@ -194,3 +194,41 @@ describe('PlansSheet section views (fu 256)', () => {
     act(() => useStore.setState({ explode: 0 }));
   });
 });
+
+describe('PlansSheet construction lines (lines2 §6)', () => {
+  const withLines = () => ({
+    ...cabinetsDoc(),
+    guides: [
+      { id: 'g1', at: [0, 10, 0] as [number, number, number], axis: 'x' as const },
+      { id: 'g2', at: [0, 0, 0] as [number, number, number], to: [1, 1, 0] as [number, number, number] },
+    ],
+  });
+  const figures = (c: HTMLElement) => [...c.querySelectorAll('figure.plans-figure-wrap')];
+
+  it('with the box unticked, the piece figure is byte for byte the same as without lines', () => {
+    act(() => useStore.getState().replaceDocument({ ...withLines(), guides: [] }));
+    const a = render(<PlansSheet onClose={() => {}} />);
+    const without = figures(a.container)[1]!.outerHTML;
+    a.unmount();
+    act(() => useStore.getState().replaceDocument(withLines()));
+    const b = render(<PlansSheet onClose={() => {}} />);
+    expect(figures(b.container)[1]!.outerHTML).toBe(without);
+    expect(b.container.querySelector('.plan-construction')).toBeNull();
+  });
+
+  it('ticked, only the piece figure draws them, one path per view', () => {
+    act(() => useStore.getState().replaceDocument(withLines()));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Construction lines' }));
+    const figs = figures(container);
+    // One path per view, each holding every line that view shows (the X line is end-on in Side; the oblique is not).
+    expect(figs[1]!.querySelectorAll('path.plan-construction')).toHaveLength(3);
+    expect(figs.filter((f, i) => i !== 1 && f.querySelector('.plan-construction'))).toHaveLength(0);
+  });
+
+  it('the checkbox is disabled when the document has points only', () => {
+    act(() => useStore.getState().replaceDocument({ ...cabinetsDoc(), guides: [{ id: 'p', at: [0, 0, 0] }] }));
+    render(<PlansSheet onClose={() => {}} />);
+    expect(screen.getByRole('checkbox', { name: 'Construction lines' })).toBeDisabled();
+  });
+});

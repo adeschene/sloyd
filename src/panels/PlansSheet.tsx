@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { isMetric } from '../units/length';
 import { worldParts } from '../document/tree';
 import { pieceKeyed, planAssemblies } from '../document/plans';
+import { isAnyLine } from '../document/types';
 import { EXPLODE_SPREAD } from '../document/explode';
 import { ExplodedFigure, PlanTrio, SectionBlock, trioScale } from './PlanFigure';
 
@@ -26,6 +27,9 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
   const assemblies = useMemo(() => planAssemblies(doc), [doc]);
   // Stable across the slider's ticks, so PlanTrio's memo holds (fu 263).
   const pieceKeys = useMemo(() => pieceKeyed(doc, assemblies), [doc, assemblies]);
+  const [showLines, setShowLines] = useState(false);
+  const allLines = useMemo(() => doc.guides.filter(isAnyLine), [doc.guides]);
+  const pieceLines = showLines && allLines.length > 0 ? allLines : undefined;
   const [amount, setAmount] = useState(SHEET_EXPLODE);
   // The figure follows the slider at low priority (fu 263): an isometric of a furniture piece takes 100 ms and more to
   // draw, so the thumb moves at once and the figure catches up with the latest value, skipping the ones in between.
@@ -53,6 +57,11 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
               <input type="range" min={0} max={1} step={0.05} value={amount}
                 onChange={(e) => setAmount(Number(e.target.value))} />
             </label>
+            <label className="plans-lines">
+              <input type="checkbox" checked={showLines && allLines.length > 0} disabled={allLines.length === 0}
+                onChange={(e) => setShowLines(e.target.checked)} />
+              Construction lines
+            </label>
             <button onClick={() => window.print()}>Print</button>
             <button onClick={onClose} aria-label="Close plans">✕</button>
           </div>
@@ -68,7 +77,7 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>
-              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} section={section} bandTypes={doc.bandTypes} />
+              <PlanTrio parts={parts} units={doc.units} label={doc.name} keyed={pieceKeys} section={section} bandTypes={doc.bandTypes} lines={pieceLines} />
             </section>
             {section && <SectionBlock parts={parts} section={section} units={doc.units} scale={trioScale(parts, doc.bandTypes)} exploded={exploded} bandTypes={doc.bandTypes} />}
             {assemblies.map((a) => (
