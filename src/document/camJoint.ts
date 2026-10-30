@@ -1,10 +1,11 @@
-import type { Board, CutFrom, SloydDocument } from './types';
+import type { Board, CutFrom, ProfileCut, ProfileSide, SloydDocument } from './types';
 import { axisDimensions, boardExtents, endFacing } from './geometry';
-import { touchedRegion } from './angleCuts';
+import { angleCutRemovesNothing } from './angleCuts';
 import { fingerSetAt } from './boxJoints';
 import { dovetailAt } from './dovetailModel';
 import { featureTouchesEnd, shapedFeatures } from './featureRegions';
 import { leans } from './lean';
+import { profileWord } from './ruledOutText';
 import { tenonAt } from './roundTenons';
 import { TOUCH } from './checkTolerances';
 import { displayNames, instancesOn, parentPath, worldParts } from './tree';
@@ -62,26 +63,52 @@ function candidatesFrom(a: Board, b: Board): CamJoint[] {
   return out;
 }
 
-/** The first feature A's joined end may not carry (spec §3.4 check 6), in the copy's order, or null: a round tenon, a
- *  dovetail, a box joint's finger set at that end; an angle cut whose touched box (`touchedRegion`, conservative) reaches
- *  that end face; a curve or profile whose region touches that end face (`featureTouchesEnd`, joinery's P6). */
+/** The sides of the broad face in the order a run travels round them on its `max` face (`travelSign` +1 on each): the
+ *  width-min side toward length max, the length-max side toward width max, and so on; a run on the `min` face goes the
+ *  other way round. */
+const SIDE_CYCLE: readonly ProfileSide[] = [
+  { across: 'width', from: 'min' }, { across: 'length', from: 'max' }, { across: 'width', from: 'max' }, { across: 'length', from: 'min' },
+];
+const sideIndex = (s: ProfileSide) => SIDE_CYCLE.findIndex((x) => x.across === s.across && x.from === s.from);
+
+/** The sides a profile runs along: every side for a loop; its one side; or, for a run with ends on two sides (stored as
+ *  travelled, never re-ordered, Q16), every side from its start's to its end's in its face's travel order. */
+function profileSides(p: ProfileCut): ProfileSide[] {
+  if ('loop' in p.run) return [...SIDE_CYCLE];
+  const step = p.face === 'max' ? 1 : SIDE_CYCLE.length - 1;
+  const out: ProfileSide[] = [];
+  const last = sideIndex(p.run.end.side);
+  for (let i = sideIndex(p.run.start.side); ; i = (i + step) % SIDE_CYCLE.length) {
+    out.push(SIDE_CYCLE[i]!);
+    if (i === last || out.length === SIDE_CYCLE.length) return out;
+  }
+}
+
+/**
+ * The first feature that changes A's joined END itself (spec §3.4 check 6, ruling R4), in the copy's order, or null: a round
+ * tenon, a dovetail or a box joint's finger set at that end; an END angle cut (into the length from that end: a miter, an
+ * end bevel or chamfer) that removes stock; a curve whose waste touches that end face (`featureTouchesEnd`, joinery's P6);
+ * a profile running along one of that end face's own edges. A profile or chamfer along a LONG edge that only runs out
+ * through the end face does not refuse (R4: `holeFaults` judges any real clash with a bore), nor does edge banding (R5).
+ */
 function endFeature(b: Board, end: CutFrom): CamEndFeature | null {
   if (tenonAt(b, end)) return 'round tenon';
   if (dovetailAt(b, 'length', end)) return 'dovetails';
   if (fingerSetAt(b, 'length', end)) return 'box joints';
-  const atEnd = (r: [number, number]) => (end === 'min' ? r[0] <= 1e-9 : r[1] >= b.length - 1e-9);
-  if (b.angleCuts.some((c) => { const r = touchedRegion(b, c); return r !== null && atEnd(r.length); })) return 'angle cut';
+  if (b.angleCuts.some((c) => c.face === 'length' && c.from === end && !angleCutRemovesNothing(b, c))) return 'angle cut';
   const { view, features } = shapedFeatures(b);
-  const f = features.find((x) => featureTouchesEnd(view, x, 'length', end));
-  return f ? f.word as CamEndFeature : null;
+  if (features.some((f) => f.word === 'curve' && featureTouchesEnd(view, f, 'length', end))) return 'curve';
+  const onEnd = (s: ProfileSide) => s.across === 'length' && s.from === end;
+  const p = b.profiles.find((x) => profileSides(x).some(onEnd));
+  return p ? profileWord(p.kind) : null;
 }
 
 /**
  * The joint between the two selected world parts `ids`, in either order (spec §3.1), or the first refusal of §3.4 checks
  * 2–6 in the spec's order: either part leans; different containers; a part reached through a mirrored instance; the two
  * share one holes storage (users of one Shape); no end-into-face contact; A's joined end not plain square stock. More than
- * one candidate is a bug (two axis-aligned boxes admit at most one: both ends of A cannot touch one box, and each part's
- * end on the other's face leaves at most a TOUCH-wide sliver the "within" bound excludes), thrown, never a sentence.
+ * one candidate refuses as none (ruling R8): two axis-aligned boxes admit more only when a part is a sliver at most 2·TOUCH
+ * across.
  */
 export function findCamJoint(doc: SloydDocument, ids: [string, string]): CamJoint | string {
   const world = worldParts(doc);
@@ -107,8 +134,9 @@ export function findCamJoint(doc: SloydDocument, ids: [string, string]): CamJoin
   if (holesKey(doc, parts[0]) === holesKey(doc, parts[1])) return CAM_JOINT_SAME_PART(nameOf(parts[0]), nameOf(parts[1]));
   // 5. The contact.
   const found = [...candidatesFrom(parts[0], parts[1]), ...candidatesFrom(parts[1], parts[0])];
-  if (found.length > 1) throw new Error(`findCamJoint: ${found.length} candidates between ${ids[0]} and ${ids[1]}`);
-  const joint = found[0];
+  // More than one (ruling R8) needs a part at most 2·TOUCH across, a sliver: no joint to offer, never a throw (the panel
+  // reads this in render).
+  const joint = found.length === 1 ? found[0] : undefined;
   if (!joint) return CAM_JOINT_NONE(nameOf(parts[0]), nameOf(parts[1]));
   // 6. A's joined end is plain square stock.
   const a = joint.a === parts[0].id ? parts[0] : parts[1];

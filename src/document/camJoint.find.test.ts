@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { Board, Cut, Definition, SloydDocument } from './types';
+import type { BandType, Board, Cut, Definition, SloydDocument } from './types';
 import type { Units } from '../units/length';
 import { createBoard, createDocument, migrateDocument } from './document';
 import { boardExtents } from './geometry';
 import { mm } from './holes';
-import { miterCut } from './angleCuts';
+import { chamferCut, miterCut } from './angleCuts';
+import { CORNER } from './curveFixtures';
 import { fingerSetAt } from './boxJoints';
 import { withDovetails } from './dovetailModel';
 import { defaultProfile, profileOf } from './profiles';
@@ -169,15 +170,74 @@ describe('findCamJoint: refusals before the layout (spec §3.4 checks 2–6)', (
       ({ ...b, angleCuts: [{ id: 'm', ...miterCut({ end, across: 'thickness', longSide: 'min', ratio: 1 }, b) }] });
     expect(at(miter('min'))).toBe(CAM_JOINT_END_FEATURE(name, 'angle cut'));
 
-    // A full-length roundover on the front edge runs out through both end faces.
-    const roundover = (b: Board): Board => ({ ...b, profiles: [{ id: 'pr', ...profileOf(defaultProfile(b, 'roundover'))! }] });
-    expect(at(roundover)).toBe(CAM_JOINT_END_FEATURE(name, 'roundover profile'));
+    // A profile on one of the end face's own edges (it runs along the width at length min).
+    const endEdge = (b: Board): Board => ({ ...b,
+      profiles: [{ id: 'pr', ...profileOf(defaultProfile(b, 'roundover', { through: 'width', uFrom: 'min', vFrom: 'max' }))! }] });
+    expect(endEdge(part(d0, shelf)).profiles[0]!.run).toMatchObject({ start: { side: { across: 'length', from: 'min' } } });
+    expect(at(endEdge)).toBe(CAM_JOINT_END_FEATURE(name, 'roundover profile'));
 
+    // A curve whose waste reaches the end face: a 2" rounded corner at length max (`CORNER`), into the right side.
+    const corner = (b: Board): Board => ({ ...b, curves: [{ ...CORNER }] });
+    expect(findCamJoint(patched(d0, shelf, corner), [shelf, right])).toBe(CAM_JOINT_END_FEATURE(name, 'curve'));
     // A feature at the OTHER end does not refuse this joint (and does refuse the joint at that end).
     const tenonAtMax = (b: Board) => withTenons(b, [{ id: 't', end: 'max', diameter: 0.5, length: 0.5 }]);
     expect(at(tenonAtMax)).toEqual({ a: shelf, b: left, end: 'min', k: 0, side: -1 });
     expect(findCamJoint(patched(d0, shelf, tenonAtMax), [shelf, right])).toBe(CAM_JOINT_END_FEATURE(name, 'round tenon'));
     expect(at(miter('max'))).toEqual({ a: shelf, b: left, end: 'min', k: 0, side: -1 });
+    expect(at(corner)).toEqual({ a: shelf, b: left, end: 'min', k: 0, side: -1 });
+  });
+
+  it('R4: a profile or chamfer along a LONG edge, running out through the end face, does not refuse', () => {
+    const { doc: d0, left, shelf } = carcass();
+    const at = (f: (b: Board) => Board) => findCamJoint(patched(d0, shelf, f), [shelf, left]);
+    const found = { a: shelf, b: left, end: 'min', k: 0, side: -1 };
+    // A full-length roundover on the front edge (the default edge: along the length).
+    const roundover = (b: Board): Board => ({ ...b, profiles: [{ id: 'pr', ...profileOf(defaultProfile(b, 'roundover'))! }] });
+    expect(roundover(part(d0, shelf)).profiles[0]!.run).toMatchObject({ start: { side: { across: 'width' }, through: 'min' } });
+    expect(at(roundover)).toEqual(found);
+    // A full-length chamfer on the front top edge (through the length).
+    const chamfer = (b: Board): Board => ({ ...b, angleCuts: [{ id: 'ch',
+      ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, b) }] });
+    expect(at(chamfer)).toEqual(found);
+  });
+
+  it('R4: a run with ends on two sides refuses only when it travels along the end face edge', () => {
+    const { doc: d0, left, right, shelf } = carcass();
+    const name = nameOf(d0, shelf);
+    // On the max face, from the width-min side round the length-max corner onto the length-max side: never the min end.
+    const run = { start: { side: { across: 'width' as const, from: 'min' as const }, from: 'min' as const, at: 2 },
+      end: { side: { across: 'length' as const, from: 'max' as const }, from: 'min' as const, at: 2 } };
+    const twoSides = (face: 'min' | 'max') => (b: Board): Board =>
+      ({ ...b, profiles: [{ id: 'pr', face, kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run }] });
+    expect(findCamJoint(patched(d0, shelf, twoSides('max')), [shelf, left])).toEqual({ a: shelf, b: left, end: 'min', k: 0, side: -1 });
+    expect(findCamJoint(patched(d0, shelf, twoSides('max')), [shelf, right])).toBe(CAM_JOINT_END_FEATURE(name, 'roundover profile'));
+    // On the min face the same run travels the other way round: width min, length min, width max, length max.
+    expect(findCamJoint(patched(d0, shelf, twoSides('min')), [shelf, left])).toBe(CAM_JOINT_END_FEATURE(name, 'roundover profile'));
+    // A loop runs along every side.
+    const loop = (b: Board): Board => ({ ...b, profiles: [{ id: 'pr', face: 'max', kind: 'roundover', size: 0.25, fillet: 0, facing: 'face', run: { loop: true } }] });
+    expect(findCamJoint(patched(d0, shelf, loop), [shelf, left])).toBe(CAM_JOINT_END_FEATURE(name, 'roundover profile'));
+  });
+
+  it('R5: edge banding on the joined end does not refuse', () => {
+    const { doc: d0, left, shelf } = carcass();
+    const tape: BandType = { id: 'bt', kind: 'tape', name: 'Tape', thickness: 1 / 32, lengthAllowance: 1, tapeWidth: 0.875, pricePerFoot: null };
+    const doc = { ...patched(d0, shelf, (b) => ({ ...b, bands: [{ side: { across: 'length', from: 'min' }, type: 'bt' }] })), bandTypes: [tape] };
+    expect(part(doc, shelf).bands).toHaveLength(1);
+    expect(findCamJoint(doc, [shelf, left])).toEqual({ a: shelf, b: left, end: 'min', k: 0, side: -1 });
+  });
+
+  it('R8: more than one candidate (two slivers, each end on the other) refuses as none, never throws', () => {
+    // P: x 0..10, z 0..1/32. Q turned 90 (width on X, length on Z): x 10..10+1/32, z 1/32..10+1/32. P's max end lies on Q's
+    // x = 10 face, and Q's min end on P's z = 1/32 face: two candidates.
+    const t = 1 / 32;
+    const p = createBoard({ id: 'p', name: 'P', length: 10, width: t, thickness: 0.75, position: [0, 0, 0] });
+    const q = createBoard({ id: 'q', name: 'Q', rotation: 90, length: 10, width: t, thickness: 0.75, position: [10, 0, t] });
+    const doc = migrateDocument({ ...createDocument('Slivers'), boards: [p, q] });
+    expect(box(part(doc, 'q'))).toEqual({ min: [10, 0, t], max: [10 + t, 0.75, 10 + t] });
+    expect(findCamJoint(doc, ['p', 'q'])).toBe(CAM_JOINT_NONE('P', 'Q'));
+    // With Q moved 1 inch along -Z only P's end on Q's face is left: that one is a joint.
+    const one = { ...doc, boards: doc.boards.map((b) => (b.id === 'q' ? { ...b, position: [10, 0, -1] as [number, number, number] } : b)) };
+    expect(findCamJoint(one, ['p', 'q'])).toEqual({ a: 'p', b: 'q', end: 'max', k: 0, side: 1 });
   });
 
   it('order: a leaning side in a different container gets the lean sentence, not the containers one', () => {

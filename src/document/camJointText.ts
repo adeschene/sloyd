@@ -1,3 +1,5 @@
+import type { ProfileWord } from './ruledOutText';
+
 /**
  * The cam-and-bolt joint's copy (cam-and-bolt joint spec §3.4, §4; fu 568 chunk 2): the ONE home of every sentence the
  * planner (`camJoint.ts`) returns and of the panel's words. Names come in as given (`displayNames`); no lengths are printed,
@@ -17,9 +19,7 @@ export const CAM_JOINT_SAME_PART = (a: string, b: string) =>
 export const CAM_JOINT_NONE = (a: string, b: string) =>
   `${a} and ${b} don't meet end to face — butt the end of one squarely against a face of the other.`;
 /** What the joined end may not carry (check 6), in the order the planner tests them. */
-export type CamEndFeature =
-  | 'round tenon' | 'dovetails' | 'box joints' | 'angle cut' | 'curve' | 'roundover profile' | 'cove profile'
-  | 'Roman ogee profile' | 'bead profile' | 'thumbnail profile';
+export type CamEndFeature = 'round tenon' | 'dovetails' | 'box joints' | 'angle cut' | 'curve' | ProfileWord;
 const END_FEATURE_WORDS: Record<CamEndFeature, string> = {
   'round tenon': 'a round tenon', dovetails: 'dovetails', 'box joints': 'box joints', 'angle cut': 'an angle cut',
   curve: 'a curve', 'roundover profile': 'a roundover profile', 'cove profile': 'a cove profile',

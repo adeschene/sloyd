@@ -8,10 +8,12 @@ import type { ProfileKind } from './types';
 /** The feature that rules a kind out, as the line names it (joinery features P8): `<kind> profile` for an edge profile,
  *  `edge band` for a band (chunk 3). */
 export type FeatureWord = 'holes' | 'curve' | 'edge band' | 'roundover profile' | 'cove profile' | 'Roman ogee profile' | 'bead profile' | 'thumbnail profile';
-const PROFILE_WORDS: Record<ProfileKind, FeatureWord> = {
+/** An edge profile's word (`profileWord`'s values). */
+export type ProfileWord = Extract<FeatureWord, `${string} profile`>;
+const PROFILE_WORDS: Record<ProfileKind, ProfileWord> = {
   roundover: 'roundover profile', cove: 'cove profile', ogee: 'Roman ogee profile', bead: 'bead profile', thumbnail: 'thumbnail profile',
 };
-export function profileWord(kind: ProfileKind): FeatureWord { return PROFILE_WORDS[kind]; }
+export function profileWord(kind: ProfileKind): ProfileWord { return PROFILE_WORDS[kind]; }
 
 export interface RuledOutLine {
   enter: string;
