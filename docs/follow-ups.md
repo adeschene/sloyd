@@ -8502,6 +8502,7 @@ effect (inv 27); exploded (inv 47); a screen-space pick for lines (distance to t
 Feature-sized; a separate session.
 **Status:** open (feature; the user asked for it 2026-10-30 — next session).
 **Status:** built, not deployed (2026-10-30, branch `selectable-guides`; spec `docs/superpowers/specs/2026-10-30-sloyd-selectable-guides-design.md`). Guides are selected by click in the viewport (Select tool, a screen-space pick, `GuidePicker`/`pickGuide`) and in the Guides list; Delete removes them as one undo entry; H / Shift+H hide them as view state through `applyHidden`; hidden guides are neither drawn nor snapped (`visibleGuides`). Invariants 42, 43 and 47 widened. The browser check is owed: `docs/browser-verification-selectable-guides.md`. Residue: fu 592–596.
+**Status:** built, browser-checked, not deployed (2026-10-30): 18 of 19 checks pass in the user's Chrome (`docs/browser-verification-selectable-guides.md`); check 9 failed and was fixed (`5a347b0`: a guide point within reach beats every line). Owed to the user: Save image with a guide selected, and the by-eye items A–D.
 
 ## From the selectable guides round (fu 591) — 2026-10-30
 
