@@ -624,7 +624,8 @@ interface StoreState {
    */
   addStretcher: (legIds: [string, string], height: number, size: number, diameter: number) => string | null;
   /** Add the cam-and-bolt joint between a side and a shelf end (`camJointPlan`): the refusal sentence; null when nothing was
-   *  done silently (exploded, gesturing, a stale id, a planner bug); else the notes (linked parts that gained a row). */
+   *  done silently (exploded, gesturing, a stale id, a planner bug); else the notes (linked parts that gained a row).
+   *  It also FITS again (fu 602): the same call on a joined, since-moved pair moves B's bores in place, in the same one entry. */
   addCamJoint: (ids: [string, string], count: number | null, camFrom: CutFrom | null) => { notes: string[] } | string | null;
   /**
    * Fit the stretcher again (stretchers spec §6.3, §6.4) on world rung `rungId`: `refitPlan` (its closure: every rung
