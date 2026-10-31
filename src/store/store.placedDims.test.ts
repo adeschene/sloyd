@@ -1,4 +1,4 @@
-import { useStore } from './store';
+import { useStore, shownTapeNotice } from './store';
 import { createDocument, snapPointsFor } from '../document/document';
 import { worldParts } from '../document/tree';
 import { dimensionValue } from '../document/placedDims';
@@ -51,6 +51,15 @@ describe('addDimension', () => {
     const [a] = pair();
     const past = st().past.length;
     expect(st().addDimension(a, a, 'x')).toBe(false);
+    expect(st().past.length).toBe(past);
+    expect(st().doc.dimensions).toHaveLength(0);
+  });
+
+  it('refuses mid-gesture', () => {
+    const [a, b] = pair();
+    st().beginGesture();
+    const past = st().past.length;
+    expect(st().addDimension(a, b, 'x')).toBe(false);
     expect(st().past.length).toBe(past);
     expect(st().doc.dimensions).toHaveLength(0);
   });
@@ -131,27 +140,62 @@ describe('removeDimension', () => {
   });
 });
 
-describe('tapeNotice', () => {
-  it('clears wherever the anchor, axis or hover changes', () => {
-    const [a, b] = pair();
+describe('tapeNotice (self-invalidating)', () => {
+  const shown = () => shownTapeNotice(st());
+
+  it('shows after setTapeNotice, hides when the axis changes', () => {
+    const [a] = pair();
     st().setTapeAnchor(a);
     st().setTapeNotice('x');
+    expect(shown()).toBe('x');
     st().setTapeAxis('y');
-    expect(st().tapeNotice).toBeNull();
-    st().setTapeNotice('x');
-    st().setTapeHover(b);
-    expect(st().tapeNotice).toBeNull();
-    st().setTapeNotice('x');
-    st().setTapeHover({ ...b });
-    expect(st().tapeNotice).toBe('x');
-    st().clearTapeAnchor();
-    expect(st().tapeNotice).toBeNull();
+    expect(shown()).toBeNull();
   });
 
-  it('hoveredDimension is view state', () => {
+  it('hides when the hovered part is deleted with the anchor held', () => {
+    st().addBoard();
+    const [first, second] = parts();
+    const a = snapPointsFor(first!)[0]!;
+    const h = snapPointsFor(second!)[0]!;
+    st().setTapeAnchor(a);
+    st().setTapeHover(h);
+    st().setTapeNotice('x');
+    expect(shown()).toBe('x');
+    st().deleteBoard(second!.id);
+    expect(shown()).toBeNull();
+  });
+
+  it('hides when the hover moves', () => {
+    const [a, b] = pair();
+    st().setTapeAnchor(a);
+    st().setTapeHover(a);
+    st().setTapeNotice('x');
+    st().setTapeHover(b);
+    expect(shown()).toBeNull();
+  });
+
+  it('setTapeNotice(null) clears it', () => {
+    st().setTapeNotice('x');
+    st().setTapeNotice(null);
+    expect(st().tapeNotice).toBeNull();
+  });
+});
+
+describe('hoveredDimension', () => {
+  it('is view state, cleared when its dimension is removed', () => {
+    const [a, b] = pair();
+    st().addDimension(a, b, 'x');
+    const id = st().doc.dimensions[0]!.id;
     const past = st().past.length;
-    st().setHoveredDimension('d');
-    expect(st().hoveredDimension).toBe('d');
+    st().setHoveredDimension(id);
     expect(st().past.length).toBe(past);
+    st().removeDimension(id);
+    expect(st().hoveredDimension).toBeNull();
+  });
+
+  it('replaceDocument resets it', () => {
+    st().setHoveredDimension('d');
+    st().replaceDocument(createDocument('B'));
+    expect(st().hoveredDimension).toBeNull();
   });
 });

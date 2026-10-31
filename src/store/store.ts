@@ -64,6 +64,12 @@ function storedHead(r: HoleRow): HoleRow {
   return out;
 }
 /** addHoleRows' and updateHoleRow's head refusals (counterbores spec §3.2), verbatim; the loader drops the same rows. */
+/** The ONE reader of `tapeNotice`: its text while the held points it was raised against are unchanged (`===`), else null. */
+export function shownTapeNotice(s: Pick<StoreState, 'tapeNotice' | 'tapeAnchor' | 'tapeHover' | 'tapeAxis'>): string | null {
+  const n = s.tapeNotice;
+  return n && s.tapeAnchor === n.anchor && s.tapeHover === n.hover && s.tapeAxis === n.axis ? n.text : null;
+}
+
 export const HEAD_NOT_WIDER = 'The counterbore or countersink must be wider than the hole.';
 export const HEAD_TOO_DEEP = 'The counterbore or countersink must be shallower than the hole.';
 export const HEAD_ON_TILT = "A tilted hole can't take a counterbore or countersink yet.";
@@ -321,10 +327,12 @@ interface StoreState {
 
   /**
    * One line of the Tape readout saying why D kept nothing (placed-dimensions spec §3). VIEW state, not a held point, so
-   * inv 24 is NOT engaged and it stays out of `tapeHover`'s enumeration. Cleared to `null` wherever `tapeAnchor` or
-   * `tapeAxis` changes (their setters, `clearTapeAnchor`) and wherever `tapeHover` changes by `!sameSnapPoint`.
+   * inv 24 is NOT engaged and no held-point writer mentions it. It is SELF-INVALIDATING: `setTapeNotice` captures the
+   * current `tapeAnchor`, `tapeHover` and `tapeAxis` objects, and `shownTapeNotice` is the ONE reader, returning the text
+   * only while all three are still those same objects. `===`, stricter than `sameSnapPoint`: a hover re-set to an equal
+   * object hides the notice, which is acceptable (a fresh pointer move is a fresh pair). Read it only through that function.
    */
-  tapeNotice: string | null;
+  tapeNotice: { text: string; anchor: SnapPoint | null; hover: SnapPoint | null; axis: TapeAxis | null } | null;
   setTapeNotice: (text: string | null) => void;
   /** The placed dimension under the pointer (spec §7): view state, never in the document, undo or autosave. */
   hoveredDimension: string | null;
@@ -830,7 +838,7 @@ export const useStore = create<StoreState>((set, get) => {
     // the guide id is equally gone before and after — but it is written
     // before it to match every other guard in this file.
     if (ownedByGuide(get().tapeAnchor, id)) {
-      set({ tapeAnchor: null, tapeAxis: null, tapeNotice: null });
+      set({ tapeAnchor: null, tapeAxis: null });
     }
     // The same clause for the latched hover, and it is NOT symmetry: a guide
     // is a snap candidate like any other, so "anchor on a board, measure to
@@ -1037,7 +1045,7 @@ export const useStore = create<StoreState>((set, get) => {
         ? guideSelectionPatch(get().selectedGuideIds, hiddenGuides, entry.doc.guides)
         : {}),
       ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden, open),
-      ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null, tapeNotice: null }),
+      ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null }),
     };
   };
 
@@ -1453,28 +1461,27 @@ export const useStore = create<StoreState>((set, get) => {
     // hand the next measurement a number the user typed for the previous one.
     setTool: (tool) => {
       if (tool !== 'select' && get().explode > 0) return; // no Move/Tape over an exploded view
-      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null, tapeNotice: null });
+      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null });
     },
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
     cancelGrab: () => set({ grabbed: null }),
 
-    setTapeAnchor: (point) => set({ tapeAnchor: point, tapeNotice: null }),
+    setTapeAnchor: (point) => set({ tapeAnchor: point }),
 
     // Nulls the anchor AND the axis — the axis lives exactly as long as the
     // anchor it locks (see the `tapeAxis` declaration). It does NOT null the
     // hover: the hover follows, but not from here. It is TapeTool's anchor
     // effect (its `useEffect` keyed on `anchor`) that sees the anchor go null
     // and nulls the latched hover in turn.
-    clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null, tapeNotice: null }),
+    clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null }),
 
-    setTapeHover: (point) => {
-      const old = get().tapeHover;
-      const same = old === point || (old !== null && point !== null && sameSnapPoint(old, point));
-      set(same ? { tapeHover: point } : { tapeHover: point, tapeNotice: null });
+    setTapeHover: (point) => set({ tapeHover: point }),
+    setTapeNotice: (text) => {
+      const { tapeAnchor, tapeHover, tapeAxis } = get();
+      set({ tapeNotice: text === null ? null : { text, anchor: tapeAnchor, hover: tapeHover, axis: tapeAxis } });
     },
-    setTapeNotice: (text) => set({ tapeNotice: text }),
     setHoveredDimension: (id) => set({ hoveredDimension: id }),
 
     setTapeTyped: (text) => set({ tapeTyped: text }),
@@ -1483,13 +1490,13 @@ export const useStore = create<StoreState>((set, get) => {
       // An explicit clear always lands — Escape's ladder calls it, and it must
       // work whether or not an anchor is still there.
       if (axis === null) {
-        set({ tapeAxis: null, tapeNotice: null });
+        set({ tapeAxis: null });
         return;
       }
       // A lock with no anchor names no ray. Refused here rather than in each
       // of the two keyboard handlers, so neither needs a guard of its own.
       if (!get().tapeAnchor) return;
-      set({ tapeAxis: get().tapeAxis === axis ? null : axis, tapeNotice: null });
+      set({ tapeAxis: get().tapeAxis === axis ? null : axis });
     },
 
     /**
@@ -1782,7 +1789,7 @@ export const useStore = create<StoreState>((set, get) => {
       const onDoomed = (p: SnapPoint | null) => { const b = p && heldBoard(p); return !!b && isCovered(b, doomed); };
       if (grabbed && isCovered(grabbed.owner.id, doomed)) set({ grabbed: null });
       if (onDoomed(tapeAnchor)) {
-        set({ tapeAnchor: null, tapeAxis: null, tapeNotice: null });
+        set({ tapeAnchor: null, tapeAxis: null });
       }
       if (onDoomed(tapeHover)) {
         set({ tapeHover: null });
@@ -2135,6 +2142,7 @@ export const useStore = create<StoreState>((set, get) => {
         tapeHover: null,
         tapeAxis: null,
         tapeNotice: null,
+        hoveredDimension: null,
         explode: 0,
         section: null,
         xray: false,
@@ -2915,6 +2923,7 @@ export const useStore = create<StoreState>((set, get) => {
     removeDimension: (id) => {
       if (readOnly()) return;
       if (!get().doc.dimensions.some((d) => d.id === id)) return;
+      if (get().hoveredDimension === id) set({ hoveredDimension: null });
       edit((doc) => ({ ...doc, dimensions: doc.dimensions.filter((d) => d.id !== id) }));
     },
 
@@ -3036,7 +3045,7 @@ export const useStore = create<StoreState>((set, get) => {
       // enumerated at `tapeHover`'s declaration, and defensible for the reason
       // they all share: the field it depends on is cleared blanket in the same
       // statement.
-      set({ tapeAnchor: null, tapeHover: null, tapeAxis: null, tapeNotice: null });
+      set({ tapeAnchor: null, tapeHover: null, tapeAxis: null });
       edit((doc) => ({ ...doc, guides: [] }));
     },
   };
