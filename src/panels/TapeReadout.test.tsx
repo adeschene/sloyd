@@ -234,3 +234,47 @@ describe('TapeReadout Shift+Enter steps the anchor (construction-lines 2, spec �
     expect(useStore.getState().tapeAnchor).toBeNull();
   });
 });
+
+describe('TapeReadout placed dimensions (spec §3)', () => {
+  const hintText = () => document.querySelector('.tape-readout-hint')!.textContent;
+  const mount = (n: number) => {
+    useStore.getState().replaceDocument(createDocument('T'));
+    useStore.getState().addBoard();
+    const pts = boardSnapPoints(worldParts(useStore.getState().doc)[0]!);
+    let pair: [typeof pts[number], typeof pts[number]] | null = null;
+    for (const a of pts) for (const b of pts) {
+      if (!pair && a.at.filter((v, i) => Math.abs(v - b.at[i]!) > 1e-9).length === n) pair = [a, b];
+    }
+    act(() => {
+      useStore.getState().setTool('tape');
+      useStore.getState().setTapeAnchor(pair![0]);
+      useStore.getState().setTapeHover(pair![1]);
+    });
+    render(<TapeReadout />);
+  };
+
+  it('the hint gains the D suffix for an aligned pair and not for an oblique one', () => {
+    mount(1);
+    expect(hintText()).toMatch(/ · D keeps it as a dimension$/);
+  });
+  it('no suffix for an oblique pair with no lock; a lock brings it back', () => {
+    mount(2);
+    expect(hintText()).not.toMatch(/D keeps it/);
+    act(() => { useStore.getState().setTapeAxis('x'); });
+    // Only when the pair differs on x.
+    const { tapeAnchor: a, tapeHover: b } = useStore.getState();
+    expect(hintText()!.includes('D keeps it')).toBe(Math.abs(a!.at[0] - b!.at[0]) > 1e-9);
+  });
+  it('no suffix once a distance is typed', async () => {
+    mount(1);
+    await userEvent.type(screen.getByLabelText('Guide distance from anchor'), '2');
+    expect(hintText()).not.toMatch(/D keeps it/);
+  });
+  it('a notice shows in the error slot and clears when the axis changes', () => {
+    mount(2);
+    act(() => { useStore.getState().setTapeNotice('Lock an axis (X, Y or Z) to keep a dimension.'); });
+    expect(screen.getByTestId('tape-readout-error')).toHaveTextContent('Lock an axis');
+    act(() => { useStore.getState().setTapeAxis('y'); });
+    expect(screen.queryByText('Lock an axis (X, Y or Z) to keep a dimension.')).toBeNull();
+  });
+});

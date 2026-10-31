@@ -2421,3 +2421,96 @@ describe('App keys on a guide selection (selectable guides, fu 591)', () => {
     expect(useStore.getState().doc.guides).toHaveLength(3);
   });
 });
+
+// Placed dimensions (spec §3): D in the Tape tool keeps the measurement.
+describe('App D keeps a dimension (placed-dimensions spec §3)', () => {
+  type P = ReturnType<typeof boardSnapPoints>[number];
+  // The pair of one board's snap points that differ on exactly `n` axes (n = 1: an axis-aligned edge).
+  const pairDiffering = (pts: P[], n: number): [P, P] => {
+    for (const a of pts) for (const b of pts) {
+      if (a.at.filter((v, i) => Math.abs(v - b.at[i]!) > 1e-9).length === n) return [a, b];
+    }
+    throw new Error('no pair');
+  };
+  const setup = async (n: number, tool: 'tape' | 'select' = 'tape') => {
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { useStore.getState().addBoard(); });
+    const [a, b] = pairDiffering(boardSnapPoints(worldParts(useStore.getState().doc)[0]!), n);
+    await act(async () => {
+      useStore.getState().setTool(tool);
+      useStore.getState().setTapeAnchor(a);
+      useStore.getState().setTapeHover(b);
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    return user;
+  };
+  const dims = () => useStore.getState().doc.dimensions;
+
+  it('keeps a dimension along the one axis the points differ on', async () => {
+    const user = await setup(1);
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(1);
+    const [a, b] = pairDiffering(boardSnapPoints(worldParts(useStore.getState().doc)[0]!), 1);
+    const i = [0, 1, 2].find((k) => Math.abs(a.at[k]! - b.at[k]!) > 1e-9)!;
+    expect(dims()[0]!.axis).toBe('xyz'[i]);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  it('an oblique pair refuses with the lock sentence, and the readout shows it', async () => {
+    const user = await setup(2);
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(0);
+    expect(screen.getByTestId('tape-readout-error')).toHaveTextContent('Lock an axis (X, Y or Z) to keep a dimension.');
+  });
+
+  it('the same pair after an axis lock keeps a dimension on that axis', async () => {
+    const user = await setup(2);
+    const { tapeAnchor: a, tapeHover: b } = useStore.getState();
+    const k = [0, 1, 2].find((i) => Math.abs(a!.at[i]! - b!.at[i]!) > 1e-9)!;
+    await user.keyboard('xyz'[k]!);
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(1);
+    expect(dims()[0]!.axis).toBe('xyz'[k]);
+  });
+
+  it('Ctrl+D keeps nothing', async () => {
+    const user = await setup(1);
+    await user.keyboard('{Control>}d{/Control}');
+    expect(dims()).toHaveLength(0);
+  });
+
+  it('keeps nothing while a dialog is open (modalOpen)', async () => {
+    const user = await setup(1);
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(0);
+  });
+
+  it('keeps nothing with the Select tool', async () => {
+    const user = await setup(1, 'select');
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(0);
+  });
+
+  // DIM_EPS at the D site: a leaning part's top corner and a guide-owned point under it with 1e-13 of noise on X.
+  it('a leaning part\'s corner and a point 10 below it (1e-13 off in X) keep a Y dimension', async () => {
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    const leg = createBoard({ id: 'leg', name: 'Leg', posture: 'upright', length: 18, width: 1.5, thickness: 1.5, lean: { x: 0.1, z: 0, face: 'width' } } as never);
+    await act(async () => { useStore.getState().replaceDocument({ ...createDocument('T'), boards: [leg] }); });
+    const pts = boardSnapPoints(worldParts(useStore.getState().doc)[0]!);
+    const top = pts.reduce((m, p) => (p.at[1] > m.at[1] ? p : m));
+    const under = { at: [top.at[0] + 1e-13, top.at[1] - 10, top.at[2]], kind: 'guide', owner: { type: 'guide', id: 'g1' } } as never;
+    await act(async () => {
+      useStore.getState().setTool('tape');
+      useStore.getState().setTapeAnchor(top);
+      useStore.getState().setTapeHover(under);
+    });
+    const user = userEvent.setup();
+    await user.keyboard('d');
+    expect(dims()).toHaveLength(1);
+    expect(dims()[0]!.axis).toBe('y');
+  });
+});
