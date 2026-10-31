@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, createDocument } from './document';
-import { boardSnapPoints, fromWorld, toWorld } from './snapPoints';
+import { boardSnapPoints, cutSnapPoints, fromWorld, snapPointsFor, toWorld } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import { setMirrored } from './treeOps';
 import { worldParts } from './tree';
@@ -57,8 +57,10 @@ describe('anchorFor / resolveAnchor round trip (spec §2.2)', () => {
       const parts = make();
       let n = 0;
       for (const b of parts) {
-        for (const p of boardSnapPoints(b)) {
-          const back = resolveAnchor(parts, anchorFor(parts, p));
+        for (const p of snapPointsFor(b)) {
+          const anchor = anchorFor(parts, p);
+          expect(anchor).not.toBeNull();
+          const back = resolveAnchor(parts, anchor!);
           expect(back, `${b.id} ${p.kind}`).not.toBeNull();
           expect(near(back!, p.at), `${b.id} ${p.kind} ${p.at} vs ${back}`).toBe(true);
           n += 1;
@@ -75,16 +77,38 @@ describe('lattice vs local', () => {
     const parts = [b];
     const pts = boardSnapPoints(b);
     expect(pts.length).toBe(26);
-    for (const p of pts) expect('frac' in anchorFor(parts, p)).toBe(true);
+    for (const p of pts) expect(anchorFor(parts, p)).toHaveProperty('frac');
   });
-  it("a cut's floor corner is a local anchor", () => {
-    const b = cutAndAngled();
-    const lattice = new Set(boardSnapPoints({ ...b, cuts: [], angleCuts: [] }).map((p) => p.at.join()));
-    const extra = boardSnapPoints(b).filter((p) => !lattice.has(p.at.join()));
-    expect(extra.length).toBeGreaterThan(0);
-    const floor = extra.find((p) => p.kind === 'corner')!;
-    expect(floor).toBeDefined();
-    expect('local' in anchorFor([b], floor)).toBe(true);
+  const cutBoard = (offset: number): Board => createBoard({
+    id: 'cb', length: 10, width: 4, thickness: 1.5, position: [1, 2, 3],
+    cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 }],
+  });
+  it("a cut's floor corner is a local anchor at the cut floor", () => {
+    const b = cutBoard(1);
+    const corners = cutSnapPoints(b).filter((p) => p.kind === 'corner');
+    expect(corners.length).toBeGreaterThan(0);
+    // depth 0.5 from max on a 1.5 board: the floor is at thickness 1.0 (by hand).
+    const floor = corners.filter((p) => Math.abs(fromWorld(b, p.at).thickness - 1) < 1e-9);
+    expect(floor.length).toBeGreaterThan(0);
+    for (const p of floor) {
+      const a = anchorFor([b], p)!;
+      expect(a).toHaveProperty('local');
+      expect((a as { local: { thickness: number } }).local.thickness).toBeCloseTo(1, 9);
+    }
+  });
+  it('a feature point 1e-6 from a lattice value stays local (the tolerance is 1e-9)', () => {
+    const b = cutBoard(1e-6);
+    const near1e6 = cutSnapPoints(b).filter((p) => {
+      const l = fromWorld(b, p.at);
+      // the mouth corner: width and thickness sit on the lattice (0, 1.5); only length is 1e-6 off it
+      return Math.abs(l.length - 1e-6) < 1e-9 && Math.abs(l.width) < 1e-12 && Math.abs(l.thickness - 1.5) < 1e-9;
+    });
+    expect(near1e6.length).toBeGreaterThan(0);
+    for (const p of near1e6) expect(anchorFor([b], p)).toHaveProperty('local');
+  });
+  it('a board-owned point whose part is missing yields null, not { at }', () => {
+    const b = cutBoard(1);
+    expect(anchorFor([], boardSnapPoints(b)[0]!)).toBeNull();
   });
   it('a hole centred on a face anchors as the face centre (frac)', () => {
     const b = createBoard({
@@ -107,8 +131,8 @@ describe('resize (spec §2.1)', () => {
       const l = fromWorld(b, p.at);
       return Math.abs(l.length - b.length) < 1e-9 && Math.abs(l.width) < 1e-9 && Math.abs(l.thickness) < 1e-9;
     })!;
-    const fa = anchorFor([b], maxCorner);
-    const la = anchorFor([b], local);
+    const fa = anchorFor([b], maxCorner)!;
+    const la = anchorFor([b], local)!;
     expect(fa).toHaveProperty('frac');
     expect(la).toHaveProperty('local');
     const bigger = { ...b, length: b.length + 6 };
@@ -119,7 +143,6 @@ describe('resize (spec §2.1)', () => {
     expect(near(delta, expected)).toBe(true);
     expect(Math.hypot(...delta)).toBeCloseTo(6, 9);
     const loc = (la as { local: Record<string, number> }).local;
-    expect(fromWorld(bigger, resolveAnchor([bigger], la)!)).toEqual(expect.objectContaining(loc));
     expect(near(Object.values(fromWorld(bigger, resolveAnchor([bigger], la)!)), Object.values(loc))).toBe(true);
   });
 });

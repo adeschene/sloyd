@@ -40,13 +40,13 @@ export function resolveAnchor(parts: readonly Board[], a: DimAnchor): [number, n
 /**
  * The anchor a snap point keeps (spec §2.2). A board-owned point becomes `frac` when every part-space coordinate is a
  * lattice value (0, ½ or all of the geometry size, within `DIM_EPS`), else `local`; an offset point, a guide-owned
- * point (crossing, line-face hit included) and a point whose part is absent are fixed in the world as `{ at }`.
+ * point (crossing, line-face hit included) are fixed in the world as `{ at }`. Callers pass `worldParts(doc)`; `null`
+ * means a board-owned point whose part is not in `parts`, and the caller refuses (never silently fixed in the world).
  */
-export function anchorFor(parts: readonly Board[], p: SnapPoint): DimAnchor {
-  const fixed: DimAnchor = { at: [p.at[0], p.at[1], p.at[2]] };
-  if (p.kind === 'offset' || p.owner.type !== 'board') return fixed;
+export function anchorFor(parts: readonly Board[], p: SnapPoint): DimAnchor | null {
+  if (p.kind === 'offset' || p.owner.type !== 'board') return { at: [p.at[0], p.at[1], p.at[2]] };
   const board = parts.find((b) => b.id === p.owner.id);
-  if (!board) return fixed;
+  if (!board) return null;
   const local = fromWorld(board, p.at);
   const g = geometryBoard(board);
   const frac = {} as Record<Dimension, DimFrac>;
