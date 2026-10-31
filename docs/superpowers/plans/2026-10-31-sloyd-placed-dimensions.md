@@ -48,8 +48,7 @@ deleted, and printed on the Plans sheet's piece trio. Its value is always comput
    corner into a `local` anchor, and must not make a vertical dimension on a splayed leg read as oblique. Owned by
    Tasks 2 and 4 (tests below).
 2. **A dimension whose anchor is a hidden assembly's part, and a dimension on a part inside a copied assembly.**
-   - A hidden assembly's part: the viewport hides the dimension when the PART is not visible (by the same helper the
-     viewport uses for parts).
+   - A hidden assembly's part: the viewport hides the dimension when the PART is not visible (by `store/visibility.ts` `visibleBoards`, as the viewport does for parts).
    - A copied assembly: the path names one copy only, so the dimension does not follow the other copies.
    - Owned by Task 5 (the visibility test) and Task 2 (the path test).
 3. **Undo across delete.** Delete a part, then undo: the dimension re-attaches with the same value. Owned by Task 3.
