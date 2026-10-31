@@ -8703,6 +8703,7 @@ key only on `moved.length > 0` or `CAM_JOINT_TWO_FITS`. When the planner adopts 
 though A's pair is reused. Nothing wrong is written. The remedy would be a plan field saying a fit was attempted on refusals. Cost if left: a
 user who moved a shelf into a fault sees the fault sentence but not that the joint no longer lines up. Fit spec Amended R9.
 **Status:** open (ask first; needs the user's ruling).
+**Status:** open (ask first): the user approved the behaviour as built (Amended R9, 2026-10-31); a remedy is a new request.
 
 **614. With one fitting the shifted-set test rules nothing out, and nothing caps the distance (ask first).** With one missing bore (the default
 on ends under 150 mm), any loose 5 x 12 mm bore anywhere on B's facing face is adopted, the nearest first. So a Cam lock never bored into its
@@ -8710,3 +8711,4 @@ side but facing one stray bore (e.g. from a deleted shelf 15" away) is offered F
 up". This partly undoes section 4.2's "never joined must not nag". Cheap remedy if wanted: a distance cap (e.g. half the shelf's width along
 the end). Cost if left: an unrelated bore moved (visible on the button and undoable). Fit spec Amended R10.
 **Status:** open (ask first; needs the user's ruling).
+**Status:** open (ask first): the user approved the behaviour as built (Amended R10, 2026-10-31); a remedy is a new request.

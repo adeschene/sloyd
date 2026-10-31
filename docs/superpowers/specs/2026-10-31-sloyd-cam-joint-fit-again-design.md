@@ -214,7 +214,7 @@ reported in the plan as ids or as a count beyond `moved` (the tests need ids, so
 ## Amended (build)
 
 Recorded by the build (Task 5, 2026-10-31), from the SDD ledger (`.superpowers/sdd/2026-10-31-sloyd-cam-joint-fit-again/`).
-**Awaiting the user's approval.** Each ruling changes or settles text above.
+**Approved by the user 2026-10-31, all rulings R1–R10** ("approve all the rulings"): R9 and R10 approved as built, left as is; their remedies stay open as fu 613 and 614 (ask first). Each ruling changes or settles text above.
 
 **Rulings**
 1. **R1 (§9): `moved` is ids (`string[]`), in B's list order**, not a count. Cost if wrong: a type narrowed to a number and the tests reworked.
