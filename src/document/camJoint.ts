@@ -448,3 +448,32 @@ export function defaultCamFrom(doc: SloydDocument, ids: [string, string]): CutFr
   const found = partsOf(doc, ids);
   return typeof found === 'string' ? null : defaultFrom(found.a);
 }
+
+/**
+ * The joints at `id`'s ends that no longer line up (fit-again spec §4.2, fu 602), in world order: for every other world
+ * part `y` whose box butts one of `id`'s ends (`candidatesFrom` with `id` as A, the cheap test, run first), the plan of
+ * `[id, y]` — kept when it MOVES rows (refusal null) or refuses `CAM_JOINT_TWO_FITS` (that refusal). A plan that would only
+ * ADD bores (a Cam lock whose side was never bored) is not stale and names nothing. A throw from one `y` is logged and
+ * skipped (R14). A leaning `id` returns `[]` before any box test (its box is pre-lean, inv 57 R2).
+ */
+export function camJointStaleFits(doc: SloydDocument, id: string): { b: string; refusal: string | null }[] {
+  const world = worldParts(doc);
+  const a = world.find((x) => x.id === id);
+  if (!a || leans(a)) return [];
+  const names = displayNames(doc);
+  const out: { b: string; refusal: string | null }[] = [];
+  for (const y of world) {
+    if (y.id === id || candidatesFrom(a, y).length === 0) continue;
+    try {
+      const plan = camJointPlan(doc, [id, y.id], null, null);
+      if (typeof plan !== 'string') {
+        if (plan.moved.length > 0) out.push({ b: y.id, refusal: null });
+      } else if (plan === CAM_JOINT_TWO_FITS(names.get(y.id) ?? y.name)) {
+        out.push({ b: y.id, refusal: plan });
+      }
+    } catch (e) {
+      console.error('camJointStaleFits: the planner threw', e);
+    }
+  }
+  return out;
+}

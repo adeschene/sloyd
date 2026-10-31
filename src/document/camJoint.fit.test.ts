@@ -12,7 +12,7 @@ import { mapWorld } from './treeEdit';
 import { linkByRole } from './roleLinks';
 import { SHARED_KEYS } from './links';
 import { carcass } from './camJointFixtures';
-import { camJointPlan, type CamJointPlan } from './camJoint';
+import { camJointPlan, camJointStaleFits, type CamJointPlan } from './camJoint';
 import { CAM_JOINT_ALREADY, CAM_JOINT_BARE_FACE, CAM_JOINT_TWO_FITS, camJointMovedNote } from './camJointText';
 
 // Fit the cam-and-bolt joint again (fu 602; fit-again spec §3): B's loose bores, the nearest shifted set, moved in place.
@@ -379,5 +379,40 @@ describe('Fit again through links (spec §3.1, §3.3)', () => {
     expect(camJointPlan(joinedByHand, [shelf, left], null, null)).toBe(CAM_JOINT_ALREADY('Shelf', 'Left side'));
     const moved = movedY(joinedByHand, shelf, 2);
     expect(camJointPlan(moved, [shelf, left], null, null)).toBe(CAM_JOINT_BARE_FACE(nameOf(moved, right)));
+  });
+});
+
+describe('camJointStaleFits (fit-again spec §4.2)', () => {
+  it('the moved shelf names the left side', () => {
+    const { doc, left, shelf } = joined();
+    expect(camJointStaleFits(movedY(doc, shelf, 2), shelf)).toEqual([{ b: left, refusal: null }]);
+  });
+
+  it('a never-bored Cam lock names nothing (a plan that only ADDS bores is not stale)', () => {
+    const { doc, left, shelf } = joined();
+    const stripped = patched(doc, left, (b) => ({ ...b, holes: [] }));
+    const p = planOf(stripped, [shelf, left]);
+    expect(p.reused.a).toBe(true); // the shelf's pair is there: the plan is an add of the side's bores
+    expect(p.moved).toEqual([]);
+    expect(camJointStaleFits(stripped, shelf)).toEqual([]);
+  });
+
+  it('a fitted joint names nothing', () => {
+    const { doc, shelf } = joined();
+    expect(camJointStaleFits(doc, shelf)).toEqual([]);
+  });
+
+  it('a tie is returned with its refusal', () => {
+    const { doc: d, left, shelf, ids } = joined();
+    const l = part(d, left);
+    const copies = ids.map((id, i) => {
+      const r = l.holes.find((x) => x.id === id)!;
+      const [m, f] = boreEnds(l, r);
+      const mouth: V3 = [m[0], m[1] + 2, m[2]];
+      const u: V3 = [f[0] - m[0], f[1] - m[1], f[2] - m[2]];
+      return { ...boreRow(l, r.face, r.from, mouth, u, mm(5), mm(12)), id: `copy${i}` };
+    });
+    const doc = movedY(patched(d, left, (b) => ({ ...b, holes: [...b.holes, ...copies] })), shelf, 1);
+    expect(camJointStaleFits(doc, shelf)).toEqual([{ b: left, refusal: CAM_JOINT_TWO_FITS('Left side') }]);
   });
 });

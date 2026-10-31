@@ -15,7 +15,7 @@ import { RoundTenons } from './RoundTenons';
 import { Lean } from './Lean';
 import { BoxJointsSection } from './BoxJoints';
 import { DovetailsPart, DovetailsSection } from './Dovetails';
-import { CamJointSection } from './CamJoint';
+import { CamJointReadout, CamJointSection } from './CamJoint';
 import { StretcherReadout, StretcherSection } from './Stretcher';
 import type { AddedStretcher } from './Stretcher';
 import { Curves } from './Curves';
@@ -835,6 +835,7 @@ export function Properties({ library = [], onNewMaterial, onNewBandType, onNewHa
       <RoundTenons board={board} />
       <DovetailsPart board={board} />
       <StretcherReadout board={board} notes={addedNotes} />
+      <CamJointReadout board={board} />
       <Curves board={board} />
       <Profiles board={board} />
       <Banding boards={[board]} onNewBandType={onNewBandType} />

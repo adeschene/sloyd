@@ -2,9 +2,12 @@ import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { displayNames, worldParts } from '../document/document';
 import type { CutFrom } from '../document/document';
-import { camFaceOptions, camJointPlan, defaultCamFrom, defaultCamJointCount, findCamJoint } from '../document/camJoint';
 import {
-  ADD_CAM_JOINT, CAM_FACE_LABEL, CAM_JOINT_ALREADY, CAM_JOINT_HEADING, FITTINGS_LABEL, camJointLine, camJointReused,
+  camFaceOptions, camJointPlan, camJointStaleFits, defaultCamFrom, defaultCamJointCount, findCamJoint,
+} from '../document/camJoint';
+import {
+  ADD_CAM_JOINT, CAM_FACE_LABEL, CAM_JOINT_ALREADY, CAM_JOINT_HEADING, CAM_JOINT_TWO_FITS, FITTINGS_LABEL, FIT_CAM_JOINT,
+  camJointLine, camJointReused, camJointStale, camJointStaleNote,
 } from '../document/camJointText';
 
 /**
@@ -65,7 +68,10 @@ export function CamJointSection({ ids }: { ids: [string, string] }) {
       const plan = camJointPlan(doc, [a, b], count, from);
       const line = camJointLine(nameOf(found.a), found.end, nameOf(found.b));
       const already = typeof plan === 'string' && plan === CAM_JOINT_ALREADY(nameOf(found.a), nameOf(found.b));
-      return { line, plan, options, from, fallback, already };
+      // A fit (fu 602): B's bores move onto A's bolts; a tie still says what it would have done (spec §4.1).
+      const fit = typeof plan === 'string' ? plan === CAM_JOINT_TWO_FITS(nameOf(found.b)) : plan.moved.length > 0;
+      const stale = fit ? camJointStale(nameOf(found.a), nameOf(found.b)) : null;
+      return { line, plan, options, from, fallback, already, stale };
     } catch (e) {
       console.error('CamJointSection: the planner threw', e);
       return null;
@@ -90,13 +96,14 @@ export function CamJointSection({ ids }: { ids: [string, string] }) {
       </>
     );
   }
-  const { line, plan, options, from, fallback, already } = view;
+  const { line, plan, options, from, fallback, already, stale } = view;
   const reused = typeof plan !== 'string' && plan.reused.a;
   const ok = typeof plan !== 'string';
   return (
     <>
       <h3>{CAM_JOINT_HEADING}</h3>
       <p className="field-note">{line}</p>
+      {stale && <p className="field-note">{stale}</p>}
       {!reused && !already && (
         <div className="field-grid field-grid-2">
           {options && (
@@ -113,8 +120,38 @@ export function CamJointSection({ ids }: { ids: [string, string] }) {
       )}
       {reused && <p className="field-note">{camJointReused(plan.fittings)}</p>}
       {!ok && <p className="field-note">{plan}</p>}
-      <button className="add-cut" disabled={!ok} onClick={add}>{ADD_CAM_JOINT}</button>
+      <button className="add-cut" disabled={!ok} onClick={add}>{stale ? FIT_CAM_JOINT : ADD_CAM_JOINT}</button>
       {error && <p className="field-error" role="alert">{error}</p>}
+      {notes.map((n) => <p key={n} className="field-note">{n}</p>)}
+    </>
+  );
+}
+
+/**
+ * A part's Cam-and-bolt joint readout (fit-again spec §4.2, fu 602), in the single-part panel: one note per part whose
+ * joint with this part's cam locks no longer lines up (`camJointStaleFits`); nothing otherwise, and nothing for a Cam lock
+ * whose side was never bored. The memo's signature is every world part, as ONE string (a primitive, inv 43): a part
+ * butting this one's ends may be any part. A throw past the planner's own catch is logged and shows nothing (R14).
+ */
+export function CamJointReadout({ board }: { board: { id: string } }) {
+  const units = useStore((s) => s.doc.units);
+  const signature = useStore((s) => JSON.stringify(worldParts(s.doc)));
+  const id = board.id;
+  const notes = useMemo(() => {
+    try {
+      const doc = useStore.getState().doc;
+      const names = displayNames(doc);
+      return camJointStaleFits(doc, id).map((f) => camJointStaleNote(names.get(f.b) ?? f.b));
+    } catch (e) {
+      console.error('CamJointReadout: the planner threw', e);
+      return [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, units, id]);
+  if (notes.length === 0) return null;
+  return (
+    <>
+      <h3>{CAM_JOINT_HEADING}</h3>
       {notes.map((n) => <p key={n} className="field-note">{n}</p>)}
     </>
   );
