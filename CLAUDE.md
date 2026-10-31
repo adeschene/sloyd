@@ -35,7 +35,7 @@ What it does today is listed round by round in `docs/rounds.md`.
 
 ## Status
 
-- **Production: `3cbdb5dd`, bundle `index-dagGyDyx.js`, CSS `index-Dsj9hJNc.css`, SCHEMA 33** (placed dimensions, fu 253;
+- **Production: `3e1d59de`, bundle `index-qqRSerpk.js`, CSS `index-Dsj9hJNc.css`, SCHEMA 33** (placed dimensions turn with their part, fu 253 ruling 17;
   deployed 2026-10-31; earlier rounds: `docs/rounds.md`).
 - **Rollback:** the nearest refusing boundary is `4635ae34` (`index-SdbOfA5n.js`, schema 32): it refuses every project saved at 33 —
   export first. Every older boundary: the table in `docs/rounds.md`; runbook: `DEPLOYMENT.local.md`.
