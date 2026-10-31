@@ -19,6 +19,11 @@ const TICK = 0.5;
 // Hoisted: nothing allocated per render may reach drei (its Line rebuilds geometry on a new `points`).
 const noRaycast = () => null;
 const COMMON = { depthTest: false, depthWrite: false, transparent: true, toneMapped: false, renderOrder: 9, raycast: noRaycast } as const;
+/** The labels' z-index range. drei's default (`[16777271, 0]`) puts every label above the whole app, and the viewport makes
+ *  no stacking context to hold it, so the labels showed over the Plans sheet and any dialog or menu (browser check 8). Kept
+ *  at the bottom of the root context: the viewport's own controls (z-index 2) and every overlay sit above them. Hoisted, as
+ *  COMMON is. */
+const LABEL_Z: [number, number] = [1, 0];
 type P = [number, number, number];
 
 interface Drawn {
@@ -86,7 +91,7 @@ export function PlacedDims() {
             <Line points={d.seg} lineWidth={width} color={color} {...COMMON} />
             {d.ticks.map((t, k) => <Line key={k} points={t} lineWidth={width} color={color} {...COMMON} />)}
             {d.leg && <Line points={d.legPts} lineWidth={on ? 2 : 1} dashed dashSize={0.4} gapSize={0.4} color={color} {...COMMON} />}
-            <Html position={d.mid} center className={on ? 'dim-label dim-label-hover' : 'dim-label'} style={{ pointerEvents: 'none' }}>
+            <Html position={d.mid} center zIndexRange={LABEL_Z} className={on ? 'dim-label dim-label-hover' : 'dim-label'} style={{ pointerEvents: 'none' }}>
               {formatLength(d.value, doc.units)}
             </Html>
           </group>
