@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import type { Board, HoleRow, SloydDocument } from './types';
+import type { Board, HoleRow, ShapedBoard, SloydDocument } from './types';
 import type { Units } from '../units/length';
 import type { V3 } from './angleCuts';
-import { createBoard, migrateDocument } from './document';
+import { createBoard, createDocument, migrateDocument } from './document';
 import { defaultCamLock, holeInstances, mm } from './holes';
 import { camPairRows } from './camBolt';
 import { boreAlongAxis, boreEnds, boreRow, type WorldAxis } from './legSockets';
 import { toWorld } from './snapPoints';
 import { displayNames, worldParts } from './tree';
 import { mapWorld } from './treeEdit';
+import { linkByRole } from './roleLinks';
+import { SHARED_KEYS } from './links';
 import { carcass } from './camJointFixtures';
 import { camJointPlan, type CamJointPlan } from './camJoint';
-import { CAM_JOINT_ALREADY, CAM_JOINT_TWO_FITS } from './camJointText';
+import { CAM_JOINT_ALREADY, CAM_JOINT_BARE_FACE, CAM_JOINT_TWO_FITS, camJointMovedNote } from './camJointText';
 
 // Fit the cam-and-bolt joint again (fu 602; fit-again spec §3): B's loose bores, the nearest shifted set, moved in place.
 // Local helpers copied from `camJoint.plan.test.ts` (never import a test module).
@@ -270,5 +272,112 @@ describe('Fit again: what is adopted and what never is (spec §3.1)', () => {
     const m0 = JSON.stringify(moved);
     planOf(moved, [shelf, left]);
     expect(JSON.stringify(moved)).toBe(m0);
+  });
+});
+
+/**
+ * Copied from `camJoint.plan.test.ts` (ruling R12's fixture), with one parameter added: `rightY`, the right side's y. A 3"
+ * deep carcass: one fitting, centred. The sides are one Shape: the right a MIRRORED user (turn 270 + mirrored nets a
+ * reflection across X), chiral by a hole near the front of the left's inner face. At `rightY` 0 a left row's copy on the
+ * right keeps its y and z, so it lies on the same world line along X.
+ */
+function mirroredCarcass(rightY = 0): SloydDocument {
+  const left = createBoard({
+    id: 'left', name: 'Left side', posture: 'upright', rotation: 90, length: 30, width: 3, thickness: 0.75, position: [0, 0, 0],
+  });
+  const probe = createBoard({ ...left, holes: [] });
+  const inner = (['min', 'max'] as const).find((from) => {
+    const h = holeInstances(probe, { id: 'x', face: 'thickness', from, diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'min', station: 25, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.5 })[0]!;
+    return toWorld(probe, pt(h.centre))[0] === 0.75;
+  })!;
+  const chiral: HoleRow = {
+    id: 'chiral', face: 'thickness', from: inner, diameter: 0.25, depth: 0.25, along: 'length', alongFrom: 'min', station: 25,
+    count: 1, pitch: 0, acrossFrom: 'min', inset: 0.5,
+  };
+  const src = { ...left, holes: [chiral] };
+  const shape: Record<string, unknown> = { id: 's1' };
+  for (const k of SHARED_KEYS) if (k in src) shape[k] = (src as unknown as Record<string, unknown>)[k];
+  const user = (id: string, name: string, x: number, y: number, rotation: 90 | 270, mirrored: boolean): ShapedBoard => ({
+    id, name, position: [x, y, 0], rotation, shape: 's1', ...(mirrored ? { mirrored: true as const } : {}),
+  } as ShapedBoard);
+  const shelf = createBoard({
+    id: 'shelf', name: 'Shelf', posture: 'flat', rotation: 0, length: 22.5, width: 3, thickness: 0.75, position: [0.75, 10, 0],
+  });
+  return migrateDocument({
+    ...createDocument('Mirrored'), shapes: [shape as never],
+    boards: [user('left', 'Left side', 0, 0, 90, false), user('right', 'Right side', 23.25, rightY, 270, true), shelf],
+  });
+}
+
+/** The world bolt axes of every whole cam pair on `x`. */
+const boltsOf = (x: Board) => camPairRows(x).flatMap((p) => boltAxes(x, p.bolt));
+
+describe('Fit again through links (spec §3.1, §3.3)', () => {
+  it('mirrored linked sides, one centred fitting, both ends joined, shelf moved up 2": fitting the left moves the shared row; the right then lines up (CAM_JOINT_ALREADY)', () => {
+    const doc0 = mirroredCarcass();
+    const one = apply(doc0, planOf(doc0, ['shelf', 'left']));
+    const ids = added(part(doc0, 'left').holes, part(one, 'left').holes).map((r) => r.id);
+    expect(ids).toHaveLength(1);
+    const both = apply(one, planOf(one, ['shelf', 'right']));
+    const moved = movedY(both, 'shelf', 2);
+    const p = planOf(moved, ['shelf', 'left']);
+    expect(p.fittings).toBe(1);
+    expect(p.moved).toHaveLength(p.fittings);
+    // The right side's holes change only by the moved row: the moved note, never "got these bores too".
+    expect(p.notes).toEqual([camJointMovedNote('Right side')]);
+    const next = expectFitted(moved, p, ids);
+    expect(camJointPlan(next, ['shelf', 'right'], null, null)).toBe(CAM_JOINT_ALREADY('Shelf', 'Right side'));
+  });
+
+  it('a row coaxial with a bolt only on a link co-user is never loose, even when nearer', () => {
+    // Adjusted from the brief (see the task report): `boreAlongAxis` is a LINE test and the plain mirrored fixture keeps a
+    // copy's y and z, so the left's copy of shelf 2's bore would lie on shelf 2's bolt line too and be judged non-loose on
+    // the left alone. The right side is raised 1/4" so a copy sits 1/4" off its original in y: still against its shelf
+    // (3/4" thick) for ruling R18, and coaxial with shelf 2's bolt ONLY on the right.
+    const d0 = mirroredCarcass(0.25);
+    const shelf2 = createBoard({ ...part(d0, 'shelf'), holes: [], id: 'shelf2', name: 'Shelf 2', position: [0.75, 20, 0] });
+    let doc = migrateDocument({ ...d0, boards: [...d0.boards, shelf2] });
+    const before = part(doc, 'left').holes;
+    doc = apply(doc, planOf(doc, ['shelf', 'left']));
+    const [own] = added(before, part(doc, 'left').holes).map((r) => r.id);
+    const mid = part(doc, 'left').holes;
+    doc = apply(doc, planOf(doc, ['shelf2', 'right']));
+    const [theirs] = added(mid, part(doc, 'left').holes).map((r) => r.id);
+    expect(own).toBeDefined();
+    expect(theirs).toBeDefined();
+    // Shelf moved to y 19: its new axis at y 19.375; shelf 2's shared row on the left at 20.125 (3/4" off), its own at
+    // 10.375 (9" off).
+    const moved = movedY(doc, 'shelf', 9);
+    const l = part(moved, 'left');
+    const r = part(moved, 'right');
+    const s2 = part(moved, 'shelf2');
+    // The premise: on the LEFT alone shelf 2's row lines up with no bolt; on the RIGHT it lines up with shelf 2's.
+    const all = worldParts(moved).flatMap(boltsOf);
+    expect(all.some((axis) => boreAlongAxis(l, l.holes.find((x) => x.id === theirs)!, axis))).toBe(false);
+    expect(boltsOf(s2).some((axis) => boreAlongAxis(r, r.holes.find((x) => x.id === theirs)!, axis))).toBe(true);
+    const p = planOf(moved, ['shelf', 'left']);
+    expect(p.moved).toEqual([own]);
+    // R18 passes: the moved row's right-side copy opens against the shelf.
+    expect(p.notes).toEqual([camJointMovedNote('Right side')]);
+    expect(writeOf(p, 'left').holes.find((x) => x.id === theirs)).toEqual(l.holes.find((x) => x.id === theirs));
+    expectFitted(moved, p, [own!]);
+  });
+
+  it('plain-linked sides, R18 on a moved row: its copy on the right would open onto a bare face, CAM_JOINT_BARE_FACE', () => {
+    // R18 already refuses the original join on plain-linked sides, so the joined state is built by hand: the unlinked
+    // plan's rows written directly through `mapWorld` (lowered into the Shape, so the right carries copies on its
+    // OUTSIDE face). Then the shelf moves up 2" and the fit moves the shared rows. NB: were the fit not adopted, the new
+    // rows would refuse with the same sentence; the mutation "R18 checks only new ids" turning this green is what shows
+    // the fit IS adopted and R18 judges the moved rows.
+    const { doc: d0, left, right, shelf } = carcass();
+    const p0 = planOf(d0, [shelf, left]);
+    const linked = linkByRole(d0, new Map([[left, 'side'], [right, 'side']]));
+    expect(part(linked, left).shape).toBe(part(linked, right).shape);
+    expect(part(linked, right).mirrored).toBeUndefined();
+    const joinedByHand = mapWorld(linked, (ws) => ws.map((x) => (x.id === shelf || x.id === left ? { ...x, holes: writeOf(p0, x.id).holes } : x)));
+    expect(part(joinedByHand, right).holes).toHaveLength(2);
+    expect(camJointPlan(joinedByHand, [shelf, left], null, null)).toBe(CAM_JOINT_ALREADY('Shelf', 'Left side'));
+    const moved = movedY(joinedByHand, shelf, 2);
+    expect(camJointPlan(moved, [shelf, left], null, null)).toBe(CAM_JOINT_BARE_FACE(nameOf(moved, right)));
   });
 });

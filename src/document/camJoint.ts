@@ -1,7 +1,7 @@
 import type { Board, CutFrom, Dimension, HoleRow, ProfileCut, ProfileSide, SloydDocument } from './types';
 import type { V3 } from './angleCuts';
 import { axisDimensions, boardExtents, endFacing, type Bounds } from './geometry';
-import { broadFace, defaultCamLock, holeInstances, mm } from './holes';
+import { broadFace, defaultCamLock, holeInstances, mm, sameHoleRow } from './holes';
 import { camPairRows, camPartners, camRole } from './camBolt';
 import { holeFaults } from './holeFaults';
 import { socketFaultWords } from './holeText';
@@ -23,7 +23,7 @@ import {
   CAM_JOINT_ALREADY, CAM_JOINT_BARE_FACE, CAM_JOINT_CONTAINERS, CAM_JOINT_COUNT, CAM_JOINT_END_FEATURE, CAM_JOINT_LEAN,
   CAM_JOINT_MIRRORED, CAM_JOINT_NARROW, CAM_JOINT_NONE, CAM_JOINT_ON_EDGE, CAM_JOINT_PARTIAL, CAM_JOINT_SAME_PART,
   CAM_JOINT_THIN, CAM_JOINT_TWO_FITS, CAM_JOINT_TWO_LOCKS,
-  camFaceWord, camJointFaulted, camJointLinkNote, type CamEndFeature,
+  camFaceWord, camJointFaulted, camJointLinkNote, camJointMovedNote, type CamEndFeature,
 } from './camJointText';
 
 /**
@@ -179,7 +179,8 @@ export interface CamJointPlan {
    * through `mapWorld`, which lowers it to the Shape or the stored part (and through a mirrored user's own flag).
    */
   writes: { id: string; holes: HoleRow[] }[];
-  /** One `camJointLinkNote` per OTHER world part (not A or B) whose resolved holes gain a row, world order. */
+  /** One note per OTHER world part (not A or B) whose resolved holes change, world order: `camJointLinkNote` when they
+   *  gain a row, else `camJointMovedNote` (they change only by rows a fit moved; fu 602). */
   notes: string[];
 }
 
@@ -321,8 +322,8 @@ function fitOf(doc: SloydDocument, b: Board, planned: Omit<HoleRow, 'id'>[], mis
  * ruling R17) and A at 1/2" or thinner (`CAM_JOINT_THIN`, `defaultCamLock`'s own); everything already there
  * (`CAM_JOINT_ALREADY`); two equally near sets of loose bores to fit (`CAM_JOINT_TWO_FITS`, below); then the faults
  * (check 8): A's new rows judged together (the pair's exemption applies), then B's moved and new rows together, in B's list
- * order, with `camPairs: false` (a B bore is never a pair) — `camJointFaulted`; last, on the trial write, a bore of B's
- * reaching another part through its link that would open against no part (`CAM_JOINT_BARE_FACE`, ruling R18).
+ * order, with `camPairs: false` (a B bore is never a pair) — `camJointFaulted`; last, on the trial write, a new or moved
+ * bore of B's reaching another part through its link that would open against no part (`CAM_JOINT_BARE_FACE`, ruling R18).
  * Tilt and head checks are vacuous: every row made here is square (thrown otherwise) and headless.
  *
  * Fit again (fu 602; inv 50): when A's pair is REUSED and some planned B bores are missing, B's LOOSE bores (lining up with
@@ -393,19 +394,25 @@ export function camJointPlan(doc: SloydDocument, ids: [string, string], count: n
   const before = new Map(worldParts(doc).map((x) => [x.id, x]));
   // Ruling R18: B's bores reaching ANOTHER part through its link or copy must open against some part, as B's open against
   // A. A plain (not mirrored) link of a carcass's sides lands them on the other side's outside face. Only B's bores, only
-  // on parts other than the two selected: A's rows reaching a linked shelf are its own whole cam lock.
-  const bIds = new Set(bRows.map((r) => r.id));
+  // on parts other than the two selected: A's rows reaching a linked shelf are its own whole cam lock. A MOVED row (Fit
+  // again, fu 602) is judged as a new one: by value, the store's `newRows` rule — skipped only when x's row of that id is
+  // unchanged (`sameHoleRow`).
+  const bIds = new Set([...bRows.map((r) => r.id), ...moved]);
   for (const x of after) {
     if (x.id === a.id || x.id === b.id) continue;
-    const old = new Set((before.get(x.id)?.holes ?? []).map((r) => r.id));
+    const old = before.get(x.id)?.holes ?? [];
     for (const r of x.holes) {
-      if (!bIds.has(r.id) || old.has(r.id)) continue;
+      if (!bIds.has(r.id) || old.some((o) => o.id === r.id && sameHoleRow(o, r))) continue;
       const [mouth] = boreEnds(x, r);
       if (!after.some((y) => y.id !== x.id && against(mouth, partBounds(y)))) return CAM_JOINT_BARE_FACE(nameOf(x));
     }
   }
+  // One note per part: a part that gained a row gets the link note, even when a row of it also moved.
   const notes = after.filter((x) => x.id !== a.id && x.id !== b.id && JSON.stringify(x.holes) !== JSON.stringify(before.get(x.id)?.holes))
-    .map((x) => camJointLinkNote(nameOf(x)));
+    .map((x) => {
+      const old = new Set((before.get(x.id)?.holes ?? []).map((r) => r.id));
+      return x.holes.some((r) => !old.has(r.id)) ? camJointLinkNote(nameOf(x)) : camJointMovedNote(nameOf(x));
+    });
   return {
     joint, fittings: axes.length, camFrom: pair.cam.from, reused: { a: aRows.length === 0, b: planned.length - missing.length },
     moved, writes, notes,

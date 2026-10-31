@@ -54,6 +54,8 @@ export const CAM_JOINT_BARE_FACE = (part: string) =>
   `${part} would get a bore through its link that opens onto a bare face — make the link a mirrored pair, or unlink ${part}, first.`;
 /** One line per OTHER part that received a row through its link (a Shape's other user, a definition's other placement). */
 export const camJointLinkNote = (part: string) => `${part} got these bores too, through its link.`;
+/** One line per OTHER part whose holes changed only by rows a fit MOVED through its link (fit-again spec §3.3, fu 602). */
+export const camJointMovedNote = (part: string) => `${part}'s bores moved there too, through its link.`;
 
 /** The panel's heading, fields and button (spec §4). */
 export const CAM_JOINT_HEADING = 'Cam-and-bolt joint';
